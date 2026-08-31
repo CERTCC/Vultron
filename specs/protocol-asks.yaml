@@ -1,0 +1,757 @@
+id: ASK
+title: Protocol Asks and Outstanding-Ask Registers
+description: >
+  Requirements for the protocol-ask primitive: how an actor requests something it
+  lacks authority to do, how outstanding asks are recorded and enumerated in both
+  directions, how asks expire, and how a receiver reports that it could not
+  process an inbound message. Derived from ADR-0080 and the G01 planning session
+  (CONCERN-2829).
+version: 1.0.0
+scope:
+- prototype
+- production
+tags:
+- protocol
+- messaging
+- behavior-tree
+groups:
+- id: ASK-01
+  title: Ask and Terminate
+  description: >
+    An ask is an ordinary protocol message that completes the asking behavior.
+    Nothing suspends awaiting a reply.
+  specs:
+  - id: ASK-01-001
+    stories:
+    - story_2022_010
+    - story_2022_047
+    - story_2022_053
+    priority: MUST
+    kind: protocol
+    statement: >
+      An actor that cannot perform an action on its own authority MUST request
+      authorization by emitting an ask activity addressed to the authorizing
+      actor, and MUST NOT perform the action before a reply authorizing it has
+      been recorded.
+    rationale: >
+      Separates requesting authority from holding it, so the action cannot occur
+      on the asker's own initiative.
+    verification: >
+      A gated tree executed by a non-authorized actor emits the ask and produces
+      no protocol effect from the gated action.
+    adr:
+    - ADR-0080
+    tags:
+    - protocol
+    - security
+  - id: ASK-01-002
+    priority: MUST
+    kind: architecture
+    statement: >
+      A behavior that emits an ask MUST terminate with SUCCESS on the strength of
+      having emitted it; SUCCESS at an ask point means the ask was emitted and
+      MUST NOT be read as authorization having been granted.
+    rationale: >
+      The behavior is divided at the question rather than paused there, which is
+      what makes an asynchronous exchange hostable in a single-shot executor.
+    verification: >
+      A gated tree whose ask branch fires returns SUCCESS and the ask appears in
+      the emitting actor's outbox.
+    adr:
+    - ADR-0080
+  - id: ASK-01-003
+    priority: MUST_NOT
+    kind: architecture
+    statement: >
+      A BT node MUST NOT return RUNNING to represent waiting for an external
+      reply.
+    rationale: >
+      `BTBridge.execute_tree` treats root RUNNING as "continue ticking", exhausts
+      its iteration budget, logs ERROR and returns FAILURE, then discards the
+      tree; no tree survives an invocation, so no node can be resumed.
+    verification: >
+      A repository-wide search finds no `return Status.RUNNING` in `vultron/`.
+    adr:
+    - ADR-0080
+    tags:
+    - behavior-tree
+  - id: ASK-01-004
+    stories:
+    - story_2022_048
+    - story_2022_053
+    priority: MUST
+    kind: protocol
+    statement: >
+      The action authorized by a reply MUST be determined from the ask the
+      answerer was responding to, and MUST NOT be determined from the content of
+      the reply.
+    rationale: >
+      Generalizes ADR-0026's trust rule; reading the action from the reply lets
+      the answerer unilaterally alter what it authorizes.
+    verification: >
+      A reply whose embedded object differs from the stored ask's object does not
+      change the action performed.
+    adr:
+    - ADR-0080
+    - ADR-0026
+    tags:
+    - security
+- id: ASK-02
+  title: Conversation-State Routing
+  description: >
+    A gated interaction is one tree that determines where the conversation stands
+    before taking any action.
+  specs:
+  - id: ASK-02-001
+    priority: MUST
+    kind: architecture
+    statement: >
+      A tree implementing a gated interaction MUST determine the state of the
+      ask/reply exchange before executing any branch that produces a protocol
+      effect.
+    rationale: >
+      State-first routing is what makes repeated entry safe without relying on
+      per-node duplicate detection.
+    verification: >
+      Inspection of a gated tree confirms the state-determining nodes precede
+      every effect-producing branch.
+    adr:
+    - ADR-0080
+    tags:
+    - behavior-tree
+  - id: ASK-02-002
+    priority: MUST
+    kind: architecture
+    statement: >
+      The branches of a gated interaction tree MUST be mutually exclusive, such
+      that at most one branch is applicable for any state of the exchange.
+    rationale: >
+      Disjoint branches mean a later entry does not re-attempt work an earlier
+      entry completed, so no idempotency guard is required to abort it.
+    verification: >
+      For each state of the exchange, exactly one branch of the tree executes.
+    adr:
+    - ADR-0080
+    tags:
+    - behavior-tree
+    - idempotency
+  - id: ASK-02-003
+    stories:
+    - story_2022_053
+    - story_2022_074
+    priority: MUST
+    kind: protocol
+    statement: >
+      When an ask for the same kind and subject is already outstanding and
+      unexpired, the tree MUST NOT emit a second ask.
+    rationale: >
+      Re-asking an open question produces duplicate decisions for the answerer
+      and duplicate register entries for the asker.
+    verification: >
+      A second entry into a gated tree while an unexpired ask is outstanding adds
+      no activity to the outbox.
+    adr:
+    - ADR-0080
+  - id: ASK-02-004
+    priority: MUST_NOT
+    kind: protocol
+    statement: >
+      A gated interaction tree MUST NOT read authorization state from an
+      outstanding-ask register; it MUST read it from the case ledger.
+    rationale: >
+      The register is a working set that may be rebuilt or corrupted; making it
+      authoritative for authorization would let a forged entry permit an action.
+    verification: >
+      An architecture test confirms no gate node reads an outstanding-ask
+      register.
+    adr:
+    - ADR-0080
+    tags:
+    - security
+  - id: ASK-02-005
+    stories:
+    - story_2022_045
+    - story_2022_053
+    priority: MUST
+    kind: protocol
+    statement: >
+      A branch that records the state of an action not yet authorized MUST leave
+      the case in a state the protocol defines; an action whose not-yet state
+      cannot be represented MUST be refused rather than asked about.
+    rationale: >
+      An ask suspends nothing, so the case sits in the pre-authorization state
+      for the whole deadline; that state must be legitimate.
+    verification: >
+      For each gated action, the state after the ask branch runs is a defined
+      protocol state.
+    adr:
+    - ADR-0080
+    tags:
+    - state-machine
+- id: ASK-03
+  title: Ask Kinds
+  description: >
+    Each kind of ask declares the replies that close it, its expiry consequence,
+    and a default deadline.
+  specs:
+  - id: ASK-03-001
+    stories:
+    - story_2022_010
+    - story_2022_048
+    priority: MUST
+    kind: protocol
+    statement: >
+      Each ask kind MUST declare the set of reply event types that close it.
+    rationale: >
+      Pairing a reply to an ask requires a declared closing set rather than
+      hard-coded reply names at call sites; `ProtocolPair` already carries this
+      field.
+    verification: >
+      Every registered ask kind exposes a non-empty set of closing reply event
+      types.
+    adr:
+    - ADR-0080
+  - id: ASK-03-002
+    stories:
+    - story_2022_032
+    - story_2022_074
+    priority: MUST
+    kind: protocol
+    statement: >
+      Each ask kind MUST declare whether a reply arriving after the ask's
+      deadline authorizes the action (stale) or does not (void).
+    rationale: >
+      Admitting a participant remains useful when authorized late; adopting a
+      case status does not, because the case state the decision was made against
+      has moved on.
+    verification: >
+      Every registered ask kind declares an expiry consequence.
+    adr:
+    - ADR-0080
+    tags:
+    - security
+  - id: ASK-03-003
+    priority: MUST_NOT
+    kind: protocol
+    statement: >
+      The expiry consequence of an ask kind MUST NOT be deployment-configurable,
+      and MUST NOT be carried on the ask activity.
+    rationale: >
+      Two actors disagreeing about whether a late reply authorized an action is a
+      divergence in canonical case state, not a deployment preference; letting
+      the asker declare it would let the asker extend its own authorization.
+    verification: >
+      No configuration key sets an ask kind's expiry consequence, and no ask
+      activity field carries it.
+    adr:
+    - ADR-0080
+    tags:
+    - security
+    - configuration
+  - id: ASK-03-004
+    stories:
+    - story_2022_032
+    - story_2022_074
+    priority: MUST
+    kind: protocol
+    statement: >
+      An ask activity MUST carry its own deadline in the AS2 `endTime` field.
+    rationale: >
+      Placing the deadline on the wire means the answerer reads the same value as
+      the asker, so a configurable duration cannot cause disagreement.
+    verification: >
+      Every emitted ask activity has a non-null `endTime`.
+    adr:
+    - ADR-0080
+    tags:
+    - wire-format
+  - id: ASK-03-005
+    priority: MUST
+    kind: project
+    statement: >
+      The default deadline duration for each ask kind MUST be configurable
+      through `ActorConfig`, with a documented fallback default for kinds that
+      declare no override.
+    rationale: >
+      Urgency differs by kind and by deployment; the duration is safe to
+      configure because it travels on the wire (ASK-03-004).
+    verification: >
+      `ActorConfig` exposes a per-kind deadline mapping and a fallback default.
+    adr:
+    - ADR-0080
+    tags:
+    - configuration
+  - id: ASK-03-006
+    priority: MUST_NOT
+    kind: protocol
+    statement: >
+      An action gated by an ask whose kind declares void expiry MUST NOT be
+      performed on the strength of a reply recorded after the ask's deadline.
+    rationale: >
+      An authorization granted against a case state that no longer holds is a
+      standing permission, which is the hazard ADR-0026's trust rule addresses in
+      the identity dimension.
+    verification: >
+      With a void-expiry ask past its deadline and an Accept recorded, the gated
+      action does not execute.
+    adr:
+    - ADR-0080
+    tags:
+    - security
+- id: ASK-04
+  title: Outstanding-Ask Register
+  description: >
+    A durable, actor-scoped record of asks outstanding in both directions.
+  specs:
+  - id: ASK-04-001
+    priority: MUST
+    kind: architecture
+    statement: >
+      An actor MUST record an entry in its outstanding-ask register when it emits
+      an ask, and MUST record an entry when it receives an ask addressed to it.
+    rationale: >
+      The asker needs the entry to avoid re-asking and to notice expiry; the
+      answerer's entries are the queue of decisions it owes, which is the surface
+      a human, UI, or agent acts through.
+    verification: >
+      Emitting an ask and receiving an ask each produce a register entry in the
+      respective actor's store.
+    adr:
+    - ADR-0080
+  - id: ASK-04-002
+    priority: MUST
+    kind: architecture
+    statement: >
+      An outstanding-ask register entry MUST be removed when a reply that closes
+      its ask is recorded.
+    rationale: >
+      Presence in the register means outstanding, which keeps the working set
+      small and the invariant checkable; history lives in the case ledger.
+    verification: >
+      Recording a closing reply removes the corresponding register entry.
+    adr:
+    - ADR-0080
+  - id: ASK-04-003
+    priority: MUST
+    kind: architecture
+    statement: >
+      The outstanding-ask register MUST be durable across process restarts.
+    rationale: >
+      An in-memory register would orphan every outstanding ask on restart,
+      producing a permanent stall worse than the one the register prevents.
+    verification: >
+      Register entries written before a restart are readable after it.
+    adr:
+    - ADR-0080
+    tags:
+    - persistence
+  - id: ASK-04-004
+    priority: MUST
+    kind: architecture
+    statement: >
+      The outstanding-ask register MUST be actor-scoped rather than case-scoped,
+      so that asks exchanged before a case exists are recorded.
+    rationale: >
+      Pre-case handshakes such as `Create(CaseProposal)` have no case ledger to
+      derive state from; `VultronOfferRecord` already demonstrates the
+      actor-scoped form.
+    verification: >
+      An ask emitted before any case exists produces a readable register entry.
+    adr:
+    - ADR-0080
+  - id: ASK-04-005
+    priority: MUST
+    kind: architecture
+    statement: >
+      The outstanding-ask register MUST support enumeration of an actor's
+      outstanding asks in each direction, without the caller supplying the
+      identity of a specific ask.
+    rationale: >
+      Reaping deadlines and presenting a decision queue both require listing
+      entries; a keyed query cannot answer "what am I waiting on".
+    verification: >
+      Enumeration returns all outstanding entries for an actor, separable by
+      direction.
+    adr:
+    - ADR-0080
+  - id: ASK-04-006
+    priority: MUST
+    kind: architecture
+    statement: >
+      The outstanding-ask register MUST be reconstructible from the case ledger
+      for case-scoped asks, and the ledger MUST prevail where the two disagree.
+    rationale: >
+      A register that cannot be rebuilt makes lost entries unrecoverable; the
+      same index-plus-authority division governs `actor_participant_index`.
+    verification: >
+      A register rebuilt from the ledger yields the same outstanding case-scoped
+      entries as the maintained register.
+    adr:
+    - ADR-0080
+  - id: ASK-04-007
+    priority: MUST
+    kind: architecture
+    statement: >
+      The create, close-on-named-event, and time-out lifecycle shared by
+      outstanding-ask tracking and pending-assertion suppression MUST be
+      implemented once as a reusable register, instantiated separately for each
+      use.
+    rationale: >
+      Both uses already share `ProtocolPair` as their key type and both need
+      reaping and enumeration; two implementations of one lifecycle drift.
+    verification: >
+      The ask register and the pending-assertion store are instances of one
+      register implementation.
+    adr:
+    - ADR-0080
+    relationships:
+    - rel_type: refines
+      spec_id: CLP-11-002
+  - id: ASK-04-008
+    priority: MUST
+    kind: architecture
+    statement: >
+      Registration of an emitted ask MUST occur on the single shared emit path,
+      so that no call site can emit an ask without recording it.
+    rationale: >
+      Registration that each call site must remember to perform is registration
+      that will be forgotten; the wire factory cannot do it because the wire
+      layer has no DataLayer access.
+    verification: >
+      Every emitted ask has a register entry, with no per-call-site registration
+      code.
+    adr:
+    - ADR-0080
+  - id: ASK-04-009
+    priority: MUST
+    kind: architecture
+    statement: >
+      An actor MUST expose its outstanding asks as a dereferenceable
+      ActivityStreams collection in each direction.
+    rationale: >
+      A collection is the ActivityStreams idiom for the set of things belonging
+      to an actor, so no new activity verb is needed to answer "what decisions do
+      I owe"; the answerer already holds the underlying data in its ledger
+      replica.
+    verification: >
+      Each direction is retrievable as an `OrderedCollection` of outstanding
+      asks.
+    adr:
+    - ADR-0080
+    tags:
+    - wire-format
+- id: ASK-05
+  title: Expiry and Reaping
+  description: >
+    How an expired ask is noticed, given that elapsed time is not an event.
+  specs:
+  - id: ASK-05-001
+    priority: MUST
+    kind: architecture
+    statement: >
+      A gated interaction tree MUST treat an outstanding ask past its deadline as
+      expired at the next entry into the tree, without requiring a prior reaping
+      pass.
+    rationale: >
+      Time passing delivers no message, so opportunistic evaluation is the only
+      mechanism guaranteed to run; a peer's own retry is frequently the clock.
+    verification: >
+      Entering a gated tree with an expired outstanding ask takes the expired
+      branch.
+    adr:
+    - ADR-0080
+  - id: ASK-05-002
+    priority: MUST
+    kind: project
+    statement: >
+      The system MUST expose a general-purpose trigger that reaps expired
+      outstanding asks for an actor.
+    rationale: >
+      Reaping is a Sentinel concern, and a Sentinel operates on the call-in
+      surface with no BT call-out point, so the reaper belongs outside core.
+    verification: >
+      A trigger endpoint exists that transitions expired entries and is mounted
+      in production mode.
+    adr:
+    - ADR-0080
+    tags:
+    - observability
+  - id: ASK-05-003
+    priority: MUST_NOT
+    kind: architecture
+    statement: >
+      Reaping expired asks MUST NOT be implemented as a periodic loop inside
+      core.
+    rationale: >
+      A timer-driven reaper inside core makes expiry behaviour observable only by
+      waiting, which EDF-06-001 forbids treating as evidence, and misplaces a
+      call-in concern.
+    verification: >
+      No core module schedules periodic expiry evaluation.
+    adr:
+    - ADR-0080
+  - id: ASK-05-004
+    stories:
+    - story_2022_032
+    - story_2022_074
+    priority: MUST
+    kind: protocol
+    statement: >
+      Reaping an expired ask MUST NOT automatically re-emit it; re-asking MUST be
+      decided by a subsequent evaluation of the gated interaction tree.
+    rationale: >
+      Mirrors CLP-06-005 — a timeout is a signal, not an instruction to retry;
+      the tree owns the decision because only it knows whether the action is
+      still wanted.
+    verification: >
+      Reaping an expired ask adds no activity to the outbox.
+    adr:
+    - ADR-0080
+- id: ASK-06
+  title: Ask Visibility
+  description: >
+    Asks replicate like any other canonical entry, which constrains what they may
+    carry.
+  specs:
+  - id: ASK-06-001
+    stories:
+    - story_2022_041
+    - story_2022_045
+    priority: MUST
+    kind: protocol
+    statement: >
+      A case-scoped ask MUST be recorded as a canonical `CaseLedgerEntry` with
+      disposition `recorded` and MUST replicate to case participants on the
+      normal fan-out path.
+    rationale: >
+      An outstanding decision, and a stalled one, is protocol-relevant to every
+      participant; a directed-delivery variant would require redaction with
+      proofs, which does not exist.
+    verification: >
+      An emitted case-scoped ask appears as a recorded entry and is announced to
+      participants.
+    adr:
+    - ADR-0080
+  - id: ASK-06-002
+    priority: MUST_NOT
+    kind: protocol
+    statement: >
+      An ask MUST NOT carry content that cannot be disclosed to every
+      participant of its case.
+    rationale: >
+      Asks replicate to all participants (ASK-06-001), so private rationale must
+      travel by a directed `Note` instead.
+    verification: >
+      Ask factories accept no field intended for restricted disclosure.
+    adr:
+    - ADR-0080
+    tags:
+    - security
+- id: ASK-07
+  title: Processing Faults
+  description: >
+    How a receiver tells an authenticated sender that it could not process what
+    was sent.
+  specs:
+  - id: ASK-07-001
+    stories:
+    - story_2022_039
+    - story_2022_077
+    priority: MUST
+    kind: protocol
+    statement: >
+      An actor that cannot process an inbound activity from an authenticated
+      sender MUST notify that sender by emitting `Create(ProcessingFault)`.
+    rationale: >
+      Discharges the deferral recorded in ADR-0049; without it a failure that
+      took milliseconds costs the sender its full ask deadline in silence.
+    verification: >
+      An authenticated sender whose activity is dead-lettered or rejected
+      receives a `Create(ProcessingFault)`.
+    adr:
+    - ADR-0080
+    - ADR-0049
+    tags:
+    - error-handling
+  - id: ASK-07-002
+    priority: MUST_NOT
+    kind: protocol
+    statement: >
+      An actor MUST NOT emit a processing fault in response to an inbound
+      activity whose sender is not authenticated, or whose failure occurred
+      before authentication.
+    rationale: >
+      Explaining a parse or validation failure to an unauthenticated sender is a
+      parser oracle, and an unauthenticated sender identity cannot be trusted as
+      a reply address.
+    verification: >
+      Unauthenticated malformed input produces no outbound activity.
+    adr:
+    - ADR-0080
+    tags:
+    - security
+  - id: ASK-07-003
+    stories:
+    - story_2022_039
+    priority: MUST
+    kind: protocol
+    statement: >
+      `ProcessingFault` MUST be a single dedicated object type carrying a
+      machine-readable failure class, rather than a reason field on an existing
+      reply activity.
+    rationale: >
+      SE-08-003 prefers a dedicated object type over field-level discrimination;
+      `Reject` additionally presupposes a rejectable object, which unreadable
+      traffic does not provide.
+    verification: >
+      A registered `ProcessingFault` object type exists with a required failure
+      class, and its pattern does not compete with reply patterns.
+    adr:
+    - ADR-0080
+    tags:
+    - wire-format
+  - id: ASK-07-004
+    stories:
+    - story_2022_039
+    priority: MUST
+    kind: protocol
+    statement: >
+      `ProcessingFault` MUST identify the activity that failed by reference, and
+      MUST NOT require an inline copy of it.
+    rationale: >
+      When a payload fails validation, a typed copy of it cannot be constructed —
+      constructing it is what failed — and echoing sender-supplied content is a
+      reflection hazard.
+    verification: >
+      A `ProcessingFault` for an unparseable payload validates without an inline
+      failed activity.
+    adr:
+    - ADR-0080
+  - id: ASK-07-005
+    stories:
+    - story_2022_036
+    - story_2022_039
+    priority: MUST
+    kind: protocol
+    statement: >
+      The failure classes of `ProcessingFault` MUST be identified by URIs minted
+      in the Vultron namespace, and the fault MUST be structured according to
+      RFC 9457 Problem Details.
+    rationale: >
+      A URI-identified, dereferenceable problem type is extensible without a
+      schema change and lets a receiver that does not recognise a class resolve
+      its meaning; RFC 9457 is the standard for machine-readable error reporting
+      over HTTP.
+    verification: >
+      Each failure class resolves to a documented URI under the Vultron
+      namespace, and fault payloads carry the RFC 9457 members.
+    adr:
+    - ADR-0080
+    - ADR-0069
+    tags:
+    - wire-format
+  - id: ASK-07-006
+    priority: MUST_NOT
+    kind: protocol
+    statement: >
+      `ProcessingFault` MUST NOT carry implementation diagnostics such as stack
+      traces, parser internals, or the identity of the failing code path.
+    rationale: >
+      Faults replicate to all case participants and are also read by an
+      untrusted-by-default peer; the diagnosis of a failure belongs in the
+      actor's own log, governed by `specs/structured-logging.yaml`.
+    verification: >
+      The `ProcessingFault` schema admits no field for implementation
+      diagnostics.
+    adr:
+    - ADR-0080
+    tags:
+    - security
+    - logging
+  - id: ASK-07-007
+    stories:
+    - story_2022_039
+    - story_2022_074
+    priority: MUST
+    kind: protocol
+    statement: >
+      Receiving a processing fault that refers to an outstanding ask MUST close
+      that ask's register entry.
+    rationale: >
+      The exchange cannot complete, so leaving the entry open costs the asker its
+      whole deadline for a failure already reported.
+    verification: >
+      A fault naming an outstanding ask removes the corresponding register entry.
+    adr:
+    - ADR-0080
+  - id: ASK-07-008
+    stories:
+    - story_2022_045
+    - story_2022_074
+    priority: MUST
+    kind: protocol
+    statement: >
+      A processing fault that can be attributed to a case MUST be recorded as a
+      canonical `CaseLedgerEntry` with disposition `recorded`.
+    rationale: >
+      The statement that a message arrived and could not be processed is true,
+      legible protocol history, and it explains why a subsequent retransmission
+      occurred; it is not per-actor observability content, so CLP-07-004 does not
+      exclude it.
+    verification: >
+      A case-attributable fault appears as a recorded entry in the case ledger.
+    adr:
+    - ADR-0080
+  - id: ASK-07-009
+    priority: MUST_NOT
+    kind: protocol
+    statement: >
+      The activity that could not be processed MUST NOT be recorded as a
+      canonical `CaseLedgerEntry`.
+    rationale: >
+      There is no legible assertion to record; a snapshot of an unreadable
+      payload cannot satisfy CLP-02-003, and CLP-03-002 already excludes
+      unrouteable inbound from the ledger.
+    verification: >
+      No ledger entry is committed for an activity that failed processing.
+    adr:
+    - ADR-0080
+- id: ASK-08
+  title: Lost-Reply Recovery
+  description: >
+    What an answerer does when a request is repeated because its reply was lost.
+  specs:
+  - id: ASK-08-001
+    stories:
+    - story_2022_010
+    - story_2022_053
+    priority: MUST
+    kind: protocol
+    statement: >
+      An actor that receives a duplicate request it has already replied to MUST
+      re-send its stored reply unchanged, with its original identity, rather than
+      producing a new reply.
+    rationale: >
+      Re-sending the frozen original (VM-08-003) reads to the requester as the
+      original arriving late rather than a second decision, which is what
+      CP-05-005's irrevocability rule requires.
+    verification: >
+      A duplicate request produces an outbound reply identical to the stored
+      original, including its identifier.
+    adr:
+    - ADR-0080
+  - id: ASK-08-002
+    priority: MUST_NOT
+    kind: protocol
+    statement: >
+      An actor that receives a duplicate request it has already replied to MUST
+      NOT create a second instance of the object the request concerned.
+    rationale: >
+      A repeated proposal after acceptance is a re-send, not a new request;
+      treating it as new produces duplicate cases or duplicate participants.
+    verification: >
+      A duplicate `Create(CaseProposal)` after acceptance creates no second case.
+    adr:
+    - ADR-0080
+    tags:
+    - idempotency

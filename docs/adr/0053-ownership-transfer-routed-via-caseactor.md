@@ -102,9 +102,13 @@ Accepting actor triggers accept-case-ownership-transfer
   handshake (ADR-0026); developers can apply the same mental model.
 - Bad, because this is a breaking change to the wire routing for both
   activities; existing devlogs and test fixtures must be updated.
-- Bad, because `OfferCaseOwnershipTransferReceivedUseCase` must be
+- ~~Bad, because `OfferCaseOwnershipTransferReceivedUseCase` must be
   extended to forward the Offer to the transferee — currently it only
-  stores the offer object.
+  stores the offer object.~~ Resolved by #2067:
+  `ForwardOfferToTransfereeNode` (wrapped in `create_case_manager_gated_tree`)
+  is now an effect node in `create_offer_ownership_transfer_tree`, called
+  from `OfferCaseOwnershipTransferReceivedUseCase.execute()` via
+  `BTBridge(trigger_activity=...)` (CM-21-005, CLP-10-005).
 
 ## Validation
 
@@ -116,6 +120,8 @@ Accepting actor triggers accept-case-ownership-transfer
   receives an `Announce(CaseLedgerEntry)` for the transfer automatically.
 - Unit tests confirm `EmitOfferCaseOwnershipTransferNode` and
   `EmitAcceptCaseOwnershipTransferNode` address the CaseActor.
+- `ForwardOfferToTransfereeNode` and `create_offer_ownership_transfer_tree`
+  are covered by `test_offer_ownership_transfer_tree.py` (#2067).
 
 ## More Information
 

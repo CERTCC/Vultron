@@ -31,12 +31,25 @@ Copy `pyproject.toml` and `uv.lock` first, run `uv sync --frozen`, then copy
 the rest of the source. This allows Docker to reuse the dependency layer on
 rebuilds that only change source files.
 
-Use BuildKit cache mounts for the uv/pip cache to speed up repeated installs:
+Use BuildKit cache mounts for the uv/pip cache to speed up repeated installs.
+Use a consistent `id` across all stages so they share one backing store:
 
 ```dockerfile
-RUN --mount=type=cache,id=pycache,target=/root/.cache/uv \
+RUN --mount=type=cache,id=uv-cache,target=/root/.cache/uv \
     uv sync --frozen
 ```
+
+When a stage runs as a non-root user (e.g. `vscode`, uid=1000), add
+`uid=NNN,gid=NNN` so that user can read the cache populated by root stages.
+The `target` path should be the non-root user's cache location:
+
+```dockerfile
+RUN --mount=type=cache,uid=1000,gid=1000,id=uv-cache,target=/home/vscode/.cache/uv \
+    uv sync --frozen --dev
+```
+
+The `id` is what links the mounts — BuildKit serves the same backing store
+regardless of which `target` path each stage mounts it at.
 
 ### Multi-Stage Build
 
