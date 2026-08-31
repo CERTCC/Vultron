@@ -201,7 +201,7 @@ class AttachParticipantToCaseNode(DataLayerActionWithPorts):
     def output_ports(cls) -> dict[str, PortInformation]:
         return {
             "participant_case": PortInformation(
-                data_type=object, required=True
+                data_type=VulnerabilityCase, required=True
             )
         }
 
@@ -268,7 +268,7 @@ class RecordParticipantAddedEventNode(DataLayerActionWithPorts):
     def input_ports(cls) -> dict[str, PortInformation]:
         ports = super().input_ports()
         ports["participant_case"] = PortInformation(
-            data_type=object, required=True
+            data_type=VulnerabilityCase, required=True
         )
         ports["new_participant_id"] = PortInformation(
             data_type=str, required=True
@@ -321,7 +321,7 @@ class CaseHasActiveEmbargoNode(DataLayerActionWithPorts):
     def input_ports(cls) -> dict[str, PortInformation]:
         ports = super().input_ports()
         ports["participant_case"] = PortInformation(
-            data_type=object, required=True
+            data_type=VulnerabilityCase, required=True
         )
         return ports
 
@@ -363,7 +363,7 @@ class CaseHasNoActiveEmbargoNode(DataLayerActionWithPorts):
     def input_ports(cls) -> dict[str, PortInformation]:
         ports = super().input_ports()
         ports["participant_case"] = PortInformation(
-            data_type=object, required=True
+            data_type=VulnerabilityCase, required=True
         )
         return ports
 
@@ -410,7 +410,7 @@ class SeedParticipantAsSignatoryNode(DataLayerActionWithPorts):
     def input_ports(cls) -> dict[str, PortInformation]:
         ports = super().input_ports()
         ports["participant_case"] = PortInformation(
-            data_type=object, required=True
+            data_type=VulnerabilityCase, required=True
         )
         ports["new_case_participant"] = PortInformation(
             data_type=object, required=True

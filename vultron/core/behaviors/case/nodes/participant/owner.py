@@ -254,7 +254,7 @@ class AttachOwnerParticipantToCaseNode(DataLayerActionWithPorts):
     def output_ports(cls) -> dict[str, PortInformation]:
         return {
             "participant_case": PortInformation(
-                data_type=object, required=True
+                data_type=VulnerabilityCase, required=True
             )
         }
 
@@ -324,7 +324,7 @@ class PersistOwnerCaseNode(DataLayerActionWithPorts):
     def input_ports(cls) -> dict[str, PortInformation]:
         ports = super().input_ports()
         ports["participant_case"] = PortInformation(
-            data_type=object, required=True
+            data_type=VulnerabilityCase, required=True
         )
         return ports
 
