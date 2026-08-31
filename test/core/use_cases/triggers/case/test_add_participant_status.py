@@ -29,7 +29,7 @@ from typing import cast
 import pytest
 
 from vultron.core.models.dimensions import DDimension, RmDimension, VfDimension
-from vultron.core.states.cs import CS_d, CS_vf
+from vultron.core.states.cs import CS_d, CS_pxa, CS_vf
 from vultron.core.states.rm import RM
 from vultron.errors import VultronValidationError
 
@@ -560,6 +560,34 @@ class TestCreateParticipantStatusNode:
             participant.add_participant_status(seed)
             self.dl.save(participant)
 
+    def _seed_participant_pxa_state(self, pxa_target: CS_pxa) -> None:
+        """Directly persist a ParticipantStatus with an embedded CaseStatus."""
+        from vultron.core.models.case_participant import CaseParticipant
+        from vultron.core.models.case_status import (
+            CaseStatus as CoreCaseStatus,
+        )
+        from vultron.core.models.dimensions import EmDimension, PxaDimension
+        from vultron.core.models.participant_status import ParticipantStatus
+        from vultron.core.states.em import EM as _EM
+
+        case_status = CoreCaseStatus(
+            context=self.case.id_,
+            attributed_to=self.actor.id_,
+            em=EmDimension(state=_EM.NONE),
+            pxa=PxaDimension(state=pxa_target),
+        )
+        seed = ParticipantStatus(
+            context=self.case.id_,
+            attributed_to=self.actor.id_,
+            rm=RmDimension(state=RM.START),
+            case_status=case_status,
+        )
+        self.dl.create(seed)
+        participant = self.dl.read(self.actor_participant.id_)
+        if isinstance(participant, CaseParticipant):
+            participant.add_participant_status(seed)
+            self.dl.save(participant)
+
     def test_node_succeeds_and_populates_result_out(self):
         """CreateParticipantStatusNode returns SUCCESS and sets result_out keys."""
         from py_trees.common import Status
@@ -690,7 +718,14 @@ class TestCreateParticipantStatusNode:
 
         records = self._cs_narrative_records(caplog)
         assert records, "Expected a CS narrative line at INFO for PXA advance"
-        message = records[0].getMessage()
+        # vP promotion may fire a VF narrative first; search all records for PXA
+        pxa_records = [r for r in records if "pxa → Pxa" in r.getMessage()]
+        assert (
+            pxa_records
+        ), "Expected CS narrative containing 'pxa → Pxa'; got: " + str(
+            [r.getMessage() for r in records]
+        )
+        message = pxa_records[0].getMessage()
         assert f"Actor '{self.actor.id_}' CS: pxa → Pxa" in message
         assert "(publicly known)" in message
 
@@ -916,6 +951,116 @@ class TestCreateParticipantStatusNode:
         assert bt_result.status == Status.FAILURE
         assert "status_id" not in result_out
         assert "CSB-15-002" in bt_result.feedback_message
+
+    # ------------------------------------------------------------------
+    # AC-1: ephemeral-state promotion at write boundary (SM-09-001)
+    # ------------------------------------------------------------------
+
+    def test_ephemeral_pxa_pXa_promoted_before_write(self):
+        """AC-1 / SM-09-001: pXa is promoted to PXa before writing."""
+        from py_trees.common import Status
+        from vultron.core.models.participant_status import ParticipantStatus
+        from vultron.core.states.cs import CS_pxa
+
+        bt_result, result_out = self._run_node(
+            rm_state=None, vf_state=None, d_state=None, pxa_state=CS_pxa.pXa
+        )
+
+        assert bt_result.status == Status.SUCCESS
+        stored = self.dl.read(result_out["status_id"])
+        assert isinstance(stored, ParticipantStatus)
+        assert stored.case_status is not None
+        assert stored.case_status.pxa.state is CS_pxa.PXa
+
+    def test_ephemeral_pxa_pXA_promoted_before_write(self):
+        """AC-1 / SM-09-001: pXA is promoted to PXA before writing.
+
+        pXA is reachable from pxA via the X event.  The test seeds pxA as the
+        prior PXA state so the per-dimension precondition passes, then verifies
+        the ephemeral pXA is promoted to PXA at the write boundary.
+        """
+        from py_trees.common import Status
+        from vultron.core.models.participant_status import ParticipantStatus
+        from vultron.core.states.cs import CS_pxa
+
+        # pxA (attacks observed) is a valid non-ephemeral prior state.
+        # From pxA, X fires → pXA (exploit public, attacks, but public unaware).
+        self._seed_participant_pxa_state(CS_pxa.pxA)
+
+        bt_result, result_out = self._run_node(
+            rm_state=None, vf_state=None, d_state=None, pxa_state=CS_pxa.pXA
+        )
+
+        assert bt_result.status == Status.SUCCESS
+        stored = self.dl.read(result_out["status_id"])
+        assert isinstance(stored, ParticipantStatus)
+        assert stored.case_status is not None
+        assert stored.case_status.pxa.state is CS_pxa.PXA
+
+    def test_ephemeral_vP_promotes_vf_when_writing_pxa(self):
+        """AC-1 / SM-09-001: vP compound state forces VF promotion to Vf.
+
+        When writing PXA=Pxa (P fires) while VF is still vf, the resulting
+        vP compound state is ephemeral (vendor unaware, public aware).
+        The write boundary must auto-promote VF to Vf before persisting.
+        """
+        from py_trees.common import Status
+        from vultron.core.models.participant_status import ParticipantStatus
+        from vultron.core.states.cs import CS_pxa, CS_vf
+
+        self._seed_participant_vf_state(CS_vf.vf)
+
+        bt_result, result_out = self._run_node(
+            rm_state=None, vf_state=None, d_state=None, pxa_state=CS_pxa.Pxa
+        )
+
+        assert bt_result.status == Status.SUCCESS
+        stored = self.dl.read(result_out["status_id"])
+        assert isinstance(stored, ParticipantStatus)
+        assert stored.vf is not None
+        assert stored.vf.state is CS_vf.Vf
+        assert stored.case_status is not None
+        assert stored.case_status.pxa.state is CS_pxa.Pxa
+
+    # ------------------------------------------------------------------
+    # AC-3: compound CS transition validation at write boundary (SM-09-002)
+    # ------------------------------------------------------------------
+
+    def test_compound_transition_rejected_when_two_dims_change(self):
+        """AC-3 / SM-09-002: simultaneous VF+PXA change is rejected.
+
+        A single CS event changes exactly one of the six dimensions.
+        Attempting to advance both VF (vf→Vf) and PXA (pxa→Pxa) in one
+        write must be refused at the persistence boundary.
+        """
+        from py_trees.common import Status
+        from vultron.core.states.cs import CS_pxa, CS_vf
+
+        self._seed_participant_vf_state(CS_vf.vf)
+
+        bt_result, result_out = self._run_node(
+            rm_state=None,
+            vf_state=CS_vf.Vf,
+            d_state=None,
+            pxa_state=CS_pxa.Pxa,
+        )
+
+        assert bt_result.status == Status.FAILURE
+        assert "status_id" not in result_out
+
+    def test_single_vf_step_passes_compound_check(self):
+        """AC-3 / SM-09-002: a valid single-dimension VF advance is accepted."""
+        from py_trees.common import Status
+        from vultron.core.states.cs import CS_vf
+
+        self._seed_participant_vf_state(CS_vf.vf)
+
+        bt_result, result_out = self._run_node(
+            rm_state=None, vf_state=CS_vf.Vf, d_state=None, pxa_state=None
+        )
+
+        assert bt_result.status == Status.SUCCESS
+        assert "status_id" in result_out
 
 
 # ---------------------------------------------------------------------------
