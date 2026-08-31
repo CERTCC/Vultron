@@ -102,7 +102,7 @@ class ApplyInviteAcceptFromLedgerNode(_LedgerEffectNode):
         )
         try:
             case_roles = validate_roles(raw_roles) if raw_roles else []
-        except (ValueError, KeyError):
+        except (TypeError, ValueError, KeyError):
             case_roles = []
 
         participant = CaseParticipant(
