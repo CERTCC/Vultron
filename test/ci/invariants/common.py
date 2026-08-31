@@ -758,7 +758,7 @@ def check_cs_state_transitions_observed(
 
     missing: list[str] = []
     if check_fix_ready and not saw_fix_ready:
-        missing.append("vfd_state == 'VFd' (fix_ready) never observed")
+        missing.append("vf_state == 'VF' (fix_ready) never observed")
     if not saw_published:
         missing.append(
             "pxa_state starting with 'P' (published/public-aware) never observed"

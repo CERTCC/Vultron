@@ -80,7 +80,7 @@ _VALID_STATUS = {
         "rmState": "VALID",
         "emConsentState": "SIGNATORY",
         "cvdRole": ["FINDER"],
-        "vfdState": "vfd",
+        "vfState": "vf",
         "caseStatus": {"pxaState": "pxa"},
     }
 }
@@ -91,7 +91,7 @@ _ACCEPTED_STATUS = {
         "rmState": "ACCEPTED",
         "emConsentState": "SIGNATORY",
         "cvdRole": ["FINDER"],
-        "vfdState": "VFd",
+        "vfState": "VF",
         "caseStatus": {"pxaState": "Pxa"},
     }
 }
@@ -103,7 +103,8 @@ _CLOSED_STATUS = {
         "rmState": "CLOSED",
         "emConsentState": "NO_EMBARGO",
         "cvdRole": ["FINDER"],
-        "vfdState": "VFD",
+        "vfState": "VF",
+        "dState": "D",
         "caseStatus": {"pxaState": "PXA"},
     },
 }
