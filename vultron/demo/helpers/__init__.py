@@ -95,7 +95,8 @@ from vultron.demo.helpers.polling import (  # noqa: F401
     wait_for_ledger_event,
     wait_for_note_in_case,
     wait_for_object_stored,
-    wait_for_participant_vfd_state,
+    wait_for_participant_d_state,
+    wait_for_participant_vf_state,
     wait_for_pending_inbox_quiescent,
 )
 from vultron.demo.helpers.seeding import (  # noqa: F401
@@ -118,10 +119,11 @@ from vultron.demo.helpers.sync import (  # noqa: F401
 from vultron.demo.helpers.verification import (  # noqa: F401
     _all_fetchable_participants_rm_closed,
     _assert_case_notes,
-    _assert_participant_vfd_pxa,
+    _assert_participant_vf_pxa,
     _assert_vendor_case_status,
     _assert_vendor_participant_state,
-    _check_participant_vfd_state_in,
+    _check_participant_d_state_in,
+    _check_participant_vf_state_in,
     _fetch_participant,
     _fetch_participant_data,
     _require_case_participant_id,
