@@ -19,21 +19,26 @@ import json
 import sys
 from pathlib import Path
 
+import pytest
+
 from vultron.metadata.specs.lint import lint
 from vultron.metadata.specs.render import main_llm_json
 
 _SPECS_DIR = Path(__file__).parents[3] / "specs"
 
 
+@pytest.mark.spec_corpus
 def test_real_specs_dir_exists():
     assert _SPECS_DIR.is_dir(), f"specs/ directory not found at {_SPECS_DIR}"
 
 
+@pytest.mark.spec_corpus
 def test_real_specs_load(real_registry):
     """All spec YAML files parse without validation errors."""
     assert real_registry.files, "Registry loaded no spec files"
 
 
+@pytest.mark.spec_corpus
 def test_real_specs_cross_references(real_registry):
     """Every relationship spec_id target exists in the registry."""
     errors = real_registry.validate_cross_references()
@@ -44,6 +49,7 @@ def test_real_specs_cross_references(real_registry):
     )
 
 
+@pytest.mark.spec_corpus
 def test_real_specs_lint_no_hard_errors(real_registry):
     """Full lint() returns exit code 0 (no hard errors) for specs/."""
     exit_code = lint(_SPECS_DIR, registry=real_registry)
@@ -52,6 +58,7 @@ def test_real_specs_lint_no_hard_errors(real_registry):
     ), "spec-lint reported hard errors — run 'uv run spec-lint' to see details"
 
 
+@pytest.mark.spec_corpus
 def test_spec_dump_entrypoint_produces_valid_json(monkeypatch):
     """main_llm_json() (the spec-dump CLI entrypoint) produces valid JSON.
 
