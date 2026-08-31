@@ -66,7 +66,7 @@ class TestCanonicalActorUri:
         assert canonical_actor_uri(canonical, _BASE) == canonical
 
     def test_adopts_a_foreign_authority_verbatim(self):
-        """ADR-0073 decision 5: a peer's id is the URL delivery posts to.
+        """ADR-0073#peer-records-in-knowers-store: a peer's id is the URL delivery posts to.
 
         Rewriting it into this node's namespace would turn a reachable peer into
         a local phantom.  The cost — a local store minted for an actor this node

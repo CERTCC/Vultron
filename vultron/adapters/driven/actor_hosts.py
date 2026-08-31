@@ -65,7 +65,7 @@ def canonical_actor_uri(segment: str, base_url: str | None = None) -> str:
     under a *foreign* authority, which is therefore **not** rewritten into this
     node's namespace. That is deliberate: a peer's id is the URL outbound
     delivery posts to, so rewriting it would turn a reachable peer into a local
-    phantom (ADR-0073 decision 5). The cost is that a foreign id reaching a
+    phantom (ADR-0073#peer-records-in-knowers-store). The cost is that a foreign id reaching a
     store-opening call site mints a local store for an actor this node does not
     host, where :func:`~vultron.adapters.driven.datalayer_sqlite.engine.actor_slug`
     can collide it with a co-hosted actor. Tracked in issue #2549; the collision

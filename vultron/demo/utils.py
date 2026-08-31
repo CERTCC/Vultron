@@ -659,7 +659,7 @@ def log_case_state(
 #: ``(slug, name, actor_type)``.
 #:
 #: Slugs, not absolute URIs: ``POST /actors/`` canonicalizes a bare slug into
-#: ``{base_url}actors/{slug}`` (ADR-0073 decision 2), so the id names the very
+#: ``{base_url}actors/{slug}`` (ADR-0073#url-segment-computed-not-looked-up), so the id names the very
 #: endpoint this node serves.  A hard-coded absolute id would instead name an
 #: actor on some *other* node — the mistake the retired example actors made, and
 #: the reason they could not be addressed here.
@@ -704,7 +704,7 @@ def seed_exchange_actors(
     # large majority of them.  Reads about the finder's or coordinator's replica
     # pass `actor_id=` explicitly at the call site, which is what makes those
     # reads legible as cross-actor rather than silently answering from the wrong
-    # store (ADR-0073 decision 7).
+    # store (ADR-0073#cross-actor-access-must-be-named).
     client.actor_id = vendor.id_
     logger.debug("Exchange demo reads bound to vendor replica: %s", vendor.id_)
 

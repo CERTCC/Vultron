@@ -129,12 +129,14 @@ a code-review obligation — which is the failure mode being removed.
 
 Concretely:
 
-- The configured `db_url` becomes a template. `sqlite:////app/data/mydb.sqlite`
-  yields `mydb-<slug>.sqlite` per actor; `sqlite:///:memory:` yields one
-  private in-memory engine per actor.
-- `SqliteDataLayer` **requires** an `actor_id`. `_scoped()`, the `actor_id`
-  column, `get_shared_dl()`, and `get_datalayer()`-with-no-actor are deleted.
-- The URL path segment is resolved to a canonical actor URI by **computation**,
+- <a id="db-url-template"></a>The configured `db_url` becomes a template.
+  `sqlite:////app/data/mydb.sqlite` yields `mydb-<slug>.sqlite` per actor;
+  `sqlite:///:memory:` yields one private in-memory engine per actor.
+- <a id="actor-id-required"></a>`SqliteDataLayer` **requires** an `actor_id`.
+  `_scoped()`, the `actor_id` column, `get_shared_dl()`, and
+  `get_datalayer()`-with-no-actor are deleted.
+- <a id="url-segment-computed-not-looked-up"></a>The URL path segment is
+  resolved to a canonical actor URI by **computation**,
   not lookup: `VULTRON_SERVER__BASE_URL + "actors/" + segment`. This removes
   the last genuine need for a cross-actor scan. It holds for CaseActors too,
   whose id is the container-level `{base_url}/actors/case-actor` under
@@ -142,8 +144,9 @@ Concretely:
   `case-actor-{slug}` form this ADR was first drafted against is deleted by
   the same change, so the co-location discussion below — which speaks of
   CaseActors per container — is the one this bullet must be read against.
-- `record_outbox_item(actor_id, …)` and `outbox_list_for_actor(actor_id)`
-  collapse into `outbox_append()` / `outbox_list()` at **all** call sites. The
+- <a id="outbox-methods-collapsed"></a>`record_outbox_item(actor_id, …)` and
+  `outbox_list_for_actor(actor_id)` collapse into `outbox_append()` /
+  `outbox_list()` at **all** call sites. The
   explicit-actor form existed because the injected DataLayer might be unscoped,
   not because any site wrote to a genuinely foreign queue.
 
@@ -180,16 +183,19 @@ Concretely:
   Ungated, this is identity spoofing — any actor reaching the helper could emit
   an `Announce` authored as the CaseActor to every participant — which
   `AGENTS.md` already forbids for received-side use cases.
-- `ActorScopedDataLayer` merges back into `DataLayer`: with no unscoped mode,
-  the distinction has no referent.
-- Peer actor records live in the address book of each hosted actor that needs
-  them. This is safe because delivery derives a recipient's inbox URL from its
-  URI alone (`http_delivery.py`: `recipient_id.rstrip("/") + "/inbox/"`) and
-  never reads the peer's stored record.
-- `GET /actors/` returns only the actors this node hosts. A peer is not
-  something the node hosts; it is an address some hosted actor happens to know.
+- <a id="actor-scoped-dl-merged"></a>`ActorScopedDataLayer` merges back into
+  `DataLayer`: with no unscoped mode, the distinction has no referent.
+- <a id="peer-records-in-knowers-store"></a>Peer actor records live in the
+  address book of each hosted actor that needs them. This is safe because
+  delivery derives a recipient's inbox URL from its URI alone
+  (`http_delivery.py`: `recipient_id.rstrip("/") + "/inbox/"`) and never reads
+  the peer's stored record.
+- <a id="hosted-actors-list-only"></a>`GET /actors/` returns only the actors
+  this node hosts. A peer is not something the node hosts; it is an address
+  some hosted actor happens to know.
 
-- **A BT's store follows its executing actor**, reconciled once in `BTBridge`
+- <a id="bt-store-follows-executing-actor"></a>**A BT's store follows its
+  executing actor**, reconciled once in `BTBridge`
   rather than at each BT invocation (`_store_for_actor`). Chosen over fixing only
   the trigger seam for the same reason isolation must not depend on every query
   remembering a filter: correctness must not depend on every BT invocation
@@ -225,12 +231,14 @@ Concretely:
   declaration is read off the *type* rather than the instance because a test
   double answers any attribute — an instance-level probe would silently rebind
   every mock in the suite.
-- **Cross-actor access must be named.** `clone_for_actor` is the only route to
+- <a id="cross-actor-access-must-be-named"></a>**Cross-actor access must be
+  named.** `clone_for_actor` is the only route to
   another actor's store, and `CasePersistence` declares it, so a fan-out is
   explicit in the type as well as in the code rather than something a forgotten
   filter grants.
 
-- **The protocol is indifferent to co-location, and code must be too.**
+- <a id="protocol-indifferent-to-colocation"></a>**The protocol is indifferent
+  to co-location, and code must be too.**
   Normative as PCR-01-003. Actors exchange information *only* through protocol
   messages — never a direct read or write into another actor's store, never
   out-of-band communication between actors that happen to share a host. The
@@ -275,7 +283,8 @@ Concretely:
   That gate is the fix; it is not an optimisation to be skipped when the actors
   happen to share a host.
 
-- **What the sibling knows must be asked for on the wire.** Normative as
+- <a id="sibling-knowledge-on-the-wire"></a>**What the sibling knows must be
+  asked for on the wire.** Normative as
   CP-01-007. The same rule that makes the timing gate necessary also decides
   where a *fact* comes from: an actor that needs something only a sibling
   observed has to be told, in a protocol message, at the moment it is told
@@ -292,7 +301,8 @@ Concretely:
   cross-store *read* is the shape to distrust here, whether what it wants is an
   object or a single id.
 
-- **The latch is written last.** Normative as ID-04-005. When a transition has
+- <a id="latch-written-last"></a>**The latch is written last.** Normative as
+  ID-04-005. When a transition has
   more than one half and one half doubles as the evidence a later guard reads,
   that half MUST be written only after the others have succeeded. Writing it
   first turns a recoverable "not yet" into a permanent "already done": the guard
@@ -301,7 +311,8 @@ Concretely:
   here because per-actor isolation is what makes "not yet" a routine state
   instead of a rare one.
 
-- **Only the ledger's own store mints its indices.** Normative as CLP-10-014.
+- <a id="ledger-store-mints-its-indices"></a>**Only the ledger's own store mints
+  its indices.** Normative as CLP-10-014.
   Per-actor isolation turns a log index into a claim one store makes, so two
   stores claiming the same index fork the chain instead of colliding in it. The
   delegated-emit path is where the second claimant comes from: a trigger the case
