@@ -40,7 +40,7 @@ from vultron.wire.as2.vocab.objects.vulnerability_case import (
 
 _NOW = datetime(2026, 8, 28, 12, 0, 0, tzinfo=timezone.utc)
 _PAST = _NOW - timedelta(days=1)
-_FUTURE = _NOW + timedelta(days=6)
+_FUTURE = datetime.now(timezone.utc) + timedelta(days=6)
 
 _COORD = "https://example.org/actors/coordinator"
 _INVITEE = "https://example.org/actors/invitee"
