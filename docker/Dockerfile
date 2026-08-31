@@ -167,11 +167,10 @@ RUN su - vscode -c "curl -fsSL https://claude.ai/install.sh | bash"
 
 # /app is owned by root from the earlier COPY and git steps; hand it to vscode so
 # the git reset in poststart.sh doesn't fail on dubious-ownership checks.
-# Exclude .venv — inherited from dep-layer as root-owned, contains thousands of
-# files, and is bind-mounted over at runtime. World-readable/executable via root's
-# default umask (022) so vscode can run Python without owning them.
-RUN chown vscode:vscode /app \
-    && find /app -mindepth 1 -maxdepth 1 ! -name '.venv' -exec chown -R vscode:vscode {} +
+# .venv is included: start-dev.sh does not bind-mount a host venv over it, so the
+# baked venv is the runtime venv and must be writable by vscode for `uv run` to
+# succeed (uv syncs the venv before executing, which requires write access).
+RUN chown -R vscode:vscode /app
 
 WORKDIR /app
 USER vscode
