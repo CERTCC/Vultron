@@ -27,7 +27,7 @@ from vultron.wire.as2.vocab.examples._base import (
 from vultron.wire.as2.vocab.examples.status import (
     participant_status,
 )
-from vultron.core.states.cs import CS_vfd
+from vultron.core.states.cs import CS_vf
 from vultron.core.states.rm import RM
 from vultron.enums.roles import CVDRole
 from vultron.wire.as2.vocab.objects.case_participant import as_CaseParticipant
@@ -51,7 +51,7 @@ def add_vendor_participant_to_case() -> as_Add:
         context=_case.id_,
         attributed_to=_vendor.id_,
         rm_state=RM.RECEIVED,
-        vfd_state=CS_vfd.Vfd,
+        vf_state=CS_vf.Vf,
     )
     _vendor_participant = as_CaseParticipant(
         id_=f"{_case.id_}/participants/{shortname}",

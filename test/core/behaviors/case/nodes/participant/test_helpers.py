@@ -191,7 +191,7 @@ class TestResolveParticipantStateShapeGuard:
             RM.RECEIVED, actor=actor, context=self._CONTEXT
         )
 
-        rm_state, _vfd = resolve_participant_state_from_dl(
+        rm_state, _, _ = resolve_participant_state_from_dl(
             cast(Any, self._FakeDl(participant)), participant.id_
         )
         assert rm_state is RM.RECEIVED

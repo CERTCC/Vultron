@@ -40,7 +40,7 @@ from vultron.core.behaviors.case.nodes.vfd_role_guards import (
     _resolve_actor_roles,
 )
 from vultron.core.models.case import VulnerabilityCase
-from vultron.core.models.dimensions import VfdDimension
+from vultron.core.models.dimensions import VfDimension
 from vultron.enums.roles import CVDRole
 
 logger = logging.getLogger(__name__)
@@ -106,8 +106,8 @@ class CheckIsVendorRoleNode(DataLayerConditionWithPorts):
 class CheckCSFixNotYetReady(DataLayerConditionWithPorts):
     """Short-circuit guard: fix already ready means nothing to do.
 
-    Returns ``SUCCESS`` when the actor's VFD state is already fix-ready
-    (``CS_vfd.VFd`` or ``CS_vfd.VFD``) — the Fallback short-circuits and
+    Returns ``SUCCESS`` when the actor's VF state is already fix-ready (VF=VF)
+    (``vf_state=VF``) — the Fallback short-circuits and
     reports SUCCESS to the parent.  Returns ``FAILURE`` when fix is NOT yet
     ready, allowing the inner Sequence to proceed.
 
@@ -146,23 +146,25 @@ class CheckCSFixNotYetReady(DataLayerConditionWithPorts):
             )
             return Status.FAILURE
 
-        _, vfd_state = resolve_participant_state_from_dl(
+        _, vf_state, _ = resolve_participant_state_from_dl(
             self.datalayer, participant_id
         )
 
-        is_ready = VfdDimension(state=vfd_state).is_fix_ready()
+        is_ready = (
+            vf_state is not None and VfDimension(state=vf_state).is_fix_ready()
+        )
         if is_ready:
             self.logger.debug(
-                "%s: VFD state=%s is fix-ready — short-circuit SUCCESS",
+                "%s: VF state=%s is fix-ready — short-circuit SUCCESS",
                 self.name,
-                vfd_state,
+                vf_state,
             )
             return Status.SUCCESS
 
         self.logger.debug(
-            "%s: VFD state=%s is not fix-ready — proceed to creation",
+            "%s: VF state=%s is not fix-ready — proceed to creation",
             self.name,
-            vfd_state,
+            vf_state,
         )
         return Status.FAILURE
 

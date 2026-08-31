@@ -23,7 +23,7 @@ Specs: DEMOMA-06-002, DEMOMA-06-003.
 
 import logging
 
-from vultron.core.states.cs import CS_vfd
+from vultron.core.states.cs import CS_d, CS_vf
 from vultron.core.states.em import is_em_embargo_active, is_em_exited
 from vultron.core.states.rm import RM
 from vultron.demo.helpers.polling import (
@@ -33,9 +33,10 @@ from vultron.demo.helpers.polling import (
 from vultron.demo.helpers.sync import _extract_ref_id
 from vultron.demo.helpers.verification import (
     _assert_participant_pxa_only,
-    _assert_participant_vfd_pxa,
+    _assert_participant_vf_pxa,
+    _check_participant_d_state_in,
     _check_participant_rm_state_in,
-    _check_participant_vfd_state_in,
+    _check_participant_vf_state_in,
     _fetch_participant,
     _fetch_participant_data,
 )
@@ -186,7 +187,7 @@ def verify_fix_ready(
         reporter_client: Client connected to the reporter container.
         case_id: Full URI of the ``as_VulnerabilityCase``.
         receiver_actor_id: Full URI of the receiver actor whose
-            participant vfd_state to check.
+            participant vf_state/d_state to check.
 
     Raises:
         AssertionError: If ``receiver_actor_id`` does not hold
@@ -196,15 +197,15 @@ def verify_fix_ready(
     _assert_vendor_role(
         receiver_client, case_id, receiver_actor_id, "verify_fix_ready"
     )
-    fix_ready_states = {CS_vfd.VFd, CS_vfd.VFD}
+    fix_ready_state = {CS_vf.VF}
     # CS.F entails RM in {ACCEPTED, DEFERRED, CLOSED}: a participant that has
     # a fix-ready CS state must also have engaged with the report at the RM level.
     rm_engaged_states = {RM.ACCEPTED, RM.DEFERRED, RM.CLOSED}
-    _check_participant_vfd_state_in(
+    _check_participant_vf_state_in(
         receiver_client,
         case_id,
         receiver_actor_id,
-        fix_ready_states,
+        fix_ready_state,
         "verify_fix_ready coordinator",
     )
     _check_participant_rm_state_in(
@@ -214,11 +215,11 @@ def verify_fix_ready(
         rm_engaged_states,
         "verify_fix_ready coordinator RM",
     )
-    _check_participant_vfd_state_in(
+    _check_participant_vf_state_in(
         reporter_client,
         case_id,
         receiver_actor_id,
-        fix_ready_states,
+        fix_ready_state,
         "verify_fix_ready reporter replica",
     )
     _check_participant_rm_state_in(
@@ -290,7 +291,7 @@ def verify_fix_deployed(
         reporter_client: Client connected to the reporter container.
         case_id: Full URI of the ``as_VulnerabilityCase``.
         receiver_actor_id: Full URI of the receiver actor whose
-            participant vfd_state to check.
+            participant vf_state/d_state to check.
 
     Raises:
         AssertionError: If ``receiver_actor_id`` does not hold
@@ -300,15 +301,15 @@ def verify_fix_deployed(
     _assert_deployer_role(
         receiver_client, case_id, receiver_actor_id, "verify_fix_deployed"
     )
-    deployed_state = {CS_vfd.VFD}
-    _check_participant_vfd_state_in(
+    deployed_state = {CS_d.D}
+    _check_participant_d_state_in(
         receiver_client,
         case_id,
         receiver_actor_id,
         deployed_state,
         "verify_fix_deployed coordinator",
     )
-    _check_participant_vfd_state_in(
+    _check_participant_d_state_in(
         reporter_client,
         case_id,
         receiver_actor_id,
@@ -330,7 +331,7 @@ def verify_publicly_disclosed(
 
     Checks:
     - Both DataLayers reflect ``EM.EXITED`` on the case.
-    - Coordinator participant's latest status has ``vfd_state == VFD`` and
+    - Coordinator participant's latest status has ``d_state == D`` and
       a public-aware ``pxa_state``.
 
     Spec: DEMOMA-06-002.
@@ -385,7 +386,7 @@ def verify_publicly_disclosed(
             )
         receiver_roles = set(p.case_roles or [])
         if receiver_roles & vfd_roles:
-            _assert_participant_vfd_pxa(p, label, receiver_actor_id)
+            _assert_participant_vf_pxa(p, label, receiver_actor_id)
         else:
             _assert_participant_pxa_only(p, label, receiver_actor_id)
     logger.info("✓ publicly disclosed: both replicas CS.VFDPxa and EM.EXITED")

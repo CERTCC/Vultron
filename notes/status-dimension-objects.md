@@ -74,9 +74,10 @@ Decompose each machine into a small Pydantic `BaseModel` — a *dimension object
 em: EmDimension = Field(default_factory=EmDimension)
 pxa: PxaDimension = Field(default_factory=PxaDimension)
 
-# ParticipantStatus (after)
+# ParticipantStatus (after — ADR-0036 original; ADR-0075 then split vfd into vf+d)
 rm: RmDimension = Field(default_factory=RmDimension)
-vfd: VfdDimension = Field(default_factory=VfdDimension)
+vf: VfDimension | None = None   # non-None for VENDOR participants
+d: DDimension | None = None     # non-None for DEPLOYER participants
 consent: PecDimension | None = None
 ```
 
@@ -89,7 +90,9 @@ consent: PecDimension | None = None
 | `EmDimension` | `EM` | `CaseStatus.em_state` |
 | `PxaDimension` | `CS_pxa` | `CaseStatus.pxa_state` |
 | `RmDimension` | `RM` | `ParticipantStatus.rm_state` |
-| `VfdDimension` | `CS_vfd` | `ParticipantStatus.vfd_state` |
+| `VfDimension` | `CS_vf` | `ParticipantStatus.vf` (VENDOR participants; ADR-0075) |
+| `DDimension` | `CS_d` | `ParticipantStatus.d` (DEPLOYER participants; ADR-0075) |
+| `VfdDimension` | `CS_vfd` | retained in `vultron/bt/` legacy only; use `VfDimension`/`DDimension` in new code |
 | `PecDimension` | `PEC` | `ParticipantStatus.em_consent_state` |
 
 The `*Dimension` suffix was chosen to avoid collision with the existing
@@ -179,7 +182,7 @@ is mechanical:
 | `status.em_state` | `status.em.state` |
 | `status.pxa_state` | `status.pxa.state` |
 | `status.rm_state` | `status.rm.state` |
-| `status.vfd_state` | `status.vfd.state` |
+| `status.vfd_state` | `status.vf.state` (VENDOR) or `status.d.state` (DEPLOYER) |
 | `status.em_consent_state` | `status.consent.state` (or `None` check) |
 | `CaseStatus(em_state=EM.ACTIVE, ...)` | `CaseStatus(em=EmDimension(state=EM.ACTIVE), ...)` |
 

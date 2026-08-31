@@ -423,7 +423,7 @@ class CaseTimelineEvent(BaseModel):
             ``Accept(Invite(object=Org, target=Case))``).
         activity_target_type: Wire type of the destination/target object.
         received_at: Server-generated receipt timestamp (``receivedAt``).
-        rm_state / em_state / pec_state / vfd_state / pxa_state: Resulting
+        rm_state / em_state / pec_state / vf_state / d_state / pxa_state: Resulting
             state-machine dimensions extracted from the payload snapshot, where
             present. ``pec_state`` is the per-participant Embargo Consent state
             (NO_EMBARGO, INVITED, SIGNATORY, LAPSED, DECLINED), extracted from
@@ -450,7 +450,8 @@ class CaseTimelineEvent(BaseModel):
     rm_state: str | None = None
     em_state: str | None = None
     pec_state: str | None = None
-    vfd_state: str | None = None
+    vf_state: str | None = None
+    d_state: str | None = None
     pxa_state: str | None = None
     present_in: list[str] = Field(default_factory=list)
 
@@ -549,9 +550,8 @@ class CaseTimelineEvent(BaseModel):
                 "embargoConsentState",
                 "embargo_consent_state",
             ),
-            vfd_state=_dimension_state(
-                candidates, "vfd", "vfdState", "vfd_state"
-            ),
+            vf_state=_dimension_state(candidates, "vf", "vfState", "vf_state"),
+            d_state=_dimension_state(candidates, "d", "dState", "d_state"),
             pxa_state=_dimension_state(
                 candidates, "pxa", "pxaState", "pxa_state"
             ),
@@ -610,8 +610,8 @@ class CaseTimelineEvent(BaseModel):
 
     @property
     def cs_state(self) -> str | None:
-        """Combined Case State: vendor fix path (vfd) and public state (pxa)."""
-        parts = [p for p in (self.vfd_state, self.pxa_state) if p]
+        """Combined Case State: vf/d dimensions and public state (pxa)."""
+        parts = [p for p in (self.vf_state, self.d_state, self.pxa_state) if p]
         return " · ".join(parts) if parts else None
 
     @property

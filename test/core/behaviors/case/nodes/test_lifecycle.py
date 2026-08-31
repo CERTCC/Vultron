@@ -453,7 +453,7 @@ class TestPayloadObjectOverrideContract:
         """AC-4c: Commit succeeds when both fields and producer_type are valid."""
         status = _run_with_override(
             bridge,
-            fields={"rmState": "VALID", "vfdState": "VFd"},
+            fields={"rmState": "VALID", "vfState": "Vf"},
             producer_type="FilterParticipantStatusDimensionsNode",
         )
         assert status == Status.SUCCESS

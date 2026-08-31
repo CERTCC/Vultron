@@ -87,7 +87,8 @@ def _extract_payload_snapshot(
 #: snake_case spelling read the value the receiver just refused.
 _SNAKE_TWINS: dict[str, str] = {
     "rmState": "rm_state",
-    "vfdState": "vfd_state",
+    "vfState": "vf_state",
+    "dState": "d_state",
     "emState": "em_state",
     "pxaState": "pxa_state",
     "emConsentState": "em_consent_state",
