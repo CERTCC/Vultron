@@ -121,13 +121,16 @@ CaseActor inbox receives Accept
 
 ### OfferCaseOwnershipTransferReceivedUseCase
 
-Extend to:
+Implemented by #2067. The use case now calls `create_offer_ownership_transfer_tree()`
+and passes `trigger_activity=self._trigger_activity` to `BTBridge`. All three
+steps run inside the BT:
 
-1. Store the Offer object (existing behaviour — keep it).
-2. Commit a `CaseLedgerEntry` recording the offer.
-3. Forward the Offer to the transferee's inbox.
+1. Store the Offer object via `create_receive_activity_tree`'s idempotency guard.
+2. Commit a `CaseLedgerEntry` via the guarded-commit node (CaseActor only).
+3. Forward the Offer to the transferee via `ForwardOfferToTransfereeNode`,
+   wrapped in `create_case_manager_gated_tree` (CaseActor only, CM-21-005).
 
-**Forwarded-Offer wire format** (CM-21-005, mirrors Invite-flow analogy):
+**Forwarded-Offer wire format** (CM-21-005):
 
 ```text
 Offer(VulnerabilityCase,
@@ -138,10 +141,9 @@ Offer(VulnerabilityCase,
 )
 ```
 
-`attributed_to` must be threaded through `TriggerActivityPort.offer_case_ownership_transfer`
-so the factory can stamp it on the wire object.
-
-Use the guarded-commit pattern: only runs when `receiving_actor_id == case_actor_id`.
+`attributed_to` is threaded through `TriggerActivityPort.offer_case_ownership_transfer`
+so the factory stamps it on the wire object. `ForwardOfferToTransfereeNode` logs
+WARNING and returns FAILURE when `trigger_activity_factory` is absent.
 
 ### AcceptCaseOwnershipTransferReceivedUseCase / ownership_transfer_tree.py
 
