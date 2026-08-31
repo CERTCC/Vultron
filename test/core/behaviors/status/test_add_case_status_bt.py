@@ -536,6 +536,47 @@ class TestAddCaseStatusTree:
         status_ids = [getattr(s, "id_", s) for s in updated_case.case_statuses]
         assert STATUS_ID not in status_ids
 
+    @pytest.mark.spec("CSB-17-012")
+    def test_px_ephemeral_a_event_rejected_no_ledger_write(
+        self, dl, make_payload
+    ):
+        """Full tree rejects A-event from pX state; no ledger write (CSB-17-012, ISSUE-2524).
+
+        When the current PXA state is pXa (exploit public, public unaware),
+        the CheckCsEphemeralStateNode guard must return FAILURE for any asserted
+        CaseStatus that does not advance P.  The full tree must return FAILURE
+        and no CaseStatus entry should be appended to the case.
+        """
+        case = VulnerabilityCase(
+            id_=CASE_ID, name="Ephemeral pX Guard", attributed_to=ACTOR_ID
+        )
+        # Auto-seeded baseline is pxa; advance to pXa (X exploit published,
+        # P still false — the ephemeral state that requires P next).
+        case.append_case_status(pxa_state=CS_pxa.pXa)
+        dl.create(case)
+
+        # Asserted status fires A-event only (pXa → pXA); P is NOT advanced.
+        asserted = as_CaseStatus(
+            id_=STATUS_ID,
+            context=CASE_ID,
+            pxa_state=CS_pxa.pXA,
+        )
+        dl.create(asserted)
+
+        activity = add_status_to_case_activity(
+            asserted, target=case.id_, actor=ACTOR_ID
+        )
+        event = make_payload(activity)
+
+        tree = add_case_status_tree(request=event)
+        bridge = BTBridge(datalayer=dl)
+        result = bridge.execute_with_setup(tree=tree, actor_id=ACTOR_ID)
+        assert result.status == Status.FAILURE
+
+        updated_case = cast(as_VulnerabilityCase, dl.read(CASE_ID))
+        status_ids = [getattr(s, "id_", s) for s in updated_case.case_statuses]
+        assert STATUS_ID not in status_ids
+
     @pytest.mark.spec("RSH-05-015")
     @pytest.mark.spec("RSH-05-016")
     def test_valid_em_advance_with_pxa_regression_applies_em_and_refuses_pxa(

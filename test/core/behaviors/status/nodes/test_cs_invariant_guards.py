@@ -132,8 +132,13 @@ class TestCheckCsEphemeralStateNode:
         assert _run(bridge, node) == Status.SUCCESS
 
     def test_first_ever_status_succeeds(self, dl, bridge):
-        """No current status (first ever) → SUCCESS; no constraint applies."""
-        # Bare case with no materialized CaseStatus objects
+        """No current status (first ever) → SUCCESS; no constraint applies.
+
+        VulnerabilityCase without attributed_to does not trigger
+        _init_case_statuses auto-seeding, so case_statuses is empty and
+        current_status raises ValueError → guard returns SUCCESS.
+        """
+        # attributed_to intentionally absent to suppress auto-seeding
         bare_case = VulnerabilityCase(id_=CASE_ID, context=ACTOR_ID)
         dl.create(bare_case)
         asserted = as_CaseStatus(
@@ -264,9 +269,13 @@ class TestCheckCsHistoryPrefixNode:
         assert _run(bridge, node) == Status.SUCCESS
 
     def test_first_ever_status_succeeds(self, dl, bridge):
-        """No current status (first ever) → SUCCESS."""
-        from vultron.core.models.case import VulnerabilityCase
+        """No current status (first ever) → SUCCESS.
 
+        VulnerabilityCase without attributed_to does not trigger
+        _init_case_statuses auto-seeding, so current_status raises ValueError
+        → guard returns SUCCESS.
+        """
+        # attributed_to intentionally absent to suppress auto-seeding
         bare_case = VulnerabilityCase(id_=CASE_ID, context=ACTOR_ID)
         dl.create(bare_case)
         asserted = as_CaseStatus(
