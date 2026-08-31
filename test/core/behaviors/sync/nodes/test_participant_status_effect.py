@@ -145,6 +145,7 @@ def test_apply_participant_status_roundtrip_preserves_vf_state(
     assert len(updated.participant_statuses) == initial_count + 1
 
     new_status = cast(ParticipantStatus, updated.participant_statuses[-1])
+    assert new_status.vf is not None
     assert new_status.vf.state == CS_vf.VF
     assert new_status.rm.state == RM.ACCEPTED
 

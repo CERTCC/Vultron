@@ -27,7 +27,7 @@ import sys
 from typing import Optional, Tuple
 
 from vultron.adapters.utils import strip_id_prefix
-from vultron.core.states.cs import CS_d, CS_vf
+from vultron.core.states.cs import CS_vf
 from vultron.core.states.rm import RM
 from vultron.wire.as2.vocab.base.objects.activities.transitive import as_Offer
 from vultron.wire.as2.vocab.base.objects.actors import as_Actor

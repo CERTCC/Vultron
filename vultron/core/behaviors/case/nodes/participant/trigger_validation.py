@@ -204,7 +204,6 @@ class ValidateTriggerTransitionsNode(DataLayerCondition):
                 self.logger.info("%s: %s", self.name, self.feedback_message)
                 return Status.FAILURE
 
-        # --- Cross-machine: RM ↔ VF entailment (CSB-18-001, #2236) ---
         effective_rm = (
             self._rm_state if self._rm_state is not None else current_rm
         )
@@ -212,23 +211,27 @@ class ValidateTriggerTransitionsNode(DataLayerCondition):
             self._vf_state if self._vf_state is not None else current_vf
         )
         effective_d = self._d_state if self._d_state is not None else current_d
+        return self._validate_entailments(
+            effective_rm, effective_vf, effective_d
+        )
 
-        if (
-            effective_vf is not None
-            and (msg := violation_rm_vf_entailment(effective_rm, effective_vf))
-            is not None
-        ):
-            self.feedback_message = msg
-            self.logger.info("%s: %s", self.name, self.feedback_message)
-            return Status.FAILURE
-
-        if (
-            effective_d is not None
-            and (msg := violation_rm_d_entailment(effective_rm, effective_d))
-            is not None
-        ):
-            self.feedback_message = msg
-            self.logger.info("%s: %s", self.name, self.feedback_message)
-            return Status.FAILURE
-
+    def _validate_entailments(
+        self,
+        rm: "RM",
+        vf: "CS_vf | None",
+        d: "CS_d | None",
+    ) -> Status:
+        """CSB-18-001: check RM↔VF and RM↔D cross-machine entailments."""
+        if vf is not None:
+            msg = violation_rm_vf_entailment(rm, vf)
+            if msg is not None:
+                self.feedback_message = msg
+                self.logger.info("%s: %s", self.name, self.feedback_message)
+                return Status.FAILURE
+        if d is not None:
+            msg = violation_rm_d_entailment(rm, d)
+            if msg is not None:
+                self.feedback_message = msg
+                self.logger.info("%s: %s", self.name, self.feedback_message)
+                return Status.FAILURE
         return Status.SUCCESS

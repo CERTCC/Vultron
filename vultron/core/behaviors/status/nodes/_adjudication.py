@@ -62,7 +62,7 @@ def _rm_is_acceptable(current: RM, asserted: RM) -> bool:
 def _adjudicate_dimensions(
     current: ParticipantStatus, asserted: ParticipantStatus
 ) -> tuple[list[str], dict[str, Any]]:
-    """Adjudicate ``rm``, ``vfd`` and ``pxa`` independently.
+    """Adjudicate ``rm``, ``vf``, ``d`` and ``pxa`` independently.
 
     Returns the names of the refused dimensions and the ``model_copy`` update
     that carries the current value forward for each of them.  ``em``,

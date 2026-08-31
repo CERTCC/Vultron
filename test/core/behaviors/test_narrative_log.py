@@ -29,7 +29,7 @@ from vultron.core.behaviors.narrative_log import (
     log_invite_received,
     log_rm_transition,
 )
-from vultron.core.states.cs import CS_pxa, CS_vfd
+from vultron.core.states.cs import CS_d, CS_pxa, CS_vf
 from vultron.core.states.em import EM
 from vultron.core.states.rm import RM
 
@@ -45,9 +45,9 @@ class TestCsEventLabel:
     @pytest.mark.parametrize(
         "before,after,expected",
         [
-            (CS_vfd.vfd, CS_vfd.Vfd, "vendor aware"),
-            (CS_vfd.Vfd, CS_vfd.VFd, "fix ready"),
-            (CS_vfd.VFd, CS_vfd.VFD, "fix deployed"),
+            (CS_vf.vf, CS_vf.Vf, "vendor aware"),
+            (CS_vf.Vf, CS_vf.VF, "fix ready"),
+            (CS_d.d, CS_d.D, "fix deployed"),
             (CS_pxa.pxa, CS_pxa.Pxa, "publicly known"),
             (CS_pxa.Pxa, CS_pxa.PXa, "exploit public"),
             (CS_pxa.Pxa, CS_pxa.PxA, "attacks observed"),
@@ -64,13 +64,13 @@ class TestCsEventLabel:
         )
 
     def test_no_change_label(self):
-        assert cs_event_label(CS_vfd.Vfd, CS_vfd.Vfd) == NO_CHANGE_LABEL
+        assert cs_event_label(CS_vf.Vf, CS_vf.Vf) == NO_CHANGE_LABEL
 
     @pytest.mark.parametrize(
         "before,after",
         [
-            (CS_vfd.VFd, CS_vfd.vfd),
-            (CS_vfd.VFD, CS_vfd.VFd),
+            (CS_vf.VF, CS_vf.vf),
+            (CS_d.D, CS_d.d),
             (CS_pxa.Pxa, CS_pxa.pxa),
         ],
     )
@@ -83,24 +83,24 @@ class TestCsEventLabel:
         assert cs_event_label(before, after) == REGRESSION_LABEL
 
     def test_mixed_dimensions_raise_type_error(self):
-        """A VFD/PXA mix has non-comparable fields — fail loudly, not silently.
+        """A VF/PXA mix has non-comparable fields — fail loudly, not silently.
 
         Previously this raised an opaque ``AttributeError`` from inside the
         comparison loop.
         """
         with pytest.raises(TypeError, match="same CS dimension"):
-            cs_event_label(CS_vfd.vfd, CS_pxa.Pxa)
+            cs_event_label(CS_vf.vf, CS_pxa.Pxa)
 
 
 class TestLogCsTransition:
     """log_cs_transition() emits the SL-04-006 CS template at INFO."""
 
-    def test_vfd_transition_logged_at_info(self, caplog):
+    def test_vf_transition_logged_at_info(self, caplog):
         with caplog.at_level(logging.INFO, logger=logger.name):
-            log_cs_transition(logger, ACTOR, CASE, CS_vfd.Vfd, CS_vfd.VFd)
+            log_cs_transition(logger, ACTOR, CASE, CS_vf.Vf, CS_vf.VF)
 
         assert (
-            f"Actor '{ACTOR}' CS: Vfd → VFd (fix ready) for case '{CASE}'"
+            f"Actor '{ACTOR}' CS: Vf → VF (fix ready) for case '{CASE}'"
             in caplog.text
         )
         assert caplog.records[0].levelno == logging.INFO
@@ -117,14 +117,14 @@ class TestLogCsTransition:
     def test_no_op_transition_emits_nothing(self, caplog):
         """An unchanged CS dimension is not a protocol event (SL-04-007)."""
         with caplog.at_level(logging.INFO, logger=logger.name):
-            log_cs_transition(logger, ACTOR, CASE, CS_vfd.Vfd, CS_vfd.Vfd)
+            log_cs_transition(logger, ACTOR, CASE, CS_vf.Vf, CS_vf.Vf)
 
         assert caplog.records == []
 
     def test_backward_move_logged_at_warning_not_info(self, caplog):
         """A regression is an anomaly to investigate, not a case milestone."""
         with caplog.at_level(logging.DEBUG, logger=logger.name):
-            log_cs_transition(logger, ACTOR, CASE, CS_vfd.VFd, CS_vfd.vfd)
+            log_cs_transition(logger, ACTOR, CASE, CS_vf.VF, CS_vf.vf)
 
         assert len(caplog.records) == 1
         assert caplog.records[0].levelno == logging.WARNING

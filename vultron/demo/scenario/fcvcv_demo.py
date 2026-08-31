@@ -101,6 +101,7 @@ from vultron.demo.helpers.polling import (
     wait_for_case_participants,
     wait_for_contiguous_ledger_coverage,
     wait_for_event_type_in_ledger,
+    wait_for_participant_d_state,
     wait_for_participant_rm_state,
     wait_for_participant_vf_state,
 )
@@ -828,7 +829,7 @@ def _phase_fix_lifecycle(
     )
 
     with demo_check("V2 participant d_state transitions to D"):
-        wait_for_participant_vf_state(
+        wait_for_participant_d_state(
             client=v2_client,
             case_id=case.id_,
             actor_id=v2.id_,
@@ -844,7 +845,7 @@ def _phase_fix_lifecycle(
             actor_id=v1.id_,
             expected_states={CS_vf.VF},
         )
-        wait_for_participant_vf_state(
+        wait_for_participant_d_state(
             client=c1_client,
             case_id=case.id_,
             actor_id=v2.id_,
@@ -856,7 +857,7 @@ def _phase_fix_lifecycle(
             actor_id=v1.id_,
             expected_states={CS_vf.VF},
         )
-        wait_for_participant_vf_state(
+        wait_for_participant_d_state(
             client=finder_client,
             case_id=case.id_,
             actor_id=v2.id_,
@@ -964,7 +965,7 @@ def _phase_publication(
             actor_id=v1.id_,
             expected_states={CS_vf.VF},
         )
-        wait_for_participant_vf_state(
+        wait_for_participant_d_state(
             client=c1_client,
             case_id=case.id_,
             actor_id=v2.id_,

@@ -51,7 +51,6 @@ from vultron.core.states.cs import (
 )
 from vultron.core.states.em import EM
 from vultron.core.states.rm import RM
-from vultron.enums.roles import CVDRole
 
 
 def _resolve_em_state(case: object) -> EM:
@@ -122,6 +121,65 @@ class CreateParticipantStatusNode(DataLayerActionWithPorts):
         self._d_state = d_state
         self._pxa_state = pxa_state
         self._result_out = result_out
+
+    def _persist_status(
+        self, dl: object, participant_id: str, status: "ParticipantStatus"
+    ) -> None:
+        """Write the status to the DataLayer and link it to the participant."""
+        try:
+            dl.create(status)  # type: ignore[union-attr]
+        except ValueError:
+            dl.save(status)  # type: ignore[union-attr]
+        participant_obj = dl.read(participant_id)  # type: ignore[union-attr]
+        wire_status = dl.read(status.id_)  # type: ignore[union-attr]
+        if isinstance(participant_obj, CaseParticipant) and isinstance(
+            wire_status, ParticipantStatus
+        ):
+            participant_obj.add_participant_status(wire_status)
+            dl.save(participant_obj)  # type: ignore[union-attr]
+
+    def _build_dimensions(
+        self,
+        current_vf: CS_vf | None,
+        current_d: CS_d | None,
+    ) -> "tuple[VfDimension | None, DDimension | None]":
+        """Return (vf_dim, d_dim) for the new snapshot."""
+        vf_dim: VfDimension | None = None
+        if self._vf_state is not None:
+            vf_dim = VfDimension(state=self._vf_state)
+        elif current_vf is not None:
+            vf_dim = VfDimension(state=current_vf)
+
+        d_dim: DDimension | None = None
+        if self._d_state is not None:
+            d_dim = DDimension(state=self._d_state)
+        elif current_d is not None:
+            d_dim = DDimension(state=current_d)
+
+        return vf_dim, d_dim
+
+    def _build_participant_metadata(
+        self, participant_obj: object
+    ) -> "tuple[list, PecDimension | None]":
+        """Return (status_roles, consent_dim) derived from participant object."""
+        participant_roles = (
+            participant_obj.roles  # type: ignore[union-attr]
+            if isinstance(participant_obj, CaseParticipant)
+            else []
+        )
+        status_roles = coerce_cvd_roles(participant_roles)
+        raw_consent = (
+            getattr(participant_obj, "embargo_consent_state", None)
+            if isinstance(participant_obj, CaseParticipant)
+            else None
+        )
+        em_consent_state = coerce_em_consent_state(raw_consent)
+        consent_dim = (
+            PecDimension(state=em_consent_state)
+            if em_consent_state is not None
+            else None
+        )
+        return status_roles, consent_dim
 
     def _check_vf_precondition(
         self, current_vf: CS_vf | None
@@ -243,36 +301,10 @@ class CreateParticipantStatusNode(DataLayerActionWithPorts):
                 pxa=PxaDimension(state=self._pxa_state),
             )
 
-        participant_roles = (
-            participant_obj.roles
-            if isinstance(participant_obj, CaseParticipant)
-            else []
+        status_roles, consent_dim = self._build_participant_metadata(
+            participant_obj
         )
-        status_roles = coerce_cvd_roles(participant_roles)
-        raw_consent = (
-            getattr(participant_obj, "embargo_consent_state", None)
-            if isinstance(participant_obj, CaseParticipant)
-            else None
-        )
-        em_consent_state = coerce_em_consent_state(raw_consent)
-        consent_dim = (
-            PecDimension(state=em_consent_state)
-            if em_consent_state is not None
-            else None
-        )
-
-        # Build vf/d dimensions: use requested state if provided, else carry current forward.
-        vf_dim: VfDimension | None = None
-        if self._vf_state is not None:
-            vf_dim = VfDimension(state=self._vf_state)
-        elif current_vf is not None:
-            vf_dim = VfDimension(state=current_vf)
-
-        d_dim: DDimension | None = None
-        if self._d_state is not None:
-            d_dim = DDimension(state=self._d_state)
-        elif current_d is not None:
-            d_dim = DDimension(state=current_d)
+        vf_dim, d_dim = self._build_dimensions(current_vf, current_d)
 
         status = ParticipantStatus(
             context=self._case_id,
@@ -290,18 +322,7 @@ class CreateParticipantStatusNode(DataLayerActionWithPorts):
             cvd_role=status_roles,
             case_status=case_status,
         )
-        try:
-            dl.create(status)
-        except ValueError:
-            dl.save(status)
-
-        participant_obj = dl.read(participant_id)
-        wire_status = dl.read(status.id_)
-        if isinstance(participant_obj, CaseParticipant) and isinstance(
-            wire_status, ParticipantStatus
-        ):
-            participant_obj.add_participant_status(wire_status)
-            dl.save(participant_obj)
+        self._persist_status(dl, participant_id, status)
 
         self._result_out["status_id"] = status.id_
         self._result_out["participant_id"] = participant_id

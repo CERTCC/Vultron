@@ -27,7 +27,7 @@ import logging
 import os
 import sys
 
-from vultron.core.states.cs import CS_d, CS_vf
+from vultron.core.states.cs import CS_vf
 from vultron.core.states.rm import RM
 from vultron.wire.as2.vocab.base.objects.activities.transitive import (
     as_Offer,

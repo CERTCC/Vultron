@@ -443,7 +443,7 @@ def test_check_cs_state_transitions_observed_detects_missing_fix_ready():
                 "rmState": "VALID",
                 "emConsentState": "SIGNATORY",
                 "cvdRole": ["FINDER"],
-                "vfdState": "vfd",  # never VFd or VFD
+                "vfState": "vf",  # never VF
                 "caseStatus": {"pxaState": "Pxa"},
             }
         },
@@ -463,11 +463,11 @@ def test_check_cs_state_transitions_observed_detects_no_status_entries():
     assert violations
 
 
-def test_check_cs_state_transitions_observed_no_vfd_passes_without_fix_ready():
-    """check_fix_ready=False skips VFd check — reject-flow scenario regression.
+def test_check_cs_state_transitions_observed_no_vf_passes_without_fix_ready():
+    """check_fix_ready=False skips VF check — reject-flow scenario regression.
 
     Reproduces the fcv-reject Invariant 15 failure (issue #2121): a scenario
-    where Vendor never participates produces no VFd observation, which triggered
+    where Vendor never participates produces no VF observation, which triggered
     a spurious violation when check_fix_ready was unconditional.
     """
     actor_id = "https://example.org/actors/coordinator"
@@ -483,7 +483,7 @@ def test_check_cs_state_transitions_observed_no_vfd_passes_without_fix_ready():
                 "rmState": "ACCEPTED",
                 "emConsentState": "SIGNATORY",
                 "cvdRole": ["COORDINATOR"],
-                "vfdState": "vfd",  # no vendor → never VFd
+                "vfState": "vf",  # no vendor → never VF
                 "caseStatus": {"pxaState": "Pxa"},  # P-transition present
             }
         },
@@ -510,7 +510,7 @@ def test_check_cs_state_transitions_observed_no_vfd_still_requires_published():
                 "rmState": "ACCEPTED",
                 "emConsentState": "SIGNATORY",
                 "cvdRole": ["COORDINATOR"],
-                "vfdState": "vfd",
+                "vfState": "vf",
                 "caseStatus": {"pxaState": "pxa"},  # no P yet
             }
         },
@@ -931,7 +931,7 @@ _ACTOR_B_ID = "https://example.org/actors/actor-b"
 def _status_entry(
     log_idx: int,
     rm_state: str,
-    vfd_state: str,
+    vf_state: str,
     pxa_state: str,
     actor_id: str = _ACTOR_A_ID,
 ) -> dict:
@@ -947,7 +947,7 @@ def _status_entry(
                 "rmState": rm_state,
                 "emConsentState": "SIGNATORY",
                 "cvdRole": ["FINDER"],
-                "vfdState": vfd_state,
+                "vfState": vf_state,
                 "caseStatus": {"pxaState": pxa_state},
             }
         },
@@ -957,8 +957,8 @@ def _status_entry(
 def _vendor_entries_valid() -> list[dict]:
     """Minimal vendor replica that passes all per-actor checks."""
     return [
-        _status_entry(0, "ACCEPTED", "VFd", "Pxa"),
-        _status_entry(1, "CLOSED", "VFd", "PXA"),
+        _status_entry(0, "ACCEPTED", "VF", "Pxa"),
+        _status_entry(1, "CLOSED", "VF", "PXA"),
     ]
 
 
@@ -980,7 +980,7 @@ class TestCheckPerActorReplicaDivergence:
     def test_case_actor_is_exempt(self):
         """case-actor replica is never checked by this function."""
         # Inject a defect only in case-actor — should produce no violations.
-        bad_entry = _status_entry(0, "ACCEPTED", "VFd", "Pxa")
+        bad_entry = _status_entry(0, "ACCEPTED", "VF", "Pxa")
         bad_entry["payloadSnapshot"]["object"].pop("emConsentState")
         replicas = {"case-actor": [bad_entry]}
         assert check_per_actor_replica_divergence(replicas) == []
@@ -996,11 +996,9 @@ class TestCheckPerActorReplicaDivergence:
         """RM state oscillation after CLOSED is detected in non-case-actor."""
         actor_id = _ACTOR_A_ID
         entries = [
-            _status_entry(0, "ACCEPTED", "VFd", "Pxa", actor_id),
-            _status_entry(1, "CLOSED", "VFd", "PXA", actor_id),
-            _status_entry(
-                2, "ACCEPTED", "VFd", "PXA", actor_id
-            ),  # oscillation
+            _status_entry(0, "ACCEPTED", "VF", "Pxa", actor_id),
+            _status_entry(1, "CLOSED", "VF", "PXA", actor_id),
+            _status_entry(2, "ACCEPTED", "VF", "PXA", actor_id),  # oscillation
         ]
         replicas = {"case-actor": _vendor_entries_valid(), "vendor": entries}
         violations = check_per_actor_replica_divergence(replicas)
@@ -1009,7 +1007,7 @@ class TestCheckPerActorReplicaDivergence:
 
     def test_detects_rm_closed_termination_failure_in_non_case_actor(self):
         """Actor that never reaches CLOSED is flagged."""
-        entries = [_status_entry(0, "ACCEPTED", "VFd", "Pxa")]
+        entries = [_status_entry(0, "ACCEPTED", "VF", "Pxa")]
         replicas = {"case-actor": _vendor_entries_valid(), "vendor": entries}
         violations = check_per_actor_replica_divergence(replicas)
         assert violations
@@ -1018,20 +1016,20 @@ class TestCheckPerActorReplicaDivergence:
     def test_detects_missing_cs_transition_in_non_case_actor(self):
         """Actor whose replica never observes the P-transition is flagged."""
         entries = [
-            _status_entry(0, "ACCEPTED", "VFd", "pxa"),  # no P yet
-            _status_entry(1, "CLOSED", "VFd", "pxa"),  # still no P
+            _status_entry(0, "ACCEPTED", "VF", "pxa"),  # no P yet
+            _status_entry(1, "CLOSED", "VF", "pxa"),  # still no P
         ]
         replicas = {"case-actor": _vendor_entries_valid(), "vendor": entries}
         violations = check_per_actor_replica_divergence(replicas)
         assert violations
         assert "vendor" in violations[0]
 
-    def test_check_fix_ready_false_skips_vfd_check_per_actor(self):
-        """check_fix_ready=False exempts VFd check for each non-case-actor replica."""
-        # vendor has P-transition but no VFd — valid when check_fix_ready=False
+    def test_check_fix_ready_false_skips_vf_check_per_actor(self):
+        """check_fix_ready=False exempts VF check for each non-case-actor replica."""
+        # vendor has P-transition but no VF — valid when check_fix_ready=False
         entries = [
-            _status_entry(0, "ACCEPTED", "vfd", "Pxa"),  # no VFd
-            _status_entry(1, "CLOSED", "vfd", "PXA"),  # still no VFd
+            _status_entry(0, "ACCEPTED", "vf", "Pxa"),  # no VF
+            _status_entry(1, "CLOSED", "vf", "PXA"),  # still no VF
         ]
         replicas = {"case-actor": _vendor_entries_valid(), "vendor": entries}
         violations = check_per_actor_replica_divergence(
@@ -1039,11 +1037,11 @@ class TestCheckPerActorReplicaDivergence:
         )
         assert not violations
 
-    def test_check_fix_ready_true_enforces_vfd_check_per_actor(self):
-        """check_fix_ready=True (default) flags missing VFd in non-case-actor."""
+    def test_check_fix_ready_true_enforces_vf_check_per_actor(self):
+        """check_fix_ready=True (default) flags missing VF in non-case-actor."""
         entries = [
-            _status_entry(0, "ACCEPTED", "vfd", "Pxa"),  # no VFd
-            _status_entry(1, "CLOSED", "vfd", "PXA"),  # still no VFd
+            _status_entry(0, "ACCEPTED", "vf", "Pxa"),  # no VF
+            _status_entry(1, "CLOSED", "vf", "PXA"),  # still no VF
         ]
         replicas = {"case-actor": _vendor_entries_valid(), "vendor": entries}
         violations = check_per_actor_replica_divergence(replicas)

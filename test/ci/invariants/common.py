@@ -706,7 +706,8 @@ def cs_observations_from_snap(snap: dict) -> tuple[bool, bool, bool]:
     elif isinstance(snap.get("object_"), dict):
         snap = snap["object_"]
 
-    vfd_state = snap.get("vfdState") or snap.get("vfd_state")
+    vf_state = snap.get("vfState") or snap.get("vf_state")
+    d_state = snap.get("dState") or snap.get("d_state")
 
     case_status = snap.get("caseStatus") or snap.get("case_status")
     pxa_state: str | None = None
@@ -714,8 +715,8 @@ def cs_observations_from_snap(snap: dict) -> tuple[bool, bool, bool]:
         pxa_state = case_status.get("pxaState") or case_status.get("pxa_state")
 
     return (
-        vfd_state == "VFd",
-        vfd_state == "VFD",
+        vf_state == "VF",
+        d_state == "D",
         isinstance(pxa_state, str) and pxa_state[:1] == "P",
     )
 
@@ -728,14 +729,14 @@ def check_cs_state_transitions_observed(
     """Key CS transitions observed in the authoritative log (Invariant 15).
 
     Checks pxa_state starting with "P" (public aware) for all scenarios.
-    When ``check_fix_ready=True`` (default), also checks vfd_state == "VFd"
-    (fix ready).  Set ``check_fix_ready=False`` for scenarios where no Vendor
-    ever becomes a case participant and therefore no actor advances the VFD
-    state machine (e.g. fcv-reject: Vendor rejects the invitation).
+    When ``check_fix_ready=True`` (default), also checks vf_state == "VF"
+    (fix ready, CS_vf.VF).  Set ``check_fix_ready=False`` for scenarios where
+    no Vendor ever becomes a case participant and therefore no actor advances
+    the VF state machine (e.g. fcv-reject: Vendor rejects the invitation).
 
-    VFD (fix deployed) is NOT checked here because demo scenarios use
-    vendor-only actors (CVDRole.VENDOR, no CVDRole.DEPLOYER); per CSB-15-002
-    those actors stop at VFd and never reach VFD.
+    Fix-deployed (d_state == "D") is NOT checked here because demo scenarios
+    use vendor-only actors (CVDRole.VENDOR, no CVDRole.DEPLOYER); per
+    CSB-15-002 those actors stop at CS_vf.VF and never reach CS_d.D.
     """
     auth = auth_entries(replicas)
     status_entries = [
