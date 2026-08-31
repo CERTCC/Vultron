@@ -456,11 +456,13 @@ See [notes/agents-md-structure.md](notes/agents-md-structure.md) for routing pol
 - **`uv run` Pre-Commit Hooks Fail With "Permission Denied" — Use `UV_NO_SYNC=1`** —
   when `/app/.venv/bin/adr-index` (or any devcontainer venv binary) is owned by
   root, `uv run` tries to sync the venv before executing and fails immediately
-  with `Permission denied`. Prefix with `UV_NO_SYNC=1` to skip the sync step:
-  `UV_NO_SYNC=1 uv run spec-dump`. This is safe inside the devcontainer because
-  the venv is already built; it bypasses only the sync, not the execution. Apply
-  to any `uv run` command that fails at the sync step rather than the tool itself.
-  *Source: CONCERN-2321*
+  with `Permission denied`. The root cause (`.venv` left root-owned in the `dev`
+  Docker stage) was fixed in Bug #2713 — rebuild the image with `./start-dev.sh
+  <slot> --rebuild`. For containers built before that fix, prefix with
+  `UV_NO_SYNC=1`: `UV_NO_SYNC=1 uv run spec-dump`. This is safe because the venv
+  is already built; it bypasses only the sync. Apply to any `uv run` command that
+  fails at the sync step rather than the tool itself.
+  *Source: CONCERN-2321, Bug #2713*
 - **Walrus Operator for Single-Assignment Guard Blocks** —
   `if (f := self._require_factory()) is not None: return f`.
 - **Silent `None` Returns and Fake `SUCCESS` Are the Same Bug** — raise
