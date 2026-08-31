@@ -52,10 +52,12 @@ from vultron.core.states.cross_machine_invariants import (
 from vultron.core.states.cs import (
     CS_pxa,
     CS_vfd,
+    VFD_VENDOR_AWARE,
     is_valid_pxa_transition,
     is_valid_vfd_transition,
 )
 from vultron.core.states.rm import RM, is_valid_rm_transition
+from vultron.enums.roles import CVDRole
 
 logger = logging.getLogger(__name__)
 
@@ -124,6 +126,29 @@ class ValidateTriggerTransitionsNode(DataLayerCondition):
         self._vfd_state = vfd_state
         self._pxa_state = pxa_state
 
+    def _check_vfd_role(self, participant_obj: object) -> "Status | None":
+        """Return FAILURE when the requested VFD state requires VENDOR but actor lacks it.
+
+        V transitions (VFD_VENDOR_AWARE: Vfd, VFd, VFD) are VENDOR-specific
+        per ADR-0075.  Returns None when no VFD state is requested or the actor
+        holds CVDRole.VENDOR.  Closes #2862.
+        """
+        if self._vfd_state is None or self._vfd_state not in VFD_VENDOR_AWARE:
+            return None
+        actor_roles = (
+            list(participant_obj.roles)  # type: ignore[attr-defined]
+            if isinstance(participant_obj, CaseParticipant)
+            else []
+        )
+        if CVDRole.VENDOR in actor_roles:
+            return None
+        self.feedback_message = (
+            f"CVDRole.VENDOR required for VFD state"
+            f" {self._vfd_state!r} (ADR-0075); actor roles: {actor_roles!r}"
+        )
+        self.logger.info("%s: %s", self.name, self.feedback_message)
+        return Status.FAILURE
+
     def update(self) -> Status:
         if (f := self._require_datalayer()) is not None:
             return f
@@ -169,6 +194,10 @@ class ValidateTriggerTransitionsNode(DataLayerCondition):
             )
             self.logger.info("%s: %s", self.name, self.feedback_message)
             return Status.FAILURE
+
+        # --- VFD role eligibility (ADR-0075, #2862) ---
+        if (failure := self._check_vfd_role(participant_obj)) is not None:
+            return failure
 
         # --- PXA dimension ---
         if self._pxa_state is not None and isinstance(

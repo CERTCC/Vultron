@@ -138,6 +138,16 @@ class CreateParticipantStatusNode(DataLayerActionWithPorts):
             if isinstance(participant_obj, CaseParticipant)
             else []
         )
+        if self._vfd_state == CS_vfd.Vfd and CVDRole.VENDOR not in actor_roles:
+            self.logger.warning(
+                "%s: actor '%s' lacks VENDOR role required for Vfd (ADR-0075, #2862)",
+                self.name,
+                self._actor_id,
+            )
+            self.feedback_message = (
+                "VENDOR role required for Vfd target (ADR-0075)"
+            )
+            return Status.FAILURE
         if self._vfd_state == CS_vfd.VFd and CVDRole.VENDOR not in actor_roles:
             self.logger.warning(
                 "%s: actor '%s' lacks VENDOR role required for VFd (CSB-15-001)",

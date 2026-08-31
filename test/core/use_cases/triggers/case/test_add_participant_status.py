@@ -630,6 +630,15 @@ class TestCreateParticipantStatusNode:
         """A VFD advance emits the SL-04-006 CS narrative line at INFO."""
         import logging
 
+        from vultron.core.models.case_participant import CaseParticipant
+        from vultron.enums.roles import CVDRole
+
+        # vfd → Vfd requires VENDOR role (ADR-0075, #2862); give actor VENDOR.
+        participant = self.dl.read(self.actor_participant.id_)
+        assert isinstance(participant, CaseParticipant)
+        participant.case_roles = [CVDRole.VENDOR]
+        self.dl.save(participant)
+
         with caplog.at_level(logging.INFO):
             self._run_node(rm_state=None, vfd_state=CS_vfd.Vfd, pxa_state=None)
 
@@ -1017,10 +1026,13 @@ class TestValidateTriggerTransitions:
             self._execute(vfd_state=CS_vfd.VFD)
 
     def test_valid_adjacent_vfd_step_succeeds(self):
-        """Valid adjacent VFD step (vfd → Vfd) is accepted and record persisted."""
+        """Non-VENDOR actor (FINDER) submitting vfd_state=Vfd is blocked (ADR-0075)."""
+        from vultron.errors import VultronValidationError
+
         before = self._status_count()
-        self._execute(vfd_state=CS_vfd.Vfd)
-        assert self._status_count() == before + 1
+        with pytest.raises(VultronValidationError):
+            self._execute(vfd_state=CS_vfd.Vfd)
+        assert self._status_count() == before
 
     def test_valid_adjacent_rm_step_succeeds(self):
         """Valid adjacent RM step (START → RECEIVED) is accepted and record persisted."""
@@ -1143,6 +1155,136 @@ class TestSoleObserverVfdGuard:
         before = self._status_count()
         self._execute(rm_state=None, vfd_state=None, pxa_state=None)
         assert self._status_count() == before + 1
+
+
+# ---------------------------------------------------------------------------
+# ValidateTriggerTransitionsNode — VFD role guard for VENDOR-aware states (#2862)
+# ---------------------------------------------------------------------------
+
+
+class TestVendorVfdRoleGuard:
+    """End-to-end guard: only VENDOR actors may emit vendor-aware VFD states (ADR-0075).
+
+    V transitions (vfd_state ∈ VFD_VENDOR_AWARE = {Vfd, VFd, VFD}) are
+    VENDOR-specific per ADR-0075.  ValidateTriggerTransitionsNode MUST
+    block any non-VENDOR actor requesting a vendor-aware state.
+
+    CM-25-005 (sole-OBSERVER blocks v→V) is a weaker rule that covers
+    observers-without-other-roles; this class tests the stronger VENDOR
+    requirement (Closes #2862).
+    """
+
+    @pytest.fixture(autouse=True)
+    def setup(self):
+        from vultron.adapters.driven.datalayer_sqlite import (
+            SqliteDataLayer,
+            reset_datalayer,
+        )
+        from vultron.adapters.driven.trigger_activity_adapter import (
+            TriggerActivityAdapter,
+        )
+        from vultron.enums.roles import CVDRole
+        from vultron.wire.as2.vocab.base.objects.actors import as_Service
+        from vultron.wire.as2.vocab.objects.case_participant import (
+            as_CaseParticipant,
+        )
+        from vultron.wire.as2.vocab.objects.vulnerability_case import (
+            as_VulnerabilityCase,
+        )
+
+        self.vendor_actor = as_Service(name="Vendor")
+        vendor_id = self.vendor_actor.id_
+        reset_datalayer(vendor_id)
+        self.dl = SqliteDataLayer("sqlite:///:memory:", actor_id=vendor_id)
+        self.dl.clear_all()
+        self.dl.create(self.vendor_actor)
+
+        self.coord_actor = as_Service(name="Coordinator")
+        reset_datalayer(self.coord_actor.id_)
+        self.dl.create(self.coord_actor)
+
+        self.case_manager_actor = as_Service(name="Case Manager")
+        reset_datalayer(self.case_manager_actor.id_)
+        self.dl.create(self.case_manager_actor)
+
+        self.case = as_VulnerabilityCase(name="Test Case #2862")
+        self.vendor_participant = as_CaseParticipant(
+            attributed_to=vendor_id,
+            context=self.case.id_,
+            case_roles=[CVDRole.VENDOR],
+        )
+        self.coord_participant = as_CaseParticipant(
+            attributed_to=self.coord_actor.id_,
+            context=self.case.id_,
+            case_roles=[CVDRole.COORDINATOR],
+        )
+        self.case_manager_participant = as_CaseParticipant(
+            attributed_to=self.case_manager_actor.id_,
+            context=self.case.id_,
+            case_roles=[CVDRole.CASE_MANAGER],
+        )
+        self.case.actor_participant_index[vendor_id] = (
+            self.vendor_participant.id_
+        )
+        self.case.actor_participant_index[self.coord_actor.id_] = (
+            self.coord_participant.id_
+        )
+        self.case.actor_participant_index[self.case_manager_actor.id_] = (
+            self.case_manager_participant.id_
+        )
+        self.dl.create(self.case)
+        self.dl.create(self.vendor_participant)
+        self.dl.create(self.coord_participant)
+        self.dl.create(self.case_manager_participant)
+        self.trigger_activity = TriggerActivityAdapter(self.dl)
+        yield
+        try:
+            self.dl.clear_all()
+        finally:
+            self.dl.close()
+            reset_datalayer(vendor_id)
+            reset_datalayer(self.coord_actor.id_)
+            reset_datalayer(self.case_manager_actor.id_)
+
+    def _execute_as(
+        self, actor, rm_state=None, vfd_state=None, pxa_state=None
+    ):
+        from vultron.core.use_cases.triggers.case import (
+            SvcAddParticipantStatusUseCase,
+        )
+        from vultron.core.use_cases.triggers.requests import (
+            AddParticipantStatusTriggerRequest,
+        )
+
+        request = AddParticipantStatusTriggerRequest(
+            actor_id=actor.id_,
+            case_id=self.case.id_,
+            rm_state=rm_state,
+            vfd_state=vfd_state,
+            pxa_state=pxa_state,
+        )
+        return SvcAddParticipantStatusUseCase(
+            self.dl, request, trigger_activity=self.trigger_activity
+        ).execute()
+
+    def _status_count(self, participant_id):
+        participant = self.dl.read(participant_id)
+        return len(getattr(participant, "participant_statuses", []))
+
+    def test_vendor_actor_can_emit_vendor_aware_vfd(self):
+        """VENDOR actor submitting vfd_state=Vfd (v→V) succeeds (ADR-0075)."""
+        before = self._status_count(self.vendor_participant.id_)
+        self._execute_as(self.vendor_actor, vfd_state=CS_vfd.Vfd)
+        assert self._status_count(self.vendor_participant.id_) == before + 1
+
+    def test_non_vendor_coordinator_blocked_for_vendor_aware_vfd(self):
+        """COORDINATOR (non-VENDOR) submitting vfd_state=Vfd is blocked (ADR-0075, #2862)."""
+        from vultron.errors import VultronValidationError
+
+        before = self._status_count(self.coord_participant.id_)
+        with pytest.raises(VultronValidationError):
+            self._execute_as(self.coord_actor, vfd_state=CS_vfd.Vfd)
+        assert self._status_count(self.coord_participant.id_) == before
 
 
 # ---------------------------------------------------------------------------
