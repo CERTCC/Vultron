@@ -81,7 +81,9 @@ ordering concern (CONCERN-2546).
 
 ### Current gaps (as of CONCERN-2545)
 
-- `TriggerActivityAdapter` returns `model_dump()` dict, not a frozen blob.
+The following gaps remain outstanding; the `TriggerActivityAdapter` dict-return
+gap was resolved by #2652/#2653.
+
 - `EmitInviteActorToCaseNode._emit()` derives `payload_snapshot` via
   `_drop_bare_inline_refs(activity_dict)` — the snapshot is not the exact
   emitted form.

@@ -17,6 +17,7 @@ Covers invitations, recommendations, participant management, and
 CASE_MANAGER delegation.
 """
 
+import json
 import pytest
 
 from vultron.errors import VultronValidationError
@@ -60,8 +61,8 @@ class TestInviteActorToCase:
         )
 
         assert activity_id
-        assert isinstance(activity_dict, dict)
-        assert "id" in activity_dict
+        assert isinstance(activity_dict, str)
+        assert "id" in json.loads(activity_dict)
 
     def test_persists_invite_activity(self, adapter, dl):
         activity_id, _ = adapter.invite_actor_to_case(
@@ -83,7 +84,7 @@ class TestInviteActorToCase:
             attributed_to=owner,
         )
 
-        assert activity_dict.get("attributedTo") == owner
+        assert json.loads(activity_dict).get("attributedTo") == owner
 
 
 class TestAcceptCaseInvite:
@@ -110,7 +111,7 @@ class TestAcceptCaseInvite:
         )
 
         assert activity_id
-        assert isinstance(activity_dict, dict)
+        assert isinstance(activity_dict, str)
 
     def test_persists_accept_activity(self, adapter, dl):
         invite_id = self._make_invite(dl)
@@ -170,7 +171,7 @@ class TestAcceptCaseInvite:
             actor=_INVITEE,
         )
 
-        obj = activity_dict.get("object")
+        obj = json.loads(activity_dict).get("object")
         assert isinstance(
             obj, dict
         ), "object_ must be an inline dict, not a URI"
@@ -186,7 +187,7 @@ class TestSuggestActorToCase:
         )
 
         assert activity_id
-        assert isinstance(activity_dict, dict)
+        assert isinstance(activity_dict, str)
 
     def test_persists_offer_activity(self, adapter, dl):
         activity_id, _ = adapter.suggest_actor_to_case(
@@ -250,7 +251,7 @@ class TestAcceptCaseParticipantOffer:
         )
 
         assert activity_id
-        assert isinstance(activity_dict, dict)
+        assert isinstance(activity_dict, str)
 
     def test_verbatim_reconstitution_preserves_inline_object(
         self, adapter, dl
@@ -268,7 +269,7 @@ class TestAcceptCaseParticipantOffer:
             actor=_ACTOR,
         )
 
-        obj = activity_dict.get("object")
+        obj = json.loads(activity_dict).get("object")
         assert isinstance(
             obj, dict
         ), "object_ must be an inline dict, not a URI"
@@ -308,8 +309,8 @@ class TestAcceptCaseParticipantRole:
         )
 
         assert activity_id
-        assert isinstance(activity_dict, dict)
-        assert "id" in activity_dict
+        assert isinstance(activity_dict, str)
+        assert "id" in json.loads(activity_dict)
 
     def test_persists_accept_activity(self, adapter, dl):
         _make_role_case(dl)

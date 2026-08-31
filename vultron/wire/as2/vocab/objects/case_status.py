@@ -164,7 +164,11 @@ class as_CaseStatus(VultronAS2Object):
     @model_validator(mode="after")
     def set_name(self) -> "as_CaseStatus":
         if self.name is None:
-            self.name = " ".join([self.em_state.name, self.pxa_state.name])
+            object.__setattr__(
+                self,
+                "name",
+                " ".join([self.em_state.name, self.pxa_state.name]),
+            )
         return self
 
     @classmethod
@@ -334,7 +338,7 @@ class as_ParticipantStatus(VultronAS2Object):
             if self.case_status is not None:
                 if self.case_status.name is not None:
                     parts.append(self.case_status.name)
-            self.name = " ".join(parts)
+            object.__setattr__(self, "name", " ".join(parts))
         return self
 
     @classmethod

@@ -75,14 +75,22 @@ def _make_case_with_case_manager(
         context=case.id_,
     )
     case_manager_participant.add_role(CVDRole.CASE_MANAGER)
-    case.case_participants = [
-        finder_participant.id_,
-        case_manager_participant.id_,
-    ]
-    case.actor_participant_index = {
-        actor_id: finder_participant.id_,
-        case_actor_id: case_manager_participant.id_,
-    }
+    object.__setattr__(
+        case,
+        "case_participants",
+        [
+            finder_participant.id_,
+            case_manager_participant.id_,
+        ],
+    )
+    object.__setattr__(
+        case,
+        "actor_participant_index",
+        {
+            actor_id: finder_participant.id_,
+            case_actor_id: case_manager_participant.id_,
+        },
+    )
     store.create(case)
     store.create(finder_participant)
     store.create(case_manager_participant)
@@ -122,8 +130,10 @@ class TestResolveCaseManagerNode:
             attributed_to=actor.id_,
             context=case.id_,
         )
-        case.case_participants = [participant.id_]
-        case.actor_participant_index = {actor.id_: participant.id_}
+        object.__setattr__(case, "case_participants", [participant.id_])
+        object.__setattr__(
+            case, "actor_participant_index", {actor.id_: participant.id_}
+        )
         store.create(case)
         store.create(participant)
         node = ResolveCaseManagerNode(case_id=case.id_)

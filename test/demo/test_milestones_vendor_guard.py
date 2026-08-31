@@ -49,7 +49,7 @@ _CASE_ID = "urn:uuid:test-case-0001"
 def _make_participant_mock(roles: list[CVDRole]) -> MagicMock:
     """Return a mock as_CaseParticipant with the given case_roles."""
     p = MagicMock()
-    p.case_roles = roles
+    object.__setattr__(p, "case_roles", roles)
     return p
 
 

@@ -87,6 +87,7 @@ from vultron.wire.as2.vocab.objects.case_status import (
     as_CaseStatus,
     as_ParticipantStatus,
 )
+from vultron.core.models.case import VulnerabilityCase
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCase,
 )
@@ -189,6 +190,15 @@ def _ledger_entries(dl: SqliteDataLayer) -> list[VultronCaseLedgerEntry]:
         and cast(VultronCaseLedgerEntry, obj).case_id == CASE_ID
     ]
     return sorted(entries, key=lambda e: e.log_index)
+
+
+def _receipt_entries(dl: SqliteDataLayer) -> list[VultronCaseLedgerEntry]:
+    """Return only the participant-status receipt entries (GuardedCommit), sorted."""
+    return [
+        e
+        for e in _ledger_entries(dl)
+        if e.event_type == "add_participant_status_to_participant"
+    ]
 
 
 # ---------------------------------------------------------------------------
@@ -299,13 +309,13 @@ def _seed_case(
     # attributed_to is what seeds the per-case genesis hash (CLP-08-003);
     # without it the ledger sits in the pre-genesis bootstrap window and the
     # guarded commit cannot anchor a chain.
-    case = as_VulnerabilityCase(
+    case = VulnerabilityCase(
         id_=CASE_ID,
         name="Issue 2235 Case",
         attributed_to=CASE_MANAGER_ID,
     )
-    case.add_participant(vendor)
-    case.add_participant(manager)
+    case.add_participant(cast(CaseParticipant, vendor))
+    case.add_participant(cast(CaseParticipant, manager))
 
     dl.create(case)
     dl.create(vendor)
@@ -386,28 +396,42 @@ class TestRefusedDimensionDoesNotDiscardAcceptedDimensions:
         ), "em is EmbargoTeardownAuthorizationGate's business (#2256)"
 
     @pytest.mark.spec("RSH-01-003")
+    @pytest.mark.spec("RSH-04-004")
     @pytest.mark.spec("RSH-05-003")
     def test_regressive_rm_still_reaches_seam_2_emit(
         self, store_for, make_payload
     ):
-        """The StatusAdoptionGate → EmbargoTeardownAuthorizationGate emit must survive a refused dimension.
+        """The StatusAdoptionGate → CaseStatus ledger write must survive a refused dimension.
 
         This is the concrete failure reported in #2235: aborting the Sequence
-        at RM validation skipped ``EmitAddCaseStatusToSelfNode``, so embargo
-        teardown in EmbargoTeardownAuthorizationGate never ran (RSH-01-003, RSH-01-004).
+        at RM validation skipped the emit node, so the CaseStatus ledger entry
+        never committed (RSH-01-003, RSH-04-004).
+        EmitCaseStatusUpdateNode replaces the old inbox-loopback pattern.
         """
+        from vultron.core.models.case import VulnerabilityCase as CoreCase
+
         dl = store_for(ACTOR_ID)
         current = _current_status(RM.VALID, CS_vf.Vf, CS_pxa.pxa)
         asserted = _asserted_status(RM.RECEIVED, CS_vf.VF, CS_pxa.Pxa)
         _seed_case(dl, current, asserted)
 
+        case_before = dl.read(CASE_ID)
+        initial_status_count = (
+            len(case_before.case_statuses)
+            if isinstance(case_before, CoreCase)
+            else 0
+        )
+
         result = _run_tree(dl, asserted, ACTOR_ID, make_payload)
         assert result.status == Status.SUCCESS
 
-        outbox = dl.outbox_list()
-        assert len(outbox) > 0, (
-            "EmitAddCaseStatusToSelfNode must still queue Add(CaseStatus)"
-            " when one dimension was refused"
+        # RSH-01-003, RSH-04-004: EmitCaseStatusUpdateNode must commit a new
+        # CaseStatus directly to the case (not via inbox routing).
+        case_after = dl.read(CASE_ID)
+        assert isinstance(case_after, CoreCase)
+        assert len(case_after.case_statuses) > initial_status_count, (
+            "EmitCaseStatusUpdateNode must commit a new CaseStatus entry"
+            " even when one RM dimension was refused"
         )
 
 
@@ -437,8 +461,8 @@ class TestCanonicalLedgerRecordsAcceptedPortion:
         result = _run_tree(dl, asserted, CASE_MANAGER_ID, make_payload)
         assert result.status == Status.SUCCESS
 
-        entries = _ledger_entries(dl)
-        assert len(entries) == 1, "exactly one canonical entry expected"
+        entries = _receipt_entries(dl)
+        assert len(entries) == 1, "exactly one receipt entry expected"
         snapshot_object = entries[0].payload_snapshot.get("object")
         assert isinstance(snapshot_object, dict), (
             "the ledger snapshot must inline the status object,"
@@ -475,7 +499,7 @@ class TestCanonicalLedgerRecordsAcceptedPortion:
         result = _run_tree(dl, asserted, CASE_MANAGER_ID, make_payload)
         assert result.status == Status.SUCCESS
 
-        entries = _ledger_entries(dl)
+        entries = _receipt_entries(dl)
         assert len(entries) == 1
         snap = entries[0].payload_snapshot["object"]
         assert isinstance(snap, dict)
@@ -849,7 +873,7 @@ class TestLedgerOverrideDoesNotLeakBetweenExecutions:
         second = _run_tree(dl, asserted, CASE_MANAGER_ID, make_payload)
         assert second.status == Status.SUCCESS
 
-        entries = _ledger_entries(dl)
+        entries = _receipt_entries(dl)
         assert len(entries) == 2, "each receipt commits its own entry"
         assert (
             entries[0].payload_snapshot["object"]["rmState"] == RM.VALID.name
@@ -886,7 +910,7 @@ class TestLedgerOverrideDoesNotLeakBetweenExecutions:
             == Status.SUCCESS
         )
 
-        entries = _ledger_entries(dl)
+        entries = _receipt_entries(dl)
         assert len(entries) == 2
         second_snap = entries[1].payload_snapshot["object"]
         assert second_snap["id"] == SECOND_STATUS_ID

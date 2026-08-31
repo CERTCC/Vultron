@@ -22,7 +22,7 @@ and StatusAdoptionGate authorization (ADR-0046, RSH-01-001 to RSH-01-004):
   2. AppendParticipantStatusNode               — status appended, RM regression rejected
   StatusAdoptionGate: CheckIsCaseOwnerNode                — CASE_OWNER gospel bypass (RSH-01-002)
   StatusAdoptionGate: StatusAdoptionGate                   — Fallback: bypass or call-out (RSH-01-002)
-  StatusAdoptionGate: EmitAddCaseStatusToSelfNode         — self-addressed Add(CaseStatus) (RSH-01-003)
+  StatusAdoptionGate: EmitCaseStatusUpdateNode             — direct ledger write (RSH-01-003, RSH-04-004)
 
 AutoCloseSequence was removed per ADR-0050: canonical RM closure is routed
 through the Leave(VulnerabilityCase) receive path in receive_close_case_tree.
@@ -30,6 +30,8 @@ through the Leave(VulnerabilityCase) receive path in receive_close_case_tree.
 Per specs/multi-actor-demo.yaml DEMOMA-07-003, DEMOMA-07-005.
 Per specs/received-status-handling.yaml RSH-01-001 to RSH-01-004.
 """
+
+from typing import cast
 
 import py_trees
 import pytest
@@ -51,6 +53,9 @@ from vultron.core.behaviors.case.nodes.vfd_role_guards import (
 from vultron.core.behaviors.status.add_participant_status_tree import (
     add_participant_status_tree,
 )
+from vultron.core.behaviors.status.nodes.threat_termination import (
+    ThreatTerminationBranchNode,
+)
 from vultron.core.behaviors.status.append_participant_status_tree import (
     append_participant_status_tree,
 )
@@ -60,6 +65,7 @@ from vultron.core.behaviors.status.nodes import (
     CheckStatusNotAlreadyAppendedNode,
     CloseNotYetEmittedConditionNode,
     EmitAddCaseStatusToSelfNode,
+    EmitCaseStatusUpdateNode,
     EmitRMGapNoteNode,
     LoadParticipantNode,
     PublicDisclosureBranchNode,
@@ -68,6 +74,8 @@ from vultron.core.behaviors.status.nodes import (
     VerifySenderIsParticipantNode,
 )
 from vultron.core.behaviors.status.nodes.dimension_filter import BB_RM_ANOMALY
+from vultron.core.models.case import VulnerabilityCase
+from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.states.rm import RM
 from vultron.enums.roles import CVDRole
 from vultron.wire.as2.factories import add_status_to_participant_activity
@@ -155,8 +163,10 @@ def case_manager_participant():
 
 @pytest.fixture
 def case(participant, case_manager_participant):
-    """as_VulnerabilityCase with vendor and Case Manager participants."""
-    obj = as_VulnerabilityCase(id_=CASE_ID, name="Test Case")
+    """VulnerabilityCase with vendor and Case Manager participants."""
+    obj = VulnerabilityCase(
+        id_=CASE_ID, name="Test Case", attributed_to=CASE_MANAGER_ID
+    )
     obj.add_participant(participant)
     obj.add_participant(case_manager_participant)
     return obj
@@ -721,8 +731,8 @@ class TestPublicDisclosureBranchNode:
         # ``context`` is required by core CaseStatus; omitting it made the
         # nested status unprojectable to the core shape (#2232).
         cs = as_CaseStatus(context=CASE_ID)
-        cs.pxa_state = CS_pxa.Pxa  # public-aware
-        status_obj.case_status = cs
+        object.__setattr__(cs, "pxa_state", CS_pxa.Pxa)  # public-aware
+        object.__setattr__(status_obj, "case_status", cs)
         populated_dl.save(status_obj)
 
         node = PublicDisclosureBranchNode(
@@ -757,15 +767,15 @@ class TestPublicDisclosureBranchNode:
             id_=f"{CASE_ID}/embargo_events/e1", context=CASE_ID
         )
         case.active_embargo = embargo.id_
-        case.current_status.em_state = EM.ACTIVE
+        case.append_case_status(em_state=EM.ACTIVE)
         populated_dl.create(embargo)
         populated_dl.save(case)
 
         # ``context`` is required by core CaseStatus; omitting it made the
         # nested status unprojectable to the core shape (#2232).
         cs = as_CaseStatus(context=CASE_ID)
-        cs.pxa_state = CS_pxa.Pxa  # public-aware
-        status_obj.case_status = cs
+        object.__setattr__(cs, "pxa_state", CS_pxa.Pxa)  # public-aware
+        object.__setattr__(status_obj, "case_status", cs)
         populated_dl.save(status_obj)
 
         # ACTOR_ID holds CASE_OWNER role (see `participant` fixture)
@@ -949,31 +959,25 @@ class TestAddParticipantStatusTree:
 
     @pytest.mark.spec("RSH-01-001")
     @pytest.mark.spec("RSH-01-003")
+    @pytest.mark.spec("RSH-04-004")
     def test_full_tree_succeeds_for_case_owner_sender(
         self,
         populated_dl,
         make_payload,
     ):
         """End-to-end: CASE_OWNER sender bypasses StatusAdoptionGate → status
-        appended, self-addressed Add(CaseStatus) queued (RSH-01-001 to RSH-01-003).
+        appended, CaseStatus committed directly to ledger (RSH-01-001 to RSH-01-003,
+        RSH-04-004).
 
-        Uses a ParticipantStatus with an embedded CaseStatus so
-        EmitAddCaseStatusToSelfNode can construct the outbound activity.
-        Runs with actor_id=ACTOR_ID (not CASE_MANAGER) to skip the
-        guarded ledger-commit subtree.
+        EmitCaseStatusUpdateNode writes the post-adoption CaseStatus directly
+        to the case without routing through the inbox seam.  Runs with
+        actor_id=ACTOR_ID (not CASE_MANAGER) to skip the guarded ledger-commit
+        subtree.
         """
-        from vultron.wire.as2.vocab.objects.case_status import as_CaseStatus
-
-        cs = as_CaseStatus(id_=f"{STATUS_ID}/cs", context=CASE_ID)
-        status_with_cs = as_ParticipantStatus(
-            id_=STATUS_ID,
-            context=CASE_ID,
-            case_status=cs,
-        )
-        populated_dl.save(status_with_cs)
+        from vultron.core.models.case import VulnerabilityCase as CoreCase
 
         activity = add_status_to_participant_activity(
-            status=status_with_cs,
+            status=as_ParticipantStatus(id_=STATUS_ID, context=CASE_ID),
             target=as_CaseParticipant(
                 id_=PARTICIPANT_ID, context=CASE_ID, attributed_to=ACTOR_ID
             ),
@@ -983,7 +987,13 @@ class TestAddParticipantStatusTree:
         event = make_payload(activity)
         bridge = self._bridge_with_factory(populated_dl)
         tree = add_participant_status_tree(request=event, case_id=CASE_ID)
-        # actor_id=ACTOR_ID → not CASE_MANAGER → ledger commit is skipped
+        # actor_id=ACTOR_ID → not CASE_MANAGER → guarded ledger commit is skipped
+        case_before = populated_dl.read(CASE_ID)
+        initial_status_count = (
+            len(case_before.case_statuses)
+            if isinstance(case_before, CoreCase)
+            else 0
+        )
         result = bridge.execute_with_setup(tree=tree, actor_id=ACTOR_ID)
         assert result.status == Status.SUCCESS
 
@@ -992,11 +1002,13 @@ class TestAddParticipantStatusTree:
         status_ids = [getattr(s, "id_", s) for s in p.participant_statuses]
         assert STATUS_ID in status_ids
 
-        # RSH-01-003: self-addressed Add(CaseStatus) must be queued in outbox
-        outbox = populated_dl.outbox_list()
+        # RSH-01-003, RSH-04-004: EmitCaseStatusUpdateNode appends a new
+        # CaseStatus directly to the case (no inbox routing).
+        case_after = populated_dl.read(CASE_ID)
+        assert isinstance(case_after, CoreCase)
         assert (
-            len(outbox) > 0
-        ), "EmitAddCaseStatusToSelfNode must queue Add(CaseStatus)"
+            len(case_after.case_statuses) > initial_status_count
+        ), "EmitCaseStatusUpdateNode must append a new CaseStatus to the case"
 
     @pytest.mark.executes_as(OUTSIDER_ID)
     def test_full_tree_fails_for_unknown_sender(
@@ -1165,13 +1177,14 @@ class TestAddParticipantStatusTree:
 
     @pytest.mark.spec("RSH-01-001")
     @pytest.mark.spec("RSH-01-002")
+    @pytest.mark.spec("RSH-04-004")
     def test_emit_node_present_rsh_01_001(
         self,
         populated_dl,
         make_payload,
     ):
-        """EmitAddCaseStatusToSelfNode and StatusAdoptionGate must be present
-        in the tree (RSH-01-001)."""
+        """EmitCaseStatusUpdateNode and StatusAdoptionGate must be present
+        in the tree (RSH-01-001, RSH-04-004)."""
         activity = add_status_to_participant_activity(
             status=as_ParticipantStatus(id_=STATUS_ID, context=CASE_ID),
             target=as_CaseParticipant(
@@ -1191,10 +1204,17 @@ class TestAddParticipantStatusTree:
 
         all_nodes = _collect_nodes(tree)
         node_names = [n.name for n in all_nodes]
+        node_types = [type(n).__name__ for n in all_nodes]
 
         assert (
-            "EmitAddCaseStatusToSelf" in node_names
-        ), "EmitAddCaseStatusToSelfNode must be present (RSH-01-001)"
+            "EmitCaseStatusUpdate" in node_names
+        ), "EmitCaseStatusUpdateNode must be present (RSH-01-001, RSH-04-004)"
+        assert (
+            EmitCaseStatusUpdateNode.__name__ in node_types
+        ), "EmitCaseStatusUpdateNode type must appear in tree (RSH-04-004)"
+        assert (
+            "EmitAddCaseStatusToSelf" not in node_names
+        ), "EmitAddCaseStatusToSelfNode must NOT be in tree (replaced by RSH-04-004)"
         assert (
             "StatusAdoptionGate" in node_names
         ), "StatusAdoptionGate must be present (RSH-01-001)"
@@ -1533,14 +1553,14 @@ class TestRejectionValidatorBeforeCommit:
         # The tree runs as the case manager, so this is the case manager's
         # own store (BT-05-005, ADR-0073).
         dl = SqliteDataLayer("sqlite:///:memory:", actor_id=CASE_MANAGER_ID)
-        cm_participant = as_CaseParticipant(
+        cm_participant = CaseParticipant(
             id_=CM_PARTICIPANT_ID,
             context=CASE_ID,
             attributed_to=CASE_MANAGER_ID,
             case_roles=[CVDRole.CASE_MANAGER],
         )
         # attributed_to seeds the per-case genesis hash (CLP-08-003)
-        case = as_VulnerabilityCase(
+        case = VulnerabilityCase(
             id_=CASE_ID, name="Fix1 Regression", attributed_to=CASE_MANAGER_ID
         )
         case.add_participant(cm_participant)
@@ -1557,7 +1577,7 @@ class TestRejectionValidatorBeforeCommit:
             case_roles=[CVDRole.CASE_OWNER],
         )
         vendor_participant.participant_statuses.append(existing_status)
-        case.add_participant(vendor_participant)
+        case.add_participant(cast(CaseParticipant, vendor_participant))
 
         dl.create(case)
         dl.create(cm_participant)
@@ -1593,13 +1613,15 @@ class TestRejectionValidatorBeforeCommit:
             "ValidateRMTransitionNode must NOT abort after GuardedCommit (CLP-10-009)"
         )
 
-        entries = [
+        receipt_entries = [
             e
             for e in dl.list_objects("CaseLedgerEntry")
             if isinstance(e, CaseLedgerEntry)
+            and getattr(e, "event_type", None)
+            == "add_participant_status_to_participant"
         ]
-        assert len(entries) == 1, (
-            "One CaseLedgerEntry must be committed for the partial accept "
+        assert len(receipt_entries) == 1, (
+            "One receipt CaseLedgerEntry must be committed for the partial accept "
             "(rm refused → carried forward, vfd accepted)"
         )
 
@@ -1617,14 +1639,14 @@ class TestRejectionValidatorBeforeCommit:
         # The tree runs as the case manager, so this is the case manager's
         # own store (BT-05-005, ADR-0073).
         dl = SqliteDataLayer("sqlite:///:memory:", actor_id=CASE_MANAGER_ID)
-        cm_participant = as_CaseParticipant(
+        cm_participant = CaseParticipant(
             id_=CM_PARTICIPANT_ID,
             context=CASE_ID,
             attributed_to=CASE_MANAGER_ID,
             case_roles=[CVDRole.CASE_MANAGER],
         )
         # attributed_to seeds the per-case genesis hash (CLP-08-003)
-        case = as_VulnerabilityCase(
+        case = VulnerabilityCase(
             id_=CASE_ID, name="Fix1 Full Reject", attributed_to=CASE_MANAGER_ID
         )
         case.add_participant(cm_participant)
@@ -1642,7 +1664,7 @@ class TestRejectionValidatorBeforeCommit:
             case_roles=[CVDRole.CASE_OWNER],
         )
         vendor_participant.participant_statuses.append(existing_status)
-        case.add_participant(vendor_participant)
+        case.add_participant(cast(CaseParticipant, vendor_participant))
 
         dl.create(case)
         dl.create(cm_participant)
@@ -1791,3 +1813,126 @@ class TestEmitRMGapNoteNode:
             tree=node, actor_id=CASE_MANAGER_ID
         )
         assert result.status == Status.SUCCESS
+
+
+# ---------------------------------------------------------------------------
+# Structural wiring: TeardownEffectsOrSkip subtree must be present after
+# EmitCaseStatusUpdateNode (RSH-03-001 to RSH-03-003, RSH-04-004)
+# ---------------------------------------------------------------------------
+
+
+class TestAddParticipantStatusTeardownWiring:
+    """Verify ThreatTerminationBranchNode + EmbargoTeardownAuthorizationGate
+    are wired into the TeardownEffectsOrSkip subtree directly after
+    EmitCaseStatusUpdateNode.
+
+    Mirrors the structural assertions in test_trigger_tree.py.
+    """
+
+    def _collect_nodes(
+        self, node: py_trees.behaviour.Behaviour
+    ) -> list[py_trees.behaviour.Behaviour]:
+        result: list[py_trees.behaviour.Behaviour] = [node]
+        for child in getattr(node, "children", []):
+            result.extend(self._collect_nodes(child))
+        return result
+
+    @pytest.mark.spec("RSH-03-001")
+    @pytest.mark.spec("RSH-03-002")
+    @pytest.mark.spec("RSH-03-003")
+    def test_threat_termination_branch_present(self, make_payload):
+        """ThreatTerminationBranchNode must appear in add_participant_status_tree."""
+        activity = add_status_to_participant_activity(
+            status=as_ParticipantStatus(id_=STATUS_ID, context=CASE_ID),
+            target=as_CaseParticipant(
+                id_=PARTICIPANT_ID, context=CASE_ID, attributed_to=ACTOR_ID
+            ),
+            actor=ACTOR_ID,
+            context=as_VulnerabilityCase(id_=CASE_ID, name="Test"),
+        )
+        event = make_payload(activity)
+        tree = add_participant_status_tree(request=event, case_id=CASE_ID)
+
+        all_nodes = self._collect_nodes(tree)
+        node_types = [type(n).__name__ for n in all_nodes]
+
+        assert ThreatTerminationBranchNode.__name__ in node_types, (
+            "ThreatTerminationBranchNode must be wired into"
+            " add_participant_status_tree (RSH-03-001 to RSH-03-003)"
+        )
+
+    @pytest.mark.spec("RSH-02-001")
+    def test_embargo_teardown_gate_present(self, make_payload):
+        """EmbargoTeardownAuthorizationGate must appear in add_participant_status_tree."""
+        activity = add_status_to_participant_activity(
+            status=as_ParticipantStatus(id_=STATUS_ID, context=CASE_ID),
+            target=as_CaseParticipant(
+                id_=PARTICIPANT_ID, context=CASE_ID, attributed_to=ACTOR_ID
+            ),
+            actor=ACTOR_ID,
+            context=as_VulnerabilityCase(id_=CASE_ID, name="Test"),
+        )
+        event = make_payload(activity)
+        tree = add_participant_status_tree(request=event, case_id=CASE_ID)
+
+        all_nodes = self._collect_nodes(tree)
+        node_names = [n.name for n in all_nodes]
+
+        assert "EmbargoTeardownAuthorizationGate" in node_names, (
+            "EmbargoTeardownAuthorizationGate must be wired into the"
+            " TeardownEffects subtree (RSH-02-001)"
+        )
+
+    @pytest.mark.spec("RSH-03-001")
+    @pytest.mark.spec("RSH-04-004")
+    def test_teardown_after_emit_node(self, make_payload):
+        """ThreatTerminationBranchNode must follow EmitCaseStatusUpdateNode in traversal order."""
+        activity = add_status_to_participant_activity(
+            status=as_ParticipantStatus(id_=STATUS_ID, context=CASE_ID),
+            target=as_CaseParticipant(
+                id_=PARTICIPANT_ID, context=CASE_ID, attributed_to=ACTOR_ID
+            ),
+            actor=ACTOR_ID,
+            context=as_VulnerabilityCase(id_=CASE_ID, name="Test"),
+        )
+        event = make_payload(activity)
+        tree = add_participant_status_tree(request=event, case_id=CASE_ID)
+
+        all_nodes = self._collect_nodes(tree)
+        node_names = [n.name for n in all_nodes]
+        node_types = [type(n).__name__ for n in all_nodes]
+
+        assert "EmitCaseStatusUpdate" in node_names
+        assert ThreatTerminationBranchNode.__name__ in node_types
+
+        emit_idx = node_names.index("EmitCaseStatusUpdate")
+        threat_idx = node_types.index(ThreatTerminationBranchNode.__name__)
+        assert threat_idx > emit_idx, (
+            "ThreatTerminationBranchNode must appear after EmitCaseStatusUpdateNode"
+            " in tree traversal order (RSH-03-001, RSH-04-004)"
+        )
+
+    @pytest.mark.spec("RSH-04-004")
+    def test_teardown_wrapped_in_failure_is_success(self, make_payload):
+        """TeardownEffectsOrSkip must be a FailureIsSuccess decorator."""
+        activity = add_status_to_participant_activity(
+            status=as_ParticipantStatus(id_=STATUS_ID, context=CASE_ID),
+            target=as_CaseParticipant(
+                id_=PARTICIPANT_ID, context=CASE_ID, attributed_to=ACTOR_ID
+            ),
+            actor=ACTOR_ID,
+            context=as_VulnerabilityCase(id_=CASE_ID, name="Test"),
+        )
+        event = make_payload(activity)
+        tree = add_participant_status_tree(request=event, case_id=CASE_ID)
+
+        all_nodes = self._collect_nodes(tree)
+        node_names = [n.name for n in all_nodes]
+        node_types_map = {n.name: type(n).__name__ for n in all_nodes}
+
+        assert (
+            "TeardownEffectsOrSkip" in node_names
+        ), "TeardownEffectsOrSkip wrapper must be present (RSH-04-004)"
+        assert (
+            node_types_map["TeardownEffectsOrSkip"] == "FailureIsSuccess"
+        ), "TeardownEffectsOrSkip must be a FailureIsSuccess decorator"

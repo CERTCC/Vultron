@@ -76,7 +76,7 @@ class _ActorsMixin:
         attributed_to: str | None = None,
         roles: list[str] | None = None,
         target: VulnerabilityCase | None = None,
-    ) -> tuple[str, dict[str, Any]]:
+    ) -> tuple[str, str]:
         """Create and persist an ``Invite(Actor, Case)`` activity.
 
         ``actor`` SHOULD be the Case Actor ID (PCR-08-007); ``attributed_to``
@@ -126,13 +126,13 @@ class _ActorsMixin:
                 " — skipping",
                 activity.id_,
             )
-        return activity.id_, activity.model_dump(**_DUMP_KWARGS)
+        return activity.id_, activity.model_dump_json(**_DUMP_KWARGS)
 
     def accept_case_invite(
         self,
         invite_id: str,
         actor: str,
-    ) -> tuple[str, dict[str, Any]]:
+    ) -> tuple[str, str]:
         """Create and persist an ``Accept(Invite)`` activity.
 
         The ``to:`` field is derived from ``invite.actor`` (the original
@@ -159,13 +159,13 @@ class _ActorsMixin:
                 "accept_case_invite: activity '%s' already exists — skipping",
                 activity.id_,
             )
-        return activity.id_, activity.model_dump(**_DUMP_KWARGS)
+        return activity.id_, activity.model_dump_json(**_DUMP_KWARGS)
 
     def reject_case_invite(
         self,
         invite_id: str,
         actor: str,
-    ) -> tuple[str, dict[str, Any]]:
+    ) -> tuple[str, str]:
         """Create and persist a ``Reject(Invite)`` activity.
 
         The ``to:`` field is derived from ``invite.actor`` (the original
@@ -190,14 +190,14 @@ class _ActorsMixin:
                 "reject_case_invite: activity '%s' already exists — skipping",
                 activity.id_,
             )
-        return activity.id_, activity.model_dump(**_DUMP_KWARGS)
+        return activity.id_, activity.model_dump_json(**_DUMP_KWARGS)
 
     def accept_case_participant_offer(
         self,
         cp_offer_id: str,
         actor: str,
         to: list[str] | None = None,
-    ) -> tuple[str, dict[str, Any]]:
+    ) -> tuple[str, str]:
         """Create and persist an ``Accept(Offer(CaseParticipant))`` activity.
 
         Sent by the Case Owner to the CaseActor after reviewing the
@@ -225,7 +225,7 @@ class _ActorsMixin:
                 " — skipping",
                 activity.id_,
             )
-        return activity.id_, activity.model_dump(**_DUMP_KWARGS)
+        return activity.id_, activity.model_dump_json(**_DUMP_KWARGS)
 
     def suggest_actor_to_case(
         self,
@@ -235,7 +235,7 @@ class _ActorsMixin:
         to: list[str] | None = None,
         id_: str | None = None,
         roles: list[str] | None = None,
-    ) -> tuple[str, dict[str, Any]]:
+    ) -> tuple[str, str]:
         """Create and persist a ``Offer(Actor, Case)`` recommendation activity."""
         extra: dict[str, Any] = {"actor": actor, "to": to}
         if id_ is not None:
@@ -255,7 +255,7 @@ class _ActorsMixin:
                 " — skipping",
                 activity.id_,
             )
-        return activity.id_, activity.model_dump(**_DUMP_KWARGS)
+        return activity.id_, activity.model_dump_json(**_DUMP_KWARGS)
 
     def offer_actor_to_case(
         self,
@@ -267,7 +267,7 @@ class _ActorsMixin:
         to: list[str] | None = None,
         id_: str | None = None,
         roles: list | None = None,
-    ) -> tuple[str, dict[str, Any]]:
+    ) -> tuple[str, str]:
         """Create and persist an Offer(as_CaseParticipant{actor, roles}, Case).
 
         Transforms the original Offer(Actor, Case) from a recommending
@@ -301,7 +301,7 @@ class _ActorsMixin:
                 "offer_actor_to_case: activity '%s' already exists — skipping",
                 activity.id_,
             )
-        return activity.id_, activity.model_dump(**_DUMP_KWARGS)
+        return activity.id_, activity.model_dump_json(**_DUMP_KWARGS)
 
     def emit_accept_actor_recommendation(
         self,
@@ -312,7 +312,7 @@ class _ActorsMixin:
         actor: str,
         to: list[str] | None = None,
         id_: str | None = None,
-    ) -> tuple[str, dict[str, Any]]:
+    ) -> tuple[str, str]:
         """Create and persist an AcceptActorRecommendation activity.
 
         Sent by the CaseActor to the recommender after the Case Owner accepts
@@ -338,7 +338,7 @@ class _ActorsMixin:
                 " exists — skipping",
                 activity.id_,
             )
-        return activity.id_, activity.model_dump(**_DUMP_KWARGS)
+        return activity.id_, activity.model_dump_json(**_DUMP_KWARGS)
 
     def emit_reject_actor_recommendation(
         self,
@@ -349,7 +349,7 @@ class _ActorsMixin:
         actor: str,
         to: list[str] | None = None,
         id_: str | None = None,
-    ) -> tuple[str, dict[str, Any]]:
+    ) -> tuple[str, str]:
         """Create and persist a RejectActorRecommendation activity.
 
         Sent by the CaseActor to the recommender after the Case Owner rejects
@@ -375,7 +375,7 @@ class _ActorsMixin:
                 " exists — skipping",
                 activity.id_,
             )
-        return activity.id_, activity.model_dump(**_DUMP_KWARGS)
+        return activity.id_, activity.model_dump_json(**_DUMP_KWARGS)
 
     def accept_actor_recommendation(
         self,
@@ -386,7 +386,7 @@ class _ActorsMixin:
         actor: str,
         to: list[str] | None = None,
         id_: str | None = None,
-    ) -> tuple[str, dict[str, Any]]:
+    ) -> tuple[str, str]:
         """Create and persist an ``Accept(Offer)`` actor-recommendation activity.
 
         The recommendation offer is reconstructed ephemerally (not read from
@@ -413,7 +413,7 @@ class _ActorsMixin:
                 " — skipping",
                 activity.id_,
             )
-        return activity.id_, activity.model_dump(**_DUMP_KWARGS)
+        return activity.id_, activity.model_dump_json(**_DUMP_KWARGS)
 
     def add_participant_to_case(
         self,
@@ -485,7 +485,7 @@ class _ActorsMixin:
         target_actor_id: str,
         actor: str,
         to: list[str] | None = None,
-    ) -> tuple[str, dict]:
+    ) -> tuple[str, str]:
         """Create and persist ``Offer(CaseParticipantRole, target=Actor, context=VulnerabilityCase)``.
 
         The canonical role-delegation wire format introduced by ADR-0039.
@@ -512,7 +512,7 @@ class _ActorsMixin:
                 " — skipping",
                 activity.id_,
             )
-        return activity.id_, activity.model_dump(**_DUMP_KWARGS)
+        return activity.id_, activity.model_dump_json(**_DUMP_KWARGS)
 
     def accept_case_participant_role(
         self,
@@ -523,7 +523,7 @@ class _ActorsMixin:
         vendor_id: str,
         actor: str,
         to: list[str] | None = None,
-    ) -> tuple[str, dict[str, Any]]:
+    ) -> tuple[str, str]:
         """Create and persist an ``Accept(_OfferCaseParticipantRoleActivity)`` (ADR-0039)."""
         from vultron.wire.as2.vocab.base.objects.actors import (
             as_Actor,
@@ -541,7 +541,7 @@ class _ActorsMixin:
         activity = accept_case_participant_role_activity(
             offer=offer, actor=actor, to=to
         )
-        activity_dict = activity.model_dump(**_DUMP_KWARGS)
+        activity_json = activity.model_dump_json(**_DUMP_KWARGS)
         try:
             self._dl.create(activity)
         except ValueError:
@@ -550,7 +550,7 @@ class _ActorsMixin:
                 " — skipping",
                 activity.id_,
             )
-        return activity.id_, activity_dict
+        return activity.id_, activity_json
 
     def reject_case_participant_role(
         self,
@@ -597,7 +597,7 @@ class _ActorsMixin:
         content: str | None = None,
         to: list[str] | None = None,
         attributed_to: str | None = None,
-    ) -> tuple[str, dict[str, Any]]:
+    ) -> tuple[str, str]:
         """Create and persist an ``Offer(VulnerabilityCase)`` ownership transfer.
 
         Emits the offer from ``actor`` to ``transferee_id``.  The case is read
@@ -626,14 +626,14 @@ class _ActorsMixin:
                 " — skipping",
                 activity.id_,
             )
-        return activity.id_, activity.model_dump(**_DUMP_KWARGS)
+        return activity.id_, activity.model_dump_json(**_DUMP_KWARGS)
 
     def accept_case_ownership_transfer(
         self,
         offer_id: str,
         actor: str,
         to: list[str] | None = None,
-    ) -> tuple[str, dict[str, Any]]:
+    ) -> tuple[str, str]:
         """Create and persist an ``Accept(Offer(VulnerabilityCase))`` ownership transfer.
 
         Reads the stored offer from the DataLayer, derives the ``to:`` field
@@ -673,7 +673,7 @@ class _ActorsMixin:
                 " — skipping",
                 activity.id_,
             )
-        return activity.id_, activity.model_dump(**_DUMP_KWARGS)
+        return activity.id_, activity.model_dump_json(**_DUMP_KWARGS)
 
     def _offer_from_core_record(
         self, record: "VultronOwnershipTransferOfferRecord"

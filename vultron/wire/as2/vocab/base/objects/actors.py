@@ -73,12 +73,20 @@ class as_Actor(as_Object):
 
         # Set inbox/outbox URI if not yet populated (None or empty id_).
         if self.inbox is None or self.inbox.id_ is None:
-            self.inbox = as_OrderedCollection(
-                id_=f"{actor_id}/inbox", type_="OrderedCollection"
+            object.__setattr__(
+                self,
+                "inbox",
+                as_OrderedCollection(
+                    id_=f"{actor_id}/inbox", type_="OrderedCollection"
+                ),
             )
         if self.outbox is None or self.outbox.id_ is None:
-            self.outbox = as_OrderedCollection(
-                id_=f"{actor_id}/outbox", type_="OrderedCollection"
+            object.__setattr__(
+                self,
+                "outbox",
+                as_OrderedCollection(
+                    id_=f"{actor_id}/outbox", type_="OrderedCollection"
+                ),
             )
 
         return self

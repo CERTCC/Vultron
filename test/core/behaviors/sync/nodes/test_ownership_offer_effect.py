@@ -17,6 +17,7 @@ SYNC-12-001 status contract:
 See CM-21-005, SYNC-02-002, SYNC-12-001, ADR-0035 DL-06-002.
 """
 
+import json
 import uuid
 from typing import Any, cast
 
@@ -347,9 +348,10 @@ def test_adapter_accepts_transfer_from_sync_only_replica(
         datalayer.read(offer_id), VultronOwnershipTransferOfferRecord
     )
 
-    activity_id, activity = TriggerActivityAdapter(
+    activity_id, activity_blob = TriggerActivityAdapter(
         datalayer
     ).accept_case_ownership_transfer(offer_id=offer_id, actor=transferee)
+    activity = json.loads(activity_blob)
 
     assert activity_id
     assert activity["type"] == "Accept"

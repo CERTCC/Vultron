@@ -16,7 +16,7 @@
 """Note-domain trigger activity construction for TriggerActivityAdapter."""
 
 import logging
-from typing import Any, cast
+from typing import cast
 
 from vultron.core.ports.case_persistence import CaseOutboxPersistence
 from vultron.wire.as2.factories import add_note_to_case_activity
@@ -42,7 +42,7 @@ class _NotesMixin:
         context_id: str,
         attributed_to: str,
         in_reply_to: str | None = None,
-    ) -> tuple[str, dict[str, Any]]:
+    ) -> tuple[str, str]:
         """Create and persist a Note object; return ``(note_id, note_dict)``."""
         note = as_Note(
             name=name,
@@ -57,7 +57,7 @@ class _NotesMixin:
             logger.warning(
                 "create_note: note '%s' already exists — skipping", note.id_
             )
-        return note.id_, note.model_dump(**_DUMP_KWARGS)
+        return note.id_, note.model_dump_json(**_DUMP_KWARGS)
 
     def create_note_activity(
         self,
@@ -84,7 +84,7 @@ class _NotesMixin:
         case_id: str,
         actor: str,
         to: list[str] | None = None,
-    ) -> tuple[str, dict[str, Any]]:
+    ) -> tuple[str, str]:
         """Create and persist an ``Add(Note, Case)`` activity."""
         note = cast(as_Note, self._dl.read(note_id))
         activity = add_note_to_case_activity(
@@ -97,4 +97,4 @@ class _NotesMixin:
                 "add_note_to_case: activity '%s' already exists — skipping",
                 activity.id_,
             )
-        return activity.id_, activity.model_dump(**_DUMP_KWARGS)
+        return activity.id_, activity.model_dump_json(**_DUMP_KWARGS)

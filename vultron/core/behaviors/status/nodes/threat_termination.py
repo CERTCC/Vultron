@@ -55,10 +55,24 @@ class _ThreatTerminationSkipConditionNode(DataLayerConditionWithPorts):
         status_obj: PersistableModel | None,
         case_id: str | None,
         name: str | None = None,
+        use_datalayer_fallback: bool = False,
     ):
         super().__init__(name=name or self.__class__.__name__)
         self.status_obj = status_obj
         self.case_id = case_id
+        self.use_datalayer_fallback = use_datalayer_fallback
+
+    def _case_status_from_datalayer(self) -> object:
+        """Read case.current_status from the DataLayer; returns None on any miss."""
+        if self.datalayer is None or not self.case_id:
+            return None
+        case_obj = self.datalayer.read(self.case_id)
+        if not isinstance(case_obj, VulnerabilityCase):
+            return None
+        try:
+            return case_obj.current_status
+        except (ValueError, IndexError):
+            return None
 
     def _threat_present(self) -> bool:
         """Return True if pxa state has at least one of P, X, or A set."""
@@ -67,6 +81,20 @@ class _ThreatTerminationSkipConditionNode(DataLayerConditionWithPorts):
         case_status: object = getattr(self.status_obj, "case_status", None)
         if case_status is None:
             case_status = self.status_obj
+
+        # When status_obj carries no PXA info AND the caller has explicitly
+        # opted in to the DataLayer fallback (set only by callers that know
+        # EmitCaseStatusUpdateNode has already written the post-mutation
+        # state), read case.current_status from the DataLayer.
+        if self.use_datalayer_fallback and (
+            case_status is None
+            or (
+                not hasattr(case_status, "pxa")
+                and not hasattr(case_status, "pxa_state")
+            )
+        ):
+            case_status = self._case_status_from_datalayer()
+
         if case_status is None:
             return False
         if hasattr(case_status, "pxa"):
@@ -107,8 +135,7 @@ class ThreatTerminationBranchNode(py_trees.composites.Selector):
     embargo.
 
     Does NOT gate on sender role (RSH-03-002) — authorization was
-    already verified at StatusAdoptionGate.  The self-addressed ``Add(CaseStatus)``
-    arrives with the CaseActor as sender, not the original peer.
+    already verified at StatusAdoptionGate before this node is reached.
 
     Delegates to ``terminate_embargo_bt`` (BT-19-002).  Skips silently
     (returns SUCCESS) when teardown conditions are not met.
@@ -127,6 +154,7 @@ class ThreatTerminationBranchNode(py_trees.composites.Selector):
         status_obj: PersistableModel | None,
         case_id: str | None,
         name: str | None = None,
+        use_datalayer_fallback: bool = False,
     ):
         super().__init__(name=name or self.__class__.__name__, memory=False)
         result_out: dict[str, object] = {}
@@ -144,6 +172,7 @@ class ThreatTerminationBranchNode(py_trees.composites.Selector):
                     status_obj=status_obj,
                     case_id=case_id,
                     name="SkipCondition",
+                    use_datalayer_fallback=use_datalayer_fallback,
                 ),
                 terminate_subtree,
             ]

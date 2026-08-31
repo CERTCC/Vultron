@@ -343,7 +343,7 @@ class _RmAcceptInviteToCaseActivity(as_Accept):
     @model_validator(mode="after")
     def set_in_reply_to_from_invite(self):
         if self.in_reply_to is None:
-            self.in_reply_to = self.object_.id_
+            object.__setattr__(self, "in_reply_to", self.object_.id_)
         return self
 
 
@@ -363,7 +363,7 @@ class _RmRejectInviteToCaseActivity(as_Reject):
     @model_validator(mode="after")
     def set_in_reply_to_from_invite(self):
         if self.in_reply_to is None:
-            self.in_reply_to = self.object_.id_
+            object.__setattr__(self, "in_reply_to", self.object_.id_)
         return self
 
 

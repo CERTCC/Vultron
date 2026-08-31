@@ -42,7 +42,6 @@ def add_note_to_case() -> as_Add:
     _finder = finder()
     _case = case()
     _note = note()
-    _note.context = _case.id_
 
     activity = add_note_to_case_activity(
         _note, actor=_finder.id_, target=_case.id_

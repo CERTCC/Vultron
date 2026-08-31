@@ -75,14 +75,22 @@ def _make_case_with_case_manager(
         context=case.id_,
     )
     case_manager_participant.add_role(CVDRole.CASE_MANAGER)
-    case.case_participants = [
-        finder_participant.id_,
-        case_manager_participant.id_,
-    ]
-    case.actor_participant_index = {
-        actor_id: finder_participant.id_,
-        CASE_ACTOR_ID: case_manager_participant.id_,
-    }
+    object.__setattr__(
+        case,
+        "case_participants",
+        [
+            finder_participant.id_,
+            case_manager_participant.id_,
+        ],
+    )
+    object.__setattr__(
+        case,
+        "actor_participant_index",
+        {
+            actor_id: finder_participant.id_,
+            CASE_ACTOR_ID: case_manager_participant.id_,
+        },
+    )
     store.create(case)
     store.create(finder_participant)
     store.create(case_manager_participant)
@@ -129,8 +137,10 @@ class TestSenderSideBT:
             attributed_to=actor.id_,
             context=case.id_,
         )
-        case.case_participants = [participant.id_]
-        case.actor_participant_index = {actor.id_: participant.id_}
+        object.__setattr__(case, "case_participants", [participant.id_])
+        object.__setattr__(
+            case, "actor_participant_index", {actor.id_: participant.id_}
+        )
         store.create(case)
         store.create(participant)
         tree = sender_side_bt(
@@ -171,8 +181,10 @@ class TestSenderSideStaleKeyRegression:
             attributed_to=actor.id_,
             context=case2.id_,
         )
-        case2.case_participants = [participant2.id_]
-        case2.actor_participant_index = {actor.id_: participant2.id_}
+        object.__setattr__(case2, "case_participants", [participant2.id_])
+        object.__setattr__(
+            case2, "actor_participant_index", {actor.id_: participant2.id_}
+        )
         store.create(case2)
         store.create(participant2)
 

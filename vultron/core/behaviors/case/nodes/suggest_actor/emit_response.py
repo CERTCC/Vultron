@@ -25,6 +25,7 @@ Classes: EmitAcceptActorRecommendationNode (CM-16-006),
 EmitRejectActorRecommendationNode (CM-16-007).
 """
 
+import json
 from typing import cast
 
 from py_trees.common import Status
@@ -77,7 +78,7 @@ class EmitAcceptActorRecommendationNode(DataLayerActionWithPorts):
 
         factory = self.trigger_activity_factory  # guaranteed non-None
         try:
-            activity_id, activity_dict = (
+            activity_id, activity_blob = (
                 factory.emit_accept_actor_recommendation(
                     recommender_id=self.recommender_id,
                     recommendation_id=self.recommendation_id,
@@ -86,6 +87,7 @@ class EmitAcceptActorRecommendationNode(DataLayerActionWithPorts):
                     actor=self.actor_id,
                 )
             )
+            activity_dict = json.loads(activity_blob)
             snapshot = _snapshot_with_context(activity_dict, self.case_id)
             commit_tree = create_commit_log_entry_tree(
                 case_id=self.case_id,
@@ -155,7 +157,7 @@ class EmitRejectActorRecommendationNode(DataLayerActionWithPorts):
 
         factory = self.trigger_activity_factory  # guaranteed non-None
         try:
-            activity_id, activity_dict = (
+            activity_id, activity_blob = (
                 factory.emit_reject_actor_recommendation(
                     recommender_id=self.recommender_id,
                     recommendation_id=self.recommendation_id,
@@ -164,6 +166,7 @@ class EmitRejectActorRecommendationNode(DataLayerActionWithPorts):
                     actor=self.actor_id,
                 )
             )
+            activity_dict = json.loads(activity_blob)
             snapshot = _snapshot_with_context(activity_dict, self.case_id)
             commit_tree = create_commit_log_entry_tree(
                 case_id=self.case_id,

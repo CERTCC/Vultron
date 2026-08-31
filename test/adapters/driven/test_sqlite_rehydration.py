@@ -194,7 +194,7 @@ def test_hydrate_expands_list_ref_field(dl):
     )
     dl.save(participant)
 
-    case.case_participants = [participant.id_]
+    object.__setattr__(case, "case_participants", [participant.id_])
     dl.save(case)
 
     stored_case = dl.read(case.id_)
@@ -227,7 +227,7 @@ def test_hydrate_leaves_already_expanded_participants_unchanged(dl):
         name="already-expanded",
     )
     dl.save(participant)
-    case.case_participants = [participant]
+    object.__setattr__(case, "case_participants", [participant])
     dl.save(case)
 
     stored_case = dl.read(case.id_)
@@ -243,7 +243,7 @@ def test_hydrate_keeps_unresolvable_string_ids(dl):
 
     missing_id = "urn:uuid:00000000-0000-0000-0000-000000000000"
     case = as_VulnerabilityCase()
-    case.case_participants = [missing_id]
+    object.__setattr__(case, "case_participants", [missing_id])
     dl.save(case)
 
     stored_case = dl.read(case.id_)
@@ -261,7 +261,7 @@ def test_hydrate_warns_for_unresolvable_string_ids(dl, caplog):
 
     missing_id = "urn:uuid:00000000-0000-0000-0000-000000000001"
     case = as_VulnerabilityCase()
-    case.case_participants = [missing_id]
+    object.__setattr__(case, "case_participants", [missing_id])
     dl.save(case)
 
     stored_case = dl.read(case.id_)

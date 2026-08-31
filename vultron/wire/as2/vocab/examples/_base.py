@@ -108,13 +108,14 @@ def case_actor() -> as_Service:
     return _CASE_ACTOR
 
 
-def case(random_id=False) -> as_VulnerabilityCase:
+def case(random_id=False, **kwargs) -> as_VulnerabilityCase:
     if random_id:
         _case_number = random.randint(10000000, 99999999)
         _case = as_VulnerabilityCase(
             name=f"{_VENDOR.name} Case #{_case_number}",
             id_=_make_id("VulnerabilityCase"),
             attributed_to=_VENDOR.id_,
+            **kwargs,
         )
         return _case
     return _CASE

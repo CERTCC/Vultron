@@ -28,6 +28,7 @@ along that same "who is being addressed" seam: ``emit_response`` answers the
 ``accept_offer`` holds the Case Owner's own Accept response.
 """
 
+import json
 from typing import cast
 
 from py_trees.common import Status
@@ -231,7 +232,7 @@ class EmitOfferCaseParticipantToOwnerNode(DataLayerActionWithPorts):
                 )
                 self.logger.error(self.feedback_message)
                 return Status.FAILURE
-            activity_id, activity_dict = factory.offer_actor_to_case(
+            activity_id, activity_blob = factory.offer_actor_to_case(
                 recommender_id=self.recommender_id,
                 recommended_id=self.recommended_id,
                 case_id=self.case_id,
@@ -240,6 +241,7 @@ class EmitOfferCaseParticipantToOwnerNode(DataLayerActionWithPorts):
                 to=[owner_id],
                 roles=roles,
             )
+            activity_dict = json.loads(activity_blob)
             snapshot = _snapshot_with_context(activity_dict, self.case_id)
             commit_tree = create_commit_log_entry_tree(
                 case_id=self.case_id,

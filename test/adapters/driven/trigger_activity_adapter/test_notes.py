@@ -13,6 +13,7 @@
 
 """Unit tests for TriggerActivityAdapter note-domain methods."""
 
+import json
 import pytest
 
 from vultron.wire.as2.vocab.base.objects.object_types import as_Note
@@ -31,10 +32,10 @@ class TestCreateNote:
         )
 
         assert note_id
-        assert isinstance(note_dict, dict)
+        assert isinstance(note_dict, str)
         # by_alias=True — serialized key is "id" not "id_"
-        assert "id" in note_dict
-        assert note_dict["id"] == note_id
+        assert "id" in json.loads(note_dict)
+        assert json.loads(note_dict)["id"] == note_id
 
     def test_persists_note_in_datalayer(self, adapter, dl):
         note_id, _ = adapter.create_note(
@@ -56,7 +57,7 @@ class TestCreateNote:
             in_reply_to=parent_id,
         )
 
-        assert note_dict.get("inReplyTo") == parent_id
+        assert json.loads(note_dict).get("inReplyTo") == parent_id
 
     def test_idempotent_second_create_returns_same_id(self, adapter, dl):
         """Re-creating the same note object raises ValueError; adapter logs and continues."""
@@ -124,8 +125,8 @@ class TestAddNoteToCase:
         )
 
         assert activity_id
-        assert isinstance(activity_dict, dict)
-        assert "id" in activity_dict
+        assert isinstance(activity_dict, str)
+        assert "id" in json.loads(activity_dict)
 
     def test_persists_add_activity(self, adapter, dl):
         note_id, _ = adapter.create_note(
