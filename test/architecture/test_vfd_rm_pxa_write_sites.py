@@ -102,9 +102,7 @@ AUDITED_SITES: list[tuple[str, str]] = sorted(
         # FILTER — CaseStatus per-dimension carry-forward (ISSUE-2256)
         ("status/nodes/cs_dimension_filter.py", "PxaDimension"),
         # SNAPSHOT — EmitCaseStatusUpdateNode: post-mutation CaseStatus snapshot (ISSUE-2175)
-        # Two more PxaDimension: AC-1 pX→PX forced promotion in AppendCaseStatusToCaseNode
-        # (pXa→PXa branch and pXA→PXA branch, SM-09-001)
-        ("status/nodes/case_status.py", "PxaDimension"),
+        # Second PxaDimension: AC-1 _promote_pxa() result applied in AppendCaseStatusToCaseNode
         ("status/nodes/case_status.py", "PxaDimension"),
         ("status/nodes/case_status.py", "PxaDimension"),
         # REPLICATE — participant_status_effect.py: monotonic RM ratchet

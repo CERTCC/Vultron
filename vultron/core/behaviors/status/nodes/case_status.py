@@ -53,6 +53,15 @@ logger = logging.getLogger(__name__)
 CASE_STATUS_ALREADY_PRESENT = "case_status_already_present"
 
 
+def _promote_pxa(pxa: CS_pxa) -> CS_pxa:
+    """SM-09-001: promote ephemeral pX states at the persistence boundary."""
+    if pxa is CS_pxa.pXa:
+        return CS_pxa.PXa
+    if pxa is CS_pxa.pXA:
+        return CS_pxa.PXA
+    return pxa
+
+
 class CheckCaseStatusIdempotencyNode(
     SilentIdempotencyGuardMixin, DataLayerConditionWithPorts
 ):
@@ -214,15 +223,10 @@ class AppendCaseStatusToCaseNode(DataLayerActionWithPorts):
 
         # AC-1: pX → PX forced promotion at persistence boundary (SM-09-001)
         if status_obj.pxa is not None:
-            pxa_state = status_obj.pxa.state
-            if pxa_state is CS_pxa.pXa:
+            promoted = _promote_pxa(status_obj.pxa.state)
+            if promoted is not status_obj.pxa.state:
                 status_obj = status_obj.model_copy(
-                    update={"pxa": PxaDimension(state=CS_pxa.PXa)}
-                )
-                from_filter = True
-            elif pxa_state is CS_pxa.pXA:
-                status_obj = status_obj.model_copy(
-                    update={"pxa": PxaDimension(state=CS_pxa.PXA)}
+                    update={"pxa": PxaDimension(state=promoted)}
                 )
                 from_filter = True
 
@@ -295,11 +299,7 @@ class EmitCaseStatusUpdateNode(DataLayerActionWithPorts):
             self.logger.warning("%s: %s", self.name, self.feedback_message)
             return Status.FAILURE
         # AC-1: pX → PX forced promotion at persistence boundary (SM-09-001)
-        pxa_state = current.pxa.state
-        if pxa_state is CS_pxa.pXa:
-            pxa_state = CS_pxa.PXa
-        elif pxa_state is CS_pxa.pXA:
-            pxa_state = CS_pxa.PXA
+        pxa_state = _promote_pxa(current.pxa.state)
         new_status = CaseStatus(
             context=self.case_id,
             attributed_to=self.actor_id,
