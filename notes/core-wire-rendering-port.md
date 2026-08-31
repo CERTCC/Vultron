@@ -23,6 +23,23 @@ related_adrs:
 
 Source: CONCERN-2260. Supersedes the known-deviation posture of #1991.
 
+> **Mechanism revised by ADR-0081.** The decision recorded here — render core
+> objects through a driven port rather than by aliasing core types — stands
+> unchanged. Two things about the *implementation* change:
+>
+> 1. The adapter no longer resolves the wire counterpart with
+>    `VOCABULARY.get(type(obj).__name__)`. That lookup depended on the bare-name
+>    collision between the wire and core registries; it now goes through the
+>    declarative pairing registry (ARCH-23-001).
+> 2. The adapter no longer calls `wire_cls.from_core(obj)`. Projection moves off
+>    the wire classes into translator modules on the adapter side (ARCH-12-005 as
+>    amended), so that wire classes carry no domain knowledge.
+>
+> Note also that this port only ever addressed the **core→wire** direction of
+> ARCH-01-001. The wire→core direction was still being served by core
+> duck-typing `getattr(obj, "to_core", None)`; ADR-0081 adds the mirror-image
+> `WireParsePort`. See [notes/wire-core-boundary.md](wire-core-boundary.md).
+
 ## The legitimate need
 
 Core code needs wire-shaped (AS2 camelCase) JSON in exactly one situation:

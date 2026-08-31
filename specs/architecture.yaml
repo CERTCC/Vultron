@@ -220,9 +220,16 @@ groups:
     priority: MUST
     kind: project
     statement: '`as_Base` MUST inherit from `VultronBase`; `as_Object` MUST inherit from `VultronObject`. `VultronBase` and
-      `VultronObject` (in `vultron/core/models/base.py`) are the shared root for both the core and wire object hierarchies.'
+      `VultronObject` are the shared root for both the core and wire object hierarchies, and MUST live in a branch-neutral
+      module that is neither core-branch nor wire-branch — not in `vultron/core/models/`.'
     rationale: A shared root ensures field names and semantics align across both branches, enabling model_validate() round-trips
-      without per-type translation stubs.
+      without per-type translation stubs. Hosting that shared root inside `vultron/core/models/` made every wire class a
+      definitional ARCH-22 violation — the wire branch is *required* to inherit it, so the import can never be removed while
+      it lives there. A branch-neutral home follows the ADR-0031 precedent that introduced `vultron/enums/` as a bottom-of-stack
+      layer for cross-cutting definitions.
+    adr:
+    - ADR-0031
+    - ADR-0081
     verification: '`issubclass(as_Base, VultronBase)` and `issubclass(as_Object, VultronObject)` are both True.'
   - id: ARCH-12-002
     priority: MUST
@@ -237,20 +244,31 @@ groups:
     kind: project
     statement: 'The core branch MAY narrow inherited fields via Pydantic validators (e.g., `NonEmptyString | None`, required
       `datetime`). Core-branch types MUST NOT carry wire-specific concerns: `alias_generator=to_camel`, hardcoded AS2 `@context`
-      namespace, or VOCABULARY registration are forbidden in core-branch types.'
+      namespace, or VOCABULARY registration are forbidden in core-branch types. Core-branch types MUST additionally resolve
+      `extra="forbid"` through their `model_config`, so that an unrecognised key raises rather than being silently discarded.'
     verification: 'No `CoreObject` subclass declares `alias_generator` in its `model_config`, references `to_camel`, or assigns
       to `VOCABULARY`. Confirmed by `test_no_core_object_has_to_camel_alias_generator` and `test_all_vocabulary_are_as_base_subclasses`
-      in `test/architecture/test_hierarchy_invariants.py`, both of which MUST NOT be marked `xfail`.'
+      in `test/architecture/test_hierarchy_invariants.py`, both of which MUST NOT be marked `xfail`. A companion test asserts
+      every `CoreObject` subclass resolves `extra="forbid"`, with no exemption list.'
     rationale: 'An `alias_generator` on a core type gives one `type_` two accepted key spellings, so whichever class reads a
       row decides what the data means (issue #2232). It is also insufficient for its intended purpose: a core `model_dump(by_alias=True)`
       cannot produce the wire shape for a type whose branches differ structurally, which is why a hand-patched `consent`→`emConsentState`
-      rewrite accumulated in core. Core→wire rendering belongs behind the ARCH-20 driven port.'
+      rewrite accumulated in core. Core→wire rendering belongs behind the ARCH-20 driven port. `extra="forbid"` is required
+      because Pydantic v2 defaults to `extra="ignore"`: handing a wire-shaped payload to a core type silently discards every
+      key whose only spelling is snake_case, which is how a participant''s RM ladder was reset without a trace (issue #2232).
+      Forbidding unknown keys is strictly stronger than rejecting camelCase spellings specifically — it also catches typos,
+      renamed fields, and stale keys from an older schema.'
     relationships:
     - rel_type: depends_on
       spec_id: ARCH-20-001
       note: ARCH-20 supplies the driven port that replaces the core-side aliasing this requirement forbids.
+    - rel_type: depends_on
+      spec_id: ARCH-23-005
+      note: ARCH-23-005 supplies the round-trip cleanups (computed-field stripping, wire-name keys) without which `extra="forbid"`
+        rejects the project''s own serialised output.
     adr:
     - ADR-0063
+    - ADR-0081
   - id: ARCH-12-004
     priority: MUST_NOT
     kind: project
@@ -320,9 +338,24 @@ groups:
   - id: ARCH-12-005
     priority: MUST
     kind: project
-    statement: 'For types where both branches share field names and compatible types and no `from_core()` classmethod is defined, translation from a core object to its wire counterpart MUST use `WireType.model_validate(core_obj.model_dump(mode="json"))`. When a `from_core()` classmethod is present on the wire type, the rendering port adapter MUST use it (per ARCH-20-002) instead of the model_validate path. Explicit `from_core()` / `to_core()` classmethods are not required for structurally-compatible types.'
-    rationale: Eliminating the explicit translation protocol removes per-type boilerplate and the _field_map escape hatch.
-      The shared-base alignment ensures the round-trip is correct by construction.
+    statement: 'Core↔wire translation MUST be performed by the translator modules on the adapter side, driven by the declarative
+      pairing registry (ARCH-23-001) and the declarative field map. Wire-branch classes MUST NOT carry projection logic:
+      `from_core()` and `to_core()` methods on wire vocabulary classes are forbidden. A type whose branches differ structurally
+      MAY supply a bespoke translator for that pairing, but the translator MUST live on the adapter side.'
+    rationale: 'Projection logic on the wire class is what forced every wire module to import the core domain model, making
+      ARCH-22 unachievable rather than merely unmet. Relocating it leaves wire classes as pure AS2 shape with no domain
+      knowledge — which is what ADR-0017 asserted but never structurally enforced — and gives the adapter side, which is
+      permitted to see both branches, sole ownership of translation. The previous formulation also produced measurable
+      duplication: twelve hand-written `to_core()` overrides, six of which were pure boilerplate around the single per-type
+      fact of which core class to validate against.'
+    relationships:
+    - rel_type: depends_on
+      spec_id: ARCH-23-001
+      note: The pairing registry supplies the core↔wire correspondence that the generic translator needs in place of a
+        per-class `to_core()` override.
+    adr:
+    - ADR-0063
+    - ADR-0081
   - id: ARCH-12-006
     priority: MUST
     kind: project
@@ -1000,14 +1033,169 @@ groups:
     kind: project
     statement: >-
       The KNOWN_VIOLATIONS set in the wire→core ratchet test SHOULD shrink
-      toward empty over successive releases.  A companion
-      `xfail(strict=True)` goal test SHOULD be added so that fully clearing
-      the violations set fails the build and forces the xfail marker to be
-      deleted, signalling completion.
+      toward the declared structural exemption set, not toward empty.  The
+      exemption set MUST be enumerated explicitly with the requirement that
+      mandates each entry, and currently contains exactly one member: the
+      `find_in_core_type_map` import in
+      `vultron/wire/as2/vocab/base/registry.py`, mandated by ARCH-12-010.  The
+      companion `xfail(strict=True)` goal test SHOULD assert equality with the
+      exemption set, so that reaching it fails the build and forces the xfail
+      marker to be deleted, signalling completion.
     rationale: >-
-      Without a strict goal test the ratchet can reach zero violations
-      silently, and the xfail marker stays forever — the completion signal
-      never fires.  The same pattern is mandated for ARCH-21 violations by
-      ARCH-21-005.
+      Without a strict goal test the ratchet can reach its target silently and
+      the xfail marker stays forever — the completion signal never fires.  But
+      a goal test targeting *empty* asserts an unreachable state: ARCH-12-001
+      requires wire classes to inherit the shared base, ARCH-12-010 requires
+      `find_in_vocabulary()` to consult the core type map, and (before ADR-0081)
+      ARCH-12-005 required projection methods on wire classes.  An unreachable
+      goal invites an implementer to violate a MUST in order to make it pass,
+      which is worse than no goal test.  ADR-0081 removes two of the three
+      structural causes by relocating the shared base and moving projection to
+      the adapter side, leaving one justified exemption.
     adr:
     - ADR-0017
+    - ADR-0081
+- id: ARCH-23
+  title: Core↔Wire Pairing Registry and Translator
+  specs:
+  - id: ARCH-23-001
+    priority: MUST
+    kind: project
+    statement: >-
+      A single declarative pairing registry MUST be the authoritative statement
+      of core↔wire type correspondence.  Every mechanism that needs to resolve a
+      core type to its wire counterpart, or a wire type to its core counterpart,
+      MUST consult that registry.  Resolving a counterpart by name coincidence
+      between `VOCABULARY` and `CORE_VOCABULARY` is forbidden.
+    rationale: >-
+      Before this requirement the pairing was stated four times and declared
+      nowhere: implicitly by the bare-name collision that
+      `As2WireRenderAdapter.render()` relied on, and explicitly by three
+      hand-maintained copies — `_WIRE_ACTOR_TO_CORE` (actors only),
+      `_NORMALIZE_WIRE_TO_CORE` (write path), and the chain of three registries
+      behind `find_in_vocabulary()`.  An implicit index is also untestable:
+      nothing asserted that a core type and its wire counterpart agreed on a
+      name, so a rename broke rendering at runtime with "No wire counterpart"
+      rather than at import or test time.
+    verification: >-
+      A test asserts the registry is complete in both directions: every
+      `CORE_VOCABULARY` entry that has a wire counterpart appears in it, and
+      every wire type claiming a core counterpart resolves through it.  A grep
+      test asserts `_WIRE_ACTOR_TO_CORE` and `_NORMALIZE_WIRE_TO_CORE` no longer
+      exist.
+    adr:
+    - ADR-0081
+  - id: ARCH-23-002
+    priority: MUST
+    kind: project
+    statement: >-
+      Because the pairing registry is authoritative (ARCH-23-001), the wire
+      `VOCABULARY` and core `CORE_VOCABULARY` registries MUST NOT be required to
+      share key spellings.  Wire vocabulary registration keys MUST be distinct
+      from core vocabulary keys so that no wire class shadows a core type.
+    rationale: >-
+      Fifteen wire classes shadowed a `CORE_VOCABULARY` entry, which is what made
+      the `_NORMALIZE_WIRE_TO_CORE` persistence-boundary workaround necessary
+      (issue #2232, ADR-0062).  Removing the shadowing was previously risky
+      because the collision was load-bearing for counterpart resolution; once
+      ARCH-23-001 makes the pairing explicit, disjoint keys are safe.
+    verification: >-
+      A test asserts `set(VOCABULARY) & set(CORE_VOCABULARY) == set()`.
+    relationships:
+    - rel_type: depends_on
+      spec_id: ARCH-23-001
+      note: Disjoint keys are only safe once counterpart resolution no longer depends on the shared key.
+    adr:
+    - ADR-0081
+  - id: ARCH-23-003
+    priority: MUST_NOT
+    kind: project
+    statement: >-
+      Serialized AS2 output MUST NOT change as a result of any pairing-registry
+      or vocabulary-key change.  The wire `"type"` value emitted on the wire is
+      independent of the registry key under which a wire class is registered.
+    rationale: >-
+      The registry key is an internal lookup concern; the `type` field value is
+      an external protocol commitment that receivers match on.  Conflating them
+      is what made VM-01-004 read as though the key and the wire value must be
+      the same string, when the code already derives the key from the class name
+      and diverges for the five actor types.
+    verification: >-
+      A round-trip test asserts the serialized form of every wire type is
+      byte-identical to its pre-change output.
+    adr:
+    - ADR-0081
+  - id: ARCH-23-004
+    priority: MUST
+    kind: project
+    statement: >-
+      The set of AS2 reference-typed fields MUST be derived from the wire
+      classes' type annotations.  It MUST NOT be restated as a hand-maintained
+      collection, and per-field reference collapsing MUST NOT be open-coded in
+      individual translation paths.
+    rationale: >-
+      This knowledge was stated three times: by the `as_ObjectRef` annotations
+      (the truth), by `_AS_OBJECT_REF_FIELDS` in
+      `vultron/adapters/driven/db_record.py` whose own comment described it as a
+      restatement of those annotations, and by hand-written
+      `_scalar_ref_id_or_value(...)` calls inside individual projection methods.
+      Two of the three could drift from the first silently.
+    verification: >-
+      A grep test asserts `_AS_OBJECT_REF_FIELDS` no longer exists, and a test
+      asserts the derived set matches the annotation-declared reference fields
+      for every wire class.
+    adr:
+    - ADR-0081
+  - id: ARCH-23-005
+    priority: MUST
+    kind: project
+    statement: >-
+      A serialize-then-validate round trip on a core object MUST reproduce that
+      object.  Serialization MUST omit computed fields, and MUST emit wire-facing
+      key names (`id`, `type`, `@context`) rather than Python field names
+      (`id_`, `type_`, `context_`).  This applies to the persistence record
+      round trip as well as to translation.
+    rationale: >-
+      `extra="forbid"` (ARCH-12-003) is only viable if the project can
+      round-trip its own output.  Measured on the unit suite, the two blockers
+      were `embargo_adherence` — a `@computed_field` per ADR-0056 that appears
+      in `model_dump()` output but is not settable — with 1096 rejections, and
+      `id_` with 110.  Neither was a wire-spelling problem; both were the
+      project failing to re-read what it had just written.  `Record.from_obj()`
+      calls `model_dump(mode="json", serialize_as_any=True)` with no `by_alias`,
+      so persisted rows are keyed `id_`/`type_`, which is invisible only because
+      unknown keys are currently ignored on read-back.
+    verification: >-
+      A test asserts `type(obj).model_validate(dump(obj)) == obj` for every
+      `CORE_VOCABULARY` entry, and that no persisted row carries a
+      trailing-underscore key.
+    adr:
+    - ADR-0056
+    - ADR-0081
+  - id: ARCH-23-006
+    priority: MUST_NOT
+    kind: project
+    statement: >-
+      Core-branch types MUST NOT appear in wire-branch field annotations.  The
+      AS2-faithful reference union (`as_Object | as_Link | str`) is permitted and
+      expected; adding a core type as a further union member is forbidden.
+    rationale: >-
+      `as_ObjectRef` carried `| CoreObject`, added as a migration convenience in
+      PR #730, placing a core type inside a wire annotation and therefore inside
+      the `object_` field of every transitive activity.  Besides violating
+      ARCH-22-001, it makes a core-side validation guard unsafe to enforce
+      loudly: `VultronValidationError` is not a `ValueError` subclass, so a guard
+      firing while Pydantic resolves that union escapes the whole operation
+      instead of being absorbed as a failed union branch.  The AS2 part of the
+      union is not a defect — the standard permits a property to hold an
+      embedded object or an IRI reference, and `rehydrate()` (VM-06-001) resolves
+      it at a defined point.
+    verification: >-
+      A test asserts no wire-branch field annotation names a `CoreObject`
+      subclass.
+    relationships:
+    - rel_type: refines
+      spec_id: ARCH-22-001
+      note: Names the specific annotation-level case of the wire→core import prohibition.
+    adr:
+    - ADR-0081

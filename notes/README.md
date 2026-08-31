@@ -113,6 +113,20 @@ point), outbound factory/port interfaces (`TriggerActivityPort`,
 `SyncActivityPort`), `CaseLedgerEntry.payloadSnapshot` construction, or
 auditing `outbox_delivery.py` for enrichment mutations. Source: CONCERN-2545.
 
+**`wire-core-boundary.md`**
+The wire/core boundary contract (ADR-0081): one declarative core↔wire pairing
+registry, one generic bidirectional translator on the adapter side, and
+`extra="forbid"` on the core branch as the structural guarantee. Explains why
+ARCH-01-001 (core→wire) and ARCH-22-001 (wire→core) are *different* rules and
+why ADR-0063 solved only the first; why "zero wire→core imports" was
+unreachable; the four duplications the pairing registry replaces; and the
+measured blast radii (25 vs 570 failures) with the `embargo_adherence`
+computed-field and `id_` round-trip findings. Also records which half of
+`as_ObjectRef` is AS2-faithful and which half is a kludge.
+**Load when**: touching core↔wire translation, the vocabulary registries,
+`_field_map`/`from_core`/`to_core`, the ARCH-22 import ratchet, or adding a
+validator that raises on a core-branch type. Source: G02 / CONCERN-2830.
+
 **`vultron/wire/as2/factories/AGENTS.md`**
 Factory-function operating rules for outbound Vultron protocol activities.
 See `notes/activity-factories.md` for the full design rationale and inventory.

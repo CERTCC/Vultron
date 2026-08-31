@@ -44,9 +44,28 @@ groups:
     priority: MUST
     kind: project
     statement: >-
-      The `VOCABULARY` registry MUST be keyed by the AS2 `type` field value (the string
-      that appears as `"type": "..."` in wire JSON, e.g., `"VulnerabilityCase"`) and MUST
-      map each such key to its corresponding vocabulary class.
+      The `VOCABULARY` registry MUST be keyed by a stable identifier derived from the wire
+      class name, and MUST map each such key to its corresponding vocabulary class.  The
+      registry key is an internal lookup concern and MUST NOT be assumed equal to the AS2
+      `type` field value emitted on the wire; deserialization MUST resolve an inbound
+      `"type": "..."` value through the declared key mapping rather than by treating the
+      value as the key directly.  Registry keys MUST be disjoint from core vocabulary keys
+      (ARCH-23-002).
+    rationale: >-
+      This requirement previously stated that the key *is* the AS2 `type` value.  That was
+      only accidentally true, and already false for the five actor types: `as_VultronPerson`
+      auto-registers under `VultronPerson` (derived from its class name via
+      `cls.__name__.removeprefix("as_")`) and is *also* explicitly assigned to the key
+      `Person`, which is the value that appears on the wire.  Stating that the key and the
+      wire value are the same string made the bare-name collision with `CORE_VOCABULARY`
+      look mandatory, when in fact nothing about the external protocol requires it — see
+      ARCH-23-003, which holds serialized output invariant under any key change.
+    adr:
+    - ADR-0081
+    relationships:
+    - rel_type: depends_on
+      spec_id: ARCH-23-002
+      note: Disjoint wire and core registry keys are what this requirement's key-independence permits.
   - id: VM-01-005
     priority: MUST
     kind: project

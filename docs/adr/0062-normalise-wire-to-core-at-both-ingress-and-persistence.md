@@ -4,6 +4,7 @@ date: 2026-08-13
 deciders: Vultron maintainers
 consulted: Vultron maintainers
 informed: Vultron contributors
+partially_superseded_by: docs/adr/0081-wire-core-boundary-pairing-registry.md
 ---
 
 # Normalise Wire → Core at Ingress, and Enforce It Again at the Persistence Boundary
@@ -152,6 +153,19 @@ the shapes converge.
   once, with no incremental path — not an acceptable shape for a bug fix.
 
 ## More Information
+
+**Superseded by [ADR-0081](0081-wire-core-boundary-pairing-registry.md).** That
+decision takes the unification this ADR named as the right end state and
+deferred: with `extra="forbid"` on the core branch and a declarative core↔wire
+pairing registry, both enforcement points described here become unnecessary. The
+ingress projection becomes a `WireParsePort` call and the persistence backstop —
+`_NORMALIZE_WIRE_TO_CORE` and its grow-only ratchet — is deleted. This ADR
+remains authoritative for the code as it stands; flip its `status` to
+`superseded` and move it to `docs/adr/archived/` when that task lands.
+
+Note also that the "covers 7 of the 15" consequence recorded above is no longer
+current: issues #2268 and #2402 completed the set, so all fifteen shadowing types
+are normalised.
 
 Related: issue #2232 (the shape duality), issue #2264 (initial-state
 substitution sites), issue #2268 (migrating the remaining shadowing types).
