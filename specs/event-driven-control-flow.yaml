@@ -102,16 +102,44 @@ groups:
     statement: When a cascade reaches a point where the actor cannot proceed autonomously, the stopping point MUST be represented
       as an explicit external decision node in the BT.
   - id: EDF-04-002
-    priority: MUST
+    priority: MUST_NOT
     kind: project
     statement: >-
-      An external decision node MUST return `py_trees.common.Status.RUNNING` while
-      awaiting input.
+      An external decision node MUST NOT return `py_trees.common.Status.RUNNING` to
+      represent awaiting input; it MUST request the input it needs and terminate.
+    rationale: >-
+      The execution model cannot host `RUNNING`: `BTBridge.execute_tree` treats root
+      `RUNNING` as "continue ticking", exhausts its budget, logs `ERROR`, returns
+      `FAILURE`, then discards the tree — so no node survives to be resumed. Waiting is
+      instead expressed by requesting the input and terminating (ASK-01-002).
+    note: >-
+      Reversed by ADR-0080. The previous form mandated `RUNNING` while awaiting input.
+      It had zero implementations — no node in `vultron/` returns `RUNNING` — and any
+      node that had complied would have busy-looped and then failed.
+    verification: >-
+      A repository-wide search finds no `return Status.RUNNING` in `vultron/`, and a
+      gated tree returns `SUCCESS` after emitting its request.
+    adr:
+    - ADR-0080
+    relationships:
+    - rel_type: refines
+      spec_id: ASK-01-003
   - id: EDF-04-003
     priority: MUST
     kind: architecture
     statement: The arrival of the required external input (a trigger invocation, an inbox message, or a UI response) MUST
-      cause the external decision node to re-evaluate and return `SUCCESS` or `FAILURE` on the next BT tick.
+      cause a fresh evaluation that determines where the exchange stands and proceeds
+      accordingly.
+    rationale: >-
+      Amended by ADR-0080. The previous form required the awaiting node to re-evaluate
+      "on the next BT tick", which presumes the node survived to be ticked again; it
+      does not. The arriving input drives a new evaluation whose first act is to
+      determine the state of the exchange (ASK-02-001).
+    verification: >-
+      Delivering the awaited input causes a fresh evaluation that resolves the
+      exchange, without any prior tree instance being retained.
+    adr:
+    - ADR-0080
   - id: EDF-04-004
     priority: MUST
     kind: project
@@ -123,11 +151,16 @@ groups:
     priority: MUST_NOT
     kind: project
     statement: >-
-      An external decision node MUST NOT silently succeed or fail while awaiting
-      input.
+      An external decision node MUST NOT succeed or fail without having requested the
+      input it needs.
     rationale: >-
-      Silent success or failure hides the fact that input was not received, causing
-      the BT to proceed as if the decision was made when it was not.
+      Silent success or failure hides the fact that input was never solicited, causing
+      the BT to proceed as if the decision was made when it was not. Amended by
+      ADR-0080: because a decision point terminates rather than waits, the observable
+      that distinguishes "asked and waiting" from "gave up" is the emitted request —
+      a terminal status with no request emitted is the silent failure this forbids.
+      This is the defect `RequireCaseOwnerApprovalNode` exhibits: it returns FAILURE
+      without ever asking.
     relationships:
     - rel_type: refines
       spec_id: EDF-04-002

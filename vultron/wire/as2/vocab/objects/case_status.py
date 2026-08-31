@@ -41,6 +41,7 @@ from vultron.core.states.cs import CS_d, CS_pxa, CS_vf
 from vultron.core.states.participant_embargo_consent import PEC
 from vultron.enums.roles import CVDRole
 from vultron.core.models.base import NonEmptyString
+from vultron.errors import VultronProtocolViolationError
 from vultron.core.models.enums import VultronObjectType as VO_type
 from vultron.wire.as2.vocab.base.links import ActivityStreamRef, as_Link
 from vultron.wire.as2.vocab.base.objects.base import as_Object
@@ -245,7 +246,7 @@ class as_ParticipantStatus(VultronAS2Object):
         """
         if isinstance(data, dict):
             if "vfd_state" in data or "vfdState" in data:
-                raise ValueError(
+                raise VultronProtocolViolationError(
                     "vfd_state/vfdState is retired (ADR-0075). Use vf_state"
                     " for vendor participants and d_state for deployer"
                     " participants instead."

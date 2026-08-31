@@ -26,6 +26,18 @@ But some steps require judgment that Vultron cannot make by itself:
 
 These are **call-out points** — places where the BT pauses and waits for an answer from an external service before it can continue.
 
+!!! note "A call-out point is answerable now; asking another actor is not"
+
+    A call-out point waits for a service *you* run, so it can be answered while
+    the BT is still running. That is what makes pausing viable.
+
+    Some questions cannot be answered that way, because they need a **decision
+    from another actor in the case** — for example, whether the case owner permits
+    a change to the case's agreed state. No service can answer that on the owner's
+    behalf, and the answer may take days. There the actor does not pause: it sends
+    a request and finishes, and the reply starts new work when it arrives. See
+    [Protocol Event Flow](../protocol_flow.md#when-an-actor-must-ask-permission).
+
 During development and simulation, call-out points are filled by **fuzzer nodes** — stubs that return a random success or failure based on a probability. In production, you replace a fuzzer node with a real service: a **capability implementation**.
 
 ---

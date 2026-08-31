@@ -963,17 +963,27 @@ groups:
   - id: CLP-11-001
     priority: MUST
     kind: protocol
-    statement: Open/closed state for a protocol request/reply pair (e.g., `Offer(CaseParticipant)`
-      awaiting `Accept` or `Reject`) MUST be determined by querying the case ledger
-      via `CasePersistence.find_protocol_pair()`, not by inspecting the outbox.
+    statement: Whether a protocol request/reply pair (e.g., `Offer(CaseParticipant)`
+      awaiting `Accept` or `Reject`) has been authorized MUST be determined by querying
+      the case ledger via `CasePersistence.find_protocol_pair()`, and MUST NOT be determined
+      by inspecting the outbox.
     rationale: 'The outbox is a delivery queue: entries are removed when the activity
       is sent and MUST NOT be used to infer protocol state. The case ledger is the
       canonical append-only protocol history and survives actor restarts. Any code
       that reads the outbox to determine whether a request is still in-flight is architecturally
       incorrect and MUST be replaced.'
+    note: >-
+      Narrowed by ADR-0080. This requirement governs the *authorization* question
+      ("was this permitted?"), which only the ledger may answer. It does not forbid an
+      actor-scoped working-set register of outstanding asks (ASK-04), which answers the
+      distinct question "what am I waiting on, and what do I owe?" — and which
+      DL-06-002 requires be recorded as core state rather than re-derived. A register
+      MUST NOT be consulted for authorization (ASK-02-004).
     verification: A unit test confirms that `CasePersistence.find_protocol_pair()`
-      queries the `CaseLedgerEntry` log to determine open/closed state, and that no
-      code path reads the outbox to make this determination.
+      queries the `CaseLedgerEntry` log to determine authorization state, and that no
+      code path reads the outbox or an outstanding-ask register to make this determination.
+    adr:
+    - ADR-0080
     stories:
     - story_2022_045
     - story_2022_088
@@ -986,6 +996,14 @@ groups:
       ledger; `PendingAssertionStore` suppresses duplicate near-term re-emits while
       waiting for the `CaseLedgerEntry` round-trip. Merging them would conflate durable
       protocol state with short-lived emit-suppression state.'
+    note: >-
+      Clarified by ADR-0080. This prohibition is on unifying the *registers*, not on
+      sharing their machinery. The create / close-on-named-event / time-out lifecycle,
+      its reaping and its enumeration are implemented once and instantiated separately
+      per use (ASK-04-007) — the durable ask register may block, the ephemeral
+      suppressor may not (CLP-06-002, CLP-06-005).
+    adr:
+    - ADR-0080
   - id: CLP-11-003
     priority: MUST
     kind: protocol

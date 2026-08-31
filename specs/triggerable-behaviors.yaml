@@ -124,6 +124,30 @@ groups:
     relationships:
     - rel_type: depends_on
       spec_id: AR-04-001
+  - id: TRIG-04-003
+    priority: MUST
+    kind: project
+    statement: When a triggered behavior terminates because it emitted an authorization request rather than completing the
+      requested action, the trigger response MUST identify the request it emitted.
+    rationale: >-
+      A trigger returns 202 and runs the behavior in the background, so a caller cannot
+      otherwise distinguish "done" from "waiting on someone else's decision"
+      (CONCERN-2369). Under ASK-01-002 success means the request was emitted, so success
+      alone is ambiguous; naming the request lets the caller resolve the outcome against
+      the outstanding-ask collection (ASK-04-009).
+    note: >-
+      This closes the CONCERN-2369 gap only for behaviors that stop to ask. Outcomes of
+      behaviors that fail for other reasons remain unobservable and are tracked
+      separately on CONCERN-2369.
+    verification: A trigger whose behavior emits an authorization request returns a response identifying that request, and the
+      identified request is retrievable from the actor's outstanding-ask collection.
+    adr:
+    - ADR-0080
+    relationships:
+    - rel_type: depends_on
+      spec_id: ASK-04-009
+    lint_suppress:
+    - missing_story_reference
 - id: TRIG-05
   title: BT Integration
   specs:

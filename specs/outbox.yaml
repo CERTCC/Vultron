@@ -545,3 +545,73 @@ groups:
       spec_id: OX-13-006
     adr:
     - ADR-0066
+- id: OX-14
+  title: Undelivered-Activity Correlation
+  description: >
+    Requirements linking a permanently undelivered activity back to the canonical case
+    ledger entry that recorded the event the activity carries, so that divergence
+    between the canonical log and a participant's replica is observable rather than
+    silent. Derived from CONCERN-2657 and ADR-0080.
+  specs:
+  - id: OX-14-001
+    priority: MUST
+    kind: architecture
+    statement: >-
+      A dead-lettered activity MUST be correlatable to the canonical `CaseLedgerEntry`
+      whose event it carries, where such an entry exists.
+    rationale: >-
+      CONCERN-2657 observed that a permanently undelivered activity leaves the canonical
+      log asserting an event a participant never received. The defect is not the write
+      ordering (see OX-14-002) but that nothing connects the dead-letter store
+      (OX-13-008) to the entry claiming the event happened, so replica divergence is
+      undetectable.
+    verification: >-
+      Given a dead-lettered activity carrying a committed event, the corresponding
+      ledger entry is resolvable from the dead-letter record.
+    adr:
+    - ADR-0080
+    - ADR-0066
+    tags:
+    - observability
+    lint_suppress:
+    - missing_story_reference
+  - id: OX-14-002
+    priority: MUST_NOT
+    kind: protocol
+    statement: >-
+      A canonical `CaseLedgerEntry` commit MUST NOT be deferred until delivery of the
+      corresponding outbound activity is confirmed.
+    rationale: >-
+      Gating the commit on delivery makes an actor's own decision history hostage to
+      the network, inverts the guards-then-commit-then-effects ordering CLP-10-006
+      requires, and creates an unanswerable partial-delivery question when some
+      recipients succeed and others fail. Delivery confirmation is a transport-level
+      receipt and is not agreement to the delivered content; the two layers stay
+      separate.
+    verification: >-
+      A committed entry is present in the canonical ledger before any delivery attempt
+      for its activity is made.
+    adr:
+    - ADR-0080
+    lint_suppress:
+    - missing_story_reference
+  - id: OX-14-003
+    priority: MUST
+    kind: architecture
+    statement: >-
+      Exhaustion of an activity's delivery budget MUST produce an observable that names
+      the recipients that never received it and the canonical entry the activity was
+      replicating, where one exists.
+    rationale: >-
+      A participant whose replica is missing an entry cannot ask for it if it does not
+      know the entry exists; naming the unreached recipients is what makes targeted
+      replay (SBT-03-002) possible instead of a full resynchronisation.
+    verification: >-
+      The exhaustion observable includes the unreached recipient identifiers and the
+      associated canonical entry reference.
+    adr:
+    - ADR-0080
+    tags:
+    - observability
+    lint_suppress:
+    - missing_story_reference
