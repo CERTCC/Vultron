@@ -32,7 +32,7 @@ from vultron.core.models.case_ledger import (
     HashChainLedgerRecord,
 )
 from vultron.core.models.participant_status import ParticipantStatus
-from vultron.core.states.cs import CS_vfd
+from vultron.core.states.cs import CS_vf
 from vultron.core.states.rm import RM
 from vultron.wire.as2.vocab.objects.case_participant import as_CaseParticipant
 
@@ -59,14 +59,14 @@ def _make_participant(
 def _make_participant_status_snapshot(
     status_id: str,
     participant_id: str,
-    vfd_state: str = "VFd",
+    vf_state: str = "VF",
     rm_state: str = "ACCEPTED",
 ) -> dict:
     return {
         "object": {
             "id": status_id,
             "type": "ParticipantStatus",
-            "vfdState": vfd_state,
+            "vfState": vf_state,
             "rmState": rm_state,
             "context": CASE_ID,
         },
@@ -79,13 +79,13 @@ def _make_participant_status_snapshot(
 def _make_status_entry(
     status_id: str,
     participant_id: str,
-    vfd_state: str = "VFd",
+    vf_state: str = "VF",
     rm_state: str = "ACCEPTED",
 ):
     snapshot = _make_participant_status_snapshot(
         status_id=status_id,
         participant_id=participant_id,
-        vfd_state=vfd_state,
+        vf_state=vf_state,
         rm_state=rm_state,
     )
     return _to_persistable_entry(
@@ -109,15 +109,15 @@ def participant(datalayer):
 
 @pytest.mark.spec("SYNC-12-001")
 @pytest.mark.spec("SYNC-12-002")
-def test_apply_participant_status_roundtrip_preserves_vfd_state(
+def test_apply_participant_status_roundtrip_preserves_vf_state(
     bridge, datalayer, case_actor, participant
 ):
-    """vfd_state must round-trip correctly through DataLayer save/read.
+    """vf_state must round-trip correctly through DataLayer save/read.
 
     Regression: CORE ParticipantStatus appended to list[WireParticipantStatus]
-    was serialized with default values (vfd_state='vfd') rather than actual
-    values.  After the fix the saved participant must have the correct vfd_state
-    from the ledger entry payload snapshot.
+    was serialized with default values rather than actual values.  After the fix
+    the saved participant must have the correct vf_state from the ledger entry
+    payload snapshot.
     """
     status_id = f"urn:uuid:{uuid.uuid4()}"
     initial_count = len(participant.participant_statuses)
@@ -125,7 +125,7 @@ def test_apply_participant_status_roundtrip_preserves_vfd_state(
     entry = _make_status_entry(
         status_id=status_id,
         participant_id=participant.id_,
-        vfd_state="VFd",
+        vf_state="VF",
         rm_state="ACCEPTED",
     )
     event = _make_event(entry, actor_id=case_actor.id_)
@@ -145,7 +145,8 @@ def test_apply_participant_status_roundtrip_preserves_vfd_state(
     assert len(updated.participant_statuses) == initial_count + 1
 
     new_status = cast(ParticipantStatus, updated.participant_statuses[-1])
-    assert new_status.vfd.state == CS_vfd.VFd
+    assert new_status.vf is not None
+    assert new_status.vf.state == CS_vf.VF
     assert new_status.rm.state == RM.ACCEPTED
 
 

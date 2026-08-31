@@ -57,7 +57,6 @@ from vultron.wire.as2.vocab.objects.vulnerability_report import (
     as_VulnerabilityReport,
 )
 from vultron.core.states.rm import RM
-from vultron.core.states.cs import CS_vfd
 from vultron.demo.utils import (  # noqa: F401 — BASE_URL needed for test monkeypatching
     BASE_URL,
     DataLayerClient,
@@ -256,7 +255,6 @@ def demo_manage_participants_accept(
         participant_status = as_ParticipantStatus(
             context=coordinator_participant.id_,
             rm_state=RM.ACCEPTED,
-            vfd_state=CS_vfd.vfd,
             attributed_to=coordinator.id_,
             em_consent_state=PEC.NO_EMBARGO,
             cvd_role=[CVDRole.COORDINATOR],

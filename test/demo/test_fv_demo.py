@@ -1015,22 +1015,22 @@ class TestActorClosesCase:
         assert result is not None
 
 
-class TestWaitForParticipantVfdState:
-    """Tests for wait_for_participant_vfd_state."""
+class TestWaitForParticipantVfState:
+    """Tests for wait_for_participant_vf_state."""
 
     def test_times_out_for_unknown_actor(self, client: TestClient, base: str):
         """Raises AssertionError when the actor is not a participant."""
         finder_client, vendor_client, finder, vendor, case = (
             _setup_case_with_3_participants(base)
         )
-        from vultron.core.states.cs import CS_vfd
+        from vultron.core.states.cs import CS_vf
 
         with pytest.raises(AssertionError, match="Timed out"):
-            demo.wait_for_participant_vfd_state(
+            demo.wait_for_participant_vf_state(
                 client=vendor_client,
                 case_id=case.id_,
                 actor_id="https://example.org/non-existent-actor",
-                expected_states={CS_vfd.VFD},
+                expected_states={CS_vf.VF},
                 timeout_seconds=0.1,
                 poll_interval=0.05,
             )
@@ -2136,7 +2136,7 @@ class TestFvMilestoneAssertions:
         with (
             patch.object(demo, "wait_for_participant_rm_state"),
             patch.object(demo, "actor_notifies_fix_ready"),
-            patch.object(demo, "wait_for_participant_vfd_state"),
+            patch.object(demo, "wait_for_participant_vf_state"),
             patch.object(demo, "verify_fix_ready") as mock_m4,
             patch.object(
                 demo,
@@ -2175,7 +2175,7 @@ class TestFvMilestoneAssertions:
         with (
             patch.object(demo, "wait_for_participant_rm_state", mock_rm_wait),
             patch.object(demo, "actor_notifies_fix_ready", mock_fix_ready),
-            patch.object(demo, "wait_for_participant_vfd_state"),
+            patch.object(demo, "wait_for_participant_vf_state"),
             patch.object(demo, "verify_fix_ready"),
         ):
             demo._phase_fix_lifecycle(
@@ -2215,7 +2215,7 @@ class TestFvMilestoneAssertions:
         with (
             patch.object(demo, "actor_notifies_published"),
             patch.object(demo, "wait_for_case_em_terminated"),
-            patch.object(demo, "wait_for_participant_vfd_state"),
+            patch.object(demo, "wait_for_participant_vf_state"),
             patch.object(demo, "verify_publicly_disclosed") as mock_m6,
             patch.object(
                 demo,

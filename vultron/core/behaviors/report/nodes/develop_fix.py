@@ -15,7 +15,7 @@
 
 Two action nodes implement the ``DevelopFixBT`` creation sequence:
 
-- :class:`TransitionCStoFixReady` — persist VFD VFd snapshot
+- :class:`TransitionCStoFixReady` — persist VF=VF ParticipantStatus snapshot
 - :class:`EmitCFActivity` — emit CF (Fix Readiness) to Case Actor
 
 The entry guard/condition nodes (``CheckIsVendorRoleNode``,
@@ -57,15 +57,15 @@ from vultron.core.behaviors.report.nodes.develop_fix_conditions import (  # noqa
 )
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.ports.case_persistence import CaseOutboxPersistence
-from vultron.core.states.cs import CS_vfd
+from vultron.core.states.cs import CS_vf
 
 logger = logging.getLogger(__name__)
 
 
 class TransitionCStoFixReady(DataLayerActionWithPorts):
-    """Persist a VFd ParticipantStatus snapshot for the actor in this case.
+    """Persist a VF=VF ParticipantStatus snapshot for the actor in this case.
 
-    Advances the actor's VFD dimension to ``CS_vfd.VFd`` (fix developed) and
+    Advances the actor's VF dimension to ``CS_vf.VF`` (fix ready) and
     persists the new ``ParticipantStatus`` record via the DataLayer, appending
     it to the ``CaseParticipant.participant_statuses`` list.
 
@@ -86,7 +86,7 @@ class TransitionCStoFixReady(DataLayerActionWithPorts):
         self._result_out = result_out if result_out is not None else {}
 
     def _make_status_node(
-        self, vfd_state: CS_vfd, label: str
+        self, vf_state: CS_vf | None, label: str
     ) -> "CreateParticipantStatusNode":
         from vultron.core.behaviors.case.nodes.participant.status import (
             CreateParticipantStatusNode,
@@ -97,7 +97,8 @@ class TransitionCStoFixReady(DataLayerActionWithPorts):
             case_id=self._case_id,
             actor_id=self._actor_id,
             rm_state=None,
-            vfd_state=vfd_state,
+            vf_state=vf_state,
+            d_state=None,
             pxa_state=None,
             result_out=self._result_out,
             name=f"{self.name}.{label}",
@@ -106,7 +107,7 @@ class TransitionCStoFixReady(DataLayerActionWithPorts):
         return node
 
     def _ensure_vendor_aware(self) -> Status:
-        """Advance actor to Vfd if still at vfd (CSB-16-001 strict adjacency)."""
+        """Advance actor to VF=Vf if still at initial state (CSB-16-001 strict adjacency)."""
         assert self.datalayer is not None
         case = self.datalayer.read(self._case_id)
         if not isinstance(case, VulnerabilityCase):
@@ -114,15 +115,15 @@ class TransitionCStoFixReady(DataLayerActionWithPorts):
         participant_id = case.actor_participant_index.get(self._actor_id)
         if participant_id is None:
             return Status.SUCCESS
-        _, current_vfd = resolve_participant_state_from_dl(
+        _, current_vf, _ = resolve_participant_state_from_dl(
             self.datalayer, participant_id
         )
-        if current_vfd != CS_vfd.vfd:
+        if current_vf not in (None, CS_vf.vf):
             return Status.SUCCESS
         try:
-            return self._make_status_node(CS_vfd.Vfd, "_VendorAware").update()
+            return self._make_status_node(CS_vf.Vf, "_VendorAware").update()
         except Exception as e:
-            self.logger.error("%s: Error advancing to Vfd: %s", self.name, e)
+            self.logger.error("%s: Error advancing to VF=Vf: %s", self.name, e)
             return Status.FAILURE
 
     def update(self) -> Status:
@@ -133,14 +134,12 @@ class TransitionCStoFixReady(DataLayerActionWithPorts):
         if self._ensure_vendor_aware() != Status.SUCCESS:
             return Status.FAILURE
 
-        node = self._make_status_node(CS_vfd.VFd, "_Create")
+        node = self._make_status_node(CS_vf.VF, "_Create")
         try:
             status = node.update()
             if status == Status.SUCCESS:
-                # The narrative INFO line (SL-04-006) is emitted by
-                # CreateParticipantStatusNode, which knows the before-state.
                 self.logger.debug(
-                    "%s: VFD → VFd for actor '%s' in case '%s'",
+                    "%s: VF → VF for actor '%s' in case '%s'",
                     self.name,
                     self._actor_id,
                     self._case_id,
@@ -148,7 +147,7 @@ class TransitionCStoFixReady(DataLayerActionWithPorts):
             return status
         except Exception as e:
             self.logger.error(
-                "%s: Error transitioning to VFd: %s", self.name, e
+                "%s: Error transitioning to VF=VF: %s", self.name, e
             )
             return Status.FAILURE
 

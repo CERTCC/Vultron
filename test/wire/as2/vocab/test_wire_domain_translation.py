@@ -110,7 +110,7 @@ def test_participant_status_from_core_materializes_case_status_reference():
     assert round_tripped.attributed_to == core.attributed_to
     assert round_tripped.context == core.context
     assert round_tripped.rm.state == core.rm.state
-    assert round_tripped.vfd.state == core.vfd.state
+    assert round_tripped.vf == core.vf
     assert isinstance(round_tripped.case_status, CoreCaseStatus)
     assert round_tripped.case_status.id_ == core_case_status.id_
     assert round_tripped.case_status.em.state == core_case_status.em.state

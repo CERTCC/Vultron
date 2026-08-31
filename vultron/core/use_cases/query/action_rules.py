@@ -27,7 +27,7 @@ from vultron.core.models.case import VulnerabilityCase, has_case_statuses
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.ports.case_persistence import CasePersistence
 from vultron.core.scoring.utils import enum2title
-from vultron.core.states.cs import CS_pxa, CS_vfd
+from vultron.core.states.cs import CS_d, CS_pxa, CS_vf
 from vultron.core.states.em import EM
 from vultron.core.states.rm import RM
 from vultron.core.use_cases.triggers._helpers import resolve_case
@@ -99,11 +99,13 @@ class GetActionRulesUseCase:
 
         # 3. Get per-participant states from the latest ParticipantStatus
         rm_state: RM = RM.START
-        vfd_state: CS_vfd = CS_vfd.vfd
+        vf_state: CS_vf | None = None
+        d_state: CS_d | None = None
         if participant.participant_statuses:
             latest = participant.participant_statuses[-1]
             rm_state = latest.rm.state
-            vfd_state = latest.vfd.state
+            vf_state = latest.vf.state if latest.vf is not None else None
+            d_state = latest.d.state if latest.d is not None else None
 
         # 4. Get shared case states from the current CaseStatus
         em_state: EM = EM.EMBARGO_MANAGEMENT_NONE
@@ -114,7 +116,9 @@ class GetActionRulesUseCase:
             pxa_state = current_cs.pxa.state
 
         # 5. Build the combined 6-character CS state string (VFD + PXA)
-        cs_state = vfd_state.name + pxa_state.name
+        vf_str = vf_state.value if vf_state is not None else CS_vf.vf.value
+        d_str = d_state.value if d_state is not None else CS_d.d.value
+        cs_state = vf_str + d_str + pxa_state.name
 
         # 6. Look up valid CVD actions for the current state
         valid_actions = get_actions(cs_state)
@@ -129,7 +133,8 @@ class GetActionRulesUseCase:
             "role": roles,
             "rm_state": str(rm_state),
             "em_state": str(em_state),
-            "vfd_state": vfd_state.name,
+            "vf_state": vf_str,
+            "d_state": d_str,
             "pxa_state": pxa_state.name,
             "cs_state": cs_state,
             "actions": [

@@ -167,7 +167,7 @@ class _CheckParticipantRMStateBase(DataLayerConditionWithPorts):
             )
             return Status.FAILURE
 
-        rm_state, _ = resolve_participant_state_from_dl(
+        rm_state, _, _ = resolve_participant_state_from_dl(
             self.datalayer, participant_id
         )
         target = self._target_rm

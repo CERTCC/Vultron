@@ -4,7 +4,7 @@ The **FVV demo** exercises the three-actor CVD workflow:
 **Finder → Vendor1 → Vendor2** with no coordinator.
 
 Vendor1 creates the case, invites the Finder and Vendor2, and each vendor
-advances through an independent fix path (`CS_vfd`).
+advances through an independent fix path (`CS_vf` + `CS_d`).
 Both Finder and Vendor2 DataLayers are verified as LedgerFanout replicas of the
 authoritative Vendor1 state.
 

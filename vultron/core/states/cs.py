@@ -138,6 +138,19 @@ class VfdState(NamedTuple):
     fix_deployment: FixDeployment
 
 
+class VfState(NamedTuple):
+    """Vendor-path sub-machine state (V+F bits only)."""
+
+    vendor_awareness: VendorAwareness
+    fix_readiness: FixReadiness
+
+
+class DState(NamedTuple):
+    """Deployer-path sub-machine state (D bit only)."""
+
+    fix_deployment: FixDeployment
+
+
 class PxaState(NamedTuple):
     """Represents the public exploit path state of a case."""
 
@@ -241,6 +254,27 @@ class CS_pxa(Enum):
         ExploitPublication.EXPLOIT_PUBLIC,
         AttackObservation.ATTACKS_OBSERVED,
     )
+
+
+class CS_vf(StrEnum):
+    """Vendor-path sub-machine: vendor awareness + fix readiness (3 states).
+
+    Monotone ladder: vf → Vf → VF.
+    """
+
+    vf = "vf"
+    Vf = "Vf"
+    VF = "VF"
+
+
+class CS_d(StrEnum):
+    """Deployer-path sub-machine: fix deployment (2 states).
+
+    Monotone ladder: d → D.
+    """
+
+    d = "d"
+    D = "D"
 
 
 class CompoundState(NamedTuple):
@@ -455,6 +489,56 @@ def is_vfd_fix_deployed(state: CS_vfd) -> bool:
     return state in VFD_FIX_DEPLOYED
 
 
+# --- CS_vf milestone groups and predicates ---
+
+# Vendor is aware of the vulnerability (V bit set in the VF path).
+VF_VENDOR_AWARE = (CS_vf.Vf, CS_vf.VF)
+
+# Fix has been developed and is ready (F bit set in the VF path).
+VF_FIX_READY = (CS_vf.VF,)
+
+
+def is_vf_vendor_aware(state: CS_vf) -> bool:
+    """Return True when vendor awareness is set (V bit in the VF path).
+
+    Examples::
+
+        is_vf_vendor_aware(CS_vf.Vf)  # True
+        is_vf_vendor_aware(CS_vf.VF)  # True
+        is_vf_vendor_aware(CS_vf.vf)  # False
+    """
+    return state in VF_VENDOR_AWARE
+
+
+def is_vf_fix_ready(state: CS_vf) -> bool:
+    """Return True when fix readiness is set (F bit; implies vendor awareness).
+
+    Examples::
+
+        is_vf_fix_ready(CS_vf.VF)  # True
+        is_vf_fix_ready(CS_vf.Vf)  # False
+        is_vf_fix_ready(CS_vf.vf)  # False
+    """
+    return state in VF_FIX_READY
+
+
+# --- CS_d milestone groups and predicates ---
+
+# Fix has been deployed (D bit set in the deployer path).
+D_FIX_DEPLOYED = (CS_d.D,)
+
+
+def is_d_fix_deployed(state: CS_d) -> bool:
+    """Return True when fix deployment is set (D bit).
+
+    Examples::
+
+        is_d_fix_deployed(CS_d.D)  # True
+        is_d_fix_deployed(CS_d.d)  # False
+    """
+    return state in D_FIX_DEPLOYED
+
+
 # --- pxa milestone groups and predicates (LST-04-001) ---
 
 # Public is aware of the vulnerability (P bit set).
@@ -530,6 +614,15 @@ class VFD_Trigger(StrEnum):
     D = "fix_is_deployed"
 
 
+class VF_Trigger(StrEnum):
+    V = "vendor_becomes_aware"
+    F = "fix_is_ready"
+
+
+class D_Trigger(StrEnum):
+    D = "fix_is_deployed"
+
+
 class PXA_Trigger(StrEnum):
     P = "public_becomes_aware"
     X = "exploit_made_public"
@@ -540,6 +633,18 @@ class VfdTransition(TransitionBase):
     trigger: VFD_Trigger
     source: CS_vfd
     dest: CS_vfd
+
+
+class VfTransition(TransitionBase):
+    trigger: VF_Trigger
+    source: CS_vf
+    dest: CS_vf
+
+
+class DTransition(TransitionBase):
+    trigger: D_Trigger
+    source: CS_d
+    dest: CS_d
 
 
 class PxaTransition(TransitionBase):
@@ -558,6 +663,17 @@ _vfd_transitions = [
     VfdTransition(
         trigger=VFD_Trigger.D, source=CS_vfd.VFd, dest=CS_vfd.VFD
     ).model_dump(),
+]
+_vf_transitions = [
+    VfTransition(
+        trigger=VF_Trigger.V, source=CS_vf.vf, dest=CS_vf.Vf
+    ).model_dump(),
+    VfTransition(
+        trigger=VF_Trigger.F, source=CS_vf.Vf, dest=CS_vf.VF
+    ).model_dump(),
+]
+_d_transitions = [
+    DTransition(trigger=D_Trigger.D, source=CS_d.d, dest=CS_d.D).model_dump(),
 ]
 _pxa_transitions = [
     PxaTransition(
@@ -606,6 +722,20 @@ def is_valid_vfd_transition(source: CS_vfd, dest: CS_vfd) -> bool:
     )
 
 
+def is_valid_vf_transition(source: CS_vf, dest: CS_vf) -> bool:
+    """Return True if (source → dest) is a valid VF state transition."""
+    return any(
+        t["source"] == source and t["dest"] == dest for t in _vf_transitions
+    )
+
+
+def is_valid_d_transition(source: CS_d, dest: CS_d) -> bool:
+    """Return True if (source → dest) is a valid D state transition."""
+    return any(
+        t["source"] == source and t["dest"] == dest for t in _d_transitions
+    )
+
+
 def is_valid_pxa_transition(source: CS_pxa, dest: CS_pxa) -> bool:
     """Return True if (source → dest) is a valid PXA state transition."""
     return any(
@@ -630,7 +760,8 @@ def _is_component_regression(
 
 
 def _is_monotonic_forward(
-    source: VfdState | PxaState, dest: VfdState | PxaState
+    source: VfdState | PxaState | str,
+    dest: VfdState | PxaState | str,
 ) -> bool:
     """Return True if *dest* strictly advances *source* with no component
     regressing.
@@ -643,6 +774,30 @@ def _is_monotonic_forward(
     return not any(
         _is_component_regression(s, d) for s, d in zip(source, dest)
     )
+
+
+def is_monotonic_vf_forward(source: CS_vf, dest: CS_vf) -> bool:
+    """Return True if (source → dest) advances VF without regressing.
+
+    Examples::
+
+        is_monotonic_vf_forward(CS_vf.vf, CS_vf.VF)  # True
+        is_monotonic_vf_forward(CS_vf.Vf, CS_vf.Vf)  # False (no change)
+        is_monotonic_vf_forward(CS_vf.VF, CS_vf.Vf)  # False (F un-set)
+    """
+    return _is_monotonic_forward(source.value, dest.value)
+
+
+def is_monotonic_d_forward(source: CS_d, dest: CS_d) -> bool:
+    """Return True if (source → dest) advances D without regressing.
+
+    Examples::
+
+        is_monotonic_d_forward(CS_d.d, CS_d.D)  # True
+        is_monotonic_d_forward(CS_d.D, CS_d.d)  # False (D un-set)
+        is_monotonic_d_forward(CS_d.d, CS_d.d)  # False (no change)
+    """
+    return _is_monotonic_forward(source.value, dest.value)
 
 
 def is_monotonic_vfd_forward(source: CS_vfd, dest: CS_vfd) -> bool:

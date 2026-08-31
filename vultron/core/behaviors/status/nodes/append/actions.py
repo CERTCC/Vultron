@@ -179,7 +179,7 @@ class ResolveAndPersistStatusObjectNode(DataLayerActionWithPorts):
             )
             return Status.FAILURE
 
-        if not hasattr(status_obj, "rm") or not hasattr(status_obj, "vfd"):
+        if not hasattr(status_obj, "rm") or not hasattr(status_obj, "vf"):
             self.feedback_message = (
                 f"Object '{self.status_id}' is not a ParticipantStatus"
             )

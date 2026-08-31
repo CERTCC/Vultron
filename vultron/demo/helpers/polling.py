@@ -939,15 +939,15 @@ def _wait_for_participant_status_field(
 ) -> None:
     """Poll until *actor_id*'s latest participant status field is in *expected_states*.
 
-    Private shared implementation for :func:`wait_for_participant_vfd_state`
-    and :func:`wait_for_participant_rm_state`.
+    Private shared implementation for :func:`wait_for_participant_vf_state`,
+    :func:`wait_for_participant_d_state`, and :func:`wait_for_participant_rm_state`.
 
     Args:
         client: DataLayerClient for the target container.
         case_id: Full URI of the ``as_VulnerabilityCase``.
         actor_id: Full URI of the actor to check.
         field_name: Attribute name on the participant status object to check
-            (e.g. ``"vfd_state"`` or ``"rm_state"``).
+            (e.g. ``"vf_state"``, ``"d_state"``, or ``"rm_state"``).
         expected_states: Set of state values that satisfy the condition.
         timeout_seconds: Maximum time to wait.
         poll_interval: Seconds between DataLayer poll attempts.
@@ -1028,7 +1028,7 @@ def _wait_for_participant_status_field(
     )
 
 
-def wait_for_participant_vfd_state(
+def wait_for_participant_vf_state(
     client: DataLayerClient,
     case_id: str,
     actor_id: str,
@@ -1037,14 +1037,14 @@ def wait_for_participant_vfd_state(
     poll_interval: float = 0.25,
     dl_actor_id: str | None = None,
 ) -> None:
-    """Poll until *actor_id*'s latest participant ``vfd_state`` is in
+    """Poll until *actor_id*'s latest participant ``vf_state`` is in
     *expected_states*.
 
     Args:
         client: DataLayerClient for the target container.
         case_id: Full URI of the ``as_VulnerabilityCase``.
         actor_id: Full URI of the actor to check.
-        expected_states: Set of ``CS_vfd`` values that satisfy the condition.
+        expected_states: Set of ``CS_vf`` values that satisfy the condition.
         timeout_seconds: Maximum time to wait (default: 30 s).
         poll_interval: Seconds between DataLayer poll attempts.
         dl_actor_id: Full URI of the actor whose *store* to read, when that is
@@ -1057,7 +1057,44 @@ def wait_for_participant_vfd_state(
         client,
         case_id,
         actor_id,
-        "vfd_state",
+        "vf_state",
+        expected_states,
+        timeout_seconds,
+        poll_interval,
+        dl_actor_id=dl_actor_id,
+    )
+
+
+def wait_for_participant_d_state(
+    client: DataLayerClient,
+    case_id: str,
+    actor_id: str,
+    expected_states: "set",
+    timeout_seconds: float = 30.0,
+    poll_interval: float = 0.25,
+    dl_actor_id: str | None = None,
+) -> None:
+    """Poll until *actor_id*'s latest participant ``d_state`` is in
+    *expected_states*.
+
+    Args:
+        client: DataLayerClient for the target container.
+        case_id: Full URI of the ``as_VulnerabilityCase``.
+        actor_id: Full URI of the actor to check.
+        expected_states: Set of ``CS_d`` values that satisfy the condition.
+        timeout_seconds: Maximum time to wait (default: 30 s).
+        poll_interval: Seconds between DataLayer poll attempts.
+        dl_actor_id: Full URI of the actor whose *store* to read, when that is
+            not the client's own actor — typically a self-hosted CaseActor.
+
+    Raises:
+        AssertionError: If the state is not reached within *timeout_seconds*.
+    """
+    _wait_for_participant_status_field(
+        client,
+        case_id,
+        actor_id,
+        "d_state",
         expected_states,
         timeout_seconds,
         poll_interval,

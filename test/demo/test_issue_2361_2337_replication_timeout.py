@@ -92,7 +92,7 @@ def test_fv_finder_timeout_records_single_gate_failure_not_two_check_failures(
         # vendor_client polls resolve immediately
 
     monkeypatch.setattr(
-        fv_demo_module, "wait_for_participant_vfd_state", _vfd_poll
+        fv_demo_module, "wait_for_participant_vf_state", _vfd_poll
     )
 
     _phase_fix_lifecycle(
@@ -154,7 +154,7 @@ def test_fv_phase_fix_lifecycle_gates_on_rm_accepted(monkeypatch):
         fv_demo_module, "verify_fix_ready", lambda *a, **kw: None
     )
     monkeypatch.setattr(
-        fv_demo_module, "wait_for_participant_vfd_state", lambda *a, **kw: None
+        fv_demo_module, "wait_for_participant_vf_state", lambda *a, **kw: None
     )
 
     _phase_fix_lifecycle(

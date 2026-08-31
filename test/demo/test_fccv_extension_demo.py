@@ -220,10 +220,10 @@ class TestFccvExtensionMilestoneAssertions:
             patch.object(demo, "wait_for_participant_rm_state"),
             patch.object(demo, "actor_notifies_fix_ready") as mock_fix_ready,
             patch.object(
-                demo, "wait_for_participant_vfd_state"
+                demo, "wait_for_participant_vf_state"
             ) as mock_wait_vfd,
             patch.object(
-                demo, "_check_participant_vfd_state_in"
+                demo, "_check_participant_vf_state_in"
             ) as mock_check_vfd,
             patch.object(
                 demo,
@@ -266,8 +266,8 @@ class TestFccvExtensionMilestoneAssertions:
                 "actor_notifies_fix_ready",
                 side_effect=lambda *a, **kw: call_order.append("fix_ready"),
             ),
-            patch.object(demo, "wait_for_participant_vfd_state"),
-            patch.object(demo, "_check_participant_vfd_state_in"),
+            patch.object(demo, "wait_for_participant_vf_state"),
+            patch.object(demo, "_check_participant_vf_state_in"),
         ):
             demo._phase_fix_lifecycle(
                 c1_client=c1_client,
@@ -308,7 +308,7 @@ class TestFccvExtensionMilestoneAssertions:
         with (
             patch.object(demo, "actor_notifies_published"),
             patch.object(demo, "wait_for_case_em_terminated"),
-            patch.object(demo, "wait_for_participant_vfd_state"),
+            patch.object(demo, "wait_for_participant_vf_state"),
             patch.object(demo, "verify_publicly_disclosed") as mock_m7,
             patch.object(
                 demo,
