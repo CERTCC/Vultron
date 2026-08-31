@@ -55,10 +55,12 @@ class _ThreatTerminationSkipConditionNode(DataLayerConditionWithPorts):
         status_obj: PersistableModel | None,
         case_id: str | None,
         name: str | None = None,
+        use_datalayer_fallback: bool = False,
     ):
         super().__init__(name=name or self.__class__.__name__)
         self.status_obj = status_obj
         self.case_id = case_id
+        self.use_datalayer_fallback = use_datalayer_fallback
 
     def _case_status_from_datalayer(self) -> object:
         """Read case.current_status from the DataLayer; returns None on any miss."""
@@ -80,11 +82,16 @@ class _ThreatTerminationSkipConditionNode(DataLayerConditionWithPorts):
         if case_status is None:
             case_status = self.status_obj
 
-        # When status_obj carries no PXA info, fall back to the case's own
-        # current_status (e.g. after EmitCaseStatusUpdateNode has written it).
-        if case_status is None or (
-            not hasattr(case_status, "pxa")
-            and not hasattr(case_status, "pxa_state")
+        # When status_obj carries no PXA info AND the caller has explicitly
+        # opted in to the DataLayer fallback (set only by callers that know
+        # EmitCaseStatusUpdateNode has already written the post-mutation
+        # state), read case.current_status from the DataLayer.
+        if self.use_datalayer_fallback and (
+            case_status is None
+            or (
+                not hasattr(case_status, "pxa")
+                and not hasattr(case_status, "pxa_state")
+            )
         ):
             case_status = self._case_status_from_datalayer()
 
@@ -147,6 +154,7 @@ class ThreatTerminationBranchNode(py_trees.composites.Selector):
         status_obj: PersistableModel | None,
         case_id: str | None,
         name: str | None = None,
+        use_datalayer_fallback: bool = False,
     ):
         super().__init__(name=name or self.__class__.__name__, memory=False)
         result_out: dict[str, object] = {}
@@ -164,6 +172,7 @@ class ThreatTerminationBranchNode(py_trees.composites.Selector):
                     status_obj=status_obj,
                     case_id=case_id,
                     name="SkipCondition",
+                    use_datalayer_fallback=use_datalayer_fallback,
                 ),
                 terminate_subtree,
             ]

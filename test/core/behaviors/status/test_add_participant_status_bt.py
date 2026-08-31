@@ -51,6 +51,9 @@ from vultron.core.behaviors.case.nodes.vfd_role_guards import (
 from vultron.core.behaviors.status.add_participant_status_tree import (
     add_participant_status_tree,
 )
+from vultron.core.behaviors.status.nodes.threat_termination import (
+    ThreatTerminationBranchNode,
+)
 from vultron.core.behaviors.status.append_participant_status_tree import (
     append_participant_status_tree,
 )
@@ -1808,3 +1811,126 @@ class TestEmitRMGapNoteNode:
             tree=node, actor_id=CASE_MANAGER_ID
         )
         assert result.status == Status.SUCCESS
+
+
+# ---------------------------------------------------------------------------
+# Structural wiring: TeardownEffectsOrSkip subtree must be present after
+# EmitCaseStatusUpdateNode (RSH-03-001 to RSH-03-003, RSH-04-004)
+# ---------------------------------------------------------------------------
+
+
+class TestAddParticipantStatusTeardownWiring:
+    """Verify ThreatTerminationBranchNode + EmbargoTeardownAuthorizationGate
+    are wired into the TeardownEffectsOrSkip subtree directly after
+    EmitCaseStatusUpdateNode.
+
+    Mirrors the structural assertions in test_trigger_tree.py.
+    """
+
+    def _collect_nodes(
+        self, node: py_trees.behaviour.Behaviour
+    ) -> list[py_trees.behaviour.Behaviour]:
+        result: list[py_trees.behaviour.Behaviour] = [node]
+        for child in getattr(node, "children", []):
+            result.extend(self._collect_nodes(child))
+        return result
+
+    @pytest.mark.spec("RSH-03-001")
+    @pytest.mark.spec("RSH-03-002")
+    @pytest.mark.spec("RSH-03-003")
+    def test_threat_termination_branch_present(self, make_payload):
+        """ThreatTerminationBranchNode must appear in add_participant_status_tree."""
+        activity = add_status_to_participant_activity(
+            status=as_ParticipantStatus(id_=STATUS_ID, context=CASE_ID),
+            target=as_CaseParticipant(
+                id_=PARTICIPANT_ID, context=CASE_ID, attributed_to=ACTOR_ID
+            ),
+            actor=ACTOR_ID,
+            context=as_VulnerabilityCase(id_=CASE_ID, name="Test"),
+        )
+        event = make_payload(activity)
+        tree = add_participant_status_tree(request=event, case_id=CASE_ID)
+
+        all_nodes = self._collect_nodes(tree)
+        node_types = [type(n).__name__ for n in all_nodes]
+
+        assert ThreatTerminationBranchNode.__name__ in node_types, (
+            "ThreatTerminationBranchNode must be wired into"
+            " add_participant_status_tree (RSH-03-001 to RSH-03-003)"
+        )
+
+    @pytest.mark.spec("RSH-02-001")
+    def test_embargo_teardown_gate_present(self, make_payload):
+        """EmbargoTeardownAuthorizationGate must appear in add_participant_status_tree."""
+        activity = add_status_to_participant_activity(
+            status=as_ParticipantStatus(id_=STATUS_ID, context=CASE_ID),
+            target=as_CaseParticipant(
+                id_=PARTICIPANT_ID, context=CASE_ID, attributed_to=ACTOR_ID
+            ),
+            actor=ACTOR_ID,
+            context=as_VulnerabilityCase(id_=CASE_ID, name="Test"),
+        )
+        event = make_payload(activity)
+        tree = add_participant_status_tree(request=event, case_id=CASE_ID)
+
+        all_nodes = self._collect_nodes(tree)
+        node_names = [n.name for n in all_nodes]
+
+        assert "EmbargoTeardownAuthorizationGate" in node_names, (
+            "EmbargoTeardownAuthorizationGate must be wired into the"
+            " TeardownEffects subtree (RSH-02-001)"
+        )
+
+    @pytest.mark.spec("RSH-03-001")
+    @pytest.mark.spec("RSH-04-004")
+    def test_teardown_after_emit_node(self, make_payload):
+        """ThreatTerminationBranchNode must follow EmitCaseStatusUpdateNode in traversal order."""
+        activity = add_status_to_participant_activity(
+            status=as_ParticipantStatus(id_=STATUS_ID, context=CASE_ID),
+            target=as_CaseParticipant(
+                id_=PARTICIPANT_ID, context=CASE_ID, attributed_to=ACTOR_ID
+            ),
+            actor=ACTOR_ID,
+            context=as_VulnerabilityCase(id_=CASE_ID, name="Test"),
+        )
+        event = make_payload(activity)
+        tree = add_participant_status_tree(request=event, case_id=CASE_ID)
+
+        all_nodes = self._collect_nodes(tree)
+        node_names = [n.name for n in all_nodes]
+        node_types = [type(n).__name__ for n in all_nodes]
+
+        assert "EmitCaseStatusUpdate" in node_names
+        assert ThreatTerminationBranchNode.__name__ in node_types
+
+        emit_idx = node_names.index("EmitCaseStatusUpdate")
+        threat_idx = node_types.index(ThreatTerminationBranchNode.__name__)
+        assert threat_idx > emit_idx, (
+            "ThreatTerminationBranchNode must appear after EmitCaseStatusUpdateNode"
+            " in tree traversal order (RSH-03-001, RSH-04-004)"
+        )
+
+    @pytest.mark.spec("RSH-04-004")
+    def test_teardown_wrapped_in_failure_is_success(self, make_payload):
+        """TeardownEffectsOrSkip must be a FailureIsSuccess decorator."""
+        activity = add_status_to_participant_activity(
+            status=as_ParticipantStatus(id_=STATUS_ID, context=CASE_ID),
+            target=as_CaseParticipant(
+                id_=PARTICIPANT_ID, context=CASE_ID, attributed_to=ACTOR_ID
+            ),
+            actor=ACTOR_ID,
+            context=as_VulnerabilityCase(id_=CASE_ID, name="Test"),
+        )
+        event = make_payload(activity)
+        tree = add_participant_status_tree(request=event, case_id=CASE_ID)
+
+        all_nodes = self._collect_nodes(tree)
+        node_names = [n.name for n in all_nodes]
+        node_types_map = {n.name: type(n).__name__ for n in all_nodes}
+
+        assert (
+            "TeardownEffectsOrSkip" in node_names
+        ), "TeardownEffectsOrSkip wrapper must be present (RSH-04-004)"
+        assert (
+            node_types_map["TeardownEffectsOrSkip"] == "FailureIsSuccess"
+        ), "TeardownEffectsOrSkip must be a FailureIsSuccess decorator"

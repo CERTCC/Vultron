@@ -238,6 +238,7 @@ class EmitCaseStatusUpdateNode(DataLayerActionWithPorts):
     def __init__(self, case_id: str, name: str | None = None) -> None:
         super().__init__(name=name or self.__class__.__name__)
         self.case_id = case_id
+        self._committed_status_id: str | None = None
 
     def update(self) -> Status:
         if (f := self._require_datalayer_and_actor()) is not None:
@@ -250,6 +251,20 @@ class EmitCaseStatusUpdateNode(DataLayerActionWithPorts):
             self.feedback_message = f"Case '{self.case_id}' not found"
             self.logger.warning("%s: %s", self.name, self.feedback_message)
             return Status.FAILURE
+
+        # Within-tick idempotency: if this node already committed a CaseStatus
+        # for this case during the current BT execution, skip the duplicate write.
+        if self._committed_status_id is not None:
+            existing_ids = {_as_id(s) for s in case.case_statuses}
+            if self._committed_status_id in existing_ids:
+                self.logger.info(
+                    "%s: already committed '%s' for case '%s' — skipping"
+                    " duplicate write (idempotent)",
+                    self.name,
+                    self._committed_status_id,
+                    self.case_id,
+                )
+                return Status.SUCCESS
 
         try:
             current = case.current_status
@@ -306,6 +321,9 @@ class EmitCaseStatusUpdateNode(DataLayerActionWithPorts):
         self.datalayer.save(new_status)
         case.add_case_status(new_status)
         self.datalayer.save(case)
+
+        # Record committed ID for within-tick idempotency guard.
+        self._committed_status_id = new_status.id_
 
         self.logger.info(
             "%s: committed CaseStatus '%s' for case '%s'",

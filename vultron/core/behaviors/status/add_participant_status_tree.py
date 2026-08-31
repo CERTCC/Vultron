@@ -216,15 +216,17 @@ def add_participant_status_tree(
                             "EmbargoTeardownAuthorizationGate"
                         ),
                         ThreatTerminationBranchNode(
-                            # Use the peer's embedded CaseStatus for the PXA
-                            # check.  When it is absent, _threat_present falls
-                            # back to reading case.current_status from the
-                            # DataLayer (post EmitCaseStatusUpdateNode write).
+                            # Prefer the peer's embedded CaseStatus for the
+                            # PXA check; enable DataLayer fallback so that
+                            # when it is absent _threat_present reads the
+                            # case's current_status (written by
+                            # EmitCaseStatusUpdateNode just above).
                             status_obj=getattr(
                                 status_obj, "case_status", None
                             ),
                             case_id=tree_case_id,
                             name="ThreatTerminationBranch",
+                            use_datalayer_fallback=True,
                         ),
                     ],
                 ),
