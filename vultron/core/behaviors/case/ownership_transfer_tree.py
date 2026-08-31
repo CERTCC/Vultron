@@ -13,10 +13,16 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-"""Tree factory for Accept(OfferCaseOwnershipTransfer) received activities.
+"""Tree factories for ownership-transfer received activities.
 
-Wraps ``AcceptCaseOwnershipTransferNode`` in the standard guarded-commit
-pattern for use with ``BTBridge.execute_with_setup()``.
+Provides:
+
+- :func:`create_accept_ownership_transfer_tree` — BT for
+  ``AcceptCaseOwnershipTransferReceivedUseCase``.
+- :func:`create_offer_ownership_transfer_tree` — BT for
+  ``OfferCaseOwnershipTransferReceivedUseCase``; wraps
+  ``ForwardOfferToTransfereeNode`` in a ``create_case_manager_gated_tree``
+  so only the CaseActor forwards the offer (CM-21-005, ADR-0053).
 """
 
 import logging
@@ -28,6 +34,10 @@ from vultron.core.behaviors.case.nodes.lifecycle import (
 )
 from vultron.core.behaviors.case.nodes.ownership_transfer import (
     AcceptCaseOwnershipTransferNode,
+    ForwardOfferToTransfereeNode,
+)
+from vultron.core.behaviors.case.nodes.role_gates import (
+    create_case_manager_gated_tree,
 )
 
 logger = logging.getLogger(__name__)
@@ -65,5 +75,60 @@ def create_accept_ownership_transfer_tree(
         "Created AcceptOwnershipTransferBT for case='%s' new_owner='%s'",
         case_id,
         new_owner_id,
+    )
+    return tree
+
+
+def create_offer_ownership_transfer_tree(
+    case_id: str,
+    transferee_id: str | None,
+    original_actor_id: str | None,
+) -> py_trees.behaviour.Behaviour:
+    """Create the BT for ``OfferCaseOwnershipTransferReceivedUseCase``.
+
+    Builds a ``create_receive_activity_tree`` whose effect section contains a
+    ``create_case_manager_gated_tree`` wrapping ``ForwardOfferToTransfereeNode``
+    so that only the CaseActor forwards the offer to the transferee (CM-21-005,
+    ADR-0053, CLP-10-006).
+
+    When ``transferee_id`` or ``original_actor_id`` is ``None`` the forwarding
+    node is omitted: the ledger-commit gate still fires but no outbox write
+    occurs.
+
+    Args:
+        case_id: URI of the case whose ownership is being offered.
+        transferee_id: URI of the intended new owner; ``None`` skips forwarding.
+        original_actor_id: URI of the actor who originated the offer (vendor).
+
+    Returns:
+        A ``py_trees`` ``Behaviour`` ready for ``BTBridge.execute_with_setup()``.
+    """
+    effect_nodes: list[py_trees.behaviour.Behaviour] = []
+    if transferee_id is not None and original_actor_id is not None:
+        effect_nodes = [
+            create_case_manager_gated_tree(
+                name="ForwardOfferToTransfereeCMGated",
+                case_id=case_id,
+                children=[
+                    ForwardOfferToTransfereeNode(
+                        case_id=case_id,
+                        transferee_id=transferee_id,
+                        original_actor_id=original_actor_id,
+                    ),
+                ],
+            ),
+        ]
+    tree = create_receive_activity_tree(
+        name="OfferOwnershipTransferBT",
+        case_id=case_id,
+        precondition_guards=[],
+        effect_nodes=effect_nodes,
+    )
+    logger.debug(
+        "Created OfferOwnershipTransferBT for case='%s'"
+        " transferee='%s' original_actor='%s'",
+        case_id,
+        transferee_id,
+        original_actor_id,
     )
     return tree

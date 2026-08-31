@@ -27,6 +27,9 @@ Provides:
 - :class:`AcceptCaseOwnershipTransferNode` — applies the accepted
   ownership transfer to the DataLayer: updates ``case.attributed_to``
   and grants ``CVDRole.CASE_OWNER`` to the new owner's participant record.
+- :class:`ForwardOfferToTransfereeNode` — CaseActor-only effect node that
+  builds a new ``Offer(VulnerabilityCase)`` addressed to the transferee and
+  queues it in the CaseActor's outbox (CM-21-005, ADR-0053).
 
 These leaf nodes are assembled into trigger/receive trees in the parent
 ``actor_trigger_trees.py`` and ``ownership_transfer_tree.py`` modules per
@@ -34,7 +37,7 @@ BTND-07-003.
 """
 
 import logging
-from typing import Any
+from typing import Any, cast
 
 from py_trees.common import Status
 
@@ -45,6 +48,7 @@ from vultron.core.behaviors.helpers import (
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models._helpers import _as_id
+from vultron.core.ports.case_persistence import CaseOutboxPersistence
 from vultron.core.use_cases._helpers import _resolve_case_manager_id
 from vultron.enums.roles import CVDRole
 
@@ -142,6 +146,78 @@ class EmitAcceptCaseOwnershipTransferNode(_EmitSingleActivityBase):
             "Actor '%s' accepted case ownership transfer offer '%s'",
             self.actor_id,
             self.offer_id,
+        )
+
+
+class ForwardOfferToTransfereeNode(_EmitSingleActivityBase):
+    """CaseActor effect node: build and enqueue a forwarded ownership-transfer Offer.
+
+    Implements CM-21-005 / ADR-0053: after the CaseActor records the ledger
+    entry for an incoming ``Offer(VulnerabilityCase)``, it MUST forward a new
+    ``Offer(VulnerabilityCase, actor=case_actor, attributed_to=original_offerer,
+    to=[transferee])`` to the transferee's inbox via the CaseActor's own outbox.
+
+    Must be wrapped in ``create_case_manager_gated_tree`` so that non-CaseManager
+    actors skip this node cleanly (they should never forward the offer).
+
+    Logs WARNING and returns FAILURE when ``trigger_activity_factory`` is absent
+    from the blackboard — this leaves all outboxes untouched.
+    """
+
+    def __init__(
+        self,
+        case_id: str,
+        transferee_id: str,
+        original_actor_id: str,
+        captured: dict | None = None,
+        name: str | None = None,
+    ) -> None:
+        super().__init__(captured=captured, name=name)
+        self.case_id = case_id
+        self.transferee_id = transferee_id
+        self.original_actor_id = original_actor_id
+
+    def update(self) -> Status:
+        if (f := self._require_datalayer_and_actor()) is not None:
+            return f
+        if self.trigger_activity_factory is None:
+            self.logger.warning(
+                "%s: no trigger_activity port — cannot forward offer"
+                " to transferee (CM-21-005)",
+                self.name,
+            )
+            return Status.FAILURE
+        try:
+            activity_id, activity_blob = self._call_factory()
+            cast(CaseOutboxPersistence, self.datalayer).outbox_append(
+                activity_id
+            )
+        except Exception as e:
+            self.feedback_message = f"ForwardOfferToTransfereeNode failed: {e}"
+            self.logger.error(self.feedback_message)
+            return Status.FAILURE
+        self._on_success(activity_id, activity_blob)
+        return Status.SUCCESS
+
+    def _call_factory(self) -> tuple[str, str]:
+        assert self.trigger_activity_factory is not None
+        assert self.actor_id is not None
+        return self.trigger_activity_factory.offer_case_ownership_transfer(
+            case_id=self.case_id,
+            transferee_id=self.transferee_id,
+            actor=self.actor_id,
+            to=[self.transferee_id],
+            attributed_to=self.original_actor_id,
+        )
+
+    def _on_success(self, activity_id: str, activity_blob: str) -> None:
+        self.logger.info(
+            "%s: CaseActor '%s' forwarded ownership-transfer offer '%s'"
+            " to transferee '%s' (CM-21-005)",
+            self.name,
+            self.actor_id,
+            activity_id,
+            self.transferee_id,
         )
 
 
