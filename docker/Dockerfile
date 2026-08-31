@@ -15,7 +15,7 @@ FROM base AS dep-layer
 # Install all third-party + dev packages (but not the project package itself) so
 # that a source-only change never busts this expensive layer.
 COPY pyproject.toml uv.lock /app/
-RUN --mount=type=cache,target=/root/.cache/uv \
+RUN --mount=type=cache,id=uv-cache,target=/root/.cache/uv \
     uv sync --frozen --no-install-project --dev
 
 FROM dep-layer AS dependencies
@@ -35,7 +35,7 @@ COPY --exclude=.git --exclude=.agents \
      --exclude=docker/Dockerfile \
      . /app/
 ENV PYTHONPATH=/app
-RUN --mount=type=cache,target=/root/.cache/uv \
+RUN --mount=type=cache,id=uv-cache,target=/root/.cache/uv \
     uv sync --frozen
 
 FROM dep-layer AS test
@@ -47,7 +47,7 @@ COPY --exclude=.git --exclude=.agents \
      --exclude=docker/Dockerfile \
      . /app/
 ENV PYTHONPATH=/app
-RUN --mount=type=cache,target=/root/.cache/uv \
+RUN --mount=type=cache,id=uv-cache,target=/root/.cache/uv \
     uv sync --frozen --dev
 CMD ["uv", "run", "pytest"]
 
@@ -152,10 +152,6 @@ RUN git -C /app rev-parse --verify --quiet refs/remotes/origin/main >/dev/null \
     && git -C /app reflog expire --expire=all --all \
     && git -C /app gc --prune=now --quiet
 
-ENV PYTHONPATH=/app
-RUN --mount=type=cache,target=/root/.cache/uv \
-    uv sync --frozen --dev
-
 # Create non-root developer user matching the VS Code devcontainer convention
 RUN groupadd --gid 1000 vscode \
     && useradd --uid 1000 --gid 1000 -m -s /bin/zsh vscode \
@@ -165,12 +161,18 @@ RUN groupadd --gid 1000 vscode \
 # Claude Code CLI (installed as vscode user so it lands in ~/.local)
 RUN su - vscode -c "curl -fsSL https://claude.ai/install.sh | bash"
 
-# /app is owned by root from the earlier COPY and git steps; hand it to vscode so
-# the git reset in poststart.sh doesn't fail on dubious-ownership checks.
-# .venv is included: start-dev.sh does not bind-mount a host venv over it, so the
-# baked venv is the runtime venv and must be writable by vscode for `uv run` to
-# succeed (uv syncs the venv before executing, which requires write access).
-RUN chown -R vscode:vscode /app
+# Delete the inherited root-owned .venv before chowning /app so the chown
+# recurses over source files only — not thousands of venv entries (cheap).
+# uv sync below, running as vscode, recreates .venv with vscode ownership.
+RUN rm -rf /app/.venv \
+    && chown -R vscode:vscode /app
 
 WORKDIR /app
 USER vscode
+
+# Install the project into a fresh vscode-owned .venv. The shared cache
+# (id=uv-cache) is populated by the dep-layer build so packages come from
+# the local cache rather than the network.
+ENV PYTHONPATH=/app
+RUN --mount=type=cache,uid=1000,gid=1000,id=uv-cache,target=/home/vscode/.cache/uv \
+    uv sync --frozen --dev
