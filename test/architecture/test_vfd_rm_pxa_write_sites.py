@@ -58,8 +58,10 @@ from test.architecture import _corpus
 AUDITED_SITES: list[tuple[str, str]] = sorted(
     [
         # PROTECTED — CreateParticipantStatusNode (trigger + received paths)
+        # Third VfDimension: AC-1 vP-promoted effective VF at persistence boundary (SM-09-001)
         ("case/nodes/participant/status.py", "PxaDimension"),
         ("case/nodes/participant/status.py", "RmDimension"),
+        ("case/nodes/participant/status.py", "VfDimension"),
         ("case/nodes/participant/status.py", "VfDimension"),
         ("case/nodes/participant/status.py", "VfDimension"),
         ("case/nodes/participant/status.py", "DDimension"),
@@ -100,6 +102,10 @@ AUDITED_SITES: list[tuple[str, str]] = sorted(
         # FILTER — CaseStatus per-dimension carry-forward (ISSUE-2256)
         ("status/nodes/cs_dimension_filter.py", "PxaDimension"),
         # SNAPSHOT — EmitCaseStatusUpdateNode: post-mutation CaseStatus snapshot (ISSUE-2175)
+        # Two more PxaDimension: AC-1 pX→PX forced promotion in AppendCaseStatusToCaseNode
+        # (pXa→PXa branch and pXA→PXA branch, SM-09-001)
+        ("status/nodes/case_status.py", "PxaDimension"),
+        ("status/nodes/case_status.py", "PxaDimension"),
         ("status/nodes/case_status.py", "PxaDimension"),
         # REPLICATE — participant_status_effect.py: monotonic RM ratchet
         ("sync/nodes/participant_status_effect.py", "RmDimension"),

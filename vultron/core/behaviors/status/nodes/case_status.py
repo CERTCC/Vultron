@@ -41,6 +41,7 @@ from vultron.core.models._helpers import _as_id
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_status import CaseStatus
 from vultron.core.models.dimensions import EmDimension, PxaDimension
+from vultron.core.states.cs import CS_pxa
 from vultron.core.models.protocols import PersistableModel
 from vultron.core.ports.case_persistence import CaseOutboxPersistence
 
@@ -186,11 +187,12 @@ class AppendCaseStatusToCaseNode(DataLayerActionWithPorts):
 
         # Use the per-dimension-filtered status when available; otherwise fall
         # back to the raw asserted object (no filtering was needed or applied).
+        from_filter = False
         status_obj: CaseStatus | PersistableModel | None = (
             self._resolve_filtered()
         )
         if status_obj is not None:
-            self.datalayer.save(status_obj)
+            from_filter = True
         else:
             status_obj = self._resolve_status()
 
@@ -209,6 +211,24 @@ class AppendCaseStatusToCaseNode(DataLayerActionWithPorts):
                 "AppendCaseStatusToCase: %s", self.feedback_message
             )
             return Status.FAILURE
+
+        # AC-1: pX → PX forced promotion at persistence boundary (SM-09-001)
+        if status_obj.pxa is not None:
+            pxa_state = status_obj.pxa.state
+            if pxa_state is CS_pxa.pXa:
+                status_obj = status_obj.model_copy(
+                    update={"pxa": PxaDimension(state=CS_pxa.PXa)}
+                )
+                from_filter = True
+            elif pxa_state is CS_pxa.pXA:
+                status_obj = status_obj.model_copy(
+                    update={"pxa": PxaDimension(state=CS_pxa.PXA)}
+                )
+                from_filter = True
+
+        if from_filter:
+            self.datalayer.save(status_obj)
+
         case.add_case_status(status_obj)
         self.datalayer.save(case)
         self.logger.info(
@@ -274,11 +294,17 @@ class EmitCaseStatusUpdateNode(DataLayerActionWithPorts):
             )
             self.logger.warning("%s: %s", self.name, self.feedback_message)
             return Status.FAILURE
+        # AC-1: pX → PX forced promotion at persistence boundary (SM-09-001)
+        pxa_state = current.pxa.state
+        if pxa_state is CS_pxa.pXa:
+            pxa_state = CS_pxa.PXa
+        elif pxa_state is CS_pxa.pXA:
+            pxa_state = CS_pxa.PXA
         new_status = CaseStatus(
             context=self.case_id,
             attributed_to=self.actor_id,
             em=EmDimension(state=current.em.state),
-            pxa=PxaDimension(state=current.pxa.state),
+            pxa=PxaDimension(state=pxa_state),
         )
 
         status_dict: dict[str, Any] = new_status.model_dump(
