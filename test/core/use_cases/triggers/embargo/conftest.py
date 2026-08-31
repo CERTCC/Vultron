@@ -9,6 +9,7 @@ from vultron.adapters.driven.datalayer_sqlite import (
     reset_datalayer,
 )
 from vultron.core.models.case import VulnerabilityCase
+from vultron.core.models.case_ledger import compute_genesis_hash
 from vultron.core.models.case_status import CaseStatus
 from vultron.core.states.em import EM
 from vultron.core.states.participant_embargo_consent import PEC
@@ -82,6 +83,12 @@ def _build_proposed_embargo_case_no_owner_attribution(
     case = VulnerabilityCase(name="No-attribution proposed embargo case")
     # No attributed_to → no auto-seeded CaseStatus; seed one manually.
     case.add_case_status(CaseStatus(context=case.id_))
+    # Set genesis_hash explicitly so EmitCaseStatusUpdateNode can bootstrap
+    # the ledger chain without attributed_to (RSH-04-002/004, CLP-08-005).
+    assert case.published is not None
+    case.genesis_hash = compute_genesis_hash(
+        case.id_, case.published, case_manager_id
+    )
 
     embargo = as_EmbargoEvent(context=case.id_)
     proposal = em_propose_embargo_activity(

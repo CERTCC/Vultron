@@ -31,7 +31,10 @@ from vultron.core.behaviors.status.nodes.case_status import (
     CASE_STATUS_ALREADY_PRESENT,
     AppendCaseStatusToCaseNode,
     CheckCaseStatusIdempotencyNode,
+    EmitCaseStatusUpdateNode,
 )
+from vultron.core.models.case import VulnerabilityCase as CoreCase
+from vultron.core.models.case_ledger_entry import VultronCaseLedgerEntry
 from vultron.wire.as2.vocab.objects.case_status import as_CaseStatus
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCase,
@@ -63,7 +66,10 @@ def bridge(dl):
 
 @pytest.fixture
 def case():
-    return as_VulnerabilityCase(id_=CASE_ID, name="Test Case")
+    # attributed_to triggers genesis_hash computation so ledger chain can bootstrap
+    return as_VulnerabilityCase(
+        id_=CASE_ID, name="Test Case", attributed_to=ACTOR_ID
+    )
 
 
 @pytest.fixture
@@ -160,3 +166,74 @@ class TestAppendCaseStatusToCaseNode:
         )
         result = bridge.execute_with_setup(tree=node, actor_id=ACTOR_ID)
         assert result.status == Status.FAILURE
+
+
+# ---------------------------------------------------------------------------
+# EmitCaseStatusUpdateNode
+# ---------------------------------------------------------------------------
+
+
+class TestEmitCaseStatusUpdateNode:
+    @pytest.mark.spec("RSH-04-004")
+    @pytest.mark.spec("RSH-04-002")
+    def test_happy_path_appends_new_case_status(self, populated_dl):
+        """SUCCESS: appends a new CaseStatus to case.case_statuses."""
+        bridge = BTBridge(datalayer=populated_dl)
+        case_before = populated_dl.read(CASE_ID)
+        assert isinstance(case_before, CoreCase)
+        initial_count = len(case_before.case_statuses)
+
+        node = EmitCaseStatusUpdateNode(case_id=CASE_ID)
+        result = bridge.execute_with_setup(tree=node, actor_id=ACTOR_ID)
+        assert result.status == Status.SUCCESS
+
+        case_after = populated_dl.read(CASE_ID)
+        assert isinstance(case_after, CoreCase)
+        assert len(case_after.case_statuses) == initial_count + 1
+
+    @pytest.mark.spec("RSH-04-004")
+    def test_happy_path_commits_ledger_entry(self, populated_dl):
+        """SUCCESS: a CaseLedgerEntry with event_type='add_case_status_to_case' is committed."""
+        bridge = BTBridge(datalayer=populated_dl)
+        node = EmitCaseStatusUpdateNode(case_id=CASE_ID)
+        result = bridge.execute_with_setup(tree=node, actor_id=ACTOR_ID)
+        assert result.status == Status.SUCCESS
+
+        entries = [
+            obj
+            for obj in populated_dl.list_objects("CaseLedgerEntry")
+            if isinstance(obj, VultronCaseLedgerEntry)
+            and getattr(obj, "case_id", None) == CASE_ID
+            and getattr(obj, "event_type", None) == "add_case_status_to_case"
+        ]
+        assert len(entries) >= 1, (
+            "EmitCaseStatusUpdateNode must commit a CaseLedgerEntry"
+            " with event_type='add_case_status_to_case'"
+        )
+
+    @pytest.mark.spec("RSH-04-004")
+    def test_missing_case_fails(self, bridge):
+        """FAILURE when the case is not found in the DataLayer."""
+        node = EmitCaseStatusUpdateNode(
+            case_id="https://example.org/cases/nonexistent"
+        )
+        result = bridge.execute_with_setup(tree=node, actor_id=ACTOR_ID)
+        assert result.status == Status.FAILURE
+
+    @pytest.mark.spec("RSH-04-004")
+    def test_attributed_to_set_on_new_status(self, populated_dl):
+        """The new CaseStatus has attributed_to set to the executing actor."""
+        from vultron.core.models.case_status import CaseStatus
+
+        bridge = BTBridge(datalayer=populated_dl)
+        node = EmitCaseStatusUpdateNode(case_id=CASE_ID)
+        result = bridge.execute_with_setup(tree=node, actor_id=ACTOR_ID)
+        assert result.status == Status.SUCCESS
+
+        case_after = populated_dl.read(CASE_ID)
+        assert isinstance(case_after, CoreCase)
+        latest = case_after.case_statuses[-1]
+        if isinstance(latest, str):
+            latest = populated_dl.read(latest)
+        assert isinstance(latest, CaseStatus)
+        assert latest.attributed_to == ACTOR_ID

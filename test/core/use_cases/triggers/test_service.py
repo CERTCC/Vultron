@@ -56,6 +56,7 @@ from vultron.wire.as2.vocab.objects.vulnerability_case import (  # noqa: F401
     as_VulnerabilityCase,
 )
 from vultron.core.models.case import VulnerabilityCase
+from vultron.core.models.case_ledger import compute_genesis_hash
 from vultron.core.models.case_status import CaseStatus
 from vultron.wire.as2.vocab.objects.vulnerability_report import (
     as_VulnerabilityReport,
@@ -303,12 +304,19 @@ def case_no_participant(dl):
 
 
 @pytest.fixture
-def case_with_case_manager(dl):
+def case_with_case_manager(dl, actor):
     """A bare case with a single CASE_MANAGER participant, no other participants."""
     case_obj = VulnerabilityCase(name="TEST-CASE-WITH-CM")
     case_obj.add_case_status(CaseStatus(context=case_obj.id_))
     dl.create(case_obj)
-    _add_case_manager(case_obj, dl)
+    case_actor = _add_case_manager(case_obj, dl)
+    # Set genesis_hash explicitly so EmitCaseStatusUpdateNode can bootstrap
+    # the ledger chain without attributed_to (RSH-04-002/004, CLP-08-005).
+    assert case_obj.published is not None
+    case_obj.genesis_hash = compute_genesis_hash(
+        case_obj.id_, case_obj.published, case_actor.id_
+    )
+    dl.save(case_obj)
     return case_obj
 
 

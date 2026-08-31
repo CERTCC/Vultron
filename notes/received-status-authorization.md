@@ -72,7 +72,11 @@ AddParticipantStatusBT (Sequence)
 ├─ StatusAdoptionGate (Fallback)         ← NEW
 │   ├─ CheckIsCaseOwnerNode             ← hard bypass: CASE_OWNER = gospel
 │   └─ CaseOwnerApprovesStatusUpdate    ← Evaluator call-out (RequireCaseOwnerApproval)
-├─ EmitAddCaseStatusToSelfNode          ← NEW: triggers canonicalization
+├─ EmitCaseStatusUpdateNode             ← direct ledger write (RSH-04-004, #2857)
+├─ TeardownEffectsOrSkip (FailureIsSuccess)
+│   └─ TeardownEffects (Sequence)
+│       ├─ EmbargoTeardownAuthorizationGate  ← call-out gate (RSH-02-001)
+│       └─ ThreatTerminationBranchNode       ← teardown on P/X/A (RSH-03-001)
 └─ EmitRMGapNoteNode                    ← NEW: Add(Note,Case) on RM anomaly (RSH-06-004, ADR-0067)
 ```
 
@@ -181,17 +185,30 @@ before allowing the assertion to be adopted as canonical. A permissive backend
 (e.g., `AlwaysSucceed`) MAY be configured for trusted-participant or demo
 deployments but MUST be explicitly configured (RSH-07-003, ADR-0076).
 
-### Self-addressed `Add(CaseStatus)` pattern
+### Direct-write canonicalization pattern (#2857)
 
-When `StatusAdoptionGate` passes, `EmitAddCaseStatusToSelfNode` emits
-`Add(CaseStatus, VulnerabilityCase)` addressed to the CaseActor itself (acting
-as CASE_MANAGER). This activity is routed through
-`AddCaseStatusToCaseReceivedUseCase` → `add_case_status_tree`, where the
-CASE_MANAGER-only gate passes naturally because the CaseActor is the sender.
+When `StatusAdoptionGate` passes, `EmitCaseStatusUpdateNode` writes the
+post-adoption `CaseStatus` snapshot directly to the case ledger via an inner
+`BTBridge` call to `create_commit_log_entry_tree` (RSH-04-002, RSH-04-003,
+RSH-04-004).  The node MUST NOT route through the inbox seam: no
+`Add(CaseStatus)` activity is emitted to the CaseActor itself.
 
-This pattern decouples the two gates: `add_participant_status_tree` does not
-know or care about teardown; `add_case_status_tree` does not know whether the
-canonical write came from an external message or an internal self-emit.
+Embargo teardown side-effects (previously a downstream result of the inbox
+path flowing into `add_case_status_tree`) are now handled inline immediately
+after `EmitCaseStatusUpdateNode` via a `FailureIsSuccess`-wrapped
+`TeardownEffects` Sequence:
+
+- `EmbargoTeardownAuthorizationGate` — call-out that gates execution
+  (RSH-02-001).
+- `ThreatTerminationBranchNode` — fires `terminate_embargo_bt` when the
+  adopted `CaseStatus` carries P=True, X=True, or A=True (RSH-03-001 to
+  RSH-03-003).
+
+The `FailureIsSuccess` wrapper ensures the outer tree still returns SUCCESS
+when the authorization gate blocks teardown, mirroring the tolerant
+semantics in the use case layer.  This replaced the former inbox-loopback
+kludge (`EmitAddCaseStatusToSelfNode`) which required `add_case_status_tree`
+to act as an indirect side-effect channel.
 
 ---
 
@@ -395,13 +412,13 @@ issue will refactor the inbound path to use direct ledger writes as well
 
 | Node / Tree | EM transition | Covered by `EmitCaseStatusUpdateNode`? |
 |---|---|---|
-| `ProposeEmbargoLifecycleNode` in `propose_embargo_trigger_bt` (initial proposal) | NO_EMBARGO → PROPOSED | Pending (ISSUE-2175) |
-| `ProposeEmbargoLifecycleNode` in `propose_embargo_revision_trigger_bt` (revision, with `ValidateEmbargoRevisionStateNode` guard) | ACTIVE → REVISE | Pending (ISSUE-2175) |
-| `AcceptEmbargoLifecycleNode` (trigger) | PROPOSED → ACTIVE | Pending |
-| `RejectEmbargoLifecycleNode` (trigger) | PROPOSED → NO_EMBARGO | Pending |
-| `TerminateEmbargoLifecycleNode` (trigger) | ACTIVE/REVISE → EXITED | Pending |
-| `RejectProposedEmbargoLifecycleNode` (cascade) | PROPOSED → NO_EMBARGO | Pending |
-| `ApplyEmbargoTeardownNode` (sync/announce) | ACTIVE/REVISE → EXITED | Pending |
+| `ProposeEmbargoLifecycleNode` in `propose_embargo_trigger_bt` (initial proposal) | NO_EMBARGO → PROPOSED | Implemented (#2857) |
+| `ProposeEmbargoLifecycleNode` in `propose_embargo_revision_trigger_bt` (revision, with `ValidateEmbargoRevisionStateNode` guard) | ACTIVE → REVISE | Implemented (#2857) |
+| `AcceptEmbargoLifecycleNode` (trigger) | PROPOSED → ACTIVE | Implemented (#2857) |
+| `RejectEmbargoLifecycleNode` (trigger) | PROPOSED → NO_EMBARGO | Implemented (#2857) |
+| `TerminateEmbargoLifecycleNode` (trigger) | ACTIVE/REVISE → EXITED | Implemented (#2857) |
+| `RejectProposedEmbargoLifecycleNode` (cascade) | PROPOSED → NO_EMBARGO | Implemented (#2857) |
+| `ApplyEmbargoTeardownNode` (sync/announce) | ACTIVE/REVISE → EXITED | Implemented (#2857) |
 
 ---
 

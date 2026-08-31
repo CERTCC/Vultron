@@ -43,6 +43,17 @@ from vultron.core.behaviors.sender.send_tree import sender_side_bt
 from vultron.core.models.embargo_event import EmbargoEvent
 
 
+def _make_emit_node(case_id: str) -> py_trees.behaviour.Behaviour:
+    # Lazy import breaks the cycle: status.nodes.__init__ → lifecycle → trigger_tree
+    from vultron.core.behaviors.status.nodes.case_status import (
+        EmitCaseStatusUpdateNode,
+    )
+
+    return EmitCaseStatusUpdateNode(
+        case_id=case_id, name="EmitCaseStatusUpdate"
+    )
+
+
 def propose_embargo_trigger_bt(
     *,
     case_id: str,
@@ -61,6 +72,7 @@ def propose_embargo_trigger_bt(
                 result_out=result_out,
             ),
             PersistEmbargoEventNode(embargo=embargo),
+            _make_emit_node(case_id),
             sender_side_bt(case_id=case_id, activity_builder=activity_builder),
         ],
     )
@@ -94,6 +106,7 @@ def propose_embargo_revision_trigger_bt(
                 result_out=result_out,
             ),
             PersistEmbargoEventNode(embargo=embargo),
+            _make_emit_node(case_id),
             sender_side_bt(case_id=case_id, activity_builder=activity_builder),
         ],
     )
@@ -116,6 +129,7 @@ def accept_embargo_trigger_bt(
                 embargo_id=embargo_id,
                 result_out=result_out,
             ),
+            _make_emit_node(case_id),
             sender_side_bt(case_id=case_id, activity_builder=activity_builder),
         ],
     )
@@ -138,6 +152,7 @@ def reject_embargo_trigger_bt(
                 embargo_id=embargo_id,
                 result_out=result_out,
             ),
+            _make_emit_node(case_id),
             sender_side_bt(case_id=case_id, activity_builder=activity_builder),
         ],
     )
@@ -175,6 +190,7 @@ def reject_proposed_embargo_bt(
                 case_id=case_id,
                 result_out=result_out,
             ),
+            _make_emit_node(case_id),
             SendRejectEmbargoActivityNode(case_id=case_id),
         ],
     )
@@ -222,6 +238,7 @@ def terminate_embargo_bt(
             TerminateEmbargoLifecycleNode(
                 case_id=case_id, result_out=result_out
             ),
+            _make_emit_node(case_id),
             *dispatch_nodes,
         ],
     )

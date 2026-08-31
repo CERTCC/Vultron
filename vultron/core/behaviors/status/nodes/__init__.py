@@ -38,13 +38,15 @@ Submodules:
   ThreatTerminationBranchNode, EmitAddCaseStatusToSelfNode, EmitCloseCaseNode)
 - ``rm_anomaly``: RM transition anomaly notification (EmitRMGapNoteNode)
 - ``case_status``: Idempotency guard and append nodes for the
-  AddCaseStatusToCase workflow
+  AddCaseStatusToCase workflow, plus EmitCaseStatusUpdateNode for direct
+  ledger writes after EM/PXA mutations (RSH-04-002, RSH-04-003)
 """
 
 from vultron.core.behaviors.status.nodes.case_status import (
     CASE_STATUS_ALREADY_PRESENT,
     AppendCaseStatusToCaseNode,
     CheckCaseStatusIdempotencyNode,
+    EmitCaseStatusUpdateNode,
 )
 from vultron.core.behaviors.status.nodes.cs_dimension_filter import (
     BB_CASE_STATUS_DIM_FILTER,
@@ -113,4 +115,5 @@ __all__ = [
     "FilterCsPxaDimensionNode",
     "FinalizeCsFilterNode",
     "AppendCaseStatusToCaseNode",
+    "EmitCaseStatusUpdateNode",
 ]

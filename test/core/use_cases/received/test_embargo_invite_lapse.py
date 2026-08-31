@@ -42,7 +42,10 @@ CoreCase = VulnerabilityCase
 
 _NOW = datetime.now(tz=timezone.utc).replace(microsecond=0)
 _PAST = _NOW - timedelta(days=1)
-_FUTURE = _NOW + timedelta(days=6)
+# _FUTURE must stay above the EP-07-002 minimum window floor (~3 days from
+# datetime.now()).  The original hardcoded date (2026-09-03) has since fallen
+# within the floor; use a rolling offset instead.
+_FUTURE = datetime.now(tz=timezone.utc) + timedelta(days=7)
 
 _COORD = "https://example.org/actors/coordinator"
 _INVITEE = "https://example.org/actors/invitee"
