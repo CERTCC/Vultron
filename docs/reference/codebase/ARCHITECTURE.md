@@ -60,7 +60,7 @@ HTTP POST /inbox  (wire: AS2 JSON)
 ### 5) Known Architectural Risks
 
 - **Core-boundary ratchets fully passing**: `KNOWN_VIOLATIONS` is `frozenset()` in both `test_core_no_adapter_imports.py` and `test_core_no_wire_imports.py` — all prior core-boundary violations resolved
-- **Wire→core model imports — 32 known violations**: `test_wire_no_core_model_imports.py` tracks 32 wire modules that still import `vultron.core.models.*` directly; these are awaiting migration to the `as_Foo.from_core()` seam (ARCH-22-001)
+- **Wire→core model imports**: `test_wire_no_core_model_imports.py` tracks the wire modules that still import `vultron.core.models.*` directly (ARCH-22-001). Read the current inventory from `KNOWN_VIOLATIONS` in that file rather than from a count quoted here (MS-16-001). Note that migrating these to the `as_Foo.from_core()` seam is **no longer the remedy**: ADR-0081 moves projection off the wire classes into adapter-side translator modules, because `from_core()`/`to_core()` are themselves core imports. ARCH-22-003 now targets a declared structural exemption set rather than empty — reaching zero was impossible while ARCH-12-001 (shared-base inheritance) and ARCH-12-010 (core type-map fallback) stand. Decomposition and per-file classification: #2670
 - **State machine leakage via transitions library**: `vultron/core/states/` wraps `transitions`; coupling to a third-party state machine library in core
 - **BT nodes hold mutable context via `blackboard`**: py-trees blackboard shared state can create implicit coupling between unrelated BT sub-trees
 - **Demo layer mixed into `vultron/demo/`**: some demo code imports from adapters, which is appropriate, but the boundary between "demo" and "production use case" is not always clear
