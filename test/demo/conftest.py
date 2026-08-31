@@ -57,14 +57,15 @@ def node_db_url(base_url: str) -> str:
     ``actor_db_url`` derives a store from the **final path segment** of an actor
     id, dropping scheme and netloc, so ``http://vendor.test/…/actors/case-actor``
     and ``http://coordinator.test/…/actors/case-actor`` resolve to one store
-    (:func:`~vultron.adapters.driven.datalayer_sqlite.engine.actor_slug`, #2549).
-    Under Docker that collision is harmless-by-accident: each container has its
-    own volume, so the two ``mydb-case-actor.sqlite`` files are different files.
+    (:func:`~vultron.adapters.driven.datalayer_sqlite.engine.actor_slug`).
+    Under Docker that is harmless-by-accident: each container has its own volume,
+    so the two ``mydb-case-actor.sqlite`` files are different files.
     In this harness every node is an app in one process, so the anonymous
-    ``sqlite:///:memory:`` template put them in the *same* store — and a node
-    that wrongly opened a store for a **foreign** actor found the real one
-    sitting there, fully populated. The defect this harness exists to catch
-    became undetectable precisely where it matters most.
+    ``sqlite:///:memory:`` template would put them in the *same* store — and a
+    node that wrongly opened a store for a **foreign** actor would find the real
+    one sitting there, fully populated, making the defect undetectable locally.
+    After ADR-0081 the collision is unreachable in production, but naming the
+    deployment per node remains the right discipline for a multi-node harness.
 
     Naming the deployment per node restores the container boundary: the base
     name is carried through to every per-actor store, so a cross-node slug

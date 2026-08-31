@@ -97,9 +97,9 @@ def actor_slug(actor_id: str) -> str:
     same segment means same actor.  The guarantee stops at the authority
     boundary: the scheme and netloc are dropped, so ``http://vendor/…/case-actor``
     and ``http://case-actor:7999/…/case-actor`` produce the same slug and hence
-    the same store.  A node opening a store for a *foreign* id is the bug in
-    that scenario, not the slug — see :func:`get_actor_engine`, which logs the
-    collision, and issue #2549.
+    the same store.  After ADR-0081 no legitimate path opens a store for a
+    foreign-authority id, so the cross-authority collision is structurally
+    unreachable; :func:`get_actor_engine` raises if it ever occurs.
 
     Args:
         actor_id: The actor's canonical URI.
@@ -211,13 +211,15 @@ _STORE_CLAIMANTS: dict[str, str] = {}
 def get_actor_engine(db_url: str, actor_id: str) -> Engine:
     """Return the cached engine for *actor_id*, creating it if needed.
 
-    Logs a warning when a *different* actor id has already claimed the same
-    resolved store URL.  That only happens when two ids differ outside the final
-    path segment — i.e. they are under different authorities — which means this
-    node has opened a store for an actor it does not host (issue #2549).  It
-    warns rather than raises because the paths that reach it today (peer
-    registration via ``POST /actors/``) are still in use; upgrading to an error
-    is tracked in that issue.
+    Warns when a *different* actor id has already claimed the same resolved
+    store URL.  That only happens when two ids differ outside the final path
+    segment — i.e. they are under different authorities.  After ADR-0081 no
+    legitimate *production* path reaches this condition: ``POST /actors/``
+    rejects foreign-authority ids, and peer knowledge is stored inside a
+    hosted actor's own store via ``POST /actors/{id}/peers/``.  The guard
+    stays a warning (not an exception) because the demo test harness legitimately
+    runs multiple nodes in one process, and nodes that share a slug would
+    otherwise fail to start.
 
     Args:
         db_url: The configured SQLAlchemy URL template.
@@ -230,9 +232,9 @@ def get_actor_engine(db_url: str, actor_id: str) -> Engine:
     claimant = _STORE_CLAIMANTS.setdefault(key, actor_id)
     if claimant != actor_id:
         logger.warning(
-            "Store %s is shared by two distinct actor ids (%r and %r): their"
-            " slugs match but their authorities do not, so one of them is not"
-            " hosted here (issue #2549)",
+            "Store %s is shared by two distinct actor ids (%r and %r): "
+            "their slugs match but their authorities do not.  "
+            "After ADR-0081 this should not occur in production.",
             key,
             claimant,
             actor_id,

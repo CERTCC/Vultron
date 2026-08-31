@@ -365,35 +365,32 @@ class TestCreateActor:
         assert resp.json()["type"] == "Organization"
 
     def test_create_actor_with_custom_id(self, client_actors):
-        custom_id = "http://finder:7999/api/v2/actors/finder-uuid"
         payload = {
             "name": "Finder",
             "actor_type": "Person",
-            "id": custom_id,
+            "id": "finder-uuid",
         }
         resp = client_actors.post("/actors/", json=payload)
         assert resp.status_code == status.HTTP_201_CREATED
-        assert resp.json()["id"] == custom_id
+        assert resp.json()["id"].endswith("/actors/finder-uuid")
 
     def test_create_actor_idempotent_returns_200_on_second_call(
         self, client_actors
     ):
-        custom_id = "http://vendor:7999/api/v2/actors/vendor-uuid"
         payload = {
             "name": "Vendor",
             "actor_type": "Organization",
-            "id": custom_id,
+            "id": "vendor-uuid",
         }
         first = client_actors.post("/actors/", json=payload)
         assert first.status_code == status.HTTP_201_CREATED
 
         second = client_actors.post("/actors/", json=payload)
         assert second.status_code == status.HTTP_200_OK
-        assert second.json()["id"] == custom_id
+        assert second.json()["id"] == first.json()["id"]
 
     def test_idempotent_creation_returns_same_actor(self, client_actors):
-        custom_id = "http://example.org/actors/alice"
-        payload = {"name": "Alice", "actor_type": "Person", "id": custom_id}
+        payload = {"name": "Alice", "actor_type": "Person", "id": "alice-idem"}
         first = client_actors.post("/actors/", json=payload)
         second = client_actors.post("/actors/", json=payload)
         assert first.json()["id"] == second.json()["id"]
@@ -403,12 +400,12 @@ class TestCreateActor:
         payload = {
             "name": "ListCheckActor",
             "actor_type": "Organization",
-            "id": "http://example.org/actors/listcheck",
+            "id": "listcheck",
         }
         client_actors.post("/actors/", json=payload)
         resp = client_actors.get("/actors/")
         ids = [a["id"] for a in resp.json()]
-        assert "http://example.org/actors/listcheck" in ids
+        assert any(i.endswith("/actors/listcheck") for i in ids)
 
     def test_a_bare_slug_is_expanded_to_the_url_that_serves_it(
         self, client_actors
@@ -421,9 +418,8 @@ class TestCreateActor:
         actor, and the node supplies the authority.
 
         This covers the bare-slug shape only. What happens to a client-supplied
-        *absolute* id — including one under a foreign authority — is the separate
-        question pinned by
-        :meth:`test_a_foreign_absolute_id_is_adopted_verbatim`.
+        *absolute* id under a foreign authority is tested by
+        :meth:`test_a_foreign_absolute_id_is_rejected`.
         """
         from vultron.adapters.driven.actor_hosts import canonical_actor_uri
 
@@ -444,26 +440,20 @@ class TestCreateActor:
         assert resp.status_code == status.HTTP_200_OK
         assert resp.json()["id"] == expected_id
 
-    def test_a_foreign_absolute_id_is_adopted_verbatim(self, client_actors):
-        """Pins the shape that actually breaks — issue #2549.
+    def test_a_foreign_absolute_id_is_rejected(self, client_actors):
+        """``POST /actors/`` rejects ids from a different authority with 422.
 
-        ``canonical_actor_uri`` returns any id carrying a scheme unchanged, so
-        ``POST /actors/`` with an id under *another* authority creates a record
-        here under that authority and opens a local store for it. That is
-        deliberate for the peer-registration use it was built for — a peer's id is
-        the URL outbound delivery posts to, so rewriting it into this node's
-        namespace would turn a reachable peer into a local phantom (ADR-0073
-        decision 5).
+        Peers are not hosted actors — they are address-book entries in each
+        hosted actor's own store (ADR-0073 decision 5, ADR-0081).  The correct
+        route for registering a peer is ``POST /actors/{hosted_actor_id}/peers/``.
 
-        It is not free, though: the store is keyed by the final path segment
-        alone, so a peer whose URI ends in the same segment as a co-hosted actor
-        shares that actor's store. Asserted here so the day the endpoint learns to
-        distinguish "register a peer" from "create an actor I host", this test
-        fails and says which behaviour changed rather than the change landing
-        silently.
+        Sending a foreign-authority id here used to mint a local store for an
+        actor this node does not host, causing the node to claim to host it and
+        silently sharing storage with a co-located actor of the same final-segment
+        slug.  Now it is rejected (AC-4 of issue #2549).
         """
         foreign_id = "http://elsewhere.test:7999/api/v2/actors/foreigner"
-        created = client_actors.post(
+        resp = client_actors.post(
             "/actors/",
             json={
                 "name": "Foreigner",
@@ -471,15 +461,11 @@ class TestCreateActor:
                 "id": foreign_id,
             },
         )
-        assert created.status_code == status.HTTP_201_CREATED
-        assert created.json()["id"] == foreign_id, (
-            "the authority is adopted as-is; if this now returns a local URI,"
-            " #2549 was addressed and this test documents the old behaviour"
-        )
+        assert resp.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
 
-        # And it is a *hosted* record: it comes back from this node's collection.
+        # The foreign actor must NOT appear in the hosted actors list.
         listed = client_actors.get("/actors/")
-        assert foreign_id in [a["id"] for a in listed.json()]
+        assert foreign_id not in [a["id"] for a in listed.json()]
 
     @pytest.mark.parametrize("bad", ["/", "//"])
     def test_an_id_that_names_no_actor_is_rejected(self, client_actors, bad):
@@ -495,6 +481,85 @@ class TestCreateActor:
             json={"name": "Nameless", "actor_type": "Person", "id": bad},
         )
         assert resp.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
+
+
+# ---------------------------------------------------------------------------
+# Tests for POST /actors/{actor_id}/peers/ — peer address-book registration
+# ---------------------------------------------------------------------------
+
+
+class TestRegisterPeer:
+    """Peers are address-book entries in a hosted actor's store (ADR-0081)."""
+
+    def _create_host(self, client):
+        resp = client.post(
+            "/actors/", json={"name": "Host", "actor_type": "Organization"}
+        )
+        assert resp.status_code == status.HTTP_201_CREATED
+        return resp.json()["id"]
+
+    def test_registers_a_peer_in_the_hosted_actors_store(self, client_actors):
+        host_id = self._create_host(client_actors)
+        slug = host_id.split("/actors/")[-1]
+        peer_id = "http://elsewhere.test:7999/api/v2/actors/peer"
+
+        resp = client_actors.post(
+            f"/actors/{slug}/peers/",
+            json={"id": peer_id, "name": "Peer", "actor_type": "Organization"},
+        )
+        assert resp.status_code == status.HTTP_201_CREATED
+        assert resp.json()["id"] == peer_id
+
+    def test_peer_registration_is_idempotent(self, client_actors):
+        host_id = self._create_host(client_actors)
+        slug = host_id.split("/actors/")[-1]
+        peer_id = "http://elsewhere.test:7999/api/v2/actors/peer-idem"
+
+        first = client_actors.post(
+            f"/actors/{slug}/peers/",
+            json={"id": peer_id, "name": "Peer", "actor_type": "Organization"},
+        )
+        second = client_actors.post(
+            f"/actors/{slug}/peers/",
+            json={"id": peer_id, "name": "Peer", "actor_type": "Organization"},
+        )
+        assert first.status_code == status.HTTP_201_CREATED
+        assert second.status_code == status.HTTP_200_OK
+        assert first.json()["id"] == second.json()["id"]
+
+    def test_peer_does_not_appear_in_hosted_actors_list(self, client_actors):
+        host_id = self._create_host(client_actors)
+        slug = host_id.split("/actors/")[-1]
+        peer_id = "http://elsewhere.test:7999/api/v2/actors/invisible-peer"
+
+        client_actors.post(
+            f"/actors/{slug}/peers/",
+            json={
+                "id": peer_id,
+                "name": "InvisiblePeer",
+                "actor_type": "Organization",
+            },
+        )
+        listed = client_actors.get("/actors/")
+        assert peer_id not in [a["id"] for a in listed.json()]
+
+    def test_rejects_a_non_http_peer_id(self, client_actors):
+        host_id = self._create_host(client_actors)
+        slug = host_id.split("/actors/")[-1]
+
+        resp = client_actors.post(
+            f"/actors/{slug}/peers/",
+            json={"id": "urn:uuid:1234", "name": "URNPeer"},
+        )
+        assert resp.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
+
+    def test_returns_404_when_host_actor_not_found(self, client_actors):
+        peer_id = "http://elsewhere.test:7999/api/v2/actors/orphan"
+        resp = client_actors.post(
+            "/actors/nonexistent-host/peers/",
+            json={"id": peer_id, "name": "Orphan"},
+        )
+        assert resp.status_code == status.HTTP_404_NOT_FOUND
 
 
 # ---------------------------------------------------------------------------

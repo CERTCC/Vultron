@@ -152,10 +152,11 @@ def test_get_actor_dl_does_not_require_the_actor_to_exist(
     error.
 
     The id used here carries a scheme and is therefore returned verbatim,
-    *including* its authority.  For a foreign authority that means a local store
-    minted for an actor this node does not host — deliberate (delivery posts to a
-    peer's own URL) but not free; see issue #2549 and the collision warning in
-    ``get_actor_engine``.
+    *including* its authority.  ``get_actor_dl`` is a computation, not a gate:
+    it does not enforce the foreign-authority rejection that ``POST /actors/``
+    applies (ADR-0081).  A route that receives a foreign id as a path segment
+    will open an empty store and return 404 — which is correct, because this node
+    does not host that actor.
     """
     unknown_id = "https://example.org/actors/unknown"
 
