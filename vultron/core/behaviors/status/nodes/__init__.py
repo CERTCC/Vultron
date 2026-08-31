@@ -40,6 +40,9 @@ Submodules:
 - ``case_status``: Idempotency guard and append nodes for the
   AddCaseStatusToCase workflow, plus EmitCaseStatusUpdateNode for direct
   ledger writes after EM/PXA mutations (RSH-04-002, RSH-04-003)
+- ``cs_invariant_guards``: CS ordering invariant precondition guards
+  (CheckCsEphemeralStateNode, CheckCsHistoryPrefixNode; CSB-17-012,
+  CSB-17-005, ISSUE-2524)
 """
 
 from vultron.core.behaviors.status.nodes.case_status import (
@@ -53,6 +56,10 @@ from vultron.core.behaviors.status.nodes.cs_dimension_filter import (
     FilterCsEmDimensionNode,
     FilterCsPxaDimensionNode,
     FinalizeCsFilterNode,
+)
+from vultron.core.behaviors.status.nodes.cs_invariant_guards import (
+    CheckCsEphemeralStateNode,
+    CheckCsHistoryPrefixNode,
 )
 from vultron.core.behaviors.status.nodes.conditions import (
     AllParticipantsRMClosedConditionNode,
@@ -116,4 +123,7 @@ __all__ = [
     "FinalizeCsFilterNode",
     "AppendCaseStatusToCaseNode",
     "EmitCaseStatusUpdateNode",
+    # cs_invariant_guards
+    "CheckCsEphemeralStateNode",
+    "CheckCsHistoryPrefixNode",
 ]
