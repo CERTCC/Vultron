@@ -252,4 +252,4 @@ For convenience, we collected these into the table below.
             \end{array}
             \right\}\text{ where } i \neq j \text{; } \varnothing \text{ otherwise; for } i,j \leq N$$
 
-Message *formats* are left as [future work](../../topics/future_work/index.md).
+Message *formats* are left as future work.

@@ -40,6 +40,9 @@ task. The user flows are:
 - :material-calendar-edit: [Managing an Embargo](./manage_embargo.md)
 - :material-message-plus: [Status Updates](./status_updates.md)
 - :fontawesome-solid-arrow-right-to-city: [Transferring Case Ownership](./transfer_ownership.md)
+- :material-briefcase-upload: [CaseProposal Flow](./case_proposal.md)
+- :material-database-sync: [Ledger Replication and Case Seeding](./ledger_replication.md)
+- :fontawesome-solid-user-shield: [Role Delegation](./role_delegation.md)
 - :material-lightning-bolt-circle: [Error Handling](./error.md)
 
 </div>

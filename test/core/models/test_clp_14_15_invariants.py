@@ -16,7 +16,7 @@
 
 Tests for invariants already enforced by the existing model/ledger code are
 written as passing assertions. Tests for invariants NOT YET enforced are marked
-@pytest.mark.xfail(strict=True, ...) — runtime enforcement is tracked as #2679.
+@pytest.mark.xfail(strict=True, ...) — runtime enforcement is tracked as #2824.
 """
 
 from datetime import datetime, timedelta, timezone
@@ -93,7 +93,7 @@ def test_clp_14_002_published_non_null_enforced_by_model():
 
 @pytest.mark.xfail(
     strict=True,
-    reason="CLP-14-003: no cross-entry monotonic timestamp check. Tracked by #2679.",
+    reason="CLP-14-003: no cross-entry monotonic timestamp check. Tracked by #2824.",
 )
 @pytest.mark.spec("CLP-14-003")
 def test_clp_14_003_published_timestamps_monotonic():
@@ -141,7 +141,7 @@ def test_clp_14_005_log_index_unique_by_construction():
 
 @pytest.mark.xfail(
     strict=True,
-    reason="CLP-14-006: no entry.published >= case.published validation. Tracked by #2679.",
+    reason="CLP-14-006: no entry.published >= case.published validation. Tracked by #2824.",
 )
 @pytest.mark.spec("CLP-14-006")
 def test_clp_14_006_entry_not_before_case_creation():
@@ -200,7 +200,7 @@ def test_clp_14_008_stale_timestamp_payload_rejected():
 
 @pytest.mark.xfail(
     strict=True,
-    reason="CLP-14-009: configurable clock-skew tolerance not exposed. Tracked by #2679.",
+    reason="CLP-14-009: configurable clock-skew tolerance not exposed. Tracked by #2824.",
 )
 @pytest.mark.spec("CLP-14-009")
 def test_clp_14_009_clock_skew_tolerance_configurable():
@@ -220,7 +220,7 @@ def test_clp_14_009_clock_skew_tolerance_configurable():
 
 @pytest.mark.xfail(
     strict=True,
-    reason="CLP-15-001: participant causal-order enforcement not implemented. Tracked by #2679.",
+    reason="CLP-15-001: participant causal-order enforcement not implemented. Tracked by #2824.",
 )
 @pytest.mark.spec("CLP-15-001")
 def test_clp_15_001_participant_emits_in_causal_order():
@@ -255,7 +255,7 @@ def test_clp_15_001_participant_emits_in_causal_order():
 
 @pytest.mark.xfail(
     strict=True,
-    reason="CLP-15-002: out-of-order batch detection not implemented. Tracked by #2679.",
+    reason="CLP-15-002: out-of-order batch detection not implemented. Tracked by #2824.",
 )
 @pytest.mark.spec("CLP-15-002")
 def test_clp_15_002_participant_must_not_batch_in_arbitrary_order():
@@ -288,7 +288,7 @@ def test_clp_15_002_participant_must_not_batch_in_arbitrary_order():
 
 @pytest.mark.xfail(
     strict=True,
-    reason="CLP-15-003: participant timestamp monotonicity not enforced. Tracked by #2679.",
+    reason="CLP-15-003: participant timestamp monotonicity not enforced. Tracked by #2824.",
 )
 @pytest.mark.spec("CLP-15-003")
 def test_clp_15_003_participant_published_timestamps_nondecreasing():
@@ -320,7 +320,7 @@ def test_clp_15_003_participant_published_timestamps_nondecreasing():
 
 @pytest.mark.xfail(
     strict=True,
-    reason="CLP-15-004: timestamp accuracy SHOULD-check not implemented. Tracked by #2679.",
+    reason="CLP-15-004: timestamp accuracy SHOULD-check not implemented. Tracked by #2824.",
 )
 @pytest.mark.spec("CLP-15-004")
 def test_clp_15_004_participant_timestamp_reflects_event_time():

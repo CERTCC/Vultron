@@ -38,6 +38,7 @@ nav:
         - CS States: 'topics/process_models/cs/cs_model.md'
         - CS Transitions: 'topics/process_models/cs/transitions.md'
         - CS Process Model: 'topics/process_models/cs/model_definition.md'
+        - CS Model Limitations: 'topics/process_models/cs/cs_model_limitations.md'
       - Model Interactions:
         - 'topics/process_models/model_interactions/index.md'
         - RM and EM Interactions: 'topics/process_models/model_interactions/rm_em.md'
@@ -71,6 +72,7 @@ nav:
         - Receive EM Messages: 'topics/behavior_logic/msg_em_bt.md'
         - Receive CS Messages: 'topics/behavior_logic/msg_cs_bt.md'
         - Receive Other Messages: 'topics/behavior_logic/msg_other_bt.md'
+    - Capability Model: 'topics/capability_model/index.md'
     - Other Uses of Vultron:
       - 'topics/other_uses/index.md'
       - Stakeholder Roles: 'topics/other_uses/roles_influence.md'
@@ -79,13 +81,7 @@ nav:
       - Situation Awareness: 'topics/other_uses/situation_awareness.md'
       - VEP: 'topics/other_uses/vep.md'
       - CVD Action Rules: 'topics/other_uses/action_rules.md'
-    - Future Work:
-      - 'topics/future_work/index.md'
-      - CS Model Limitations: 'topics/future_work/cs_model_limitations.md'
-      - CVD Directory: 'topics/future_work/cvd_directory.md'
-      - Reward Functions: 'topics/future_work/reward_functions.md'
-      - Ontology: 'topics/future_work/ontology.md'
-      - Modeling and Simulation: 'topics/future_work/mod_sim.md'
+      - CVD Directory: 'topics/other_uses/cvd_directory.md'
     - Demo Scenarios:
       - 'topics/scenarios/index.md'
       - FV: 'topics/scenarios/fv.md'
@@ -110,6 +106,9 @@ nav:
             - Initializing a Case: 'howto/activitypub/activities/initialize_case.md'
             - Managing a Case: 'howto/activitypub/activities/manage_case.md'
             - Transferring a Case: 'howto/activitypub/activities/transfer_ownership.md'
+            - CaseProposal Flow: 'howto/activitypub/activities/case_proposal.md'
+            - Ledger Replication: 'howto/activitypub/activities/ledger_replication.md'
+            - Role Delegation: 'howto/activitypub/activities/role_delegation.md'
             - Suggest an Actor for a Case: 'howto/activitypub/activities/suggest_actor.md'
             - Invite an Actor to a Case: 'howto/activitypub/activities/invite_actor.md'
             - Initialize a Participant: 'howto/activitypub/activities/initialize_participant.md'
@@ -226,6 +225,8 @@ nav:
       - Observing Skill: 'reference/measuring_cvd/observing_skill.md'
       - Benchmarking CVD: 'reference/measuring_cvd/benchmarking.md'
       - Benchmarking MPCVD: 'reference/measuring_cvd/benchmarking_mpcvd.md'
+      - Reward Functions: 'reference/measuring_cvd/reward_functions.md'
+      - Modeling and Simulation: 'reference/measuring_cvd/mod_sim.md'
     - User Stories:
       - 'reference/user_stories/index.md'
       - Traceability Matrix: 'reference/user_stories/traceability.md'

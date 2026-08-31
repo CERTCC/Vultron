@@ -368,9 +368,8 @@ the actor in `DEFERRED` emits an `accept` transition to move back to
   represents permanent departure rather than temporary deferral.
 
 **Consequence for implementation**: The `reengage_case()` factory in
-`vultron/wire/as2/vocab/examples/case.py` returns a raw `as_Undo` — this is a
-legacy artifact for documentation purposes only. Actual re-engagement MUST
-be implemented as a second `RmEngageCase` (`as:Join`) activity.
+`vultron/wire/as2/vocab/examples/case.py` returns `as_Join` (fixed in #2785).
+Re-engagement is correctly implemented as a second `RmEngageCase` (`as:Join`) activity.
 
 **Reference**: `docs/howto/activitypub/activities/manage_case.md` ("Re-Engaging
 a Case" note), `vultron/demo/manage_case_demo.py` (`demo_defer_reengage_path`).

@@ -17,27 +17,36 @@ title: Invite Actor to Case
 ---
 sequenceDiagram
     actor O as Case Owner
+    participant CA as Case Actor
     actor A as Actor
-    participant C as Case
     activate O
-    O ->>+ A: Invite(actor=CaseOwner, object=Actor, target=Case)
+    O ->> CA: [trigger invite]
+    activate CA
+    CA ->>+ A: Invite(actor=CaseActor, object=Actor, target=Case, attributedTo=CaseOwner)
     note over A: Consider invitation
     alt Accept Invitation
-        A -->> O: Accept(object=Invite)
-        alt Create CaseParticipant
-        O ->> C: Create(object=CaseParticipant(actor=Actor), target=Case)
-        else Add CaseParticipant
-        O ->> O: Create(object=CaseParticipant(actor=Actor))
-        O ->> C: Add(object=CaseParticipant(actor=Actor), target=Case)
-        end
-        note over C: Actor becomes participant in case
+        A -->> CA: Accept(object=Invite)
+        CA ->> CA: Create(object=CaseParticipant(actor=Actor), target=Case)
+        note over CA: Actor becomes participant in case
     else Reject Invitation
-        A -->> O: Reject(object=Invite)
-        note over C: Actor is not participant in case
+        A -->> CA: Reject(object=Invite)
+        note over CA: Actor is not participant in case
     end
     deactivate A
+    deactivate CA
     deactivate O
 ```
+
+!!! info "CaseActor routing (PCR-08-007, PCR-08-008)"
+
+    The `Invite` activity is sent by the **Case Actor**, not the Case Owner.
+    The Case Owner triggers the invite, but the Case Actor MUST be the
+    ActivityStreams `actor` on the outbound `Invite`. The `attributedTo` field
+    on the activity MAY carry the Case Owner's ID to record who initiated it.
+
+    The invitee MUST address their `Accept` or `Reject` reply to the **Case Actor**,
+    not directly back to the Case Owner. The Case Actor is the authoritative
+    recipient of all case-management handshake messages after case creation.
 
 !!! question "Invite vs Add?"
 
