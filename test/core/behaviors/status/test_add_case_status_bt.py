@@ -258,15 +258,11 @@ class TestFilterCsEmDimensionNodeBug2704:
             attributed_to=CASE_MANAGER_ID_2704,
         )
         case.add_participant(cm_participant)
-        # Seed an initial CaseStatus so case.current_status resolves.
-        # Without this the guard returns SUCCESS early (first-ever status).
-        initial = as_CaseStatus(
-            id_=f"{CASE_ID}/statuses/init-2704", context=CASE_ID
-        )
-        case.case_statuses.append(initial)
+        # VulnerabilityCase auto-seeds a core CaseStatus via _init_case_statuses
+        # when attributed_to is set and case_statuses is empty, so current_status
+        # resolves after the DL round-trip without any manual seeding.
         dl.create(case)
         dl.create(cm_participant)
-        dl.create(initial)
         return dl
 
     @pytest.mark.spec("CLP-10-009")
