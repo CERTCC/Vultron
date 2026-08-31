@@ -174,7 +174,7 @@ class TestCreateCaseParticipantNode:
         embargo = EmbargoEvent(context=case_obj.id_)
         bt_scenario.dl.create(embargo)
         stored_case = cast(Any, bt_scenario.dl.read(case_obj.id_))
-        stored_case.active_embargo = embargo.id_
+        object.__setattr__(stored_case, "active_embargo", embargo.id_)
         bt_scenario.dl.save(stored_case)
 
         bt_scenario.run(

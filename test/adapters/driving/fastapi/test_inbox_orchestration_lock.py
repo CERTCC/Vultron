@@ -103,7 +103,7 @@ def seeded_dl(dl):
         case_actor_id=_CASE_ACTOR_ID,
     )
     case = as_VulnerabilityCase(id_=_CASE_ID, name="lock-test-case")
-    case.genesis_hash = genesis_hash
+    object.__setattr__(case, "genesis_hash", genesis_hash)
 
     case_actor_participant = as_CaseParticipant(
         attributed_to=_CASE_ACTOR_ID, context=_CASE_ID

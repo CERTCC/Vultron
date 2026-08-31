@@ -167,7 +167,7 @@ class TestEngageCaseStoresEmbeddedParticipants:
             context=self._CASE_ID,
         )
         case = VultronCase(id_=self._CASE_ID)
-        case.case_participants = [participant]
+        object.__setattr__(case, "case_participants", [participant])
         return case
 
     @pytest.fixture
@@ -204,9 +204,9 @@ class TestEngageCaseStoresEmbeddedParticipants:
         no false record is created (#573 does not regress bare-string path).
         """
         case_str_participants = VultronCase(id_=self._CASE_ID)
-        case_str_participants.case_participants = [
-            self._PARTICIPANT_ID
-        ]  # bare string
+        object.__setattr__(
+            case_str_participants, "case_participants", [self._PARTICIPANT_ID]
+        )  # bare string
         event = EngageCaseReceivedEvent(
             activity_id="https://example.org/activities/engage-573-str",
             actor_id=self._ACTOR_ID,

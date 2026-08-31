@@ -19,6 +19,7 @@ Class-based use cases for actor-level trigger behaviors.
 No HTTP framework imports permitted here.
 """
 
+import json
 import logging
 from typing import Any, cast
 from urllib.parse import urlparse
@@ -111,7 +112,7 @@ class SvcSuggestActorToCaseUseCase(SvcBTTriggerBase):
                 to=[case_manager_id],
                 roles=self._suggested_roles,
             )
-            self._captured["activity"] = activity_dict
+            self._captured["activity"] = json.loads(activity_dict)
             return [activity_id]
 
         return suggest_actor_to_case_trigger_bt(
@@ -535,4 +536,7 @@ class SvcOfferCaseParticipantRoleUseCase:
             req.role,
             req.target_actor_id,
         )
-        return {"activity_id": activity_id, "activity": activity_dict}
+        return {
+            "activity_id": activity_id,
+            "activity": json.loads(activity_dict),
+        }

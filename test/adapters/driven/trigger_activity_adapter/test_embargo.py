@@ -13,6 +13,7 @@
 
 """Unit tests for TriggerActivityAdapter embargo-domain methods."""
 
+import json
 from vultron.wire.as2.vocab.objects.embargo_event import as_EmbargoEvent
 
 _ACTOR = "https://example.org/actors/coordinator"
@@ -49,8 +50,8 @@ class TestProposeEmbargo:
         )
 
         assert activity_id
-        assert isinstance(activity_dict, dict)
-        assert "id" in activity_dict
+        assert isinstance(activity_dict, str)
+        assert "id" in json.loads(activity_dict)
 
     def test_persists_invite_activity(self, adapter, dl):
         embargo = _make_embargo(dl)
@@ -76,7 +77,7 @@ class TestAcceptEmbargo:
         )
 
         assert activity_id
-        assert isinstance(activity_dict, dict)
+        assert isinstance(activity_dict, str)
 
     def test_persists_accept_activity(self, adapter, dl):
         proposal_id, _ = _make_proposal(adapter, dl)
@@ -107,7 +108,7 @@ class TestAcceptEmbargo:
             actor=_PEER,
         )
 
-        obj = activity_dict.get("object")
+        obj = json.loads(activity_dict).get("object")
         assert isinstance(
             obj, dict
         ), "object_ must be an inline dict, not a URI"
@@ -125,7 +126,7 @@ class TestRejectEmbargo:
         )
 
         assert activity_id
-        assert isinstance(activity_dict, dict)
+        assert isinstance(activity_dict, str)
 
     def test_persists_reject_activity(self, adapter, dl):
         proposal_id, _ = _make_proposal(adapter, dl)
@@ -156,7 +157,7 @@ class TestRejectEmbargo:
             actor=_PEER,
         )
 
-        obj = activity_dict.get("object")
+        obj = json.loads(activity_dict).get("object")
         assert isinstance(
             obj, dict
         ), "object_ must be an inline dict, not a URI"
@@ -174,7 +175,7 @@ class TestAnnounceEmbargo:
         )
 
         assert activity_id
-        assert isinstance(activity_dict, dict)
+        assert isinstance(activity_dict, str)
 
     def test_persists_announce_activity(self, adapter, dl):
         embargo = _make_embargo(dl)
@@ -200,7 +201,7 @@ class TestTerminateEmbargo:
         )
 
         assert activity_id
-        assert isinstance(activity_dict, dict)
+        assert isinstance(activity_dict, str)
 
     def test_persists_remove_activity(self, adapter, dl):
         embargo = _make_embargo(dl)

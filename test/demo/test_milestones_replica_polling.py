@@ -372,7 +372,7 @@ def _public_aware_participant(actor_id: str) -> MagicMock:
     """A participant whose latest status has a public-aware pxa_state."""
     p = MagicMock()
     p.id_ = f"urn:uuid:participant-{actor_id.split('/')[-1]}"
-    p.case_roles = []
+    object.__setattr__(p, "case_roles", [])
     status = MagicMock()
     cs = MagicMock()
     cs.pxa_state = CS_pxa.PXA
@@ -403,7 +403,7 @@ class TestWaitForParticipantPxaState:
         """pxa_state arrives on the 3rd call; helper must retry."""
         call_count = 0
         none_participant = MagicMock()
-        none_participant.case_roles = []
+        object.__setattr__(none_participant, "case_roles", [])
         none_status = MagicMock()
         none_cs = MagicMock()
         none_cs.pxa_state = None

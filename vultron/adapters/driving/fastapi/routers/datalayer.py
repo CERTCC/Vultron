@@ -283,10 +283,13 @@ def get_actor_outbox(
     # Instead, query the DataLayer queue directly for the actor's outbox IDs.
     activity_ids = cast(CaseOutboxPersistence, datalayer).outbox_list()
 
-    outbox = as_OrderedCollection(id_=f"{canonical_id}/outbox")
-    outbox.items = [
-        rehydrate(activity_id, dl=datalayer) for activity_id in activity_ids
-    ]
+    outbox = as_OrderedCollection(
+        id_=f"{canonical_id}/outbox",
+        items=[
+            rehydrate(activity_id, dl=datalayer)
+            for activity_id in activity_ids
+        ],
+    )
 
     return AS2JSONResponse(outbox)
 

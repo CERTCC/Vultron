@@ -378,15 +378,11 @@ class SetEmbargoActiveNode(DataLayerActionWithPorts):
                 actor_id=self.actor_id,
                 transition_mode=self._transition_mode,
             )
-        except VultronNotFoundError as exc:
-            self.feedback_message = str(exc)
-            self.logger.warning("%s: %s", self.name, self.feedback_message)
-            return Status.FAILURE
-        except VultronInvalidStateTransitionError as exc:
-            self.feedback_message = str(exc)
-            self.logger.warning("%s: %s", self.name, self.feedback_message)
-            return Status.FAILURE
-        except ValueError as exc:
+        except (
+            VultronNotFoundError,
+            VultronInvalidStateTransitionError,
+            ValueError,
+        ) as exc:
             self.feedback_message = str(exc)
             self.logger.warning("%s: %s", self.name, self.feedback_message)
             return Status.FAILURE

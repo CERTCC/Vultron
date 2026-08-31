@@ -153,7 +153,7 @@ class TestCollectionDefaultsCS21:
         dl = MagicMock()
         dl.read.return_value = None  # no case actor found — early return
         case = MagicMock()
-        case.actor_participant_index = {}
+        object.__setattr__(case, "actor_participant_index", {})
         # Call without excluded_actor_ids; should not raise.
         broadcast_case_update(
             dl, "urn:uuid:case-1", case, "https://example.org/actors/manager"
@@ -165,7 +165,9 @@ class TestCollectionDefaultsCS21:
         dl.read.return_value = None  # no case actor found — early return
         case = MagicMock()
         actor_id = "https://example.org/actors/vendor"
-        case.actor_participant_index = {actor_id: MagicMock()}
+        object.__setattr__(
+            case, "actor_participant_index", {actor_id: MagicMock()}
+        )
         # No exclusions — the function should reach the participant-list
         # check (short-circuits only on missing CaseActor, not on empty list).
         broadcast_case_update(

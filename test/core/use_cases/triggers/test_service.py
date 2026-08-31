@@ -52,9 +52,12 @@ from vultron.wire.as2.vocab.base.objects.activities.transitive import as_Offer
 from vultron.wire.as2.vocab.base.objects.actors import as_Service
 from vultron.wire.as2.vocab.objects.case_participant import as_CaseParticipant
 from vultron.wire.as2.vocab.objects.embargo_event import as_EmbargoEvent
-from vultron.wire.as2.vocab.objects.vulnerability_case import (
+from vultron.wire.as2.vocab.objects.vulnerability_case import (  # noqa: F401
     as_VulnerabilityCase,
 )
+from vultron.core.models.case import VulnerabilityCase
+from vultron.core.models.case_ledger import compute_genesis_hash
+from vultron.core.models.case_status import CaseStatus
 from vultron.wire.as2.vocab.objects.vulnerability_report import (
     as_VulnerabilityReport,
 )
@@ -272,7 +275,7 @@ def closed_report(dl, report, actor):
 
 @pytest.fixture
 def case_with_participant(dl, actor):
-    case_obj = as_VulnerabilityCase(name="TEST-CASE-001")
+    case_obj = VulnerabilityCase(name="TEST-CASE-001", attributed_to=actor.id_)
     participant = as_CaseParticipant(
         attributed_to=actor.id_,
         context=case_obj.id_,
@@ -294,7 +297,8 @@ def case_with_participant(dl, actor):
 
 @pytest.fixture
 def case_no_participant(dl):
-    case_obj = as_VulnerabilityCase(name="TEST-CASE-NO-P")
+    case_obj = VulnerabilityCase(name="TEST-CASE-NO-P")
+    case_obj.add_case_status(CaseStatus(context=case_obj.id_))
     dl.create(case_obj)
     return case_obj
 
@@ -302,23 +306,29 @@ def case_no_participant(dl):
 @pytest.fixture
 def case_with_case_manager(dl, actor):
     """A bare case with a single CASE_MANAGER participant, no other participants."""
-    case_obj = as_VulnerabilityCase(
-        name="TEST-CASE-WITH-CM", attributed_to=actor.id_
-    )
+    case_obj = VulnerabilityCase(name="TEST-CASE-WITH-CM")
+    case_obj.add_case_status(CaseStatus(context=case_obj.id_))
     dl.create(case_obj)
-    _add_case_manager(case_obj, dl)
+    case_actor = _add_case_manager(case_obj, dl)
+    # Set genesis_hash explicitly so EmitCaseStatusUpdateNode can bootstrap
+    # the ledger chain without attributed_to (RSH-04-002/004, CLP-08-005).
+    assert case_obj.published is not None
+    case_obj.genesis_hash = compute_genesis_hash(
+        case_obj.id_, case_obj.published, case_actor.id_
+    )
+    dl.save(case_obj)
     return case_obj
 
 
 @pytest.fixture
 def case_with_embargo(dl, actor):
-    case_obj = as_VulnerabilityCase(
+    case_obj = VulnerabilityCase(
         name="EMBARGO-CASE-001", attributed_to=actor.id_
     )
     embargo = as_EmbargoEvent(context=case_obj.id_)
     dl.create(embargo)
     case_obj.set_embargo(embargo.id_)
-    case_obj.current_status.em_state = EM.ACTIVE
+    case_obj.append_case_status(em_state=EM.ACTIVE)
     dl.create(case_obj)
     _add_case_manager(case_obj, dl)
     return case_obj, embargo
@@ -326,7 +336,7 @@ def case_with_embargo(dl, actor):
 
 @pytest.fixture
 def case_with_proposal(dl, actor):
-    case_obj = as_VulnerabilityCase(
+    case_obj = VulnerabilityCase(
         name="PROPOSAL-CASE-001",
         attributed_to=actor.id_,
     )
@@ -336,7 +346,7 @@ def case_with_proposal(dl, actor):
         embargo, context=case_obj.id_, actor=actor.id_
     )
     dl.create(proposal)
-    case_obj.current_status.em_state = EM.PROPOSED
+    case_obj.append_case_status(em_state=EM.PROPOSED)
     case_obj.proposed_embargoes.append(embargo.id_)
     case_obj.pending_embargo_proposal_index[embargo.id_] = proposal.id_
     dl.create(case_obj)

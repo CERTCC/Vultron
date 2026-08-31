@@ -65,7 +65,7 @@ class AutoAcceptCaseParticipantRoleNode(DataLayerAction):
         self.target_actor_id = target_actor_id
         self.vendor_id = vendor_id
 
-    def _call_factory(self) -> tuple[str, dict]:
+    def _call_factory(self) -> tuple[str, str]:
         assert self.trigger_activity_factory is not None
         assert self.actor_id is not None
         return self.trigger_activity_factory.accept_case_participant_role(
@@ -111,18 +111,20 @@ class AutoAcceptCaseParticipantRoleNode(DataLayerAction):
         return None
 
     def _commit_accept_to_ledger(
-        self, accept_id: str, payload_snapshot: dict
+        self, accept_id: str, payload_snapshot: str
     ) -> bool:
+        import json
+
         assert self.datalayer is not None
         assert self.actor_id is not None
-        if payload_snapshot.get("context") != self.case_id:
-            payload_snapshot = dict(payload_snapshot)
-            payload_snapshot["context"] = self.case_id
+        snapshot_dict: dict = json.loads(payload_snapshot)
+        if snapshot_dict.get("context") != self.case_id:
+            snapshot_dict["context"] = self.case_id
         commit_tree = create_commit_log_entry_tree(
             case_id=self.case_id,
             object_id=accept_id,
             event_type="accept_case_participant_role",
-            payload_snapshot=payload_snapshot,
+            payload_snapshot=snapshot_dict,
             disposition="recorded",
         )
         result = BTBridge(

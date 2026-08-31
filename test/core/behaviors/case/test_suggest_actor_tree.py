@@ -515,7 +515,9 @@ class TestActorAlreadyParticipantNode:
     def _node(self, participant_index=None):
         dl = MagicMock()
         case_obj = MagicMock()
-        case_obj.actor_participant_index = participant_index or {}
+        object.__setattr__(
+            case_obj, "actor_participant_index", participant_index or {}
+        )
         dl.read.return_value = case_obj
         node = ActorAlreadyParticipantNode(
             recommended_id=_RECOMMENDED,

@@ -40,29 +40,27 @@ class TestAnnounceEmbargoEventToCaseReceivedUseCase:
         from vultron.wire.as2.vocab.objects.embargo_event import (
             as_EmbargoEvent,
         )
-        from vultron.wire.as2.vocab.objects.vulnerability_case import (
-            as_VulnerabilityCase,
-        )
 
         dl = SqliteDataLayer(
             "sqlite:///:memory:",
             actor_id="https://example.org/users/finder",
         )
-        case = as_VulnerabilityCase(
+        case = VulnerabilityCase(
             id_="https://example.org/cases/case_aem1",
             name="Announce Embargo No-Op Test",
+            attributed_to="https://example.org/users/finder",
         )
         embargo = as_EmbargoEvent(
             id_="https://example.org/cases/case_aem1/embargo_events/e1",
             context=case.id_,
         )
         case.active_embargo = embargo.id_
-        case.current_status.em_state = EM.ACTIVE
+        case.append_case_status(em_state=EM.ACTIVE)
         dl.create(case)
 
         activity = announce_embargo_activity(
             embargo=embargo,
-            context=case,
+            context=case.id_,
             actor="https://example.org/users/vendor",
         )
         event = make_payload(activity)
@@ -114,9 +112,6 @@ class TestResetEmbargoConsentWithInlineParticipants:
         from vultron.wire.as2.vocab.objects.embargo_event import (
             as_EmbargoEvent,
         )
-        from vultron.wire.as2.vocab.objects.vulnerability_case import (
-            as_VulnerabilityCase,
-        )
 
         py_trees.blackboard.Blackboard.enable_activity_stream()
         py_trees.blackboard.Blackboard.storage.clear()
@@ -137,7 +132,7 @@ class TestResetEmbargoConsentWithInlineParticipants:
             attributed_to=actor_id,
         )
         # Simulate receiver-side: participant's consent state is SIGNATORY
-        participant.embargo_consent_state = PEC.SIGNATORY
+        object.__setattr__(participant, "embargo_consent_state", PEC.SIGNATORY)
         dl.create(participant)
 
         embargo = as_EmbargoEvent(
@@ -148,20 +143,20 @@ class TestResetEmbargoConsentWithInlineParticipants:
 
         # Store inline as_CaseParticipant object (not string ID) in
         # case_participants — this is the condition that caused #609.
-        case = as_VulnerabilityCase(
+        case = VulnerabilityCase(
             id_=case_id,
             name="Inline Participant Regression Test",
             attributed_to=actor_id,
         )
         case.active_embargo = embargo.id_
-        case.current_status.em_state = EM.ACTIVE
-        case.case_participants.append(participant)  # inline object, not str
+        case.append_case_status(em_state=EM.ACTIVE)
+        case.case_participants.append(participant)  # type: ignore[arg-type]  # inline wire object (regression test for #609)
         case.actor_participant_index[actor_id] = participant_id
         dl.create(case)
 
         activity = remove_embargo_from_case_activity(
             embargo,
-            origin=case,
+            origin=case.id_,
             actor=actor_id,
         )
         event = make_payload(activity, receiving_actor_id=actor_id)
@@ -209,7 +204,9 @@ class TestResetEmbargoConsentWithInlineParticipants:
             context=case_id,
             attributed_to=actor_id,
         )
-        participant.embargo_consent_state = PEC.SIGNATORY.value
+        object.__setattr__(
+            participant, "embargo_consent_state", PEC.SIGNATORY.value
+        )
         dl.create(participant)
 
         # Wire-layer case stored in DataLayer; dl.read() returns core type (ADR-0034).
@@ -253,19 +250,18 @@ class TestPxaEmbargoIneligible:
     def _make_dl_with_pxa(self, pxa_state_name: str):
         from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
         from vultron.core.states.cs import CS_pxa
-        from vultron.wire.as2.vocab.objects.vulnerability_case import (
-            as_VulnerabilityCase,
-        )
 
         dl = SqliteDataLayer(
             "sqlite:///:memory:",
             actor_id="https://example.org/users/finder",
         )
         pxa_state = CS_pxa[pxa_state_name]
-        case = as_VulnerabilityCase(id_=self.CASE_ID, name="PXA Test")
-        # Modify the auto-created default CaseStatus in-place so that
-        # current_status returns this PXA state when the case is read back.
-        case.current_status.pxa_state = pxa_state
+        case = VulnerabilityCase(
+            id_=self.CASE_ID,
+            name="PXA Test",
+            attributed_to="https://example.org/users/finder",
+        )
+        case.append_case_status(pxa_state=pxa_state)
         dl.create(case)
         return dl
 
@@ -307,7 +303,7 @@ class TestPxaEmbargoIneligible:
 
         mock_case = MagicMock()
         mock_case.type_ = "VulnerabilityCase"
-        mock_case.case_participants = []
+        object.__setattr__(mock_case, "case_participants", [])
         mock_case.case_statuses = []
         type(mock_case).current_status = PropertyMock(
             side_effect=ValueError("no materialized CaseStatus")

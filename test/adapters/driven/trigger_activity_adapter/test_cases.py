@@ -13,6 +13,7 @@
 
 """Unit tests for TriggerActivityAdapter case-domain methods."""
 
+import json
 from vultron.wire.as2.vocab.base.objects.object_types import as_Note
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCase,
@@ -39,8 +40,8 @@ class TestCreateCase:
         )
 
         assert activity_id
-        assert isinstance(activity_dict, dict)
-        assert "id" in activity_dict
+        assert isinstance(activity_dict, str)
+        assert "id" in json.loads(activity_dict)
 
     def test_persists_create_activity(self, adapter, dl):
         case = _make_case(dl)
@@ -64,7 +65,7 @@ class TestEngageCase:
         )
 
         assert activity_id
-        assert isinstance(activity_dict, dict)
+        assert isinstance(activity_dict, str)
 
     def test_persists_accept_activity(self, adapter, dl):
         case = _make_case(dl)
@@ -88,7 +89,7 @@ class TestDeferCase:
         )
 
         assert activity_id
-        assert isinstance(activity_dict, dict)
+        assert isinstance(activity_dict, str)
 
     def test_persists_tentative_reject_activity(self, adapter, dl):
         case = _make_case(dl)
@@ -115,7 +116,7 @@ class TestAddObjectToCase:
         )
 
         assert activity_id
-        assert isinstance(activity_dict, dict)
+        assert isinstance(activity_dict, str)
 
     def test_persists_add_activity(self, adapter, dl):
         case = _make_case(dl)

@@ -31,6 +31,8 @@ Per specs/multi-actor-demo.yaml DEMOMA-07-003, DEMOMA-07-005.
 Per specs/received-status-handling.yaml RSH-01-001 to RSH-01-004.
 """
 
+from typing import cast
+
 import py_trees
 import pytest
 from py_trees.common import Status
@@ -72,6 +74,8 @@ from vultron.core.behaviors.status.nodes import (
     VerifySenderIsParticipantNode,
 )
 from vultron.core.behaviors.status.nodes.dimension_filter import BB_RM_ANOMALY
+from vultron.core.models.case import VulnerabilityCase
+from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.states.rm import RM
 from vultron.enums.roles import CVDRole
 from vultron.wire.as2.factories import add_status_to_participant_activity
@@ -159,9 +163,9 @@ def case_manager_participant():
 
 @pytest.fixture
 def case(participant, case_manager_participant):
-    """as_VulnerabilityCase with vendor and Case Manager participants."""
-    obj = as_VulnerabilityCase(
-        id_=CASE_ID, name="Test Case", attributed_to=ACTOR_ID
+    """VulnerabilityCase with vendor and Case Manager participants."""
+    obj = VulnerabilityCase(
+        id_=CASE_ID, name="Test Case", attributed_to=CASE_MANAGER_ID
     )
     obj.add_participant(participant)
     obj.add_participant(case_manager_participant)
@@ -727,8 +731,8 @@ class TestPublicDisclosureBranchNode:
         # ``context`` is required by core CaseStatus; omitting it made the
         # nested status unprojectable to the core shape (#2232).
         cs = as_CaseStatus(context=CASE_ID)
-        cs.pxa_state = CS_pxa.Pxa  # public-aware
-        status_obj.case_status = cs
+        object.__setattr__(cs, "pxa_state", CS_pxa.Pxa)  # public-aware
+        object.__setattr__(status_obj, "case_status", cs)
         populated_dl.save(status_obj)
 
         node = PublicDisclosureBranchNode(
@@ -763,15 +767,15 @@ class TestPublicDisclosureBranchNode:
             id_=f"{CASE_ID}/embargo_events/e1", context=CASE_ID
         )
         case.active_embargo = embargo.id_
-        case.current_status.em_state = EM.ACTIVE
+        case.append_case_status(em_state=EM.ACTIVE)
         populated_dl.create(embargo)
         populated_dl.save(case)
 
         # ``context`` is required by core CaseStatus; omitting it made the
         # nested status unprojectable to the core shape (#2232).
         cs = as_CaseStatus(context=CASE_ID)
-        cs.pxa_state = CS_pxa.Pxa  # public-aware
-        status_obj.case_status = cs
+        object.__setattr__(cs, "pxa_state", CS_pxa.Pxa)  # public-aware
+        object.__setattr__(status_obj, "case_status", cs)
         populated_dl.save(status_obj)
 
         # ACTOR_ID holds CASE_OWNER role (see `participant` fixture)
@@ -1549,14 +1553,14 @@ class TestRejectionValidatorBeforeCommit:
         # The tree runs as the case manager, so this is the case manager's
         # own store (BT-05-005, ADR-0073).
         dl = SqliteDataLayer("sqlite:///:memory:", actor_id=CASE_MANAGER_ID)
-        cm_participant = as_CaseParticipant(
+        cm_participant = CaseParticipant(
             id_=CM_PARTICIPANT_ID,
             context=CASE_ID,
             attributed_to=CASE_MANAGER_ID,
             case_roles=[CVDRole.CASE_MANAGER],
         )
         # attributed_to seeds the per-case genesis hash (CLP-08-003)
-        case = as_VulnerabilityCase(
+        case = VulnerabilityCase(
             id_=CASE_ID, name="Fix1 Regression", attributed_to=CASE_MANAGER_ID
         )
         case.add_participant(cm_participant)
@@ -1574,7 +1578,7 @@ class TestRejectionValidatorBeforeCommit:
             case_roles=[CVDRole.CASE_OWNER],
         )
         vendor_participant.participant_statuses.append(existing_status)
-        case.add_participant(vendor_participant)
+        case.add_participant(cast(CaseParticipant, vendor_participant))
 
         dl.create(case)
         dl.create(cm_participant)
@@ -1636,14 +1640,14 @@ class TestRejectionValidatorBeforeCommit:
         # The tree runs as the case manager, so this is the case manager's
         # own store (BT-05-005, ADR-0073).
         dl = SqliteDataLayer("sqlite:///:memory:", actor_id=CASE_MANAGER_ID)
-        cm_participant = as_CaseParticipant(
+        cm_participant = CaseParticipant(
             id_=CM_PARTICIPANT_ID,
             context=CASE_ID,
             attributed_to=CASE_MANAGER_ID,
             case_roles=[CVDRole.CASE_MANAGER],
         )
         # attributed_to seeds the per-case genesis hash (CLP-08-003)
-        case = as_VulnerabilityCase(
+        case = VulnerabilityCase(
             id_=CASE_ID, name="Fix1 Full Reject", attributed_to=CASE_MANAGER_ID
         )
         case.add_participant(cm_participant)
@@ -1661,7 +1665,7 @@ class TestRejectionValidatorBeforeCommit:
             case_roles=[CVDRole.CASE_OWNER],
         )
         vendor_participant.participant_statuses.append(existing_status)
-        case.add_participant(vendor_participant)
+        case.add_participant(cast(CaseParticipant, vendor_participant))
 
         dl.create(case)
         dl.create(cm_participant)

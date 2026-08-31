@@ -95,7 +95,7 @@ def test_accept_embargo_when_attributed_to_is_none_does_not_activate_em(
     )
 
     assert case.attributed_to is None
-    assert case.current_status.em_state == EM.PROPOSED
+    assert case.current_status.em.state == EM.PROPOSED
 
     request = AcceptEmbargoTriggerRequest(
         actor_id=finder.id_,

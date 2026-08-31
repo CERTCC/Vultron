@@ -50,7 +50,7 @@ def _make_concrete(
         EMBARGO_ID,
         CASE_MANAGER_ACTOR,
     ),
-    call_result: "tuple[str, dict] | Exception" = (ACTIVITY_ID, {}),
+    call_result: "tuple[str, str] | Exception" = (ACTIVITY_ID, "{}"),
     outbox_fail_returns: Status = Status.FAILURE,
 ) -> "_SendEmbargoActivityBase":
     """Create a minimal concrete subclass for contract testing."""

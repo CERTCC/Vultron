@@ -169,7 +169,7 @@ class TestEmbargoLogEntryCascade:
         assert case is not None
         case.current_status.em.state = EM.ACTIVE
         case.proposed_embargoes.append(embargo.id_)
-        case.active_embargo = embargo.id_  # type: ignore[assignment]
+        object.__setattr__(case, "active_embargo", embargo.id_)
         dl.save(case)
 
         activity = remove_embargo_from_case_activity(

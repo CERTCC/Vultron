@@ -66,9 +66,10 @@ from vultron.wire.as2.vocab.objects.case_status import (
     as_ParticipantStatus as WireParticipantStatus,
 )
 from vultron.wire.as2.vocab.objects.embargo_event import as_EmbargoEvent
-from vultron.wire.as2.vocab.objects.vulnerability_case import (
+from vultron.wire.as2.vocab.objects.vulnerability_case import (  # noqa: F401
     as_VulnerabilityCase,
 )
+from vultron.core.models.case import VulnerabilityCase
 from vultron.wire.as2.vocab.objects.vulnerability_report import (
     as_VulnerabilityReport,
 )
@@ -116,13 +117,13 @@ def _make_case_with_embargo(
     finder_id: str,
     case_actor_id: str,
     report_id: str,
-) -> as_VulnerabilityCase:
-    """Build a as_VulnerabilityCase with finder, vendor, CASE_MANAGER participants,
+) -> VulnerabilityCase:
+    """Build a VulnerabilityCase with finder, vendor, CASE_MANAGER participants,
     an active embargo, and the report linked via vulnerability_reports."""
     embargo = as_EmbargoEvent(context="urn:placeholder")
     dl.create(embargo)
 
-    case = as_VulnerabilityCase(name="Test Case")
+    case = VulnerabilityCase(name="Test Case", attributed_to=vendor_id)
     case.set_embargo(embargo.id_)
     case.vulnerability_reports.append(report_id)
 

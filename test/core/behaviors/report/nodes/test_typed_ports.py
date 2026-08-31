@@ -312,7 +312,9 @@ class TestEnsureEmbargoExistsPorts:
             vulnerability_reports=[REPORT_ID],
             attributed_to=ACTOR_ID,
         )
-        case.active_embargo = "https://example.org/embargos/em-001"
+        object.__setattr__(
+            case, "active_embargo", "https://example.org/embargos/em-001"
+        )
         bt_scenario.seed(actor, report, case)
         result = bt_scenario.run(
             EnsureEmbargoExists(report_id=REPORT_ID),

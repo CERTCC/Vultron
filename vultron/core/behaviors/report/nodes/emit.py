@@ -15,6 +15,7 @@
 
 """Outbound emit nodes for the report behavior tree."""
 
+import json
 from typing import cast
 
 from py_trees.common import Status
@@ -67,7 +68,7 @@ class _EmitCaseActorReportActivityBase(DataLayerActionWithPorts):
 
     def _call_factory(
         self, actor_id: str, addressees: list[str]
-    ) -> tuple[str, dict]:
+    ) -> tuple[str, str]:
         """Invoke the trigger-activity factory method for this activity type.
 
         Args:
@@ -131,7 +132,7 @@ class _EmitCaseActorReportActivityBase(DataLayerActionWithPorts):
                 activity_id
             )
             if self._captured is not None:
-                self._captured["activity"] = activity_dict
+                self._captured["activity"] = json.loads(activity_dict)
             self.logger.info(
                 "Actor '%s' emitted %s for offer '%s'",
                 self.actor_id,
@@ -175,7 +176,7 @@ class EmitValidateReportActivity(_EmitCaseActorReportActivityBase):
 
     def _call_factory(
         self, actor_id: str, addressees: list[str]
-    ) -> tuple[str, dict]:
+    ) -> tuple[str, str]:
         """Call ``validate_report`` on the trigger-activity factory."""
         assert self.trigger_activity_factory is not None
         return self.trigger_activity_factory.validate_report(
@@ -270,7 +271,7 @@ class EmitInvalidateReportActivity(_EmitCaseActorReportActivityBase):
 
     def _call_factory(
         self, actor_id: str, addressees: list[str]
-    ) -> tuple[str, dict]:
+    ) -> tuple[str, str]:
         """Call ``invalidate_report`` on the trigger-activity factory."""
         assert self.trigger_activity_factory is not None
         return self.trigger_activity_factory.invalidate_report(
@@ -308,7 +309,7 @@ class EmitCloseReportActivity(_EmitCaseActorReportActivityBase):
 
     def _call_factory(
         self, actor_id: str, addressees: list[str]
-    ) -> tuple[str, dict]:
+    ) -> tuple[str, str]:
         """Call ``close_report`` on the trigger-activity factory."""
         assert self.trigger_activity_factory is not None
         return self.trigger_activity_factory.close_report(
@@ -343,7 +344,7 @@ class EmitAckReportActivity(_EmitCaseActorReportActivityBase):
 
     def _call_factory(
         self, actor_id: str, addressees: list[str]
-    ) -> tuple[str, dict]:
+    ) -> tuple[str, str]:
         """Call ``ack_report`` on the trigger-activity factory."""
         assert self.trigger_activity_factory is not None
         return self.trigger_activity_factory.ack_report(
@@ -376,7 +377,7 @@ class EmitSubmitReportActivity(DataLayerActionWithPorts):
         self.recipient_id = recipient_id
         self._captured = captured
 
-    def _call_factory(self) -> tuple[str, dict]:
+    def _call_factory(self) -> tuple[str, str]:
         """Call submit_report on the factory. Raises on error."""
         assert self.trigger_activity_factory is not None
         assert self.actor_id is not None
@@ -405,10 +406,10 @@ class EmitSubmitReportActivity(DataLayerActionWithPorts):
         if (f := self._validate_context()) is not None:
             return f
         try:
-            offer_id, offer_dict = self._call_factory()
+            offer_id, offer_blob = self._call_factory()
             cast(CaseOutboxPersistence, self.datalayer).outbox_append(offer_id)
             if self._captured is not None:
-                self._captured["offer"] = offer_dict
+                self._captured["offer"] = json.loads(offer_blob)
             self.logger.info(
                 "Actor '%s' emitted Offer(VulnerabilityReport) '%s' to '%s'",
                 self.actor_id,
