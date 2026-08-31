@@ -45,13 +45,27 @@ from vultron.core.states.cs import (
     CS_d,
     CS_pxa,
     CS_vf,
+    CS_vfd,
+    is_pxa_public_aware,
     is_valid_d_transition,
     is_valid_pxa_transition,
     is_valid_vf_transition,
 )
+from vultron.core.states.cs_invariants import (
+    cs_from_dimensions,
+    is_valid_cs_transition,
+)
 from vultron.core.states.em import EM
 from vultron.core.states.rm import RM
 from vultron.enums.roles import CVDRole
+
+
+def _vf_d_to_vfd(vf: CS_vf, d: CS_d) -> CS_vfd | None:
+    """Map a (CS_vf, CS_d) pair to the equivalent CS_vfd member, or None."""
+    try:
+        return CS_vfd[f"{vf}{d}"]
+    except KeyError:
+        return None
 
 
 def _resolve_em_state(case: object) -> EM:
@@ -283,6 +297,71 @@ class CreateParticipantStatusNode(DataLayerActionWithPorts):
             return Status.FAILURE
         return None
 
+    def _check_compound_transition(
+        self,
+        prev_vf: "CS_vf | None",
+        prev_d: "CS_d | None",
+        prev_pxa: CS_pxa,
+        next_vf: "CS_vf | None",
+        next_d: "CS_d | None",
+        next_pxa: CS_pxa,
+    ) -> "Status | None":
+        """SM-09-002 / AC-3: reject compound transitions that change >1 dimension."""
+        if prev_vf is None or next_vf is None:
+            return None  # no VF history; per-dimension checks suffice
+        prev_d = prev_d or CS_d.d
+        next_d = next_d or CS_d.d
+        prev_vfd = _vf_d_to_vfd(prev_vf, prev_d)
+        next_vfd = _vf_d_to_vfd(next_vf, next_d)
+        if next_vfd is None:
+            self.logger.warning(
+                "%s: impossible compound VF+D state (%s, %s) for actor '%s'"
+                " (SM-09-002)",
+                self.name,
+                next_vf,
+                next_d,
+                self._actor_id,
+            )
+            self.feedback_message = (
+                f"Impossible compound VF+D state ({next_vf!r}, {next_d!r})"
+            )
+            return Status.FAILURE
+        if prev_vfd is None:
+            return None
+        prev_cs = cs_from_dimensions(prev_vfd, prev_pxa)
+        next_cs = cs_from_dimensions(next_vfd, next_pxa)
+        if not is_valid_cs_transition(prev_cs, next_cs, allow_null=True):
+            self.logger.warning(
+                "%s: invalid compound CS transition %s → %s for actor '%s'"
+                " (SM-09-002)",
+                self.name,
+                prev_cs.name,
+                next_cs.name,
+                self._actor_id,
+            )
+            self.feedback_message = (
+                f"Invalid compound CS transition"
+                f" {prev_cs.name!r} → {next_cs.name!r}"
+            )
+            return Status.FAILURE
+        return None
+
+    def _apply_ac1_promotions(
+        self,
+        eff_vf: "CS_vf | None",
+        eff_pxa: CS_pxa,
+    ) -> "tuple[CS_vf | None, CS_pxa]":
+        """Apply SM-09-001 pX→PX and vP→VP forced promotions."""
+        if self._pxa_state is None:
+            return eff_vf, eff_pxa
+        if eff_pxa is CS_pxa.pXa:
+            eff_pxa = CS_pxa.PXa
+        elif eff_pxa is CS_pxa.pXA:
+            eff_pxa = CS_pxa.PXA
+        if eff_vf is CS_vf.vf and is_pxa_public_aware(eff_pxa):
+            eff_vf = CS_vf.Vf
+        return eff_vf, eff_pxa
+
     def update(self) -> Status:
         dl = self.datalayer
         if dl is None:
@@ -327,24 +406,47 @@ class CreateParticipantStatusNode(DataLayerActionWithPorts):
         if guard is not None:
             return guard
 
-        case_status: CaseStatus | None = None
-        pxa_before: CS_pxa | None = None
+        pxa_before = _resolve_pxa_state(case, participant_obj)
+
         if self._pxa_state is not None:
-            pxa_before = _resolve_pxa_state(case, participant_obj)
             guard = self._check_pxa_precondition(pxa_before)
             if guard is not None:
                 return guard
+
+        # Effective states before promotion (what the caller requested)
+        eff_vf = self._vf_state if self._vf_state is not None else current_vf
+        eff_d = self._d_state if self._d_state is not None else current_d
+        eff_pxa = (
+            self._pxa_state if self._pxa_state is not None else pxa_before
+        )
+
+        # AC-3: validate compound CS transition (SM-09-002)
+        guard = self._check_compound_transition(
+            current_vf, current_d, pxa_before, eff_vf, eff_d, eff_pxa
+        )
+        if guard is not None:
+            return guard
+
+        # AC-1: pX → PX and vP → VP forced promotions (SM-09-001)
+        eff_vf, eff_pxa = self._apply_ac1_promotions(eff_vf, eff_pxa)
+
+        case_status: CaseStatus | None = None
+        if self._pxa_state is not None:
             case_status = CaseStatus(
                 context=self._case_id,
                 attributed_to=self._actor_id,
                 em=EmDimension(state=_resolve_em_state(case)),
-                pxa=PxaDimension(state=self._pxa_state),
+                pxa=PxaDimension(state=eff_pxa),
             )
 
         status_roles, consent_dim = self._build_participant_metadata(
             participant_obj
         )
-        vf_dim, d_dim = self._build_dimensions(current_vf, current_d)
+
+        vf_dim: VfDimension | None = (
+            VfDimension(state=eff_vf) if eff_vf is not None else None
+        )
+        _, d_dim = self._build_dimensions(current_vf, current_d)
 
         status = ParticipantStatus(
             context=self._case_id,
@@ -374,7 +476,9 @@ class CreateParticipantStatusNode(DataLayerActionWithPorts):
             self._actor_id,
             self._case_id,
         )
-        self._log_transitions(current_rm, current_vf, current_d, pxa_before)
+        self._log_transitions(
+            current_rm, current_vf, current_d, pxa_before, eff_pxa, eff_vf
+        )
         return Status.SUCCESS
 
     def _log_transitions(
@@ -382,7 +486,9 @@ class CreateParticipantStatusNode(DataLayerActionWithPorts):
         rm_before: RM,
         vf_before: CS_vf | None,
         d_before: CS_d | None,
-        pxa_before: CS_pxa | None,
+        pxa_before: CS_pxa,
+        effective_pxa: "CS_pxa | None" = None,
+        effective_vf: "CS_vf | None" = None,
     ) -> None:
         """Emit narrative INFO lines for the dimensions this node advanced."""
         if self._rm_state is not None:
@@ -393,13 +499,17 @@ class CreateParticipantStatusNode(DataLayerActionWithPorts):
                 rm_before,
                 self._rm_state,
             )
-        if self._vf_state is not None:
+        # Log VF: if explicitly requested OR if vP promotion forced a change
+        vf_written = (
+            effective_vf if effective_vf is not None else self._vf_state
+        )
+        if vf_written is not None:
             log_cs_transition(
                 self.logger,
                 self._actor_id,
                 self._case_id,
                 vf_before if vf_before is not None else CS_vf.vf,
-                self._vf_state,
+                vf_written,
             )
         if self._d_state is not None:
             log_cs_transition(
@@ -409,11 +519,16 @@ class CreateParticipantStatusNode(DataLayerActionWithPorts):
                 d_before if d_before is not None else CS_d.d,
                 self._d_state,
             )
-        if self._pxa_state is not None and pxa_before is not None:
+        # Log PXA using the effective (possibly promoted) value
+        if self._pxa_state is not None:
             log_cs_transition(
                 self.logger,
                 self._actor_id,
                 self._case_id,
                 pxa_before,
-                self._pxa_state,
+                (
+                    effective_pxa
+                    if effective_pxa is not None
+                    else self._pxa_state
+                ),
             )
