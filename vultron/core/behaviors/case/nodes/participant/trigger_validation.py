@@ -59,6 +59,7 @@ from vultron.core.states.cs import (
     is_valid_vf_transition,
 )
 from vultron.core.states.rm import RM, is_valid_rm_transition
+from vultron.enums.roles import CVDRole
 
 logger = logging.getLogger(__name__)
 
@@ -129,6 +130,29 @@ class ValidateTriggerTransitionsNode(DataLayerCondition):
         self._d_state = d_state
         self._pxa_state = pxa_state
 
+    def _check_vf_role(self, participant_obj: object) -> "Status | None":
+        """Return FAILURE when the requested VF state requires VENDOR but actor lacks it.
+
+        Vendor-aware VF states (Vf, VF) are VENDOR-specific per ADR-0075.
+        Returns None when no VF state is requested, the state is CS_vf.vf
+        (vendor-unaware), or the actor holds CVDRole.VENDOR.  Closes #2862.
+        """
+        if self._vf_state is None or self._vf_state == CS_vf.vf:
+            return None
+        actor_roles = (
+            list(participant_obj.roles)  # type: ignore[attr-defined]
+            if isinstance(participant_obj, CaseParticipant)
+            else []
+        )
+        if CVDRole.VENDOR in actor_roles:
+            return None
+        self.feedback_message = (
+            f"CVDRole.VENDOR required for VF state"
+            f" {self._vf_state!r} (ADR-0075); actor roles: {actor_roles!r}"
+        )
+        self.logger.info("%s: %s", self.name, self.feedback_message)
+        return Status.FAILURE
+
     def update(self) -> Status:
         if (f := self._require_datalayer()) is not None:
             return f
@@ -188,6 +212,10 @@ class ValidateTriggerTransitionsNode(DataLayerCondition):
             )
             self.logger.info("%s: %s", self.name, self.feedback_message)
             return Status.FAILURE
+
+        # --- VF role eligibility (ADR-0075, #2862) ---
+        if (failure := self._check_vf_role(participant_obj)) is not None:
+            return failure
 
         # --- PXA dimension ---
         if self._pxa_state is not None and isinstance(

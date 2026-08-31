@@ -51,6 +51,7 @@ from vultron.core.states.cs import (
 )
 from vultron.core.states.em import EM
 from vultron.core.states.rm import RM
+from vultron.enums.roles import CVDRole
 
 
 def _resolve_em_state(case: object) -> EM:
@@ -182,9 +183,30 @@ class CreateParticipantStatusNode(DataLayerActionWithPorts):
         return status_roles, consent_dim
 
     def _check_vf_precondition(
-        self, current_vf: CS_vf | None
+        self, current_vf: CS_vf | None, participant_obj: object
     ) -> "Status | None":
-        """CSB-16-001: validate VF transition before writing."""
+        """CSB-16-001 / ADR-0075 / CSB-15-001: validate VF transition and role before writing."""
+        actor_roles = (
+            participant_obj.roles  # type: ignore[union-attr]
+            if isinstance(participant_obj, CaseParticipant)
+            else []
+        )
+        if (
+            self._vf_state in (CS_vf.Vf, CS_vf.VF)
+            and CVDRole.VENDOR not in actor_roles
+        ):
+            spec = "ADR-0075" if self._vf_state == CS_vf.Vf else "CSB-15-001"
+            self.logger.warning(
+                "%s: actor '%s' lacks VENDOR role required for %s (%s, #2862)",
+                self.name,
+                self._actor_id,
+                self._vf_state,
+                spec,
+            )
+            self.feedback_message = (
+                f"VENDOR role required for {self._vf_state} target ({spec})"
+            )
+            return Status.FAILURE
         if self._vf_state is None or current_vf is None:
             return None
         if self._vf_state != current_vf and not is_valid_vf_transition(
@@ -203,8 +225,26 @@ class CreateParticipantStatusNode(DataLayerActionWithPorts):
             return Status.FAILURE
         return None
 
-    def _check_d_precondition(self, current_d: CS_d | None) -> "Status | None":
-        """CSB-16-001: validate D transition before writing."""
+    def _check_d_precondition(
+        self, current_d: CS_d | None, participant_obj: object
+    ) -> "Status | None":
+        """CSB-16-001 / CSB-15-002: validate D transition and role before writing."""
+        if self._d_state == CS_d.D:
+            actor_roles = (
+                participant_obj.roles  # type: ignore[union-attr]
+                if isinstance(participant_obj, CaseParticipant)
+                else []
+            )
+            if CVDRole.DEPLOYER not in actor_roles:
+                self.logger.warning(
+                    "%s: actor '%s' lacks DEPLOYER role required for D (CSB-15-002)",
+                    self.name,
+                    self._actor_id,
+                )
+                self.feedback_message = (
+                    "DEPLOYER role required for D target (CSB-15-002)"
+                )
+                return Status.FAILURE
         if self._d_state is None or current_d is None:
             return None
         if self._d_state != current_d and not is_valid_d_transition(
@@ -279,11 +319,11 @@ class CreateParticipantStatusNode(DataLayerActionWithPorts):
         )
         participant_obj = dl.read(participant_id)
 
-        guard = self._check_vf_precondition(current_vf)
+        guard = self._check_vf_precondition(current_vf, participant_obj)
         if guard is not None:
             return guard
 
-        guard = self._check_d_precondition(current_d)
+        guard = self._check_d_precondition(current_d, participant_obj)
         if guard is not None:
             return guard
 
