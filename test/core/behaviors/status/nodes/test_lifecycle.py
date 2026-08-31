@@ -36,13 +36,14 @@ from vultron.core.behaviors.status.nodes.lifecycle import (
 from vultron.core.states.cs import CS_pxa
 from vultron.core.states.em import EM
 from vultron.enums.roles import CVDRole
-from vultron.wire.as2.vocab.objects.case_participant import as_CaseParticipant
+from vultron.core.models.case_participant import CaseParticipant
 from vultron.wire.as2.vocab.objects.case_status import (
     as_CaseStatus,
     as_ParticipantStatus,
 )
 from vultron.wire.as2.vocab.objects.embargo_event import as_EmbargoEvent
-from vultron.wire.as2.vocab.objects.vulnerability_case import (
+from vultron.core.models.case import VulnerabilityCase
+from vultron.wire.as2.vocab.objects.vulnerability_case import (  # noqa: F401
     as_VulnerabilityCase,
 )
 
@@ -70,7 +71,7 @@ def dl():
 
 @pytest.fixture
 def participant():
-    return as_CaseParticipant(
+    return CaseParticipant(
         id_=PARTICIPANT_ID,
         context=CASE_ID,
         attributed_to=ACTOR_ID,
@@ -100,13 +101,15 @@ def embargo():
 
 @pytest.fixture
 def populated_dl(dl, participant, status_obj):
-    case_manager_participant = as_CaseParticipant(
+    case_manager_participant = CaseParticipant(
         id_=CM_PARTICIPANT_ID,
         context=CASE_ID,
         attributed_to=CASE_MANAGER_ID,
         case_roles=[CVDRole.CASE_MANAGER],
     )
-    case = as_VulnerabilityCase(id_=CASE_ID, name="Test Case")
+    case = VulnerabilityCase(
+        id_=CASE_ID, name="Test Case", attributed_to=ACTOR_ID
+    )
     case.add_participant(participant)
     case.add_participant(case_manager_participant)
     dl.create(case)
@@ -130,8 +133,10 @@ def _make_dl_with_em_state(
 ) -> SqliteDataLayer:
     """Return a populated SqliteDataLayer for skip-condition unit tests."""
     dl = SqliteDataLayer("sqlite:///:memory:", actor_id=ACTOR_ID)
-    case = as_VulnerabilityCase(id_=CASE_ID, name="Test Case")
-    case.current_status.em_state = em_state
+    case = VulnerabilityCase(
+        id_=CASE_ID, name="Test Case", attributed_to=ACTOR_ID
+    )
+    case.append_case_status(em_state=em_state)
 
     if with_proposed_embargo or with_embargo:
         embargo = as_EmbargoEvent(id_=EMBARGO_ID, context=CASE_ID)
@@ -146,7 +151,7 @@ def _make_dl_with_em_state(
         except Exception:
             pass
 
-    participant = as_CaseParticipant(
+    participant = CaseParticipant(
         id_=PARTICIPANT_ID,
         context=CASE_ID,
         attributed_to=ACTOR_ID,
@@ -266,20 +271,19 @@ class TestPublicDisclosureBranchNodeProposedEmPath:
         dl = SqliteDataLayer("sqlite:///:memory:", actor_id=ACTOR_ID)
 
         embargo = as_EmbargoEvent(id_=EMBARGO_ID, context=CASE_ID)
-        case = as_VulnerabilityCase(id_=CASE_ID, name="Test Case")
-        case.attributed_to = (
-            ACTOR_ID  # required by EmbargoLifecycle.is_owner check
+        case = VulnerabilityCase(
+            id_=CASE_ID, name="Test Case", attributed_to=ACTOR_ID
         )
-        case.current_status.em_state = EM.PROPOSED
+        case.append_case_status(em_state=EM.PROPOSED)
         case.proposed_embargoes = [embargo.id_]
 
-        participant = as_CaseParticipant(
+        participant = CaseParticipant(
             id_=PARTICIPANT_ID,
             context=CASE_ID,
             attributed_to=ACTOR_ID,
             case_roles=[CVDRole.CASE_OWNER],
         )
-        cm_participant = as_CaseParticipant(
+        cm_participant = CaseParticipant(
             id_=CM_PARTICIPANT_ID,
             context=CASE_ID,
             attributed_to=CASE_MANAGER_ID,

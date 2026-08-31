@@ -25,6 +25,7 @@ departing actor's RM state to ``RM.CLOSED`` via
 Per specs/case-management.yaml DEMOMA-07-001, CM-23-002, CM-23-003.
 """
 
+import json
 import logging
 from typing import cast
 
@@ -70,7 +71,7 @@ class SvcLeaveCaseUseCase(SvcBTTriggerBase):
                 actor=self._actor_id,
                 to=[case_manager_id],
             )
-            self._captured["activity"] = activity_dict
+            self._captured["activity"] = json.loads(activity_dict)
             return [activity_id]
 
         return sender_side_bt(

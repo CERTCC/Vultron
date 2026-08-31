@@ -310,13 +310,13 @@ def test_collect_addresses_returns_empty_when_all_fields_absent():
 
 def test_collect_addresses_returns_uri_from_to_string():
     activity = as_Create(actor=_ACTOR_URI, object_=as_Note(content="hi"))
-    activity.to = _ACTOR_URI
+    object.__setattr__(activity, "to", _ACTOR_URI)
     assert _ACTOR_URI in _collect_addresses(activity)
 
 
 def test_collect_addresses_returns_uris_from_list():
     activity = as_Create(actor=_ACTOR_URI, object_=as_Note(content="hi"))
-    activity.to = [_ACTOR_URI, _OTHER_ACTOR_URI]
+    object.__setattr__(activity, "to", [_ACTOR_URI, _OTHER_ACTOR_URI])
     addrs = _collect_addresses(activity)
     assert _ACTOR_URI in addrs
     assert _OTHER_ACTOR_URI in addrs
@@ -327,16 +327,16 @@ def test_collect_addresses_extracts_id_from_object():
 
     actor_obj = as_Organization(id_=_ACTOR_URI, name="Alice")
     activity = as_Create(actor=_OTHER_ACTOR_URI, object_=as_Note(content="x"))
-    activity.to = actor_obj
+    object.__setattr__(activity, "to", actor_obj)
     assert _ACTOR_URI in _collect_addresses(activity)
 
 
 def test_collect_addresses_covers_all_four_fields():
     activity = as_Create(actor=_OTHER_ACTOR_URI, object_=as_Note(content="x"))
-    activity.to = "https://example.org/actors/to"
-    activity.cc = "https://example.org/actors/cc"
-    activity.bto = "https://example.org/actors/bto"
-    activity.bcc = "https://example.org/actors/bcc"
+    object.__setattr__(activity, "to", "https://example.org/actors/to")
+    object.__setattr__(activity, "cc", "https://example.org/actors/cc")
+    object.__setattr__(activity, "bto", "https://example.org/actors/bto")
+    object.__setattr__(activity, "bcc", "https://example.org/actors/bcc")
     addrs = _collect_addresses(activity)
     assert len(addrs) == 4
 
@@ -355,49 +355,53 @@ def test_activity_addressed_to_returns_true_when_absent_addressing():
 def test_activity_addressed_to_returns_true_when_in_to():
     """AC-2: actor named in to → accepted."""
     activity = as_Create(actor=_OTHER_ACTOR_URI, object_=as_Note(content="x"))
-    activity.to = _ACTOR_URI
+    object.__setattr__(activity, "to", _ACTOR_URI)
     assert _activity_addressed_to(activity, _ACTOR_URI) is True
 
 
 def test_activity_addressed_to_returns_true_when_in_cc():
     """AC-2: actor named in cc → accepted."""
     activity = as_Create(actor=_OTHER_ACTOR_URI, object_=as_Note(content="x"))
-    activity.cc = _ACTOR_URI
+    object.__setattr__(activity, "cc", _ACTOR_URI)
     assert _activity_addressed_to(activity, _ACTOR_URI) is True
 
 
 def test_activity_addressed_to_returns_true_when_in_bto():
     """AC-2: actor named in bto → accepted."""
     activity = as_Create(actor=_OTHER_ACTOR_URI, object_=as_Note(content="x"))
-    activity.bto = _ACTOR_URI
+    object.__setattr__(activity, "bto", _ACTOR_URI)
     assert _activity_addressed_to(activity, _ACTOR_URI) is True
 
 
 def test_activity_addressed_to_returns_true_when_in_bcc():
     """AC-2: actor named in bcc → accepted."""
     activity = as_Create(actor=_OTHER_ACTOR_URI, object_=as_Note(content="x"))
-    activity.bcc = _ACTOR_URI
+    object.__setattr__(activity, "bcc", _ACTOR_URI)
     assert _activity_addressed_to(activity, _ACTOR_URI) is True
 
 
 def test_activity_addressed_to_returns_false_when_addressed_exclusively_to_other():
     """AC-1: Activity addressed only to another actor → refused."""
     activity = as_Create(actor=_OTHER_ACTOR_URI, object_=as_Note(content="x"))
-    activity.to = _OTHER_ACTOR_URI
+    object.__setattr__(activity, "to", _OTHER_ACTOR_URI)
     assert _activity_addressed_to(activity, _ACTOR_URI) is False
 
 
 def test_activity_addressed_to_returns_false_when_list_has_only_other_actors():
     """AC-1: list-form addressing that excludes actor → refused."""
     activity = as_Create(actor=_OTHER_ACTOR_URI, object_=as_Note(content="x"))
-    activity.to = [_OTHER_ACTOR_URI, "https://example.org/actors/charlie"]
+    object.__setattr__(
+        activity,
+        "to",
+        [_OTHER_ACTOR_URI, "https://example.org/actors/charlie"],
+    )
     assert _activity_addressed_to(activity, _ACTOR_URI) is False
 
 
 def test_activity_addressed_to_returns_true_with_canonical_uri_in_list():
     """AC-2: canonical actor URI in a list is accepted."""
     activity = as_Create(actor=_OTHER_ACTOR_URI, object_=as_Note(content="x"))
-    activity.to = [_OTHER_ACTOR_URI, _ACTOR_URI]
+    object.__setattr__(activity, "to", [_OTHER_ACTOR_URI, _ACTOR_URI])
     assert _activity_addressed_to(activity, _ACTOR_URI) is True
 
 
@@ -406,14 +410,16 @@ def test_activity_addressed_to_returns_true_when_short_id_matches():
     # _ACTOR_URI = "https://example.org/actors/alice"
     # strip_id_prefix("alice") == strip_id_prefix(_ACTOR_URI) == "alice"
     activity = as_Create(actor=_OTHER_ACTOR_URI, object_=as_Note(content="x"))
-    activity.to = "alice"
+    object.__setattr__(activity, "to", "alice")
     assert _activity_addressed_to(activity, _ACTOR_URI) is True
 
 
 def test_activity_addressed_to_short_id_of_other_actor_does_not_match():
     """AC-4 negative: short ID of a different actor does not satisfy the check."""
     activity = as_Create(actor=_OTHER_ACTOR_URI, object_=as_Note(content="x"))
-    activity.to = "bob"  # strip_id_prefix(_OTHER_ACTOR_URI) == "bob"
+    object.__setattr__(
+        activity, "to", "bob"
+    )  # strip_id_prefix(_OTHER_ACTOR_URI) == "bob"
     assert _activity_addressed_to(activity, _ACTOR_URI) is False
 
 
@@ -426,7 +432,9 @@ def test_activity_addressed_to_returns_true_for_collection_uri():
     """
     activity = as_Create(actor=_OTHER_ACTOR_URI, object_=as_Note(content="x"))
     # Collection URI — the last segment "participants" won't resolve to any actor
-    activity.to = "https://example.org/cases/case-001/participants"
+    object.__setattr__(
+        activity, "to", "https://example.org/cases/case-001/participants"
+    )
     assert _activity_addressed_to(activity, _ACTOR_URI) is True
 
 
@@ -437,7 +445,9 @@ def test_activity_addressed_to_refuses_when_every_address_names_another_actor():
     shape, not any store's contents.
     """
     activity = as_Create(actor=_OTHER_ACTOR_URI, object_=as_Note(content="x"))
-    activity.to = _OTHER_ACTOR_URI  # addressed exclusively to bob
+    object.__setattr__(
+        activity, "to", _OTHER_ACTOR_URI
+    )  # addressed exclusively to bob
     assert _activity_addressed_to(activity, _ACTOR_URI) is False
 
 
@@ -456,7 +466,7 @@ def test_activity_addressed_to_refuses_peer_absent_from_the_receivers_store():
     not an edge case, which is precisely why the lookup had to go.
     """
     activity = as_Create(actor=_OTHER_ACTOR_URI, object_=as_Note(content="x"))
-    activity.to = _OTHER_ACTOR_URI
+    object.__setattr__(activity, "to", _OTHER_ACTOR_URI)
     assert _activity_addressed_to(activity, _ACTOR_URI) is False
 
 
@@ -555,7 +565,9 @@ class TestNamesAnIndividualActor:
         activity = as_Create(
             actor=_OTHER_ACTOR_URI, object_=as_Note(content="x")
         )
-        activity.to = "https://www.w3.org/ns/activitystreams#Public"
+        object.__setattr__(
+            activity, "to", "https://www.w3.org/ns/activitystreams#Public"
+        )
         assert _activity_addressed_to(activity, _ACTOR_URI) is True
 
     def test_an_activity_addressed_to_another_actors_followers_is_accepted(
@@ -565,7 +577,7 @@ class TestNamesAnIndividualActor:
         activity = as_Create(
             actor=_OTHER_ACTOR_URI, object_=as_Note(content="x")
         )
-        activity.to = f"{_OTHER_ACTOR_URI}/followers"
+        object.__setattr__(activity, "to", f"{_OTHER_ACTOR_URI}/followers")
         assert _activity_addressed_to(activity, _ACTOR_URI) is True
 
     def test_public_in_the_cc_makes_an_otherwise_refused_activity_acceptable(
@@ -585,14 +597,16 @@ class TestNamesAnIndividualActor:
         aimed_at_bob = as_Create(
             actor=_OTHER_ACTOR_URI, object_=as_Note(content="x")
         )
-        aimed_at_bob.to = _OTHER_ACTOR_URI
+        object.__setattr__(aimed_at_bob, "to", _OTHER_ACTOR_URI)
         assert _activity_addressed_to(aimed_at_bob, _ACTOR_URI) is False
 
         also_public = as_Create(
             actor=_OTHER_ACTOR_URI, object_=as_Note(content="x")
         )
-        also_public.to = _OTHER_ACTOR_URI
-        also_public.cc = "https://www.w3.org/ns/activitystreams#Public"
+        object.__setattr__(also_public, "to", _OTHER_ACTOR_URI)
+        object.__setattr__(
+            also_public, "cc", "https://www.w3.org/ns/activitystreams#Public"
+        )
         assert _activity_addressed_to(also_public, _ACTOR_URI) is True
 
     def test_two_named_peers_are_still_refused(self):
@@ -603,6 +617,6 @@ class TestNamesAnIndividualActor:
         activity = as_Create(
             actor=_OTHER_ACTOR_URI, object_=as_Note(content="x")
         )
-        activity.to = _OTHER_ACTOR_URI
-        activity.cc = "https://example.org/actors/carol"
+        object.__setattr__(activity, "to", _OTHER_ACTOR_URI)
+        object.__setattr__(activity, "cc", "https://example.org/actors/carol")
         assert _activity_addressed_to(activity, _ACTOR_URI) is False

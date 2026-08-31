@@ -18,7 +18,7 @@
 from __future__ import annotations
 
 import logging
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 from typing import Any, Literal
 
 from pydantic import Field, model_validator
@@ -264,6 +264,57 @@ class VulnerabilityCase(CoreObject):
                 f"got {type(status).__name__}"
             )
         self.case_statuses.append(status)
+
+    def append_case_status(self, **kwargs: Any) -> None:
+        """Append a new CaseStatus derived from the current one with fields overridden.
+
+        Inherits all fields from ``current_status`` then applies ``kwargs``,
+        so passing ``em_state=EM.ACTIVE`` keeps existing ``pxa_state`` and
+        vice-versa. Timestamps are bumped to ensure the new entry sorts as
+        ``current_status``.
+        """
+        current = self.current_status
+        latest = current.updated or current.published
+        now = datetime.now(timezone.utc)
+        if latest is not None and latest >= now:
+            now = latest + timedelta(microseconds=1)
+
+        # Map flat state kwargs to nested dimension updates so that model_copy
+        # (which does not re-run validators) applies them correctly.
+        em_update: dict = {}
+        pxa_update: dict = {}
+        passthrough: dict = {}
+        for k, v in kwargs.items():
+            if k == "em_state":
+                em_update["state"] = v
+            elif k == "pxa_state":
+                pxa_update["state"] = v
+            else:
+                passthrough[k] = v
+
+        em = (
+            current.em.model_copy(update=em_update)
+            if em_update
+            else current.em
+        )
+        pxa = (
+            current.pxa.model_copy(update=pxa_update)
+            if pxa_update
+            else current.pxa
+        )
+
+        self.add_case_status(
+            current.model_copy(
+                update={
+                    **passthrough,
+                    "em": em,
+                    "pxa": pxa,
+                    "context": self.id_,
+                    "published": now,
+                    "updated": now,
+                }
+            )
+        )
 
     def set_embargo(self, embargo: "str | EmbargoEvent | None") -> None:
         """Set the active embargo for this case.

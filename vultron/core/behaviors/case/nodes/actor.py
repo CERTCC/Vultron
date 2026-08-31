@@ -36,6 +36,7 @@ the process-area root per BTND-07-003:
 - ``create_accept_ownership_transfer_tree``
 """
 
+import json
 import logging
 from typing import Any, cast
 
@@ -139,7 +140,7 @@ class EmitInviteActorToCaseNode(DataLayerActionWithPorts):
             return serialize_roles(roles)
         return None
 
-    def _emit(self, factory: Any) -> tuple[str, dict]:
+    def _emit(self, factory: Any) -> tuple[str, dict[str, Any]]:
         """Build the Invite activity and commit the ledger correlation marker."""
         cc = [self.case_actor_id] if self.case_actor_id else None
         roles = self._read_suggested_roles()
@@ -152,7 +153,7 @@ class EmitInviteActorToCaseNode(DataLayerActionWithPorts):
         # project it to an enriched stub (with end_time) when em_state==ACTIVE.
         assert self.datalayer is not None and self.actor_id is not None
         case = self.datalayer.read(self.case_id)
-        activity_id, activity_dict = factory.invite_actor_to_case(
+        activity_id, activity_blob = factory.invite_actor_to_case(
             invitee_id=self.invitee_id,
             case_id=self.case_id,
             actor=self.actor_id,
@@ -161,6 +162,9 @@ class EmitInviteActorToCaseNode(DataLayerActionWithPorts):
             attributed_to=self.attributed_to,
             roles=roles,
             target=case if isinstance(case, VulnerabilityCase) else None,
+        )
+        activity_dict: dict = (
+            json.loads(activity_blob) if activity_blob else {}
         )
         snapshot: dict = (
             _drop_bare_inline_refs(activity_dict) if activity_dict else {}

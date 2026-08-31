@@ -87,6 +87,7 @@ from vultron.wire.as2.vocab.objects.case_status import (
     as_CaseStatus,
     as_ParticipantStatus,
 )
+from vultron.core.models.case import VulnerabilityCase
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCase,
 )
@@ -299,13 +300,13 @@ def _seed_case(
     # attributed_to is what seeds the per-case genesis hash (CLP-08-003);
     # without it the ledger sits in the pre-genesis bootstrap window and the
     # guarded commit cannot anchor a chain.
-    case = as_VulnerabilityCase(
+    case = VulnerabilityCase(
         id_=CASE_ID,
         name="Issue 2235 Case",
         attributed_to=CASE_MANAGER_ID,
     )
-    case.add_participant(vendor)
-    case.add_participant(manager)
+    case.add_participant(cast(CaseParticipant, vendor))
+    case.add_participant(cast(CaseParticipant, manager))
 
     dl.create(case)
     dl.create(vendor)

@@ -102,7 +102,7 @@ class TestIsActiveEmbargoNode:
             actor_id="https://test.example/api/v2/actors/test-actor",
         )
         case, embargo = make_case_and_embargo("ian2", em_state=EM.PROPOSED)
-        case.active_embargo = None
+        object.__setattr__(case, "active_embargo", None)
         dl.create(case)
 
         setup_blackboard(dl)
@@ -166,7 +166,7 @@ class TestHasActiveEmbargoNode:
             actor_id="https://test.example/api/v2/actors/test-actor",
         )
         case, _ = make_case_and_embargo("hae2")
-        case.active_embargo = None
+        object.__setattr__(case, "active_embargo", None)
         dl.create(case)
 
         setup_blackboard(dl)
@@ -207,7 +207,7 @@ class TestHasActiveEmbargoNode:
             actor_id="https://test.example/api/v2/actors/test-actor",
         )
         case, _ = make_case_and_embargo("hae3")
-        case.active_embargo = None
+        object.__setattr__(case, "active_embargo", None)
         dl.create(case)
 
         setup_blackboard(dl)

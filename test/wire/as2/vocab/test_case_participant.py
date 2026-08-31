@@ -270,8 +270,8 @@ class TestParticipantStatusProperty(unittest.TestCase):
             attributed_to=self.actor_id, context=self.case_id
         )
         # init_participant_status_if_empty populates one status by default;
-        # explicitly clear to exercise the empty branch.
-        participant.participant_statuses = []
+        # use object.__setattr__ to bypass frozen and exercise the empty branch.
+        object.__setattr__(participant, "participant_statuses", [])
         self.assertIsNone(participant.participant_status)
 
     def test_returns_single_status_when_only_one_present(self):

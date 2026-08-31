@@ -241,7 +241,7 @@ def test_extract_intent_participant_case_roles():
         attributed_to="https://example.org/alice",
         context="https://example.org/cases/1",
     )
-    participant.case_roles = [CVDRole.VENDOR]
+    object.__setattr__(participant, "case_roles", [CVDRole.VENDOR])
     # CreateCaseParticipant pattern: Create + CASE_PARTICIPANT + context=VULNERABILITY_CASE
     activity = as_Create(
         actor="https://example.org/alice",

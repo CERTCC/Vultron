@@ -20,7 +20,7 @@ that is correctly rejected by the constructor is silently accepted by both
 attribute assignment and in-place list mutation::
 
     case = VulnerabilityCase(case_participants=[wire_obj])  # ValidationError
-    case.case_participants = [wire_obj]                     # accepted
+    object.__setattr__(case, "case_participants", [wire_obj]                     # accepted)
     case.case_participants.append(wire_obj)                 # accepted
 
 A wire-shaped object sitting in a core-shaped field does not raise when read — it

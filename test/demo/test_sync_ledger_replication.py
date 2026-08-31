@@ -140,10 +140,14 @@ def test_sync_single_peer_happy_path_replication(two_app_setup) -> None:
     )
 
     case = as_VulnerabilityCase(name="SYNC-901 integration case")
-    case.genesis_hash = compute_genesis_hash(
-        case_id=case.id_,
-        created_at=datetime.now(timezone.utc),
-        case_actor_id=case_actor_id,
+    object.__setattr__(
+        case,
+        "genesis_hash",
+        compute_genesis_hash(
+            case_id=case.id_,
+            created_at=datetime.now(timezone.utc),
+            case_actor_id=case_actor_id,
+        ),
     )
     case_actor_participant = as_CaseParticipant(
         attributed_to=case_actor_id,
@@ -387,10 +391,14 @@ def test_sync_duplicate_delivery_idempotency(
     case = as_VulnerabilityCase(
         name="SYNC-903 duplicate delivery integration case"
     )
-    case.genesis_hash = compute_genesis_hash(
-        case_id=case.id_,
-        created_at=datetime.now(timezone.utc),
-        case_actor_id=case_actor_id,
+    object.__setattr__(
+        case,
+        "genesis_hash",
+        compute_genesis_hash(
+            case_id=case.id_,
+            created_at=datetime.now(timezone.utc),
+            case_actor_id=case_actor_id,
+        ),
     )
     case_actor_participant = as_CaseParticipant(
         attributed_to=case_actor_id,

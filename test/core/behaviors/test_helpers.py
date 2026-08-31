@@ -15,6 +15,7 @@
 
 """Unit tests for DataLayer-aware BT helper nodes."""
 
+import json
 from typing import Callable, Optional
 
 import pytest
@@ -856,19 +857,17 @@ _ACTOR_URI = "https://example.org/actors/emit-test-actor"
 class _StubEmitNode(_EmitSingleActivityBase):
     """Concrete stub — delegates to injected callables set before use."""
 
-    factory_fn: Optional[Callable[["_StubEmitNode"], tuple[str, dict]]] = None
-    on_success_fn: Optional[Callable[["_StubEmitNode", str, dict], None]] = (
-        None
-    )
+    factory_fn: Optional[Callable[["_StubEmitNode"], tuple[str, str]]] = None
+    on_success_fn: Optional[Callable[["_StubEmitNode", str, str], None]] = None
 
-    def _call_factory(self) -> tuple[str, dict]:
+    def _call_factory(self) -> tuple[str, str]:
         if self.factory_fn is None:
             raise NotImplementedError("no factory_fn set on _StubEmitNode")
         return self.factory_fn(self)
 
-    def _on_success(self, activity_id: str, activity_dict: dict) -> None:
+    def _on_success(self, activity_id: str, activity_blob: str) -> None:
         if self.on_success_fn is not None:
-            self.on_success_fn(self, activity_id, activity_dict)
+            self.on_success_fn(self, activity_id, activity_blob)
 
 
 class TestEmitSingleActivityBase:
@@ -883,7 +882,7 @@ class TestEmitSingleActivityBase:
     def test_on_success_default_is_noop(self):
         """`_on_success()` does nothing when not overridden."""
         node = _EmitSingleActivityBase.__new__(_EmitSingleActivityBase)
-        node._on_success("some-id", {})  # must not raise
+        node._on_success("some-id", "{}")  # must not raise
 
     def test_update_fails_when_datalayer_missing(self, datalayer):
         """Returns FAILURE immediately when DataLayer is not available."""
@@ -914,7 +913,10 @@ class TestEmitSingleActivityBase:
         factory = MagicMock(spec=TriggerActivityPort)
 
         node = _StubEmitNode()
-        node.factory_fn = lambda self_node: (activity_id, activity_dict)
+        node.factory_fn = lambda self_node: (
+            activity_id,
+            json.dumps(activity_dict),
+        )
         bridge = BTBridge(datalayer, trigger_activity=factory)
         result = bridge.execute_with_setup(node, actor_id=_ACTOR_URI)
 
@@ -932,7 +934,10 @@ class TestEmitSingleActivityBase:
         factory = MagicMock(spec=TriggerActivityPort)
 
         node = _StubEmitNode(captured=captured)
-        node.factory_fn = lambda self_node: (activity_id, activity_dict)
+        node.factory_fn = lambda self_node: (
+            activity_id,
+            json.dumps(activity_dict),
+        )
         bridge = BTBridge(datalayer, trigger_activity=factory)
         bridge.execute_with_setup(node, actor_id=_ACTOR_URI)
 
@@ -946,19 +951,20 @@ class TestEmitSingleActivityBase:
 
         activity_id = "https://example.org/activities/emit-003"
         activity_dict = {"id": activity_id}
+        activity_blob = json.dumps(activity_dict)
         calls: list = []
         factory = MagicMock(spec=TriggerActivityPort)
 
         node = _StubEmitNode()
-        node.factory_fn = lambda self_node: (activity_id, activity_dict)
-        node.on_success_fn = lambda self_node, aid, adict: calls.append(
-            (aid, adict)
+        node.factory_fn = lambda self_node: (activity_id, activity_blob)
+        node.on_success_fn = lambda self_node, aid, ablob: calls.append(
+            (aid, ablob)
         )
         bridge = BTBridge(datalayer, trigger_activity=factory)
         result = bridge.execute_with_setup(node, actor_id=_ACTOR_URI)
 
         assert result.status == Status.SUCCESS
-        assert calls == [(activity_id, activity_dict)]
+        assert calls == [(activity_id, activity_blob)]
 
     def test_update_returns_failure_on_factory_exception(self, datalayer):
         """Returns FAILURE and sets feedback_message when factory raises."""
@@ -1001,7 +1007,7 @@ class TestEmitSingleActivityBase:
         factory = MagicMock(spec=TriggerActivityPort)
 
         def _factory_fn(self_node):
-            return (activity_id, activity_dict)
+            return (activity_id, json.dumps(activity_dict))
 
         def _raising_hook(self_node, aid, adict):
             raise RuntimeError("hook exploded after write committed")

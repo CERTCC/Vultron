@@ -50,7 +50,7 @@ class _CasesMixin:
         case_id: str,
         actor: str,
         to: list[str] | None = None,
-    ) -> tuple[str, dict[str, Any]]:
+    ) -> tuple[str, str]:
         """Create and persist a ``Create(as_VulnerabilityCase)`` activity."""
         case = _case_for_wire(self._dl, case_id)
         activity = create_case_activity(case=case, actor=actor, to=to)
@@ -61,14 +61,14 @@ class _CasesMixin:
                 "create_case: activity '%s' already exists — skipping",
                 activity.id_,
             )
-        return activity.id_, activity.model_dump(**_DUMP_KWARGS)
+        return activity.id_, activity.model_dump_json(**_DUMP_KWARGS)
 
     def engage_case(
         self,
         case_id: str,
         actor: str,
         to: list[str] | None = None,
-    ) -> tuple[str, dict[str, Any]]:
+    ) -> tuple[str, str]:
         """Create and persist an ``Accept(as_VulnerabilityCase)`` engage activity."""
         case = _case_for_wire(self._dl, case_id)
         activity = rm_engage_case_activity(case=case, actor=actor, to=to)
@@ -79,14 +79,14 @@ class _CasesMixin:
                 "engage_case: activity '%s' already exists — skipping",
                 activity.id_,
             )
-        return activity.id_, activity.model_dump(**_DUMP_KWARGS)
+        return activity.id_, activity.model_dump_json(**_DUMP_KWARGS)
 
     def defer_case(
         self,
         case_id: str,
         actor: str,
         to: list[str] | None = None,
-    ) -> tuple[str, dict[str, Any]]:
+    ) -> tuple[str, str]:
         """Create and persist a ``TentativeReject(as_VulnerabilityCase)`` activity."""
         case = _case_for_wire(self._dl, case_id)
         activity = rm_defer_case_activity(case=case, actor=actor, to=to)
@@ -97,14 +97,14 @@ class _CasesMixin:
                 "defer_case: activity '%s' already exists — skipping",
                 activity.id_,
             )
-        return activity.id_, activity.model_dump(**_DUMP_KWARGS)
+        return activity.id_, activity.model_dump_json(**_DUMP_KWARGS)
 
     def close_case(
         self,
         case_id: str,
         actor: str,
         to: list[str] | None = None,
-    ) -> tuple[str, dict[str, Any]]:
+    ) -> tuple[str, str]:
         """Create and persist a ``Leave(as_VulnerabilityCase)`` close-case activity."""
         from vultron.wire.as2.factories import rm_close_case_activity
 
@@ -117,14 +117,14 @@ class _CasesMixin:
                 "close_case: activity '%s' already exists — skipping",
                 activity.id_,
             )
-        return activity.id_, activity.model_dump(**_DUMP_KWARGS)
+        return activity.id_, activity.model_dump_json(**_DUMP_KWARGS)
 
     def add_object_to_case(
         self,
         actor: str,
         object_id: str,
         case_id: str,
-    ) -> tuple[str, dict[str, Any]]:
+    ) -> tuple[str, str]:
         """Create and persist an ``Add(object, Case)`` activity."""
         case = _case_for_wire(self._dl, case_id)
         obj = cast(Any, self._dl.read(object_id))
@@ -136,7 +136,7 @@ class _CasesMixin:
                 "add_object_to_case: activity '%s' already exists — skipping",
                 activity.id_,
             )
-        return activity.id_, activity.model_dump(**_DUMP_KWARGS)
+        return activity.id_, activity.model_dump_json(**_DUMP_KWARGS)
 
     def add_case_status_to_case(
         self,
@@ -209,7 +209,7 @@ class _CasesMixin:
                     report_id,
                 )
                 embedded_reports.append(report_ref)
-        case.vulnerability_reports = embedded_reports
+        object.__setattr__(case, "vulnerability_reports", embedded_reports)
         activity = announce_vulnerability_case_activity(
             case=case,
             actor=actor,
@@ -235,7 +235,7 @@ class _CasesMixin:
         to: list[str] | None = None,
         offer_id: str | None = None,
         offer_actor_id: str | None = None,
-    ) -> tuple[str, dict[str, Any]]:
+    ) -> tuple[str, str]:
         """Create and persist a ``Create(as_CaseProposal)`` activity.
 
         Reads the ``as_VulnerabilityReport`` identified by ``report_id``,
@@ -289,4 +289,4 @@ class _CasesMixin:
                 "create_case_proposal: activity '%s' already exists — skipping",
                 activity.id_,
             )
-        return activity.id_, activity.model_dump(**_DUMP_KWARGS)
+        return activity.id_, activity.model_dump_json(**_DUMP_KWARGS)

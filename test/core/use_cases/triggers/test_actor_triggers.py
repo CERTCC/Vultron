@@ -369,7 +369,9 @@ class TestInviteRolesAndEmbargoEnrichment:
         actor, dl = _make_actor_dl("CaseOwner")
         invitee, _ = _make_actor_dl("Invitee")
         dl.create(invitee)
-        case = as_VulnerabilityCase(
+        from vultron.core.models.case import VulnerabilityCase
+
+        case = VulnerabilityCase(
             attributed_to=actor.id_, name="Test Case", content="Content"
         )
         dl.create(case)
@@ -381,7 +383,7 @@ class TestInviteRolesAndEmbargoEnrichment:
             )
             dl.create(embargo)
             case.active_embargo = embargo.id_
-            case.current_status.em_state = EM.ACTIVE
+            case.append_case_status(em_state=EM.ACTIVE)
             dl.save(case)
         elif with_embargo:
             case.active_embargo = f"{case.id_}/embargo/e1"
@@ -455,8 +457,8 @@ class TestInviteRolesAndEmbargoEnrichment:
         dl.create(embargo)
         from vultron.core.states.em import EM
 
-        case.active_embargo = embargo.id_
-        case.current_status.em_state = EM.ACTIVE
+        object.__setattr__(case, "active_embargo", embargo.id_)
+        case.append_case_status(em_state=EM.ACTIVE)
         dl.save(case)
 
         request = InviteActorToCaseTriggerRequest(

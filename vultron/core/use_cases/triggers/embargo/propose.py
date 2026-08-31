@@ -15,6 +15,7 @@
 
 """Embargo proposal trigger use case."""
 
+import json
 import logging
 from typing import cast
 
@@ -56,7 +57,7 @@ class SvcProposeEmbargoUseCase(SvcEmbargoTriggerBase):
                 actor=self._actor_id,
                 to=[case_manager_id],
             )
-            self._captured["activity"] = proposal_dict
+            self._captured["activity"] = json.loads(proposal_dict)
             self._captured["proposal_id"] = proposal_id
             return [proposal_id]
 

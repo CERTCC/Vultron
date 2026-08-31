@@ -96,7 +96,7 @@ class _ReportsMixin:
         actor: str,
         to: str,
         target: str,
-    ) -> tuple[str, dict[str, Any]]:
+    ) -> tuple[str, str]:
         """Create and persist an ``Offer(as_VulnerabilityReport)`` activity."""
         report = _to_wire(self._dl.read(report_id), as_VulnerabilityReport)
         activity = rm_submit_report_activity(
@@ -135,7 +135,7 @@ class _ReportsMixin:
                     activity.id_,
                 )
             raise
-        return activity.id_, activity.model_dump(**_DUMP_KWARGS)
+        return activity.id_, activity.model_dump_json(**_DUMP_KWARGS)
 
     def _resolve_offer(self, offer_id: str) -> Any:
         """Read wire Offer from DL; reconstitute from VultronOfferRecord if absent."""
@@ -150,7 +150,7 @@ class _ReportsMixin:
         report_id: str,
         actor: str,
         to: list[str] | None = None,
-    ) -> tuple[str, dict[str, Any]]:
+    ) -> tuple[str, str]:
         """Create and persist an ``Accept(Offer)`` validate-report activity."""
         offer = self._resolve_offer(offer_id)
         activity = rm_validate_report_activity(offer=offer, actor=actor, to=to)
@@ -161,7 +161,7 @@ class _ReportsMixin:
                 "validate_report: activity '%s' already exists — skipping",
                 activity.id_,
             )
-        return activity.id_, activity.model_dump(**_DUMP_KWARGS)
+        return activity.id_, activity.model_dump_json(**_DUMP_KWARGS)
 
     def close_report(
         self,
@@ -169,7 +169,7 @@ class _ReportsMixin:
         report_id: str,
         actor: str,
         to: list[str] | None = None,
-    ) -> tuple[str, dict[str, Any]]:
+    ) -> tuple[str, str]:
         """Create and persist a ``Reject(Offer)`` close-report activity."""
         offer = self._resolve_offer(offer_id)
         activity = rm_close_report_activity(offer=offer, actor=actor, to=to)
@@ -180,14 +180,14 @@ class _ReportsMixin:
                 "close_report: activity '%s' already exists — skipping",
                 activity.id_,
             )
-        return activity.id_, activity.model_dump(**_DUMP_KWARGS)
+        return activity.id_, activity.model_dump_json(**_DUMP_KWARGS)
 
     def invalidate_report(
         self,
         offer_id: str,
         actor: str,
         to: list[str] | None = None,
-    ) -> tuple[str, dict[str, Any]]:
+    ) -> tuple[str, str]:
         """Create and persist a ``TentativeReject(Offer)`` activity."""
         offer = self._resolve_offer(offer_id)
         activity = rm_invalidate_report_activity(
@@ -200,14 +200,14 @@ class _ReportsMixin:
                 "invalidate_report: activity '%s' already exists — skipping",
                 activity.id_,
             )
-        return activity.id_, activity.model_dump(**_DUMP_KWARGS)
+        return activity.id_, activity.model_dump_json(**_DUMP_KWARGS)
 
     def ack_report(
         self,
         offer_id: str,
         actor: str,
         to: list[str] | None = None,
-    ) -> tuple[str, dict[str, Any]]:
+    ) -> tuple[str, str]:
         """Create and persist a ``Read(Offer(Report))`` ack-report activity."""
         offer = self._resolve_offer(offer_id)
         activity = as_Read(object_=offer, actor=actor, to=to)
@@ -218,4 +218,4 @@ class _ReportsMixin:
                 "ack_report: activity '%s' already exists — skipping",
                 activity.id_,
             )
-        return activity.id_, activity.model_dump(**_DUMP_KWARGS)
+        return activity.id_, activity.model_dump_json(**_DUMP_KWARGS)

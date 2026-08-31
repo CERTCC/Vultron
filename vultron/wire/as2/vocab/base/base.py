@@ -74,7 +74,9 @@ class as_Base(VultronBase):
     @model_validator(mode="after")
     def set_type_from_class_name(self):
         if self.type_ is None:
-            self.type_ = self.__class__.__name__.lstrip("as_")
+            object.__setattr__(
+                self, "type_", self.__class__.__name__.lstrip("as_")
+            )
         return self
 
     def to_json(self, **kwargs):

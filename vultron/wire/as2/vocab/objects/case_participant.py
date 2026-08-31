@@ -143,9 +143,9 @@ class as_CaseParticipant(VultronAS2Object):
             return self
 
         if hasattr(self.attributed_to, "name"):
-            self.name = self.attributed_to.name
+            object.__setattr__(self, "name", self.attributed_to.name)
         else:
-            self.name = str(self.attributed_to)
+            object.__setattr__(self, "name", str(self.attributed_to))
 
         return self
 
@@ -156,26 +156,21 @@ class as_CaseParticipant(VultronAS2Object):
             return self
 
         # participant status is empty, so initialize it with a default status
-        self.participant_statuses = [
-            as_ParticipantStatus(
-                context=self.context or self.id_,
-                attributed_to=self.attributed_to,
-                em_consent_state=coerce_em_consent_state(
-                    self.embargo_consent_state
+        object.__setattr__(
+            self,
+            "participant_statuses",
+            [
+                as_ParticipantStatus(
+                    context=self.context or self.id_,
+                    attributed_to=self.attributed_to,
+                    em_consent_state=coerce_em_consent_state(
+                        self.embargo_consent_state
+                    ),
+                    cvd_role=coerce_cvd_roles(self.case_roles),
                 ),
-                cvd_role=coerce_cvd_roles(self.case_roles),
-            ),
-        ]
-        return self
-
-    def _sync_latest_status_metadata(self) -> None:
-        if not self.participant_statuses:
-            return
-        latest = self.participant_statuses[-1]
-        latest.cvd_role = coerce_cvd_roles(self.case_roles)
-        latest.em_consent_state = coerce_em_consent_state(
-            self.embargo_consent_state
+            ],
         )
+        return self
 
     @property
     def participant_status(self) -> as_ParticipantStatus | None:
@@ -231,68 +226,6 @@ class as_CaseParticipant(VultronAS2Object):
             )
         )
         return True
-
-    def add_role(
-        self, role: CVDRole, raise_when_present: bool = False
-    ) -> None:
-        """Add a role to the participant.
-
-        Idempotent when role already exists. Raises ``KeyError`` when
-        ``raise_when_present=True`` and the role is already present.
-
-        Args:
-            role: CVD role to add.
-            raise_when_present: when True, raise KeyError if role already held.
-
-        Raises:
-            KeyError: when raise_when_present is True and role already present.
-        """
-        roles = set(self.case_roles)
-        if role not in roles:
-            roles.add(role)
-        else:
-            logger.info(
-                "Attempted to add role %s to participant %s, but role was already present",
-                role,
-                self,
-            )
-            if raise_when_present:
-                raise KeyError(
-                    f"Role {role} was already present in participant.case_roles"
-                )
-        self.case_roles = list(roles)
-        self._sync_latest_status_metadata()
-
-    def remove_role(
-        self, role: CVDRole, raise_when_missing: bool = False
-    ) -> None:
-        """Remove a role from the participant.
-
-        Idempotent when role does not exist. Raises ``KeyError`` when
-        ``raise_when_missing=True`` and the role is not held.
-
-        Args:
-            role: CVD role to remove.
-            raise_when_missing: when True, raise KeyError if role not present.
-
-        Raises:
-            KeyError: when raise_when_missing is True and role not present.
-        """
-        roles = set(self.case_roles)
-        if role in roles:
-            roles.remove(role)
-        else:
-            logger.info(
-                "Attempted to remove role %s from participant %s, but role was not present",
-                role,
-                self,
-            )
-            if raise_when_missing:
-                raise KeyError(
-                    f"Role {role} was not present to delete from participant.case_roles"
-                )
-        self.case_roles = list(roles)
-        self._sync_latest_status_metadata()
 
     def has_role(self, role: CVDRole) -> bool:
         """Return True when the participant holds the given role."""

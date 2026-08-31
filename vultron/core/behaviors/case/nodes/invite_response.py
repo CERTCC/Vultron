@@ -49,7 +49,7 @@ class EmitAcceptCaseInviteNode(_EmitSingleActivityBase):
         super().__init__(captured=captured, name=name)
         self.invite_id = invite_id
 
-    def _call_factory(self) -> tuple[str, dict]:
+    def _call_factory(self) -> tuple[str, str]:
         assert self.trigger_activity_factory is not None
         assert self.actor_id is not None
         return self.trigger_activity_factory.accept_case_invite(
@@ -57,7 +57,7 @@ class EmitAcceptCaseInviteNode(_EmitSingleActivityBase):
             actor=self.actor_id,
         )
 
-    def _on_success(self, activity_id: str, activity_dict: dict) -> None:
+    def _on_success(self, activity_id: str, activity_blob: str) -> None:
         self.logger.info(
             "Actor '%s' accepted case invite '%s'",
             self.actor_id,
@@ -81,7 +81,7 @@ class EmitRejectCaseInviteNode(_EmitSingleActivityBase):
         super().__init__(captured=captured, name=name)
         self.invite_id = invite_id
 
-    def _call_factory(self) -> tuple[str, dict]:
+    def _call_factory(self) -> tuple[str, str]:
         assert self.trigger_activity_factory is not None
         assert self.actor_id is not None
         return self.trigger_activity_factory.reject_case_invite(
@@ -89,7 +89,7 @@ class EmitRejectCaseInviteNode(_EmitSingleActivityBase):
             actor=self.actor_id,
         )
 
-    def _on_success(self, activity_id: str, activity_dict: dict) -> None:
+    def _on_success(self, activity_id: str, activity_blob: str) -> None:
         self.logger.info(
             "Actor '%s' rejected case invite '%s'",
             self.actor_id,

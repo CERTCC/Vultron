@@ -56,7 +56,8 @@ from vultron.core.use_cases.received.status import (
     AddCaseStatusToCaseReceivedUseCase,
 )
 from vultron.wire.as2.factories import add_status_to_case_activity
-from vultron.wire.as2.vocab.objects.case_participant import as_CaseParticipant
+from vultron.core.models.case import VulnerabilityCase
+from vultron.core.models.case_participant import CaseParticipant
 from vultron.wire.as2.vocab.objects.case_status import as_CaseStatus
 from vultron.wire.as2.vocab.objects.embargo_event import as_EmbargoEvent
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
@@ -301,10 +302,12 @@ class TestAddCaseStatusTree:
         ThreatTerminationBranchNode.  Per-dimension adjudication must accept
         the EM advance and carry the current PXA forward.
         """
-        case = as_VulnerabilityCase(id_=CASE_ID, name="EM PXA Split")
-        # The case auto-seeds an initial CaseStatus (pxa=pxa by default).
-        # Set PXA=Pxa so the asserted pxa=pxa is a real regression.
-        cast(as_CaseStatus, case.case_statuses[0]).pxa_state = CS_pxa.Pxa
+        case = VulnerabilityCase(
+            id_=CASE_ID, name="EM PXA Split", attributed_to=ACTOR_ID
+        )
+        # Auto-seeded CaseStatus has pxa=pxa; advance pxa to Pxa so that
+        # the asserted pxa=pxa from the sender is a real regression.
+        case.append_case_status(pxa_state=CS_pxa.Pxa)
         dl.create(case)
 
         # Sender asserts EM NONE→PROPOSED (valid) + PXA Pxa→pxa (stale regression)
@@ -317,7 +320,7 @@ class TestAddCaseStatusTree:
         dl.create(asserted)
 
         activity = add_status_to_case_activity(
-            asserted, target=case, actor=ACTOR_ID
+            asserted, target=case.id_, actor=ACTOR_ID
         )
         event = make_payload(activity)
 
@@ -500,7 +503,7 @@ class TestThreatTerminationBranchNode:
 
     def _make_status_with_pxa(self, pxa_state: CS_pxa) -> as_CaseStatus:
         s = as_CaseStatus(id_=STATUS_ID, context=CASE_ID)
-        s.pxa_state = pxa_state
+        object.__setattr__(s, "pxa_state", pxa_state)
         return s
 
     def _setup_dl_with_embargo(self, dl, pxa_state: CS_pxa):
@@ -508,19 +511,21 @@ class TestThreatTerminationBranchNode:
         from vultron.enums.roles import CVDRole
 
         # ResolveCaseManagerNode requires a CASE_MANAGER participant in the case.
-        cm_participant = as_CaseParticipant(
+        cm_participant = CaseParticipant(
             id_=CM_PARTICIPANT_ID,
             context=CASE_ID,
             attributed_to=CASE_MANAGER_ID,
             case_roles=[CVDRole.CASE_MANAGER],
         )
-        case = as_VulnerabilityCase(id_=CASE_ID, name="ThreatTerm Case")
+        case = VulnerabilityCase(
+            id_=CASE_ID, name="ThreatTerm Case", attributed_to=ACTOR_ID
+        )
         case.add_participant(cm_participant)
         embargo = as_EmbargoEvent(
             id_=f"{CASE_ID}/embargo_events/e1", context=CASE_ID
         )
         case.active_embargo = embargo.id_
-        case.current_status.em_state = EM.ACTIVE
+        case.append_case_status(em_state=EM.ACTIVE)
         dl.create(case)
         dl.create(cm_participant)
         dl.create(embargo)
@@ -672,17 +677,19 @@ class TestAddCaseStatusTreeSeam2:
         embargo = as_EmbargoEvent(
             id_=f"{CASE_ID}/embargo_events/e1", context=CASE_ID
         )
-        cm_participant = as_CaseParticipant(
+        cm_participant = CaseParticipant(
             id_=f"{CASE_ID}/participants/cm",
             context=CASE_ID,
             attributed_to=CASE_MANAGER_ID,
             case_roles=[CVDRole.CASE_MANAGER],
         )
         # Build case with ACTIVE em_state before storing in DataLayer
-        case = as_VulnerabilityCase(id_=CASE_ID, name="Seam2 Guard Case")
+        case = VulnerabilityCase(
+            id_=CASE_ID, name="Seam2 Guard Case", attributed_to=CASE_MANAGER_ID
+        )
         case.add_participant(cm_participant)
         case.active_embargo = embargo.id_
-        case.current_status.em_state = EM.ACTIVE
+        case.append_case_status(em_state=EM.ACTIVE)
         status_obj = as_CaseStatus(
             id_=STATUS_ID, context=CASE_ID, pxa_state=CS_pxa.Pxa
         )
@@ -692,7 +699,7 @@ class TestAddCaseStatusTreeSeam2:
         dl.create(status_obj)
 
         activity = add_status_to_case_activity(
-            status_obj, target=case, actor=ACTOR_ID
+            status_obj, target=case.id_, actor=ACTOR_ID
         )
         event = cast(AddCaseStatusToCaseReceivedEvent, extract_event(activity))
 
@@ -768,7 +775,7 @@ class TestRegressionCSPTeardownPath:
         from vultron.enums.roles import CVDRole
 
         dl = SqliteDataLayer("sqlite:///:memory:", actor_id=manager_id)
-        cm_participant = as_CaseParticipant(
+        cm_participant = CaseParticipant(
             id_=f"{CASE_ID}/participants/cm",
             context=CASE_ID,
             attributed_to=manager_id,
@@ -777,10 +784,12 @@ class TestRegressionCSPTeardownPath:
         embargo = as_EmbargoEvent(
             id_=f"{CASE_ID}/embargo_events/e1", context=CASE_ID
         )
-        case = as_VulnerabilityCase(id_=CASE_ID, name="Regression Case")
+        case = VulnerabilityCase(
+            id_=CASE_ID, name="Regression Case", attributed_to=manager_id
+        )
         case.add_participant(cm_participant)
         case.active_embargo = embargo.id_
-        case.current_status.em_state = EM.ACTIVE
+        case.append_case_status(em_state=EM.ACTIVE)
         dl.create(case)
         dl.create(cm_participant)
         dl.create(embargo)
@@ -851,12 +860,12 @@ class TestRegressionCSPTeardownPath:
         dl_old.save(case_old)
 
         cs_old = as_CaseStatus()
-        cs_old.pxa_state = CS_pxa.Pxa
+        object.__setattr__(cs_old, "pxa_state", CS_pxa.Pxa)
         ps_with_cs = as_ParticipantStatus(
             id_=f"{CASE_ID}/participants/vendor/statuses/s1",
             context=CASE_ID,
         )
-        ps_with_cs.case_status = cs_old
+        object.__setattr__(ps_with_cs, "case_status", cs_old)
 
         old_node = PublicDisclosureBranchNode(
             status_obj=ps_with_cs,
@@ -910,7 +919,7 @@ class TestCaseLedgerEntryCreation:
         dl = SqliteDataLayer(
             "sqlite:///:memory:", actor_id=CASE_MANAGER_ID_2254
         )
-        cm_participant = as_CaseParticipant(
+        cm_participant = CaseParticipant(
             id_=CM_PARTICIPANT_ID_2254,
             context=CASE_ID,
             attributed_to=CASE_MANAGER_ID_2254,
@@ -918,7 +927,7 @@ class TestCaseLedgerEntryCreation:
         )
         # attributed_to seeds the per-case genesis hash (CLP-08-003); without
         # it the guarded commit cannot anchor a hash chain.
-        case = as_VulnerabilityCase(
+        case = VulnerabilityCase(
             id_=CASE_ID,
             name="Ledger Test Case",
             attributed_to=CASE_MANAGER_ID_2254,

@@ -57,17 +57,21 @@ class _FakeTriggerFactory:
         context_id: str,
         attributed_to: str,
         in_reply_to: str | None,
-    ) -> tuple[str, dict]:
+    ) -> tuple[str, str]:
+        import json
+
         return (
             NOTE_ID,
-            {
-                "id": NOTE_ID,
-                "name": name,
-                "content": content,
-                "context": context_id,
-                "attributedTo": attributed_to,
-                "inReplyTo": in_reply_to or "",
-            },
+            json.dumps(
+                {
+                    "id": NOTE_ID,
+                    "name": name,
+                    "content": content,
+                    "context": context_id,
+                    "attributedTo": attributed_to,
+                    "inReplyTo": in_reply_to or "",
+                }
+            ),
         )
 
 
@@ -101,14 +105,22 @@ def _make_case_with_case_manager(
         context=case.id_,
     )
     case_manager_participant.add_role(CVDRole.CASE_MANAGER)
-    case.case_participants = [
-        finder_participant.id_,
-        case_manager_participant.id_,
-    ]
-    case.actor_participant_index = {
-        actor_id: finder_participant.id_,
-        CASE_ACTOR_ID: case_manager_participant.id_,
-    }
+    object.__setattr__(
+        case,
+        "case_participants",
+        [
+            finder_participant.id_,
+            case_manager_participant.id_,
+        ],
+    )
+    object.__setattr__(
+        case,
+        "actor_participant_index",
+        {
+            actor_id: finder_participant.id_,
+            CASE_ACTOR_ID: case_manager_participant.id_,
+        },
+    )
     store.create(case)
     store.create(finder_participant)
     store.create(case_manager_participant)
@@ -210,8 +222,10 @@ class TestAddNoteToCaseTriggerBT:
             attributed_to=actor.id_,
             context=case.id_,
         )
-        case.case_participants = [participant.id_]
-        case.actor_participant_index = {actor.id_: participant.id_}
+        object.__setattr__(case, "case_participants", [participant.id_])
+        object.__setattr__(
+            case, "actor_participant_index", {actor.id_: participant.id_}
+        )
         store.create(case)
         store.create(participant)
         result_out: dict = {}

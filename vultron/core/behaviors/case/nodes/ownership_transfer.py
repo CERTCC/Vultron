@@ -74,7 +74,7 @@ class EmitOfferCaseOwnershipTransferNode(_EmitSingleActivityBase):
         self.content = content
         self.attributed_to = attributed_to
 
-    def _call_factory(self) -> tuple[str, dict]:
+    def _call_factory(self) -> tuple[str, str]:
         assert self.trigger_activity_factory is not None
         assert self.actor_id is not None
         assert self.datalayer is not None
@@ -93,7 +93,7 @@ class EmitOfferCaseOwnershipTransferNode(_EmitSingleActivityBase):
             attributed_to=self.attributed_to,
         )
 
-    def _on_success(self, activity_id: str, activity_dict: dict) -> None:
+    def _on_success(self, activity_id: str, activity_blob: str) -> None:
         self.logger.info(
             "Actor '%s' offered case ownership transfer for case '%s' to '%s'",
             self.actor_id,
@@ -121,7 +121,7 @@ class EmitAcceptCaseOwnershipTransferNode(_EmitSingleActivityBase):
         self.offer_id = offer_id
         self.case_id = case_id
 
-    def _call_factory(self) -> tuple[str, dict]:
+    def _call_factory(self) -> tuple[str, str]:
         assert self.trigger_activity_factory is not None
         assert self.actor_id is not None
         assert self.datalayer is not None
@@ -137,7 +137,7 @@ class EmitAcceptCaseOwnershipTransferNode(_EmitSingleActivityBase):
             to=case_actor_id,
         )
 
-    def _on_success(self, activity_id: str, activity_dict: dict) -> None:
+    def _on_success(self, activity_id: str, activity_blob: str) -> None:
         self.logger.info(
             "Actor '%s' accepted case ownership transfer offer '%s'",
             self.actor_id,

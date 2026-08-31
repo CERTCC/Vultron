@@ -506,17 +506,24 @@ class TestEmitInviteActorToCaseNodePassesRolesNoneToFactory:
         )
         dl.create(case)
 
+        import json
+
         mock_factory = MagicMock(spec=TriggerActivityAdapter)
         mock_factory.invite_actor_to_case.return_value = (
             "urn:uuid:ac2-invite-001",
-            {
-                "id_": "urn:uuid:ac2-invite-001",
-                "type": "Invite",
-                "actor": ACTOR_ID,
-                "object_": {"type": "CoreActor", "id_": INVITEE_ID},
-                "target": {"type": "VulnerabilityCase", "id_": AC3_CASE_ID},
-                "context": AC3_CASE_ID,
-            },
+            json.dumps(
+                {
+                    "id_": "urn:uuid:ac2-invite-001",
+                    "type": "Invite",
+                    "actor": ACTOR_ID,
+                    "object_": {"type": "CoreActor", "id_": INVITEE_ID},
+                    "target": {
+                        "type": "VulnerabilityCase",
+                        "id_": AC3_CASE_ID,
+                    },
+                    "context": AC3_CASE_ID,
+                }
+            ),
         )
 
         bridge = BTBridge(datalayer=dl, trigger_activity=mock_factory)

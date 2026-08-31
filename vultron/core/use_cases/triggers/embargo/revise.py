@@ -15,6 +15,7 @@
 
 """Embargo revision proposal trigger use case."""
 
+import json
 import logging
 from typing import cast
 
@@ -58,7 +59,7 @@ class SvcProposeEmbargoRevisionUseCase(SvcEmbargoTriggerBase):
                 actor=self._actor_id,
                 to=[case_manager_id],
             )
-            self._captured["activity"] = proposal_dict
+            self._captured["activity"] = json.loads(proposal_dict)
             return [proposal_id]
 
         return propose_embargo_revision_trigger_bt(

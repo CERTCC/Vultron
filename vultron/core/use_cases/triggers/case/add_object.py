@@ -60,7 +60,7 @@ class SvcAddObjectToCaseUseCase(SvcBTTriggerBase):
             raise VultronNotFoundError("AS2Object", self._object_id)
 
     def _build_tree(self) -> py_trees.behaviour.Behaviour:
-        def _build_activity() -> tuple[str, dict[str, Any]]:
+        def _build_activity() -> tuple[str, str]:
             return self._factory.add_object_to_case(
                 actor=self._actor_id,
                 object_id=self._object_id,
