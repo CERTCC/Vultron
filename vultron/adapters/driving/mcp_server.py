@@ -17,8 +17,8 @@
 
 Nothing here works, and nothing imports it. The intent is only the
 placeholder ambition "someday the Vultron service should speak MCP (Model
-Context Protocol) so that coordination agents can drive trigger use cases as
-tools". No design work has been done: no transport, no tool schemas, no
+Context Protocol) so that capability implementations can drive trigger use cases
+as tools". No design work has been done: no transport, no tool schemas, no
 authentication, and no answer to the question below.
 
 Per OX-10-004 / OX-11-004 this raises :class:`NotImplementedError` rather than
