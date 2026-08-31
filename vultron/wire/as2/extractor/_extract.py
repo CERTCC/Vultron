@@ -10,7 +10,7 @@ registry lookup automatically, use ``vultron.semantic_registry.extract_event``.
 """
 
 import logging
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 from vultron.core.models.events import MessageSemantics, VultronEvent
 from vultron.wire.as2.extractor._builders import (
@@ -29,6 +29,7 @@ def extract_intent(
     semantics: MessageSemantics,
     event_class: type[VultronEvent],
     include_activity: bool = False,
+    min_rsvp_window: timedelta = _DEFAULT_MIN_RSVP_WINDOW,
 ) -> VultronEvent:
     """Extract domain fields from an AS2 activity given pre-computed semantics.
 
@@ -46,6 +47,10 @@ def extract_intent(
         event_class: Concrete ``VultronEvent`` subclass to instantiate.
         include_activity: When ``True``, populate ``event.activity`` with a
             summarised ``VultronActivity`` snapshot of the outer activity.
+        min_rsvp_window: Floor applied when clamping a sub-floor inbound
+            ``end_time`` (EP-07-003). Defaults to ``_DEFAULT_MIN_RSVP_WINDOW``
+            (72 h). Pass ``ActorConfig.min_rsvp_window`` from the caller to
+            apply the actor-configured floor.
 
     Returns:
         A concrete VultronEvent subclass discriminated by MessageSemantics.
@@ -77,14 +82,19 @@ def extract_intent(
 
     # AC-2/AC-3/AC-5 (issue #2211): extract activity-level end_time as
     # rsvp_deadline for event classes that carry it.  Applies UTC normalization
-    # and clamps sub-floor values up to the default minimum window (EP-07-003).
+    # and clamps sub-floor values up to the configured minimum window (EP-07-003).
     if "rsvp_deadline" in event_class.model_fields:
         raw_end_time = getattr(activity, "end_time", None)
-        if (
-            isinstance(raw_end_time, datetime)
-            and raw_end_time.tzinfo is not None
-        ):
-            floor = datetime.now(tz=timezone.utc) + _DEFAULT_MIN_RSVP_WINDOW
+        if isinstance(raw_end_time, datetime) and raw_end_time.tzinfo is None:
+            # CM-28-006: naive end_time MUST be rejected as malformed.
+            logger.warning(
+                "extract_intent: inbound end_time %r on activity %s is"
+                " naive (no timezone); rejected as malformed (CM-28-006)",
+                raw_end_time.isoformat(),
+                getattr(activity, "id_", "<unknown>"),
+            )
+        elif isinstance(raw_end_time, datetime):
+            floor = datetime.now(tz=timezone.utc) + min_rsvp_window
             if raw_end_time < floor:
                 logger.info(
                     "extract_intent: inbound rsvp_deadline %s is below floor"

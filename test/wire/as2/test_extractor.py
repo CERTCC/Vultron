@@ -396,3 +396,53 @@ def test_invite_rsvp_deadline_none_when_naive_end_time():
 
     assert hasattr(event, "rsvp_deadline")
     assert cast(Any, event).rsvp_deadline is None
+
+
+@pytest.mark.spec("CM-28-006")
+def test_invite_rsvp_deadline_warns_when_naive_end_time(caplog):
+    """CM-28-006: naive end_time MUST be logged as malformed, not silently dropped."""
+    import logging
+
+    naive_deadline = datetime.now() + timedelta(days=5)  # no tzinfo
+    invite = _make_embargo_invite(end_time=naive_deadline)
+
+    with caplog.at_level(
+        logging.WARNING, logger="vultron.wire.as2.extractor._extract"
+    ):
+        caplog.clear()
+        event = extract_event(invite)
+
+    assert cast(Any, event).rsvp_deadline is None
+    warning_msgs = [
+        r.message for r in caplog.records if r.levelno >= logging.WARNING
+    ]
+    assert any(
+        "naive" in msg.lower() or "malformed" in msg.lower()
+        for msg in warning_msgs
+    ), f"Expected a warning about naive/malformed end_time; got: {warning_msgs}"
+
+
+@pytest.mark.spec("EP-07-003")
+def test_invite_rsvp_deadline_clamped_uses_custom_min_rsvp_window():
+    """EP-07-003: extract_intent uses the caller-supplied min_rsvp_window for clamping."""
+    from vultron.wire.as2.extractor._extract import extract_intent
+    from vultron.semantic_registry import find_matching_semantics, lookup_entry
+
+    # deadline 5 days out: above 72 h default floor, but below 10-day custom floor
+    deadline = datetime.now(tz=timezone.utc) + timedelta(days=5)
+    invite = _make_embargo_invite(end_time=deadline)
+
+    semantics = find_matching_semantics(invite)
+    entry = lookup_entry(semantics)
+    event = extract_intent(
+        invite,
+        semantics=semantics,
+        event_class=entry.event_class,
+        include_activity=entry.include_activity,
+        min_rsvp_window=timedelta(days=10),
+    )
+
+    ev = cast(Any, event)
+    assert ev.rsvp_deadline is not None
+    # Clamped to 10-day floor — must be strictly greater than 5-day deadline
+    assert ev.rsvp_deadline > deadline.astimezone(timezone.utc)

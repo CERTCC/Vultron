@@ -109,7 +109,7 @@ def em_propose_embargo_activity(
                 f" {rsvp_deadline.isoformat()} is below the minimum"
                 f" window floor {floor.isoformat()} (EP-07-002)"
             )
-        kwargs.setdefault("end_time", rsvp_deadline)
+        kwargs["end_time"] = rsvp_deadline
     try:
         return _EmProposeEmbargoActivity(
             object_=embargo, context=context, **kwargs
