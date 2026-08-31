@@ -80,9 +80,11 @@ Input: one or more leaf issue numbers that currently have no parent (or whose
 parent is wrong). Goal: land each on the epic that matches it.
 
 1. **Load the forest.** List open epics with their Schedule tier (see
-   *Reading the board* below). Read each candidate epic's summary and, when
-   the match is not obvious, its existing children — you are matching against
-   what the epic *is about*, not its title alone.
+   *Reading the board* below). The query MUST filter for `state == "OPEN"` —
+   closed epics remain on the project board with their Schedule tier visible
+   and MUST NOT be used as routing targets. Read each candidate epic's summary
+   and, when the match is not obvious, its existing children — you are matching
+   against what the epic *is about*, not its title alone.
 
 2. **Match by grain, not by keyword.** Ask which epic's design idea this issue
    advances. A protocol-correctness bug belongs with protocol correctness even
@@ -170,9 +172,10 @@ Recognized events (each requires human confirmation before any mutation):
 
 Procedure:
 
-1. Build the current picture: every open epic, its Schedule tier, its parent
-   (sub-epics exist), and its open children. Diagnose where the grain and the
-   current cuts disagree.
+1. Build the current picture: every **open** epic (state == "OPEN" only —
+   closed epics MUST be excluded even when they still appear on the board),
+   its Schedule tier, its parent (sub-epics exist), and its open children.
+   Diagnose where the grain and the current cuts disagree.
 2. Propose the target crystals to the user as a small set of decision forks
    (`AskUserQuestion`), each naming the design idea of a proposed epic and what
    moves into it. Confirm tiers explicitly.
@@ -207,11 +210,42 @@ query($owner:String!){
 
 ```bash
 # Open epics with their Schedule tier
-gh project item-list 24 --owner CERTCC --format json --limit 300 \
-| jq -r '.items[] | select(.content.type=="Issue")
-         | [( .content.number|tostring), (.schedule // "-"), .content.title]
-         | @tsv'
-# Cross-reference issueType via GraphQL to keep only Epic-type items.
+# Uses GraphQL to filter state=="OPEN" and issueType=="Epic" in one pass.
+# gh project item-list does not expose state; a GraphQL query is required.
+PROJECT_ID=$(bash .agents/skills/shared/board-id.sh project)
+gh api graphql --jq '
+  .data.node.items.nodes[]
+  | select(
+      .content.state == "OPEN" and
+      .content.issueType.name == "Epic"
+    )
+  | [(.content.number|tostring),
+     ((.fieldValues.nodes[]
+       | select(.field.name == "Schedule")
+       | .name) // "-"),
+     .content.title]
+  | @tsv
+' -f query='{
+  node(id: "'"$PROJECT_ID"'") {
+    ... on ProjectV2 {
+      items(first: 100) {
+        nodes {
+          content {
+            ... on Issue {
+              number title state
+              issueType { name }
+            }
+          }
+          fieldValues(first: 10) { nodes {
+            ... on ProjectV2ItemFieldSingleSelectValue {
+              name field { ... on ProjectV2SingleSelectField { name } }
+            }
+          }}
+        }
+      }
+    }
+  }
+}'
 ```
 
 To read an issue's current parent and an epic's open children, use the
