@@ -81,6 +81,24 @@ seam that requires Case Owner approval.
 ("is this action approved?"). The internal Offer/Accept/Reject mechanics are
 an implementation detail of the default backend, not a property of the seam.
 
+> **Amended by ADR-0080 (2026-08-31).** The capability-shape assignment above is
+> **incorrect**, and the deny-always stub that satisfied this ADR is the symptom.
+> At the moment authorization is first needed no answer exists, so an Evaluator
+> asked "is this approved?" can only ever answer *no* — which is exactly what
+> `RequireCaseOwnerApprovalNode` does. The round-trip is therefore not an
+> implementation detail hidden behind an Evaluator seam; it determines the shape
+> of the seam. Each gate is a **conversation-state routing subtree**
+> (ASK-02-001, RSH-07-004): it routes on whether authorization has been recorded,
+> refused, requested-and-outstanding, or never requested, and in the last case
+> emits the request and terminates successfully — `SUCCESS` meaning *I asked*.
+>
+> The conservative-default requirement this ADR establishes is **unchanged**, and
+> so is the project-wide floor rule for security-significant call-out points.
+> What changes is that the conservative default is now reachable: before ADR-0080
+> the model specified here was unimplementable by any pathway (CONCERN-2812).
+> See also RSH-07-005 — a blocked gate must not be unblocked by configuring the
+> permissive backend.
+
 **Scope of the conservative-default rule:** This decision establishes a
 project-wide exception to ADR-0025's ceiling/floor rule. For any call-out
 point whose permissive default enables unilateral state change or embargo

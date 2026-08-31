@@ -255,9 +255,24 @@ represented as **fuzzer nodes** — nodes that return a random success or
 failure to simulate the uncertain outcome of a real-world decision. The PRNG
 roll stands in for the actual information the actor would need.
 
-In the prototype, external decision nodes are placeholders that return
-`RUNNING` until the required input arrives via a trigger endpoint or inbox
-message.
+In the prototype, an external decision node **requests the input it needs and
+terminates**. It does not return `RUNNING` and it does not wait: EDF-04-002
+forbids that (reversed by ADR-0080), and the framework could never have honoured
+it — `BTBridge.execute_tree` treats root `RUNNING` as "keep ticking", exhausts
+its iteration budget, logs `ERROR`, returns `FAILURE`, and then discards the tree
+in `finally: bt.shutdown()`, so there is no instance left to resume. No node in
+`vultron/` returns `Status.RUNNING`.
+
+The required input arrives later as a trigger invocation or an inbox message,
+and its arrival drives a **fresh** evaluation (EDF-04-003) whose first act is to
+determine where the exchange stands (ASK-02-001). Where the input is another
+actor's decision, this is the protocol-ask primitive: emit the ask, terminate
+with `SUCCESS` meaning *I asked* (ASK-01-002), and let the reply start new work.
+See [protocol-asks.md](protocol-asks.md) and ADR-0080.
+
+A terminal status with **no request emitted** is the silent failure EDF-04-005
+forbids — the emitted request is the observable that distinguishes "asked and
+waiting" from "gave up".
 
 ### Candidates for Future Automation
 
@@ -300,7 +315,7 @@ step that should be automated.
 | Cascade scope | Always within a single actor | Simplifies reasoning; each actor owns its own state machine |
 | Cascade mechanism | BT subtrees only | BT structure is the auditable, explainable record of what happened |
 | Outbox emissions | BT leaf-node actions | Keeps the full causal chain visible in the tree |
-| External stops | Explicit `RUNNING` nodes | Absence of code is invisible; explicit nodes document the intent |
+| External stops | Explicit ask-and-terminate nodes | Absence of code is invisible; an emitted request documents the intent and is observable (EDF-04-002, ASK-01-002) |
 | Demo role | Inject primary events + verify state | Demos prove protocol correctness, not API accessibility |
 | Queue/worker model | Conceptual only (no broker) | Preserves future optionality without over-engineering the prototype |
 
@@ -362,15 +377,25 @@ class SuggestActorReceivedUseCase:
 ```
 
 ```python
-# ✅ CORRECT — BT runs, external decision node pauses for owner input
+# ✅ CORRECT — BT runs, routes on conversation state, asks and terminates
 class SuggestActorReceivedUseCase:
     def execute(self) -> None:
         _idempotent_create(self._request)
-        tree = create_suggest_actor_tree(...)
+        tree = create_recommend_actor_to_case_received_tree(...)
         bridge.execute_with_setup(tree, actor_id=case_owner_id)
-        # tree contains AwaitCaseOwnerDecisionNode that returns RUNNING
-        # until the owner responds via trigger or inbox
+        # The tree's Selector routes on where the exchange stands — already a
+        # participant / invite in flight / owner asked and unanswered / fresh —
+        # reading open/closed state from the ledger via find_protocol_pair.
+        # The fresh branch emits Offer(CaseParticipant) to the owner and returns
+        # SUCCESS, meaning "I asked". Nothing returns RUNNING and nothing waits;
+        # the owner's Accept or Reject arrives as its own inbound message and
+        # drives its own tree.
 ```
+
+`create_recommend_actor_to_case_received_tree`
+(`vultron/core/behaviors/case/suggest_actor_tree.py`, ADR-0026 / CM-16) is the
+working reference implementation of this shape — see
+[protocol-asks.md](protocol-asks.md), which describes generalising it.
 
 ---
 

@@ -19,6 +19,7 @@ nav:
       - Interoperability: 'topics/background/interoperability.md'
       - Defining CVD Success: 'topics/background/cvd_success.md'
     - The Case Model: 'topics/case_model.md'
+    - Protocol Event Flow: 'topics/protocol_flow.md'
     - Process Models:
       - 'topics/process_models/index.md'
       - Report Management:
@@ -314,6 +315,7 @@ nav:
       - 'Scope Ledger Replication Mechanics to a Companion Spec; Single-Hub Fan-Out Is Normative': 'adr/0077-ledger-replication-companion-spec.md'
       - "Retire CVDRole.FINDER — Reporter Is the Protocol-Salient Role": 'adr/0078-retire-finder-role.md'
       - 'CaseLedger Causal Ordering: CaseActor Observation Order Is the Canonical Causal Order': 'adr/0079-case-ledger-causal-ordering.md'
+      - 'Asking Permission Is a Protocol Message, Not a Suspended Behavior': 'adr/0080-protocol-asks-not-suspended-behaviors.md'
   - About:
     - Contributing: 'about/contributing.md'
     - FAQ: 'about/faq.md'

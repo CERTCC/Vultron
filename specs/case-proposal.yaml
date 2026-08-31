@@ -304,13 +304,51 @@ groups:
     lint_suppress:
     - missing_story_reference
   - id: CP-05-006
-    priority: SHOULD
+    priority: MUST
     kind: protocol
-    statement: 'The case-actor service SHOULD handle duplicate `Create(as_CaseProposal)` idempotently: if a proposal for the
-      same report has already been accepted and a `VulnerabilityCase` created, it SHOULD respond with a new `Accept(as_CaseProposal)`
-      referencing the existing `VulnerabilityCase` rather than creating a second one.'
-    rationale: Network retries and at-least-once delivery semantics mean the vendor may resend the proposal. Idempotent handling
-      prevents duplicate cases.
+    statement: 'The case-actor service MUST handle duplicate `Create(as_CaseProposal)` idempotently: if a proposal for the
+      same report has already been accepted, it MUST re-send the stored `Accept(as_CaseProposal)` unchanged, with its
+      original identifier, and MUST NOT create a second `VulnerabilityCase`.'
+    rationale: >-
+      A duplicate proposal is the only signal the case-actor gets that its acceptance
+      was lost, so answering it is the recovery path CONCERN-2367 found missing.
+      Re-sending the frozen original (VM-08-003) reads as the first acceptance arriving
+      late; a *new* `Accept` is indistinguishable from a second, independent decision,
+      which CP-05-005's irrevocability rule precludes.
+    note: >-
+      Raised from SHOULD to MUST and changed from "a new Accept" to the stored original
+      by ADR-0080 (CONCERN-2367).
+    verification: A duplicate `Create(as_CaseProposal)` after acceptance produces an outbound `Accept(as_CaseProposal)`
+      identical to the stored original including its `id`, and no second `VulnerabilityCase`.
+    adr:
+    - ADR-0080
+    relationships:
+    - rel_type: refines
+      spec_id: ASK-08-001
+    lint_suppress:
+    - missing_story_reference
+  - id: CP-05-007
+    priority: MUST
+    kind: protocol
+    statement: A vendor that has sent `Create(as_CaseProposal)` and received neither `Accept(as_CaseProposal)` nor
+      `Reject(as_CaseProposal)` by the proposal's deadline MUST treat the proposal as expired and MUST NOT continue waiting
+      indefinitely.
+    rationale: >-
+      CONCERN-2367 found that a silently lost `Accept` stalls the handshake
+      permanently, because no party holds a timeout. The proposal is an ask
+      (ASK-01-001), so it carries a deadline (ASK-03-004) and sits in the vendor's
+      outstanding-ask register (ASK-04-001), which is actor-scoped and therefore works
+      before a case exists. Re-proposal is a later decision, not an automatic retry
+      (ASK-05-004) — and it is also what lets the case-actor recover (CP-05-006).
+    verification: With no reply recorded past the proposal's deadline, the vendor's proposal register entry is expired and
+      the vendor emits no further activity until a behaviour decides to re-propose.
+    adr:
+    - ADR-0080
+    relationships:
+    - rel_type: depends_on
+      spec_id: ASK-05-001
+    lint_suppress:
+    - missing_story_reference
 - id: CP-06
   title: Protocol Flow — Receiving (Vendor Side)
   specs:
