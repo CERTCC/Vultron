@@ -46,9 +46,7 @@ from vultron.core.behaviors.case.nodes.participant.common import (
 from vultron.core.behaviors.helpers import DataLayerCondition
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.states.cross_machine_invariants import (
-    violation_rm_d_entailment,
-    violation_rm_vf_entailment,
-    violation_vf_d_entailment,
+    cross_machine_violations,
 )
 from vultron.core.states.cs import (
     CS_d,
@@ -249,22 +247,17 @@ class ValidateTriggerTransitionsNode(DataLayerCondition):
         vf: "CS_vf | None",
         d: "CS_d | None",
     ) -> Status:
-        """CSB-18-001/CSB-17-001: check RM↔VF, RM↔D, and VF↔D cross-machine entailments."""
-        if vf is not None:
-            msg = violation_rm_vf_entailment(rm, vf)
-            if msg is not None:
-                self.feedback_message = msg
-                self.logger.info("%s: %s", self.name, self.feedback_message)
-                return Status.FAILURE
-        if d is not None:
-            msg = violation_rm_d_entailment(rm, d)
-            if msg is not None:
-                self.feedback_message = msg
-                self.logger.info("%s: %s", self.name, self.feedback_message)
-                return Status.FAILURE
-        msg = violation_vf_d_entailment(vf, d)
-        if msg is not None:
-            self.feedback_message = msg
+        """CSB-18-001/CSB-17-001: check RM↔VF, RM↔D, and VF↔D cross-machine entailments.
+
+        The rules are composed by ``cross_machine_violations()`` rather than
+        called individually here, so this emit-side gate and the receive-side
+        adjudication in ``vultron.core.behaviors.status.nodes._adjudication``
+        enforce the same set (#2906).  Emitting is all-or-nothing, so the first
+        violation is enough to refuse the whole trigger.
+        """
+        violations = cross_machine_violations(rm, vf, d)
+        if violations:
+            self.feedback_message = violations[0].message
             self.logger.info("%s: %s", self.name, self.feedback_message)
             return Status.FAILURE
         return Status.SUCCESS

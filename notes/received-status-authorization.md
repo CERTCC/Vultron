@@ -9,6 +9,7 @@ description: >
 related_specs:
   - specs/received-status-handling.yaml
   - specs/behavior-tree-integration.yaml
+  - specs/cs-behavior.yaml
 related_notes:
   - notes/bt-integration.md
   - notes/call-out-configuration.md
@@ -170,6 +171,41 @@ Two things the guard tracks that are easy to conflate:
   operator-facing WARNING distinguishes `rewrote dimension(s) …` from `blocked
   dimension(s) … with no change to the asserted value`; calling the latter a
   refusal would misdescribe the audit trail.
+
+#### Independent adjudication cannot see a combination (RSH-05-020)
+
+Each dimension can be individually well-formed and the snapshot still describe a
+state no sequence of events could produce: a *ready* or *deployed* fix entails a
+report the participant has already accepted, and a deployed fix entails a ready
+one. So a final pass evaluates the cross-machine entailments — RM↔VF and RM↔D
+(CSB-18-001) and VF↔D (CSB-17-001) — and refuses whichever dimension they
+disqualify, carrying the current value forward like any other refusal.
+
+Two properties of that pass are load-bearing:
+
+- **It runs on the *effective* state, not the assertion.** A refused `rm` is
+  carried forward, so the entailment is checked against the value being
+  *recorded*. Otherwise a sender could pair a regressive `rm=ACCEPTED` with
+  `vf=VF` and have the refused `rm` license the `vf`.
+- **Emit and receive share one evaluator.**
+  `cross_machine_violations()` in `vultron/core/states/cross_machine_invariants.py`
+  composes the three rules; `ValidateTriggerTransitionsNode._validate_entailments`
+  and `_adjudicate_cross_machine_entailments` both call it and neither calls the
+  individual `violation_*` functions. Before #2906 the receive path composed only
+  VF↔D by hand, so an assertion the actor would have refused to *emit* was
+  accepted, hash-chained and replicated when it arrived from a peer instead.
+  A ratchet test asserts the emit path still delegates.
+
+What this is **not**: it is not a vf→Vf→VF ladder check. Non-adjacent forward
+advances stay legal on the received path (CSB-16-001) — a peer may advance
+several steps between status messages. An absent dimension (`None`) is likewise
+*absent*, not at its initial state (ADR-0075): a non-VENDOR participant has no
+vendor path, so no entailment applies through it, and a first observation of a
+dimension is accepted when nothing contradicts it.
+
+The replica-apply path (`ApplyParticipantStatusFromLedgerNode`) is deliberately
+out of scope. It applies CaseActor-authored canonical entries the CaseActor
+already adjudicated, and is governed by the RM ratchet in RSH-05-007.
 
 ### CASE_OWNER gospel-bypass rationale
 

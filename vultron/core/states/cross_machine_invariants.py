@@ -27,10 +27,22 @@ but is NOT enforced on the emit path: asserting P CAUSES the embargo to
 terminate (the embargo teardown is a consequence, not a prerequisite).  These
 constraints belong on the receive path and are provided here for future use.
 
+:func:`cross_machine_violations` composes the RM↔VF, RM↔D and VF↔D rules into
+the single evaluator that *both* protocol paths use — the emit path via
+:class:`~vultron.core.behaviors.case.nodes.participant.trigger_validation\
+.ValidateTriggerTransitionsNode` and the receive path via
+``vultron.core.behaviors.status.nodes._adjudication``.  Before #2906 the
+receive path composed only VF↔D by hand, so a peer could have an impossible
+RM/VF pair recorded as canonical that the same actor would have refused to
+emit.  Composing once is what keeps the two from drifting apart again
+(RSH-05-020).
+
 Source: docs/topics/process_models/model_interactions/rm_em_cs.md
-Spec: CSB-18-001 (emit path), CSB-18-002..004 (receive path, future)
+Spec: CSB-18-001 (emit and receive paths), CSB-18-002..004 (receive path, future)
 Closes #2236.
 """
+
+from typing import NamedTuple
 
 from vultron.core.states.cs import (
     CS_d,
@@ -166,6 +178,64 @@ def violation_vf_d_entailment(vf: CS_vf | None, d: CS_d | None) -> str | None:
         f" but VF={vf.name!r} (fix not ready)."
         " Fix deployment cannot precede fix readiness (CSB-17-001)."
     )
+
+
+class EntailmentViolation(NamedTuple):
+    """A violated cross-machine entailment and the dimension it disqualifies.
+
+    ``dimension`` is the *disqualified* dimension, not merely a participant in
+    the rule: RM↔VF names ``"vf"`` and both RM↔D and VF↔D name ``"d"``, because
+    RM progress is the participant's own report-handling history and is never
+    the claim these rules refuse.  The receive path refuses per dimension
+    (RSH-05-001), so it needs the name; the emit path refuses the whole
+    snapshot and uses only the message.
+    """
+
+    dimension: str
+    message: str
+
+
+def cross_machine_violations(
+    rm: RM, vf: CS_vf | None, d: CS_d | None
+) -> list[EntailmentViolation]:
+    """Return every cross-machine entailment violated by ``(rm, vf, d)``.
+
+    Composes the three participant-state entailments in one place so the emit
+    and receive paths cannot enforce different subsets of them (#2906):
+
+    * RM↔VF (CSB-18-001) — a fix cannot be *ready* before the report is accepted.
+    * RM↔D (CSB-18-001) — a fix cannot be *deployed* before the report is accepted.
+    * VF↔D (CSB-17-001) — a fix cannot be deployed before it is ready.
+
+    A ``None`` dimension is *absent*, not at its initial state: a non-VENDOR
+    participant has no vendor path and a non-DEPLOYER participant has no
+    deployer path (ADR-0075).  An absent dimension asserts nothing, so no rule
+    can be violated through it.
+
+    The order is stable and matches the order the emit path enforced before
+    the checks were consolidated, so a caller that reports only the first
+    violation reports the same one it always did.
+
+    Args:
+        rm: The RM state being asserted or recorded.
+        vf: The vendor-path state, or ``None`` when the dimension is absent.
+        d: The deployer-path state, or ``None`` when the dimension is absent.
+
+    Returns:
+        One :class:`EntailmentViolation` per violated rule, empty when the
+        combination is consistent.  ``d`` can be named twice — by RM↔D and by
+        VF↔D — when it violates both.
+    """
+    violations: list[EntailmentViolation] = []
+    if vf is not None:
+        if (msg := violation_rm_vf_entailment(rm, vf)) is not None:
+            violations.append(EntailmentViolation("vf", msg))
+    if d is not None:
+        if (msg := violation_rm_d_entailment(rm, d)) is not None:
+            violations.append(EntailmentViolation("d", msg))
+    if (msg := violation_vf_d_entailment(vf, d)) is not None:
+        violations.append(EntailmentViolation("d", msg))
+    return violations
 
 
 def violation_pxa_em_entailment(pxa: CS_pxa, em: EM) -> str | None:

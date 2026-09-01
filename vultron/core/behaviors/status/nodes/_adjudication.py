@@ -20,6 +20,7 @@ BTND-07-004 limit.  All public names are re-exported from ``dimension_filter``
 and should be imported from there, not from this module directly.
 """
 
+import logging
 from typing import Any
 
 from vultron.core.models.dimensions import (
@@ -30,7 +31,7 @@ from vultron.core.models.dimensions import (
 )
 from vultron.core.models.participant_status import ParticipantStatus
 from vultron.core.states.cross_machine_invariants import (
-    violation_vf_d_entailment,
+    cross_machine_violations,
 )
 from vultron.core.states.cs import (
     CS_d,
@@ -45,6 +46,8 @@ from vultron.core.states.rm import (
     is_valid_rm_transition,
 )
 from vultron.enums.roles import CVDRole
+
+logger = logging.getLogger(__name__)
 
 
 def _rm_is_acceptable(current: RM, asserted: RM) -> bool:
@@ -65,6 +68,26 @@ def _rm_is_acceptable(current: RM, asserted: RM) -> bool:
     ) or is_monotonic_rm_forward(current, asserted)
 
 
+def _vf_carry(current_vf: CS_vf | None) -> VfDimension | None:
+    """Return the VF value to write back, or ``None`` to clear the dimension.
+
+    The single ``VfDimension`` construction site in this module: every carry —
+    role refusal, omitted assertion, non-monotone refusal, entailment refusal —
+    means the same thing, so it is spelled once (ARCH-15-004).  ``None`` is
+    returned when the participant has no VF history to carry (RSH-05-002).
+    """
+    return VfDimension(state=current_vf) if current_vf is not None else None
+
+
+def _d_carry(current_d: CS_d | None) -> DDimension | None:
+    """Return the D value to write back, or ``None`` to clear the dimension.
+
+    The single ``DDimension`` construction site in this module; see
+    :func:`_vf_carry`.
+    """
+    return DDimension(state=current_d) if current_d is not None else None
+
+
 def _adjudicate_vf(
     current_vf: CS_vf | None,
     asserted_vf: CS_vf | None,
@@ -75,25 +98,35 @@ def _adjudicate_vf(
     Refuses if the sender lacks VENDOR role or the transition is not monotone
     forward.  ``carry`` is the dimension value to write back (``None`` means
     clear the dimension; used when refused with no prior history).
+
+    ``current_vf is None`` is a **first observation**, and it is accepted as
+    asserted.  Two things make that the right answer rather than an unchecked
+    gap: absence is structural — a participant with no vendor path has no
+    baseline to advance *from*, not a baseline of ``CS_vf.vf`` (ADR-0075) — and
+    even reading it as ``CS_vf.vf`` would refuse nothing, because every value
+    is a monotone advance on the bottom of the ladder.  Non-adjacent forward
+    jumps are deliberately legal here: a peer may have advanced several steps
+    between status messages, and strict adjacency belongs to local write nodes
+    only (CSB-16-001).  What *does* constrain a first observation is the
+    cross-machine entailment pass in
+    :func:`_adjudicate_cross_machine_entailments` — a ready fix still requires
+    an accepted report (#2906).
     """
     if (
         asserted_vf is not None
         and roles is not None
         and CVDRole.VENDOR not in roles
     ):
-        carry = (
-            VfDimension(state=current_vf) if current_vf is not None else None
-        )
-        return True, carry
+        return True, _vf_carry(current_vf)
     if asserted_vf is None and current_vf is not None:
-        return False, VfDimension(state=current_vf)
+        return False, _vf_carry(current_vf)
     if (
         current_vf is not None
         and asserted_vf is not None
         and asserted_vf != current_vf
         and not is_monotonic_vf_forward(current_vf, asserted_vf)
     ):
-        return True, VfDimension(state=current_vf)
+        return True, _vf_carry(current_vf)
     return False, None
 
 
@@ -107,24 +140,119 @@ def _adjudicate_d(
     Refuses if the sender lacks DEPLOYER role or the transition is not monotone
     forward.  ``carry`` is the dimension value to write back (``None`` means
     clear the dimension; used when refused with no prior history).
+
+    ``current_d is None`` is a first observation and is accepted as asserted,
+    for the reasons given in :func:`_adjudicate_vf`; the entailment pass is
+    what refuses a deployment the participant's RM or VF state cannot support.
     """
     if (
         asserted_d is not None
         and roles is not None
         and CVDRole.DEPLOYER not in roles
     ):
-        carry = DDimension(state=current_d) if current_d is not None else None
-        return True, carry
+        return True, _d_carry(current_d)
     if asserted_d is None and current_d is not None:
-        return False, DDimension(state=current_d)
+        return False, _d_carry(current_d)
     if (
         current_d is not None
         and asserted_d is not None
         and asserted_d != current_d
         and not is_monotonic_d_forward(current_d, asserted_d)
     ):
-        return True, DDimension(state=current_d)
+        return True, _d_carry(current_d)
     return False, None
+
+
+def _effective_state(
+    update_fields: dict[str, Any], dimension: str, asserted_state: Any
+) -> Any:
+    """Return the state that *will be recorded* for *dimension*.
+
+    A dimension named in *update_fields* was adjudicated, and its carry value
+    is what gets recorded — including when that value is ``None``, which
+    clears the dimension because there was no prior history to fall back to.
+    Membership is therefore the test, not truthiness: ``update_fields[dim]``
+    is ``None`` both for "refused, no history" and for "never adjudicated",
+    and those two mean opposite things (ISSUE-2893).
+
+    A dimension nobody adjudicated records the sender's assertion unchanged.
+    """
+    if dimension not in update_fields:
+        return asserted_state
+    carry = update_fields[dimension]
+    return None if carry is None else carry.state
+
+
+def _carry_current_dimension(
+    dimension: str, current_vf: CS_vf | None, current_d: CS_d | None
+) -> VfDimension | DDimension | None:
+    """Return the carry-forward value for a refused *dimension*, by name.
+
+    Dispatches to :func:`_vf_carry` / :func:`_d_carry` so the entailment pass,
+    which learns which dimension to refuse only at runtime, shares their
+    construction sites rather than repeating them.
+    """
+    if dimension == "vf":
+        return _vf_carry(current_vf)
+    return _d_carry(current_d)
+
+
+def _adjudicate_cross_machine_entailments(
+    current: ParticipantStatus,
+    asserted: ParticipantStatus,
+    refused: list[str],
+    update_fields: dict[str, Any],
+    current_vf: CS_vf | None,
+    current_d: CS_d | None,
+    asserted_vf: CS_vf | None,
+    asserted_d: CS_d | None,
+) -> None:
+    """Refuse in-place any dimension the *effective* state makes impossible.
+
+    Runs after the per-dimension role and monotonicity checks, against the
+    state that would actually be recorded — so a refused ``rm`` cannot license
+    the ``vf`` the sender paired it with, and a refused ``vf`` cannot license
+    the ``d``.
+
+    These are the same rules the emit path enforces in
+    :class:`~vultron.core.behaviors.case.nodes.participant.trigger_validation\
+    .ValidateTriggerTransitionsNode`, composed by the shared
+    :func:`~vultron.core.states.cross_machine_invariants\
+    .cross_machine_violations` (CSB-17-001, CSB-18-001, RSH-05-020).  Where
+    the emit path refuses the whole trigger, the receive path refuses only the
+    disqualified dimension and carries the participant's current value forward
+    (RSH-05-001, RSH-05-002).
+
+    A single pass suffices: the only refusal these rules add is of a set F or D
+    bit, and RM↔D already disqualifies ``d`` in every state where a newly
+    refused ``vf`` would have made VF↔D fire.
+
+    A dimension already refused upstream is left alone — it is carried forward
+    once, and naming it twice in *refused* would misdescribe the audit trail
+    the operator log and the ledger patch are built from.
+    """
+    effective_rm = (
+        current.rm.state if "rm" in update_fields else asserted.rm.state
+    )
+    violations = cross_machine_violations(
+        effective_rm,
+        _effective_state(update_fields, "vf", asserted_vf),
+        _effective_state(update_fields, "d", asserted_d),
+    )
+    for violation in violations:
+        if violation.dimension in refused:
+            continue
+        refused.append(violation.dimension)
+        update_fields[violation.dimension] = _carry_current_dimension(
+            violation.dimension, current_vf, current_d
+        )
+        logger.warning(
+            "Refusing '%s' dimension of received ParticipantStatus '%s':"
+            " %s — carrying the current value forward (RSH-05-020)",
+            violation.dimension,
+            asserted.id_,
+            violation.message,
+        )
 
 
 def _adjudicate_case_status(
@@ -133,7 +261,13 @@ def _adjudicate_case_status(
     refused: list[str],
     update_fields: dict[str, Any],
 ) -> None:
-    """Adjudicate the ``case_status`` (pxa) dimension in-place."""
+    """Adjudicate the ``case_status`` (pxa) dimension in-place.
+
+    A first observation — the receiver holds no ``case_status`` at all — is
+    accepted as asserted.  There is no prior PXA value to regress from, and
+    every value is a monotone advance on the all-lowercase baseline, so a
+    monotonicity check could not refuse one anyway.
+    """
     if asserted_cs is None and current_cs is not None:
         # Nothing asserted about pxa/em — carry the receiver's own view
         # forward.  Persisting the assertion as-is would blank both.
@@ -173,6 +307,11 @@ def _adjudicate_dimensions(
 
     When ``roles`` is provided, VF writes require ``CVDRole.VENDOR`` and D
     writes require ``CVDRole.DEPLOYER`` (ADR-0075, #2965).
+
+    Independent adjudication cannot see a claim that is impossible only in
+    combination, so a final pass evaluates the cross-machine entailments
+    against the effective — post-adjudication — state and refuses whichever
+    dimension they disqualify (RSH-05-020, #2906).
     """
     refused: list[str] = []
     update_fields: dict[str, Any] = {}
@@ -201,30 +340,19 @@ def _adjudicate_dimensions(
     elif d_carry is not None:
         update_fields["d"] = d_carry  # Carry forward omitted dimension value
 
-    # Cross-dimension VF↔D check (CSB-17-001, #2893 received path).
-    # After individual dimension adjudication, verify the effective VF+D
-    # combination is not the structurally impossible *fD* state.
-    if not d_refused:
-        if "vf" in update_fields:
-            vf_in_fields = update_fields["vf"]
-            effective_vf = (
-                vf_in_fields.state
-                if isinstance(vf_in_fields, VfDimension)
-                else None
-            )
-        else:
-            effective_vf = asserted_vf
-        d_in_fields = update_fields.get("d")
-        effective_d = (
-            d_in_fields.state
-            if isinstance(d_in_fields, DDimension)
-            else asserted_d
-        )
-        if violation_vf_d_entailment(effective_vf, effective_d) is not None:
-            refused.append("d")
-            update_fields["d"] = (
-                DDimension(state=current_d) if current_d is not None else None
-            )
+    # Cross-machine entailments on the effective state (CSB-17-001, CSB-18-001,
+    # RSH-05-020, #2906): a claim can be individually well-formed in every
+    # dimension and still describe a state no sequence of events could produce.
+    _adjudicate_cross_machine_entailments(
+        current,
+        asserted,
+        refused,
+        update_fields,
+        current_vf,
+        current_d,
+        asserted_vf,
+        asserted_d,
+    )
 
     _adjudicate_case_status(
         current.case_status, asserted.case_status, refused, update_fields

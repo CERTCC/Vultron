@@ -91,17 +91,14 @@ AUDITED_SITES: list[tuple[str, str]] = sorted(
         # so the latch has exactly one construction site (ARCH-15-004).
         ("report/nodes/rm_transitions.py", "RmDimension"),
         # FILTER — _adjudicate_dimensions carry-forward (extracted from dimension_filter.py)
-        # Three VfDimension sites: role-guard refusal + omission carry + non-monotone refusal (ADR-0075)
-        # Four DDimension sites: role-guard refusal + omission carry + non-monotone refusal
-        #                        + cross-dimension VF↔D refusal carry (CSB-17-001, #2893)
+        # One site per dimension: every refusal reason — role guard, omitted
+        # assertion, non-monotone move, cross-machine entailment — carries the
+        # participant's current value forward and so is spelled once, in
+        # `_vf_carry` / `_d_carry` (ARCH-15-004, #2906).  Was 3 VfDimension and
+        # 4 DDimension sites before those helpers were extracted.
         ("status/nodes/_adjudication.py", "PxaDimension"),
         ("status/nodes/_adjudication.py", "RmDimension"),
         ("status/nodes/_adjudication.py", "VfDimension"),
-        ("status/nodes/_adjudication.py", "VfDimension"),
-        ("status/nodes/_adjudication.py", "VfDimension"),
-        ("status/nodes/_adjudication.py", "DDimension"),
-        ("status/nodes/_adjudication.py", "DDimension"),
-        ("status/nodes/_adjudication.py", "DDimension"),
         ("status/nodes/_adjudication.py", "DDimension"),
         # FILTER — CaseStatus per-dimension carry-forward (ISSUE-2256)
         ("status/nodes/cs_dimension_filter.py", "PxaDimension"),
