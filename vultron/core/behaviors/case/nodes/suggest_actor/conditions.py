@@ -60,7 +60,7 @@ class ActorAlreadyParticipantNode(DataLayerActionWithPorts):
         if (f := self._require_datalayer()) is not None:
             return f
         assert self.datalayer is not None
-        case_obj = self.datalayer.read(self.case_id)
+        case_obj = self.datalayer.read_case(self.case_id)
         index = getattr(case_obj, "actor_participant_index", {}) or {}
         if self.recommended_id in index:
             self.logger.info(

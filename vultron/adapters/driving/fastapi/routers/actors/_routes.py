@@ -105,7 +105,7 @@ def get_actors(http_request: Request):
     from its own store.  It previously scanned a shared pool for every
     actor-typed row, which also returned the node's *peers* — actors it merely
     holds an address for.  A peer is not hosted here, so peers are no longer
-    listed (ADR-0073 decision 4).
+    listed (ADR-0073#hosted-actors-list-only).
 
     Each store is opened in the serving app's own deployment
     (:func:`node_db_url_template`), so the records listed are the ones the rest
@@ -163,8 +163,8 @@ def _is_foreign_authority(actor_id: str, base_url: str | None) -> bool:
     """Return ``True`` when *actor_id* is under a different authority than this node.
 
     A foreign-authority id carries a scheme but names a process on another host.
-    ``canonical_actor_uri`` passes these through unchanged (ADR-0073 decision 5
-    — the peer's real URI is what delivery posts to), but ``POST /actors/`` must
+    ``canonical_actor_uri`` passes these through unchanged
+    (ADR-0073#peer-records-in-knowers-store), but ``POST /actors/`` must
     reject them: peers are address-book entries in a hosted actor's own store, not
     hosted actors in their own right (ADR-0081).
 
@@ -210,7 +210,7 @@ def create_actor(request: ActorCreateRequest, http_request: Request):
     adopting it. The record's id then named an endpoint this node does not serve,
     so its store was reachable under one id and ``GET /actors/{slug}`` resolved to
     another. Handing the canonicalizer a bare slug is what makes the id and the
-    serving endpoint the same string by construction (ADR-0073 decision 2).
+    serving endpoint the same string by construction (ADR-0073#url-segment-computed-not-looked-up).
 
     A client-supplied id under a **foreign** authority is rejected with 422.
     Peers are not hosted actors — they are address-book entries inside each hosted
