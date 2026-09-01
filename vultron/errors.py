@@ -100,7 +100,7 @@ class VultronOutboxObjectIntegrityError(VultronError):
         super().__init__(message)
 
 
-class VultronProtocolViolationError(VultronError):
+class VultronProtocolViolationError(VultronError, ValueError):
     """Raised when an inbound protocol message violates a mandatory requirement.
 
     The inbound mirror of :exc:`VultronOutboxObjectIntegrityError`.  While
@@ -112,6 +112,13 @@ class VultronProtocolViolationError(VultronError):
     participant as a bare URI string rather than a fully inline typed object.
     Receivers MUST raise this error and reject the bootstrap rather than
     silently synthesising participant state from domain knowledge.
+
+    ``ValueError`` is included in the base classes so that Pydantic absorbs
+    this error when it is raised from a ``model_validator`` or
+    ``field_validator`` and wraps it in a ``ValidationError`` rather than
+    letting it escape the ``model_validate()`` call.  Callers that need to
+    distinguish a protocol violation from an ordinary validation failure can
+    inspect ``ValidationError.errors()[0]['ctx']['error']``.
     """
 
 

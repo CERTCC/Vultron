@@ -184,5 +184,46 @@ class TestFromCorePreservesFields(unittest.TestCase):
         self.assertEqual(expected_roles, wire.cvd_role)
 
 
+class TestRetiredVfdKeyRejection(unittest.TestCase):
+    """_reject_retired_vfd_keys must raise ValidationError, not a raw
+    VultronProtocolViolationError that escapes Pydantic (issue #2905).
+
+    Pydantic only absorbs ValueError/TypeError/AssertionError from validators.
+    When the validator raised VultronProtocolViolationError (a plain VultronError
+    subclass) the exception escaped model_validate() entirely, crashing the
+    inbox-processing loop rather than being treated as a validation failure.
+    """
+
+    def test_vfd_state_snake_raises_validation_error(self):
+        """vfd_state in inbound data raises ValidationError, not a raw exception."""
+        with pytest.raises(ValidationError):
+            as_ParticipantStatus.model_validate(
+                {
+                    "context": CASE_ID,
+                    "attributed_to": ACTOR_ID,
+                    "vfd_state": "VFD",
+                }
+            )
+
+    def test_vfd_state_camel_raises_validation_error(self):
+        """vfdState in inbound data raises ValidationError, not a raw exception."""
+        with pytest.raises(ValidationError):
+            as_ParticipantStatus.model_validate(
+                {
+                    "context": CASE_ID,
+                    "attributed_to": ACTOR_ID,
+                    "vfdState": "VFD",
+                }
+            )
+
+    def test_valid_data_without_vfd_state_constructs_normally(self):
+        """Sanity check: valid data without vfd_state still constructs OK."""
+        ps = as_ParticipantStatus(
+            context=CASE_ID,
+            attributed_to=ACTOR_ID,
+        )
+        self.assertEqual(CASE_ID, ps.context)
+
+
 if __name__ == "__main__":
     unittest.main()
