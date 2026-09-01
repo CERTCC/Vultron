@@ -1019,6 +1019,16 @@ See [notes/agents-md-structure.md](notes/agents-md-structure.md) for routing pol
   lands and the `reason=` links the test back to the implementation issue.
   *Source: ISSUE-2606*
 
+- **BT Nodes Must Not Clear Blackboard Keys They Do Not Own** — a node's `_clear()`
+  or tick-start zero-write MUST only target keys that node is the sole producer of.
+  Clearing a shared global key (e.g. `BB_LEDGER_PAYLOAD_OBJECT_OVERRIDE`) in a node
+  that is not its producer silently destroys a value written by an earlier node in the
+  same Sequence, even when the clear runs for BT-17-003 compliance.  Ownership rule:
+  the node that writes the key on its active path is the sole node that clears it on
+  its no-op path.  See the complementary pitfall above ("ledger_payload_object_override
+  Producers MUST Clear the Key on Every No-Op Tick").
+  *Source: CONCERN-2711*
+
 ---
 
 See each subsystem AGENTS.md for additional pitfalls:
