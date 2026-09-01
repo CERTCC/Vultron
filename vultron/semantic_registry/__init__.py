@@ -59,6 +59,7 @@ Public API
 from itertools import combinations
 from typing import Any
 
+from vultron.core.models.events import AnyReceivedEvent
 from vultron.core.models.events.base import MessageSemantics, VultronEvent
 from vultron.errors import RegistryOrderError
 from vultron.semantic_registry._entry import SemanticEntry
@@ -269,7 +270,7 @@ __all__ = [
 
 def extract_event(
     activity: as_Activity,
-) -> VultronEvent:
+) -> AnyReceivedEvent:
     """Extract a typed ``VultronEvent`` from an AS2 activity.
 
     This is the public entry point for the inbound activity pipeline.  It

@@ -6,9 +6,14 @@ in the system, as understood by the domain layer.
 Public surface:
 - MessageSemantics — enum of all recognised semantic types
 - VultronEvent — base class for all per-semantic inbound domain events
+- AnyReceivedEvent — Union of all concrete VultronEvent subclasses (discriminated
+  by ``semantic_type``); use as the return annotation for extract_intent /
+  extract_event so callers can narrow to a concrete type via isinstance.
 - Per-semantic *ReceivedEvent classes imported from category submodules
 - Case-context resolution helpers used by the inbox deferral/replay path
 """
+
+from typing import Union
 
 from vultron.core.models.events.actor import (
     AcceptCaseOwnershipTransferReceivedEvent,
@@ -90,9 +95,73 @@ from vultron.core.models.events.unknown import (
     UnresolvableObjectReceivedEvent,
 )
 
+AnyReceivedEvent = Union[
+    # report
+    CreateReportReceivedEvent,
+    SubmitReportReceivedEvent,
+    ValidateReportReceivedEvent,
+    InvalidateReportReceivedEvent,
+    AckReportReceivedEvent,
+    CloseReportReceivedEvent,
+    # case
+    CreateCaseReceivedEvent,
+    UpdateCaseReceivedEvent,
+    EngageCaseReceivedEvent,
+    DeferCaseReceivedEvent,
+    AddReportToCaseReceivedEvent,
+    CloseCaseReceivedEvent,
+    # actor
+    OfferActorToCaseReceivedEvent,
+    OfferCaseParticipantReceivedEvent,
+    AcceptOfferCaseParticipantReceivedEvent,
+    RejectOfferCaseParticipantReceivedEvent,
+    OfferCaseParticipantRoleReceivedEvent,
+    AcceptCaseParticipantRoleReceivedEvent,
+    RejectCaseParticipantRoleReceivedEvent,
+    AnnounceVulnerabilityCaseReceivedEvent,
+    OfferCaseOwnershipTransferReceivedEvent,
+    AcceptCaseOwnershipTransferReceivedEvent,
+    RejectCaseOwnershipTransferReceivedEvent,
+    InviteActorToCaseReceivedEvent,
+    AcceptInviteActorToCaseReceivedEvent,
+    RejectInviteActorToCaseReceivedEvent,
+    # case_proposal
+    CreateCaseProposalReceivedEvent,
+    AcceptCaseProposalReceivedEvent,
+    RejectCaseProposalReceivedEvent,
+    # case_participant
+    CreateCaseParticipantReceivedEvent,
+    AddCaseParticipantToCaseReceivedEvent,
+    RemoveCaseParticipantFromCaseReceivedEvent,
+    # embargo
+    CreateEmbargoEventReceivedEvent,
+    AddEmbargoEventToCaseReceivedEvent,
+    RemoveEmbargoEventFromCaseReceivedEvent,
+    AnnounceEmbargoEventToCaseReceivedEvent,
+    InviteToEmbargoOnCaseReceivedEvent,
+    AcceptInviteToEmbargoOnCaseReceivedEvent,
+    RejectInviteToEmbargoOnCaseReceivedEvent,
+    # note
+    CreateNoteReceivedEvent,
+    AddNoteToCaseReceivedEvent,
+    RemoveNoteFromCaseReceivedEvent,
+    # status
+    CreateCaseStatusReceivedEvent,
+    AddCaseStatusToCaseReceivedEvent,
+    CreateParticipantStatusReceivedEvent,
+    AddParticipantStatusToParticipantReceivedEvent,
+    # sync
+    AnnounceLogEntryReceivedEvent,
+    RejectLogEntryReceivedEvent,
+    # unknown
+    UnknownReceivedEvent,
+    UnresolvableObjectReceivedEvent,
+]
+
 __all__ = [
     "MessageSemantics",
     "VultronEvent",
+    "AnyReceivedEvent",
     # case-context resolution
     "CASE_BOOTSTRAP_SEMANTICS",
     "is_case_bootstrap",

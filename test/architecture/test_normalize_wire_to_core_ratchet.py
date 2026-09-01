@@ -86,8 +86,8 @@ def _shadowing_types() -> dict[str, type]:
 def test_registries_are_populated():
     """Guard the guard: an empty registry would make every assertion vacuous."""
     assert len(CORE_VOCABULARY) > 10
-    assert len(VOCABULARY) > 20
-    assert len(WIRE_TYPE_MAP) > 20
+    assert len(VOCABULARY) > 50
+    assert len(WIRE_TYPE_MAP) > 50
 
 
 def test_normalize_set_may_only_grow():

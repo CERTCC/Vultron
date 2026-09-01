@@ -19,7 +19,7 @@ HTTP POST /inbox  (wire: AS2 JSON)
   -> AS2 parser (structural)       `vultron/wire/as2/parser.py`
   -> rehydrate()                   `vultron/wire/as2/rehydration.py`
   -> semantic extractor            `vultron/wire/as2/extractor/`
-     (AS2 pattern -> MessageSemantics + VultronEvent)
+     (AS2 pattern -> MessageSemantics + AnyReceivedEvent)
   -> behavior dispatcher           `vultron/core/ports/dispatcher.py`
   -> USE_CASE_MAP lookup           `vultron/core/use_cases/`
   -> UseCase.execute()             `vultron/core/use_cases/received/`
