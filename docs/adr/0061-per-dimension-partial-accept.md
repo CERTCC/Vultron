@@ -165,4 +165,6 @@ RM ratchet.
   reject-on-divergence invariants.
 
 Generated spec requirements: `received-status-handling.yaml` RSH-05-001 through
-RSH-05-008.
+RSH-05-008. The same per-dimension adjudication decision was subsequently
+extended to `Add(CaseStatus)` (EM and PXA dimensions only): RSH-05-015 through
+RSH-05-019 (ISSUE-2256, ISSUE-2671).
