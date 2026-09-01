@@ -26,11 +26,11 @@ from vultron.core.behaviors.case.nodes.participant.common import (
     _queue_participant_add_notification,
 )
 from vultron.core.behaviors.helpers import DataLayerActionWithPorts
+from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.participant_status import (
     ParticipantStatus,
     coerce_cvd_roles,
 )
-from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.vultron_types import VultronParticipant
 from vultron.core.states.participant_embargo_consent import PEC, PEC_Trigger
 from vultron.enums.roles import CVDRole
@@ -201,7 +201,7 @@ class AttachParticipantToCaseNode(DataLayerActionWithPorts):
     def output_ports(cls) -> dict[str, PortInformation]:
         return {
             "participant_case": PortInformation(
-                data_type=object, required=True
+                data_type=VulnerabilityCase, required=True
             )
         }
 
@@ -268,7 +268,7 @@ class RecordParticipantAddedEventNode(DataLayerActionWithPorts):
     def input_ports(cls) -> dict[str, PortInformation]:
         ports = super().input_ports()
         ports["participant_case"] = PortInformation(
-            data_type=object, required=True
+            data_type=VulnerabilityCase, required=True
         )
         ports["new_participant_id"] = PortInformation(
             data_type=str, required=True
@@ -293,9 +293,7 @@ class RecordParticipantAddedEventNode(DataLayerActionWithPorts):
 
         stored_case = self._stored_case
         participant_id = self._participant_id
-        if not isinstance(stored_case, VulnerabilityCase) or not isinstance(
-            participant_id, str
-        ):
+        if stored_case is None or not isinstance(participant_id, str):
             self.logger.error(
                 "%s: %s/%s missing in blackboard",
                 self.name,
@@ -303,6 +301,7 @@ class RecordParticipantAddedEventNode(DataLayerActionWithPorts):
                 self._new_participant_id_key,
             )
             return Status.FAILURE
+        stored_case = cast(VulnerabilityCase, stored_case)
 
         self.datalayer.save(stored_case)
         return Status.SUCCESS
@@ -322,7 +321,7 @@ class CaseHasActiveEmbargoNode(DataLayerActionWithPorts):
     def input_ports(cls) -> dict[str, PortInformation]:
         ports = super().input_ports()
         ports["participant_case"] = PortInformation(
-            data_type=object, required=True
+            data_type=VulnerabilityCase, required=True
         )
         return ports
 
@@ -335,13 +334,14 @@ class CaseHasActiveEmbargoNode(DataLayerActionWithPorts):
 
     def update(self) -> Status:
         stored_case = self._stored_case
-        if not isinstance(stored_case, VulnerabilityCase):
+        if stored_case is None:
             self.logger.error(
                 "%s: %s missing in blackboard",
                 self.name,
                 self._participant_case_key,
             )
             return Status.FAILURE
+        stored_case = cast(VulnerabilityCase, stored_case)
         return (
             Status.SUCCESS
             if _as_id(stored_case.active_embargo) is not None
@@ -363,7 +363,7 @@ class CaseHasNoActiveEmbargoNode(DataLayerActionWithPorts):
     def input_ports(cls) -> dict[str, PortInformation]:
         ports = super().input_ports()
         ports["participant_case"] = PortInformation(
-            data_type=object, required=True
+            data_type=VulnerabilityCase, required=True
         )
         return ports
 
@@ -376,13 +376,14 @@ class CaseHasNoActiveEmbargoNode(DataLayerActionWithPorts):
 
     def update(self) -> Status:
         stored_case = self._stored_case
-        if not isinstance(stored_case, VulnerabilityCase):
+        if stored_case is None:
             self.logger.error(
                 "%s: %s missing in blackboard",
                 self.name,
                 self._participant_case_key,
             )
             return Status.FAILURE
+        stored_case = cast(VulnerabilityCase, stored_case)
         return (
             Status.SUCCESS
             if _as_id(stored_case.active_embargo) is None
@@ -409,7 +410,7 @@ class SeedParticipantAsSignatoryNode(DataLayerActionWithPorts):
     def input_ports(cls) -> dict[str, PortInformation]:
         ports = super().input_ports()
         ports["participant_case"] = PortInformation(
-            data_type=object, required=True
+            data_type=VulnerabilityCase, required=True
         )
         ports["new_case_participant"] = PortInformation(
             data_type=object, required=True
@@ -434,7 +435,7 @@ class SeedParticipantAsSignatoryNode(DataLayerActionWithPorts):
 
         stored_case = self._stored_case
         participant = self._participant
-        if not isinstance(stored_case, VulnerabilityCase) or not isinstance(
+        if stored_case is None or not isinstance(
             participant, VultronParticipant
         ):
             self.logger.error(
@@ -444,6 +445,7 @@ class SeedParticipantAsSignatoryNode(DataLayerActionWithPorts):
                 self._new_case_participant_key,
             )
             return Status.FAILURE
+        stored_case = cast(VulnerabilityCase, stored_case)
 
         active_embargo_id = _as_id(stored_case.active_embargo)
         if active_embargo_id is None:

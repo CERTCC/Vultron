@@ -30,7 +30,6 @@ from vultron.core.behaviors.helpers import (
     DataLayerConditionWithPorts,
     FindParticipantByActorIdNode,
 )
-from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models._helpers import _as_id
 from vultron.core.models.participant_status import ParticipantStatus
 from vultron.core.ports.case_persistence import CaseOutboxPersistence
@@ -169,8 +168,8 @@ class AllParticipantsRMClosedConditionNode(DataLayerConditionWithPorts):
             self.feedback_message = "No case_id — skipping auto-close check"
             return Status.FAILURE
 
-        case = self.datalayer.read(self.case_id)
-        if not isinstance(case, VulnerabilityCase):
+        case = self.datalayer.read_case(self.case_id)
+        if case is None:
             self.feedback_message = (
                 f"Case '{self.case_id}' not found or wrong type"
             )

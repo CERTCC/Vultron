@@ -296,7 +296,16 @@ See [notes/agents-md-structure.md](notes/agents-md-structure.md) for routing pol
   flow, not raw `git rebase origin/main`.
 - **`as_VulnerabilityCase` (wire) vs `VulnerabilityCase` (core)** — all classes
   in `vultron/wire/as2/vocab/objects/` use `as_` prefix. Bare name = core type.
-  See ARCH-14-001.
+  See ARCH-14-001. Note the *registry* keys currently collide even though the
+  class names do not: `VOCABULARY["VulnerabilityCase"]` is the **wire** class,
+  because the key is derived via `cls.__name__.removeprefix("as_")`. ADR-0082
+  makes the keys disjoint (ARCH-23-002); until then, do not infer a class's
+  branch from its registry key. Never resolve a core type's wire counterpart by
+  name coincidence — use the pairing registry (ARCH-23-001). **Until issue #2937
+  lands there is no pairing-registry module to import**, so do not go looking for
+  one and do not add a new name-coincidence lookup in the meantime; the existing
+  `VOCABULARY.get(type(obj).__name__)` call in `As2WireRenderAdapter.render()` is
+  the one site slated to be replaced.
 - **Never add a new `from vultron.core.models import …` inside `vultron/wire/`** —
   wire code that needs to convert a core object to wire form MUST use the
   `as_Foo.from_core(core_obj)` class method already present on every wire vocab
@@ -318,6 +327,45 @@ See [notes/agents-md-structure.md](notes/agents-md-structure.md) for routing pol
   to its start value (a lost RM ladder, not an error). Always pair the deletion
   with a `model_validator(mode="before")` built on `reject_wire_spelled_keys`
   (`vultron/core/models/_wire_spelling.py`). See SDO-03-005, ARCH-15-002.
+  **Superseded direction (ADR-0082)**: ARCH-12-003 now requires `extra="forbid"`
+  on all core-branch types, which subsumes this guard — it rejects any unknown
+  key, not only camelCase ones. Once that lands, `_wire_spelling.py` and the
+  per-class guards are deleted. Until then this pitfall still applies.
+- **A Core-Branch Validator That Raises Must Raise a `ValueError` Subclass If Its
+  Type Is Union-Exposed** — `VultronValidationError` is *not* a `ValueError`
+  subclass, so when Pydantic resolves a union that includes the core type and the
+  validator fires, the error escapes the whole operation instead of being
+  absorbed as a failed union branch. This bit the `CoreObject` reject-guard,
+  because `as_ObjectRef` carried `| CoreObject` and therefore put a core type
+  inside the `object_` field of every transitive activity. Either remove the core
+  type from the union (the chosen fix, ARCH-23-006) or raise something Pydantic
+  recognises as a validation failure — do not assume a loud guard stays loud
+  inside a union. See [notes/wire-core-boundary.md](notes/wire-core-boundary.md).
+  *Source: CONCERN-2830*
+- **`extra="forbid"` Requires the Codebase to Round-Trip Its Own Output** — two
+  things break first and neither is a wire-spelling problem: `@computed_field`
+  values (ADR-0056), which `model_dump()` emits but cannot re-accept, and
+  `mode="before"` validators that inject an alias key beside an already-present
+  field-name key. Do those cleanups first (ARCH-23-005). Measured blast radii and
+  the exact mechanisms are in
+  [notes/wire-core-boundary.md](notes/wire-core-boundary.md).
+  *Source: CONCERN-2830*
+- **ARCH-01-001 (core→wire) and ARCH-22-001 (wire→core) Are Different Rules** —
+  ADR-0063's `WireRenderPort` solved the *rendering* half of the first one. Its
+  adapter still calls `wire_cls.from_core(obj)`, so it removed **no** wire→core
+  imports. Do not read ADR-0063 as having addressed ARCH-22. Also note that core
+  reaching for `getattr(obj, "to_core", None)` is an ARCH-01-001 violation that
+  the import-based ratchet cannot see — duck-typing hides it rather than fixing
+  it. See [notes/wire-core-boundary.md](notes/wire-core-boundary.md).
+  *Source: CONCERN-2830*
+- **Check a Ratchet's Goal State Against the Spec Corpus Before Adding the
+  `xfail`** — the ARCH-22 goal test asserted `vultron/wire/` could reach zero
+  `vultron.core.models` imports, which three MUST-level requirements made
+  impossible (ARCH-12-001, ARCH-12-010, and formerly ARCH-20-002). Target the
+  declared exemption set, not empty, and enumerate each exemption with the
+  requirement that mandates it. See ARCH-22-003 and
+  [notes/wire-core-boundary.md](notes/wire-core-boundary.md).
+  *Source: CONCERN-2830*
 - **Flat `nodes.py` in BT Areas Is Non-Compliant** — use `nodes/` subpackage;
   `__init__.py` MUST re-export all public names. See BTND-07-001, BTND-07-003.
 - **Splits Must Not Produce New God Modules** — submodules ≤500 lines; split
@@ -1019,6 +1067,16 @@ See [notes/agents-md-structure.md](notes/agents-md-structure.md) for routing pol
   lands and the `reason=` links the test back to the implementation issue.
   *Source: ISSUE-2606*
 
+- **BT Nodes Must Not Clear Blackboard Keys They Do Not Own** — a node's `_clear()`
+  or tick-start zero-write MUST only target keys that node is the sole producer of.
+  Clearing a shared global key (e.g. `BB_LEDGER_PAYLOAD_OBJECT_OVERRIDE`) in a node
+  that is not its producer silently destroys a value written by an earlier node in the
+  same Sequence, even when the clear runs for BT-17-003 compliance.  Ownership rule:
+  the node that writes the key on its active path is the sole node that clears it on
+  its no-op path.  See the complementary pitfall above ("ledger_payload_object_override
+  Producers MUST Clear the Key on Every No-Op Tick").
+  *Source: CONCERN-2711*
+
 ---
 
 See each subsystem AGENTS.md for additional pitfalls:
@@ -1059,7 +1117,11 @@ message.
   ignores only `wip_notes/**`; all other dirs are linted.
 - **Notes frontmatter** (NF-06-001, NF-06-002): every `notes/*.md` (except
   `README.md`) needs `title` and `status` frontmatter. `superseded_by` is a
-  scalar string. Schema: `vultron/metadata/notes/schema.py`.
+  scalar string. Schema: `vultron/metadata/notes/schema.py`. **Maintenance rule
+  (NF-06-001, documented here per NF-06-002):** when you modify a note, review
+  and update its `status`, `related_specs`, and `related_notes` in the same
+  change — a new spec citation or cross-note link in the body means a new
+  frontmatter entry, and cross-links SHOULD be two-way.
 - **Docs links must be relative**: links in `docs/` MUST be relative and MUST NOT
   go above `docs/`. Run `uv run mkdocs build --strict` before committing docs.
   `docs/developer/` pages are draft docs — visible in `mkdocs serve` but excluded from production builds.

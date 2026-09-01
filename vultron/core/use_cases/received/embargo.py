@@ -4,6 +4,9 @@ import logging
 from datetime import datetime, timezone
 from typing import TYPE_CHECKING
 
+if TYPE_CHECKING:
+    from vultron.core.models.case import VulnerabilityCase
+
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.events.embargo import (
     AcceptInviteToEmbargoOnCaseReceivedEvent,
@@ -24,8 +27,6 @@ from vultron.core.use_cases._helpers import (
     _idempotent_create,
     add_activity_to_outbox,
 )
-from vultron.core.models.case import VulnerabilityCase
-from vultron.core.models.protocols import PersistableModel
 from vultron.core.services.embargo_lifecycle import (
     EmbargoLifecycle,
     TransitionMode,
@@ -54,8 +55,8 @@ def _pxa_embargo_ineligible(dl: CasePersistence, case_id: str) -> bool:
     Reads the case from the DataLayer; returns False (eligible) when the case
     cannot be resolved so normal processing can continue.
     """
-    case = dl.read(case_id)
-    if not isinstance(case, VulnerabilityCase):
+    case = dl.read_case(case_id)
+    if case is None:
         return False
     pxa_state = case.current_status.pxa.state
     return (
@@ -67,9 +68,9 @@ def _pxa_embargo_ineligible(dl: CasePersistence, case_id: str) -> bool:
 
 def _resolve_case_for_embargo_acceptance(
     dl: CasePersistence, request: AcceptInviteToEmbargoOnCaseReceivedEvent
-) -> PersistableModel | None:
+) -> "VulnerabilityCase | None":
     if request.case_id:
-        return dl.read(request.case_id)
+        return dl.read_case(request.case_id)
 
     logger.error(
         "accept_invite_to_embargo_on_case: missing case_id on request"
@@ -86,8 +87,8 @@ def _record_embargo_proposal_index(
     proposal_id: str,
 ) -> None:
     """Record embargo_id → proposal_id in case core state (ADR-0035 DL-06)."""
-    case = dl.read(case_id)
-    if not isinstance(case, VulnerabilityCase):
+    case = dl.read_case(case_id)
+    if case is None:
         return
     if case.pending_embargo_proposal_index.get(embargo_id) == proposal_id:
         return
@@ -102,8 +103,8 @@ def _store_invite_deadline(
     rsvp_deadline: datetime,
 ) -> None:
     """Store RSVP deadline on the participant record for lazy lapse detection."""
-    case = dl.read(case_id)
-    if not isinstance(case, VulnerabilityCase):
+    case = dl.read_case(case_id)
+    if case is None:
         return
     participant_id = case.actor_participant_index.get(actor_id)
     if not participant_id:
@@ -437,15 +438,15 @@ class AcceptInviteToEmbargoOnCaseReceivedUseCase:
         service: "EmbargoLifecycle",
     ) -> None:
         """EMB-17: late-Accept compatibility routing after a lapse is detected."""
-        _fresh_case = self._dl.read(case_id)
+        _fresh_case = self._dl.read_case(case_id)
         em_state = (
             _fresh_case.current_status.em.state
-            if isinstance(_fresh_case, VulnerabilityCase)
+            if _fresh_case is not None
             else EM.NONE
         )
         active_embargo_id = (
             _as_id(_fresh_case.active_embargo)
-            if isinstance(_fresh_case, VulnerabilityCase)
+            if _fresh_case is not None
             else None
         )
 
@@ -553,7 +554,7 @@ class AcceptInviteToEmbargoOnCaseReceivedUseCase:
         )
 
         _case = _resolve_case_for_embargo_acceptance(self._dl, request)
-        if not isinstance(_case, VulnerabilityCase):
+        if _case is None:
             logger.error("accept_invite_to_embargo_on_case: case not found")
             return
 

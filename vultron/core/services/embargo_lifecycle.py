@@ -47,7 +47,6 @@ from typing import Any
 from pydantic import BaseModel, Field
 from transitions import MachineError
 
-from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.dimensions import EmDimension
 from vultron.core.ports.case_persistence import CasePersistence
@@ -204,8 +203,8 @@ class EmbargoLifecycle:
                 per EMB-01-002).
         """
         # Load and validate case
-        case = self._persistence.read(case_id)
-        if not isinstance(case, VulnerabilityCase):
+        case = self._persistence.read_case(case_id)
+        if case is None:
             raise VultronNotFoundError("VulnerabilityCase", case_id)
 
         if em_before is None:
@@ -319,8 +318,8 @@ class EmbargoLifecycle:
                 mode, owner only, per EMB-02-002).  Non-owner callers record
                 PEC state only and are not blocked by P/X/A.
         """
-        case = self._persistence.read(case_id)
-        if not isinstance(case, VulnerabilityCase):
+        case = self._persistence.read_case(case_id)
+        if case is None:
             raise VultronNotFoundError("VulnerabilityCase", case_id)
 
         if em_before is None:
@@ -440,8 +439,8 @@ class EmbargoLifecycle:
                 case is in REVISE state with P/X/A set (``STRICT`` mode only,
                 per EMB-04-002 — use terminate_active_embargo instead).
         """
-        case = self._persistence.read(case_id)
-        if not isinstance(case, VulnerabilityCase):
+        case = self._persistence.read_case(case_id)
+        if case is None:
             raise VultronNotFoundError("VulnerabilityCase", case_id)
 
         if em_before is None:
@@ -534,8 +533,8 @@ class EmbargoLifecycle:
                 state does not allow TERMINATE or ``active_embargo`` is
                 ``None``.
         """
-        case = self._persistence.read(case_id)
-        if not isinstance(case, VulnerabilityCase):
+        case = self._persistence.read_case(case_id)
+        if case is None:
             raise VultronNotFoundError("VulnerabilityCase", case_id)
 
         if em_before is None:
@@ -613,8 +612,8 @@ class EmbargoLifecycle:
                 state does not allow an ACCEPT trigger (valid sources: PROPOSED,
                 REVISE).
         """
-        case = self._persistence.read(case_id)
-        if not isinstance(case, VulnerabilityCase):
+        case = self._persistence.read_case(case_id)
+        if case is None:
             raise VultronNotFoundError("VulnerabilityCase", case_id)
 
         em_before = case.current_status.em.state
@@ -682,8 +681,8 @@ class EmbargoLifecycle:
             separately).  ``participant_changes`` records the PEC state change
             when the transition was valid.
         """
-        case = self._persistence.read(case_id)
-        if not isinstance(case, VulnerabilityCase):
+        case = self._persistence.read_case(case_id)
+        if case is None:
             raise VultronNotFoundError("VulnerabilityCase", case_id)
 
         em_state = (
@@ -801,8 +800,8 @@ class EmbargoLifecycle:
             :class:`EmbargoLifecycleResult` with ``is_lapsed`` reflecting
             whether the deadline has passed.
         """
-        case = self._persistence.read(case_id)
-        if not isinstance(case, VulnerabilityCase):
+        case = self._persistence.read_case(case_id)
+        if case is None:
             raise VultronNotFoundError("VulnerabilityCase", case_id)
 
         em_state = case.current_status.em.state

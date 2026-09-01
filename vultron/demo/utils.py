@@ -517,8 +517,8 @@ def _assert_client_hosts_actor(
     it names — it addresses whatever the target container happens to host under
     that slug.  There is no error at the HTTP layer to notice: if the slug is
     unknown there the request 404s three frames from the real mistake, and if it
-    *is* known ``get_actor_dl`` mints an empty store for it and the trigger runs
-    against the wrong actor's state (#2549).
+    *is* known ``get_actor_dl`` returns that store and the trigger runs against
+    the wrong actor's state.
 
     fvcv-handoff spent a CI run on the 404 form of this — the Coordinator's
     ``invite-actor-to-case`` posted to the vendor container — so the check is
@@ -659,7 +659,7 @@ def log_case_state(
 #: ``(slug, name, actor_type)``.
 #:
 #: Slugs, not absolute URIs: ``POST /actors/`` canonicalizes a bare slug into
-#: ``{base_url}actors/{slug}`` (ADR-0073 decision 2), so the id names the very
+#: ``{base_url}actors/{slug}`` (ADR-0073#url-segment-computed-not-looked-up), so the id names the very
 #: endpoint this node serves.  A hard-coded absolute id would instead name an
 #: actor on some *other* node — the mistake the retired example actors made, and
 #: the reason they could not be addressed here.
@@ -704,7 +704,7 @@ def seed_exchange_actors(
     # large majority of them.  Reads about the finder's or coordinator's replica
     # pass `actor_id=` explicitly at the call site, which is what makes those
     # reads legible as cross-actor rather than silently answering from the wrong
-    # store (ADR-0073 decision 7).
+    # store (ADR-0073#cross-actor-access-must-be-named).
     client.actor_id = vendor.id_
     logger.debug("Exchange demo reads bound to vendor replica: %s", vendor.id_)
 
@@ -770,7 +770,8 @@ def seed_actor(
         name: Display name for the actor.
         actor_type: ActivityStreams actor type string (default: ``"Organization"``).
         actor_id: Optional full URI for the actor.  When absent the server
-            derives one from ``VULTRON_SERVER__BASE_URL``.
+            derives one from ``VULTRON_SERVER__BASE_URL``.  Must be under this
+            node's authority; use :func:`seed_peer` for foreign-authority ids.
 
     Returns:
         The created (or pre-existing) ``as_Actor`` object.
@@ -780,6 +781,39 @@ def seed_actor(
         payload["id"] = actor_id
 
     response_data = client.post("/actors/", json=payload)
+    return as_Actor.model_validate(response_data)
+
+
+def seed_peer(
+    client: DataLayerClient,
+    local_actor_id: str,
+    peer_id: str,
+    name: str,
+    actor_type: str = "Organization",
+) -> as_Actor:
+    """Register a peer in a hosted actor's address book.
+
+    Calls ``POST /actors/{slug}/peers/`` on the target container.  The peer is
+    recorded as an address-book entry in *local_actor_id*'s own store — it is not
+    created as a hosted actor (ADR-0081).  Idempotent: re-registering an already
+    known peer returns the existing record with HTTP 200.
+
+    Args:
+        client: DataLayerClient instance pointing at the container that hosts
+            *local_actor_id*.
+        local_actor_id: Full URI of the hosted actor whose address book to update.
+        peer_id: Full absolute URI of the peer actor to register.
+        name: Display name for the peer.
+        actor_type: ActivityStreams actor type string (default: ``"Organization"``).
+
+    Returns:
+        The created (or pre-existing) peer ``as_Actor`` object.
+    """
+    from urllib.parse import urlsplit
+
+    slug = urlsplit(local_actor_id).path.rstrip("/").rsplit("/", 1)[-1]
+    payload: dict = {"id": peer_id, "name": name, "actor_type": actor_type}
+    response_data = client.post(f"/actors/{slug}/peers/", json=payload)
     return as_Actor.model_validate(response_data)
 
 

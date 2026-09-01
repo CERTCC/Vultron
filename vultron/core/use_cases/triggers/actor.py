@@ -194,7 +194,7 @@ def _record_named_peer(
     """Record *actor_id* as a peer this actor now knows, if not already known.
 
     Being named by URI is enough: a peer's record lives in the store of
-    whichever actor knows it (ADR-0073 decision 5), and in a real deployment the
+    whichever actor knows it (ADR-0073#peer-records-in-knowers-store), and in a real deployment the
     peer is on another node whose record will never be here.  Refusing with
     "Actor '…' not found" therefore refused every cross-node peer — which is
     what made ``suggest-actor-to-case`` answer 404 for a vendor that existed and

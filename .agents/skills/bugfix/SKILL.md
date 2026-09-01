@@ -41,21 +41,27 @@ If this fails, stop and investigate before proceeding.
    ```
 
    If the user selects **"Create a new bug"**: ask for a description,
-   synthesize a title, and create the issue:
+   synthesize a title, then **before creating** determine the required fields:
+
+   1. **Parent epic** — invoke `calve-epics` Mode 1 to find the best-fit open
+      Epic. If it reports no match, present an `AskUserQuestion` with the top 5
+      closest epics plus "Specify other epic number". **A parent epic is
+      required** — do not create the issue until one is confirmed.
+
+   2. **Milestone** — query open milestones and ask the user to confirm the
+      best-fit one (see `shared/issue-creation-requirements.md` for defaults).
+
+   Then create with all three required fields:
 
    ```bash
    BUG_TYPE_ID=$(bash .agents/skills/shared/board-id.sh issue-type Bug)
    ISSUE_NUMBER=$(.agents/skills/manage-github-issue/manage_github_issue.sh \
      --title "${BUG_TITLE}" \
      --body "${BUG_BODY}" \
-     --issue-type-id "${BUG_TYPE_ID}")
+     --issue-type-id "${BUG_TYPE_ID}" \
+     --parent "${EPIC_NUMBER}" \
+     --milestone "${MILESTONE_NUMBER}")
    ```
-
-   Immediately after creation, route the new issue onto the epic forest:
-   invoke `calve-epics` Mode 1 on `${ISSUE_NUMBER}`. If `calve-epics` reports
-   no matching epic, present an `AskUserQuestion` with the top 5 closest open
-   epics plus "Specify other epic number". **A parent epic is required** —
-   do not proceed to Phase 2 until the issue is wired to a parent.
 
 3. Invoke `orient-agent` to load baseline context.
 4. Fetch the issue body and comments.
@@ -156,8 +162,9 @@ Invoke `deepen-context` with focus hints derived from the investigation
 
 ## Phase 3 — Present Findings (BLOCKING)
 
-Present a single structured briefing via `ask_user`. Include every item
-from Phase 2 with concrete evidence:
+Embed the complete briefing in the `question` field of the `ask_user` call —
+do **not** output it as free text before the tool call. Include every item
+from Phase 2 with concrete evidence directly in the question text:
 
 ```text
 Reproduced at: <file:line>

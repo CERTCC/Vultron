@@ -12,21 +12,27 @@
 #   --body TEXT             Issue body markdown
 #   --label LABEL           Label to apply (repeatable)
 #   --issue-type-id ID      GraphQL node ID for the issue type
-#   --parent N              Set this issue as sub-issue of parent #N
+#   --parent N              Set this issue as sub-issue of parent #N (required on create)
+#   --milestone N           Milestone number to assign (required on create)
 #   --blocked-by N          This issue is blocked by #N (repeatable, idempotent)
 #   --blocks N              This issue blocks #N (repeatable, idempotent)
 #   --sub-issue N           Add #N as sub-issue of this issue (repeatable, idempotent)
 #   --clean-body            Strip legacy relationship markers from the issue body
 #
+# On CREATE (no --issue-number), the following three fields are REQUIRED:
+#   --issue-type-id, --parent, --milestone
+# Missing any one exits non-zero. See shared/issue-creation-requirements.md.
+#
 # Outputs:
 #   Issue number on stdout. Progress and status on stderr.
 #
 # Examples:
-#   # Create with parent and blocker:
+#   # Create with parent, milestone, and blocker:
 #   NUM=$(.agents/skills/manage-github-issue/manage_github_issue.sh \
 #     --title "Implement X" --body "..." \
-#     --label "group:unscheduled,size:M" \
-#     --parent 42 --blocked-by 50)
+#     --issue-type-id "${TASK_TYPE_ID}" \
+#     --label "size:M" \
+#     --parent 42 --milestone 25 --blocked-by 50)
 #
 #   # Wire relationships on an existing issue:
 #   .agents/skills/manage-github-issue/manage_github_issue.sh \
@@ -45,6 +51,7 @@ BODY=""
 LABELS=()
 ISSUE_TYPE_ID=""
 PARENT_ISSUE=""
+MILESTONE=""
 BLOCKED_BY=()
 BLOCKS=()
 SUB_ISSUES=()
@@ -60,6 +67,7 @@ while [[ $# -gt 0 ]]; do
     --label)         LABELS+=("$2");     shift 2 ;;
     --issue-type-id) ISSUE_TYPE_ID="$2"; shift 2 ;;
     --parent)        PARENT_ISSUE="$2";  shift 2 ;;
+    --milestone)     MILESTONE="$2";     shift 2 ;;
     --blocked-by)    BLOCKED_BY+=($2);   shift 2 ;;
     --blocks)        BLOCKS+=($2);       shift 2 ;;
     --sub-issue)     SUB_ISSUES+=("$2"); shift 2 ;;
@@ -67,6 +75,19 @@ while [[ $# -gt 0 ]]; do
     *) echo "Unknown option: $1" >&2; exit 1 ;;
   esac
 done
+
+# Completeness guard — required on every new issue
+if [[ -z "${ISSUE_NUMBER}" ]]; then
+  MISSING=()
+  [[ -z "${ISSUE_TYPE_ID}" ]] && MISSING+=("--issue-type-id")
+  [[ -z "${PARENT_ISSUE}"  ]] && MISSING+=("--parent (epic parent required)")
+  [[ -z "${MILESTONE}"     ]] && MISSING+=("--milestone")
+  if [[ ${#MISSING[@]} -gt 0 ]]; then
+    echo "ERROR: missing required field(s) for new issue: ${MISSING[*]}" >&2
+    echo "  See .agents/skills/shared/issue-creation-requirements.md" >&2
+    exit 1
+  fi
+fi
 
 REPO_OWNER="${REPO%%/*}"
 REPO_NAME="${REPO##*/}"
@@ -154,6 +175,13 @@ if [[ -z "${ISSUE_NUMBER}" ]]; then
     echo "  Applied labels: ${LABEL_STR}" >&2
   fi
 
+  # Apply milestone
+  if [[ -n "${MILESTONE}" ]]; then
+    gh api "repos/${REPO}/issues/${ISSUE_NUMBER}" \
+      -X PATCH -f "milestone=${MILESTONE}" > /dev/null
+    echo "  Applied milestone: #${MILESTONE}" >&2
+  fi
+
   # Parent was set at create time; clear PARENT_ISSUE to skip Step 2
   PARENT_ISSUE=""
 
@@ -190,6 +218,12 @@ else
       --repo "${REPO}" \
       --add-label "${LABEL_STR}" >&2
     echo "  Applied labels: ${LABEL_STR}" >&2
+  fi
+
+  if [[ -n "${MILESTONE}" ]]; then
+    gh api "repos/${REPO}/issues/${ISSUE_NUMBER}" \
+      -X PATCH -f "milestone=${MILESTONE}" > /dev/null
+    echo "  Applied milestone: #${MILESTONE}" >&2
   fi
 fi
 

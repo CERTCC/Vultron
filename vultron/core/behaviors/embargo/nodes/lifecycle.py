@@ -31,7 +31,6 @@ from vultron.core.behaviors.helpers import (
     PortInformation,
 )
 from vultron.core.behaviors.narrative_log import log_em_transition
-from vultron.core.models.case import VulnerabilityCase
 from vultron.core.services.embargo_lifecycle import (
     EmbargoLifecycle,
     EmbargoLifecycleResult,
@@ -311,8 +310,8 @@ class ReadEmbargoIdNode(DataLayerActionWithPorts):
             return f
         assert self.datalayer is not None
 
-        case = self.datalayer.read(self._case_id)
-        if not isinstance(case, VulnerabilityCase):
+        case = self.datalayer.read_case(self._case_id)
+        if case is None:
             self.feedback_message = f"Case '{self._case_id}' not found"
             return Status.FAILURE
 
@@ -354,8 +353,8 @@ class SetEmbargoActiveNode(DataLayerActionWithPorts):
 
         # Idempotency check: avoid calling EmbargoLifecycle when the embargo
         # is already active (ACTIVE + matching id is not a valid ACCEPT source).
-        case = self.datalayer.read(self.case_id)
-        if not isinstance(case, VulnerabilityCase):
+        case = self.datalayer.read_case(self.case_id)
+        if case is None:
             self.feedback_message = f"Case '{self.case_id}' not found"
             self.logger.warning("%s: %s", self.name, self.feedback_message)
             return Status.FAILURE

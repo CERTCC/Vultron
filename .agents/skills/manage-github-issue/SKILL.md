@@ -22,11 +22,14 @@ structured relationships are wired.
 
 ```bash
 # Create a new issue (prints issue number to stdout)
+TASK_TYPE_ID=$(bash .agents/skills/shared/board-id.sh issue-type Task)
 ISSUE_NUMBER=$(.agents/skills/manage-github-issue/manage_github_issue.sh \
   --title "Implement X" \
   --body "$(cat body.md)" \
+  --issue-type-id "${TASK_TYPE_ID}" \
   --label "size:M" \
   --parent 42 \
+  --milestone 25 \
   --blocked-by 50)
 
 # Update an existing issue — wire relationships
@@ -52,12 +55,17 @@ ISSUE_NUMBER=$(.agents/skills/manage-github-issue/manage_github_issue.sh \
 | `--body` | — | Body markdown |
 | `--label` | — | Comma-separated label names |
 | `--assignees` | — | Comma-separated GitHub usernames |
-| `--issue-type-id` | — | GraphQL node ID of the issue type |
-| `--parent` | — | Parent issue number |
+| `--issue-type-id` | — | GraphQL node ID of the issue type (**required** on create) |
+| `--parent` | — | Parent epic issue number (**required** on create) |
+| `--milestone` | — | Milestone number (**required** on create) |
 | `--blocked-by` | — | Space-separated issue numbers that block this one |
 | `--blocks` | — | Space-separated issue numbers this one blocks |
 | `--sub-issue` | — | Child issue number (repeatable) |
 | `--clean-body` | — | Strip legacy body-text relationship markers |
+
+> **On create**, `--issue-type-id`, `--parent`, and `--milestone` are all required.
+> The script exits non-zero if any is missing.
+> See `shared/issue-creation-requirements.md` for lookup commands and defaults.
 
 Outputs: issue number on **stdout**; progress messages on **stderr**.
 

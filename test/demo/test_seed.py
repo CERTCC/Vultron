@@ -27,7 +27,10 @@ from click.testing import CliRunner
 
 from vultron.demo.cli import main
 from vultron.demo.utils import DataLayerClient, seed_actor
-from vultron.wire.as2.vocab.base.objects.actors import as_Organization
+from vultron.wire.as2.vocab.base.objects.actors import (
+    as_Actor,
+    as_Organization,
+)
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -212,8 +215,15 @@ class TestSeedCommand:
             )
 
         mock_fn = MagicMock(side_effect=_capturing_seed)
+        mock_seed_peer = MagicMock(
+            return_value=as_Actor.model_validate(
+                {"id": "http://file-peer/actors/fp", "name": "FilePeer"}
+            )
+        )
         runner = CliRunner()
-        with patch("vultron.demo.cli.seed_actor", mock_fn):
+        with patch("vultron.demo.cli.seed_actor", mock_fn), patch(
+            "vultron.demo.cli.seed_peer", mock_seed_peer
+        ):
             result = runner.invoke(
                 main,
                 [
@@ -225,10 +235,10 @@ class TestSeedCommand:
                 ],
             )
         assert result.exit_code == 0, result.output
-        assert mock_fn.call_count == 2
+        assert mock_fn.call_count == 1  # local actor only
+        assert mock_seed_peer.call_count == 1  # one peer via seed_peer
         names = {c["name"] for c in calls}
         assert "FileActor" in names
-        assert "FilePeer" in names
 
     def test_seed_command_registered_in_main_group(self):
         runner = CliRunner()
@@ -281,8 +291,15 @@ class TestSeedCommand:
                 {"id": actor_id or f"http://mock/{name}", "name": name}
             )
         )
+        mock_seed_peer = MagicMock(
+            side_effect=lambda client, local_actor_id, peer_id, name, actor_type="Organization": as_Actor.model_validate(
+                {"id": peer_id, "name": name}
+            )
+        )
         runner = CliRunner()
-        with patch("vultron.demo.cli.seed_actor", mock_fn):
+        with patch("vultron.demo.cli.seed_actor", mock_fn), patch(
+            "vultron.demo.cli.seed_peer", mock_seed_peer
+        ):
             result = runner.invoke(
                 main,
                 [
@@ -294,5 +311,6 @@ class TestSeedCommand:
                 ],
             )
         assert result.exit_code == 0, result.output
-        # 1 local + 3 peers = 4 total calls
-        assert mock_fn.call_count == 4
+        # 1 local (seed_actor) + 3 peers (seed_peer)
+        assert mock_fn.call_count == 1
+        assert mock_seed_peer.call_count == 3

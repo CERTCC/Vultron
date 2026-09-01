@@ -12,16 +12,36 @@ related_specs:
   - case-ledger-processing.yaml (CLP-07-001, CLP-07-006, CLP-07-009, CLP-07-010)
   - status-dimension-objects.yaml (SDO-03-003, SDO-03-005)
   - datalayer.yaml (DL-05-001)
+related_notes:
+  - notes/wire-core-boundary.md
 related_adrs:
   - ADR-0017
   - ADR-0036
   - ADR-0062
   - ADR-0063
+  - ADR-0082
 ---
 
 # Core-to-Wire Rendering Port
 
 Source: CONCERN-2260. Supersedes the known-deviation posture of #1991.
+
+> **Mechanism revised by ADR-0082.** The decision recorded here — render core
+> objects through a driven port rather than by aliasing core types — stands
+> unchanged. Two things about the *implementation* change:
+>
+> 1. The adapter no longer resolves the wire counterpart with
+>    `VOCABULARY.get(type(obj).__name__)`. That lookup depended on the bare-name
+>    collision between the wire and core registries; it now goes through the
+>    declarative pairing registry (ARCH-23-001).
+> 2. The adapter no longer calls `wire_cls.from_core(obj)`. Projection moves off
+>    the wire classes into translator modules on the adapter side (ARCH-12-005 as
+>    amended), so that wire classes carry no domain knowledge.
+>
+> Note also that this port only ever addressed the **core→wire** direction of
+> ARCH-01-001. The wire→core direction was still being served by core
+> duck-typing `getattr(obj, "to_core", None)`; ADR-0082 adds the mirror-image
+> `WireParsePort`. See [notes/wire-core-boundary.md](wire-core-boundary.md).
 
 ## The legitimate need
 
@@ -263,6 +283,8 @@ wire→core separation.
 - `VultronPerson`'s docstring claim that it is 'Registered in
   `VOCABULARY["Person"]`' is stale — the six core actor classes are in
   `CORE_VOCABULARY` only. Fix it while you are in the file.
-- **#2268** (thirteen remaining wire-shadowing types on the write path) stays
-  tracked separately. It is the same family of defect but a different set of
-  types, and `_NORMALIZE_WIRE_TO_CORE` in `db_record.py` is its seam.
+- The write-path shadowing-type work tracked by issues #2268 and #2402 is
+  **done**: `_NORMALIZE_WIRE_TO_CORE` in `db_record.py` now covers all fifteen
+  shadowing types, including the five actor types. Do not restate a "remaining"
+  count. ADR-0082 deletes that gate entirely once `extra="forbid"` lands
+  (ARCH-12-003).

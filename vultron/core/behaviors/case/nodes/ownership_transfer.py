@@ -82,9 +82,9 @@ class EmitOfferCaseOwnershipTransferNode(_EmitSingleActivityBase):
         assert self.trigger_activity_factory is not None
         assert self.actor_id is not None
         assert self.datalayer is not None
-        case = self.datalayer.read(self.case_id)
+        case = self.datalayer.read_case(self.case_id)
         case_actor_id: list[str] | None = None
-        if isinstance(case, VulnerabilityCase):
+        if case is not None:
             cm_id = _resolve_case_manager_id(case, self.datalayer)
             if cm_id:
                 case_actor_id = [cm_id]
@@ -129,9 +129,9 @@ class EmitAcceptCaseOwnershipTransferNode(_EmitSingleActivityBase):
         assert self.trigger_activity_factory is not None
         assert self.actor_id is not None
         assert self.datalayer is not None
-        case = self.datalayer.read(self.case_id)
+        case = self.datalayer.read_case(self.case_id)
         case_actor_id: list[str] | None = None
-        if isinstance(case, VulnerabilityCase):
+        if case is not None:
             cm_id = _resolve_case_manager_id(case, self.datalayer)
             if cm_id:
                 case_actor_id = [cm_id]
@@ -264,8 +264,8 @@ class AcceptCaseOwnershipTransferNode(DataLayerActionWithPorts):
 
     def _read_case(self) -> Any | None:
         assert self.datalayer is not None
-        case = self.datalayer.read(self.case_id)
-        if not isinstance(case, VulnerabilityCase):
+        case = self.datalayer.read_case(self.case_id)
+        if case is None:
             self.feedback_message = f"case '{self.case_id}' not found"
             self.logger.warning("%s: %s", self.name, self.feedback_message)
             return None

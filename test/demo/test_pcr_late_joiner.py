@@ -194,6 +194,18 @@ def _create_actor(client, base_api: str, slug: str, name: str) -> str:
     return actor_id
 
 
+def _register_peer(client, host_slug: str, peer_id: str, name: str) -> None:
+    """Register a peer in the hosted actor's address book (ADR-0081)."""
+    resp = client.post(
+        f"/api/v2/actors/{host_slug}/peers/",
+        json={"id": peer_id, "name": name, "actor_type": "Organization"},
+    )
+    assert resp.status_code in (
+        200,
+        201,
+    ), f"Peer registration failed ({resp.status_code}): {resp.text}"
+
+
 def _post_to_inbox(client, actor_slug: str, activity) -> None:
     """POST *activity* JSON to ``/api/v2/actors/{actor_slug}/inbox/``."""
     resp = client.post(
@@ -252,8 +264,8 @@ def _bootstrap_case(
         reporter_tc, reporter_base_api, reporter_slug, "Reporter"
     )
 
-    # Register reporter on owner's app so the router can deliver there.
-    _create_actor(owner_tc, reporter_base_api, reporter_slug, "Reporter")
+    # Register reporter as peer on owner's app so the router can deliver there (ADR-0081).
+    _register_peer(owner_tc, owner_slug, reporter_actor_id, "Reporter")
 
     report = as_VulnerabilityReport(
         attributed_to=reporter_actor_id,
@@ -426,9 +438,9 @@ def _run_late_joiner_sequence(
         late_joiner_tc, lj_base_api, lj_slug, "LateJoiner"
     )
 
-    # Register late-joiner on owner's app so SvcInviteActorToCaseUseCase
-    # can resolve the invitee from owner's DataLayer.
-    _create_actor(owner_tc, lj_base_api, lj_slug, "LateJoiner")
+    # Register late-joiner as peer on owner's app so SvcInviteActorToCaseUseCase
+    # can resolve the invitee from owner's DataLayer (ADR-0081).
+    _register_peer(owner_tc, owner_slug, lj_actor_id, "LateJoiner")
 
     # Step 3: owner triggers invite-actor-to-case
     resp = owner_tc.post(
