@@ -51,7 +51,8 @@ recipient cannot resolve it. The recipient has no access to the sender's
 data store, so it cannot fetch the object from there. If it has never
 received that object before, the URI is meaningless.
 
-This is why the protocol requires full inline objects in outbound activities:
+This is why the protocol requires full inline objects in outbound activities
+(AKM-02-001, AKM-02-002):
 
 > **Every outbound activity must carry its `object` field as a fully
 > inline typed object, not as a bare URI.**
