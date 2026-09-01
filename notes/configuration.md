@@ -49,33 +49,12 @@ CFG-06).
 
 ---
 
-## Module Structure (historical — superseded by issue #1342)
-
-> **Note**: The layout below was the pre-migration design. The flat
-> `vultron/config.py` no longer exists. See § "Current Architecture" below
-> for the live sub-package layout.
-
-```text
-vultron/
-  config.py          ← AppConfig, ServerConfig, DatabaseConfig,
-                        get_config(), reload_config()
-  demo/
-    seed_config.py   ← SeedConfig (separate; refactored to BaseSettings)
-```
-
-`vultron/config.py` was a **neutral module** — it MUST NOT import from
-`vultron/adapters/` or `vultron/wire/` or FastAPI. It sat alongside
-`vultron/errors.py` as a shared-access layer. This constraint still applies
-to the `vultron/config/` sub-package.
-
----
-
 ## Implementation Pattern
 
 ### AppConfig with pydantic-settings
 
 ```python
-# vultron/config.py
+# vultron/config/app.py
 from __future__ import annotations
 
 import logging
@@ -441,8 +420,10 @@ vultron/
     actor.py     ← ActorConfig (moved from vultron/core/models/actor_config.py)
 ```
 
-`actor.py` imports `CVDRole` from `vultron.enums.roles` — not from
-`vultron/core/` — satisfying the neutral-module constraint.
+The sub-package is a **neutral module**: it MUST NOT import from
+`vultron/adapters/`, `vultron/wire/`, or FastAPI. It sits alongside
+`vultron/errors.py` as a shared-access layer. `actor.py` imports `CVDRole` from
+`vultron.enums.roles` — not from `vultron/core/` — satisfying that constraint.
 
 `AppConfig` has an `actor: ActorConfig` field (default: `ActorConfig()`) so
 production code reads actor policy via `get_config().actor`.  Actor config is
