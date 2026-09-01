@@ -120,9 +120,8 @@ groups:
     priority: MUST
     kind: protocol
     statement: Protocol shorthand `RE` (Report Management Error) has no dedicated `MessageSemantics` dispatch value and no
-      entry in `SEMANTICS_ACTIVITY_PATTERNS`; report-management error conditions MUST instead be reported through the
+      entry in `SEMANTIC_REGISTRY`; report-management error conditions MUST instead be reported through the
       failure-mode mechanisms specified in MSM-05-001.
-    testable: false
     rationale: '`RE` names an error condition scoped to report management. The implementation does not partition faults by
       state machine, so there is no `RE`-shaped wire form; it partitions by failure mode instead — not understood, declined,
       or needing explanation (MSM-05-001). Read this entry as "mapped onto a different axis", not as "unimplemented".'
@@ -130,9 +129,10 @@ groups:
     - rel_type: refines
       spec_id: MSM-05-001
     verification: >-
-      Inspection of `vultron/wire/` confirms that `RE` is absent from both
-      `MessageSemantics` and `SEMANTICS_ACTIVITY_PATTERNS`; a unit test asserts this
-      absence to prevent unintended additions.
+      Inspection of `vultron/core/models/events/base.py` and
+      `vultron/semantic_registry/` confirms that no `MessageSemantics` member and no
+      registry entry names `RE`; a unit test asserts this absence to prevent
+      unintended additions.
     lint_suppress:
     - missing_story_reference
   - id: MSM-01-008
@@ -269,7 +269,7 @@ groups:
     priority: MUST
     kind: protocol
     statement: Protocol shorthand `EE` (Embargo Management Error) has no dedicated `MessageSemantics` dispatch value and no
-      entry in `SEMANTICS_ACTIVITY_PATTERNS`; embargo-management error conditions MUST instead be reported through the
+      entry in `SEMANTIC_REGISTRY`; embargo-management error conditions MUST instead be reported through the
       failure-mode mechanisms specified in MSM-05-001.
     rationale: 'Symmetric with MSM-01-007 (`RE`): faults are partitioned by failure mode rather than by state machine, so no
       embargo-scoped error wire form exists. Tests SHOULD assert that `EE` is absent from `MessageSemantics` and the semantic
@@ -278,16 +278,17 @@ groups:
     - rel_type: refines
       spec_id: MSM-05-001
     verification: >-
-      Inspection of `vultron/wire/` confirms that `EE` is absent from both
-      `MessageSemantics` and `SEMANTICS_ACTIVITY_PATTERNS`; a unit test asserts this
-      absence to prevent unintended additions.
+      Inspection of `vultron/core/models/events/base.py` and
+      `vultron/semantic_registry/` confirms that no `MessageSemantics` member and no
+      registry entry names `EE`; a unit test asserts this absence to prevent
+      unintended additions.
     lint_suppress:
     - missing_story_reference
   - id: MSM-02-009
     priority: MUST
     kind: protocol
     statement: Protocol shorthand `EK` (Embargo Management Acknowledgment) has no dedicated `MessageSemantics` dispatch value
-      and no entry in `SEMANTICS_ACTIVITY_PATTERNS`; acknowledgement of embargo state carried on the case ledger MUST instead
+      and no entry in `SEMANTIC_REGISTRY`; acknowledgement of embargo state carried on the case ledger MUST instead
       follow the cumulative hash-chain mechanism specified in MSM-05-002.
     rationale: 'Per-message positive acknowledgement is redundant for ledger-replicated state: a matching `prev_log_hash`
       already proves receipt of every prior entry (MSM-05-002). Tests SHOULD assert that `EK` is absent from
@@ -296,9 +297,10 @@ groups:
     - rel_type: refines
       spec_id: MSM-05-002
     verification: >-
-      Inspection of `vultron/wire/` confirms that `EK` is absent from both
-      `MessageSemantics` and `SEMANTICS_ACTIVITY_PATTERNS`; a unit test asserts this
-      absence to prevent unintended additions.
+      Inspection of `vultron/core/models/events/base.py` and
+      `vultron/semantic_registry/` confirms that no `MessageSemantics` member and no
+      registry entry names `EK`; a unit test asserts this absence to prevent
+      unintended additions.
     lint_suppress:
     - missing_story_reference
 - id: MSM-03
@@ -318,16 +320,14 @@ groups:
       its AS2 wire form is `Add(ParticipantStatus)[target=CaseParticipant]` per VAM-08-004. The `ParticipantStatus` payload
       encodes vendor awareness in the `vf_state` field (`CS_vf`), advancing the vendor-path ladder from `vf` to `Vf`.
     rationale: 'The V dimension is participant-scoped, not case-scoped: it records whether a *specific* vendor is aware. Per
-      ADR-0075 there is no case-level V/F/D state, and `as_ParticipantStatus.vf_state` is `None` for non-VENDOR participants
-      (structurally enforced). A case-level `Add(CaseStatus)` cannot express which vendor became aware, which is the purpose
-      of the V dimension in MPCVD. Corrected from an earlier revision that mapped `CV` to `ADD_CASE_STATUS_TO_CASE` with a
-      nonexistent `vendor_aware` payload field; see `notes/message-type-reference.md` and ADR-0083.'
+      ADR-0075 there is no case-level V/F/D state, and a case-level `Add(CaseStatus)` cannot express which vendor became
+      aware, which is the purpose of the V dimension in MPCVD. Corrected from an earlier revision that mapped `CV` to
+      `ADD_CASE_STATUS_TO_CASE` with a nonexistent `vendor_aware` payload field; see ADR-0083.'
     verification: >-
-      Inspection of `vultron/wire/` confirms that
+      Inspection of `vultron/semantic_registry/status.py` confirms that
       `MessageSemantics.ADD_PARTICIPANT_STATUS_TO_PARTICIPANT` is keyed to an
-      `ActivityPattern` matching `Add(ParticipantStatus)[target=CaseParticipant]` in
-      the semantic registry, and that `as_ParticipantStatus` declares `vf_state`
-      while `as_CaseStatus` does not.
+      `ActivityPattern` matching `Add(ParticipantStatus)[target=CaseParticipant]`, and
+      that `as_ParticipantStatus` declares `vf_state` while `as_CaseStatus` does not.
     relationships:
     - rel_type: derives_from
       spec_id: VAM-08-004
@@ -346,7 +346,7 @@ groups:
       Corrected from an earlier revision that mapped `CF` to `ADD_CASE_STATUS_TO_CASE` with a nonexistent `fix_ready` payload
       field; see ADR-0083.'
     verification: >-
-      Inspection of `vultron/wire/` confirms that
+      Inspection of `vultron/semantic_registry/status.py` confirms that
       `MessageSemantics.ADD_PARTICIPANT_STATUS_TO_PARTICIPANT` maps to
       `Add(ParticipantStatus)[target=CaseParticipant]`, and that fix readiness is
       carried by `as_ParticipantStatus.vf_state` rather than by any `as_CaseStatus`
@@ -369,7 +369,7 @@ groups:
       non-DEPLOYER participants (structurally enforced). Corrected from an earlier revision that mapped `CD` to
       `ADD_CASE_STATUS_TO_CASE` with a nonexistent `fix_deployed` payload field; see ADR-0083.'
     verification: >-
-      Inspection of `vultron/wire/` confirms that
+      Inspection of `vultron/semantic_registry/status.py` confirms that
       `MessageSemantics.ADD_PARTICIPANT_STATUS_TO_PARTICIPANT` maps to
       `Add(ParticipantStatus)[target=CaseParticipant]`, and that deployment is
       carried by `as_ParticipantStatus.d_state` rather than by any `as_CaseStatus`
@@ -436,7 +436,7 @@ groups:
     priority: MUST
     kind: protocol
     statement: Protocol shorthand `CE` (Case State Error) has no dedicated `MessageSemantics` dispatch value and no entry
-      in `SEMANTICS_ACTIVITY_PATTERNS`; case-state error conditions MUST instead be reported through the failure-mode
+      in `SEMANTIC_REGISTRY`; case-state error conditions MUST instead be reported through the failure-mode
       mechanisms specified in MSM-05-001.
     rationale: 'Symmetric with MSM-01-007 (`RE`): faults are partitioned by failure mode rather than by state machine, so no
       case-state-scoped error wire form exists. Tests SHOULD assert that `CE` is absent from `MessageSemantics` and the
@@ -445,16 +445,17 @@ groups:
     - rel_type: refines
       spec_id: MSM-05-001
     verification: >-
-      Inspection of `vultron/wire/` confirms that `CE` is absent from both
-      `MessageSemantics` and `SEMANTICS_ACTIVITY_PATTERNS`; a unit test asserts this
-      absence to prevent unintended additions.
+      Inspection of `vultron/core/models/events/base.py` and
+      `vultron/semantic_registry/` confirms that no `MessageSemantics` member and no
+      registry entry names `CE`; a unit test asserts this absence to prevent
+      unintended additions.
     lint_suppress:
     - missing_story_reference
   - id: MSM-03-008
     priority: MUST
     kind: protocol
     statement: Protocol shorthand `CK` (Case State Acknowledgment) has no dedicated `MessageSemantics` dispatch value and
-      no entry in `SEMANTICS_ACTIVITY_PATTERNS`; acknowledgement of case-state changes carried on the case ledger MUST instead
+      no entry in `SEMANTIC_REGISTRY`; acknowledgement of case-state changes carried on the case ledger MUST instead
       follow the cumulative hash-chain mechanism specified in MSM-05-002.
     rationale: 'Symmetric with MSM-02-009 (`EK`): case-state changes are ledger-replicated, so hash-chain continuity already
       acknowledges them cumulatively and a per-message ack would be redundant. Tests SHOULD assert that `CK` is absent from
@@ -463,9 +464,10 @@ groups:
     - rel_type: refines
       spec_id: MSM-05-002
     verification: >-
-      Inspection of `vultron/wire/` confirms that `CK` is absent from both
-      `MessageSemantics` and `SEMANTICS_ACTIVITY_PATTERNS`; a unit test asserts this
-      absence to prevent unintended additions.
+      Inspection of `vultron/core/models/events/base.py` and
+      `vultron/semantic_registry/` confirms that no `MessageSemantics` member and no
+      registry entry names `CK`; a unit test asserts this absence to prevent
+      unintended additions.
     lint_suppress:
     - missing_story_reference
 - id: MSM-04
@@ -477,9 +479,11 @@ groups:
   - id: MSM-04-001
     priority: MUST
     kind: protocol
-    statement: Protocol shorthand `GI` (General Inquiry) MUST dispatch as one of `MessageSemantics.CREATE_NOTE`,
-      `MessageSemantics.ADD_NOTE_TO_CASE`, or `MessageSemantics.REMOVE_NOTE_FROM_CASE`; its AS2 wire forms are
-      `Create(Note)`, `Add(Note)[target=VulnerabilityCase]`, and `Remove(Note)[target=VulnerabilityCase]` respectively.
+    statement: The note lifecycle MUST realize protocol shorthand `GI` (General Inquiry) as
+      `MessageSemantics.CREATE_NOTE`, `MessageSemantics.ADD_NOTE_TO_CASE`, and
+      `MessageSemantics.REMOVE_NOTE_FROM_CASE`; their AS2 wire forms are `Create(Note)` per VAM-07-001,
+      `Add(Note)[target=VulnerabilityCase]` per VAM-07-002, and `Remove(Note)[target=VulnerabilityCase]` per VAM-07-003.
+      These are not the whole of `GI` — MSM-04-002 adds the actor-suggestion exchange.
     rationale: '`GI` is defined in the formal protocol as any message conveying non-state-change information, so it is
       inherently one-to-many on the wire. The `Create` then `Add` split is a wire-layer artifact with no formal counterpart:
       the formal set models the inquiry, not the object lifecycle that carries it.'
@@ -487,6 +491,13 @@ groups:
       Inspection of `vultron/semantic_registry/note.py` confirms all three
       note-scoped entries are registered, and that no single `MessageSemantics`
       value is named for `GI`.
+    relationships:
+    - rel_type: derives_from
+      spec_id: VAM-07-001
+    - rel_type: derives_from
+      spec_id: VAM-07-002
+    - rel_type: derives_from
+      spec_id: VAM-07-003
     lint_suppress:
     - missing_story_reference
   - id: MSM-04-002
@@ -517,6 +528,8 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: MSM-05-001
+    - rel_type: refines
+      spec_id: MSM-05-002
     lint_suppress:
     - missing_story_reference
 - id: MSM-05
@@ -562,8 +575,8 @@ groups:
     priority: MUST_NOT
     kind: protocol
     statement: Implementations MUST NOT infer error semantics from the `as:Reject` verb alone, because `as:Reject` also
-      carries legitimate protocol rejections including `close_report`, `reject_embargo`, `reject_invite_actor_to_case`, and
-      `reject_case_ledger_entry`.
+      carries legitimate protocol rejections including `close_report`, `reject_invite_to_embargo_on_case`,
+      `reject_invite_actor_to_case`, `reject_case_proposal`, and `reject_case_ownership_transfer`.
     rationale: '`as:Reject` is overloaded across error reporting and ordinary protocol refusal. A receiver that treats every
       `as:Reject` as a fault will misclassify routine protocol traffic as errors.'
     verification: >-
@@ -582,8 +595,9 @@ groups:
       `vultron/errors.py` is a Python exception base class, unrelated to the wire type of the same name in that diagram.'
     verification: >-
       A grep for `RmError`, `EmError`, `CsError`, and `GmError` across `vultron/`
-      and `docs/reference/ontology/` returns no definitions, and no registered
-      `ActivityPattern` sets `in_reply_to_`.
+      and the whole of `docs/` returns no definitions and no documentation
+      references, and no registered `ActivityPattern` sets `in_reply_to_`. The grep
+      MUST cover `docs/howto/` — that is where the taxonomy is currently depicted.
     lint_suppress:
     - missing_story_reference
 - id: MSM-06
@@ -610,14 +624,18 @@ groups:
   - id: MSM-06-002
     priority: MUST
     kind: process
-    statement: Every `SEMANTIC_REGISTRY` entry MUST appear on exactly one page under `docs/reference/messages/`, or be
-      explicitly exempted as a dispatcher fallback rather than a protocol message.
-    rationale: 'Without a completeness check a new registry entry can be added without ever being documented. The `unknown`
-      and `unknown_unresolvable_object` entries are the intended exemptions, being dispatch fallbacks rather than message
-      types.'
+    statement: Every `SEMANTIC_REGISTRY` entry MUST be designated to exactly one *primary* page under
+      `docs/reference/messages/` and MUST appear on that page, or be explicitly exempted as a dispatcher fallback rather
+      than a protocol message. An entry MAY additionally be cross-referenced from other pages, and MUST be where a
+      collapse or an evolved mechanism gives it a second home.
+    rationale: 'Without a completeness check a new registry entry can be added without ever being documented, so every entry
+      needs one page that owns it. A bare "exactly one page" rule would be unsatisfiable, because the mapping is many-to-many
+      — see `notes/message-type-reference.md` for the entries that legitimately need a second home. A *primary* page keeps the
+      completeness guarantee without contradicting MSM-06-003. The dispatch fallbacks are the intended exemptions.'
     verification: >-
-      A ratchet test enumerates `SEMANTIC_REGISTRY` and asserts one-page coverage
-      for every entry outside the declared exemption set.
+      A ratchet test enumerates `SEMANTIC_REGISTRY` and asserts exactly one primary-page
+      designation for every entry outside the declared exemption set, and that the entry
+      appears on its designated page.
     lint_suppress:
     - missing_story_reference
     - phantom_path_ref

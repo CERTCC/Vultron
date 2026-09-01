@@ -6,6 +6,7 @@ related_specs:
   - specs/case-management.yaml
 related_notes:
   - notes/activitystreams-semantics.md
+  - notes/message-type-reference.md
   - notes/protocol-event-cascades.md
 relevant_packages:
   - transitions

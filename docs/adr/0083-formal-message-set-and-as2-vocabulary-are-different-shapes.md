@@ -117,10 +117,13 @@ representation"), which invited the reading that the behaviour was
 unimplemented. It is implemented; it is shaped differently.
 
 **3. Reference material is rendered from the registries, never hand-written.**
-The consolidated per-message-type pages under `docs/reference/messages/` render
-their mapping tables at build time from the MSM spec registry joined against
-`SEMANTIC_REGISTRY`, following the existing `docs/reference/specs/*.md` pattern.
-A ratchet asserts every registry entry appears on exactly one page.
+MSM-06 requires the consolidated per-message-type pages under
+`docs/reference/messages/` to render their mapping tables at build time from the
+MSM spec registry joined against `SEMANTIC_REGISTRY`, following the existing
+`docs/reference/specs/*.md` pattern, and requires a ratchet asserting every
+registry entry reaches its designated primary page. None of that machinery exists
+yet — this ADR decides the approach; the pages and the ratchet are built by the
+issues listed under "More Information".
 
 ### Consequences
 
@@ -130,9 +133,9 @@ A ratchet asserts every registry entry appears on exactly one page.
 - Good, because the wire vocabulary can evolve toward better ActivityStreams
   idiom without being pinned to the formal set's partitioning, and the formal set
   can stay stable for conformance without being dragged by prototype churn.
-- Good, because divergence is now detectable. A new registry entry with no MSM
-  row, or an MSM row with no registry entry, fails a check instead of quietly
-  becoming a stale table.
+- Good, because divergence becomes detectable once MSM-06-002's ratchet is built:
+  a new registry entry with no MSM row, or an MSM row with no registry entry, will
+  fail a check instead of quietly becoming a stale table.
 - Good, because it caught the MSM-03 defect: the mapping could not be rendered
   correctly from an incorrect spec, which forced the error into the open.
 - Bad, because there are now two vocabularies a contributor must learn, and the
@@ -148,20 +151,30 @@ A ratchet asserts every registry entry appears on exactly one page.
 
 ## Validation
 
+In place as of this decision:
+
 - `spec-lint` validates MSM structure and cross-references, including that every
   cited ADR and spec ID resolves.
-- `test/test_message_semantics_mapping.py` asserts the MSM-04 and MSM-05 claims
-  against the live registry: that `GI` expands across the note lifecycle and the
-  actor-suggestion exchange, that no dispatch value is named for `GK`/`GE`/`EK`/
-  `CK`, that the three fault mechanisms are all registered, that the ledger NAK
-  path exists, and that `as:Reject` is overloaded across error and ordinary
-  refusal.
-- The MSM-06 ratchet asserts every `SEMANTIC_REGISTRY` entry appears on exactly
-  one reference page, with `unknown` and `unknown_unresolvable_object` as the
-  declared exemptions.
-- Because the mapping tables are rendered from the registries rather than
-  authored, table-versus-code drift is structurally impossible rather than
-  merely tested for.
+- `test/test_message_semantics_mapping.py` asserts the MSM-03, MSM-04 and MSM-05
+  claims against the live registry: that `CV`/`CF`/`CD` dispatch as
+  `ADD_PARTICIPANT_STATUS_TO_PARTICIPANT` and that `as_CaseStatus` carries no
+  V/F/D field, that `GI` expands across the note lifecycle and the
+  actor-suggestion exchange, that no dispatch value is named for
+  `RE`/`EE`/`CE`/`GE` or `EK`/`CK`/`GK`, that the three fault mechanisms are all
+  registered, that the ledger NAK path exists, and that `as:Reject` is overloaded
+  across error and ordinary refusal.
+
+Deferred to the implementation issues, and therefore **not** yet validating
+anything:
+
+- MSM-06-002's ratchet, which will assert every `SEMANTIC_REGISTRY` entry reaches
+  its designated primary reference page, with `unknown` and
+  `unknown_unresolvable_object` as the declared exemptions (#2998).
+- The build-time rendering that will make table-versus-code drift structurally
+  impossible rather than merely tested for (#2998). Until that lands, the
+  divergence this ADR describes is documented but unguarded.
+- Correcting `docs/howto/activitypub/activities/error.md`, which still depicts the
+  phantom fault taxonomy that MSM-05-004 forbids (#3002).
 
 ## Pros and Cons of the Options
 

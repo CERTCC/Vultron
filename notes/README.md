@@ -841,7 +841,7 @@ behavior simulator reference, Do Work behaviors, and ISO crosswalks.
 Vultron docs to ISO/CVD process standards.
 
 **`message-type-reference.md`**
-Why the formal message set (28 shorthands, partitioned by state machine) and the
+Why the formal message set (shorthands partitioned by state machine) and the
 AS2 wire vocabulary (`SEMANTIC_REGISTRY`) are different shapes, and how the
 many-to-many mapping between them is documented. Contains the full collapse
 inventory (CV/CF on `vf_state`, CP/CX/CA on `pxa_state`, EV/EJ/EC onto EP/ER/EA),

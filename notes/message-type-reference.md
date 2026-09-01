@@ -7,16 +7,17 @@ description: >-
   many-to-many mapping is rendered, and where the fault and acknowledgement
   mechanisms diverged from their specified form.
 related_specs:
-  - MSM
-  - VAM
-  - DF
-  - PD
+  - specs/message-semantics-mapping.yaml
+  - specs/vultron-as2-mapping.yaml
+  - specs/diataxis-requirements.yaml
+  - specs/project-documentation.yaml
 related_notes:
-  - activitystreams-semantics.md
-  - diataxis-framework.md
-  - documentation-strategy.md
-  - status-dimension-objects.md
-  - sync-ledger-replication.md
+  - notes/activitystreams-semantics.md
+  - notes/case-state-model.md
+  - notes/diataxis-framework.md
+  - notes/documentation-strategy.md
+  - notes/status-dimension-objects.md
+  - notes/sync-ledger-replication.md
 ---
 
 # Message Type Reference: Formal Shorthands, AS2 Wire Forms, and the Mapping Between Them
@@ -60,7 +61,7 @@ wire expressions: the dedicated report-scoped activity
 broadcast. `RA` and `RD` additionally appear as case-shaped activities
 (`Join(VulnerabilityCase)` and `Ignore(VulnerabilityCase)`), because engaging or
 deferring is a case-participation decision rather than a report-validity
-judgment (MSM-01-004).
+judgment (MSM-01-005 for `RA`, MSM-01-004 for `RD`).
 
 ### Expansions: one shorthand, many wire activities
 
@@ -117,15 +118,24 @@ failed**, which is orthogonal and arguably the better axis:
 Two consequences for implementers:
 
 - `as:Reject` is **overloaded**. It carries legitimate protocol rejections
-  (`close_report`, `reject_embargo`, `reject_invite_actor_to_case`,
-  `reject_case_ledger_entry`) as well as error semantics. A receiver cannot infer
-  "error" from the verb alone.
+  (`close_report`, `reject_invite_to_embargo_on_case`,
+  `reject_invite_actor_to_case`, `reject_case_proposal`,
+  `reject_case_ownership_transfer`) as well as error semantics. A receiver cannot
+  infer "error" from the verb alone. Note that the shorthand `reject_embargo`
+  is *not* a registry name — the embargo rejection is
+  `reject_invite_to_embargo_on_case`; `reject_embargo` names only the BT and
+  factory helpers (`reject_embargo_trigger_bt`, `em_reject_embargo_activity`).
+  `reject_case_ledger_entry` is deliberately excluded from this list: it is the
+  ledger NAK of MSM-05-002, not an ordinary refusal.
 - `docs/howto/activitypub/activities/error.md` depicts a four-way wire taxonomy
   (`RmError`/`EmError`/`CsError`/`GmError` as `as:Reject` discriminated by
   `as:inReplyTo`). **None of those types exist** — not in the ontology, not in
   code. And `ActivityPattern.in_reply_to_`, the discriminator that design needs,
-  is present on the dataclass but used by **zero** registered patterns. Do not
-  cite that diagram as describing the wire format.
+  is declared on the model (`ActivityPattern` is a Pydantic `BaseModel` in
+  `vultron/wire/as2/extractor/_pattern.py`) but is set by **zero** registered
+  patterns. Do not cite that diagram as describing the wire format. MSM-05-004
+  makes this a `MUST NOT` for documentation — note that `error.md` itself has not
+  been corrected yet, so the corpus currently violates it.
 
 Beware a name collision: `VultronError` in `vultron/errors.py` is a **Python
 exception base class**, unrelated to the wire type of the same name in that
@@ -174,25 +184,46 @@ formal transition table.
 Every mapping row carries a **status**: `implemented`, `collapsed-into-X`,
 `expanded-into-X`, or `evolved-to-X` (for the fault and acknowledgement cases
 above). Reference material states what is true, including divergence from the
-normative set — see DF-04.
+normative set — see DF-05-003 and DF-05-004.
+
+### One primary page per entry, not one page per entry
+
+MSM-06-002 designates a **primary** page per `SEMANTIC_REGISTRY` entry rather
+than requiring each entry to appear on exactly one page, because the collapse
+inventory above makes the stricter rule unsatisfiable. The entries that
+legitimately need a second home:
+
+| Entry | Primary page | Also appears on | Why |
+|---|---|---|---|
+| `add_participant_status_to_participant` | `cs.md` | `rm.md` | `vf_state`/`d_state` carry CV/CF/CD; `rm_state` carries the RM ladder |
+| `close_report` | `rm.md` | `faults_and_acknowledgements.md` | `RC` on the RM page; an ordinary `as:Reject` on the faults page (MSM-05-003) |
+| `reject_case_ledger_entry` | `ledger_replication.md` | `faults_and_acknowledgements.md` | The ledger NAK is both the SYNC mechanism and the acknowledgement story (MSM-05-002) |
+
+Build the #2998 ratchet against the primary designation. Reading MSM-06-002 as
+"one page, full stop" will make it look unimplementable.
 
 ### Mapping tables are rendered, never hand-written
 
 Render the tables at build time from the MSM spec registry joined against
 `SEMANTIC_REGISTRY`, following the `docs/reference/specs/*.md` →
-`vultron/metadata/specs/docs_render.py` pattern. Hand-written tables rot: the 48
-orphaned JSONs under `docs/reference/examples/` and the 101 broken example blocks
-(#2904) are what that rot looks like after a couple of years.
+`vultron/metadata/specs/docs_render.py` pattern. Hand-written tables rot: the
+orphaned JSONs under `docs/reference/examples/` and the failing `markdown_exec`
+example blocks tracked by #2904 are what that rot looks like after a couple of
+years.
 
-A ratchet test asserts every `SEMANTIC_REGISTRY` entry appears on exactly one
-reference page, so a new registry entry cannot be added without being
-documented or explicitly exempted.
+MSM-06-002 requires a ratchet test asserting every `SEMANTIC_REGISTRY` entry
+reaches its designated primary reference page, so a new registry entry cannot be
+added without being documented or explicitly exempted. **That ratchet does not
+exist yet** — building it is #2998. Until it lands, nothing prevents the drift
+this section is warning about.
 
 ## Diátaxis: these pages are an extraction, not a new surface
 
-`docs/howto/activitypub/activities/` is a **partial collapse** — it violates
-DF-01-003 (pages MUST NOT combine multiple Diátaxis content types). Each page
-mixes three quadrants:
+`docs/howto/activitypub/activities/` is a **partial collapse** — it runs against
+DF-01-003 (pages SHOULD NOT combine multiple Diátaxis content types; where a
+combined view is unavoidable, the parts MUST be separated and each MUST link to
+the canonical page of its own type). These pages neither separate nor link, so
+they do not qualify for the escape clause. Each page mixes three quadrants:
 
 | Content | Actual quadrant | Destination |
 |---|---|---|
@@ -201,11 +232,15 @@ mixes three quadrants:
 | `!!! example "Try it: vultron-demo <scenario>"` blocks | How-to | stays, retitled "How to …" |
 
 Diagnostic evidence: the titles are noun phrases ("Status Updates and Comments",
-"Acknowledging Other Messages") where DF and the framework require
+"Acknowledging Other Messages") where DF-04-003 and the framework require
 "How to [Action]"; the pages contain no imperatives or steps; `acknowledge.md` is
-almost entirely design rationale and passes the bath test; and every page carries
-`{% include-markdown "not_normative.md" %}`, which is itself a signal the author
-knew the content was discursive.
+almost entirely design rationale and passes the bath test; and nearly every page
+carries `{% include-markdown "not_normative.md" %}`, which is itself a signal the
+author knew the content was discursive. The two pages without that banner are
+`error.md` and `acknowledge.md` — which is not counter-evidence, since those are
+the two whose content is *least* task-shaped. `error.md` additionally documents a
+wire format that was never built (see above), and `acknowledge.md` is the
+bath-test example.
 
 So the reference pages are the Reference half of un-blurring an existing
 collapse. Treating them as a fourth parallel surface would deepen the collapse
@@ -213,14 +248,21 @@ instead of resolving it.
 
 ## Examples are rendered at build time
 
-Use `markdown_exec` blocks calling `vultron.wire.as2.vocab.examples.vocab_examples`,
-as `docs/reference/specs/protocol.md` does. Build-time rendering cannot go stale.
+Use `markdown_exec` blocks calling `vultron.wire.as2.vocab.examples.vocab_examples`.
+Build-time rendering cannot go stale.
+
+Two patterns are easy to confuse. `docs/reference/specs/protocol.md` is the
+exemplar for the **mapping tables** — a thin `markdown_exec` shell over
+`vultron.metadata.specs.docs_render.render_for_kind`. It does *not* render wire
+examples. For the **examples** themselves, follow the `_*.md` partials under
+`docs/howto/activitypub/activities/` and `docs/howto/activitypub/objects.md`,
+which are the pages that actually call `vocab_examples`.
 
 Two prerequisites:
 
-- **#2904 blocks this.** All 101 example blocks currently fail from a single root
-  cause (frozen-model assignment in `_strip_published_udpated`). Any page
-  rendering examples this way inherits the failure until that lands.
+- **#2904 blocks this.** Every `markdown_exec` example block currently fails from
+  a single root cause (frozen-model assignment in `_strip_published_udpated`). Any
+  page rendering examples this way inherits the failure until that lands.
 - `docs/reference/examples/*.json` are retained as downloadable artifacts, but
   the generator's hardcoded relative output path
   (`../../docs/reference/examples` in `vocab_examples.main()`) must be fixed and
