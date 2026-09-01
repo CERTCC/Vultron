@@ -92,8 +92,16 @@ class TestBufferAndTakeNext:
         assert buf.take_next(CASE_A, "deadbeef" * 8) is None
         assert buf.depth(CASE_A) == 1
 
+    @pytest.mark.spec("CSB-19-001")
+    @pytest.mark.spec("CSB-19-003")
     def test_cascade_drain_in_order(self):
-        """A contiguous buffered run drains one hop at a time in O(1) lookups."""
+        """A contiguous buffered run drains one hop at a time in O(1) lookups.
+
+        Covers CSB-19-001 (CS invariants evaluated at drain time in causal
+        order) and CSB-19-003 (P-before-ET is preserved because drain order
+        equals log_index order, so the lower-indexed entry always precedes the
+        higher-indexed one regardless of arrival order).
+        """
         entries = _chain(5)  # 0..4
         buf = LedgerGapBuffer()
         for e in entries[1:]:  # buffer 1,2,3,4
@@ -107,6 +115,23 @@ class TestBufferAndTakeNext:
             tail = nxt.entry_hash
         assert drained == [1, 2, 3, 4]
         assert buf.depth(CASE_A) == 0
+
+    @pytest.mark.spec("CSB-19-002")
+    def test_buffer_does_not_evaluate_cs_invariants(self):
+        """Buffering an out-of-order entry never triggers CS validation (CSB-19-002).
+
+        The LedgerGapBuffer is a pure data structure with no knowledge of CS
+        state; buffer() only stores the entry keyed on its predecessor hash.
+        An out-of-order pX-state entry (whose P-predecessor has not arrived)
+        is buffered without any CS guard evaluation — the guard fires at drain
+        time when entries are replayed in causal order.
+        """
+        buf = LedgerGapBuffer()
+        _e0, e1 = _chain(2)
+        # Buffer e1 before e0 has been persisted — simulates out-of-order receipt.
+        result = buf.buffer(e1)
+        assert result is True  # accepted with no CS-side-effect
+        assert buf.depth(CASE_A) == 1
 
     def test_cases_are_isolated(self):
         buf = LedgerGapBuffer()

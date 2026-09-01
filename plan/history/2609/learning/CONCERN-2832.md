@@ -66,3 +66,15 @@ to codify the remaining gaps, and creating two impl Tasks.
   but without a spec entry the behaviour was invisible to reviewers and future
   implementors. When ADR-0037-style buffering is in play, always check whether
   invariant specs explicitly state *when* the guard fires.
+
+- **#1166 (distributed consensus ledger) does not conflict with ADR-0079.**
+  AC-4 of #2832 required checking that the near-term decision (ADR-0079:
+  single-writer CaseActor, log_index = causal order) does not foreclose
+  consensus-based ledgering (#1166). It does not: ADR-0079 defines the
+  *current* authority model for cases with a single designated CaseActor.
+  #1166 would introduce a consensus layer *beneath* that abstraction —
+  consensus is an upgrade path for the authority mechanism, not a contradiction
+  of it. The log_index-is-causal-order property would remain valid in a
+  consensus-backed system; the CaseActor role would simply gain a replicated
+  backing store. #1166 remains open as a long-horizon architectural item;
+  no immediate action required.
