@@ -628,6 +628,15 @@ bulk module-rename lessons, and known documentation gaps.
 **Load when**: adding or moving modules, following established code
 organization conventions, or orienting to the module boundary rules.
 
+**`demo-scenario-authoring.md`**
+How to write a multi-actor demo scenario without faking the protocol: puppeteer
+actors through trigger endpoints rather than spoofing via inbox injection, never
+carry one actor's mail to another's inbox, extract helpers before the second use,
+keep console-script entry points callable with no arguments, and treat docker
+service names as routing labels rather than actor identities.
+**Load when**: writing or reviewing a demo scenario, adding a scenario helper, or
+deciding whether a demo step is puppeteering or spoofing.
+
 **`demo-ci-invariants.md`**
 Design notes for the case-ledger invariant harness in demo CI: the
 separate-job pattern (DEMOCI-04) that gives the invariant harness its own

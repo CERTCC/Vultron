@@ -7,6 +7,7 @@ related_specs:
   - specs/ci-security.yaml
 related_notes:
   - notes/ci-workflow-authoring.md
+  - notes/demo-scenario-authoring.md
 ---
 
 # Demo CI Invariant Harness Design
@@ -516,3 +517,24 @@ adding a new scenario phase that produces a new `event_type`, update both the sp
 requirement and the test constant in the same PR.
 
 Sources: CONCERN-1649, PR-1590
+
+## Keeping the Per-Scenario Dump Phase Thin (DEMOMA-23-002)
+
+`_phase_dump_case_ledgers` in a scenario module builds `LedgerDumpTarget`s and
+delegates to `vultron.demo.helpers.ledger_dump.dump_case_ledgers()`. It MUST NOT
+contain per-scenario fetch/write loops — that is how one scenario's dump fix
+fails to reach the other eight (DEMOMA-23-002, DEMOMA-17-001).
+
+Two placement rules follow from the ordering the harness owns:
+
+- **Register the dump the moment a case exists.** Immediately after the phase
+  that creates the case, call
+  `harness.dump_with(lambda: _phase_dump_case_ledgers(...))`. Every phase below
+  that line can then fail without costing the ledgers (DEMOMA-23-003).
+- **Do not re-add `try/finally: assert_demo_success()` in `main()`.** The harness
+  owns the accumulator; a second owner reintroduces #2239 by asserting before the
+  dump has run (DEMOMA-23-001).
+
+**Testing this**: patch a mid-scenario phase to raise, point `DEVLOGS_DIR` at a
+`tmp_path`, and assert the manifest exists. See
+`test/demo/test_issue_2239_ledger_dump_in_finally.py`.

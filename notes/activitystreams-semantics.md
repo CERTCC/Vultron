@@ -12,6 +12,7 @@ related_specs:
 related_notes:
   - notes/activitystreams-state-update.md
   - notes/bt-integration.md
+  - notes/demo-scenario-authoring.md
 relevant_packages:
   - pydantic
   - vultron/wire/as2
@@ -401,3 +402,29 @@ allowlist test (SE-07-005 in `test/test_semantic_registry.py`) enforces this
 structurally.
 
 Source: CONCERN-1898
+
+## Event-Phrase Lookups MUST Use `lookup_entry()`, Not a Local Phrase Dict
+
+Any display-layer code that maps a `MessageSemantics` value to a human-readable
+phrase MUST use `lookup_entry(semantics).phrase` from
+`vultron.semantic_registry`, not a local `dict[str, str]` parallel table.
+
+A local dict keyed by `MessageSemantics` values silently drifts as new semantics
+are added to the enum. `SemanticEntry.phrase` is mandatory (SE-07-003), so a
+missing phrase is a `TypeError` at registry construction time — not a silent
+fallback at render time.
+
+Render with:
+
+```python
+from vultron.semantic_registry import lookup_entry
+
+lookup_entry(semantics).phrase.format_map(defaultdict(lambda: "—", slots))
+```
+
+Use the fallback humanizer (`event_type.replace("_", " ")`) only for event types
+not in the registry (e.g. data from a future protocol version). Note the slot
+allowlist in the section above — only `{actor}`, `{object}` and `{target}` are
+ever filled.
+
+Source: CONCERN-1675

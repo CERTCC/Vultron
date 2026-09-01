@@ -11,6 +11,7 @@ related_specs:
 related_notes:
   - notes/case-communication-model.md
   - notes/protocol-event-cascades.md
+  - notes/demo-scenario-authoring.md
 relevant_packages:
   - vultron/core/behaviors/case/nodes/
   - vultron/core/use_cases/received/actor/
@@ -308,3 +309,33 @@ if request.receiving_actor_id != case_actor_id:
 
 See `notes/case-communication-model.md` § "Antipattern: Received-Side
 Guarded Commit with Foreign CaseActor ID" for the full pattern.
+
+## Retired Demo Workaround: Accept Self-Delivery
+
+`vultron/demo/AGENTS.md` previously carried a MUST-level rule requiring the
+accepting actor to self-deliver the `Accept(Offer(VulnerabilityCase))` to its own
+inbox after triggering `accept-case-ownership-transfer` — because the trigger-side
+BT addressed the Accept only to the **offering** actor, leaving the accepting
+actor's own replica un-updated (CONCERN-1653). PR #1590 had silently deleted that
+step in a commit that appeared to only change a field accessor, and the omission
+surfaced only under CI.
+
+**That rule is retired.** Under the ADR-0053 routing model documented above,
+`EmitAcceptCaseOwnershipTransferNode` addresses the Accept to the CaseActor, which
+records it and broadcasts the `Announce`, so every replica — including the
+accepting actor's — updates through the normal delivery path. The
+`post_to_inbox_and_wait` block was removed from `fvcv_handoff_demo.py` and from
+`fccv_handoff_demo.py` (PR #2735, ISSUE-2719); neither scenario calls it today.
+
+Two consequences worth keeping:
+
+- Do **not** re-add a self-delivery call to a scenario demo to "make the replica
+  update". If a replica is not updating, the routing is wrong — fix the routing.
+  Self-delivery is no longer an exception to the mail-carrying prohibition in
+  [notes/demo-scenario-authoring.md](demo-scenario-authoring.md).
+- The invariant that motivated the original rule still holds: the accepting
+  actor's `case.attributed_to` MUST change on its own replica. The demo CI
+  integration tests (`test/ci/invariants/`) remain the authoritative runtime
+  enforcement.
+
+Sources: CONCERN-1653 (original), ISSUE-2719 / PR #2735 (retirement)

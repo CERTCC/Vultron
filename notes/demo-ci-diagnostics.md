@@ -13,6 +13,7 @@ related_notes:
   - notes/case-ledger-authority.md
   - notes/sync-ledger-replication.md
   - notes/ci-workflow-authoring.md
+  - notes/demo-scenario-authoring.md
 relevant_packages:
   - vultron/adapters/driven
   - vultron/adapters/driving/fastapi/routers
@@ -382,9 +383,64 @@ A `wait_for_*` call with no wrapper looks like a gate but is not:
   terminates the scenario.
 
 Wrap all `wait_for_*` calls in either `demo_gate` (causal) or `demo_check`
-(temporal, non-gating). No bare calls. See `vultron/demo/AGENTS.md`
-§ "Gate Each Step on Its Cause" and § "Never Wrap a Causal Wait in
-`demo_check`" for the enforcement rule and anti-pattern examples.
+(temporal, non-gating). No bare calls.
+
+### Anti-pattern examples
+
+```python
+# ❌ Wrong — demo_check lets the next step run on uncommitted RM.VALID state
+with demo_check(f"{actor.id_} reached RM.VALID before engage-case"):
+    wait_for_participant_rm_state(
+        client=vendor_client, case_id=case.id_,
+        actor_id=actor.id_, expected_states={RM.VALID, RM.ACCEPTED},
+    )
+vendor_engages_case(...)  # may 422 if RM.VALID not yet committed
+
+# ❌ Wrong — bare call raises AssertionError directly, bypasses accumulator
+wait_for_contiguous_ledger_coverage(
+    client=finder_client, case_id=case.id_,
+    expected_tail_index=vendor_tail_index,
+)
+compare_replica_state(...)  # runs on partial replica if wait timed out
+
+# ✅ Correct — demo_gate blocks dependent steps when precondition is unmet
+with demo_gate(f"{actor.id_} reached RM.VALID before engage-case"):
+    wait_for_participant_rm_state(
+        client=vendor_client, case_id=case.id_,
+        actor_id=actor.id_, expected_states={RM.VALID, RM.ACCEPTED},
+    )
+vendor_engages_case(...)  # skipped (not run) if gate failed
+```
+
+A `demo_check` failure produces a confusing *secondary* failure downstream — a
+422 from a trigger, a wrong snapshot comparison, a ledger assertion on a partial
+replica — that obscures the root cause. The enforcement rule lives in
+`vultron/demo/AGENTS.md` § "Never Wrap a Causal Wait in `demo_check`"; the
+normative requirements are EDF-06-005 and EDF-06-006.
+
+### Demo Devlog Race: Wait for Replica Before Dumping
+
+(DEMO-DEVLOG-RACE, 2026-06-18)
+
+Demo phases that write JSONL devlogs will miss recently committed canonical
+ledger entries if they run before the async `Announce(CaseLedgerEntry)` fan-out
+has been processed and stored by the replica actor.
+
+**Pattern**: after any phase that commits a new canonical ledger entry, query the
+sender's current tail hash and poll until the replica acknowledges it before
+writing the devlog:
+
+```python
+vendor_entries = _get_log_entries_for_case(vendor_client, case.id_)
+if vendor_entries:
+    tail = max(vendor_entries, key=lambda e: e["log_index"])
+    wait_for_finder_log_entry(finder_client, case.id_, tail["entry_hash"])
+```
+
+Apply this poll-until-hash pattern after every phase that introduces a new ledger
+tail before a devlog dump. This is the same pattern used in
+`_phase_sync_verification`, and it ensures dump artifacts are always consistent
+with the replica's committed state.
 
 ---
 
