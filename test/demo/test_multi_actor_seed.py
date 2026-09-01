@@ -333,8 +333,9 @@ class TestSeedCLIWithDeterministicId:
 
     def _run_seed_with_config(
         self, config_file: Path
-    ) -> tuple[list[dict], int]:
+    ) -> tuple[list[dict], list[dict], int]:
         calls: list[dict] = []
+        peer_calls: list[dict] = []
 
         def _capturing_seed(
             client: DataLayerClient,
@@ -349,10 +350,30 @@ class TestSeedCLIWithDeterministicId:
                 {"id": actor_id or f"http://mock/{name}", "name": name}
             )
 
+        def _capturing_peer(
+            client: DataLayerClient,
+            local_actor_id: str,
+            peer_id: str,
+            name: str,
+            actor_type: str = "Organization",
+        ) -> as_Actor:
+            peer_calls.append(
+                {
+                    "local_actor_id": local_actor_id,
+                    "peer_id": peer_id,
+                    "name": name,
+                    "actor_type": actor_type,
+                }
+            )
+            return as_Actor.model_validate({"id": peer_id, "name": name})
+
         runner = CliRunner()
         with patch(
             "vultron.demo.cli.seed_actor",
             MagicMock(side_effect=_capturing_seed),
+        ), patch(
+            "vultron.demo.cli.seed_peer",
+            MagicMock(side_effect=_capturing_peer),
         ):
             result = runner.invoke(
                 main,
@@ -364,11 +385,11 @@ class TestSeedCLIWithDeterministicId:
                     "http://localhost:7999/api/v2",
                 ],
             )
-        return calls, result.exit_code
+        return calls, peer_calls, result.exit_code
 
     def test_finder_seed_uses_deterministic_id(self):
         config_path = _SEED_CONFIGS_DIR / "seed-finder.yaml"
-        calls, exit_code = self._run_seed_with_config(config_path)
+        calls, peer_calls, exit_code = self._run_seed_with_config(config_path)
         assert exit_code == 0
         local_call = next((c for c in calls if c["name"] == "Finder"), None)
         assert local_call is not None
@@ -376,7 +397,7 @@ class TestSeedCLIWithDeterministicId:
 
     def test_vendor_seed_uses_deterministic_id(self):
         config_path = _SEED_CONFIGS_DIR / "seed-vendor.yaml"
-        calls, exit_code = self._run_seed_with_config(config_path)
+        calls, peer_calls, exit_code = self._run_seed_with_config(config_path)
         assert exit_code == 0
         local_call = next((c for c in calls if c["name"] == "Vendor"), None)
         assert local_call is not None
@@ -384,7 +405,7 @@ class TestSeedCLIWithDeterministicId:
 
     def test_case_actor_seed_uses_deterministic_id(self):
         config_path = _SEED_CONFIGS_DIR / "seed-case-actor.yaml"
-        calls, exit_code = self._run_seed_with_config(config_path)
+        calls, peer_calls, exit_code = self._run_seed_with_config(config_path)
         assert exit_code == 0
         local_call = next((c for c in calls if c["name"] == "CaseActor"), None)
         assert local_call is not None
@@ -392,14 +413,14 @@ class TestSeedCLIWithDeterministicId:
 
     def test_finder_seed_registers_all_peers(self):
         config_path = _SEED_CONFIGS_DIR / "seed-finder.yaml"
-        calls, exit_code = self._run_seed_with_config(config_path)
+        calls, peer_calls, exit_code = self._run_seed_with_config(config_path)
         assert exit_code == 0
-        seeded_ids = {c["actor_id"] for c in calls}
-        assert VENDOR_ID in seeded_ids
-        assert CASE_ACTOR_ID in seeded_ids
+        registered_peer_ids = {c["peer_id"] for c in peer_calls}
+        assert VENDOR_ID in registered_peer_ids
+        assert CASE_ACTOR_ID in registered_peer_ids
 
     def test_seed_call_count_equals_one_local_plus_peers(self):
-        """Each seed run should call seed_actor once per actor (1 local + 4 peers)."""
+        """Each seed run should call seed_actor once (local) and seed_peer once per peer."""
         for filename in (
             "seed-finder.yaml",
             "seed-vendor.yaml",
@@ -408,16 +429,20 @@ class TestSeedCLIWithDeterministicId:
             "seed-actor5.yaml",
         ):
             config_path = _SEED_CONFIGS_DIR / filename
-            calls, exit_code = self._run_seed_with_config(config_path)
-            assert exit_code == 0, f"{filename}: exit code {exit_code}"
-            assert len(calls) == 5, (
-                f"{filename}: expected 5 seed_actor calls "
-                f"(1 local + 4 peers), got {len(calls)}"
+            calls, peer_calls, exit_code = self._run_seed_with_config(
+                config_path
             )
+            assert exit_code == 0, f"{filename}: exit code {exit_code}"
+            assert (
+                len(calls) == 1
+            ), f"{filename}: expected 1 seed_actor call (local), got {len(calls)}"
+            assert (
+                len(peer_calls) == 4
+            ), f"{filename}: expected 4 seed_peer calls (4 peers), got {len(peer_calls)}"
 
     def test_vendor_deployer_seed_uses_deterministic_id(self):
         config_path = _SEED_CONFIGS_DIR / "seed-actor6.yaml"
-        calls, exit_code = self._run_seed_with_config(config_path)
+        calls, peer_calls, exit_code = self._run_seed_with_config(config_path)
         assert exit_code == 0
         local_call = next(
             (c for c in calls if c["name"] == "VendorDeployer"), None
@@ -426,14 +451,16 @@ class TestSeedCLIWithDeterministicId:
         assert local_call["actor_id"] == VENDOR_DEPLOYER_ID
 
     def test_actor6_seed_call_count_is_six(self):
-        """actor6 has 5 peers (not 4), so CLI must make 6 seed_actor calls."""
+        """actor6 has 5 peers, so CLI must call seed_actor once and seed_peer 5 times."""
         config_path = _SEED_CONFIGS_DIR / "seed-actor6.yaml"
-        calls, exit_code = self._run_seed_with_config(config_path)
+        calls, peer_calls, exit_code = self._run_seed_with_config(config_path)
         assert exit_code == 0
-        assert len(calls) == 6, (
-            f"seed-actor6.yaml: expected 6 seed_actor calls "
-            f"(1 local + 5 peers), got {len(calls)}"
-        )
+        assert (
+            len(calls) == 1
+        ), f"seed-actor6.yaml: expected 1 seed_actor call (local), got {len(calls)}"
+        assert (
+            len(peer_calls) == 5
+        ), f"seed-actor6.yaml: expected 5 seed_peer calls (5 peers), got {len(peer_calls)}"
 
 
 # ---------------------------------------------------------------------------

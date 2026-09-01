@@ -99,7 +99,7 @@ def actor_slug(actor_id: str) -> str:
     and ``http://case-actor:7999/…/case-actor`` produce the same slug and hence
     the same store.  After ADR-0081 no legitimate path opens a store for a
     foreign-authority id, so the cross-authority collision is structurally
-    unreachable; :func:`get_actor_engine` raises if it ever occurs.
+    unreachable; :func:`get_actor_engine` warns if it ever occurs.
 
     Args:
         actor_id: The actor's canonical URI.
