@@ -55,22 +55,11 @@ than a hard-coded roster that goes stale. Any future sweep should use it — a
 hard-coded list cannot police a port contract, because the next node added
 with `data_type=object` re-opens the hole while the suite stays green.
 
-**Known consequence of the tightening**: a wrong-typed value now raises
-`TypeError` inside `get_input()`, and `_try_get_input()`
-(`vultron/core/behaviors/helpers.py`) does *not* catch it, so it escapes
-`initialise()`, unwinds the tick, and is absorbed by
-`BTBridge.execute_tree`'s blanket `except Exception` — the **whole tree**
-reports FAILURE with the type-mismatch message logged, rather than the single
-node returning `Status.FAILURE`. For a violated blackboard contract
-(a programming/wiring error, not a protocol condition) failing the tree
-closed is the safe outcome, and it matches the seven ports hardened by #2909,
-so it was left as-is. But it is a deliberate departure from the usual
-"BT nodes return FAILURE, they do not raise" convention. If a future sweep
-tightens the remaining ~147 sites, decide *once* whether `_try_get_input`
-should catch `TypeError` and convert it to a logged node-local FAILURE —
-noting that returning `None` there would re-create the silent-degradation bug
-ARCH-15 forbids, so the conversion would have to be an explicit
-failure signal, not a `None`.
+**Known consequence of the tightening**: a violated contract fails the *whole
+tree*, not the one node. Analysed, with the reason the obvious alternative is
+wrong, in [[20260901-2907-port-type-error-fails-whole-tree]] — settle that
+question before sweeping the remaining sites, because `_try_get_input` is
+shared by ~150 nodes and the choice is not per-port.
 
 **Suggested resolution for `learn`**: add a BTND-03 requirement of the shape
 "a port whose writer guarantees a single concrete domain class MUST declare
