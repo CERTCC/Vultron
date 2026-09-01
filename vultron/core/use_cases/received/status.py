@@ -66,7 +66,7 @@ class AddCaseStatusToCaseReceivedUseCase:
         request = self._request
         status_id = request.status_id
         case_id = request.case_id
-        if status_id is None or case_id is None:
+        if not status_id or not case_id:
             logger.warning(
                 "add_case_status_to_case: missing status_id or case_id"
             )
@@ -190,7 +190,7 @@ class AddParticipantStatusToParticipantReceivedUseCase:
 
     def execute(self) -> None:
         request = self._request
-        if request.status_id is None or request.participant_id is None:
+        if not request.status_id or not request.participant_id:
             logger.warning(
                 "add_participant_status_to_participant: missing status_id"
                 " or participant_id"

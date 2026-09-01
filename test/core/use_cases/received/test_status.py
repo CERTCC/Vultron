@@ -508,6 +508,56 @@ class TestStatusUseCases:
         finally:
             py_trees.blackboard.Blackboard.storage.clear()
 
+    def test_add_case_status_to_case_rejects_empty_status_id(self, caplog):
+        """execute() logs a warning and returns early when status_id is empty string."""
+        import logging
+        from unittest.mock import MagicMock
+
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id="https://test.example/api/v2/actors/test-actor",
+        )
+        mock_event = MagicMock()
+        mock_event.status_id = ""
+        mock_event.case_id = "https://example.org/cases/test-empty-id"
+        mock_event.receiving_actor_id = None
+
+        with caplog.at_level(logging.WARNING):
+            try:
+                AddCaseStatusToCaseReceivedUseCase(dl, mock_event).execute()
+            except Exception:
+                pass  # pre-fix: guard misses "" and BT setup fails
+
+        assert "missing status_id or case_id" in caplog.text
+
+    def test_add_participant_status_to_participant_rejects_empty_status_id(
+        self, caplog
+    ):
+        """execute() logs a warning and returns early when status_id is empty string."""
+        import logging
+        from unittest.mock import MagicMock
+
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id="https://test.example/api/v2/actors/test-actor",
+        )
+        mock_event = MagicMock()
+        mock_event.status_id = ""
+        mock_event.participant_id = (
+            "https://example.org/cases/test/participants/p"
+        )
+        mock_event.receiving_actor_id = None
+
+        with caplog.at_level(logging.WARNING):
+            try:
+                AddParticipantStatusToParticipantReceivedUseCase(
+                    dl, mock_event
+                ).execute()
+            except Exception:
+                pass  # pre-fix: guard misses "" and BT setup fails
+
+        assert "missing status_id" in caplog.text
+
 
 # ---------------------------------------------------------------------------
 # CaseLedgerEntry cascade tests (PCR-08-003, PCR-08-004) — AC-2
