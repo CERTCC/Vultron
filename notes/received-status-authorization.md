@@ -249,8 +249,8 @@ Extends the same liberal-accept pattern that ADR-0061 / ISSUE-2235 applied to
 ```text
 AddCaseStatusToCaseBT (Sequence)
 ├─ CheckCaseStatusIdempotencyNode       ← precondition guard (CLP-10-009)
-├─ FilterCsEmDimensionNode              ← per-dim EM adjudication; always SUCCESS
-├─ FilterCsPxaDimensionNode             ← per-dim PXA adjudication; always SUCCESS
+├─ FilterCsEmDimensionNode              ← per-dim EM adjudication (RSH-05-018); always SUCCESS
+├─ FilterCsPxaDimensionNode             ← per-dim PXA adjudication (RSH-05-019); always SUCCESS
 ├─ FinalizeCsFilterNode                 ← FAILURE on whole-refusal; publishes filter
 ├─ GuardedCommitOrSkip                  ← canonical ledger commit (CLP-10-006)
 ├─ AppendCaseStatusToCaseNode           ← records accepted portion
@@ -265,11 +265,13 @@ removed; per-dimension filter nodes are its replacement.
 
 `FilterCsEmDimensionNode` runs first: it clears both `BB_CASE_STATUS_DIM_FILTER`
 and `BB_LEDGER_PAYLOAD_OBJECT_OVERRIDE` unconditionally (RSH-05-010, BT-17-003),
-evaluates the EM transition, and writes a per-tick accumulator dict to the
+evaluates the EM transition per the acceptance predicate in RSH-05-018
+(`is_valid_em_transition()`), and writes a per-tick accumulator dict to the
 blackboard.
 
 `FilterCsPxaDimensionNode` runs second: it reads the accumulator via the
-`_BB_CS_FILTER_ACC` input port, evaluates the PXA transition, and writes the
+`_BB_CS_FILTER_ACC` input port, evaluates the PXA transition per the acceptance
+predicate in RSH-05-019 (`is_monotonic_pxa_forward()`), and writes the
 updated accumulator back via `_set_output(_BB_CS_FILTER_ACC_WRITE, acc)` — an
 explicit write-back using a dual-alias output port (`_BB_CS_FILTER_ACC_WRITE`)
 mapped to the same physical blackboard key (`/{_BB_CS_FILTER_ACC}`). This
