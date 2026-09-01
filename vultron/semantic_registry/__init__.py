@@ -271,7 +271,7 @@ __all__ = [
 def extract_event(
     activity: as_Activity,
 ) -> AnyReceivedEvent:
-    """Extract a typed ``VultronEvent`` from an AS2 activity.
+    """Extract a typed ``AnyReceivedEvent`` from an AS2 activity.
 
     This is the public entry point for the inbound activity pipeline.  It
     combines pattern matching (``find_matching_semantics``) with field

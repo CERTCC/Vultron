@@ -506,3 +506,24 @@ def test_extract_intent_return_type_narrows_via_isinstance():
     assert isinstance(event, SubmitReportReceivedEvent)
     # Concrete-class property accessible without cast.
     assert event.report_id == report.id_
+
+
+@pytest.mark.spec("CS-10-001")
+def test_any_received_event_covers_all_registry_event_classes():
+    """AnyReceivedEvent must include every event_class registered in SEMANTIC_REGISTRY.
+
+    This locks in exhaustiveness: adding a new ReceivedEvent subclass without
+    updating AnyReceivedEvent will fail here at test time, not only at static
+    analysis time.
+    """
+    from typing import get_args
+
+    from vultron.core.models.events import AnyReceivedEvent
+    from vultron.semantic_registry import SEMANTIC_REGISTRY
+
+    union_types = set(get_args(AnyReceivedEvent))
+    for entry in SEMANTIC_REGISTRY:
+        assert entry.event_class in union_types, (
+            f"{entry.event_class.__name__} (semantics={entry.semantics.name}) "
+            f"is in SEMANTIC_REGISTRY but not in AnyReceivedEvent"
+        )
