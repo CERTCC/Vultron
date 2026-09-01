@@ -22,6 +22,7 @@ This section provides an overview of the Vultron Protocol, including:
 - :material-shape-outline: [Process Models](process_models/index.md)
 - :material-cube-unfolded: [Formal Protocol overview](../reference/formal_protocol/index.md) — in [Reference](../reference/index.md)
 - :material-arrow-decision-auto-outline: [Behavior Logic](behavior_logic/index.md)
+- :material-database-lock-outline: [Actor Knowledge Model](actor-knowledge-model.md)
 - :material-book: [User Stories](../reference/user_stories/index.md) — in [Reference](../reference/index.md)
 - :material-altimeter: [Measuring CVD](../reference/measuring_cvd/index.md) — in [Reference](../reference/index.md)
 - :material-source-branch: [Other Uses](other_uses/index.md)
