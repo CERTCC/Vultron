@@ -111,12 +111,11 @@ mechanism; there is no second container for the transport to cross. This rule
 governs `vultron/demo/scenario/`, where actors live in separate containers and
 the delivery path is the thing under test.
 
-**Retired exception — ownership-transfer self-delivery.** CONCERN-1653 previously
-carved out an exception for an actor self-delivering to its *own* inbox after
-`accept-case-ownership-transfer`. That workaround no longer exists: under
-ADR-0053 the Accept routes through the CaseActor and reaches every replica
-automatically. See [notes/ownership-transfer.md](ownership-transfer.md)
-§ "Retired Demo Workaround: Accept Self-Delivery".
+**No self-delivery exception.** An actor does not need to POST to its own inbox
+to update its own replica either — activities route through the CaseActor, which
+broadcasts the `Announce` that every replica consumes. See
+[notes/ownership-transfer.md](ownership-transfer.md) § "The Accepting Actor's
+Replica Updates via the CaseActor's Announce".
 
 Source: CONCERN-1635, amended by CONCERN-2181
 

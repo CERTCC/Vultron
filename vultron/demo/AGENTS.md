@@ -42,12 +42,13 @@ Scope: `vultron/demo/scenario/`. Exchange demos under `vultron/demo/exchange/`
 drive one backend directly and use `post_to_inbox_and_wait` as their normal
 mechanism.
 
-**The CONCERN-1653 self-delivery exception is retired** — under ADR-0053 the
-ownership-transfer Accept routes through the CaseActor and every replica updates
-automatically. Do not re-add a self-delivery call to make a replica update; fix
-the routing. See
-[`notes/ownership-transfer.md`](../../notes/ownership-transfer.md) § "Retired
-Demo Workaround: Accept Self-Delivery". (CONCERN-1635, ISSUE-2719)
+There is **no self-delivery exception**: an actor does not POST to its own inbox
+to update its own replica either. Activities route through the CaseActor, whose
+`Announce` every replica consumes — a replica that is not updating means the
+routing is wrong. See
+[`notes/ownership-transfer.md`](../../notes/ownership-transfer.md) § "The
+Accepting Actor's Replica Updates via the CaseActor's Announce".
+(CONCERN-1635, ISSUE-2719)
 
 ### Extract Before Reuse: No Copy-Paste from Existing Scenario Files
 
