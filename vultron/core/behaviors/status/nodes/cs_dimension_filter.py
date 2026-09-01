@@ -80,7 +80,7 @@ class _CsStatusGuardBase(DataLayerConditionWithPorts):
 
     def __init__(
         self,
-        case_id: str,
+        case_id: str | None,
         status_id: str,
         status_obj_fallback: PersistableModel | None = None,
         name: str | None = None,
@@ -151,6 +151,8 @@ class FilterCsEmDimensionNode(_CsStatusGuardBase):
     def update(self) -> Status:
         self._clear()  # BT-17-003
 
+        if not self.case_id:
+            return Status.SUCCESS
         if (f := self._require_datalayer()) is not None:
             return f
         assert self.datalayer is not None

@@ -111,7 +111,7 @@ def add_case_status_tree(
         Root node of the ``AddCaseStatusToCaseBT`` Sequence.
     """
     status_id = request.status_id or ""
-    case_id = request.case_id or ""
+    case_id: str | None = request.case_id or None
     status_obj = request.status
 
     root = create_receive_activity_tree(

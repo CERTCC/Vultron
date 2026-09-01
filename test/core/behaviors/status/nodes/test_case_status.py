@@ -134,6 +134,32 @@ class TestCheckCaseStatusIdempotencyNode:
         result = bridge.execute_with_setup(tree=node, actor_id=ACTOR_ID)
         assert result.status == Status.FAILURE
 
+    @pytest.mark.spec("ARCH-15-001")
+    def test_empty_string_case_id_returns_failure_with_diagnostic(
+        self, bridge
+    ):
+        """Empty string case_id → FAILURE with a diagnostic mentioning absence."""
+        node = CheckCaseStatusIdempotencyNode(case_id="", status_id=STATUS_ID)
+        result = bridge.execute_with_setup(tree=node, actor_id=ACTOR_ID)
+        assert result.status == Status.FAILURE
+        assert (
+            "absent" in node.feedback_message.lower()
+            or "case_id" in node.feedback_message.lower()
+        )
+
+    @pytest.mark.spec("ARCH-15-001")
+    def test_none_case_id_returns_failure_with_diagnostic(self, bridge):
+        """None case_id → FAILURE with a diagnostic mentioning absence."""
+        node = CheckCaseStatusIdempotencyNode(
+            case_id=None, status_id=STATUS_ID
+        )
+        result = bridge.execute_with_setup(tree=node, actor_id=ACTOR_ID)
+        assert result.status == Status.FAILURE
+        assert (
+            "absent" in node.feedback_message.lower()
+            or "case_id" in node.feedback_message.lower()
+        )
+
 
 # ---------------------------------------------------------------------------
 # AppendCaseStatusToCaseNode
@@ -166,6 +192,36 @@ class TestAppendCaseStatusToCaseNode:
         )
         result = bridge.execute_with_setup(tree=node, actor_id=ACTOR_ID)
         assert result.status == Status.FAILURE
+
+    @pytest.mark.spec("ARCH-15-001")
+    def test_empty_string_case_id_returns_failure_with_diagnostic(
+        self, bridge, status_obj
+    ):
+        """Empty string case_id → FAILURE with a diagnostic mentioning absence."""
+        node = AppendCaseStatusToCaseNode(
+            case_id="", status_id=STATUS_ID, status_obj_fallback=status_obj
+        )
+        result = bridge.execute_with_setup(tree=node, actor_id=ACTOR_ID)
+        assert result.status == Status.FAILURE
+        assert (
+            "absent" in node.feedback_message.lower()
+            or "case_id" in node.feedback_message.lower()
+        )
+
+    @pytest.mark.spec("ARCH-15-001")
+    def test_none_case_id_returns_failure_with_diagnostic(
+        self, bridge, status_obj
+    ):
+        """None case_id → FAILURE with a diagnostic mentioning absence."""
+        node = AppendCaseStatusToCaseNode(
+            case_id=None, status_id=STATUS_ID, status_obj_fallback=status_obj
+        )
+        result = bridge.execute_with_setup(tree=node, actor_id=ACTOR_ID)
+        assert result.status == Status.FAILURE
+        assert (
+            "absent" in node.feedback_message.lower()
+            or "case_id" in node.feedback_message.lower()
+        )
 
 
 # ---------------------------------------------------------------------------

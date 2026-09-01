@@ -80,7 +80,7 @@ class CheckCaseStatusIdempotencyNode(
 
     def __init__(
         self,
-        case_id: str,
+        case_id: str | None,
         status_id: str,
         name: str | None = None,
     ):
@@ -89,6 +89,12 @@ class CheckCaseStatusIdempotencyNode(
         self.status_id = status_id
 
     def update(self) -> Status:
+        if not self.case_id:
+            self.feedback_message = (
+                "case_id is absent — cannot check idempotency"
+            )
+            self.logger.warning("%s: %s", self.name, self.feedback_message)
+            return Status.FAILURE
         if (f := self._require_datalayer()) is not None:
             return f
         assert self.datalayer is not None
@@ -134,7 +140,7 @@ class AppendCaseStatusToCaseNode(DataLayerActionWithPorts):
 
     def __init__(
         self,
-        case_id: str,
+        case_id: str | None,
         status_id: str,
         status_obj_fallback: PersistableModel | None,
         name: str | None = None,
@@ -181,6 +187,12 @@ class AppendCaseStatusToCaseNode(DataLayerActionWithPorts):
         return status_obj if hasattr(status_obj, "id_") else None
 
     def update(self) -> Status:
+        if not self.case_id:
+            self.feedback_message = (
+                "case_id is absent — cannot append CaseStatus"
+            )
+            self.logger.warning("%s: %s", self.name, self.feedback_message)
+            return Status.FAILURE
         if (f := self._require_datalayer()) is not None:
             return f
         assert self.datalayer is not None
