@@ -626,6 +626,35 @@ class TriggerActivityPort(Protocol):
         """
         ...
 
+    # -----------------------------------------------------------------------
+    # Processing fault (NACK)
+    # -----------------------------------------------------------------------
+
+    def emit_processing_fault(
+        self,
+        actor: str,
+        failed_activity_id: str,
+        failure_class: str,
+        to: list[str],
+        case_id: str | None = None,
+    ) -> str:
+        """Create and persist a ``Create(ProcessingFault)`` NACK activity.
+
+        Sent by the receiving actor to the authenticated sender when a
+        status assertion could not be processed (ASK-07-001, ADR-0080).
+
+        Args:
+            actor: URI of the receiving actor emitting the fault.
+            failed_activity_id: URI of the failed activity (ASK-07-004).
+            failure_class: URI identifying the failure class (ASK-07-005).
+            to: Recipient list; SHOULD contain the original sender's URI.
+            case_id: Optional case context URI for logging.
+
+        Returns:
+            The activity ID.
+        """
+        ...
+
     def announce_vulnerability_case(
         self,
         case_id: str,

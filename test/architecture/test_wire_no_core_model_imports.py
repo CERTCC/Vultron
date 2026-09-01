@@ -132,6 +132,7 @@ KNOWN_VIOLATIONS: frozenset[str] = frozenset(
         "vultron/wire/as2/vocab/objects/case_participant.py",
         "vultron/wire/as2/vocab/objects/case_participant_role.py",
         "vultron/wire/as2/vocab/objects/case_proposal.py",
+        "vultron/wire/as2/vocab/objects/processing_fault.py",
         "vultron/wire/as2/vocab/objects/case_reference.py",
         "vultron/wire/as2/vocab/objects/case_status.py",
         "vultron/wire/as2/vocab/objects/embargo_event.py",

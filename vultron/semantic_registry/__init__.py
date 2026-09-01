@@ -68,6 +68,7 @@ from . import (
     case,
     case_participant,
     embargo,
+    fault,
     note,
     report,
     status,
@@ -219,6 +220,7 @@ SEMANTIC_REGISTRY: list[SemanticEntry] = (
     + case_participant.ENTRIES
     + note.ENTRIES
     + status.ENTRIES
+    + fault.ENTRIES
     + unknown.ENTRIES  # MUST be last — catch-all sentinels
 )
 

@@ -86,6 +86,8 @@ class MessageSemantics(StrEnum):
     ACCEPT_CASE_PROPOSAL = auto()
     REJECT_CASE_PROPOSAL = auto()
 
+    CREATE_PROCESSING_FAULT = auto()
+
 
 class VultronEvent(ValidatedAssignmentMixin, BaseModel):
     """Base domain event produced from an inbound wire-format activity.
