@@ -242,7 +242,7 @@ class CreateParticipantStatusNode(DataLayerActionWithPorts):
         self, current_d: CS_d | None, participant_obj: object
     ) -> "Status | None":
         """CSB-16-001 / CSB-15-002: validate D transition and role before writing."""
-        if self._d_state == CS_d.D:
+        if self._d_state is not None:
             actor_roles = (
                 participant_obj.roles  # type: ignore[union-attr]
                 if isinstance(participant_obj, CaseParticipant)

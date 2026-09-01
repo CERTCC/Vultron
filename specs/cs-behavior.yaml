@@ -2462,3 +2462,80 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: CSB-18-002
+- id: CSB-19
+  title: CS Ordering Invariants Under Out-of-Order Ledger Delivery
+  description: Normative requirements for how CS ordering invariants interact
+    with the ADR-0037 out-of-order ledger entry buffer. Clarifies when invariant
+    guards are evaluated relative to buffer receipt and buffer drain.
+  specs:
+  - id: CSB-19-001
+    priority: MUST
+    kind: protocol
+    statement: >-
+      CS ordering invariants (ephemeral-state guard, history-prefix validity,
+      CP-before-ET ordering) MUST be evaluated at buffer-drain time — that is,
+      against the causal-order replay produced by the ADR-0037 gap buffer —
+      not at the time of original out-of-order receipt.
+    rationale: >-
+      An out-of-order `Announce(CaseLedgerEntry)` carrying a CS update is
+      buffered by `BufferOutOfOrderEntryNode` before any domain effects are
+      applied; the CS state machine is not touched at buffer-receipt time.
+      When the gap fills, the buffer drain re-runs the full announce receive
+      BT on each buffered entry in log_index order (ADR-0037, CLP-14-001),
+      so CS guards see the entries in correct causal sequence. Evaluating
+      guards at original receipt would produce false violations whenever the
+      predecessor CS entry has not yet arrived.
+    adr:
+    - ADR-0037
+    - ADR-0079
+    relationships:
+    - rel_type: depends_on
+      spec_id: CSB-12-001
+    lint_suppress:
+    - missing_story_reference
+  - id: CSB-19-002
+    priority: MUST_NOT
+    kind: protocol
+    statement: >-
+      A buffered out-of-order CS ledger entry MUST NOT trigger an ephemeral-state
+      violation or history-prefix validation failure at the time it is buffered.
+      Such checks MUST be deferred until the entry is replayed in causal order
+      during buffer drain.
+    rationale: >-
+      An ephemeral-state entry (e.g., a pX-state CaseStatus arriving before its
+      P-state predecessor) is structurally valid in isolation; the violation
+      would only be real if the predecessor never arrives. Flagging it at buffer
+      time produces a false positive and may cause the entry to be incorrectly
+      rejected, breaking convergence.
+    relationships:
+    - rel_type: refines
+      spec_id: CSB-19-001
+    lint_suppress:
+    - missing_story_reference
+  - id: CSB-19-003
+    priority: MUST
+    kind: protocol
+    statement: >-
+      The CP-before-ET ordering constraint (CSB-12-001: CS→P MUST be recorded
+      before ET is emitted) is preserved under out-of-order ledger delivery
+      because the CaseActor commits entries in causal order (CLP-14-001). The
+      P-state ledger entry always carries a lower log_index than the ET entry
+      that follows it; the buffer drain therefore always processes P before ET
+      when both are buffered.
+    rationale: >-
+      CSB-12-001 is enforced at the CaseActor write-side: the CaseActor commits
+      the P-state entry before committing the ET entry. This means the P-state
+      entry's log_index is strictly lower than the ET entry's log_index. The
+      ADR-0037 buffer drains in log_index order, so the constraint cannot be
+      violated by reordered delivery alone. No receiver-side re-enforcement
+      of the temporal constraint is required; the causal order in the ledger
+      is sufficient.
+    relationships:
+    - rel_type: refines
+      spec_id: CSB-19-001
+    - rel_type: depends_on
+      spec_id: CSB-12-001
+    - rel_type: depends_on
+      spec_id: CLP-14-001
+    lint_suppress:
+    - missing_story_reference

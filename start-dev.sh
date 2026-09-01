@@ -78,12 +78,13 @@ _exec_shell() {
 }
 
 _cleanup() {
-    docker rm -f "$CONTAINER_NAME" >/dev/null 2>&1 || true
+    docker stop -t 5 "$CONTAINER_NAME" >/dev/null 2>&1 || true
 }
 
-# Container already running — just attach
-if docker ps --format '{{.Names}}' | grep -q "^${CONTAINER_NAME}$"; then
-    echo "Attaching to running container '$CONTAINER_NAME'..."
+# Container exists (running or stopped) — start if needed, then attach
+if docker ps -a --format '{{.Names}}' | grep -q "^${CONTAINER_NAME}$"; then
+    docker start "$CONTAINER_NAME" >/dev/null 2>&1 || true
+    echo "Attaching to container '$CONTAINER_NAME'..."
     _exec_shell
     exit 0
 fi
@@ -98,7 +99,9 @@ DOCKER_ARGS=(
     --name "$CONTAINER_NAME"
     --hostname "$CONTAINER_NAME"
     --env-file "$ENV_FILE"
-    --cpus "${SLOT_CPUS:-3}"
+    --cpus "${SLOT_CPUS:-2}"
+    --memory "${SLOT_MEMORY:-6g}"
+    --memory-swap "${SLOT_MEMORY:-6g}"
     -e LANG=C.UTF-8
     -e LC_ALL=C.UTF-8
     -e TERM=xterm-256color
@@ -107,6 +110,7 @@ DOCKER_ARGS=(
     -e WIP_OUTPUTS=/app/wip_outputs
     -e GRAPHIFY_MAX_WORKERS=4
     -v "${MAIN_NAME}-data:/home/vscode/.data"
+    -v "${MAIN_NAME}-${SLOT}-claude:/home/vscode/.claude"
     # NOTE: .devcontainer is NOT mounted. It is baked into the image and belongs
     # to the container's own working tree. Mounting the host copy over it made
     # one host directory the working tree for every slot plus the host repo, so

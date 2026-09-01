@@ -118,7 +118,7 @@ verdicts split between *still valid* and *superseded by structure*.
 
 | Legacy rule (`validations.py`) | Verdict | Current expression |
 |---|---|---|
-| `is_valid_state`: `vF` / `fD` impossible → 32 states | Still valid, **structural** | `CS_vfd` has 4 members, so the combinations are unrepresentable. Ratchet test, not a runtime predicate. CSB-17-001 |
+| `is_valid_state`: `vF` / `fD` impossible → 32 states | Still valid, **structural and runtime** | After ADR-0075 split VFD into separate `CS_vf`/`CS_d` types, `*fD*` is no longer structurally unrepresentable. Runtime enforcement added via `violation_vf_d_entailment()` on both trigger path (`ValidateTriggerTransitionsNode`) and received path (`_adjudicate_dimensions`). CSB-17-001 |
 | `is_valid_transition`: Hamming distance 1 | Still valid | `cs_transition_event()`, CSB-17-002 |
 | `is_valid_transition`: monotone, same dimension | Still valid | Delegated to `is_valid_vfd_transition` / `is_valid_pxa_transition`; compound check in `is_valid_cs_transition()`, CSB-17-002 |
 | `TRANSITION_RULES`: `...pX. → ...PX.` | Still valid | `required_next_cs_events()`; generalises CSB-13-001 from the entry cascade to every `pX` successor. CSB-17-003 |

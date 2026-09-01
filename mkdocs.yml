@@ -21,6 +21,7 @@ nav:
     - The Case Model: 'topics/case_model.md'
     - Protocol Event Flow: 'topics/protocol_flow.md'
     - Message Semantics: 'topics/message_semantics.md'
+    - Actor Knowledge Model: 'topics/actor-knowledge-model.md'
     - Process Models:
       - 'topics/process_models/index.md'
       - Report Management:
