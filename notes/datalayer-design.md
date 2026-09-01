@@ -247,7 +247,7 @@ is now complete**: all fifteen shadowing types are normalised — the five actor
 types (`VultronApplication`, `VultronGroup`, `VultronOrganization`,
 `VultronPerson`, `VultronService`) via issue #2402, the remaining ten object
 types via issue #2268. Do not restate a "remaining" count here; the enumeration
-lives in the frozenset and its ratchet test. Under ADR-0081 this whole gate is
+lives in the frozenset and its ratchet test. Under ADR-0082 this whole gate is
 deleted once `extra="forbid"` and the pairing registry land — see
 [notes/wire-core-boundary.md](wire-core-boundary.md).
 

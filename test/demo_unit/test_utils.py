@@ -145,9 +145,9 @@ class TestExchangeActorRoster:
     def test_the_roster_names_actors_by_slug(self):
         """A slug is expanded against the serving node's base URL (ADR-0073).
 
-        An absolute URI here would seed actors under whatever authority the demo
-        author typed, and the node would adopt it verbatim (#2549) — so the demo
-        would create actors it cannot address.
+        An absolute URI here would be a foreign-authority id, which ``POST
+        /actors/`` now rejects (ADR-0081) — so the roster must stay as bare slugs
+        for the node to expand into its own namespace.
         """
         from vultron.demo.utils import _EXCHANGE_ACTORS
 

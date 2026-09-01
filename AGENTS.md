@@ -298,7 +298,7 @@ See [notes/agents-md-structure.md](notes/agents-md-structure.md) for routing pol
   in `vultron/wire/as2/vocab/objects/` use `as_` prefix. Bare name = core type.
   See ARCH-14-001. Note the *registry* keys currently collide even though the
   class names do not: `VOCABULARY["VulnerabilityCase"]` is the **wire** class,
-  because the key is derived via `cls.__name__.removeprefix("as_")`. ADR-0081
+  because the key is derived via `cls.__name__.removeprefix("as_")`. ADR-0082
   makes the keys disjoint (ARCH-23-002); until then, do not infer a class's
   branch from its registry key. Never resolve a core type's wire counterpart by
   name coincidence — use the pairing registry (ARCH-23-001). **Until issue #2937
@@ -327,7 +327,7 @@ See [notes/agents-md-structure.md](notes/agents-md-structure.md) for routing pol
   to its start value (a lost RM ladder, not an error). Always pair the deletion
   with a `model_validator(mode="before")` built on `reject_wire_spelled_keys`
   (`vultron/core/models/_wire_spelling.py`). See SDO-03-005, ARCH-15-002.
-  **Superseded direction (ADR-0081)**: ARCH-12-003 now requires `extra="forbid"`
+  **Superseded direction (ADR-0082)**: ARCH-12-003 now requires `extra="forbid"`
   on all core-branch types, which subsumes this guard — it rejects any unknown
   key, not only camelCase ones. Once that lands, `_wire_spelling.py` and the
   per-class guards are deleted. Until then this pitfall still applies.

@@ -33,11 +33,11 @@ was both an ARCH-12-003 violation and structurally insufficient, and the
 `WireRenderPort` driven seam that replaces it. Lists the five consumers of the
 old core-side aliasing, the reject-guard that MUST accompany deletion of any
 flat-field shim (SDO-03-005), and why persisted rows are unaffected.
-The decision stands but its **mechanism is revised by ADR-0081**: the adapter
+The decision stands but its **mechanism is revised by ADR-0082**: the adapter
 resolves the counterpart through the pairing registry and delegates to the
 adapter-side translator rather than calling `wire_cls.from_core()`. This port
 covers only the **core→wire** half of ARCH-01-001; the mirror-image
-`WireParsePort` (ADR-0081) covers wire→core. Design rationale for both:
+`WireParsePort` (ADR-0082) covers wire→core. Design rationale for both:
 `notes/wire-core-boundary.md`.
 Normative requirements: `specs/architecture.yaml` ARCH-20,
 `specs/case-ledger-processing.yaml` CLP-07-009/010.
@@ -120,7 +120,7 @@ point), outbound factory/port interfaces (`TriggerActivityPort`,
 auditing `outbox_delivery.py` for enrichment mutations. Source: CONCERN-2545.
 
 **`wire-core-boundary.md`**
-The wire/core boundary contract (ADR-0081): one declarative core↔wire pairing
+The wire/core boundary contract (ADR-0082): one declarative core↔wire pairing
 registry, one generic bidirectional translator on the adapter side, and
 `extra="forbid"` on the core branch as the structural guarantee. Explains why
 ARCH-01-001 (core→wire) and ARCH-22-001 (wire→core) are *different* rules and
@@ -282,7 +282,7 @@ Design decisions and migration path for the AS2 vocabulary registry refactor:
 auto-registration via `__init_subclass__`, flat registry dict, `VocabNamespace`
 enum, fail-fast on unknown types, and dynamic discovery at startup. Operating
 rules are in `vultron/wire/as2/vocab/AGENTS.md`. Opens with a normative
-**Superseded Direction: Pairing Registry (ADR-0081)** section — the registry key
+**Superseded Direction: Pairing Registry (ADR-0082)** section — the registry key
 is derived from the class name, the wire/core bare-name collision is currently
 load-bearing, and ARCH-23-001/002 replace it — read that section before acting on
 the design below it.

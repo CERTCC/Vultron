@@ -4,7 +4,7 @@ date: 2026-08-13
 deciders: Vultron maintainers
 consulted: Vultron maintainers
 informed: Vultron contributors
-partially_superseded_by: docs/adr/0081-wire-core-boundary-pairing-registry.md
+partially_superseded_by: docs/adr/0082-wire-core-boundary-pairing-registry.md
 ---
 
 # Normalise Wire → Core at Ingress, and Enforce It Again at the Persistence Boundary
@@ -156,7 +156,7 @@ the shapes converge.
 
 ## More Information
 
-**Partially superseded by [ADR-0081](0081-wire-core-boundary-pairing-registry.md).**
+**Partially superseded by [ADR-0082](0082-wire-core-boundary-pairing-registry.md).**
 That decision takes the unification this ADR named as the right end state and
 deferred: with
 `extra="forbid"` on the core branch and a declarative core↔wire pairing registry,

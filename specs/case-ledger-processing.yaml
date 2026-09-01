@@ -494,7 +494,7 @@ groups:
       note: ARCH-12-005 names the adapter-side translator as the sole owner of the structural projection.
     adr:
     - ADR-0063
-    - ADR-0081
+    - ADR-0082
 - id: CLP-08
   title: Per-Case Genesis Hash Derivation and Origin Binding
   specs:

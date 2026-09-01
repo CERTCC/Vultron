@@ -26,7 +26,7 @@ relevant_packages:
 
 # Wire/Core Boundary — Pairing Registry, Translator, and Unknown-Key Rejection
 
-ADR: `docs/adr/0081-wire-core-boundary-pairing-registry.md`.
+ADR: `docs/adr/0082-wire-core-boundary-pairing-registry.md`.
 Specs: ARCH-12-001 through ARCH-12-005, ARCH-22, ARCH-23, VM-01-004.
 Source: planning group G02 (#2830).
 
@@ -36,8 +36,8 @@ It is easy to conflate these, and doing so wastes a lot of time:
 
 | Rule | Direction | Remedy |
 |---|---|---|
-| ARCH-01-001 | core MUST NOT import wire | `WireRenderPort` (ADR-0063) for rendering; `WireParsePort` (ADR-0081) for parsing |
-| ARCH-22-001 | wire MUST NOT import core | move projection to the adapter side (ADR-0081) |
+| ARCH-01-001 | core MUST NOT import wire | `WireRenderPort` (ADR-0063) for rendering; `WireParsePort` (ADR-0082) for parsing |
+| ARCH-22-001 | wire MUST NOT import core | move projection to the adapter side (ADR-0082) |
 
 ADR-0063 solved the *rendering* half of the first rule. It did **not** touch the
 second: its adapter is a thin dispatcher that still calls
@@ -45,7 +45,7 @@ second: its adapter is a thin dispatcher that still calls
 counterpart. Anyone reading ADR-0063 and concluding that wire→core imports were
 addressed will misjudge the remaining work.
 
-The *parsing* half of the first rule was also still open until ADR-0081: core
+The *parsing* half of the first rule was also still open until ADR-0082: core
 reached for a wire capability by duck-typing, `getattr(obj, "to_core", None)`, at
 three sites — including ADR-0062's primary ingress projection in
 `vultron/core/use_cases/received/case/_helpers.py`. Duck-typing does not satisfy
@@ -71,7 +71,7 @@ Three MUST-level requirements made zero impossible:
 - **ARCH-20-002** (as originally written) — the rendering adapter MUST locate the
   wire counterpart and invoke *that class's* `from_core()` projection, which
   constructs core objects at runtime. Cite **ARCH-20-002**, not ARCH-12-005, as
-  the mandate here: pre-ADR-0081 ARCH-12-005 said the opposite — explicit
+  the mandate here: pre-ADR-0082 ARCH-12-005 said the opposite — explicit
   `from_core()`/`to_core()` methods were "**not required** for
   structurally-compatible types". It is ARCH-20-002 that made the projection
   method load-bearing, and therefore the import permanent.
@@ -79,7 +79,7 @@ Three MUST-level requirements made zero impossible:
   `CORE_TYPE_MAP`.
 
 An implementer working the easy files would reach the base classes and have to
-choose which MUST to break. ADR-0081 removes the first two structural causes —
+choose which MUST to break. ADR-0082 removes the first two structural causes —
 the shared base moves to a branch-neutral layer, and projection moves to the
 adapter side — and retargets the goal test at a one-member exemption set.
 
@@ -117,7 +117,7 @@ hand-maintained frozenset whose own comment described it as "fields typed as
 This is why #2403 (disjoint `type_` namespaces) looked risky: **the collision was
 load-bearing.** Removing it would have broken counterpart resolution. Make the
 pairing explicit first and disjoint keys become safe — which is the order
-ADR-0081 takes.
+ADR-0082 takes.
 
 **3. Projection — declarative one way, hand-written the other.**
 `from_core()` was generic, driven by the declarative `_field_map`. `to_core()`
@@ -253,7 +253,7 @@ or raise something Pydantic recognises as a validation failure.
 
 ## Related Files
 
-- `docs/adr/0081-wire-core-boundary-pairing-registry.md` — the decision
+- `docs/adr/0082-wire-core-boundary-pairing-registry.md` — the decision
 - `docs/adr/0062-…` — superseded by 0081; still describes current code
 - `docs/adr/0063-…` — decision stands, mechanism revised by 0081
 - `vultron/core/models/_wire_spelling.py` — the camelCase guard, retired by

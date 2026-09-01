@@ -68,7 +68,7 @@ groups:
       `set(VOCABULARY) & set(CORE_VOCABULARY) == set()` once both registries are fully populated
       (ARCH-23-002).
     adr:
-    - ADR-0081
+    - ADR-0082
     relationships:
     - rel_type: depends_on
       spec_id: ARCH-23-002

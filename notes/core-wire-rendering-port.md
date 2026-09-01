@@ -19,14 +19,14 @@ related_adrs:
   - ADR-0036
   - ADR-0062
   - ADR-0063
-  - ADR-0081
+  - ADR-0082
 ---
 
 # Core-to-Wire Rendering Port
 
 Source: CONCERN-2260. Supersedes the known-deviation posture of #1991.
 
-> **Mechanism revised by ADR-0081.** The decision recorded here — render core
+> **Mechanism revised by ADR-0082.** The decision recorded here — render core
 > objects through a driven port rather than by aliasing core types — stands
 > unchanged. Two things about the *implementation* change:
 >
@@ -40,7 +40,7 @@ Source: CONCERN-2260. Supersedes the known-deviation posture of #1991.
 >
 > Note also that this port only ever addressed the **core→wire** direction of
 > ARCH-01-001. The wire→core direction was still being served by core
-> duck-typing `getattr(obj, "to_core", None)`; ADR-0081 adds the mirror-image
+> duck-typing `getattr(obj, "to_core", None)`; ADR-0082 adds the mirror-image
 > `WireParsePort`. See [notes/wire-core-boundary.md](wire-core-boundary.md).
 
 ## The legitimate need
@@ -286,5 +286,5 @@ wire→core separation.
 - The write-path shadowing-type work tracked by issues #2268 and #2402 is
   **done**: `_NORMALIZE_WIRE_TO_CORE` in `db_record.py` now covers all fifteen
   shadowing types, including the five actor types. Do not restate a "remaining"
-  count. ADR-0081 deletes that gate entirely once `extra="forbid"` lands
+  count. ADR-0082 deletes that gate entirely once `extra="forbid"` lands
   (ARCH-12-003).

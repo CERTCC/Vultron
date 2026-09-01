@@ -4,7 +4,7 @@ date: 2026-08-13
 deciders: Allen Householder
 consulted: Claude Code (planning agent for CONCERN-2260)
 informed: Vultron contributors
-partially_superseded_by: docs/adr/0081-wire-core-boundary-pairing-registry.md
+partially_superseded_by: docs/adr/0082-wire-core-boundary-pairing-registry.md
 ---
 
 # Render Core Objects to Wire JSON Through a Driven Port; Remove `alias_generator` From All Core-Branch Types
@@ -259,7 +259,7 @@ routes into `_wire_object_from_row` → `_project_wire_row_to_core`
 ## More Information
 
 - Source concern: #2260. Closes the long-standing violation tracked in #1991.
-- **Mechanism revised by [ADR-0081](0081-wire-core-boundary-pairing-registry.md).**
+- **Mechanism revised by [ADR-0082](0082-wire-core-boundary-pairing-registry.md).**
   The decision — render core objects to wire JSON through a driven port — stands,
   and so does the removal of `alias_generator` from the core branch. What changes
   is step 2 above: the AS2 adapter stops resolving a wire class by name collision
@@ -267,7 +267,7 @@ routes into `_wire_object_from_row` → `_project_wire_row_to_core`
   adapter-side translator module driven by a declarative core↔wire pairing
   registry, so that wire classes carry no projection logic at all. Read step 2,
   and ARCH-20-002's `from_core()` mandate, as revised by that registry once
-  ADR-0081's task set lands.
+  ADR-0082's task set lands.
 - Related: #2232 (wire-shaped rows on the DataLayer read path, fixed by
   ADR-0062), #2268 (the thirteen remaining wire-shadowing types on the write
   path, not in scope here).

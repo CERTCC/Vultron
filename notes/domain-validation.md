@@ -128,7 +128,7 @@ with `_as_id()` and friends. This is a deliberate deviation from the rule above,
 not an oversight; it exists so the cycle cannot be reintroduced by the next
 guard that needs a state enum.
 
-**Scheduled removal**: ARCH-12-003 as amended by ADR-0081 puts `extra="forbid"`
+**Scheduled removal**: ARCH-12-003 as amended by ADR-0082 puts `extra="forbid"`
 on all core-branch types, which subsumes these guards and deletes
 `_wire_spelling.py` — see [notes/wire-core-boundary.md](wire-core-boundary.md).
 Until that lands the guidance above is current; do not pre-emptively relocate.

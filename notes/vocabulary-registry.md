@@ -194,9 +194,9 @@ the `CORE_TYPE_MAP` fallback.
 
 ---
 
-## Superseded Direction: Pairing Registry (ADR-0081)
+## Superseded Direction: Pairing Registry (ADR-0082)
 
-The design below describes the registry as it stands. **ADR-0081 changes its
+The design below describes the registry as it stands. **ADR-0082 changes its
 foundation**, so read this section first:
 
 - The registry key is derived from the class name
@@ -212,7 +212,7 @@ foundation**, so read this section first:
   currently **load-bearing**:
   `As2WireRenderAdapter.render()` resolves a core class to its wire counterpart
   with `VOCABULARY.get(type(obj).__name__)`.
-- ADR-0081 introduces a declarative core↔wire **pairing registry** as the single
+- ADR-0082 introduces a declarative core↔wire **pairing registry** as the single
   authoritative statement of that correspondence (ARCH-23-001), which frees the
   two registries to use disjoint keys (ARCH-23-002) and retires
   `_NORMALIZE_WIRE_TO_CORE`, `_WIRE_ACTOR_TO_CORE`, and the name-collision

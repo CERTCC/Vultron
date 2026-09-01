@@ -215,7 +215,7 @@ groups:
     independent parallel hierarchies. A shared-base approach eliminates the need for per-type translation stubs: both core
     and wire branches inherit from the same lenient root and field names align, so translation becomes a declarative
     operation over the core↔wire pairing registry rather than hand-written code on each wire class. ARCH-12-005 places that
-    operation on the adapter side and forbids the per-class methods outright. See ADR-0017 Option D, ADR-0081, and concern
+    operation on the adapter side and forbids the per-class methods outright. See ADR-0017 Option D, ADR-0082, and concern
     #796.'
   specs:
   - id: ARCH-12-001
@@ -231,7 +231,7 @@ groups:
       layer for cross-cutting definitions.
     adr:
     - ADR-0031
-    - ADR-0081
+    - ADR-0082
     verification: '`issubclass(as_Base, VultronBase)` and `issubclass(as_Object, VultronObject)` are both True.'
   - id: ARCH-12-002
     priority: MUST
@@ -270,7 +270,7 @@ groups:
         rejects the project''s own serialised output.
     adr:
     - ADR-0063
-    - ADR-0081
+    - ADR-0082
   - id: ARCH-12-004
     priority: MUST_NOT
     kind: project
@@ -361,7 +361,7 @@ groups:
         per-class `to_core()` override.
     adr:
     - ADR-0063
-    - ADR-0081
+    - ADR-0082
   - id: ARCH-12-006
     priority: MUST
     kind: project
@@ -798,7 +798,7 @@ groups:
       note: The pairing registry is how the adapter resolves the wire counterpart now that name coincidence is forbidden.
     adr:
     - ADR-0063
-    - ADR-0081
+    - ADR-0082
   - id: ARCH-20-003
     priority: MUST
     kind: project
@@ -898,7 +898,7 @@ groups:
       spec_id: ARCH-23-001
     adr:
     - ADR-0063
-    - ADR-0081
+    - ADR-0082
   - id: ARCH-20-009
     priority: MUST
     kind: project
@@ -920,7 +920,7 @@ groups:
       spec_id: ARCH-23-001
     adr:
     - ADR-0063
-    - ADR-0081
+    - ADR-0082
 - id: ARCH-21
   title: Post-Construction Mutation Safety
   description: >-
@@ -1046,7 +1046,7 @@ groups:
     - ADR-0017
     - ADR-0032
     - ADR-0063
-    - ADR-0081
+    - ADR-0082
   - id: ARCH-22-002
     priority: MUST
     kind: project
@@ -1091,11 +1091,11 @@ groups:
       the xfail marker stays forever — the completion signal never fires.  But
       a goal test targeting *empty* asserts an unreachable state: ARCH-12-001
       requires wire classes to inherit the shared base, ARCH-12-010 requires
-      `find_in_vocabulary()` to consult the core type map, and (before ADR-0081)
+      `find_in_vocabulary()` to consult the core type map, and (before ADR-0082)
       ARCH-20-002 unconditionally required the rendering adapter to invoke a
       `from_core()` projection defined on the wire class.  An unreachable goal
       invites an implementer to violate a MUST in order to make it pass, which
-      is worse than no goal test.  ADR-0081 removes two of the three structural
+      is worse than no goal test.  ADR-0082 removes two of the three structural
       causes by relocating the shared base and moving projection to the adapter
       side, leaving one justified exemption.  The exemption set is stated as an
       enumeration rather than a count because a count in a requirement drifts
@@ -1112,7 +1112,7 @@ groups:
         pins in place.
     adr:
     - ADR-0017
-    - ADR-0081
+    - ADR-0082
 - id: ARCH-23
   title: Core↔Wire Pairing Registry and Translator
   specs:
@@ -1142,7 +1142,7 @@ groups:
       test asserts `_WIRE_ACTOR_TO_CORE` and `_NORMALIZE_WIRE_TO_CORE` no longer
       exist.
     adr:
-    - ADR-0081
+    - ADR-0082
   - id: ARCH-23-002
     priority: MUST
     kind: project
@@ -1174,7 +1174,7 @@ groups:
       spec_id: VM-01-005
       note: Import-time registration is why the verification must force population before comparing the registries.
     adr:
-    - ADR-0081
+    - ADR-0082
   - id: ARCH-23-003
     priority: MUST_NOT
     kind: project
@@ -1192,7 +1192,7 @@ groups:
       A round-trip test asserts the serialized form of every wire type is
       byte-identical to its pre-change output.
     adr:
-    - ADR-0081
+    - ADR-0082
   - id: ARCH-23-004
     priority: MUST
     kind: project
@@ -1213,7 +1213,7 @@ groups:
       asserts the derived set matches the annotation-declared reference fields
       for every wire class.
     adr:
-    - ADR-0081
+    - ADR-0082
   - id: ARCH-23-005
     priority: MUST
     kind: project
@@ -1239,7 +1239,7 @@ groups:
       trailing-underscore key.
     adr:
     - ADR-0056
-    - ADR-0081
+    - ADR-0082
   - id: ARCH-23-006
     priority: MUST_NOT
     kind: project
@@ -1266,4 +1266,4 @@ groups:
       spec_id: ARCH-22-001
       note: Names the specific annotation-level case of the wire→core import prohibition.
     adr:
-    - ADR-0081
+    - ADR-0082

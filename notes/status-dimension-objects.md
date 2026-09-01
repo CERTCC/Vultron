@@ -170,7 +170,7 @@ Because there are no extant persisted records to preserve, the simplest
 approach is to match the wire JSON shape to the new nested structure.
 
 **Do not implement this as `from_core()` / `to_core()` methods on the wire
-classes.** ARCH-12-005 as amended by ADR-0081 forbids those methods; projection
+classes.** ARCH-12-005 as amended by ADR-0082 forbids those methods; projection
 belongs to the generic bidirectional translator on the adapter side. Declare the
 core↔wire pairing and its field map to that translator (ARCH-23-001) and put the
 dimension-object shape handling there. See

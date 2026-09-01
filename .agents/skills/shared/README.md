@@ -7,6 +7,7 @@ Shared scripts and reference documents referenced by multiple skills.
 | File | Purpose | Loaded by |
 |---|---|---|
 | `completeness-doctrine.md` | Project quality standard: what "done" means, finding severity taxonomy (FAIL/IMPROVE/DEFER), scope expansion rules | `orient-agent` Step 3 — in context for every workflow |
+| `issue-creation-requirements.md` | Three required fields (type, parent epic, milestone) for every new issue; lookup commands and defaults | `manage-github-issue`, `new-item`, `plan-issue`, `bugfix`, `build` |
 | `pr-body-guide.md` | PR body templates and formatting rules | `build`, `bugfix`, `plan-issue` |
 | `upward-reflection.md` | Mandatory end-of-session signal checklist (spec-gap, spec-ambiguity, etc.) and learning-file format | `build` Phase 8, `bugfix` Phase 3 |
 

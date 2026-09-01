@@ -177,7 +177,7 @@ groups:
       `extra="forbid"` is strictly stronger than a reject-guard enumerating the known flat keys: it also catches typos and
       stale keys from an older schema, needs no per-class maintenance, and covers every registered core type rather than the
       two named here. Because Pydantic itself raises, the failure surfaces as a pydantic `ValidationError` rather than
-      `VultronValidationError`, and no wire→core recovery is attempted (ADR-0081 supersedes the ADR-0062 backstop).'
+      `VultronValidationError`, and no wire→core recovery is attempted (ADR-0082 supersedes the ADR-0062 backstop).'
     verification: '`ParticipantStatus.model_validate({"rm_state": "RECEIVED"})` and the camelCase equivalent both raise pydantic
       `ValidationError`; neither yields a model whose `rm.state` is `RM.START`. No `CaseStatus` or `ParticipantStatus` class
       declares a `model_validator(mode="before")` reject-guard for those keys.'
@@ -193,7 +193,7 @@ groups:
     adr:
     - ADR-0062
     - ADR-0063
-    - ADR-0081
+    - ADR-0082
 - id: SDO-04
   title: Wire Projection and Migration Scope
   specs:
@@ -204,7 +204,7 @@ groups:
       with their core counterparts, MUST be updated in the same implementation as the core model changes so that translation
       in both directions correctly handles the dimension-object field shape.
     rationale: Deferring wire changes creates an extended period of core/wire divergence requiring shim adapters. Both layers
-      are in scope per ADR-0036, and per ADR-0081 the translation itself is a third artifact on the adapter side that must
+      are in scope per ADR-0036, and per ADR-0082 the translation itself is a third artifact on the adapter side that must
       move with them.
     verification: Inspection confirms the adapter-side `CaseStatus` and `ParticipantStatus` translators project the dimension-object
       field shape in both directions without accessing flat enum fields.
@@ -214,7 +214,7 @@ groups:
       note: ARCH-12-005 locates the translation on the adapter side rather than as methods on the wire classes.
     adr:
     - ADR-0036
-    - ADR-0081
+    - ADR-0082
     stories:
     - story_2022_062
     - story_2022_088

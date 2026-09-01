@@ -51,7 +51,7 @@ groups:
       NOT hand a factory a hand-built *partial* wire object (e.g. a `VulnerabilityCaseStub` assembled field-by-field) — an
       incompletely projected argument risks omitting fields the translator would have included (e.g. `end_time` on an embargo
       event).
-    rationale: 'ADR-0081 gives the adapter-side translator sole ownership of core→wire projection. A factory that projects
+    rationale: 'ADR-0082 gives the adapter-side translator sole ownership of core→wire projection. A factory that projects
       internally must import the core domain model, which is why `factories/actor.py` and `factories/case.py` are wire→core
       import violations under ARCH-22-001; sanctioning the factory layer as a second projection site would pin them in place
       permanently. The invariant the original rule protected — enrichment is complete and expressed in one place — is preserved
@@ -68,7 +68,7 @@ groups:
     - rel_type: implements
       spec_id: ARCH-22-001
     adr:
-    - ADR-0081
+    - ADR-0082
 - id: AF-02
   title: Module Structure
   specs:

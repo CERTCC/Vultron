@@ -18,7 +18,7 @@
 format.  Translation MUST go through an explicit seam — not through arbitrary
 direct imports of ``vultron.core.models.*`` types scattered across wire modules.
 
-Per ADR-0081 that seam is the declarative pairing registry plus the generic
+Per ADR-0082 that seam is the declarative pairing registry plus the generic
 adapter-side translator (ARCH-23-001).  It is **no longer** a per-class
 ``as_Foo.from_core(core_obj)`` method: amended ARCH-12-005 forbids
 ``from_core()``/``to_core()`` on wire vocabulary classes, precisely because those
@@ -47,7 +47,7 @@ Remove entries from ``KNOWN_VIOLATIONS`` one by one as each violation is fixed.
 
 Goal state
 ----------
-The goal is **not** an empty set.  ARCH-22-003 as amended by ADR-0081 targets an
+The goal is **not** an empty set.  ARCH-22-003 as amended by ADR-0082 targets an
 *enumerated exemption set*: at least ``vocab/base/registry.py``, whose
 ``find_in_core_type_map`` import ARCH-12-010 mandates.  A goal of ``frozenset()``
 was unreachable, and an unreachable goal invites an implementer to violate a MUST
@@ -195,7 +195,7 @@ def test_all_known_violations_still_present() -> None:
     strict=True,
     reason=(
         "ARCH-22-003: Goal state. NOTE — this assertion targets frozenset(), which "
-        "ADR-0081 established is unreachable: ARCH-12-001, ARCH-20-002 and "
+        "ADR-0082 established is unreachable: ARCH-12-001, ARCH-20-002 and "
         "ARCH-12-010 each mandate an import it forbids. ARCH-22-003 as amended "
         "targets an enumerated exemption set instead. Retargeting this test and "
         "retiring the marker is #2944's job; tracked by #2670."

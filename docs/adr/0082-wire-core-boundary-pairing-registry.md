@@ -95,14 +95,14 @@ issue's own enumeration lists 31 files, and `KNOWN_VIOLATIONS` in the ratchet
 test holds 31 entries matching the 31 measured imports exactly. The target is
 in any case unreachable while three MUST-level requirements stand: ARCH-12-001
 mandates that `as_Base` inherit `VultronBase` (which lives in
-`vultron/core/models/base.py`), ARCH-20-002 in its pre-ADR-0081 form mandates
+`vultron/core/models/base.py`), ARCH-20-002 in its pre-ADR-0082 form mandates
 that the rendering port's adapter locate the core object's wire counterpart and
 invoke *that class's* `from_core()` projection —
 so a wire class must keep a `from_core()` whose parameter is a core type — and
 ARCH-12-010 mandates that `find_in_vocabulary()` consult the core
 `CORE_TYPE_MAP`. An agent working #2670 would clear the easy files, reach the
 base classes, and have to choose which MUST to violate. (ARCH-12-005 is easily
-read as a fourth blocker and is not one: in its pre-ADR-0081 form it *permitted*
+read as a fourth blocker and is not one: in its pre-ADR-0082 form it *permitted*
 `to_core()`/`from_core()` on wire types and stated that they were not required
 for structurally-compatible types.)
 
@@ -229,7 +229,7 @@ Concretely:
    - the projection imports in the `as_*` classes clear when item 4 moves
      `to_core()`/`from_core()` onto the adapter side;
    - `factories/actor.py` and `factories/case.py` clear only because AF-01-005 is
-     amended here: in its pre-ADR-0081 form it *mandated* that the factory accept
+     amended here: in its pre-ADR-0082 form it *mandated* that the factory accept
      the core object and project internally, which pinned those two imports in
      place permanently. It is inverted to require a complete translator-produced
      wire object as the argument;

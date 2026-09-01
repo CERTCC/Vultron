@@ -625,7 +625,7 @@ groups:
     rationale: The two branches stay distinct type hierarchies, and the translation between them lives on the adapter side —
       the one layer permitted to see both — so neither branch imports the other.
     adr:
-    - ADR-0081
+    - ADR-0082
 - id: CM-09
   title: Redacted Case View
   specs:
@@ -1947,7 +1947,7 @@ groups:
       note: ARCH-12-005 places the translation on the adapter side, so the derivation lives there rather than on the wire class.
     adr:
     - ADR-0056
-    - ADR-0081
+    - ADR-0082
 - id: CM-19
   title: Participant Index Discipline
   specs:

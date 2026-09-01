@@ -274,7 +274,7 @@ the per-field conversion logic are what supply that.
 
 **Where that mechanism lives is changing.** Today it is
 `from_core()` on `VultronAS2Object` (overridden on specific wire classes). Under
-ADR-0081, ARCH-12-005 as amended **forbids** `from_core()`/`to_core()` on wire
+ADR-0082, ARCH-12-005 as amended **forbids** `from_core()`/`to_core()` on wire
 vocabulary classes: projection moves to a generic bidirectional translator on the
 adapter side, driven by a declarative core↔wire pairing registry (ARCH-23-001),
 so wire classes carry no domain knowledge. Do not write new
