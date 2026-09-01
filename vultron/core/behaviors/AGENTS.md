@@ -198,6 +198,39 @@ Source: CONCERN-2559
 
 ---
 
+## Port `data_type` Is Enforced — `object` Makes It Inert
+
+py_trees checks a port's `data_type` on **both** sides: `_set_output()` rejects a
+wrong-typed write and `get_input()` rejects a wrong-typed read, each raising
+`TypeError`. So the declaration is the enforcement.
+
+**Declare the concrete class whenever the writer guarantees one.**
+`PortInformation(data_type=object, ...)` accepts anything, which turns the check
+off. That is only safe for Protocol-typed injections (`datalayer`, `actor_id`,
+`trigger_activity_factory`, `sync_port`, `wire_render_port`) and genuinely
+polymorphic payloads (`activity`). Everywhere else it is a latent bug, because
+the node then narrows the value with `cast(Foo, ...)` and a wrong-typed value
+surfaces as an `AttributeError` deep inside `update()` instead of at the port.
+
+Two consequences to know before tightening a port:
+
+- `_try_get_input()` catches only `NoDataAvailable` and `NotImplementedError`,
+  so a `TypeError` escapes `initialise()`, unwinds the tick, and is absorbed by
+  `BTBridge.execute_tree`'s `except Exception` — the **whole tree** fails, not
+  the one node. For a violated blackboard contract (a wiring error, not a
+  protocol condition) that fail-closed outcome is intended.
+- A contract test MUST discover its node roster reflectively via
+  `test/core/behaviors/port_contract.py`, not from a hard-coded list. A list
+  cannot police a shared key: the next node added with `data_type=object`
+  re-opens the hole while the suite stays green.
+
+Worked examples: `participant_case`
+(`test/core/behaviors/case/nodes/participant/test_typed_ports.py`) and
+`log_entry` / `replay_entry` (`test/core/behaviors/sync/nodes/test_typed_ports.py`).
+See ADR-0044 § Consequences and BTND-03-009. *Source: ISSUE-2907, ISSUE-3011*
+
+---
+
 ## See Also
 
 - `notes/bt-integration.md` — architecture decisions, actor isolation,
