@@ -65,12 +65,15 @@ class TestCanonicalActorUri:
         canonical = f"{_BASE}/{ACTORS_SEGMENT}/vendor"
         assert canonical_actor_uri(canonical, _BASE) == canonical
 
-    def test_adopts_a_foreign_authority_verbatim(self):
+    def test_returns_a_foreign_authority_uri_unchanged(self):
         """ADR-0073#peer-records-in-knowers-store: a peer's id is the URL delivery posts to.
 
-        Rewriting it into this node's namespace would turn a reachable peer into
-        a local phantom.  The cost — a local store minted for an actor this node
-        does not host — is issue #2549, logged by ``get_actor_engine``.
+        ``canonical_actor_uri`` passes any scheme-bearing id through unchanged so
+        that outbound delivery can POST to the peer's real address.  This remains
+        correct after ADR-0081 — the fix for the phantom-store problem is to
+        reject foreign ids at ``POST /actors/`` rather than here, because this
+        function is also called on the GET side (inbox resolution) where the peer
+        address must survive intact.
         """
         foreign = "http://vendor:7999/api/v2/actors/vendor"
         assert canonical_actor_uri(foreign, _BASE) == foreign

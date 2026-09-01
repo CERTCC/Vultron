@@ -151,6 +151,18 @@ def _create_actor(client, base_api: str, slug: str, name: str) -> str:
     return actor_id
 
 
+def _register_peer(client, host_slug: str, peer_id: str, name: str) -> None:
+    """Register a peer in the hosted actor's address book (ADR-0081)."""
+    resp = client.post(
+        f"/api/v2/actors/{host_slug}/peers/",
+        json={"id": peer_id, "name": name, "actor_type": "Organization"},
+    )
+    assert resp.status_code in (
+        200,
+        201,
+    ), f"Peer registration failed ({resp.status_code}): {resp.text}"
+
+
 def _post_to_inbox(client, actor_slug: str, activity) -> None:
     """POST *activity* JSON to ``/api/v2/actors/{actor_slug}/inbox/``."""
     resp = client.post(
@@ -218,8 +230,8 @@ def _bootstrap_and_engage(
         reporter_tc, reporter_base_api, reporter_slug, "Reporter"
     )
 
-    # Owner's app must know the reporter so outbound Create is routable.
-    _create_actor(owner_tc, reporter_base_api, reporter_slug, "Reporter")
+    # Register reporter as peer on owner's app so outbound Create is routable (ADR-0081).
+    _register_peer(owner_tc, owner_slug, reporter_actor_id, "Reporter")
 
     report = as_VulnerabilityReport(
         attributed_to=reporter_actor_id,

@@ -22,14 +22,11 @@ reads, which store a BT node writes — is that resolution applied.
 
 Covers ``actor_slug``, ``actor_db_url``, ``_is_memory_url``,
 ``_memory_base_name``, ``get_actor_engine`` (including the ``_STORE_CLAIMANTS``
-cross-authority collision warning) and ``dispose_actor_engines``.
+cross-authority collision guard) and ``dispose_actor_engines``.
 """
-
-import logging
 
 import pytest
 
-from vultron.adapters.driven.datalayer_sqlite import engine as engine_mod
 from vultron.adapters.driven.datalayer_sqlite.engine import (
     _ENGINES,
     _STORE_CLAIMANTS,
@@ -111,13 +108,16 @@ class TestActorSlug:
             actor_slug(bad)
 
     def test_two_authorities_with_one_segment_collide(self):
-        """Documented limitation, not an accident — see issue #2549.
+        """``actor_slug`` still collapses authority — the collision is now unreachable.
 
-        The scheme and netloc are dropped, so a co-hosted ``case-actor`` and a
-        *peer* whose URI also ends in ``case-actor`` produce one slug. The bug in
-        that scenario is opening a store for a foreign id at all;
-        ``get_actor_engine`` is what notices (see
-        :class:`TestGetActorEngineCollisionWarning`).
+        The scheme and netloc are dropped, so two ids that differ only in
+        authority but share the same final path segment produce one slug.  No
+        legitimate path reaches ``actor_slug`` with a foreign id after ADR-0081:
+        ``POST /actors/`` rejects foreign-authority ids, and ``POST
+        /actors/{id}/peers/`` stores peer knowledge in the hosted actor's own
+        store without opening a separate engine for the peer.  The collision is
+        caught by ``get_actor_engine`` which now warns (see
+        :class:`TestGetActorEngineCollisionGuard`).
         """
         assert actor_slug(
             "http://vendor:7999/api/v2/actors/case-actor"
@@ -248,47 +248,64 @@ class TestGetActorEngine:
         )
 
 
-class TestGetActorEngineCollisionWarning:
-    """The ``_STORE_CLAIMANTS`` guard for the issue-#2549 slug collision."""
+class TestGetActorEngineCollisionGuard:
+    """The ``_STORE_CLAIMANTS`` guard logs a warning on a cross-authority slug collision.
+
+    After ADR-0081 no legitimate *production* path opens a store for a
+    foreign-authority id: ``POST /actors/`` rejects foreign ids, and peer
+    knowledge lives inside a hosted actor's own store.  The guard stays a
+    warning (not an exception) because the demo test harness legitimately runs
+    multiple nodes in one process and nodes that share a slug would otherwise
+    fail to start.
+    """
 
     _FOREIGN = "http://case-actor:7999/api/v2/actors/eng-collide"
     _LOCAL = "http://vendor:7999/api/v2/actors/eng-collide"
 
     def test_warns_when_a_second_authority_claims_the_same_store(self, caplog):
-        get_actor_engine("sqlite:///:memory:", self._LOCAL)
-        with caplog.at_level(logging.WARNING, logger=engine_mod.__name__):
-            get_actor_engine("sqlite:///:memory:", self._FOREIGN)
+        import logging
 
+        get_actor_engine("sqlite:///:memory:", self._LOCAL)
+        with caplog.at_level(logging.WARNING):
+            get_actor_engine("sqlite:///:memory:", self._FOREIGN)
         assert any(
             "shared by two distinct actor ids" in r.message
-            and "#2549" in r.message
             for r in caplog.records
-        ), caplog.text
-
-    def test_warns_rather_than_raises(self):
-        """Peer registration via ``POST /actors/`` still reaches this path."""
-        first = get_actor_engine("sqlite:///:memory:", self._LOCAL)
-        second = get_actor_engine("sqlite:///:memory:", self._FOREIGN)
-        assert second is first
+        )
 
     def test_does_not_warn_for_a_repeat_claim_by_the_same_id(self, caplog):
+        import logging
+
         get_actor_engine("sqlite:///:memory:", self._LOCAL)
-        with caplog.at_level(logging.WARNING, logger=engine_mod.__name__):
+        with caplog.at_level(logging.WARNING):
             get_actor_engine("sqlite:///:memory:", self._LOCAL)
-        assert "shared by two distinct actor ids" not in caplog.text
+        assert not any(
+            "shared by two distinct actor ids" in r.message
+            for r in caplog.records
+        )
+
+    def test_warns_rather_than_raises(self):
+        """The guard must not crash callers; it only alerts."""
+        get_actor_engine("sqlite:///:memory:", self._LOCAL)
+        get_actor_engine("sqlite:///:memory:", self._FOREIGN)
 
     def test_the_claim_survives_disposal(self, caplog):
         """Disposal is a legitimate reset; it must not erase who claimed what.
 
         That is why ``_STORE_CLAIMANTS`` is a separate dict from ``_ENGINES``:
-        a reset between tests would otherwise re-arm the warning and hide a real
+        a reset between tests would otherwise re-arm the guard and hide a real
         collision behind a "first claim".
         """
+        import logging
+
         get_actor_engine("sqlite:///:memory:", self._LOCAL)
         dispose_actor_engines("sqlite:///:memory:", self._LOCAL)
-        with caplog.at_level(logging.WARNING, logger=engine_mod.__name__):
+        with caplog.at_level(logging.WARNING):
             get_actor_engine("sqlite:///:memory:", self._FOREIGN)
-        assert "shared by two distinct actor ids" in caplog.text
+        assert any(
+            "shared by two distinct actor ids" in r.message
+            for r in caplog.records
+        )
 
 
 class TestDisposeActorEngines:

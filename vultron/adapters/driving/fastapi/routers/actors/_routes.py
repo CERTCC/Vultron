@@ -23,6 +23,7 @@ dependencies provide.
 
 import logging
 from typing import Any, Literal, cast
+from urllib.parse import urlsplit
 from uuid import uuid4
 
 from fastapi import (
@@ -81,6 +82,7 @@ from vultron.adapters.driving.fastapi.routers.actors._lookup import (
     _ACTOR_TYPE_MAP,
     _actor_class_for_record,
     _find_actor_record,
+    _find_actor_record_by_id,
     _resolve_actor_or_404,
 )
 
@@ -157,6 +159,28 @@ class ActorCreateRequest(BaseModel):
     model_config = {"populate_by_name": True}
 
 
+def _is_foreign_authority(actor_id: str, base_url: str | None) -> bool:
+    """Return ``True`` when *actor_id* is under a different authority than this node.
+
+    A foreign-authority id carries a scheme but names a process on another host.
+    ``canonical_actor_uri`` passes these through unchanged
+    (ADR-0073#peer-records-in-knowers-store), but ``POST /actors/`` must
+    reject them: peers are address-book entries in a hosted actor's own store, not
+    hosted actors in their own right (ADR-0081).
+
+    Args:
+        actor_id: The already-canonicalized actor URI.
+        base_url: This node's base URL, or ``None`` to fall back to config.
+    """
+    parsed_id = urlsplit(actor_id)
+    if not parsed_id.scheme:
+        return False
+    from vultron.config import get_config
+
+    effective_base = base_url or get_config().server.base_url
+    return parsed_id.netloc != urlsplit(effective_base).netloc
+
+
 @router.post(
     "/",
     status_code=status.HTTP_201_CREATED,
@@ -164,12 +188,14 @@ class ActorCreateRequest(BaseModel):
     description=(
         "Creates a new actor record in that actor's own store. "
         "Idempotent: if an actor with the same ``id`` already exists the "
-        "existing record is returned with HTTP 200."
+        "existing record is returned with HTTP 200. "
+        "Rejects ids from a foreign authority with 422; use "
+        "``POST /actors/{actor_id}/peers/`` to register a peer."
     ),
     operation_id="actors_create",
 )
 def create_actor(request: ActorCreateRequest, http_request: Request):
-    """Create (or return existing) actor record in that actor's own store.
+    """Create (or return existing) hosted actor record in that actor's own store.
 
     An actor is a process with API endpoints, and its id **is** the URL that
     reaches it: an actor this node hosts is named
@@ -186,18 +212,10 @@ def create_actor(request: ActorCreateRequest, http_request: Request):
     another. Handing the canonicalizer a bare slug is what makes the id and the
     serving endpoint the same string by construction (ADR-0073#url-segment-computed-not-looked-up).
 
-    A client-supplied id under another authority is adopted **verbatim**, because
-    it names a process *elsewhere* — a peer, whose address a hosted actor may know
-    (ADR-0073#peer-records-in-knowers-store) and whose real URI is what outbound delivery has to
-    post to. Canonicalizing it into this node's namespace would rewrite the peer
-    into a local phantom, so ``canonical_actor_uri`` deliberately passes any
-    scheme-bearing id through unchanged.
-
-    That is a known wart: adopting the id also mints a local per-actor store for
-    it, and ``actor_slug`` keeps only the final path segment, so a peer can share
-    a store with a genuinely co-hosted actor of the same slug. Peers are not
-    hosted actors and should not arrive through this route at all; fixing that
-    needs a decision recorded in an ADR (issue #2549).
+    A client-supplied id under a **foreign** authority is rejected with 422.
+    Peers are not hosted actors — they are address-book entries inside each hosted
+    actor's own store (ADR-0081).  The correct route is
+    ``POST /actors/{hosted_actor_id}/peers/``.
 
     "This node's namespace" is the *serving app's* base URL where it declares one
     (``deps.node_base_url``), falling back to configuration. Creating an actor and
@@ -211,10 +229,11 @@ def create_actor(request: ActorCreateRequest, http_request: Request):
     process-global one is what keeps this route reading the same stores as the
     rest of the app when several nodes share a process.
     """
+    base_url = node_base_url(http_request)
     try:
         actor_id = actor_hosts.canonical_actor_uri(
             request.id_ or str(uuid4()),
-            base_url=node_base_url(http_request),
+            base_url=base_url,
         )
     except ValueError as exc:
         # A client-supplied id that names no actor (``"/"``, ``"//"``) is a bad
@@ -223,6 +242,14 @@ def create_actor(request: ActorCreateRequest, http_request: Request):
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail=str(exc),
+        )
+    if _is_foreign_authority(actor_id, base_url):
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail=(
+                f"Actor id {actor_id!r} is under a foreign authority. "
+                "Use POST /actors/{hosted_actor_id}/peers/ to register a peer."
+            ),
         )
     datalayer = get_datalayer(
         actor_id, db_url=node_db_url_template(http_request)
@@ -246,6 +273,94 @@ def create_actor(request: ActorCreateRequest, http_request: Request):
     logger.info("Created actor %s (type=%s)", actor_id, request.actor_type)
     return AS2JSONResponse(
         actor.model_dump(mode="json", by_alias=True, exclude_none=True),
+        status_code=status.HTTP_201_CREATED,
+    )
+
+
+class PeerRegisterRequest(BaseModel):
+    """Request body for ``POST /actors/{actor_id}/peers/``.
+
+    Registers a peer actor's address-book entry inside *actor_id*'s own store.
+    The peer is not hosted here; its id is the URL outbound delivery posts to.
+    """
+
+    id_: str = Field(
+        alias="id",
+        description="Full absolute URI of the peer actor (http/https).",
+    )
+    name: str = Field(description="Display name of the peer actor.")
+    actor_type: Literal[
+        "Person", "Organization", "Service", "Application", "Group"
+    ] = Field(
+        default="Organization",
+        description="ActivityStreams actor type.",
+    )
+
+    model_config = {"populate_by_name": True}
+
+
+@router.post(
+    "/{actor_id:path}/peers/",
+    status_code=status.HTTP_201_CREATED,
+    summary="Register Peer",
+    description=(
+        "Record a peer actor's address-book entry inside the named hosted "
+        "actor's own store (ADR-0081).  The peer is not hosted here; its id "
+        "is the URL outbound delivery posts to. Idempotent: if the peer is "
+        "already known, the existing record is returned with HTTP 200."
+    ),
+    operation_id="actors_register_peer",
+)
+def register_peer(
+    actor_id: str,
+    request: PeerRegisterRequest,
+    datalayer: DataLayer = Depends(get_actor_dl),
+):
+    """Record *request.id_* as a known peer in *actor_id*'s own store.
+
+    The host actor must exist on this node (404 otherwise).  The peer id must
+    be an absolute http/https URI (422 otherwise) — it is the address outbound
+    delivery posts to, so anything else would mint an unreachable participant.
+
+    Peers are **not** hosted actors.  They do not appear in ``GET /actors/``,
+    they do not get their own per-actor store, and they must not be created via
+    ``POST /actors/``.  A peer is knowledge a hosted actor holds about the world
+    — the Actor Knowledge Model (AKM) in one sentence.
+    """
+    peer_id = request.id_
+    parsed = urlsplit(peer_id)
+    if parsed.scheme not in ("http", "https") or not parsed.netloc:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail=(
+                f"Peer id {peer_id!r} is not a deliverable URI. "
+                "A peer id must be an absolute http(s) URI."
+            ),
+        )
+
+    # The host actor must be present on this node.
+    _resolve_actor_or_404(actor_id, datalayer)
+
+    # Idempotency: use exact-id lookup — _find_actor_record falls back to
+    # datalayer.actor_id (the host) as a candidate, so it would find the host
+    # actor itself instead of an absent peer.
+    existing = _find_actor_record_by_id(datalayer, peer_id)
+    if existing is not None:
+        cls = _actor_class_for_record(existing)
+        data = existing.get("data_", {})
+        return AS2JSONResponse(
+            cls.model_validate(data).model_dump(
+                mode="json", by_alias=True, exclude_none=True
+            ),
+            status_code=status.HTTP_200_OK,
+        )
+
+    actor_cls = _ACTOR_TYPE_MAP.get(request.actor_type, VultronOrganization)
+    peer = actor_cls(id_=peer_id, name=request.name)
+    datalayer.create(object_to_record(cast(PersistableModel, peer)))
+    logger.info("Registered peer %s in actor %s store", peer_id, actor_id)
+    return AS2JSONResponse(
+        peer.model_dump(mode="json", by_alias=True, exclude_none=True),
         status_code=status.HTTP_201_CREATED,
     )
 

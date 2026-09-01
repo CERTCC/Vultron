@@ -15,17 +15,17 @@
 
 ```text
 HTTP POST /inbox  (wire: AS2 JSON)
-  -> FastAPI inbox handler         [vultron/adapters/driving/fastapi/inbox_handler.py]
-  -> AS2 parser (structural)       [vultron/wire/as2/parser.py]
-  -> rehydrate()                   [vultron/wire/as2/rehydration.py]
-  -> semantic extractor            [vultron/wire/as2/extractor/]
+  -> FastAPI inbox handler         `vultron/adapters/driving/fastapi/inbox_handler.py`
+  -> AS2 parser (structural)       `vultron/wire/as2/parser.py`
+  -> rehydrate()                   `vultron/wire/as2/rehydration.py`
+  -> semantic extractor            `vultron/wire/as2/extractor/`
      (AS2 pattern -> MessageSemantics + VultronEvent)
-  -> behavior dispatcher           [vultron/core/ports/dispatcher.py]
-  -> USE_CASE_MAP lookup           [vultron/core/use_cases/]
-  -> UseCase.execute()             [vultron/core/use_cases/received/]
+  -> behavior dispatcher           `vultron/core/ports/dispatcher.py`
+  -> USE_CASE_MAP lookup           `vultron/core/use_cases/`
+  -> UseCase.execute()             `vultron/core/use_cases/received/`
      (may run BT sub-tree via py-trees)
-  -> DataLayer.save()              [vultron/adapters/driven/datalayer_sqlite/]
-  -> outbound delivery queue       [vultron/adapters/driven/prod_http_delivery.py]
+  -> DataLayer.save()              `vultron/adapters/driven/datalayer_sqlite/`
+  -> outbound delivery queue       `vultron/adapters/driven/prod_http_delivery.py`
   -> HTTP 202 Accepted             (background task via FastAPI BackgroundTasks)
 ```
 
@@ -52,7 +52,6 @@ HTTP POST /inbox  (wire: AS2 JSON)
 | Behavior Tree node hierarchy | `vultron/bt/base/bt_node.py` + domain sub-trees | Encode CVD sub-protocol logic as composable, testable tree nodes |
 | Factory function per object type | `vultron/wire/as2/factories/` | Construct outbound AS2 activities from domain objects in one place |
 | Semantic pattern registry | `vultron/semantic_registry/` | Match incoming AS2 activities to `MessageSemantics` via ordered pattern list |
-| Backward-compat shim (`datalayer_sqlite.py`) | `vultron/adapters/driven/datalayer_sqlite.py` | Re-export from split subpackage; callers do not update imports when internals split |
 | `pydantic-settings` layered config | `vultron/config/app.py` | Merge YAML file + env vars + defaults in a single `AppConfig` object |
 | Typed ports on BT DataLayer nodes | `vultron/core/behaviors/` (nodes using `WithPorts` variants) | Declare blackboard key dependencies as typed class attributes instead of calling `register_key()` at runtime; enforced by `test/architecture/test_no_bare_register_key_datalayer_nodes.py` (BTND-03-009) |
 | `WireRenderPort` driven port | `vultron/core/ports/wire_render.py` + `vultron/adapters/driven/wire_render/as2.py` | Allows core behaviors to obtain wire-shaped (AS2 camelCase) JSON from a domain object without importing from `vultron/wire/`; adapter translates via `VOCABULARY` registry |

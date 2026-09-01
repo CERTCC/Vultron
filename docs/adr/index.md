@@ -150,6 +150,7 @@ General information about architectural decision records is available at <https:
 - [ADR-0078 Retire `CVDRole.FINDER` — Reporter Is the Protocol-Salient Role](0078-retire-finder-role.md)
 - [ADR-0079 CaseLedger Causal Ordering: CaseActor Observation Order Is the Canonical Causal Order](0079-case-ledger-causal-ordering.md)
 - [ADR-0080 Asking Permission Is a Protocol Message, Not a Suspended Behavior](0080-protocol-asks-not-suspended-behaviors.md)
+- [ADR-0081 Peer Knowledge Lives in the Hosted Actor's Own Store, Not as a Hosted Actor](0081-peer-knowledge-in-hosted-actor-store.md)
 
 ## Proposed ADRs
 

@@ -22,7 +22,7 @@
 | `specs/` | Structured YAML specification files | `specs/README.md` |
 | `notes/` | Durable design insight Markdown files | `notes/README.md` |
 | `docs/` | MkDocs documentation source | `Makefile` `docs` target |
-| `plan/` | Agent workflow files: implementation plan, priorities, learnings, history | `plan/BUILD_LEARNINGS.md`, `plan/IMPLEMENTATION_PLAN.md` |
+| `plan/` | Agent workflow files: learnings queue and history archive | `plan/history/`, `plan/incoming/` |
 | `.github/workflows/` | CI/CD pipeline definitions | `.github/workflows/python-app.yml` |
 | `.devcontainer/` | Dev container configuration | `.devcontainer/Dockerfile` |
 | `integration_tests/` | Separate integration test suite | `integration_tests/README.md` |
@@ -70,7 +70,6 @@ Enforced by: `test/architecture/test_core_no_adapter_imports.py`, `test/architec
 |--------|---------|
 | `vultron/core/ports/wire_render.py` | `WireRenderPort` driven-port Protocol for wire-shaped JSON rendering |
 | `vultron/adapters/driven/wire_render/as2.py` | AS2 adapter implementing `WireRenderPort` via `VOCABULARY` registry |
-| `vultron/core/behaviors/case/nodes/case_actor_setup.py` | Case-actor-specific setup BT nodes (extracted from `case_setup.py`) |
 | `vultron/core/behaviors/embargo/nodes/terminate.py` | Embargo termination BT nodes |
 | `vultron/core/behaviors/sync/nodes/event_conditions.py` | Sync event-condition BT nodes (extracted from `conditions.py`) |
 | `vultron/core/behaviors/bridge.py` | BT bridge node |

@@ -111,6 +111,18 @@ def _create_actor(client, base_api: str, slug: str, name: str) -> str:
     return actor_id
 
 
+def _register_peer(client, host_slug: str, peer_id: str, name: str) -> None:
+    """Register a peer in the hosted actor's address book (ADR-0081)."""
+    resp = client.post(
+        f"/api/v2/actors/{host_slug}/peers/",
+        json={"id": peer_id, "name": name, "actor_type": "Organization"},
+    )
+    assert resp.status_code in (
+        200,
+        201,
+    ), f"Peer registration failed ({resp.status_code}): {resp.text}"
+
+
 def _post_to_inbox(client, actor_slug: str, activity) -> None:
     """POST *activity* JSON to ``/api/v2/actors/{actor_slug}/inbox/``."""
     resp = client.post(
@@ -223,10 +235,10 @@ class TestCaseProposalRoundTrip:
         reporter_actor_id = _create_actor(
             reporter_tc, reporter_base_api, _REPORTER_SLUG, "Reporter CP"
         )
-        # Register reporter on vendor app so the outbox emitter can route
-        # any outbound deliveries back to the reporter.
-        _create_actor(
-            vendor_tc, reporter_base_api, _REPORTER_SLUG, "Reporter CP"
+        # Register reporter as peer on vendor app so the outbox emitter can
+        # route any outbound deliveries back to the reporter (ADR-0081).
+        _register_peer(
+            vendor_tc, _VENDOR_SLUG, reporter_actor_id, "Reporter CP"
         )
 
         report = as_VulnerabilityReport(
@@ -285,8 +297,8 @@ class TestCaseProposalRoundTrip:
         reporter_actor_id = _create_actor(
             reporter_tc, reporter_base_api, _REPORTER_SLUG, "Reporter CP"
         )
-        _create_actor(
-            vendor_tc, reporter_base_api, _REPORTER_SLUG, "Reporter CP"
+        _register_peer(
+            vendor_tc, _VENDOR_SLUG, reporter_actor_id, "Reporter CP"
         )
 
         report = as_VulnerabilityReport(

@@ -316,6 +316,7 @@ nav:
       - "Retire CVDRole.FINDER — Reporter Is the Protocol-Salient Role": 'adr/0078-retire-finder-role.md'
       - 'CaseLedger Causal Ordering: CaseActor Observation Order Is the Canonical Causal Order': 'adr/0079-case-ledger-causal-ordering.md'
       - 'Asking Permission Is a Protocol Message, Not a Suspended Behavior': 'adr/0080-protocol-asks-not-suspended-behaviors.md'
+      - "Peer Knowledge Lives in the Hosted Actor's Own Store, Not as a Hosted Actor": 'adr/0081-peer-knowledge-in-hosted-actor-store.md'
   - About:
     - Contributing: 'about/contributing.md'
     - FAQ: 'about/faq.md'
@@ -332,7 +333,6 @@ not_in_nav: |
   *diagram*.md
   *table*.md
   *.ttl
-  codebase/**
   reference/codebase/**
   # Maintainer/agent-facing pages intentionally excluded from the published nav
   agents/*.md

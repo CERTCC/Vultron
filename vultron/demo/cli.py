@@ -57,7 +57,7 @@ import vultron.demo.exchange.trigger_demo as trigger_demo
 import vultron.demo.scenario.fv_demo as fv_demo
 from vultron.logging_setup import suppress_third_party_info_noise
 from vultron.demo.seed_config import SeedConfig
-from vultron.demo.utils import DataLayerClient, BASE_URL, seed_actor
+from vultron.demo.utils import DataLayerClient, BASE_URL, seed_actor, seed_peer
 import vultron.bt.base.demo.pacman as pacman_demo
 import vultron.bt.base.demo.robot as robot_demo
 import vultron.bt.base.demo.cvd as cvd_vultrabot_demo
@@ -253,17 +253,18 @@ def seed(
     click.echo(f"   → {actor.id_}")
     logger.info("Local actor seeded: %s", actor.id_)
 
-    # Register peer actors.
+    # Register peer actors as address-book entries in the local actor's store.
     for peer in cfg.peers:
-        click.echo(f"🌱 Seeding peer actor: {peer.name!r} ({peer.actor_type})")
-        peer_actor = seed_actor(
+        click.echo(f"🌱 Registering peer: {peer.name!r} ({peer.actor_type})")
+        peer_actor = seed_peer(
             client=client,
+            local_actor_id=actor.id_,
+            peer_id=peer.id_,
             name=peer.name,
             actor_type=peer.actor_type,
-            actor_id=peer.id_,
         )
         click.echo(f"   → {peer_actor.id_}")
-        logger.info("Peer actor seeded: %s", peer_actor.id_)
+        logger.info("Peer registered: %s", peer_actor.id_)
 
     click.echo("✅ Seed complete.")
 
