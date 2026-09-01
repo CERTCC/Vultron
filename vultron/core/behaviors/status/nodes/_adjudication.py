@@ -205,12 +205,15 @@ def _adjudicate_dimensions(
     # After individual dimension adjudication, verify the effective VF+D
     # combination is not the structurally impossible *fD* state.
     if not d_refused:
-        vf_in_fields = update_fields.get("vf")
-        effective_vf = (
-            vf_in_fields.state
-            if isinstance(vf_in_fields, VfDimension)
-            else asserted_vf
-        )
+        if "vf" in update_fields:
+            vf_in_fields = update_fields["vf"]
+            effective_vf = (
+                vf_in_fields.state
+                if isinstance(vf_in_fields, VfDimension)
+                else None
+            )
+        else:
+            effective_vf = asserted_vf
         d_in_fields = update_fields.get("d")
         effective_d = (
             d_in_fields.state

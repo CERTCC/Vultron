@@ -1255,3 +1255,41 @@ class TestAdjudicateDimensionsRoleGuards:
         assert (
             "d" in refused
         ), "D write must be refused when vf≠VF + d=D (CSB-17-001 received path)"
+
+    def test_vf_refused_no_history_does_not_spuriously_refuse_d(self):
+        """Fix: when VF is refused (no VENDOR) and current_vf=None, effective_vf
+        must be None — not asserted_vf — so D is not spuriously refused.
+
+        Before the fix: update_fields.get("vf") returned None whether the key
+        was absent or set-to-None (refused with no history), causing the code
+        to fall through to effective_vf=asserted_vf.  When asserted_vf lacked
+        the F bit, violation_vf_d_entailment refused D even though VF was
+        rejected and the participant has no VF history at all.
+        With the fix: "vf" in update_fields correctly identifies the refused-
+        with-no-history case → effective_vf=None → entailment check skipped
+        (per CSB-17-001 design: no check when vf=None).
+        """
+        from vultron.core.states.cs import CS_d
+        from vultron.core.models.dimensions import DDimension
+        from vultron.core.behaviors.status.nodes._adjudication import (
+            _adjudicate_dimensions,
+        )
+
+        # current has no VF history; sender lacks VENDOR but has DEPLOYER
+        current_core = _current_status(RM.ACCEPTED, None, CS_pxa.pxa).to_core()
+        asserted_core = _asserted_status(
+            RM.ACCEPTED, CS_vf.vf, CS_pxa.pxa
+        ).to_core()
+        asserted_core = asserted_core.model_copy(
+            update={"d": DDimension(state=CS_d.D)}
+        )
+
+        refused, _ = _adjudicate_dimensions(
+            current_core, asserted_core, roles=[CVDRole.DEPLOYER]
+        )
+
+        assert "d" not in refused, (
+            "D must not be spuriously refused when VF was refused (no VENDOR) "
+            "and current_vf=None: effective_vf should be None (unknown), "
+            "not the rejected asserted_vf"
+        )
