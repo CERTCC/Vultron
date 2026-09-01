@@ -298,7 +298,27 @@ class InviteToEmbargoOnCaseReceivedUseCase:
         receiving_actor_id = resolve_receiving_actor_id(
             self._dl, request.receiving_actor_id
         )
-        invitee_id = receiving_actor_id
+        # The invitee is the activity's addressee, not the actor whose replica
+        # this is (ADR-0022).  Reading it off the message is what keeps the two
+        # apart: an EP dispatched into any store other than the addressee's —
+        # CLI, replay, or a CaseActor relaying on a participant's behalf —
+        # would otherwise write this participant's PEC transition and RSVP
+        # deadline (CM-28-001, CM-28-003) onto the wrong record.
+        invitee_id = request.invitee_id
+        if invitee_id is None:
+            # OX-08-001 requires `to:` on every outbound activity, so its
+            # absence is a protocol violation upstream.  Name it, then fall
+            # back to the receiving actor: on the direct-delivery path that
+            # actor *is* the addressee, and dropping the invite would also
+            # discard the ledger commit this message is entitled to.
+            logger.warning(
+                "invite_to_embargo_on_case: invite '%s' carries no 'to:'"
+                " recipient (OX-08-001) — attributing the invitation to"
+                " receiving actor '%s'",
+                invite_id,
+                receiving_actor_id,
+            )
+            invitee_id = receiving_actor_id
 
         # EMB-01-002: MUST NOT process EP when P/X/A is set; MUST emit ER.
         if case_id and _pxa_embargo_ineligible(self._dl, case_id):

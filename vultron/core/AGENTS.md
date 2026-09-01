@@ -227,6 +227,51 @@ and any object claiming to be one, without importing from `vultron/wire/`.
 
 ---
 
+### A Message Subject Is Never `resolve_receiving_actor_id()`
+
+`resolve_receiving_actor_id()` answers exactly one question — *whose replica
+am I applying this to?* — and its only legitimate consumer is the `actor_id`
+argument of `execute_with_setup()`. Every **subject** identity the message
+names (invitee, accepting actor, rejecting actor, target actor) MUST be read
+from the message and threaded into the tree as leaf-node data (ADR-0022).
+
+Reusing the resolved receiving actor as a subject looks harmless when the two
+coincide on the direct-delivery path, but it is a fabrication, and it is wrong
+the moment the activity is processed in any store other than the subject's —
+CLI dispatch, log replay, or the CaseActor handling a message on a
+participant's behalf. The writes then land on the wrong participant record and
+nothing raises: `#2762` put a PEC transition and an RSVP deadline
+(CM-28-001, CM-28-003) on the CaseActor's own record, and the same tree factory
+accepted a `rejecting_actor_id` it only logged, so the CaseActor declined its
+own embargo instead of the actor who rejected.
+
+```python
+# ❌ WRONG — collapses "whose store" into "who is the subject"
+receiving_actor_id = resolve_receiving_actor_id(self._dl, request.receiving_actor_id)
+invitee_id = receiving_actor_id
+```
+
+```python
+# ✅ CORRECT — subject from the message, receiving actor only as actor_id
+receiving_actor_id = resolve_receiving_actor_id(self._dl, request.receiving_actor_id)
+invitee_id = request.invitee_id          # typed property over activity.to
+tree = invite_to_embargo_on_case_tree(case_id=case_id, invitee_id=invitee_id, ...)
+bridge.execute_with_setup(tree=tree, actor_id=receiving_actor_id, ...)
+```
+
+Corollary for tree factories: a factory that takes a subject-identity argument
+MUST pass it to the node that needs it. `OptionalLookupParticipantNode` falls
+back to the BT execution actor when `target_actor_id` is falsy, so a subject
+argument that is only logged is indistinguishable from one that was never
+supplied. Prefer a typed property on the event class (e.g.
+`InviteToEmbargoOnCaseReceivedEvent.invitee_id`) over reading `activity.to`
+inline, and treat an absent `to:` as the OX-08-001 violation it is rather than
+substituting another identity silently.
+
+<!-- Source: ISSUE-2762 -->
+
+---
+
 ### BT-related pitfalls
 
 See [notes/bt-integration.md](../../notes/bt-integration.md) for:

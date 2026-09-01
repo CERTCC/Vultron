@@ -134,6 +134,25 @@ class InviteToEmbargoOnCaseReceivedEvent(VultronEvent):
     def case(self) -> "VultronCase | None":
         return cast("VultronCase | None", self.context)
 
+    @property
+    def invitee_id(self) -> str | None:
+        """The actor being invited to the embargo — the ``to:`` recipient.
+
+        This is a *different* question from ``receiving_actor_id``, which is
+        the actor whose replica the message is being applied to.  Per ADR-0022
+        the invitee is leaf-node data threaded into the tree, never the BT's
+        execution identity, so it MUST be read from the message rather than
+        inferred from which store the message landed in.
+
+        Returns ``None`` when the activity carries no ``to:`` recipient; that
+        is an OX-08-001 violation, and callers are expected to say so rather
+        than substitute another identity silently.
+        """
+        for recipient in self.activity.to or []:
+            if recipient:
+                return recipient
+        return None
+
 
 class AcceptInviteToEmbargoOnCaseReceivedEvent(VultronEvent):
     """Actor accepted an invitation to join an embargo on a VulnerabilityCase."""

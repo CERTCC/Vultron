@@ -24,11 +24,13 @@ from vultron.core.states.participant_embargo_consent import PEC
 from vultron.core.use_cases.received.embargo import (
     AcceptInviteToEmbargoOnCaseReceivedUseCase,
     InviteToEmbargoOnCaseReceivedUseCase,
+    RejectInviteToEmbargoOnCaseReceivedUseCase,
 )
 from vultron.enums.roles import CVDRole
 from vultron.wire.as2.factories import (
     em_accept_embargo_activity,
     em_propose_embargo_activity,
+    em_reject_embargo_activity,
 )
 from vultron.wire.as2.vocab.objects.case_participant import (
     as_CaseParticipant as WireCP,
@@ -294,6 +296,185 @@ class TestInviteStoresDeadline:
         participant = dl.read(p_id)
         assert isinstance(participant, CaseParticipant)
         assert participant.invite_rsvp_deadline == _FUTURE
+
+
+class TestInviteeIsTheAddressee:
+    """The invitee is the activity's ``to:`` recipient, not the receiving actor.
+
+    ``receiving_actor_id`` answers "whose replica is this?"; the Invite's
+    ``to:`` field answers "who is being invited?".  ADR-0022 requires the
+    second to be threaded into the tree as leaf-node data rather than reused
+    as the BT execution identity.  Conflating them writes the PEC transition
+    and the RSVP deadline (CM-28-001, CM-28-003) onto the wrong participant
+    record, so the CaseActor records an invitation it never received and the
+    real invitee is left with no deadline for lapse detection to find.
+    """
+
+    def _seed_case(
+        self,
+        dl,
+        case_id: str,
+        embargo_id: str,
+        invitee_pec: PEC = PEC.NO_EMBARGO,
+    ):
+        """Case with the coordinator as CASE_MANAGER and a separate invitee."""
+        case = VulnerabilityCase(
+            id_=case_id, name="Addressee Test", attributed_to=_COORD
+        )
+        case.append_case_status(em_state=EM.PROPOSED)
+        embargo = as_EmbargoEvent(id_=embargo_id, context=case_id)
+
+        coord_cp = WireCP(
+            attributed_to=_COORD,
+            context=case_id,
+            case_roles=[CVDRole.CASE_MANAGER],
+        ).to_core()
+        invitee_cp = WireCP(
+            attributed_to=_INVITEE,
+            context=case_id,
+            embargo_consent_state=invitee_pec.value,
+            case_roles=[CVDRole.VENDOR],
+        ).to_core()
+
+        dl.create(case)
+        dl.create(embargo)
+        dl.create(coord_cp)
+        dl.create(invitee_cp)
+        case.actor_participant_index[_COORD] = coord_cp.id_
+        case.actor_participant_index[_INVITEE] = invitee_cp.id_
+        dl.save(case)
+        return case, embargo, coord_cp.id_, invitee_cp.id_
+
+    def _read_participant(self, dl, participant_id: str) -> CaseParticipant:
+        participant = dl.read(participant_id)
+        assert isinstance(participant, CaseParticipant)
+        return participant
+
+    def test_case_actor_receipt_targets_the_addressee(self, make_payload):
+        """CaseActor processing an Invite addressed to someone else."""
+        dl = _make_dl(actor_id=_COORD)
+        case_id = "https://example.org/cases/addressee1"
+        embargo_id = "https://example.org/cases/addressee1/embargos/e1"
+        case, embargo, coord_p_id, invitee_p_id = self._seed_case(
+            dl, case_id, embargo_id
+        )
+
+        invite = em_propose_embargo_activity(
+            embargo=embargo,
+            context=case.id_,
+            actor=_INVITEE,
+            to=[_INVITEE],
+            rsvp_deadline=_FUTURE,
+        )
+        event = make_payload(invite, receiving_actor_id=_COORD)
+
+        InviteToEmbargoOnCaseReceivedUseCase(dl, event).execute()
+
+        invitee = self._read_participant(dl, invitee_p_id)
+        assert invitee.embargo_consent_state == PEC.INVITED
+        assert invitee.invite_rsvp_deadline == _FUTURE
+
+        coord = self._read_participant(dl, coord_p_id)
+        assert coord.embargo_consent_state == PEC.NO_EMBARGO
+        assert coord.invite_rsvp_deadline is None
+
+    def test_absent_receiving_actor_targets_the_addressee(self, make_payload):
+        """CLI/replay dispatch: no receiving_actor_id, store owned by CaseActor."""
+        dl = _make_dl(actor_id=_COORD)
+        case_id = "https://example.org/cases/addressee2"
+        embargo_id = "https://example.org/cases/addressee2/embargos/e2"
+        case, embargo, coord_p_id, invitee_p_id = self._seed_case(
+            dl, case_id, embargo_id
+        )
+
+        invite = em_propose_embargo_activity(
+            embargo=embargo,
+            context=case.id_,
+            actor=_INVITEE,
+            to=[_INVITEE],
+            rsvp_deadline=_FUTURE,
+        )
+        event = make_payload(invite)
+        assert event.receiving_actor_id is None
+
+        InviteToEmbargoOnCaseReceivedUseCase(dl, event).execute()
+
+        invitee = self._read_participant(dl, invitee_p_id)
+        assert invitee.embargo_consent_state == PEC.INVITED
+        assert invitee.invite_rsvp_deadline == _FUTURE
+
+        coord = self._read_participant(dl, coord_p_id)
+        assert coord.embargo_consent_state == PEC.NO_EMBARGO
+        assert coord.invite_rsvp_deadline is None
+
+    def test_missing_to_field_warns_and_uses_receiving_actor(
+        self, make_payload, caplog
+    ):
+        """An Invite with no ``to:`` is malformed (OX-08-001) and says so."""
+        dl = _make_dl(actor_id=_INVITEE)
+        case_id = "https://example.org/cases/addressee3"
+        embargo_id = "https://example.org/cases/addressee3/embargos/e3"
+        case, embargo, _, invitee_p_id = self._seed_case(
+            dl, case_id, embargo_id
+        )
+
+        invite = em_propose_embargo_activity(
+            embargo=embargo,
+            context=case.id_,
+            actor=_COORD,
+            rsvp_deadline=_FUTURE,
+        )
+        event = make_payload(invite, receiving_actor_id=_INVITEE)
+        assert event.invitee_id is None
+
+        caplog.set_level("WARNING")
+        InviteToEmbargoOnCaseReceivedUseCase(dl, event).execute()
+
+        assert any(
+            "carries no 'to:' recipient" in record.message
+            for record in caplog.records
+        )
+        # Degrades to the receiving actor rather than dropping the invite.
+        invitee = self._read_participant(dl, invitee_p_id)
+        assert invitee.embargo_consent_state == PEC.INVITED
+
+    def test_reject_declines_the_rejecting_actor_not_the_receiver(
+        self, make_payload
+    ):
+        """The DECLINE lands on the actor who rejected, not the CaseActor.
+
+        ``reject_invite_to_embargo_tree`` takes ``rejecting_actor_id`` but only
+        logged it, so the participant lookup fell through to the BT execution
+        actor and the CaseActor declined its own embargo on the rejecter's
+        behalf.
+        """
+        dl = _make_dl(actor_id=_COORD)
+        case_id = "https://example.org/cases/addressee4"
+        embargo_id = "https://example.org/cases/addressee4/embargos/e4"
+        case, embargo, coord_p_id, invitee_p_id = self._seed_case(
+            dl, case_id, embargo_id, invitee_pec=PEC.INVITED
+        )
+
+        proposal = em_propose_embargo_activity(
+            embargo=embargo,
+            context=case.id_,
+            actor=_COORD,
+            to=[_INVITEE],
+            id_=f"{case_id}/proposals/p1",
+        )
+        dl.create(proposal)
+        reject = em_reject_embargo_activity(
+            proposal=proposal, context=case.id_, actor=_INVITEE, to=[_COORD]
+        )
+        event = make_payload(reject, receiving_actor_id=_COORD)
+
+        RejectInviteToEmbargoOnCaseReceivedUseCase(dl, event).execute()
+
+        invitee = self._read_participant(dl, invitee_p_id)
+        assert invitee.embargo_consent_state == PEC.DECLINED
+
+        coord = self._read_participant(dl, coord_p_id)
+        assert coord.embargo_consent_state == PEC.NO_EMBARGO
 
 
 # ---------------------------------------------------------------------------
