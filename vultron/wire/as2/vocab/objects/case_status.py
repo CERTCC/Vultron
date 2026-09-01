@@ -66,7 +66,10 @@ def _coerce_pxa(v: object) -> CS_pxa:
     if isinstance(v, CS_pxa):
         return v
     if isinstance(v, str):
-        return CS_pxa(v)  # value lookup, raises ValueError (not KeyError)
+        try:
+            return CS_pxa[v]
+        except KeyError:
+            raise ValueError(f"Unknown CS_pxa value: {v!r}") from None
     return CS_pxa.pxa
 
 
