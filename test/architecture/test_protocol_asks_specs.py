@@ -491,9 +491,8 @@ def test_processing_fault_references_the_failed_activity() -> None:
 @pytest.mark.xfail(
     strict=True,
     reason=(
-        "ASK-07-005: no ProcessingFault type exists, so no failure classes are "
-        "minted as Vultron-namespace URIs and no RFC 9457 members are carried. "
-        "Tracked by #2889."
+        "ASK-07-005: as_ProcessingFault exists but lacks RFC 9457 `title` and "
+        "`detail` fields. Tracked by #2889."
     ),
 )
 @pytest.mark.spec("ASK-07-005")

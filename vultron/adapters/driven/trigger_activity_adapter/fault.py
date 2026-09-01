@@ -61,6 +61,7 @@ class _FaultMixin:
             to=to,
         )
         self._dl.create(activity)
+        self._dl.outbox_append(activity.id_)
         logger.debug(
             "Emitted Create(ProcessingFault) activity=%s"
             " actor=%s failed_activity=%s failure_class=%s to=%s",
