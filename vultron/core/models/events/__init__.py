@@ -90,6 +90,9 @@ from vultron.core.models.events.sync import (
     AnnounceLogEntryReceivedEvent,
     RejectLogEntryReceivedEvent,
 )
+from vultron.core.models.events.fault import (
+    CreateProcessingFaultReceivedEvent,
+)
 from vultron.core.models.events.unknown import (
     UnknownReceivedEvent,
     UnresolvableObjectReceivedEvent,
@@ -153,6 +156,8 @@ AnyReceivedEvent = Union[
     # sync
     AnnounceLogEntryReceivedEvent,
     RejectLogEntryReceivedEvent,
+    # fault
+    CreateProcessingFaultReceivedEvent,
     # unknown
     UnknownReceivedEvent,
     UnresolvableObjectReceivedEvent,
@@ -226,4 +231,6 @@ __all__ = [
     # sync
     "AnnounceLogEntryReceivedEvent",
     "RejectLogEntryReceivedEvent",
+    # fault
+    "CreateProcessingFaultReceivedEvent",
 ]
