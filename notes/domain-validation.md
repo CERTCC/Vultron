@@ -13,6 +13,7 @@ related_specs:
 related_notes:
   - notes/architecture-hexagonal.md
   - notes/bt-integration.md
+  - notes/wire-core-boundary.md
 ---
 
 # Domain Object Validation — Strict vs. Loose Boundaries
@@ -127,6 +128,11 @@ with `_as_id()` and friends. This is a deliberate deviation from the rule above,
 not an oversight; it exists so the cycle cannot be reintroduced by the next
 guard that needs a state enum.
 
+**Scheduled removal**: ARCH-12-003 as amended by ADR-0082 puts `extra="forbid"`
+on all core-branch types, which subsumes these guards and deletes
+`_wire_spelling.py` — see [notes/wire-core-boundary.md](wire-core-boundary.md).
+Until that lands the guidance above is current; do not pre-emptively relocate.
+
 The trap: `states/rm.py`'s own imports look clean (logging, enum, transitions,
 `states.common`), so inspecting the target module tells you nothing. The cycle
 runs through the package `__init__.py` — `models/base.py` imports `_helpers`,
@@ -201,7 +207,8 @@ The mirror-image guard is `reject_wire_spelled_keys()` in
 wire-spelled (camelCase) payload drops every snake-only key in silence, because
 Pydantic v2 ignores unknown keys. It is computed per exact class, so a
 `CaseParticipant` role subclass that adds a field is covered without any
-registration step.
+registration step. (Superseded direction: ARCH-12-003's `extra="forbid"` clause
+replaces this guard — see [notes/wire-core-boundary.md](wire-core-boundary.md).)
 
 ---
 

@@ -9,8 +9,10 @@ description: >
   live in vultron/wire/as2/vocab/AGENTS.md.
 related_specs:
   - specs/vocabulary-model.yaml
+  - specs/architecture.yaml
 related_notes:
   - notes/activitystreams-semantics.md
+  - notes/wire-core-boundary.md
 relevant_packages:
   - vultron/wire/as2/vocab
 ---
@@ -191,6 +193,32 @@ violation — `CoreActor` is a core-layer type and must not appear in the wire
 the `CORE_TYPE_MAP` fallback.
 
 ---
+
+## Superseded Direction: Pairing Registry (ADR-0082)
+
+The design below describes the registry as it stands. **ADR-0082 changes its
+foundation**, so read this section first:
+
+- The registry key is derived from the class name
+  (`cls.__name__.removeprefix("as_")`), *not* from the AS2 `type` value. VM-01-004
+  used to claim otherwise; it was only accidentally true and already false for
+  the five actor types, which auto-register under `VultronPerson` etc. and are
+  *also* explicitly assigned to `Person` etc.
+- Because `VOCABULARY` and `CORE_VOCABULARY` share bare-name keys, wire classes
+  shadow their core counterparts. **ARCH-23-002 owns this fact**, and its
+  verification test (`set(VOCABULARY) & set(CORE_VOCABULARY) == set()`, after
+  forcing full registration) is the live check — do not restate a count here,
+  because a count in prose drifts the moment a key is renamed. That collision is
+  currently **load-bearing**:
+  `As2WireRenderAdapter.render()` resolves a core class to its wire counterpart
+  with `VOCABULARY.get(type(obj).__name__)`.
+- ADR-0082 introduces a declarative core↔wire **pairing registry** as the single
+  authoritative statement of that correspondence (ARCH-23-001), which frees the
+  two registries to use disjoint keys (ARCH-23-002) and retires
+  `_NORMALIZE_WIRE_TO_CORE`, `_WIRE_ACTOR_TO_CORE`, and the name-collision
+  lookup together.
+
+Design rationale: [notes/wire-core-boundary.md](wire-core-boundary.md).
 
 ## StorableRecord Normalization Gate (`_NORMALIZE_WIRE_TO_CORE`)
 

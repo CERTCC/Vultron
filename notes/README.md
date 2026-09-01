@@ -33,6 +33,12 @@ was both an ARCH-12-003 violation and structurally insufficient, and the
 `WireRenderPort` driven seam that replaces it. Lists the five consumers of the
 old core-side aliasing, the reject-guard that MUST accompany deletion of any
 flat-field shim (SDO-03-005), and why persisted rows are unaffected.
+The decision stands but its **mechanism is revised by ADR-0082**: the adapter
+resolves the counterpart through the pairing registry and delegates to the
+adapter-side translator rather than calling `wire_cls.from_core()`. This port
+covers only the **core→wire** half of ARCH-01-001; the mirror-image
+`WireParsePort` (ADR-0082) covers wire→core. Design rationale for both:
+`notes/wire-core-boundary.md`.
 Normative requirements: `specs/architecture.yaml` ARCH-20,
 `specs/case-ledger-processing.yaml` CLP-07-009/010.
 **Load when**: touching `alias_generator`/`by_alias` anywhere, building or
@@ -112,6 +118,20 @@ types (`validate_assignment=False`) and post-construction immutability
 point), outbound factory/port interfaces (`TriggerActivityPort`,
 `SyncActivityPort`), `CaseLedgerEntry.payloadSnapshot` construction, or
 auditing `outbox_delivery.py` for enrichment mutations. Source: CONCERN-2545.
+
+**`wire-core-boundary.md`**
+The wire/core boundary contract (ADR-0082): one declarative core↔wire pairing
+registry, one generic bidirectional translator on the adapter side, and
+`extra="forbid"` on the core branch as the structural guarantee. Explains why
+ARCH-01-001 (core→wire) and ARCH-22-001 (wire→core) are *different* rules and
+why ADR-0063 solved only the first; why "zero wire→core imports" was
+unreachable; the four duplications the pairing registry replaces; and the
+measured blast radii (25 vs 570 failures) with the `embargo_adherence`
+computed-field and `id_` round-trip findings. Also records which half of
+`as_ObjectRef` is AS2-faithful and which half is a kludge.
+**Load when**: touching core↔wire translation, the vocabulary registries,
+`_field_map`/`from_core`/`to_core`, the ARCH-22 import ratchet, or adding a
+validator that raises on a core-branch type. Source: G02 / CONCERN-2830.
 
 **`vultron/wire/as2/factories/AGENTS.md`**
 Factory-function operating rules for outbound Vultron protocol activities.
@@ -261,9 +281,14 @@ issues #810, #811, #812, #1633, #1640.
 Design decisions and migration path for the AS2 vocabulary registry refactor:
 auto-registration via `__init_subclass__`, flat registry dict, `VocabNamespace`
 enum, fail-fast on unknown types, and dynamic discovery at startup. Operating
-rules are in `vultron/wire/as2/vocab/AGENTS.md`.
+rules are in `vultron/wire/as2/vocab/AGENTS.md`. Opens with a normative
+**Superseded Direction: Pairing Registry (ADR-0082)** section — the registry key
+is derived from the class name, the wire/core bare-name collision is currently
+load-bearing, and ARCH-23-001/002 replace it — read that section before acting on
+the design below it.
 **Load when**: adding new vocabulary classes, debugging deserialization failures,
-or planning the `@activitystreams_object` decorator removal migration.
+resolving a core type's wire counterpart, or planning the
+`@activitystreams_object` decorator removal migration.
 
 **`vultron/wire/as2/AGENTS.md`**
 Wire-layer semantic extraction guidance: pattern ordering invariant,

@@ -229,23 +229,37 @@ groups:
     priority: MUST
     kind: project
     statement: >-
-      An architecture ratchet test MUST assert that `_NORMALIZE_WIRE_TO_CORE` in
-      `vultron/adapters/driven/db_record.py` covers every wire vocabulary class whose bare `type_`
-      shadows a `CORE_VOCABULARY` entry; the set may only grow, as shrinking re-opens the
-      write-path shape duality.
+      Wire→core normalisation on the persistence write path MUST be performed by the adapter-side
+      translator resolved through the pairing registry (ARCH-23-001), not by a hand-maintained
+      `_NORMALIZE_WIRE_TO_CORE` list in `vultron/adapters/driven/db_record.py`. Once wire and core
+      registry keys are disjoint (ARCH-23-002) no wire class shadows a `CORE_VOCABULARY` entry, so
+      the subject set of the former grow-only ratchet is permanently empty; that list and its
+      ratchet test MUST be deleted rather than maintained.
     rationale: >-
-      Prevents regression on the write path: a wire-shaped row MUST NOT be persisted in a
-      core-typed DataLayer table. The write-side ratchet is the mirror-image of DL-05-004 and
-      enforces the persistence-boundary backstop described in ADR-0062. Source concern #2268.
+      The invariant is unchanged — a wire-shaped row MUST NOT be persisted in a core-typed
+      DataLayer table (source concern #2268) — but the mechanism moves from a hand-maintained
+      list to a structural property. `_NORMALIZE_WIRE_TO_CORE` was the ADR-0062
+      persistence-boundary backstop, needed only because fifteen wire classes shadowed a core
+      type. ADR-0082 removes the shadowing outright, which makes the list dead code: a grow-only
+      ratchet over an empty subject set can never fail, and a list somebody must remember to
+      update is the divergence mechanism behind #1991 → #2232 → #2260 → #2268.
+    verification: >-
+      A grep test asserts that neither `_NORMALIZE_WIRE_TO_CORE` nor
+      `test_normalize_wire_to_core_ratchet.py` exists, so neither can be reintroduced, and the
+      ARCH-23-002 disjointness test confirms no shadowing type remains to normalise.
     relationships:
     - rel_type: implements
       spec_id: DL-05-001
+    - rel_type: depends_on
+      spec_id: ARCH-23-002
+      note: Disjoint registry keys are what empty this requirement's former subject set.
     tags:
     - persistence
     - testing
     - wire-format
     adr:
     - ADR-0062
+    - ADR-0082
   - id: DL-05-006
     priority: MUST
     kind: project
@@ -274,32 +288,56 @@ groups:
     priority: MUST
     kind: project
     statement: >-
-      When all shadowing types are migrated, the companion `_NOT_YET_NORMALIZED` enumeration in
-      `vultron/adapters/driven/db_record.py` MUST be empty.
+      The write path MUST NOT retain a deferral list of not-yet-normalised types. The companion
+      `_NOT_YET_NORMALIZED` enumeration in `vultron/adapters/driven/db_record.py` MUST be deleted
+      together with `_NORMALIZE_WIRE_TO_CORE` (DL-05-005).
     rationale: >-
-      An empty `_NOT_YET_NORMALIZED` set confirms that all wire-shaped rows have been migrated
-      to core-typed persistence, completing the write-path normalization described in ADR-0062.
+      The original completion condition — that `_NOT_YET_NORMALIZED` reach empty — is satisfied
+      structurally rather than by migration bookkeeping. With disjoint registry keys
+      (ARCH-23-002) there is no shadowing type left to defer, and `extra="forbid"` (ARCH-12-003)
+      turns a mis-shaped row into a loud failure at read-back. An empty enumeration left in the
+      source is an invitation to add the next entry to it.
+    verification: >-
+      A grep test asserts `_NOT_YET_NORMALIZED` does not appear under `vultron/adapters/`.
+    relationships:
+    - rel_type: depends_on
+      spec_id: DL-05-005
+      note: The deferral list has no purpose once the normalisation list it defers against is gone.
     tags:
     - persistence
     - testing
     - wire-format
     adr:
     - ADR-0062
+    - ADR-0082
   - id: DL-05-009
     priority: MUST
     kind: project
     statement: >-
-      The architecture ratchet test MUST enforce that no wire vocabulary class shadowing a
-      `CORE_VOCABULARY` entry in `_NORMALIZE_WIRE_TO_CORE` is left uncovered.
+      The closed-form guarantee that no wire-shaped row slips into a core-typed table MUST be
+      carried by the structural invariants — disjoint registry keys (ARCH-23-002) plus
+      `extra="forbid"` on every core-branch type (ARCH-12-003) — rather than by a per-type
+      coverage ratchet over `_NORMALIZE_WIRE_TO_CORE`.
     rationale: >-
-      Ensures the ratchet is closed-form: every shadowing type must be explicitly handled, with
-      no silent gaps that would allow wire-shaped rows to slip through.
+      The closed-form property is retained; what changes is what closes it. A per-type coverage
+      ratchet is closed only for the types someone enumerated, so a new shadowing type is a silent
+      gap until the list is updated. Disjointness makes the shadowing impossible to create, and
+      `extra="forbid"` makes an un-normalised row raise instead of round-tripping with keys
+      dropped — an invariant the type system holds rather than a list somebody maintains.
+    verification: >-
+      A test asserts every `CoreObject` subclass resolves `extra="forbid"`, and that reading back
+      a deliberately wire-shaped row raises rather than yielding a partially-populated core object.
+    relationships:
+    - rel_type: depends_on
+      spec_id: ARCH-12-003
+      note: '`extra="forbid"` is the read-back guard that replaces per-type coverage bookkeeping.'
     tags:
     - persistence
     - testing
     - wire-format
     adr:
     - ADR-0062
+    - ADR-0082
 - id: DL-06
   title: Activity Read-Back and the Semantic/Envelope Split
   description: >-
