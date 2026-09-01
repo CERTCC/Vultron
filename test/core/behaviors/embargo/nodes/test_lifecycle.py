@@ -479,7 +479,7 @@ class TestValidateEmbargoRevisionStateNode:
         )
 
         mock_dl = MagicMock()
-        mock_dl.read.return_value = mock_case
+        mock_dl.read_case.return_value = mock_case
 
         result_out: dict = {}
         node = ValidateEmbargoRevisionStateNode(
@@ -711,7 +711,7 @@ class TestSetEmbargoActiveNode:
         )
 
         mock_dl = MagicMock()
-        mock_dl.read.return_value = mock_case
+        mock_dl.read_case.return_value = mock_case
 
         node = SetEmbargoActiveNode(
             case_id="https://example.org/cases/any",

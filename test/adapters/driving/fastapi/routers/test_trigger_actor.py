@@ -309,7 +309,7 @@ def test_trigger_suggest_actor_to_case_undeliverable_suggested_actor_is_422(
     resource *of this API*, and a recommended peer's own actor record is not
     one: the whole point of a recommendation is to name an actor the case does
     not have, and under per-actor storage a peer's record lives in the store of
-    whichever actor knows it (ADR-0073 decision 5). Refusing therefore refused
+    whichever actor knows it (ADR-0073#peer-records-in-knowers-store). Refusing therefore refused
     every genuinely remote candidate (#2548, fcvcv).
 
     A ``urn:uuid:`` id is still refused — just for the real reason. That id is
@@ -780,7 +780,7 @@ def test_trigger_invite_actor_to_case_unknown_invitee_is_accepted(
 
     A local record is not required: it was read and discarded, delivery derives
     the invitee's inbox from its URI alone, and under per-actor storage a peer's
-    record lives in its own store (ADR-0073 decision 5) — so refusing meant
+    record lives in its own store (ADR-0073#peer-records-in-knowers-store) — so refusing meant
     refusing every cross-node invitee. The injectable ActorDiscoveryCallOutBundle
     seam (ADR-0025) handles the gap; with the DETERMINISTIC default it logs at
     DEBUG rather than WARNING (AKM-05-002).
