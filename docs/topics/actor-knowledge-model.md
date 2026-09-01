@@ -63,7 +63,8 @@ it, so no external lookup is needed.
 ### The one approved exception
 
 The `target` field of an `Invite` activity in selective-disclosure scenarios
-is permitted to carry an object reference rather than a fully inline object.
+is permitted to carry a case stub — a typed object with `id`, `type`, and
+minimal fields for informed consent — rather than the full case object.
 This is the only approved exception to the full-inline-object rule (AKM-02-003).
 
 All other outbound initiating activities — `Create`, `Offer`, `Invite`,
@@ -133,7 +134,7 @@ profile is an enrichment step, not a precondition for protocol participation.
 | Private data store | Each actor's data store is private. No other actor can access it. |
 | Bounded knowledge | What an actor knows is limited to what it has received. |
 | Full inline objects | Outbound activities must carry fully inline objects, not bare URIs. |
-| One exception | The `target` field of `Invite` may carry a reference in selective-disclosure scenarios. |
+| One exception | The `target` field of `Invite` may carry a case stub in selective-disclosure scenarios. |
 | Co-located actors | Co-location does not relax the isolation rule. Use the wire protocol. |
 | Addressing | A URI is sufficient to address a peer. A local actor record is enrichment only. |
 
