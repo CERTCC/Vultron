@@ -693,9 +693,11 @@ groups:
       After adjudicating each dimension of a received
       `Add(ParticipantStatus, CaseParticipant)` independently, the receiver MUST
       evaluate the cross-machine entailments (RM↔VF and RM↔D per CSB-18-001,
-      VF↔D per CSB-17-001) against the *effective* — post-adjudication — state,
-      and MUST refuse each dimension those entailments disqualify, carrying the
-      participant's current value for it forward (RSH-05-002). The receiver MUST
+      VF↔D per CSB-17-001) against the *effective* — post-adjudication — state.
+      For each violated entailment the receiver MUST refuse the dimension whose
+      *asserted* value the sender moved, carrying the participant's current
+      value for it forward (RSH-05-002), and MUST NOT report as refused a
+      dimension the sender omitted or restated unchanged. The receiver MUST
       evaluate the same entailment set the emit path evaluates.
     rationale: >
       Per-dimension adjudication cannot see a claim that is impossible only in
@@ -704,11 +706,20 @@ groups:
       Before this requirement the receive path composed only VF↔D, so an
       assertion the actor would have refused to *emit* was accepted, recorded,
       hash-chained and replicated to every participant when it arrived from a
-      peer instead (ISSUE-2906). Evaluating against the effective state — not
-      the raw assertion — is what stops a refused `rm` from licensing the `vf`
-      the sender paired with it. Requiring one shared evaluator rather than two
-      equivalent ones is what keeps the emit and receive paths from silently
-      diverging again.
+      peer instead (ISSUE-2906).
+      Refusing the dimension that *moved* is what makes the refusal effective
+      rather than cosmetic. VF↔D constrains a pair, so either side can be the
+      offending claim; refusing the incumbent side carries its value straight
+      back, which leaves the impossible combination recorded while reporting a
+      refusal that changed nothing.
+      Evaluating against the effective state matters for the `vf`→`d` chain: a
+      refused or carried-forward `vf` must not license the `d` the sender paired
+      it with (ISSUE-2893). It is not a tightening for `rm` — `rm` is refused
+      only when the asserted value is not a forward move, so the carried value
+      always ranks at or above the asserted one on the RM progress scale, and
+      `RM_STATES_CONSISTENT_WITH_FIX` is exactly the top of that scale.
+      Requiring one shared evaluator rather than two equivalent ones is what
+      keeps the emit and receive paths from silently diverging again.
       This is narrower than refusing a multi-step VF or D advance, which remains
       legal on the received path (CSB-16-001): the entailments refuse claims
       that no sequence of events could produce, not claims that skipped an
@@ -717,21 +728,39 @@ groups:
       Unit tests in
       `test/core/behaviors/status/test_partial_accept_participant_status.py`
       confirm that `vf=VF` and `d=D` asserted alongside a pre-acceptance
-      effective `rm` are each refused with the current value carried forward,
-      that the same values are accepted once `rm` has reached acceptance, that
-      the entailment is evaluated against a carried-forward `rm` rather than a
-      refused asserted one, that the refusal stays per-dimension, and that a
-      dimension already refused upstream is not named twice.
+      effective `rm` are each refused with the current value carried forward;
+      that the same values are accepted once `rm` has reached acceptance; that a
+      VF↔D violation refuses the side that moved, so an asserted `vf` is refused
+      rather than an incumbent `d` carried straight back; that a dimension the
+      sender omitted is never named as refused; that a refusal retiring one
+      violation does not trigger a second on a stale one; that a dimension
+      already refused upstream is not named twice; and that the refusal stays
+      per-dimension. An end-to-end test runs the full tree and confirms the
+      refused value does not reach the committed `payloadSnapshot`.
     note: >
       Implemented by `_adjudicate_cross_machine_entailments()` in
       `vultron/core/behaviors/status/nodes/_adjudication.py`. The three rules
       are composed by `cross_machine_violations()` in
       `vultron/core/states/cross_machine_invariants.py`, which is also what
       `ValidateTriggerTransitionsNode._validate_entailments` calls on the emit
-      path — the shared evaluator this requirement mandates. A single pass
-      suffices: the only refusal these rules add is of a set F or D bit, and
-      RM↔D already disqualifies `d` in every state where a newly refused `vf`
-      would have made VF↔D fire.
+      path — the shared evaluator this requirement mandates. The shared
+      evaluator reports the candidate dimensions each rule can disqualify, in
+      preference order; choosing among them is the receive path's job, because
+      the emit path refuses the whole snapshot and needs no choice.
+
+      The pass re-evaluates after each refusal rather than acting on a single
+      sweep of the violation list: a refusal changes the effective state and can
+      retire a violation reported alongside it, and acting on the stale entry
+      would refuse a second dimension for a contradiction that no longer exists.
+      Only `vf` and `d` are refusable and neither is refused twice, so the loop
+      terminates.
+
+      The guarantee is conditional: if the participant's *current* state
+      satisfies the entailments, so does the recorded state. When the incumbent
+      state is already impossible no per-dimension refusal can repair it, since
+      every carry-forward writes the offending value back; that case is logged
+      and left alone. It is reachable today only via the replica-apply path,
+      which enforces only the RM ratchet (ISSUE-3009).
 
       A `None` dimension is absent, not at its initial state (ADR-0075), so no
       entailment applies through it — a non-VENDOR participant asserting `d=D`

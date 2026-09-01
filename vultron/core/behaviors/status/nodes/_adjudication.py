@@ -21,7 +21,7 @@ and should be imported from there, not from this module directly.
 """
 
 import logging
-from typing import Any
+from typing import Any, TypeVar
 
 from vultron.core.models.dimensions import (
     DDimension,
@@ -31,6 +31,7 @@ from vultron.core.models.dimensions import (
 )
 from vultron.core.models.participant_status import ParticipantStatus
 from vultron.core.states.cross_machine_invariants import (
+    EntailmentViolation,
     cross_machine_violations,
 )
 from vultron.core.states.cs import (
@@ -48,6 +49,16 @@ from vultron.core.states.rm import (
 from vultron.enums.roles import CVDRole
 
 logger = logging.getLogger(__name__)
+
+# `vf` and `d` are the only dimensions the cross-machine entailment pass can
+# refuse, which bounds how many rounds it can need (see
+# `_adjudicate_cross_machine_entailments`).
+_REFUSABLE_DIMENSIONS = 2
+
+# The two per-dimension state types `_effective_state` reads.  A value-restricted
+# TypeVar keeps the return type tied to the dimension asked for, so callers get
+# `CS_vf | None` or `CS_d | None` rather than a union of both (CS-11-001).
+_DimState = TypeVar("_DimState", CS_vf, CS_d)
 
 
 def _rm_is_acceptable(current: RM, asserted: RM) -> bool:
@@ -164,8 +175,10 @@ def _adjudicate_d(
 
 
 def _effective_state(
-    update_fields: dict[str, Any], dimension: str, asserted_state: Any
-) -> Any:
+    update_fields: dict[str, Any],
+    dimension: str,
+    asserted_state: _DimState | None,
+) -> _DimState | None:
     """Return the state that *will be recorded* for *dimension*.
 
     A dimension named in *update_fields* was adjudicated, and its carry value
@@ -181,6 +194,62 @@ def _effective_state(
         return asserted_state
     carry = update_fields[dimension]
     return None if carry is None else carry.state
+
+
+def _asserts_new_value(
+    dimension: str,
+    current_vf: CS_vf | None,
+    current_d: CS_d | None,
+    asserted_vf: CS_vf | None,
+    asserted_d: CS_d | None,
+) -> bool:
+    """Return True if the sender made a *new* claim about *dimension*.
+
+    A dimension the sender omitted, or restated at the value the receiver
+    already holds, is not a claim this receiver can refuse: carrying the current
+    value forward would write back the value that is already there.  Only a
+    moved dimension is refusable.
+    """
+    if dimension == "vf":
+        return asserted_vf is not None and asserted_vf != current_vf
+    return asserted_d is not None and asserted_d != current_d
+
+
+def _refusal_target(
+    violation: EntailmentViolation,
+    refused: list[str],
+    current_vf: CS_vf | None,
+    current_d: CS_d | None,
+    asserted_vf: CS_vf | None,
+    asserted_d: CS_d | None,
+) -> str | None:
+    """Return the dimension to refuse for *violation*, or ``None`` for neither.
+
+    Walks the violation's candidates in preference order and picks the first one
+    that is both still un-refused and carrying a *new* claim.  Two rejections
+    matter:
+
+    * **Already refused.** That dimension has been carried forward once; naming
+      it again cannot change the recorded value, and would name it twice in the
+      audit trail.  Try the next candidate rather than giving up — for VF↔D the
+      other side may still be refusable.
+    * **Not a new claim.** Refusing an incumbent value carries it straight back,
+      so the refusal would be a no-op that misreports the audit trail as a
+      rewrite (see ``notes/received-status-authorization.md`` § "A blocked
+      dimension is not always a rewritten one").
+
+    ``None`` therefore means the contradiction lives entirely in the state the
+    receiver already holds, which no per-dimension refusal on this path can
+    repair — see :func:`_adjudicate_cross_machine_entailments`.
+    """
+    for candidate in (violation.dimension, *violation.alternatives):
+        if candidate in refused:
+            continue
+        if _asserts_new_value(
+            candidate, current_vf, current_d, asserted_vf, asserted_d
+        ):
+            return candidate
+    return None
 
 
 def _carry_current_dimension(
@@ -207,49 +276,99 @@ def _adjudicate_cross_machine_entailments(
     asserted_vf: CS_vf | None,
     asserted_d: CS_d | None,
 ) -> None:
-    """Refuse in-place any dimension the *effective* state makes impossible.
+    """Refuse in-place any *newly claimed* dimension the effective state makes
+    impossible.
 
-    Runs after the per-dimension role and monotonicity checks, against the
-    state that would actually be recorded — so a refused ``rm`` cannot license
-    the ``vf`` the sender paired it with, and a refused ``vf`` cannot license
-    the ``d``.
+    Runs after the per-dimension role and monotonicity checks, against the state
+    that would actually be recorded, so a refused or carried-forward ``vf``
+    cannot license the ``d`` the sender paired it with (ISSUE-2893).  ``rm`` is
+    read from its effective value too, for consistency, but note that this can
+    only ever *loosen*: ``rm`` is refused only when the asserted value is not a
+    forward move, so the carried value ranks at or above the asserted one on the
+    RM progress scale, and ``RM_STATES_CONSISTENT_WITH_FIX`` is exactly the top
+    of that scale.  There is no reachable case in which a refused ``rm`` would
+    have licensed a ``vf`` that the asserted ``rm`` refuses.
 
     These are the same rules the emit path enforces in
     :class:`~vultron.core.behaviors.case.nodes.participant.trigger_validation\
     .ValidateTriggerTransitionsNode`, composed by the shared
     :func:`~vultron.core.states.cross_machine_invariants\
-    .cross_machine_violations` (CSB-17-001, CSB-18-001, RSH-05-020).  Where
-    the emit path refuses the whole trigger, the receive path refuses only the
+    .cross_machine_violations` (CSB-17-001, CSB-18-001, RSH-05-020).  Where the
+    emit path refuses the whole trigger, the receive path refuses only the
     disqualified dimension and carries the participant's current value forward
     (RSH-05-001, RSH-05-002).
 
-    A single pass suffices: the only refusal these rules add is of a set F or D
-    bit, and RM↔D already disqualifies ``d`` in every state where a newly
-    refused ``vf`` would have made VF↔D fire.
+    **Which dimension gets refused matters.** VF↔D constrains a pair, so the
+    offending claim is whichever side *moved*; refusing the incumbent side
+    carries its value straight back and leaves the contradiction recorded.
+    :func:`_refusal_target` makes that choice, which is why the shared evaluator
+    reports candidate dimensions rather than a single name.
 
-    A dimension already refused upstream is left alone — it is carried forward
-    once, and naming it twice in *refused* would misdescribe the audit trail
-    the operator log and the ledger patch are built from.
+    **Why it re-evaluates rather than refusing every violation in one sweep.**
+    A refusal changes the effective state, which can retire a violation the
+    first evaluation reported: refusing ``d`` for RM↔D clears or lowers the D
+    bit, so a VF↔D violation computed alongside it no longer holds.  Acting on
+    that stale violation would refuse ``vf`` for a contradiction that no longer
+    exists.  Each round therefore recomputes from the current carries and
+    refuses at most one dimension.  ``vf`` and ``d`` are the only refusable
+    dimensions and :func:`_refusal_target` never re-refuses one, so the loop
+    makes progress every round and terminates.
+
+    **What this pass guarantees:** if the participant's current state satisfies
+    the entailments, so does the recorded state.  It cannot promise more.  When
+    the *incumbent* state is already impossible — reachable today because the
+    replica-apply path enforces only the RM ratchet (RSH-05-007, ISSUE-3009) —
+    no per-dimension refusal can repair it, since every carry-forward writes the
+    offending value straight back.  That case is logged and left alone rather
+    than reported as the refusal of a claim the sender never made.
     """
-    effective_rm = (
-        current.rm.state if "rm" in update_fields else asserted.rm.state
-    )
-    violations = cross_machine_violations(
-        effective_rm,
-        _effective_state(update_fields, "vf", asserted_vf),
-        _effective_state(update_fields, "d", asserted_d),
-    )
-    for violation in violations:
-        if violation.dimension in refused:
-            continue
-        refused.append(violation.dimension)
-        update_fields[violation.dimension] = _carry_current_dimension(
-            violation.dimension, current_vf, current_d
+    for _ in range(_REFUSABLE_DIMENSIONS + 1):
+        effective_rm = (
+            current.rm.state if "rm" in update_fields else asserted.rm.state
+        )
+        effective_vf = _effective_state(update_fields, "vf", asserted_vf)
+        effective_d = _effective_state(update_fields, "d", asserted_d)
+        violations = cross_machine_violations(
+            effective_rm, effective_vf, effective_d
+        )
+        if not violations:
+            return
+
+        target: str | None = None
+        for violation in violations:
+            target = _refusal_target(
+                violation,
+                refused,
+                current_vf,
+                current_d,
+                asserted_vf,
+                asserted_d,
+            )
+            if target is not None:
+                break
+
+        if target is None:
+            logger.warning(
+                "Received ParticipantStatus '%s' would record an impossible"
+                " state the receiver already holds (rm=%s, vf=%s, d=%s): %s"
+                " — no dimension of this assertion can be refused to repair it"
+                " (RSH-05-020, ISSUE-3009)",
+                asserted.id_,
+                effective_rm.name,
+                effective_vf.name if effective_vf is not None else None,
+                effective_d.name if effective_d is not None else None,
+                violations[0].message,
+            )
+            return
+
+        refused.append(target)
+        update_fields[target] = _carry_current_dimension(
+            target, current_vf, current_d
         )
         logger.warning(
             "Refusing '%s' dimension of received ParticipantStatus '%s':"
             " %s — carrying the current value forward (RSH-05-020)",
-            violation.dimension,
+            target,
             asserted.id_,
             violation.message,
         )

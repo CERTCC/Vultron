@@ -70,6 +70,9 @@ from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.behaviors.sync.nodes.chain import _to_persistable_entry
 from vultron.core.models.events.sync import AnnounceLogEntryReceivedEvent
 from vultron.core.models.dimensions import DDimension
+from vultron.core.states.cross_machine_invariants import (
+    cross_machine_violations,
+)
 from vultron.core.states.cs import CS_d, CS_pxa, CS_vf
 from vultron.core.states.em import EM
 from vultron.core.states.participant_embargo_consent import PEC
@@ -489,6 +492,54 @@ class TestCanonicalLedgerRecordsAcceptedPortion:
         )
         assert _vf_of(snapshot_object) == CS_vf.VF.name
         assert _pxa_of(snapshot_object) == CS_pxa.Pxa.name
+
+    @pytest.mark.spec("RSH-05-020")
+    @pytest.mark.spec("CSB-18-001")
+    def test_entailment_refused_vf_is_not_replicated_to_the_ledger(
+        self, store_for, make_payload
+    ):
+        """#2906 end-to-end: the refusal reaches the hash-chained snapshot.
+
+        The harm #2906 describes is not that adjudication returns the wrong
+        tuple — it is that an impossible state was "accepted, hash-chained and
+        replicated". The per-dimension unit tests cannot see that; only running
+        the tree can. A peer asserts ``vf=VF`` — fix ready — while its ``rm``
+        sits at ``VALID``, before acceptance. The committed
+        ``payload_snapshot['object']`` must carry the participant's own
+        ``CS_vf.Vf``, so every replica sees the receiver's actual view.
+
+        The ``pxa`` advance is load-bearing: it is the one dimension the
+        receiver *does* accept, so the update teaches it something and an entry
+        is committed. Without it every dimension would be refused or unchanged,
+        the status would be refused in full, and no entry would exist to
+        inspect (RSH-05-005).
+        """
+        dl = store_for(CASE_MANAGER_ID)
+        current = _current_status(RM.VALID, CS_vf.Vf, CS_pxa.pxa)
+        asserted = _asserted_status(RM.VALID, CS_vf.VF, CS_pxa.Pxa)
+        _seed_case(dl, current, asserted)
+
+        result = _run_tree(dl, asserted, CASE_MANAGER_ID, make_payload)
+        assert result.status == Status.SUCCESS
+
+        entries = _receipt_entries(dl)
+        assert len(entries) == 1, "exactly one receipt entry expected"
+        snapshot_object = entries[0].payload_snapshot.get("object")
+        assert isinstance(snapshot_object, dict)
+        assert _vf_of(snapshot_object) == CS_vf.Vf.name, (
+            "the ledger must record the carried-forward vf, not the refused"
+            f" vf=VF assertion — got {_vf_of(snapshot_object)!r}"
+        )
+        assert (
+            _rm_of(snapshot_object) == RM.VALID.name
+        ), "rm was acceptable and must be recorded as asserted"
+        assert _pxa_of(snapshot_object) == CS_pxa.Pxa.name, (
+            "refusing vf must not discard the accepted pxa advance"
+            " (RSH-05-001)"
+        )
+        assert (
+            _vf_of(_latest_status(dl, PARTICIPANT_ID)) == CS_vf.Vf.name
+        ), "the participant's own recorded status must agree with the ledger"
 
     @pytest.mark.spec("RSH-05-009")
     def test_ledger_snapshot_keeps_the_wire_shape_of_an_unfiltered_snapshot(
@@ -1408,14 +1459,23 @@ class TestAdjudicateDimensionsCrossMachineEntailments:
         ), "a first VF observation must be accepted when rm=ACCEPTED allows it"
 
     @pytest.mark.spec("RSH-05-020")
-    def test_vf_refusal_uses_the_effective_rm_not_the_asserted_one(self):
-        """#2906: a refused rm must not license the vf it was paired with.
+    def test_vf_refused_when_both_asserted_and_carried_rm_are_pre_acceptance(
+        self,
+    ):
+        """#2906: refusing ``rm`` does not rescue the ``vf`` paired with it.
 
-        The sender pairs a backward ``rm`` regression with ``vf=VF``.  The rm
-        dimension is refused and the receiver's own ``RM.VALID`` is carried
-        forward, so the entailment must be evaluated against ``VALID`` — the
-        state actually being recorded — rather than the asserted
-        ``RM.ACCEPTED``.
+        The sender pairs a backward ``rm`` regression with ``vf=VF``.  ``rm`` is
+        refused and the receiver's own ``RM.VALID`` is carried forward; both the
+        asserted and the carried value are pre-acceptance, so ``vf=VF`` is
+        refused either way.
+
+        This test does *not* discriminate between reading the effective and the
+        asserted ``rm`` — no input can, in the tightening direction.  ``rm`` is
+        refused only when the asserted value is not a forward move, so the
+        carried value always ranks at or above the asserted one on the RM
+        progress scale, and ``RM_STATES_CONSISTENT_WITH_FIX`` is exactly the top
+        of that scale.  See
+        ``test_effective_rm_reading_can_only_loosen_never_tighten``.
         """
         current = _current_status(RM.VALID, None, CS_pxa.pxa).to_core()
         asserted = _asserted_status(
@@ -1428,8 +1488,33 @@ class TestAdjudicateDimensionsCrossMachineEntailments:
 
         assert "rm" in refused, "RM.VALID → RM.RECEIVED is a regression"
         assert "vf" in refused, (
-            "the entailment must be checked against the carried-forward"
-            " rm=VALID, not the refused rm=RECEIVED"
+            "vf=VF is refused against a pre-acceptance rm, whether read from"
+            " the assertion (RECEIVED) or the carry-forward (VALID)"
+        )
+
+    @pytest.mark.spec("RSH-05-020")
+    def test_effective_rm_reading_can_only_loosen_never_tighten(self):
+        """#2906: pins the real effect of reading the *effective* ``rm``.
+
+        ``RM.CLOSED`` is terminal, so any asserted ``rm`` is refused and
+        ``CLOSED`` is carried forward.  ``CLOSED`` is in
+        ``RM_STATES_CONSISTENT_WITH_FIX`` while the asserted ``RM.VALID`` is
+        not, so the effective reading *accepts* a ``vf=VF`` that the asserted
+        reading would have refused.  Documenting the direction matters: the
+        load-bearing reason for evaluating post-adjudication state is the
+        ``vf``-licenses-``d`` chain (ISSUE-2893), not anything about ``rm``.
+        """
+        current = _current_status(RM.CLOSED, CS_vf.VF, CS_pxa.pxa).to_core()
+        asserted = _asserted_status(RM.VALID, CS_vf.VF, CS_pxa.pxa).to_core()
+
+        refused, _ = self._adjudicate(
+            current, asserted, roles=[CVDRole.VENDOR]
+        )
+
+        assert "rm" in refused, "RM.CLOSED is terminal (DEMOMA-07-003)"
+        assert "vf" not in refused, (
+            "the carried-forward rm=CLOSED is consistent with the F bit, so vf"
+            " is accepted — the effective reading loosens, it never tightens"
         )
 
     @pytest.mark.spec("RSH-05-020")
@@ -1500,25 +1585,134 @@ class TestAdjudicateDimensionsCrossMachineEntailments:
 
     @pytest.mark.spec("RSH-05-020")
     def test_dimension_is_not_refused_twice(self):
-        """#2906: role-gated and entailment refusals must not both fire on d.
+        """#2906: a dimension already refused upstream is not named again.
 
         ``refused`` is reported to operators and drives the ledger patch, so a
         dimension appearing twice would misdescribe the audit trail.
-        """
 
+        The input reaches the branch that enforces this.  ``d`` regresses
+        (``D → d``) and is refused for non-monotonicity, carrying ``CS_d.D``
+        forward; the entailment pass then sees the effective pair
+        ``(Vf, D)`` and VF↔D fires, naming ``d`` first.  ``d`` is already
+        refused, so the pass must fall through to the other side of the pair
+        rather than naming ``d`` twice.
+        """
         current = self._with_d(
-            _current_status(RM.VALID, CS_vf.Vf, CS_pxa.pxa), CS_d.d
+            _current_status(RM.ACCEPTED, None, CS_pxa.pxa), CS_d.D
         )
         asserted = self._with_d(
-            _asserted_status(RM.VALID, CS_vf.Vf, CS_pxa.pxa), CS_d.D
+            _asserted_status(RM.ACCEPTED, CS_vf.Vf, CS_pxa.pxa), CS_d.d
         )
 
-        # No DEPLOYER role: the role gate refuses d, and VF↔D would too.
-        refused, _ = self._adjudicate(
-            current, asserted, roles=[CVDRole.VENDOR]
+        refused, update_fields = self._adjudicate(
+            current, asserted, roles=[CVDRole.VENDOR, CVDRole.DEPLOYER]
         )
 
         assert refused.count("d") == 1, f"d refused more than once: {refused}"
+        assert "vf" in refused, (
+            "with d already refused, VF↔D must refuse the other side of the"
+            f" pair — the vf claim that created the contradiction: {refused}"
+        )
+        assert update_fields["vf"] is None, "no VF history to carry forward"
+
+    @pytest.mark.spec("RSH-05-020")
+    @pytest.mark.spec("CSB-17-001")
+    def test_vf_claim_refused_when_d_is_the_incumbent(self):
+        """#2906: VF↔D must refuse the side that *moved*, not always ``d``.
+
+        The participant already has ``d=D`` recorded (consistent: no ``vf``
+        history, so VF↔D does not apply through an absent dimension).  A peer
+        now asserts ``vf=Vf`` — fix *not* ready — restating ``d=D``.  Only
+        ``vf`` moved, so ``vf`` is the offending claim.
+
+        Refusing ``d`` instead would carry ``CS_d.D`` straight back and record
+        the ``*fD*`` state CSB-17-001 forbids, while reporting a refusal that
+        changed nothing.
+        """
+        current = self._with_d(
+            _current_status(RM.ACCEPTED, None, CS_pxa.pxa), CS_d.D
+        )
+        asserted = self._with_d(
+            _asserted_status(RM.ACCEPTED, CS_vf.Vf, CS_pxa.pxa), CS_d.D
+        )
+
+        refused, update_fields = self._adjudicate(
+            current, asserted, roles=[CVDRole.VENDOR, CVDRole.DEPLOYER]
+        )
+
+        assert refused == ["vf"], (
+            "the vf claim is what VF↔D disqualifies here; refusing d would be"
+            f" a no-op that leaves *fD* recorded: {refused}"
+        )
+        assert update_fields["vf"] is None, (
+            "the participant has no VF history, so the refused dimension"
+            " clears rather than carrying a prior value forward"
+        )
+        assert (
+            cross_machine_violations(
+                RM.ACCEPTED,
+                None,
+                update_fields["d"].state if "d" in update_fields else CS_d.D,
+            )
+            == []
+        ), "the recorded state must satisfy the entailments"
+
+    @pytest.mark.spec("RSH-05-020")
+    def test_omitted_dimension_is_not_reported_as_refused(self):
+        """#2906: the pass must not name a dimension the sender never asserted.
+
+        ``refused`` names the dimensions whose *asserted* value was rejected;
+        ``update_fields`` also carries dimensions nobody asserted.  A sender
+        that omits ``d`` entirely makes no ``d`` claim, so a VF↔D contradiction
+        against the carried-forward ``d=D`` must be charged to the ``vf`` claim
+        that caused it.  Naming ``d`` would make ``dimension_filter`` report
+        "rewrote dimension(s) d" for a pure carry-forward.
+        """
+        current = self._with_d(
+            _current_status(RM.DEFERRED, None, CS_pxa.pxa), CS_d.D
+        )
+        asserted = self._with_d(
+            _asserted_status(RM.DEFERRED, CS_vf.vf, CS_pxa.pxa), None
+        )
+        assert asserted.d is None
+
+        refused, _ = self._adjudicate(
+            current, asserted, roles=[CVDRole.VENDOR, CVDRole.DEPLOYER]
+        )
+
+        assert "d" not in refused, (
+            "d was never asserted, so it cannot be refused (RSH-05-001)"
+            f": {refused}"
+        )
+        assert refused == ["vf"]
+
+    @pytest.mark.spec("RSH-05-020")
+    def test_a_refusal_that_retires_a_violation_does_not_cause_another(self):
+        """#2906: the pass re-evaluates instead of acting on stale violations.
+
+        ``(START, Vf, D)`` violates both RM↔D and VF↔D.  Refusing ``d`` clears
+        the dimension — there is no ``d`` history — which retires the VF↔D
+        violation too.  A single sweep over the violation list would still act
+        on the stale VF↔D entry and refuse the perfectly acceptable ``vf=Vf``
+        claim as well.
+        """
+        current = self._with_d(
+            _current_status(RM.START, None, CS_pxa.pxa), None
+        )
+        asserted = self._with_d(
+            _asserted_status(RM.START, CS_vf.Vf, CS_pxa.pxa), CS_d.D
+        )
+
+        refused, update_fields = self._adjudicate(
+            current, asserted, roles=[CVDRole.VENDOR, CVDRole.DEPLOYER]
+        )
+
+        assert refused == ["d"], (
+            "only d is refusable: vf=Vf carries no F bit and is consistent"
+            f" with rm=START once d is cleared: {refused}"
+        )
+        assert update_fields["d"] is None, "no d history to carry forward"
+        assert "vf" not in update_fields, "the vf claim stands as asserted"
 
 
 class TestCrossMachineViolationsSharedHelper:
@@ -1564,15 +1758,54 @@ class TestCrossMachineViolationsSharedHelper:
         assert self._violations(RM.START, None, None) == []
 
     def test_reports_every_violated_rule_not_just_the_first(self):
-        """The receive path adjudicates per dimension and needs all of them."""
+        """Every violated rule is reported, across distinct dimensions.
 
+        The emit path takes only ``violations[0]`` because it refuses the whole
+        snapshot; the receive path needs each rule so it can charge the refusal
+        to the right dimension.
+        """
+        violations = self._violations(RM.VALID, CS_vf.VF, CS_d.D)
+
+        assert [v.dimension for v in violations] == ["vf", "d"], (
+            "rm=VALID disqualifies both the F bit (RM↔VF) and the D bit"
+            f" (RM↔D): {violations}"
+        )
+
+    def test_one_dimension_can_be_named_by_two_rules(self):
+        """``d`` violates RM↔D and VF↔D at once; both are reported."""
         violations = self._violations(RM.VALID, CS_vf.Vf, CS_d.D)
 
         assert {v.dimension for v in violations} == {"d"}
         assert len(violations) == 2, (
-            "both RM↔D and VF↔D are violated; the emit path takes the first"
-            " and the receive path needs the full set"
+            "RM↔D and VF↔D both disqualify d here; the receive path relies on"
+            " seeing each rule to pick a refusal target"
         )
+
+    def test_vf_d_rule_offers_vf_as_an_alternative_target(self):
+        """VF↔D constrains a pair, so either side can be the refusable claim.
+
+        The receive path needs this: when ``d`` is the incumbent value, refusing
+        it carries the D bit straight back, and only refusing ``vf`` resolves
+        the contradiction (#2906).
+        """
+        (violation,) = self._violations(RM.ACCEPTED, CS_vf.Vf, CS_d.D)
+
+        assert violation.dimension == "d", "deployment is the dependent claim"
+        assert violation.alternatives == ("vf",)
+
+    def test_rm_rules_offer_no_alternative_target(self):
+        """RM↔VF and RM↔D each disqualify exactly one dimension.
+
+        RM progress is the participant's own report-handling history and is
+        never the claim these rules refuse, so there is no second candidate.
+        """
+        for vf, d, expected in (
+            (CS_vf.VF, None, "vf"),
+            (None, CS_d.D, "d"),
+        ):
+            (violation,) = self._violations(RM.VALID, vf, d)
+            assert violation.dimension == expected
+            assert violation.alternatives == ()
 
     def test_emit_path_uses_the_shared_helper(self):
         """Regression guard: the emit path must not re-implement the rules."""

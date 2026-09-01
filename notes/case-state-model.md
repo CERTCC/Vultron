@@ -4,9 +4,12 @@ status: active
 description: "CVD case state model: six binary dimensions (RM/EM/CS), CaseStatus append-only history, and canonical CaseLedgerEntry history."
 related_specs:
   - specs/case-management.yaml
+  - specs/cs-behavior.yaml
+  - specs/received-status-handling.yaml
 related_notes:
   - notes/activitystreams-semantics.md
   - notes/protocol-event-cascades.md
+  - notes/received-status-authorization.md
 relevant_packages:
   - transitions
   - vultron/bt/embargo_management
@@ -118,7 +121,7 @@ verdicts split between *still valid* and *superseded by structure*.
 
 | Legacy rule (`validations.py`) | Verdict | Current expression |
 |---|---|---|
-| `is_valid_state`: `vF` / `fD` impossible → 32 states | Still valid, **structural and runtime** | After ADR-0075 split VFD into separate `CS_vf`/`CS_d` types, `*fD*` is no longer structurally unrepresentable. Runtime enforcement added via `violation_vf_d_entailment()` on both trigger path (`ValidateTriggerTransitionsNode`) and received path (`_adjudicate_dimensions`). CSB-17-001 |
+| `is_valid_state`: `vF` / `fD` impossible → 32 states | Still valid, **structural and runtime** | After ADR-0075 split VFD into separate `CS_vf`/`CS_d` types, `*fD*` is no longer structurally unrepresentable. Runtime enforcement is via `cross_machine_violations()` (`cross_machine_invariants.py`), which composes `violation_vf_d_entailment()` with the two RM rules; both the trigger path (`ValidateTriggerTransitionsNode`) and the received path (`_adjudicate_dimensions`) call the composed evaluator, and a ratchet test forbids either from calling the individual predicates. See [notes/received-status-authorization.md](received-status-authorization.md) § "Independent adjudication cannot see a combination". CSB-17-001, RSH-05-020 |
 | `is_valid_transition`: Hamming distance 1 | Still valid | `cs_transition_event()`, CSB-17-002 |
 | `is_valid_transition`: monotone, same dimension | Still valid | Delegated to `is_valid_vfd_transition` / `is_valid_pxa_transition`; compound check in `is_valid_cs_transition()`, CSB-17-002 |
 | `TRANSITION_RULES`: `...pX. → ...PX.` | Still valid | `required_next_cs_events()`; generalises CSB-13-001 from the entry cascade to every `pX` successor. CSB-17-003 |

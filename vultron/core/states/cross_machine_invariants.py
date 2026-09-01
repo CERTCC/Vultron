@@ -17,10 +17,13 @@
 
 Validates that combinations of RM, VFD, and EM states are mutually consistent.
 
-:func:`violation_rm_vfd_entailment` is enforced at emit time via
-:class:`~vultron.core.behaviors.case.nodes.participant.trigger_validation\
-.ValidateTriggerTransitionsNode` in the trigger path.  Both RM and VFD are
-per-actor attributes, so a contradictory combination is an error at the source.
+Both RM and the vendor/deployer paths are per-actor attributes, so a
+contradictory combination is an error at the source.  The enforced form is the
+per-dimension pair — :func:`violation_rm_vf_entailment` and
+:func:`violation_rm_d_entailment` — since ADR-0075 split the compound ``CS_vfd``
+into independent ``CS_vf`` and ``CS_d`` dimensions.
+:func:`violation_rm_vfd_entailment` states the same rule over the compound type
+and currently has no callers; ISSUE-3016 tracks whether to retire it.
 
 :func:`violation_pxa_em_entailment` expresses the PXA→EM consistency rules
 but is NOT enforced on the emit path: asserting P CAUSES the embargo to
@@ -63,6 +66,10 @@ from vultron.core.states.rm import RM
 # The fix-ready event (F) can occur only when the vendor has passed through
 # RM.ACCEPTED; since RM is monotonic, DEFERRED and CLOSED are also consistent
 # with F having been reached.
+# CAVEAT: the CLOSED premise does not hold in general — `rm.py` documents CLOSED
+# as reachable directly from INVALID, without passing acceptance.  ISSUE-3015
+# tracks the protocol decision; until then a CLOSED-from-INVALID participant can
+# assert an F or D bit unchallenged.
 # Source: rm_em_cs.md § "Fix Readiness", § "Fix Deployment"
 RM_STATES_CONSISTENT_WITH_FIX: frozenset[RM] = frozenset(
     {RM.ACCEPTED, RM.DEFERRED, RM.CLOSED}
@@ -183,16 +190,25 @@ def violation_vf_d_entailment(vf: CS_vf | None, d: CS_d | None) -> str | None:
 class EntailmentViolation(NamedTuple):
     """A violated cross-machine entailment and the dimension it disqualifies.
 
-    ``dimension`` is the *disqualified* dimension, not merely a participant in
-    the rule: RM↔VF names ``"vf"`` and both RM↔D and VF↔D name ``"d"``, because
-    RM progress is the participant's own report-handling history and is never
-    the claim these rules refuse.  The receive path refuses per dimension
-    (RSH-05-001), so it needs the name; the emit path refuses the whole
-    snapshot and uses only the message.
+    ``dimension`` is the *preferred* disqualified dimension, not merely a
+    participant in the rule: RM↔VF names ``"vf"`` and both RM↔D and VF↔D name
+    ``"d"``, because RM progress is the participant's own report-handling
+    history and is never the claim these rules refuse.  The emit path refuses
+    the whole snapshot and uses only the message.
+
+    ``alternatives`` names the *other* dimensions whose claim could be refused
+    to resolve the same contradiction, in descending preference.  Only VF↔D has
+    one: it constrains a pair, so either side can be the offending claim.  The
+    receive path refuses per dimension (RSH-05-001) and must refuse whichever
+    side actually moved — refusing an incumbent value carries it straight back
+    and resolves nothing — so it needs the full candidate list, not just the
+    preferred name.  See
+    ``vultron.core.behaviors.status.nodes._adjudication._refusal_target``.
     """
 
     dimension: str
     message: str
+    alternatives: tuple[str, ...] = ()
 
 
 def cross_machine_violations(
@@ -216,6 +232,12 @@ def cross_machine_violations(
     the checks were consolidated, so a caller that reports only the first
     violation reports the same one it always did.
 
+    This function answers only "which rules does this combination violate".
+    Deciding *which dimension to refuse* is the caller's, because the answer
+    differs by path: the emit path refuses the whole snapshot, while the receive
+    path must refuse the side that actually moved (see
+    :class:`EntailmentViolation` on ``alternatives``).
+
     Args:
         rm: The RM state being asserted or recorded.
         vf: The vendor-path state, or ``None`` when the dimension is absent.
@@ -223,8 +245,9 @@ def cross_machine_violations(
 
     Returns:
         One :class:`EntailmentViolation` per violated rule, empty when the
-        combination is consistent.  ``d`` can be named twice — by RM↔D and by
-        VF↔D — when it violates both.
+        combination is consistent.  ``d`` is the preferred name for two of the
+        three rules, so it can appear twice — by RM↔D and by VF↔D — when the
+        combination violates both.
     """
     violations: list[EntailmentViolation] = []
     if vf is not None:
@@ -234,7 +257,10 @@ def cross_machine_violations(
         if (msg := violation_rm_d_entailment(rm, d)) is not None:
             violations.append(EntailmentViolation("d", msg))
     if (msg := violation_vf_d_entailment(vf, d)) is not None:
-        violations.append(EntailmentViolation("d", msg))
+        # VF↔D constrains a pair: `d` is preferred (deployment is the dependent
+        # claim), but refusing `vf` resolves the same contradiction when `vf` is
+        # the side that moved.
+        violations.append(EntailmentViolation("d", msg, alternatives=("vf",)))
     return violations
 
 

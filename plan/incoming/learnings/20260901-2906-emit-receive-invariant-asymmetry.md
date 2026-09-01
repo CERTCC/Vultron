@@ -31,6 +31,14 @@ predicate's docstring or a spec `note:`) or a gap. `violation_pxa_em_entailment`
 has *zero* production callers today; `ApplyParticipantStatusFromLedgerNode`
 enforces only the RM ratchet.
 
+Running that audit properly is worth more than one pass: PR triage of #3010 found
+that `violation_rm_vfd_entailment` also has zero callers *and* zero tests, dead
+since the ADR-0075 split, while the module docstring and CSB-18-001 both still
+named it as the enforcement point (#3016). The lesson within the lesson is that
+the audit must diff predicates against call sites **mechanically** — the first
+manual pass caught one of the two dead predicates and trusted the docstring for
+the other.
+
 **Structural fix applied:** the three rules are now composed once, in
 `cross_machine_violations()`, and both paths call that. A ratchet test asserts
 the emit path does not call the individual predicates directly. Composing the

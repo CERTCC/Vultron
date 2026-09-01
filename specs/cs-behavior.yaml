@@ -2381,14 +2381,24 @@ groups:
       a fix ready if they have accepted the report for action (RM ∈ {ACCEPTED,
       DEFERRED, CLOSED}). RM states RECEIVED/INVALID/VALID precede acceptance,
       so F-bit + pre-acceptance RM is a causal impossibility.
-      Implemented in violation_rm_vfd_entailment() (cross_machine_invariants.py).
+      Implemented in cross_machine_violations() (cross_machine_invariants.py),
+      which composes violation_rm_vf_entailment() and violation_rm_d_entailment()
+      — the per-dimension form the rule takes after ADR-0075 split the compound
+      CS_vfd into independent CS_vf and CS_d. Enforced on both protocol paths:
+      the emit path refuses the whole trigger
+      (ValidateTriggerTransitionsNode._validate_entailments) and the receive path
+      refuses the disqualified dimension (RSH-05-020, ISSUE-2906).
+      violation_rm_vfd_entailment() states the same rule over the compound type
+      and has no callers.
       Source: ISSUE-2372.
     testable: true
     preconditions:
     - description: Any participant state snapshot is available for inspection
     verification: >-
-      Call violation_rm_vfd_entailment(rm, vfd) for each participant; assert
-      None is returned for all valid combined states.
+      Call cross_machine_violations(rm, vf, d) for each participant; assert an
+      empty list is returned for all valid combined states. Unit tests in
+      test/core/behaviors/status/test_partial_accept_participant_status.py
+      confirm both paths refuse an F or D bit set against a pre-acceptance RM.
     relationships:
     - rel_type: constrains
       spec_id: CSB-16-001
