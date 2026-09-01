@@ -246,6 +246,7 @@ class AddParticipantStatusToParticipantReceivedUseCase:
                     failed_activity_id=request.activity_id,
                     failure_class=VULTRON_FAILURE_STATUS_ASSERTION_REFUSED,
                     to=[request.actor_id],
+                    case_id=case_id,
                 )
 
     def _resolve_case_id_for_log_cascade(self) -> str | None:
