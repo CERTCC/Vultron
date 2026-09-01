@@ -78,6 +78,36 @@ Per-dimension rules:
   RSH-02-001); StatusAdoptionGate adjudicating it would duplicate and could contradict
   EmbargoTeardownAuthorizationGate's decision. Tracked in ISSUE-2256.
 
+!!! note "Amended by ISSUE-2906: per-dimension rules are necessary but not sufficient"
+
+    Adjudicating each dimension on its own cannot see a claim that is impossible
+    only *in combination*. A snapshot can pass every rule above and still
+    describe a state no sequence of events could produce — a fix reported
+    *ready* or *deployed* by a participant whose `rm` has not reached
+    acceptance, or a fix *deployed* without being *ready*.
+
+    A final pass therefore evaluates the cross-machine entailments — RM↔VF and
+    RM↔D (CSB-18-001) and VF↔D (CSB-17-001) — and refuses whichever dimension
+    they disqualify, carrying the current value forward like any other refusal
+    (RSH-05-020). It runs on the *effective* post-adjudication state, so a
+    refused `rm` cannot license the `vf` the sender paired with it.
+
+    Emit and receive share one evaluator, `cross_machine_violations()` in
+    `vultron/core/states/cross_machine_invariants.py`. Before this amendment the
+    receive path composed only VF↔D by hand while the emit path composed all
+    three, so an assertion the actor would have refused to *emit* was accepted,
+    hash-chained and replicated when it arrived from a peer instead.
+
+    This does **not** narrow the monotone-forward rule above: multi-step `vf`,
+    `d` and `pxa` advances remain accepted (CSB-16-001), because a peer may have
+    advanced several steps between status messages. Nor does it treat an absent
+    dimension as an initial state — a non-VENDOR participant has no vendor path
+    (ADR-0075), so no entailment applies through it, and a first observation of
+    a dimension is accepted when nothing contradicts it.
+
+    Under the ADR-0075 VFD split the `vfd` rule above now reads as two
+    independent dimensions, `vf` (`v→V`, `f→F`) and `d` (`d→D`).
+
 The refusal is made visible through the canonical ledger rather than a new wire
 message: the committed entry snapshots the accepted portion, so it differs from
 what the sender asserted and every participant sees the receiver's actual view.
@@ -91,7 +121,8 @@ entry committed. Such an assertion carries no acceptable information, and
 recording it would grow both the status history and the hash chain with no
 state change.
 
-Symmetrically on the replica side,
+Symmetrically on the replica side —
+though only for `rm`; see ISSUE-3009 —
 `ApplyParticipantStatusFromLedgerNode` now ratchets `rm`: an
 `Announce(CaseLedgerEntry)` that would move the local `rm` backwards on the
 progress scale has that dimension carried forward at the local value, while
@@ -127,6 +158,12 @@ each rule: a refused `rm` with accepted `vfd`/`pxa`, survival of the EmbargoTear
 emit, the ledger snapshot carrying the accepted `rm`, a `RM.CLOSED` participant
 advancing `vfd`, whole-update refusal committing no entry, and the replica-side
 RM ratchet.
+
+For the ISSUE-2906 amendment: `vf=VF` and `d=D` each refused against a
+pre-acceptance effective `rm` and accepted once `rm` reaches acceptance, the
+entailment evaluated against a carried-forward rather than a refused `rm`, the
+refusal staying per-dimension, no dimension named twice, and a ratchet asserting
+the emit path still delegates to the shared evaluator.
 
 ## Pros and Cons of the Options
 
