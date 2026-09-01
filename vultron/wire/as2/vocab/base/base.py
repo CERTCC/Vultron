@@ -23,7 +23,7 @@ from pydantic.alias_generators import to_camel
 
 from vultron.core.models.base import VultronBase
 from vultron.wire.as2.vocab.base.enums import VocabNamespace
-from vultron.wire.as2.vocab.base.registry import VOCABULARY
+from vultron.wire.as2.vocab.base.registry import VOCABULARY, WIRE_TYPE_MAP
 from vultron.wire.as2.vocab.base.utils import generate_new_id
 
 ACTIVITY_STREAMS_NS = "https://www.w3.org/ns/activitystreams"
@@ -49,8 +49,9 @@ class as_Base(VultronBase):
             return
         if _typing.get_origin(annotation) is _typing.Union:
             return
-        key = cls.__name__.removeprefix("as_")
-        VOCABULARY[key] = cls
+        if cls.__name__.startswith("as_"):
+            VOCABULARY[cls.__name__] = cls
+        WIRE_TYPE_MAP[cls.__name__.removeprefix("as_")] = cls
 
     context_: str = Field(
         default=ACTIVITY_STREAMS_NS,
@@ -75,7 +76,7 @@ class as_Base(VultronBase):
     def set_type_from_class_name(self):
         if self.type_ is None:
             object.__setattr__(
-                self, "type_", self.__class__.__name__.lstrip("as_")
+                self, "type_", self.__class__.__name__.removeprefix("as_")
             )
         return self
 

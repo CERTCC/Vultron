@@ -296,16 +296,14 @@ See [notes/agents-md-structure.md](notes/agents-md-structure.md) for routing pol
   flow, not raw `git rebase origin/main`.
 - **`as_VulnerabilityCase` (wire) vs `VulnerabilityCase` (core)** — all classes
   in `vultron/wire/as2/vocab/objects/` use `as_` prefix. Bare name = core type.
-  See ARCH-14-001. Note the *registry* keys currently collide even though the
-  class names do not: `VOCABULARY["VulnerabilityCase"]` is the **wire** class,
-  because the key is derived via `cls.__name__.removeprefix("as_")`. ADR-0082
-  makes the keys disjoint (ARCH-23-002); until then, do not infer a class's
-  branch from its registry key. Never resolve a core type's wire counterpart by
-  name coincidence — use the pairing registry (ARCH-23-001). **Until issue #2937
-  lands there is no pairing-registry module to import**, so do not go looking for
-  one and do not add a new name-coincidence lookup in the meantime; the existing
-  `VOCABULARY.get(type(obj).__name__)` call in `As2WireRenderAdapter.render()` is
-  the one site slated to be replaced.
+  See ARCH-14-001. Registry keys are now disjoint (ARCH-23-002, issue #2941):
+  `VOCABULARY` uses full `as_*` class name keys (`"as_VulnerabilityCase"`);
+  `WIRE_TYPE_MAP` uses wire `type_` value keys (`"VulnerabilityCase"`). The
+  render adapter uses `WIRE_TYPE_MAP.get(type(obj).__name__)` to resolve a core
+  class to its wire counterpart. Never resolve a core type's wire counterpart by
+  name coincidence — use `WIRE_TYPE_MAP` (for type_ values) or `VOCABULARY` (for
+  wire class name lookups). The full pairing registry (ARCH-23-001) is tracked
+  by issue #2937.
 - **Never add a new `from vultron.core.models import …` inside `vultron/wire/`** —
   wire code that needs to convert a core object to wire form MUST use the
   `as_Foo.from_core(core_obj)` class method already present on every wire vocab

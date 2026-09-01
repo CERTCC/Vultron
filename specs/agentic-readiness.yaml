@@ -201,27 +201,3 @@ groups:
     statement: Long-running CLI commands SHOULD support `--wait` / `--no-wait` flags; `--no-wait` returns the job object immediately
     scope:
     - production
-- id: AR-09
-  title: MCP Server Adapter
-  specs:
-  - id: AR-09-001
-    priority: MAY
-    kind: project
-    statement: A local MCP server adapter MAY be provided at `vultron/adapters/driving/mcp_server.py`, exposing Vultron use
-      cases as MCP tools
-  - id: AR-09-002
-    priority: MUST
-    kind: project
-    statement: Each MCP tool MUST map 1:1 to a domain use case in `vultron/core/use_cases/`, with no business logic in the
-      adapter itself
-  - id: AR-09-003
-    priority: MUST
-    kind: project
-    statement: The MCP server MUST authenticate tool calls using the same actor identity model as the HTTP inbox
-    scope:
-    - production
-  - id: AR-09-004
-    priority: MUST
-    kind: project
-    statement: MCP tool responses MUST use the same structured JSON format as CLI `--output json` responses, enabling consistent
-      AI agent parsing

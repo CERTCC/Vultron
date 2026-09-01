@@ -18,7 +18,7 @@
 
 Translates a core domain object to its wire-layer counterpart via:
 
-1. Vocabulary lookup — ``VOCABULARY.get(type(obj).__name__)``
+1. Vocabulary lookup — ``WIRE_TYPE_MAP.get(type(obj).__name__)``
 2. Wire-counterpart guard — ``issubclass(wire_cls, VultronAS2Object)``
 3. ``wire_cls.from_core(obj)``
 4. ``model_dump(by_alias=True, exclude_none=True, mode="json")``
@@ -42,7 +42,7 @@ Per ``specs/architecture.yaml`` ARCH-20-001 through ARCH-20-004.
 from typing import Any
 
 from vultron.errors import VultronValidationError
-from vultron.wire.as2.vocab.base.registry import VOCABULARY
+from vultron.wire.as2.vocab.base.registry import WIRE_TYPE_MAP
 from vultron.wire.as2.vocab.objects.base import VultronAS2Object
 
 
@@ -58,7 +58,7 @@ class As2WireRenderAdapter:
     def render(self, obj: Any) -> dict[str, Any]:
         """Render a core domain object as wire-shaped JSON.
 
-        Looks up the wire counterpart in the AS2 vocabulary registry by
+        Looks up the wire counterpart in ``WIRE_TYPE_MAP`` by
         ``type(obj).__name__``, verifies it is a
         :class:`~vultron.wire.as2.vocab.objects.base.VultronAS2Object`
         (the only class with ``from_core()``), then returns the camelCase
@@ -79,7 +79,7 @@ class As2WireRenderAdapter:
                 does not extend ``VultronAS2Object`` (ARCH-20-003).
         """
         type_name = type(obj).__name__
-        wire_cls = VOCABULARY.get(type_name)
+        wire_cls = WIRE_TYPE_MAP.get(type_name)
 
         if wire_cls is None or not issubclass(wire_cls, VultronAS2Object):
             raise VultronValidationError(
