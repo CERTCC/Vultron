@@ -61,6 +61,13 @@ Is this guidance about a specific subdirectory of the codebase?
 Target: **≤ 400 lines**. If root AGENTS.md exceeds 400 lines, run the
 `condense-agents-md` skill.
 
+Both targets are enforced by
+`test/architecture/test_agents_md_size_ratchet.py`, so an overage fails CI
+instead of accumulating unnoticed — root reached 1166 lines, 2.9x its target,
+while the targets were advisory only (ISSUE-2954). Two per-directory files
+predate the ratchet and carry recorded ceilings in its `KNOWN_OVERAGE` map;
+those may only be lowered. Condense the file rather than raising a ceiling.
+
 ### Per-directory AGENTS.md — subsystem-specific rules
 
 Create an `AGENTS.md` in any directory whose conventions, pitfalls, or
