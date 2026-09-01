@@ -51,9 +51,9 @@ from vultron.wire.as2.vocab.objects.case_proposal import as_CaseProposal
 _CASE_ACTOR_SERVICE_URL = "http://case-actor:7999/api/v2"
 
 #: A co-located CaseActor: same authority as the vendor, distinct final segment.
-#: Stores are keyed on that segment, so a shared one would let the CaseActor see
-#: the vendor's ``OfferRecord`` and every assertion here would pass vacuously
-#: (#2549).
+#: Stores are keyed on that segment; if they were shared, the CaseActor would see
+#: the vendor's ``OfferRecord`` and every assertion here would pass vacuously.
+#: ADR-0081 prevents this: each actor has its own store and no cross-store reads.
 _CASE_ACTOR_URI = "https://example.org/actors/case-actor"
 _VENDOR_URI = "https://example.org/actors/vendor"
 _REPORTER_URI = "https://example.org/actors/reporter"

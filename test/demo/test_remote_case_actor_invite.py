@@ -43,9 +43,11 @@ Only a multi-node setup can show this, and only since each node in this harness
 got its *own* storage deployment: while every node shared one anonymous
 ``sqlite:///:memory:``, the cross-authority slug collision that
 :func:`~vultron.adapters.driven.datalayer_sqlite.engine.actor_slug` produces for
-two ``.../actors/case-actor`` ids (#2549) resolved to a single shared store, so
-the phantom store *was* the real one and this whole failure mode was invisible
+two ``.../actors/case-actor`` ids resolved to a single shared store, so the
+phantom store *was* the real one and this whole failure mode was invisible
 locally while failing under Docker.  See ``test/demo/conftest.py::node_db_url``.
+After ADR-0081 no legitimate path opens a store for a foreign-authority id, but
+the per-node deployment naming remains essential for a multi-node harness.
 
 Issue: #2484
 """
@@ -124,9 +126,8 @@ def topology(request):
 
     The *slug* stays ``case-actor`` in every case: that is what
     :func:`~vultron.core.behaviors.case.case_actor_identity.is_case_actor_identity`
-    reads, and varying the authority instead is also what keeps the
-    cross-authority slug collision (#2549) in play — which is the condition
-    under test.
+    reads, and varying the authority is what makes each node's CaseActor
+    genuinely distinct — the cross-authority isolation this test exercises.
 
     Deliberately does *not* patch ``VULTRON_ACTOR__CASE_ACTOR_SERVICE_URL``: the
     replica is seeded directly with a remote CASE_MANAGER, which is the state a
