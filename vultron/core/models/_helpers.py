@@ -17,7 +17,7 @@
 
 import uuid
 from datetime import datetime, timezone
-from typing import Any
+from typing import Any, cast
 
 
 def _now_utc() -> datetime:
@@ -84,9 +84,7 @@ def report_phase_context(dl: Any, report_id: str) -> str:
         The case URI when a case for *report_id* is in this store, else
         *report_id*.
     """
-    from vultron.core.models.case import VulnerabilityCase
-
     case = dl.find_case_by_report_id(report_id)
-    if isinstance(case, VulnerabilityCase):
-        return case.id_
+    if case is not None:
+        return cast(str, case.id_)
     return report_id

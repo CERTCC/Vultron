@@ -138,8 +138,8 @@ class _PublicDisclosureSkipConditionNode(DataLayerConditionWithPorts):
         if self.datalayer is None or not self.case_id:
             return Status.SUCCESS
 
-        case = self.datalayer.read(self.case_id)
-        if not isinstance(case, VulnerabilityCase):
+        case = self.datalayer.read_case(self.case_id)
+        if case is None:
             return Status.SUCCESS
 
         if not self._sender_is_case_owner(case):

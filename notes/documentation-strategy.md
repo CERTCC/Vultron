@@ -97,8 +97,8 @@ evaluate:
 definitions disagree on state names or valid states, the enum code wins.
 Update the documentation to match the enum, never the reverse (unless the
 enum itself is explicitly identified as a bug by a maintainer). Canonical
-enum files: `vultron/bt/report_management/states.py` (RM),
-`vultron/bt/embargo_management/states.py` (EM),
+enum files: `vultron/core/states/rm.py` (RM),
+`vultron/core/states/em.py` (EM),
 `vultron/core/states/cs.py` (CS/VFD/PXA).
 
 ---

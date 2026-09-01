@@ -160,6 +160,7 @@ markers = [
     "spec(spec_id): mark test as verifying a specific spec requirement ID",
     "case_ledger_invariants: marks tests as case-ledger invariant harness tests (require devlogs/ JSONL artifacts; skip when absent)",
     "executes_as(actor_id): the actor whose identity the test's behavior tree runs under; store fixtures open that actor's store (ADR-0073)",
+    "spec_corpus: marks tests that load actual specs/ YAML files; run on specs/** path changes via spec-check.yml",
 ]
 
 [tool.uv.workspace]

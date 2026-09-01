@@ -41,7 +41,6 @@ from vultron.core.behaviors.helpers import (
     DataLayerConditionWithPorts,
 )
 from vultron.config.actor import ActorConfig
-from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.report_case_link import VultronReportCaseLink
 from vultron.core.use_cases._helpers import _resolve_case_manager_id
 
@@ -255,15 +254,10 @@ class CheckIsCaseManagerNode(DataLayerConditionWithPorts):
             )
             return Status.FAILURE
 
-        case = self.datalayer.read(case_id)
+        case = self.datalayer.read_case(case_id)
         if case is None:
             self.logger.warning(
                 f"{self.name}: case '{case_id}' not found in DataLayer"
-            )
-            return Status.FAILURE
-        if not isinstance(case, VulnerabilityCase):
-            self.logger.warning(
-                f"{self.name}: object '{case_id}' is not a VulnerabilityCase"
             )
             return Status.FAILURE
 

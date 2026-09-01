@@ -60,15 +60,14 @@ class CreateCaseReceivedUseCase:
             )
             return
 
-        case_obj_raw = request.case
-        if not isinstance(case_obj_raw, VulnerabilityCase):
+        case_obj = request.case
+        if case_obj is None:
             logger.warning(
-                "create_case_received: case object for case '%s' does not "
-                "is not a VulnerabilityCase — skipping",
+                "create_case_received: case object for case '%s' is None"
+                " — skipping",
                 case_id,
             )
             return
-        case_obj: VulnerabilityCase = case_obj_raw
         link = _find_report_case_link(actor_id, self._dl)
 
         if link is not None:
@@ -97,8 +96,8 @@ class CreateCaseReceivedUseCase:
         """
         case_manager_id = _resolve_case_manager_id(case_obj, self._dl)
         if case_manager_id is not None and case_manager_id == actor_id:
-            existing = self._dl.read(case_id)
-            if not isinstance(existing, VulnerabilityCase):
+            existing = self._dl.read_case(case_id)
+            if existing is None:
                 try:
                     self._dl.create(case_obj)
                     logger.info(
@@ -180,8 +179,8 @@ class CreateCaseReceivedUseCase:
 
         # Seed the local case replica
         # Idempotency guard (CBT-01-006, ID-04-004)
-        existing = self._dl.read(case_id)
-        if isinstance(existing, VulnerabilityCase):
+        existing = self._dl.read_case(case_id)
+        if existing is not None:
             logger.info(
                 "create_case_received: case '%s' already exists as replica "
                 "— skipping re-seed",

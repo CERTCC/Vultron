@@ -28,7 +28,6 @@ from py_trees.common import Status
 
 from vultron.core.behaviors.embargo.trigger_tree import terminate_embargo_bt
 from vultron.core.behaviors.helpers import DataLayerConditionWithPorts
-from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.protocols import PersistableModel
 from vultron.core.models._helpers import _as_id
 
@@ -66,8 +65,8 @@ class _ThreatTerminationSkipConditionNode(DataLayerConditionWithPorts):
         """Read case.current_status from the DataLayer; returns None on any miss."""
         if self.datalayer is None or not self.case_id:
             return None
-        case_obj = self.datalayer.read(self.case_id)
-        if not isinstance(case_obj, VulnerabilityCase):
+        case_obj = self.datalayer.read_case(self.case_id)
+        if case_obj is None:
             return None
         try:
             return case_obj.current_status
@@ -117,8 +116,8 @@ class _ThreatTerminationSkipConditionNode(DataLayerConditionWithPorts):
         if self.datalayer is None or not self.case_id:
             return Status.SUCCESS
 
-        case = self.datalayer.read(self.case_id)
-        if not isinstance(case, VulnerabilityCase):
+        case = self.datalayer.read_case(self.case_id)
+        if case is None:
             return Status.SUCCESS
 
         if _as_id(case.active_embargo) is None:

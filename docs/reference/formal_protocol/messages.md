@@ -252,4 +252,13 @@ For convenience, we collected these into the table below.
             \end{array}
             \right\}\text{ where } i \neq j \text{; } \varnothing \text{ otherwise; for } i,j \leq N$$
 
-Message *formats* are left as future work.
+Message *formats* are implemented using the
+[ActivityStreams 2.0](https://www.w3.org/TR/activitystreams-core/){:target="_blank"} vocabulary.
+See [ActivityPub Activities](../../howto/activitypub/activities/index.md) for details on the wire format.
+
+!!! note "AS2 Implementation Note"
+
+    The ActivityStreams-based wire format collapses the revision-negotiation message types:
+    $EV$ is sent as $EP$, $EC$ is sent as $EA$, and $EJ$ is sent as $ER$.
+    The formal message type set above remains normative for protocol semantics;
+    the AS2 mapping is an implementation detail of the current prototype.

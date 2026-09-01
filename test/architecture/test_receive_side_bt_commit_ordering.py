@@ -101,6 +101,8 @@ def test_no_direct_calls_to_guarded_commit_outside_lifecycle() -> None:
 REJECTION_VALIDATORS = {
     "ValidateRMTransitionNode",
     "CheckCaseStatusIdempotencyNode",
+    "CheckCsEphemeralStateNode",
+    "CheckCsHistoryPrefixNode",
     "FinalizeCsFilterNode",
 }
 

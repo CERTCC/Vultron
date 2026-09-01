@@ -527,6 +527,7 @@ def test_render_for_kind_may_material_icon(general_registry):
 # ---------------------------------------------------------------------------
 
 
+@pytest.mark.spec_corpus
 @pytest.mark.parametrize("kind", list(SpecKind))
 def test_render_for_kind_real_registry_produces_output(
     kind: SpecKind, real_registry

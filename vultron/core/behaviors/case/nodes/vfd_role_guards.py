@@ -18,14 +18,14 @@
 Nodes enforce CVD protocol correctness for received-side status authorization
 (RSH-01-002):
 
+- :class:`CheckVendorRoleNode` — gates vf→VF (vf_state=Vf): actor MUST hold
+  ``CVDRole.VENDOR`` (CSB-15-001)
+- :class:`CheckDeployerRoleNode` — gates d→D (vfd_state=VFD): actor MUST hold
+  ``CVDRole.DEPLOYER`` (CSB-15-002; causal-gate enforcement pending #2593)
 - :class:`CheckNotSoleObserverVfdNode` — gates v→V (vf_state=Vf): actor
   MUST NOT hold ``CVDRole.OBSERVER`` as their only role (CM-25-005)
 - :class:`CheckIsCaseOwnerNode` — hard bypass in ``StatusAdoptionGate``:
   sender MUST hold ``CVDRole.CASE_OWNER`` (RSH-01-002)
-
-Note: :class:`CheckVendorRoleNode` and :class:`CheckDeployerRoleNode` were
-removed in #2664; their role is now enforced structurally through the
-VF/D dimension split (ADR-0075).
 """
 
 import logging
@@ -36,7 +36,6 @@ from py_trees.ports import NoDataAvailable, PortInformation
 from vultron.core.behaviors.helpers import (
     DataLayerConditionWithPorts,
 )
-from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.ports.case_persistence import CasePersistence
 from vultron.enums.roles import CVDRole
@@ -55,11 +54,9 @@ def _resolve_actor_roles(
     Returns ``None`` when the case or participant record cannot be resolved;
     the calling node should return ``Status.FAILURE`` in that case.
     """
-    case = datalayer.read(case_id)
-    if not isinstance(case, VulnerabilityCase):
-        logger.warning(
-            "%s: case '%s' not found or wrong type", node_name, case_id
-        )
+    case = datalayer.read_case(case_id)
+    if case is None:
+        logger.warning("%s: case '%s' not found", node_name, case_id)
         return None
 
     participant_id = case.actor_participant_index.get(actor_id)
@@ -304,8 +301,8 @@ class CheckIsCaseOwnerNode(DataLayerConditionWithPorts):
             )
             return Status.FAILURE
 
-        case = self.datalayer.read(case_id)
-        if not isinstance(case, VulnerabilityCase):
+        case = self.datalayer.read_case(case_id)
+        if case is None:
             self.logger.debug(
                 "%s: case '%s' not found or wrong type", self.name, case_id
             )

@@ -204,28 +204,24 @@ does this function depend on anything above `models/`? If not, put it in
 
 ---
 
-### Receive-Side Wire Objects: Dual `isinstance` / `type_` Check for Core Types
+### Receive-Side Object Validation: Use `type_` Duck-Typing Check
 
-Core received-side use cases process incoming wire-layer activities before
-objects are stored in the DataLayer. At this boundary `case_obj` may be a
-wire-layer `as_VulnerabilityCase`, not a core `VulnerabilityCase` — so
-`isinstance(case_obj, VulnerabilityCase)` returns `False`.
+Per ADR-0034, `dl.read()` and `dl.read_case()` return fully rehydrated core
+`VulnerabilityCase` objects. `isinstance(case_obj, VulnerabilityCase)` checks
+are no longer needed after a `read_case()` call — use a `None` check instead.
 
-Without importing wire types in core (which would violate ARCH-01-001), use a
-dual check:
+At the received-side boundary where `case_obj` comes from `activity.object_`
+(not from the DataLayer), use a `type_` duck-typing check to validate the type
+without importing wire types (ARCH-01-001):
 
 ```python
-if (
-    not isinstance(case_obj, VulnerabilityCase)
-    and getattr(case_obj, "type_", None) != "VulnerabilityCase"
-):
-    # reject — neither core type nor wire type claiming to be a VulnerabilityCase
+if getattr(case_obj, "type_", None) != "VulnerabilityCase":
+    # reject — not a VulnerabilityCase
     return
 ```
 
-This accepts both `VulnerabilityCase` objects from `dl.read()` and
-`as_VulnerabilityCase` objects from incoming activities, and rejects anything
-else, without importing from `vultron/wire/`.
+This works for both core `VulnerabilityCase` (which has `type_ = "VulnerabilityCase"`)
+and any object claiming to be one, without importing from `vultron/wire/`.
 
 <!-- Source: ISSUE-1504 -->
 

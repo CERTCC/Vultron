@@ -26,7 +26,6 @@ from vultron.core.behaviors.sync.commit_tree import (
     create_commit_log_entry_tree,
 )
 from vultron.core.models._helpers import _as_id
-from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.vultron_types import VultronParticipant
 from vultron.core.ports.case_persistence import CaseOutboxPersistence
@@ -111,8 +110,8 @@ class EmitAddCaseParticipantNode(DataLayerActionWithPorts):
         than ``case.case_participants`` (which may contain bare UUID strings that
         are not valid delivery addresses).
         """
-        case = self.datalayer.read(self.case_id)  # type: ignore[union-attr]
-        if not isinstance(case, VulnerabilityCase):
+        case = self.datalayer.read_case(self.case_id)  # type: ignore[union-attr]
+        if case is None:
             return []
         return [
             actor_url

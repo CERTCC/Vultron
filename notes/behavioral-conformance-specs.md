@@ -178,17 +178,18 @@ Some ECA rules are not just "do A when B" but "do A *before* B." These use
   ThreatTerminationBranchNode).
 - **Ephemeral states: pX→PX invariant** (CSB-13-001, CSB-17-003, CSB-17-012):
   when the CS PXA state is pXa or pXA (exploit public without public awareness),
-  the next CS event MUST be P. **Write-boundary enforcement is in place** (AC-1,
-  PR #2479): `_promote_pxa()` in `AppendCaseStatusToCaseNode` and
-  `EmitCaseStatusUpdateNode`, and `_apply_ac1_promotions()` in
-  `CreateParticipantStatusNode`, prevent pXa/pXA from being persisted. However,
-  **receive-path sequencing** (`cs_invariants.required_next_cs_events()`) is not
-  yet wired into any receive path — that is #2524's scope.
+  the next CS event MUST be P. **Write-boundary enforcement** (AC-1, PR #2479):
+  `_promote_pxa()` in `AppendCaseStatusToCaseNode` and `EmitCaseStatusUpdateNode`,
+  and `_apply_ac1_promotions()` in `CreateParticipantStatusNode`, prevent
+  pXa/pXA from being persisted. **Receive-path enforcement** (PR #2888):
+  `CheckCsEphemeralStateNode` in `add_case_status_tree` returns FAILURE if
+  asserted PXA does not advance P from a pX state. See #2524, PR #2888.
 - **CS history validity** (CSB-17-004, CSB-17-005): complete CS histories must
   be one of 70 valid histories; incomplete histories must be valid prefixes.
-  Normatively specified but **not yet enforced** — `cs_invariants.is_valid_cs_history()`
-  and `is_valid_cs_history_prefix()` are not wired into any receive path. See
-  #2524.
+  Enforced in `add_case_status_tree` via `CheckCsHistoryPrefixNode` (precondition
+  guard, rejects single-event PXA transitions that produce an invalid prefix).
+  Multi-event advances and PXA regressions are deferred to
+  `FilterCsPxaDimensionNode` (RSH-05). See #2524, PR #2888.
 - **Ledger commit ordering** (from `specs/case-ledger-processing.yaml`
   CLP-10-006): precondition checks → ledger commit → protocol effects.
   Observable from audit replay.

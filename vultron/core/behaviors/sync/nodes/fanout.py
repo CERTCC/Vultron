@@ -37,7 +37,6 @@ from vultron.core.behaviors.helpers import (
     PortInformation,
 )
 from vultron.core.models._helpers import _as_id
-from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_ledger_entry import VultronCaseLedgerEntry
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.participant_status import (
@@ -114,8 +113,8 @@ class CollectNonClosedLogEntryRecipientsNode(DataLayerActionWithPorts):
         assert self.actor_id is not None
 
         entry = cast(VultronCaseLedgerEntry, self.log_entry)
-        case_obj = self.datalayer.read(self.case_id)
-        if not isinstance(case_obj, VulnerabilityCase):
+        case_obj = self.datalayer.read_case(self.case_id)
+        if case_obj is None:
             self.logger.warning(
                 "%s: case '%s' not found; skipping fan-out for '%s'",
                 self.name,
@@ -273,8 +272,8 @@ class CollectLogEntryRecipientsNode(DataLayerActionWithPorts):
         assert self.actor_id is not None
 
         entry = cast(VultronCaseLedgerEntry, self.log_entry)
-        case_obj = self.datalayer.read(self.case_id)
-        if not isinstance(case_obj, VulnerabilityCase):
+        case_obj = self.datalayer.read_case(self.case_id)
+        if case_obj is None:
             self.logger.warning(
                 "%s: case '%s' not found; skipping fan-out for '%s'",
                 self.name,
