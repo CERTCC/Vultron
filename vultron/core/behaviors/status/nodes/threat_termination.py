@@ -97,7 +97,12 @@ class _ThreatTerminationSkipConditionNode(DataLayerConditionWithPorts):
         if case_status is None:
             return False
         if hasattr(case_status, "pxa"):
-            pxa_state = getattr(case_status, "pxa").state
+            pxa = getattr(case_status, "pxa")
+            # A participant that has not set its PXA dimension has asserted no
+            # public exploit or attack, so there is no threat to react to.
+            if pxa is None:
+                return False
+            pxa_state = pxa.state
         elif hasattr(case_status, "pxa_state"):
             pxa_state = getattr(case_status, "pxa_state")
         else:
