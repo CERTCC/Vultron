@@ -440,14 +440,6 @@ def test_ask_carries_no_restricted_disclosure_field() -> None:
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "ASK-07-001: an unresolvable inbound activity is dead-lettered and a "
-        "protocol-invalid payload is rejected, and in neither case is the "
-        "sender notified (CONCERN-1880). Tracked by #2889."
-    ),
-)
 @pytest.mark.spec("ASK-07-001")
 def test_processing_fault_type_exists_for_sender_notification() -> None:
     """An unprocessable activity MUST notify an authenticated sender (ASK-07-001)."""
@@ -457,14 +449,6 @@ def test_processing_fault_type_exists_for_sender_notification() -> None:
     )
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "ASK-07-002: no ProcessingFault type exists, so the "
-        "authenticated-senders-only guard has no subject. Asserting the "
-        "prohibition today would pass vacuously. Tracked by #2889."
-    ),
-)
 @pytest.mark.spec("ASK-07-002")
 def test_processing_fault_is_gated_on_sender_authentication() -> None:
     """A fault MUST NOT be emitted to an unauthenticated sender (ASK-07-002).
@@ -477,13 +461,6 @@ def test_processing_fault_is_gated_on_sender_authentication() -> None:
     ), "No ProcessingFault type is importable."
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "ASK-07-003: no dedicated ProcessingFault object type is registered. "
-        "Tracked by #2889."
-    ),
-)
 @pytest.mark.spec("ASK-07-003")
 def test_processing_fault_is_a_dedicated_type_with_a_failure_class() -> None:
     """ProcessingFault MUST be a dedicated type carrying a failure class (ASK-07-003).
@@ -497,13 +474,6 @@ def test_processing_fault_is_a_dedicated_type_with_a_failure_class() -> None:
     assert _field_names(fault) & {"failure_class", "type_", "problem_type"}
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "ASK-07-004: no ProcessingFault type exists, so nothing yet identifies "
-        "the failed activity by reference. Tracked by #2889."
-    ),
-)
 @pytest.mark.spec("ASK-07-004")
 def test_processing_fault_references_the_failed_activity() -> None:
     """ProcessingFault MUST identify the failed activity by reference (ASK-07-004).
@@ -521,9 +491,8 @@ def test_processing_fault_references_the_failed_activity() -> None:
 @pytest.mark.xfail(
     strict=True,
     reason=(
-        "ASK-07-005: no ProcessingFault type exists, so no failure classes are "
-        "minted as Vultron-namespace URIs and no RFC 9457 members are carried. "
-        "Tracked by #2889."
+        "ASK-07-005: as_ProcessingFault exists but lacks RFC 9457 `title` and "
+        "`detail` fields. Tracked by #2889."
     ),
 )
 @pytest.mark.spec("ASK-07-005")
@@ -540,14 +509,6 @@ def test_processing_fault_uses_rfc9457_with_namespaced_failure_classes() -> (
     } <= names, f"ProcessingFault lacks RFC 9457 members; got {sorted(names)}."
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "ASK-07-006: no ProcessingFault schema exists to check for diagnostic "
-        "fields. Asserting their absence today would pass vacuously. Tracked "
-        "by #2889."
-    ),
-)
 @pytest.mark.spec("ASK-07-006")
 def test_processing_fault_admits_no_implementation_diagnostics() -> None:
     """ProcessingFault MUST NOT carry stack traces or parser internals (ASK-07-006).
@@ -579,13 +540,6 @@ def test_processing_fault_closes_the_outstanding_ask_it_names() -> None:
     ), "No outstanding-ask register is importable."
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "ASK-07-008: no fault is emitted, so no case-attributable fault is "
-        "recorded as a canonical entry. Tracked by #2889."
-    ),
-)
 @pytest.mark.spec("ASK-07-008")
 def test_case_attributable_fault_is_recorded_in_the_ledger() -> None:
     """A case-attributable fault MUST be a recorded CaseLedgerEntry (ASK-07-008).

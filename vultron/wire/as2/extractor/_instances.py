@@ -362,6 +362,21 @@ RemoveCaseParticipantFromCasePattern = ActivityPattern(
 )
 
 # ---------------------------------------------------------------------------
+# ProcessingFault patterns (ASK-07-001, ADR-0080)
+# ---------------------------------------------------------------------------
+
+CreateProcessingFaultPattern = ActivityPattern(
+    description=(
+        "Receiver notifies an authenticated sender that their status assertion "
+        "could not be processed. "
+        "Corresponds to Create(as_ProcessingFault) — ASK-07-001, ADR-0080."
+    ),
+    activity_=TAtype.CREATE,
+    object_=VOtype.PROCESSING_FAULT,
+    strict=True,
+)
+
+# ---------------------------------------------------------------------------
 # Case status / participant status patterns
 # ---------------------------------------------------------------------------
 
