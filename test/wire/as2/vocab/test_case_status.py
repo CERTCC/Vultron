@@ -107,6 +107,62 @@ class TestFromCorePreservesPublished(unittest.TestCase):
         wire = as_CaseStatus.from_core(core)
         self.assertEqual(self._FIXED_TIME, wire.published)
 
+
+class TestCoerceUnknownEnumNames(unittest.TestCase):
+    """Unknown enum name strings must raise ValidationError, not KeyError (#2964).
+
+    Pydantic v2 only catches ValueError/AssertionError from field validators.
+    Using Enum[name] raises KeyError on unknown inputs, which propagates as a
+    500-class error instead of a clean 422 ValidationError.
+    """
+
+    def test_vf_state_unknown_raises_validation_error(self):
+        """as_ParticipantStatus with bogus vf_state raises ValidationError."""
+        with pytest.raises(ValidationError):
+            as_ParticipantStatus(
+                attributed_to=ACTOR_ID,
+                context=CASE_ID,
+                vf_state="BOGUS_VF",  # type: ignore[arg-type]
+            )
+
+    def test_d_state_unknown_raises_validation_error(self):
+        """as_ParticipantStatus with bogus d_state raises ValidationError."""
+        with pytest.raises(ValidationError):
+            as_ParticipantStatus(
+                attributed_to=ACTOR_ID,
+                context=CASE_ID,
+                d_state="BOGUS_D",  # type: ignore[arg-type]
+            )
+
+    def test_pxa_state_unknown_raises_validation_error(self):
+        """as_CaseStatus with bogus pxa_state raises ValidationError."""
+        with pytest.raises(ValidationError):
+            as_CaseStatus(pxa_state="BOGUS_PXA")  # type: ignore[arg-type]
+
+    def test_rm_state_unknown_raises_validation_error(self):
+        """as_ParticipantStatus with bogus rm_state raises ValidationError."""
+        with pytest.raises(ValidationError):
+            as_ParticipantStatus(
+                attributed_to=ACTOR_ID,
+                context=CASE_ID,
+                rm_state="BOGUS_RM",  # type: ignore[arg-type]
+            )
+
+    def test_em_consent_state_unknown_raises_validation_error(self):
+        """as_ParticipantStatus with bogus emConsentState raises ValidationError."""
+        with pytest.raises(ValidationError):
+            as_ParticipantStatus(
+                attributed_to=ACTOR_ID,
+                context=CASE_ID,
+                emConsentState="BOGUS_PEC",  # type: ignore[call-arg]
+            )
+
+
+class TestFromCorePreservesFields(unittest.TestCase):
+    """from_core must preserve published and cvd_role (regression: issue #2511)."""
+
+    _FIXED_TIME = datetime(2020, 1, 1, 0, 0, 0, tzinfo=timezone.utc)
+
     def test_as_participant_status_from_core_preserves_published(self):
         core = CoreParticipantStatus(
             context=CASE_ID,

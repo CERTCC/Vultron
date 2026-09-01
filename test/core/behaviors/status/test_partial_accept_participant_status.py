@@ -297,7 +297,7 @@ def _seed_case(
         id_=PARTICIPANT_ID,
         context=CASE_ID,
         attributed_to=ACTOR_ID,
-        case_roles=[CVDRole.CASE_OWNER],
+        case_roles=[CVDRole.CASE_OWNER, CVDRole.VENDOR],
     )
     vendor.participant_statuses.append(current)
     manager = as_CaseParticipant(
@@ -1147,3 +1147,149 @@ class TestOverrideIncludesProducerType:
             override.get("producer_type")
             == "FilterParticipantStatusDimensionsNode"
         ), "RSH-05-011: producer_type must identify the producing node"
+
+
+class TestAdjudicateDimensionsRoleGuards:
+    """Role-gated adjudication for VF and D dimensions (#2965, #2893).
+
+    VF writes require VENDOR role; D writes require DEPLOYER role.
+    These guards apply on the received path: a peer without the appropriate
+    role must have the dimension refused rather than accepted.
+
+    The cross-dimension VF↔D check (#2893 received path): a peer asserting
+    d=D without vf=VF (fix not ready) is also refused on the D dimension.
+    """
+
+    def _adjudicate(self, current, asserted, roles=None):
+        from vultron.core.behaviors.status.nodes._adjudication import (
+            _adjudicate_dimensions,
+        )
+
+        return _adjudicate_dimensions(
+            current.to_core(), asserted.to_core(), roles=roles
+        )
+
+    def test_vf_write_refused_without_vendor_role(self):
+        """#2965: Peer without VENDOR role must not advance VF dimension."""
+        current = _current_status(RM.VALID, CS_vf.Vf, CS_pxa.pxa)
+        asserted = _asserted_status(RM.VALID, CS_vf.VF, CS_pxa.pxa)
+
+        refused, _ = self._adjudicate(
+            current, asserted, roles=[CVDRole.COORDINATOR]
+        )
+
+        assert "vf" in refused, "VF write must be refused without VENDOR role"
+
+    def test_d_write_refused_without_deployer_role(self):
+        """#2965: Peer without DEPLOYER role must not advance D dimension."""
+        from vultron.core.states.cs import CS_d
+
+        current_d = _current_status(RM.ACCEPTED, CS_vf.VF, CS_pxa.pxa)
+        asserted_d = _asserted_status(RM.ACCEPTED, CS_vf.VF, CS_pxa.pxa)
+        current_core = current_d.to_core()
+        asserted_core = asserted_d.to_core()
+        from vultron.core.models.dimensions import DDimension
+
+        current_core = current_core.model_copy(
+            update={"d": DDimension(state=CS_d.d)}
+        )
+        asserted_core = asserted_core.model_copy(
+            update={"d": DDimension(state=CS_d.D)}
+        )
+
+        from vultron.core.behaviors.status.nodes._adjudication import (
+            _adjudicate_dimensions,
+        )
+
+        refused, _ = _adjudicate_dimensions(
+            current_core, asserted_core, roles=[CVDRole.VENDOR]
+        )
+
+        assert "d" in refused, "D write must be refused without DEPLOYER role"
+
+    def test_vf_write_accepted_with_vendor_role(self):
+        """#2965: Peer WITH VENDOR role can advance VF dimension."""
+        current = _current_status(RM.VALID, CS_vf.Vf, CS_pxa.pxa)
+        asserted = _asserted_status(RM.VALID, CS_vf.VF, CS_pxa.pxa)
+
+        refused, _ = self._adjudicate(
+            current, asserted, roles=[CVDRole.VENDOR]
+        )
+
+        assert (
+            "vf" not in refused
+        ), "VF write must be accepted with VENDOR role"
+
+    def test_vf_not_ready_d_deployed_refused_on_receive(self):
+        """#2893 received path: peer with vf=Vf asserting d=D must have D refused.
+
+        The *fD* compound state is structurally impossible (CSB-17-001).
+        The adjudication path must refuse D when vf is not VF.
+        """
+        from vultron.core.states.cs import CS_d
+        from vultron.core.models.dimensions import DDimension
+
+        current_core = _current_status(
+            RM.ACCEPTED, CS_vf.Vf, CS_pxa.pxa
+        ).to_core()
+        asserted_core = _asserted_status(
+            RM.ACCEPTED, CS_vf.Vf, CS_pxa.pxa
+        ).to_core()
+        current_core = current_core.model_copy(
+            update={"d": DDimension(state=CS_d.d)}
+        )
+        asserted_core = asserted_core.model_copy(
+            update={"d": DDimension(state=CS_d.D)}
+        )
+
+        from vultron.core.behaviors.status.nodes._adjudication import (
+            _adjudicate_dimensions,
+        )
+
+        refused, _ = _adjudicate_dimensions(
+            current_core,
+            asserted_core,
+            roles=[CVDRole.VENDOR, CVDRole.DEPLOYER],
+        )
+
+        assert (
+            "d" in refused
+        ), "D write must be refused when vf≠VF + d=D (CSB-17-001 received path)"
+
+    def test_vf_refused_no_history_does_not_spuriously_refuse_d(self):
+        """Fix: when VF is refused (no VENDOR) and current_vf=None, effective_vf
+        must be None — not asserted_vf — so D is not spuriously refused.
+
+        Before the fix: update_fields.get("vf") returned None whether the key
+        was absent or set-to-None (refused with no history), causing the code
+        to fall through to effective_vf=asserted_vf.  When asserted_vf lacked
+        the F bit, violation_vf_d_entailment refused D even though VF was
+        rejected and the participant has no VF history at all.
+        With the fix: "vf" in update_fields correctly identifies the refused-
+        with-no-history case → effective_vf=None → entailment check skipped
+        (per CSB-17-001 design: no check when vf=None).
+        """
+        from vultron.core.states.cs import CS_d
+        from vultron.core.models.dimensions import DDimension
+        from vultron.core.behaviors.status.nodes._adjudication import (
+            _adjudicate_dimensions,
+        )
+
+        # current has no VF history; sender lacks VENDOR but has DEPLOYER
+        current_core = _current_status(RM.ACCEPTED, None, CS_pxa.pxa).to_core()
+        asserted_core = _asserted_status(
+            RM.ACCEPTED, CS_vf.vf, CS_pxa.pxa
+        ).to_core()
+        asserted_core = asserted_core.model_copy(
+            update={"d": DDimension(state=CS_d.D)}
+        )
+
+        refused, _ = _adjudicate_dimensions(
+            current_core, asserted_core, roles=[CVDRole.DEPLOYER]
+        )
+
+        assert "d" not in refused, (
+            "D must not be spuriously refused when VF was refused (no VENDOR) "
+            "and current_vf=None: effective_vf should be None (unknown), "
+            "not the rejected asserted_vf"
+        )

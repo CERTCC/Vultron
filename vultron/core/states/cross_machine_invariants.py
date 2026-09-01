@@ -137,6 +137,37 @@ def violation_rm_vfd_entailment(rm: RM, vfd: CS_vfd) -> str | None:
     )
 
 
+def violation_vf_d_entailment(vf: CS_vf | None, d: CS_d | None) -> str | None:
+    """Return an error string if (vf, d) violates the fix-deployment entailment.
+
+    Fix deployment (d=D) requires fix readiness (vf=VF).  The compound state
+    ``*fD*`` (deployed without ready) is structurally impossible per CSB-17-001.
+    When vf is None the check cannot be applied (no VF information available).
+
+    Returns:
+        None when the combination is valid or insufficient information exists.
+        A descriptive error string when the entailment is violated.
+
+    Source: docs/reference/glossary.md § Case State Model (Six Dimensions)
+    Spec: CSB-17-001
+    """
+    if d not in D_FIX_DEPLOYED:
+        return None
+    assert (
+        d is not None
+    )  # D_FIX_DEPLOYED contains only CS_d members, never None
+    if vf is None:
+        return None
+    if vf in VF_FIX_READY:
+        return None
+    return (
+        f"Cross-machine entailment violated: D={d.name!r} (fix deployed)"
+        f" requires VF={CS_vf.VF.name!r} (fix ready),"
+        f" but VF={vf.name!r} (fix not ready)."
+        " Fix deployment cannot precede fix readiness (CSB-17-001)."
+    )
+
+
 def violation_pxa_em_entailment(pxa: CS_pxa, em: EM) -> str | None:
     """Return an error string if (pxa, em) violates the disclosure/embargo entailment.
 
