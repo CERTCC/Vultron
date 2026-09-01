@@ -124,18 +124,24 @@ def _collect_anchor_citations() -> list[Citation]:
 
 
 def _collect_positional_citations() -> list[tuple[str, int, str]]:
-    """Find all ADR-NNNN decision N (positional) citations in source files."""
+    """Find all ADR-NNNN decision N (positional) citations in source files.
+
+    Scans the full file text (not per-line) so that citations split across a
+    line break — e.g. ``(ADR-0073 decision\\n5)`` — are also caught.  The
+    reported line number is the line on which the match begins.
+    """
     hits: list[tuple[str, int, str]] = []
     for path in _iter_source_files():
         try:
             text = path.read_text(encoding="utf-8", errors="replace")
         except OSError:
             continue
-        for lineno, line in enumerate(text.splitlines(), start=1):
-            if _POSITIONAL_CITATION_RE.search(line):
-                hits.append(
-                    (str(path.relative_to(_REPO_ROOT)), lineno, line.strip())
-                )
+        for m in _POSITIONAL_CITATION_RE.finditer(text):
+            lineno = text[: m.start()].count("\n") + 1
+            # Report the matched text with surrounding whitespace stripped.
+            hits.append(
+                (str(path.relative_to(_REPO_ROOT)), lineno, m.group(0).strip())
+            )
     return hits
 
 
@@ -224,14 +230,27 @@ class TestBadCitationDetected:
             '"""Uses ADR-0073 decision 5 which no longer exists as a number."""\n'
         )
 
-        hits = []
-        text = bad_file.read_text()
-        for lineno, line in enumerate(text.splitlines(), start=1):
-            if _POSITIONAL_CITATION_RE.search(line):
-                hits.append((str(bad_file), lineno, line.strip()))
-
+        hits = list(_POSITIONAL_CITATION_RE.finditer(bad_file.read_text()))
         assert hits, "detector must find the positional citation"
-        assert any("decision 5" in h[2] for h in hits)
+        assert any("decision 5" in m.group(0) for m in hits)
+
+    def test_split_line_positional_citation_detected(self):
+        """A positional citation split across a line break is caught.
+
+        ``_collect_positional_citations`` scans full-file text so that patterns
+        like ``(ADR-0073 decision\\n5)`` — where the digit is on the next line —
+        are still detected.  This demonstrates that the ``\\s+`` in the regex
+        spans the newline when ``finditer`` runs on the whole text.
+        """
+        split_text = (
+            "shares its owner's container but not its store (ADR-0073 decision\n"
+            "            5), so reading the owner's replica reports the owner's view.\n"
+        )
+        hits = list(_POSITIONAL_CITATION_RE.finditer(split_text))
+        assert hits, "detector must find the split-line positional citation"
+        assert any(
+            "decision" in m.group(0) and "5" in m.group(0) for m in hits
+        )
 
     def test_missing_anchor_detected(self, tmp_path):
         """A citation pointing at a nonexistent anchor is caught.
