@@ -8,6 +8,8 @@ description: >
   orphan recovery, and skill updates.
 related_specs:
   - specs/parallel-development.yaml
+related_notes:
+  - notes/git-workflow-pitfalls.md
 ---
 
 # Parallel Agentic Development: GitHub Issue-Based Coordination

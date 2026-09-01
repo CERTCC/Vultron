@@ -15,6 +15,7 @@ related_notes:
   - notes/architecture-hexagonal.md
   - notes/activitystreams-semantics.md
   - notes/wire-core-boundary.md
+  - notes/testing-pitfalls.md
 relevant_packages:
   - vultron/core/ports
   - vultron/adapters/driven
@@ -432,9 +433,9 @@ losing the at-offer-time snapshot. Even if Activities eventually gain
 independent DataLayer records (removing the technical constraint), the semantic
 reason alone prohibits recursive dehydration here.
 
-*Source: CONCERN-2219. See also `notes/wire-artifact-immutability.md` for the
+Source: CONCERN-2219. See also `notes/wire-artifact-immutability.md` for the
 full design (A/B split, `frozen=True` enforcement, outbound blob pipeline, and
-VM-08-002/003 spec requirements).*
+VM-08-002/003 spec requirements).
 
 ---
 
@@ -573,3 +574,15 @@ by path: BW-03-002 requires every incoming learning to be archived out of
 `plan/incoming/learnings/` into `plan/history/YYMM/learning/`, so any such path
 is guaranteed to go stale. Search `plan/history/` by slug if the original is
 wanted.
+
+## Declaring a Test's Executing Actor
+
+Because a BT's store follows its executing actor (BT-05-005, above), a test that
+seeds one actor's store and runs `execute_with_setup(actor_id=<other>)` reads an
+empty one. Declare the executor with `@pytest.mark.executes_as(ACTOR)` —
+`bt_scenario` honours it — or build the scenario per actor with
+`bt_scenario_factory`. Derive a test's executing actor by looking at
+`execute_with_setup(actor_id=…)` and `receiving_actor_id`, never from fixture or
+test names.
+
+Source: ISSUE-2238

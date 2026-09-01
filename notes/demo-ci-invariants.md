@@ -5,6 +5,8 @@ related_specs:
   - specs/demo-ci.yaml
   - specs/multi-actor-demo.yaml
   - specs/ci-security.yaml
+related_notes:
+  - notes/ci-workflow-authoring.md
 ---
 
 # Demo CI Invariant Harness Design
@@ -496,3 +498,21 @@ pattern: any harness check that asserts "event X was observed" can become a
 false failure if scenario Y never produces event X by design. The harness parameter
 that enables/disables the check is the correct mechanism, not skipping the
 invariant entirely.
+
+## Invariant Harness Failures Are Independent of Demo Failures (DEMOCI-04)
+
+The case-ledger invariant harness (`test/ci/invariants/`) runs as a **separate CI
+job** from the demo run. When adding or modifying a scenario test file:
+
+- Do NOT add the invariant harness step back into the demo job — the two must stay
+  in separate jobs so each gets its own PR status check.
+- When a demo run and its invariants both fail, **always check the invariant job
+  separately** — invariant failures can point to a different root cause than the
+  demo failure.
+
+**Per-scenario expected-event-types**: each `_XXX_EXPECTED_EVENT_TYPES` list must
+be comprehensive for its scenario (see DEMOMA-16-001 through DEMOMA-16-011). When
+adding a new scenario phase that produces a new `event_type`, update both the spec
+requirement and the test constant in the same PR.
+
+Sources: CONCERN-1649, PR-1590

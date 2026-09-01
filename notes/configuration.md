@@ -11,6 +11,8 @@ relevant_packages:
   - vultron/config
   - vultron/adapters
   - vultron/core
+related_notes:
+  - notes/testing-pitfalls.md
 ---
 
 # Configuration Management — Implementation Notes
@@ -521,3 +523,20 @@ Files in `docker/seed-configs/` use the `local_actor:` block for bootstrap
 identity (`name`, `actor_type`, `id`). Actor policy fields that were previously
 in `local_actor:` (`auto_create_case`, `default_case_roles`) must move to a
 separate `config.yaml` `actor:` section in those deployments.
+
+## A Test That Needs `VULTRON_*` Config MUST Set It Itself
+
+The flip side of the teardown-ordering rule above: fixing a leak removes config
+that downstream tests may have been silently borrowing. `test_create_tree.py` and
+`nodes/test_communication.py` both run `ResolveCaseActorUrlsNode` (via
+`CreateCaseActorNode` / `CreateCaseBT`), which returns FAILURE when
+`case_actor_service_url` is None (CP-08-002/003) — yet neither module set it.
+They passed only because another module leaked the value into the process-global
+cache first, and failed in isolation or in a subset run (#1897).
+
+Each module that depends on a `VULTRON_*` setting needs its own autouse fixture
+setting it, using the `monkeypatch.undo()`-then-`reload_config()` teardown order.
+Verify with a targeted run, not just the full suite — a module that only passes in
+a full-suite run is order-dependent, not passing.
+
+Source: #1897 / PR #2126

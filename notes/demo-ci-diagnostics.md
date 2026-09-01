@@ -12,6 +12,7 @@ related_notes:
   - notes/demo-ci.md
   - notes/case-ledger-authority.md
   - notes/sync-ledger-replication.md
+  - notes/ci-workflow-authoring.md
 relevant_packages:
   - vultron/adapters/driven
   - vultron/adapters/driving/fastapi/routers
@@ -392,3 +393,16 @@ Wrap all `wait_for_*` calls in either `demo_gate` (causal) or `demo_check`
 When a fix lands that resolves an xfail invariant, see
 `test/ci/README-case-log-ratchet.md` for the step-by-step process to
 promote the test from `XFAIL` to a permanent regression guard.
+
+## Trace Shared Helper Layers Before Declaring an Event Unemitted
+
+In the demo suite, protocol activity is emitted from shared helpers in
+`vultron/demo/helpers/workflow.py` (e.g. `receiver_engages_case()`,
+`run_direct_path_rm_triage()`), not from the scenario files. Grepping a scenario
+file — or even all of `vultron/demo/scenario/` — finds nothing and invites the
+false conclusion that no code emits the event. Search the helper and
+semantic-registry layers, and confirm against `graphify explain "<function>"`
+call edges, before asserting absence. CONCERN-2243 filed a Concern on this basis
+for an event emitted by all nine scenarios.
+
+Source: CONCERN-2243

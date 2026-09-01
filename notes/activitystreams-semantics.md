@@ -377,3 +377,27 @@ a Case" note), `vultron/demo/manage_case_demo.py` (`demo_defer_reengage_path`).
 ---
 
 > See also: [activitystreams-state-update.md](activitystreams-state-update.md) for the continuation of these design notes.
+
+## `Reject(Invite(actor, case))` Carries the Case in `inner_target`
+
+`extract_event` does NOT populate `request.target` for the Reject; the case
+reference is on the nested Invite's `target` field, exposed as
+`request.inner_target_id`. Always read `request.inner_target_id or
+request.target_id` (or use a typed `case_id` property on the event class) when
+resolving `case_id` for `RejectInviteActorToCaseReceivedUseCase`. The same
+nesting applies to `Accept(Invite(actor, case))` —
+`AcceptInviteActorToCaseReceivedEvent.case_id` already follows this pattern.
+See CM-11-003.
+
+Source: ISSUE-1747
+
+## `SemanticEntry` Phrases MUST Use Only `{actor}`, `{object}`, `{target}`
+
+The runtime render pipeline (`CaseTimelineEvent.summary`, `event_phrase()`)
+never fills `{context}`, `{origin}`, or `{inner_object}`. A phrase referencing
+one of those slots passes the `defaultdict`-based SE-07-004 test (which fills
+every slot with `"X"`) but produces a dangling `"—"` in production. The
+allowlist test (SE-07-005 in `test/test_semantic_registry.py`) enforces this
+structurally.
+
+Source: CONCERN-1898

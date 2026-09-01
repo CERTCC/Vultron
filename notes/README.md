@@ -695,6 +695,15 @@ xdist compatibility notes, and alternatives considered.
 a new architecture ratchet test, auditing full-suite performance, or evaluating
 xdist compatibility.
 
+**`testing-pitfalls.md`**
+Full write-ups for the pytest pitfalls that `test/AGENTS.md` only indexes:
+reading a killed run, the two-tier timeout guardrail and why a tight ceiling
+reads as flakiness, fixture/blackboard isolation, py_trees test patterns,
+assertion-quality traps (vacuous asserts, "falls back to" tests, bare
+`MagicMock`), and test layout rules for module splits.
+**Load when**: writing or debugging tests, diagnosing an order-dependent or
+apparently-flaky failure, or reviewing a test for vacuous assertions.
+
 **`flaky-tests.md`**
 Fast-lookup catalog of known flaky tests and CI jobs → tracking issue numbers.
 Used by `pr-execute` as a cache before querying GitHub. GitHub is ground truth;
@@ -702,6 +711,23 @@ this file is a speed hint. Maintained by `pr-execute` (add) and `bugfix`/`build`
 (remove on issue close).
 **Load when**: triaging a pre-existing test failure in `pr-execute`, or auditing
 the current set of known-flaky tests.
+
+**`devcontainer-tooling.md`**
+Environment-level pitfalls in this devcontainer: why every tool runs under
+`uv run`, why `PYTHONPATH` must be cleared, the `UV_NO_SYNC=1` workaround for a
+root-owned venv, the broken `gh` credential-helper path, and the hard-linked
+`.agents/` and `.claude/` skill trees.
+**Load when**: a tool fails to start, `git push` cannot authenticate, or you are
+about to edit a skill file.
+
+**`ci-workflow-authoring.md`**
+Pitfalls when writing or reading GitHub Actions workflows: PyYAML resolving bare
+`on:` to `True`, matrix booleans failing differently at job- vs. step-level
+`if:`, `actionlint` and block-scalar indentation, single-quoted apostrophes, the
+mandatory `notify-failure` wiring, and how to read a red job that never ran its
+assertions.
+**Load when**: adding or editing a `.github/workflows/` file, or diagnosing a CI
+failure whose logs do not match the test it blames.
 
 **`docker-build.md`**
 Project-specific Docker build observations: dependency layer caching, image
@@ -814,6 +840,14 @@ composite capability design, and the fuzzer-node discovery methodology.
 working on the fuzzer-to-capability replacement roadmap, or explaining the
 capability shape concept to new contributors.
 
+**`git-workflow-pitfalls.md`**
+The git and GitHub side of agentic development: rebase failures that are false
+positives, `freshen-branch.sh` recovery, integration branches for related fix
+PRs, `claim-issue.sh` preconditions, ADR number races, and the combined
+verify-ACs-then-add-`Closes #N` rule.
+**Load when**: a rebase or merge misbehaves, several related fix PRs are open at
+once, or an issue looks implemented but is still open.
+
 **`agents-md-structure.md`**
 Routing policy for `AGENTS.md` content: the decision tree for whether new
 guidance belongs in root `AGENTS.md`, a per-directory `AGENTS.md` file
@@ -839,6 +873,15 @@ Docs chronology and trust levels, process models, formal protocol reference,
 behavior simulator reference, Do Work behaviors, and ISO crosswalks.
 **Load when**: evaluating where new documentation belongs, or cross-referencing
 Vultron docs to ISO/CVD process standards.
+
+**`spec-authoring-rules.md`**
+Mechanical rules for authoring spec YAML: the exact enums `spec-lint` accepts
+for `kind`, `priority`, and `rel_type`; keys silently dropped by `spec-dump`;
+the protocol-coverage ratchet and its strict-`xfail` pattern; and the audit
+passes required when retiring a name or splitting a compound requirement.
+**Load when**: adding or editing any `specs/*.yaml` entry, or debugging a
+spec-lint / `spec-dump` failure. Pair with `specs-vs-adrs.md` for *whether* the
+requirement belongs in a spec at all.
 
 **`notes-frontmatter.md`**
 Design decisions for YAML frontmatter schema in `notes/*.md` files: required

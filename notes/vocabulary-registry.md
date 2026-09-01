@@ -259,3 +259,23 @@ class is a faithful supertype of the stored data.
 - `vultron/wire/as2/vocab/base/registry.py` — implementation
 - `vultron/wire/as2/vocab/base/base.py` — `as_Base` class
 - `notes/activitystreams-semantics.md` — AS2 type model
+
+## Registry Keys Are Disjoint: `VOCABULARY` vs. `WIRE_TYPE_MAP` (ARCH-23-002)
+
+All classes in `vultron/wire/as2/vocab/objects/` use the `as_` prefix. The bare
+name (`VulnerabilityCase`) always refers to the **core** domain model; the
+prefixed name (`as_VulnerabilityCase`) is the wire type. See ARCH-14-001.
+
+The two registries are keyed differently, and the distinction matters
+(ARCH-23-002, issue #2941):
+
+| Registry | Key | Example |
+|---|---|---|
+| `VOCABULARY` | full `as_*` class name | `"as_VulnerabilityCase"` |
+| `WIRE_TYPE_MAP` | wire `type_` value | `"VulnerabilityCase"` |
+
+The render adapter resolves a core class to its wire counterpart with
+`WIRE_TYPE_MAP.get(type(obj).__name__)`. Never resolve a core type's wire
+counterpart by name coincidence — use `WIRE_TYPE_MAP` (for `type_` values) or
+`VOCABULARY` (for wire class-name lookups). The full pairing registry
+(ARCH-23-001) is tracked by issue #2937.

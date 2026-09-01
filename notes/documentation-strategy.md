@@ -7,6 +7,7 @@ description: >
 related_notes:
   - notes/bt-integration.md
   - notes/case-state-model.md
+  - notes/spec-authoring-rules.md
 relevant_packages:
   - vultron/bt
   - vultron/core
@@ -266,3 +267,8 @@ into a clearly marked "historical" section rather than delete:
 A reasonable convention: add a front-matter note to historical docs stating
 the document predates the ActivityStreams implementation and may not reflect
 current design. This preserves historical context without causing confusion.
+
+## MkDocs `not_in_nav` and `exclude_docs` Are Not the Same
+
+Files excluded from nav MUST ALSO be listed in `not_in_nav`; the overlay list
+*replaces* the base list rather than extending it.

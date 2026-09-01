@@ -138,3 +138,13 @@ and
 [notes/activitystreams-semantics.md](../../../notes/activitystreams-semantics.md)
 for all AS2 pitfalls (pattern matching, Union serialization, wire format vs.
 domain model, `serialize_as_any=True`, rehydration, bootstrap activities, etc.).
+
+**Outbound `@context` MUST cite the Vultron namespace, not only AS2** —
+`VultronAS2Object.context_` MUST default to the Vultron JSON-LD context URI
+(`https://certcc.github.io/Vultron/ns/context.jsonld`), not the bare
+ActivityStreams namespace (`https://www.w3.org/ns/activitystreams`). The AS2
+namespace does not declare Vultron-specific types (`VulnerabilityCase`,
+`EmbargoEvent`, etc.); using it alone means receivers cannot resolve those type
+names. The Vultron context document imports AS2 internally, so citing only the
+Vultron URI is both correct and sufficient. See VM-10-001, ADR-0069.
+*Source: CONCERN-2105*
