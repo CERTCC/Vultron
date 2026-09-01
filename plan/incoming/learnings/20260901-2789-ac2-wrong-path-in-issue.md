@@ -3,7 +3,7 @@ title: "ISSUE-2789 AC-2 named a path that would have duplicated an existing scen
 type: learning
 timestamp: 2026-09-01
 source: ISSUE-2789
-signal: scope-judgment
+signal: process-issue
 ---
 
 ## The decision

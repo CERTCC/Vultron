@@ -3,7 +3,7 @@ title: "A catch-up merge silently reverted PR #2882's BT wiring, and no test not
 type: learning
 timestamp: 2026-09-01
 source: ISSUE-2789
-signal: process-gap
+signal: process-issue
 ---
 
 ## What happened

@@ -3,7 +3,7 @@ title: "CM-24-002's attributed_to was dropped at extraction, so no core code cou
 type: learning
 timestamp: 2026-09-01
 source: ISSUE-2789
-signal: spec-implementation-gap
+signal: concern
 ---
 
 ## What was wrong
