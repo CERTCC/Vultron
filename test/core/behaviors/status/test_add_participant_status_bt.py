@@ -1574,7 +1574,7 @@ class TestRejectionValidatorBeforeCommit:
             id_=PARTICIPANT_ID,
             context=CASE_ID,
             attributed_to=ACTOR_ID,
-            case_roles=[CVDRole.CASE_OWNER],
+            case_roles=[CVDRole.CASE_OWNER, CVDRole.VENDOR],
         )
         vendor_participant.participant_statuses.append(existing_status)
         case.add_participant(cast(CaseParticipant, vendor_participant))

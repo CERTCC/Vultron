@@ -66,7 +66,10 @@ def _coerce_pxa(v: object) -> CS_pxa:
     if isinstance(v, CS_pxa):
         return v
     if isinstance(v, str):
-        return CS_pxa[v]
+        try:
+            return CS_pxa[v]
+        except KeyError:
+            raise ValueError(f"Unknown CS_pxa value: {v!r}") from None
     return CS_pxa.pxa
 
 
@@ -74,7 +77,7 @@ def _coerce_rm(v: object) -> RM:
     if isinstance(v, RM):
         return v
     if isinstance(v, str):
-        return RM[v]
+        return RM(v)
     return RM.START
 
 
@@ -84,7 +87,7 @@ def _coerce_vf_or_none(v: object) -> CS_vf | None:
     if isinstance(v, CS_vf):
         return v
     if isinstance(v, str):
-        return CS_vf[v]
+        return CS_vf(v)
     return None
 
 
@@ -94,7 +97,7 @@ def _coerce_d_or_none(v: object) -> CS_d | None:
     if isinstance(v, CS_d):
         return v
     if isinstance(v, str):
-        return CS_d[v]
+        return CS_d(v)
     return None
 
 
@@ -104,7 +107,7 @@ def _coerce_pec_or_none(v: object) -> PEC | None:
     if isinstance(v, PEC):
         return v
     if isinstance(v, str):
-        return PEC[v]
+        return PEC(v)
     return None
 
 
