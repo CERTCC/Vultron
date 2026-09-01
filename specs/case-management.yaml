@@ -1801,7 +1801,7 @@ groups:
       its consent state in a single transition, so a placeholder entry is unnecessary. Emitting two entries per participant would
       also shift every downstream `log_index`; PR #1746 was reverted for exactly that, having broken `fvcv-extension` VFD
       replication timing. Holding initialization to one entry per participant keeps `log_index` order stable and preserves the
-      ADR-0041 property that `log_index` order is causal order.'
+      ADR-0079 property that `log_index` order is causal order (CLP-14-001).'
     verification: Integration tests in `test/demo/` confirm that the default embargo is
       established before each participant's PEC state is written during case initialization, so
       each initial `ParticipantStatus` carries the correct post-initialization consent value.
@@ -3290,3 +3290,35 @@ groups:
       spec_id: CM-27-001
     adr:
     - ADR-0064
+- id: CM-29
+  title: Case Status Recency Resolution
+  description: Rules for determining which CaseStatus snapshot is the most recent
+    when multiple snapshots exist in the case_statuses history.
+  specs:
+  - id: CM-29-001
+    priority: MUST
+    kind: project
+    statement: >-
+      `VulnerabilityCase.current_status` MUST determine the most-recent
+      `CaseStatus` by comparing `updated` then `published` timestamps only.
+      The `id_` field MUST NOT be used as a sort tiebreaker.
+    rationale: >-
+      Using `id_` as a fallback when timestamps are absent produces
+      scheme-dependent ordering: auto-seeded statuses carry UUID-based IDs
+      (`urn:uuid:…`, starting with `'u'`) which sort lexically higher than
+      HTTPS-scheme IDs (`https://…`, starting with `'h'`), causing the
+      initial auto-seeded status to beat a legitimately newer received status
+      when both lack explicit timestamps. ID scheme is an implementation
+      artefact, not a time proxy. When timestamps are absent or equal, the
+      fallback MUST resolve to the earliest possible time (e.g., `datetime.min`)
+      so that timestampless statuses sort to the bottom rather than the top.
+      Source: #2737.
+    verification: >-
+      Unit test: construct a VulnerabilityCase with an auto-seeded status
+      (urn:uuid ID, no timestamps) and a received status (HTTPS ID, no
+      timestamps); assert current_status returns the received status.
+    relationships:
+    - rel_type: refines
+      spec_id: CM-27-001
+    lint_suppress:
+    - missing_story_reference
