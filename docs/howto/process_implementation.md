@@ -10,9 +10,8 @@
 
     For a conceptual overview of the *reference implementation's* architectural
     choices — hexagonal boundaries, the ActivityStreams-based inbox pipeline, and
-    behavior tree orchestration — see the
-    [Reference Implementation Architecture](../topics/reference-implementation-architecture.md)
-    page in the Explanation section.
+    behavior tree orchestration — see the Reference Implementation Architecture
+    page in the Explanation section (forthcoming — tracked in #2973).
 
 Integrating the Vultron Protocol into everyday MPCVD operations requires each Participant to consider how their business processes
 interact with the individual [RM](../topics/process_models/rm/index.md), [EM](../topics/process_models/em/index.md),
