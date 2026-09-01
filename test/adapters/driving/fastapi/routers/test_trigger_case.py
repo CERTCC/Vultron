@@ -581,7 +581,7 @@ def short_id_env(report):
 
     A trigger route resolves its ``{actor_id}`` path segment by *computation* —
     ``base_url + "actors/" + segment``, no registry and no cross-actor scan
-    (ADR-0073 decision 2).  Only an actor whose id already has that shape can be
+    (ADR-0073#url-segment-computed-not-looked-up).  Only an actor whose id already has that shape can be
     reached by its short id at all.
 
     That rules out both actors this test used to be written against.  The

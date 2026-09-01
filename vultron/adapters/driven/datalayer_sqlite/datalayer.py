@@ -216,7 +216,13 @@ class SqliteDataLayer:
         from vultron.core.models.case import VulnerabilityCase as _VC
 
         result = self.read(case_id, raise_on_missing=raise_on_missing)
-        return result if isinstance(result, _VC) else None
+        if result is not None and not isinstance(result, _VC):
+            if raise_on_missing:
+                raise ValueError(
+                    f"Object at {case_id!r} is not a VulnerabilityCase"
+                )
+            return None
+        return result  # type: ignore[return-value]
 
     def get(
         self, table: str | None = None, id_: str | None = None

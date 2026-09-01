@@ -54,7 +54,7 @@ def get_version(request: Request):
 #
 # The specific prefix therefore goes first.  Its `{actor_id}` is deliberately
 # *not* a `:path`: a path segment is resolved to a canonical URI by computation
-# (ADR-0073 decision 2), so a single segment is the addressable form.
+# (ADR-0073#url-segment-computed-not-looked-up), so a single segment is the addressable form.
 # See test/adapters/driving/fastapi/routers/test_datalayer_route_reachable.py.
 router.include_router(datalayer.router)
 router.include_router(datalayer.admin_router)

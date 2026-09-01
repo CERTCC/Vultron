@@ -831,7 +831,7 @@ def resolve_case_actor_store_id(
     """Return the CaseActor URI to read *case_id*'s authoritative state through.
 
     A CaseActor owns the case: it is where the participant records are written
-    when it applies an RM/EM transition.  Under ADR-0073 decision 5 it also has
+    when it applies an RM/EM transition.  Under ADR-0073#peer-records-in-knowers-store it also has
     a store of its own, so a participant's authoritative state is *not* visible
     in the store of the actor that merely self-hosts it — the host's replica
     only advances when a ledger entry it recognises tells it to, and the

@@ -444,7 +444,7 @@ class TestCreateActor:
         """``POST /actors/`` rejects ids from a different authority with 422.
 
         Peers are not hosted actors — they are address-book entries in each
-        hosted actor's own store (ADR-0073 decision 5, ADR-0081).  The correct
+        hosted actor's own store (ADR-0073#peer-records-in-knowers-store, ADR-0081).  The correct
         route for registering a peer is ``POST /actors/{hosted_actor_id}/peers/``.
 
         Sending a foreign-authority id here used to mint a local store for an

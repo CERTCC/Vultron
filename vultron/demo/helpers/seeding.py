@@ -84,7 +84,7 @@ def _own_actor(client: DataLayerClient, actor: as_Actor) -> as_Actor:
     Deliberately not folded into :func:`seed_actor`: that helper also registers
     *peers*, so binding there would leave each client addressing whichever peer
     was seeded last — the store of an actor the container does not host, which is
-    the confusion ADR-0073 decision 5 makes easy to fall into.
+    the confusion ADR-0073#peer-records-in-knowers-store makes easy to fall into.
 
     Returns *actor* so the call can wrap ``seed_actor(...)`` in place.
     """

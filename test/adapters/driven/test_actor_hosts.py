@@ -66,7 +66,7 @@ class TestCanonicalActorUri:
         assert canonical_actor_uri(canonical, _BASE) == canonical
 
     def test_returns_a_foreign_authority_uri_unchanged(self):
-        """ADR-0073 decision 5: a peer's id is the URL delivery posts to.
+        """ADR-0073#peer-records-in-knowers-store: a peer's id is the URL delivery posts to.
 
         ``canonical_actor_uri`` passes any scheme-bearing id through unchanged so
         that outbound delivery can POST to the peer's real address.  This remains

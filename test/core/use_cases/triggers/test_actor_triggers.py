@@ -188,7 +188,7 @@ class TestSvcInviteActorToCaseUseCase:
         This asserted a 404 before. Holding a local record was never a protocol
         requirement — the record was read and discarded, delivery derives the
         invitee's inbox from its URI alone, and under per-actor storage a peer's
-        record lives in *its* store, not the inviter's (ADR-0073 decision 5). So
+        record lives in *its* store, not the inviter's (ADR-0073#peer-records-in-knowers-store). So
         the old behaviour refused invitations to actors that exist and are
         reachable, which is every cross-node invitee in a real deployment.
 
@@ -666,7 +666,7 @@ class TestSvcSuggestActorToCaseUseCase:
         This asserted a 404 before, for the same reason the invite path did, and
         it was wrong for the same reason: the whole point of a recommendation is
         to name an actor the case does not have yet, and under per-actor storage
-        that actor's record lives in *its* store (ADR-0073 decision 5). The old
+        that actor's record lives in *its* store (ADR-0073#peer-records-in-knowers-store). The old
         behaviour refused every genuinely remote candidate — in the fcvcv demo,
         ``suggest-actor-to-case`` answered ``404 Actor '…/vendor-deployer' not
         found`` for a vendor that was running and reachable in another container
