@@ -62,14 +62,18 @@ selection before continuing.
 #### Creating a new Idea (if selected)
 
 Ask the user to describe the idea (`ask_user`, freeform). Synthesize a
-short title, then create the issue via the `manage-github-issue` helper:
+short title. Then select a parent epic (query open Epics and ask the user to
+confirm — see `new-item` Phase 4 for the pattern) and a milestone (see
+`shared/issue-creation-requirements.md`). Then create:
 
 ```bash
 IDEA_TYPE_ID=$(bash .agents/skills/shared/board-id.sh issue-type Idea)
 ISSUE_NUMBER=$(.agents/skills/manage-github-issue/manage_github_issue.sh \
   --title "${TITLE}" \
   --body "${BODY}" \
-  --issue-type-id "${IDEA_TYPE_ID}")
+  --issue-type-id "${IDEA_TYPE_ID}" \
+  --parent "${EPIC_NUMBER}" \
+  --milestone "${MILESTONE_NUMBER}")
 ```
 
 ### Phase 0b — Sync
@@ -254,12 +258,23 @@ returns the PR URL. Use the returned URL in the `archive-history` call (Phase 9)
 
 Create one Task sub-issue per distinct AC cluster from Phase 4.
 
+Before creating, resolve the milestone to carry forward:
+
+```bash
+MILESTONE_NUMBER=$(gh issue view "${ISSUE_NUMBER}" --repo CERTCC/Vultron \
+  --json milestone --jq '.milestone.number // ""')
+# If the source issue has no milestone, query open milestones and ask the user
+# to pick one (see shared/issue-creation-requirements.md for defaults).
+```
+
 For Ideas and Concerns, wire the impl issue as **blocked-by the source
 issue** and as **child of the parent epic** (if `EPIC_NUMBER` is non-empty):
 
 ```bash
 PARENT_ARG=""
 [ -n "${EPIC_NUMBER}" ] && PARENT_ARG="--parent ${EPIC_NUMBER}"
+
+TASK_TYPE_ID=$(bash .agents/skills/shared/board-id.sh issue-type Task)
 
 # Body template. Include the "## Prior Art" section only when Phase 4
 # found relevant helpers, use cases, or base classes; omit it entirely
@@ -280,8 +295,10 @@ Source: #${ISSUE_NUMBER}
 $([ -n "${PR_URL}" ] && echo "Docs PR: ${PR_URL}")
 $([ -n "${SPEC_FILE}" ] && echo "Spec: \`specs/${SPEC_FILE}\`")
 $([ -n "${NOTES_FILE}" ] && echo "Notes: \`notes/${NOTES_FILE}\`")" \
+  --issue-type-id "${TASK_TYPE_ID}" \
   --label "size:<S|M|L>" \
   ${PARENT_ARG} \
+  --milestone "${MILESTONE_NUMBER}" \
   --blocked-by "${ISSUE_NUMBER}")
 ```
 
@@ -363,7 +380,7 @@ See the loaded companion file for the type-specific completion step:
 - [ ] Docs updated — optional for all types (or consciously skipped with a note)
 - [ ] Markdown lint clean (if docs changed)
 - [ ] PR opened with `specs-notes` label — always
-- [ ] Implementation issue(s) created via `manage-github-issue` + `add-to-project.sh`
+- [ ] Implementation issue(s) created via `manage-github-issue` + `add-to-project.sh` (with type, parent epic, and milestone set)
 - [ ] Impl issues wired per type (blocked-by for Ideas/Concerns; sub-issue for Epics)
 - [ ] Impl issues reference docs PR URL in their body (Ideas/Concerns only — Phase 8)
 - [ ] Docs PR body updated with Implementation Issues section (Ideas/Concerns only — Phase 8b)

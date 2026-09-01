@@ -164,14 +164,28 @@ Invoke `deepen-context` with focus hints derived from the issue body
 
 2. Search `vultron/` and `test/` to confirm the current state.
 3. Do not assume missing functionality; verify in code.
-4. If a blocking prerequisite is discovered, create and wire it:
+4. If a blocking prerequisite is discovered, create and wire it. Inherit
+   the current task's milestone; if it has none, pick the best-fit one
+   (see `shared/issue-creation-requirements.md`):
 
    ```bash
+   TASK_TYPE_ID=$(bash .agents/skills/shared/board-id.sh issue-type Task)
+   MILESTONE_NUMBER=$(gh issue view "${ISSUE_NUMBER}" --repo CERTCC/Vultron \
+     --json milestone --jq '.milestone.number // ""')
+   # Determine parent epic from the current task's parent
+   EPIC_NUMBER=$(gh api graphql -f query='{
+     repository(owner:"CERTCC", name:"Vultron") {
+       issue(number: '"${ISSUE_NUMBER}"') { parent { number } }
+     }
+   }' --jq '.data.repository.issue.parent.number // ""')
+
    NEW_ISSUE=$(.agents/skills/manage-github-issue/manage_github_issue.sh \
      --title "<prerequisite title>" \
      --body "<description>" \
+     --issue-type-id "${TASK_TYPE_ID}" \
      --label "size:<S|M|L>" \
-     --parent <CURRENT_TASK_NUMBER>)
+     --parent "${EPIC_NUMBER:-${ISSUE_NUMBER}}" \
+     --milestone "${MILESTONE_NUMBER}")
    bash .agents/skills/shared/add-to-project.sh "${NEW_ISSUE}"
    ```
 
