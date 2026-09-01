@@ -162,8 +162,9 @@ Invoke `deepen-context` with focus hints derived from the investigation
 
 ## Phase 3 — Present Findings (BLOCKING)
 
-Present a single structured briefing via `ask_user`. Include every item
-from Phase 2 with concrete evidence:
+Embed the complete briefing in the `question` field of the `ask_user` call —
+do **not** output it as free text before the tool call. Include every item
+from Phase 2 with concrete evidence directly in the question text:
 
 ```text
 Reproduced at: <file:line>
