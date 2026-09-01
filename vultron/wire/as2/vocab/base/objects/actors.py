@@ -25,7 +25,7 @@ from vultron.wire.as2.vocab.base.objects.collections import (
     as_Collection,
     as_OrderedCollection,
 )
-from vultron.wire.as2.vocab.base.registry import VOCABULARY
+from vultron.wire.as2.vocab.base.registry import WIRE_TYPE_MAP
 
 
 class as_Actor(as_Object):
@@ -172,7 +172,7 @@ as_PersonRef: TypeAlias = ActivityStreamRef[as_Person]
 
 # as_Actor has no concrete type_ annotation of its own but is used as a
 # concrete stored type with type_='Actor' via set_type_from_class_name().
-VOCABULARY["Actor"] = as_Actor
+WIRE_TYPE_MAP["Actor"] = as_Actor
 
 
 def main():

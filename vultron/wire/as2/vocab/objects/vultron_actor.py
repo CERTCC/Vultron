@@ -29,7 +29,7 @@ from vultron.core.models.actor import (
 from vultron.wire.as2.enums import as_ActorType
 from vultron.wire.as2.vocab.base.objects.actors import as_Actor
 from vultron.wire.as2.vocab.base.links import ActivityStreamRef
-from vultron.wire.as2.vocab.base.registry import VOCABULARY
+from vultron.wire.as2.vocab.base.registry import WIRE_TYPE_MAP
 
 _WIRE_ACTOR_TO_CORE: dict[str, Type[CoreActor]] = {
     as_ActorType.PERSON: VultronPerson,
@@ -100,11 +100,11 @@ class as_VultronGroup(VultronActorMixin):
     )
 
 
-VOCABULARY["Person"] = as_VultronPerson
-VOCABULARY["Organization"] = as_VultronOrganization
-VOCABULARY["Service"] = as_VultronService
-VOCABULARY["Application"] = as_VultronApplication
-VOCABULARY["Group"] = as_VultronGroup
+WIRE_TYPE_MAP["Person"] = as_VultronPerson
+WIRE_TYPE_MAP["Organization"] = as_VultronOrganization
+WIRE_TYPE_MAP["Service"] = as_VultronService
+WIRE_TYPE_MAP["Application"] = as_VultronApplication
+WIRE_TYPE_MAP["Group"] = as_VultronGroup
 
 
 as_VultronPersonRef: TypeAlias = ActivityStreamRef[as_VultronPerson]

@@ -22,14 +22,16 @@ from vultron.core.models.registry import find_in_core_type_map
 
 VOCABULARY: dict[str, type[BaseModel]] = {}
 
+WIRE_TYPE_MAP: dict[str, type[BaseModel]] = {}
+
 
 def find_in_vocabulary(item_name: str) -> type[BaseModel]:
     """Find a class in the vocabulary by type name.
 
-    Checks the wire ``VOCABULARY`` first, then falls back to the core
-    ``CORE_TYPE_MAP`` (via :func:`find_in_core_type_map`) for types that
-    belong to the core domain layer and must not be registered as wire
-    vocabulary entries (ARCH-12-003).
+    Checks ``WIRE_TYPE_MAP`` (keyed by wire ``type_`` value) first, then
+    ``VOCABULARY`` (keyed by full wire class name), then falls back to the
+    core ``CORE_TYPE_MAP`` (via :func:`find_in_core_type_map`) for types
+    that belong to the core domain layer (ARCH-12-003).
 
     Args:
         item_name: The name of the type to find.
@@ -38,6 +40,8 @@ def find_in_vocabulary(item_name: str) -> type[BaseModel]:
     Raises:
         KeyError: If the type name is not registered in either vocabulary.
     """
+    if item_name in WIRE_TYPE_MAP:
+        return WIRE_TYPE_MAP[item_name]
     if item_name in VOCABULARY:
         return VOCABULARY[item_name]
     try:

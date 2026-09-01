@@ -29,7 +29,7 @@ from vultron.core.models.actor import (
 )
 from vultron.wire.as2.enums import as_ActorType
 from vultron.wire.as2.vocab.base.objects.actors import as_Actor
-from vultron.wire.as2.vocab.base.registry import VOCABULARY
+from vultron.wire.as2.vocab.base.registry import WIRE_TYPE_MAP
 from vultron.wire.as2.vocab.objects.embargo_policy import as_EmbargoPolicy
 from vultron.wire.as2.vocab.objects.vultron_actor import (
     VultronActorMixin,
@@ -172,14 +172,15 @@ class TestVultronActorTypePreservation(unittest.TestCase):
 
 class TestWireActorVocabularyAndRoundTrip(unittest.TestCase):
     def test_vocabulary_points_to_wire_actor_types(self):
-        # ARCH-12-003: VOCABULARY["Actor"] must be the wire as_Actor, not CoreActor.
+        # ARCH-12-003: WIRE_TYPE_MAP["Actor"] must be the wire as_Actor, not CoreActor.
         # CoreActor was removed from VOCABULARY in issue #1992.
-        self.assertIs(VOCABULARY["Actor"], as_Actor)
-        self.assertIs(VOCABULARY["Person"], as_VultronPerson)
-        self.assertIs(VOCABULARY["Organization"], as_VultronOrganization)
-        self.assertIs(VOCABULARY["Service"], as_VultronService)
-        self.assertIs(VOCABULARY["Application"], as_VultronApplication)
-        self.assertIs(VOCABULARY["Group"], as_VultronGroup)
+        # ARCH-23-002: actor type_ value keys live in WIRE_TYPE_MAP, not VOCABULARY.
+        self.assertIs(WIRE_TYPE_MAP["Actor"], as_Actor)
+        self.assertIs(WIRE_TYPE_MAP["Person"], as_VultronPerson)
+        self.assertIs(WIRE_TYPE_MAP["Organization"], as_VultronOrganization)
+        self.assertIs(WIRE_TYPE_MAP["Service"], as_VultronService)
+        self.assertIs(WIRE_TYPE_MAP["Application"], as_VultronApplication)
+        self.assertIs(WIRE_TYPE_MAP["Group"], as_VultronGroup)
 
     def test_core_person_to_wire_person_model_validate_round_trip(self):
         core_actor = CoreVultronPerson(
