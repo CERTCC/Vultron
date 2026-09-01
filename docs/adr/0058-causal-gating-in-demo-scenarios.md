@@ -114,7 +114,7 @@ describing the case's progress in CVD domain terms with each step's antecedent
 named, carrying a machine-readable list of causal edges. The invariant harness
 asserts every declared edge appears in the observed case ledger with the
 antecedent's `log_index` preceding the consequent's. Because `log_index` order is
-causal order (ADR-0041) and the harness already reads per-scenario ledger dumps,
+causal order (ADR-0079, CLP-14-001) and the harness already reads per-scenario ledger dumps,
 this needs no new instrumentation.
 
 The narrative is the part of this decision that does work the gates cannot. A

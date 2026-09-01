@@ -384,7 +384,9 @@ class FilterParticipantStatusDimensionsNode(DataLayerConditionWithPorts):
             self._publish((), None)
             return Status.SUCCESS
 
-        refused, update_fields = _adjudicate_dimensions(current, asserted)
+        refused, update_fields = _adjudicate_dimensions(
+            current, asserted, roles=list(participant.case_roles)
+        )
         rm_anomaly = self._detect_rm_anomaly(
             refused, current.rm.state, asserted.rm.state
         )

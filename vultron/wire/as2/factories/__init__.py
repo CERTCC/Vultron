@@ -73,6 +73,7 @@ from vultron.wire.as2.factories.embargo import (
     remove_embargo_from_case_activity,
 )
 from vultron.wire.as2.factories.errors import VultronActivityConstructionError
+from vultron.wire.as2.factories.fault import create_processing_fault_activity
 from vultron.wire.as2.factories.report import (
     parse_submit_report_offer,
     rm_close_report_activity,
@@ -90,6 +91,8 @@ from vultron.wire.as2.factories.sync import (
 __all__ = [
     # errors
     "VultronActivityConstructionError",
+    # fault
+    "create_processing_fault_activity",
     # actor
     "accept_actor_recommendation_activity",
     "accept_case_participant_offer_activity",

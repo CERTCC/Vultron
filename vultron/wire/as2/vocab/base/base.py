@@ -27,6 +27,7 @@ from vultron.wire.as2.vocab.base.registry import VOCABULARY, WIRE_TYPE_MAP
 from vultron.wire.as2.vocab.base.utils import generate_new_id
 
 ACTIVITY_STREAMS_NS = "https://www.w3.org/ns/activitystreams"
+VULTRON_CONTEXT_URI = "https://certcc.github.io/Vultron/ns/context.jsonld"
 
 
 class as_Base(VultronBase):

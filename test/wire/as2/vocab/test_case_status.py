@@ -107,6 +107,62 @@ class TestFromCorePreservesPublished(unittest.TestCase):
         wire = as_CaseStatus.from_core(core)
         self.assertEqual(self._FIXED_TIME, wire.published)
 
+
+class TestCoerceUnknownEnumNames(unittest.TestCase):
+    """Unknown enum name strings must raise ValidationError, not KeyError (#2964).
+
+    Pydantic v2 only catches ValueError/AssertionError from field validators.
+    Using Enum[name] raises KeyError on unknown inputs, which propagates as a
+    500-class error instead of a clean 422 ValidationError.
+    """
+
+    def test_vf_state_unknown_raises_validation_error(self):
+        """as_ParticipantStatus with bogus vf_state raises ValidationError."""
+        with pytest.raises(ValidationError):
+            as_ParticipantStatus(
+                attributed_to=ACTOR_ID,
+                context=CASE_ID,
+                vf_state="BOGUS_VF",  # type: ignore[arg-type]
+            )
+
+    def test_d_state_unknown_raises_validation_error(self):
+        """as_ParticipantStatus with bogus d_state raises ValidationError."""
+        with pytest.raises(ValidationError):
+            as_ParticipantStatus(
+                attributed_to=ACTOR_ID,
+                context=CASE_ID,
+                d_state="BOGUS_D",  # type: ignore[arg-type]
+            )
+
+    def test_pxa_state_unknown_raises_validation_error(self):
+        """as_CaseStatus with bogus pxa_state raises ValidationError."""
+        with pytest.raises(ValidationError):
+            as_CaseStatus(pxa_state="BOGUS_PXA")  # type: ignore[arg-type]
+
+    def test_rm_state_unknown_raises_validation_error(self):
+        """as_ParticipantStatus with bogus rm_state raises ValidationError."""
+        with pytest.raises(ValidationError):
+            as_ParticipantStatus(
+                attributed_to=ACTOR_ID,
+                context=CASE_ID,
+                rm_state="BOGUS_RM",  # type: ignore[arg-type]
+            )
+
+    def test_em_consent_state_unknown_raises_validation_error(self):
+        """as_ParticipantStatus with bogus emConsentState raises ValidationError."""
+        with pytest.raises(ValidationError):
+            as_ParticipantStatus(
+                attributed_to=ACTOR_ID,
+                context=CASE_ID,
+                emConsentState="BOGUS_PEC",  # type: ignore[call-arg]
+            )
+
+
+class TestFromCorePreservesFields(unittest.TestCase):
+    """from_core must preserve published and cvd_role (regression: issue #2511)."""
+
+    _FIXED_TIME = datetime(2020, 1, 1, 0, 0, 0, tzinfo=timezone.utc)
+
     def test_as_participant_status_from_core_preserves_published(self):
         core = CoreParticipantStatus(
             context=CASE_ID,
@@ -126,6 +182,47 @@ class TestFromCorePreservesPublished(unittest.TestCase):
         )
         wire = as_ParticipantStatus.from_core(core)
         self.assertEqual(expected_roles, wire.cvd_role)
+
+
+class TestRetiredVfdKeyRejection(unittest.TestCase):
+    """_reject_retired_vfd_keys must raise ValidationError, not a raw
+    VultronProtocolViolationError that escapes Pydantic (issue #2905).
+
+    Pydantic only absorbs ValueError/TypeError/AssertionError from validators.
+    When the validator raised VultronProtocolViolationError (a plain VultronError
+    subclass) the exception escaped model_validate() entirely, crashing the
+    inbox-processing loop rather than being treated as a validation failure.
+    """
+
+    def test_vfd_state_snake_raises_validation_error(self):
+        """vfd_state in inbound data raises ValidationError, not a raw exception."""
+        with pytest.raises(ValidationError):
+            as_ParticipantStatus.model_validate(
+                {
+                    "context": CASE_ID,
+                    "attributed_to": ACTOR_ID,
+                    "vfd_state": "VFD",
+                }
+            )
+
+    def test_vfd_state_camel_raises_validation_error(self):
+        """vfdState in inbound data raises ValidationError, not a raw exception."""
+        with pytest.raises(ValidationError):
+            as_ParticipantStatus.model_validate(
+                {
+                    "context": CASE_ID,
+                    "attributed_to": ACTOR_ID,
+                    "vfdState": "VFD",
+                }
+            )
+
+    def test_valid_data_without_vfd_state_constructs_normally(self):
+        """Sanity check: valid data without vfd_state still constructs OK."""
+        ps = as_ParticipantStatus(
+            context=CASE_ID,
+            attributed_to=ACTOR_ID,
+        )
+        self.assertEqual(CASE_ID, ps.context)
 
 
 if __name__ == "__main__":

@@ -564,6 +564,7 @@ class TestAddCaseStatusTree:
         assert BTBridge.get_failure_reason(tree) == CASE_STATUS_ALREADY_PRESENT
 
     @pytest.mark.spec("RSH-05-017")
+    @pytest.mark.spec("RSH-05-018")
     def test_invalid_em_transition_fails(self, dl, make_payload):
         """Invalid EM transition → BT FAILURE; status not appended."""
         case = as_VulnerabilityCase(id_=CASE_ID, name="EM Guard")
@@ -637,6 +638,8 @@ class TestAddCaseStatusTree:
 
     @pytest.mark.spec("RSH-05-015")
     @pytest.mark.spec("RSH-05-016")
+    @pytest.mark.spec("RSH-05-018")
+    @pytest.mark.spec("RSH-05-019")
     def test_valid_em_advance_with_pxa_regression_applies_em_and_refuses_pxa(
         self, dl, make_payload
     ):

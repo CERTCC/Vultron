@@ -236,7 +236,7 @@ is written independently of the implementation, it can contradict it. Each
 narrative carries a machine-readable list of causal edges, and the invariant
 harness asserts every declared edge appears in the observed case ledger with the
 antecedent's `log_index` before the consequent's — `log_index` order is causal
-order (ADR-0041), and the harness already reads the ledger dumps
+order (ADR-0079, CLP-14-001), and the harness already reads the ledger dumps
 (DEMOMA-22-003 through DEMOMA-22-006).
 
 ---

@@ -254,8 +254,9 @@ fault is protocol history; the *diagnosis* is not.
 
 ## Pitfalls
 
-**There is no shared emit path yet.** `outbox_append` is called from roughly
-twenty modules, and at least four private emit helpers exist independently:
+**There is no general shared emit path yet.** `outbox_append` is called from
+roughly twenty modules, and at least four private emit helpers exist
+independently:
 
 ```text
 case/nodes/actor.py:142                        _emit()
@@ -264,9 +265,12 @@ case/nodes/delegation.py:213                   _emit()
 case/nodes/suggest_actor/accept_offer.py:53    _emit()
 ```
 
+`_FaultMixin.emit_processing_fault()` (added in #2989) covers the
+`Create(ProcessingFault)` NACK path specifically, but the general problem —
+consolidating all activity emissions through a single point — remains open.
 Registration that each call site must remember to perform will be forgotten
-(ASK-04-008), so consolidating the emit path is a prerequisite — for this work
-and for the CONCERN-2657 correlation. It **cannot** live in the AS2 factory:
+(ASK-04-008), so a general shared path is still a prerequisite for the
+CONCERN-2657 correlation work. It **cannot** live in the AS2 factory:
 factories are wire-layer, have no DataLayer, and wire must not import core. It
 belongs on the core side, alongside the shared BT node base classes in
 `behaviors/helpers.py`.
