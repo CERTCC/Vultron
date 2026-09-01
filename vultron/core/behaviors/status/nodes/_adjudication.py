@@ -29,7 +29,12 @@ from vultron.core.models.dimensions import (
     VfDimension,
 )
 from vultron.core.models.participant_status import ParticipantStatus
+from vultron.core.states.cross_machine_invariants import (
+    violation_vf_d_entailment,
+)
 from vultron.core.states.cs import (
+    CS_d,
+    CS_vf,
     is_monotonic_d_forward,
     is_monotonic_pxa_forward,
     is_monotonic_vf_forward,
@@ -39,6 +44,7 @@ from vultron.core.states.rm import (
     is_monotonic_rm_forward,
     is_valid_rm_transition,
 )
+from vultron.enums.roles import CVDRole
 
 
 def _rm_is_acceptable(current: RM, asserted: RM) -> bool:
@@ -59,8 +65,95 @@ def _rm_is_acceptable(current: RM, asserted: RM) -> bool:
     ) or is_monotonic_rm_forward(current, asserted)
 
 
+def _adjudicate_vf(
+    current_vf: CS_vf | None,
+    asserted_vf: CS_vf | None,
+    roles: list[CVDRole] | None,
+) -> tuple[bool, VfDimension | None]:
+    """Return (refused, carry) for the VF dimension.
+
+    Refuses if the sender lacks VENDOR role or the transition is not monotone
+    forward.  ``carry`` is the dimension value to write back (``None`` means
+    clear the dimension; used when refused with no prior history).
+    """
+    if (
+        asserted_vf is not None
+        and roles is not None
+        and CVDRole.VENDOR not in roles
+    ):
+        carry = (
+            VfDimension(state=current_vf) if current_vf is not None else None
+        )
+        return True, carry
+    if asserted_vf is None and current_vf is not None:
+        return False, VfDimension(state=current_vf)
+    if (
+        current_vf is not None
+        and asserted_vf is not None
+        and asserted_vf != current_vf
+        and not is_monotonic_vf_forward(current_vf, asserted_vf)
+    ):
+        return True, VfDimension(state=current_vf)
+    return False, None
+
+
+def _adjudicate_d(
+    current_d: CS_d | None,
+    asserted_d: CS_d | None,
+    roles: list[CVDRole] | None,
+) -> tuple[bool, DDimension | None]:
+    """Return (refused, carry) for the D dimension.
+
+    Refuses if the sender lacks DEPLOYER role or the transition is not monotone
+    forward.  ``carry`` is the dimension value to write back (``None`` means
+    clear the dimension; used when refused with no prior history).
+    """
+    if (
+        asserted_d is not None
+        and roles is not None
+        and CVDRole.DEPLOYER not in roles
+    ):
+        carry = DDimension(state=current_d) if current_d is not None else None
+        return True, carry
+    if asserted_d is None and current_d is not None:
+        return False, DDimension(state=current_d)
+    if (
+        current_d is not None
+        and asserted_d is not None
+        and asserted_d != current_d
+        and not is_monotonic_d_forward(current_d, asserted_d)
+    ):
+        return True, DDimension(state=current_d)
+    return False, None
+
+
+def _adjudicate_case_status(
+    current_cs: Any,
+    asserted_cs: Any,
+    refused: list[str],
+    update_fields: dict[str, Any],
+) -> None:
+    """Adjudicate the ``case_status`` (pxa) dimension in-place."""
+    if asserted_cs is None and current_cs is not None:
+        # Nothing asserted about pxa/em — carry the receiver's own view
+        # forward.  Persisting the assertion as-is would blank both.
+        update_fields["case_status"] = current_cs.model_copy(deep=True)
+    elif asserted_cs is not None and current_cs is not None:
+        current_pxa = current_cs.pxa.state
+        asserted_pxa = asserted_cs.pxa.state
+        if asserted_pxa != current_pxa and not is_monotonic_pxa_forward(
+            current_pxa, asserted_pxa
+        ):
+            refused.append("pxa")
+            update_fields["case_status"] = asserted_cs.model_copy(
+                update={"pxa": PxaDimension(state=current_pxa)}
+            )
+
+
 def _adjudicate_dimensions(
-    current: ParticipantStatus, asserted: ParticipantStatus
+    current: ParticipantStatus,
+    asserted: ParticipantStatus,
+    roles: list[CVDRole] | None = None,
 ) -> tuple[list[str], dict[str, Any]]:
     """Adjudicate ``rm``, ``vf``, ``d`` and ``pxa`` independently.
 
@@ -77,6 +170,9 @@ def _adjudicate_dimensions(
     the common case: it asserts nothing about ``pxa``/``em``, so the
     participant's current ``case_status`` is carried forward instead of letting
     the omission erase state the receiver already holds (RSH-05-002).
+
+    When ``roles`` is provided, VF writes require ``CVDRole.VENDOR`` and D
+    writes require ``CVDRole.DEPLOYER`` (ADR-0075, #2965).
     """
     refused: list[str] = []
     update_fields: dict[str, Any] = {}
@@ -85,54 +181,50 @@ def _adjudicate_dimensions(
         refused.append("rm")
         update_fields["rm"] = RmDimension(state=current.rm.state)
 
-    # VF dimension (vendor-path: vendor awareness + fix readiness).
-    # Intentionally uses the weaker monotone check rather than strict adjacency:
-    # a remote peer may have advanced through multiple steps between messages.
-    # An omitted vf (None) carries forward the current value — absence is not
-    # an assertion that the dimension is unknown (RSH-05-002).
     current_vf = current.vf.state if current.vf is not None else None
     asserted_vf = asserted.vf.state if asserted.vf is not None else None
-    if asserted_vf is None and current_vf is not None:
-        update_fields["vf"] = VfDimension(state=current_vf)
-    elif (
-        current_vf is not None
-        and asserted_vf is not None
-        and asserted_vf != current_vf
-        and not is_monotonic_vf_forward(current_vf, asserted_vf)
-    ):
+    vf_refused, vf_carry = _adjudicate_vf(current_vf, asserted_vf, roles)
+    if vf_refused:
         refused.append("vf")
-        update_fields["vf"] = VfDimension(state=current_vf)
+        update_fields["vf"] = (
+            vf_carry  # None clears field when no prior history
+        )
+    elif vf_carry is not None:
+        update_fields["vf"] = vf_carry  # Carry forward omitted dimension value
 
-    # D dimension (deployer-path: fix deployment).
-    # Same omission semantics as vf (RSH-05-002).
     current_d = current.d.state if current.d is not None else None
     asserted_d = asserted.d.state if asserted.d is not None else None
-    if asserted_d is None and current_d is not None:
-        update_fields["d"] = DDimension(state=current_d)
-    elif (
-        current_d is not None
-        and asserted_d is not None
-        and asserted_d != current_d
-        and not is_monotonic_d_forward(current_d, asserted_d)
-    ):
+    d_refused, d_carry = _adjudicate_d(current_d, asserted_d, roles)
+    if d_refused:
         refused.append("d")
-        update_fields["d"] = DDimension(state=current_d)
+        update_fields["d"] = d_carry  # None clears field when no prior history
+    elif d_carry is not None:
+        update_fields["d"] = d_carry  # Carry forward omitted dimension value
 
-    asserted_cs = asserted.case_status
-    current_cs = current.case_status
-    if asserted_cs is None and current_cs is not None:
-        # Nothing asserted about pxa/em — carry the receiver's own view
-        # forward.  Persisting the assertion as-is would blank both.
-        update_fields["case_status"] = current_cs.model_copy(deep=True)
-    elif asserted_cs is not None and current_cs is not None:
-        current_pxa = current_cs.pxa.state
-        asserted_pxa = asserted_cs.pxa.state
-        if asserted_pxa != current_pxa and not is_monotonic_pxa_forward(
-            current_pxa, asserted_pxa
-        ):
-            refused.append("pxa")
-            update_fields["case_status"] = asserted_cs.model_copy(
-                update={"pxa": PxaDimension(state=current_pxa)}
+    # Cross-dimension VF↔D check (CSB-17-001, #2893 received path).
+    # After individual dimension adjudication, verify the effective VF+D
+    # combination is not the structurally impossible *fD* state.
+    if not d_refused:
+        vf_in_fields = update_fields.get("vf")
+        effective_vf = (
+            vf_in_fields.state
+            if isinstance(vf_in_fields, VfDimension)
+            else asserted_vf
+        )
+        d_in_fields = update_fields.get("d")
+        effective_d = (
+            d_in_fields.state
+            if isinstance(d_in_fields, DDimension)
+            else asserted_d
+        )
+        if violation_vf_d_entailment(effective_vf, effective_d) is not None:
+            refused.append("d")
+            update_fields["d"] = (
+                DDimension(state=current_d) if current_d is not None else None
             )
+
+    _adjudicate_case_status(
+        current.case_status, asserted.case_status, refused, update_fields
+    )
 
     return refused, update_fields

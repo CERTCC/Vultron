@@ -952,6 +952,24 @@ class TestCreateParticipantStatusNode:
         assert "status_id" not in result_out
         assert "CSB-15-002" in bt_result.feedback_message
 
+    def test_d_not_deployed_requires_deployer_role_at_write_node(self):
+        """#2963: d=d (not deployed) target is blocked when the actor has no DEPLOYER role.
+
+        The bug: `if self._d_state == CS_d.D:` only guards the deployed state.
+        A non-DEPLOYER actor asserting d=d (the initial d-unset state) bypasses
+        the role guard.  The fix changes the condition to `if self._d_state is not None:`
+        so any D-dimension write requires DEPLOYER role.
+        """
+        from py_trees.common import Status
+
+        bt_result, result_out = self._run_node(
+            rm_state=None, vf_state=None, d_state=CS_d.d, pxa_state=None
+        )
+
+        assert bt_result.status == Status.FAILURE
+        assert "status_id" not in result_out
+        assert "CSB-15-002" in bt_result.feedback_message
+
     # ------------------------------------------------------------------
     # AC-1: ephemeral-state promotion at write boundary (SM-09-001)
     # ------------------------------------------------------------------
@@ -1698,6 +1716,41 @@ class TestCrossMachineEntailments:
         before = self._status_count()
         self._execute(pxa_state=CS_pxa.Pxa)
         assert self._status_count() == before + 1
+
+    def test_csb17_001_vf_not_ready_and_d_deployed_rejected(self):
+        """CSB-17-001: vf != VF with d=D is structurally impossible — trigger rejects it.
+
+        The compound *fD* state (fix deployed but fix not ready) is forbidden.
+        The trigger path must refuse it even when RM and individual VF/D
+        transitions are valid in isolation (#2893).
+        """
+        from vultron.errors import VultronValidationError
+
+        # Register participant as VENDOR+DEPLOYER so the D dimension guard passes.
+        from vultron.enums.roles import CVDRole
+        from vultron.wire.as2.vocab.objects.case_participant import (
+            as_CaseParticipant,
+        )
+
+        deployer_participant = as_CaseParticipant(
+            id_=self.actor_participant.id_,
+            attributed_to=self.actor.id_,
+            context=self.case.id_,
+            case_roles=[CVDRole.VENDOR, CVDRole.DEPLOYER],
+        )
+        self.dl.save(deployer_participant)
+
+        # Advance to RM.ACCEPTED so the RM↔D entailment is satisfied.
+        self._advance_rm_to_accepted()
+        # Move VF to Vf (vendor aware, fix NOT ready).
+        self._execute(vf_state=CS_vf.Vf)
+        # Now try to assert d=D without vf=VF — must be refused.
+        before = self._status_count()
+        with pytest.raises(VultronValidationError, match="Cross-machine"):
+            self._execute(d_state=CS_d.D)
+        assert (
+            self._status_count() == before
+        ), "Status count must not increase when vf≠VF + d=D (CSB-17-001)"
 
 
 class TestViolationPxaEmEntailment:

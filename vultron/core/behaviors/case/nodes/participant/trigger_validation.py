@@ -48,6 +48,7 @@ from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.states.cross_machine_invariants import (
     violation_rm_d_entailment,
     violation_rm_vf_entailment,
+    violation_vf_d_entailment,
 )
 from vultron.core.states.cs import (
     CS_d,
@@ -248,7 +249,7 @@ class ValidateTriggerTransitionsNode(DataLayerCondition):
         vf: "CS_vf | None",
         d: "CS_d | None",
     ) -> Status:
-        """CSB-18-001: check RM↔VF and RM↔D cross-machine entailments."""
+        """CSB-18-001/CSB-17-001: check RM↔VF, RM↔D, and VF↔D cross-machine entailments."""
         if vf is not None:
             msg = violation_rm_vf_entailment(rm, vf)
             if msg is not None:
@@ -261,4 +262,9 @@ class ValidateTriggerTransitionsNode(DataLayerCondition):
                 self.feedback_message = msg
                 self.logger.info("%s: %s", self.name, self.feedback_message)
                 return Status.FAILURE
+        msg = violation_vf_d_entailment(vf, d)
+        if msg is not None:
+            self.feedback_message = msg
+            self.logger.info("%s: %s", self.name, self.feedback_message)
+            return Status.FAILURE
         return Status.SUCCESS
