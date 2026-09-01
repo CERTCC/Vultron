@@ -23,9 +23,9 @@ This demo script showcases two ownership transfer paths:
 2. Reject path: current owner (vendor) offers case to coordinator → coordinator
    rejects → case.attributed_to remains with vendor
 
-Each demo starts from an initialized case (report submitted and validated,
-case created, finder participant added) so that the transfer workflow can
-be demonstrated in isolation.
+Each demo starts from a canonical, CaseActor-owned case (report submitted and
+validated, ``Create(CaseProposal)`` delivered, CaseActor creates the case) so
+that the transfer workflow can be demonstrated in isolation.
 
 This corresponds to the workflow documented in:
     docs/howto/activitypub/activities/transfer_ownership.md
@@ -37,10 +37,15 @@ When run as a script, this module will:
 4. Run both demo workflows (accept and reject)
 5. Verify side effects in the data layer
 
-Note on direct inbox communication:
-This demo uses direct inbox-to-inbox communication between actors, per the
-Vultron prototype design. Actors post activities directly to each other's
-inboxes.
+Routing model (ADR-0053):
+Both the ``Offer(VulnerabilityCase)`` and the response to it are addressed to
+the **CaseActor's** inbox, never to the transferee or the offerer directly
+(CM-21-005, CM-21-006).  The CaseActor records the Offer, commits a
+``CaseLedgerEntry``, broadcasts ``Announce(CaseLedgerEntry)`` to every
+participant — which is how actors outside the negotiation, such as the finder,
+learn a transfer is pending — and only then forwards a **new** Offer of its own
+to the transferee.  The demo therefore discovers the forwarded Offer by its
+properties rather than by the original offer's id (EDF-06-004).
 """
 
 # Standard library imports
@@ -48,16 +53,27 @@ import logging
 from typing import Callable, Optional, Sequence, Tuple
 
 # Vultron imports
+from vultron.enums.roles import CVDRole
+from vultron.wire.as2.vocab.base.objects.activities.transitive import as_Offer
 from vultron.wire.as2.vocab.base.objects.actors import as_Actor
+from vultron.wire.as2.vocab.objects.vulnerability_case import (
+    as_VulnerabilityCase,
+)
 from vultron.demo.helpers.runner import run_exchange_demos
-from vultron.demo.helpers.workflow import setup_initialized_case
+from vultron.demo.helpers.workflow import (
+    await_forwarded_ownership_transfer_offer,
+    case_actor_invites_actor_to_case,
+    setup_canonical_case,
+)
 from vultron.demo.utils import (
     DataLayerClient,
     demo_check,
+    demo_gate,
     demo_step,
     log_case_state,
     logfmt,
     post_to_inbox_and_wait,
+    seed_peer,
     verify_object_stored,
     setup_demo_logging,
 )
@@ -68,6 +84,98 @@ from vultron.wire.as2.factories import (
 )
 
 logger = logging.getLogger(__name__)
+
+_REPORT_NAME = "Remote Code Execution Vulnerability"
+_REPORT_CONTENT = "A remote code execution vulnerability in the web framework."
+_VALIDATION_CONTENT = (
+    "Confirmed — remote code execution via unsanitized input."
+)
+
+
+def _setup_transfer_precondition(
+    client: DataLayerClient,
+    finder: as_Actor,
+    vendor: as_Actor,
+    coordinator: as_Actor,
+) -> Tuple[as_VulnerabilityCase, str]:
+    """Build the precondition both transfer paths share.
+
+    A canonical CaseActor-owned case (so there *is* a CaseActor to route
+    through — see :func:`setup_canonical_case`), with the coordinator joined via
+    the CaseActor-routed Invite/Accept handshake so that the accept path can
+    move ``CVDRole.CASE_OWNER`` onto an existing ``CaseParticipant`` record in
+    the CaseActor's own store (CM-21-002).
+
+    Returns:
+        ``(case, case_actor_id)``.
+    """
+    case, case_actor_id = setup_canonical_case(
+        client,
+        finder,
+        vendor,
+        report_name=_REPORT_NAME,
+        report_content=_REPORT_CONTENT,
+        validation_content=_VALIDATION_CONTENT,
+    )
+    # The CaseActor has to know the coordinator before it can ledger an
+    # activity that names it: the ledger snapshot must carry `target` as an
+    # inline object (CLP-07), and the snapshot builder can only inline what the
+    # committing actor's own store already holds (ADR-0081).  A container in the
+    # multi-actor topology gets this from its seed config; a single-container
+    # exchange demo has to register the address-book entry itself.
+    seed_peer(
+        client,
+        local_actor_id=case_actor_id,
+        peer_id=coordinator.id_,
+        name=coordinator.name or "Coordinator",
+        actor_type="Organization",
+    )
+    case_actor_invites_actor_to_case(
+        client,
+        case=case,
+        inviter=vendor,
+        invitee=coordinator,
+        case_actor_id=case_actor_id,
+        roles=[CVDRole.COORDINATOR.value],
+    )
+    return case, case_actor_id
+
+
+def _vendor_offers_ownership(
+    client: DataLayerClient,
+    case: as_VulnerabilityCase,
+    vendor: as_Actor,
+    coordinator: as_Actor,
+    case_actor_id: str,
+) -> as_Offer:
+    """Send the vendor's ownership-transfer Offer to the CaseActor's inbox.
+
+    ``actor`` is the CaseActor and ``attributed_to`` the vendor: the CaseActor
+    is the sender of record for a delegated case message, and the vendor is the
+    participant whose intent it carries (CM-24-001, CM-24-002).  Addressing it
+    to the vendor instead is what made receivers reject the Offer in #2142.
+
+    Returns:
+        The Offer that was sent.
+    """
+    offer = offer_case_ownership_transfer_activity(
+        case,
+        actor=case_actor_id,
+        attributed_to=vendor.id_,
+        # Inline actor object, not a bare URI: the ledger entry's
+        # payloadSnapshot.target must be resolvable without a second lookup,
+        # and CommitCaseLedgerEntryNode rejects a bare id string.
+        target=coordinator,
+        to=[case_actor_id],
+        content=f"Offering to transfer ownership of {case.name} to you.",
+    )
+    logger.info(f"Sending offer to the CaseActor: {logfmt(offer)}")
+    post_to_inbox_and_wait(client, case_actor_id, offer)
+    with demo_check("Ownership offer recorded by the CaseActor (CM-21-005)"):
+        # The CaseActor's store, not the vendor's: the Offer is addressed to
+        # the CaseActor, so that is the replica that records it (ADR-0073).
+        verify_object_stored(client, offer.id_, actor_id=case_actor_id)
+    return offer
 
 
 def demo_transfer_ownership_accept(
@@ -80,12 +188,13 @@ def demo_transfer_ownership_accept(
     Demonstrates the accept path of the transfer-ownership workflow.
 
     Steps:
-    1. Setup: initialize case (report submitted + validated, case created,
-       finder participant added)
+    1. Setup: canonical CaseActor-owned case, coordinator added as participant
     2. Vendor offers case ownership to coordinator
-       (OfferCaseOwnershipTransferActivity → coordinator inbox)
-    3. Coordinator accepts (AcceptCaseOwnershipTransferActivity → vendor inbox)
-    4. Verify case.attributed_to is updated to coordinator
+       (OfferCaseOwnershipTransferActivity → **CaseActor** inbox, CM-21-005)
+    3. CaseActor forwards a new Offer to the coordinator; the demo discovers it
+    4. Coordinator accepts (AcceptCaseOwnershipTransferActivity → **CaseActor**
+       inbox, CM-21-006)
+    5. Verify case.attributed_to is updated to coordinator
 
     This follows the accept branch in
     docs/howto/activitypub/activities/transfer_ownership.md.
@@ -94,53 +203,68 @@ def demo_transfer_ownership_accept(
     logger.info("DEMO: Transfer Ownership — Accept Path")
     logger.info("=" * 80)
 
-    case = setup_initialized_case(client, finder, vendor)
+    case, case_actor_id = _setup_transfer_precondition(
+        client, finder, vendor, coordinator
+    )
 
     # Confirm initial owner is vendor
-    initial_case = log_case_state(client, case.id_, "initial")
+    initial_case = log_case_state(
+        client, case.id_, "initial", actor_id=case_actor_id
+    )
     if initial_case is None:
         raise ValueError("Could not retrieve initial case state")
     logger.info(f"Initial owner: {initial_case.attributed_to}")
 
-    offer = None
-    with demo_step("Step 2: Vendor offers case ownership to coordinator"):
-        offer = offer_case_ownership_transfer_activity(
-            case,
-            actor=vendor.id_,
-            to=[coordinator.id_],
-            content=(f"Offering to transfer ownership of {case.name} to you."),
+    with demo_step(
+        "Step 2: Vendor offers case ownership to coordinator via the CaseActor"
+    ):
+        _vendor_offers_ownership(
+            client, case, vendor, coordinator, case_actor_id
         )
-        logger.info(f"Sending offer: {logfmt(offer)}")
-        post_to_inbox_and_wait(client, coordinator.id_, offer)
-        with demo_check("Ownership offer stored in data layer"):
-            # The coordinator's store, not the client's default binding: the
-            # offer was delivered to the coordinator's inbox, so that is the
-            # replica holding it (CM-01-001).
-            verify_object_stored(client, offer.id_, actor_id=coordinator.id_)
 
-    with demo_step("Step 3: Coordinator accepts ownership transfer"):
-        accept = accept_case_ownership_transfer_activity(
-            offer,
-            actor=coordinator.id_,
-            to=[vendor.id_],
-            content=(f"Accepting ownership of {case.name}."),
+    with demo_gate(
+        "Step 3: CaseActor forwarded the Offer to the coordinator (CM-21-005)"
+    ):
+        forwarded_offer = await_forwarded_ownership_transfer_offer(
+            client,
+            case=case,
+            transferee=coordinator,
+            case_actor_id=case_actor_id,
         )
-        logger.info(f"Sending accept: {logfmt(accept)}")
-        post_to_inbox_and_wait(client, vendor.id_, accept)
+        logger.info("Forwarded offer id: %s", forwarded_offer.id_)
 
-    with demo_step("Step 4: Verify case ownership transferred to coordinator"):
-        with demo_check("Case attributed_to updated to coordinator"):
-            final_case = log_case_state(client, case.id_, "after accept")
-            if final_case is None:
-                raise ValueError("Could not retrieve case after accept")
-            new_owner = final_case.attributed_to
-            coord_segment = coordinator.id_.split("/")[-1]
-            if coord_segment not in str(new_owner):
-                raise ValueError(
-                    f"Expected case owner to be coordinator '{coordinator.id_}', "
-                    f"got: {new_owner}"
+        with demo_step("Step 4: Coordinator accepts ownership transfer"):
+            # The forwarded offer's id, not the vendor's original: the CaseActor
+            # minted a new Offer, and only the forwarded one exists on the
+            # coordinator's replica (CM-21-005).
+            accept = accept_case_ownership_transfer_activity(
+                forwarded_offer,
+                actor=coordinator.id_,
+                to=[case_actor_id],
+                content=(f"Accepting ownership of {case.name}."),
+            )
+            logger.info(f"Sending accept to the CaseActor: {logfmt(accept)}")
+            post_to_inbox_and_wait(client, case_actor_id, accept)
+
+        with demo_step(
+            "Step 5: Verify case ownership transferred to coordinator"
+        ):
+            with demo_check("Case attributed_to updated to coordinator"):
+                final_case = log_case_state(
+                    client, case.id_, "after accept", actor_id=case_actor_id
                 )
-        logger.info(f"Case ownership transferred — new owner: {new_owner}")
+                if final_case is None:
+                    raise ValueError("Could not retrieve case after accept")
+                new_owner = final_case.attributed_to
+                coord_segment = coordinator.id_.split("/")[-1]
+                if coord_segment not in str(new_owner):
+                    raise ValueError(
+                        f"Expected case owner to be coordinator "
+                        f"'{coordinator.id_}', got: {new_owner}"
+                    )
+                logger.info(
+                    f"Case ownership transferred — new owner: {new_owner}"
+                )
 
     logger.info("✅ DEMO COMPLETE (accept path): Case ownership transferred.")
 
@@ -155,12 +279,13 @@ def demo_transfer_ownership_reject(
     Demonstrates the reject path of the transfer-ownership workflow.
 
     Steps:
-    1. Setup: initialize case (report submitted + validated, case created,
-       finder participant added)
+    1. Setup: canonical CaseActor-owned case, coordinator added as participant
     2. Vendor offers case ownership to coordinator
-       (OfferCaseOwnershipTransferActivity → coordinator inbox)
-    3. Coordinator rejects (RejectCaseOwnershipTransferActivity → vendor inbox)
-    4. Verify case.attributed_to remains with vendor
+       (OfferCaseOwnershipTransferActivity → **CaseActor** inbox, CM-21-005)
+    3. CaseActor forwards a new Offer to the coordinator; the demo discovers it
+    4. Coordinator rejects (RejectCaseOwnershipTransferActivity → **CaseActor**
+       inbox — the reply goes back to the sender of the forwarded Offer)
+    5. Verify case.attributed_to remains with vendor
 
     This follows the reject branch in
     docs/howto/activitypub/activities/transfer_ownership.md.
@@ -169,53 +294,62 @@ def demo_transfer_ownership_reject(
     logger.info("DEMO: Transfer Ownership — Reject Path")
     logger.info("=" * 80)
 
-    case = setup_initialized_case(client, finder, vendor)
+    case, case_actor_id = _setup_transfer_precondition(
+        client, finder, vendor, coordinator
+    )
 
-    initial_case = log_case_state(client, case.id_, "initial")
+    initial_case = log_case_state(
+        client, case.id_, "initial", actor_id=case_actor_id
+    )
     if initial_case is None:
         raise ValueError("Could not retrieve initial case state")
     original_owner = initial_case.attributed_to
     logger.info(f"Initial owner: {original_owner}")
 
-    offer = None
-    with demo_step("Step 2: Vendor offers case ownership to coordinator"):
-        offer = offer_case_ownership_transfer_activity(
-            case,
-            actor=vendor.id_,
-            to=[coordinator.id_],
-            content=(f"Offering to transfer ownership of {case.name} to you."),
+    with demo_step(
+        "Step 2: Vendor offers case ownership to coordinator via the CaseActor"
+    ):
+        _vendor_offers_ownership(
+            client, case, vendor, coordinator, case_actor_id
         )
-        logger.info(f"Sending offer: {logfmt(offer)}")
-        post_to_inbox_and_wait(client, coordinator.id_, offer)
-        with demo_check("Ownership offer stored in data layer"):
-            # The coordinator's store, not the client's default binding: the
-            # offer was delivered to the coordinator's inbox, so that is the
-            # replica holding it (CM-01-001).
-            verify_object_stored(client, offer.id_, actor_id=coordinator.id_)
 
-    with demo_step("Step 3: Coordinator rejects ownership transfer"):
-        reject = reject_case_ownership_transfer_activity(
-            offer,
-            actor=coordinator.id_,
-            to=[vendor.id_],
-            content=(f"Declining ownership of {case.name}."),
+    with demo_gate(
+        "Step 3: CaseActor forwarded the Offer to the coordinator (CM-21-005)"
+    ):
+        forwarded_offer = await_forwarded_ownership_transfer_offer(
+            client,
+            case=case,
+            transferee=coordinator,
+            case_actor_id=case_actor_id,
         )
-        logger.info(f"Sending reject: {logfmt(reject)}")
-        post_to_inbox_and_wait(client, vendor.id_, reject)
+        logger.info("Forwarded offer id: %s", forwarded_offer.id_)
 
-    with demo_step("Step 4: Verify case ownership unchanged"):
-        with demo_check("Case attributed_to still vendor"):
-            final_case = log_case_state(client, case.id_, "after reject")
-            if final_case is None:
-                raise ValueError("Could not retrieve case after reject")
-            if final_case.attributed_to != original_owner:
-                raise ValueError(
-                    f"Expected case owner to remain '{original_owner}' after reject, "
-                    f"got: {final_case.attributed_to}"
+        with demo_step("Step 4: Coordinator rejects ownership transfer"):
+            reject = reject_case_ownership_transfer_activity(
+                forwarded_offer,
+                actor=coordinator.id_,
+                to=[case_actor_id],
+                content=(f"Declining ownership of {case.name}."),
+            )
+            logger.info(f"Sending reject to the CaseActor: {logfmt(reject)}")
+            post_to_inbox_and_wait(client, case_actor_id, reject)
+
+        with demo_step("Step 5: Verify case ownership unchanged"):
+            with demo_check("Case attributed_to still vendor"):
+                final_case = log_case_state(
+                    client, case.id_, "after reject", actor_id=case_actor_id
                 )
-        logger.info(
-            f"Ownership unchanged — still with: {final_case.attributed_to}"
-        )
+                if final_case is None:
+                    raise ValueError("Could not retrieve case after reject")
+                if final_case.attributed_to != original_owner:
+                    raise ValueError(
+                        f"Expected case owner to remain '{original_owner}'"
+                        f" after reject, got: {final_case.attributed_to}"
+                    )
+                logger.info(
+                    "Ownership unchanged — still with: %s",
+                    final_case.attributed_to,
+                )
 
     logger.info(
         "✅ DEMO COMPLETE (reject path): Ownership transfer rejected gracefully."
