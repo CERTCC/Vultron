@@ -369,6 +369,29 @@ class TestFilterCsEmDimensionNodeBug2704:
 
 
 # ---------------------------------------------------------------------------
+# FilterCsEmDimensionNode — absent case_id (ARCH-15-001)
+# ---------------------------------------------------------------------------
+
+
+class TestFilterCsEmDimensionNodeAbsentCaseId:
+    """Guard returns SUCCESS immediately when case_id is absent (ARCH-15-001)."""
+
+    @pytest.mark.spec("ARCH-15-001")
+    def test_none_case_id_returns_success(self, bridge):
+        """None case_id → SUCCESS (no case to look up; nothing to filter)."""
+        node = FilterCsEmDimensionNode(case_id=None, status_id=STATUS_ID)
+        result = bridge.execute_with_setup(tree=node, actor_id=ACTOR_ID)
+        assert result.status == Status.SUCCESS
+
+    @pytest.mark.spec("ARCH-15-001")
+    def test_empty_string_case_id_returns_success(self, bridge):
+        """Empty-string case_id → SUCCESS (no case to look up; nothing to filter)."""
+        node = FilterCsEmDimensionNode(case_id="", status_id=STATUS_ID)
+        result = bridge.execute_with_setup(tree=node, actor_id=ACTOR_ID)
+        assert result.status == Status.SUCCESS
+
+
+# ---------------------------------------------------------------------------
 # FilterCsPxaDimensionNode — Bug #2706 (explicit _set_output write-back)
 # ---------------------------------------------------------------------------
 
