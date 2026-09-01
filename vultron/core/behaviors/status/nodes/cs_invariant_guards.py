@@ -88,6 +88,8 @@ class CheckCsEphemeralStateNode(_CsStatusGuardBase):
     """
 
     def update(self) -> Status:
+        if not self.case_id:
+            return Status.SUCCESS
         if (f := self._require_datalayer()) is not None:
             return f
         assert self.datalayer is not None
@@ -157,6 +159,8 @@ class CheckCsHistoryPrefixNode(_CsStatusGuardBase):
     """
 
     def update(self) -> Status:
+        if not self.case_id:
+            return Status.SUCCESS
         if (f := self._require_datalayer()) is not None:
             return f
         assert self.datalayer is not None
@@ -176,11 +180,10 @@ class CheckCsHistoryPrefixNode(_CsStatusGuardBase):
 
         current_pxa = current.pxa.state
         asserted_pxa = asserted.pxa.state
-        if current_pxa == asserted_pxa:
-            return Status.SUCCESS  # no PXA change; nothing to validate
-
-        if not is_monotonic_pxa_forward(current_pxa, asserted_pxa):
-            # PXA regression: deferred to FilterCsPxaDimensionNode (RSH-05).
+        if current_pxa == asserted_pxa or not is_monotonic_pxa_forward(
+            current_pxa, asserted_pxa
+        ):
+            # No PXA change or regression: deferred to FilterCsPxaDimensionNode (RSH-05).
             return Status.SUCCESS
 
         # VFD-complete baseline: only PXA bits can change between these two states.

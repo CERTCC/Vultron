@@ -166,6 +166,18 @@ class TestCheckCsEphemeralStateNode:
         node = CheckCsEphemeralStateNode(case_id=CASE_ID, status_id=STATUS_ID)
         assert _run(bridge, node) == Status.SUCCESS
 
+    @pytest.mark.spec("ARCH-15-001")
+    def test_none_case_id_returns_success(self, bridge):
+        """None case_id → SUCCESS (absent case; nothing to guard)."""
+        node = CheckCsEphemeralStateNode(case_id=None, status_id=STATUS_ID)
+        assert _run(bridge, node) == Status.SUCCESS
+
+    @pytest.mark.spec("ARCH-15-001")
+    def test_empty_string_case_id_returns_success(self, bridge):
+        """Empty-string case_id → SUCCESS (absent case; nothing to guard)."""
+        node = CheckCsEphemeralStateNode(case_id="", status_id=STATUS_ID)
+        assert _run(bridge, node) == Status.SUCCESS
+
     def test_fallback_used_when_not_in_dl(self, dl, bridge):
         """Core CaseStatus fallback used when status not in DL; ephemeral check runs."""
         from vultron.core.models.case_status import CaseStatus
@@ -292,4 +304,16 @@ class TestCheckCsHistoryPrefixNode:
         dl.create(case)
 
         node = CheckCsHistoryPrefixNode(case_id=CASE_ID, status_id=STATUS_ID)
+        assert _run(bridge, node) == Status.SUCCESS
+
+    @pytest.mark.spec("ARCH-15-001")
+    def test_none_case_id_returns_success(self, bridge):
+        """None case_id → SUCCESS (absent case; nothing to guard)."""
+        node = CheckCsHistoryPrefixNode(case_id=None, status_id=STATUS_ID)
+        assert _run(bridge, node) == Status.SUCCESS
+
+    @pytest.mark.spec("ARCH-15-001")
+    def test_empty_string_case_id_returns_success(self, bridge):
+        """Empty-string case_id → SUCCESS (absent case; nothing to guard)."""
+        node = CheckCsHistoryPrefixNode(case_id="", status_id=STATUS_ID)
         assert _run(bridge, node) == Status.SUCCESS

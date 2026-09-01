@@ -203,7 +203,7 @@ def add_participant_status_tree(
             ),
             status_adoption_gate,
             EmitCaseStatusUpdateNode(
-                case_id=tree_case_id or "",
+                case_id=tree_case_id,
                 name="EmitCaseStatusUpdate",
             ),
             py_trees.decorators.FailureIsSuccess(
