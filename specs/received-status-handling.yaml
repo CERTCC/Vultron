@@ -571,9 +571,10 @@ groups:
       value does not discard an accepted PXA value from the same CaseStatus
       snapshot, and vice versa.
     note: >
-      Implemented by `FilterCsEmDimensionNode` and `FilterCsPxaDimensionNode`
-      in `vultron/core/behaviors/status/nodes/cs_dimension_filter.py`, wired
-      as precondition guards of `add_case_status_tree`. See ISSUE-2256.
+      Implemented by the three-node sequence `FilterCsEmDimensionNode`,
+      `FilterCsPxaDimensionNode`, and `FinalizeCsFilterNode` in
+      `vultron/core/behaviors/status/nodes/cs_dimension_filter.py`, wired as
+      precondition guards of `add_case_status_tree`. See ISSUE-2256.
     lint_suppress:
     - missing_story_reference
   - id: RSH-05-016
@@ -619,6 +620,70 @@ groups:
       Implemented by `FinalizeCsFilterNode.update()` returning `Status.FAILURE`
       when `(filtered.em.state, filtered.pxa.state) == (current.em.state,
       current.pxa.state)`.
+    lint_suppress:
+    - missing_story_reference
+  - id: RSH-05-018
+    priority: MUST
+    kind: protocol
+    statement: >
+      When adjudicating the EM dimension of a received `Add(CaseStatus)`, the
+      receiver MUST accept the asserted EM state if and only if it is identical
+      to the current EM state or it is a valid EM state-machine transition from
+      the current EM state, as determined by `is_valid_em_transition()`. Any
+      other asserted EM value MUST be refused and the current EM value carried
+      forward (RSH-05-016).
+    rationale: >
+      EM follows a directed state machine
+      (NO_EMBARGO → PROPOSED ↔ ACTIVE ↔ REVISE → EXITED). Out-of-order or
+      backward EM assertions do not correspond to legal protocol events; applying
+      them would corrupt the canonical EM state shared by all participants.
+      Using `is_valid_em_transition()` as the acceptance predicate ensures only
+      structurally valid EM transitions are applied.
+    verification: >
+      Unit tests in `test/core/behaviors/status/test_add_case_status_bt.py`
+      confirm that `FilterCsEmDimensionNode` accepts EM states that satisfy
+      `is_valid_em_transition()` or are identical to the current EM state, and
+      refuses all other asserted EM values by carrying the current value forward.
+    note: >
+      Implemented by `FilterCsEmDimensionNode.update()` in
+      `vultron/core/behaviors/status/nodes/cs_dimension_filter.py`. The predicate
+      is applied as `asserted_em != current_em and not is_valid_em_transition(current_em, asserted_em)`;
+      an identity assertion (`asserted == current`) is always accepted without
+      invoking `is_valid_em_transition()`.
+    lint_suppress:
+    - missing_story_reference
+  - id: RSH-05-019
+    priority: MUST
+    kind: protocol
+    statement: >
+      When adjudicating the PXA dimension of a received `Add(CaseStatus)`, the
+      receiver MUST accept the asserted PXA state if and only if it is identical
+      to the current PXA state or it is a monotone forward move from the current
+      PXA state, as determined by `is_monotonic_pxa_forward()`. Any other
+      asserted PXA value MUST be refused and the current PXA value carried
+      forward (RSH-05-016).
+    rationale: >
+      PXA state is monotone: bits only advance from unaware to aware (p→P,
+      x→X, a→A) and never reverse. The received-side filter uses the weaker
+      `is_monotonic_pxa_forward()` check — not the strict single-step adjacency
+      `is_valid_pxa_transition()` that applies to local write nodes
+      (CSB-16-002) — because a remote peer may have observed multiple PXA
+      events between messages and report a combined advance that skips
+      intermediate steps. Applying the strict check would refuse a valid
+      multi-step advance from a peer that simply missed delivering earlier
+      messages.
+    verification: >
+      Unit tests in `test/core/behaviors/status/test_add_case_status_bt.py`
+      confirm that `FilterCsPxaDimensionNode` accepts PXA states that satisfy
+      `is_monotonic_pxa_forward()` or are identical to the current PXA state,
+      and refuses non-monotone-forward assertions by carrying the current value
+      forward.
+    note: >
+      Implemented by `FilterCsPxaDimensionNode.update()` in
+      `vultron/core/behaviors/status/nodes/cs_dimension_filter.py`. The predicate
+      is `asserted_pxa != current_pxa and not is_monotonic_pxa_forward(current_pxa, asserted_pxa)`;
+      CSB-16-002 strict single-step adjacency applies only to local write nodes,
+      not to the received-side filter.
     lint_suppress:
     - missing_story_reference
 
