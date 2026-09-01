@@ -310,6 +310,73 @@ class TestDisjointKeys:
             ), f"WIRE_TYPE_MAP key {key!r} still has 'as_' prefix"
 
 
+class TestWireTypeValues:
+    """ARCH-23-003: serialized wire `type_` values are independent of registry key changes."""
+
+    def setup_method(self):
+        import vultron.wire.as2.vocab  # noqa: F401
+
+    def test_all_concrete_type_defaults_are_reachable_via_wire_type_map(self):
+        """ARCH-23-003: every wire class with a concrete type_ default is findable by that value.
+
+        The registry key is an internal lookup concern; the `type` field value is an
+        external protocol commitment. For each wire class registered in WIRE_TYPE_MAP
+        with a concrete type_ default, the type_ value must itself be a key in
+        WIRE_TYPE_MAP (either as the primary key, or as an override entry), ensuring
+        the serialized wire output remains reachable after any key restructuring.
+        """
+        from pydantic_core import PydanticUndefinedType
+
+        unreachable = []
+        for key, cls in WIRE_TYPE_MAP.items():
+            field = cls.model_fields.get("type_")
+            if field is None:
+                continue
+            default = field.default
+            if isinstance(default, PydanticUndefinedType) or default is None:
+                continue
+            type_value = str(default)
+            # The class must be reachable via its own type_ value
+            if WIRE_TYPE_MAP.get(type_value) is None:
+                unreachable.append((key, cls.__name__, type_value))
+
+        assert unreachable == [], (
+            f"ARCH-23-003: {len(unreachable)} wire class(es) have type_ values that "
+            f"are not reachable via WIRE_TYPE_MAP — serialized output would be "
+            f"undeserializable: {unreachable}"
+        )
+
+    @pytest.mark.parametrize(
+        "type_value,expected_class_name",
+        [
+            ("VulnerabilityCase", "as_VulnerabilityCase"),
+            ("VulnerabilityReport", "as_VulnerabilityReport"),
+            ("Accept", "as_Accept"),
+            ("Create", "as_Create"),
+            ("Announce", "as_Announce"),
+            ("Person", "as_VultronPerson"),
+            ("Service", "as_VultronService"),
+            ("Actor", "as_Actor"),
+            ("Add", "as_Add"),
+            ("EmbargoEvent", "as_EmbargoEvent"),
+        ],
+    )
+    def test_critical_type_values_resolve_to_expected_wire_class(
+        self, type_value, expected_class_name
+    ):
+        """ARCH-23-003: key wire type_ values resolve to the same wire classes as before.
+
+        Verifies that registry key restructuring did not alter which class handles
+        each wire type_ value, ensuring deserialization is byte-identical to the
+        pre-change behaviour.
+        """
+        cls = find_in_vocabulary(type_value)
+        assert cls.__name__ == expected_class_name, (
+            f"ARCH-23-003: find_in_vocabulary({type_value!r}) returned "
+            f"{cls.__name__!r}, expected {expected_class_name!r}"
+        )
+
+
 class TestSetTypeFromClassName:
     """VM-03-003: set_type_from_class_name must use removeprefix, not lstrip."""
 
