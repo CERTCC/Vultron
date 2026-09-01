@@ -258,12 +258,18 @@ class EmitCaseStatusUpdateNode(DataLayerActionWithPorts):
     Per RSH-04-002 (EM mutations) and RSH-04-003 (PXA mutations).
     """
 
-    def __init__(self, case_id: str, name: str | None = None) -> None:
+    def __init__(self, case_id: str | None, name: str | None = None) -> None:
         super().__init__(name=name or self.__class__.__name__)
         self.case_id = case_id
         self._committed_status_id: str | None = None
 
     def update(self) -> Status:
+        if not self.case_id:
+            self.feedback_message = (
+                "case_id is absent — cannot snapshot CaseStatus"
+            )
+            self.logger.warning("%s: %s", self.name, self.feedback_message)
+            return Status.FAILURE
         if (f := self._require_datalayer_and_actor()) is not None:
             return f
         assert self.datalayer is not None

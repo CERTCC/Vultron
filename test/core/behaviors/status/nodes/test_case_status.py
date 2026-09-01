@@ -237,3 +237,27 @@ class TestEmitCaseStatusUpdateNode:
             latest = populated_dl.read(latest)
         assert isinstance(latest, CaseStatus)
         assert latest.attributed_to == ACTOR_ID
+
+    @pytest.mark.spec("ARCH-15-001")
+    def test_empty_string_case_id_returns_failure_with_diagnostic(
+        self, bridge
+    ):
+        """Empty string case_id → FAILURE with a diagnostic mentioning absence."""
+        node = EmitCaseStatusUpdateNode(case_id="")
+        result = bridge.execute_with_setup(tree=node, actor_id=ACTOR_ID)
+        assert result.status == Status.FAILURE
+        assert (
+            "absent" in node.feedback_message.lower()
+            or "case_id" in node.feedback_message.lower()
+        )
+
+    @pytest.mark.spec("ARCH-15-001")
+    def test_none_case_id_returns_failure_with_diagnostic(self, bridge):
+        """None case_id → FAILURE with a diagnostic mentioning absence."""
+        node = EmitCaseStatusUpdateNode(case_id=None)
+        result = bridge.execute_with_setup(tree=node, actor_id=ACTOR_ID)
+        assert result.status == Status.FAILURE
+        assert (
+            "absent" in node.feedback_message.lower()
+            or "case_id" in node.feedback_message.lower()
+        )
