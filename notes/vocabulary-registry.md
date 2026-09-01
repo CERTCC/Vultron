@@ -9,8 +9,10 @@ description: >
   live in vultron/wire/as2/vocab/AGENTS.md.
 related_specs:
   - specs/vocabulary-model.yaml
+  - specs/architecture.yaml
 related_notes:
   - notes/activitystreams-semantics.md
+  - notes/wire-core-boundary.md
 relevant_packages:
   - vultron/wire/as2/vocab
 ---
@@ -202,8 +204,12 @@ foundation**, so read this section first:
   used to claim otherwise; it was only accidentally true and already false for
   the five actor types, which auto-register under `VultronPerson` etc. and are
   *also* explicitly assigned to `Person` etc.
-- Because `VOCABULARY` and `CORE_VOCABULARY` share bare-name keys, fifteen wire
-  classes shadow a core type. That collision is currently **load-bearing**:
+- Because `VOCABULARY` and `CORE_VOCABULARY` share bare-name keys, wire classes
+  shadow their core counterparts. **ARCH-23-002 owns this fact**, and its
+  verification test (`set(VOCABULARY) & set(CORE_VOCABULARY) == set()`, after
+  forcing full registration) is the live check — do not restate a count here,
+  because a count in prose drifts the moment a key is renamed. That collision is
+  currently **load-bearing**:
   `As2WireRenderAdapter.render()` resolves a core class to its wire counterpart
   with `VOCABULARY.get(type(obj).__name__)`.
 - ADR-0081 introduces a declarative core↔wire **pairing registry** as the single

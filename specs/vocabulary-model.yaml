@@ -60,6 +60,13 @@ groups:
       wire value are the same string made the bare-name collision with `CORE_VOCABULARY`
       look mandatory, when in fact nothing about the external protocol requires it — see
       ARCH-23-003, which holds serialized output invariant under any key change.
+    verification: >-
+      A test asserts that every `VOCABULARY` key is the class-name-derived identifier for its
+      registered class; that resolving an inbound `"type"` value goes through the declared key
+      mapping rather than treating the value as the key, so `{"type": "Person"}` deserializes to
+      `as_VultronPerson` even though its derived key is `VultronPerson`; and that
+      `set(VOCABULARY) & set(CORE_VOCABULARY) == set()` once both registries are fully populated
+      (ARCH-23-002).
     adr:
     - ADR-0081
     relationships:

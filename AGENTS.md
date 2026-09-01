@@ -301,7 +301,11 @@ See [notes/agents-md-structure.md](notes/agents-md-structure.md) for routing pol
   because the key is derived via `cls.__name__.removeprefix("as_")`. ADR-0081
   makes the keys disjoint (ARCH-23-002); until then, do not infer a class's
   branch from its registry key. Never resolve a core type's wire counterpart by
-  name coincidence — use the pairing registry (ARCH-23-001).
+  name coincidence — use the pairing registry (ARCH-23-001). **Until issue #2937
+  lands there is no pairing-registry module to import**, so do not go looking for
+  one and do not add a new name-coincidence lookup in the meantime; the existing
+  `VOCABULARY.get(type(obj).__name__)` call in `As2WireRenderAdapter.render()` is
+  the one site slated to be replaced.
 - **Never add a new `from vultron.core.models import …` inside `vultron/wire/`** —
   wire code that needs to convert a core object to wire form MUST use the
   `as_Foo.from_core(core_obj)` class method already present on every wire vocab
@@ -339,15 +343,13 @@ See [notes/agents-md-structure.md](notes/agents-md-structure.md) for routing pol
   inside a union. See [notes/wire-core-boundary.md](notes/wire-core-boundary.md).
   *Source: CONCERN-2830*
 - **`extra="forbid"` Requires the Codebase to Round-Trip Its Own Output** — two
-  things break first, and neither is a wire-spelling problem: `@computed_field`
-  values (e.g. `embargo_adherence`, ADR-0056) appear in `model_dump()` output but
-  are not settable, and helpers that dump by Python field name emit
-  `id_`/`type_`/`context_` where the field declares `validation_alias="id"`.
-  Under `extra="forbid"` a field with an explicit `validation_alias` rejects its
-  own Python name, even with `validate_by_name=True`. Strip computed fields and
-  emit wire-facing names before enabling it (ARCH-23-005). Measured: 570 failures
-  without those cleanups, 179 with them — and zero of either count involved a
-  camelCase key. *Source: CONCERN-2830*
+  things break first and neither is a wire-spelling problem: `@computed_field`
+  values (ADR-0056), which `model_dump()` emits but cannot re-accept, and
+  `mode="before"` validators that inject an alias key beside an already-present
+  field-name key. Do those cleanups first (ARCH-23-005). Measured blast radii and
+  the exact mechanisms are in
+  [notes/wire-core-boundary.md](notes/wire-core-boundary.md).
+  *Source: CONCERN-2830*
 - **ARCH-01-001 (core→wire) and ARCH-22-001 (wire→core) Are Different Rules** —
   ADR-0063's `WireRenderPort` solved the *rendering* half of the first one. Its
   adapter still calls `wire_cls.from_core(obj)`, so it removed **no** wire→core
@@ -359,11 +361,11 @@ See [notes/agents-md-structure.md](notes/agents-md-structure.md) for routing pol
 - **Check a Ratchet's Goal State Against the Spec Corpus Before Adding the
   `xfail`** — the ARCH-22 goal test asserted `vultron/wire/` could reach zero
   `vultron.core.models` imports, which three MUST-level requirements made
-  impossible (ARCH-12-001 mandates the shared-base inheritance, ARCH-12-010 the
-  core type-map fallback, and ARCH-12-005 formerly the projection methods). An
-  unreachable goal invites an implementer to violate a MUST to make it pass.
-  Target the declared exemption set, not empty, and enumerate each exemption with
-  the requirement that mandates it. See ARCH-22-003. *Source: CONCERN-2830*
+  impossible (ARCH-12-001, ARCH-12-010, and formerly ARCH-20-002). Target the
+  declared exemption set, not empty, and enumerate each exemption with the
+  requirement that mandates it. See ARCH-22-003 and
+  [notes/wire-core-boundary.md](notes/wire-core-boundary.md).
+  *Source: CONCERN-2830*
 - **Flat `nodes.py` in BT Areas Is Non-Compliant** — use `nodes/` subpackage;
   `__init__.py` MUST re-export all public names. See BTND-07-001, BTND-07-003.
 - **Splits Must Not Produce New God Modules** — submodules ≤500 lines; split
@@ -1105,7 +1107,11 @@ message.
   ignores only `wip_notes/**`; all other dirs are linted.
 - **Notes frontmatter** (NF-06-001, NF-06-002): every `notes/*.md` (except
   `README.md`) needs `title` and `status` frontmatter. `superseded_by` is a
-  scalar string. Schema: `vultron/metadata/notes/schema.py`.
+  scalar string. Schema: `vultron/metadata/notes/schema.py`. **Maintenance rule
+  (NF-06-001, documented here per NF-06-002):** when you modify a note, review
+  and update its `status`, `related_specs`, and `related_notes` in the same
+  change — a new spec citation or cross-note link in the body means a new
+  frontmatter entry, and cross-links SHOULD be two-way.
 - **Docs links must be relative**: links in `docs/` MUST be relative and MUST NOT
   go above `docs/`. Run `uv run mkdocs build --strict` before committing docs.
   `docs/developer/` pages are draft docs — visible in `mkdocs serve` but excluded from production builds.

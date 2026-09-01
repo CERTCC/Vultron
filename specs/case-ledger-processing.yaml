@@ -478,9 +478,10 @@ groups:
     statement: Core snapshot-construction code MUST NOT special-case individual field
       names to reach the wire spelling (e.g. moving a nested `consent.state` to a
       flat `emConsentState`). Structural differences between the core and wire shapes
-      are the responsibility of the wire class's `from_core()` projection.
-    rationale: A per-field patch in core is a partial reimplementation of `from_core()`
-      that drifts as either shape evolves, and it is invisible to the wire layer's
+      are the responsibility of the adapter-side translator for that pairing
+      (ARCH-12-005), reached through the rendering port.
+    rationale: A per-field patch in core is a partial reimplementation of the translator
+      that drifts as either shape evolves, and it is invisible to the adapter layer's
       own round-trip tests. Each such patch also silently defines the canonical shape
       for exactly one type, leaving every other nested type unhandled.
     verification: No module under `vultron/core/` assigns a camelCase key into a snapshot
@@ -488,8 +489,12 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: CLP-07-009
+    - rel_type: depends_on
+      spec_id: ARCH-12-005
+      note: ARCH-12-005 names the adapter-side translator as the sole owner of the structural projection.
     adr:
     - ADR-0063
+    - ADR-0081
 - id: CLP-08
   title: Per-Case Genesis Hash Derivation and Origin Binding
   specs:

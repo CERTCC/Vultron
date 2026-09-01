@@ -14,6 +14,7 @@ related_notes:
   - notes/domain-model-separation.md
   - notes/architecture-hexagonal.md
   - notes/activitystreams-semantics.md
+  - notes/wire-core-boundary.md
 relevant_packages:
   - vultron/core/ports
   - vultron/adapters/driven
@@ -241,10 +242,14 @@ core-shaped case.
 
 `_NORMALIZE_WIRE_TO_CORE` enumerates the migrated types. It is the write-side
 analogue of `KNOWN_WIRE_ESCAPES` and ratchets the opposite way — it may only
-**grow** (`test/architecture/test_normalize_wire_to_core_ratchet.py`). The
-remaining 5 shadowing types are all actor types (`VultronApplication`,
-`VultronGroup`, `VultronOrganization`, `VultronPerson`, `VultronService`);
-none has a `to_core()` projection yet — tracked in #2268.
+**grow** (`test/architecture/test_normalize_wire_to_core_ratchet.py`). **The set
+is now complete**: all fifteen shadowing types are normalised — the five actor
+types (`VultronApplication`, `VultronGroup`, `VultronOrganization`,
+`VultronPerson`, `VultronService`) via issue #2402, the remaining ten object
+types via issue #2268. Do not restate a "remaining" count here; the enumeration
+lives in the frozenset and its ratchet test. Under ADR-0081 this whole gate is
+deleted once `extra="forbid"` and the pairing registry land — see
+[notes/wire-core-boundary.md](wire-core-boundary.md).
 
 **`StorableRecord` inputs to `create()` and `update()` are also normalised.**
 `crud.create()` and `crud.update()` receive `StorableRecord` from core BT nodes

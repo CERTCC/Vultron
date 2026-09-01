@@ -618,9 +618,14 @@ groups:
   - id: CM-08-002
     priority: MUST_NOT
     kind: protocol
-    statement: Domain objects MUST NOT directly inherit from ActivityStreams base types; explicit `from_core()` / `to_core()`
-      translation methods MUST be provided at the wire boundary (see `specs/architecture.yaml` ARCH-12-001 through ARCH-12-007
-      and `notes/domain-model-separation.md`)
+    statement: Domain objects MUST NOT directly inherit from ActivityStreams base types, and wire classes MUST NOT carry
+      translation methods; core↔wire translation MUST be provided by the adapter-side translator resolved through the
+      declarative pairing registry (see `specs/architecture.yaml` ARCH-12-001 through ARCH-12-007, ARCH-23-001, and
+      `notes/domain-model-separation.md`)
+    rationale: The two branches stay distinct type hierarchies, and the translation between them lives on the adapter side —
+      the one layer permitted to see both — so neither branch imports the other.
+    adr:
+    - ADR-0081
 - id: CM-09
   title: Redacted Case View
   specs:
@@ -1924,20 +1929,25 @@ groups:
     priority: MUST
     kind: project
     statement: >-
-      The wire projection (`as_ParticipantStatus.from_core()`) MUST derive the
-      `embargoAdherence` value from the consent state rather than copying a stored field.
+      The core→wire translation of `ParticipantStatus` MUST derive the `embargoAdherence` value
+      from the consent state rather than copying a stored field.
     rationale: >-
-      Deriving from consent state at projection time ensures the wire value is always
+      Deriving from consent state at translation time ensures the wire value is always
       consistent with the authoritative PEC state, eliminating the drift risk that arises
       when a stored boolean is copied.
-    verification: Inspection of `vultron/core/` confirms that `as_ParticipantStatus.from_core()`
-      derives the `embargoAdherence` wire value from `consent.state` rather than copying a
-      stored boolean.
+    verification: Inspection of the adapter-side `ParticipantStatus` translator confirms the
+      `embargoAdherence` wire value is derived from `consent.state` rather than copied from a
+      stored boolean, and a translation test asserts the emitted value tracks a change to
+      `consent.state`.
     relationships:
     - rel_type: refines
       spec_id: CM-18-008
+    - rel_type: depends_on
+      spec_id: ARCH-12-005
+      note: ARCH-12-005 places the translation on the adapter side, so the derivation lives there rather than on the wire class.
     adr:
     - ADR-0056
+    - ADR-0081
 - id: CM-19
   title: Participant Index Discipline
   specs:

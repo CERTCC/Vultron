@@ -12,6 +12,7 @@ related_specs:
 related_notes:
   - notes/activitystreams-semantics.md
   - notes/architecture-hexagonal.md
+  - notes/wire-core-boundary.md
 relevant_packages:
   - vultron/wire/as2/factories
   - vultron/wire/as2/vocab/activities
@@ -252,11 +253,11 @@ duplicate the logic in the factory.
 | `announce_log_entry_activity` | `as_Announce` | `AnnounceLogEntryActivity` |
 | `reject_log_entry_activity` | `as_Reject` | `RejectLogEntryActivity` |
 
-## Anti-Pattern: `model_dump` + `model_validate` Instead of `from_core()`
+## Anti-Pattern: `model_dump` + `model_validate` Instead of a Declared Field Map
 
-When converting a core domain object to its wire counterpart in adapter
-code, always use `wire_cls.from_core(core_obj)`. **Do NOT use**
-`wire_cls.model_validate(core_obj.model_dump(by_alias=True, serialize_as_any=True))`.
+When converting a core domain object to its wire counterpart in adapter code,
+route the conversion through the **declarative field-map translator**. **Do NOT
+use** `wire_cls.model_validate(core_obj.model_dump(by_alias=True, serialize_as_any=True))`.
 
 The `model_dump + model_validate` pattern breaks silently when a wire class
 has field types that differ from the core class. Example: `VulnerabilityCase.case_activity`
@@ -265,10 +266,20 @@ is `list[as_Activity]`. Pydantic raises `ValidationError` when validating URI
 strings as `as_Activity` objects — with no indication that the wrong conversion
 path was used.
 
-`from_core()` is defined on `VultronAS2Object` (and overridden on specific wire
-classes) and handles all field-type differences via `_field_map`,
-`_strip_core_context`, and custom conversion logic. It is the canonical
-core→wire conversion path.
+The durable lesson is about the *mechanism*, not about which method holds it: a
+core→wire conversion needs a declared per-field map, because a dump/revalidate
+round-trip has no place to record that `case_activity` is `list[str]` on one side
+and `list[as_Activity]` on the other. `_field_map`, `_strip_core_context`, and
+the per-field conversion logic are what supply that.
+
+**Where that mechanism lives is changing.** Today it is
+`from_core()` on `VultronAS2Object` (overridden on specific wire classes). Under
+ADR-0081, ARCH-12-005 as amended **forbids** `from_core()`/`to_core()` on wire
+vocabulary classes: projection moves to a generic bidirectional translator on the
+adapter side, driven by a declarative core↔wire pairing registry (ARCH-23-001),
+so wire classes carry no domain knowledge. Do not write new
+`from_core()`/`to_core()` overrides. See
+[notes/wire-core-boundary.md](wire-core-boundary.md).
 
 Source: ISSUE-1503 — discovered during `datalayer_sqlite` adapter refactoring.
 

@@ -12,11 +12,14 @@ related_specs:
   - case-ledger-processing.yaml (CLP-07-001, CLP-07-006, CLP-07-009, CLP-07-010)
   - status-dimension-objects.yaml (SDO-03-003, SDO-03-005)
   - datalayer.yaml (DL-05-001)
+related_notes:
+  - notes/wire-core-boundary.md
 related_adrs:
   - ADR-0017
   - ADR-0036
   - ADR-0062
   - ADR-0063
+  - ADR-0081
 ---
 
 # Core-to-Wire Rendering Port
@@ -280,6 +283,8 @@ wire→core separation.
 - `VultronPerson`'s docstring claim that it is 'Registered in
   `VOCABULARY["Person"]`' is stale — the six core actor classes are in
   `CORE_VOCABULARY` only. Fix it while you are in the file.
-- **#2268** (thirteen remaining wire-shadowing types on the write path) stays
-  tracked separately. It is the same family of defect but a different set of
-  types, and `_NORMALIZE_WIRE_TO_CORE` in `db_record.py` is its seam.
+- The write-path shadowing-type work tracked by issues #2268 and #2402 is
+  **done**: `_NORMALIZE_WIRE_TO_CORE` in `db_record.py` now covers all fifteen
+  shadowing types, including the five actor types. Do not restate a "remaining"
+  count. ADR-0081 deletes that gate entirely once `extra="forbid"` lands
+  (ARCH-12-003).

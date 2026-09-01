@@ -4,6 +4,7 @@ date: 2026-08-31
 deciders: Allen Householder
 consulted: Claude Code (planning agent for G02 / CONCERN-2830)
 informed: Vultron contributors
+supersedes: 0062-normalise-wire-to-core-at-both-ingress-and-persistence.md
 ---
 
 # Wire/Core Boundary: One Declarative Pairing Registry, One Translator, and Reject Unknown Keys
@@ -33,7 +34,11 @@ fields by hand, a third restatement.
 `As2WireRenderAdapter.render()` resolves a core class to its wire counterpart
 with `VOCABULARY.get(type(obj).__name__)` — that is, it relies on the *bare-name
 collision* between `VOCABULARY` and `CORE_VOCABULARY` as an implicit pairing
-index. `_WIRE_ACTOR_TO_CORE` in `vultron/wire/as2/vocab/objects/vultron_actor.py`
+index. The collision is between *registry keys*, not class names: the wire class
+is `as_CaseParticipant`, but it registers under the bare key `CaseParticipant`,
+which is also the core class's `__name__`, so looking the core name up in
+`VOCABULARY` happens to land on the wire counterpart.
+`_WIRE_ACTOR_TO_CORE` in `vultron/wire/as2/vocab/objects/vultron_actor.py`
 is a hand-rolled pairing table for actor types only, built because someone
 needed exactly this mapping and no general one existed.
 `_NORMALIZE_WIRE_TO_CORE` in `db_record.py` is a third hand-maintained list of
@@ -42,14 +47,16 @@ paired types. And three registries (`VOCABULARY`, `CORE_VOCABULARY`,
 
 This is why issue #2403 — "make the two `type_` namespaces disjoint" — has
 looked risky rather than obvious: the collision it proposes to remove is
-currently load-bearing. Fifteen wire classes shadow a core type, and the render
-adapter depends on that shadowing to find its counterpart.
+currently load-bearing. Fifteen wire registry keys shadow a core type's key, and
+the render adapter depends on that shadowing to find its counterpart.
 
 **3. Projection is declarative in one direction and hand-written in the other.**
 `VultronAS2Object.from_core()` is generic: dump, apply the declarative
 `_field_map` renames, validate. `to_core()` raises `NotImplementedError` at the
-base and is overridden in twelve wire classes — 354 lines total. Six of those
-overrides are pure boilerplate around one per-type fact:
+base and is overridden in twelve wire classes — 195 lines across the twelve
+overrides plus the base raiser, against 152 lines of `from_core()`, so 354 lines
+is the both-directions total. Six of those overrides are pure boilerplate around
+one per-type fact:
 
 ```python
 data = self._to_core_data()
@@ -75,18 +82,29 @@ discards every key whose only spelling is snake_case. That is the #2232 defect:
 `_init_participant_status_if_empty` re-seeding one status at `RM.START`, and a
 participant's RM ladder `['START','RECEIVED']` silently becoming `['START']`.
 Issue #2232 fixed this for `CaseParticipant` alone; issue #2262 asks for the
-general case. Sixteen other `CoreObject` subclasses still drop silently.
+general case. `CaseParticipant` is the only one of the eighteen
+`CORE_VOCABULARY` entries carrying the guard, so the other seventeen registered
+core types — and 29 of the 30 `CoreObject` subclasses overall — still drop
+silently.
 
 Separately, `test_wire_no_core_model_imports.py` carries an
 `xfail(strict=True)` goal test asserting that `vultron/wire/` will eventually
-have **zero** `vultron.core.models` imports, and issue #2670's acceptance
-criterion is "all 29 entries removed". That target is unreachable while three
-MUST-level requirements stand: ARCH-12-001 mandates that `as_Base` inherit
-`VultronBase` (which lives in `vultron/core/models/base.py`), ARCH-12-005
-mandates `to_core()`/`from_core()` on wire types (which construct core objects
-at runtime), and ARCH-12-010 mandates that `find_in_vocabulary()` consult the
-core `CORE_TYPE_MAP`. An agent working #2670 would clear the easy files, reach
-the base classes, and have to choose which MUST to violate.
+have **zero** `vultron.core.models` imports. Issue #2670's acceptance criterion
+is quoted as "all 29 entries removed"; that count is wrong at the source — the
+issue's own enumeration lists 31 files, and `KNOWN_VIOLATIONS` in the ratchet
+test holds 31 entries matching the 31 measured imports exactly. The target is
+in any case unreachable while three MUST-level requirements stand: ARCH-12-001
+mandates that `as_Base` inherit `VultronBase` (which lives in
+`vultron/core/models/base.py`), ARCH-20-002 in its pre-ADR-0081 form mandates
+that the rendering port's adapter locate the core object's wire counterpart and
+invoke *that class's* `from_core()` projection —
+so a wire class must keep a `from_core()` whose parameter is a core type — and
+ARCH-12-010 mandates that `find_in_vocabulary()` consult the core
+`CORE_TYPE_MAP`. An agent working #2670 would clear the easy files, reach the
+base classes, and have to choose which MUST to violate. (ARCH-12-005 is easily
+read as a fourth blocker and is not one: in its pre-ADR-0081 form it *permitted*
+`to_core()`/`from_core()` on wire types and stated that they were not required
+for structurally-compatible types.)
 
 ## Decision Drivers
 
@@ -177,15 +195,19 @@ Concretely:
 
 6. **`extra="forbid"` on `CoreObject` is the boundary contract.** It is
    strictly stronger than a camelCase-specific guard: a typo, a renamed field,
-   and a stale key are all caught, not only wire spellings. Three central
+   and a stale key are all caught, not only wire spellings. Two central
    cleanups are prerequisites, each defensible independently:
 
    - computed fields (`embargo_adherence`, a `@computed_field` per ADR-0056) must
      be stripped before re-validation, because they appear in `model_dump()`
      output but are not settable;
-   - round-trip helpers must emit wire names (`id`, `type`, `@context`) rather
-     than Python field names (`id_`, `type_`, `context_`);
-   - persisted rows must be keyed by wire name for the same reason.
+   - a `model_validator(mode="before")` must not inject an alias key beside a
+     field-name key that the incoming payload already carries. `VultronBase`
+     resolves `validate_by_name=True`, so both `id` and `id_` are sanctioned
+     inputs — but only one of them may be present when validation proper begins,
+     or the other is left over as `extra`. Each injecting validator must
+     therefore normalise the payload to one spelling before writing its computed
+     value.
 
    With `extra="forbid"` in place, `_NORMALIZE_WIRE_TO_CORE`, its grow-only
    ratchet test, and the per-class camelCase reject-guards are all dead code and
@@ -194,9 +216,36 @@ Concretely:
 
 7. **ARCH-22-003 gains an explicit exemption clause.** Its "shrink toward empty"
    aspiration is retained, but the target becomes "empty except the declared
-   structural exemptions" and the `xfail(strict=True)` goal test is retargeted to
-   match. After the task set, one exemption remains: `find_in_core_type_map`,
-   mandated by ARCH-12-010.
+   structural exemptions", the exemption set is *enumerated* — one entry, the
+   `find_in_core_type_map` import in `vultron/wire/as2/vocab/base/registry.py`,
+   mandated by ARCH-12-010 — rather than stated as a count, and the
+   `xfail(strict=True)` goal test is retargeted to equality with that
+   enumeration. Everything else in the 31-entry ratchet set is a **relocation
+   target, not an exemption**, and clears only when the relocation that owns it
+   lands:
+
+   - the shared-base and shared-primitive imports — the bulk of the set — clear
+     when item 8 lands the branch-neutral module;
+   - the projection imports in the `as_*` classes clear when item 4 moves
+     `to_core()`/`from_core()` onto the adapter side;
+   - `factories/actor.py` and `factories/case.py` clear only because AF-01-005 is
+     amended here: in its pre-ADR-0081 form it *mandated* that the factory accept
+     the core object and project internally, which pinned those two imports in
+     place permanently. It is inverted to require a complete translator-produced
+     wire object as the argument;
+   - `vultron/wire/as2/enums.py` (`VultronActorType`) and the semantic extractor
+     (`extractor/_instances.py`, `_builders.py`, `_pattern.py`, `_extract.py`,
+     taking `VultronObjectType`, `MessageSemantics`, `VultronEvent`, `CoreActor`,
+     `VultronCaseLedgerEntry` and the dimension types) are cross-cutting
+     *vocabulary* rather than domain models, so the ADR-0031 neutral-layer
+     treatment in item 8 is the likely answer — but each is its own relocation
+     with its own task, and this ADR does not pre-judge them.
+
+   Until all of those have landed, `KNOWN_VIOLATIONS` stays a superset of the
+   exemption set and the two-sided ratchet (ARCH-22-002) stays in force. Stating
+   the exemption set as an enumeration rather than a total is deliberate: a count
+   in a requirement drifts the moment a relocation lands, and the residue is only
+   reachable after all of them.
 
 8. **The shared base moves to a neutral bottom layer.** `VultronBase` and
    `VultronObject` are shared by both branches, so hosting them in
@@ -205,8 +254,8 @@ Concretely:
    introduced `vultron/enums/` for cross-cutting enumerations. The shared
    primitives (`NonEmptyString`, `UriString`, `VO_type`, `_now_utc`,
    `parse_duration`, `coerce_cvd_roles`, `coerce_em_consent_state`,
-   `compute_genesis_hash`) move with them. ARCH-12-001 and ARCH-12-002 are
-   amended to name the new home.
+   `compute_genesis_hash`) move with them. ARCH-12-001 is amended to name the
+   new home.
 
 9. **`| CoreObject` is removed from `as_ObjectRef`.** The AS2-faithful part of
    that union — `as_Object | as_Link | str` — stays: the standard explicitly
@@ -244,11 +293,24 @@ Two further findings came out of the same measurement:
   accepts camelCase. Measured: any class carrying an alias generator yields an
   *empty* forbidden-key set. The guard is structurally inert on such classes and
   arms itself when #2288/#2289 remove the alias. No ordering constraint.
-- **Persisted rows are keyed by Python field name.** `Record.from_obj()` calls
+- **Persisted rows are keyed by Python field name, and one class cannot read its
+  own back.** `Record.from_obj()` calls
   `obj.model_dump(mode="json", serialize_as_any=True)` with no `by_alias`, so
-  rows are stored with `id_`/`type_` rather than `id`/`type`. Invisible today
-  because unknown keys are ignored on read-back — the same tolerance hiding a
-  second problem.
+  rows are stored with `id_`/`type_` rather than `id`/`type`. That alone is
+  harmless: `VultronBase` resolves `validate_by_name=True`, so `id_` is a
+  sanctioned input and `Record.from_obj(p).to_obj().id_ == p.id_` round-trips.
+  The 110 rejected `id_` keys are all one class. `CaseLedgerEntry`'s
+  `_set_id_from_case` is a `model_validator(mode="before")` that writes
+  `data["id"] = f"{case_id}/log/{log_index}"` into a payload that **already
+  carries `id_`** from the dump; the alias satisfies the field, and the
+  field-name key it was meant to replace survives as `extra`. Under
+  `extra="ignore"` it is discarded silently; under `extra="forbid"` it raises.
+  The same inject-an-alias-beside-the-field-name pattern occurs in
+  `pending_case_inbox.py:73`, `pending_create_case_activity.py:97`,
+  `case.py:130,166`, `case_participant.py:161,416,465`, `offer_record.py:82`,
+  and — for `type` rather than `id` — `base.py:260`. The constraint that follows
+  is not "emit wire-facing names everywhere"; it is "normalise to one spelling
+  before injecting".
 
 ### Consequences
 
@@ -260,15 +322,18 @@ Two further findings came out of the same measurement:
   typos, renamed fields, and stale keys from an older schema.
 - Good, because #2403 stops being a risky rename. Disjoint registry keys become
   safe once the pairing is explicit.
-- Good, because ARCH-22's goal becomes reachable and honest. 28 of 29 violations
-  clear; the remaining one is named and justified rather than pending.
+- Good, because ARCH-22's goal becomes reachable and honest. The ratchet's
+  measured population is 31 files, not the 29 quoted in #2670, and the goal test
+  targets an enumerated exemption set with a citation per entry: on the one
+  exemption ARCH-12-010 mandates today that is 30 of 31 clearing, and any file
+  that turns out not to clear is named and justified rather than pending.
 - Good, because wire classes end up with no domain knowledge, which is what
   ADR-0017's "wire is a projection of core" asserted but never structurally
   enforced.
 - Bad, because it is a wide change: 13 tasks touching the shared base, the
   vocabulary registries, the persistence round-trip, the render adapter, and the
-  semantic extractor. It supersedes one ADR and revises the mechanism of
-  another.
+  semantic extractor. It partially supersedes one ADR and revises the mechanism
+  of another.
 - Bad, because it revises ADR-0063, which was accepted 2026-08-13. The decision
   there was correct and stands; only the adapter's internal mechanism changes.
 - Bad, because moving the shared base out of `vultron/core/models/` touches
@@ -276,8 +341,10 @@ Two further findings came out of the same measurement:
   mechanical.
 - Neutral, because serialized AS2 output does not change. The pairing registry
   and disjoint keys are internal; wire `"type"` values are unaffected.
-- Neutral, because no data migration is implied. Rows are re-keyed from `id_` to
-  `id` by a task in this set, and this code has no production deployment.
+- Neutral, because no data migration is implied. Existing rows keyed by `id_`
+  still validate (`validate_by_name=True`), so re-keying rows to `id` is a
+  consistency choice rather than a correctness requirement, and this code has no
+  production deployment in any case.
 
 ## Validation
 
@@ -363,10 +430,19 @@ Two further findings came out of the same measurement:
   #890, carrying the evidence gathered here. This decision records **no**
   adopt-or-decline verdict on PyLD or `activitypubdantic`; that is deliberately
   deferred to those Ideas.
-- **Supersedes ADR-0062.** Its ingress projection becomes a `WireParsePort`
-  call and its persistence-boundary backstop becomes unnecessary once
-  `extra="forbid"` holds. ADR-0062 remains authoritative for the current code
-  until the task set lands.
+- **Partially supersedes ADR-0062** (`supersedes:` in this ADR's frontmatter,
+  `partially_superseded_by:` in ADR-0062's; the project has no
+  `partially_supersedes` field). ADR-0062 chose *two* enforcement points and
+  only the second is replaced. **Survives:** normalise at ingress, so no core
+  reader ever sees a wire shape — the placement stands, with its mechanism
+  changed from a `to_core()` call to a `WireParsePort` call (item 5), exactly as
+  ADR-0063's mechanism is revised below. Its "readers stay strict" consequence
+  also stands. **Replaced:** the persistence-boundary backstop —
+  `_NORMALIZE_WIRE_TO_CORE`, `_normalize_to_core()`, and the grow-only ratchet —
+  which becomes unnecessary once `extra="forbid"` makes the invariant a property
+  of the type system rather than a maintained list. ADR-0062 keeps
+  `status: accepted` and remains authoritative for the current code until the
+  task set lands.
 - **Revises the mechanism of ADR-0063**, whose decision (render core objects
   through a driven port) stands unchanged.
 - Related: ADR-0017 (two-branch hierarchy), ADR-0031 (neutral bottom layer
@@ -377,6 +453,9 @@ Two further findings came out of the same measurement:
   #2673, #1991. Flag the conclusion to **G12** (#2596), which will need whatever
   contract this establishes.
 
-Generated spec requirements: `architecture.yaml` ARCH-12-001, ARCH-12-002,
-ARCH-12-003 and ARCH-12-005 amended; ARCH-22-003 amended; new group ARCH-23
-(ARCH-23-001 through ARCH-23-006); `vocabulary-model.yaml` VM-01-004 amended.
+Generated spec requirements: `architecture.yaml` ARCH-12-001, ARCH-12-003 and
+ARCH-12-005 amended; ARCH-20-002, ARCH-20-008 and ARCH-20-009 re-pointed at the
+adapter-side translator and `WireParsePort`; ARCH-22-001 and ARCH-22-003
+amended; new group ARCH-23 (ARCH-23-001 through ARCH-23-006);
+`activity-factories.yaml` AF-01-005 inverted to forbid in-factory projection;
+`vocabulary-model.yaml` VM-01-004 amended.

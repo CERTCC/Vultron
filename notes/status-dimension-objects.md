@@ -7,7 +7,9 @@ description: >
   pattern, wire projection, and call-site migration scope.
 related_specs:
   - specs/status-dimension-objects.yaml
+  - specs/architecture.yaml
 related_notes:
+  - notes/wire-core-boundary.md
   - notes/lifecycle-staged-types.md
   - notes/case-state-model.md
   - notes/embargo-lifecycle.md
@@ -156,18 +158,23 @@ never mutated; a new record is appended with the updated dimension values.
 ## Wire Projection
 
 `as_CaseStatus` and `as_ParticipantStatus` project dimension objects to the
-wire format. The `from_core()` / `to_core()` methods must handle the nested
-dimension-object dict shape:
+wire format. That projection must handle the nested dimension-object dict shape:
 
 ```python
-# from_core() — core dimension objects → wire flat fields (for backward wire compat)
+# core dimension objects → wire flat fields (for backward wire compat)
 # OR — wire flat fields remain nested dicts (simpler, no backward wire compat needed
 #       since there are no extant records to preserve)
 ```
 
 Because there are no extant persisted records to preserve, the simplest
-approach is to match the wire JSON shape to the new nested structure and
-update `from_core()` / `to_core()` accordingly.
+approach is to match the wire JSON shape to the new nested structure.
+
+**Do not implement this as `from_core()` / `to_core()` methods on the wire
+classes.** ARCH-12-005 as amended by ADR-0081 forbids those methods; projection
+belongs to the generic bidirectional translator on the adapter side. Declare the
+core↔wire pairing and its field map to that translator (ARCH-23-001) and put the
+dimension-object shape handling there. See
+[notes/wire-core-boundary.md](wire-core-boundary.md).
 
 ---
 

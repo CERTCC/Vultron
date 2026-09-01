@@ -15,6 +15,9 @@ related_notes:
   - notes/core-wire-rendering-port.md
   - notes/domain-model-separation.md
   - notes/datalayer-design.md
+  - notes/activity-factories.md
+  - notes/domain-validation.md
+  - notes/status-dimension-objects.md
 relevant_packages:
   - vultron/core/models
   - vultron/wire/as2/vocab
@@ -53,13 +56,25 @@ ARCH-01-001; it only hides the violation from the import-based ratchet.
 `#2670`'s acceptance criterion ("all 29 entries removed") and the
 `xfail(strict=True)` goal test in
 `test/architecture/test_wire_no_core_model_imports.py` both asserted that
-`vultron/wire/` could reach zero `vultron.core.models` imports. Three MUST-level
-requirements made that impossible:
+`vultron/wire/` could reach zero `vultron.core.models` imports.
+
+**The count is 31, not 29.** `len(KNOWN_VIOLATIONS) == len(_VIOLATIONS) == 31`
+and their symmetric difference is empty, so the ratchet set is exactly the
+measured set. The "29" in that acceptance criterion is #2670's own prose
+miscount; do not propagate it. With the one declared exemption (ARCH-22-003), the
+reachable target is **30 of 31 clear**.
+
+Three MUST-level requirements made zero impossible:
 
 - **ARCH-12-001** — `as_Base` MUST inherit `VultronBase`, which lived in
   `vultron/core/models/base.py`. A required inheritance is a permanent import.
-- **ARCH-12-005** (as originally written) — wire types MUST carry
-  `from_core()`/`to_core()`, which construct core objects at runtime.
+- **ARCH-20-002** (as originally written) — the rendering adapter MUST locate the
+  wire counterpart and invoke *that class's* `from_core()` projection, which
+  constructs core objects at runtime. Cite **ARCH-20-002**, not ARCH-12-005, as
+  the mandate here: pre-ADR-0081 ARCH-12-005 said the opposite — explicit
+  `from_core()`/`to_core()` methods were "**not required** for
+  structurally-compatible types". It is ARCH-20-002 that made the projection
+  method load-bearing, and therefore the import permanent.
 - **ARCH-12-010** — `find_in_vocabulary()` MUST consult the core
   `CORE_TYPE_MAP`.
 
@@ -69,8 +84,13 @@ the shared base moves to a branch-neutral layer, and projection moves to the
 adapter side — and retargets the goal test at a one-member exemption set.
 
 **Lesson for future ratchets**: a goal test that asserts an unreachable state is
-worse than no goal test. Before adding one, check that the target does not
-contradict a MUST elsewhere in the corpus.
+worse than no goal test — it invites an implementer to violate a MUST in order to
+make it pass. Before adding one, check that the target does not contradict a MUST
+elsewhere in the corpus. Then target the **declared exemption set, not empty**,
+and enumerate each exemption together with the requirement that mandates it, so
+the exemption is auditable rather than folklore (ARCH-22-003). The ARCH-22
+exemption set currently has exactly one member: the `find_in_core_type_map`
+import in `vultron/wire/as2/vocab/base/registry.py`, mandated by ARCH-12-010.
 
 ## The Four Duplications
 
@@ -101,8 +121,11 @@ ADR-0081 takes.
 
 **3. Projection — declarative one way, hand-written the other.**
 `from_core()` was generic, driven by the declarative `_field_map`. `to_core()`
-raised `NotImplementedError` at the base and was overridden twelve times, 354
-lines total. Six overrides were boilerplate around one per-type fact:
+raised `NotImplementedError` at the base and was overridden twelve times.
+Measured over `vultron/wire/`: **`to_core()` is 195 lines across 13 defs,
+`from_core()` 152 lines across 13** — so the 354-line figure quoted elsewhere is a
+**both-directions** total, not `to_core()` alone. Six `to_core()` overrides were
+boilerplate around one per-type fact:
 
 ```python
 data = self._to_core_data()
@@ -137,7 +160,9 @@ of those failures involves a camelCase key. The rejected keys were
 own serialized output. `embargo_adherence` is a `@computed_field` (ADR-0056): it
 appears in `model_dump()` output but is not settable, so
 `model_validate(model_dump(x))` fails under `extra="forbid"`. Diagnosing that is
-what turned the approach from "not viable" into "viable and stronger".
+what turned the approach from "not viable" into "viable and stronger". The `id_`
+count has a different and narrower cause — see "The `id_` Failures Are an
+Alias-Injection Bug" below, and do not scope work off the surface reading.
 
 ### Two by-products worth remembering
 
@@ -151,18 +176,56 @@ itself when #2288/#2289 remove the alias. There is no ordering constraint.
 
 **Persisted rows are keyed by Python field name.** `Record.from_obj()` calls
 `obj.model_dump(mode="json", serialize_as_any=True)` with no `by_alias`, so rows
-are stored with `id_`/`type_` rather than `id`/`type`. Invisible today only
-because unknown keys are ignored on read-back.
+are stored with `id_`/`type_` rather than `id`/`type`. That is *not* a latent
+read-back bug on its own — see the next section for why.
 
-### A Pydantic behaviour that becomes a constraint
+### The `id_` Failures Are an Alias-Injection Bug, Not a Field-Name Bug
 
-Under `extra="forbid"`, a field declared with an explicit
-`validation_alias="id"` rejects its own Python name `id_` when the payload is
-built from a `model_dump()` that emitted field names — even with
-`validate_by_name=True` set. Turning on `extra="forbid"` therefore *forces* the
-codebase to be consistent about emitting wire-facing names. That is a feature,
-but it means the round-trip cleanups (ARCH-23-005) are prerequisites, not
-follow-ups.
+Get this right before scoping #2933 or #2940: keying persistence on wire-facing
+names would **not** fix the 110 `id_` failures, and would spend a migration on a
+false premise.
+
+**`id_` is a sanctioned input.** `VultronBase.model_config` resolves to
+`validate_by_name=True` (alongside `populate_by_name=True` and
+`validate_by_alias=True`), so a field declared `validation_alias="id"` accepts
+**either** `id` or `id_`. Verified: `Record.from_obj(p).to_obj().id_ == p.id_`
+round-trips, and a `ParticipantStatus` subclass with `extra="forbid"` validating
+its own persisted row rejects only `embargo_adherence` — `id_` passes.
+
+**The real mechanism.** All 110 `id_` failures are `CaseLedgerEntry`. Its
+`mode="before"` validator `_set_id_from_case`
+(`vultron/core/models/case_ledger_entry.py:154-159`) writes
+`data["id"] = f"{case_id}/log/{log_index}"` into a payload that **already carries
+`id_`**. Pydantic then consumes `id` via the alias and the field-name key `id_` is
+left over as `extra`. Under `extra="forbid"` that is exactly one error,
+`extra_forbidden` at `('id_',)`.
+
+**Re-keying persistence would mask this, not fix it** — which is the worse
+outcome. Verified: if the row is keyed `id`, the validator overwrites that key and
+validation passes, *including* when the stored `id` disagrees with
+`case_id`/`log_index` (a row carrying `id="urn:stale:different"` validates
+silently to `urn:case:1/log/3`). Today the disagreement at least shows up as a
+rejected key. So a persistence migration buys a silent overwrite, and it does
+nothing for the `embargo_adherence` half of the blast radius, which is where the
+1096 failures are.
+
+**The constraint is therefore narrow**, and it is not "emit wire-facing names
+everywhere":
+
+> A `mode="before"` validator MUST NOT inject an alias key beside an
+> already-present field-name key for the same field (or vice versa).
+
+The same inject-alias-beside-field-name pattern appears at
+`vultron/core/models/pending_case_inbox.py:73`,
+`pending_create_case_activity.py:97`, `case.py:130,166`,
+`case_participant.py:161,416,465`, `offer_record.py:82`, and
+`base.py:260` (which writes `data["type"]`, the `type_` analogue). Each of those
+is a site to fix, and the fix is to write the key the payload is already using —
+not to re-key the database.
+
+The round-trip cleanups (ARCH-23-005) are still prerequisites rather than
+follow-ups, because the `@computed_field` half of the problem
+(`embargo_adherence`, 1096 failures) is real and independent.
 
 ## `as_ObjectRef`: Which Part Is a Kludge
 
