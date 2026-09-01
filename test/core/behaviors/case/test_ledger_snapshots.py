@@ -226,27 +226,27 @@ class TestSnapshotObjectWireReconstitutable:
     """AC-7: every payloadSnapshot object dict revalidates through its wire vocabulary class."""
 
     def test_create_case_object_wire_reconstitutable(self, case, port):
-        from vultron.wire.as2.vocab.base.registry import VOCABULARY
+        from vultron.wire.as2.vocab.base.registry import find_in_vocabulary
 
         snap = build_create_case_snapshot(case, CASE_ACTOR_ID, CASE_ID, port)
         obj = snap["object"]
-        wire_cls = VOCABULARY[obj["type"]]
+        wire_cls = find_in_vocabulary(obj["type"])
         wire_cls.model_validate(obj)
 
     def test_add_report_object_wire_reconstitutable(self, report, case, port):
-        from vultron.wire.as2.vocab.base.registry import VOCABULARY
+        from vultron.wire.as2.vocab.base.registry import find_in_vocabulary
 
         snap = build_add_report_to_case_snapshot(
             report, case, CASE_ACTOR_ID, CASE_ID, port
         )
         obj = snap["object"]
-        wire_cls = VOCABULARY[obj["type"]]
+        wire_cls = find_in_vocabulary(obj["type"])
         wire_cls.model_validate(obj)
 
     def test_add_participant_status_object_wire_reconstitutable(
         self, participant, port
     ):
-        from vultron.wire.as2.vocab.base.registry import VOCABULARY
+        from vultron.wire.as2.vocab.base.registry import find_in_vocabulary
 
         snap = build_add_participant_status_snapshot(
             participant.participant_statuses[0],
@@ -256,18 +256,18 @@ class TestSnapshotObjectWireReconstitutable:
             port,
         )
         obj = snap["object"]
-        wire_cls = VOCABULARY[obj["type"]]
+        wire_cls = find_in_vocabulary(obj["type"])
         wire_cls.model_validate(obj)
 
     def test_add_case_status_object_wire_reconstitutable(self, case, port):
-        from vultron.wire.as2.vocab.base.registry import VOCABULARY
+        from vultron.wire.as2.vocab.base.registry import find_in_vocabulary
 
         raw_status = case.case_statuses[0]
         snap = build_add_case_status_snapshot(
             raw_status, case, VENDOR_ID, CASE_ID, port
         )
         obj = snap["object"]
-        wire_cls = VOCABULARY[obj["type"]]
+        wire_cls = find_in_vocabulary(obj["type"])
         wire_cls.model_validate(obj)
 
 

@@ -120,17 +120,18 @@ def test_receive_report_case_bt_succeeds_without_conftest_imports(
         VultronOffer,
         VultronReport,
     )
-    from vultron.wire.as2.vocab.base.registry import VOCABULARY
+    from vultron.wire.as2.vocab.base.registry import WIRE_TYPE_MAP
 
     dl = _fresh_datalayer
 
-    # Verify key types ARE registered (dynamic discovery must have run)
-    assert "VulnerabilityReport" in VOCABULARY, (
-        "BUG-26040902: VulnerabilityReport not in VOCABULARY — "
+    # Verify key types ARE registered (dynamic discovery must have run).
+    # After ARCH-23-002, collision keys live in WIRE_TYPE_MAP, not VOCABULARY.
+    assert "VulnerabilityReport" in WIRE_TYPE_MAP, (
+        "BUG-26040902: VulnerabilityReport not in WIRE_TYPE_MAP — "
         "dynamic discovery did not run"
     )
-    assert "VulnerabilityCase" in VOCABULARY, (
-        "BUG-26040902: VulnerabilityCase not in VOCABULARY — "
+    assert "VulnerabilityCase" in WIRE_TYPE_MAP, (
+        "BUG-26040902: VulnerabilityCase not in WIRE_TYPE_MAP — "
         "dynamic discovery did not run"
     )
 

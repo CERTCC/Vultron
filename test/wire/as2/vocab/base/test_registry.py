@@ -24,7 +24,11 @@ Verifies:
 
 import pytest
 
-from vultron.wire.as2.vocab.base.registry import VOCABULARY, find_in_vocabulary
+from vultron.wire.as2.vocab.base.registry import (
+    VOCABULARY,
+    WIRE_TYPE_MAP,
+    find_in_vocabulary,
+)
 
 
 class TestFindInVocabulary:
@@ -98,21 +102,23 @@ class TestAutoRegistration:
                 serialization_alias="type",
             )
 
-        assert "TestAutoRegType" in VOCABULARY
-        assert VOCABULARY["TestAutoRegType"] is as_TestAutoRegType
+        # VOCABULARY is keyed by full class name (ARCH-23-002)
+        assert "as_TestAutoRegType" in VOCABULARY
+        assert VOCABULARY["as_TestAutoRegType"] is as_TestAutoRegType
 
-        # Cleanup to avoid polluting VOCABULARY across tests
-        del VOCABULARY["TestAutoRegType"]
+        # WIRE_TYPE_MAP is keyed by wire type_ value (for parser lookups)
+        assert "TestAutoRegType" in WIRE_TYPE_MAP
+        assert WIRE_TYPE_MAP["TestAutoRegType"] is as_TestAutoRegType
+
+        # Cleanup to avoid polluting registries across tests
+        del VOCABULARY["as_TestAutoRegType"]
+        del WIRE_TYPE_MAP["TestAutoRegType"]
 
     def test_abstract_base_without_type_not_registered(self):
         """Classes with no type_ override in own annotations are not registered."""
-        from vultron.wire.as2.vocab.base.objects.base import as_Object
-
-        # as_Object itself has no concrete type_ annotation
-        assert (
-            "Object" not in VOCABULARY
-            or VOCABULARY.get("Object") is not as_Object
-        )
+        # as_Object itself has no concrete type_ annotation — neither registry
+        assert "as_Object" not in VOCABULARY
+        assert "Object" not in WIRE_TYPE_MAP
 
     def test_union_type_annotation_not_registered(self):
         """Classes with type_: str | None are skipped (abstract bases)."""
@@ -122,8 +128,9 @@ class TestAutoRegistration:
         class as_AbstractLike(as_Base):
             type_: str | None = Field(default=None)
 
-        # Should NOT be registered
-        assert "AbstractLike" not in VOCABULARY
+        # Should NOT be registered in either registry
+        assert "as_AbstractLike" not in VOCABULARY
+        assert "AbstractLike" not in WIRE_TYPE_MAP
 
 
 class TestDynamicDiscovery:
@@ -138,7 +145,7 @@ class TestDynamicDiscovery:
         )
 
     def test_core_as2_types_present(self):
-        """Core ActivityStreams 2.0 types are present after discovery."""
+        """Core ActivityStreams 2.0 types are findable after discovery."""
         import vultron.wire.as2.vocab  # noqa: F401
 
         expected = [
@@ -156,12 +163,11 @@ class TestDynamicDiscovery:
             "Note",
         ]
         for type_name in expected:
-            assert (
-                type_name in VOCABULARY
-            ), f"Expected AS2 type '{type_name}' in vocabulary"
+            cls = find_in_vocabulary(type_name)
+            assert cls is not None, f"Expected AS2 type '{type_name}' findable"
 
     def test_vocab_bug_26040902_regression(self):
-        """as_VulnerabilityReport and VulnerabilityCase are in the vocab.
+        """as_VulnerabilityReport and VulnerabilityCase are findable via vocabulary.
 
         Regression test for BUG-26040902: empty vocab registry caused
         ReceiveReportCaseBT to silently fail in Docker (where no test
@@ -174,13 +180,6 @@ class TestDynamicDiscovery:
         # or as_VulnerabilityReport import is needed.
         import vultron.wire.as2.vocab  # noqa: F401
 
-        assert (
-            "VulnerabilityReport" in VOCABULARY
-        ), "BUG-26040902: as_VulnerabilityReport missing from vocabulary"
-        assert (
-            "VulnerabilityCase" in VOCABULARY
-        ), "BUG-26040902: VulnerabilityCase missing from vocabulary"
-        # Verify the classes are actually correct
         from vultron.wire.as2.vocab.objects.vulnerability_report import (
             as_VulnerabilityReport,
         )
@@ -188,8 +187,21 @@ class TestDynamicDiscovery:
             as_VulnerabilityCase,
         )
 
-        assert VOCABULARY["VulnerabilityReport"] is as_VulnerabilityReport
-        assert VOCABULARY["VulnerabilityCase"] is as_VulnerabilityCase
+        # WIRE_TYPE_MAP is keyed by wire type_ value (ARCH-23-002: disjoint from CORE_VOCABULARY)
+        assert (
+            "VulnerabilityReport" in WIRE_TYPE_MAP
+        ), "BUG-26040902: as_VulnerabilityReport missing from WIRE_TYPE_MAP"
+        assert (
+            "VulnerabilityCase" in WIRE_TYPE_MAP
+        ), "BUG-26040902: VulnerabilityCase missing from WIRE_TYPE_MAP"
+        assert WIRE_TYPE_MAP["VulnerabilityReport"] is as_VulnerabilityReport
+        assert WIRE_TYPE_MAP["VulnerabilityCase"] is as_VulnerabilityCase
+
+        # VOCABULARY is keyed by full wire class name
+        assert "as_VulnerabilityReport" in VOCABULARY
+        assert "as_VulnerabilityCase" in VOCABULARY
+        assert VOCABULARY["as_VulnerabilityReport"] is as_VulnerabilityReport
+        assert VOCABULARY["as_VulnerabilityCase"] is as_VulnerabilityCase
 
 
 class TestCoreTypeMapFallback:
@@ -222,13 +234,13 @@ class TestCoreTypeMapFallback:
             ), f"ARCH-12-003 violation: {name!r} must not be in wire VOCABULARY"
 
     def test_actor_key_is_wire_type(self):
-        """VOCABULARY['Actor'] must be the wire as_Actor, not CoreActor."""
+        """WIRE_TYPE_MAP['Actor'] must be the wire as_Actor, not CoreActor."""
         from vultron.wire.as2.vocab.base.objects.actors import as_Actor
         from vultron.core.models.actor import CoreActor
 
-        assert "Actor" in VOCABULARY
-        assert VOCABULARY["Actor"] is as_Actor
-        assert VOCABULARY["Actor"] is not CoreActor
+        assert "Actor" in WIRE_TYPE_MAP
+        assert WIRE_TYPE_MAP["Actor"] is as_Actor
+        assert WIRE_TYPE_MAP["Actor"] is not CoreActor
 
     def test_core_types_findable_via_fallback(self):
         """find_in_vocabulary must resolve each formerly-misregistered core type."""
@@ -263,3 +275,79 @@ class TestCoreTypeMapFallback:
 
         cls = find_in_vocabulary("ReplicationState")
         assert cls is VultronReplicationState
+
+
+class TestDisjointKeys:
+    """ARCH-23-002: set(VOCABULARY) & set(CORE_VOCABULARY) must be empty."""
+
+    def setup_method(self):
+        import vultron.wire.as2.vocab.objects  # noqa: F401
+
+    def test_vocabulary_and_core_vocabulary_keys_are_disjoint(self):
+        """ARCH-23-002: VOCABULARY and CORE_VOCABULARY key sets are disjoint."""
+        from vultron.core.models.registry import CORE_VOCABULARY
+
+        collision = set(VOCABULARY) & set(CORE_VOCABULARY)
+        assert collision == set(), (
+            f"ARCH-23-002 violation: {len(collision)} key(s) shared between "
+            f"VOCABULARY and CORE_VOCABULARY: {sorted(collision)}"
+        )
+
+    def test_vocabulary_keys_use_wire_class_prefix(self):
+        """VOCABULARY keys use the full 'as_*' wire class name."""
+        import vultron.wire.as2.vocab.objects  # noqa: F401
+
+        for key in VOCABULARY:
+            assert key.startswith(
+                "as_"
+            ), f"VOCABULARY key {key!r} does not start with 'as_'"
+
+    def test_wire_type_map_keys_are_stripped(self):
+        """WIRE_TYPE_MAP keys are wire type_ values (no 'as_' prefix)."""
+        for key in WIRE_TYPE_MAP:
+            assert not key.startswith(
+                "as_"
+            ), f"WIRE_TYPE_MAP key {key!r} still has 'as_' prefix"
+
+
+class TestSetTypeFromClassName:
+    """VM-03-003: set_type_from_class_name must use removeprefix, not lstrip."""
+
+    def test_removeprefix_not_lstrip_for_normal_class(self):
+        """set_type_from_class_name strips 'as_' prefix exactly once."""
+        from pydantic import Field
+        from typing import Literal
+        from vultron.wire.as2.vocab.base.objects.base import as_Object
+
+        class as_Widget(as_Object):
+            type_: Literal["Widget"] = Field(
+                default="Widget",
+                validation_alias="type",
+                serialization_alias="type",
+            )
+
+        obj = as_Widget()
+        assert obj.type_ == "Widget"
+
+        del VOCABULARY["as_Widget"]
+        del WIRE_TYPE_MAP["Widget"]
+
+    def test_removeprefix_not_lstrip_for_ambiguous_class(self):
+        """set_type_from_class_name does NOT strip extra leading 'a'/'s'/'_' chars.
+
+        lstrip('as_') would incorrectly strip leading 'a', 's', or '_' chars
+        from the post-prefix remainder (e.g. 'as_SomeThing' via lstrip would
+        strip 'S'... actually 'a','s','_' are lowercase, so this demonstrates
+        the boundary). The key risk is a class like as_assign (stripped name
+        'assign' starts with 'a'/'s'); lstrip would give 'ign'.
+        """
+        from vultron.wire.as2.vocab.base.base import as_Base
+
+        class as_satellite(as_Base):
+            pass
+
+        obj = as_satellite()
+        # removeprefix gives 'satellite'; lstrip would give 'tellite'
+        assert (
+            obj.type_ == "satellite"
+        ), f"Expected 'satellite', got {obj.type_!r} — lstrip bug not fixed?"

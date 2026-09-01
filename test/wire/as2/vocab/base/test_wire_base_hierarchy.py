@@ -29,7 +29,7 @@ from pydantic import BaseModel, Field
 from vultron.core.models.base import VultronBase, VultronObject
 from vultron.wire.as2.vocab.base.base import as_Base
 from vultron.wire.as2.vocab.base.objects.base import as_Object
-from vultron.wire.as2.vocab.base.registry import VOCABULARY
+from vultron.wire.as2.vocab.base.registry import VOCABULARY, WIRE_TYPE_MAP
 from vultron.wire.as2.vocab.base.utils import URN_UUID_PREFIX
 
 # --- AC-1/AC-2: Inheritance chain (ARCH-12-001) ----------------------------
@@ -149,8 +149,8 @@ def test_as_object_id_uses_wire_default():
 def test_concrete_wire_subclass_still_registers():
     """A concrete as_Object subclass with Literal type_ is still auto-registered.
 
-    Regression: the inheritance change must not break VOCABULARY registration
-    via as_Base.__init_subclass__.
+    Regression: the inheritance change must not break VOCABULARY/WIRE_TYPE_MAP
+    registration via as_Base.__init_subclass__.
     """
 
     class as_HierarchyTestProbe(as_Object):
@@ -160,8 +160,14 @@ def test_concrete_wire_subclass_still_registers():
             serialization_alias="type",
         )
 
-    assert "HierarchyTestProbe" in VOCABULARY
-    assert VOCABULARY["HierarchyTestProbe"] is as_HierarchyTestProbe
+    # VOCABULARY keyed by full class name (ARCH-23-002)
+    assert "as_HierarchyTestProbe" in VOCABULARY
+    assert VOCABULARY["as_HierarchyTestProbe"] is as_HierarchyTestProbe
 
-    # Cleanup to avoid polluting VOCABULARY across tests
-    del VOCABULARY["HierarchyTestProbe"]
+    # WIRE_TYPE_MAP keyed by type_ value (for parser lookups)
+    assert "HierarchyTestProbe" in WIRE_TYPE_MAP
+    assert WIRE_TYPE_MAP["HierarchyTestProbe"] is as_HierarchyTestProbe
+
+    # Cleanup to avoid polluting registries across tests
+    del VOCABULARY["as_HierarchyTestProbe"]
+    del WIRE_TYPE_MAP["HierarchyTestProbe"]

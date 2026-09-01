@@ -44,7 +44,11 @@ import sys
 import pytest
 
 import vultron.wire.as2.vocab  # noqa: F401 — triggers dynamic discovery
-from vultron.wire.as2.vocab.base.registry import VOCABULARY
+from vultron.wire.as2.vocab.base.registry import (
+    VOCABULARY,
+    WIRE_TYPE_MAP,
+    find_in_vocabulary,
+)
 
 # ---------------------------------------------------------------------------
 # Module-level discovery helpers
@@ -130,15 +134,16 @@ def _module_defines_own_type_annotation(module_name: str) -> bool:
 
 
 def _module_contributes_registered_type(module_name: str) -> bool:
-    """Return True if any class defined in this module is in VOCABULARY."""
+    """Return True if any class defined in this module is in VOCABULARY or WIRE_TYPE_MAP."""
     mod = importlib.import_module(module_name)
+    all_registered = set(VOCABULARY.values()) | set(WIRE_TYPE_MAP.values())
     for name in dir(mod):
         obj = getattr(mod, name, None)
         if obj is None or not isinstance(obj, type):
             continue
         if getattr(obj, "__module__", None) != module_name:
             continue
-        if any(vocab_cls is obj for vocab_cls in VOCABULARY.values()):
+        if obj in all_registered:
             return True
     return False
 
@@ -211,8 +216,12 @@ _EXPECTED_TYPES = [
 
 @pytest.mark.parametrize("type_name", _EXPECTED_TYPES)
 def test_expected_type_is_registered(type_name):
-    """Each expected type name is present in the vocabulary."""
-    assert type_name in VOCABULARY, (
-        f"Expected type '{type_name}' not found in VOCABULARY. "
-        f"Available keys: {sorted(VOCABULARY.keys())}"
+    """Each expected type name is findable via the vocabulary."""
+    try:
+        cls = find_in_vocabulary(type_name)
+    except KeyError:
+        cls = None
+    assert cls is not None, (
+        f"Expected type '{type_name}' not findable in vocabulary. "
+        f"VOCABULARY keys: {sorted(VOCABULARY.keys())}"
     )
