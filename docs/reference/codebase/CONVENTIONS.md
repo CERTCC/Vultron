@@ -41,7 +41,7 @@
 - **Import grouping/order**: stdlib → third-party → local; isort enforces black profile
 - **Absolute imports only**: no relative imports; all intra-package references use full `vultron.*` paths
 - **Layer isolation**: `vultron/core/` must not import from `vultron/adapters/` or `vultron/wire/`; `vultron/config/` must not import from `vultron/adapters/` or `vultron/core/`
-- **Backward-compat re-exports**: split modules re-export all public names from their `__init__.py` to avoid breaking callers (e.g., `vultron/adapters/driven/datalayer_sqlite.py`)
+- **Backward-compat re-exports**: split modules re-export all public names from their `__init__.py` to avoid breaking callers (e.g., `vultron/adapters/driven/datalayer_sqlite/`)
 - **`__init__.py` F401 exception**: unused imports in `__init__.py` files are allowed (flake8 per-file-ignore)
 
 ### 3a) BT Node Blackboard Conventions
