@@ -25,7 +25,7 @@ processing pipeline:
 ```text
 inbox queue (activity ID string)
   → rehydrate(id, dl)              # fetch + reconstruct full AS2 object
-  → extract_event(activity)        # AS2 → domain VultronEvent
+  → extract_event(activity)        # AS2 → domain AnyReceivedEvent
   → _dispatch_or_defer_inbox_item  # check case context, maybe defer
   → dispatcher.dispatch(event, dl) # route to use-case
   → use_case.execute()

@@ -11,8 +11,13 @@ registry lookup automatically, use ``vultron.semantic_registry.extract_event``.
 
 import logging
 from datetime import datetime, timedelta, timezone
+from typing import cast
 
-from vultron.core.models.events import MessageSemantics, VultronEvent
+from vultron.core.models.events import (
+    AnyReceivedEvent,
+    MessageSemantics,
+    VultronEvent,
+)
 from vultron.wire.as2.extractor._builders import (
     _build_object_kwargs,
     _get_id,
@@ -30,7 +35,7 @@ def extract_intent(
     event_class: type[VultronEvent],
     include_activity: bool = False,
     min_rsvp_window: timedelta = _DEFAULT_MIN_RSVP_WINDOW,
-) -> VultronEvent:
+) -> AnyReceivedEvent:
     """Extract domain fields from an AS2 activity given pre-computed semantics.
 
     This function is the sole AS2 → domain translation point.  It is called
@@ -107,20 +112,23 @@ def extract_intent(
                 timezone.utc
             )
 
-    return event_class(
-        semantic_type=semantics,
-        activity_id=activity.id_,
-        activity_type=str(activity.type_) if activity.type_ else None,
-        actor_id=actor_id,
-        # object_ comes from extra_kwargs if a typed domain object was built;
-        # otherwise fall back to a minimal VultronObject wrapper.
-        object_=extra_kwargs.pop("object_", None) or _to_domain_obj(obj),
-        target=_to_domain_obj(target),
-        context=_to_domain_obj(context),
-        origin=_to_domain_obj(origin),
-        inner_object=_to_domain_obj(inner_obj),
-        inner_target=_to_domain_obj(inner_target),
-        inner_context=_to_domain_obj(inner_context),
-        in_reply_to=_get_id(getattr(activity, "in_reply_to", None)),
-        **extra_kwargs,
+    return cast(
+        AnyReceivedEvent,
+        event_class(
+            semantic_type=semantics,
+            activity_id=activity.id_,
+            activity_type=str(activity.type_) if activity.type_ else None,
+            actor_id=actor_id,
+            # object_ comes from extra_kwargs if a typed domain object was built;
+            # otherwise fall back to a minimal VultronObject wrapper.
+            object_=extra_kwargs.pop("object_", None) or _to_domain_obj(obj),
+            target=_to_domain_obj(target),
+            context=_to_domain_obj(context),
+            origin=_to_domain_obj(origin),
+            inner_object=_to_domain_obj(inner_obj),
+            inner_target=_to_domain_obj(inner_target),
+            inner_context=_to_domain_obj(inner_context),
+            in_reply_to=_get_id(getattr(activity, "in_reply_to", None)),
+            **extra_kwargs,
+        ),
     )

@@ -446,3 +446,84 @@ def test_invite_rsvp_deadline_clamped_uses_custom_min_rsvp_window():
     assert ev.rsvp_deadline is not None
     # Clamped to 10-day floor — must be strictly greater than 5-day deadline
     assert ev.rsvp_deadline > deadline.astimezone(timezone.utc)
+
+
+# --- discriminated-union return-type narrowing tests (issue #2491) ---
+
+
+@pytest.mark.spec("CS-10-001")
+def test_extract_event_return_type_narrows_via_isinstance():
+    """extract_event() returns a discriminated union; isinstance narrows to the
+    concrete subclass without any cast(Any, ...) workaround."""
+    from vultron.core.models.events.report import CreateReportReceivedEvent
+    from vultron.wire.as2.vocab.base.objects.activities.transitive import (
+        as_Create,
+    )
+    from vultron.wire.as2.vocab.objects.vulnerability_report import (
+        as_VulnerabilityReport,
+    )
+
+    report = as_VulnerabilityReport(name="VR-001", content="test content")
+    activity = as_Create(
+        actor="https://example.org/finder",
+        object_=report,
+    )
+    event = extract_event(activity)
+
+    assert isinstance(event, CreateReportReceivedEvent)
+    # After narrowing: access the concrete property directly — no cast needed.
+    assert event.report_id == report.id_
+
+
+@pytest.mark.spec("CS-10-001")
+def test_extract_intent_return_type_narrows_via_isinstance():
+    """extract_intent() return annotation is AnyReceivedEvent; isinstance
+    dispatch on the concrete subclass works after the call."""
+    from vultron.core.models.events.report import SubmitReportReceivedEvent
+    from vultron.semantic_registry import find_matching_semantics, lookup_entry
+    from vultron.wire.as2.extractor._extract import extract_intent
+    from vultron.wire.as2.vocab.base.objects.activities.transitive import (
+        as_Offer,
+    )
+    from vultron.wire.as2.vocab.objects.vulnerability_report import (
+        as_VulnerabilityReport,
+    )
+
+    report = as_VulnerabilityReport(name="VR-002", content="submission")
+    activity = as_Offer(
+        actor="https://example.org/reporter",
+        object_=report,
+    )
+    semantics = find_matching_semantics(activity)
+    entry = lookup_entry(semantics)
+    event = extract_intent(
+        activity,
+        semantics=semantics,
+        event_class=entry.event_class,
+        include_activity=entry.include_activity,
+    )
+
+    assert isinstance(event, SubmitReportReceivedEvent)
+    # Concrete-class property accessible without cast.
+    assert event.report_id == report.id_
+
+
+@pytest.mark.spec("CS-10-001")
+def test_any_received_event_covers_all_registry_event_classes():
+    """AnyReceivedEvent must include every event_class registered in SEMANTIC_REGISTRY.
+
+    This locks in exhaustiveness: adding a new ReceivedEvent subclass without
+    updating AnyReceivedEvent will fail here at test time, not only at static
+    analysis time.
+    """
+    from typing import get_args
+
+    from vultron.core.models.events import AnyReceivedEvent
+    from vultron.semantic_registry import SEMANTIC_REGISTRY
+
+    union_types = set(get_args(AnyReceivedEvent))
+    for entry in SEMANTIC_REGISTRY:
+        assert entry.event_class in union_types, (
+            f"{entry.event_class.__name__} (semantics={entry.semantics.name}) "
+            f"is in SEMANTIC_REGISTRY but not in AnyReceivedEvent"
+        )

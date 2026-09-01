@@ -19,9 +19,10 @@ activities.  This class inherits from
 :class:`~vultron.wire.as2.vocab.objects.base.VultronObject` (an ``as_Base``
 subclass) so that:
 
-1. It auto-registers in the wire vocabulary as ``VOCABULARY["CaseLedgerEntry"]``
-   via ``as_Base.__init_subclass__``, enabling correct DataLayer round-trips
-   and vocabulary lookups in :func:`~vultron.wire.as2.rehydration.rehydrate`.
+1. It auto-registers in the wire vocabulary as ``VOCABULARY["as_CaseLedgerEntry"]``
+   (and ``WIRE_TYPE_MAP["CaseLedgerEntry"]``) via ``as_Base.__init_subclass__``,
+   enabling correct DataLayer round-trips and vocabulary lookups in
+   :func:`~vultron.wire.as2.rehydration.rehydrate`.
 2. It satisfies the ``isinstance(obj, as_Object)`` check in
    :func:`~vultron.wire.as2.rehydration.rehydrate`.
 3. :class:`~vultron.wire.as2.vocab.activities.sync.AnnounceLogEntryActivity`
