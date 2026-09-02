@@ -1,7 +1,7 @@
 ---
 title: "extract_intent: min_rsvp_window passed as parameter, not read from ActorConfig"
 type: learning
-timestamp: "2026-08-31"
+timestamp: "2026-08-31T00:00:00Z"
 source: ISSUE-2850
 signal: design-question
 ---

@@ -1,7 +1,7 @@
 ---
 title: "Causal-edge schema: YAML frontmatter format decided for ISSUE-2204"
 type: learning
-timestamp: 2026-08-26
+timestamp: "2026-08-26T00:00:00Z"
 source: ISSUE-2204
 signal: design-question
 ---

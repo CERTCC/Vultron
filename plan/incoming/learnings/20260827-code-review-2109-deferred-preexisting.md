@@ -1,9 +1,9 @@
 ---
 title: Code review of PR for #2109 surfaced 5 pre-existing bugs in unrelated files
 type: learning
-timestamp: 2026-08-27
+timestamp: "2026-08-27T00:00:00Z"
 source: ISSUE-2109
-signal: deferred-bug
+signal: concern
 ---
 
 During the code review for PR implementing #2109 (fixname() prefix-map refactor),

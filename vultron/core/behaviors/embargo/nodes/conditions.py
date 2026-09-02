@@ -233,7 +233,18 @@ class OptionalLookupParticipantNode(DataLayerConditionWithPorts):
                 f"No participant found for actor '{actor_id}'"
                 f" on case '{self.case_id}' — skipping PEC update"
             )
-            self.logger.debug("%s: %s", self.name, self.feedback_message)
+            if self.target_actor_id:
+                # A subject was named explicitly and did not resolve. That is
+                # not the lenient "no participant on this peer yet" case this
+                # node exists for — the caller asserted whose consent it was
+                # changing and nothing will change. Sender-supplied subject
+                # URIs are not canonicalised (unlike receiving_actor_id, which
+                # inbox_handler normalises per HP-09-001), so a short id or a
+                # trailing slash lands here and would otherwise be a silent
+                # no-op.
+                self.logger.warning("%s: %s", self.name, self.feedback_message)
+            else:
+                self.logger.debug("%s: %s", self.name, self.feedback_message)
             return Status.SUCCESS
 
         participant = self.datalayer.read(participant_id)

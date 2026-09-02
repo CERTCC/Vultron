@@ -1,8 +1,9 @@
 ---
-name: 2627-deferred-bugs-dl-read-case
-description: Three pre-existing bugs found during code review of #2627 — test mocks stub dl.read when production calls dl.read_case
-metadata:
-  type: project
+title: "Three pre-existing dl.read/dl.read_case mock mismatches found reviewing #2627"
+type: learning
+timestamp: "2026-08-31T20:46:24Z"
+source: ISSUE-2627
+signal: concern
 ---
 
 Three bugs discovered (not introduced) during code review of Issue #2627 PR.

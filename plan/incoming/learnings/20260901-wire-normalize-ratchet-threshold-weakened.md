@@ -1,8 +1,9 @@
 ---
-name: wire-normalize-ratchet-threshold-weakened
-description: test_normalize_wire_to_core_ratchet.py threshold was lowered from >50 to >20 entries, creating a 40-entry blind spot for partial-import failures
-metadata:
-  type: project
+title: "normalize-wire-to-core ratchet threshold lowered to >20, leaving a 40-entry blind spot"
+type: learning
+timestamp: "2026-09-01T18:49:21Z"
+source: ISSUE-2500
+signal: tooling-issue
 ---
 
 `test/architecture/test_normalize_wire_to_core_ratchet.py:89` checks `assert len(VOCABULARY) > 20` and `assert len(WIRE_TYPE_MAP) > 20` (split from a previous combined `> 50` check).

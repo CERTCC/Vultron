@@ -49,56 +49,27 @@ from vultron.enums.roles import CVDRole
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCase,
 )
-from vultron.wire.as2.vocab.objects.vulnerability_report import (
-    as_VulnerabilityReport,
-)
 from vultron.demo.utils import (  # noqa: F401 — BASE_URL needed for test monkeypatching
     BASE_URL,
     DataLayerClient,
     demo_check,
     demo_step,
-    get_offer_from_datalayer,
     log_case_state,
     logfmt,
-    case_actor_id_for_report,
     post_to_inbox_and_wait,
     ref_id,
-    seed_case_actor_for_report,
     verify_object_stored,
     setup_demo_logging,
 )
 from vultron.wire.as2.factories import (
     add_participant_to_case_activity,
     create_participant_activity,
-    rm_submit_report_activity,
-    rm_validate_report_activity,
 )
 
-from vultron.demo.helpers.polling import wait_for_initialized_case
 from vultron.demo.helpers.runner import run_exchange_demos
+from vultron.demo.helpers.workflow import setup_canonical_case
 
 logger = logging.getLogger(__name__)
-
-
-def _find_canonical_case(
-    client: DataLayerClient, report_id: str
-) -> as_VulnerabilityCase:
-    """Discover the canonical VulnerabilityCase created by the CaseActor.
-
-    Delegates to :func:`~vultron.demo.helpers.polling.wait_for_initialized_case`
-    so the lookup polls until the CaseActor's BT completes (ISSUE-2359) rather
-    than doing a one-shot read that races initialisation.
-
-    Args:
-        client: DataLayerClient for the container hosting both actors.
-        report_id: The report whose proposal created the case; the CaseActor's
-            URI is derived from it.
-
-    Raises:
-        AssertionError: If no initialized VulnerabilityCase appears within the
-            default timeout.
-    """
-    return wait_for_initialized_case(client, report_id)
 
 
 def setup_case_precondition(
@@ -108,38 +79,28 @@ def setup_case_precondition(
 ) -> as_VulnerabilityCase:
     """Set up the precondition for the demo.
 
-    Submits a vulnerability report from finder to vendor and validates it.
-    The validation BT triggers ``ProposeReportCaseToActorNode``, which sends a
-    ``Create(CaseProposal)`` to the CaseActor.  The CaseActor creates the
-    canonical ``VulnerabilityCase`` and registers vendor (CASE_OWNER),
-    finder/reporter, and itself (CASE_MANAGER) as initial participants
-    (ADR-0041, CP-01-004).
+    Thin wrapper over
+    :func:`~vultron.demo.helpers.workflow.setup_canonical_case`, which drives
+    the report → validate → ``Create(CaseProposal)`` → CaseActor path so the
+    resulting case has vendor (CASE_OWNER), finder/reporter, and the CaseActor
+    (CASE_MANAGER) as initial participants (ADR-0041, CP-01-004).
 
     Returns:
         The canonical VulnerabilityCase created by the CaseActor.
     """
     logger.info("Setting up case precondition...")
-
-    report = as_VulnerabilityReport(
-        attributed_to=finder.id_,
-        content="An integer overflow vulnerability in the network stack.",
-        name="Integer Overflow in Network Stack",
+    case, _case_actor_id = setup_canonical_case(
+        client,
+        finder,
+        vendor,
+        report_name="Integer Overflow in Network Stack",
+        report_content=(
+            "An integer overflow vulnerability in the network stack."
+        ),
+        validation_content=(
+            "Confirmed — integer overflow via crafted packet."
+        ),
     )
-    report_offer = rm_submit_report_activity(
-        report, actor=finder.id_, to=vendor.id_
-    )
-    seed_case_actor_for_report(client, report.id_)
-    post_to_inbox_and_wait(client, vendor.id_, report_offer)
-
-    offer = get_offer_from_datalayer(client, vendor.id_, report_offer.id_)
-    validate_activity = rm_validate_report_activity(
-        offer,
-        actor=vendor.id_,
-        content="Confirmed — integer overflow via crafted packet.",
-    )
-    post_to_inbox_and_wait(client, vendor.id_, validate_activity)
-
-    case = _find_canonical_case(client, report.id_)
     logger.info("Case precondition setup complete.")
     return case
 
