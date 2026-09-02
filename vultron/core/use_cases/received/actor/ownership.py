@@ -6,11 +6,9 @@ from typing import TYPE_CHECKING
 from py_trees.common import Status
 
 from vultron.core.behaviors.bridge import BTBridge
-from vultron.core.behaviors.case.nodes.lifecycle import (
-    create_receive_activity_tree,
-)
 from vultron.core.behaviors.case.ownership_transfer_tree import (
     create_accept_ownership_transfer_tree,
+    create_offer_ownership_transfer_tree,
 )
 from vultron.core.models._helpers import _as_id
 from vultron.core.models.events.actor import (
@@ -23,7 +21,6 @@ from vultron.core.ports.sync_activity import SyncActivityPort
 from vultron.core.use_cases._helpers import (
     _idempotent_create,
     _resolve_case_manager_id,
-    add_activity_to_outbox,
     resolve_receiving_actor_id,
 )
 
@@ -45,6 +42,48 @@ class OfferCaseOwnershipTransferReceivedUseCase:
         self._request: OfferCaseOwnershipTransferReceivedEvent = request
         self._sync_port = sync_port
         self._trigger_activity = trigger_activity
+
+    def _resolve_offering_actor_id(self, case_id: str) -> str | None:
+        """Return the actor whose intent the forwarded Offer should carry.
+
+        The inbound Offer is normally a *delegated* message: the CaseActor is its
+        `actor` and the participant who asked for the transfer is in
+        `attributed_to` (CM-24-001, CM-24-002).  Reading `actor_id` alone would
+        make the CaseActor forward an Offer attributing that participant's intent
+        to itself, leaving no receiver able to recover who offered.
+
+        `attributed_to` is honoured **only** in that delegated shape — when the
+        sender is this case's CaseActor.  A peer that sets `attributed_to` on an
+        Offer it sends under its own identity is claiming to speak for someone
+        else, and relaying that unchecked would let any participant forge the
+        offerer of record; nothing downstream re-checks it, because
+        CLP-07-003 validates `payloadSnapshot.actor` and not `attributed_to`.
+        Outside the delegated shape the sender is the offerer, which is also the
+        correct answer when the case has no CaseActor at all (CM-24-003).
+        """
+        request = self._request
+        delegated_author = _as_id(request.activity.attributed_to)
+        if delegated_author is None:
+            return request.actor_id
+        case = self._dl.read_case(case_id)
+        case_actor_id = (
+            _resolve_case_manager_id(case, self._dl)
+            if case is not None
+            else None
+        )
+        if case_actor_id is not None and request.actor_id == case_actor_id:
+            return delegated_author
+        logger.warning(
+            "OfferCaseOwnershipTransferReceived: ignoring attributed_to '%s'"
+            " on an Offer sent by '%s', which is not case '%s''s CaseActor"
+            " ('%s') — only a delegated Offer may name another actor as the"
+            " offerer (CM-24-001, CM-24-002)",
+            delegated_author,
+            request.actor_id,
+            case_id,
+            case_actor_id,
+        )
+        return request.actor_id
 
     def execute(self) -> None:
         request = self._request
@@ -71,16 +110,20 @@ class OfferCaseOwnershipTransferReceivedUseCase:
             return
 
         transferee_id = _as_id(request.activity.target)
+        original_actor_id = self._resolve_offering_actor_id(case_id)
 
-        # Guarded-commit: CommitCaseLedgerEntryNode fires only when
-        # receiving_actor_id is the CaseActor (CheckIsCaseManagerNode gate).
-        tree = create_receive_activity_tree(
-            name="OfferOwnershipTransferBT",
+        # One tree, run once (CLP-10-005).  The guarded commit fires only when
+        # receiving_actor_id is the CaseActor (CheckIsCaseManagerNode gate), and
+        # the CM-gated ForwardOfferToTransfereeNode in the effect section does
+        # the CM-21-005 forward — no procedural outbox write here.
+        tree = create_offer_ownership_transfer_tree(
             case_id=case_id,
-            precondition_guards=[],
-            effect_nodes=[],
+            transferee_id=transferee_id,
+            original_actor_id=original_actor_id,
         )
-        bridge = BTBridge(datalayer=self._dl)
+        bridge = BTBridge(
+            datalayer=self._dl, trigger_activity=self._trigger_activity
+        )
         result = bridge.execute_with_setup(
             tree=tree,
             actor_id=receiving_actor_id,
@@ -94,47 +137,6 @@ class OfferCaseOwnershipTransferReceivedUseCase:
                 case_id,
                 BTBridge.get_failure_reason(tree),
             )
-            return
-
-        # Forward the Offer to the transferee — CaseActor only (CM-21-005).
-        # Only runs when BT succeeded (ledger entry committed).
-        # CaseActor builds a NEW Offer: actor=case_actor_id,
-        # attributed_to=original_offerer, to=[transferee_id].
-        # Queued in CaseActor's own outbox so the registered outbox monitor
-        # delivers it to the transferee's inbox.
-        if self._trigger_activity is None:
-            logger.warning(
-                "OfferCaseOwnershipTransferReceived: no trigger_activity"
-                " port — cannot forward offer to transferee (CM-21-005)"
-            )
-            return
-        case = self._dl.read_case(case_id)
-        if case is not None:
-            case_actor_id = _resolve_case_manager_id(case, self._dl)
-            original_actor_id = request.actor_id
-            if (
-                case_actor_id is not None
-                and case_actor_id == receiving_actor_id
-                and transferee_id
-                and original_actor_id is not None
-            ):
-                forwarded_id, _ = (
-                    self._trigger_activity.offer_case_ownership_transfer(
-                        case_id=case_id,
-                        transferee_id=transferee_id,
-                        actor=case_actor_id,
-                        to=[transferee_id],
-                        attributed_to=original_actor_id,
-                    )
-                )
-                add_activity_to_outbox(case_actor_id, forwarded_id, self._dl)
-                logger.info(
-                    "OfferCaseOwnershipTransferReceived: forwarded"
-                    " offer '%s' (as '%s') to transferee '%s' (CM-21-005)",
-                    forwarded_id,
-                    case_actor_id,
-                    transferee_id,
-                )
 
 
 class AcceptCaseOwnershipTransferReceivedUseCase:

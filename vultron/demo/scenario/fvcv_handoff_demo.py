@@ -254,6 +254,7 @@ def _phase_report_submission(
 
 
 def _phase_ownership_handoff(
+    finder_client: DataLayerClient,
     vendor_client: DataLayerClient,
     coordinator_client: DataLayerClient,
     finder: as_Actor,
@@ -404,6 +405,22 @@ def _phase_ownership_handoff(
             client=coordinator_client,
             case_id=case.id_,
             expected_attributed_to=coordinator.id_,
+        )
+
+    # ADR-0053's own validation criterion: an actor outside the negotiation
+    # learns of the completed transfer from the ledger broadcast alone.  The
+    # Finder is neither the old nor the new owner, so its replica can only hold
+    # this entry if the CaseActor committed it and fanned out
+    # Announce(CaseLedgerEntry) to every participant (CM-21-007).
+    with demo_check(
+        "Finder replica received the ownership-transfer ledger entry"
+        " via Announce(CaseLedgerEntry) (CM-21-007, ADR-0053)"
+    ):
+        wait_for_event_type_in_ledger(
+            client=finder_client,
+            case_id=case.id_,
+            event_type="accept_case_ownership_transfer",
+            timeout_seconds=90.0,
         )
 
     logger.info(
@@ -1123,6 +1140,7 @@ def run_fvcv_handoff_demo(
         finder_in_finder = get_actor_by_id(finder_client, finder.id_)
 
         case = _phase_ownership_handoff(
+            finder_client=finder_client,
             vendor_client=vendor_client,
             coordinator_client=coordinator_client,
             finder=finder,
