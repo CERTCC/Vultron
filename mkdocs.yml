@@ -324,6 +324,7 @@ nav:
       - 'The Formal Message Set and the AS2 Wire Vocabulary Are Deliberately Different Shapes': 'adr/0083-formal-message-set-and-as2-vocabulary-are-different-shapes.md'
       - 'Participant Status Is Self-Declaratory, With Narrow Externally-Evidenced On-Behalf Exceptions': 'adr/0084-participant-assertion-authority.md'
       - 'Owner-Close Is a Hard Write Boundary; RM.CLOSED Is Terminal and Rejoin Is Unsupported': 'adr/0085-case-lifecycle-boundaries.md'
+      - 'Report Every Violation, Reject the Batch': 'adr/0086-report-every-violation-reject-the-batch.md'
   - About:
     - Contributing: 'about/contributing.md'
     - FAQ: 'about/faq.md'
