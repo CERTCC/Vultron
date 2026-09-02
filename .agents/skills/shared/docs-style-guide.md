@@ -66,9 +66,14 @@ and from deep links, not by reading in nav order. Implements DF-09-003.
 **SG-08 — Register in the acronyms snippet.** Every acronym used in `docs/`
 must appear in `docs/_acronyms/index.md`, which `pymdownx.snippets` appends to
 every page to produce hover tooltips. If an acronym is missing, add it as part
-of the change. Keep the file alphabetized, and where one acronym is a prefix of
-another, list the longer string first — matching stops at the first hit.
-Auto-fixable.
+of the change. Keep the file in strict alphabetical order, case-insensitive.
+Ordering is a maintainability concern only — the `abbr` extension sorts its own
+list by length descending before matching, so position in the file does not
+affect which abbreviation wins. Auto-fixable.
+
+**SG-08a — One definition per acronym.** `abbr` allows a single expansion per
+token site-wide. Where a token is ambiguous, define it in the sense the docs
+actually use, and check what a redefinition displaces before making it.
 
 **SG-09 — Do not expand in headings.** Use the short form in headings and the
 expansion in the first body paragraph that follows.
@@ -284,7 +289,7 @@ a recommendation.
 | SG-02 | Banned aliases | yes |
 | SG-04, SG-05, SG-06 | Jargon, term registration, one name per concept | |
 | SG-07, SG-09 | Acronym expansion on first use | yes |
-| SG-08 | Acronym registered in `_acronyms/index.md` | yes |
+| SG-08, SG-08a | Acronym registered in `_acronyms/index.md`; one definition per token | yes |
 | SG-10, SG-12 | Concept order, stated prerequisites | |
 | SG-11 | First use links to canonical introduction | |
 | SG-13, SG-14, SG-15, SG-16 | Sentence and paragraph shape | |
