@@ -189,7 +189,7 @@ _SPEC_SYMBOL_RE = re.compile(r"`([A-Z][A-Z0-9]*(?:_[A-Z0-9]+)+)`")
 #: textual scan rather than an AST walk on purpose: a spec may legitimately
 #: name a symbol that appears only in a docstring, a comment, or a string
 #: literal, and none of those are bindings an AST pass would report.
-_SOURCE_SYMBOL_RE = re.compile(r"\b[A-Z][A-Z0-9_]*\b")
+_SOURCE_SYMBOL_RE = re.compile(r"\b[A-Z][A-Z0-9]*(?:_[A-Z0-9]+)+\b")
 
 #: Directories (relative to repo root) whose Python files legitimately cite
 #: synthetic fixture IDs and are therefore excluded from the phantom-ID scan.

@@ -1080,6 +1080,42 @@ class TestCreateParticipantStatusNode:
         assert bt_result.status == Status.SUCCESS
         assert "status_id" in result_out
 
+    def test_validate_transitions_reports_all_dimension_errors(self):
+        """#2112 AC-1/AC-2: _validate_transitions() collects all dimension failures.
+
+        When VF and D are simultaneously invalid (actor lacks both VENDOR and
+        DEPLOYER roles), both error messages must appear in feedback_message.
+        Regression test for the first-error-only bug in _validate_transitions().
+        """
+        from py_trees.common import Status
+        from vultron.core.models.case_participant import CaseParticipant
+        from vultron.core.states.cs import CS_d, CS_vf
+        from vultron.enums.roles import CVDRole
+
+        # Actor has neither VENDOR nor DEPLOYER role → both role guards fire.
+        participant = self.dl.read(self.actor_participant.id_)
+        assert isinstance(participant, CaseParticipant)
+        participant.case_roles = [CVDRole.REPORTER]
+        self.dl.save(participant)
+
+        bt_result, result_out = self._run_node(
+            rm_state=None,
+            vf_state=CS_vf.Vf,  # requires VENDOR (ADR-0075)
+            d_state=CS_d.D,  # requires DEPLOYER (CSB-15-002)
+            pxa_state=None,
+        )
+
+        assert bt_result.status == Status.FAILURE
+        assert "status_id" not in result_out
+        assert "ADR-0075" in bt_result.feedback_message, (
+            f"Expected VF role error (ADR-0075) in feedback_message;"
+            f" got: {bt_result.feedback_message!r}"
+        )
+        assert "CSB-15-002" in bt_result.feedback_message, (
+            f"Expected D role error (CSB-15-002) in feedback_message;"
+            f" got: {bt_result.feedback_message!r}"
+        )
+
 
 # ---------------------------------------------------------------------------
 # ValidateTriggerTransitionsNode — AC-1 through AC-6 (issues #2081, #1903)

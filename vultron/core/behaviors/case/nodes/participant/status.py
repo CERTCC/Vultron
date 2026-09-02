@@ -361,6 +361,53 @@ class CreateParticipantStatusNode(DataLayerActionWithPorts):
             eff_vf = CS_vf.Vf
         return eff_vf, eff_pxa
 
+    def _validate_transitions(
+        self,
+        current_vf: "CS_vf | None",
+        current_d: "CS_d | None",
+        pxa_before: CS_pxa,
+        eff_vf: "CS_vf | None",
+        eff_d: "CS_d | None",
+        eff_pxa: CS_pxa,
+        participant_obj: object,
+    ) -> "Status | None":
+        """EH-07-001/BTND-10-002: collect all per-dimension failures (#2112).
+
+        Runs every per-dimension check and collects errors before returning, so
+        callers always receive a complete diagnostic.  The compound CS-transition
+        check is only run when all per-dimension checks pass — it is derived when
+        any single-dimension violation is already present (EH-07-002).
+
+        Returns ``Status.FAILURE`` with a joined ``feedback_message`` when any
+        check fails; ``None`` when all checks pass.
+        """
+        errors: list[str] = []
+
+        if (
+            self._check_vf_precondition(current_vf, participant_obj)
+            is not None
+        ):
+            errors.append(self.feedback_message)
+        if self._check_d_precondition(current_d, participant_obj) is not None:
+            errors.append(self.feedback_message)
+        if self._pxa_state is not None:
+            if self._check_pxa_precondition(pxa_before) is not None:
+                errors.append(self.feedback_message)
+
+        if not errors:
+            if (
+                self._check_compound_transition(
+                    current_vf, current_d, pxa_before, eff_vf, eff_d, eff_pxa
+                )
+                is not None
+            ):
+                errors.append(self.feedback_message)
+
+        if errors:
+            self.feedback_message = "; ".join(errors)
+            return Status.FAILURE
+        return None
+
     def update(self) -> Status:
         dl = self.datalayer
         if dl is None:
@@ -396,21 +443,7 @@ class CreateParticipantStatusNode(DataLayerActionWithPorts):
             dl, participant_id
         )
         participant_obj = dl.read(participant_id)
-
-        guard = self._check_vf_precondition(current_vf, participant_obj)
-        if guard is not None:
-            return guard
-
-        guard = self._check_d_precondition(current_d, participant_obj)
-        if guard is not None:
-            return guard
-
         pxa_before = _resolve_pxa_state(case, participant_obj)
-
-        if self._pxa_state is not None:
-            guard = self._check_pxa_precondition(pxa_before)
-            if guard is not None:
-                return guard
 
         # Effective states before promotion (what the caller requested)
         eff_vf = self._vf_state if self._vf_state is not None else current_vf
@@ -419,9 +452,14 @@ class CreateParticipantStatusNode(DataLayerActionWithPorts):
             self._pxa_state if self._pxa_state is not None else pxa_before
         )
 
-        # AC-3: validate compound CS transition (SM-09-002)
-        guard = self._check_compound_transition(
-            current_vf, current_d, pxa_before, eff_vf, eff_d, eff_pxa
+        guard = self._validate_transitions(
+            current_vf,
+            current_d,
+            pxa_before,
+            eff_vf,
+            eff_d,
+            eff_pxa,
+            participant_obj,
         )
         if guard is not None:
             return guard
