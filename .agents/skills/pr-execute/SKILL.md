@@ -101,6 +101,16 @@ For each finding with `severity: NEW-ISSUE`:
 2. Add to Project #24.
 3. Record as `outcome: filed` with `issue_number`.
 
+**Pre-existing findings are not exempt (BW-07-009).** A finding in a file this
+PR did not touch still gets a `type:Bug` or `type:Concern` issue here, before
+the session ends. There is no advisory tier: posting it only as an
+`[ADVISORY]` PR comment, or describing it in a `plan/incoming/learnings/`
+file, does not count as tracking it — neither can be assigned, scheduled, or
+closed. Nor does citing the PR that surfaced it: a merged PR number is not a
+tracking reference. In the 2026-09-02 audit, nearly every finding parked this way
+was eventually re-found and filed by a later session — the deferral bought
+nothing but the rediscovery cost, and four findings fell through entirely.
+
 ### Phase 4 — Resolve Review Thread Comments
 
 For each unresolved review comment on the PR (fetched via

@@ -3,7 +3,7 @@ title: pytest killed by SIGKILL (exit 137) when run multiple times in same sessi
 type: learning
 timestamp: "2026-09-01T00:00:00Z"
 source: ISSUE-2458
-signal: tooling-issue
+signal: theme-candidate
 ---
 
 During ISSUE-2458 build session, running `uv run pytest --tb=short` three times

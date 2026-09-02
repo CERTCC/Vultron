@@ -25,6 +25,11 @@ repos:
         # Use the system language so pre-commit resolves the executable via PATH
         language: system
         args: ["--fix", "--config", ".markdownlint-cli2.yaml", "**/*.md"]
+        # The args above already carry the glob, so pre-commit must not append
+        # the staged filenames too: markdownlint-cli2 re-globs per argument, and
+        # a commit staging ~100 markdown files hangs for over 10 minutes.
+        # Linting the whole tree takes ~13s.
+        pass_filenames: false
         files: \.(md|markdown)$
 
       - id: validate-notes-frontmatter

@@ -3,7 +3,7 @@ title: "Pydantic v2 runs mode='before' validators in reverse definition order"
 type: learning
 timestamp: "2026-08-28T00:00:00Z"
 source: ISSUE-2662
-signal: design-question
+signal: theme-candidate
 ---
 
 When multiple `@model_validator(mode="before")` validators are defined on the
