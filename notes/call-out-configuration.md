@@ -117,6 +117,24 @@ inbox adapter wires it for the two inbound status semantics
 (`vultron/adapters/driving/fastapi/inbox_port_factories.py`), making the
 trusted-deployment posture visible in code (RSH-07-003).
 
+> **Mechanism vs. posture (ADR-0080 / RSH-07-004).** The tables and guard in
+> this audit classify the conservative-default *posture* — which of these gates
+> must default to the floor rather than to a p-driven permissive backend. That
+> posture is settled and unchanged. The *mechanism* that currently implements it
+> for the two status gates — `RequireCaseOwnerApprovalNode`, an interim blocking
+> stub that returns `FAILURE` unconditionally (`nodes.py`, self-described as
+> such) — is **superseded** by RSH-07-004 (ADR-0080, CONCERN-2812), which found
+> the ADR-0046/ADR-0076 Evaluator model unreachable at the moment authorization
+> is first needed and mandates a conversation-state *routing subtree* instead.
+> RSH-07-004's verification explicitly requires that "no `CallOutBackendFactory`
+> returns an unconditional `FAILURE` node as the conservative default." So when
+> the routing subtree lands, the qualifying-gate rows above stay in this table
+> (they remain security-significant), but the `Default` mechanism changes and
+> the guard's `test_status_gates_conservative_default_blocks` assertion must be
+> revised to check the security *property* rather than the `FAILURE` tick. This
+> audit deliberately did not implement RSH-07-004 (a separate, larger change);
+> it only pins the current interim reality.
+
 ### Look-alike gates that do NOT qualify (default stays permissive)
 
 Two embargo gates share surface structure with the qualifying set but fail the
@@ -162,7 +180,10 @@ generalized rule **BT-23-012** (so the criterion binds future gate authors);
 its durable analysis is this section; its regression guard is
 `test/core/behaviors/call_out/test_security_significant_defaults.py`. ADR-0025's
 security-significant exception (and ADR-0076) already stand and needed no change
-(#2676 AC-5's "if additional gates are found" condition was not triggered).
+(#2676 AC-5's "if additional gates are found" condition was not triggered). The
+conservative-default *posture* recorded here is unaffected by ADR-0080 —
+RSH-07-004 amends only the *mechanism* for the two status gates (see the
+mechanism-vs-posture note above).
 
 ---
 

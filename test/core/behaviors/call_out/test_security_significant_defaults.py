@@ -34,6 +34,19 @@ It also pins the two spec-mandated look-alike embargo gates permissive, so a
 future reader auditing for ``AlwaysSucceed`` on an authorization-flavored gate
 does not "harden" them (see ``notes/call-out-configuration.md`` §
 "Security-Significant Gate Audit").
+
+.. note::
+   This guard pins the *interim* mechanism. RSH-07-004 (ADR-0080, CONCERN-2812)
+   supersedes the unconditional-``FAILURE`` :class:`RequireCaseOwnerApprovalNode`
+   with a conversation-state routing subtree, and its verification requires that
+   "no ``CallOutBackendFactory`` returns an unconditional ``FAILURE`` node as the
+   conservative default." The conservative-default *posture* asserted here is
+   unchanged, but when the routing subtree lands
+   ``test_status_gates_conservative_default_blocks`` (which asserts the
+   ``FAILURE`` tick) and the :class:`RequireCaseOwnerApprovalNode` membership in
+   ``EXPECTED_CONSERVATIVE_GATES`` must be revised to check the security
+   *property* rather than the interim mechanism. See
+   ``notes/call-out-configuration.md`` § "Mechanism vs. posture".
 """
 
 import dataclasses
@@ -134,7 +147,15 @@ def test_conservative_default_set_is_exactly_the_two_status_gates():
 @pytest.mark.spec("RSH-07-001")
 @pytest.mark.spec("RSH-07-002")
 def test_status_gates_conservative_default_blocks():
-    """Conservative path: both status gates tick FAILURE by default (block)."""
+    """Conservative path: both status gates tick FAILURE by default (block).
+
+    Pins the *interim* blocking-stub mechanism. RSH-07-004 (ADR-0080) replaces
+    it with a routing subtree and forbids a ``CallOutBackendFactory`` that
+    returns an unconditional ``FAILURE`` default; when that lands, this
+    assertion must be reframed to check the security property (a non-owner does
+    not obtain SUCCESS by default), not the ``FAILURE`` tick. See the module
+    docstring and ``notes/call-out-configuration.md`` § "Mechanism vs. posture".
+    """
     for f in dataclasses.fields(STATUS_AUTHORIZATION_DETERMINISTIC):
         node = getattr(STATUS_AUTHORIZATION_DETERMINISTIC, f.name)(f.name)
         node.tick_once()
