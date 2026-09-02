@@ -88,7 +88,8 @@ def add_case_status_tree(
     3. History-prefix guard — rejects single-step PXA transitions that would
        produce an invalid CS history prefix (CSB-17-005, ISSUE-2524).
     4. Per-dimension EM adjudication — accept valid advances, carry forward
-       refused EM; always returns SUCCESS (RSH-05, ISSUE-2256).
+       refused EM; returns FAILURE when the case is not found in the DataLayer
+       (CLP-10-009), otherwise SUCCESS (RSH-05, ISSUE-2256).
     5. Per-dimension PXA adjudication — accepts monotone-forward PXA moves,
        carries forward refused PXA; always returns SUCCESS (RSH-05, ISSUE-2256).
     6. Whole-refusal gate — returns FAILURE if no dimension carries new state;

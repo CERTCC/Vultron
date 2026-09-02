@@ -100,7 +100,11 @@ class _CsStatusGuardBase(DataLayerConditionWithPorts):
         assert self.datalayer is not None
         if not self.case_id:
             return None
-        return self.datalayer.read_case(self.case_id)
+        result = self.datalayer.read_case(self.case_id)
+        # Defensive isinstance: guards against misbehaving adapter stubs that
+        # bypass read_case()'s internal type check (the annotation is not
+        # enforced at runtime).
+        return result if isinstance(result, VulnerabilityCase) else None
 
     def _resolve_asserted(self) -> CaseStatus | None:
         assert self.datalayer is not None
@@ -118,16 +122,21 @@ class FilterCsEmDimensionNode(_CsStatusGuardBase):
     accumulator and evaluates whether the asserted EM transition is acceptable.
     Refused EM is carried forward (current value); accepted EM passes through.
 
-    Also clears ``BB_CASE_STATUS_DIM_FILTER`` and
-    ``BB_LEDGER_PAYLOAD_OBJECT_OVERRIDE`` unconditionally at tick start so
-    that no prior execution's values leak into this tick (BT-17-003).
+    Also clears ``BB_CASE_STATUS_DIM_FILTER`` unconditionally at tick start
+    so that no prior execution's value leaks into this tick (BT-17-003).
+    ``BB_LEDGER_PAYLOAD_OBJECT_OVERRIDE`` is solely owned by
+    :class:`FinalizeCsFilterNode`, which clears it on every exit path.
 
     Returns SUCCESS when the status can be resolved and EM adjudication runs.
-    Returns FAILURE when the asserted status cannot be resolved from the
-    DataLayer or the fallback — the tree must not commit a ledger entry for a
-    status that cannot be applied (CLP-10-009, #2704).  Individual EM
-    dimension refusal is not a tree failure; ``FinalizeCsFilterNode`` decides
-    whole-refusal.
+    Returns FAILURE when:
+
+    - The case is not found in the DataLayer — the tree must not commit a
+      ledger entry for an unresolvable case (CLP-10-009, #2710).
+    - The asserted status cannot be resolved from the DataLayer or the
+      fallback (CLP-10-009, #2704).
+
+    Individual EM dimension refusal is not a tree failure; ``FinalizeCsFilterNode``
+    decides whole-refusal.
 
     Must run before ``FilterCsPxaDimensionNode`` and ``FinalizeCsFilterNode``
     in the precondition_guards sequence.
@@ -166,7 +175,7 @@ class FilterCsEmDimensionNode(_CsStatusGuardBase):
             return f
         assert self.datalayer is not None
 
-        case = self.datalayer.read_case(self.case_id)
+        case = self._resolve_case()
         if case is None:
             self.feedback_message = (
                 f"Case '{self.case_id}' not found in DataLayer;"
@@ -379,6 +388,9 @@ class FinalizeCsFilterNode(DataLayerConditionWithPorts):
                 " and no other dimension carries new state"
             )
             self.logger.info("%s: %s", self.name, self.feedback_message)
+            # Sole-owner clear: no stale override must survive this tick
+            # (BT-17-003, CONCERN-2711).
+            self._set_output(BB_LEDGER_PAYLOAD_OBJECT_OVERRIDE, None)
             return Status.FAILURE
 
         self._set_output(
