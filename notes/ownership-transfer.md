@@ -8,9 +8,13 @@ description: >
   the pending offer and the completed transfer.
 related_specs:
   - specs/case-management.yaml
+  - specs/case-ledger-processing.yaml
+  - specs/event-driven-control-flow.yaml
 related_notes:
   - notes/case-communication-model.md
   - notes/protocol-event-cascades.md
+  - notes/case-ledger-authority.md
+  - notes/event-driven-control-flow.md
 relevant_packages:
   - vultron/core/behaviors/case/nodes/
   - vultron/core/use_cases/received/actor/
@@ -153,13 +157,28 @@ and the vendor is in `attributed_to` (CM-24-001, CM-24-002). Reading
 `request.actor_id` — which is what the code did until #2789 — makes the CaseActor
 forward an Offer attributing the vendor's intent to *itself*, and every replica
 that materialises `VultronOwnershipTransferOfferRecord.actor_id` from the ledger
-snapshot records the same wrong offerer. The correct read is
-`_as_id(request.activity.attributed_to) or request.actor_id`; the fallback covers
-CM-24-003, where a participant with no CaseActor sends directly. This required
-`_build_activity_snapshot` (`vultron/wire/as2/extractor/_builders.py`) to carry
-`attributed_to` at all — it previously dropped the field, so no received-side use
-case could recover a delegated author. Audit any peer that reads `request.actor_id`
-where it means "who asked for this".
+snapshot records the same wrong offerer.
+
+`_resolve_offering_actor_id()` does the read, and it honours `attributed_to`
+**only in the delegated shape** — when the sender *is* this case's CaseActor.
+That guard is not optional: a participant that sets `attributed_to` on an Offer
+it sends under its own identity is claiming to speak for another participant, and
+nothing downstream re-checks it (CLP-07-003 validates `payloadSnapshot.actor`,
+not `attributed_to`), so relaying it unchecked would let any participant forge
+the offerer of record. Outside the delegated shape the sender is the offerer,
+which is also the right answer when the case has no CaseActor (CM-24-003). The
+refusal is logged at WARNING rather than silently swallowed.
+
+This all required `_build_activity_snapshot`
+(`vultron/wire/as2/extractor/_builders.py`) to carry `attributed_to` at all — it
+previously dropped the field, so no received-side use case could recover a
+delegated author. That same function resolves reference fields through `_get_id`,
+which must never fall back to `str(field)`: AS2 permits an inline object or an
+array in `attributedTo`, and a Python repr in a hashed, replicated
+`payloadSnapshot` is unrecoverable where an absent field is not (CLP-07-011).
+
+Audit any peer that reads `request.actor_id` where it means "who asked for this"
+— and pair the read with the same delegated-shape guard.
 
 ### AcceptCaseOwnershipTransferReceivedUseCase / ownership_transfer_tree.py
 

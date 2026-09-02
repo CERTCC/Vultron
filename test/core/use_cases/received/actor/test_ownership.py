@@ -368,6 +368,82 @@ class TestOwnershipTransferUseCases:
         )
         assert kwargs["actor"] == case_actor_id
 
+    def test_forwarded_offer_ignores_attributed_to_from_a_non_case_actor(
+        self, make_payload, caplog
+    ):
+        """A peer may not name another actor as the offerer of record.
+
+        `attributed_to` is honoured only in the delegated shape CM-24-001
+        defines — an Offer the CaseActor sent on a participant's behalf.  Here a
+        participant sends the Offer under its *own* identity while naming
+        another participant in `attributed_to`.  Relaying that unchecked would
+        let any participant forge who offered the transfer, and nothing
+        downstream re-checks it: CLP-07-003 validates `payloadSnapshot.actor`,
+        not `attributed_to`.
+        """
+        from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+        from vultron.wire.as2.vocab.objects.case_participant import (
+            as_CaseParticipant,
+        )
+        from vultron.wire.as2.vocab.base.objects.actors import as_Service
+        from vultron.enums.roles import CVDRole
+
+        case_actor_id = "https://example.org/actors/case-actor-spoof"
+        vendor1_id = "https://example.org/users/vendor1-spoof"
+        vendor2_id = "https://example.org/users/vendor2-spoof"
+        transferee_id = "https://example.org/users/coordinator-spoof"
+
+        dl = SqliteDataLayer("sqlite:///:memory:", actor_id=case_actor_id)
+
+        case = as_VulnerabilityCase(
+            id_="https://example.org/cases/case_ot8",
+            name="OT Spoof Case",
+            attributed_to=vendor1_id,
+        )
+        case_manager_participant = as_CaseParticipant(
+            attributed_to=case_actor_id,
+            context=case.id_,
+            case_roles=[CVDRole.CASE_MANAGER],
+        )
+        case.actor_participant_index[case_actor_id] = (
+            case_manager_participant.id_
+        )
+        case.case_participants.append(case_manager_participant.id_)
+        dl.create(case)
+        dl.create(case_manager_participant)
+
+        # vendor2 sends under its own identity but claims vendor1's intent.
+        activity = offer_case_ownership_transfer_activity(
+            case,
+            target=as_Service(id_=transferee_id, name="Coordinator Spoof"),
+            actor=vendor2_id,
+            attributed_to=vendor1_id,
+            id_="https://example.org/activities/offer_ot8",
+        )
+        event = make_payload(activity, receiving_actor_id=case_actor_id)
+
+        trigger_activity = MagicMock()
+        trigger_activity.offer_case_ownership_transfer.return_value = (
+            "https://example.org/activities/offer_ot8_fwd",
+            {},
+        )
+
+        with caplog.at_level("WARNING"):
+            OfferCaseOwnershipTransferReceivedUseCase(
+                dl, event, trigger_activity=trigger_activity
+            ).execute()
+
+        kwargs = (
+            trigger_activity.offer_case_ownership_transfer.call_args.kwargs
+        )
+        assert kwargs["attributed_to"] == vendor2_id, (
+            "the sender is the offerer of record when the Offer is not"
+            f" delegated by the CaseActor. Got: {kwargs!r}"
+        )
+        assert any(
+            "ignoring attributed_to" in r.message for r in caplog.records
+        ), "the refusal must be logged, not silent"
+
     def test_offer_cascade_warns_when_trigger_activity_absent(
         self, make_payload, caplog
     ):

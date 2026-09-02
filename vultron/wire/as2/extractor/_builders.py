@@ -50,11 +50,29 @@ logger = logging.getLogger(__name__)
 
 
 def _get_id(field: object) -> str | None:
+    """Resolve an AS2 reference field to its id string, or ``None``.
+
+    AS2 permits a reference to be a URI string, an inline object, or an array of
+    either, so all three shapes are resolved here.  When no id can be recovered
+    the answer is ``None`` — never ``str(field)``.  A Python repr is not a URI,
+    and these values reach `payloadSnapshot`, which is hashed into `entry_hash`
+    and replicated to every participant: an absent field is recoverable, a
+    ``"{'id': ...}"`` string in the chain is not (ARCH-15-001, CLP-07-011).
+    """
     if field is None:
         return None
     if isinstance(field, str):
-        return field
-    return getattr(field, "id_", str(field)) or None
+        return field or None
+    if isinstance(field, dict):
+        raw = field.get("id") or field.get("id_")
+        return raw if isinstance(raw, str) and raw else None
+    if isinstance(field, (list, tuple)):
+        for item in field:
+            if (resolved := _get_id(item)) is not None:
+                return resolved
+        return None
+    raw_id = getattr(field, "id_", None)
+    return raw_id if isinstance(raw_id, str) and raw_id else None
 
 
 def _get_id_list(field: object) -> list[str] | None:

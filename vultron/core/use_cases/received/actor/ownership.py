@@ -20,6 +20,7 @@ from vultron.core.ports.case_persistence import CaseOutboxPersistence
 from vultron.core.ports.sync_activity import SyncActivityPort
 from vultron.core.use_cases._helpers import (
     _idempotent_create,
+    _resolve_case_manager_id,
     resolve_receiving_actor_id,
 )
 
@@ -41,6 +42,48 @@ class OfferCaseOwnershipTransferReceivedUseCase:
         self._request: OfferCaseOwnershipTransferReceivedEvent = request
         self._sync_port = sync_port
         self._trigger_activity = trigger_activity
+
+    def _resolve_offering_actor_id(self, case_id: str) -> str | None:
+        """Return the actor whose intent the forwarded Offer should carry.
+
+        The inbound Offer is normally a *delegated* message: the CaseActor is its
+        `actor` and the participant who asked for the transfer is in
+        `attributed_to` (CM-24-001, CM-24-002).  Reading `actor_id` alone would
+        make the CaseActor forward an Offer attributing that participant's intent
+        to itself, leaving no receiver able to recover who offered.
+
+        `attributed_to` is honoured **only** in that delegated shape — when the
+        sender is this case's CaseActor.  A peer that sets `attributed_to` on an
+        Offer it sends under its own identity is claiming to speak for someone
+        else, and relaying that unchecked would let any participant forge the
+        offerer of record; nothing downstream re-checks it, because
+        CLP-07-003 validates `payloadSnapshot.actor` and not `attributed_to`.
+        Outside the delegated shape the sender is the offerer, which is also the
+        correct answer when the case has no CaseActor at all (CM-24-003).
+        """
+        request = self._request
+        delegated_author = _as_id(request.activity.attributed_to)
+        if delegated_author is None:
+            return request.actor_id
+        case = self._dl.read_case(case_id)
+        case_actor_id = (
+            _resolve_case_manager_id(case, self._dl)
+            if case is not None
+            else None
+        )
+        if case_actor_id is not None and request.actor_id == case_actor_id:
+            return delegated_author
+        logger.warning(
+            "OfferCaseOwnershipTransferReceived: ignoring attributed_to '%s'"
+            " on an Offer sent by '%s', which is not case '%s''s CaseActor"
+            " ('%s') — only a delegated Offer may name another actor as the"
+            " offerer (CM-24-001, CM-24-002)",
+            delegated_author,
+            request.actor_id,
+            case_id,
+            case_actor_id,
+        )
+        return request.actor_id
 
     def execute(self) -> None:
         request = self._request
@@ -67,16 +110,7 @@ class OfferCaseOwnershipTransferReceivedUseCase:
             return
 
         transferee_id = _as_id(request.activity.target)
-        # `attributed_to` first, `actor_id` second: the inbound Offer is a
-        # delegated message, so its `actor` is the CaseActor and the participant
-        # who actually asked for the transfer is in `attributed_to`
-        # (CM-24-001, CM-24-002).  Reading `actor_id` alone makes the CaseActor
-        # forward an Offer that attributes the vendor's intent to itself, leaving
-        # no receiver able to recover who offered.  The fallback covers the
-        # no-CaseActor case, where the participant sends directly (CM-24-003).
-        original_actor_id = (
-            _as_id(request.activity.attributed_to) or request.actor_id
-        )
+        original_actor_id = self._resolve_offering_actor_id(case_id)
 
         # One tree, run once (CLP-10-005).  The guarded commit fires only when
         # receiving_actor_id is the CaseActor (CheckIsCaseManagerNode gate), and

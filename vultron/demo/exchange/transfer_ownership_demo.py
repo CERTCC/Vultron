@@ -59,6 +59,7 @@ from vultron.wire.as2.vocab.base.objects.actors import as_Actor
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCase,
 )
+from vultron.demo.helpers.polling import wait_for_case_attributed_to
 from vultron.demo.helpers.runner import run_exchange_demos
 from vultron.demo.helpers.workflow import (
     await_forwarded_ownership_transfer_offer,
@@ -250,21 +251,20 @@ def demo_transfer_ownership_accept(
             "Step 5: Verify case ownership transferred to coordinator"
         ):
             with demo_check("Case attributed_to updated to coordinator"):
-                final_case = log_case_state(
-                    client, case.id_, "after accept", actor_id=case_actor_id
+                # Poll rather than read once: the CaseActor commits the receipt,
+                # fans out Announce(CaseLedgerEntry) to every participant and
+                # applies the role change in a background task, so a single read
+                # after post_to_inbox_and_wait's fixed 1 s sleep races it.
+                wait_for_case_attributed_to(
+                    client=client.model_copy(
+                        update={"actor_id": case_actor_id}
+                    ),
+                    case_id=case.id_,
+                    expected_attributed_to=coordinator.id_,
                 )
-                if final_case is None:
-                    raise ValueError("Could not retrieve case after accept")
-                new_owner = final_case.attributed_to
-                coord_segment = coordinator.id_.split("/")[-1]
-                if coord_segment not in str(new_owner):
-                    raise ValueError(
-                        f"Expected case owner to be coordinator "
-                        f"'{coordinator.id_}', got: {new_owner}"
-                    )
-                logger.info(
-                    f"Case ownership transferred — new owner: {new_owner}"
-                )
+            log_case_state(
+                client, case.id_, "after accept", actor_id=case_actor_id
+            )
 
     logger.info("✅ DEMO COMPLETE (accept path): Case ownership transferred.")
 
@@ -335,6 +335,16 @@ def demo_transfer_ownership_reject(
             post_to_inbox_and_wait(client, case_actor_id, reject)
 
         with demo_step("Step 5: Verify case ownership unchanged"):
+            # Temporal, deliberately (EDF-06-006): this asserts a *non*-change,
+            # and there is nothing to poll for — a rejection commits no ledger
+            # entry and mutates no state, so `RejectCaseOwnershipTransferReceived`
+            # leaves no observable at all.  The check is therefore weaker than the
+            # accept path's: it can pass because the Reject has not been processed
+            # yet rather than because it was processed and declined.  Giving the
+            # reject path an observable needs a spec decision on whether a
+            # rejection is a ledgered event — CM-21 specifies routing for the
+            # Offer and Accept but says nothing about the Reject.  See
+            # plan/incoming/learnings/20260901-2789-reject-ownership-transfer-routing-unspecified.md
             with demo_check("Case attributed_to still vendor"):
                 final_case = log_case_state(
                     client, case.id_, "after reject", actor_id=case_actor_id

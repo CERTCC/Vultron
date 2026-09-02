@@ -97,51 +97,51 @@ See `specs/multi-actor-demo.yaml` DEMOMA-17-001 for the normative requirement
 
 ---
 
-### Ownership-Transfer Trigger: Always Self-Deliver the Accept to the Accepting Actor's Inbox
+### Ownership-Transfer Accept: Do NOT Self-Deliver — ADR-0053 Retired That Step
 
-When the accepting actor triggers `accept-case-ownership-transfer`, the
-trigger-side BT (`AcceptCaseOwnershipTransferTriggerBT`) queues the
-`Accept(Offer(VulnerabilityCase))` activity addressed only to the **offering**
-actor. The accepting actor's own DataLayer replica is therefore **not** updated
-by that path.
+**This section previously required the opposite.** It is kept, inverted, because
+the retired instruction is still the intuitive one and an agent reasoning from
+first principles about per-actor replicas will re-derive it.
 
-After queuing the trigger, the demo script **MUST** also POST the Accept
-activity to the accepting actor's own inbox so that
-`AcceptCaseOwnershipTransferReceivedUseCase` runs locally and updates
-`case.attributed_to` on the accepting actor's replica.
+`EmitAcceptCaseOwnershipTransferNode` resolves the case manager and addresses the
+`Accept(Offer(VulnerabilityCase))` to **the CaseActor** (`to=[case_actor_id]`,
+CM-21-006). The CaseActor applies the role change, commits a `CaseLedgerEntry`,
+and broadcasts `Announce(CaseLedgerEntry)` to every participant — which is how
+each replica, including the accepting actor's own, learns the new owner.
+
+So after triggering `accept-case-ownership-transfer`, do **nothing**:
 
 ```python
-# ✅ Correct — trigger first, then self-deliver
-accept_result = post_to_trigger(
+# ✅ Correct — trigger and stop; the CaseActor's broadcast updates every replica
+post_to_trigger(
     client=accepting_client,
     actor_id=accepting_actor_id,
     behavior="accept-case-ownership-transfer",
-    body={"offer_id": offer_id},
+    body={"offer_id": forwarded_offer_id},   # the *forwarded* id (CM-21-005)
 )
+
+# ❌ Wrong — mail-carrying. The Accept is not addressed to this inbox, and
+# ADR-0068 refuses a misaddressed activity with a 4xx.
 accept_activity = as_TransitiveActivity.model_validate(accept_result["activity"])
 post_to_inbox_and_wait(accepting_client, accepting_participant_id, accept_activity)
-
-# ❌ Wrong — skips local replica update; attributed_to never changes on accepting actor
-accept_result = post_to_trigger(
-    client=accepting_client,
-    actor_id=accepting_actor_id,
-    behavior="accept-case-ownership-transfer",
-    body={"offer_id": offer_id},
-)
-# missing: extract accept_activity and post_to_inbox_and_wait(...)
 ```
 
-**Why:** PR #1590 silently deleted this self-delivery step in a commit that
-appeared to only change a field accessor. The omission only surfaced under
-the CI integration test — functional tests passed because the offering actor's
-replica updated correctly via the normal outbox delivery path. The demo CI
-integration tests (`test/ci/invariants/`) are the authoritative runtime
-enforcement for this invariant.
+**History, so the inversion is auditable.** The original rule (CONCERN-1653) was
+correct for pre-ADR-0053 routing, where the trigger-side BT addressed the Accept
+only to the *offering* actor and the accepting actor's replica was therefore
+never updated. ADR-0053 moved both the `Offer` and the `Accept` onto the CaseActor
+(CM-21-005, CM-21-006), which made the self-delivery both unnecessary and a
+CONCERN-1635 mail-carry. The workaround was removed from `fvcv_handoff_demo.py`
+with ADR-0053 and from `fccv_handoff_demo.py` in PR #2735; neither file has
+contained it since, so the old text pointed at two files as exemplars of a
+pattern they no longer had.
 
-See `vultron/demo/scenario/fvcv_handoff_demo.py` and
-`vultron/demo/scenario/fccv_handoff_demo.py` for the correct pattern.
+**Gate on the effect, not on a delivery you perform yourself.** Wait for the
+transfer to land where it commits — `wait_for_case_attributed_to` on the
+authoritative replica, or the `accept_case_ownership_transfer` ledger entry on a
+participant's own replica (EDF-06-002).
 
-<!-- Source: CONCERN-1653 -->
+<!-- Source: CONCERN-1653 (original), ADR-0053 / ISSUE-2789 (inversion) -->
 
 ---
 
@@ -190,18 +190,22 @@ delivery path (`HttpDeliveryAdapter`) with its retry/backoff will complete.
    investigation (retry parameters, health checks, container startup order)
    — not a workaround in the demo script.
 
-**Exception — self-delivery (CONCERN-1653):** A demo script MAY call
-`post_to_inbox_and_wait` when an actor needs to deliver an activity to its
-*own* inbox to update its own replica — for example, after triggering
-`accept-case-ownership-transfer`, the accepting actor must self-deliver the
-resulting `Accept` activity so that `AcceptCaseOwnershipTransferReceivedUseCase`
-runs locally. This is not mail-carrying: the actor is posting to its own inbox,
-not acting as a surrogate for the transport layer.
+**Narrow exception — self-delivery to one's own inbox:** A demo script MAY call
+`post_to_inbox_and_wait` when an actor delivers an activity to its **own** inbox
+to update its own replica. That is not mail-carrying: the actor is posting to
+itself, not acting as a surrogate for the transport layer.
+
+The ownership-transfer `Accept` used to be the worked example here (CONCERN-1653).
+It no longer is — ADR-0053 addresses that `Accept` to the CaseActor, whose ledger
+broadcast updates every replica including the accepting actor's, so
+self-delivering it is now both unnecessary and misaddressed. See
+§ "Ownership-Transfer Accept: Do NOT Self-Deliver" above. Before invoking this
+exception, check that the activity really is unaddressed to any other actor; if
+the protocol routes it through the CaseActor, the exception does not apply.
 
 The rule this section prohibits is **cross-actor delivery**: a demo using
-*Actor A's* credentials to POST a message into *Actor B's* inbox. That is the
-pattern to eliminate; CONCERN-1653's self-delivery pattern is orthogonal and
-remains correct.
+*Actor A's* credentials to POST a message into *Actor B's* inbox. That remains
+the pattern to eliminate.
 
 <!-- Source: CONCERN-1635 -->
 

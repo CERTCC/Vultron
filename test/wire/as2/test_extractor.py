@@ -527,3 +527,96 @@ def test_any_received_event_covers_all_registry_event_classes():
             f"{entry.event_class.__name__} (semantics={entry.semantics.name}) "
             f"is in SEMANTIC_REGISTRY but not in AnyReceivedEvent"
         )
+
+
+# ---------------------------------------------------------------------------
+# `attributed_to` on the activity snapshot (CM-24-002, issue #3012)
+# ---------------------------------------------------------------------------
+
+
+def _ownership_offer(attributed_to: Any) -> Any:
+    """Build a delegated ownership-transfer Offer carrying *attributed_to*.
+
+    Built by `model_validate` rather than the factory so a non-URI
+    `attributedTo` can be exercised: `as_Object.attributed_to` is typed
+    ``Any | None``, and AS2 permits an inline object or an array there.
+    """
+    from vultron.wire.as2.vocab.activities.case import (
+        _OfferCaseOwnershipTransferActivity,
+    )
+
+    return _OfferCaseOwnershipTransferActivity.model_validate(
+        {
+            "type": "Offer",
+            "actor": "https://example.org/actors/case-actor",
+            "attributedTo": attributed_to,
+            "object": {
+                "id": "https://example.org/cases/c1",
+                "type": "VulnerabilityCase",
+                "name": "C1",
+            },
+            "target": {
+                "id": "https://example.org/actors/coordinator",
+                "type": "Organization",
+            },
+        }
+    )
+
+
+@pytest.mark.spec("CM-24-002")
+def test_activity_snapshot_carries_attributed_to():
+    """The delegated author must survive extraction into `event.activity`.
+
+    CM-24-002 puts the requesting participant in `attributed_to` "so that
+    receivers can recover the originating identity".  `_build_activity_snapshot`
+    dropped the field, so no received-side use case could recover it and the
+    CaseActor forwarded Offers attributing a participant's intent to itself
+    (#3012).
+    """
+    vendor = "https://example.org/users/vendor"
+    event = extract_event(_ownership_offer(vendor))
+
+    assert event.activity is not None
+    assert event.activity.attributed_to == vendor
+
+
+@pytest.mark.spec("CLP-07-011")
+@pytest.mark.parametrize(
+    "raw, expected",
+    [
+        pytest.param(
+            {"id": "https://example.org/users/vendor", "type": "Person"},
+            "https://example.org/users/vendor",
+            id="inline-object-resolves-to-its-id",
+        ),
+        pytest.param(
+            [
+                "https://example.org/users/vendor",
+                "https://example.org/users/other",
+            ],
+            "https://example.org/users/vendor",
+            id="array-resolves-to-first-id",
+        ),
+        pytest.param(
+            {"type": "Person"},
+            None,
+            id="object-without-id-resolves-to-absent",
+        ),
+        pytest.param([], None, id="empty-array-resolves-to-absent"),
+    ],
+)
+def test_activity_snapshot_never_reprs_a_non_uri_attributed_to(raw, expected):
+    """A non-URI `attributedTo` resolves to its id or to ``None`` — never a repr.
+
+    AS2 permits `attributedTo` to be an object or an array.  `_get_id` used to
+    fall back to ``str(field)``, which put a Python repr such as
+    ``"{'id': ..., 'type': 'Person'}"`` into the snapshot.  That value is hashed
+    into `entry_hash` and replicated to every participant, where an absent field
+    is recoverable and a garbage string is not (CLP-07-011, ARCH-15-001).
+    """
+    event = extract_event(_ownership_offer(raw))
+
+    assert event.activity is not None
+    assert event.activity.attributed_to == expected
+    if event.activity.attributed_to is not None:
+        assert not event.activity.attributed_to.startswith(("{", "["))
