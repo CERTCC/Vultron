@@ -5,7 +5,9 @@ import logging
 import pytest
 
 from vultron.core.models.participant import VultronParticipant
+from vultron.core.states.rm import RM
 from vultron.enums.roles import CVDRole
+from vultron.errors import VultronValidationError
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -202,3 +204,92 @@ class TestRemoveRole:
         p.remove_role(CVDRole.VENDOR)
         assert CVDRole.DEPLOYER in p.roles
         assert CVDRole.VENDOR not in p.roles
+
+
+# ---------------------------------------------------------------------------
+# new_at_rm() and new_at_received() (AC-1, AC-2 from issue #3072)
+# ---------------------------------------------------------------------------
+
+
+class TestNewAtRm:
+    """Tests for CaseParticipant.new_at_rm() (AC-1) and new_at_received() (AC-2)."""
+
+    def test_new_at_rm_received_returns_participant(self):
+        """new_at_rm(RM.RECEIVED, ...) returns a VultronParticipant."""
+        p = VultronParticipant.new_at_rm(RM.RECEIVED, _CONTEXT, _ACTOR)
+        assert isinstance(p, VultronParticipant)
+
+    def test_new_at_rm_received_sets_rm_state(self):
+        """new_at_rm(RM.RECEIVED, ...) leaves latest status at RM.RECEIVED."""
+        p = VultronParticipant.new_at_rm(RM.RECEIVED, _CONTEXT, _ACTOR)
+        assert p.participant_status is not None
+        assert p.participant_status.rm.state == RM.RECEIVED
+
+    def test_new_at_rm_sets_case_roles(self):
+        """new_at_rm() passes roles to the participant."""
+        p = VultronParticipant.new_at_rm(
+            RM.RECEIVED, _CONTEXT, _ACTOR, roles=[CVDRole.VENDOR]
+        )
+        assert CVDRole.VENDOR in p.case_roles
+
+    def test_new_at_rm_empty_roles(self):
+        """new_at_rm() with no roles produces an empty case_roles list."""
+        p = VultronParticipant.new_at_rm(RM.RECEIVED, _CONTEXT, _ACTOR)
+        assert p.case_roles == []
+
+    def test_new_at_rm_non_adjacent_state_raises(self):
+        """new_at_rm() raises VultronValidationError for a non-START-adjacent state."""
+        with pytest.raises(VultronValidationError):
+            VultronParticipant.new_at_rm(RM.VALID, _CONTEXT, _ACTOR)
+
+    def test_new_at_rm_accepted_raises(self):
+        """new_at_rm(RM.ACCEPTED, ...) raises because ACCEPTED is not adjacent to START."""
+        with pytest.raises(VultronValidationError):
+            VultronParticipant.new_at_rm(RM.ACCEPTED, _CONTEXT, _ACTOR)
+
+    def test_new_at_rm_closed_raises(self):
+        """new_at_rm(RM.CLOSED, ...) raises because CLOSED is not adjacent to START."""
+        with pytest.raises(VultronValidationError):
+            VultronParticipant.new_at_rm(RM.CLOSED, _CONTEXT, _ACTOR)
+
+    def test_new_at_rm_start_raises(self):
+        """new_at_rm(RM.START, ...) raises because START→START is not a valid transition."""
+        with pytest.raises(VultronValidationError):
+            VultronParticipant.new_at_rm(RM.START, _CONTEXT, _ACTOR)
+
+
+class TestNewAtReceived:
+    """Tests for CaseParticipant.new_at_received() (AC-2 from issue #3072)."""
+
+    def test_new_at_received_returns_participant(self):
+        """new_at_received() returns a VultronParticipant."""
+        p = VultronParticipant.new_at_received(_CONTEXT, _ACTOR)
+        assert isinstance(p, VultronParticipant)
+
+    def test_new_at_received_sets_rm_state(self):
+        """new_at_received() leaves latest status at RM.RECEIVED."""
+        p = VultronParticipant.new_at_received(_CONTEXT, _ACTOR)
+        assert p.participant_status is not None
+        assert p.participant_status.rm.state == RM.RECEIVED
+
+    def test_new_at_received_sets_roles(self):
+        """new_at_received() forwards roles to the participant."""
+        p = VultronParticipant.new_at_received(
+            _CONTEXT, _ACTOR, roles=[CVDRole.COORDINATOR]
+        )
+        assert CVDRole.COORDINATOR in p.case_roles
+
+    def test_new_at_received_no_roles(self):
+        """new_at_received() with no roles produces an empty case_roles list."""
+        p = VultronParticipant.new_at_received(_CONTEXT, _ACTOR)
+        assert p.case_roles == []
+
+    def test_new_at_received_equivalent_to_new_at_rm(self):
+        """new_at_received() is equivalent to new_at_rm(RM.RECEIVED, ...)."""
+        p1 = VultronParticipant.new_at_received(_CONTEXT, _ACTOR)
+        p2 = VultronParticipant.new_at_rm(RM.RECEIVED, _CONTEXT, _ACTOR)
+        assert p1.participant_status is not None
+        assert p2.participant_status is not None
+        assert p1.participant_status.rm.state == p2.participant_status.rm.state
+        assert p1.attributed_to == p2.attributed_to
+        assert p1.context == p2.context
