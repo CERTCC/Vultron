@@ -13,6 +13,7 @@ related_notes:
   - notes/activitystreams-state-update.md
   - notes/bt-integration.md
   - notes/demo-scenario-authoring.md
+  - notes/message-type-reference.md
 relevant_packages:
   - pydantic
   - vultron/wire/as2

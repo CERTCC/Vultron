@@ -13,6 +13,7 @@ related_notes:
   - notes/lifecycle-staged-types.md
   - notes/case-state-model.md
   - notes/embargo-lifecycle.md
+  - notes/message-type-reference.md
 relevant_packages:
   - vultron/core/models/case_status.py
   - vultron/core/models/participant_status.py

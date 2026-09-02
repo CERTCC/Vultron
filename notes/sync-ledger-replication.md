@@ -8,6 +8,7 @@ related_specs:
 related_notes:
   - notes/case-ledger-authority.md
   - notes/case-state-model.md
+  - notes/message-type-reference.md
   - notes/testing-pitfalls.md
 relevant_packages:
   - vultron/core/behaviors

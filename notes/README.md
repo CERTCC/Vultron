@@ -883,6 +883,22 @@ behavior simulator reference, Do Work behaviors, and ISO crosswalks.
 **Load when**: evaluating where new documentation belongs, or cross-referencing
 Vultron docs to ISO/CVD process standards.
 
+**`message-type-reference.md`**
+Why the formal message set (shorthands partitioned by state machine) and the
+AS2 wire vocabulary (`SEMANTIC_REGISTRY`) are different shapes, and how the
+many-to-many mapping between them is documented. Contains the full collapse
+inventory (CV/CF on `vf_state`, CP/CX/CA on `pxa_state`, EV/EJ/EC onto EP/ER/EA),
+the expansion inventory (GI, EP, and the `Create`+`Add` split), the fault
+trichotomy (not-understood / declined / needs-explanation), the cumulative
+hash-chain acknowledgement model, the `docs/reference/messages/` page
+architecture, and the MSM-03 post-mortem on `CV`/`CF`/`CD` being mapped to the
+wrong object. Normative requirements:
+`specs/message-semantics-mapping.yaml` MSM-04 through MSM-06. ADR: ADR-0083.
+**Load when**: writing or reviewing anything that claims a protocol shorthand
+maps to an AS2 wire form, working on `docs/reference/messages/`, adding a
+`SEMANTIC_REGISTRY` entry, or reasoning about fault reporting and
+acknowledgement. Source: IDEA-605.
+
 **`spec-authoring-rules.md`**
 Mechanical rules for authoring spec YAML: the exact enums `spec-lint` accepts
 for `kind`, `priority`, and `rel_type`; keys silently dropped by `spec-dump`;

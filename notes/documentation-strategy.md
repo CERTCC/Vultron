@@ -7,6 +7,7 @@ description: >
 related_notes:
   - notes/bt-integration.md
   - notes/case-state-model.md
+  - notes/message-type-reference.md
   - notes/spec-authoring-rules.md
 relevant_packages:
   - vultron/bt
