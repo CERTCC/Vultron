@@ -65,7 +65,7 @@ Apply these directly, unless the auto-fix guard tripped:
 | British spelling in prose | SG-37 | Replace. Skip filenames and ADR titles. |
 | Banned glossary alias | SG-02 | Replace with the canonical term where unambiguous. |
 | Acronym unexpanded at first use on the page | SG-07 | Insert the expansion. |
-| Acronym missing from `_acronyms/index.md` | SG-08 | Add it, alphabetized, longer strings first. |
+| Acronym missing from `_acronyms/index.md` | SG-08 | Add it in strict alphabetical order, case-insensitive. |
 | Filler and hedging | SG-24 | Delete where the sentence survives it. |
 | Legacy `graph` mermaid syntax | SG-35 | Rewrite as `flowchart`. |
 | Isolated out-of-quadrant pronoun | SG-17–SG-19 | Rewrite that sentence for the quadrant's voice. |

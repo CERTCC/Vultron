@@ -104,7 +104,9 @@ list where a recap helps.
 ## Phase 5 — Register terms and acronyms
 
 1. Any acronym used and not present in `docs/_acronyms/index.md` gets added
-   there, alphabetized, longer strings before their prefixes (SG-08).
+   there, in strict alphabetical order, case-insensitive (SG-08). Do not order
+   by length — the `abbr` extension sorts its own list, so file position does
+   not affect which abbreviation matches.
 2. Any durable domain term the page introduces gets a `glossary.md` entry with
    a definition and its aliases to avoid (SG-05). For a term that needs
    discussion rather than a definition, invoke `ubiquitous-language`.
