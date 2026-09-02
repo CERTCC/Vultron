@@ -326,7 +326,9 @@ Extends the same liberal-accept pattern that ADR-0061 / ISSUE-2235 applied to
 ```text
 AddCaseStatusToCaseBT (Sequence)
 ├─ CheckCaseStatusIdempotencyNode       ← precondition guard (CLP-10-009)
-├─ FilterCsEmDimensionNode              ← per-dim EM adjudication (RSH-05-018); always SUCCESS
+├─ CheckCsEphemeralStateNode            ← pX ephemeral guard (CSB-17-012, #2524)
+├─ CheckCsHistoryPrefixNode             ← history prefix guard (CSB-17-005, #2524)
+├─ FilterCsEmDimensionNode              ← per-dim EM adjudication (RSH-05-018); FAILURE when case absent (CLP-10-009, #2957), SUCCESS otherwise
 ├─ FilterCsPxaDimensionNode             ← per-dim PXA adjudication (RSH-05-019); always SUCCESS
 ├─ FinalizeCsFilterNode                 ← FAILURE on whole-refusal; publishes filter
 ├─ GuardedCommitOrSkip                  ← canonical ledger commit (CLP-10-006)
@@ -340,11 +342,13 @@ removed; per-dimension filter nodes are its replacement.
 
 ### Three-node design
 
-`FilterCsEmDimensionNode` runs first: it clears both `BB_CASE_STATUS_DIM_FILTER`
-and `BB_LEDGER_PAYLOAD_OBJECT_OVERRIDE` unconditionally (RSH-05-010, BT-17-003),
-evaluates the EM transition per the acceptance predicate in RSH-05-018
+`FilterCsEmDimensionNode` runs first: it clears `BB_CASE_STATUS_DIM_FILTER` and
+the per-tick accumulator unconditionally (RSH-05-010, BT-17-003), returns FAILURE
+when the case is not found in the DataLayer (CLP-10-009, #2957 AC-1), evaluates
+the EM transition per the acceptance predicate in RSH-05-018
 (`is_valid_em_transition()`), and writes a per-tick accumulator dict to the
-blackboard.
+blackboard. `BB_LEDGER_PAYLOAD_OBJECT_OVERRIDE` is **not** touched here; its
+sole owner is `FinalizeCsFilterNode` (CONCERN-2711, #2957 AC-2).
 
 `FilterCsPxaDimensionNode` runs second: it reads the accumulator via the
 `_BB_CS_FILTER_ACC` input port, evaluates the PXA transition per the acceptance
@@ -371,7 +375,7 @@ no new state is carried (RSH-05-005).
 |---|---|---|
 | `cs_dim_filter_accumulator` | `FilterCsEmDimensionNode` (write+clear) | `FilterCsPxaDimensionNode`, `FinalizeCsFilterNode` (read) |
 | `append_case_status_dim_filter` | `FilterCsEmDimensionNode` (clear), `FinalizeCsFilterNode` (write) | `AppendCaseStatusToCaseNode` |
-| `ledger_payload_object_override` | `FilterCsEmDimensionNode` (clear), `FinalizeCsFilterNode` (write) | `CommitCaseLedgerEntryNode` |
+| `ledger_payload_object_override` | `FinalizeCsFilterNode` (sole owner: write+clear) | `CommitCaseLedgerEntryNode` |
 
 The `ledger_payload_object_override` override fields use camelCase wire aliases
 (`emState`, `pxaState`) per RSH-05-012. `FinalizeCsFilterNode` is registered

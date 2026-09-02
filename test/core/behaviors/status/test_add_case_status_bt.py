@@ -1498,3 +1498,63 @@ class TestEmitCaseStatusUpdateNodePromotion:
             last = dl.read(last)
         assert isinstance(last, CaseStatus)
         assert last.pxa.state is CS_pxa.PXa
+
+
+# ---------------------------------------------------------------------------
+# AC-4: FilterCsEmDimensionNode returns FAILURE on missing case (#2957)
+# ---------------------------------------------------------------------------
+
+
+class TestFilterCsEmDimensionNodeMissingCase:
+    """AC-4 regression: FAILURE (not SUCCESS) when case absent from DataLayer.
+
+    CLP-10-009: the guard must abort before GuardedCommit when the case
+    cannot be resolved.  Prior to #2957 the node returned SUCCESS, allowing
+    a ledger write for an unresolvable case.
+    """
+
+    def test_missing_case_returns_failure(self, bridge):
+        """case_id set but case not in DataLayer → FAILURE."""
+        node = FilterCsEmDimensionNode(case_id=CASE_ID, status_id=STATUS_ID)
+        result = bridge.execute_with_setup(tree=node, actor_id=ACTOR_ID)
+        assert result.status == Status.FAILURE
+
+    def test_missing_case_feedback_message_names_case(self, bridge):
+        """FAILURE feedback_message includes the missing case_id."""
+        node = FilterCsEmDimensionNode(case_id=CASE_ID, status_id=STATUS_ID)
+        bridge.execute_with_setup(tree=node, actor_id=ACTOR_ID)
+        assert node.feedback_message
+        assert CASE_ID in node.feedback_message
+
+
+# ---------------------------------------------------------------------------
+# AC-5: FilterCsEmDimensionNode._clear() does not own BB_LEDGER_PAYLOAD_OBJECT_OVERRIDE (#2957)
+# ---------------------------------------------------------------------------
+
+
+class TestFilterCsEmDimensionNodeClearBehavior:
+    """AC-5 regression: _clear() must not zero BB_LEDGER_PAYLOAD_OBJECT_OVERRIDE.
+
+    That key is solely owned by FinalizeCsFilterNode (CONCERN-2711, BT-17-003).
+    Prior to #2957 FilterCsEmDimensionNode zeroed it in _clear(), potentially
+    wiping a value set by FinalizeCsFilterNode in the same tick.
+    """
+
+    def test_clear_preserves_ledger_override_sentinel(self, bridge):
+        """Pre-seeded BB_LEDGER_PAYLOAD_OBJECT_OVERRIDE survives _clear()."""
+        sentinel = {"test": "sentinel_2957"}
+        py_trees.blackboard.Blackboard.storage[
+            "/ledger_payload_object_override"
+        ] = sentinel
+
+        # Empty DL → FAILURE after _clear(); _clear() must not touch the key.
+        node = FilterCsEmDimensionNode(case_id=CASE_ID, status_id=STATUS_ID)
+        bridge.execute_with_setup(tree=node, actor_id=ACTOR_ID)
+
+        stored = py_trees.blackboard.Blackboard.storage.get(
+            "/ledger_payload_object_override"
+        )
+        assert stored is sentinel, (
+            "FilterCsEmDimensionNode._clear() must not zero"
+            " BB_LEDGER_PAYLOAD_OBJECT_OVERRIDE (CONCERN-2711, #2957)"
+        )
