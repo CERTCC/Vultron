@@ -512,7 +512,21 @@ with pytest.raises(py_trees.blackboard.timebomb.NoDataAvailable):
     node.initialise()  # calls get_input() → raises here
 ```
 
-<!-- Source: ISSUE-1808; spec: BTND-03-011; ADR: ADR-0044 -->
+**`NoDataAvailable` is not the only thing that surfaces here.** `get_input()`
+also raises `TypeError` when the key holds a value that is not an instance of
+the port's declared `data_type` — and unlike `NoDataAvailable`, that one is
+**not** caught by `_try_get_input()`, which catches only `NoDataAvailable` and
+`NotImplementedError`. So it escapes `initialise()`, unwinds the tick, and is
+absorbed by `BTBridge.execute_tree`'s blanket `except Exception`: the **whole
+tree** reports FAILURE with the type-mismatch message logged, not the one node
+returning `Status.FAILURE`. That is a deliberate departure from the usual "BT
+nodes return FAILURE, they do not raise" convention (§ BT-HELPER-01) — a
+violated blackboard type contract is a wiring error, not a protocol condition,
+so failing closed is intended. A port declared `data_type=object` accepts
+anything and never reaches this path. See ADR-0044 § Consequences and
+`vultron/core/behaviors/AGENTS.md` § "Port `data_type` Is Enforced".
+
+<!-- Source: ISSUE-1808, ISSUE-2907, ISSUE-3011; spec: BTND-03-011; ADR: ADR-0044 -->
 
 ---
 
