@@ -128,33 +128,26 @@ makes implicit subtype assumptions explicit and runtime-verified.
 
 ### Untyped Closures Are Invisible to mypy — Extract to Named Functions
 
-When refactoring or extracting logic from an untyped function body or closure
-(e.g., inside `extractor.py`), mypy does not check the body of untyped
-functions. Hidden type errors only surface once the code is promoted to a
-named, typed function. Always extract closures to named, fully-typed helper
-functions; do not leave logic inside untyped lambda or nested-function
-bodies. Specifically: AS2 fields that carry an object or ID reference (e.g.,
-`context`, `origin`, `in_reply_to`) MUST be converted to `str | None` using
-`_get_id(field)` before assigning to a `NonEmptyString | None` snapshot
-field — passing the raw AS2 object directly is a type error that mypy will
-catch only after extraction.
+mypy does not check the body of an untyped function, so hidden type errors
+surface only once logic is promoted to a named, typed function. Always
+extract closures (e.g. inside `extractor.py`) rather than leaving logic in
+lambdas or nested functions. Specifically: AS2 fields carrying an object or
+ID reference (`context`, `origin`, `in_reply_to`) MUST be converted with
+`_get_id(field)` before assignment to a `NonEmptyString | None` snapshot
+field — passing the raw AS2 object is an error mypy catches only after
+extraction.
 
 ### Domain Objects Belong in `core/models/`, Not `wire/as2/vocab/objects/`
 
 `VulnerabilityCase`, `VulnerabilityReport`, `CaseParticipant`,
-`EmbargoPolicy`, `CaseStatus`, `CaseLedgerEntry`, and `VulnerabilityRecord` are
-**domain objects**. They currently live in `vultron/wire/as2/vocab/objects/`
-because the codebase was built wire-first, but their correct home is
-`vultron/core/models/`. The wire layer should import and project from core,
-not the other way around.
-
-Consequence: `VultronActivity.object_` is typed `Any | None` because core
-cannot import wire types. Referencing wire-layer domain objects in core code
-is a layer-boundary violation. Do **not** add new cross-layer imports from
-`vultron/core/` into `vultron/wire/as2/`. The migration of these objects to
-core is tracked in issue #539. See
-[notes/domain-model-separation.md](../../notes/domain-model-separation.md)
-for the full architectural direction.
+`EmbargoPolicy`, `CaseStatus`, `CaseLedgerEntry` and `VulnerabilityRecord` are
+**domain objects** that still live under `vultron/wire/as2/vocab/objects/`
+because the codebase was built wire-first. The wire layer imports and
+projects from core, never the reverse — which is why
+`VultronActivity.object_` is typed `Any | None`. Do **not** add new imports
+from `vultron/core/` into `vultron/wire/as2/`. Migration tracked in #539;
+full direction in
+[notes/domain-model-separation.md](../../notes/domain-model-separation.md).
 
 ### Adding SemanticEntry: Use Domain Sub-Module, Not `__init__.py`
 
@@ -167,19 +160,13 @@ directly. Editing `__init__.py` for individual entry additions defeats the
 purpose of the split (reducing merge conflicts) and risks silently corrupting
 the ordering invariant that keeps the `UNKNOWN` fallback last.
 
-### EM State Writes Are Owned by `EmbargoLifecycle` (EMB-18-001, retired in #2712)
+### EM State Writes Are Owned by `EmbargoLifecycle` (EMB-18-001)
 
-The `caller_owns_em_io` guard and the `WriteEmStateNode` BT node are **retired**.
-Do not reintroduce them.
-
-**Current rule:** `EmbargoLifecycle` service methods always read `em_before` from
-the DataLayer when not supplied and always write `em_after` back. BT nodes call
-service methods directly; they never assign `case.current_status.em` inline.
-
-See also `vultron/core/behaviors/AGENTS.md` § "EM State Reads and Writes Must Use
-Canonical Nodes".
-
-<!-- Source: ISSUE-1474; pattern retired ISSUE-2712 -->
+The `caller_owns_em_io` guard and `WriteEmStateNode` are **retired** (#2712);
+do not reintroduce them. BT nodes call `EmbargoLifecycle` service methods
+directly and never assign `case.current_status.em` inline. Full rule:
+`vultron/core/behaviors/AGENTS.md` § "EM State Reads and Writes Must Use
+Canonical Nodes". *Source: ISSUE-1474; retired ISSUE-2712*
 
 ---
 
@@ -229,67 +216,14 @@ and any object claiming to be one, without importing from `vultron/wire/`.
 
 ### A Message Subject Is Never `resolve_receiving_actor_id()`
 
-`resolve_receiving_actor_id()` answers exactly one question — *whose replica
-am I applying this to?* — and its only legitimate consumer is the `actor_id`
-argument of `execute_with_setup()`. Every **subject** identity the message
-names (invitee, accepting actor, rejecting actor, target actor) MUST be read
-from the message and threaded into the tree as leaf-node data (ADR-0022).
-
-Reusing the resolved receiving actor as a subject looks harmless when the two
-coincide on the direct-delivery path, but it is a fabrication, and it is wrong
-the moment the activity is processed in any store other than the subject's —
-CLI dispatch, log replay, or the CaseActor handling a message on a
-participant's behalf. The writes then land on the wrong participant record and
-nothing raises: `#2762` put a PEC transition and an RSVP deadline
-(CM-28-001, CM-28-003) on the CaseActor's own record, and the same tree factory
-accepted a `rejecting_actor_id` it only logged, so the CaseActor declined its
-own embargo instead of the actor who rejected.
-
-```python
-# ❌ WRONG — collapses "whose store" into "who is the subject"
-receiving_actor_id = resolve_receiving_actor_id(self._dl, request.receiving_actor_id)
-invitee_id = receiving_actor_id
-```
-
-```python
-# ✅ CORRECT — subject from the message, receiving actor only as actor_id
-receiving_actor_id = resolve_receiving_actor_id(self._dl, request.receiving_actor_id)
-invitee_id = resolve_invitee_id(request, receiving_actor_id, invite_id)
-tree = invite_to_embargo_on_case_tree(case_id=case_id, invitee_id=invitee_id, ...)
-bridge.execute_with_setup(tree=tree, actor_id=receiving_actor_id, ...)
-```
-
-Resolve a subject by **addressee membership, not by position**. `to:` is a
-list, and taking `to[0]` is correct only for the first recipient of a
-multi-party activity — every other recipient's replica then applies the message
-to someone else's record. The order that works:
-
-1. `receiving_actor_id` is among the recipients → use it. Correct in *every*
-   recipient's replica, and canonical by construction, since `inbox_handler`
-   normalises `receiving_actor_id` against `activity.to` (HP-09-001) while a
-   sender-supplied `to:` entry is not normalised at all.
-2. Exactly one recipient, and it is not this store's actor → use it. This is
-   the CaseActor relaying on a participant's behalf, CLI dispatch, or replay.
-3. Several recipients, none of them this store's actor → WARN and degrade.
-   Do not guess.
-4. No recipient → WARN as the OX-08-001 violation it is, and degrade.
-
-Cases 3 and 4 degrade to the receiving actor rather than dropping the message,
-because the guarded-commit branch lives inside the same single tree (ADR-0022):
-skipping the writes would also discard the ledger commit the message is
-entitled to. The WARNING is the part the old silent fallback lacked.
-`resolve_invitee_id()` in `use_cases/received/embargo.py` implements this; so
-does the older `_is_primary_submit_report_recipient()` in `received/report.py`.
-
-Corollary for tree factories: a factory that takes a subject-identity argument
-MUST pass it to the node that needs it. `OptionalLookupParticipantNode` falls
-back to the BT execution actor when `target_actor_id` is falsy, so a subject
-argument that is only logged is indistinguishable from one that was never
-supplied. That node now logs at WARNING when a subject *was* named and resolved
-to no participant, which separates a dropped argument from the lenient
-"no participant on this peer yet" case it exists for.
-
-<!-- Source: ISSUE-2762 -->
+`resolve_receiving_actor_id()` answers only *whose replica am I applying this
+to?*; its sole legitimate consumer is `execute_with_setup(actor_id=...)`.
+Every **subject** the message names (invitee, accepting/rejecting actor,
+target actor) MUST be read from the message and threaded into the tree as
+leaf-node data (ADR-0022), resolved by **addressee membership, not position**
+in `to:` — use `resolve_invitee_id()`, never `= receiving_actor_id`. Full
+rule, both failure shapes and the resolution order:
+[notes/bt-integration.md](../../notes/bt-integration.md). *ISSUE-2762*
 
 ---
 
