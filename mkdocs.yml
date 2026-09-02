@@ -19,6 +19,7 @@ nav:
       - Interoperability: 'topics/background/interoperability.md'
       - Defining CVD Success: 'topics/background/cvd_success.md'
     - The Case Model: 'topics/case_model.md'
+    - Case Ledger Synchronization: 'topics/case_ledger_sync.md'
     - Protocol Event Flow: 'topics/protocol_flow.md'
     - Message Semantics: 'topics/message_semantics.md'
     - Actor Knowledge Model: 'topics/actor-knowledge-model.md'

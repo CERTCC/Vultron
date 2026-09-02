@@ -253,6 +253,8 @@ brokers all inter-participant messages. It participates as a
 
 ## See also
 
+- [Case Ledger Synchronization](case_ledger_sync.md) — how the canonical
+  ledger orders events and how replicas catch up to it
 - [Process Models](process_models/index.md) — RM, EM, and CS state machines
   that drive status transitions
 - [Demo Scenarios](scenarios/index.md) — how the objects evolve end-to-end
