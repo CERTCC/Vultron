@@ -79,7 +79,7 @@ Reference newly filed issues in the PR description:
 
 ```text
 Fixes #<N>.
-Also filed: #<NNN> (sibling instance discovered during analysis).
+Closes #<NNN> (sibling instance discovered during analysis and fixed here).
 ```
 
 ---
