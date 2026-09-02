@@ -1,5 +1,5 @@
 ---
-title: "37 of 57 incoming learning files cannot be archived by append-history"
+title: "37 of 62 incoming learning files cannot be archived by append-history"
 type: learning
 timestamp: "2026-09-02T00:00:00Z"
 source: ISSUE-2762
@@ -20,8 +20,13 @@ Validating every file in `plan/incoming/learnings/` against the real model:
 
 | Status | Count |
 |---|---|
-| Archivable today | 20 |
+| Archivable today | 25 |
 | Rejected (bare date, or missing a required field) | 37 |
+
+(Measured 2026-09-02 against 62 files. The rejected count is stable while the
+archivable count grows, because newly-added entries vary in which form they
+use — which is itself the point: nothing steers an author toward the form that
+works.)
 
 So `learn` cannot currently drain most of its own input queue. The failure is
 per-file, so it presents as "this one entry won't archive" rather than as an
@@ -29,10 +34,10 @@ obviously systemic problem, which is probably why it accumulated.
 
 Two distinct causes in the 37:
 
-1. **Bare-date `timestamp`** — the dominant form (36 of 57 files use it). Fix is
-   mechanical: `timestamp: 2026-08-27` → `timestamp: "2026-08-27T00:00:00Z"`.
-   Quote it, so YAML yields a string for Pydantic to parse rather than a date.
-2. **Missing required fields** — 6 files lack some or all of `title`, `type`,
+1. **Bare-date `timestamp`** — the dominant form. Fix is mechanical:
+   `timestamp: 2026-08-27` → `timestamp: "2026-08-27T00:00:00Z"`. Quote it, so
+   YAML yields a string for Pydantic to parse rather than a date.
+2. **Missing required fields** — 7 files lack some or all of `title`, `type`,
    `timestamp`, `source`: `2026-08-28-2175-is-leader-defer.md`,
    `20260827-glossary-acs-pre-satisfied.md`,
    `20260831-2067-pr2882-code-review-deferred-findings.md`,
