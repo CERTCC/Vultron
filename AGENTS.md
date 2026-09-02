@@ -21,7 +21,7 @@ documentation structure guidance.
   (`vultron/wire/as2/extractor.py`) → dispatcher → use-case callable
   (`vultron/core/use_cases/`).
 - Use-Case Protocol: `__init__(dl, request)` + `execute() -> None`; routing via
-  `USE_CASE_MAP` key lookup.
+  `use_case_map()` key lookup.
 - ASGI entrypoint: `vultron.adapters.driving.fastapi.main:app`.
 - Tests: `uv run pytest --tb=short 2>&1 | tee /tmp/last-test-run.log | tail -5` — run once. See
   `.agents/skills/run-tests/SKILL.md`.

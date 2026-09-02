@@ -1,5 +1,14 @@
 # Inbox Handler Design
 
+!!! warning "Historical design document"
+
+    This page records the inbox-handler design *as it was first drafted*, and its
+    code samples and module paths are deliberately left as written. Several of the
+    modules it names no longer exist, and the semantics-to-pattern mapping shown
+    below as a `dict` is now the ordered `SEMANTIC_REGISTRY` list in
+    `vultron/semantic_registry/`. Read it for the design reasoning, not for
+    current file locations or symbol names.
+
 Vultron is designed with the ActivityPub protocol in mind. Most activity
 in Vultron involves actors exchanging activity messages containing objects.
 

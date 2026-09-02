@@ -63,11 +63,15 @@ groups:
     statement: >-
       Specification files SHOULD tag production-only requirements with `PROD_ONLY` so they
       can be systematically identified and deferred during the prototype stage.
+    lint_suppress:
+    - phantom_symbol_ref
   - id: PROTO-04-002
     priority: SHOULD
     kind: project
     statement: >-
       Review specifications to identify requirements that should carry the `PROD_ONLY` tag.
+    lint_suppress:
+    - phantom_symbol_ref
 - id: PROTO-05
   title: Case Prioritization
   specs:
