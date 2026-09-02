@@ -20,7 +20,7 @@
 
 ## Background
 
-The reference implementation's behavior trees (BTs) contain **call-out
+The reference implementation's [behavior trees](../topics/behavior_logic/index.md) (BTs) contain **call-out
 points** — nodes where the protocol cannot determine the correct next action
 autonomously and must request a decision, fact, or side-effect from an
 external service. During development and simulation, each call-out point is
@@ -89,7 +89,7 @@ class EvaluateReportCredibility(EvaluatorCallOutPoint, AlmostAlwaysSucceed):
     output_keys = {"report_credibility_verdict": str}
 ```
 
-Your backend must honour this contract: read any declared input keys from the
+Your backend must honor this contract: read any declared input keys from the
 blackboard and write any declared output keys on SUCCESS. The tree will fail
 unexpectedly if you skip a required write.
 
@@ -389,7 +389,7 @@ tree = create_validate_report_tree(
 ```
 
 The reference implementation's validation workflow now calls
-`ReputationServiceCredibilityEvaluator` instead of the stochastic fuzzer stub.
+`ReputationServiceCredibilityEvaluator` instead of the stochastic fuzzer node.
 The rest of the tree — state transitions, embargo checks, ledger writes — is
 unchanged.
 

@@ -129,6 +129,9 @@ sense the docs actually use.
 *[JTAG]: Joint Test Action Group
 *[JVN]: Japan Vulnerability Notes
 
+*[LLM]: Large Language Model
+*[LLMs]: Large Language Models
+
 *[MADR]: Markdown Any Decision Records
 *[ML]: Machine Learning
 *[MON]: The Monitoring Process Area of the CERT Resilience Management Model
