@@ -1,9 +1,9 @@
 ---
 title: Pre-existing code review findings deferred from ISSUE-2671
 type: learning
-timestamp: 2026-09-01
+timestamp: "2026-09-01T00:00:00Z"
 source: ISSUE-2671
-signal: pre-existing-finding
+signal: concern
 ---
 
 Code review during ISSUE-2671 build session surfaced three findings in files

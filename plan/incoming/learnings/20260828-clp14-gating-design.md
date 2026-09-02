@@ -1,7 +1,7 @@
 ---
 title: CLP-14 timestamp checks gated on case_published to preserve backward compat
 type: learning
-timestamp: 2026-08-28
+timestamp: "2026-08-28T00:00:00Z"
 source: ISSUE-2679
 signal: design-question
 ---

@@ -1,9 +1,9 @@
 ---
 title: Code review of docs PR for #2520 surfaced 7 pre-existing bugs in unrelated files
 type: learning
-timestamp: 2026-08-27
+timestamp: "2026-08-27T00:00:00Z"
 source: ISSUE-2520
-signal: deferred-bug
+signal: concern
 ---
 
 During code review for PR implementing #2520 (case model explanation docs), the

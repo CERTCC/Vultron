@@ -1,7 +1,7 @@
 ---
 title: Pre-existing findings surfaced by code review for PR #2928 (ISSUE-2458)
 type: learning
-timestamp: 2026-09-01
+timestamp: "2026-09-01T00:00:00Z"
 source: ISSUE-2458
 signal: concern
 ---

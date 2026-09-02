@@ -1,7 +1,7 @@
 ---
 title: "spec_corpus marker + architecture ratchet preferred over path enumeration for CI coverage of spec-reading tests"
 type: learning
-timestamp: "2026-08-31"
+timestamp: "2026-08-31T00:00:00Z"
 source: ISSUE-2903
 signal: design-question
 ---

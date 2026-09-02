@@ -1,7 +1,7 @@
 ---
 title: "extract_event() always uses 72h RSVP floor; per-actor floor not enforced"
 type: learning
-timestamp: "2026-08-31"
+timestamp: "2026-08-31T00:00:00Z"
 source: ISSUE-2850
 signal: concern
 ---
