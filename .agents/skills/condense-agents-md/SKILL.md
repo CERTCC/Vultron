@@ -69,7 +69,15 @@ For each migration:
 
 ## Hard rules
 
-- **Never delete content** — always move to a destination.
+- **Never delete content that is still true** — always move it to a destination.
+- **Delete advice that is no longer true.** If a section describes a pitfall,
+  workaround, or rule that has since been superseded, do not migrate it and do
+  not migrate a "this is retired" note about it — drop it, and state the current
+  rule in its place. AGENTS.md and `notes/` carry current understanding; git
+  history is the record of what they used to say. Verify supersession against the
+  code before deciding (`git log -S`, grep for the pattern), and say so in the
+  commit message. Retired *notes sections* are removed via
+  `uv run append-history note` (PD-03-002, PD-03-004), not raw deletion.
 - Keep the `## Common Pitfalls` heading in root as a short index of one-liners.
 - When appending to an existing notes/ file, update its frontmatter
   (`related_notes`, `related_specs`) to reflect the new content.

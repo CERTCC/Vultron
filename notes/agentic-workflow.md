@@ -8,6 +8,7 @@ description: >
 related_notes:
   - notes/append-only-file-handling.md
   - notes/agents-md-structure.md
+  - notes/git-workflow-pitfalls.md
 related_specs:
   - specs/build-workflow.yaml
   - specs/history-management.yaml
@@ -288,3 +289,11 @@ Selector (priority order)
 Each condition node checks a file-system signal; each action node invokes
 the corresponding skill. The BT's selector ensures the highest-priority
 condition is always serviced first.
+
+## Large Migration Tasks: Partition by Node Shape (Type), Then Domain for Size
+
+For tasks that migrate many nodes (e.g., Ports adoption), classify nodes by their
+structural shape first (trivial reparent / read-only extra inputs / complex
+output ports), then split by domain only to balance PR size. "Each PR should be a
+lot of the same thing." See ISSUE-1809 for the typed-Ports chain decomposition as
+the reference example.

@@ -11,6 +11,8 @@ relevant_packages:
   - vultron/config
   - vultron/adapters
   - vultron/core
+related_notes:
+  - notes/testing-pitfalls.md
 ---
 
 # Configuration Management — Implementation Notes
@@ -47,33 +49,12 @@ CFG-06).
 
 ---
 
-## Module Structure (historical — superseded by issue #1342)
-
-> **Note**: The layout below was the pre-migration design. The flat
-> `vultron/config.py` no longer exists. See § "Current Architecture" below
-> for the live sub-package layout.
-
-```text
-vultron/
-  config.py          ← AppConfig, ServerConfig, DatabaseConfig,
-                        get_config(), reload_config()
-  demo/
-    seed_config.py   ← SeedConfig (separate; refactored to BaseSettings)
-```
-
-`vultron/config.py` was a **neutral module** — it MUST NOT import from
-`vultron/adapters/` or `vultron/wire/` or FastAPI. It sat alongside
-`vultron/errors.py` as a shared-access layer. This constraint still applies
-to the `vultron/config/` sub-package.
-
----
-
 ## Implementation Pattern
 
 ### AppConfig with pydantic-settings
 
 ```python
-# vultron/config.py
+# vultron/config/app.py
 from __future__ import annotations
 
 import logging
@@ -323,7 +304,7 @@ def reset_config():
     _cfg_module._config_cache = None
 ```
 
-### The `reload_config()` ordering footgun
+### The `reload_config()` ordering footgun (CFG-06-006, CFG-06-007)
 
 `_config_cache` is a module-level singleton.  `reload_config()` clears it and
 immediately calls `get_config()`, which re-reads `os.environ` at that instant.
@@ -439,8 +420,10 @@ vultron/
     actor.py     ← ActorConfig (moved from vultron/core/models/actor_config.py)
 ```
 
-`actor.py` imports `CVDRole` from `vultron.enums.roles` — not from
-`vultron/core/` — satisfying the neutral-module constraint.
+The sub-package is a **neutral module**: it MUST NOT import from
+`vultron/adapters/`, `vultron/wire/`, or FastAPI. It sits alongside
+`vultron/errors.py` as a shared-access layer. `actor.py` imports `CVDRole` from
+`vultron.enums.roles` — not from `vultron/core/` — satisfying that constraint.
 
 `AppConfig` has an `actor: ActorConfig` field (default: `ActorConfig()`) so
 production code reads actor policy via `get_config().actor`.  Actor config is
@@ -521,3 +504,20 @@ Files in `docker/seed-configs/` use the `local_actor:` block for bootstrap
 identity (`name`, `actor_type`, `id`). Actor policy fields that were previously
 in `local_actor:` (`auto_create_case`, `default_case_roles`) must move to a
 separate `config.yaml` `actor:` section in those deployments.
+
+## A Test That Needs `VULTRON_*` Config MUST Set It Itself
+
+The flip side of the teardown-ordering rule above: fixing a leak removes config
+that downstream tests may have been silently borrowing. `test_create_tree.py` and
+`nodes/test_communication.py` both run `ResolveCaseActorUrlsNode` (via
+`CreateCaseActorNode` / `CreateCaseBT`), which returns FAILURE when
+`case_actor_service_url` is None (CP-08-002/003) — yet neither module set it.
+They passed only because another module leaked the value into the process-global
+cache first, and failed in isolation or in a subset run (#1897).
+
+Each module that depends on a `VULTRON_*` setting needs its own autouse fixture
+setting it, using the `monkeypatch.undo()`-then-`reload_config()` teardown order.
+Verify with a targeted run, not just the full suite — a module that only passes in
+a full-suite run is order-dependent, not passing.
+
+Source: #1897 / PR #2126

@@ -5,6 +5,8 @@ description: >
   Coverage expectations and PR-scope discipline for trigger use cases in
   vultron/core/use_cases/triggers/, motivated by repeated high-churn in
   case trigger use cases without per-use-case regression tests.
+related_notes:
+  - notes/testing-pitfalls.md
 ---
 
 # Trigger Use-Case Test Coverage and PR Scope

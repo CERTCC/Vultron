@@ -1,6 +1,8 @@
 ---
 title: Architecture Ratchet Corpus
 status: active
+related_notes:
+  - notes/wire-core-boundary.md
 ---
 
 # Architecture Ratchet Corpus
@@ -151,3 +153,14 @@ See `specs/testability.yaml` TB-13-001 through TB-13-005.
 - `test/architecture/_corpus.py` — the shared corpus module
 - `test/architecture/test_ratchet_hygiene.py` — the meta-ratchet
 - `notes/flaky-tests.md` — tracking issue for known-flaky tests
+
+## Check a Ratchet's Goal State Against the Spec Corpus Before Adding the `xfail`
+
+The ARCH-22 goal test asserted `vultron/wire/` could reach zero
+`vultron.core.models` imports, which three MUST-level requirements made
+impossible (ARCH-12-001, ARCH-12-010, and formerly ARCH-20-002). Target the
+declared exemption set, not empty, and enumerate each exemption with the
+requirement that mandates it. See ARCH-22-003 and
+[notes/wire-core-boundary.md](wire-core-boundary.md).
+
+Source: CONCERN-2830

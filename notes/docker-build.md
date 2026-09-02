@@ -4,6 +4,8 @@ status: active
 description: >
   Observations and guidance for Vultron Docker image optimization and docker-
   compose configuration.
+related_notes:
+  - notes/devcontainer-tooling.md
 ---
 
 # Docker Build Notes
