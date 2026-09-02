@@ -1307,3 +1307,43 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: BT-23-003
+  - id: BT-23-012
+    priority: MUST
+    kind: project
+    statement: >
+      A call-out gate whose permissive backend would let a party other than the
+      Case Owner unilaterally cause canonical case-state adoption or embargo
+      teardown on the received side MUST default to the conservative (floor)
+      backend regardless of its stochastic success probability. The
+      ceiling/floor rules BT-23-002, BT-23-006, and BT-23-007 apply only to
+      gates that do NOT have this property.
+    rationale: >
+      BT-23-002/006/007 select the DETERMINISTIC backend purely from the
+      simulation success probability, which for a security-significant gate
+      maps a high-p node to the permissive AlwaysSucceed — the exact defect
+      CONCERN-2092 filed. ADR-0076 established the project-wide exception: for a
+      gate where permissiveness is a protocol-security risk rather than a
+      prototype-stage convenience, the floor (most restrictive
+      semantically-correct backend) is the default and permissiveness is an
+      explicit, documented operator opt-in. This entry lifts that exception from
+      the two named status gates (RSH-07-001, RSH-07-002) to a general rule that
+      binds every future gate author, so the classification is applied when a
+      gate is added rather than rediscovered by audit. The current membership of
+      the security-significant set, and the rationale for gates that look similar
+      but do NOT qualify (the accept-direction CaseOwnerApprovesEmbargoResponse,
+      which EMB-15-001 requires to default accept; the trigger-side,
+      fail-closed-by-default EmbargoExitPolicyGuard), is design analysis and
+      lives in notes/call-out-configuration.md, not here.
+    relationships:
+    - rel_type: constrains
+      spec_id: BT-23-002
+      note: >
+        Carves out security-significant gates from the p>0.5 → AlwaysSucceed
+        rule; the same carve-out applies to BT-23-006 and BT-23-007.
+    - rel_type: refines
+      spec_id: RSH-07-001
+      note: Generalizes the two-gate conservative-default requirement.
+    adr:
+    - ADR-0076
+    lint_suppress:
+    - missing_story_reference
