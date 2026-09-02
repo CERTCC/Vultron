@@ -35,7 +35,7 @@ The core branch is authoritative and represents every field the wire can carry; 
 We keep this boundary for two reasons.
 Wire formats change, and the domain logic should not have to change with them.
 Parsing and shape validation are edge concerns, so pushing them out of the core keeps the state-machine logic small and testable.
-The rule that core carries no wire or framework imports (ARCH-03-001) is enforced by ratchet tests under `test/architecture/`, so a violation fails continuous integration rather than merely drawing a review comment.
+The rule that core carries no wire or framework imports (ARCH-01-001) is enforced by ratchet tests under `test/architecture/`, so a violation fails continuous integration rather than merely drawing a review comment.
 
 !!! note "vultron-core the concept versus `vultron/core/` the package"
 
@@ -77,7 +77,7 @@ The HTTP inbox lives in `vultron/adapters/driving/fastapi/`, returns `202 Accept
 
 The wire layer turns bytes into meaning.
 The AS2 parser checks structural validity, `rehydrate()` resolves referenced objects into full inline objects, and the semantic extractor (`vultron/wire/as2/extractor/`) matches the activity against an ordered pattern registry to produce a domain-level `MessageSemantics` value.
-The semantic extractor is the single place where AS2 structure becomes domain intent, so the rest of the core never inspects wire shapes.
+The semantic extractor is the single place where AS2 structure becomes domain intent (ARCH-03-001), so the rest of the core never inspects wire shapes.
 
 The core layer decides what to do.
 The behavior dispatcher (`vultron/core/dispatcher.py`) maps the extracted semantics to a use case through a table lookup, and the use case runs the appropriate behavior tree.
