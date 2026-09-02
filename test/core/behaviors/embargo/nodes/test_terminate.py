@@ -72,8 +72,11 @@ class TestSendTerminateEmbargoActivityNodePorts:
             embargo_id="https://example.org/embargoes/emb-001",
             case_manager_id=ACTOR_ID,
         )
-        bt_scenario.assert_failure(result)
-        assert "not found" in result.feedback_message
+        # Name the embargo lookup, not a bare "not found": the node already
+        # tolerates a missing *case* (terminate.py `_recipients`), so a loose
+        # substring would still match if case absence became fatal first and
+        # the embargo lookup were never reached (CONCERN-3019).
+        bt_scenario.assert_failure(result, reason="EmbargoEvent")
 
 
 # ---------------------------------------------------------------------------

@@ -906,6 +906,40 @@ class _InvalidStatusNode(py_trees.behaviour.Behaviour):
         return Status.INVALID
 
 
+class _BrokenNode(py_trees.behaviour.Behaviour):
+    """Node that dies of a wrong-typed value, the way #2907 did."""
+
+    def update(self) -> Status:
+        raise TypeError("value is not of type VulnerabilityCase")
+
+
+class _SilentBugNode(py_trees.behaviour.Behaviour):
+    """Node whose exception carries no message — an empty ``str(e)``."""
+
+    def update(self) -> Status:
+        raise AttributeError()
+
+
+class _BadSetupNode(py_trees.behaviour.Behaviour):
+    """Node that crashes in ``setup()``, before any tick."""
+
+    def setup(self, **kwargs: Any) -> None:
+        raise TypeError("setup wired wrong")
+
+    def update(self) -> Status:  # pragma: no cover - never reached
+        return Status.SUCCESS
+
+
+class _BadShutdownNode(py_trees.behaviour.Behaviour):
+    """Node that crashes in both ``update()`` and ``shutdown()``."""
+
+    def update(self) -> Status:
+        raise TypeError("the failure that actually matters")
+
+    def shutdown(self) -> None:
+        raise RuntimeError("shutdown also broken")
+
+
 class TestFailureClassification:
     """A bare FAILURE conflated a protocol outcome with a crash.
 
@@ -930,13 +964,8 @@ class TestFailureClassification:
 
     def test_programming_error_is_flagged(self, bridge, test_actor_id) -> None:
         """A ``TypeError`` is caught but marked as not-a-protocol-outcome."""
-
-        class _Broken(py_trees.behaviour.Behaviour):
-            def update(self) -> Status:
-                raise TypeError("value is not of type VulnerabilityCase")
-
         bt = bridge.setup_tree(
-            tree=_Broken(name="Broken"), actor_id=test_actor_id
+            tree=_BrokenNode(name="Broken"), actor_id=test_actor_id
         )
         result = bridge.execute_tree(bt)
 
@@ -948,13 +977,8 @@ class TestFailureClassification:
         self, bridge, test_actor_id
     ) -> None:
         """The type name is in the message; an empty ``str(e)`` is common."""
-
-        class _SilentBug(py_trees.behaviour.Behaviour):
-            def update(self) -> Status:
-                raise AttributeError()
-
         bt = bridge.setup_tree(
-            tree=_SilentBug(name="SilentBug"), actor_id=test_actor_id
+            tree=_SilentBugNode(name="SilentBug"), actor_id=test_actor_id
         )
         result = bridge.execute_tree(bt)
 
@@ -970,6 +994,10 @@ class TestFailureClassification:
 
         assert result.status == Status.FAILURE
         assert result.internal_error is True
+        # Pin the branch: without this, the assertions are byte-identical to
+        # test_invalid_status_is_an_internal_error and either test would pass
+        # on the other's path (CONCERN-3019).
+        assert "exceeded max iterations (5)" in result.feedback_message
 
     def test_invalid_status_is_an_internal_error(
         self, bridge, test_actor_id
@@ -983,6 +1011,8 @@ class TestFailureClassification:
 
         assert result.status == Status.FAILURE
         assert result.internal_error is True
+        # Pin the branch — see test_max_iterations_is_an_internal_error.
+        assert "entered INVALID state" in result.feedback_message
 
     def test_ordinary_failure_is_not_an_internal_error(
         self, bridge, test_actor_id
@@ -1015,16 +1045,8 @@ class TestClassificationRobustness:
         self, bridge, test_actor_id
     ) -> None:
         """A crash in ``setup()`` used to escape ``execute_tree`` entirely."""
-
-        class _BadSetup(py_trees.behaviour.Behaviour):
-            def setup(self, **kwargs: Any) -> None:
-                raise TypeError("setup wired wrong")
-
-            def update(self) -> Status:  # pragma: no cover - never reached
-                return Status.SUCCESS
-
         bt = bridge.setup_tree(
-            tree=_BadSetup(name="BadSetup"), actor_id=test_actor_id
+            tree=_BadSetupNode(name="BadSetup"), actor_id=test_actor_id
         )
         result = bridge.execute_tree(bt)
 
@@ -1036,16 +1058,8 @@ class TestClassificationRobustness:
         self, bridge, test_actor_id
     ) -> None:
         """A raise in the ``finally`` block must not replace the return value."""
-
-        class _BadShutdown(py_trees.behaviour.Behaviour):
-            def update(self) -> Status:
-                raise TypeError("the failure that actually matters")
-
-            def shutdown(self) -> None:
-                raise RuntimeError("shutdown also broken")
-
         bt = bridge.setup_tree(
-            tree=_BadShutdown(name="BadShutdown"), actor_id=test_actor_id
+            tree=_BadShutdownNode(name="BadShutdown"), actor_id=test_actor_id
         )
         result = bridge.execute_tree(bt)
 
@@ -1062,5 +1076,46 @@ class TestClassificationRobustness:
         )
         result = bridge.execute_tree(bt)
 
+        assert result.internal_error is False
+        assert "VultronError" in result.feedback_message
+
+    def test_setup_tree_crash_is_classified_not_raised(
+        self, bridge, test_actor_id
+    ) -> None:
+        """``setup_tree`` was the one fallible call outside the net.
+
+        ``execute_with_setup`` used to call it before entering any ``try``, so a
+        wiring bug escaped ``BTBridge`` entirely and reached the caller — a
+        FastAPI background task — as a bare exception with no
+        ``BTExecutionResult`` at all (CONCERN-3019).
+        """
+
+        def _explode(*args: Any, **kwargs: Any) -> Any:
+            raise TypeError("store wired wrong")
+
+        bridge.setup_tree = _explode  # type: ignore[method-assign]
+        result = bridge.execute_with_setup(
+            tree=AlwaysSucceed(), actor_id=test_actor_id
+        )
+
+        assert result.status == Status.FAILURE
+        assert result.internal_error is True
+        assert "TypeError" in result.feedback_message
+        assert "store wired wrong" in result.feedback_message
+
+    def test_setup_tree_domain_error_is_not_an_internal_error(
+        self, bridge, test_actor_id
+    ) -> None:
+        """A ``VultronError`` from setup keeps the protocol classification."""
+
+        def _reject(*args: Any, **kwargs: Any) -> Any:
+            raise VultronError("actor store is not readable")
+
+        bridge.setup_tree = _reject  # type: ignore[method-assign]
+        result = bridge.execute_with_setup(
+            tree=AlwaysSucceed(), actor_id=test_actor_id
+        )
+
+        assert result.status == Status.FAILURE
         assert result.internal_error is False
         assert "VultronError" in result.feedback_message

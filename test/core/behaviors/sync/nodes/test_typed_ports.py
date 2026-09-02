@@ -79,7 +79,9 @@ class TestLogDeliveryConfirmationNodePorts:
             LogDeliveryConfirmationNode(name="LogDeliveryConfirmation"),
             actor_id=ACTOR_ID,
         )
-        bt_scenario.assert_failure(result, allow_internal=True)
+        bt_scenario.assert_failure(
+            result, reason="Input port 'activity'", allow_internal=True
+        )
 
 
 # ---------------------------------------------------------------------------

@@ -288,7 +288,12 @@ class TestBroadcastCaseUpdateNodePorts:
             actor_id=ACTOR_ID,
             excluded_actor_ids=[],
         )
-        bt_scenario.assert_failure(result)
+        # Pin the reason: the node also fails via _require_datalayer_and_actor,
+        # so a bare assert_failure would not distinguish the absent case this
+        # test is named for from that unrelated path (CONCERN-3019).
+        bt_scenario.assert_failure(
+            result, reason=f"case '{CASE_ID}' not found"
+        )
 
 
 # ---------------------------------------------------------------------------

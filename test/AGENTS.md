@@ -170,8 +170,9 @@ Full write-ups in [`notes/testing-pitfalls.md`](../notes/testing-pitfalls.md):
   bug** — absent input and unreadable input are different.
 - **A FAILURE test must prove the harness can produce its named reason** — the
   scenario always injects a datalayer and a trigger-activity adapter, so
-  "failure when X absent" for either is unreachable; assert the reason, not just
-  the status.
+  "failure when X absent" for either is unreachable; assert the reason
+  (`assert_failure(result, reason=...)`), not just the status, and note that
+  `allow_internal=True` requires a `reason`.
 - **Process-global state** — the `py_trees` blackboard *and* its class registry
   (define test BT subclasses at module level); `SUBFAILED` in `unittest` subtests
   does not fail pytest; `caplog.set_level()` in a fixture captures other

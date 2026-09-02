@@ -148,7 +148,11 @@ class BTTestScenario:
         ), f"Expected SUCCESS but got {result.status}: {result.feedback_message}"
 
     def assert_failure(
-        self, result: BTExecutionResult, *, allow_internal: bool = False
+        self,
+        result: BTExecutionResult,
+        *,
+        reason: str | None = None,
+        allow_internal: bool = False,
     ) -> None:
         """Assert that the execution result is a *protocol* FAILURE.
 
@@ -164,21 +168,40 @@ class BTTestScenario:
         ``BTBridge`` (whose flag the calling node discards), still reaches here
         as an ordinary ``FAILURE``. Both gaps are tracked in CONCERN-3019.
 
+        Because ``allow_internal=True`` switches the classification guard off,
+        it is only accepted together with ``reason``: a test that opts out of
+        the automatic check MUST name the failure it expects instead, or it is
+        back to asserting nothing more than "the tick did not hang".
+
         Args:
             result: BTExecutionResult to check.
+            reason: Substring required in ``result.feedback_message``. Supply it
+                whenever the node has more than one FAILURE path, so the test
+                pins the path it is named for rather than any failure at all.
             allow_internal: Set only when the test's *subject* is the internal
                 error path itself. Never set it to quiet an unexplained
                 failure — that is the bug this guard exists to surface.
+                Requires ``reason``.
         """
         assert (
             result.status == py_trees.common.Status.FAILURE
         ), f"Expected FAILURE but got {result.status}: {result.feedback_message}"
-        if not allow_internal:
+        if allow_internal:
+            assert reason is not None, (
+                "allow_internal=True disables the crash guard, so it requires "
+                "reason='<substring>' naming the failure the test expects."
+            )
+        else:
             assert not result.internal_error, (
                 "Expected a protocol FAILURE but the tree raised: "
                 f"{result.feedback_message}\n"
                 "If this is genuinely the behavior under test, pass "
                 "allow_internal=True; otherwise fix the underlying error."
+            )
+        if reason is not None:
+            assert reason in result.feedback_message, (
+                f"Expected {reason!r} in the failure message, got "
+                f"{result.feedback_message!r}"
             )
 
     def assert_failure_reason(
@@ -187,6 +210,13 @@ class BTTestScenario:
         expected_substr: str,
     ) -> None:
         """Assert that the first FAILURE node's message contains expected_substr.
+
+        Inspects the *tree*, so it reports the failing leaf's own
+        ``feedback_message`` rather than the bridge's summary line. Use it when
+        the leaf reason does not survive into ``BTExecutionResult`` — otherwise
+        prefer ``assert_failure(result, reason=...)``, which checks status and
+        the crash classification in the same call. This helper cannot see
+        either, so it MUST NOT be the only assertion after a run.
 
         Args:
             tree: Root behavior node to inspect (after a failed run).

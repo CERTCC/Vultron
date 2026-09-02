@@ -58,4 +58,6 @@ class TestQueueToOutboxNodePorts:
         (CONCERN-3019).
         """
         result = bt_scenario.run(QueueToOutboxNode(), actor_id=ACTOR_ID)
-        bt_scenario.assert_failure(result, allow_internal=True)
+        bt_scenario.assert_failure(
+            result, reason="Input port 'activity_ids'", allow_internal=True
+        )

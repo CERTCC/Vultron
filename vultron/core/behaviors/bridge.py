@@ -404,7 +404,14 @@ class BTBridge:
             max_iterations: Safety limit on tick count (default: 100)
 
         Returns:
-            BTExecutionResult with final status, feedback, and any errors
+            BTExecutionResult with final status, feedback, any errors, and the
+            ``internal_error`` classification.  A FAILURE is flagged
+            ``internal_error=True`` when it did not come from a protocol
+            decision: an exception that is not a ``VultronError``, a root left
+            in ``INVALID`` mid-execution, or ``max_iterations`` exhausted.
+            A node returning FAILURE, or raising a ``VultronError``
+            deliberately, leaves the flag ``False``.  See
+            ``BTExecutionResult`` for the two cases the flag cannot see.
 
         Implements:
             - BT-05-004: Executes tree and returns execution result
@@ -569,7 +576,11 @@ class BTBridge:
             **context_data: Additional context for blackboard
 
         Returns:
-            BTExecutionResult with execution status and feedback
+            BTExecutionResult with execution status and feedback.  Never raises:
+            a failure in ``setup_tree`` is classified the same way
+            ``execute_tree`` classifies a failure during the ticks — see
+            ``BTExecutionResult.internal_error``.  The leadership skip is a
+            protocol outcome, not an internal error.
 
         Implements:
             - BT-05-001: BT execution bridge for handler-to-BT invocation
@@ -594,9 +605,37 @@ class BTBridge:
             previous_values = {
                 key: (key in storage, storage.get(key)) for key in key_aliases
             }
-            bt = self.setup_tree(tree, actor_id, activity, **context_data)
             try:
+                # Inside the try for the same reason execute_tree() moved
+                # bt.setup() inside its own: setup_tree() does fallible work
+                # (store cloning, port construction, register_key/setattr over
+                # arbitrary context_data), and a programming error there used to
+                # escape BTBridge entirely — unclassified, and into a FastAPI
+                # background task.  Classify it like any other internal error
+                # rather than letting the one call outside the net through
+                # (CONCERN-3019).
+                bt = self.setup_tree(tree, actor_id, activity, **context_data)
                 return self.execute_tree(bt, max_iterations)
+            except VultronError as e:
+                error_msg = f"BT setup failed: {type(e).__name__}: {e}"
+                self.logger.exception(error_msg)
+                return BTExecutionResult(
+                    status=Status.FAILURE,
+                    feedback_message=error_msg,
+                    errors=[error_msg],
+                )
+            except Exception as e:
+                error_msg = (
+                    f"BT setup failed with internal error: "
+                    f"{type(e).__name__}: {e}"
+                )
+                self.logger.exception(error_msg)
+                return BTExecutionResult(
+                    status=Status.FAILURE,
+                    feedback_message=error_msg,
+                    errors=[error_msg],
+                    internal_error=True,
+                )
             finally:
                 # Restore managed blackboard keys to their pre-execution state.
                 # setup_tree() writes these keys to Blackboard.storage, which
