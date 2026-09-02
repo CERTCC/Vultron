@@ -100,9 +100,15 @@ def test_create_case_activity(
 
     assert activity_data.get("type_") == "Create"
     assert activity_data.get("to"), "CreateCaseActivity should have recipients"
-    assert actor.id_ not in activity_data["to"]
-    assert reporter.id_ in activity_data["to"]
-    assert isinstance(activity_data.get("object_"), str)
+    assert (
+        actor.id_ not in activity_data["to"]
+    ), "Sender actor should be excluded from 'to' recipients"
+    assert (
+        reporter.id_ in activity_data["to"]
+    ), "Reporter (report.attributed_to) should be in 'to' recipients"
+    assert isinstance(
+        activity_data.get("object_"), str
+    ), "CreateCaseActivity object_ should be stored as the case ID string"
 
 
 def test_create_case_activity_missing_case_id(
