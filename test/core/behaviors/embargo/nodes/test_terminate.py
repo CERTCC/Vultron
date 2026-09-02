@@ -53,9 +53,14 @@ class TestSendTerminateEmbargoActivityNodePorts:
     def test_failure_when_factory_unavailable(
         self, bt_scenario: BTTestScenario
     ) -> None:
+        # Supply the required ports so the tick reaches the factory check this
+        # test is named for.  Without them the node died on a missing port and
+        # the assertion passed for the wrong reason (CONCERN-3019).
         result = bt_scenario.run(
             SendTerminateEmbargoActivityNode(case_id=CASE_ID),
             actor_id=ACTOR_ID,
+            embargo_id="https://example.org/embargoes/emb-001",
+            case_manager_id=ACTOR_ID,
         )
         bt_scenario.assert_failure(result)
 

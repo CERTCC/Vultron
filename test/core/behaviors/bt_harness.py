@@ -147,15 +147,33 @@ class BTTestScenario:
             result.status == py_trees.common.Status.SUCCESS
         ), f"Expected SUCCESS but got {result.status}: {result.feedback_message}"
 
-    def assert_failure(self, result: BTExecutionResult) -> None:
-        """Assert that the execution result is FAILURE.
+    def assert_failure(
+        self, result: BTExecutionResult, *, allow_internal: bool = False
+    ) -> None:
+        """Assert that the execution result is a *protocol* FAILURE.
+
+        A bare ``status == FAILURE`` check cannot tell a protocol outcome from a
+        crash, because ``BTBridge.execute_tree`` reports both as FAILURE. That
+        makes a test asserting FAILURE pass just as happily when the tree died
+        of a `TypeError` — the assertion stops meaning what it says. So an
+        internal error fails this assertion by default (CONCERN-3019).
 
         Args:
             result: BTExecutionResult to check.
+            allow_internal: Set only when the test's *subject* is the internal
+                error path itself. Never set it to quiet an unexplained
+                failure — that is the bug this guard exists to surface.
         """
         assert (
             result.status == py_trees.common.Status.FAILURE
         ), f"Expected FAILURE but got {result.status}: {result.feedback_message}"
+        if not allow_internal:
+            assert not result.internal_error, (
+                "Expected a protocol FAILURE but the tree raised: "
+                f"{result.feedback_message}\n"
+                "If this is genuinely the behavior under test, pass "
+                "allow_internal=True; otherwise fix the underlying error."
+            )
 
     def assert_failure_reason(
         self,

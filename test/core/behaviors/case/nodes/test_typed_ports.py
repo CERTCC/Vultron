@@ -280,8 +280,13 @@ class TestBroadcastCaseUpdateNodePorts:
     def test_failure_when_case_absent(
         self, bt_scenario: BTTestScenario
     ) -> None:
+        # Supply excluded_actor_ids so the tick reaches the case lookup this
+        # test is named for.  Without it the node died on the missing port and
+        # the assertion passed for the wrong reason (CONCERN-3019).
         result = bt_scenario.run(
-            BroadcastCaseUpdateNode(case_id=CASE_ID), actor_id=ACTOR_ID
+            BroadcastCaseUpdateNode(case_id=CASE_ID),
+            actor_id=ACTOR_ID,
+            excluded_actor_ids=[],
         )
         bt_scenario.assert_failure(result)
 

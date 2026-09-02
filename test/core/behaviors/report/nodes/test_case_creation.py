@@ -116,7 +116,10 @@ def test_create_case_activity_missing_case_id(
         CreateCaseActivity(report_id=report.id_, offer_id=offer.id_),
         actor_id=actor.id_,
     )
-    bt_scenario.assert_failure(result)
+    # The missing required port *is* the subject here: no preceding node
+    # set case_id, so the tree fails via the port contract rather than via
+    # a protocol decision (CONCERN-3019).
+    bt_scenario.assert_failure(result, allow_internal=True)
 
 
 def test_update_actor_outbox(

@@ -64,14 +64,22 @@ class TestLogDeliveryConfirmationNodePorts:
         with pytest.raises(NoDataAvailable):
             node.get_input("activity")
 
-    def test_failure_when_datalayer_absent(
+    def test_failure_when_required_ports_absent(
         self, bt_scenario: BTTestScenario
     ) -> None:
+        """Ticked with no domain context, the node fails rather than hangs.
+
+        Formerly named ``test_failure_when_datalayer_absent``, which it never
+        tested: ``BTBridge.setup_tree`` always injects a datalayer, so the
+        ``_require_datalayer()`` guard is unreachable from this harness. What
+        actually fails the tick is the missing ``activity`` port
+        (CONCERN-3019).
+        """
         result = bt_scenario.run(
             LogDeliveryConfirmationNode(name="LogDeliveryConfirmation"),
             actor_id=ACTOR_ID,
         )
-        bt_scenario.assert_failure(result)
+        bt_scenario.assert_failure(result, allow_internal=True)
 
 
 # ---------------------------------------------------------------------------

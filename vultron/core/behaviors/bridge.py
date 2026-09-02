@@ -47,6 +47,7 @@ from py_trees.display import unicode_tree
 
 from vultron.core.behaviors.store_scope import port_for_store, store_for_actor
 from vultron.core.ports.case_persistence import CasePersistence
+from vultron.errors import VultronError
 
 if TYPE_CHECKING:
     from vultron.core.ports.sync_activity import SyncActivityPort
@@ -68,11 +69,19 @@ _BT_GLOBAL_LOCK = threading.RLock()
 
 @dataclass
 class BTExecutionResult:
-    """Result of BT execution returned to handler."""
+    """Result of BT execution returned to handler.
+
+    ``internal_error`` separates the two things a bare ``FAILURE`` used to
+    conflate: a protocol outcome the tree is entitled to report, and a
+    programming error that escaped a node. Callers that make a protocol
+    decision from a failure — retry, re-buffer, log level — MUST consult it,
+    because retrying a code bug never converges. See CONCERN-3019.
+    """
 
     status: Status
     feedback_message: str = ""
     errors: list[str] | None = None
+    internal_error: bool = False
 
 
 def _default_is_leader() -> bool:
@@ -445,6 +454,8 @@ class BTBridge:
 
                 # INVALID: should not happen during execution
                 if root_status == Status.INVALID:
+                    # Not a protocol outcome — a tree in INVALID mid-execution
+                    # is malformed, so retrying it cannot converge.
                     error_msg = f"BT entered INVALID state at tick {iteration}"
                     self.logger.error(error_msg)
                     errors.append(error_msg)
@@ -452,9 +463,12 @@ class BTBridge:
                         status=Status.FAILURE,
                         feedback_message=error_msg,
                         errors=errors,
+                        internal_error=True,
                     )
 
-            # Max iterations reached without completion
+            # Max iterations reached without completion.  Also not a protocol
+            # outcome: a tree that will not settle in `max_iterations` ticks
+            # will not settle on a retry either.
             error_msg = (
                 f"BT execution exceeded max iterations ({max_iterations})"
             )
@@ -464,16 +478,39 @@ class BTBridge:
                 status=Status.FAILURE,
                 feedback_message=error_msg,
                 errors=errors,
+                internal_error=True,
             )
 
-        except Exception as e:
-            error_msg = f"BT execution failed with exception: {e}"
+        except VultronError as e:
+            # A node raised a domain error deliberately (28 such sites, e.g.
+            # sync/nodes/canonical_entry.py).  That is a protocol outcome: the
+            # tree reports FAILURE and callers may retry it.
+            error_msg = f"BT execution failed: {e}"
             self.logger.exception(error_msg)
             errors.append(error_msg)
             return BTExecutionResult(
                 status=Status.FAILURE,
                 feedback_message=error_msg,
                 errors=errors,
+            )
+
+        except Exception as e:
+            # Anything else is a programming error — a wrong-typed port, a
+            # missing attribute, a bad key.  Still caught, because a half-ticked
+            # tree must not escape into a FastAPI background task, but flagged
+            # so callers do not mistake it for a protocol outcome and retry it
+            # forever (CONCERN-3019).
+            error_msg = (
+                f"BT execution failed with internal error: "
+                f"{type(e).__name__}: {e}"
+            )
+            self.logger.exception(error_msg)
+            errors.append(error_msg)
+            return BTExecutionResult(
+                status=Status.FAILURE,
+                feedback_message=error_msg,
+                errors=errors,
+                internal_error=True,
             )
 
         finally:
