@@ -166,7 +166,7 @@ Lighter check:
 2. Check the file at HEAD for the improvement (same HEAD-check as Phase 4).
 3. Assign `CONFIRMED` or `UNRESOLVED`.
 
-For findings with `outcome: filed`, `skipped`, or `deferred-ask`: assign
+For findings with `outcome: deferred-ask`, `halted`, or `skipped`: assign
 `NOTED` — no code check needed, just confirm the issue number is real:
 `gh issue view <issue_number> --json number,state` must return an open issue.
 
@@ -192,7 +192,8 @@ For findings with `outcome: filed`, `skipped`, or `deferred-ask`: assign
 3. Always print the merge-state line in the comment, including on the happy path.
    A verdict that does not state its merge state is the bug this gate exists to
    prevent.
-4. If `deferred-ask` items exist: list them explicitly for user decision.
+4. If `deferred-ask` or `halted` items exist: list them explicitly for user
+   decision (a `halted` inversion means the PR is blocked, not mergeable).
 5. Post comment: `gh pr review <number> --comment --body "<verdict>"`
 
 See [REFERENCE.md](REFERENCE.md) § "Verify Comment Format" for the template.

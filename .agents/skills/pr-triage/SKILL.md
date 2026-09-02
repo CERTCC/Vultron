@@ -31,22 +31,35 @@ This skill uses the three-category system from
 |---|---|---|
 | **FAIL** | Broken: won't work correctly, spec violated, changed behavior untested | Must be fixed before merge |
 | **IMPROVE** | Works but incomplete: missing adjacent test, stale doc, obvious gap in scope | Fix in the same session |
-| **NEW-ISSUE** | Distinct problem, out of this PR's family | Cut a GitHub issue; apply decision tree |
+| **NEW-ISSUE** | A finding that warrants its own record: an "also" excursion, or a premise inversion | Apply the decision tree below (`fix-now-file`, `defer-ask`, or `inversion-halt`) — filing a record is **not** the same as deferring the work |
 
 ### Decision-Tree Outcomes
 
 Each finding is tagged with one of four outcomes. Triage records the outcome
-but does NOT act on it — `pr-execute` acts.
+but does NOT act on it — `pr-execute` acts. **Fix-now is the default**; the FILE
+decision and the DEFER decision are separate (see
+`.claude/skills/shared/completeness-doctrine.md` § "Filing Is Not Deferring").
 
 | Outcome | Condition | What execute does |
 |---|---|---|
-| `fix-now` | Trivial fix, any conceptual distance; OR non-trivial but same family (does not meaningfully expand PR scope) | Fix inline, mention in comment |
-| `fix-now-expand-scope` | Non-trivial, same family, and the fix meaningfully expands the PR's stated scope | Fix inline, expand PR scope |
-| `new-issue-ask` | Non-trivial, distant cousin | File issue, stop and ask user whether to fold in |
-| `new-issue-no-ask` | Requires separate design effort | File issue, continue without asking |
+| `fix-now` | Anything the agent can just do, and which is *not* an "also" excursion | Fix inline, no issue filed — the diff is the record |
+| `fix-now-file` | An "also" excursion (fails the "also" test) that the agent still fixes now | Fix inline **and** file an issue the PR closes; add a one-line "why" |
+| `defer-ask` | Work genuinely too big to finish now — must be *earned* with evidence | Gate 1: file, present a **measured remainder** in plain language, ask. On silence, fix it now |
+| `inversion-halt` | The work inverts a premise from the issue *or its backing specs/ADRs* | Gate 2: explain the overturned premise, ask if/what to file. On silence, **halt** the PR |
 
-**Same family** means: if you had to explain why you fixed both things in this
-PR, you could do it in one sentence without using the word "also."
+**The "also" test** decides filing (breadth surprise): if explaining why you
+fixed both the original thing and the discovered thing needs the word "also,"
+it is a genuine excursion → file it. If you can explain both in one sentence
+*without* "also," it is just doing the task → do not file; the diff is the
+record.
+
+**Depth cap**: `defer-ask` is only legal for *second-order* findings (revealed
+while fixing an excursion). *First-order* findings (revealed by the original
+work) are always "just do it" — never `defer-ask`.
+
+There is no `new-issue-no-ask`: silent deferral does not exist. There is no
+`fix-now-expand-scope`: size is not a constraint, so an "also" excursion that
+grows the PR is simply `fix-now-file` (see the doctrine § "Clarity Over Size").
 
 ## Quick Start
 
