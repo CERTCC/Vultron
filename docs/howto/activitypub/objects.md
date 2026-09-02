@@ -112,9 +112,8 @@ print(json2md(gen_report()))
 
 !!! tip "Articles and Documents"
 
-    Obviously a VulnerabilityReport or advisory draft could also be an 
-    `as:Article` or `as:Document`, but at the moment we don't use those types 
-    explicitly.
+    A VulnerabilityReport or advisory draft could also be an `as:Article` or
+    `as:Document`, but at the moment we don't use those types explicitly.
 
 ### VulnerabilityCase
 

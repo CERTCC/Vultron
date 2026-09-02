@@ -40,8 +40,8 @@ objects in place — three mutation sites in `outbox_delivery.py` overwrite
   `payloadSnapshot`. If the frozen artifact is mutated before ledger storage,
   replications propagate the mutated form.
 - **Type-level enforcement**: "do not mutate" as a convention enforced only by
-  documentation is insufficient; the type system should raise `TypeError` on
-  accidental mutation during development and testing.
+  documentation is insufficient; the runtime should raise on accidental mutation
+  during development and testing.
 - **Orthogonality**: `validate_assignment=False` (wire branch leniency,
   ARCH-12-002) and `frozen=True` (post-construction immutability) are
   independent properties that can coexist. ADR-0064 established the former;
@@ -88,9 +88,11 @@ compensates for an incomplete factory and creates a ledger/delivery gap.
 
 ### Consequences
 
-- Good, because mutation of received Activities raises `TypeError` immediately
-  during development, rather than corrupting ledger entries silently in
-  production.
+- Good, because mutation of received Activities raises immediately during
+  development, rather than corrupting ledger entries silently in production.
+  Under Pydantic v2 the rejection is a `ValidationError` carrying
+  `type=frozen_instance`, not a `TypeError` — code that means to clear a field
+  must build a new object with `model_copy(update=...)` instead (issue #2904).
 - Good, because the ledger entry and delivery payload are guaranteed identical
   — the accountability invariant becomes structurally enforced.
 - Good, because `frozen=True` and `validate_assignment=False` are orthogonal;
