@@ -8,6 +8,7 @@ related_specs:
   - specs/received-status-handling.yaml
 related_notes:
   - notes/activitystreams-semantics.md
+  - notes/message-type-reference.md
   - notes/protocol-event-cascades.md
   - notes/received-status-authorization.md
 relevant_packages:
