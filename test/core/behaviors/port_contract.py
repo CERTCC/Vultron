@@ -22,9 +22,22 @@ accepts anything). A hard-coded roster of node classes cannot police that: a
 node added later with the permissive declaration re-opens the hole while the
 suite stays green.
 
-These helpers walk a behaviors package and return every leaf node class that
-declares a given port, so a contract test parametrizes over what the package
-*actually contains*.
+These helpers walk a behaviors package and return every typed-Ports node class
+that declares a given port, so a contract test parametrizes over what the
+package *actually contains*.
+
+**Two limits on the guarantee, so it is not over-read.** The walk is scoped to
+one package, but a blackboard key is process-global:
+
+- A node in a *different* behaviors package that declares the same key shares
+  the contract but is invisible to this roster. Flat root-level keys such as
+  ``/log_entry`` are the exposed case — ``embargo/nodes/teardown.py`` already
+  reaches into ``sync.nodes`` for ``_require_log_entry``. Scan every package
+  that can touch a key, or assert the key is declared nowhere else.
+- Legacy ``DataLayerCondition`` / ``DataLayerAction`` nodes that use
+  ``register_key()`` instead of typed Ports are not discoverable at all, since
+  they have no ``input_ports()`` to inspect (e.g. ``ValidateTriggerTransitionsNode``
+  sits inside the walked participant package but is not a Ports node).
 
 Used by the ``participant_case`` (#2907) and ``log_entry`` / ``replay_entry``
 contract tests. Supports BTND-03-009.
@@ -44,27 +57,55 @@ from vultron.core.behaviors.helpers import (
 )
 
 
+def _reraise_import_error(name: str) -> None:
+    """``walk_packages`` error hook: never swallow a failed subpackage import.
+
+    The default ``onerror=None`` silently ignores ``ImportError`` from a
+    subpackage, which would shrink the roster without any test going red — the
+    exact failure this module exists to prevent.
+    """
+    # ``walk_packages`` invokes this from inside its ``except`` block, so a bare
+    # ``raise`` re-raises the ImportError it was about to discard.
+    raise
+
+
 def iter_port_node_classes(package: ModuleType) -> Iterator[type]:
-    """Yield every typed-Ports leaf node class defined under ``package``.
+    """Yield every typed-Ports node class defined under ``package``.
 
     The walk is **recursive** (``pkgutil.walk_packages``): a node module that
     is later split into a subpackage — the normal response to the BTND-07-004
     line cap — keeps its nodes in the roster instead of silently dropping them
-    and leaving a parametrized contract test looking green over nothing.
+    and leaving a parametrized contract test looking green over nothing. The
+    one gap ``pkgutil`` leaves is a namespace-style subdirectory with no
+    ``__init__.py``, which ``iter_modules`` skips outright; keep ``nodes/``
+    subpackages regular.
+
+    **Abstract intermediate bases are yielded too, deliberately.** This is not
+    a leaf-only roster: a base class that declares a shared port is a real
+    declaration and its ``data_type`` has to be right, so a *declaration* test
+    should see it. But an *enforcement* test that instantiates and ticks each
+    entry must skip non-instantiable bases (e.g. ``_LedgerEffectNode``, whose
+    ``update()`` raises ``NotImplementedError``, or ``_ActivityEventNode``,
+    which defines none). No such base declares a currently-tracked port, so
+    today every discovered class is instantiable — a base that later declares
+    one will surface as a missing constructor-table entry, which is the right
+    place to make that decision.
 
     A class is yielded by the module that *defines* it (``__module__`` match),
     so a re-export does not produce a second entry. Node classes are expected
     to live in modules rather than in a package's ``__init__.py``, which
-    BTND-07-003 reserves for re-exports.
+    BTND-07-007 reserves for re-exports.
 
     Args:
-        package: An imported package whose modules declare BT leaf nodes.
+        package: An imported package whose modules declare BT nodes.
 
     Yields:
-        Leaf node classes deriving from the typed-Ports DataLayer bases.
+        Node classes deriving from the typed-Ports DataLayer bases.
     """
     for mod_info in pkgutil.walk_packages(
-        package.__path__, prefix=f"{package.__name__}."
+        package.__path__,
+        prefix=f"{package.__name__}.",
+        onerror=_reraise_import_error,
     ):
         module = importlib.import_module(mod_info.name)
         for _, obj in inspect.getmembers(module, inspect.isclass):

@@ -24,7 +24,7 @@ says so, so a wrong-typed value is rejected at the port instead of reaching the
 ``cast(VultronCaseLedgerEntry, ...)`` in each node's ``update()``.
 """
 
-from typing import Any, Iterator
+from typing import Any
 
 import py_trees
 import pytest
@@ -348,6 +348,15 @@ class TestLedgerPortRosterDiscovery:
 
 @pytest.mark.spec("BTND-03-009")
 class TestLedgerPortDeclarations:
+    """Every tracked declaration names the ledger-entry class.
+
+    ``VultronCaseLedgerEntry`` is an alias of ``CaseLedgerEntry`` (the same
+    class object), so these assertions check that the declaration is the ledger
+    entry type at all — they do not distinguish the two names, and would pass
+    equally for ``data_type=CaseLedgerEntry``. What the tightening excludes is a
+    value that is not a ``CaseLedgerEntry``.
+    """
+
     @pytest.mark.parametrize("decl", LEDGER_READERS, ids=decl_id)
     def test_reader_declares_ledger_entry(self, decl: PortDecl) -> None:
         node_cls, port_name = decl
@@ -365,12 +374,9 @@ class TestLedgerPortDeclarations:
 
 @pytest.mark.spec("BTND-03-011")
 class TestLedgerPortInputEnforcement:
-    @pytest.fixture(autouse=True)
-    def _clear_blackboard(self) -> Iterator[None]:
-        # py_trees' blackboard storage is a process-global singleton.
-        py_trees.blackboard.Blackboard.storage.clear()
-        yield
-        py_trees.blackboard.Blackboard.storage.clear()
+    # py_trees' blackboard storage is a process-global singleton; the repo-wide
+    # autouse `clear_py_trees_blackboard` in test/core/behaviors/conftest.py
+    # clears it around every test in this tree (TB-06-005).
 
     @pytest.mark.parametrize("decl", LEDGER_READERS, ids=decl_id)
     def test_wrong_type_raises_type_error(self, decl: PortDecl) -> None:
@@ -393,12 +399,6 @@ class TestLedgerPortInputEnforcement:
 
 @pytest.mark.spec("BTND-03-012")
 class TestLedgerPortOutputEnforcement:
-    @pytest.fixture(autouse=True)
-    def _clear_blackboard(self) -> Iterator[None]:
-        py_trees.blackboard.Blackboard.storage.clear()
-        yield
-        py_trees.blackboard.Blackboard.storage.clear()
-
     @pytest.mark.parametrize("decl", LEDGER_WRITERS, ids=decl_id)
     def test_writer_rejects_wrong_type(self, decl: PortDecl) -> None:
         node_cls, port = decl

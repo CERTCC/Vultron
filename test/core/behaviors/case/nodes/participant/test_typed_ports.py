@@ -32,7 +32,7 @@ contract), BTND-03-011 (inputs are read through ``get_input()``) and
 BTND-03-012 (outputs are written through ``_set_output()``).
 """
 
-from typing import Any, Iterator
+from typing import Any
 
 import py_trees
 import pytest
@@ -135,13 +135,10 @@ class TestParticipantCasePortDeclarations:
 class TestParticipantCaseInputEnforcement:
     """A wrong-typed blackboard value is rejected at the port boundary."""
 
-    @pytest.fixture(autouse=True)
-    def _clear_blackboard(self) -> Iterator[None]:
-        # py_trees' blackboard storage is a process-global singleton; a value
-        # left behind here would be visible to the next test.
-        py_trees.blackboard.Blackboard.storage.clear()
-        yield
-        py_trees.blackboard.Blackboard.storage.clear()
+    # py_trees' blackboard storage is a process-global singleton, so a value
+    # left behind would be visible to the next test. The repo-wide autouse
+    # `clear_py_trees_blackboard` in test/core/behaviors/conftest.py clears it
+    # around every test in this tree (TB-06-005).
 
     @pytest.mark.parametrize("decl", READERS, ids=decl_id)
     def test_wrong_type_raises_type_error(self, decl: PortDecl) -> None:
@@ -194,12 +191,6 @@ class TestParticipantCaseTickLevelEnforcement:
 @pytest.mark.spec("BTND-03-012")
 class TestParticipantCaseOutputEnforcement:
     """The write side fails fast too, so the key can never hold junk."""
-
-    @pytest.fixture(autouse=True)
-    def _clear_blackboard(self) -> Iterator[None]:
-        py_trees.blackboard.Blackboard.storage.clear()
-        yield
-        py_trees.blackboard.Blackboard.storage.clear()
 
     @pytest.mark.parametrize("decl", WRITERS, ids=decl_id)
     def test_writer_rejects_wrong_type_on_set_output(
