@@ -96,6 +96,8 @@ Participants usually fall into one of three categories:
 
 Adding new Participants to a case with an existing embargo might require
 the new Participant to accept the embargo prior to receiving the report.
+For the formal per-participant state machine that tracks acceptance,
+see [Participant Embargo Consent](participant-embargo-consent.md).
 
 !!! note ""
 

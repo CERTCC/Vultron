@@ -35,6 +35,7 @@ nav:
         - Default Embargoes: 'topics/process_models/em/defaults.md'
         - Negotiating Embargoes: 'topics/process_models/em/negotiating.md'
         - Adding Participants: 'topics/process_models/em/working_with_others.md'
+        - Participant Embargo Consent: 'topics/process_models/em/participant-embargo-consent.md'
         - Early Termination: 'topics/process_models/em/early_termination.md'
         - Case Splits and Merges: 'topics/process_models/em/split_merge.md'
       - Case State:
