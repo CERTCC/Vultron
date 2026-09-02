@@ -46,8 +46,8 @@ from vultron.core.ports.case_persistence import CaseOutboxPersistence
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.protocols import PersistableModel
+from vultron.core.predicates.roles import has_case_owner_role
 from vultron.core.states.em import EM
-from vultron.enums.roles import CVDRole
 from vultron.core.behaviors.status.nodes.threat_termination import (  # noqa: F401
     ThreatTerminationBranchNode,
     _ThreatTerminationSkipConditionNode,
@@ -122,7 +122,7 @@ class _PublicDisclosureSkipConditionNode(DataLayerConditionWithPorts):
             if isinstance(sender_participant, CaseParticipant)
             else []
         )
-        return CVDRole.CASE_OWNER in roles
+        return has_case_owner_role(roles)
 
     def _em_state(self, case: VulnerabilityCase) -> EM:
         """Return current EM state; falls back to NONE on missing status."""
