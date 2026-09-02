@@ -4,6 +4,12 @@ status: active
 description: >
   Import constraints, module inventory, and guidance for when to place a rule
   in vultron/core/predicates/ rather than inline in a BT node or service.
+related_specs:
+  - CSB-15-001
+  - CSB-15-002
+  - CM-25-005
+  - EMB-01-002
+  - EMB-02-002
 related_notes:
   - notes/architecture-hexagonal.md
 relevant_packages:
