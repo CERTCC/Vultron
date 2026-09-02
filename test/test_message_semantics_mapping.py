@@ -155,6 +155,54 @@ def test_gi_also_covers_the_actor_suggestion_exchange():
     assert expected <= _registered()
 
 
+@pytest.mark.spec("VAM-04-001")
+@pytest.mark.spec("VAM-04-010")
+def test_actor_suggestion_is_two_offers_over_different_objects():
+    """The exchange has two offer hops, over `Actor` then over `CaseParticipant`.
+
+    VAM previously specified only the first hop and then had the accept/reject
+    entries wrap it, which read as a single-offer handshake. The two hops carry
+    different object types, which is what makes them distinguishable on the wire.
+    """
+    first = _pattern(MessageSemantics.OFFER_ACTOR_TO_CASE)
+    assert first.activity_ is TAtype.OFFER
+    assert first.object_ == "Actor"
+    assert first.target_ == "VulnerabilityCase"
+
+    second = _pattern(MessageSemantics.OFFER_CASE_PARTICIPANT)
+    assert second.activity_ is TAtype.OFFER
+    assert second.object_ == "CaseParticipant"
+    assert second.target_ == "VulnerabilityCase"
+
+
+@pytest.mark.spec("VAM-04-002")
+@pytest.mark.spec("VAM-04-003")
+def test_actor_suggestion_accept_reject_wrap_the_participant_offer():
+    """Accept/Reject wrap `Offer(CaseParticipant)`, not the originating `Offer(Actor)`.
+
+    This is the correction: VAM-04-002 and VAM-04-003 previously specified
+    `Accept`/`Reject(Offer(Actor)[target=VulnerabilityCase])` under semantic names
+    that do not exist. The Case Owner responds to the CaseActor's participant
+    offer (CM-16-003/CM-16-004, ADR-0026), so the inner object is
+    `CaseParticipant`.
+    """
+    for semantics, verb in (
+        (MessageSemantics.ACCEPT_OFFER_CASE_PARTICIPANT, TAtype.ACCEPT),
+        (MessageSemantics.REJECT_OFFER_CASE_PARTICIPANT, TAtype.REJECT),
+    ):
+        pattern = _pattern(semantics)
+        assert pattern.activity_ is verb
+        inner = pattern.object_
+        assert not isinstance(
+            inner, str
+        ), f"{semantics} must nest an inner ActivityPattern, not a bare object type"
+        assert inner.activity_ is TAtype.OFFER
+        assert inner.object_ == "CaseParticipant", (
+            f"{semantics} must wrap Offer(CaseParticipant), not Offer(Actor) — "
+            "the Case Owner responds to the CaseActor's participant offer"
+        )
+
+
 @pytest.mark.spec("MSM-04-003")
 def test_no_semantics_is_named_for_gk_or_ge():
     """`GK` and `GE` get no dispatch value; MSM-05 mechanisms serve them."""

@@ -513,6 +513,15 @@ groups:
       Inspection of `vultron/semantic_registry/actor.py` confirms the four
       actor-suggestion entries are registered, and `docs/reference/formal_protocol/messages.md`
       lists participant suggestion as a `GI` example.
+    relationships:
+    - rel_type: derives_from
+      spec_id: VAM-04-001
+    - rel_type: derives_from
+      spec_id: VAM-04-010
+    - rel_type: derives_from
+      spec_id: VAM-04-002
+    - rel_type: derives_from
+      spec_id: VAM-04-003
     lint_suppress:
     - missing_story_reference
   - id: MSM-04-003
