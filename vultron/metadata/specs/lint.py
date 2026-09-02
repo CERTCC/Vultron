@@ -798,6 +798,12 @@ def _check_phantom_symbols(
     and docstrings. The check is aimed at names with no trace left in the
     codebase, not at proving a binding exists at the cited location, so it
     prefers a false negative over blocking a commit on a legitimate reference.
+    The one exception to that preference is the whole-token corpus: a cited
+    ``FOO`` whose only occurrence in source is as a fragment of a longer
+    identifier (``FOO_V2``) does *not* resolve, because :data:`_SOURCE_SYMBOL_RE`
+    captures whole ``\\b``-delimited runs. That is a deliberate true positive —
+    ``FOO`` and ``FOO_V2`` are distinct symbols — not an oversight; suppress with
+    ``lint_suppress`` if a spec genuinely means the longer name.
 
     Exemption: per-spec opt-out via ``lint_suppress: [phantom_symbol_ref]``,
     for a statement that deliberately names a retired symbol in order to
