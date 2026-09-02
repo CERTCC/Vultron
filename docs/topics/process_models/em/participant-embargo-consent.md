@@ -58,6 +58,7 @@ stateDiagram-v2
     SIGNATORY --> LAPSED: EV cascade
     LAPSED --> INVITED: EP — re-invite
     LAPSED --> SIGNATORY: EA — accept
+    LAPSED --> DECLINED: ER — decline
     LAPSED --> DECLINED: Timer — pocket veto
     DECLINED --> INVITED: EP — re-invite
 ```
@@ -246,6 +247,7 @@ transitions result from inaction.
 | `SIGNATORY` | EM enters `REVISE` (EV) | `LAPSED` | Cascade | MSM-07-005 |
 | `LAPSED` | EP received | `INVITED` | Wire | MSM-07-002 |
 | `LAPSED` | EA received | `SIGNATORY` | Wire | MSM-07-003 |
+| `LAPSED` | ER received | `DECLINED` | Wire | MSM-07-004 |
 | `LAPSED` | Deadline passed | `DECLINED` | Timer | MSM-07-007 |
 | `DECLINED` | EP received | `INVITED` | Wire | MSM-07-002 |
 | Any | EM enters `EXITED` (ET) | `NO_EMBARGO` | Cascade | MSM-07-006 |
