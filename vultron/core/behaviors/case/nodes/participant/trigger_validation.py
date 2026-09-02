@@ -45,6 +45,7 @@ from vultron.core.behaviors.case.nodes.participant.common import (
 )
 from vultron.core.behaviors.helpers import DataLayerCondition
 from vultron.core.models.case_participant import CaseParticipant
+from vultron.errors import VultronValidationError
 from vultron.core.states.cross_machine_invariants import (
     cross_machine_violations,
 )
@@ -166,6 +167,47 @@ class ValidateTriggerTransitionsNode(DataLayerCondition):
             return Status.FAILURE
         return None
 
+    def _check_pxa_transition(
+        self, case: object, participant_obj: object
+    ) -> "Status | None":
+        """Validate the requested PXA transition; return FAILURE or None."""
+        if self._pxa_state is None or not isinstance(
+            participant_obj, CaseParticipant
+        ):
+            return None
+        current_pxa = _resolve_current_pxa(case, participant_obj)
+        if self._pxa_state != current_pxa and not is_valid_pxa_transition(
+            current_pxa, self._pxa_state
+        ):
+            self.feedback_message = (
+                f"Invalid PXA transition"
+                f" {current_pxa!r} → {self._pxa_state!r}"
+            )
+            self.logger.info("%s: %s", self.name, self.feedback_message)
+            return Status.FAILURE
+        return None
+
+    def _resolve_current_state(
+        self, dl: object, participant_id: str
+    ) -> "tuple[RM, CS_vf | None, CS_d | None] | Status":
+        """Return current (rm, vf, d) or Status.FAILURE on shape mismatch.
+
+        Wraps resolve_participant_state_from_dl so the try/except lives outside
+        update(), keeping update()'s McCabe complexity ≤ 10 (C901).
+        """
+        try:
+            return resolve_participant_state_from_dl(
+                dl,  # type: ignore[arg-type]
+                participant_id,
+            )
+        except VultronValidationError as exc:
+            self.feedback_message = (
+                f"Participant '{participant_id}' status is not core-shaped:"
+                f" {exc} (ARCH-15-001)"
+            )
+            self.logger.warning("%s: %s", self.name, self.feedback_message)
+            return Status.FAILURE
+
     def update(self) -> Status:
         if (f := self._require_datalayer()) is not None:
             return f
@@ -182,9 +224,10 @@ class ValidateTriggerTransitionsNode(DataLayerCondition):
             # CreateParticipantStatusNode will report this; pass through.
             return Status.SUCCESS
 
-        current_rm, current_vf, current_d = resolve_participant_state_from_dl(
-            dl, participant_id
-        )
+        state = self._resolve_current_state(dl, participant_id)
+        if isinstance(state, Status):
+            return state
+        current_rm, current_vf, current_d = state
         participant_obj = dl.read(participant_id)
 
         # --- RM dimension ---
@@ -231,19 +274,10 @@ class ValidateTriggerTransitionsNode(DataLayerCondition):
             return failure
 
         # --- PXA dimension ---
-        if self._pxa_state is not None and isinstance(
-            participant_obj, CaseParticipant
-        ):
-            current_pxa = _resolve_current_pxa(case, participant_obj)
-            if self._pxa_state != current_pxa and not is_valid_pxa_transition(
-                current_pxa, self._pxa_state
-            ):
-                self.feedback_message = (
-                    f"Invalid PXA transition"
-                    f" {current_pxa!r} → {self._pxa_state!r}"
-                )
-                self.logger.info("%s: %s", self.name, self.feedback_message)
-                return Status.FAILURE
+        if (
+            failure := self._check_pxa_transition(case, participant_obj)
+        ) is not None:
+            return failure
 
         effective_rm = (
             self._rm_state if self._rm_state is not None else current_rm
