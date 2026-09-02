@@ -145,8 +145,12 @@ the leaving Participant is no longer involved in the case.
 
 !!! tip inline end "Embargo Engagement and Adherence"
 
-    We return to these concepts with the `case_engagement` and `embargo_adherence` attributes described in
+    We return to these concepts with the `case_engagement` and
+    `embargo_adherence` attributes described in
     [Case Object](../../../howto/case_object.md).
+    For the per-participant consent state machine that drives
+    `embargo_adherence`, see
+    [Participant Embargo Consent](participant-embargo-consent.md).
 
 These points imply a need for Participants to track the status of other
 Participants with respect to their adherence to the embargo and

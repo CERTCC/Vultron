@@ -19,7 +19,7 @@ sense the docs actually use.
 *[AKM]: Actor Knowledge Model
 *[AMA]: Ask Me Anything
 *[API]: Application Programming Interface
-*[AS2]: ActivityStreams 2.0
+*[AS2]: ActivityStreams Vocabulary 2.0
 *[ASCII]: American Standard Code for Information Interchange
 *[ATM]: Automated Teller Machine
 *[ATMs]: Automated Teller Machines

@@ -18,6 +18,7 @@ from vultron.wire.as2.vocab.base.objects.activities.transitive import (
     as_Invite,
     as_Reject,
 )
+from vultron.wire.as2.vocab.base.objects.actors import as_Actor
 from vultron.wire.as2.vocab.examples._base import (
     _COORDINATOR,
     case,
@@ -41,11 +42,28 @@ from vultron.wire.as2.factories import (
 )
 
 
-def add_vendor_participant_to_case() -> as_Add:
+def _participant_for(
+    actor: as_Actor,
+    case_roles: list[CVDRole],
+    participant_statuses: list[as_ParticipantStatus] | None = None,
+) -> as_CaseParticipant:
+    """Build the case-participant record wrapping *actor* in the example case."""
+    _case = case()
+    shortname = actor.id_.split("/")[-1]
+    return as_CaseParticipant(
+        id_=f"{_case.id_}/participants/{shortname}",
+        name=actor.name,
+        attributed_to=actor.id_,
+        context=_case.id_,
+        case_roles=case_roles,
+        participant_statuses=participant_statuses or [],
+    )
+
+
+def vendor_participant() -> as_CaseParticipant:
+    """The vendor's participant record, including its report-management status."""
     _vendor = vendor()
     _case = case()
-
-    shortname = _vendor.id_.split("/")[-1]
 
     _pstatus = as_ParticipantStatus(
         context=_case.id_,
@@ -53,17 +71,20 @@ def add_vendor_participant_to_case() -> as_Add:
         rm_state=RM.RECEIVED,
         vf_state=CS_vf.Vf,
     )
-    _vendor_participant = as_CaseParticipant(
-        id_=f"{_case.id_}/participants/{shortname}",
-        name=_vendor.name,
-        attributed_to=_vendor.id_,
-        context=_case.id_,
-        case_roles=[CVDRole.VENDOR],
-        participant_statuses=[_pstatus],
-    )
+    return _participant_for(_vendor, [CVDRole.VENDOR], [_pstatus])
+
+
+def finder_participant() -> as_CaseParticipant:
+    """The finder's participant record; the finder is also the reporter here."""
+    return _participant_for(finder(), [CVDRole.FINDER, CVDRole.REPORTER])
+
+
+def add_vendor_participant_to_case() -> as_Add:
+    _vendor = vendor()
+    _case = case()
 
     activity = add_participant_to_case_activity(
-        _vendor_participant,
+        vendor_participant(),
         actor=_vendor.id_,
         target=_case.id_,
         content="We're adding ourselves as a participant to this case.",
@@ -75,18 +96,8 @@ def add_finder_participant_to_case() -> as_Add:
     _vendor = vendor()
     _case = case()
 
-    _finder = finder()
-    shortname = _finder.id_.split("/")[-1]
-    _finder_participant = as_CaseParticipant(
-        id_=f"{_case.id_}/participants/{shortname}",
-        name=_finder.name,
-        attributed_to=_finder.id_,
-        context=_case.id_,
-        case_roles=[CVDRole.FINDER, CVDRole.REPORTER],
-    )
-
     activity = add_participant_to_case_activity(
-        _finder_participant,
+        finder_participant(),
         actor=_vendor.id_,
         target=_case.id_,
         content="We're adding the finder as a participant to this case.",
@@ -98,18 +109,8 @@ def add_coordinator_participant_to_case() -> as_Add:
     _vendor = vendor()
     _case = case()
 
-    _coordinator = _COORDINATOR
-    shortname = _coordinator.id_.split("/")[-1]
-    _coordinator_participant = as_CaseParticipant(
-        id_=f"{_case.id_}/participants/{shortname}",
-        name=_coordinator.name,
-        attributed_to=_coordinator.id_,
-        context=_case.id_,
-        case_roles=[CVDRole.COORDINATOR],
-    )
-
     activity = add_participant_to_case_activity(
-        _coordinator_participant,
+        coordinator_participant(),
         actor=_vendor.id_,
         target=_case.id_,
         content="We're adding the coordinator as a participant to this case.",
@@ -193,17 +194,8 @@ def case_participant() -> as_CaseParticipant:
 
 
 def coordinator_participant() -> as_CaseParticipant:
-    _actor = _COORDINATOR
-    _case = case()
-
-    participant = as_CaseParticipant(
-        id_=f"{_case.id_}/participants/coordinator",
-        name=_actor.name,
-        attributed_to=_actor.id_,
-        context=_case.id_,
-        case_roles=[CVDRole.COORDINATOR],
-    )
-    return participant
+    """The coordinator's participant record."""
+    return _participant_for(_COORDINATOR, [CVDRole.COORDINATOR])
 
 
 def invite_to_case():

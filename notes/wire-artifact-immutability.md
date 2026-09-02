@@ -28,7 +28,10 @@ required by the lenient wire branch per ARCH-12-002) while simultaneously
 preventing post-construction mutation via `ConfigDict(frozen=True)`. The
 `validate_assignment=False` exemption on `as_Object` (ADR-0064) affects
 type-checking on field writes — it does not preclude `frozen=True`, which
-raises `TypeError` on any attribute assignment regardless of type.
+rejects any attribute assignment regardless of type. Under Pydantic v2 that
+rejection surfaces as a `ValidationError` with `type=frozen_instance`, not a
+`TypeError`; code that means to clear a field on a wire object must build a
+new one via `model_copy(update=...)` instead (issue #2904).
 
 ---
 
