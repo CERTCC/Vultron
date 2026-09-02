@@ -50,6 +50,27 @@ def test_all_message_semantics_have_activity_patterns():
     assert not missing, f"Missing activity patterns for semantics: {missing}"
 
 
+@pytest.mark.spec("SE-03-003")
+def test_all_patterns_discriminate_on_activity_and_object():
+    """Every registered pattern must constrain both activity type and object type.
+
+    SE-03-003. A pattern with no `object_` constraint matches every activity of
+    that verb type regardless of payload, so it shadows every sibling in its
+    `activity_` group — the misrouting failure mode SE-03-002's ordering rule
+    cannot save it from.
+    """
+    underspecified = [
+        (entry.semantics.name, entry.pattern.activity_, entry.pattern.object_)
+        for entry in SEMANTIC_REGISTRY
+        if entry.pattern is not None
+        and (entry.pattern.activity_ is None or entry.pattern.object_ is None)
+    ]
+    assert not underspecified, (
+        "Patterns must discriminate on both Activity type and Object type; "
+        f"under-specified entries: {underspecified}"
+    )
+
+
 def _pattern_dump(pattern: Any) -> Dict[str, Any]:
     """
     Return a top-level dict representation of the given pattern.
@@ -586,6 +607,7 @@ def _make_case_proposal():
 
 
 @pytest.mark.spec("SE-02-001")
+@pytest.mark.spec("CP-03-001")
 def test_create_case_proposal_dispatches_correctly():
     """Create(as_CaseProposal) must be classified as CREATE_CASE_PROPOSAL.
 
@@ -608,6 +630,7 @@ def test_create_case_proposal_dispatches_correctly():
 
 
 @pytest.mark.spec("SE-02-001")
+@pytest.mark.spec("CP-03-002")
 def test_accept_case_proposal_dispatches_correctly():
     """Accept(as_CaseProposal) must be classified as ACCEPT_CASE_PROPOSAL.
 
@@ -630,6 +653,7 @@ def test_accept_case_proposal_dispatches_correctly():
 
 
 @pytest.mark.spec("SE-02-001")
+@pytest.mark.spec("CP-03-003")
 def test_reject_case_proposal_dispatches_correctly():
     """Reject(as_CaseProposal) must be classified as REJECT_CASE_PROPOSAL.
 

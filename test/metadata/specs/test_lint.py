@@ -1272,6 +1272,170 @@ def test_phantom_spec_id_unknown_in_test_dir_is_hard_error(tmp_path, capsys):
 
 
 # ---------------------------------------------------------------------------
+# MS-15-004 / MS-15-005: phantom symbol references in spec statements
+# ---------------------------------------------------------------------------
+
+
+def test_lint_phantom_symbol_is_hard_error(tmp_path, capsys):
+    """A statement naming a SCREAMING_SNAKE symbol absent from the tree fails."""
+    _, spec_dir = _repo_with_specs(tmp_path)
+    data = _minimal_spec()
+    data["groups"][0]["specs"][0][
+        "statement"
+    ] = "Every pattern MUST be registered in `RETIRED_PATTERN_TABLE`"
+    _write_yaml(spec_dir, data)
+
+    result = lint(spec_dir)
+    captured = capsys.readouterr()
+    assert result == 1
+    assert "MS-15-004" in captured.err
+    assert "RETIRED_PATTERN_TABLE" in captured.err
+
+
+def test_lint_phantom_symbol_existing_symbol_passes(tmp_path):
+    """A statement naming a symbol defined under vultron/ is accepted."""
+    repo, spec_dir = _repo_with_specs(tmp_path)
+    (repo / "vultron" / "registry.py").write_text(
+        "LIVE_PATTERN_TABLE: dict = {}\n"
+    )
+    data = _minimal_spec()
+    data["groups"][0]["specs"][0][
+        "statement"
+    ] = "Every pattern MUST be registered in `LIVE_PATTERN_TABLE`"
+    _write_yaml(spec_dir, data)
+
+    assert lint(spec_dir) == 0
+
+
+def test_lint_phantom_symbol_resolves_from_test_tree(tmp_path):
+    """A symbol that only exists under test/ still resolves (MS-15-004)."""
+    repo, spec_dir = _repo_with_specs(tmp_path)
+    (repo / "test" / "test_thing.py").write_text("KNOWN_VIOLATIONS = ()\n")
+    data = _minimal_spec()
+    data["groups"][0]["specs"][0][
+        "statement"
+    ] = "The ratchet MUST enumerate exemptions in `KNOWN_VIOLATIONS`"
+    _write_yaml(spec_dir, data)
+
+    assert lint(spec_dir) == 0
+
+
+def test_lint_phantom_symbol_in_verification_is_hard_error(tmp_path, capsys):
+    """The verification field is scanned for phantom symbols too."""
+    _, spec_dir = _repo_with_specs(tmp_path)
+    data = _minimal_spec()
+    data["groups"][0]["specs"][0][
+        "verification"
+    ] = "A unit test asserts `GONE_REGISTRY` has one entry per semantic."
+    _write_yaml(spec_dir, data)
+
+    result = lint(spec_dir)
+    captured = capsys.readouterr()
+    assert result == 1
+    assert "GONE_REGISTRY" in captured.err
+
+
+def test_lint_phantom_symbol_rationale_not_scanned(tmp_path):
+    """rationale narrates history and may name a removed symbol."""
+    _, spec_dir = _repo_with_specs(tmp_path)
+    data = _minimal_spec()
+    data["groups"][0]["specs"][0][
+        "rationale"
+    ] = "`GONE_REGISTRY` was replaced during the registry move."
+    _write_yaml(spec_dir, data)
+
+    assert lint(spec_dir) == 0
+
+
+def test_lint_phantom_symbol_suppress(tmp_path, capsys):
+    """lint_suppress: [phantom_symbol_ref] allows a deliberate mention (MS-15-005)."""
+    _, spec_dir = _repo_with_specs(tmp_path)
+    data = _minimal_spec(extra={"lint_suppress": ["phantom_symbol_ref"]})
+    data["groups"][0]["specs"][0][
+        "statement"
+    ] = "The `REMOVED_SEMANTIC_TABLE` table has been removed; use the registry."
+    _write_yaml(spec_dir, data)
+
+    result = lint(spec_dir)
+    captured = capsys.readouterr()
+    assert result == 0
+    assert "MS-15-004" not in captured.err
+
+
+def test_lint_phantom_symbol_linter_own_source_excluded_from_corpus(
+    tmp_path, capsys
+):
+    """A symbol appearing only under `vultron/metadata/specs/` is not live.
+
+    The linter's own modules quote retired symbol names in docstrings and error
+    messages. Counting those as corpus entries would make the check resolve the
+    very tokens it exists to reject.
+    """
+    repo, spec_dir = _repo_with_specs(tmp_path)
+    linter_dir = repo / "vultron" / "metadata" / "specs"
+    linter_dir.mkdir(parents=True)
+    (linter_dir / "lint.py").write_text(
+        '"""Catches references to `RETIRED_TABLE`."""\n'
+    )
+    data = _minimal_spec()
+    data["groups"][0]["specs"][0][
+        "statement"
+    ] = "Patterns MUST be registered in `RETIRED_TABLE`"
+    _write_yaml(spec_dir, data)
+
+    result = lint(spec_dir)
+    captured = capsys.readouterr()
+    assert result == 1
+    assert "RETIRED_TABLE" in captured.err
+
+
+def test_lint_phantom_symbol_test_fixture_dir_excluded_from_corpus(
+    tmp_path, capsys
+):
+    """Symbol names invented by the linter's own tests are not live either."""
+    repo, spec_dir = _repo_with_specs(tmp_path)
+    fixture_dir = repo / "test" / "metadata" / "specs"
+    fixture_dir.mkdir(parents=True)
+    (fixture_dir / "test_lint.py").write_text(
+        'STATEMENT = "MUST be in `INVENTED_TABLE`"\n'
+    )
+    data = _minimal_spec()
+    data["groups"][0]["specs"][0][
+        "statement"
+    ] = "Patterns MUST be registered in `INVENTED_TABLE`"
+    _write_yaml(spec_dir, data)
+
+    result = lint(spec_dir)
+    captured = capsys.readouterr()
+    assert result == 1
+    assert "INVENTED_TABLE" in captured.err
+
+
+def test_lint_phantom_symbol_single_word_token_not_checked(tmp_path):
+    """Underscore-free tokens (`MUST`, `RS`, `SIGNATORY`) are not symbols."""
+    _, spec_dir = _repo_with_specs(tmp_path)
+    data = _minimal_spec()
+    data["groups"][0]["specs"][0][
+        "statement"
+    ] = "Shorthand `RS` MUST leave the participant `SIGNATORY`"
+    _write_yaml(spec_dir, data)
+
+    assert lint(spec_dir) == 0
+
+
+def test_lint_phantom_symbol_dotted_reference_not_checked(tmp_path):
+    """A dotted member reference is not a bare SCREAMING_SNAKE token."""
+    _, spec_dir = _repo_with_specs(tmp_path)
+    data = _minimal_spec()
+    data["groups"][0]["specs"][0][
+        "statement"
+    ] = "The fallback MUST be `MessageSemantics.UNKNOWN_UNRESOLVABLE_OBJECT`"
+    _write_yaml(spec_dir, data)
+
+    assert lint(spec_dir) == 0
+
+
+# ---------------------------------------------------------------------------
 # SR-11: missing_story_reference — hard error (MUST) and advisory (SHOULD/MAY)
 # ---------------------------------------------------------------------------
 

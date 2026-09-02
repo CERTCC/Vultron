@@ -22,8 +22,8 @@ Primary files:
 Check these first when adding or debugging message types:
 
 - `vultron/core/models/events/base.py` (`MessageSemantics`)
-- `vultron/wire/as2/extractor.py` (`SEMANTICS_ACTIVITY_PATTERNS`)
-- `vultron/core/use_cases/use_case_map.py` (`USE_CASE_MAP`)
+- `vultron/semantic_registry/` (`SEMANTIC_REGISTRY`, `use_case_map()`)
+- `vultron/wire/as2/extractor/_instances.py` (the `ActivityPattern` instances)
 
 ## Find canonical maintainer guidance
 

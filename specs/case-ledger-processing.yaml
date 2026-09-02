@@ -628,14 +628,14 @@ groups:
     kind: protocol
     statement: Every protocol-significant use case or BT subtree (per BT-06-001) MUST
       produce exactly one canonical commit; a coverage test MUST enumerate protocol-significant
-      entries (e.g., everything reachable from `USE_CASE_MAP`) and assert each one
+      entries (e.g., everything reachable from `use_case_map()`) and assert each one
       reaches a commit, rather than relying on manual audit to discover missing commits
     rationale: '`validate_report`, `ack_report`, and `close_case` produced no canonical
       ledger entry at all on `main` for an unknown span of time (issue #998/#1022).
-      Dispatch completeness is already enforced structurally for `USE_CASE_MAP` (DR-02-002,
+      Dispatch completeness is already enforced structurally for `use_case_map()` (DR-02-002,
       UCORG-02-002); commit completeness had no equivalent structural check and was
       found only by a manual re-audit.'
-    verification: A coverage test enumerates all use cases reachable via `USE_CASE_MAP`
+    verification: A coverage test enumerates all use cases reachable via `use_case_map()`
       and asserts that each one produces at least one `CaseLedgerEntry` with `disposition="recorded"`
       in a representative demo run.
     stories:

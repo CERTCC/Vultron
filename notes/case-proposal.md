@@ -157,7 +157,7 @@ Three new values added to the `MessageSemantics` enum:
 | `ACCEPT_CASE_PROPOSAL` | `Accept(as_CaseProposal)` |
 | `REJECT_CASE_PROPOSAL` | `Reject(as_CaseProposal)` |
 
-All three patterns MUST appear in `SEMANTICS_ACTIVITY_PATTERNS` before any
+All three patterns MUST appear in `SEMANTIC_REGISTRY` before any
 more-general patterns that share the same outer Activity type (SE-03-002).
 
 ---

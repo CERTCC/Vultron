@@ -131,25 +131,25 @@ groups:
   - id: CP-03-001
     priority: MUST
     kind: protocol
-    statement: '`SEMANTICS_ACTIVITY_PATTERNS` MUST contain a pattern entry for `(Create, as_CaseProposal) -> CREATE_CASE_PROPOSAL`.'
+    statement: '`SEMANTIC_REGISTRY` MUST contain a pattern entry for `(Create, as_CaseProposal) -> CREATE_CASE_PROPOSAL`.'
     verification: A unit test in `test/test_semantic_activity_patterns.py::test_create_case_proposal_dispatches_correctly`
-      confirms `(Create, as_CaseProposal)` resolves to `CREATE_CASE_PROPOSAL` via `SEMANTICS_ACTIVITY_PATTERNS`.
+      confirms `(Create, as_CaseProposal)` resolves to `CREATE_CASE_PROPOSAL` via `SEMANTIC_REGISTRY`.
     lint_suppress:
     - missing_story_reference
   - id: CP-03-002
     priority: MUST
     kind: protocol
-    statement: '`SEMANTICS_ACTIVITY_PATTERNS` MUST contain a pattern entry for `(Accept, as_CaseProposal) -> ACCEPT_CASE_PROPOSAL`.'
+    statement: '`SEMANTIC_REGISTRY` MUST contain a pattern entry for `(Accept, as_CaseProposal) -> ACCEPT_CASE_PROPOSAL`.'
     verification: A unit test in `test/test_semantic_activity_patterns.py::test_accept_case_proposal_dispatches_correctly`
-      confirms `(Accept, as_CaseProposal)` resolves to `ACCEPT_CASE_PROPOSAL` via `SEMANTICS_ACTIVITY_PATTERNS`.
+      confirms `(Accept, as_CaseProposal)` resolves to `ACCEPT_CASE_PROPOSAL` via `SEMANTIC_REGISTRY`.
     lint_suppress:
     - missing_story_reference
   - id: CP-03-003
     priority: MUST
     kind: protocol
-    statement: '`SEMANTICS_ACTIVITY_PATTERNS` MUST contain a pattern entry for `(Reject, as_CaseProposal) -> REJECT_CASE_PROPOSAL`.'
+    statement: '`SEMANTIC_REGISTRY` MUST contain a pattern entry for `(Reject, as_CaseProposal) -> REJECT_CASE_PROPOSAL`.'
     verification: A unit test in `test/test_semantic_activity_patterns.py::test_reject_case_proposal_dispatches_correctly`
-      confirms `(Reject, as_CaseProposal)` resolves to `REJECT_CASE_PROPOSAL` via `SEMANTICS_ACTIVITY_PATTERNS`.
+      confirms `(Reject, as_CaseProposal)` resolves to `REJECT_CASE_PROPOSAL` via `SEMANTIC_REGISTRY`.
     lint_suppress:
     - missing_story_reference
   - id: CP-03-004
@@ -158,7 +158,7 @@ groups:
     statement: All three `CaseProposal` extractor patterns MUST appear before any more-general patterns that could match the
       same activity types (e.g., generic `Accept` or `Reject` catch-all entries), to prevent misrouting (per SE-03-002).
     verification: A unit test in `test/test_semantic_activity_patterns.py::test_non_overlapping_activity_patterns` confirms
-      all three CaseProposal patterns appear before generic Accept/Reject catch-all entries in `SEMANTICS_ACTIVITY_PATTERNS`.
+      all three CaseProposal patterns appear before generic Accept/Reject catch-all entries in `SEMANTIC_REGISTRY`.
     relationships:
     - rel_type: depends_on
       spec_id: SE-03-002

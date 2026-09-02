@@ -62,7 +62,7 @@ confirmed violations; **WARN** for likely violations requiring closer inspection
 
 ### ActivityStreams / Wire Layer (if `wire/as2/` changed)
 
-- [ ] `SEMANTICS_ACTIVITY_PATTERNS`: specific patterns ordered before general ones
+- [ ] `SEMANTIC_REGISTRY`: specific patterns ordered before general ones
 - [ ] `rehydrate()` called before pattern matching
 - [ ] Outbound activities use factory functions in `vultron.wire.as2.factories`
 - [ ] `as_VulnerabilityCase` (wire) vs `VulnerabilityCase` (core) — correct prefix in each layer
