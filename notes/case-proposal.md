@@ -231,8 +231,9 @@ Three received-side use cases are required:
 | `AcceptCaseProposalReceivedUseCase` | Vendor | `Accept(as_CaseProposal)` arriving at vendor inbox |
 | `RejectCaseProposalReceivedUseCase` | Vendor | `Reject(as_CaseProposal)` arriving at vendor inbox |
 
-All three must be registered in the dispatcher's `USE_CASE_MAP` keyed by the
-corresponding `MessageSemantics` value.
+All three must be registered as the `use_case_class` of their `SEMANTIC_REGISTRY`
+entry, keyed by the corresponding `MessageSemantics` value, so that they appear
+in the mapping returned by `use_case_map()`.
 
 ---
 
