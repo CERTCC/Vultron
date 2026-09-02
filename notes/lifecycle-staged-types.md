@@ -118,6 +118,22 @@ separate hand-written promotion function. On invariant violation it raises a
 descriptive error at the boundary (fail-fast), never a silent `None` propagated
 into core. This is ADR-0032 applied at the read boundary.
 
+**This works on a real `dl.read()` result, not just a core-constructed object.**
+Root `AGENTS.md` carried a contradicting rule for a while ("staged-type
+`model_validate` only works on core-constructed objects; don't use on `dl.read()`
+results; check pre-conditions directly on the returned object"), and no test
+covered the actual read boundary, so nothing could adjudicate it. Verified against
+a real SQLite round-trip: `case_statuses` rehydrate as materialized `CaseStatus`
+objects and `EmbargoedCase.model_validate(stored)` promotes successfully. The rule
+was wrong and is gone; the behaviour is now pinned by
+`test/core/models/test_staged_case.py::TestDataLayerRoundTrip::test_promotion_works_on_a_real_datalayer_read`.
+
+Note that the surviving *alternative* is not a contradiction: an upstream BT guard
+such as `HasActiveEmbargoNode` (see
+`vultron/core/behaviors/embargo/nodes/lifecycle.py`) may establish the same
+preconditions before a node runs. That is a guard placement choice, not evidence
+that promotion at the read boundary fails.
+
 ## Transition Model: Data Is the Source of Truth
 
 The case *data* is the single source of truth; the stage is **always re-derived,

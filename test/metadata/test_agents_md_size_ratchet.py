@@ -27,6 +27,9 @@ every session.
 Two files are over the per-directory target and are recorded in
 :data:`KNOWN_OVERAGE`.  Those ceilings may only be **lowered**: run the
 ``condense-agents-md`` skill on the file rather than raising its entry.
+:func:`test_known_overage_ceilings_are_tight` enforces that — a ceiling above the
+file's current size is slack the file could silently regrow into, which is the
+same failure mode at a smaller scale.
 
 Lives in ``test/metadata/`` alongside the other markdown and frontmatter checks
 rather than in ``test/architecture/``, whose hygiene ratchet (TB-13-003) requires
@@ -68,6 +71,26 @@ def _agents_md_files() -> list[Path]:
 
 def _line_count(path: Path) -> int:
     return len(path.read_text(encoding="utf-8").splitlines())
+
+
+def test_discovery_finds_the_known_agents_md_files() -> None:
+    """Discovery MUST be non-empty and include known members.
+
+    ``_agents_md_files()`` runs at import time to build the parametrize list for
+    :func:`test_per_directory_agents_md_within_target`.  An empty list makes that
+    test a *skip* rather than a failure, so a layout change or an over-broad
+    :data:`_EXCLUDED_DIRS` entry would silently delete the per-directory ratchet
+    while leaving CI green.  This test is the guard against that vacuity.
+    """
+    found = {str(p.relative_to(_REPO_ROOT)) for p in _agents_md_files()}
+    assert found, (
+        "No AGENTS.md files discovered — the per-directory ratchet would "
+        "silently collapse to a skip. Check _EXCLUDED_DIRS and the repo layout."
+    )
+    expected = {"AGENTS.md", "test/AGENTS.md", "specs/AGENTS.md"}
+    assert (
+        expected <= found
+    ), f"Discovery missed known files: {expected - found}"
 
 
 def test_root_agents_md_within_target() -> None:
@@ -117,6 +140,26 @@ def test_known_overage_entries_are_still_needed() -> None:
     assert not stale, (
         f"These files no longer exceed the {PER_DIRECTORY_TARGET}-line target; "
         f"remove their KNOWN_OVERAGE entries: {stale}"
+    )
+
+
+def test_known_overage_ceilings_are_tight() -> None:
+    """A KNOWN_OVERAGE ceiling MUST NOT sit above its file's current size.
+
+    Without this, the "may only be lowered" rule is unenforced between 201 and
+    the recorded ceiling: a file condensed from 251 to 205 keeps its 251 entry
+    and can silently regrow 46 lines.  Lowering the entry alongside the
+    condensation is the whole ratchet.
+    """
+    slack = {
+        rel: (count, ceiling)
+        for rel, ceiling in KNOWN_OVERAGE.items()
+        if (_REPO_ROOT / rel).exists()
+        and (count := _line_count(_REPO_ROOT / rel)) < ceiling
+    }
+    assert not slack, (
+        "These KNOWN_OVERAGE ceilings are above the file's current line count; "
+        f"lower each entry to the current count (file: count, ceiling): {slack}"
     )
 
 

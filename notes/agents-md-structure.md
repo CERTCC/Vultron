@@ -62,11 +62,19 @@ Target: **≤ 400 lines**. If root AGENTS.md exceeds 400 lines, run the
 `condense-agents-md` skill.
 
 Both targets are enforced by
-`test/architecture/test_agents_md_size_ratchet.py`, so an overage fails CI
+`test/metadata/test_agents_md_size_ratchet.py`, so an overage fails CI
 instead of accumulating unnoticed — root reached 1166 lines, 2.9x its target,
 while the targets were advisory only (ISSUE-2954). Two per-directory files
 predate the ratchet and carry recorded ceilings in its `KNOWN_OVERAGE` map;
-those may only be lowered. Condense the file rather than raising a ceiling.
+those may only be lowered, and a ceiling above the file's current size fails
+too. Condense the file rather than raising a ceiling.
+
+**Root sits at exactly 400, so there is no headroom.** Adding a pitfall to the
+root index means *trimming as you add*: extend an existing row's cell, or fold
+two rows together, rather than appending a line. A new symptom area that genuinely
+needs its own row must pay for it by condensing another. This is deliberate — the
+target is a budget, and a budget with slack is the state root was in when it
+reached 1166 lines.
 
 ### Per-directory AGENTS.md — subsystem-specific rules
 

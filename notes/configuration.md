@@ -304,7 +304,7 @@ def reset_config():
     _cfg_module._config_cache = None
 ```
 
-### The `reload_config()` ordering footgun
+### The `reload_config()` ordering footgun (CFG-06-006, CFG-06-007)
 
 `_config_cache` is a module-level singleton.  `reload_config()` clears it and
 immediately calls `get_config()`, which re-reads `os.environ` at that instant.

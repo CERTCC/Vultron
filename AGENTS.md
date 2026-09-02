@@ -249,8 +249,8 @@ Full doctrine: `.claude/skills/shared/completeness-doctrine.md` (loaded by
 
 This is an **index**, not the write-ups. Find your symptom area below, read the
 linked file before touching that area. New pitfalls MUST be routed per
-[notes/agents-md-structure.md](notes/agents-md-structure.md): write-up in the
-nearest `notes/` or per-directory `AGENTS.md`, one line here.
+[notes/agents-md-structure.md](notes/agents-md-structure.md): write-up in the nearest `notes/` or per-directory
+`AGENTS.md`, then **extend a cell below — this file is at its 400-line budget, so trim as you add, never append**.
 
 ### Where to look
 

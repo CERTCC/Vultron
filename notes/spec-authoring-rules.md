@@ -7,7 +7,7 @@ description: >
   dropped; the protocol-coverage ratchet and its xfail pattern; and the audit
   passes required when retiring a name or splitting a compound requirement.
 related_specs:
-  - specs/meta-specs.yaml
+  - specs/meta-specifications.yaml
   - specs/spec-registry.yaml
 related_notes:
   - notes/specs-vs-adrs.md

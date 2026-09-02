@@ -36,6 +36,13 @@ Use these questions to classify a section:
 
 ## Default Migration Map (Vultron root AGENTS.md)
 
+> **Illustrative, not current.** This map was derived from root `AGENTS.md` as it
+> stood before the ISSUE-2954 condensation, and most of the sections it names no
+> longer exist there. Read it for the *shape* of a disposition pass — one row per
+> section, one of KEEP / MOVE / REF / NEW-NOTE — then re-derive the rows from the
+> current file (`grep -nE '^#{2,3} ' AGENTS.md`). Do not treat a row as evidence
+> that a section is still present.
+
 | Section | Default action |
 |---|---|
 | Purpose | KEEP |
