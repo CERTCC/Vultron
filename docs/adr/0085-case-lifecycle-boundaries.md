@@ -150,5 +150,5 @@ code is required.
 - CONCERN-1902 — `SvcCloseCaseUseCase` unreachable under auto-create-case (source)
 - ADR-0050 — `Leave(VulnerabilityCase)` is the canonical RM closure mechanism
 - ADR-0084 — Participant Assertion Authority (companion decision)
-- Deferred: post-join role change (`Update(CaseParticipant)`) and case reopen
-  mechanics are tracked as Ideas under Epic #2567.
+- Deferred: post-join role change (`Update(CaseParticipant)`, #3065) and case
+  reopen mechanics (#3066) are tracked as Ideas under Epic #2567.

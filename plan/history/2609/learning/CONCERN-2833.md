@@ -109,7 +109,7 @@ assertion authority (ADR-0084) and lifecycle boundaries (ADR-0085).
 (epic #2687); #3063 (epic #607).
 
 **Deferred to Ideas under Epic #2567:** `Update(CaseParticipant)` role-change
-message; case reopen mechanics.
+message (#3065); case reopen mechanics (#3066).
 
 **Triaged out:** #2961 (SYNC gap detection — stays under epic #1158); #1673
 (production policy config — out of scope).
