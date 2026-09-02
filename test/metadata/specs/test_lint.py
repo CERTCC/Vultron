@@ -1389,6 +1389,29 @@ def test_lint_phantom_symbol_linter_own_source_excluded_from_corpus(
     assert "RETIRED_TABLE" in captured.err
 
 
+def test_lint_phantom_symbol_linter_sibling_still_in_corpus(tmp_path):
+    """A symbol defined only in a sibling of lint.py (e.g. schema.py) resolves.
+
+    The corpus exclusion is scoped to ``lint.py`` itself, not the whole
+    ``vultron/metadata/specs/`` package: ``schema.py`` defines symbols the specs
+    legitimately cite (``RFC2119Priority`` members such as ``SHOULD_NOT``), so
+    excluding the package would reject real references. This pins that scoping
+    decision — the mirror of
+    :func:`test_lint_phantom_symbol_linter_own_source_excluded_from_corpus`.
+    """
+    repo, spec_dir = _repo_with_specs(tmp_path)
+    linter_dir = repo / "vultron" / "metadata" / "specs"
+    linter_dir.mkdir(parents=True)
+    (linter_dir / "schema.py").write_text("SHOULD_NOT = 'should_not'\n")
+    data = _minimal_spec()
+    data["groups"][0]["specs"][0][
+        "statement"
+    ] = "The priority MUST NOT be `SHOULD_NOT`"
+    _write_yaml(spec_dir, data)
+
+    assert lint(spec_dir) == 0
+
+
 def test_lint_phantom_symbol_test_fixture_dir_excluded_from_corpus(
     tmp_path, capsys
 ):
