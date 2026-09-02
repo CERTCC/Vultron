@@ -353,10 +353,12 @@ validation:
   links:
     # Fail --strict on a link to a #fragment that does not exist on the target
     # page. Default is `info`, which is silent in the warning count: a page can
-    # ship dozens of dead in-page links and still look clean. Note that only
-    # heading anchors count as targets — the per-requirement `<a id="clp-14-001">`
-    # anchors in the generated spec tables do NOT. Cite the requirement ID in the
-    # link text and point the href at its group anchor (`#clp-14`).
+    # ship dozens of dead in-page links and still look clean. Note that this
+    # check only knows about heading anchors: the per-requirement
+    # `<a id="clp-14-001">` anchors in the generated spec tables are real and
+    # work in a browser, but linking to one still warns here. Cite the
+    # requirement ID in the link text and point the href at its group anchor
+    # (`#clp-14`).
     anchors: warn
 draft_docs: |
   draft-*.md

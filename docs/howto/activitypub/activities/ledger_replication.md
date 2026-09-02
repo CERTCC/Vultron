@@ -124,5 +124,5 @@ activity = announce_vulnerability_case_activity(
   `announce_log_entry_activity`, `reject_log_entry_activity`
 - Factory: `vultron/wire/as2/factories/case.py` —
   `announce_vulnerability_case_activity`
-- Spec: `specs/case-event-log-synchronization.yaml` (SYNC-03, SYNC-09, SYNC-10,
+- Spec: `specs/sync-ledger-replication.yaml` (SYNC-03, SYNC-09, SYNC-10,
   SYNC-15)

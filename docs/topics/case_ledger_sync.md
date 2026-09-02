@@ -31,21 +31,45 @@ The flow of a change is always the same:
    *my report is now validated*, *here is a note*.
 2. The Case Actor judges the assertion and appends one entry recording the
    outcome. An entry's `disposition` says whether the assertion was
-   `recorded` (accepted) or `rejected`, so a refusal is part of the history
-   rather than a silence.
+   `recorded` (accepted) or `rejected`, so a refusal leaves a trace rather
+   than a silence.
 3. The Case Actor sends the new entry to every participant as
    `Announce(CaseLedgerEntry)`.
-4. Each participant applies the entry to its own replica.
+4. Each participant records the entry, and applies its effects to its own
+   replica if the entry was `recorded`.
 
 Because there is exactly one writer, no participant ever has to reconcile two
 competing versions of the case history. There is only one version. A
-participant's replica is a projection of the ledger, not an independent record.
+participant's replica is a projection of that history, not an independent
+record.
 
 The same rule applies in reverse: a participant accepts a case update only
 from the Case Actor for that case, and rejects an update from any other sender
 ([PCR-03-001](../reference/specs/protocol.md#pcr-03)). Nobody else can write
 to a replica, and the replica's owner does not edit it directly either — even
 when that owner is the organization that opened the case.
+
+### Two views of the ledger
+
+The ledger can be read two ways, and most of this page is about the second one.
+
+- The **audit log** is every entry the Case Actor appended, in the order it
+  appended them — rejections included.
+- The **recorded projection** is the subset whose `disposition` is `recorded`.
+  That projection is the authoritative history of the case
+  ([CLP-04-001](../reference/specs/protocol.md#clp-04)).
+
+Case state is reconstructed from the recorded projection alone; a replica
+ignores rejected entries when working out what is true of the case
+([CLP-04-002](../reference/specs/protocol.md#clp-04)). The hash chain is
+computed over that projection too
+([CLP-04-003](../reference/specs/protocol.md#clp-04)), so a rejection does not
+advance the chain: the next recorded entry names the previous *recorded* entry
+as its predecessor, not a rejection appended in between.
+
+A rejection is therefore evidence — *the Case Actor saw this assertion and
+refused it* — rather than a fact about the case. Where the rest of this page
+says "the chain" or "the history", it means the recorded projection.
 
 ---
 
@@ -59,13 +83,14 @@ ordering and integrity guarantees this page is about.
 | `case_id` | The case this entry belongs to |
 | `log_index` | Position in the case history; starts at 0 and counts up |
 | `published` | When the Case Actor stamped the entry, by its own clock |
-| `prevLogHash` | Hash of the entry immediately before this one |
+| `prevLogHash` | Hash of the previous `recorded` entry |
 | `entryHash` | Hash of this entry's own content |
 | `payloadSnapshot` | A copy of the assertion the entry records |
 
 `prevLogHash` and `entryHash` link the entries into a chain, like the teeth of
-a zipper. Each entry names its predecessor, so a receiver can tell whether an
-entry belongs at the end of the history it already holds. The first entry in a
+a zipper. Each entry names its predecessor in the recorded projection, so a
+receiver can tell whether an entry belongs at the end of the history it already
+holds. The first entry in a
 case names the **genesis hash**, a value derived from the case object itself,
 so the chain is anchored to the case it describes.
 
@@ -117,10 +142,16 @@ knows first-hand.
 | No two entries in a case share a `log_index` | [CLP-14-005](../reference/specs/protocol.md#clp-14) |
 | No entry predates the case it belongs to | [CLP-14-006](../reference/specs/protocol.md#clp-14) |
 
-A ledger is also expected to be complete: the conformance checks require a
-contiguous run of indexes from the genesis entry through the newest one, with
-no holes. A receiver that finds a hole knows an entry is missing, not that the
-Case Actor skipped a number.
+Whether the index run may contain holes is not settled. A replica must hold a
+contiguous run from the genesis entry through the position it has acknowledged
+before it may take new protocol-significant actions on the case
+([SYNC-10-004](../reference/specs/protocol.md#sync-10)), and in practice a
+receiver treats a hole as a missing entry. But `log_index` is consumed by every
+appended entry, rejections included, and rejections are not part of the recorded
+projection — so a hole in that projection is not by itself proof of loss.
+ADR-0079 states the rule both ways in different sections; the contradiction is
+tracked in [#2752](https://github.com/CERTCC/Vultron/issues/2752) and is not
+resolved here.
 
 The Case Actor should also refuse an assertion whose own timestamp is far in
 the future or far in the past compared to its clock — by default, more than
@@ -182,9 +213,10 @@ Two kinds of entry are not held:
 
 - An entry at or behind the end of the chain. That is a duplicate or a stale
   replay, not a gap.
-- An entry exactly one past the end of the chain whose `prevLogHash` still
-  does not match. Nothing is missing in front of it, so it is not a gap — it
-  is a fork, a claim about a history the replica does not share.
+- An entry exactly one past the end of the chain whose `prevLogHash` does not
+  match the hash of the replica's last recorded entry. Nothing is missing in
+  front of it, so it is not a gap — it is a fork, a claim about a history the
+  replica does not share.
 
 Both go to the ordinary duplicate and divergence handling instead.
 
@@ -203,12 +235,13 @@ triggers another full replay, and the two feed each other into a storm. A
 reject from a position that *has* advanced always triggers a replay, so a peer
 making progress is never held back.
 
-The holding area is bounded. When it is full, the replica discards the entry
-farthest ahead of the gap and logs a warning
-([SYNC-14-006](../reference/specs/protocol.md#sync-14)). A discarded entry is
-recoverable through the reject-and-replay path, though the cooldown above may
-delay it, so a hostile or broken peer streaming far-future entries cannot
-exhaust memory.
+The holding area should also be bounded, so that a hostile or broken peer
+streaming far-future entries cannot exhaust memory. When it is full, the replica
+discards the entry farthest ahead of the gap and logs a warning
+([SYNC-14-006](../reference/specs/protocol.md#sync-14)). Discarding is safe
+because the reject for that gap has already been sent — but the eviction itself
+sends nothing, so recovery waits on the replay that reject triggers, or on the
+next entry that fails to match the tail. The cooldown above may delay either.
 
 The holding area is deliberately **not** the ledger
 ([SYNC-14-005](../reference/specs/protocol.md#sync-14)). Across Vultron,
@@ -323,8 +356,11 @@ entries, every replica reaches the same state as the Case Actor, no matter what
 order those entries arrived in.
 
 The holding area itself is in memory only, and is lost on restart. That is
-deliberate. Nothing in it is committed, so nothing is lost that the catch-up
-check cannot recover by re-synchronizing from the Case Actor.
+deliberate: nothing in it is committed, so a restart cannot cost the replica
+anything it had already accepted. The dropped entries themselves come back the
+same way an evicted one does — the next entry that does not match the replica's
+tail produces a `Reject`, and the Case Actor replays from the position that
+reject names.
 
 ---
 
@@ -337,8 +373,8 @@ check cannot recover by re-synchronizing from the Case Actor.
 - [CS Process Model](process_models/cs/index.md) — the case-state rules the
   drain-time checks enforce
 - [Protocol specifications](../reference/specs/protocol.md) — the normative
-  requirements behind this page, including CLP-14, CLP-15, CSB-19, PCR-03, and
-  SYNC-12 through SYNC-15
+  requirements behind this page, including CLP-01, CLP-04, CLP-14, CLP-15,
+  CSB-19, PCR-03, SYNC-10, and SYNC-12 through SYNC-15
 - [Glossary](../reference/glossary.md) — definitions for case ledger, replica,
   genesis hash, and the replication phases
 - [ADR-0079](../adr/0079-case-ledger-causal-ordering.md) — Case Actor
