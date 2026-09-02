@@ -1,7 +1,7 @@
 ---
 title: BtNode._mermaid_prefix_map is scoped to the rendering node, not the named node
 type: learning
-timestamp: 2026-08-27
+timestamp: "2026-08-27T00:00:00Z"
 source: ISSUE-2109
 signal: design-question
 ---

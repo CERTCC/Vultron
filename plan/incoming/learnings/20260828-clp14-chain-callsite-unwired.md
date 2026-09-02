@@ -1,7 +1,7 @@
 ---
 title: CLP-14 runtime checks unwired at chain.py call site
 type: learning
-timestamp: 2026-08-28
+timestamp: "2026-08-28T00:00:00Z"
 source: ISSUE-2679
 signal: concern
 ---

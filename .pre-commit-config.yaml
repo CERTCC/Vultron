@@ -35,6 +35,14 @@ repos:
         exclude: ^notes/README\.md$
         pass_filenames: false
 
+      - id: validate-incoming-learnings-frontmatter
+        name: Validate incoming learnings frontmatter
+        entry: uv run python -c "from vultron.metadata.history.incoming import validate_incoming_learnings; validate_incoming_learnings()"
+        language: system
+        files: ^plan/incoming/learnings/.*\.md$
+        exclude: ^plan/incoming/learnings/README\.md$
+        pass_filenames: false
+
       - id: validate-adr-frontmatter
         name: Validate ADR frontmatter
         entry: uv run python -c "from vultron.metadata.adr.loader import load_adr_registry; load_adr_registry()"

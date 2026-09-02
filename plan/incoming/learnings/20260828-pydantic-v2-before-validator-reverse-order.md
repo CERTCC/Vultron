@@ -1,7 +1,7 @@
 ---
 title: "Pydantic v2 runs mode='before' validators in reverse definition order"
 type: learning
-timestamp: "2026-08-28"
+timestamp: "2026-08-28T00:00:00Z"
 source: ISSUE-2662
 signal: design-question
 ---

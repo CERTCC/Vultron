@@ -1,7 +1,7 @@
 ---
 title: actionlint pre-commit hook hangs in devcontainer — Go not installed
 type: learning
-timestamp: 2026-08-31
+timestamp: "2026-08-31T00:00:00Z"
 source: ISSUE-2627
 signal: tooling-issue
 ---

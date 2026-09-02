@@ -198,6 +198,33 @@ groups:
             spec_id: HM-06-005
         lint_suppress:
         - missing_story_reference
+      - id: BW-02-005
+        priority: MUST
+        kind: process
+        statement: >-
+          Conformance to BW-02-001 through BW-02-004 MUST be checked at commit
+          time by validating every file in `plan/incoming/learnings/` through
+          `HistoryEntryFrontmatter` — the same model
+          `append-history --from-file` uses — so the check and the archiver
+          cannot drift. A validator that reimplements the rules
+          independently does not satisfy this.
+        rationale: >-
+          Between the spec being written and ISSUE-2762, 37 of 62 entries
+          accumulated frontmatter that no check rejected and the archiver
+          could not accept. The defect was invisible precisely because the
+          only enforcement lived in the last step of a workflow that runs
+          weeks after the file is written. Validating at commit time against
+          the archiver's own model is what makes the queue stay drainable.
+        verification: >-
+          The `validate-incoming-learnings-frontmatter` pre-commit hook calls
+          `vultron.metadata.history.incoming.validate_incoming_learnings()`,
+          and `test/metadata/test_incoming_learnings.py::TestRealCorpus`
+          asserts the committed corpus validates.
+        relationships:
+          - rel_type: depends_on
+            spec_id: BW-02-001
+        lint_suppress:
+        - missing_story_reference
   - id: BW-03
     title: learn Skill Processing
     specs:

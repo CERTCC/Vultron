@@ -1,7 +1,7 @@
 ---
 title: mkdocs-build-strict.sh exits with arithmetic error when there are zero warnings
 type: learning
-timestamp: "2026-08-28"
+timestamp: "2026-08-28T00:00:00Z"
 source: ISSUE-2785
 signal: tooling-issue
 ---
