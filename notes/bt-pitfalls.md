@@ -442,6 +442,36 @@ if result.status != Status.SUCCESS:
 Raising inside the outer `except Exception` handler in `update()` ensures the
 calling node returns `FAILURE` rather than `SUCCESS`.
 
+### …And That Idiom Is Why `internal_error` Cannot See a Nested Crash
+
+(CONCERN-3019, 2026-09-02)
+
+`BTExecutionResult` carries `internal_error`, which separates a protocol outcome
+the tree is entitled to report from a programming error that escaped a node.
+`BTBridge.execute_tree` sets it for anything that is not a `VultronError`, plus
+the two non-convergent exits (root left `INVALID`, `max_iterations` exhausted).
+Read it as **"an internal error reached the bridge"**, never as "no bug
+occurred", because the pattern immediately above defeats it twice over:
+
+- The `raise RuntimeError(...)` the ✅ example prescribes is caught by the
+  calling node's *own* `except Exception` in `update()` and converted to
+  `Status.FAILURE`. So the outer bridge sees an ordinary failure and the flag
+  stays `False` — verified at `case/nodes/actor.py`.
+- The nine nodes that run a subtree through their own `BTBridge` discard the
+  inner `result.internal_error` and return a bare `Status.FAILURE`
+  (`case/nodes/lifecycle.py`, `status/nodes/case_status.py`, and seven more), so
+  a crash inside a subtree is invisible in the outer result.
+
+Both gaps are uniform across every nested-bridge site — there is no site where
+the flag survives the hop. Propagating it through nested calls is tracked on
+CONCERN-3019; until then, do not branch on `internal_error is False` as
+evidence that a failure was deliberate.
+
+On the test side the mirror-image rule — a FAILURE assertion must prove the
+harness can produce the reason it names — is in
+[notes/testing-pitfalls.md](testing-pitfalls.md) § "A FAILURE Test Must Prove
+the Harness Can Produce Its Named Reason".
+
 ---
 
 ## Guard Name Must Match the State-Machine Transition Precondition

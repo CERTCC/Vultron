@@ -181,7 +181,12 @@ class TestParticipantCaseTickLevelEnforcement:
             actor_id=ACTOR_ID,
             **{f"{PORT}_default": "not-a-case"},
         )
-        bt_scenario.assert_failure(result)
+        # A wrong-typed port value is a programming error, so the tree reports
+        # internal_error=True — that crash path is exactly this test's subject
+        # (CONCERN-3019, and the #2907 case that raised it).
+        bt_scenario.assert_failure(
+            result, reason="not of type", allow_internal=True
+        )
         errors = result.errors or []
         assert any(
             "not of type" in err for err in errors
