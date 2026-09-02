@@ -1263,6 +1263,7 @@ class TestPhaseOwnershipHandoffForwardedOfferId:
         """
         import contextlib
 
+        finder_client = self._client()
         vendor_client = self._client()
         coordinator_client = self._client()
         vendor_in_vendor = self._actor("urn:test:vendor")
@@ -1317,6 +1318,9 @@ class TestPhaseOwnershipHandoffForwardedOfferId:
             patch.object(demo, "wait_for_case_on_container"),
             patch.object(demo, "wait_for_case_participants"),
             patch.object(demo, "wait_for_case_attributed_to"),
+            patch.object(
+                demo, "wait_for_event_type_in_ledger"
+            ) as mock_ledger_wait,
             patch.object(demo, "as_VulnerabilityCase") as mock_vc,
             patch.object(
                 demo,
@@ -1336,6 +1340,7 @@ class TestPhaseOwnershipHandoffForwardedOfferId:
             mock_ta.model_validate.side_effect = lambda x: next(ta_seq)
             mock_vc.model_validate.return_value = case
             demo._phase_ownership_handoff(
+                finder_client=finder_client,
                 vendor_client=vendor_client,
                 coordinator_client=coordinator_client,
                 finder=self._actor("urn:test:finder"),
@@ -1346,6 +1351,8 @@ class TestPhaseOwnershipHandoffForwardedOfferId:
                 case=case,
             )
 
+        self._last_finder_client = finder_client
+        self._last_ledger_wait = mock_ledger_wait
         return (
             trigger_calls,
             mock_find,
@@ -1354,6 +1361,27 @@ class TestPhaseOwnershipHandoffForwardedOfferId:
             case,
             original_offer,
         )
+
+    @pytest.mark.spec("CM-21-007")
+    def test_finder_ledger_entry_is_awaited_on_finders_own_replica(self):
+        """The phase must gate on the Finder's replica holding the transfer entry.
+
+        ADR-0053's validation criterion: an actor outside the negotiation learns
+        of the completed transfer from ``Announce(CaseLedgerEntry)`` alone.  The
+        observable therefore has to be read on the *Finder's* container — reading
+        it on Vendor1's proves only that the CaseActor's own copy replicated to
+        the offerer (EDF-06-002).
+        """
+        _, _, _, _, case, _ = self._invoke_phase("urn:test:forwarded-offer")
+
+        self._last_ledger_wait.assert_called_once()
+        kwargs = self._last_ledger_wait.call_args.kwargs
+        assert kwargs["client"] is self._last_finder_client, (
+            "the ownership-transfer ledger entry must be awaited on the"
+            " Finder's own container, not the offerer's"
+        )
+        assert kwargs["case_id"] == case.id_
+        assert kwargs["event_type"] == "accept_case_ownership_transfer"
 
     def test_find_ownership_transfer_offer_for_actor_is_called(self):
         """find_ownership_transfer_offer_for_actor must be called (not wait_for_object_stored)."""

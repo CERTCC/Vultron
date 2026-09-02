@@ -48,13 +48,20 @@ sequenceDiagram
     `Accept` or `Reject` to the Case Actor, which then applies the role change and
     broadcasts the result to all participants.
 
-!!! note "Demo shortcut"
+!!! note "What the demo shows"
 
-    The current demo implementation sends the `Offer` and `Accept` directly
-    between actors (peer-to-peer), bypassing the Case Actor. The sequence diagram
-    above reflects the normative protocol target. BT nodes for ownership transfer
-    are already correct (see PR #2044); the demo routing will be aligned in a
-    follow-up issue.
+    The demo follows the diagram above: it POSTs the `Offer` to the Case Actor's
+    inbox, waits for the Case Actor's *forwarded* `Offer` to reach the transferee,
+    and addresses the transferee's `Accept` or `Reject` back to the Case Actor.
+
+    The forwarded `Offer` is a **new** activity with its own id, so the demo finds
+    it by matching on its properties (`Offer` whose `target` is the transferee and
+    whose `object` is the case) rather than by looking up the original offer's id —
+    which only ever exists in the Case Actor's own store.
+
+    The demo also needs a Case-Actor-owned case to route through: a case minted by
+    the vendor itself has no `CASE_MANAGER` participant, and with no Case Actor to
+    address the routing falls back to the direct path (CM-24-003).
 
 ## Offer Case Ownership Transfer
 

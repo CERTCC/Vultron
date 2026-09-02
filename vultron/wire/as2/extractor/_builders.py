@@ -50,11 +50,29 @@ logger = logging.getLogger(__name__)
 
 
 def _get_id(field: object) -> str | None:
+    """Resolve an AS2 reference field to its id string, or ``None``.
+
+    AS2 permits a reference to be a URI string, an inline object, or an array of
+    either, so all three shapes are resolved here.  When no id can be recovered
+    the answer is ``None`` — never ``str(field)``.  A Python repr is not a URI,
+    and these values reach `payloadSnapshot`, which is hashed into `entry_hash`
+    and replicated to every participant: an absent field is recoverable, a
+    ``"{'id': ...}"`` string in the chain is not (ARCH-15-001, CLP-07-011).
+    """
     if field is None:
         return None
     if isinstance(field, str):
-        return field
-    return getattr(field, "id_", str(field)) or None
+        return field or None
+    if isinstance(field, dict):
+        raw = field.get("id") or field.get("id_")
+        return raw if isinstance(raw, str) and raw else None
+    if isinstance(field, (list, tuple)):
+        for item in field:
+            if (resolved := _get_id(item)) is not None:
+                return resolved
+        return None
+    raw_id = getattr(field, "id_", None)
+    return raw_id if isinstance(raw_id, str) and raw_id else None
 
 
 def _get_id_list(field: object) -> list[str] | None:
@@ -102,12 +120,23 @@ def _build_activity_snapshot(
     origin: object,
     context: object,
 ) -> VultronActivity:
-    """Build a VultronActivity snapshot from raw AS2 fields."""
+    """Build a VultronActivity snapshot from raw AS2 fields.
+
+    ``attributed_to`` is carried because it is the *only* record of who asked for
+    a delegated message: under CM-24-001 the CaseActor is the `actor` of an
+    Activity it sends on a participant's behalf, and CM-24-002 puts the
+    requesting participant in ``attributed_to`` "so that receivers can recover
+    the originating identity".  Dropping it here made that recovery impossible —
+    a received-side use case saw only ``actor_id`` (the CaseActor), so the Offer
+    the CaseActor forwarded to a transferee attributed the vendor's intent to the
+    CaseActor itself.  See CM-24-002 and notes/ownership-transfer.md.
+    """
     activity_type = str(activity.type_) if activity.type_ else "Activity"
     return VultronActivity(
         id_=activity.id_,
         type_=activity_type,
         actor=actor_id,
+        attributed_to=_get_id(getattr(activity, "attributed_to", None)),
         object_=obj,
         target=target,
         origin=_get_id(origin),
