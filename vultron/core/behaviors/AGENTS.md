@@ -35,12 +35,11 @@ leaf node in a `Sequence`. See DEMOMA-07-006.
 ## Idempotency — DataLayer over Process State
 
 BT condition nodes that guard "has this action already fired?" MUST query the
-DataLayer (outbox or domain objects), not a module-level in-memory set or dict.
-Process-level sets do not survive restarts and are invisible to the BT audit
-trail.
-
-The adapter-level `ValueError` on duplicate `dl.create()` provides a safety
-net, but the BT-level guard should be authoritative.
+DataLayer (outbox or domain objects), not a module-level in-memory set or dict —
+those are per-process, do not survive restarts, and are invisible to the BT audit
+trail. The adapter-level `ValueError` on duplicate `dl.create()` is a safety net;
+the BT-level guard is authoritative. Why, and the race it caused:
+`notes/bt-pitfalls.md` § "Use DataLayer Outbox for Idempotency".
 
 ---
 
@@ -79,56 +78,36 @@ or guard node BEFORE any state-mutation or emit node. See BT-19-001, BT-19-002.
 
 ## `Blackboard.get()` Raises `KeyError` on Unset READ Keys
 
-`py_trees.Blackboard.get(key)` raises `KeyError` (not returns `None`) when a
-key has been registered with `READ` access but has not yet been written by any
-node. `update()` methods that call `blackboard.get()` MUST wrap the call in
-`try/except KeyError` or check for prior writes.
+`py_trees.Blackboard.get(key)` raises `KeyError` — it does not return `None` —
+when a key is registered `READ` but not yet written. An `update()` that calls
+`blackboard.get()` MUST wrap it in `try/except KeyError`, set
+`feedback_message`, and return an explicit `Status` (SUCCESS or FAILURE per
+best-effort vs. fail-fast). Audit `register_key(..., access=Access.READ)` sites
+when adding a node.
 
-**Pattern:**
-
-```python
-try:
-    value = self.blackboard.get("key")
-except KeyError:
-    self.feedback_message = "key not yet on blackboard"
-    return Status.SUCCESS  # or FAILURE depending on best-effort vs fail-fast
-```
-
-Any `DataLayerAction.setup()` that registers `READ` keys and whose `update()`
-calls `blackboard.get()` is at risk. Audit `register_key(..., access=Access.READ)`
-sites in `behaviors/` when adding new BT nodes.
-
-See `notes/bt-pitfalls.md` for related blackboard pitfalls.
+Mechanism, the silent node-shadowing variant, and the full rules:
+`notes/bt-pitfalls.md` § "py_trees `blackboard.get()` Raises KeyError".
 
 ---
 
 ## PEC Consent Writes — Never Direct-Assign `embargo_consent_state`
 
-**Pitfall** (CM-18-005, CM-18-006; CONCERN-1970):
+(CM-18-005, CM-18-006; CONCERN-1970)
 
 ```python
-# WRONG — bypasses state machine and does not sync ParticipantStatus
+# WRONG — plain Pydantic write; skips PEC validation and status sync
 participant.embargo_consent_state = PEC.SIGNATORY
-```
 
-This is a plain Pydantic field write. It skips the PEC state machine validation
-**and** `_sync_latest_status_metadata()`, so the canonical ledger snapshot
-retains the stale `emConsentState` while `embargoAdherence` reports the new
-value — a self-contradicting record.
-
-**Always use `apply_pec_transition()` and persist the resulting
-`ParticipantStatus`:**
-
-```python
-# CORRECT
+# CORRECT — validates the trigger, advances the machine, syncs metadata
 participant.apply_pec_transition(PEC_Trigger.ACCEPT)
 dl.save(participant)
 ```
 
-`apply_pec_transition()` validates the trigger, advances the machine, and syncs
-`_latest_status_metadata`. Both steps are required: the machine write alone is
-not sufficient without the persist. See `notes/participant-embargo-consent.md`
-§ "Pitfall: Never Set `embargo_consent_state` by Direct Assignment".
+Both steps are required: the machine write alone is not sufficient without the
+persist. A direct assignment leaves the ledger snapshot's `emConsentState` stale
+while `embargoAdherence` reports the new value — a self-contradicting record.
+See `notes/participant-embargo-consent.md` § "Pitfall: Never Set
+`embargo_consent_state` by Direct Assignment".
 
 ---
 
@@ -200,34 +179,22 @@ Source: CONCERN-2559
 
 ## Port `data_type` Is Enforced — `object` Makes It Inert
 
-py_trees checks a port's `data_type` on **both** sides: `_set_output()` rejects a
-wrong-typed write and `get_input()` rejects a wrong-typed read, each raising
-`TypeError`. So the declaration is the enforcement.
+py_trees checks `data_type` on **both** sides — `_set_output()` and `get_input()`
+each raise `TypeError` — so the declaration *is* the enforcement.
+**Declare the concrete class whenever the writer guarantees one.** `object`
+accepts anything and turns the check off; reserve it for Protocol-typed
+injections (`datalayer`, `actor_id`, `trigger_activity_factory`, `sync_port`,
+`wire_render_port`) and polymorphic `activity` payloads. Elsewhere it is a latent
+bug: the node narrows with `cast(Foo, ...)`, so a wrong-typed value surfaces as an
+`AttributeError` inside `update()` instead of at the port.
 
-**Declare the concrete class whenever the writer guarantees one.**
-`PortInformation(data_type=object, ...)` accepts anything, which turns the check
-off. That is only safe for Protocol-typed injections (`datalayer`, `actor_id`,
-`trigger_activity_factory`, `sync_port`, `wire_render_port`) and genuinely
-polymorphic payloads (`activity`). Everywhere else it is a latent bug, because
-the node then narrows the value with `cast(Foo, ...)` and a wrong-typed value
-surfaces as an `AttributeError` deep inside `update()` instead of at the port.
-
-Two consequences to know before tightening a port:
-
-- `_try_get_input()` catches only `NoDataAvailable` and `NotImplementedError`,
-  so a `TypeError` escapes `initialise()`, unwinds the tick, and is absorbed by
-  `BTBridge.execute_tree`'s `except Exception` — the **whole tree** fails, not
-  the one node. For a violated blackboard contract (a wiring error, not a
-  protocol condition) that fail-closed outcome is intended.
-- A contract test MUST discover its node roster reflectively via
-  `test/core/behaviors/port_contract.py`, not from a hard-coded list. A list
-  cannot police a shared key: the next node added with `data_type=object`
-  re-opens the hole while the suite stays green.
-
-Worked examples: `participant_case`
-(`test/core/behaviors/case/nodes/participant/test_typed_ports.py`) and
-`log_entry` / `replay_entry` (`test/core/behaviors/sync/nodes/test_typed_ports.py`).
-See ADR-0044 § Consequences and BTND-03-009. *Source: ISSUE-2907, ISSUE-3011*
+Two consequences before tightening one: a violation fails the **whole tree**, not
+the one node (`_try_get_input()` does not catch `TypeError`), and a contract test
+MUST discover its roster reflectively via `test/core/behaviors/port_contract.py`
+— a hard-coded list cannot police a shared key. Details in `notes/bt-pitfalls.md`
+§ "`NoDataAvailable` Surfaces in `initialise()`"; worked examples in the two
+`test_typed_ports.py` files; ADR-0044 § Consequences; BTND-03-009.
+*Source: ISSUE-2907, ISSUE-3011*
 
 ---
 
