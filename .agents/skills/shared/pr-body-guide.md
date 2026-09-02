@@ -44,6 +44,14 @@ captures the full rationale.>
   bullet line, **before any `##` section header**, so GitHub expands the issue
   title in the PR sidebar. **This is the single most commonly missed rule —
   every PR triage flags it when violated.**
+- **Every "also" excursion this PR fixed gets its own `- Closes #N` bullet.**
+  If, while doing the original work, you fixed something that warranted its own
+  filed issue (an "also" excursion per
+  `.agents/skills/shared/completeness-doctrine.md`), that issue must appear as a
+  closing bullet, and the Changes section must give it a one-line "why." A
+  reviewer comparing the closing list to the diff should never be surprised —
+  clarity about what the PR does and why, mapped to the issues it closes,
+  matters more than keeping the PR small.
 - **Summary**: required; 1–2 sentences, present tense.
 - **Motivation**: optional; omit when Summary is self-explanatory.
 - **Changes**: required; use backtick-wrapped file paths and concrete

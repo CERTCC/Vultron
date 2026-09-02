@@ -251,15 +251,23 @@ on what "done" means — loaded by `orient-agent` in Phase 1.
      exists under `test/core/use_cases/triggers/` (see
      `notes/triggers-test-coverage.md`).
 
-**Scope expansion judgment:** If implementing this task reveals adjacent work
-that clearly belongs with it, apply the following:
+**Scope expansion judgment:** If implementing this task reveals adjacent work,
+the default is to **fix it now** — FILE (keep a record) and DEFER (leave it for
+later) are separate decisions. Apply
+`.agents/skills/shared/completeness-doctrine.md`:
 
-- Would it require a new GitHub issue, a design decision, or an irreversible
-  change? → Ask the user if present. If unattended, make the best-judgment
-  call, record the rationale as a learning file in `plan/incoming/learnings/`,
-  and continue.
-- Trivially additive (clearly-missing test, obvious type annotation fix)?
-  → Just do it.
+- Not an "also" excursion (you can explain it and the task in one sentence
+  without "also") → just do it; no issue, the diff is the record.
+- An "also" excursion → fix it now **and** file an issue this PR closes
+  (`- Closes #N`, one-line "why"). Filing is not deferring.
+- Genuinely too big to finish now → defer only via Gate 1: file, present a
+  **measured remainder** in plain language, and get explicit approval. On
+  silence (unattended), **fix it now** — do not defer, and do not park the
+  rationale in a learning file as a substitute for doing or tracking the work.
+  Only second-order findings are eligible.
+- Inverts a premise the issue or its specs/ADRs rested on → Gate 2: explain the
+  overturned premise, ask if/what to file. On silence (unattended), **halt** —
+  leave the PR blocked rather than acting on the new premise unreviewed.
 
 ### Phase 6 — Validate
 
