@@ -3,7 +3,7 @@ title: "Optional[as_Note] return propagates demo_step suppression contract to al
 type: learning
 timestamp: "2026-08-26T00:00:00Z"
 source: ISSUE-2390
-signal: design-question
+signal: theme-candidate
 ---
 
 Changing `participant_adds_note_to_case` from `-> as_Note` to `-> Optional[as_Note]`
