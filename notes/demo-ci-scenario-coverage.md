@@ -4,6 +4,8 @@ status: active
 related_specs:
   - specs/demo-ci.yaml
   - specs/multi-actor-demo.yaml
+related_notes:
+  - notes/ci-workflow-authoring.md
 ---
 
 # Demo CI: Scenario Coverage Matrix and Minimum PR Validation Set

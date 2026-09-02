@@ -342,3 +342,12 @@ documentation of the workflow. See also `specs/behavior-tree-node-design.yaml`
 BTND-02-001 and `notes/bt-design-patterns.md`.
 
 ---
+
+## `CheckIsCaseOwnerNode` Lives in `vfd_role_guards.py`, Not `conditions.py`
+
+It was placed there because `conditions.py` was at the 500-line cap when the node
+was added (ISSUE-1841). `__init__.py` re-exports it alongside the other role
+guards. If `conditions.py` grows further, consider extracting proposal-related
+nodes into `proposal_conditions.py`.
+
+Source: ISSUE-1841

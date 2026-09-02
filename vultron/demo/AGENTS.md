@@ -3,490 +3,184 @@
 > For project-wide conventions see the root [AGENTS.md](../../AGENTS.md).
 > This file covers rules specific to demo scripts and multi-actor scenario code.
 
+Full write-ups live in
+[`notes/demo-scenario-authoring.md`](../../notes/demo-scenario-authoring.md);
+the causal-gating rules are in
+[`notes/event-driven-control-flow.md`](../../notes/event-driven-control-flow.md)
+and [`notes/demo-ci-diagnostics.md`](../../notes/demo-ci-diagnostics.md). The
+rules below are the enforceable form.
+
+A demo exists to prove the protocol works. Every shortcut that makes a scenario
+pass by doing the protocol's job *for* it turns the demo from evidence into
+decoration — that is the single idea behind most of these rules.
+
 ---
 
 ## Common Pitfalls — demo layer
 
 ### Puppeteer Actors via Trigger Endpoints, Never Spoof via Inbox Injection
 
-When building multi-actor demo scripts, always drive actor behavior through
-**real HTTP trigger endpoints** (e.g., `POST /{actor_id}/trigger/accept-actor-recommendation`).
-Never construct and POST activities directly to actor inboxes to fake an
-approval or state change.
-
-**Why:** Inbox injection bypasses the BT evaluation layer entirely and creates
-demos that exercise the wrong code path. The distinction:
-
-- **Puppeteering** = sending a trigger that causes the actor to decide and act
-  (validates the behavior tree path)
-- **Spoofing** = forging the resulting activity as if the actor had already
-  decided (skips the BT entirely)
-
-**How to apply:** Before writing any demo step where one actor "responds" to
-another, check whether the trigger endpoint for that response exists. If it
-doesn't, implement the full hexagonal stack (trigger endpoint → service layer
-→ BT) first, then write the demo step. Working around a missing endpoint by
-injecting the response directly means the demo proves nothing about the
-actual behavior tree path.
-
-<!-- Source: ISSUE-1535 -->
-
----
-
-### BT Demo `main()` Must Be Callable With No Arguments (Console-Script Entry Points)
-
-`[project.scripts]` entry points invoke `main()` with **no arguments**. Demo
-modules that define `def main(args):` — where `args` is a required positional
-parsed by an `if __name__ == "__main__"` block — will fail immediately with
-`TypeError: main() missing 1 required positional argument` when invoked via
-`uv run <script>`.
-
-**Fix:** give `main` an `args=None` default and fall back to `_parse_args()`:
-
-```python
-def main(args=None) -> None:
-    if args is None:
-        args = _parse_args()
-    ...
-```
-
-This preserves the path used by `vultron/demo/cli.py`'s click sub-group (which
-passes a `SimpleNamespace` via `_bt_args()`) while also being callable with
-zero arguments from a console script.
-
-**Always test the actual console script** (`PYTHONPATH= uv run <script>`) — not
-just the module import — and clear `PYTHONPATH=/app` devcontainer contamination
-(see root `AGENTS.md` § "PYTHONPATH=/app contaminates imports").
-
-<!-- Source: ISSUE-1568 -->
-
----
-
-### Extract Before Reuse: No Copy-Paste from Existing Scenario Files
-
-Before writing a **second use** of a pattern from an existing scenario file,
-extract it to `vultron/demo/helpers/` first. Do not copy-paste a function body,
-a polling loop, a verification block, or any other logical unit from an
-existing scenario file into a new one.
-
-**Why:** Every demo scenario written by copying the previous one propagates
-latent bugs alongside valid patterns. Issue #1632 documented residual
-duplication remaining after PR #1629 reactively extracted five helper modules.
-Copy-paste is the root cause; extraction-first prevents the problem from
-recurring.
-
-**How to apply:**
-
-1. Before writing a new scenario step, grep `vultron/demo/helpers/` for an
-   existing helper that covers the same pattern.
-2. If one exists, import and call it. Do not inline a copy.
-3. If none exists and this is the second occurrence of the pattern, extract it
-   to the appropriate `helpers/` module first, then call it from both places.
-4. A pattern that appears only once may stay inline, but add a comment marking
-   it as a candidate for extraction when a second use arises.
-
-This rule applies to scenario files in `vultron/demo/scenario/`. Exchange demos
-under `vultron/demo/exchange/` are lower-level and may duplicate less when a
-full helper would add more abstraction than value.
-
-See `specs/multi-actor-demo.yaml` DEMOMA-17-001 for the normative requirement
-(a MUST-level specialisation of the project-wide SHOULD rule CS-22-001 in
-`specs/code-style.yaml`).
-
-<!-- Source: ISSUE-1652 -->
-
----
-
-### Ownership-Transfer Accept: Do NOT Self-Deliver — ADR-0053 Retired That Step
-
-**This section previously required the opposite.** It is kept, inverted, because
-the retired instruction is still the intuitive one and an agent reasoning from
-first principles about per-actor replicas will re-derive it.
-
-`EmitAcceptCaseOwnershipTransferNode` resolves the case manager and addresses the
-`Accept(Offer(VulnerabilityCase))` to **the CaseActor** (`to=[case_actor_id]`,
-CM-21-006). The CaseActor applies the role change, commits a `CaseLedgerEntry`,
-and broadcasts `Announce(CaseLedgerEntry)` to every participant — which is how
-each replica, including the accepting actor's own, learns the new owner.
-
-So after triggering `accept-case-ownership-transfer`, do **nothing**:
-
-```python
-# ✅ Correct — trigger and stop; the CaseActor's broadcast updates every replica
-post_to_trigger(
-    client=accepting_client,
-    actor_id=accepting_actor_id,
-    behavior="accept-case-ownership-transfer",
-    body={"offer_id": forwarded_offer_id},   # the *forwarded* id (CM-21-005)
-)
-
-# ❌ Wrong — mail-carrying. The Accept is not addressed to this inbox, and
-# ADR-0068 refuses a misaddressed activity with a 4xx.
-accept_activity = as_TransitiveActivity.model_validate(accept_result["activity"])
-post_to_inbox_and_wait(accepting_client, accepting_participant_id, accept_activity)
-```
-
-**History, so the inversion is auditable.** The original rule (CONCERN-1653) was
-correct for pre-ADR-0053 routing, where the trigger-side BT addressed the Accept
-only to the *offering* actor and the accepting actor's replica was therefore
-never updated. ADR-0053 moved both the `Offer` and the `Accept` onto the CaseActor
-(CM-21-005, CM-21-006), which made the self-delivery both unnecessary and a
-CONCERN-1635 mail-carry. The workaround was removed from `fvcv_handoff_demo.py`
-with ADR-0053 and from `fccv_handoff_demo.py` in PR #2735; neither file has
-contained it since, so the old text pointed at two files as exemplars of a
-pattern they no longer had.
-
-**Gate on the effect, not on a delivery you perform yourself.** Wait for the
-transfer to land where it commits — `wait_for_case_attributed_to` on the
-authoritative replica, or the `accept_case_ownership_transfer` ledger entry on a
-participant's own replica (EDF-06-002).
-
-<!-- Source: CONCERN-1653 (original), ADR-0053 / ISSUE-2789 (inversion) -->
-
----
+Drive actor behavior through real HTTP trigger endpoints. **Puppeteering** =
+trigger the actor so it decides and acts (exercises the BT). **Spoofing** = forge
+the resulting activity as if it had already decided (skips the BT). If the trigger
+endpoint you need does not exist, build the full stack (endpoint → service → BT)
+*first*. See
+[`notes/demo-scenario-authoring.md`](../../notes/demo-scenario-authoring.md)
+§ "Puppeteer Actors via Trigger Endpoints". (ISSUE-1535)
 
 ### Never Carry One Actor's Mail to Another Actor's Inbox
 
-Demo scripts MUST NOT POST an activity to an actor's inbox on behalf of
-another actor. This includes helper functions such as `post_to_inbox_and_wait`.
+A scenario demo MUST NOT POST an activity into *another* actor's inbox —
+including via `post_to_inbox_and_wait`. Delivery is the transport's job; carrying
+the mail means the outbox→delivery→inbox path is never exercised and demo CI
+proves nothing end-to-end. Poll the effect instead
+(`wait_for_case_on_container`, `find_case_invite_for_actor`,
+`wait_for_object_stored`). A reliably-timing-out poll is a delivery bug to
+investigate, not a workaround to write.
 
-**Why:** Delivering an activity to an inbox is the transport layer's job, not
-the demo's. When a demo calls `post_to_inbox_and_wait(vendor_client, vendor_id,
-invite)` it is acting as a surrogate mail carrier — putting a message into
-Vendor's inbox as if it arrived from the network. This is a form of spoofing:
-the real outbox→delivery→inbox path is never exercised, so demo CI proves
-nothing about whether the protocol actually works end-to-end.
+Scope: `vultron/demo/scenario/`. Exchange demos under `vultron/demo/exchange/`
+drive one backend directly and use `post_to_inbox_and_wait` as their normal
+mechanism.
 
-The distinction that matters:
+There is **no self-delivery exception**: an actor does not POST to its own inbox
+to update its own replica either. Activities route through the CaseActor, whose
+`Announce` every replica consumes — a replica that is not updating means the
+routing is wrong. See
+[`notes/ownership-transfer.md`](../../notes/ownership-transfer.md) § "The
+Accepting Actor's Replica Updates via the CaseActor's Announce".
+(CONCERN-1635, ISSUE-2719)
 
-- **Triggering** = POST to an actor's *trigger endpoint* to cause it to emit
-  an activity (`POST /actors/{id}/trigger/invite-actor-to-case`). The actor
-  decides and sends. Correct.
-- **Mail-carrying** = POST an activity directly to another actor's *inbox*
-  from outside that actor's own delivery path (`POST /actors/{id}/inbox/`).
-  The demo bypasses the real transport. Wrong.
+### Extract Before Reuse: No Copy-Paste from Existing Scenario Files
 
-**Root cause of the pattern:** The inbox endpoint returns 202 immediately
-(`BackgroundTasks`) before the activity is fully processed. Naive polling
-after a trigger timed out, so mail-carrying was added as a workaround. The
-correct fix is to gate on the effect the delivery causes — the real HTTP
-delivery path (`HttpDeliveryAdapter`) with its retry/backoff will complete.
+Before the **second** use of a pattern from an existing scenario file, extract it
+to `vultron/demo/helpers/` — do not copy a function body, polling loop, or
+verification block into a new scenario. Copy-paste propagates latent bugs
+alongside valid patterns (#1632 after PR #1629). A once-only pattern may stay
+inline with a comment marking it for extraction.
 
-> **Amended (CONCERN-2181):** this section previously ended "the demo just needs
-> to wait long enough." That framing is what the causal-gating rule corrects. A
-> long-enough timeout is not the fix; observing the *right thing* is. Choose the
-> observable per EDF-06-002 and EDF-06-003 — the committed state of the actor
-> that produces the effect, read from its own container — and express it with
-> `demo_gate`, not a raised timeout. See the next section.
-
-**How to apply:**
-
-1. After triggering an actor to emit an activity, do **not** manually deliver
-   that activity to any inbox. Instead, poll the expected side-effect directly:
-   - Use `wait_for_case_on_container` to verify a case replica arrived.
-   - Use `find_case_invite_for_actor` to verify an invite arrived.
-   - Use `wait_for_object_stored` to verify an arbitrary object arrived in a DataLayer.
-2. If a poll times out reliably in CI, the underlying delivery path needs
-   investigation (retry parameters, health checks, container startup order)
-   — not a workaround in the demo script.
-
-**Narrow exception — self-delivery to one's own inbox:** A demo script MAY call
-`post_to_inbox_and_wait` when an actor delivers an activity to its **own** inbox
-to update its own replica. That is not mail-carrying: the actor is posting to
-itself, not acting as a surrogate for the transport layer.
-
-The ownership-transfer `Accept` used to be the worked example here (CONCERN-1653).
-It no longer is — ADR-0053 addresses that `Accept` to the CaseActor, whose ledger
-broadcast updates every replica including the accepting actor's, so
-self-delivering it is now both unnecessary and misaddressed. See
-§ "Ownership-Transfer Accept: Do NOT Self-Deliver" above. Before invoking this
-exception, check that the activity really is unaddressed to any other actor; if
-the protocol routes it through the CaseActor, the exception does not apply.
-
-The rule this section prohibits is **cross-actor delivery**: a demo using
-*Actor A's* credentials to POST a message into *Actor B's* inbox. That remains
-the pattern to eliminate.
-
-<!-- Source: CONCERN-1635 -->
-
----
+MUST-level per `specs/multi-actor-demo.yaml` DEMOMA-17-001 (specialising the
+project-wide SHOULD, CS-22-001). Rationale and the four-step application in
+[`notes/demo-scenario-authoring.md`](../../notes/demo-scenario-authoring.md)
+§ "Extract Before Reuse". (ISSUE-1652)
 
 ### Gate Each Step on Its Cause, Not on Its Position in the Script
 
-A scenario is a list of steps, so it is tempting to write it as "A, and then B."
-The protocol is causal: "A, **therefore** B." Where those differ you have a race,
-because triggers return HTTP 202 and the effect commits later, in a background
-task, on another container.
+A scenario reads "A, and then B"; the protocol means "A, **therefore** B". Where
+those differ you have a race, because triggers return 202 and the effect commits
+later, in a background task, on another container. Seven of Epic #2136's nineteen
+sub-issues were this one defect in different scenarios.
 
-**Why:** Seven of the nineteen sub-issues of Epic #2136 were this same defect in
-a different scenario — a step ran before the event enabling it had propagated.
-Fixing them one at a time does not stop the next scenario from reintroducing it.
-
-**How to apply:**
-
-1. **Gate on the committed effect, read where it commits.** The predicate must be
-   a property of the actor that commits the effect, fetched from *that actor's own
-   client*. Observing it on the sender proves only that the sender emitted
-   something (EDF-06-002).
-2. **Never gate on a synchronously-available proxy.** If the observable resolves
-   during the triggering request while the effect commits after the 202, it proves
-   the cause *started*, not that it finished. Bug #2134: `engage-case` gated on
-   "case exists" instead of the receiver's own `RM.VALID` (EDF-06-003).
-3. **Discover a caused object by its properties, not its cause's ID.** When a
-   received-side use case forwards a *new* activity, the consequent has a new
-   identity. Use a discriminator scan — `find_case_invite_for_actor`,
-   `find_cp_offer_for_case`, and (arriving with the `fix/demo-ci` branch)
-   `find_ownership_transfer_offer_for_actor` — not
-   `wait_for_object_stored(obj_id=<sender's original id>)`, which silently times
-   out. Bug #2178 (EDF-06-004).
-4. **Use `demo_gate`, not `demo_check`, for a precondition.** `demo_check` records
-   the failure and returns, so the dependent step runs anyway on state that was
-   never established. `demo_gate` accumulates identically but stops the dependent
-   steps (DEMOCI-01-007, EDF-06-005).
-5. **Put the gate in `vultron/demo/helpers/`.** Scenario modules MUST NOT define
-   their own polling loops — that is how the #2178 fix landed in
+1. **Gate on the committed effect, read where it commits** — from the committing
+   actor's own client (EDF-06-002).
+2. **Never gate on a synchronously-available proxy** — it proves the cause
+   *started* (EDF-06-003, bug #2134).
+3. **Discover a caused object by its properties, not its cause's ID** — a
+   forwarded activity has a new identity; use a discriminator scan such as
+   `find_case_invite_for_actor` (EDF-06-004, bug #2178).
+4. **Use `demo_gate` for a precondition, `demo_check` for a verification**
+   (DEMOCI-01-007, EDF-06-005).
+5. **Put the gate in `vultron/demo/helpers/`** — scenario modules MUST NOT define
+   their own polling loops. That is how the #2178 fix landed in
    `fvcv_handoff_demo.py` but not `fccv_handoff_demo.py` (DEMOMA-22-002,
    DEMOMA-17-001).
-6. **Label irreducibly temporal waits as such.** Liveness probes, embargo
-   deadlines, and transport backoff are legitimately time-based; say so at the
-   call site so they are not mistaken for causal gates (EDF-06-006).
-7. **Raising a timeout is not a fix.** If a gate times out reliably, either the
-   observable is wrong (see 1–3) or the effect can be *lost* rather than delayed —
-   in which case the protocol must buffer it (ADR-0037, ADR-0059) and a demo guard
-   would be papering over a production bug.
+6. **Label irreducibly temporal waits as such** at the call site — liveness
+   probes, embargo deadlines, transport backoff (EDF-06-006).
+7. **Raising a timeout is not a fix.** Either the observable is wrong (1–3) or the
+   effect can be *lost* rather than delayed, in which case the protocol must
+   buffer it (ADR-0037, ADR-0059) and a demo guard papers over a production bug.
 
-**Testing gates:** exercise the real context manager. A test that patches
+**Testing gates:** exercise the real context manager. Patching
 `demo_check`/`demo_gate` out with `contextlib.nullcontext` makes the assertion
-propagate and passes while proving nothing — that is precisely how the missing
-gate before `engage-case` escaped notice.
+propagate and the test pass while proving nothing — exactly how the missing gate
+before `engage-case` escaped notice.
 
-See `specs/event-driven-control-flow.yaml` EDF-06, `specs/multi-actor-demo.yaml`
-DEMOMA-22, ADR-0058, and
-[notes/event-driven-control-flow.md](../../notes/event-driven-control-flow.md)
-§ "Temporal Sequence vs. Causal Sequence".
-
-<!-- Source: CONCERN-2181 -->
-
----
+Full reasoning: EDF-06, DEMOMA-22, ADR-0058, and
+[`notes/event-driven-control-flow.md`](../../notes/event-driven-control-flow.md)
+§ "Temporal Sequence vs. Causal Sequence". (CONCERN-2181)
 
 ### Never Wrap a Causal Wait in `demo_check` (and Never Leave One Bare)
 
-A `wait_for_*` call that is a precondition for the next step MUST be
-wrapped in `demo_gate`, not `demo_check` and not left as a bare call.
+A `wait_for_*` call that is a precondition for the next step MUST be wrapped in
+`demo_gate` — not `demo_check`, and not left bare.
 
-**Why `demo_check` is wrong here:** `demo_check` records the timeout as a
-failure and then **continues**. The next step runs on state that was never
-established — producing a confusing secondary failure (a 422 from a
-trigger, a wrong snapshot comparison, a ledger assertion on a partial
-replica) that obscures the root cause.
+- `demo_check` records the timeout and **continues**, so the next step runs on
+  state that was never established.
+- A **bare** call raises `AssertionError` directly, bypassing the harness's
+  failure accumulator: earlier `demo_check` failures are lost and downstream steps
+  get no structured skip. Bare calls look like gates but are not.
 
-**Why a bare call is also wrong:** a bare `wait_for_*` call raises
-`AssertionError` directly on timeout, bypassing the harness's failure
-accumulator. Earlier `demo_check` failures are lost. Downstream steps get
-no structured skip — the exception terminates the scenario. Bare calls look
-like gates but are not.
+**How to decide:** would the next step operate on wrong or incomplete state if
+this wait timed out? **Yes** → `demo_gate`. **No** → `demo_check`, labelled as
+temporal per EDF-06-006.
 
-```python
-# ❌ Wrong — demo_check lets the next step run on uncommitted RM.VALID state
-with demo_check(f"{actor.id_} reached RM.VALID before engage-case"):
-    wait_for_participant_rm_state(
-        client=vendor_client, case_id=case.id_,
-        actor_id=actor.id_, expected_states={RM.VALID, RM.ACCEPTED},
-    )
-vendor_engages_case(...)  # may 422 if RM.VALID not yet committed
-
-# ❌ Wrong — bare call raises AssertionError directly, bypasses accumulator
-wait_for_contiguous_ledger_coverage(
-    client=finder_client, case_id=case.id_,
-    expected_tail_index=vendor_tail_index,
-)
-compare_replica_state(...)  # runs on partial replica if wait timed out
-
-# ✅ Correct — demo_gate blocks dependent steps when precondition is unmet
-with demo_gate(f"{actor.id_} reached RM.VALID before engage-case"):
-    wait_for_participant_rm_state(
-        client=vendor_client, case_id=case.id_,
-        actor_id=actor.id_, expected_states={RM.VALID, RM.ACCEPTED},
-    )
-vendor_engages_case(...)  # skipped (not run) if gate failed
-```
-
-**How to decide `demo_gate` vs `demo_check`:** ask whether the next step
-would operate on wrong or incomplete state if this wait timed out.
-
-- **Yes** → `demo_gate`. The wait is a causal precondition.
-- **No** → `demo_check`. The wait is temporal or a post-hoc verification.
-  Label it as temporal at the call site (EDF-06-006) so it is not mistaken
-  for a causal gate in a future edit.
-
-See `notes/demo-ci-diagnostics.md` § "Async Race Window Patterns" for the
-full diagnostic workflow, and `specs/event-driven-control-flow.yaml`
-EDF-06-005 and EDF-06-006 for the normative rules.
-
-<!-- Source: CONCERN-2325 -->
-
----
+Anti-pattern examples and the full diagnostic workflow:
+[`notes/demo-ci-diagnostics.md`](../../notes/demo-ci-diagnostics.md) § "Async Race
+Window Patterns". Normative: EDF-06-005, EDF-06-006. (CONCERN-2325)
 
 ### Event-Phrase Lookups MUST Use `lookup_entry()`, Not a Local Phrase Dict
 
-Any display-layer code that maps a `MessageSemantics` value to a human-readable
-phrase MUST use `lookup_entry(semantics).phrase` from
-`vultron.semantic_registry`, not a local `dict[str, str]` parallel table.
-
-**Why:** A local dict keyed by `MessageSemantics` values will silently drift
-as new semantics are added to the enum. `SemanticEntry.phrase` is mandatory
-(SE-07-003), so a missing phrase is a `TypeError` at registry construction
-time — not a silent fallback at render time.
-
-**How to apply:** Import `from vultron.semantic_registry import lookup_entry`
-and render with `lookup_entry(semantics).phrase.format_map(defaultdict(lambda: "—", slots))`.
-Use the fallback humanizer (`event_type.replace("_", " ")`) only for event
-types not in the registry (e.g., data from a future protocol version).
-
-<!-- Source: CONCERN-1675 -->
-
----
+Display-layer code maps `MessageSemantics` → phrase via
+`lookup_entry(semantics).phrase` from `vultron.semantic_registry`, never a local
+`dict[str, str]`. A parallel table drifts silently as the enum grows; a missing
+`SemanticEntry.phrase` is a construction-time `TypeError` (SE-07-003). Only
+`{actor}`, `{object}` and `{target}` are ever filled. See
+[`notes/activitystreams-semantics.md`](../../notes/activitystreams-semantics.md)
+§ "Event-Phrase Lookups". (CONCERN-1675)
 
 ### Docker Compose Service Names Are Not Actor Names
 
-The service names in `docker/docker-compose-multi-actor.yml` (`vendor`,
-`coordinator`, `vendor2`, `case-actor`) were chosen to match the roles in the
-first demo scenarios and do not need to match the CVD actor roles housed
-within them. When designing a new multi-actor scenario:
+Service names in `docker/docker-compose-multi-actor.yml` are compose routing
+labels, not CVD roles — a service named `vendor` need not house a Vendor actor.
+Reuse the existing four services with role-alias `VULTRON_*_BASE_URL` bindings
+rather than adding services to get a new actor name; this keeps the CI startup
+count constant. See
+[`notes/demo-scenario-authoring.md`](../../notes/demo-scenario-authoring.md)
+§ "Docker Compose Service Names Are Not Actor Names". (ISSUE-1216, ISSUE-1786)
 
-- The **service name** is a docker-compose routing label. Reuse existing
-  service names by remapping them to new semantic roles via `--env-file` or
-  environment variable overrides — there is no requirement that a service
-  named `vendor` contains a Vendor actor.
-- The **actor name** (`VULTRON_*_BASE_URL` env var bindings, actor IDs seeded
-  at startup) is the meaningful identity. Choose actor names to reflect their
-  CVD role in the scenario, not the docker service name.
-- Avoid adding new services just to get a new actor name. In multi-actor
-  scenarios (FCCV, FVCV-handoff), the existing four services are reused with
-  role-alias environment variable bindings; this keeps the CI service
-  startup count constant.
+### Exchange Demos: Discover the Canonical Case from the DataLayer
 
-**Future direction**: the service names may eventually be renamed to neutral
-labels (`actor1`–`actor4`) so the compose file is scenario-agnostic. Until
-then, use the existing services with role-alias bindings.
-
-<!-- Source: ISSUE-1216, plan/incoming/learnings/20260722-fccv-handoff-container-remapping.md -->
-
----
-
-### Exchange Demos: Discover the Canonical Case from the DataLayer, Never Create a Second Case
-
-After `validate-report`, the BT automatically fires `ProposeReportCaseToActorNode`,
-which delivers a `Create(CaseProposal)` to the CaseActor. The CaseActor creates
-the **canonical** `VulnerabilityCase` (ADR-0041) and registers vendor, reporter,
-and CaseActor as initial participants.
-
-Do NOT call `create_case_activity` in exchange demo setup. Doing so creates a
-**second**, vendor-local case that:
-
-- Has no `ReportCaseLink`, so `create_case_received` skips it.
-- Gets no participants because `ProposeCaseToActorNode` finds no linked report.
-- Is completely distinct from the canonical case the CaseActor owns.
-
-**How to find the canonical case** after validate-report:
-
-```python
-def _find_canonical_case(client) -> dict:
-    cases = client.get("/datalayer/VulnerabilityCases/").json()
-    # pick the first case that has participants
-    for case_id, case in cases.items():
-        if case.get("case_participants"):
-            return case
-    raise AssertionError("No canonical case found after validate-report")
-```
-
-`GET /datalayer/VulnerabilityCases/` returns a `dict[str, dict]` keyed by
-object ID. The canonical case will have `case_participants` populated.
-
-Note: `TestClientRouter` does not register `https://vultron.example`, so the
-CaseActor's `Create(VulnerabilityCase)` delivery to vendor is silently dropped
-in the single-backend exchange demo environment. The canonical case IS in the
-DataLayer even though vendor never receives it in their inbox.
-
-<!-- Source: ISSUE-1994 -->
-
----
+After `validate-report`, the BT fires `ProposeReportCaseToActorNode` and the
+CaseActor creates the **canonical** `VulnerabilityCase` (ADR-0041). Do NOT call
+`create_case_activity` in exchange demo setup — that makes a second, vendor-local
+case with no `ReportCaseLink` and no participants. Find the canonical case by
+scanning `GET /datalayer/VulnerabilityCases/` for the entry with
+`case_participants` populated. See
+[`notes/case-proposal.md`](../../notes/case-proposal.md) § "Exchange Demo:
+Discovering the Canonical Case". (ISSUE-1994)
 
 ### The Ledger Dump Belongs in the Failure Path, Not After the Last Phase
 
-A scenario's forensic artifacts are worth the most in exactly the run that
-fails. Code placed *after* the last phase runs only when nothing went wrong.
-Before #2239, every `run_<name>_demo()` called `_phase_dump_case_ledgers()` as
-its final statement, so any assertion escaping a `demo_check`/`demo_gate` block
-skipped the dump entirely — `main()`'s `finally: assert_demo_success()` still
-raised, CI still failed, but `devlogs/` was empty and the `invariant-harness`
-job died on artifact download instead of reporting an invariant result.
+Forensic artifacts matter most in the run that fails, so a dump placed after the
+last phase never runs when it counts (#2239: `devlogs/` empty, invariant harness
+dead on artifact download).
 
-**Why:** A demo that fails without artifacts is indistinguishable from a demo
-that never ran. Worse, the invariant harness *skipped* on a missing directory,
-so the pipeline read green for the wrong reason.
+- Wrap the whole body of `run_<name>_demo()` in
+  `with scenario_harness("<demo-name>") as harness:` — it resets the accumulator,
+  always dumps on the way out, and calls `assert_demo_success()` last.
+- Register the dump as soon as a case exists:
+  `harness.dump_with(lambda: _phase_dump_case_ledgers(...))`.
+- Do not re-add `try/finally: assert_demo_success()` in `main()` — a second owner
+  of the accumulator asserts before the dump runs.
+- Keep `_phase_dump_case_ledgers` thin; delegate to
+  `helpers.ledger_dump.dump_case_ledgers()`. The manifest is not optional, and a
+  dump failure must never replace the scenario's exception.
 
-**How to apply:**
-
-1. **Run the scenario inside `scenario_harness()`.** Wrap the whole body of
-   `run_<name>_demo()` in `with scenario_harness("<demo-name>") as harness:`.
-   The harness resets the failure accumulator on entry, always dumps on the way
-   out (success or exception), and calls `assert_demo_success()` last
-   (DEMOMA-23-001).
-2. **Register the dump the moment a case exists.** Immediately after the phase
-   that creates the case, call `harness.dump_with(lambda: _phase_dump_case_ledgers(...))`.
-   Every phase below that line can then fail without costing the ledgers
-   (DEMOMA-23-003).
-3. **Do not re-add `try/finally: assert_demo_success()` in `main()`.** The
-   harness owns the accumulator; a second owner reintroduces the bug by
-   asserting before the dump has run (DEMOMA-23-001).
-4. **Keep `_phase_dump_case_ledgers` thin.** It builds
-   `LedgerDumpTarget`s and delegates to
-   `vultron.demo.helpers.ledger_dump.dump_case_ledgers()`. No per-scenario
-   fetch/write loops (DEMOMA-23-002, DEMOMA-17-001).
-5. **The manifest is not optional.** `dump_case_ledgers()` writes
-   `devlogs/<demo>/dump-manifest.json` from a `finally`, recording the case ID,
-   how many ledger files were captured, and for each missing actor *why*. That
-   file is what lets the invariant harness fail on a real "no ledger entries"
-   assertion rather than on a download error (DEMOCI-10-002, DEMOCI-10-003).
-6. **A dump failure must never replace the scenario's exception.** The harness
-   swallows dump errors into the manifest's `reason` field and re-raises the
-   original failure with the accumulated `demo_check` failures attached as
-   exception notes (DEMOCI-10-004, DEMOMA-23-004).
-
-**Testing this:** patch a mid-scenario phase to raise, point `DEVLOGS_DIR` at a
-`tmp_path`, and assert the manifest exists. See
-`test/demo/test_issue_2239_ledger_dump_in_finally.py`.
-
-See `specs/demo-ci.yaml` DEMOCI-10, `specs/multi-actor-demo.yaml` DEMOMA-23,
-and [notes/demo-ci-invariants.md](../../notes/demo-ci-invariants.md).
-
-<!-- Source: ISSUE-2239 -->
-
----
+DEMOCI-10, DEMOMA-23, and
+[`notes/demo-ci-invariants.md`](../../notes/demo-ci-invariants.md). (ISSUE-2239)
 
 ### Demo Devlog Race: Wait for Replica Before Dumping
 
-(DEMO-DEVLOG-RACE, 2026-06-18)
+After any phase that commits a new canonical ledger entry, poll until the replica
+acknowledges the sender's tail hash before writing the devlog — otherwise the
+dump misses entries still in `Announce(CaseLedgerEntry)` fan-out. Pattern in
+[`notes/demo-ci-diagnostics.md`](../../notes/demo-ci-diagnostics.md) § "Demo
+Devlog Race". (DEMO-DEVLOG-RACE)
 
-Demo phases that write JSONL devlogs will miss recently committed canonical
-ledger entries if they run before the async `Announce(CaseLedgerEntry)`
-fan-out has been processed and stored by the replica actor.
+### BT Demo `main()` Must Be Callable With No Arguments
 
-**Pattern**: After any phase that commits a new canonical ledger entry, query
-the sender's current tail hash and poll until the replica acknowledges it
-before writing the devlog:
-
-```python
-vendor_entries = _get_log_entries_for_case(vendor_client, case.id_)
-if vendor_entries:
-    tail = max(vendor_entries, key=lambda e: e["log_index"])
-    wait_for_finder_log_entry(finder_client, case.id_, tail["entry_hash"])
-```
-
-Apply this poll-until-hash pattern after every phase that introduces a new
-ledger tail before a devlog dump. This is the same pattern used in
-`_phase_sync_verification` and ensures dump artifacts are always consistent
-with the replica's committed state.
-
-<!-- Source: DEMO-DEVLOG-RACE -->
+`[project.scripts]` entry points call `main()` with no arguments. Use
+`def main(args=None)` and fall back to `_parse_args()` when `args is None`, so
+both the console script and `cli.py`'s click sub-group work. Test the real
+console script with `PYTHONPATH= uv run <script>`. See
+[`notes/demo-scenario-authoring.md`](../../notes/demo-scenario-authoring.md)
+§ "BT Demo `main()`". (ISSUE-1568)

@@ -194,29 +194,21 @@ the `CORE_TYPE_MAP` fallback.
 
 ---
 
-## Superseded Direction: Pairing Registry (ADR-0082)
+## Pending: Declarative Pairing Registry (ADR-0082, ARCH-23-001)
 
-The design below describes the registry as it stands. **ADR-0082 changes its
-foundation**, so read this section first:
+A single declarative core↔wire **pairing registry** is to become the
+authoritative statement of type correspondence (ARCH-23-001). It is **not yet
+implemented** — tracked by issue #2937.
 
-- The registry key is derived from the class name
-  (`cls.__name__.removeprefix("as_")`), *not* from the AS2 `type` value. VM-01-004
-  used to claim otherwise; it was only accidentally true and already false for
-  the five actor types, which auto-register under `VultronPerson` etc. and are
-  *also* explicitly assigned to `Person` etc.
-- Because `VOCABULARY` and `CORE_VOCABULARY` share bare-name keys, wire classes
-  shadow their core counterparts. **ARCH-23-002 owns this fact**, and its
-  verification test (`set(VOCABULARY) & set(CORE_VOCABULARY) == set()`, after
-  forcing full registration) is the live check — do not restate a count here,
-  because a count in prose drifts the moment a key is renamed. That collision is
-  currently **load-bearing**:
-  `As2WireRenderAdapter.render()` resolves a core class to its wire counterpart
-  with `VOCABULARY.get(type(obj).__name__)`.
-- ADR-0082 introduces a declarative core↔wire **pairing registry** as the single
-  authoritative statement of that correspondence (ARCH-23-001), which frees the
-  two registries to use disjoint keys (ARCH-23-002) and retires
-  `_NORMALIZE_WIRE_TO_CORE`, `_WIRE_ACTOR_TO_CORE`, and the name-collision
-  lookup together.
+The other half of ADR-0082 has landed: `VOCABULARY` and `CORE_VOCABULARY` no
+longer share bare-name keys, and nothing resolves a counterpart by name
+coincidence (ARCH-23-002). See § "Registry Keys Are Disjoint" below for the key
+forms and the lookup to use.
+
+When the pairing registry lands it also retires `_NORMALIZE_WIRE_TO_CORE`
+(`vultron/adapters/driven/db_record.py`) and `_WIRE_ACTOR_TO_CORE`
+(`vultron/wire/as2/vocab/objects/vultron_actor.py`) — both still live, and
+documented below.
 
 Design rationale: [notes/wire-core-boundary.md](wire-core-boundary.md).
 
@@ -259,3 +251,28 @@ class is a faithful supertype of the stored data.
 - `vultron/wire/as2/vocab/base/registry.py` — implementation
 - `vultron/wire/as2/vocab/base/base.py` — `as_Base` class
 - `notes/activitystreams-semantics.md` — AS2 type model
+
+## Registry Keys Are Disjoint: `VOCABULARY` vs. `WIRE_TYPE_MAP` (ARCH-23-002)
+
+All classes in `vultron/wire/as2/vocab/objects/` use the `as_` prefix. The bare
+name (`VulnerabilityCase`) always refers to the **core** domain model; the
+prefixed name (`as_VulnerabilityCase`) is the wire type. See ARCH-14-001.
+
+The two registries are keyed differently, and the distinction matters
+(ARCH-23-002, issue #2941):
+
+| Registry | Key | Example |
+|---|---|---|
+| `VOCABULARY` | full `as_*` class name | `"as_VulnerabilityCase"` |
+| `WIRE_TYPE_MAP` | wire `type_` value | `"VulnerabilityCase"` |
+
+The render adapter resolves a core class to its wire counterpart with
+`WIRE_TYPE_MAP.get(type(obj).__name__)`. Never resolve a core type's wire
+counterpart by name coincidence — use `WIRE_TYPE_MAP` (for `type_` values) or
+`VOCABULARY` (for wire class-name lookups). The full pairing registry
+(ARCH-23-001) is tracked by issue #2937.
+
+Disjointness is enforced, not assumed: the verification test asserts
+`set(VOCABULARY) & set(CORE_VOCABULARY) == set()` after forcing full
+registration. Do not restate a key count in prose here — a count drifts the
+moment a key is renamed.

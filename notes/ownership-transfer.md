@@ -14,6 +14,7 @@ related_notes:
   - notes/case-communication-model.md
   - notes/protocol-event-cascades.md
   - notes/case-ledger-authority.md
+  - notes/demo-scenario-authoring.md
   - notes/event-driven-control-flow.md
 relevant_packages:
   - vultron/core/behaviors/case/nodes/
@@ -207,9 +208,10 @@ producing an unrecoverable hash-chain fork (ISSUE-2252).
 
 ### fvcv_handoff_demo.py
 
-Remove the `post_to_inbox_and_wait` self-delivery block (lines ~427–434).
-The Accept now reaches the CaseActor automatically because
-`EmitAcceptCaseOwnershipTransferNode` addresses it there.
+The `post_to_inbox_and_wait` self-delivery block is gone: the Accept reaches the
+CaseActor on its own because `EmitAcceptCaseOwnershipTransferNode` addresses it
+there. See § "The Accepting Actor's Replica Updates via the CaseActor's Announce"
+below for why no replica needs hand-delivery.
 
 `_phase_ownership_handoff` also carries ADR-0053's own validation criterion as a
 `demo_check`: the **Finder's** replica must hold the
@@ -266,6 +268,15 @@ the `accept-case-ownership-transfer` trigger body.
 > Coordinator's container (`wait_for_object_stored(original_offer.id_)`) will never match.
 > The discriminator-based poll (`find_ownership_transfer_offer_for_actor`) scans for semantic
 > properties (type + target + object) rather than identity (specific ID).
+
+`_phase_ownership_handoff` also carries the same Finder-side broadcast check as
+`fvcv_handoff_demo.py`. Both are enforced structurally by
+`test/architecture/test_handoff_scenarios_verify_broadcast.py`, which fails any
+scenario defining `_phase_ownership_handoff` that does not wait for the
+`accept_case_ownership_transfer` entry on a **non-party** actor's own replica.
+The ratchet exists because this gap was closed in one handoff scenario and missed
+in its sibling, with every test still green (AGENTS.md § "Fix One, Miss the
+Siblings").
 
 ---
 
@@ -381,3 +392,17 @@ if request.receiving_actor_id != case_actor_id:
 
 See `notes/case-communication-model.md` § "Antipattern: Received-Side
 Guarded Commit with Foreign CaseActor ID" for the full pattern.
+
+## The Accepting Actor's Replica Updates via the CaseActor's Announce
+
+`EmitAcceptCaseOwnershipTransferNode` addresses the Accept to the CaseActor,
+which records it and broadcasts the `Announce`, so every replica — including the
+**accepting** actor's own — updates through the normal delivery path. A scenario
+demo therefore hand-delivers nothing: if a replica is not updating, the routing is
+wrong, and the fix is in the routing (the mail-carrying prohibition in
+[notes/demo-scenario-authoring.md](demo-scenario-authoring.md) admits no
+exception).
+
+The invariant to assert: the accepting actor's `case.attributed_to` MUST change
+on its own replica. The demo CI integration tests (`test/ci/invariants/`) are the
+authoritative runtime enforcement.

@@ -389,3 +389,15 @@ Implementations that do are broken adapters, and the propagation of the
 exception is the correct signal for catching that during development and testing.
 
 Source: ISSUE-2668 — port contract clarified and regression test added.
+
+## Pitfall: Pydantic `model_fields` Is Not Available Inside `__init_subclass__`
+
+`cls.model_fields` is populated by Pydantic's metaclass *after*
+`__init_subclass__` returns. Accessing it inside `__init_subclass__` returns an
+empty dict for the class being defined (though parent-class fields may be
+present). To inspect a class's own fields at subclass-registration time, read
+`cls.__annotations__` directly for declared annotations, or defer field
+inspection to a `model_post_init` or a class-level
+`@model_validator(mode="before")`.
+
+Source: ISSUE-2294

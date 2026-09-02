@@ -261,3 +261,17 @@ or raise something Pydantic recognises as a validation failure.
 - `vultron/adapters/driven/wire_render/as2.py` — the render adapter whose
   name-collision lookup ARCH-23-001 replaces
 - `test/architecture/test_wire_no_core_model_imports.py` — the ARCH-22 ratchet
+
+## Deleting a Wire-Spelling Shim Without a Reject-Guard Is Silent Data Loss
+
+Pydantic v2 defaults to `extra="ignore"`, so removing a validator that accepted a
+legacy camelCase key makes that key *silently dropped* and the field default to
+its start value — a lost RM ladder, not an error. Until `extra="forbid"` lands
+everywhere, always pair the deletion with a `model_validator(mode="before")`
+built on `reject_wire_spelled_keys` (`vultron/core/models/_wire_spelling.py`).
+See SDO-03-005, ARCH-15-002.
+
+**Superseded direction (ADR-0082)**: ARCH-12-003 now requires `extra="forbid"` on
+all core-branch types, which subsumes this guard — it rejects any unknown key, not
+only camelCase ones. Once that lands, `_wire_spelling.py` and the per-class guards
+are deleted. Until then this pitfall still applies.
