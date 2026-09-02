@@ -510,7 +510,7 @@ class BTBridge:
             # VultronActivityConstructionError wraps what is really a factory
             # misuse.  Consult the exception, not just the flag.
             error_msg = f"BT execution failed: {type(e).__name__}: {e}"
-            self.logger.exception(error_msg)
+            self.logger.warning(error_msg)
             errors.append(error_msg)
             return BTExecutionResult(
                 status=Status.FAILURE,
@@ -596,7 +596,12 @@ class BTBridge:
                 feedback_message=msg,
             )
         with _BT_GLOBAL_LOCK:
-            managed_keys = ["datalayer", "trigger_activity_factory"]
+            managed_keys = [
+                "datalayer",
+                "trigger_activity_factory",
+                "sync_port",
+                "wire_render_port",
+            ]
             storage = py_trees.blackboard.Blackboard.storage
             key_aliases: set[str] = set()
             for key in managed_keys:
@@ -618,7 +623,7 @@ class BTBridge:
                 return self.execute_tree(bt, max_iterations)
             except VultronError as e:
                 error_msg = f"BT setup failed: {type(e).__name__}: {e}"
-                self.logger.exception(error_msg)
+                self.logger.warning(error_msg)
                 return BTExecutionResult(
                     status=Status.FAILURE,
                     feedback_message=error_msg,

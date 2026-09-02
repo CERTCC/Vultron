@@ -43,6 +43,7 @@ See ``specs/build-workflow.yaml`` BW-01 for the incoming-learnings queue.
 from __future__ import annotations
 
 import argparse
+import contextlib
 import datetime
 import re
 import subprocess
@@ -351,7 +352,11 @@ def append_history_entry(
     if entry_file.exists() and discriminator:
         disc = _sanitize_entry_id(discriminator)
         # The incoming slug often already embeds the entry id; don't repeat it.
-        stem = disc if entry_id in disc else f"{entry_id}-{disc}"
+        stem = (
+            disc
+            if (disc == entry_id or disc.startswith(entry_id + "-"))
+            else f"{entry_id}-{disc}"
+        )
         entry_file = entry_dir / f"{stem}.md"
     if entry_file.exists():
         raise FileExistsError(f"history entry already exists: {entry_file}")
@@ -363,6 +368,8 @@ def append_history_entry(
         regenerate_readme(month_dir)
     except Exception as exc:
         entry_file.unlink(missing_ok=True)
+        with contextlib.suppress(OSError):
+            entry_dir.rmdir()
         raise ValueError(
             f"README generation failed; entry rolled back: {exc}"
         ) from exc
