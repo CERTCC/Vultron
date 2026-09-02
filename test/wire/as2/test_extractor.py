@@ -546,16 +546,16 @@ def _ownership_offer(attributed_to: Any) -> Any:
     from vultron.wire.as2.factories import (
         offer_case_ownership_transfer_activity,
     )
+    from vultron.wire.as2.vocab.base.objects.actors import as_Service
     from vultron.wire.as2.vocab.objects.vulnerability_case import (
         as_VulnerabilityCase,
     )
 
     return offer_case_ownership_transfer_activity(
         as_VulnerabilityCase(id_="https://example.org/cases/c1", name="C1"),
-        target={
-            "id": "https://example.org/actors/coordinator",
-            "type": "Organization",
-        },
+        target=as_Service(
+            id_="https://example.org/actors/coordinator", name="Coordinator"
+        ),
         actor="https://example.org/actors/case-actor",
         attributed_to=attributed_to,
     )
