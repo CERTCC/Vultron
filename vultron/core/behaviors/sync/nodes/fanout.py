@@ -65,7 +65,9 @@ class CollectNonClosedLogEntryRecipientsNode(DataLayerActionWithPorts):
     @classmethod
     def input_ports(cls) -> dict[str, PortInformation]:
         ports = super().input_ports()
-        ports["log_entry"] = PortInformation(data_type=object, required=True)
+        ports["log_entry"] = PortInformation(
+            data_type=VultronCaseLedgerEntry, required=True
+        )
         return ports
 
     @classmethod
@@ -146,7 +148,9 @@ class _SendLogEntryToEachNode(DataLayerActionWithPorts):
     @classmethod
     def input_ports(cls) -> dict[str, PortInformation]:
         ports = super().input_ports()
-        ports["log_entry"] = PortInformation(data_type=object, required=True)
+        ports["log_entry"] = PortInformation(
+            data_type=VultronCaseLedgerEntry, required=True
+        )
         ports["fanout_recipients"] = PortInformation(
             data_type=object, required=True
         )
@@ -243,7 +247,9 @@ class CollectLogEntryRecipientsNode(DataLayerActionWithPorts):
     @classmethod
     def input_ports(cls) -> dict[str, PortInformation]:
         ports = super().input_ports()
-        ports["log_entry"] = PortInformation(data_type=object, required=True)
+        ports["log_entry"] = PortInformation(
+            data_type=VultronCaseLedgerEntry, required=True
+        )
         return ports
 
     @classmethod
@@ -298,7 +304,9 @@ class SendLogEntryToEachNode(DataLayerActionWithPorts):
     @classmethod
     def input_ports(cls) -> dict[str, PortInformation]:
         ports = super().input_ports()
-        ports["log_entry"] = PortInformation(data_type=object, required=True)
+        ports["log_entry"] = PortInformation(
+            data_type=VultronCaseLedgerEntry, required=True
+        )
         ports["fanout_recipients"] = PortInformation(
             data_type=object, required=True
         )

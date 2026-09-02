@@ -11,13 +11,15 @@ with `Announce(VulnerabilityCase)` (ADR-0059).
 
 See also:
 
+- [Case Ledger Synchronization](../../../topics/case_ledger_sync.md) — why the
+  ledger is ordered this way and what the buffering guarantees
 - [ADR-0037 — Buffer Out-of-Order Ledger
   Entries](../../../adr/0037-buffer-out-of-order-ledger-entries.md)
 - [ADR-0059 — Buffer Pre-Genesis Ledger
   Entries](../../../adr/0059-buffer-pre-genesis-ledger-entries.md)
 - [ADR-0077 — Ledger Replication Companion
   Spec](../../../adr/0077-ledger-replication-companion-spec.md)
-- Spec: `specs/case-event-log-synchronization.yaml` (SYNC-09, SYNC-10, SYNC-15)
+- Spec: `specs/sync-ledger-replication.yaml` (SYNC-09, SYNC-10, SYNC-14, SYNC-15)
 
 ## Announce(CaseLedgerEntry) — Log Replication
 
@@ -122,5 +124,5 @@ activity = announce_vulnerability_case_activity(
   `announce_log_entry_activity`, `reject_log_entry_activity`
 - Factory: `vultron/wire/as2/factories/case.py` —
   `announce_vulnerability_case_activity`
-- Spec: `specs/case-event-log-synchronization.yaml` (SYNC-03, SYNC-09, SYNC-10,
+- Spec: `specs/sync-ledger-replication.yaml` (SYNC-03, SYNC-09, SYNC-10,
   SYNC-15)
