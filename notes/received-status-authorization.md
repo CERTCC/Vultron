@@ -9,6 +9,7 @@ description: >
 related_specs:
   - specs/received-status-handling.yaml
   - specs/behavior-tree-integration.yaml
+  - specs/cs-behavior.yaml
 related_notes:
   - notes/bt-integration.md
   - notes/call-out-configuration.md
@@ -170,6 +171,82 @@ Two things the guard tracks that are easy to conflate:
   operator-facing WARNING distinguishes `rewrote dimension(s) …` from `blocked
   dimension(s) … with no change to the asserted value`; calling the latter a
   refusal would misdescribe the audit trail.
+
+#### Independent adjudication cannot see a combination (RSH-05-020)
+
+Each dimension can be individually well-formed and the snapshot still describe a
+state no sequence of events could produce: a *ready* or *deployed* fix entails a
+report the participant has already accepted, and a deployed fix entails a ready
+one. So a final pass evaluates the cross-machine entailments — RM↔VF and RM↔D
+(CSB-18-001) and VF↔D (CSB-17-001) — and refuses whichever dimension they
+disqualify, carrying the current value forward like any other refusal.
+
+Three properties of that pass are load-bearing:
+
+- **It refuses the dimension that *moved*.** VF↔D constrains a pair, so either
+  side can be the offending claim. Refusing the incumbent side carries its value
+  straight back — the impossible combination stays recorded and the audit trail
+  reports a refusal that changed nothing. A dimension the sender omitted is
+  never reported as refused, which keeps the `refused` / `update_fields` split
+  above honest. Because the choice is path-specific, the shared evaluator reports
+  *candidate* dimensions per rule and the receive path picks; the emit path
+  refuses the whole snapshot and needs no choice.
+- **It runs on the *effective* state, not the assertion.** This matters for the
+  `vf`→`d` chain: a refused or carried-forward `vf` must not license the `d` the
+  sender paired it with (#2893). It is *not* a tightening for `rm` — `rm` is
+  refused only when the asserted value is not a forward move, so the carried
+  value always ranks at or above the asserted one on the RM progress scale, and
+  `RM_STATES_CONSISTENT_WITH_FIX` is exactly the top of that scale. Reading the
+  effective `rm` can therefore only ever *accept* something the asserted `rm`
+  would refuse, never the reverse. Do not cite it as a defence against a
+  regressive `rm` licensing a `vf`; no such input exists.
+- **Emit and receive share one evaluator.**
+  `cross_machine_violations()` in `vultron/core/states/cross_machine_invariants.py`
+  composes the three rules; `ValidateTriggerTransitionsNode._validate_entailments`
+  and `_adjudicate_cross_machine_entailments` both call it and neither calls the
+  individual `violation_*` functions. Before #2906 the receive path composed only
+  VF↔D by hand, so an assertion the actor would have refused to *emit* was
+  accepted, hash-chained and replicated when it arrived from a peer instead.
+  A ratchet test asserts the emit path still delegates.
+
+What this is **not**: it is not a vf→Vf→VF ladder check. Non-adjacent forward
+advances stay legal on the received path (CSB-16-001) — a peer may advance
+several steps between status messages. An absent dimension (`None`) is likewise
+*absent*, not at its initial state (ADR-0075): a non-VENDOR participant has no
+vendor path, so no entailment applies through it, and a first observation of a
+dimension is accepted when nothing contradicts it.
+
+**The RM↔VF and RM↔D halves are sound, not complete.** Their real constraint is
+that the actor passed through `RM.ACCEPTED` at some point — a *history* property
+(`rm_em_cs.md` § Fix Ready). A `ParticipantStatus` carries only the current RM
+value, so `RM_STATES_CONSISTENT_WITH_FIX` approximates it with the set of states
+reachable *from* `ACCEPTED`. `DEFERRED` and `CLOSED` are in that set and are each
+also reachable without acceptance (`VALID → DEFERRED`, `INVALID → CLOSED`), so
+neither proves it. They stay in anyway: excluding them would refuse a peer that
+advances through acceptance and reports fix readiness in one message, which
+CSB-16-001 explicitly permits. Narrowing to `{ACCEPTED}` is the only complete
+option over one snapshot and costs far more than it catches. A test derives the
+set from the RM transition graph so it cannot drift, and a second test pins which
+members are ambiguous. Tightening it properly needs RM history (#3015).
+
+**What it guarantees is conditional.** If the participant's *current* state
+satisfies the entailments, so does the recorded state. It cannot promise more:
+when the incumbent state is already impossible, every carry-forward writes the
+offending value back, so no per-dimension refusal can repair it. That case is
+logged and left alone rather than reported as the refusal of a claim the sender
+never made. Read a log line naming an unrepairable incumbent state as evidence
+of a write that bypassed this pass, not of a bad assertion.
+
+The pass also re-evaluates after each refusal instead of sweeping the violation
+list once, because a refusal can retire a violation reported alongside it —
+refusing `d` for RM↔D clears the D bit, which retires VF↔D too. Acting on the
+stale entry would refuse a second dimension for a contradiction that no longer
+exists.
+
+The replica-apply path (`ApplyParticipantStatusFromLedgerNode`) is deliberately
+out of scope. It applies CaseActor-authored canonical entries the CaseActor
+already adjudicated, and is governed by the RM ratchet in RSH-05-007. That is
+also the only way an impossible incumbent state is reachable today (#3009).
 
 ### CASE_OWNER gospel-bypass rationale
 
