@@ -55,6 +55,7 @@ from vultron.core.states.cs_invariants import (
     is_valid_cs_transition,
 )
 from vultron.core.states.em import EM
+from vultron.core.predicates.participants import vendor_vf_invariant_ok
 from vultron.core.states.rm import RM
 from vultron.enums.roles import CVDRole
 
@@ -198,12 +199,25 @@ class CreateParticipantStatusNode(DataLayerActionWithPorts):
     def _check_vf_precondition(
         self, current_vf: CS_vf | None, participant_obj: object
     ) -> "Status | None":
-        """CSB-16-001 / ADR-0075 / CSB-15-001: validate VF transition and role before writing."""
+        """CSB-16-001 / ADR-0075 / CSB-15-001 / PRM-06-002: validate VF transition and role before writing."""
         actor_roles = (
             participant_obj.roles  # type: ignore[union-attr]
             if isinstance(participant_obj, CaseParticipant)
             else []
         )
+        if not vendor_vf_invariant_ok(actor_roles, self._vf_state):
+            self.logger.warning(
+                "%s: Vendor-implies-V violated: actor '%s' holds VENDOR but"
+                " asserts %s (PRM-06-002, ADR-0084)",
+                self.name,
+                self._actor_id,
+                self._vf_state,
+            )
+            self.feedback_message = (
+                f"Vendor-implies-V: VENDOR cannot assert"
+                f" {self._vf_state!r} (PRM-06-002)"
+            )
+            return Status.FAILURE
         if (
             self._vf_state in (CS_vf.Vf, CS_vf.VF)
             and CVDRole.VENDOR not in actor_roles

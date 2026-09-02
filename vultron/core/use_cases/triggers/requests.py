@@ -251,6 +251,32 @@ class AddParticipantStatusTriggerRequest(CaseTriggerRequest):
     pxa_state: CS_pxa | None = None
 
 
+class AddOnBehalfStatusTriggerRequest(CaseTriggerRequest):
+    """On-behalf v→V / d→D assertion by Case Manager or Case Owner.
+
+    ``actor_id`` is the asserting actor (must hold CASE_MANAGER or CASE_OWNER);
+    ``target_actor_id`` is the vendor/deployer whose awareness is being recorded.
+    ``vf_state`` may only be ``CS_vf.Vf`` (v→V); ``CS_vf.VF`` (f→F) is rejected
+    here because f→F is always self-declared by the Vendor role holder.
+
+    Per ADR-0084, PRM-06-003/004/005.
+    """
+
+    target_actor_id: UriString
+    vf_state: CS_vf | None = None
+    d_state: CS_d | None = None
+
+    @field_validator("vf_state")
+    @classmethod
+    def vf_state_not_fix_ready(cls, v: CS_vf | None) -> CS_vf | None:
+        if v is not None and v == CS_vf.VF:
+            raise ValueError(
+                "f→F (CS_vf.VF) cannot be asserted on behalf of another actor"
+                " (ADR-0084, PRM-06-005)"
+            )
+        return v
+
+
 class OfferCaseParticipantRoleTriggerRequest(CaseTriggerRequest):
     """Trigger request to offer a CVDRole to a target Actor in a Case.
 

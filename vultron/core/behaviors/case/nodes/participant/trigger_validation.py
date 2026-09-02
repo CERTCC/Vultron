@@ -56,6 +56,7 @@ from vultron.core.states.cs import (
     is_valid_pxa_transition,
     is_valid_vf_transition,
 )
+from vultron.core.predicates.participants import vendor_vf_invariant_ok
 from vultron.core.states.rm import RM, is_valid_rm_transition
 from vultron.enums.roles import CVDRole
 
@@ -129,27 +130,41 @@ class ValidateTriggerTransitionsNode(DataLayerCondition):
         self._pxa_state = pxa_state
 
     def _check_vf_role(self, participant_obj: object) -> "Status | None":
-        """Return FAILURE when the requested VF state requires VENDOR but actor lacks it.
+        """Return FAILURE when the VF assertion violates a role rule.
 
-        Vendor-aware VF states (Vf, VF) are VENDOR-specific per ADR-0075.
-        Returns None when no VF state is requested, the state is CS_vf.vf
-        (vendor-unaware), or the actor holds CVDRole.VENDOR.  Closes #2862.
+        Two rules are enforced (ADR-0075, ADR-0084):
+
+        * AC-4 / PRM-06-002 — a VENDOR-role participant cannot self-assert
+          ``CS_vf.vf`` (vendor-unaware): they are by definition already aware.
+        * ADR-0075 / CSB-15-001 — only VENDOR may assert Vf or VF; a non-vendor
+          participant cannot claim vendor-awareness or fix-readiness.
+
+        Returns ``None`` (pass) when no VF state is requested.
         """
-        if self._vf_state is None or self._vf_state == CS_vf.vf:
+        if self._vf_state is None:
             return None
         actor_roles = (
             list(participant_obj.roles)  # type: ignore[attr-defined]
             if isinstance(participant_obj, CaseParticipant)
             else []
         )
-        if CVDRole.VENDOR in actor_roles:
-            return None
-        self.feedback_message = (
-            f"CVDRole.VENDOR required for VF state"
-            f" {self._vf_state!r} (ADR-0075); actor roles: {actor_roles!r}"
-        )
-        self.logger.info("%s: %s", self.name, self.feedback_message)
-        return Status.FAILURE
+        if not vendor_vf_invariant_ok(actor_roles, self._vf_state):
+            self.feedback_message = (
+                f"Vendor-implies-V: CVDRole.VENDOR participant cannot assert"
+                f" {self._vf_state!r} (PRM-06-002, ADR-0084)"
+            )
+            self.logger.info("%s: %s", self.name, self.feedback_message)
+            return Status.FAILURE
+        if self._vf_state == CS_vf.vf:
+            return None  # non-vendor asserting vf is valid
+        if CVDRole.VENDOR not in actor_roles:
+            self.feedback_message = (
+                f"CVDRole.VENDOR required for VF state"
+                f" {self._vf_state!r} (ADR-0075); actor roles: {actor_roles!r}"
+            )
+            self.logger.info("%s: %s", self.name, self.feedback_message)
+            return Status.FAILURE
+        return None
 
     def update(self) -> Status:
         if (f := self._require_datalayer()) is not None:

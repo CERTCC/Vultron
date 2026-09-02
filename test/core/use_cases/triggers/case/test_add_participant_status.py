@@ -898,13 +898,17 @@ class TestCreateParticipantStatusNode:
         assert "status_id" not in result_out
 
     def test_same_state_vf_write_allowed_at_write_node(self):
-        """CSB-16-001: same-state VF write (no actual transition) is allowed."""
+        """CSB-16-001: same-state VF write (no actual transition) is allowed.
+
+        Uses CS_vf.Vf because VENDOR participants cannot hold CS_vf.vf
+        (Vendor-implies-V, PRM-06-002, ADR-0084).
+        """
         from py_trees.common import Status
 
-        self._seed_participant_vf_state(CS_vf.vf)
+        self._seed_participant_vf_state(CS_vf.Vf)
 
         bt_result, result_out = self._run_node(
-            rm_state=None, vf_state=CS_vf.vf, d_state=None, pxa_state=None
+            rm_state=None, vf_state=CS_vf.Vf, d_state=None, pxa_state=None
         )
 
         assert bt_result.status == Status.SUCCESS
