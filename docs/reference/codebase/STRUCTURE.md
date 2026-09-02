@@ -14,7 +14,7 @@
 | `vultron/config/` | Layer-neutral configuration models and loading logic | `vultron/config/app.py`, `vultron/config/actor.py` |
 | `vultron/enums/` | Shared CVD-domain enums (roles, states) imported by config and core | `vultron/enums/` |
 | `vultron/demo/` | Demo scenario runners and seed-config helpers | `pyproject.toml` entry points |
-| `vultron/metadata/` | Spec registry, history CLI, notes metadata tooling | `vultron/metadata/specs/`, `vultron/metadata/history/` |
+| `vultron/metadata/` | Spec registry, history CLI, notes metadata tooling, message-semantics mapping renderer | `vultron/metadata/specs/`, `vultron/metadata/history/`, `vultron/metadata/msm/` |
 | `vultron/scripts/` | CLI entry points (`vultrabot`) | `pyproject.toml` `[project.scripts]` |
 | `vultron/semantic_registry/` | ActivityStreams semantic pattern registry | `vultron/semantic_registry/` |
 | `test/` | Pytest test suite (mirrors `vultron/` layout) | `pyproject.toml` `[tool.pytest.ini_options]` |
