@@ -12,6 +12,7 @@ related_specs:
 related_notes:
   - notes/embargo-default-semantics.md
   - notes/participant-embargo-consent.md
+  - notes/call-out-configuration.md
 relevant_packages:
   - vultron/core/states/em.py
   - vultron/core/services/embargo_lifecycle.py
