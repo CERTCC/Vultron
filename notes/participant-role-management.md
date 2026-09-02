@@ -249,3 +249,22 @@ def test_no_direct_case_roles_mutation_in_core():
 This scan reads only files under `vultron/core/` (a small, bounded
 directory) and uses a compiled regex, completing well within the 1-second
 budget on modern hardware.
+
+## Participant Lookup: Two Patterns, Chosen by Context
+
+`actor_participant_index` is the authoritative fast path. Two lookup patterns
+exist and they are not interchangeable:
+
+- **RM state mutation** (`update_participant_rm_state`): MUST use
+  `actor_participant_index → dl.read()` exclusively (CM-19-003). Never read
+  inline objects from `case_participants`; they may be stale snapshots (#2233).
+- **BT-level resolution** (`FindParticipantByActorIdNode`): check
+  `actor_participant_index` first, then fall back to a `case_participants` scan
+  for bootstrap compatibility. Fail only on index↔scan *contradictions*, never
+  on a cache miss.
+
+## RM Terminal Guard Must Run Before the Same-State Shortcut
+
+Evaluate `RM.CLOSED` terminal rules *before* the `current == new` no-op check.
+Ordering them the other way silently permits a transition out of a terminal
+state whenever the target happens to equal the current state.

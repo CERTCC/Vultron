@@ -22,6 +22,7 @@ related_notes:
   - notes/event-driven-control-flow.md
   - notes/embargo-default-semantics.md
   - notes/sync-ledger-replication.md
+  - notes/demo-scenario-authoring.md
 relevant_packages:
   - vultron/demo/scenario
   - vultron/adapters/driving/fastapi/routers

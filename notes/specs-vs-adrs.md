@@ -3,6 +3,9 @@ title: Specs vs. ADRs — Delineation Guidelines
 status: active
 related_specs:
   - specs/meta-specifications.yaml
+related_notes:
+  - notes/bt-pitfalls.md
+  - notes/spec-authoring-rules.md
 ---
 
 # Specs vs. ADRs — Delineation Guidelines
@@ -258,3 +261,11 @@ not).
 | Human-facing guidance ("when to write an ADR") | `docs/adr/index.md` |
 | This decision table and heuristic | `notes/specs-vs-adrs.md` (this file) |
 | Agent-facing shorthand | `AGENTS.md` "Change Protocol" section |
+
+## ADR "What Is Removed" Lists Are Scoped to One Use, Not Global Existence
+
+Grep the spec corpus for MUSTs describing the *operation* a node implements
+before deleting it. An ADR may list a component as removed from one specific
+initialization flow while spec entries still require it in another.
+
+Source: ISSUE-1777; see also `notes/bt-pitfalls.md`

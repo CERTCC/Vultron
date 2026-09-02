@@ -13,6 +13,9 @@ related_notes:
   - notes/bt-integration.md
   - notes/bt-canonical-reference.md
   - notes/bt-design-patterns.md
+  - notes/embargo-lifecycle.md
+  - notes/received-status-authorization.md
+  - notes/testing-pitfalls.md
 relevant_packages:
   - py_trees
   - vultron/core/behaviors
@@ -668,3 +671,64 @@ def update(self) -> Status:
 error), placing it inside the `try` block causes the `except BtNodePreconditionError`
 handler to swallow it silently, returning `FAILURE` with a misleading
 `feedback_message` rather than propagating the real error.
+
+## Guarded-Commit BTs Must Execute Under the CASE_MANAGER Actor's Identity
+
+`CheckIsCaseManagerNode` compares the *blackboard* `actor_id` against the case's
+CASE_MANAGER participant. Any code that calls `execute_with_setup` for a BT
+containing `GuardedCommitCaseLedgerEntryBT` MUST pass the *receiving* actor's ID
+(e.g. `request.receiving_actor_id`), NOT the sender's (`request.actor_id`). This
+applies to production received-side use cases and to tests alike.
+
+In tests, use `actor_id=case_manager_actor_id`; in received-side use cases, use
+`resolve_receiving_actor_id(self._dl, request.receiving_actor_id)`, which falls
+back to the **store's own actor** when the field is absent and raises when
+neither source yields one. Do **not** fall back to `request.actor_id`: that is
+the sender, and since `actor_id` now selects the store, using it routes every
+read and write into an actor other than the one whose replica is being updated.
+
+BT nodes that also need the *sender* ID must store it as a private attribute
+(e.g. `self._target_actor_id`); `DataLayerAction.setup()` will overwrite the
+blackboard `actor_id`, and a stored attribute is the only safe way to keep it.
+See BT-17-005, BT-17-006, BT-05-006.
+
+Sources: ISSUE-2300, ISSUE-2238
+
+## A BT's Store Follows Its Executing Actor
+
+The blackboard `datalayer` is the store of the blackboard `actor_id`, reconciled
+in `BTBridge._store_for_actor` (BT-05-005). Seeding one actor's store and
+executing as another therefore leaves the tree reading an empty one: the symptom
+is a role gate that skips, or a "case not found" warning — not an error. Where a
+tree is role-gated, the role holder, the receiving actor and the store owner must
+be **one** actor (BT-05-006); letting any two drift is a silent skip.
+
+Source: ISSUE-2238
+
+## BT Write Nodes Must Validate Transitions at Their Own Boundary
+
+A BT node that writes CS/VFD/PXA/EM/RM state MUST call the relevant
+`is_valid_*_transition()` function inside the write node itself, not only in
+upstream guard or condition nodes. Upstream guards can be absent or bypassed when
+the write node is reused in a new tree. For VFD writes see CSB-16-001; for PXA
+writes see CSB-16-002 and SM-09-001; for EM writes route through
+`EmbargoLifecycle` (EMB-18-001). See
+[notes/embargo-lifecycle.md](embargo-lifecycle.md).
+
+Source: CONCERN-2412
+
+## BT Nodes Must Not Clear Blackboard Keys They Do Not Own
+
+A node's `_clear()` or tick-start zero-write MUST only target keys that node is
+the sole producer of. Clearing a shared global key (e.g.
+`BB_LEDGER_PAYLOAD_OBJECT_OVERRIDE`) in a node that is not its producer silently
+destroys a value written by an earlier node in the same Sequence, even when the
+clear runs for BT-17-003 compliance.
+
+Ownership rule: **the node that writes the key on its active path is the sole
+node that clears it on its no-op path.** The complementary requirement — that a
+producer MUST clear its own key on every no-op tick — is in
+[notes/received-status-authorization.md](received-status-authorization.md)
+§ "Per-dimension partial accept".
+
+Source: CONCERN-2711

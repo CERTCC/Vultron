@@ -202,8 +202,13 @@ which files to update per type.
 - **`notes/<topic>.md`** — Add design decisions, pitfalls, or implementation
   guidance. Every `notes/*.md` must have valid YAML frontmatter (`title`,
   `status`). Update `notes/README.md` if adding a new file.
-- **`AGENTS.md`** — Append a new pitfall entry to the **Common Pitfalls**
-  section if Phase 4 identified a recurring agent gap (Concern type only).
+- **`AGENTS.md`** — If Phase 4 identified a recurring agent gap (Concern type
+  only), route the pitfall per
+  [`notes/agents-md-structure.md`](../../../notes/agents-md-structure.md): the
+  write-up goes in the nearest `notes/` or per-directory `AGENTS.md`, and root's
+  **Common Pitfalls** index gets *at most* an extended table cell. Do **not**
+  append to root — it sits at exactly its 400-line budget and
+  `test/metadata/test_agents_md_size_ratchet.py` fails CI on line 401.
 - **ADR** — Draft `docs/adr/NNNN-<slug>.md` if the ADR determination
   recommended one.
 

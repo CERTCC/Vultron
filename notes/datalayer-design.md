@@ -15,6 +15,7 @@ related_notes:
   - notes/architecture-hexagonal.md
   - notes/activitystreams-semantics.md
   - notes/wire-core-boundary.md
+  - notes/testing-pitfalls.md
 relevant_packages:
   - vultron/core/ports
   - vultron/adapters/driven
@@ -432,9 +433,9 @@ losing the at-offer-time snapshot. Even if Activities eventually gain
 independent DataLayer records (removing the technical constraint), the semantic
 reason alone prohibits recursive dehydration here.
 
-*Source: CONCERN-2219. See also `notes/wire-artifact-immutability.md` for the
+Source: CONCERN-2219. See also `notes/wire-artifact-immutability.md` for the
 full design (A/B split, `frozen=True` enforcement, outbound blob pipeline, and
-VM-08-002/003 spec requirements).*
+VM-08-002/003 spec requirements).
 
 ---
 
@@ -477,28 +478,6 @@ Files to investigate:
 
 ---
 
-## RETIRED: `outbox_list()` Requires `clone_for_actor` in Tests
-
-(ISSUE-1298, 2026-07-10; retired by ADR-0073 / ISSUE-2238, 2026-08-20)
-
-This pitfall no longer exists. It described a writer and a reader disagreeing
-about which `actor_id` string keyed a queue row — `record_outbox_item(actor_id,
-…)` wrote under a named actor while `outbox_list()` read under `dl._actor_id`,
-which was `""` on a freshly constructed DataLayer.
-
-Neither half survives. A DataLayer cannot be constructed without an actor
-(DL-07-002), so there is no `""` scope to fall into; and queue rows carry no
-`actor_id` column at all (DL-07-001) — the queue lives in its owner's store, so
-`record_outbox_item` and `outbox_list_for_actor` collapsed into `outbox_append`
-and `outbox_list`.
-
-Kept as a retirement notice rather than deleted, because the *shape* recurs: a
-writer and a reader that disagree about which store they are addressing. That
-question is now answered by the store's identity rather than by a string
-comparison, which is the point of the change.
-
----
-
 ## Happy-Path DL Seeds Must Include Origin Activities for `dl.read()` Calls
 
 (ISSUE-1326, 2026-07-10)
@@ -527,49 +506,47 @@ the case where only one of the two required activities was emitted.
 
 ---
 
-## RETIRED: Dual-DataLayer Isolation Guard in Tests
+## One Actor Id Is One Database
 
-(ISSUE-1749, 2026-08-08; retired by ADR-0073 / ISSUE-2238, 2026-08-20)
+An `actor_id` is a **store name**, not a label on a store. `get_datalayer()`
+requires an actor and returns that actor's own store (DL-07-002); there is no
+ambient or unscoped singleton to reach for. A BT's store is the store of its
+executing actor, reconciled once in `BTBridge._store_for_actor` (BT-05-005), so a
+node cannot write to "some other" store by forgetting to use `self.datalayer`.
 
-This pattern no longer has anything to guard. It asserted that a BT node had not
-written to the process-global *unscoped* singleton instead of the injected
-DataLayer, by checking the singleton was empty afterwards.
+Two hazards follow, in opposite directions, and both have bitten:
 
-There is no unscoped singleton. `get_datalayer()` requires an actor and returns
-that actor's own store (DL-07-002), so the "shared/admin" instance the guard
-watched does not exist. The four tests built on the pattern were rewritten, and
-one of them —`test_actor_isolation` — turned out to assert `... or True`, so it
-could not have failed either way.
-
-What replaces it is stronger and needs no test discipline: a BT's store is the
-store of its executing actor, reconciled once in `BTBridge._store_for_actor`
-(BT-05-005). A node cannot write to "some other" store by forgetting to use
-`self.datalayer`, because there is no ambient store to reach for.
-
-Two live hazards remain in this area, and they are the reason the retirement is
-recorded rather than deleted:
-
-- An actor id **is** a store name. Two DataLayers built for the same actor id are
-  the *same* database (DL-07-004), so two scenarios that must not see each
-  other's rows need two actor ids — deriving one per test
-  (`f"{ACTOR_ID}/{slug}"`) is enough and self-documenting. Conversely, do not
-  give one logical actor two ids merely to get a fresh database; that
-  reintroduces the masking.
-- Sharing one store between two logical actors hides a *missing* write: the
+- **Two DataLayers built for the same actor id are the *same* database**
+  (DL-07-004). Two scenarios that must not see each other's rows therefore need
+  two actor ids — deriving one per test (`f"{ACTOR_ID}/{slug}"`) is enough and
+  self-documenting. The loud symptom is the second seed raising
+  `ValueError: record with id_=... already exists`.
+- **Sharing one store between two logical actors hides a *missing* write**: the
   reader finds the writer's row and the test passes for the wrong reason. This is
-  the defect class ISSUE-2238 was about, and it is why `test/conftest.py` carries
-  an autouse `_dispose_actor_stores_between_tests` — **do not remove it.** Note
-  that it only handles the between-test case; both hazards above can occur
-  *within* a single test, where no fixture can help.
+  the defect class ISSUE-2238 was about, and it is why several tests were found
+  asserting nothing at all. Conversely, do not give one logical actor two ids
+  merely to get a fresh database — that reintroduces the masking.
 
-References: ADR-0073 and ISSUE-2238 for the decision itself. The rewritten
-tests are in
+Only the loud hazard was noticeable before per-actor storage, which is why the
+silent one accumulated.
+
+`test/conftest.py` carries an autouse `_dispose_actor_stores_between_tests` —
+**do not remove it.** It handles the *between-test* case only; both hazards above
+occur *within* a single test, where no fixture can help.
+
+References: ADR-0073 and ISSUE-2238 for the decision. Rewritten tests:
 `test/core/behaviors/case/test_case_proposal_received_tree.py::TestCreateCaseProposalReceivedBTCaseActorRecords`,
-which now asserts against each actor's own store rather than against an empty
+which asserts against each actor's own store rather than against an empty
 singleton.
 
-The originating learning (`20260819-one-actor-id-is-one-database`) is not cited
-by path: BW-03-002 requires every incoming learning to be archived out of
-`plan/incoming/learnings/` into `plan/history/YYMM/learning/`, so any such path
-is guaranteed to go stale. Search `plan/history/` by slug if the original is
-wanted.
+## Declaring a Test's Executing Actor
+
+Because a BT's store follows its executing actor (BT-05-005, above), a test that
+seeds one actor's store and runs `execute_with_setup(actor_id=<other>)` reads an
+empty one. Declare the executor with `@pytest.mark.executes_as(ACTOR)` —
+`bt_scenario` honours it — or build the scenario per actor with
+`bt_scenario_factory`. Derive a test's executing actor by looking at
+`execute_with_setup(actor_id=…)` and `receiving_actor_id`, never from fixture or
+test names.
+
+Source: ISSUE-2238

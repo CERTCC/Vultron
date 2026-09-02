@@ -263,29 +263,44 @@ groups:
   - id: VAM-04-001
     priority: MUST
     kind: protocol
-    statement: '`SUGGEST_ACTOR_TO_CASE` MUST be represented as `Offer(Actor)[target=VulnerabilityCase]`'
-    verification: Inspection of `vultron/wire/as2/extractor/_instances.py` confirms that `SuggestActorToCasePattern`
-      uses `TAtype.OFFER`, `AOtype.ACTOR`, and `target_=VULNERABILITY_CASE`; integration tests in
-      `test/demo/test_suggest_actor_demo.py` exercise this flow.
+    statement: '`OFFER_ACTOR_TO_CASE` MUST be represented as `Offer(Actor)[target=VulnerabilityCase]`'
+    rationale: 'This is the first hop of the two-offer actor-suggestion exchange: a participant suggests an Actor to the
+      CaseActor. Corrected from an earlier revision that named `SUGGEST_ACTOR_TO_CASE`, which is not and never was a
+      `MessageSemantics` member. Note the crossed spelling in the code — `SuggestActorToCasePattern` is the pattern bound
+      to `OFFER_ACTOR_TO_CASE`, while `OfferActorToCasePattern` is bound to `OFFER_CASE_PARTICIPANT` (VAM-04-010).'
+    verification: Inspection of `vultron/semantic_registry/actor.py` confirms that `MessageSemantics.OFFER_ACTOR_TO_CASE`
+      is keyed to `SuggestActorToCasePattern`, which uses `TAtype.OFFER`, `AOtype.ACTOR`, and
+      `target_=VULNERABILITY_CASE`; integration tests in `test/demo/test_suggest_actor_demo.py` exercise this flow.
     stories:
     - story_2022_053
     - story_2022_013
   - id: VAM-04-002
     priority: MUST
     kind: protocol
-    statement: '`ACCEPT_SUGGEST_ACTOR_TO_CASE` MUST be represented as `Accept(Offer(Actor)[target=VulnerabilityCase])`'
-    verification: Inspection of `vultron/wire/as2/extractor/_instances.py` confirms that `AcceptSuggestActorToCasePattern`
-      wraps `SuggestActorToCasePattern` inside an `Accept` outer pattern; integration tests in
+    statement: '`ACCEPT_OFFER_CASE_PARTICIPANT` MUST be represented as
+      `Accept(Offer(CaseParticipant)[target=VulnerabilityCase])`'
+    rationale: 'The accept wraps the *second* offer of the exchange, not the first: the Case Owner accepts the CaseActor''s
+      `Offer(CaseParticipant)` (VAM-04-010), not the original `Offer(Actor)`. Corrected from an earlier revision that named
+      a nonexistent `ACCEPT_SUGGEST_ACTOR_TO_CASE` and wrapped `Offer(Actor)` — wrong in both the semantic name and the
+      wire form. See CM-16-003, CM-16-004 and ADR-0026.'
+    verification: Inspection of `vultron/semantic_registry/actor.py` confirms that
+      `MessageSemantics.ACCEPT_OFFER_CASE_PARTICIPANT` is keyed to `AcceptActorRecommendationPattern`, whose nested
+      sub-pattern has `object_=CASE_PARTICIPANT` rather than `ACTOR`; integration tests in
       `test/demo/test_suggest_actor_demo.py` exercise this flow.
     stories:
     - story_2022_054
   - id: VAM-04-003
     priority: MUST
     kind: protocol
-    statement: '`REJECT_SUGGEST_ACTOR_TO_CASE` MUST be represented as `Reject(Offer(Actor)[target=VulnerabilityCase])`'
-    verification: Inspection of `vultron/wire/as2/extractor/_instances.py` confirms that `RejectSuggestActorToCasePattern`
-      wraps `SuggestActorToCasePattern` inside a `Reject` outer pattern; integration tests in
-      `test/demo/test_suggest_actor_demo.py` exercise this flow.
+    statement: '`REJECT_OFFER_CASE_PARTICIPANT` MUST be represented as
+      `Reject(Offer(CaseParticipant)[target=VulnerabilityCase])`'
+    rationale: 'Symmetric with VAM-04-002: the rejection wraps the CaseActor''s `Offer(CaseParticipant)`, not the
+      originating `Offer(Actor)`. Corrected from an earlier revision that named a nonexistent
+      `REJECT_SUGGEST_ACTOR_TO_CASE` and wrapped the wrong inner object.'
+    verification: Inspection of `vultron/semantic_registry/actor.py` confirms that
+      `MessageSemantics.REJECT_OFFER_CASE_PARTICIPANT` is keyed to `RejectActorRecommendationPattern`, whose nested
+      sub-pattern has `object_=CASE_PARTICIPANT`; integration tests in `test/demo/test_suggest_actor_demo.py`
+      exercise this flow.
     stories:
     - story_2022_054
   - id: VAM-04-004
@@ -347,6 +362,21 @@ groups:
     stories:
     - story_2022_048
     - story_2022_050
+  - id: VAM-04-010
+    priority: MUST
+    kind: protocol
+    statement: '`OFFER_CASE_PARTICIPANT` MUST be represented as `Offer(CaseParticipant)[target=VulnerabilityCase]`'
+    rationale: 'The second hop of the actor-suggestion exchange, and the one VAM previously omitted entirely: having
+      received `Offer(Actor)` (VAM-04-001), the CaseActor offers case participation to the Case Owner as a
+      `CaseParticipant` carrying the proposed roles. This hop is what VAM-04-002 and VAM-04-003 accept and reject, so
+      leaving it unspecified made those two entries look like they wrapped `Offer(Actor)`. See CM-16-003, CM-16-004 and
+      ADR-0026.'
+    verification: Inspection of `vultron/semantic_registry/actor.py` confirms that
+      `MessageSemantics.OFFER_CASE_PARTICIPANT` is keyed to `OfferActorToCasePattern` (note the crossed spelling
+      described in VAM-04-001), which uses `TAtype.OFFER`, `object_=CASE_PARTICIPANT`, and
+      `target_=VULNERABILITY_CASE`; integration tests in `test/demo/test_suggest_actor_demo.py` exercise this flow.
+    stories:
+    - story_2022_053
 - id: VAM-05
   title: Embargo Management Messages
   specs:

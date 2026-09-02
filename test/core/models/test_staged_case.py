@@ -375,6 +375,37 @@ class TestDataLayerRoundTrip:
         with pytest.raises(VultronValidationError):
             EmbargoedCase.model_validate(vc)
 
+    def test_promotion_works_on_a_real_datalayer_read(self):
+        """``dl.read()`` output narrows via ``model_validate`` (LST-05-001).
+
+        The sibling tests above round-trip through ``model_dump`` in-process,
+        which leaves the actual read boundary — the one LST-05-001 is *about* —
+        uncovered.  Root ``AGENTS.md`` consequently carried a contradicting rule
+        for some time ("staged-type ``model_validate`` only works on
+        core-constructed objects; don't use on ``dl.read()`` results"), and
+        nothing in the suite could adjudicate it.  It does not hold: a real
+        SQLite round-trip rehydrates ``case_statuses`` as materialized
+        ``CaseStatus`` objects, so promotion succeeds.  This test pins that so
+        the claim cannot resurface unverified.
+        """
+        from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+
+        dl = SqliteDataLayer(actor_id=_ACTOR)
+        vc = _embargoed_case_data()
+        dl.create(vc)
+
+        stored = dl.read(vc.id_)
+        assert isinstance(stored, VulnerabilityCase)
+        assert type(stored).__name__ == "VulnerabilityCase", (
+            "the DataLayer must rehydrate the base type, not a staged subtype "
+            "(LST-05-003)"
+        )
+        assert all(isinstance(s, CaseStatus) for s in stored.case_statuses)
+
+        promoted = EmbargoedCase.model_validate(stored)
+        assert isinstance(promoted, EmbargoedCase)
+        assert promoted.active_embargo == _EMBARGO_ID
+
 
 # ---------------------------------------------------------------------------
 # Spec compliance: no RM staged type (AC-5, LST-02-004)

@@ -8,6 +8,8 @@ related_specs:
 related_notes:
   - notes/case-ledger-authority.md
   - notes/case-state-model.md
+  - notes/message-type-reference.md
+  - notes/testing-pitfalls.md
 relevant_packages:
   - vultron/core/behaviors
   - vultron/wire/as2
@@ -629,3 +631,21 @@ companion document rather than the main RFC — is recorded in
   `CaseLedgerEntry` requirements
 - `docs/adr/` — architectural decisions for CaseActor, per-actor DataLayer
 - `notes/case-state-model.md` — CaseStatus append-only history and state model
+
+## SYNC Replication Test Patterns
+
+### Happy-Path (SYNC-901)
+
+Use two isolated `create_isolated_actor_app` instances plus a shared
+`_TestClientRouter` as emitter fallback. The router POSTs cross-actor deliveries
+to each target app's `TestClient` inbox (the only sanctioned in-process transport
+per ADR-0042 / OX-12-003 — no hand-rolled `httpx.ASGITransport`). Each app has
+its own actor-scoped `DataLayer`. Use `post_actor_inbox` for inbound activities.
+
+### Predecessor-Mismatch (SYNC-902)
+
+Do NOT inject via `post_actor_inbox` — `CheckLogEntryAlreadyStored` can
+short-circuit before hash validation. Instead:
+
+1. call `handle_inbox_item(dl, activity)` directly, then
+2. drive outbox-based replay from the CaseActor.

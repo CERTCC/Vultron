@@ -13,6 +13,7 @@ related_notes:
   - notes/bt-composability.md
   - notes/protocol-event-cascades.md
   - notes/demo-ci-diagnostics.md
+  - notes/demo-scenario-authoring.md
 relevant_packages:
   - vultron/bt
   - vultron/core

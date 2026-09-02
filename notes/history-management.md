@@ -338,3 +338,9 @@ def test_invalid_type_exits_nonzero():
     )
     assert result.returncode != 0
 ```
+
+## Superseded Notes Sections Are Archived via `append-history note`
+
+Stale sections (or whole files) go to `plan/history/YYMM/note/` with source ID
+`NOTES-<file-stem>--<section-slug>`; the `learn` skill Phase 5 drives this.
+See PD-03-002, PD-03-004.
