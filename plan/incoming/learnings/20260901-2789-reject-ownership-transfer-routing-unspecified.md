@@ -1,7 +1,7 @@
 ---
 title: "CM-21 specifies Offer and Accept routing for ownership transfer but not Reject"
 type: learning
-timestamp: 2026-09-01
+timestamp: "2026-09-01T00:00:00Z"
 source: ISSUE-2789
 signal: spec-gap
 ---
