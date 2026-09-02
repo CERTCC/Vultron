@@ -7,7 +7,7 @@ description: 'Authoritative normative bridge from protocol message shorthand lab
   pxa_state, EV/EJ/EC onto EP/ER/EA), and one shorthand may expand across several wire activities (GI, EP). Shorthands with
   no dedicated dispatch value are the protocol-layer error and acknowledgment signals; these are not unimplemented — the
   purposes they name are served by mechanisms partitioned on a different axis, specified normatively in MSM-05.'
-version: 0.2.0
+version: 0.3.0
 scope:
 - prototype
 - production
@@ -660,5 +660,217 @@ groups:
     verification: >-
       Inspection of the rendered pages confirms a status column is present and
       populated for every row.
+    lint_suppress:
+    - missing_story_reference
+- id: MSM-07
+  title: Participant Embargo Consent (PEC) State Machine Coupling to EM Wire Activities
+  description: >-
+    Normative record of how each EM wire activity drives the per-participant Participant
+    Embargo Consent (PEC) state machine as a side-effect, and which PEC transitions are
+    internal cascades or timer-based events with no corresponding wire message. PEC is a
+    participant-local state machine tracking each actor's relationship to the shared case
+    embargo; its transitions are not independent protocol messages and have no formal
+    shorthands in the 28-shorthand set. PEC state answers the question: "has this
+    participant explicitly accepted or rejected the *current* active embargo?" Unlike
+    RM state (self-reported by the participant) and VF/D state (self-reported by
+    vendor/deployer), PEC state is set by the CaseActor (CM-28-003) based on observed
+    participant behavior — incoming Accept/Reject wire activities, timer-enforced lapses,
+    and cascades from shared EM state changes. The five states are NO_EMBARGO (no embargo
+    in scope), INVITED (awaiting response), SIGNATORY (accepted current terms), LAPSED
+    (terms changed since last acceptance), and DECLINED (explicitly refused or timed out
+    without responding). Normative authority: specs/case-management.yaml CM-18.
+    Decision: ADR-0048.
+  specs:
+  - id: MSM-07-001
+    priority: MUST
+    kind: protocol
+    statement: >-
+      The Participant Embargo Consent (PEC) state machine MUST NOT be assigned any
+      formal shorthand in the 28-shorthand protocol message set; all PEC transitions
+      are either side-effects of EM wire activities (MSM-07-002 through MSM-07-005)
+      or timer-based internal events (MSM-07-006) with no dedicated wire message or
+      dispatch value of their own.
+    rationale: >-
+      PEC is participant-local state tracking each actor's relationship to the shared
+      EM state, not a parallel message-driven machine. Extending the formal set with
+      PEC-specific shorthands would imply dedicated wire messages where none exist and
+      none are needed — the EM messages already carry the PEC signal as a side-effect.
+      Documenting PEC as a side-effect is the faithful description of the design.
+    verification: >-
+      A grep for PEC-specific entries across vultron/core/models/events/base.py and
+      vultron/semantic_registry/ confirms no MessageSemantics member and no registry
+      entry is named exclusively for a PEC transition.
+    relationships:
+    - rel_type: derives_from
+      spec_id: CM-18-003
+    lint_suppress:
+    - missing_story_reference
+  - id: MSM-07-002
+    priority: MUST
+    kind: protocol
+    statement: >-
+      The wire activity INVITE_TO_EMBARGO_ON_CASE (EP wire form:
+      Invite(Event)[context=VulnerabilityCase]) MUST apply the PEC INVITE trigger to
+      the invited participant, advancing their consent state from NO_EMBARGO, DECLINED,
+      or LAPSED to INVITED.
+    rationale: >-
+      An embargo proposal is an invitation to consent; the EP wire activity conveys
+      the invitation and the PEC machine records each participant's position. Participants
+      already in SIGNATORY are unaffected by EP; INVITE is a no-op from SIGNATORY
+      (CM-18-004). The PEC trigger is applied via EmbargoLifecycle.record_participant_consent()
+      inside the InviteToEmbargoOnCaseReceivedUseCase received-side handler.
+    verification: >-
+      Inspection of vultron/core/use_cases/received/embargo.py and
+      vultron/core/services/embargo_lifecycle.py confirms that processing
+      INVITE_TO_EMBARGO_ON_CASE applies PEC_Trigger.INVITE to each named invitee
+      via record_participant_consent().
+    relationships:
+    - rel_type: derives_from
+      spec_id: CM-18-003
+    - rel_type: refines
+      spec_id: MSM-02-001
+    lint_suppress:
+    - missing_story_reference
+  - id: MSM-07-003
+    priority: MUST
+    kind: protocol
+    statement: >-
+      The wire activity ACCEPT_INVITE_TO_EMBARGO_ON_CASE (EA wire form:
+      Accept(Invite(Event)[context=VulnerabilityCase])) has two-audience semantics:
+      (1) when the sending actor is the case owner it MUST advance the shared EM
+      state from PROPOSED to ACTIVE (or from REVISE to ACTIVE for EC); (2) for
+      any accepting participant it MUST apply the PEC ACCEPT trigger, advancing
+      their consent state from INVITED, NO_EMBARGO, or LAPSED to SIGNATORY.
+    rationale: >-
+      The same wire activity simultaneously drives the case-level EM machine
+      (for the case owner) and the participant-level PEC machine (for the accepting
+      actor). An implementer handling this activity MUST update both machines, not
+      just the EM state. The PEC ACCEPT trigger is valid directly from NO_EMBARGO
+      because consent can be self-determined without an invitation (ADR-0048,
+      CM-18-003).
+    verification: >-
+      Inspection of vultron/core/use_cases/received/embargo.py confirms
+      AcceptInviteToEmbargoOnCaseReceivedUseCase applies EmbargoLifecycle
+      with the sending actor's PEC updated to SIGNATORY regardless of whether
+      the actor is the case owner driving EM.
+    relationships:
+    - rel_type: derives_from
+      spec_id: CM-18-003
+    - rel_type: refines
+      spec_id: MSM-02-002
+    lint_suppress:
+    - missing_story_reference
+  - id: MSM-07-004
+    priority: MUST
+    kind: protocol
+    statement: >-
+      The wire activity REJECT_INVITE_TO_EMBARGO_ON_CASE (ER wire form:
+      Reject(Invite(Event)[context=VulnerabilityCase])) has two-audience semantics:
+      (1) when the sending actor is the case owner it MUST advance the shared EM
+      state from PROPOSED to NONE (for ER) or leave EM in ACTIVE (for EJ); (2)
+      for any rejecting participant it MUST apply the PEC DECLINE trigger, advancing
+      their consent state from INVITED, NO_EMBARGO, or LAPSED to DECLINED.
+    rationale: >-
+      Symmetric with MSM-07-003: the reject wire activity drives both the EM machine
+      (case-owner path) and the PEC machine (rejecting participant path). The PEC
+      DECLINE trigger is valid directly from NO_EMBARGO for symmetric reasons to
+      ACCEPT (ADR-0048, CM-18-003).
+    verification: >-
+      Inspection of vultron/core/use_cases/received/embargo.py confirms
+      RejectInviteToEmbargoOnCaseReceivedUseCase applies EmbargoLifecycle
+      with the sending actor's PEC updated to DECLINED regardless of EM ownership.
+    relationships:
+    - rel_type: derives_from
+      spec_id: CM-18-003
+    - rel_type: refines
+      spec_id: MSM-02-006
+    lint_suppress:
+    - missing_story_reference
+  - id: MSM-07-005
+    priority: MUST
+    kind: protocol
+    statement: >-
+      When the shared EM state transitions from ACTIVE to REVISE (driven by an
+      EV / INVITE_TO_EMBARGO_ON_CASE wire activity), implementations MUST
+      automatically apply the PEC REVISE trigger to every participant currently
+      in SIGNATORY state, advancing them to LAPSED. No separate outbound wire
+      activity is emitted for these per-participant PEC transitions; the cascade
+      is an internal side-effect of the EM state change.
+    rationale: >-
+      LAPSED means "I accepted the prior embargo terms, but those terms have
+      changed and my prior consent no longer applies." Because the revision is
+      a case-level event the cascade must be atomic with the EM transition —
+      leaving any SIGNATORY participant in place while EM is REVISE would allow
+      the case to proceed as though all prior signatories had re-accepted the
+      revised terms, which they have not. The REVISE cascade is performed by
+      EmbargoLifecycle._cascade_pec_revise() inside propose_embargo().
+    verification: >-
+      Inspection of vultron/core/services/embargo_lifecycle.py confirms that
+      propose_embargo() calls _cascade_pec_revise() and that SIGNATORY
+      participants are transitioned to LAPSED before the EM REVISE transition
+      is persisted. Unit tests in test/core/services/test_embargo_lifecycle.py
+      assert the cascade.
+    relationships:
+    - rel_type: derives_from
+      spec_id: CM-18-003
+    - rel_type: refines
+      spec_id: MSM-02-003
+    lint_suppress:
+    - missing_story_reference
+  - id: MSM-07-006
+    priority: MUST
+    kind: protocol
+    statement: >-
+      When the shared EM state transitions to EXITED (driven by an ET /
+      REMOVE_EMBARGO_EVENT_FROM_CASE wire activity), implementations MUST
+      automatically apply the PEC RESET trigger to every participant, advancing
+      all consent states to NO_EMBARGO. No separate outbound wire activity is
+      emitted for these per-participant PEC transitions; the cascade is an
+      internal side-effect of the EM termination.
+    rationale: >-
+      NO_EMBARGO is the correct state when no embargo is in scope (ADR-0048).
+      Terminating the embargo removes it from scope for all participants, so
+      their per-participant consent records must reflect that absence. The RESET
+      cascade is performed by EmbargoLifecycle._cascade_pec_reset() inside
+      terminate_active_embargo().
+    verification: >-
+      Inspection of vultron/core/services/embargo_lifecycle.py confirms that
+      terminate_active_embargo() calls _cascade_pec_reset() and that all
+      participants reach NO_EMBARGO. Unit tests in
+      test/core/services/test_embargo_lifecycle.py assert the cascade.
+    relationships:
+    - rel_type: derives_from
+      spec_id: CM-18-003
+    - rel_type: refines
+      spec_id: MSM-02-007
+    lint_suppress:
+    - missing_story_reference
+  - id: MSM-07-007
+    priority: MUST
+    kind: protocol
+    statement: >-
+      The timer-based pocket-veto transitions — INVITED to DECLINED and LAPSED
+      to DECLINED after the invitation deadline passes — MUST be enforced lazily
+      with no outbound wire message emitted for the PEC state change itself.
+      The CaseActor MUST author a case-ledger entry recording the lapse (CM-28-005)
+      so the consent change is visible in the canonical ledger, but no additional
+      protocol wire activity is required.
+    rationale: >-
+      Inaction cannot produce an outbound message because there is no actor-observable
+      event to report. The lapse is a derived conclusion from (invite_rsvp_deadline,
+      now); the ledger entry is the record of that conclusion, not a message sent
+      by the lapsing participant. Requiring a wire message would demand the system
+      speak on behalf of a participant who has said nothing, which contradicts the
+      Actor Knowledge Model (AKM).
+    verification: >-
+      Inspection of vultron/core/services/embargo_lifecycle.py confirms
+      detect_and_apply_lapse() applies PEC_Trigger.DECLINE without emitting
+      an outbound wire activity, and that a CaseActor-authored ledger entry
+      is written per CM-28-005.
+    relationships:
+    - rel_type: derives_from
+      spec_id: CM-18-002
+    - rel_type: derives_from
+      spec_id: CM-28-005
     lint_suppress:
     - missing_story_reference
