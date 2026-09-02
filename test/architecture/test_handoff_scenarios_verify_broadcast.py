@@ -32,13 +32,12 @@ a Bug"; ``notes/ownership-transfer.md``; CM-21-007; EDF-06-002.
 """
 
 import ast
-import pathlib
 
 import pytest
 
-SCENARIO_DIR = pathlib.Path(__file__).resolve().parents[2] / (
-    "vultron/demo/scenario"
-)
+from test.architecture import _corpus
+
+SCENARIO_DIR = _corpus.REPO_ROOT / "vultron/demo/scenario"
 
 #: The phase that performs the ownership transfer.
 PHASE_NAME = "_phase_ownership_handoff"
@@ -50,12 +49,17 @@ TRANSFER_EVENT_TYPE = "accept_case_ownership_transfer"
 LEDGER_WAIT_FN = "wait_for_event_type_in_ledger"
 
 
-def _scenarios_with_handoff_phase() -> list[pathlib.Path]:
-    """Return every scenario module that defines the ownership-handoff phase."""
+def _scenarios_with_handoff_phase() -> list[tuple[str, ast.AST]]:
+    """Return ``(module name, tree)`` for scenarios defining the handoff phase.
+
+    Uses the shared corpus so the sources and ASTs are read once at import time
+    rather than per ratchet (TB-13-001 through TB-13-003).
+    """
     found = [
-        path
-        for path in sorted(SCENARIO_DIR.glob("*.py"))
-        if f"def {PHASE_NAME}(" in path.read_text(encoding="utf-8")
+        (path.name, tree)
+        for path, tree in _corpus.files_mentioning(
+            f"def {PHASE_NAME}(", under=SCENARIO_DIR
+        )
     ]
     assert found, (
         f"no scenario defines {PHASE_NAME} — the ratchet would pass vacuously."
@@ -64,7 +68,7 @@ def _scenarios_with_handoff_phase() -> list[pathlib.Path]:
     return found
 
 
-def _handoff_phase(tree: ast.Module) -> ast.FunctionDef:
+def _handoff_phase(tree: ast.AST) -> ast.FunctionDef:
     for node in ast.walk(tree):
         if isinstance(node, ast.FunctionDef) and node.name == PHASE_NAME:
             return node
@@ -103,20 +107,19 @@ def _transfer_ledger_waits(phase: ast.FunctionDef) -> list[ast.Call]:
 
 @pytest.mark.spec("CM-21-007")
 @pytest.mark.parametrize(
-    "scenario",
+    "scenario_name, tree",
     _scenarios_with_handoff_phase(),
-    ids=lambda p: p.stem,
+    ids=lambda v: v if isinstance(v, str) else "",
 )
 def test_handoff_phase_verifies_transfer_reached_a_non_party_replica(
-    scenario: pathlib.Path,
+    scenario_name: str, tree: ast.AST
 ) -> None:
     """The handoff phase must gate on a non-party actor's own ledger replica."""
-    tree = ast.parse(scenario.read_text(encoding="utf-8"))
     phase = _handoff_phase(tree)
 
     waits = _transfer_ledger_waits(phase)
     assert waits, (
-        f"{scenario.name}::{PHASE_NAME} never waits for a"
+        f"{scenario_name}::{PHASE_NAME} never waits for a"
         f" {TRANSFER_EVENT_TYPE!r} ledger entry. ADR-0053's validation criterion"
         " is that an actor outside the negotiation learns of the transfer from"
         " the CM-21-007 broadcast; asserting attributed_to on the old and new"
@@ -139,7 +142,7 @@ def test_handoff_phase_verifies_transfer_reached_a_non_party_replica(
         clients.append(client.id if isinstance(client, ast.Name) else None)
 
     assert any(c is not None and c not in party_hints for c in clients), (
-        f"{scenario.name}::{PHASE_NAME} waits for {TRANSFER_EVENT_TYPE!r} but"
+        f"{scenario_name}::{PHASE_NAME} waits for {TRANSFER_EVENT_TYPE!r} but"
         f" only on a party to the transfer (clients={clients!r}). Read it on a"
         " non-party's own container — the reporter/finder — so the assertion"
         " tests the broadcast rather than the exchange (EDF-06-002)."

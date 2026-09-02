@@ -537,29 +537,27 @@ def test_any_received_event_covers_all_registry_event_classes():
 def _ownership_offer(attributed_to: Any) -> Any:
     """Build a delegated ownership-transfer Offer carrying *attributed_to*.
 
-    Built by `model_validate` rather than the factory so a non-URI
-    `attributedTo` can be exercised: `as_Object.attributed_to` is typed
-    ``Any | None``, and AS2 permits an inline object or an array there.
+    Goes through the factory (ARCH: tests must not reach into
+    ``vultron.wire.as2.vocab.activities`` directly — see
+    ``test_activity_factory_imports.py``).  ``as_Object.attributed_to`` is typed
+    ``Any | None``, so the factory accepts the inline-object and array shapes
+    AS2 permits, which is what lets this exercise a non-URI value.
     """
-    from vultron.wire.as2.vocab.activities.case import (
-        _OfferCaseOwnershipTransferActivity,
+    from vultron.wire.as2.factories import (
+        offer_case_ownership_transfer_activity,
+    )
+    from vultron.wire.as2.vocab.objects.vulnerability_case import (
+        as_VulnerabilityCase,
     )
 
-    return _OfferCaseOwnershipTransferActivity.model_validate(
-        {
-            "type": "Offer",
-            "actor": "https://example.org/actors/case-actor",
-            "attributedTo": attributed_to,
-            "object": {
-                "id": "https://example.org/cases/c1",
-                "type": "VulnerabilityCase",
-                "name": "C1",
-            },
-            "target": {
-                "id": "https://example.org/actors/coordinator",
-                "type": "Organization",
-            },
-        }
+    return offer_case_ownership_transfer_activity(
+        as_VulnerabilityCase(id_="https://example.org/cases/c1", name="C1"),
+        target={
+            "id": "https://example.org/actors/coordinator",
+            "type": "Organization",
+        },
+        actor="https://example.org/actors/case-actor",
+        attributed_to=attributed_to,
     )
 
 
