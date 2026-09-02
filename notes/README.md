@@ -50,12 +50,17 @@ Strict vs. loose domain object boundary contract: where objects transition from
 loose (wire-deserialized, possibly-None fields) to strict (all required fields
 resolved), fail-fast patterns at use-case, BT node, and helper boundaries,
 canonical helper locations (`use_cases/_helpers.py`), and the named
-silent-failure sites from CONCERN-1360 with before/after behavior.
+silent-failure sites from CONCERN-1360 with before/after behavior. Also records
+why rejecting an input as a unit does **not** license reporting only the first
+violation, the root-vs-derived classification for multi-violation reports, and
+why the trigger path fails closed while the receive path partial-accepts — the
+two halves of Postel's maxim, not an inconsistency to reconcile (ADR-0084).
 Normative requirements: `specs/architecture.yaml` ARCH-15-001 through
-ARCH-15-004.
+ARCH-15-004; `specs/error-handling.yaml` EH-05-002, EH-07.
 **Load when**: implementing or reviewing error handling in use cases or BT nodes,
-auditing helpers that return `None` on failure, or designing new domain helpers
-that require non-None inputs.
+auditing helpers that return `None` on failure, designing new domain helpers
+that require non-None inputs, or deciding how much diagnostic detail a
+validation boundary owes its caller.
 
 **`vultron/core/ports/AGENTS.md`**
 Port-focused architecture guidance for `vultron/core/ports/`: inbound vs

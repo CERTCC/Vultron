@@ -10,10 +10,14 @@ related_specs:
     ARCH-21-001 through ARCH-21-005)
   - specs/case-management.yaml (CM-27-001 through CM-27-003)
   - specs/participant-role-management.yaml (PRM-03-003)
+  - specs/error-handling.yaml (EH-05-002, EH-07-001 through EH-07-003)
+  - specs/behavior-tree-node-design.yaml (BTND-10-001 through BTND-10-003)
+  - specs/received-status-handling.yaml (RSH-05-001, RSH-05-002)
 related_notes:
   - notes/architecture-hexagonal.md
   - notes/bt-integration.md
   - notes/wire-core-boundary.md
+  - notes/bt-pitfalls.md
 ---
 
 # Domain Object Validation — Strict vs. Loose Boundaries
@@ -321,6 +325,101 @@ if case_id is None:
         reason="No case_id attribute found on event",
     )
 ```
+
+---
+
+## Rejecting as a Unit Does Not License Reporting One Reason (#2112)
+
+**Atomicity and diagnostic completeness are independent properties.** A
+validation boundary that refuses its whole input MUST still report every
+violation it can recognise in that input (EH-07-001, BTND-10-002). The
+inference "we reject atomically, so the first violation is enough" is wrong
+and was written into the code twice before ADR-0084 removed it — once in
+`ValidateTriggerTransitionsNode._validate_entailments`, once in
+`cross_machine_violations()`' ordering rationale.
+
+The reason it is wrong: because the rejection *is* atomic, nothing partial was
+accepted, so a caller told one reason at a time gains nothing from the round
+trip. It fixes one dimension, resubmits, and is told about the next. Fail-fast
+is the right disposition for a *write*; it is the wrong disposition for a
+*diagnostic*.
+
+### The emit/receive asymmetry is Postel's maxim, not an inconsistency
+
+The two `ParticipantStatus` validation paths do deliberately opposite things,
+and reading one will mislead you about the other:
+
+| | Trigger / emit path | Receive path |
+|---|---|---|
+| Entry point | `ValidateTriggerTransitionsNode` | `FilterParticipantStatusDimensionsNode` |
+| Disposition | Fail-closed: any violation refuses the whole write | Per-dimension partial accept: refused dimensions carry the current value forward, others land |
+| Normative source | BTND-10-001, ADR-0084 | ADR-0061, RSH-05-001, RSH-05-002 |
+| Postel's half | Conservative in what you send | Liberal in what you accept |
+
+Both halves come from the liberal-accept epic (ISSUE-2229). Do **not** "fix"
+one to match the other. If you think one is wrong, the question is which half
+of the maxim applies at that boundary, not which path is inconsistent.
+
+Whether the receive path *should* also be all-or-nothing is a genuinely open
+question, tracked separately. ADR-0061's standing argument against it: a
+refusal in one dimension carries no information about the others, and the
+pre-existing all-or-nothing behaviour silently destroyed accepted state and
+killed embargo teardown.
+
+### Root vs. derived violations
+
+Reporting everything unranked trades one failure for its mirror image: a wall
+of errors where one fix clears most of them. Classify by dimension overlap
+(EH-07-002):
+
+- A rule reading **one** dimension (a transition check, a role gate) is always
+  **root**.
+- A rule reading **more than one** dimension (a cross-machine entailment, the
+  compound CS transition) is **derived** when any dimension it reads already
+  carries a single-dimension violation, and **root** otherwise.
+
+The root multi-dimension case is the informative one: every dimension moved
+legally on its own and the *combination* is impossible. Use dimension overlap
+rather than a rule-to-rule dependency graph — a newly added rule is then
+classified correctly by construction, so the labelling cannot go stale.
+
+### Compose the rule set, don't just share the predicates
+
+Two nodes validating the same write must call **one** evaluator that returns
+every violation, not the same individual predicates (BTND-10-002). Sharing
+predicates still lets each caller pick a different subset — which is exactly
+what happened: only the guard evaluated the cross-machine entailments, only
+the write node evaluated the compound CS transition, and both duplicated the
+VF/D/PXA transition checks and role gates with byte-identical message text
+(an ARCH-15-004 violation). `cross_machine_violations()` is the existing
+instance of the right shape; see also
+[bt-integration.md](bt-integration.md) and the ISSUE-2906 lesson that
+composing the set — not sharing its members — is what makes divergence
+impossible rather than merely fixed.
+
+**The write node keeps its own checks** (BTND-10-003). Do not reduce it to a
+delegate that assumes the guard ran: `CreateParticipantStatusNode` is reached
+from `develop_fix.py`, `deploy_fix.py`, `close_case_effect.py` and two sites
+in `leave.py` without passing through the guard, and for those paths its
+checks are the only validation. This does not double-report on the trigger
+path — the guard fails first and the enclosing `Sequence` aborts before the
+write node ticks.
+
+### Surfacing a violation list
+
+`VultronValidationError` carries the violations as structured data and renders
+the whole set in `__str__` (EH-07-003), following `DemoFailureError`'s shape
+(`vultron/errors.py`, DEMOCI-01-003). The HTTP translation adds a `details`
+array to the body alongside `message` (EH-05-002), so callers are not forced
+to parse a joined string — a fragility #2112 named explicitly, since a change
+to internal check order silently alters which error surfaces.
+
+The plumbing already exists: `SvcBTTriggerBase.execute()` re-raises whatever
+exception it finds at `result_out["error"]`, so a guard node needs only to be
+passed `result_out`. Aggregation stays *within* one node per path, so
+BT-13-001's first-failing-leaf contract (`BTBridge.get_failure_reason`) is
+unaffected — sibling guard nodes in a `memory=False` `Sequence` still
+short-circuit and cannot co-report.
 
 ---
 

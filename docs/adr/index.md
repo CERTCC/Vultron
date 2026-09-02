@@ -153,6 +153,7 @@ General information about architectural decision records is available at <https:
 - [ADR-0081 Peer Knowledge Lives in the Hosted Actor's Own Store, Not as a Hosted Actor](0081-peer-knowledge-in-hosted-actor-store.md)
 - [ADR-0082 Wire/Core Boundary: One Declarative Pairing Registry, One Translator, and Reject Unknown Keys](0082-wire-core-boundary-pairing-registry.md)
 - [ADR-0083 The Formal Message Set and the AS2 Wire Vocabulary Are Deliberately Different Shapes; the Mapping Is the Reconciling Artifact](0083-formal-message-set-and-as2-vocabulary-are-different-shapes.md)
+- [ADR-0084 Report Every Violation, Reject the Batch — and the Emit/Receive Dispositions Are Postel's Maxim](0084-report-every-violation-reject-the-batch.md)
 
 ## Proposed ADRs
 

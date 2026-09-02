@@ -13,6 +13,7 @@ related_notes:
   - notes/bt-integration.md
   - notes/bt-canonical-reference.md
   - notes/bt-design-patterns.md
+  - notes/domain-validation.md
   - notes/embargo-lifecycle.md
   - notes/received-status-authorization.md
   - notes/testing-pitfalls.md
@@ -67,6 +68,17 @@ Sequence node's own `feedback_message` is always `""`. Always use
 leaf) to get a meaningful message. Apply this pattern **everywhere**
 `feedback_message` is logged after a BT failure — not just for a single BT
 class.
+
+**First-failing-leaf is a transport rule, not a diagnostics budget.** BT-13-001
+governs how one message is *retrieved*; it does not cap how much a node may put
+in that message. A node whose validation can fail several ways independently
+MUST report all of them in its own `feedback_message` rather than returning at
+the first (EH-07-001). Because a `memory=False` `Sequence` short-circuits, only
+one leaf fails per tick anyway, so aggregating *within* a node is fully
+compatible with the depth-first walk. Aggregating *across* sibling guard nodes
+is not, and would require restructuring the tree. See
+[domain-validation.md](domain-validation.md) § "Rejecting as a Unit Does Not
+License Reporting One Reason" (#2112, ADR-0084).
 
 ---
 
