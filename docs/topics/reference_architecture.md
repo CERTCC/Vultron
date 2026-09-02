@@ -7,7 +7,7 @@ It answers three questions: what the hexagonal boundary means, how an incoming m
 !!! note "Reference implementation, not the protocol"
 
     Vultron is a reference implementation of the CVD coordination protocol.
-    The structure described here — hexagonal layering, an ActivityStreams 2.0 (AS2) inbox pipeline, behavior-tree orchestration — is one valid way to realize the protocol.
+    The structure described here — hexagonal layering, an ActivityStreams Vocabulary 2.0 (AS2) inbox pipeline, behavior-tree orchestration — is one valid way to realize the protocol.
     The [Concept Taxonomy](../reference/vultron-taxonomy.md) separates the abstract protocol (vultron-core, vultron-wire, vultron-transport) from any implementation of it.
     Other implementations may make different choices and still conform.
 
