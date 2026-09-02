@@ -125,6 +125,7 @@ nav:
             - Acknowledging a Report: 'howto/activitypub/activities/acknowledge.md'
             - Error Handling: 'howto/activitypub/activities/error.md'
       - Worked Example: 'howto/worked_example.md'
+      - Wiring a Capability: 'howto/wire_capability.md'
       - Demo How-Tos:
           - FVV Demo: 'howto/demos/fvv-demo.md'
   - Reference:
