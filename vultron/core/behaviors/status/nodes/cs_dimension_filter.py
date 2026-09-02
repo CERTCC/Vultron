@@ -104,7 +104,16 @@ class _CsStatusGuardBase(DataLayerConditionWithPorts):
         # Defensive isinstance: guards against misbehaving adapter stubs that
         # bypass read_case()'s internal type check (the annotation is not
         # enforced at runtime).
-        return result if isinstance(result, VulnerabilityCase) else None
+        if isinstance(result, VulnerabilityCase):
+            return result
+        if result is not None:
+            logger.warning(
+                "%s: read_case(%r) returned unexpected type %s; treating as not found",
+                self.__class__.__name__,
+                self.case_id,
+                type(result).__name__,
+            )
+        return None
 
     def _resolve_asserted(self) -> CaseStatus | None:
         assert self.datalayer is not None
