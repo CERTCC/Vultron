@@ -139,28 +139,48 @@ pattern promotion. Process in this order:
    conflict and update both affected spec entries.
 3. `signal: spec-ambiguity` — requirement was unclear; an interpretation was made
    during build. Clarify the requirement so future agents don't have to guess.
-4. `signal: design-question` — architectural decision made mid-build. Determine
-   whether an ADR or notes update is warranted.
-5. `signal: concern` — fragility or risk. Create or update a GitHub Concern
-   issue if not already tracked.
-6. `signal: tooling-issue` / `signal: process-issue` — environment or tracking
-   problems. Update `AGENTS.md` or the affected skill with the fix.
-7. Untagged entries — general observations and patterns:
+4. `signal: theme-candidate` — a general claim the author could not verify from
+   one instance. Do **not** promote it on its own authority (BW-07-005). Group
+   candidates by claim and count **independent witnesses** — entries with
+   different `source` work items asserting the same thing:
+   - **Two or more witnesses** → the claim is corroborated. Promote to `notes/`
+     or `AGENTS.md`, or file a `type:Concern` issue if it names a defect.
+   - **One witness** → try to confirm it against the code. If confirmed,
+     promote. If not, leave it queued.
+   - **One witness, older than 30 days** → archive as unreproduced via
+     `append-history learning`, with no promotion (BW-07-007). Note the
+     non-reproduction in the archive body.
+5. Retired signal values (`design-question`, `concern`, `tooling-issue`,
+   `process-issue`) should no longer appear on new entries — those findings are
+   now routed to a GitHub issue or an in-session fix at discovery (BW-07-004).
+   If you encounter one on a pre-existing entry, treat it per its destination in
+   that table: file the issue or apply the fix now, then archive the entry.
+6. Untagged entries — general observations and patterns:
    - Missing requirements — behavior exists in code but has no spec.
    - Ambiguous or untestable requirements — reality diverges from what's written.
    - Redundant or contradictory requirements across spec files.
    - Agent guidance patterns that keep recurring but are not yet in `AGENTS.md`.
-8. Open GitHub `type:Concern` issues that reveal missing spec requirements or
+7. Open GitHub `type:Concern` issues that reveal missing spec requirements or
    durable design notes.
-9. Recent completed-task insights — when needed, run `uv run show-history
+8. Recent completed-task insights — when needed, run `uv run show-history
    --month YYMM` to identify which history entries contain architectural
    lessons, then open those entry files.
 
-A lesson is not complete until it has been promoted to `specs/`, `notes/`, or
-`AGENTS.md`. An incoming learning file that is archived without producing a
-durable output is a wasted lesson. If a learning entry clearly warrants a spec
-or notes update but one cannot be written in this session, document why and
-create a Concern issue — do not silently archive the entry without promotion.
+A lesson is not complete until it has reached a durable destination: a `specs/`
+requirement, a `notes/` card, an `AGENTS.md` entry, a filed GitHub issue, or an
+explicit non-reproduction verdict. If an entry clearly warrants a spec or notes
+update that cannot be written in this session, document why and create a Concern
+issue — do not silently archive it as if nothing were owed.
+
+Two archive outcomes are legitimate without promotion, and both must be stated
+in the archive body rather than left implicit:
+
+- **Unreproduced** — a single-witness `theme-candidate` older than 30 days with
+  no corroboration (BW-07-007).
+- **Already closed** — the entry's substance is already tracked in a GitHub
+  issue, or already landed in `specs/`, `notes/`, `docs/`, or the code. Verify
+  the claim before accepting it; an entry asserting "tracked as #N" is only
+  discharged if #N actually covers it.
 
 #### Part B — Notes Staleness Review (removals)
 

@@ -2,7 +2,7 @@ id: DF
 title: Diátaxis documentation requirements
 description: >-
   Brief requirements for organizing project documentation according to the Diátaxis framework.
-version: 1.0.0
+version: 1.1.0
 scope:
 - prototype
 - production
@@ -111,6 +111,18 @@ groups:
     statement: >-
       provide explicit links to the related Reference and Explanation pages (prerequisites,
       background, deeper rationale). Keep these resources out of the tutorial body.
+  - id: DF-03-011
+    priority: MUST
+    kind: process
+    statement: >-
+      Tutorials MUST reserve first-person plural ("we") for the shared journey and use second
+      person ("you") for the learner's own actions, possessions, and state.
+    rationale: >-
+      DF-03-004 establishes "we" as the tutorial voice but does not say what it covers. The
+      division of labor is what makes the voice work: "we" affirms the tutor/learner
+      relationship, while "you" identifies who is acting and what they now have. Writing "we
+      need Docker installed" misattributes the learner's prerequisite to the tutor, and
+      pervasive "you should understand that" signals a tutorial drifting into Explanation.
 - id: DF-04
   title: How-to guides
   specs:
@@ -190,6 +202,18 @@ groups:
     statement: >-
       Allow brief code examples in reference material only to illustrate usage, not to provide
       step-by-step instruction.
+  - id: DF-05-007
+    priority: MUST
+    kind: process
+    statement: >-
+      Reference material MUST make the system, not the reader, the grammatical subject of its
+      descriptive sentences.
+    rationale: >-
+      DF-05-001 and DF-05-003 require neutral, instruction-free description without saying how to
+      achieve it. Naming the grammatical subject is the operational test: "A value of `0`
+      disables the timeout" describes the machinery, while "Set `timeout` to `0` to disable it"
+      has crossed into instruction and belongs in a How-to guide. The subject test catches the
+      drift that "be neutral" alone does not.
 - id: DF-06
   title: Explanation
   specs:
@@ -222,6 +246,18 @@ groups:
     priority: MUST
     kind: process
     statement: Weave connections to related topics to build a web of understanding.
+  - id: DF-06-007
+    priority: MAY
+    kind: process
+    statement: >-
+      Explanation MAY use first-person plural ("we") for the author's reasoning and second person
+      ("you") to invite the reader to consider a point.
+    rationale: >-
+      DF was silent on Explanation voice, which left the most-used voice in the corpus formally
+      unaddressed. Explanation is discursive and DF-06-003 already permits opinion and
+      perspective, so both pronouns are legitimate here — "we chose a state-machine model
+      because…" and "you might expect this to behave like a queue; it does not" each do work that
+      impersonal prose cannot.
 - id: DF-08
   title: File metadata
   specs:
@@ -236,3 +272,73 @@ groups:
     statement: >-
       Place cross-reference sources only in the header metadata and use inline links for cross-spec
       references.
+- id: DF-09
+  title: Prose style
+  description: >-
+    Requirements governing the prose itself, as distinct from the architecture of the
+    documentation set. The detailed rules, their `SG-nn` identifiers, and their worked examples
+    live in `.claude/skills/shared/docs-style-guide.md`; these entries make that file normative
+    and give reviewers citable IDs.
+  specs:
+  - id: DF-09-001
+    priority: MUST
+    kind: process
+    statement: >-
+      Hand-written prose under `docs/` MUST follow the documentation style guide at
+      `.claude/skills/shared/docs-style-guide.md`.
+    rationale: >-
+      Style rules are numerous, example-heavy, and change more often than requirements do, so
+      they are maintained as a guide rather than as several dozen spec entries. This entry is the
+      anchor that gives the guide normative force and lets `lint-docs` findings cite a spec ID.
+      Generated trees (`docs/reference/code/`, `docs/reference/case_states/`) and `docs/adr/` are
+      outside the guide's scope; fix the generator or the template instead.
+  - id: DF-09-002
+    priority: MUST
+    kind: process
+    statement: >-
+      Domain terminology in `docs/` MUST match the canonical term in `docs/reference/glossary.md`,
+      with `docs/reference/vultron-taxonomy.md` canonical for Vultron concept names.
+    rationale: >-
+      "Avoid jargon" and "use domain language" are the same rule with the glossary as arbiter: a
+      term in the glossary is domain language and should be used, and a term in neither the
+      glossary nor the taxonomy is jargon that must be expanded, replaced, or registered. Naming
+      one arbiter also prevents the three overlapping term sources from drifting further apart.
+  - id: DF-09-003
+    priority: MUST
+    kind: process
+    statement: >-
+      Acronyms MUST be expanded on first use on each `docs/` page.
+    rationale: >-
+      First use resets per page because readers arrive from search results and deep links rather
+      than by reading in nav order. Site-wide `abbr` tooltips are not sufficient on their own:
+      they do not survive print output, and they are invisible to anyone reading the raw Markdown
+      on GitHub.
+  - id: DF-09-004
+    priority: MUST
+    kind: process
+    statement: >-
+      Every acronym used in `docs/` MUST be registered in `docs/_acronyms/index.md`.
+    rationale: >-
+      `pymdownx.snippets` auto-appends that file to every page, so a registered acronym gets a
+      hover definition everywhere it appears. An unregistered one silently gets nothing.
+  - id: DF-09-005
+    priority: SHOULD
+    kind: process
+    statement: >-
+      A `docs/` page SHOULD introduce, define, or link out for each concept before the sections
+      that depend on it.
+    rationale: >-
+      Prose is a directed acyclic graph of topics. A forward reference forces the reader to hold
+      an undefined term until the page explains it, or to leave the page to find out. Across
+      pages the dependency edge is a hyperlink from first use to the concept's canonical
+      introduction, so the glossary and the taxonomy serve as the concept registry and no
+      separate dependency file is required.
+  - id: DF-09-006
+    priority: SHOULD
+    kind: process
+    statement: >-
+      Every diagram in `docs/` SHOULD be accompanied by prose stating what the diagram shows.
+    rationale: >-
+      The page must stay comprehensible when the Mermaid render fails, in print-site output, and
+      to a screen reader. The accompanying sentence also disciplines the author: a diagram whose
+      point cannot be stated in a sentence usually has not earned its place.

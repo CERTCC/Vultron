@@ -3,7 +3,7 @@ title: A SIGNATORY rejecting an embargo revision has no legal PEC path on the re
 type: learning
 timestamp: "2026-09-02T00:00:00Z"
 source: ISSUE-2762
-signal: design-question
+signal: spec-gap
 ---
 
 Surfaced while reviewing the `reject_invite_to_embargo_tree` half of #2762.

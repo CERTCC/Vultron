@@ -58,7 +58,11 @@ from vultron.metadata.history.models import (
     NewHistoryEntry,
 )
 from vultron.metadata.history.readme_gen import regenerate_readme
-from vultron.metadata.history.types import HistoryEntryType, LearningSignalType
+from vultron.metadata.history.types import (
+    RETIRED_SIGNALS,
+    HistoryEntryType,
+    LearningSignalType,
+)
 
 _UTC = datetime.timezone.utc
 
@@ -257,7 +261,9 @@ def _build_parser() -> argparse.ArgumentParser:
         default=None,
         help=argparse.SUPPRESS,  # backfill only
     )
-    valid_signals = ", ".join(s.value for s in LearningSignalType)
+    valid_signals = ", ".join(
+        s.value for s in LearningSignalType if s not in RETIRED_SIGNALS
+    )
     parser.add_argument(
         "--signal",
         metavar="TYPE",
@@ -293,6 +299,7 @@ def append_history_entry(
     *,
     repo_root: Path | None = None,
     target_date: datetime.date | None = None,
+    discriminator: str | None = None,
 ) -> Path:
     """Write a history entry and regenerate the monthly README.
 
@@ -302,6 +309,15 @@ def append_history_entry(
         repo_root: Optional repository root override.
         target_date: Optional historical date for backfill callers (controls
             the ``YYMM`` directory; defaults to today).
+        discriminator: Optional per-entry suffix used to disambiguate a second
+            entry sharing the same ``source``. One work item may legitimately
+            produce several learnings (BW-01-003 names incoming files
+            ``YYYYMMDD-SLUG`` precisely so concurrent PRs do not collide), so
+            ``<entry-id>`` alone is not unique. When the plain
+            ``<entry-id>.md`` path is taken and a discriminator is supplied,
+            the entry is written to ``<entry-id>-<discriminator>.md``
+            (HM-01-002). Write-once is preserved: an existing file is never
+            overwritten.
 
     Returns:
         Path to the written history entry.
@@ -309,7 +325,9 @@ def append_history_entry(
     Raises:
         ValueError: If content is empty, frontmatter is invalid, or the
             frontmatter ``type`` field does not match *entry_type*.
-        FileExistsError: If the target entry file already exists.
+        FileExistsError: If the target entry file already exists and no
+            discriminator was supplied, or if the discriminated path is also
+            taken.
     """
     if not content.strip():
         raise ValueError("entry content is empty")
@@ -330,6 +348,11 @@ def append_history_entry(
     entry_dir.mkdir(parents=True, exist_ok=True)
 
     entry_file = entry_dir / f"{entry_id}.md"
+    if entry_file.exists() and discriminator:
+        disc = _sanitize_entry_id(discriminator)
+        # The incoming slug often already embeds the entry id; don't repeat it.
+        stem = disc if entry_id in disc else f"{entry_id}-{disc}"
+        entry_file = entry_dir / f"{stem}.md"
     if entry_file.exists():
         raise FileExistsError(f"history entry already exists: {entry_file}")
 
@@ -463,10 +486,20 @@ def _parse_signal(
             f"not '{entry_type}'"
         )
     try:
-        return LearningSignalType(value)
+        signal = LearningSignalType(value)
     except ValueError:
         valid = ", ".join(s.value for s in LearningSignalType)
         _fail(f"unknown signal type '{value}'. Valid values: {valid}")
+    if signal in RETIRED_SIGNALS:
+        active = ", ".join(
+            s.value for s in LearningSignalType if s not in RETIRED_SIGNALS
+        )
+        _fail(
+            f"signal type '{value}' is retired (BW-07-002). Findings of this "
+            f"kind are routed at discovery to a GitHub issue or an in-session "
+            f"fix (BW-07-004), not to a learning file. Valid values: {active}"
+        )
+    return signal
 
 
 def _check_from_file_conflicts(args: argparse.Namespace) -> None:
@@ -523,6 +556,7 @@ def _handle_from_file_mode(source_path: Path) -> None:
             fm.type,
             content,
             target_date=target_date,
+            discriminator=source_path.stem,
         )
     except (FileExistsError, FileNotFoundError, ValueError) as exc:
         _fail(str(exc))

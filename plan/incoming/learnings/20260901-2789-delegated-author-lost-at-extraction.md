@@ -1,7 +1,7 @@
 ---
 title: "CM-24-002's attributed_to was dropped at extraction, so no core code could use it"
 type: learning
-timestamp: 2026-09-01
+timestamp: "2026-09-01T00:00:00Z"
 source: ISSUE-2789
 signal: concern
 ---

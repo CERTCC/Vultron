@@ -454,6 +454,36 @@ if result.status != Status.SUCCESS:
 Raising inside the outer `except Exception` handler in `update()` ensures the
 calling node returns `FAILURE` rather than `SUCCESS`.
 
+### …And That Idiom Is Why `internal_error` Cannot See a Nested Crash
+
+(CONCERN-3019, 2026-09-02)
+
+`BTExecutionResult` carries `internal_error`, which separates a protocol outcome
+the tree is entitled to report from a programming error that escaped a node.
+`BTBridge.execute_tree` sets it for anything that is not a `VultronError`, plus
+the two non-convergent exits (root left `INVALID`, `max_iterations` exhausted).
+Read it as **"an internal error reached the bridge"**, never as "no bug
+occurred", because the pattern immediately above defeats it twice over:
+
+- The `raise RuntimeError(...)` the ✅ example prescribes is caught by the
+  calling node's *own* `except Exception` in `update()` and converted to
+  `Status.FAILURE`. So the outer bridge sees an ordinary failure and the flag
+  stays `False` — verified at `case/nodes/actor.py`.
+- The nine nodes that run a subtree through their own `BTBridge` discard the
+  inner `result.internal_error` and return a bare `Status.FAILURE`
+  (`case/nodes/lifecycle.py`, `status/nodes/case_status.py`, and seven more), so
+  a crash inside a subtree is invisible in the outer result.
+
+Both gaps are uniform across every nested-bridge site — there is no site where
+the flag survives the hop. Propagating it through nested calls is tracked on
+CONCERN-3019; until then, do not branch on `internal_error is False` as
+evidence that a failure was deliberate.
+
+On the test side the mirror-image rule — a FAILURE assertion must prove the
+harness can produce the reason it names — is in
+[notes/testing-pitfalls.md](testing-pitfalls.md) § "A FAILURE Test Must Prove
+the Harness Can Produce Its Named Reason".
+
 ---
 
 ## Guard Name Must Match the State-Machine Transition Precondition
@@ -524,7 +554,21 @@ with pytest.raises(py_trees.blackboard.timebomb.NoDataAvailable):
     node.initialise()  # calls get_input() → raises here
 ```
 
-<!-- Source: ISSUE-1808; spec: BTND-03-011; ADR: ADR-0044 -->
+**`NoDataAvailable` is not the only thing that surfaces here.** `get_input()`
+also raises `TypeError` when the key holds a value that is not an instance of
+the port's declared `data_type` — and unlike `NoDataAvailable`, that one is
+**not** caught by `_try_get_input()`, which catches only `NoDataAvailable` and
+`NotImplementedError`. So it escapes `initialise()`, unwinds the tick, and is
+absorbed by `BTBridge.execute_tree`'s blanket `except Exception`: the **whole
+tree** reports FAILURE with the type-mismatch message logged, not the one node
+returning `Status.FAILURE`. That is a deliberate departure from the usual "BT
+nodes return FAILURE, they do not raise" convention (§ BT-HELPER-01) — a
+violated blackboard type contract is a wiring error, not a protocol condition,
+so failing closed is intended. A port declared `data_type=object` accepts
+anything and never reaches this path. See ADR-0044 § Consequences and
+`vultron/core/behaviors/AGENTS.md` § "Port `data_type` Is Enforced".
+
+<!-- Source: ISSUE-1808, ISSUE-2907, ISSUE-3011; spec: BTND-03-011; ADR: ADR-0044 -->
 
 ---
 

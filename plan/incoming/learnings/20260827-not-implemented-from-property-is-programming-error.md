@@ -3,7 +3,7 @@ title: "NotImplementedError from a port property is a programming error, not a d
 type: learning
 timestamp: "2026-08-27T00:00:00Z"
 source: ISSUE-2668
-signal: design-question
+signal: theme-candidate
 ---
 
 When a `CasePersistence` (or similar port) stub raises `NotImplementedError`

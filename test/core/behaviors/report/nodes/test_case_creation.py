@@ -100,9 +100,15 @@ def test_create_case_activity(
 
     assert activity_data.get("type_") == "Create"
     assert activity_data.get("to"), "CreateCaseActivity should have recipients"
-    assert actor.id_ not in activity_data["to"]
-    assert reporter.id_ in activity_data["to"]
-    assert isinstance(activity_data.get("object_"), str)
+    assert (
+        actor.id_ not in activity_data["to"]
+    ), "Sender actor should be excluded from 'to' recipients"
+    assert (
+        reporter.id_ in activity_data["to"]
+    ), "Reporter (report.attributed_to) should be in 'to' recipients"
+    assert isinstance(
+        activity_data.get("object_"), str
+    ), "CreateCaseActivity object_ should be stored as the case ID string"
 
 
 def test_create_case_activity_missing_case_id(
@@ -116,7 +122,12 @@ def test_create_case_activity_missing_case_id(
         CreateCaseActivity(report_id=report.id_, offer_id=offer.id_),
         actor_id=actor.id_,
     )
-    bt_scenario.assert_failure(result)
+    # The missing required port *is* the subject here: no preceding node
+    # set case_id, so the tree fails via the port contract rather than via
+    # a protocol decision (CONCERN-3019).
+    bt_scenario.assert_failure(
+        result, reason="Input port 'case_id'", allow_internal=True
+    )
 
 
 def test_update_actor_outbox(

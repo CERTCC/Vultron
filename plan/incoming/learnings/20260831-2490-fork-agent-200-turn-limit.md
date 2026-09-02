@@ -3,7 +3,7 @@ title: "process-issue: 120-guard mechanical refactor hit fork agent 200-turn lim
 type: learning
 timestamp: 2026-08-31T18:00:00Z
 source: ISSUE-2490
-signal: process-issue
+signal: theme-candidate
 ---
 
 The mechanical replacement of 120 `isinstance(VulnerabilityCase)` guards across ~60 files

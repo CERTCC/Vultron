@@ -276,6 +276,61 @@ present" from "present but invalid" and assert a raise/`FAILURE` for the latter.
 
 Sources: ISSUE-2232, ISSUE-2264
 
+### A FAILURE Test Must Prove the Harness Can Produce Its Named Reason
+
+`BTTestScenario` injects some collaborators unconditionally, so several
+"failure when X is absent" conditions **cannot be reached through it**:
+
+| Named condition | Why unreachable |
+|---|---|
+| datalayer absent | `BTBridge.setup_tree` always assigns `blackboard.datalayer` |
+| trigger factory unavailable | `BTTestScenario.__init__` always wires `trigger_activity=TriggerActivityAdapter(dl)` |
+
+Three tests named one of these and passed anyway — each was actually dying on an
+unrelated missing blackboard port. `assert_failure` only checked
+`status == FAILURE`, which both causes satisfy, so the name and the behavior
+drifted apart with nothing to catch it.
+
+**Pattern:** when asserting FAILURE, assert the *reason* too:
+
+```python
+bt_scenario.assert_failure(result, reason="case 'https://…/case-001' not found")
+```
+
+`reason` is a substring of `result.feedback_message`. Supply it whenever the node
+has more than one FAILURE path — a bare `assert_failure(result)` on a node ticked
+with no domain context verifies only "it did not hang". Use
+`assert_failure_reason(tree, "<substring>")` only when the leaf's reason does not
+survive into the result: it inspects the *tree*, so it sees neither the status nor
+the crash classification and MUST NOT be the sole assertion after a run.
+
+`assert_failure` rejects a failure that came from an escaped exception unless the
+test passes `allow_internal=True` (see `BTExecutionResult.internal_error`). Use
+that flag **only** when the crash path is the subject of the test; reaching for it
+to quiet an unexplained failure re-creates the problem it detects. Because it
+switches the classification guard off, it is accepted **only together with
+`reason`** — a test that opts out of the automatic check has to name what it
+expects instead, or the reason lives in a comment again:
+
+```python
+bt_scenario.assert_failure(
+    result, reason="Input port 'activity_ids'", allow_internal=True
+)
+```
+
+The guard is not exhaustive — a crash swallowed by a node's own `except Exception`,
+or one inside a subtree run through a nested `BTBridge`, still arrives as an
+ordinary FAILURE. Why that is structural, and why the nested-bridge idiom
+guarantees it, is in [notes/bt-pitfalls.md](bt-pitfalls.md) § "…And That Idiom Is
+Why `internal_error` Cannot See a Nested Crash".
+
+**Corollary:** if the condition is genuinely unreachable, the coverage does not
+exist. Rename the test to what it verifies and record the real gap rather than
+leaving a name that implies coverage — BT-14-001's factory-unavailable branch was
+uncovered for exactly this reason.
+
+Source: CONCERN-3019
+
 ### Case-Actor Broadcast Guard Tests Need a Third Participant
 
 Include at least one non-sender peer, or the assertion is vacuous.

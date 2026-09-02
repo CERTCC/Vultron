@@ -50,14 +50,33 @@ class TestSendTerminateEmbargoActivityNodePorts:
         with pytest.raises(NoDataAvailable):
             node.get_input("case_manager_id")
 
-    def test_failure_when_factory_unavailable(
+    def test_failure_when_embargo_absent(
         self, bt_scenario: BTTestScenario
     ) -> None:
+        """Ports supplied but no embargo seeded — the factory call fails.
+
+        Formerly named ``test_failure_when_factory_unavailable``, which it never
+        tested: ``BTTestScenario`` always wires
+        ``trigger_activity=TriggerActivityAdapter(dl)``, so
+        ``_on_factory_unavailable()`` is unreachable from this harness — the
+        same trap as the ``_require_datalayer()`` guards. Before the required
+        ports were supplied it did not even reach the factory, dying on a
+        missing ``embargo_id`` instead (CONCERN-3019).
+
+        The factory-unavailable branch of BT-14-001 therefore still has no
+        coverage; it needs a scenario built without a trigger-activity adapter.
+        """
         result = bt_scenario.run(
             SendTerminateEmbargoActivityNode(case_id=CASE_ID),
             actor_id=ACTOR_ID,
+            embargo_id="https://example.org/embargoes/emb-001",
+            case_manager_id=ACTOR_ID,
         )
-        bt_scenario.assert_failure(result)
+        # Name the embargo lookup, not a bare "not found": the node already
+        # tolerates a missing *case* (terminate.py `_recipients`), so a loose
+        # substring would still match if case absence became fatal first and
+        # the embargo lookup were never reached (CONCERN-3019).
+        bt_scenario.assert_failure(result, reason="EmbargoEvent")
 
 
 # ---------------------------------------------------------------------------

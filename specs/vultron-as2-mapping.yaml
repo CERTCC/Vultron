@@ -17,8 +17,8 @@ groups:
   - id: VAM-01-001
     priority: MUST
     kind: protocol
-    statement: Every `MessageSemantics` enum value except `UNKNOWN` MUST have exactly one entry in `SEMANTICS_ACTIVITY_PATTERNS`
-      that defines its AS2 wire representation
+    statement: Every `MessageSemantics` enum value except the `UNKNOWN` and `UNKNOWN_UNRESOLVABLE_OBJECT` sentinels MUST have
+      exactly one entry in `SEMANTIC_REGISTRY` carrying a non-`None` `pattern` that defines its AS2 wire representation
     verification: A unit test confirms that every `MessageSemantics` value except `UNKNOWN` and
       `UNKNOWN_UNRESOLVABLE_OBJECT` has a non-None `pattern` in `SEMANTIC_REGISTRY`.
     lint_suppress:
@@ -41,7 +41,7 @@ groups:
   - id: VAM-01-003
     priority: MUST
     kind: protocol
-    statement: Pattern entries in `SEMANTICS_ACTIVITY_PATTERNS` MUST be ordered from most-specific to least-specific so that
+    statement: Pattern entries in `SEMANTIC_REGISTRY` MUST be ordered from most-specific to least-specific so that
       `find_matching_semantics()` returns the correct semantic for overlapping patterns
     verification: Inspection of `vultron/semantic_registry/__init__.py` confirms that `_validate_registry_order()`
       is called at module load time and raises `RegistryOrderError` if a less-specific pattern precedes a
@@ -620,5 +620,15 @@ groups:
   - id: VAM-09-002
     priority: MUST_NOT
     kind: protocol
-    statement: '`MessageSemantics.UNKNOWN` MUST NOT have an entry in `SEMANTICS_ACTIVITY_PATTERNS`; the fallback is implemented
-      by `find_matching_semantics()` returning `UNKNOWN` when the pattern loop exhausts all entries without a match'
+    statement: '`MessageSemantics.UNKNOWN` MUST NOT have a matchable pattern: its `SEMANTIC_REGISTRY` entry MUST carry
+      `pattern=None`, and the fallback is implemented by `find_matching_semantics()` returning `UNKNOWN` when the pattern
+      loop exhausts all entries without a match'
+    rationale: >-
+      Stated as "no matchable pattern" rather than "no entry" because `SEMANTIC_REGISTRY`
+      is an ordered list of `SemanticEntry` values, not the `MessageSemantics` →
+      `ActivityPattern` dict it replaced. `UNKNOWN` does have a registry entry — it has
+      to, since `lookup_entry()` resolves the event class and use case for the fallback
+      through it. What it must not have is a pattern the match loop could select.
+    verification: >-
+      A unit test confirms that the `SEMANTIC_REGISTRY` entry for
+      `MessageSemantics.UNKNOWN` has `pattern is None` and is ordered last.

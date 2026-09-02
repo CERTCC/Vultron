@@ -65,6 +65,14 @@ The pilot validates the migration recipe before the full sweep (Issue #1809).
   each node's blackboard contract — readable without tracing `update()`.
 - `NoDataAvailable` on a missing required input surfaces when `get_input()` is
   called in `initialise()` — at the start of the first tick, not during `setup()`.
+- A port's `data_type` is checked at runtime on **both** sides: `_set_output()`
+  rejects a wrong-typed write and `get_input()` rejects a wrong-typed read, each
+  raising `TypeError`. This makes the declared type an enforced contract rather
+  than documentation — but only when the declaration names a concrete class.
+  `data_type=object` accepts anything and leaves the check inert, which matters
+  wherever a node narrows a port value with `cast()` instead of an `isinstance`
+  guard. Reserve `object` for Protocol-typed injections and genuinely
+  polymorphic payloads.
 - Isolated node tests can call `setup_ports()` + `get_input()` directly
   without running a full tree.
 - `DataLayerConditionWithPorts` and `DataLayerActionWithPorts` in

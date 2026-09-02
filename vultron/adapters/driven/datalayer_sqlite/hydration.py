@@ -123,7 +123,7 @@ def from_row(
        ``origin`` / ``result`` / ``instrument`` ID strings back to typed
        Pydantic objects by reading them from the DataLayer.
     4. :func:`coerce_to_semantic_class` — pattern-match the rehydrated object
-       against ``SEMANTICS_ACTIVITY_PATTERNS`` and, when a more specific
+       against ``SEMANTIC_REGISTRY`` and, when a more specific
        Python class is known (e.g. ``RmSubmitReportActivity`` for
        ``as_Offer``), coerce via ``model_validate`` so that callers always
        receive the most precise type without manual coercion.
