@@ -1,7 +1,7 @@
 ---
 title: OptionalLookupParticipantNode's fallback to the BT actor hides a dropped argument
 type: learning
-timestamp: 2026-09-01
+timestamp: "2026-09-01T00:00:00Z"
 source: ISSUE-2762
 signal: concern
 ---

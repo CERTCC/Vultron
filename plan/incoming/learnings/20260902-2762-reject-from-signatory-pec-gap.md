@@ -1,7 +1,7 @@
 ---
 title: A SIGNATORY rejecting an embargo revision has no legal PEC path on the received side
 type: learning
-timestamp: 2026-09-02
+timestamp: "2026-09-02T00:00:00Z"
 source: ISSUE-2762
 signal: design-question
 ---

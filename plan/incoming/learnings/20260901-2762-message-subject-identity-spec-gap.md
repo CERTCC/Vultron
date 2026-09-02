@@ -1,7 +1,7 @@
 ---
 title: No spec entry requires message-subject identities to come from the message
 type: learning
-timestamp: 2026-09-01
+timestamp: "2026-09-01T00:00:00Z"
 source: ISSUE-2762
 signal: spec-gap
 ---

@@ -1,7 +1,7 @@
 ---
 title: Bug #2762's body named a method and trigger condition that did not exist
 type: learning
-timestamp: 2026-09-01
+timestamp: "2026-09-01T00:00:00Z"
 source: ISSUE-2762
 signal: process-issue
 ---

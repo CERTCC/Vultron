@@ -1,7 +1,7 @@
 ---
 title: test_invite_actor_demo.py has no integration marker, so it runs at the 30s unit ceiling
 type: learning
-timestamp: 2026-09-01
+timestamp: "2026-09-01T00:00:00Z"
 source: ISSUE-2762
 signal: tooling-issue
 ---
