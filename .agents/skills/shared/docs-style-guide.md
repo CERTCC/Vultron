@@ -118,7 +118,7 @@ entry", not "the entry is committed". Passive voice is acceptable when the
 actor is genuinely unknown or irrelevant.
 
 **SG-16 — Paragraphs run two to five sentences.** A paragraph that passes five
-sentences is usually two paragraphs, or a list that failed SG-25.
+sentences is usually two paragraphs, or a list that failed SG-28.
 
 ---
 
