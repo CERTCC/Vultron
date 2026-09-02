@@ -27,14 +27,23 @@ logged it.
 
 This is protocol-visible, not agent guidance: it determines *which participant's
 consent state changes* and *whose RSVP deadline is recorded* (CM-28-001,
-CM-28-003). A candidate CLP-10-009 would state it as a MUST with ADR-0022 as
-its `adr:` reference, and could be verified structurally — a received-side use
-case that passes the result of `resolve_receiving_actor_id()` as anything other
-than `execute_with_setup(actor_id=...)` is a violation. Note the coverage
-ratchet: a new `kind: protocol` entry needs a test carrying
-`@pytest.mark.spec("CLP-10-009")`; the tests added in
+CM-28-003). A new CLP-10 entry — **at the next free ID in the group, not 009,
+which is already taken by the rejection-validator placement rule from
+ISSUE-2254** — would state it as a MUST with ADR-0022 as its `adr:` reference,
+and could be verified structurally: a received-side use case that passes the
+result of `resolve_receiving_actor_id()` as anything other than
+`execute_with_setup(actor_id=...)` is a violation. Note the coverage ratchet: a
+new `kind: protocol` entry needs a test carrying the matching
+`@pytest.mark.spec(...)` marker; the tests added in
 `test/core/use_cases/received/test_embargo_invite_lapse.py`
-(`TestInviteeIsTheAddressee`) would serve.
+(`TestInviteeIsTheAddressee`, `TestInviteeIdProperty`) would serve.
+
+A second requirement is worth stating alongside it: subject resolution MUST be
+by **addressee membership**, not by position in `to:`. Taking `to[0]`
+positionally is correct only for the first recipient of a multi-party activity
+and silently wrong for every other one. `_is_primary_submit_report_recipient()`
+in `received/report.py` had the membership pattern already; the embargo path
+did not reuse it.
 
 Interim guidance landed in `vultron/core/AGENTS.md` § "A Message Subject Is
 Never `resolve_receiving_actor_id()`".

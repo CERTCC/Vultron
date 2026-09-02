@@ -254,19 +254,40 @@ invitee_id = receiving_actor_id
 ```python
 # ✅ CORRECT — subject from the message, receiving actor only as actor_id
 receiving_actor_id = resolve_receiving_actor_id(self._dl, request.receiving_actor_id)
-invitee_id = request.invitee_id          # typed property over activity.to
+invitee_id = resolve_invitee_id(request, receiving_actor_id, invite_id)
 tree = invite_to_embargo_on_case_tree(case_id=case_id, invitee_id=invitee_id, ...)
 bridge.execute_with_setup(tree=tree, actor_id=receiving_actor_id, ...)
 ```
+
+Resolve a subject by **addressee membership, not by position**. `to:` is a
+list, and taking `to[0]` is correct only for the first recipient of a
+multi-party activity — every other recipient's replica then applies the message
+to someone else's record. The order that works:
+
+1. `receiving_actor_id` is among the recipients → use it. Correct in *every*
+   recipient's replica, and canonical by construction, since `inbox_handler`
+   normalises `receiving_actor_id` against `activity.to` (HP-09-001) while a
+   sender-supplied `to:` entry is not normalised at all.
+2. Exactly one recipient, and it is not this store's actor → use it. This is
+   the CaseActor relaying on a participant's behalf, CLI dispatch, or replay.
+3. Several recipients, none of them this store's actor → WARN and degrade.
+   Do not guess.
+4. No recipient → WARN as the OX-08-001 violation it is, and degrade.
+
+Cases 3 and 4 degrade to the receiving actor rather than dropping the message,
+because the guarded-commit branch lives inside the same single tree (ADR-0022):
+skipping the writes would also discard the ledger commit the message is
+entitled to. The WARNING is the part the old silent fallback lacked.
+`resolve_invitee_id()` in `use_cases/received/embargo.py` implements this; so
+does the older `_is_primary_submit_report_recipient()` in `received/report.py`.
 
 Corollary for tree factories: a factory that takes a subject-identity argument
 MUST pass it to the node that needs it. `OptionalLookupParticipantNode` falls
 back to the BT execution actor when `target_actor_id` is falsy, so a subject
 argument that is only logged is indistinguishable from one that was never
-supplied. Prefer a typed property on the event class (e.g.
-`InviteToEmbargoOnCaseReceivedEvent.invitee_id`) over reading `activity.to`
-inline, and treat an absent `to:` as the OX-08-001 violation it is rather than
-substituting another identity silently.
+supplied. That node now logs at WARNING when a subject *was* named and resolved
+to no participant, which separates a dropped argument from the lenient
+"no participant on this peer yet" case it exists for.
 
 <!-- Source: ISSUE-2762 -->
 
