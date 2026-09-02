@@ -3,7 +3,7 @@ title: "current_status id_ tiebreaker: core path is unreachable; the bug lives o
 type: learning
 timestamp: "2026-09-02T00:00:00Z"
 source: ISSUE-2979
-signal: concern
+signal: spec-ambiguity
 ---
 
 # current_status id_ tiebreaker: core path is unreachable; bug lives on the wire branch
@@ -48,6 +48,8 @@ UTC (consistent with `_now_utc`) and floors timestampless statuses at
 
 CM-29-001's `verification` text implies the core `VulnerabilityCase` can hold
 timestampless statuses; it cannot. Consider refining the spec verification to
-target the wire projection (or note the core path is defensive/unreachable),
-and consider whether wire `validate_datetime` should normalize naive datetimes
-at the edge (ADR-0032) rather than each consumer coercing.
+target the wire projection (or note the core path is defensive/unreachable).
+
+The related wire-layer question — whether `validate_datetime` should normalize
+naive datetimes at the edge (ADR-0032) rather than each consumer coercing — is
+tracked separately as Concern #3098 (do not re-track it here).
