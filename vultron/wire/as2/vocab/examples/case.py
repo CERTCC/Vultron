@@ -30,7 +30,14 @@ from vultron.wire.as2.vocab.examples._base import (
     gen_report,
     vendor,
 )
+from vultron.wire.as2.vocab.examples.participant import (
+    finder_participant,
+    vendor_participant,
+)
 from vultron.wire.as2.vocab.objects.case_participant import as_CaseParticipant
+from vultron.wire.as2.vocab.objects.vulnerability_case import (
+    as_VulnerabilityCase,
+)
 from vultron.enums.roles import CVDRole
 from vultron.wire.as2.factories import (
     accept_case_ownership_transfer_activity,
@@ -64,6 +71,22 @@ def create_case() -> as_Create:
         context=_REPORT.id_,
     )
     return activity
+
+
+def populated_case() -> as_VulnerabilityCase:
+    """A case object carrying its report and its finder and vendor participants.
+
+    Most example functions return an activity. This one returns the case
+    *object* itself, so the documentation can show what a case looks like once
+    a report has been filed and the finder and vendor have joined.
+    """
+    participants = [finder_participant(), vendor_participant()]
+    return case(
+        random_id=True,
+        vulnerability_reports=[gen_report()],
+        case_participants=participants,
+        actor_participant_index={p.attributed_to: p.id_ for p in participants},
+    )
 
 
 def add_report_to_case() -> as_Add:

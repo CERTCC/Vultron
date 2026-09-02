@@ -12,7 +12,6 @@
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
 import random
-from typing import Any, cast
 from uuid import uuid4
 
 from vultron.wire.as2.vocab.base.base import as_Base
@@ -131,12 +130,32 @@ def gen_report() -> as_VulnerabilityReport:
 
 
 def _strip_published_udpated(obj: as_Base) -> as_Base:
-    # strip out published and updated timestamps if they are present
-    if hasattr(obj, "published"):
-        cast(Any, obj).published = None
-    if hasattr(obj, "updated"):
-        cast(Any, obj).updated = None
-    return obj
+    """Return a copy of *obj* with its ``published``/``updated`` timestamps cleared.
+
+    Both timestamps default to build time, so leaving them in would make every
+    rendered example churn on each docs build.
+
+    This returns a copy rather than clearing the timestamps in place, for two
+    independent reasons:
+
+    - Wire objects are frozen by design (`as_Object` sets ``frozen=True``,
+      ADR-0074): a wire artifact is evidence of what was sent or received, so
+      assignment raises rather than silently rewriting it.
+    - The examples are shared module-level singletons (`_REPORT`, `_CASE`,
+      the actors), and the example API router serves those same instances.
+      Clearing timestamps in place would strip them for every other consumer
+      too — the shared-singleton hazard of issue #1328.
+
+    Only the top-level object is stripped; timestamps on inline sub-objects
+    are left as they are.
+    """
+    fields = type(obj).model_fields
+    updates: dict[str, None] = {
+        name: None for name in ("published", "updated") if name in fields
+    }
+    if not updates:
+        return obj
+    return obj.model_copy(update=updates)
 
 
 def json2md(obj: as_Base) -> str:

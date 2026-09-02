@@ -132,20 +132,9 @@ The `VulnerabilityCase` object is intended to be consistent with the [Case Objec
     data model internally.
 
 ```python exec="true" idprefix=""
-from vultron.wire.as2.vocab.examples.vocab_examples import (
-    add_finder_participant_to_case,
-    add_vendor_participant_to_case,
-    case,
-    gen_report,
-    json2md,
-)
+from vultron.wire.as2.vocab.examples.vocab_examples import json2md, populated_case
 
-_case = case()
-_case.add_report(gen_report())
-_case.add_participant(add_vendor_participant_to_case())
-_case.add_participant(add_finder_participant_to_case())
-
-print(json2md(_case))
+print(json2md(populated_case()))
 ```
 
 ### CaseStatus
