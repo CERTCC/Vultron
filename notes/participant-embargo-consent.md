@@ -8,8 +8,11 @@ related_specs:
   - specs/case-management.yaml
   - specs/embargo-policy.yaml
   - specs/em-behavior.yaml
+  - specs/message-semantics-mapping.yaml
 related_notes:
   - notes/stub-objects.md
+  - notes/embargo-lifecycle.md
+  - notes/message-type-reference.md
 relevant_packages:
   - transitions
   - vultron/bt/embargo_management
@@ -61,22 +64,53 @@ participant's consent state is `SIGNATORY`; `False` for all other states.
 
 ## Transition Table
 
-| From | Trigger | To |
-|---|---|---|
-| `NO_EMBARGO` | Embargo proposed; participant invited | `INVITED` |
-| `NO_EMBARGO` | Direct/implicit/self-determined consent | `SIGNATORY` |
-| `NO_EMBARGO` | Refusal without a formal invitation | `DECLINED` |
-| `INVITED` | `Accept(Invite(Embargo))` received | `SIGNATORY` |
-| `INVITED` | `Reject(Invite(Embargo))` received | `DECLINED` |
-| `INVITED` | Invitation timeout (pocket veto) | `DECLINED` |
-| `SIGNATORY` | Shared EM enters `REVISE` state | `LAPSED` |
-| `LAPSED` | Re-invitation extended for revised terms | `INVITED` |
-| `LAPSED` | Direct `Accept` of revised embargo terms | `SIGNATORY` |
-| `LAPSED` | Re-acceptance timeout (pocket veto) | `DECLINED` |
-| `DECLINED` | Case owner re-extends invitation | `INVITED` |
-| Any | Shared EM exits (`EXITED`) | `NO_EMBARGO` |
+"Trigger source" column classifies each transition by what drives it:
+**Wire** = inbound wire activity (CaseActor observes the message and updates PEC);
+**Cascade** = automatic side-effect of a shared EM state change (no outbound PEC message);
+**Timer** = pocket-veto lapse enforced lazily by the CaseActor (CM-28-003, no wire message).
+
+| From | Event | To | Trigger source |
+|---|---|---|---|
+| `NO_EMBARGO` | Participant invited to embargo | `INVITED` | Wire: `EP` / `INVITE_TO_EMBARGO_ON_CASE` |
+| `NO_EMBARGO` | Direct / implicit / self-determined consent | `SIGNATORY` | Wire: `EA` / `ACCEPT_INVITE_TO_EMBARGO_ON_CASE` |
+| `NO_EMBARGO` | Refusal without a formal invitation | `DECLINED` | Wire: `ER` / `REJECT_INVITE_TO_EMBARGO_ON_CASE` |
+| `INVITED` | `Accept(Invite(Embargo))` received | `SIGNATORY` | Wire: `EA` / `ACCEPT_INVITE_TO_EMBARGO_ON_CASE` |
+| `INVITED` | `Reject(Invite(Embargo))` received | `DECLINED` | Wire: `ER` / `REJECT_INVITE_TO_EMBARGO_ON_CASE` |
+| `INVITED` | Invitation deadline passed (pocket veto) | `DECLINED` | Timer: no wire message; CaseActor authors ledger entry (CM-28-005) |
+| `SIGNATORY` | Shared EM enters `REVISE` state | `LAPSED` | Cascade: `EV` side-effect; no outbound PEC message |
+| `LAPSED` | Re-invited for revised embargo terms | `INVITED` | Wire: `EP` / `INVITE_TO_EMBARGO_ON_CASE` |
+| `LAPSED` | Direct `Accept` of revised terms | `SIGNATORY` | Wire: `EA` / `ACCEPT_INVITE_TO_EMBARGO_ON_CASE` |
+| `LAPSED` | Re-acceptance deadline passed (pocket veto) | `DECLINED` | Timer: no wire message; CaseActor authors ledger entry (CM-28-005) |
+| `DECLINED` | Case owner re-extends invitation | `INVITED` | Wire: `EP` / `INVITE_TO_EMBARGO_ON_CASE` |
+| Any | Shared EM exits (`EXITED`) | `NO_EMBARGO` | Cascade: `ET` side-effect; no outbound PEC message |
 
 Normative: `specs/case-management.yaml` CM-18-003. Decision: ADR-0048.
+MSM coupling: `specs/message-semantics-mapping.yaml` MSM-07.
+
+---
+
+## PEC Is Set by the CaseActor, Not Self-Reported
+
+*Spec: CM-28-003. MSM-07.*
+
+This is the key distinction between PEC and the other per-participant state machines:
+
+- **RM state** is self-reported by the participant (e.g., "I accept this report").
+- **VF/D state** is self-reported by the vendor/deployer (e.g., "I built the fix").
+- **PEC state** is set by the **CaseActor** (holding `CVDRole.CASE_MANAGER`) based on
+  *observed* participant behavior:
+  - The CaseActor observes an inbound `Accept(Invite(EmbargoEvent))` and records
+    `SIGNATORY` for the sending participant.
+  - The CaseActor observes a `Reject(...)` and records `DECLINED`.
+  - The CaseActor enforces the pocket-veto deadline and records `DECLINED` on lapse.
+  - The CaseActor cascades `LAPSED` to all SIGNATORY participants when EM enters
+    `REVISE`, and `NO_EMBARGO` to all when EM exits.
+
+The participant never pushes their own PEC value. There is no "I am now SIGNATORY"
+self-report activity; the participant's intent is inferred from the Accept/Reject
+activity they sent, and the CaseActor records the conclusion. This is why PEC
+transitions do not require a dedicated wire message partition in the formal set —
+the signal is already in the EM wire activities.
 
 ---
 

@@ -85,7 +85,7 @@ groups:
     - rel_type: depends_on
       spec_id: EH-07-001
     adr:
-    - ADR-0084
+    - ADR-0086
     verification: >-
       A request invalid in two independent dimensions returns a 422 whose `details`
       array has one entry per violation, and whose `message` names both.
@@ -116,7 +116,7 @@ groups:
       reported. The two are independent, and conflating them produced a
       fix-one-resubmit loop on the add-participant-status trigger path (ISSUE-2112).
     adr:
-    - ADR-0084
+    - ADR-0086
     verification: >-
       A request invalid in two independent dimensions reports both violations, and
       persists nothing.
@@ -139,7 +139,7 @@ groups:
     - rel_type: refines
       spec_id: EH-07-001
     adr:
-    - ADR-0084
+    - ADR-0086
     verification: >-
       A cross-dimension violation whose dimensions are each individually valid is
       labelled root; the same violation is labelled derived when one of its
@@ -163,7 +163,7 @@ groups:
     - rel_type: refines
       spec_id: EH-01-002
     adr:
-    - ADR-0084
+    - ADR-0086
     verification: >-
       The raised exception exposes one structured entry per violation, and `str()`
       names every one of them.

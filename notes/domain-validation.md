@@ -334,7 +334,7 @@ if case_id is None:
 validation boundary that refuses its whole input MUST still report every
 violation it can recognise in that input (EH-07-001, BTND-10-002). The
 inference "we reject atomically, so the first violation is enough" is wrong
-and was written into the code twice before ADR-0084 removed it — once in
+and was written into the code twice before ADR-0086 removed it — once in
 `ValidateTriggerTransitionsNode._validate_entailments`, once in
 `cross_machine_violations()`' ordering rationale.
 
@@ -353,7 +353,7 @@ and reading one will mislead you about the other:
 |---|---|---|
 | Entry point | `ValidateTriggerTransitionsNode` | `FilterParticipantStatusDimensionsNode` |
 | Disposition | Fail-closed: any violation refuses the whole write | Per-dimension partial accept: refused dimensions carry the current value forward, others land |
-| Normative source | BTND-10-001, ADR-0084 | ADR-0061, RSH-05-001, RSH-05-002 |
+| Normative source | BTND-10-001, ADR-0086 | ADR-0061, RSH-05-001, RSH-05-002 |
 | Postel's half | Conservative in what you send | Liberal in what you accept |
 
 Both halves come from the liberal-accept epic (ISSUE-2229). Do **not** "fix"

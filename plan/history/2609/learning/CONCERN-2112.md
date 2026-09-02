@@ -59,7 +59,7 @@ double-report on the trigger path, because the guard fails first and the
 (conservative in what you send); the receive path per-dimension partial-accepts
 (liberal in what you accept, ADR-0061, RSH-05-001/002). Nothing had recorded
 that the two dispositions are two halves of one principle, so each reads as an
-inconsistency from the other's side. ADR-0084 states it, which is what makes the
+inconsistency from the other's side. ADR-0086 states it, which is what makes the
 receive-path question answerable rather than perpetually reopened.
 
 ## Decisions recorded
@@ -86,7 +86,7 @@ receive-path question answerable rather than perpetually reopened.
 
 **Resolved**: 2026-09-02 — implementation tracked in #3050.
 Docs PR: <https://github.com/CERTCC/Vultron/pull/3049>.
-ADR: `docs/adr/0084-report-every-violation-reject-the-batch.md`.
+ADR: `docs/adr/0086-report-every-violation-reject-the-batch.md`.
 Specs: `specs/error-handling.yaml` EH-05-002 and EH-07-001..003;
 `specs/behavior-tree-node-design.yaml` BTND-10-002, BTND-10-003.
 Notes: `notes/domain-validation.md`, `notes/bt-pitfalls.md`.

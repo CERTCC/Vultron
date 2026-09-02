@@ -759,7 +759,7 @@ groups:
       spec_id: EH-07-001
       note: Reporting every violation at a ParticipantStatus write boundary
     adr:
-    - ADR-0084
+    - ADR-0086
     verification: >-
       An architecture ratchet asserts that no node validating a ParticipantStatus
       write calls the individual transition or entailment predicates directly. A unit
@@ -785,7 +785,7 @@ groups:
     - rel_type: depends_on
       spec_id: BTND-10-002
     adr:
-    - ADR-0084
+    - ADR-0086
     verification: >-
       A write-node-only test (constructing the node directly, without the guard)
       reports every violation and persists nothing.

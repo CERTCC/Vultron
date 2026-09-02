@@ -78,7 +78,7 @@ one leaf fails per tick anyway, so aggregating *within* a node is fully
 compatible with the depth-first walk. Aggregating *across* sibling guard nodes
 is not, and would require restructuring the tree. See
 [domain-validation.md](domain-validation.md) § "Rejecting as a Unit Does Not
-License Reporting One Reason" (#2112, ADR-0084).
+License Reporting One Reason" (#2112, ADR-0086).
 
 ---
 
