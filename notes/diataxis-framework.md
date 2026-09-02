@@ -4,6 +4,8 @@ status: active
 description: >
   Implementation standards for Vultron technical documentation using the
   Diátaxis framework.
+related_specs:
+  - specs/diataxis-requirements.yaml
 related_notes:
   - notes/message-type-reference.md
 ---
@@ -200,3 +202,22 @@ is the catalyst for attaining Deep Quality.
 Following these standards produces documentation that is logical, user-centric,
 and architecturally sound—a professional interface that truly serves the
 practitioner's craft.
+
+### Authoring and linting tooling
+
+The prose-level rules that operationalize this framework are maintained as a
+normative style guide, `.claude/skills/shared/docs-style-guide.md`, made
+binding by `specs/diataxis-requirements.yaml` DF-09-001. Its `SG-nn` rules cover
+terminology, acronym expansion, concept order, sentence shape, voice by agency
+per quadrant, lists, and diagrams.
+
+Two skills consume that guide:
+
+- `write-docs` authors or rewrites a page — classify the quadrant, plan concept
+  order, draft against the style guide, register terms and acronyms, and wire the
+  nav.
+- `lint-docs` audits existing pages, fixing mechanical findings and reporting
+  judgment findings with a recommendation.
+
+`check-docs-sync` runs `lint-docs` as a blocking gate whenever a change touches
+`docs/`.
