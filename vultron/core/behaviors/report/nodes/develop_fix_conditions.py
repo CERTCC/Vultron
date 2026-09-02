@@ -40,7 +40,7 @@ from vultron.core.behaviors.case.nodes.vfd_role_guards import (
     _resolve_actor_roles,
 )
 from vultron.core.models.dimensions import VfDimension
-from vultron.enums.roles import CVDRole
+from vultron.core.predicates.roles import has_vendor_role
 
 logger = logging.getLogger(__name__)
 
@@ -86,7 +86,7 @@ class CheckIsVendorRoleNode(DataLayerConditionWithPorts):
             )
             return Status.FAILURE
 
-        if CVDRole.VENDOR in roles:
+        if has_vendor_role(roles):
             self.logger.debug(
                 "%s: actor '%s' is a vendor — proceed to fix development",
                 self.name,

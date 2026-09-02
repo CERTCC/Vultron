@@ -56,7 +56,7 @@ from vultron.core.states.cs_invariants import (
 )
 from vultron.core.states.em import EM
 from vultron.core.states.rm import RM
-from vultron.enums.roles import CVDRole
+from vultron.core.predicates.roles import has_deployer_role, has_vendor_role
 
 
 def _vf_d_to_vfd(vf: CS_vf, d: CS_d) -> CS_vfd | None:
@@ -204,9 +204,8 @@ class CreateParticipantStatusNode(DataLayerActionWithPorts):
             if isinstance(participant_obj, CaseParticipant)
             else []
         )
-        if (
-            self._vf_state in (CS_vf.Vf, CS_vf.VF)
-            and CVDRole.VENDOR not in actor_roles
+        if self._vf_state in (CS_vf.Vf, CS_vf.VF) and not has_vendor_role(
+            actor_roles
         ):
             spec = "ADR-0075" if self._vf_state == CS_vf.Vf else "CSB-15-001"
             self.logger.warning(
@@ -248,7 +247,7 @@ class CreateParticipantStatusNode(DataLayerActionWithPorts):
                 if isinstance(participant_obj, CaseParticipant)
                 else []
             )
-            if CVDRole.DEPLOYER not in actor_roles:
+            if not has_deployer_role(actor_roles):
                 self.logger.warning(
                     "%s: actor '%s' lacks DEPLOYER role required for D (CSB-15-002)",
                     self.name,
