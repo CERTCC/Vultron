@@ -216,6 +216,19 @@ several steps between status messages. An absent dimension (`None`) is likewise
 vendor path, so no entailment applies through it, and a first observation of a
 dimension is accepted when nothing contradicts it.
 
+**The RM↔VF and RM↔D halves are sound, not complete.** Their real constraint is
+that the actor passed through `RM.ACCEPTED` at some point — a *history* property
+(`rm_em_cs.md` § Fix Ready). A `ParticipantStatus` carries only the current RM
+value, so `RM_STATES_CONSISTENT_WITH_FIX` approximates it with the set of states
+reachable *from* `ACCEPTED`. `DEFERRED` and `CLOSED` are in that set and are each
+also reachable without acceptance (`VALID → DEFERRED`, `INVALID → CLOSED`), so
+neither proves it. They stay in anyway: excluding them would refuse a peer that
+advances through acceptance and reports fix readiness in one message, which
+CSB-16-001 explicitly permits. Narrowing to `{ACCEPTED}` is the only complete
+option over one snapshot and costs far more than it catches. A test derives the
+set from the RM transition graph so it cannot drift, and a second test pins which
+members are ambiguous. Tightening it properly needs RM history (#3015).
+
 **What it guarantees is conditional.** If the participant's *current* state
 satisfies the entailments, so does the recorded state. It cannot promise more:
 when the incumbent state is already impossible, every carry-forward writes the

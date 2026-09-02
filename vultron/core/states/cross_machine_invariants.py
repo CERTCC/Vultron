@@ -18,12 +18,14 @@
 Validates that combinations of RM, VFD, and EM states are mutually consistent.
 
 Both RM and the vendor/deployer paths are per-actor attributes, so a
-contradictory combination is an error at the source.  The enforced form is the
-per-dimension pair — :func:`violation_rm_vf_entailment` and
+contradictory combination is an error at the source.  The RM↔fix rule is stated
+per dimension — :func:`violation_rm_vf_entailment` and
 :func:`violation_rm_d_entailment` — since ADR-0075 split the compound ``CS_vfd``
-into independent ``CS_vf`` and ``CS_d`` dimensions.
-:func:`violation_rm_vfd_entailment` states the same rule over the compound type
-and currently has no callers; ISSUE-3016 tracks whether to retire it.
+into independent ``CS_vf`` and ``CS_d`` dimensions.  A compound
+``violation_rm_vfd_entailment`` existed alongside them until ISSUE-3016; it was a
+second implementation of the same F-bit rule (ARCH-15-004) with no callers, and
+callers holding a ``CS_vfd`` should split it via
+:func:`~vultron.core.states.cs_invariants.cs_dimensions` and use the pair.
 
 :func:`violation_pxa_em_entailment` expresses the PXA→EM consistency rules
 but is NOT enforced on the emit path: asserting P CAUSES the embargo to
@@ -51,25 +53,35 @@ from vultron.core.states.cs import (
     CS_d,
     CS_pxa,
     CS_vf,
-    CS_vfd,
     D_FIX_DEPLOYED,
     PXA_ATTACKS_OBSERVED,
     PXA_EXPLOIT_PUBLIC,
     PXA_PUBLIC_AWARE,
     VF_FIX_READY,
-    VFD_FIX_READY,
 )
 from vultron.core.states.em import EM, EM_EMBARGO_ACTIVE
 from vultron.core.states.rm import RM
 
 # RM states consistent with asserting fix readiness or deployment.
-# The fix-ready event (F) can occur only when the vendor has passed through
-# RM.ACCEPTED; since RM is monotonic, DEFERRED and CLOSED are also consistent
-# with F having been reached.
-# CAVEAT: the CLOSED premise does not hold in general — `rm.py` documents CLOSED
-# as reachable directly from INVALID, without passing acceptance.  ISSUE-3015
-# tracks the protocol decision; until then a CLOSED-from-INVALID participant can
-# assert an F or D bit unchallenged.
+#
+# The underlying rule is a *history* property: the fix-ready event (F) can occur
+# only in RM.ACCEPTED, so an actor carrying the F bit must have "passed through
+# q^rm = Accepted at some point" (rm_em_cs.md § Fix Ready, § Fix Deployment).
+# A ParticipantStatus carries only the *current* RM value, so this set is the
+# tightest sound approximation available from it: exactly the states reachable
+# from RM.ACCEPTED, i.e. those in which the history property *may* hold.
+# `test_consistent_with_fix_is_the_post_acceptance_reachable_set` derives it from
+# the RM transition graph so it cannot drift.
+#
+# It is deliberately sound-but-not-complete.  DEFERRED and CLOSED are each also
+# reachable without ever visiting ACCEPTED (VALID→DEFERRED, INVALID→CLOSED), so
+# neither *proves* acceptance — but excluding them would refuse the legitimate
+# batched update in which a peer advances through ACCEPTED and reports fix
+# readiness in one message, which the received path explicitly permits
+# (CSB-16-001).  Narrowing to {ACCEPTED} is the only alternative that would be
+# complete, and it would refuse far more real traffic than it caught.  Closing
+# the gap properly needs the participant's RM *history*, not a better predicate
+# over one snapshot; RSH-05-020's note records that.
 # Source: rm_em_cs.md § "Fix Readiness", § "Fix Deployment"
 RM_STATES_CONSISTENT_WITH_FIX: frozenset[RM] = frozenset(
     {RM.ACCEPTED, RM.DEFERRED, RM.CLOSED}
@@ -125,34 +137,6 @@ def violation_rm_d_entailment(rm: RM, d: CS_d) -> str | None:
         f" but RM={rm.name!r}."
         " Fix deployment cannot precede RM.ACCEPTED"
         " (rm_em_cs.md § Fix Deployment)."
-    )
-
-
-def violation_rm_vfd_entailment(rm: RM, vfd: CS_vfd) -> str | None:
-    """Return an error string if (rm, vfd) violates the Fix Readiness entailment.
-
-    Fix readiness (F bit set: CS_vfd.VFd or CS_vfd.VFD) can only be asserted
-    when the vendor has accepted the report (RM ∈ {ACCEPTED, DEFERRED, CLOSED}).
-    RM is monotonic, so once ACCEPTED the vendor may later be at DEFERRED or
-    CLOSED; all three are consistent with the F/D bits being set.
-
-    Returns:
-        None when the combination is valid.
-        A descriptive error string when the entailment is violated.
-
-    Source: rm_em_cs.md § "Fix Readiness", § "Fix Deployment"
-    Spec: CSB-18-001
-    """
-    if vfd not in VFD_FIX_READY:
-        return None  # F bit not set — no RM constraint from this rule
-    if rm in RM_STATES_CONSISTENT_WITH_FIX:
-        return None
-    return (
-        f"Cross-machine entailment violated: VFD={vfd.name!r} (F bit set)"
-        f" requires RM ∈ {{ACCEPTED, DEFERRED, CLOSED}},"
-        f" but RM={rm.name!r}."
-        " Fix readiness cannot precede RM.ACCEPTED"
-        " (rm_em_cs.md § Fix Readiness)."
     )
 
 

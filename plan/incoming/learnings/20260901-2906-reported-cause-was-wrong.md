@@ -38,3 +38,32 @@ Both took minutes and would have been skipped by going straight to the patch.
 PR carries no more authority than the reviewer's local context. #2906's body
 even says "exists on origin/main, not introduced by #2490" — an accurate
 provenance note that says nothing about whether the diagnosis is right.
+
+**The same trap caught the review of the fix.** PR triage on #3010 filed #3015
+claiming `RM_STATES_CONSISTENT_WITH_FIX` wrongly includes `RM.CLOSED`, reasoning
+from `rm.py`'s note that `CLOSED` is reachable from `INVALID` without passing
+acceptance. The code observation was right and the conclusion was wrong, for the
+same reason as #2906: the "fix" it implied — narrowing the set — was incoherent.
+`DEFERRED` is reachable from `VALID` without acceptance too, so a sound-by-current
+-value set would have to be `{ACCEPTED}` alone, which refuses every batched
+`accept → defer → fix-ready` update the received path exists to tolerate
+(CSB-16-001). The set is in fact *exactly* the post-`ACCEPTED` reachable set: the
+tightest sound approximation of a history property from a single snapshot. Only
+the comment's justification was wrong.
+
+Two things would have caught it in minutes, and both generalise:
+
+- **Derive the set, don't read it.** A five-line reachability walk over
+  `_transitions` answers "is this set the post-X reachable set?" definitively.
+  That walk is now a test, so the property cannot drift.
+- **Ask what the alternative refuses, not just what it catches.** Every
+  tightening of a received-path check must be priced against the legitimate
+  batched updates it rejects, because non-adjacent advances are the normal case,
+  not the exception. A check that is sound-but-incomplete is often the *designed*
+  answer here, not a gap — the same conclusion #2906 reached about first
+  observations.
+
+The shape to watch for: **an invariant over history, approximated by a predicate
+over current state, is incomplete by construction.** Reading the approximation as
+if it were the invariant produces a bug report every time. State the
+approximation and its known gap next to the set.

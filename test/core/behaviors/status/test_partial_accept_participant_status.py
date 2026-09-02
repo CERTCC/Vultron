@@ -1687,6 +1687,35 @@ class TestAdjudicateDimensionsCrossMachineEntailments:
         assert refused == ["vf"]
 
     @pytest.mark.spec("RSH-05-020")
+    @pytest.mark.spec("CSB-18-001")
+    def test_batched_advance_through_acceptance_is_accepted(self):
+        """#3015: the RM↔fix check must not refuse a legitimate batched update.
+
+        A peer may advance several steps between status messages (CSB-16-001).
+        Here it advances ``VALID → ACCEPTED → DEFERRED`` and reports fix
+        readiness in the same snapshot. The receiver never observes the
+        intermediate ``ACCEPTED``, so ``rm=DEFERRED`` is all it has to judge by.
+
+        This is why ``RM_STATES_CONSISTENT_WITH_FIX`` includes ``DEFERRED`` and
+        ``CLOSED`` even though neither *proves* acceptance: the set is the
+        post-ACCEPTED reachable set, sound rather than complete. Narrowing it to
+        ``{ACCEPTED}`` would refuse this update.
+        """
+        current = _current_status(RM.VALID, CS_vf.Vf, CS_pxa.pxa).to_core()
+        asserted = _asserted_status(
+            RM.DEFERRED, CS_vf.VF, CS_pxa.pxa
+        ).to_core()
+
+        refused, _ = self._adjudicate(
+            current, asserted, roles=[CVDRole.VENDOR]
+        )
+
+        assert refused == [], (
+            "an advance through acceptance reported in one message must be"
+            f" accepted whole: {refused}"
+        )
+
+    @pytest.mark.spec("RSH-05-020")
     def test_a_refusal_that_retires_a_violation_does_not_cause_another(self):
         """#2906: the pass re-evaluates instead of acting on stale violations.
 

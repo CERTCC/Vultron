@@ -764,7 +764,19 @@ groups:
 
       A `None` dimension is absent, not at its initial state (ADR-0075), so no
       entailment applies through it — a non-VENDOR participant asserting `d=D`
-      is unconstrained by VF↔D. The replica-apply path
+      is unconstrained by VF↔D.
+
+      The RM↔VF and RM↔D halves are sound but not complete, and deliberately so.
+      Their real constraint is that the actor passed through `RM.ACCEPTED` at
+      some point, which a single snapshot cannot establish:
+      `RM_STATES_CONSISTENT_WITH_FIX` is the set of states reachable from
+      `ACCEPTED`, and `DEFERRED` and `CLOSED` are each reachable without it too.
+      Tightening this needs the participant's recorded RM *history* rather than a
+      better predicate over the latest value, and would have to keep accepting a
+      peer that advances through acceptance and reports fix readiness in one
+      message (CSB-16-001). ISSUE-3015 records the analysis.
+
+      The replica-apply path
       (`ApplyParticipantStatusFromLedgerNode`) is out of scope: it applies
       CaseActor-authored canonical entries the CaseActor already adjudicated,
       and is governed by RSH-05-007.
