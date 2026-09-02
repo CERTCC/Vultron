@@ -1,7 +1,7 @@
 ---
 title: "6 sibling demo scenarios have same async race window as fcv-reject (#2390)"
 type: learning
-timestamp: "2026-08-26"
+timestamp: "2026-08-26T00:00:00Z"
 source: ISSUE-2390
 signal: concern
 ---

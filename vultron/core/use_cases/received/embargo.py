@@ -66,6 +66,66 @@ def _pxa_embargo_ineligible(dl: CasePersistence, case_id: str) -> bool:
     )
 
 
+def resolve_invitee_id(
+    request: InviteToEmbargoOnCaseReceivedEvent,
+    receiving_actor_id: str,
+    invite_id: str,
+) -> str:
+    """Resolve whose participant record an embargo invitation applies to.
+
+    The invitee is a *message subject*: it comes from the activity's ``to:``
+    field, never from ``resolve_receiving_actor_id()`` (ADR-0022).  Resolution
+    is by **addressee membership**, not by position, mirroring
+    ``_is_primary_submit_report_recipient`` in ``received/report.py``:
+
+    1. ``receiving_actor_id`` is among the recipients — the ordinary case.
+       Preferring it is what makes a multi-recipient ``Invite`` correct in
+       *every* recipient's replica rather than only the first one's, and it is
+       canonical by construction, since ``inbox_handler`` normalises
+       ``receiving_actor_id`` against ``activity.to`` (HP-09-001).
+    2. Exactly one recipient, and it is not this store's actor — the CaseActor
+       relaying on a participant's behalf, CLI dispatch, or log replay.
+    3. Several recipients, none of them this store's actor — ambiguous.  Warn
+       and degrade rather than guessing positionally.
+    4. No recipient at all — an OX-08-001 violation upstream.  Warn and
+       degrade.
+
+    Cases 3 and 4 fall back to ``receiving_actor_id`` rather than dropping the
+    invitation, because the guarded-commit branch lives inside the same single
+    tree (ADR-0022): skipping the writes would also discard the canonical
+    ledger commit this message is entitled to.  The WARNING is what the old
+    ``invitee_id = receiving_actor_id`` fallback lacked.
+    """
+    recipients = request.to_recipients
+
+    if receiving_actor_id in recipients:
+        return receiving_actor_id
+
+    if len(recipients) == 1:
+        return recipients[0]
+
+    if recipients:
+        logger.warning(
+            "invite_to_embargo_on_case: invite '%s' names %d recipients"
+            " and none of them is receiving actor '%s' — cannot tell which"
+            " participant this replica should apply the invitation to;"
+            " treating the receiving actor as the subject",
+            invite_id,
+            len(recipients),
+            receiving_actor_id,
+        )
+        return receiving_actor_id
+
+    logger.warning(
+        "invite_to_embargo_on_case: invite '%s' carries no 'to:' recipient"
+        " (OX-08-001) — treating receiving actor '%s' as the invitation's"
+        " subject",
+        invite_id,
+        receiving_actor_id,
+    )
+    return receiving_actor_id
+
+
 def _resolve_case_for_embargo_acceptance(
     dl: CasePersistence, request: AcceptInviteToEmbargoOnCaseReceivedEvent
 ) -> "VulnerabilityCase | None":
@@ -298,8 +358,6 @@ class InviteToEmbargoOnCaseReceivedUseCase:
         receiving_actor_id = resolve_receiving_actor_id(
             self._dl, request.receiving_actor_id
         )
-        invitee_id = receiving_actor_id
-
         # EMB-01-002: MUST NOT process EP when P/X/A is set; MUST emit ER.
         if case_id and _pxa_embargo_ineligible(self._dl, case_id):
             logger.info(
@@ -332,6 +390,16 @@ class InviteToEmbargoOnCaseReceivedUseCase:
                     case_id,
                 )
             return
+
+        # The invitee is a subject the message names, not the actor whose
+        # replica this is (ADR-0022).  Resolving it from `to:` is what keeps
+        # the two apart: an EP dispatched into any store other than the
+        # addressee's — CLI, replay, or a CaseActor relaying on a
+        # participant's behalf — would otherwise write this participant's PEC
+        # transition and RSVP deadline (CM-28-001, CM-28-003) onto the wrong
+        # record.  Resolved after the P/X/A guard so the warnings it may emit
+        # describe an invitation this use case is actually going to apply.
+        invitee_id = resolve_invitee_id(request, receiving_actor_id, invite_id)
 
         # Single BT execution under receiving_actor_id (ADR-0022 / CLP-10-005).
         # invitee_id is threaded into the tree as a node constructor arg so

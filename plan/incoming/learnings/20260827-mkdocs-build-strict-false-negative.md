@@ -1,7 +1,7 @@
 ---
 title: mkdocs-build-strict.sh warning counter has bash syntax error that prints misleading failure message
 type: learning
-timestamp: 2026-08-27
+timestamp: "2026-08-27T00:00:00Z"
 source: ISSUE-2523
 signal: tooling-issue
 ---

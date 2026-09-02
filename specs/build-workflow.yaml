@@ -105,14 +105,19 @@ groups:
           Every file in `plan/incoming/learnings/` MUST use the same YAML
           frontmatter format as history entry files: required fields
           `title`, `type` (value `learning`), `timestamp` (tz-aware ISO
-          8601 UTC), and `source` (matching the filename stem without
-          `.md`).
+          8601 UTC), and `source` (the originating work-item identifier, per
+          BW-02-002). The incoming file is named `YYYYMMDD-SLUG.md`, which is
+          a different naming scheme from the archived entry — the archived
+          filename is derived from `source`, not carried over from the
+          incoming name.
         rationale: >-
           Using identical format means archiving is a `git mv` equivalent
           via `uv run append-history --from-file` — no content
           transformation needed.
         verification: Inspection of `plan/incoming/learnings/` confirms each file parses with required fields `title`,
-          `type` (value `learning`), `timestamp`, and `source` all present and valid.
+          `type` (value `learning`), `timestamp`, and `source` all present and valid. `HistoryEntryFrontmatter`
+          (`vultron/metadata/history/models.py`) is the enforcement point — `--from-file` validates the incoming
+          file's frontmatter through it before archiving, so a file that violates this cannot be archived at all.
         relationships:
           - rel_type: depends_on
             spec_id: HM-02-001
@@ -122,10 +127,27 @@ groups:
         priority: MUST
         kind: protocol
         statement: >-
-          The `source` field in an incoming learning file MUST match the
-          filename stem (`YYYYMMDD-SLUG`).
-        verification: Inspection of `plan/incoming/learnings/` confirms the `source` frontmatter field in each file
-          matches the file's stem (filename without `.md`).
+          The `source` field in an incoming learning file MUST be the
+          originating work-item identifier — `ISSUE-<n>`, `CONCERN-<n>`,
+          `IDEA-<n>`, `BUG-<n>` or equivalent — matching HM-02-001's
+          definition of `source`. It MUST NOT be set to the incoming file's
+          own `YYYYMMDD-SLUG` stem. `append-history` sanitises `source` into
+          the archived entry's filename, so `source` is what makes the
+          archived entry discoverable from the work item it came from, and
+          several incoming files may legitimately share one `source` when one
+          work item produced several observations.
+        rationale: >-
+          `source` answers "which work item produced this observation?", which
+          is why HM-02-001 defines it as an originating identifier and why
+          `append_history_entry()` uses it to name the archived file. The
+          earlier "must match the filename stem" wording described the
+          *post-archive* invariant (archived entries are named `<source>.md`,
+          so there the two do coincide) and mistakenly applied it to the
+          pre-archive file, whose name is date-and-slug. No file in
+          `plan/incoming/learnings/` has ever satisfied the old wording.
+        verification: Inspection of `plan/incoming/learnings/` confirms each file's `source` matches the
+          originating-identifier form defined by HM-02-001, and that `append-history --from-file` archives it to
+          `plan/history/YYMM/<type>/<sanitised-source>.md`.
         relationships:
           - rel_type: depends_on
             spec_id: HM-02-001
@@ -143,6 +165,64 @@ groups:
         relationships:
           - rel_type: depends_on
             spec_id: HM-06-001
+        lint_suppress:
+        - missing_story_reference
+      - id: BW-02-004
+        priority: MUST_NOT
+        kind: protocol
+        statement: >-
+          The `timestamp` field MUST NOT be written as a bare `YYYY-MM-DD`
+          date. `_coerce_to_utc()` in `vultron/metadata/history/models.py`
+          rejects any value that is not timezone-aware, and YAML parses a bare
+          date into a naive datetime, so a bare-date entry fails validation
+          the moment `append-history --from-file` reads it. Write
+          `"YYYY-MM-DDTHH:MM:SSZ"` (quoted, so YAML yields a string for
+          Pydantic to parse) and use `T00:00:00Z` when only the date is known.
+        rationale: >-
+          This is stated separately because bare dates are the dominant form
+          currently present in `plan/incoming/learnings/` and are silently
+          accepted by every check *except* the archiving step — the one that
+          matters. An entry written this way looks fine in review and then
+          cannot be archived, so the defect surfaces only when `learn` tries
+          to process it.
+        verification: >-
+          A unit test asserts `HistoryEntryFrontmatter` rejects a bare-date
+          timestamp string and accepts the tz-aware form
+          (`test_bare_date_string_timestamp_rejected`,
+          `test_tz_aware_string_timestamp_accepted` in
+          `test/metadata/test_history_models.py`).
+        relationships:
+          - rel_type: refines
+            spec_id: BW-02-001
+          - rel_type: depends_on
+            spec_id: HM-06-005
+        lint_suppress:
+        - missing_story_reference
+      - id: BW-02-005
+        priority: MUST
+        kind: process
+        statement: >-
+          Conformance to BW-02-001 through BW-02-004 MUST be checked at commit
+          time by validating every file in `plan/incoming/learnings/` through
+          `HistoryEntryFrontmatter` — the same model
+          `append-history --from-file` uses — so the check and the archiver
+          cannot drift. A validator that reimplements the rules
+          independently does not satisfy this.
+        rationale: >-
+          Between the spec being written and ISSUE-2762, 37 of 62 entries
+          accumulated frontmatter that no check rejected and the archiver
+          could not accept. The defect was invisible precisely because the
+          only enforcement lived in the last step of a workflow that runs
+          weeks after the file is written. Validating at commit time against
+          the archiver's own model is what makes the queue stay drainable.
+        verification: >-
+          The `validate-incoming-learnings-frontmatter` pre-commit hook calls
+          `vultron.metadata.history.incoming.validate_incoming_learnings()`,
+          and `test/metadata/test_incoming_learnings.py::TestRealCorpus`
+          asserts the committed corpus validates.
+        relationships:
+          - rel_type: depends_on
+            spec_id: BW-02-001
         lint_suppress:
         - missing_story_reference
   - id: BW-03

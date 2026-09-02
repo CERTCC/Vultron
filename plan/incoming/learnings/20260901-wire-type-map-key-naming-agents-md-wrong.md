@@ -1,8 +1,9 @@
 ---
-name: wire-type-map-key-naming-agents-md-wrong
-description: AGENTS.md incorrectly states WIRE_TYPE_MAP uses wire type_ value keys; actual keys are cls.__name__.removeprefix("as_"), which diverges from type_ for actor classes
-metadata:
-  type: project
+title: "AGENTS.md misstates WIRE_TYPE_MAP key derivation; keys are cls.__name__, not type_"
+type: learning
+timestamp: "2026-09-01T18:49:21Z"
+source: ISSUE-2500
+signal: concern
 ---
 
 AGENTS.md line 302 says: "WIRE_TYPE_MAP uses wire `type_` value keys (`'VulnerabilityCase'`)".

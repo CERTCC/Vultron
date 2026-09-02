@@ -1,7 +1,9 @@
 ---
 title: "PR #2882 code-review findings — all pre-existing, out of scope"
-date: 2026-08-31
+type: learning
+timestamp: "2026-08-31T17:27:04Z"
 source: ISSUE-2067
+signal: concern
 ---
 
 ## Context

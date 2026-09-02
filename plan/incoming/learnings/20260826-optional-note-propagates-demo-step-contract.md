@@ -1,7 +1,7 @@
 ---
 title: "Optional[as_Note] return propagates demo_step suppression contract to all callers"
 type: learning
-timestamp: "2026-08-26"
+timestamp: "2026-08-26T00:00:00Z"
 source: ISSUE-2390
 signal: design-question
 ---

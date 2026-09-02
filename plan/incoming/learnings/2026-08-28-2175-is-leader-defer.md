@@ -1,7 +1,9 @@
 ---
-date: 2026-08-28
-issue: "2175"
-type: defer
+title: "DEFER: EmitCaseStatusUpdateNode inner BTBridge ignores is_leader"
+type: learning
+timestamp: "2026-08-28T19:29:30Z"
+source: ISSUE-2175
+signal: concern
 ---
 # DEFER: EmitCaseStatusUpdateNode inner BTBridge ignores is_leader
 

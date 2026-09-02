@@ -187,6 +187,11 @@ Do not introduce a second timeout notion — they will drift.
 - The timeout is a **configurable policy option** (per-case or global setting)
 - Enforcement authority is the CaseActor holding `CVDRole.CASE_MANAGER`
   (CM-28-003)
+- The deadline is stored on the **invited participant's** record
+  (`CaseParticipant.invite_rsvp_deadline`), and `detect_and_apply_lapse()`
+  reads the record of the actor whose lapse is being evaluated. Those two must
+  name the same participant or enforcement silently never fires — see
+  "Whose record holds the deadline" below
 - Enforcement is **lazy**, not scheduled: lapse is derived from
   `(end_time, now)` whenever PEC state is read or an inbound `Accept`/`Reject`
   is processed. No scheduler is required for correctness. The
@@ -232,6 +237,35 @@ default 45 days hence). Read them independently; never substitute one for the
 other. `end_time` is inherited from `as_Object`
 (`vultron/wire/as2/vocab/base/objects/base.py`), so no vocabulary extension was
 needed to add this.
+
+### Whose record holds the deadline
+
+*Source: ISSUE-2762.*
+
+The RSVP deadline and the `PEC_Trigger.INVITE` transition both belong to the
+**invited participant** — the actor the `Invite` names in `to:` — not to
+whichever actor's replica happens to be processing the message.
+`_store_invite_deadline()` writes `invite_rsvp_deadline` on the participant
+record found via `case.actor_participant_index[invitee_id]`, and
+`EmbargoLifecycle.detect_and_apply_lapse()` later reads the record of the actor
+whose lapse it is evaluating. If the write and the read name different
+participants, enforcement cannot fire and nothing raises: the invitee has no
+deadline to lapse against, and the record that *did* receive one is not the one
+being checked.
+
+The failure is silent in both directions, which is why it survived for a
+release: `OptionalLookupParticipantNode` is lenient by design and
+`UpdateParticipantEmbargoPecNode` returns SUCCESS when no participant is on the
+blackboard. CM-28-003 makes the CaseActor the enforcement authority for invite
+expiry, so deriving the invitee from the receiving actor puts the deadline on
+the enforcer's own record and disarms exactly the actor responsible for acting
+on it.
+
+Resolve the invitee by addressee membership rather than by position —
+`resolve_invitee_id()` in `vultron/core/use_cases/received/embargo.py` — so a
+multi-recipient `Invite` is correct in every recipient's replica instead of
+only the first one's. See also `notes/bt-integration.md` § "The message subject
+is a fourth identity, and it must stay separate".
 
 ### It Is an `Invite`, Not an `Offer`
 
