@@ -158,6 +158,12 @@ class BTTestScenario:
         of a `TypeError` — the assertion stops meaning what it says. So an
         internal error fails this assertion by default (CONCERN-3019).
 
+        The guard is not exhaustive, and knowing where it is blind matters more
+        than the coverage it does give: a crash swallowed by a node's own
+        ``except Exception``, or one inside a subtree run through a nested
+        ``BTBridge`` (whose flag the calling node discards), still reaches here
+        as an ordinary ``FAILURE``. Both gaps are tracked in CONCERN-3019.
+
         Args:
             result: BTExecutionResult to check.
             allow_internal: Set only when the test's *subject* is the internal

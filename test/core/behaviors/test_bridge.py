@@ -1006,3 +1006,61 @@ class TestFailureClassification:
     def test_default_is_not_an_internal_error(self) -> None:
         """Callers constructing a result directly get the safe default."""
         assert BTExecutionResult(status=Status.FAILURE).internal_error is False
+
+
+class TestClassificationRobustness:
+    """The classification must survive the tree lifecycle around the ticks."""
+
+    def test_setup_time_crash_is_caught_and_flagged(
+        self, bridge, test_actor_id
+    ) -> None:
+        """A crash in ``setup()`` used to escape ``execute_tree`` entirely."""
+
+        class _BadSetup(py_trees.behaviour.Behaviour):
+            def setup(self, **kwargs: Any) -> None:
+                raise TypeError("setup wired wrong")
+
+            def update(self) -> Status:  # pragma: no cover - never reached
+                return Status.SUCCESS
+
+        bt = bridge.setup_tree(
+            tree=_BadSetup(name="BadSetup"), actor_id=test_actor_id
+        )
+        result = bridge.execute_tree(bt)
+
+        assert result.status == Status.FAILURE
+        assert result.internal_error is True
+        assert "TypeError" in result.feedback_message
+
+    def test_shutdown_crash_does_not_mask_the_result(
+        self, bridge, test_actor_id
+    ) -> None:
+        """A raise in the ``finally`` block must not replace the return value."""
+
+        class _BadShutdown(py_trees.behaviour.Behaviour):
+            def update(self) -> Status:
+                raise TypeError("the failure that actually matters")
+
+            def shutdown(self) -> None:
+                raise RuntimeError("shutdown also broken")
+
+        bt = bridge.setup_tree(
+            tree=_BadShutdown(name="BadShutdown"), actor_id=test_actor_id
+        )
+        result = bridge.execute_tree(bt)
+
+        assert result.status == Status.FAILURE
+        assert result.internal_error is True
+        assert "the failure that actually matters" in result.feedback_message
+
+    def test_domain_error_message_names_its_type(
+        self, bridge, test_actor_id
+    ) -> None:
+        """Both branches name the type, so triage does not need the traceback."""
+        bt = bridge.setup_tree(
+            tree=_DomainErrorNode(name="DomainError"), actor_id=test_actor_id
+        )
+        result = bridge.execute_tree(bt)
+
+        assert result.internal_error is False
+        assert "VultronError" in result.feedback_message

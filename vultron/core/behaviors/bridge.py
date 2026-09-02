@@ -74,8 +74,18 @@ class BTExecutionResult:
     ``internal_error`` separates the two things a bare ``FAILURE`` used to
     conflate: a protocol outcome the tree is entitled to report, and a
     programming error that escaped a node. Callers that make a protocol
-    decision from a failure — retry, re-buffer, log level — MUST consult it,
+    decision from a failure — retry, re-buffer, log level — should consult it,
     because retrying a code bug never converges. See CONCERN-3019.
+
+    Read the flag as *"an internal error reached the bridge"*, not *"no bug
+    occurred"*. Two known gaps, both tracked in CONCERN-3019:
+
+    - Node ``update()`` bodies catch broadly by convention, so a crash swallowed
+      inside a node arrives here as an ordinary ``FAILURE`` (or even
+      ``SUCCESS``) and is never flagged.
+    - Nodes that run a sub-tree through their own ``BTBridge`` discard the inner
+      result's flag and return a bare ``Status.FAILURE``, so a crash inside a
+      nested subtree is not visible in the outer result.
     """
 
     status: Status
@@ -403,11 +413,15 @@ class BTBridge:
         """
         self.logger.debug("Starting BT execution")
 
-        bt.setup()
-        errors = []
+        errors: list[str] = []
         iteration = 0
 
         try:
+            # Inside the try: a node whose setup() raises used to escape
+            # execute_tree uncaught *and* skip the shutdown in `finally`,
+            # so setup-time crashes were neither classified nor cleaned up.
+            bt.setup()
+
             while iteration < max_iterations:
                 iteration += 1
                 bt.tick()
@@ -483,9 +497,12 @@ class BTBridge:
 
         except VultronError as e:
             # A node raised a domain error deliberately (28 such sites, e.g.
-            # sync/nodes/canonical_entry.py).  That is a protocol outcome: the
-            # tree reports FAILURE and callers may retry it.
-            error_msg = f"BT execution failed: {e}"
+            # sync/nodes/canonical_entry.py).  Treated as attributable to the
+            # protocol rather than to us.  Not a blanket retry licence: a
+            # malformed peer message will not parse on a retry either, and
+            # VultronActivityConstructionError wraps what is really a factory
+            # misuse.  Consult the exception, not just the flag.
+            error_msg = f"BT execution failed: {type(e).__name__}: {e}"
             self.logger.exception(error_msg)
             errors.append(error_msg)
             return BTExecutionResult(
@@ -514,7 +531,12 @@ class BTBridge:
             )
 
         finally:
-            bt.shutdown()
+            # A raise here would replace the classified result with an
+            # unrelated exception, losing the failure that actually mattered.
+            try:
+                bt.shutdown()
+            except Exception:
+                self.logger.exception("BT shutdown failed; result preserved")
 
     def execute_with_setup(
         self,
