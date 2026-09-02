@@ -25,6 +25,7 @@ import pytest
 from vultron.core.models.events import MessageSemantics
 from vultron.semantic_registry import SEMANTIC_REGISTRY
 from vultron.wire.as2.enums import as_TransitiveActivityType as TAtype
+from vultron.wire.as2.extractor import ActivityPattern
 from vultron.wire.as2.vocab.objects import as_CaseStatus, as_ParticipantStatus
 
 
@@ -193,8 +194,8 @@ def test_actor_suggestion_accept_reject_wrap_the_participant_offer():
         pattern = _pattern(semantics)
         assert pattern.activity_ is verb
         inner = pattern.object_
-        assert not isinstance(
-            inner, str
+        assert isinstance(
+            inner, ActivityPattern
         ), f"{semantics} must nest an inner ActivityPattern, not a bare object type"
         assert inner.activity_ is TAtype.OFFER
         assert inner.object_ == "CaseParticipant", (
