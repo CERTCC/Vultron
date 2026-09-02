@@ -7,7 +7,7 @@
 | Path | Purpose | Evidence |
 |------|---------|----------|
 | `vultron/` | Main Python package — all production source | `pyproject.toml` `[tool.setuptools.packages.find]` |
-| `vultron/core/` | Domain layer: models, ports, use cases, states, behaviors | `notes/architecture-hexagonal.md` |
+| `vultron/core/` | Domain layer: models, ports, use cases, states, behaviors, predicate rules | `notes/architecture-hexagonal.md` |
 | `vultron/wire/` | Wire format layer: AS2 vocabulary, parser, extractor, factories | `notes/architecture-hexagonal.md` |
 | `vultron/adapters/` | Adapter layer: driving (HTTP/CLI/MCP), driven (SQLite, delivery), connectors | `notes/architecture-hexagonal.md` |
 | `vultron/bt/` | Behavior tree node library grouped by CVD domain area | `vultron/bt/` directory listing |
@@ -45,7 +45,8 @@
 
 | Boundary | What belongs here | What must not be here |
 |----------|-------------------|------------------------|
-| `vultron/core/` | Domain models, ports (Protocol classes), use cases, states, behaviors | FastAPI, wire-format (AS2), adapter imports |
+| `vultron/core/` | Domain models, ports (Protocol classes), use cases, states, behaviors, predicates | FastAPI, wire-format (AS2), adapter imports |
+| `vultron/core/predicates/` | Pure predicate functions over domain values (role checks, embargo eligibility, state invariants) | I/O, DataLayer, `behaviors/`, `services/`, `ports/` imports |
 | `vultron/wire/as2/` | AS2 vocabulary (Pydantic models), parser, semantic extractor, factories | Core domain import of AS2 types; FastAPI |
 | `vultron/adapters/` | HTTP handlers, SQLite data layer, outbound delivery, CLI, MCP, connectors | Core domain logic (no business rules) |
 | `vultron/config/` | Configuration models and loading only | Imports from `vultron.adapters` or `vultron.core` |
