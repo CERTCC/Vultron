@@ -3,7 +3,7 @@ title: Behavior Tree Node Design
 description: Formal requirements for BT node parameterization, composability, and reuse in the core behaviors package. Covers
   node context injection, blackboard hygiene, module ownership, and the fractal composability pattern that applies at every
   depth of the tree hierarchy.
-version: 1.1.0
+version: 1.2.0
 scope:
 - prototype
 - production
@@ -731,3 +731,61 @@ groups:
     stories:
     - story_2022_088
     - story_2022_107
+  - id: BTND-10-002
+    priority: MUST
+    kind: architecture
+    statement: >-
+      The per-dimension transition rules, the role gates and the cross-machine
+      entailments applied to a ParticipantStatus write MUST be composed into a single
+      evaluator that returns every violated rule. Every node that validates such a
+      write MUST call that evaluator rather than invoking the individual
+      `is_valid_*_transition()` or `violation_*` predicates directly, and MUST report
+      every violation the evaluator returns.
+    rationale: >-
+      `ValidateTriggerTransitionsNode` and `CreateParticipantStatusNode` each
+      implemented the VF, D and PXA transition checks and the role gates
+      independently, with byte-identical message text (ARCH-15-004 violation, live
+      drift hazard), and each enforced a subset the other did not. ISSUE-2906
+      established that composing the rule set once — not sharing the individual
+      predicates — is what keeps two paths from drifting; `cross_machine_violations()`
+      is the existing instance of that shape.
+    relationships:
+    - rel_type: refines
+      spec_id: BTND-10-001
+    - rel_type: implements
+      spec_id: ARCH-15-004
+      note: One canonical copy of each transition and role predicate
+    - rel_type: implements
+      spec_id: EH-07-001
+      note: Reporting every violation at a ParticipantStatus write boundary
+    adr:
+    - ADR-0086
+    verification: >-
+      An architecture ratchet asserts that no node validating a ParticipantStatus
+      write calls the individual transition or entailment predicates directly. A unit
+      test asserts a request invalid in two dimensions reports both.
+  - id: BTND-10-003
+    priority: MUST
+    kind: architecture
+    statement: >-
+      A ParticipantStatus write node MUST retain its own call to the shared evaluator
+      even when an upstream guard node validates the same write. It MUST NOT be
+      reduced to a delegate that relies on the guard having run.
+    rationale: >-
+      BTND-10-001's fail-closed-regardless-of-guard-coverage rule is not hypothetical
+      here: `CreateParticipantStatusNode` is reached from `develop_fix.py`,
+      `deploy_fix.py`, `close_case_effect.py` and two sites in `leave.py` without
+      passing through `ValidateTriggerTransitionsNode`, so for those paths its checks
+      are the only validation. Both nodes validating cannot double-report on the
+      trigger path: the guard fails first and the Sequence aborts before the write
+      node ticks.
+    relationships:
+    - rel_type: refines
+      spec_id: BTND-10-001
+    - rel_type: depends_on
+      spec_id: BTND-10-002
+    adr:
+    - ADR-0086
+    verification: >-
+      A write-node-only test (constructing the node directly, without the guard)
+      reports every violation and persists nothing.

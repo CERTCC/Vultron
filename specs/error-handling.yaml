@@ -4,7 +4,7 @@ description: >-
   Requirements for handling error conditions in the Vultron inbox handler, covering the
   exception hierarchy and error categories. Governs graceful degradation, clear error
   messages, system stability, and debuggability.
-version: 1.0.0
+version: 1.1.0
 scope:
 - prototype
 - production
@@ -61,6 +61,34 @@ groups:
     relationships:
     - rel_type: depends_on
       spec_id: HTTP-03-001
+  - id: EH-05-002
+    priority: MUST
+    kind: project
+    statement: >-
+      An HTTP error response reporting more than one distinct violation MUST include
+      a `details` field: an array with one entry per violation. Each entry MUST carry
+      the violation's human-readable `message`, and MUST identify whether the
+      violation is a root cause or is derived from another reported violation. The
+      `message` field MUST remain a human-readable rendering of the whole set, so a
+      caller reading only `message` still sees every violation.
+    rationale: >-
+      Before this requirement a multi-violation rejection collapsed to the first
+      violation's message, so a caller fixed one problem, resubmitted an atomically
+      rejected request, and was told about the next one. Callers wanting individual
+      violations had to parse `message`, which ISSUE-2112 noted breaks silently when
+      the order of internal checks changes. `details` gives them a stable surface;
+      keeping the full set in `message` means adding the field does not make existing
+      text-only consumers worse off.
+    relationships:
+    - rel_type: refines
+      spec_id: EH-05-001
+    - rel_type: depends_on
+      spec_id: EH-07-001
+    adr:
+    - ADR-0086
+    verification: >-
+      A request invalid in two independent dimensions returns a 422 whose `details`
+      array has one entry per violation, and whose `message` names both.
 - id: EH-06
   title: Error Logging
   specs:
@@ -71,3 +99,71 @@ groups:
     relationships:
     - rel_type: depends_on
       spec_id: SL-03-001
+- id: EH-07
+  title: Multi-Violation Rejection
+  specs:
+  - id: EH-07-001
+    priority: MUST
+    kind: project
+    statement: >-
+      A validation boundary that rejects its input as a unit MUST report every
+      violation it can recognise in that input, not only the first. Rejecting
+      atomically does not license reporting a single reason: no partial progress was
+      accepted, so a caller told one reason at a time gains nothing from the round
+      trip.
+    rationale: >-
+      Atomicity governs what is written; diagnostic completeness governs what is
+      reported. The two are independent, and conflating them produced a
+      fix-one-resubmit loop on the add-participant-status trigger path (ISSUE-2112).
+    adr:
+    - ADR-0086
+    verification: >-
+      A request invalid in two independent dimensions reports both violations, and
+      persists nothing.
+  - id: EH-07-002
+    priority: MUST
+    kind: project
+    statement: >-
+      When a validation boundary reports multiple violations, each violation MUST be
+      classified as root or derived. A rule reading a single dimension is always
+      root. A rule reading more than one dimension is derived when any dimension it
+      reads already carries a single-dimension violation, and root otherwise.
+    rationale: >-
+      One bad dimension frequently entails further violations, so unranked
+      thoroughness degrades into a wall of errors that one fix clears most of. The
+      classification test is dimension overlap rather than a rule-to-rule dependency
+      graph, so a newly added rule is classified correctly by construction and the
+      labelling cannot go stale. The root multi-dimension case is the informative
+      one: every dimension moved legally on its own and the combination is impossible.
+    relationships:
+    - rel_type: refines
+      spec_id: EH-07-001
+    adr:
+    - ADR-0086
+    verification: >-
+      A cross-dimension violation whose dimensions are each individually valid is
+      labelled root; the same violation is labelled derived when one of its
+      dimensions independently failed its own transition check.
+  - id: EH-07-003
+    priority: MUST
+    kind: project
+    statement: >-
+      A `VultronError` subclass raised to report multiple violations MUST carry them
+      as structured data on the exception, and MUST render the whole set in `str()`.
+      Callers MUST NOT be required to parse a joined message to recover the
+      individual violations.
+    rationale: >-
+      `DemoFailureError` already establishes this shape for the demo runner
+      (DEMOCI-01-003). Reusing it rather than inventing a second aggregation
+      mechanism keeps one pattern for accumulate-all-then-fail, and lets the
+      structured list reach the HTTP layer (EH-05-002) without new plumbing.
+    relationships:
+    - rel_type: refines
+      spec_id: EH-04-001
+    - rel_type: refines
+      spec_id: EH-01-002
+    adr:
+    - ADR-0086
+    verification: >-
+      The raised exception exposes one structured entry per violation, and `str()`
+      names every one of them.
