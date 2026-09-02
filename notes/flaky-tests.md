@@ -114,23 +114,33 @@ No open entries.
 | `fcvcv Invariant Harness` | #2819 | 2026-08-28 |
 | `fvcv-extension` | #2422 | 2026-08-26 |
 | `fccv-extension` | #2422 | 2026-08-26 |
-| `fv Demo Integration` | #2422 | 2026-08-20 |
-| `fv Invariant Harness` | #2422 | 2026-08-20 |
+| `fv Demo Integration` | #3033 | 2026-09-02 |
+| `fv Invariant Harness` | #3033 | 2026-09-02 |
 | `fvcv-handoff Demo Integration` | #2257 | 2026-08-18 |
 | `fvcv-handoff Invariant Harness` | #2257 | 2026-08-18 |
 | `fcv-reject Demo Integration` | #2390 | 2026-08-19 |
 | `fcv-reject Invariant Harness` | #2390 | 2026-08-19 |
 
-> `fv Demo Integration` / `fv Invariant Harness` / `fvcv-extension` / `fccv-extension`
-> all point to #2422 (vendor RM.RECEIVED timeout at M3, cascading `notify-fix-ready`
-> 422 from cross-machine entailment guard, then vfd_state timeouts at M4/M5/M6).
-> Same async race-window class as #2376 (fcvcv, coordinator/engage-case).
-> Root fix: wrap `actor_notifies_fix_ready` in `demo_gate` polling
-> `wait_for_participant_rm_state(expected_states={RM.ACCEPTED,DEFERRED,CLOSED})`
-> across all 8 affected scenario files (ADR-0058).  Invariant Harness fails as a
-> downstream consequence of incomplete devlogs.  First confirmed 2026-08-20 on
-> PR #2419.  Fix landed in PR resolving #2422 (2026-08-26).
+> `fv Demo Integration` / `fv Invariant Harness` were **repointed to #3033 on
+> 2026-09-02**.  #2422 (vendor RM.RECEIVED timeout at M3, cascading
+> `notify-fix-ready` 422 from the cross-machine entailment guard, then vfd_state
+> timeouts at M4/M5/M6) was fixed 2026-08-26 and is closed — but the jobs still
+> flake at an *earlier* gate: the vendor's `VulnerabilityCase` replica never
+> arrives from the CaseActor before validate-report, raised at
+> `vultron/demo/helpers/workflow.py` in `run_direct_path_rm_triage()`
+> (ADR-0041, PCR-01-003).  Same async race-window class as #2376 (fcvcv,
+> coordinator/engage-case), distinct window.  Confirmed 2026-09-02 on PR #3029:
+> failed once, passed on re-run with all 25 checks green, `main` green throughout.
+> Invariant Harness fails as a downstream consequence of incomplete devlogs.
 >
+> `fvcv-extension` / `fccv-extension` still cite #2422 and so are also pointing
+> at a closed issue; no fresh evidence was gathered for those two jobs.  Verify
+> before deleting or repointing them.
+>
+> **Do not delete a row merely because its issue closed.**  Check whether the
+> flake still reproduces first — a closed tracker plus an observed failure means
+> the tracker was closed prematurely, or fixed only one of several races sharing
+> a job name.  Repoint in that case; delete only when the flake is gone.
 >
 > `fvcv-handoff Demo Integration` / `fvcv-handoff Invariant Harness` now point to
 > #2257 (`AddCaseParticipantReceivedBT` failure).  Root error:

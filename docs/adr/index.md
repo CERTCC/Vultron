@@ -153,6 +153,8 @@ General information about architectural decision records is available at <https:
 - [ADR-0081 Peer Knowledge Lives in the Hosted Actor's Own Store, Not as a Hosted Actor](0081-peer-knowledge-in-hosted-actor-store.md)
 - [ADR-0082 Wire/Core Boundary: One Declarative Pairing Registry, One Translator, and Reject Unknown Keys](0082-wire-core-boundary-pairing-registry.md)
 - [ADR-0083 The Formal Message Set and the AS2 Wire Vocabulary Are Deliberately Different Shapes; the Mapping Is the Reconciling Artifact](0083-formal-message-set-and-as2-vocabulary-are-different-shapes.md)
+- [ADR-0084 Participant Status Is Self-Declaratory, With Narrow Externally-Evidenced On-Behalf Exceptions](0084-participant-assertion-authority.md)
+- [ADR-0085 Owner-Close Is a Hard Write Boundary; RM.CLOSED Is Terminal and Rejoin Is Unsupported](0085-case-lifecycle-boundaries.md)
 
 ## Proposed ADRs
 

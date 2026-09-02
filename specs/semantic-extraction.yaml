@@ -94,7 +94,7 @@ groups:
     verification: >-
       A unit test confirms that `find_matching_semantics()` returns
       `MessageSemantics.UNKNOWN` when no registered `ActivityPattern` in
-      `SEMANTICS_ACTIVITY_PATTERNS` matches the supplied activity.
+      `SEMANTIC_REGISTRY` matches the supplied activity.
     lint_suppress:
     - missing_story_reference
 - id: SE-03
@@ -104,11 +104,19 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      SEMANTICS_ACTIVITY_PATTERNS MUST contain patterns for all supported MessageSemantics
-      values except UNKNOWN
+      `SEMANTIC_REGISTRY` MUST contain an entry with a non-`None` `pattern` for every
+      supported `MessageSemantics` value except the `UNKNOWN` and
+      `UNKNOWN_UNRESOLVABLE_OBJECT` sentinels
+    rationale: >-
+      Phrased as "an entry with a non-`None` `pattern`" rather than "a key", because
+      `SEMANTIC_REGISTRY` is an ordered list of `SemanticEntry` values rather than the
+      `MessageSemantics` → `ActivityPattern` dict it replaced. Both sentinels do have
+      registry entries; what distinguishes them is that their `pattern` is `None`,
+      since they are resolved by fallback logic in `find_matching_semantics()` rather
+      than by pattern iteration.
     verification: >-
-      A unit test confirms that every `MessageSemantics` enum value except `UNKNOWN`
-      appears as a key in `SEMANTICS_ACTIVITY_PATTERNS` at least once.
+      A unit test confirms that every `MessageSemantics` enum value other than the two
+      sentinels has a `SEMANTIC_REGISTRY` entry whose `pattern` is not `None`.
     lint_suppress:
     - missing_story_reference
   - id: SE-03-002
@@ -117,14 +125,14 @@ groups:
     statement: Pattern registry MUST be ordered from most specific to least specific
     verification: >-
       A unit test confirms that `_validate_registry_order()` completes without
-      raising `RegistryOrderError` on the current `SEMANTICS_ACTIVITY_PATTERNS`.
+      raising `RegistryOrderError` on the current `SEMANTIC_REGISTRY`.
     lint_suppress:
     - missing_story_reference
   - id: SE-03-003
     priority: MUST
     kind: protocol
     statement: >-
-      Every `ActivityPattern` entry in `SEMANTICS_ACTIVITY_PATTERNS` MUST discriminate on
+      Every `ActivityPattern` entry in `SEMANTIC_REGISTRY` MUST discriminate on
       at minimum both Activity type AND Object type
     rationale: >-
       A pattern without an object-type constraint would match every activity of that verb
@@ -132,7 +140,7 @@ groups:
       Activity type
     verification: >-
       A unit test confirms that every `ActivityPattern` entry in
-      `SEMANTICS_ACTIVITY_PATTERNS` has a non-`None` `activity_` field and a
+      `SEMANTIC_REGISTRY` has a non-`None` `activity_` field and a
       non-`None` `object_` field.
     lint_suppress:
     - missing_story_reference
@@ -203,17 +211,20 @@ groups:
     kind: protocol
     statement: All patterns MUST have corresponding MessageSemantics enum value
     verification: >-
-      A unit test confirms that every key in `SEMANTICS_ACTIVITY_PATTERNS` is a
-      valid member of the `MessageSemantics` enum.
+      A unit test confirms that the `semantics` field of every `SEMANTIC_REGISTRY`
+      entry is a valid member of the `MessageSemantics` enum.
     lint_suppress:
     - missing_story_reference
   - id: SE-05-002
     priority: MUST
     kind: protocol
-    statement: All patterns MUST have corresponding use-case class in USE_CASE_MAP
+    statement: >-
+      All patterns MUST have a corresponding use-case class in the mapping returned by
+      `use_case_map()`
     verification: >-
-      A unit test confirms that every `MessageSemantics` value present in
-      `SEMANTICS_ACTIVITY_PATTERNS` has a corresponding entry in `USE_CASE_MAP`.
+      A unit test confirms that every `MessageSemantics` value carrying a pattern in
+      `SEMANTIC_REGISTRY` has a corresponding entry in the mapping returned by
+      `use_case_map()`.
     relationships:
     - rel_type: derives_from
       spec_id: DR-02-002
@@ -225,7 +236,7 @@ groups:
     statement: All patterns MUST have unit test coverage
     verification: >-
       Inspection of `test/` confirms that each `ActivityPattern` in
-      `SEMANTICS_ACTIVITY_PATTERNS` has at least one test exercising
+      `SEMANTIC_REGISTRY` has at least one test exercising
       `find_matching_semantics()` for the corresponding semantic type.
     lint_suppress:
     - missing_story_reference
@@ -478,7 +489,7 @@ groups:
       fragility documented in SE-08-004.
     verification: >-
       Inspection of `vultron/wire/` confirms that `OFFER_CASE_MANAGER_ROLE` is
-      absent from `MessageSemantics` and `SEMANTICS_ACTIVITY_PATTERNS`, and that
+      absent from `MessageSemantics` and `SEMANTIC_REGISTRY`, and that
       `OFFER_CASE_PARTICIPANT_ROLE` using
       `Offer(CaseParticipantRole, target=Actor, context=VulnerabilityCase)` is
       present.
@@ -487,3 +498,4 @@ groups:
       spec_id: SE-08-003
     lint_suppress:
     - missing_story_reference
+    - phantom_symbol_ref

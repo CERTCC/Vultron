@@ -3,7 +3,7 @@ title: "An absent VF/D dimension is absent, not at its initial state — and fir
 type: learning
 timestamp: "2026-09-01T00:00:00Z"
 source: ISSUE-2906
-signal: design-question
+signal: spec-gap
 ---
 
 Two semantics decisions made while fixing #2906, both now stated in

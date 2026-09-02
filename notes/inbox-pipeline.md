@@ -35,9 +35,9 @@ All existing unit tests mock either `_DISPATCHER` or `prepare_for_dispatch`.
 No unit test exercises the real chain end-to-end. That flow is covered only
 by slow demo integration tests in `test/demo/`.
 
-**The risk**: if a new semantic type is added but its `USE_CASE_MAP` registration
-is forgotten, all mock-based unit tests pass and the failure only surfaces in
-production or the slow integration suite.
+**The risk**: if a new semantic type is added but its `SEMANTIC_REGISTRY`
+use-case registration is forgotten, all mock-based unit tests pass and the
+failure only surfaces in production or the slow integration suite.
 
 ---
 
@@ -91,7 +91,7 @@ def build_test_pipeline(dl: DataLayer) -> InboxPipeline:
 
     Uses DirectActivityDispatcher with the real use_case_map() and the
     same port factories that make_dispatcher() uses, so that routing-
-    safety-net tests fail immediately on USE_CASE_MAP registration gaps.
+    safety-net tests fail immediately on registry use-case gaps.
     """
     ...
 ```

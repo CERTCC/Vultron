@@ -23,6 +23,7 @@ from py_trees.common import Status
 
 from vultron.core.behaviors.bridge import BTBridge, BTExecutionResult
 from vultron.core.behaviors.store_scope import same_authority
+from vultron.errors import VultronError
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.wire.as2.vocab.base.objects.object_types import as_Note
 
@@ -353,7 +354,11 @@ def test_execute_tree_with_exception(bridge, test_actor_id):
     result = bridge.execute_tree(bt)
 
     assert result.status == Status.FAILURE
-    assert "exception" in result.feedback_message.lower()
+    # Assert the classification, not a substring: the old check looked for
+    # "exception" in the message, which only matched because the raised
+    # RuntimeError's own text happened to contain the word.
+    assert result.internal_error is True
+    assert "RuntimeError" in result.feedback_message
     assert result.errors is not None
     assert len(result.errors) == 1
 
@@ -880,3 +885,237 @@ def test_a_port_without_a_store_is_published_unchanged(
 
     blackboard = _ports_blackboard()
     assert blackboard.wire_render_port is stateless
+
+
+# ---------------------------------------------------------------------------
+# Failure classification: protocol outcome vs. programming error (CONCERN-3019)
+# ---------------------------------------------------------------------------
+
+
+class _DomainErrorNode(py_trees.behaviour.Behaviour):
+    """Node that raises a domain error the way ~28 production nodes do."""
+
+    def update(self) -> Status:
+        raise VultronError("canonical entry rejected")
+
+
+class _InvalidStatusNode(py_trees.behaviour.Behaviour):
+    """Node that reports INVALID mid-execution."""
+
+    def update(self) -> Status:
+        return Status.INVALID
+
+
+class _BrokenNode(py_trees.behaviour.Behaviour):
+    """Node that dies of a wrong-typed value, the way #2907 did."""
+
+    def update(self) -> Status:
+        raise TypeError("value is not of type VulnerabilityCase")
+
+
+class _SilentBugNode(py_trees.behaviour.Behaviour):
+    """Node whose exception carries no message — an empty ``str(e)``."""
+
+    def update(self) -> Status:
+        raise AttributeError()
+
+
+class _BadSetupNode(py_trees.behaviour.Behaviour):
+    """Node that crashes in ``setup()``, before any tick."""
+
+    def setup(self, **kwargs: Any) -> None:
+        raise TypeError("setup wired wrong")
+
+    def update(self) -> Status:  # pragma: no cover - never reached
+        return Status.SUCCESS
+
+
+class _BadShutdownNode(py_trees.behaviour.Behaviour):
+    """Node that crashes in both ``update()`` and ``shutdown()``."""
+
+    def update(self) -> Status:
+        raise TypeError("the failure that actually matters")
+
+    def shutdown(self) -> None:
+        raise RuntimeError("shutdown also broken")
+
+
+class TestFailureClassification:
+    """A bare FAILURE conflated a protocol outcome with a crash.
+
+    ``BTBridge.execute_tree`` catches both, so callers that decide whether to
+    retry, re-buffer, or log loudly could not tell them apart. The operative
+    question for the flag is "would retrying converge?" — for a deliberate
+    domain raise yes, for a code bug never.
+    """
+
+    def test_domain_raise_is_not_an_internal_error(
+        self, bridge, test_actor_id
+    ) -> None:
+        """A deliberate ``VultronError`` stays a protocol outcome."""
+        bt = bridge.setup_tree(
+            tree=_DomainErrorNode(name="DomainError"), actor_id=test_actor_id
+        )
+        result = bridge.execute_tree(bt)
+
+        assert result.status == Status.FAILURE
+        assert result.internal_error is False
+        assert "canonical entry rejected" in result.feedback_message
+
+    def test_programming_error_is_flagged(self, bridge, test_actor_id) -> None:
+        """A ``TypeError`` is caught but marked as not-a-protocol-outcome."""
+        bt = bridge.setup_tree(
+            tree=_BrokenNode(name="Broken"), actor_id=test_actor_id
+        )
+        result = bridge.execute_tree(bt)
+
+        assert result.status == Status.FAILURE
+        assert result.internal_error is True
+        assert "TypeError" in result.feedback_message
+
+    def test_exception_type_is_named_in_the_message(
+        self, bridge, test_actor_id
+    ) -> None:
+        """The type name is in the message; an empty ``str(e)`` is common."""
+        bt = bridge.setup_tree(
+            tree=_SilentBugNode(name="SilentBug"), actor_id=test_actor_id
+        )
+        result = bridge.execute_tree(bt)
+
+        assert result.internal_error is True
+        assert "AttributeError" in result.feedback_message
+
+    def test_max_iterations_is_an_internal_error(
+        self, bridge, test_actor_id
+    ) -> None:
+        """A tree that will not settle will not settle on a retry either."""
+        bt = bridge.setup_tree(tree=RunNTimes(n=200), actor_id=test_actor_id)
+        result = bridge.execute_tree(bt, max_iterations=5)
+
+        assert result.status == Status.FAILURE
+        assert result.internal_error is True
+        # Pin the branch: without this, the assertions are byte-identical to
+        # test_invalid_status_is_an_internal_error and either test would pass
+        # on the other's path (CONCERN-3019).
+        assert "exceeded max iterations (5)" in result.feedback_message
+
+    def test_invalid_status_is_an_internal_error(
+        self, bridge, test_actor_id
+    ) -> None:
+        """A root in INVALID mid-execution is malformed, not a protocol no."""
+        bt = bridge.setup_tree(
+            tree=_InvalidStatusNode(name="InvalidStatus"),
+            actor_id=test_actor_id,
+        )
+        result = bridge.execute_tree(bt)
+
+        assert result.status == Status.FAILURE
+        assert result.internal_error is True
+        # Pin the branch — see test_max_iterations_is_an_internal_error.
+        assert "entered INVALID state" in result.feedback_message
+
+    def test_ordinary_failure_is_not_an_internal_error(
+        self, bridge, test_actor_id
+    ) -> None:
+        """A node returning FAILURE is the ordinary protocol path."""
+        bt = bridge.setup_tree(tree=AlwaysFail(), actor_id=test_actor_id)
+        result = bridge.execute_tree(bt)
+
+        assert result.status == Status.FAILURE
+        assert result.internal_error is False
+
+    def test_success_is_not_an_internal_error(
+        self, bridge, test_actor_id
+    ) -> None:
+        bt = bridge.setup_tree(tree=AlwaysSucceed(), actor_id=test_actor_id)
+        result = bridge.execute_tree(bt)
+
+        assert result.status == Status.SUCCESS
+        assert result.internal_error is False
+
+    def test_default_is_not_an_internal_error(self) -> None:
+        """Callers constructing a result directly get the safe default."""
+        assert BTExecutionResult(status=Status.FAILURE).internal_error is False
+
+
+class TestClassificationRobustness:
+    """The classification must survive the tree lifecycle around the ticks."""
+
+    def test_setup_time_crash_is_caught_and_flagged(
+        self, bridge, test_actor_id
+    ) -> None:
+        """A crash in ``setup()`` used to escape ``execute_tree`` entirely."""
+        bt = bridge.setup_tree(
+            tree=_BadSetupNode(name="BadSetup"), actor_id=test_actor_id
+        )
+        result = bridge.execute_tree(bt)
+
+        assert result.status == Status.FAILURE
+        assert result.internal_error is True
+        assert "TypeError" in result.feedback_message
+
+    def test_shutdown_crash_does_not_mask_the_result(
+        self, bridge, test_actor_id
+    ) -> None:
+        """A raise in the ``finally`` block must not replace the return value."""
+        bt = bridge.setup_tree(
+            tree=_BadShutdownNode(name="BadShutdown"), actor_id=test_actor_id
+        )
+        result = bridge.execute_tree(bt)
+
+        assert result.status == Status.FAILURE
+        assert result.internal_error is True
+        assert "the failure that actually matters" in result.feedback_message
+
+    def test_domain_error_message_names_its_type(
+        self, bridge, test_actor_id
+    ) -> None:
+        """Both branches name the type, so triage does not need the traceback."""
+        bt = bridge.setup_tree(
+            tree=_DomainErrorNode(name="DomainError"), actor_id=test_actor_id
+        )
+        result = bridge.execute_tree(bt)
+
+        assert result.internal_error is False
+        assert "VultronError" in result.feedback_message
+
+    def test_setup_tree_crash_is_classified_not_raised(
+        self, bridge, test_actor_id
+    ) -> None:
+        """``setup_tree`` was the one fallible call outside the net.
+
+        ``execute_with_setup`` used to call it before entering any ``try``, so a
+        wiring bug escaped ``BTBridge`` entirely and reached the caller — a
+        FastAPI background task — as a bare exception with no
+        ``BTExecutionResult`` at all (CONCERN-3019).
+        """
+
+        def _explode(*args: Any, **kwargs: Any) -> Any:
+            raise TypeError("store wired wrong")
+
+        bridge.setup_tree = _explode  # type: ignore[method-assign]
+        result = bridge.execute_with_setup(
+            tree=AlwaysSucceed(), actor_id=test_actor_id
+        )
+
+        assert result.status == Status.FAILURE
+        assert result.internal_error is True
+        assert "TypeError" in result.feedback_message
+        assert "store wired wrong" in result.feedback_message
+
+    def test_setup_tree_domain_error_is_not_an_internal_error(
+        self, bridge, test_actor_id
+    ) -> None:
+        """A ``VultronError`` from setup keeps the protocol classification."""
+
+        def _reject(*args: Any, **kwargs: Any) -> Any:
+            raise VultronError("actor store is not readable")
+
+        bridge.setup_tree = _reject  # type: ignore[method-assign]
+        result = bridge.execute_with_setup(
+            tree=AlwaysSucceed(), actor_id=test_actor_id
+        )
+
+        assert result.status == Status.FAILURE
+        assert result.internal_error is False
+        assert "VultronError" in result.feedback_message

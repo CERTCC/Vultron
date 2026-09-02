@@ -12,8 +12,7 @@ inbound ActivityStreams activity:
 - ``include_activity`` — whether to populate ``VultronEvent.activity``
   during extraction (replaces the old ``_ACTIVITY_SEMANTICS`` set)
 
-Ordering of entries in ``SEMANTIC_REGISTRY`` matches the previously-defined
-``SEMANTICS_ACTIVITY_PATTERNS`` ordering — more specific patterns before
+Entries in ``SEMANTIC_REGISTRY`` are ordered more specific patterns before
 general ones, ``UNKNOWN`` last.
 
 This package is a neutral layer importable by wire, core, adapter, and test
@@ -306,8 +305,7 @@ def extract_event(
 def use_case_map() -> dict[MessageSemantics, type]:
     """Return a mapping of ``MessageSemantics`` → use-case class.
 
-    Equivalent to the old ``USE_CASE_MAP`` dict.  Used by the dispatcher
-    initializer to build its routing table.
+    Used by the dispatcher initializer to build its routing table.
     """
     return {e.semantics: e.use_case_class for e in SEMANTIC_REGISTRY}
 

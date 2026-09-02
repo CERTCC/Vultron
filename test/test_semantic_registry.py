@@ -28,8 +28,16 @@ def test_registry_covers_all_semantics():
 
 
 @pytest.mark.spec("VAM-09-002")
-def test_registry_unknown_is_last():
+def test_registry_unknown_is_last_and_has_no_pattern():
+    """UNKNOWN has a registry entry, but no pattern the match loop can select.
+
+    VAM-09-002. The entry itself is required — `lookup_entry()` resolves the
+    fallback event class and use case through it. What must be absent is the
+    `pattern`, otherwise `find_matching_semantics()` could return UNKNOWN by a
+    pattern match rather than by exhausting the loop.
+    """
     assert SEMANTIC_REGISTRY[-1].semantics == MessageSemantics.UNKNOWN
+    assert SEMANTIC_REGISTRY[-1].pattern is None
 
 
 @pytest.mark.spec("SE-04-002")

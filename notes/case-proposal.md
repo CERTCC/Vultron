@@ -157,7 +157,7 @@ Three new values added to the `MessageSemantics` enum:
 | `ACCEPT_CASE_PROPOSAL` | `Accept(as_CaseProposal)` |
 | `REJECT_CASE_PROPOSAL` | `Reject(as_CaseProposal)` |
 
-All three patterns MUST appear in `SEMANTICS_ACTIVITY_PATTERNS` before any
+All three patterns MUST appear in `SEMANTIC_REGISTRY` before any
 more-general patterns that share the same outer Activity type (SE-03-002).
 
 ---
@@ -231,8 +231,9 @@ Three received-side use cases are required:
 | `AcceptCaseProposalReceivedUseCase` | Vendor | `Accept(as_CaseProposal)` arriving at vendor inbox |
 | `RejectCaseProposalReceivedUseCase` | Vendor | `Reject(as_CaseProposal)` arriving at vendor inbox |
 
-All three must be registered in the dispatcher's `USE_CASE_MAP` keyed by the
-corresponding `MessageSemantics` value.
+All three must be registered as the `use_case_class` of their `SEMANTIC_REGISTRY`
+entry, keyed by the corresponding `MessageSemantics` value, so that they appear
+in the mapping returned by `use_case_map()`.
 
 ---
 

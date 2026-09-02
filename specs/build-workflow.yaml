@@ -4,8 +4,11 @@ description: >-
   Defines the content policy for the per-entry incoming learnings queue used by the build
   and bugfix skills to pass implementation observations upstream to the learn skill. Covers
   what belongs in the queue, what must not go there, file naming and format, how the learn
-  skill processes and archives entries, and the learning history entry type.
-version: 2.1.0
+  skill processes and archives entries, and the learning history entry type. The queue is
+  narrow by design: findings with a definite owner are routed to a GitHub issue or an
+  in-session fix at the moment of discovery, and only unverified general claims and
+  spec divergences are queued for batch processing (BW-07).
+version: 3.0.0
 scope:
   - prototype
   - production
@@ -351,50 +354,177 @@ groups:
           `plan/incoming/learnings/`. Observations discovered during gap
           analysis MUST be written directly to `notes/*.md` files.
   - id: BW-07
-    title: Upward-Reflection Signal Taxonomy
+    title: Upward-Reflection Finding Routing
     specs:
       - id: BW-07-001
         priority: MUST
         kind: process
         statement: >-
-          Before recording learning files at the end of a `build` or
-          `bugfix` session, the agent MUST run an upward-reflection
-          checklist that explicitly asks whether each of the following
-          signal types was encountered: `spec-gap`, `spec-ambiguity`,
-          `spec-contradiction`, `design-question`, `concern`,
-          `tooling-issue`, `process-issue`. A session with no learning
-          files is valid only if the checklist was completed and every
-          answer was "no".
+          Before completing a `build` or `bugfix` session, the agent MUST
+          run an upward-reflection checklist that explicitly asks whether
+          each of the following was encountered: behaviour with no spec
+          entry; a requirement that was unclear or that conflicted with
+          another; something that exists but is wrong; something that
+          should exist but does not; a broken tool, skill, or tracking
+          artefact; and a narrow but true fact about the code. Every
+          triggered item MUST then be routed to exactly one destination
+          per BW-07-004. A session that records nothing is valid only if
+          the checklist was completed and every answer was "no".
         rationale: >-
           Without a mandatory checklist, agents default to recording
-          only tactical tips-and-tricks. The checklist ensures that
-          higher-signal problems (missing specs, contradictions,
-          architectural risks) are captured and flow upstream to `learn`.
+          only tactical tips-and-tricks. The checklist is what surfaces
+          higher-signal problems, so it remains mandatory and unchanged
+          in force. What changed is that a triggered item no longer
+          implies a learning file — most findings have a nearer owner.
       - id: BW-07-002
         priority: SHOULD
         kind: protocol
         statement: >-
-          Incoming learning files SHOULD include an optional `signal:`
-          frontmatter field set to one of the defined signal types
-          (`spec-gap`, `spec-ambiguity`, `spec-contradiction`,
-          `design-question`, `concern`, `tooling-issue`,
-          `process-issue`) when the entry represents one of those
-          categories. Entries that do not fit any category MAY omit the
-          field.
+          Incoming learning files SHOULD include a `signal:` frontmatter
+          field set to one of `theme-candidate`, `spec-gap`,
+          `spec-ambiguity`, or `spec-contradiction`. The values
+          `design-question`, `concern`, `tooling-issue`, and
+          `process-issue` are retired: findings of those kinds are routed
+          to a GitHub issue or an in-session fix per BW-07-004 and do not
+          produce a learning file.
         rationale: >-
-          Tagged entries allow the `learn` skill to triage by urgency
-          without reading every file body. `spec-gap` and
-          `spec-contradiction` entries are the highest priority.
+          The retired values all named findings with a definite owner and
+          a definite action, which made the queue a waiting room for work
+          that could already have started. The surviving values name the
+          two things that genuinely require a batch — an unverified
+          general claim, and a divergence between spec and reality.
+        relationships:
+          - rel_type: derives_from
+            spec_id: BW-07-004
+            note: >-
+              The taxonomy is a consequence of the routing table rather
+              than an independent list.
       - id: BW-07-003
         priority: MUST
         kind: process
         statement: >-
-          The `learn` skill MUST process learning files tagged with
-          `signal: spec-gap` and `signal: spec-contradiction` before
-          processing untagged entries or entries with lower-urgency
-          signal types.
+          The `learn` skill MUST process learning files tagged
+          `signal: spec-gap`, `signal: spec-contradiction`, or
+          `signal: spec-ambiguity` before processing
+          `signal: theme-candidate` or untagged entries.
         rationale: >-
           These signal types represent cases where the specification
           has diverged from reality or contains internal conflicts.
           Deferring them risks future build sessions making the same
           gap-driven interpretations independently.
+      - id: BW-07-004
+        priority: MUST
+        kind: process
+        statement: >-
+          Each triggered checklist item MUST be routed at discovery to
+          exactly one destination. Something that exists but is wrong → a
+          GitHub `type:Concern` issue. Something that should exist but
+          does not → a GitHub `type:Idea` issue. A broken tool, skill, or
+          tracking artefact → a fix applied in the same session. A
+          narrow, symptom-retrievable fact about the code → an assertion
+          at the site (regression test, type annotation, or comment) in
+          the same session. A general claim that cannot be verified from
+          a single instance → a `signal: theme-candidate` learning file.
+          Behaviour with no spec entry, or an unclear or conflicting
+          requirement → a `signal: spec-*` learning file. Only the last
+          two destinations produce a learning file.
+        rationale: >-
+          A finding with a definite owner and a definite action does not
+          need to wait for the next `learn` batch; deferring it means
+          every agent between discovery and that batch rediscovers the
+          same problem. Of the 62 queued files audited on 2026-09-02,
+          only 5 were spec-shaped, while 38 named an action that could
+          have been taken at discovery.
+      - id: BW-07-005
+        priority: MUST
+        kind: process
+        statement: >-
+          The `learn` skill MUST NOT promote a claim to `notes/` or
+          `AGENTS.md` on the strength of a single learning file. Promotion
+          requires at least two independent witnesses — two entries from
+          different `source` work items making the same claim — or
+          independent confirmation against the code.
+        rationale: >-
+          A single build session cannot distinguish a general pattern
+          from a local accident, and its author is the party least able
+          to judge which it is. Corroboration is the cheapest available
+          test. The queue exists to accumulate it.
+      - id: BW-07-006
+        priority: MUST
+        kind: process
+        statement: >-
+          When a session produces a finding that corroborates an existing
+          queued `signal: theme-candidate` entry, the agent MUST file or
+          update a GitHub `type:Concern` issue for the now-corroborated
+          theme in that session rather than adding a second learning file
+          and waiting for `learn`.
+        rationale: >-
+          The second witness is the moment the claim becomes trustworthy,
+          so it is the moment to act. Without this rule the corroboration
+          threshold merely reintroduces the latency it was meant to
+          remove: the `mkdocs --strict` theme accumulated four witnesses
+          between 2026-08-27 and 2026-08-31 while remaining unfiled.
+        relationships:
+          - rel_type: refines
+            spec_id: BW-07-005
+      - id: BW-07-007
+        priority: SHOULD
+        kind: process
+        statement: >-
+          A `signal: theme-candidate` entry that has received no
+          corroborating witness within 30 days of its `timestamp` SHOULD
+          be archived by `learn` as unreproduced, via
+          `append-history learning`, without promotion to `notes/` or
+          `AGENTS.md`.
+        rationale: >-
+          An uncorroborated claim that has not recurred in a month is
+          more likely to have been a local accident than a pattern.
+          Archiving preserves the record without letting the queue grow
+          without bound.
+        relationships:
+          - rel_type: refines
+            spec_id: BW-07-005
+      - id: BW-07-008
+        priority: MUST_NOT
+        kind: process
+        statement: >-
+          A decision that was made, applied, and shipped within the
+          session — leaving no open question and asking nothing of any
+          future reader — MUST NOT be recorded as a learning file. The
+          commit message, the diff, and the PR body are its record.
+        rationale: >-
+          Such entries cannot satisfy the completeness rule that a
+          learning must produce a durable output, because there is no
+          output left to produce. They are guaranteed to be archived
+          unpromoted, and the reader who processes them recovers nothing.
+        relationships:
+          - rel_type: refines
+            spec_id: BW-01-001
+            note: >-
+              A closed decision is a completion summary in the shape of
+              an insight.
+      - id: BW-07-009
+        priority: MUST
+        kind: process
+        statement: >-
+          Code-review findings in files the current change did not touch
+          (pre-existing findings, and findings deferred as out of scope)
+          MUST be filed as GitHub `type:Bug` or `type:Concern` issues in
+          the session that surfaced them. They MUST NOT be recorded as
+          learning files, and MUST NOT be left only as PR-comment
+          advisories.
+        rationale: >-
+          A learning file cannot be assigned, scheduled, or closed, so a
+          bug report placed in one is inert. The 2026-09-02 audit traced
+          six such entries holding roughly twenty findings: all but four
+          were eventually filed as issues — by later sessions performing
+          their own reviews, never by the learning file. The queue was
+          therefore not the tracking mechanism but a parallel ledger that
+          duplicated it, at the cost of the four findings that fell
+          through because recording them had felt like tracking them.
+          Several entries also cited the merged PR that surfaced the
+          finding as evidence of tracking; a PR records what shipped, not
+          what was deferred.
+        relationships:
+          - rel_type: refines
+            spec_id: BW-07-004

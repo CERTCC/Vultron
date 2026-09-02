@@ -124,14 +124,24 @@ class TestLogDeliveryConfirmationNodePorts:
         with pytest.raises(NoDataAvailable):
             node.get_input("activity")
 
-    def test_failure_when_datalayer_absent(
+    def test_failure_when_required_ports_absent(
         self, bt_scenario: BTTestScenario
     ) -> None:
+        """Ticked with no domain context, the node fails rather than hangs.
+
+        Formerly named ``test_failure_when_datalayer_absent``, which it never
+        tested: ``BTBridge.setup_tree`` always injects a datalayer, so the
+        ``_require_datalayer()`` guard is unreachable from this harness. What
+        actually fails the tick is the missing ``activity`` port
+        (CONCERN-3019).
+        """
         result = bt_scenario.run(
             LogDeliveryConfirmationNode(name="LogDeliveryConfirmation"),
             actor_id=ACTOR_ID,
         )
-        bt_scenario.assert_failure(result)
+        bt_scenario.assert_failure(
+            result, reason="Input port 'activity'", allow_internal=True
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -440,7 +450,12 @@ class TestLedgerPortTickLevelEnforcement:
             **{port: "not-an-entry"},
             **LEDGER_TICK_EXTRAS.get(node_cls.__name__, {}),
         )
-        bt_scenario.assert_failure(result)
+        # A wrong-typed port value is a programming error, so the tree reports
+        # internal_error=True — that crash path is exactly this test's subject
+        # (CONCERN-3019, and the #2907 case that raised it).
+        bt_scenario.assert_failure(
+            result, reason="not of type", allow_internal=True
+        )
         errors = result.errors or []
         assert any(
             "not of type" in err for err in errors

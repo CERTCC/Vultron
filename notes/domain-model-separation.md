@@ -310,8 +310,8 @@ implementation moves to core (or a thin driving adapter).
 
 ### Pattern Naming Inconsistency
 
-`ActivityPattern` instances in `SEMANTICS_ACTIVITY_PATTERNS` in
-`extractor.py` use names like `CreateReport`, `EngageCase` — identical to
+`ActivityPattern` instances registered in `SEMANTIC_REGISTRY` use names like
+`CreateReport`, `EngageCase` — identical to
 Activity and Event class names. Adding a `Pattern` suffix (e.g.,
 `CreateReportPattern`, `EngageCasePattern`) prevents naming collisions and
 clarifies purpose.

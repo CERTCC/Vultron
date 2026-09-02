@@ -19,13 +19,23 @@ trap "rm -f '$TEMP_OUTPUT'" EXIT
 uv run mkdocs build --strict 2>&1 | tee "$TEMP_OUTPUT" || true
 
 # Count all warnings (lines starting with "WARNING -")
-TOTAL=$(grep -c "^WARNING -" "$TEMP_OUTPUT" || echo 0)
+#
+# Note: `grep -c` already prints "0" when it finds no matches, and *also* exits
+# non-zero. An `|| echo 0` fallback therefore appends a second "0", so the
+# substitution captures "0\n0" and every downstream $(( )) dies with
+# "syntax error in expression". Use `|| true` to swallow the exit status
+# without adding output, and default the value in case grep prints nothing.
+TOTAL=$(grep -c "^WARNING -" "$TEMP_OUTPUT" || true)
 
 # Count false-positive warnings (known decorator/keyword names)
-FALSE=$(grep "^WARNING -  Inline reference to unknown key" "$TEMP_OUTPUT" | grep -cE "(petterogren7535|main|v4|dataclass|prefix|base|context|pytest)" || echo 0)
+FALSE=$(grep "^WARNING -  Inline reference to unknown key" "$TEMP_OUTPUT" | grep -cE "(petterogren7535|main|v4|dataclass|prefix|base|context|pytest)" || true)
 
 # Count print-site warnings (version-specific false positive)
-PRINT=$(grep -c "^WARNING -  \[mkdocs-print-site\]" "$TEMP_OUTPUT" || echo 0)
+PRINT=$(grep -c "^WARNING -  \[mkdocs-print-site\]" "$TEMP_OUTPUT" || true)
+
+TOTAL=${TOTAL:-0}
+FALSE=${FALSE:-0}
+PRINT=${PRINT:-0}
 
 # Total false positives
 FALSE=$((FALSE + PRINT))

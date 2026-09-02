@@ -105,7 +105,7 @@ groups:
     kind: project
     statement: Test semantic types MUST match the activity structure being tested
     rationale: >-
-      Semantic type validation is enforced by the `USE_CASE_MAP` key lookup at dispatch time;
+      Semantic type validation is enforced by the `use_case_map()` key lookup at dispatch time;
       mismatched tests bypass actual code paths
 - id: TB-06
   title: Test Isolation

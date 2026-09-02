@@ -19,13 +19,17 @@ Tests for the BTTestScenario harness itself.
 Covers:
 - bt_scenario_factory: leadership guard (SYNC-09-003), custom actor IDs, shared DL
 - shared_dl_actors: multi-actor shared DataLayer fixture
+- assert_failure: rejects a crash masquerading as a protocol FAILURE
 """
 
 from typing import Callable
 
 import py_trees
+import pytest
+from py_trees.common import Status
 
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+from vultron.core.behaviors.bridge import BTExecutionResult
 from test.core.behaviors.bt_harness import BTTestScenario
 
 
@@ -129,3 +133,124 @@ class TestSharedDlActors:
         """Vendor and reporter have different actor IDs."""
         vendor, reporter = shared_dl_actors
         assert vendor.actor_id != reporter.actor_id
+
+
+class _RaisingNode(py_trees.behaviour.Behaviour):
+    """Node that dies of a programming error, not a protocol decision."""
+
+    def update(self) -> Status:
+        raise TypeError("value is not of type VulnerabilityCase")
+
+
+class TestAssertFailureRejectsCrashes:
+    """``assert_failure`` must not accept a crash as a protocol FAILURE.
+
+    Both arrive as ``status == FAILURE``, so a test asserting FAILURE used to
+    pass whether the tree made a decision or fell over. That is how a whole
+    class of bug stays green. See CONCERN-3019.
+    """
+
+    def test_rejects_an_internal_error_by_default(
+        self, bt_scenario: BTTestScenario
+    ) -> None:
+        result = bt_scenario.run(
+            _RaisingNode(name="Raising"), actor_id=bt_scenario.actor_id
+        )
+        assert result.status == Status.FAILURE  # the old, weaker assertion
+        with pytest.raises(AssertionError, match="the tree raised"):
+            bt_scenario.assert_failure(result)
+
+    def test_accepts_an_internal_error_when_opted_in(
+        self, bt_scenario: BTTestScenario
+    ) -> None:
+        """Opt-in exists for tests whose subject *is* the crash path.
+
+        It still has to name the crash — see
+        ``TestAssertFailureRequiresAReason``.
+        """
+        result = bt_scenario.run(
+            _RaisingNode(name="Raising"), actor_id=bt_scenario.actor_id
+        )
+        bt_scenario.assert_failure(
+            result,
+            reason="value is not of type VulnerabilityCase",
+            allow_internal=True,
+        )
+
+    def test_accepts_an_ordinary_protocol_failure(
+        self, bt_scenario: BTTestScenario
+    ) -> None:
+        result = bt_scenario.run(
+            py_trees.behaviours.Failure("dummy"), actor_id=bt_scenario.actor_id
+        )
+        bt_scenario.assert_failure(result)
+
+    def test_still_rejects_a_success(
+        self, bt_scenario: BTTestScenario
+    ) -> None:
+        """The original assertion is unchanged for non-FAILURE statuses."""
+        with pytest.raises(AssertionError, match="Expected FAILURE"):
+            bt_scenario.assert_failure(
+                BTExecutionResult(status=Status.SUCCESS)
+            )
+
+    def test_the_guard_message_names_the_cause(
+        self, bt_scenario: BTTestScenario
+    ) -> None:
+        """A bare 'unexpected failure' would send the reader hunting."""
+        result = bt_scenario.run(
+            _RaisingNode(name="Raising"), actor_id=bt_scenario.actor_id
+        )
+        with pytest.raises(AssertionError, match="TypeError"):
+            bt_scenario.assert_failure(result)
+
+
+class TestAssertFailureRequiresAReason:
+    """Opting out of the crash guard obliges the test to name its reason.
+
+    ``allow_internal=True`` switches off the only automatic check these tests
+    have left, so accepting it bare would re-open the drift the guard exists to
+    close — the reason would live in a comment instead of an assertion.
+    """
+
+    def test_allow_internal_without_a_reason_is_rejected(
+        self, bt_scenario: BTTestScenario
+    ) -> None:
+        result = bt_scenario.run(
+            _RaisingNode(name="Raising"), actor_id=bt_scenario.actor_id
+        )
+        with pytest.raises(AssertionError, match="requires reason="):
+            bt_scenario.assert_failure(result, allow_internal=True)
+
+    def test_allow_internal_with_a_matching_reason_passes(
+        self, bt_scenario: BTTestScenario
+    ) -> None:
+        result = bt_scenario.run(
+            _RaisingNode(name="Raising"), actor_id=bt_scenario.actor_id
+        )
+        bt_scenario.assert_failure(
+            result, reason="TypeError", allow_internal=True
+        )
+
+    def test_a_wrong_reason_fails_even_when_the_status_matches(
+        self, bt_scenario: BTTestScenario
+    ) -> None:
+        """The whole point: FAILURE alone is not the assertion."""
+        result = bt_scenario.run(
+            _RaisingNode(name="Raising"), actor_id=bt_scenario.actor_id
+        )
+        with pytest.raises(AssertionError, match="in the failure message"):
+            bt_scenario.assert_failure(
+                result, reason="embargo not found", allow_internal=True
+            )
+
+    def test_reason_is_checked_on_a_protocol_failure_too(
+        self, bt_scenario: BTTestScenario
+    ) -> None:
+        """``reason`` is independent of ``allow_internal``."""
+        result = BTExecutionResult(
+            status=Status.FAILURE, feedback_message="case 'x' not found"
+        )
+        bt_scenario.assert_failure(result, reason="not found")
+        with pytest.raises(AssertionError, match="in the failure message"):
+            bt_scenario.assert_failure(result, reason="embargo")
