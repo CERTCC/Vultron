@@ -24,6 +24,42 @@ def _now_utc() -> datetime:
     return datetime.now(timezone.utc).replace(microsecond=0)
 
 
+#: Recency floor for statuses that carry no timestamps: they sort to the
+#: bottom. ``id_`` MUST NOT be used as a recency tiebreaker (CM-29-001) — its
+#: scheme (``urn:uuid`` vs ``https``) is an implementation artefact, not a
+#: time proxy.
+_MIN_UTC = datetime.min.replace(tzinfo=timezone.utc)
+
+
+def _as_utc(value: datetime | None) -> datetime | None:
+    """Return *value* as a timezone-aware UTC datetime, or ``None``.
+
+    Wire-deserialized timestamps may be naive (``datetime.fromisoformat`` on an
+    offset-less ISO string yields a naive datetime). Assume naive datetimes are
+    UTC — consistent with :func:`_now_utc` — so recency comparisons never mix
+    naive and aware values, which would raise ``TypeError``.
+    """
+    if value is None:
+        return None
+    if value.tzinfo is None:
+        return value.replace(tzinfo=timezone.utc)
+    return value
+
+
+def status_recency_key(
+    updated: datetime | None, published: datetime | None
+) -> datetime:
+    """Return the recency sort key for a status: ``updated`` else ``published``.
+
+    Both are normalised to timezone-aware UTC. When both are absent the key is
+    ``datetime.min`` (UTC) so timestampless statuses sort to the bottom rather
+    than by ``id_`` scheme (CM-29-001). Shared by the core and wire
+    ``VulnerabilityCase.current_status`` implementations so the invariant lives
+    in one place.
+    """
+    return _as_utc(updated) or _as_utc(published) or _MIN_UTC
+
+
 def _new_urn() -> str:
     return f"urn:uuid:{uuid.uuid4()}"
 
