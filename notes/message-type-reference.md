@@ -18,6 +18,7 @@ related_notes:
   - notes/documentation-strategy.md
   - notes/status-dimension-objects.md
   - notes/sync-ledger-replication.md
+  - notes/participant-embargo-consent.md
 ---
 
 # Message Type Reference: Formal Shorthands, AS2 Wire Forms, and the Mapping Between Them
