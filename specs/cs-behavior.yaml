@@ -2381,14 +2381,40 @@ groups:
       a fix ready if they have accepted the report for action (RM ∈ {ACCEPTED,
       DEFERRED, CLOSED}). RM states RECEIVED/INVALID/VALID precede acceptance,
       so F-bit + pre-acceptance RM is a causal impossibility.
-      Implemented in violation_rm_vfd_entailment() (cross_machine_invariants.py).
+      The underlying constraint is a *history* property — rm_em_cs.md requires
+      that the actor "passed through q^rm = Accepted at some point" — while a
+      ParticipantStatus carries only the current RM value. The check therefore
+      approximates it with RM_STATES_CONSISTENT_WITH_FIX, which is exactly the
+      set of states reachable from RM.ACCEPTED. That is sound but not complete:
+      DEFERRED and CLOSED are each also reachable without visiting ACCEPTED
+      (VALID->DEFERRED, INVALID->CLOSED), so neither proves acceptance. They are
+      included deliberately, because excluding them would refuse the legitimate
+      batched update in which a peer advances through ACCEPTED and reports fix
+      readiness in one message (CSB-16-001). Narrowing to {ACCEPTED} is the only
+      complete alternative over a single snapshot and would refuse far more real
+      traffic than it caught; a complete check needs the participant's RM
+      history (ISSUE-3015).
+      Implemented in cross_machine_violations() (cross_machine_invariants.py),
+      which composes violation_rm_vf_entailment() and violation_rm_d_entailment()
+      — the per-dimension form the rule takes after ADR-0075 split the compound
+      CS_vfd into independent CS_vf and CS_d. Enforced on both protocol paths:
+      the emit path refuses the whole trigger
+      (ValidateTriggerTransitionsNode._validate_entailments) and the receive path
+      refuses the disqualified dimension (RSH-05-020, ISSUE-2906).
       Source: ISSUE-2372.
     testable: true
     preconditions:
     - description: Any participant state snapshot is available for inspection
     verification: >-
-      Call violation_rm_vfd_entailment(rm, vfd) for each participant; assert
-      None is returned for all valid combined states.
+      Call cross_machine_violations(rm, vf, d) for each participant; assert an
+      empty list is returned for all valid combined states. Unit tests in
+      test/core/behaviors/status/test_partial_accept_participant_status.py
+      confirm both paths refuse an F or D bit set against a pre-acceptance RM,
+      and that a batched advance through acceptance reported in one message is
+      accepted whole. Tests in test/core/states/test_cross_machine_invariants.py
+      derive RM_STATES_CONSISTENT_WITH_FIX from the RM transition graph, so a new
+      transition out of RM.ACCEPTED cannot silently invalidate the
+      approximation, and pin which of its members are ambiguous.
     relationships:
     - rel_type: constrains
       spec_id: CSB-16-001
