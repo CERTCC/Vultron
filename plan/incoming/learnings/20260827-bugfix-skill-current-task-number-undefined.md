@@ -1,7 +1,7 @@
 ---
 title: bugfix SKILL.md Phase 5 references CURRENT_TASK_NUMBER which is not defined in that scope
 type: learning
-timestamp: 2026-08-27
+timestamp: "2026-08-27T00:00:00Z"
 source: ISSUE-2604
 signal: process-issue
 ---

@@ -1,8 +1,9 @@
 ---
-name: glossary-acs-pre-satisfied-issue-2523
-description: Issue #2523 listed three glossary terms as missing that were already present — only the FINDER deprecation was genuinely absent
-metadata:
-  type: project
+title: "Issue #2523 listed three glossary terms as missing that were already present"
+type: learning
+timestamp: "2026-08-27T19:45:15Z"
+source: ISSUE-2523
+signal: process-issue
 ---
 
 Issue #2523 ([Docs] Glossary: align reference/glossary.md) listed these

@@ -1,8 +1,9 @@
 ---
-name: concern-inbox-handler-protocol-violation-requeue
-description: inbox_handler._process_inbox_item re-queues VultronProtocolViolationError indefinitely (sibling of InboxPipeline fix #2861)
-metadata:
-  type: project
+title: "inbox_handler._process_inbox_item re-queues VultronProtocolViolationError indefinitely"
+type: learning
+timestamp: "2026-08-31T14:28:32Z"
+source: ISSUE-2861
+signal: concern
 ---
 
 `vultron/adapters/driving/fastapi/inbox_handler.py` `_process_inbox_item` (line ~347) uses

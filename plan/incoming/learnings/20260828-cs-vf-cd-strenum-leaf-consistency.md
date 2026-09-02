@@ -1,7 +1,7 @@
 ---
 title: "CS_vf and CS_d should be StrEnum to match their leaf component enums"
 type: learning
-timestamp: "2026-08-28"
+timestamp: "2026-08-28T00:00:00Z"
 source: ISSUE-2662
 signal: design-question
 ---

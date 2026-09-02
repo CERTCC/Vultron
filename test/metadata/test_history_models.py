@@ -120,6 +120,58 @@ class TestHistoryEntryFrontmatter:
                 }
             )
 
+    @pytest.mark.spec("BW-02-004")
+    def test_bare_date_string_timestamp_rejected(self, model_cls) -> None:  # type: ignore[no-untyped-def]
+        """BW-02-004: a bare ``YYYY-MM-DD`` timestamp must not validate.
+
+        This is the form an incoming learning file acquires when its
+        frontmatter is written as ``timestamp: 2026-09-01``. YAML hands
+        Pydantic a naive value, ``_coerce_to_utc()`` rejects it, and
+        ``append-history --from-file`` therefore cannot archive the entry.
+        Nothing earlier in the pipeline catches it, so pin it here.
+        """
+        with pytest.raises(ValidationError):
+            model_cls.model_validate(
+                {
+                    "title": "T",
+                    "type": "learning",
+                    "timestamp": "2026-09-01",
+                    "source": "ISSUE-2762",
+                }
+            )
+
+    @pytest.mark.spec("BW-02-004")
+    def test_tz_aware_string_timestamp_accepted(self, model_cls) -> None:  # type: ignore[no-untyped-def]
+        """BW-02-004: the prescribed replacement form validates."""
+        m = model_cls.model_validate(
+            {
+                "title": "T",
+                "type": "learning",
+                "timestamp": "2026-09-01T00:00:00Z",
+                "source": "ISSUE-2762",
+            }
+        )
+        assert m.timestamp.tzinfo == _UTC
+        assert m.timestamp.date() == datetime.date(2026, 9, 1)
+
+    @pytest.mark.spec("BW-02-002")
+    def test_source_need_not_match_any_filename_stem(self, model_cls) -> None:  # type: ignore[no-untyped-def]
+        """BW-02-002: ``source`` is the originating work-item identifier.
+
+        Several incoming files may share one ``source`` when a single work
+        item produced several observations, so it cannot be required to match
+        the per-file ``YYYYMMDD-SLUG`` stem.
+        """
+        m = model_cls.model_validate(
+            {
+                "title": "T",
+                "type": "learning",
+                "timestamp": "2026-09-02T00:00:00Z",
+                "source": "ISSUE-2762",
+            }
+        )
+        assert m.source == "ISSUE-2762"
+
     def test_timezone_normalised_to_utc(self, model_cls) -> None:  # type: ignore[no-untyped-def]
         """Offset-aware timestamps are normalised to UTC (HM-06-005)."""
         plus_two = datetime.timezone(datetime.timedelta(hours=2))

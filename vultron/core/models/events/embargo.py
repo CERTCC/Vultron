@@ -134,6 +134,51 @@ class InviteToEmbargoOnCaseReceivedEvent(VultronEvent):
     def case(self) -> "VultronCase | None":
         return cast("VultronCase | None", self.context)
 
+    @property
+    def to_recipients(self) -> list[str]:
+        """The activity's ``to:`` addressees, in declaration order.
+
+        Falsy entries are dropped.  An empty list means the activity carries
+        no recipient at all, which is an OX-08-001 violation upstream.
+        """
+        return [recipient for recipient in self.activity.to or [] if recipient]
+
+    @property
+    def invitee_id(self) -> str | None:
+        """The sole actor being invited to the embargo, when there is one.
+
+        This is a *different* question from ``receiving_actor_id``, which is
+        the actor whose replica the message is being applied to.  Per ADR-0022
+        the invitee is leaf-node data threaded into the tree, never the BT's
+        execution identity, so it MUST be read from the message rather than
+        inferred from which store the message landed in.
+
+        Returns ``None`` in two cases, and callers MUST NOT quietly substitute
+        another identity in either:
+
+        * no ``to:`` recipient at all — an OX-08-001 violation upstream;
+        * more than one ``to:`` recipient — with several addressees the
+          invitee is *replica-relative*, so only the receiving side can say
+          which one this store is applying the invitation to.  Picking the
+          first would give every recipient after the first a PEC transition
+          and RSVP deadline on someone else's record (CM-28-001, CM-28-003).
+
+        Received-side callers should therefore use
+        ``vultron.core.use_cases.received.embargo.resolve_invitee_id()``,
+        which resolves the multi-recipient case by addressee membership.
+
+        Note this is *not* the same derivation as
+        ``AcceptInviteActorToCaseReceivedEvent.invitee_id``, which reads the
+        accepted Invite's ``object`` (``inner_object_id``).  An
+        ``Invite(EmbargoEvent, Case)`` carries the embargo as its ``object``
+        and the case as its ``context``, so ``to:`` is the only place the
+        invited actor appears.
+        """
+        recipients = self.to_recipients
+        if len(recipients) == 1:
+            return recipients[0]
+        return None
+
 
 class AcceptInviteToEmbargoOnCaseReceivedEvent(VultronEvent):
     """Actor accepted an invitation to join an embargo on a VulnerabilityCase."""

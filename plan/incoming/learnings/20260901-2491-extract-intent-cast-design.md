@@ -1,7 +1,7 @@
 ---
 title: "design: cast() used to bridge extract_intent return type to AnyReceivedEvent"
 type: learning
-timestamp: 2026-09-01
+timestamp: "2026-09-01T00:00:00Z"
 source: ISSUE-2491
 signal: design-question
 ---
