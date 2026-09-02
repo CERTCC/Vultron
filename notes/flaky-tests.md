@@ -1,6 +1,8 @@
 ---
 title: Known Flaky Tests
 status: active
+related_notes:
+  - notes/testing-pitfalls.md
 ---
 
 # Known Flaky Tests

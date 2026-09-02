@@ -8,12 +8,18 @@ description: >
   the pending offer and the completed transfer.
 related_specs:
   - specs/case-management.yaml
+  - specs/case-ledger-processing.yaml
+  - specs/event-driven-control-flow.yaml
 related_notes:
   - notes/case-communication-model.md
   - notes/protocol-event-cascades.md
+  - notes/case-ledger-authority.md
+  - notes/demo-scenario-authoring.md
+  - notes/event-driven-control-flow.md
 relevant_packages:
   - vultron/core/behaviors/case/nodes/
   - vultron/core/use_cases/received/actor/
+  - vultron/demo/exchange/transfer_ownership_demo.py
   - vultron/demo/scenario/fvcv_handoff_demo.py
   - vultron/demo/scenario/fccv_handoff_demo.py
 ---
@@ -121,9 +127,10 @@ CaseActor inbox receives Accept
 
 ### OfferCaseOwnershipTransferReceivedUseCase
 
-Implemented by #2067. The use case now calls `create_offer_ownership_transfer_tree()`
-and passes `trigger_activity=self._trigger_activity` to `BTBridge`. All three
-steps run inside the BT:
+Implemented by #2067, reverted by the catch-up merge in #2909, restored by #2789.
+The use case calls `create_offer_ownership_transfer_tree()` and passes
+`trigger_activity=self._trigger_activity` to `BTBridge`. All three steps run
+inside the BT:
 
 1. Store the Offer object via `create_receive_activity_tree`'s idempotency guard.
 2. Commit a `CaseLedgerEntry` via the guarded-commit node (CaseActor only).
@@ -144,6 +151,35 @@ Offer(VulnerabilityCase,
 `attributed_to` is threaded through `TriggerActivityPort.offer_case_ownership_transfer`
 so the factory stamps it on the wire object. `ForwardOfferToTransfereeNode` logs
 WARNING and returns FAILURE when `trigger_activity_factory` is absent.
+
+**`original_actor_id` comes from `attributed_to`, not from `actor_id`** (#3012).
+The inbound Offer is itself a delegated message, so its `actor` is the CaseActor
+and the vendor is in `attributed_to` (CM-24-001, CM-24-002). Reading
+`request.actor_id` — which is what the code did until #2789 — makes the CaseActor
+forward an Offer attributing the vendor's intent to *itself*, and every replica
+that materialises `VultronOwnershipTransferOfferRecord.actor_id` from the ledger
+snapshot records the same wrong offerer.
+
+`_resolve_offering_actor_id()` does the read, and it honours `attributed_to`
+**only in the delegated shape** — when the sender *is* this case's CaseActor.
+That guard is not optional: a participant that sets `attributed_to` on an Offer
+it sends under its own identity is claiming to speak for another participant, and
+nothing downstream re-checks it (CLP-07-003 validates `payloadSnapshot.actor`,
+not `attributed_to`), so relaying it unchecked would let any participant forge
+the offerer of record. Outside the delegated shape the sender is the offerer,
+which is also the right answer when the case has no CaseActor (CM-24-003). The
+refusal is logged at WARNING rather than silently swallowed.
+
+This all required `_build_activity_snapshot`
+(`vultron/wire/as2/extractor/_builders.py`) to carry `attributed_to` at all — it
+previously dropped the field, so no received-side use case could recover a
+delegated author. That same function resolves reference fields through `_get_id`,
+which must never fall back to `str(field)`: AS2 permits an inline object or an
+array in `attributedTo`, and a Python repr in a hashed, replicated
+`payloadSnapshot` is unrecoverable where an absent field is not (CLP-07-011).
+
+Audit any peer that reads `request.actor_id` where it means "who asked for this"
+— and pair the read with the same delegated-shape guard.
 
 ### AcceptCaseOwnershipTransferReceivedUseCase / ownership_transfer_tree.py
 
@@ -172,9 +208,48 @@ producing an unrecoverable hash-chain fork (ISSUE-2252).
 
 ### fvcv_handoff_demo.py
 
-Remove the `post_to_inbox_and_wait` self-delivery block (lines ~427–434).
-The Accept now reaches the CaseActor automatically because
-`EmitAcceptCaseOwnershipTransferNode` addresses it there.
+The `post_to_inbox_and_wait` self-delivery block is gone: the Accept reaches the
+CaseActor on its own because `EmitAcceptCaseOwnershipTransferNode` addresses it
+there. See § "The Accepting Actor's Replica Updates via the CaseActor's Announce"
+below for why no replica needs hand-delivery.
+
+`_phase_ownership_handoff` also carries ADR-0053's own validation criterion as a
+`demo_check`: the **Finder's** replica must hold the
+`accept_case_ownership_transfer` ledger entry. The Finder is neither the old nor
+the new owner, so that entry can only reach it via the CaseActor's
+`Announce(CaseLedgerEntry)` fan-out (CM-21-007) — which is exactly the cascade
+the ADR exists to establish. Read it on the Finder's own container; reading it on
+Vendor1's proves only that the offerer's replica caught up (EDF-06-002).
+
+### transfer_ownership_demo.py (exchange demo)
+
+The single-container exchange demo shows the same routing at the wire level:
+`Offer` and the `Accept`/`Reject` that answers it are POSTed to the **CaseActor's**
+inbox, and the transferee's copy is discovered with
+`await_forwarded_ownership_transfer_offer` (a `find_ownership_transfer_offer_for_actor`
+scan plus a factory rebuild, since the accept/reject factories need an
+`_OfferCaseOwnershipTransferActivity` and the DataLayer reads back a plain
+`as_Offer`).
+
+Two preconditions are easy to get wrong here and both fail far from their cause:
+
+1. **The case must be CaseActor-owned.** `setup_initialized_case` has the vendor
+   mint the case, which leaves it with no `CASE_MANAGER` participant — there is no
+   CaseActor to address and the routing silently degrades to the direct path it is
+   meant to replace (CM-24-003). Use
+   `vultron.demo.helpers.workflow.setup_canonical_case`, which drives
+   report → validate → `Create(CaseProposal)` → CaseActor.
+2. **The transferee must be in the CaseActor's address book** *and* a participant
+   on the CaseActor's own replica. The ledger snapshot must carry `target` as an
+   inline object (CLP-07) and `build_activity_payload_snapshot` can only inline
+   what the committing actor's store holds, so an unknown transferee produces
+   `payloadSnapshot.target must be an inline object` at commit time. Seed the peer
+   with `seed_peer(client, local_actor_id=case_actor_id, ...)`, and add the
+   participant through the CaseActor-routed Invite/Accept handshake
+   (`case_actor_invites_actor_to_case`) — the standalone
+   `Create(CaseParticipant)` + `AddParticipantToCase` pair delivered to the case
+   owner's inbox only updates the *owner's* replica, so the CaseActor-side
+   `CVDRole.CASE_OWNER` grant (CM-21-002) finds nothing to grant.
 
 ### fccv_handoff_demo.py
 
@@ -193,6 +268,15 @@ the `accept-case-ownership-transfer` trigger body.
 > Coordinator's container (`wait_for_object_stored(original_offer.id_)`) will never match.
 > The discriminator-based poll (`find_ownership_transfer_offer_for_actor`) scans for semantic
 > properties (type + target + object) rather than identity (specific ID).
+
+`_phase_ownership_handoff` also carries the same Finder-side broadcast check as
+`fvcv_handoff_demo.py`. Both are enforced structurally by
+`test/architecture/test_handoff_scenarios_verify_broadcast.py`, which fails any
+scenario defining `_phase_ownership_handoff` that does not wait for the
+`accept_case_ownership_transfer` entry on a **non-party** actor's own replica.
+The ratchet exists because this gap was closed in one handoff scenario and missed
+in its sibling, with every test still green (AGENTS.md § "Fix One, Miss the
+Siblings").
 
 ---
 
@@ -308,3 +392,17 @@ if request.receiving_actor_id != case_actor_id:
 
 See `notes/case-communication-model.md` § "Antipattern: Received-Side
 Guarded Commit with Foreign CaseActor ID" for the full pattern.
+
+## The Accepting Actor's Replica Updates via the CaseActor's Announce
+
+`EmitAcceptCaseOwnershipTransferNode` addresses the Accept to the CaseActor,
+which records it and broadcasts the `Announce`, so every replica — including the
+**accepting** actor's own — updates through the normal delivery path. A scenario
+demo therefore hand-delivers nothing: if a replica is not updating, the routing is
+wrong, and the fix is in the routing (the mail-carrying prohibition in
+[notes/demo-scenario-authoring.md](demo-scenario-authoring.md) admits no
+exception).
+
+The invariant to assert: the accepting actor's `case.attributed_to` MUST change
+on its own replica. The demo CI integration tests (`test/ci/invariants/`) are the
+authoritative runtime enforcement.

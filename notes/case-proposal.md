@@ -13,6 +13,7 @@ related_notes:
   - notes/activitystreams-semantics.md
   - notes/case-communication-model.md
   - notes/bt-integration.md
+  - notes/demo-scenario-authoring.md
 relevant_packages:
   - vultron/wire/as2/vocab/objects
   - vultron/core/models/events
@@ -439,8 +440,22 @@ def _find_canonical_case(client) -> dict:
     raise AssertionError("No canonical case found after validate-report")
 ```
 
+`GET /datalayer/VulnerabilityCases/` returns a `dict[str, dict]` keyed by object
+ID. The canonical case is the one with `case_participants` populated.
+
+A vendor-local case created by calling `create_case_activity` anyway is broken in
+three distinct ways, none of which raise:
+
+- it has no `ReportCaseLink`, so `create_case_received` skips it;
+- it gets no participants, because `ProposeCaseToActorNode` finds no linked
+  report; and
+- it is entirely distinct from the canonical case the CaseActor owns, so every
+  later assertion reads the wrong object.
+
 The canonical case is always in the shared DataLayer after `validate-report`,
 even in single-backend test environments where `TestClientRouter` does not
-register the CaseActor's delivery address. See
-`vultron/demo/AGENTS.md` § "Exchange Demos: Discover the Canonical Case".
-*Source: ISSUE-1994*
+register the CaseActor's delivery address (`https://vultron.example`) — the
+CaseActor's `Create(VulnerabilityCase)` delivery to vendor is silently dropped
+there, but the case itself is in the DataLayer.
+
+Source: ISSUE-1994

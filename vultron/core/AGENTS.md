@@ -128,33 +128,26 @@ makes implicit subtype assumptions explicit and runtime-verified.
 
 ### Untyped Closures Are Invisible to mypy — Extract to Named Functions
 
-When refactoring or extracting logic from an untyped function body or closure
-(e.g., inside `extractor.py`), mypy does not check the body of untyped
-functions. Hidden type errors only surface once the code is promoted to a
-named, typed function. Always extract closures to named, fully-typed helper
-functions; do not leave logic inside untyped lambda or nested-function
-bodies. Specifically: AS2 fields that carry an object or ID reference (e.g.,
-`context`, `origin`, `in_reply_to`) MUST be converted to `str | None` using
-`_get_id(field)` before assigning to a `NonEmptyString | None` snapshot
-field — passing the raw AS2 object directly is a type error that mypy will
-catch only after extraction.
+mypy does not check the body of an untyped function, so hidden type errors
+surface only once logic is promoted to a named, typed function. Always
+extract closures (e.g. inside `extractor.py`) rather than leaving logic in
+lambdas or nested functions. Specifically: AS2 fields carrying an object or
+ID reference (`context`, `origin`, `in_reply_to`) MUST be converted with
+`_get_id(field)` before assignment to a `NonEmptyString | None` snapshot
+field — passing the raw AS2 object is an error mypy catches only after
+extraction.
 
 ### Domain Objects Belong in `core/models/`, Not `wire/as2/vocab/objects/`
 
 `VulnerabilityCase`, `VulnerabilityReport`, `CaseParticipant`,
-`EmbargoPolicy`, `CaseStatus`, `CaseLedgerEntry`, and `VulnerabilityRecord` are
-**domain objects**. They currently live in `vultron/wire/as2/vocab/objects/`
-because the codebase was built wire-first, but their correct home is
-`vultron/core/models/`. The wire layer should import and project from core,
-not the other way around.
-
-Consequence: `VultronActivity.object_` is typed `Any | None` because core
-cannot import wire types. Referencing wire-layer domain objects in core code
-is a layer-boundary violation. Do **not** add new cross-layer imports from
-`vultron/core/` into `vultron/wire/as2/`. The migration of these objects to
-core is tracked in issue #539. See
-[notes/domain-model-separation.md](../../notes/domain-model-separation.md)
-for the full architectural direction.
+`EmbargoPolicy`, `CaseStatus`, `CaseLedgerEntry` and `VulnerabilityRecord` are
+**domain objects** that still live under `vultron/wire/as2/vocab/objects/`
+because the codebase was built wire-first. The wire layer imports and
+projects from core, never the reverse — which is why
+`VultronActivity.object_` is typed `Any | None`. Do **not** add new imports
+from `vultron/core/` into `vultron/wire/as2/`. Migration tracked in #539;
+full direction in
+[notes/domain-model-separation.md](../../notes/domain-model-separation.md).
 
 ### Adding SemanticEntry: Use Domain Sub-Module, Not `__init__.py`
 
@@ -167,19 +160,13 @@ directly. Editing `__init__.py` for individual entry additions defeats the
 purpose of the split (reducing merge conflicts) and risks silently corrupting
 the ordering invariant that keeps the `UNKNOWN` fallback last.
 
-### EM State Writes Are Owned by `EmbargoLifecycle` (EMB-18-001, retired in #2712)
+### EM State Writes Are Owned by `EmbargoLifecycle` (EMB-18-001)
 
-The `caller_owns_em_io` guard and the `WriteEmStateNode` BT node are **retired**.
-Do not reintroduce them.
-
-**Current rule:** `EmbargoLifecycle` service methods always read `em_before` from
-the DataLayer when not supplied and always write `em_after` back. BT nodes call
-service methods directly; they never assign `case.current_status.em` inline.
-
-See also `vultron/core/behaviors/AGENTS.md` § "EM State Reads and Writes Must Use
-Canonical Nodes".
-
-<!-- Source: ISSUE-1474; pattern retired ISSUE-2712 -->
+The `caller_owns_em_io` guard and `WriteEmStateNode` are **retired** (#2712);
+do not reintroduce them. BT nodes call `EmbargoLifecycle` service methods
+directly and never assign `case.current_status.em` inline. Full rule:
+`vultron/core/behaviors/AGENTS.md` § "EM State Reads and Writes Must Use
+Canonical Nodes". *Source: ISSUE-1474; retired ISSUE-2712*
 
 ---
 
@@ -224,6 +211,19 @@ This works for both core `VulnerabilityCase` (which has `type_ = "VulnerabilityC
 and any object claiming to be one, without importing from `vultron/wire/`.
 
 <!-- Source: ISSUE-1504 -->
+
+---
+
+### A Message Subject Is Never `resolve_receiving_actor_id()`
+
+`resolve_receiving_actor_id()` answers only *whose replica am I applying this
+to?*; its sole legitimate consumer is `execute_with_setup(actor_id=...)`.
+Every **subject** the message names (invitee, accepting/rejecting actor,
+target actor) MUST be read from the message and threaded into the tree as
+leaf-node data (ADR-0022), resolved by **addressee membership, not position**
+in `to:` — use `resolve_invitee_id()`, never `= receiving_actor_id`. Full
+rule, both failure shapes and the resolution order:
+[notes/bt-integration.md](../../notes/bt-integration.md). *ISSUE-2762*
 
 ---
 

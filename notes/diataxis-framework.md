@@ -4,6 +4,8 @@ status: active
 description: >
   Implementation standards for Vultron technical documentation using the
   Diátaxis framework.
+related_notes:
+  - notes/message-type-reference.md
 ---
 
 # Implementation Standards for Technical Documentation: The Diátaxis Framework

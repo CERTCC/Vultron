@@ -430,3 +430,21 @@ The simulation controller drives each iteration forward by:
 A tick-count-only limit was rejected because many use-case BTs only activate
 on incoming activities; "ticks" have no direct meaning in the event-driven
 prototype. Progress is measured by RM state advancement across actors.
+
+## Capabilities Grounded in External Versioned Standards Are One Call-Out Unit
+
+When a BT capability is grounded in an external, independently-versioned
+specification (e.g. CNA Operational Rules), treat the full capability as a
+single Evaluator call-out point rather than exposing each criterion as a
+separate call-out. The correct substitution unit is the whole capability
+(replace the evaluator for the new rules edition), not individual criteria.
+Modeling it as N individual call-out points misrepresents the update boundary
+and makes adoption of a new rules edition require N separate factory changes
+instead of one. See BTND-05-007, ADR-0071.
+
+Source: CONCERN-2108
+
+## Automation Potential and Call-Out Point Shape Are Orthogonal
+
+Assign shape using the ADR-0024 seam-structure decision tree only — not by how
+automatable the step looks. See BT-18-005, BT-18-006.

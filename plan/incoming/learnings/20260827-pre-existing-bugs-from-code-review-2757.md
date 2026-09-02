@@ -1,7 +1,7 @@
 ---
 title: 3 pre-existing bugs surfaced by code review on PR #2775
 type: learning
-timestamp: 2026-08-27
+timestamp: "2026-08-27T00:00:00Z"
 source: ISSUE-2757
 signal: concern
 ---

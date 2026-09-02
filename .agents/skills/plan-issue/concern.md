@@ -41,8 +41,11 @@ These are proposals to confirm, not new questions.
 
 - `specs/<topic>.yaml` — Add or amend requirements (optional)
 - `notes/<topic>.md` — Add design decisions or implementation guidance (optional)
-- `AGENTS.md` — Append pitfall entry to **Common Pitfalls** section if a
-  recurring agent gap was identified (optional)
+- `AGENTS.md` — If a recurring agent gap was identified (optional), route it per
+  `notes/agents-md-structure.md`: write-up in the nearest `notes/` or
+  per-directory `AGENTS.md`, and at most an extended cell in root's **Common
+  Pitfalls** index. Root is at its 400-line budget — trim as you add; appending
+  fails `test/metadata/test_agents_md_size_ratchet.py`.
 - ADR in `docs/adr/` if ADR determination recommended one
 
 ## Archive and Close

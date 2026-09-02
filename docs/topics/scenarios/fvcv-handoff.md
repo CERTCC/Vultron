@@ -102,18 +102,25 @@ recorded.
 
 ### 6. Vendor1 offers case ownership to the Coordinator
 
-Vendor1 decides that the Coordinator is better positioned to manage the case
-and initiates a case-ownership transfer.  This is an implementation-level
-protocol step; the consequent observable entry is the Coordinator's acceptance.
+Vendor1 decides that the Coordinator is better positioned to manage the case and
+initiates a case-ownership transfer.  The offer is addressed to the **Case
+Actor**, not to the Coordinator (ADR-0053): the Case Actor records it and then
+forwards an offer of its own to the Coordinator, so the offer the Coordinator
+receives is a new activity with its own identity.
 
 *Antecedent:* Coordinator's `accept_invite_actor_to_case` entry is in the ledger.
 
 ### 7. Coordinator accepts case ownership
 
-The Coordinator formally accepts the ownership transfer.  The case's
-`attributed_to` field is updated to the Coordinator.
+The Coordinator formally accepts the ownership transfer, addressing the
+acceptance to the Case Actor.  The Case Actor applies the role change — the
+case's `attributed_to` field is updated to the Coordinator — then commits an
+`accept_case_ownership_transfer` ledger entry and broadcasts it to **every**
+participant.  That broadcast is how the Finder, who is neither the old nor the
+new owner, learns who is now responsible for the case.
 
-*Antecedent:* Vendor1's ownership offer has been delivered to the Coordinator.
+*Antecedent:* the Case Actor's forwarded ownership offer has reached the
+Coordinator.
 
 ### 8. Coordinator invites Vendor2
 

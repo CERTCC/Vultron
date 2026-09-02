@@ -1,9 +1,9 @@
 ---
 title: Code review of PR for #1314 surfaced 5 pre-existing bugs in unrelated files
 type: learning
-timestamp: 2026-08-27
+timestamp: "2026-08-27T00:00:00Z"
 source: ISSUE-1314
-signal: deferred-bug
+signal: concern
 ---
 
 During the code review for the docs-only PR implementing #1314

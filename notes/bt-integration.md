@@ -187,6 +187,44 @@ computed `case_actor_id` (CM-24-004). Once the emit is role-gated the executing
 actor *is* the case manager, so the activity and its outbox entry land in one
 store by construction. Ungated, the same helper is identity spoofing.
 
+### The message subject is a fourth identity, and it must stay separate
+
+BT-05-006 above is about three identities that must **coincide**. There is a
+fourth that must **not**: the *subject* the message names — invitee, accepting
+actor, rejecting actor, target actor. It answers "whose consent/state is this
+message about?", which is a different question from "whose replica am I
+applying it to?" (`resolve_receiving_actor_id()`) and from "who is executing
+the tree?" (blackboard `actor_id`).
+
+Subject identities MUST be read from the message and threaded into the tree as
+leaf-node constructor data — never derived from the receiving actor (ADR-0022,
+which names `invitee_id` and `accepting_actor_id` as legitimate leaf-node
+inputs that are never legitimate `actor_id` values). They coincide with the
+receiving actor on the direct-delivery path, which is exactly what makes the
+conflation survive testing: it breaks only under CLI dispatch, log replay, a
+CaseActor relaying on a participant's behalf, or a multi-recipient activity.
+
+Two failure shapes to watch for, both of which returned SUCCESS while writing
+to the wrong record (ISSUE-2762):
+
+- **Reusing the resolved receiving actor as a subject.** Satisfies every
+  written requirement and inverts the semantics.
+- **A tree factory that accepts a subject argument and only logs it.**
+  `OptionalLookupParticipantNode` falls back to the BT execution actor when
+  `target_actor_id` is falsy, so a dropped subject argument is
+  indistinguishable from one never supplied. The node now logs at WARNING when
+  a subject *was* named and did not resolve, which separates the two.
+
+Resolve a subject by **addressee membership**, not by position: prefer the
+receiving actor when it is among the recipients (correct in every recipient's
+replica, and canonical by construction per HP-09-001), fall back to a sole
+named recipient, and warn rather than guess when several recipients are named
+and none is this store's actor. See `resolve_invitee_id()` in
+`vultron/core/use_cases/received/embargo.py` and the older
+`_is_primary_submit_report_recipient()` in `received/report.py`. Full rule:
+`vultron/core/AGENTS.md` § "A Message Subject Is Never
+`resolve_receiving_actor_id()`".
+
 ---
 
 ## Concurrency Model

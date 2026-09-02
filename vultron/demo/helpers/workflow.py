@@ -27,8 +27,12 @@ from vultron.adapters.utils import parse_id
 from vultron.core.states.rm import RM
 from vultron.demo.helpers.polling import (
     _poll_until,
+    case_actor_participant_id_in,
+    find_ownership_transfer_offer_for_actor,
     resolve_case_actor_store_id,
+    wait_for_case_participants,
     wait_for_event_type_in_ledger,
+    wait_for_initialized_case,
     wait_for_participant_rm_state,
 )
 from vultron.demo.utils import (
@@ -49,6 +53,7 @@ from vultron.wire.as2.factories import (
     add_participant_to_case_activity,
     add_report_to_case_activity,
     create_case_activity,
+    offer_case_ownership_transfer_activity,
     parse_submit_report_offer,
     rm_accept_invite_to_case_activity,
     rm_invite_to_case_activity,
@@ -709,8 +714,13 @@ def setup_initialized_case(
 ) -> as_VulnerabilityCase:
     """Create a fully initialised case ready for invitation/suggestion workflows.
 
+    The vendor mints the case itself, so the result has **no** ``CASE_MANAGER``
+    participant.  Use :func:`setup_canonical_case` for any exchange that has to
+    route through the CaseActor — ownership transfer among them — or the routing
+    silently degrades to the direct peer-to-peer path (CM-24-003).
+
     Performs the standard 7-step setup shared by ``invite_actor_demo``,
-    ``suggest_actor_demo``, and ``transfer_ownership_demo``:
+    ``suggest_actor_demo``, and ``status_updates_demo``:
 
     1. Finder submits report → vendor inbox
     2. Vendor validates the report
@@ -782,6 +792,222 @@ def setup_initialized_case(
     log_case_state(client, case.id_, "after setup")
     logger.info("✓ Setup: Case initialized with report and finder participant")
     return case
+
+
+def setup_canonical_case(
+    client: DataLayerClient,
+    finder: as_Actor,
+    vendor: as_Actor,
+    report_name: str,
+    report_content: str,
+    validation_content: str,
+) -> Tuple[as_VulnerabilityCase, str]:
+    """Create a **CaseActor-owned** case and return it with the CaseActor's URI.
+
+    Unlike :func:`setup_initialized_case`, which has the vendor mint the case
+    itself, this drives the canonical path: the finder submits a report, the
+    vendor validates it, ``ProposeReportCaseToActorNode`` sends a
+    ``Create(CaseProposal)`` to the CaseActor, and the CaseActor creates the
+    ``VulnerabilityCase``, registering vendor (``CASE_OWNER``),
+    finder/reporter, and itself (``CASE_MANAGER``) as the initial participants
+    (ADR-0041, CP-01-004).
+
+    Any exchange that must route through the CaseActor — the ownership-transfer
+    handshake (ADR-0053, CM-21-005/006) among them — needs this setup rather
+    than :func:`setup_initialized_case`: a vendor-minted case has **no**
+    ``CASE_MANAGER`` participant, so there is no CaseActor to address and the
+    routing silently degrades to the direct peer-to-peer path it is meant to
+    replace (CM-24-003).
+
+    Args:
+        client: DataLayerClient for the container hosting all three actors.
+        finder: The finder/reporter ``as_Actor`` who submits the report.
+        vendor: The receiving vendor ``as_Actor`` who validates it.
+        report_name: ``name`` for the submitted ``as_VulnerabilityReport``.
+        report_content: ``content`` for the submitted report.
+        validation_content: ``content`` for the vendor's validation activity.
+
+    Returns:
+        ``(case, case_actor_id)`` — the canonical case as the CaseActor holds
+        it, and the URI of the actor that actually holds ``CASE_MANAGER`` on it.
+
+    Raises:
+        AssertionError: If the created case has no resolvable CaseActor
+            participant.  Returning the config-derived URI instead would let a
+            caller address an actor that is not this case's manager, and the
+            symptom lands far away: the CM-gated forward skips silently, and the
+            dependent gate times out reporting a delivery problem.
+    """
+    report = as_VulnerabilityReport(
+        attributed_to=finder.id_,
+        content=report_content,
+        name=report_name,
+    )
+    report_offer = rm_submit_report_activity(
+        report, actor=finder.id_, to=vendor.id_
+    )
+    seed_case_actor_for_report(client, report.id_)
+    post_to_inbox_and_wait(client, vendor.id_, report_offer)
+
+    offer = get_offer_from_datalayer(client, vendor.id_, report_offer.id_)
+    validate_activity = rm_validate_report_activity(
+        offer,
+        actor=vendor.id_,
+        content=validation_content,
+    )
+    post_to_inbox_and_wait(client, vendor.id_, validate_activity)
+
+    case = wait_for_initialized_case(client, report.id_)
+    # Resolve the CaseActor from the case's own participant index, not from
+    # config: `case_actor_id_for_report` answers "which CaseActor would *this
+    # node* address", which is a different question and returns `""` when no
+    # CaseActor service is configured.  What callers need is the actor that holds
+    # CASE_MANAGER on this case.
+    case_actor_id = case_actor_participant_id_in(case)
+    assert case_actor_id, (
+        f"canonical case {case.id_!r} has no CaseActor participant —"
+        " ProposeReportCaseToActorNode did not complete, or the CaseActor"
+        " registered itself under an unexpected identity"
+    )
+    logger.info(
+        "✓ Setup: canonical case %s created by CaseActor %s",
+        case.id_,
+        case_actor_id,
+    )
+    return case, case_actor_id
+
+
+def await_forwarded_ownership_transfer_offer(
+    client: DataLayerClient,
+    case: as_VulnerabilityCase,
+    transferee: as_Actor,
+    case_actor_id: str,
+    timeout_seconds: float = 90.0,
+) -> as_Offer:
+    """Gate on the CaseActor's forwarded ownership-transfer Offer and return it.
+
+    Under ADR-0053 the offering actor addresses its ``Offer(VulnerabilityCase)``
+    to the CaseActor, which records it and then emits a **new** Offer of its own
+    to the transferee (CM-21-005).  The consequent therefore has a new identity:
+    polling the transferee's store for the *original* offer id never matches
+    (EDF-06-004, issue #2178).  This helper discovers the forwarded Offer by its
+    properties instead, then rebuilds it so it can be accepted or rejected.
+
+    The rebuild goes through
+    :func:`~vultron.wire.as2.factories.offer_case_ownership_transfer_activity`
+    for the same reason
+    ``TriggerActivityAdapter._offer_from_core_record`` does: the accept/reject
+    factories require an ``_OfferCaseOwnershipTransferActivity`` with an inline
+    ``as_VulnerabilityCase``, which a plain ``as_Offer`` read back from the
+    DataLayer is not.
+
+    Args:
+        client: DataLayerClient for the container hosting the actors.
+        case: The case whose ownership is being transferred.
+        transferee: The actor being offered ownership.
+        case_actor_id: The CaseActor's URI; used as the ``actor`` fallback when
+            the stored Offer's own ``actor`` cannot be read.
+        timeout_seconds: Maximum time to wait for the forwarded Offer.
+
+    Returns:
+        The forwarded Offer, carrying the **forwarded** activity id.
+
+    Raises:
+        AssertionError: If no forwarded Offer arrives within *timeout_seconds*.
+    """
+    transferee_client = client.model_copy(update={"actor_id": transferee.id_})
+    forwarded_id = find_ownership_transfer_offer_for_actor(
+        client=transferee_client,
+        case_id=case.id_,
+        transferee_id=transferee.id_,
+        timeout_seconds=timeout_seconds,
+    )
+    stored = get_offer_from_datalayer(client, transferee.id_, forwarded_id)
+    case_ref = as_VulnerabilityCase.model_validate(
+        {"id": case.id_, "name": case.name}
+    )
+    return offer_case_ownership_transfer_activity(
+        case_ref,
+        target=transferee.id_,
+        id_=forwarded_id,
+        actor=ref_id(stored.actor) or case_actor_id,
+        attributed_to=ref_id(stored.attributed_to),
+    )
+
+
+def case_actor_invites_actor_to_case(
+    client: DataLayerClient,
+    case: as_VulnerabilityCase,
+    inviter: as_Actor,
+    invitee: as_Actor,
+    case_actor_id: str,
+    roles: Optional[list[str]] = None,
+    timeout_seconds: float = 15.0,
+) -> None:
+    """Add *invitee* to *case* via the CaseActor-routed Invite/Accept handshake.
+
+    The ``Invite`` is sent **by** the CaseActor with ``attributed_to`` naming the
+    participant who asked for it, and the ``Accept`` is addressed **to** the
+    CaseActor, which is the actor that creates the ``CaseParticipant`` record
+    (ADR-0026, PCR-08-007, PCR-08-008).
+
+    This handshake — not the standalone ``Create(CaseParticipant)`` +
+    ``AddParticipantToCase`` pair — is what a canonical case needs: the
+    authoritative case lives in the CaseActor's store (ADR-0073), and the
+    standalone pair delivered to the case owner's inbox only ever updates the
+    *owner's* replica.  Any later CaseActor-side effect that resolves the new
+    participant — the ``CVDRole.CASE_OWNER`` grant on ownership transfer
+    (CM-21-002) among them — reads the CaseActor's copy and would find nothing.
+
+    Args:
+        client: DataLayerClient for the container hosting the actors.
+        case: The case to add the invitee to.
+        inviter: The participant on whose behalf the CaseActor invites.
+        invitee: The actor being invited.
+        case_actor_id: URI of the CaseActor for *case*.
+        roles: CVD role strings to request for the invitee.  ``None`` leaves
+            the role assignment to the CaseActor's default.
+        timeout_seconds: Budget for the participant-visibility gate.
+    """
+    invitee_label = invitee.name or invitee.id_
+    # Built before the step, not inside it: `invite` is read by the Accept below,
+    # and a construction failure inside a `demo_step` would leave it unbound so
+    # the next block raises UnboundLocalError instead of the real cause (#2308).
+    invite = rm_invite_to_case_activity(
+        invitee,
+        actor=case_actor_id,
+        target=case.id_,
+        to=[invitee.id_],
+        attributed_to=inviter.id_,
+        roles=roles,
+        content=f"We're inviting you to participate in {case.name}.",
+    )
+    with demo_step(
+        f"CaseActor invites {invitee_label} to the case"
+        f" (on behalf of {inviter.name or inviter.id_})"
+    ):
+        post_to_inbox_and_wait(client, invitee.id_, invite)
+
+    with demo_step(f"{invitee_label} accepts the case invitation"):
+        accept = rm_accept_invite_to_case_activity(
+            invite,
+            actor=invitee.id_,
+            to=[case_actor_id],
+            content=f"Accepting invitation to participate in {case.name}.",
+        )
+        post_to_inbox_and_wait(client, case_actor_id, accept)
+
+    with demo_gate(
+        f"{invitee_label} is a participant on the CaseActor's replica"
+    ):
+        wait_for_case_participants(
+            vendor_client=client.model_copy(
+                update={"actor_id": case_actor_id}
+            ),
+            case_id=case.id_,
+            expected_actor_ids={invitee.id_},
+            timeout_seconds=timeout_seconds,
+        )
 
 
 def setup_two_participant_case(

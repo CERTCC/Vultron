@@ -23,7 +23,7 @@ import time
 from typing import Callable
 
 from vultron.adapters.utils import parse_id, strip_id_prefix
-from vultron.demo.utils import DataLayerClient, logfmt
+from vultron.demo.utils import CASE_ACTOR_SLUG, DataLayerClient, logfmt
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCase,
 )
@@ -790,6 +790,20 @@ def find_cp_offer_for_case(
     )
 
 
+def case_actor_participant_id_in(case: as_VulnerabilityCase) -> str | None:
+    """Return the CaseActor's actor URI from *case*'s participant index.
+
+    The read-free half of :func:`find_case_actor_participant_id`, for callers
+    that already hold the case (e.g. the one
+    :func:`~vultron.demo.helpers.workflow.setup_canonical_case` just polled for)
+    and would otherwise have to name a store to re-read it from.
+    """
+    for actor_id in case.actor_participant_index:
+        if strip_id_prefix(actor_id).startswith(CASE_ACTOR_SLUG):
+            return actor_id
+    return None
+
+
 def find_case_actor_participant_id(
     client: DataLayerClient,
     case_id: str,
@@ -815,10 +829,9 @@ def find_case_actor_participant_id(
     """
     try:
         case_data = client.get(client.dl_path(case_id))
-        case = as_VulnerabilityCase.model_validate(case_data)
-        for actor_id in case.actor_participant_index:
-            if strip_id_prefix(actor_id).startswith("case-actor"):
-                return actor_id
+        return case_actor_participant_id_in(
+            as_VulnerabilityCase.model_validate(case_data)
+        )
     except Exception:  # noqa: BLE001
         pass
     return None

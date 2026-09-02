@@ -101,87 +101,27 @@ kind — and if it also fails the externally-visible test, it belongs in
 
 ---
 
-### Valid `kind:` Values
+### Field Values, Lint Traps, and the Coverage Gate
 
-The `kind:` field accepts exactly four values:
+The exact enum values `spec-lint` accepts, the keys it silently drops, and the
+audit passes required when retiring a name or splitting a compound requirement
+are all in
+[`notes/spec-authoring-rules.md`](../notes/spec-authoring-rules.md). The ones
+that bite most often:
 
-```text
-protocol  architecture  project  process
-```
+- **`kind:`** — exactly `protocol`, `architecture`, `project`, `process`.
+  `implementation` is not valid, and the rejection can read like a YAML syntax
+  error.
+- **`priority:`** — underscores, not spaces: `MUST_NOT`, `SHOULD_NOT`. A space
+  is a FATAL registry load error.
+- **`rel_type:`** — one of the enumerated values; `related_to` is not among them.
+- **`references:`** — not a schema field, silently dropped. Use `adr:`.
+- **Adding or modifying a `kind: protocol` entry** requires a same-PR
+  `@pytest.mark.spec("<ID>")` marker (SR-05-004, SR-05-005) — the
+  `MAX_UNCOVERED_PROTOCOL_SPECS` ceiling can only be lowered, never raised. If
+  the implementation does not exist yet, use the strict-`xfail` pattern.
 
-`implementation` is **NOT** valid and causes spec-lint to reject the file at
-commit time. The error may look like a YAML syntax error — it is not.
-
-- Use `kind: protocol` for external protocol obligations (what a Vultron
-  participant must do on the wire).
-- Use `kind: architecture` for structural constraints on the system (layering,
-  import rules, module boundaries).
-- Use `kind: project` for internal project conventions that do not affect
-  external protocol behavior.
-- Use `kind: process` for development process rules (testing, documentation,
-  CI).
-
-Check existing entries in the same spec file for context before writing a new
-entry. *Source: ISSUE-2258*
-
----
-
-### Valid `priority:` Values — Underscores, Not Spaces
-
-The `priority:` field enum uses **underscores**: `MUST_NOT`, `SHOULD_NOT`.
-**Not spaces.** MS-02-002 prose writes "MUST NOT" with a space, but the Pydantic
-validator enum uses underscores. Using `MUST NOT` (space) breaks spec-lint with
-a FATAL registry load error.
-
-Valid values:
-
-```text
-MUST  MUST_NOT  SHOULD  SHOULD_NOT  MAY
-```
-
-<!-- Source: ISSUE-2393 -->
-
----
-
-### Valid `rel_type` Values in Spec Relationships
-
-When adding a `relationships:` entry to a spec requirement, `rel_type` MUST be
-one of the enumerated values validated by `SpecFile`. Using an invalid value
-causes a Pydantic `ValidationError` at `spec-dump` time.
-
-**Valid `rel_type` values:**
-
-```text
-implements, supersedes, extends, depends_on, conflicts, refines,
-derives_from, verifies, part_of, constrains, satisfies
-```
-
-`related_to` is **NOT** valid. If the intent is a loose relationship, use
-`refines` with a clarifying `note:` field, or omit the relationship entirely
-if no normative link exists.
-
----
-
-### Specification Quick Links
-
-See `specs/` directory for detailed requirements with testable verification
-criteria.
-
----
-
-## Adding or Modifying a `kind: protocol` Entry Requires a Same-PR Marker Test (SR-05-005, ISSUE-2117)
-
-The CI ratchet (`MAX_UNCOVERED_PROTOCOL_SPECS` in
-`test/architecture/test_spec_coverage_ratchet.py`) counts uncovered
-protocol-kind IDs. Its ceiling can only be lowered, never raised. Adding or
-modifying a `kind: protocol` spec entry without a corresponding
-`@pytest.mark.spec("<ID>")` marker in a test raises the uncovered count and
-fails CI.
-
-**Fix:** add `@pytest.mark.spec("<new-id>")` to a test in the same PR, before
-the branch lands. Run `spec-coverage` to verify coverage after adding the
-marker.
-
-See SR-05-004, SR-05-005.
+After adding any new key to a spec YAML, verify it appears in
+`PYTHONPATH= uv run spec-dump` output before treating it as persisted.
 
 ---
