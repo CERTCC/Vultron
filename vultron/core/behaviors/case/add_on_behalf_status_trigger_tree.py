@@ -49,7 +49,7 @@ def add_on_behalf_status_trigger_bt(
     case_id: str,
     asserting_actor_id: str,
     target_actor_id: str,
-    required_role: CVDRole,
+    required_roles: list[CVDRole],
     vf_state: "CS_vf | None",
     d_state: "CS_d | None",
     result_out: dict,
@@ -62,8 +62,9 @@ def add_on_behalf_status_trigger_bt(
         asserting_actor_id: Actor making the assertion (must hold CASE_MANAGER
             or CASE_OWNER).
         target_actor_id: Actor whose awareness/deployment is being recorded.
-        required_role: ``CVDRole.VENDOR`` for v→V or ``CVDRole.DEPLOYER`` for
-            d→D — used to create a minimal participant when absent.
+        required_roles: Roles to assign when creating a new participant;
+            ``[CVDRole.VENDOR]`` for v→V, ``[CVDRole.DEPLOYER]`` for d→D,
+            ``[CVDRole.VENDOR, CVDRole.DEPLOYER]`` when both are requested.
         vf_state: ``CS_vf.Vf`` for v→V, or ``None``.
         d_state: ``CS_d.D`` for d→D, or ``None``.
         result_out: Mutable dict populated by ``CreateParticipantStatusNode``
@@ -85,7 +86,7 @@ def add_on_behalf_status_trigger_bt(
             EnsureOnBehalfParticipantExistsNode(
                 case_id=case_id,
                 target_actor_id=target_actor_id,
-                required_role=required_role,
+                required_roles=required_roles,
             ),
             CreateParticipantStatusNode(
                 case_id=case_id,

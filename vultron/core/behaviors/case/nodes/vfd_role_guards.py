@@ -43,6 +43,9 @@ from vultron.core.behaviors.helpers import (
     DataLayerActionWithPorts,
     DataLayerConditionWithPorts,
 )
+from vultron.core.behaviors.case.nodes.participant.common import (
+    _create_and_attach_participant,
+)
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.ports.case_persistence import CasePersistence
 from vultron.enums.roles import CVDRole
@@ -410,8 +413,12 @@ class EnsureOnBehalfParticipantExistsNode(DataLayerActionWithPorts):
     For on-behalf v→V (AC-1) and d→D (AC-2): the target (vendor or deployer)
     may not yet be a case participant.  This node looks up the target in
     ``actor_participant_index``; if absent, creates a minimal ``CaseParticipant``
-    with ``required_role`` and attaches it to the case so that
+    with ``required_roles`` and attaches it to the case so that
     ``CreateParticipantStatusNode`` can append a status to it.
+
+    When both ``vf_state`` and ``d_state`` are requested on the same actor
+    (e.g. a combined vendor-deployer), pass both roles so the single new
+    ``CaseParticipant`` satisfies both the VF and D precondition checks.
 
     Returns ``SUCCESS`` when the participant exists or was just created.
     Returns ``FAILURE`` if the case cannot be resolved.
@@ -423,13 +430,13 @@ class EnsureOnBehalfParticipantExistsNode(DataLayerActionWithPorts):
         self,
         case_id: str,
         target_actor_id: str,
-        required_role: CVDRole,
+        required_roles: list[CVDRole],
         name: str | None = None,
     ) -> None:
         super().__init__(name=name or self.__class__.__name__)
         self._case_id = case_id
         self._target_actor_id = target_actor_id
-        self._required_role = required_role
+        self._required_roles = required_roles
 
     def update(self) -> Status:
         if (f := self._require_datalayer()) is not None:
@@ -452,14 +459,10 @@ class EnsureOnBehalfParticipantExistsNode(DataLayerActionWithPorts):
             )
             return Status.SUCCESS
 
-        from vultron.core.behaviors.case.nodes.participant.common import (
-            _create_and_attach_participant,
-        )
-
         participant = CaseParticipant(
             attributed_to=self._target_actor_id,
             context=self._case_id,
-            case_roles=[self._required_role],
+            case_roles=self._required_roles,
         )
         updated_case = _create_and_attach_participant(
             dl,
@@ -477,10 +480,10 @@ class EnsureOnBehalfParticipantExistsNode(DataLayerActionWithPorts):
 
         dl.save(updated_case)
         self.logger.info(
-            "%s: created on-behalf participant '%s' with role %s in case '%s'",
+            "%s: created on-behalf participant '%s' with roles %s in case '%s'",
             self.name,
             self._target_actor_id,
-            self._required_role,
+            self._required_roles,
             self._case_id,
         )
         return Status.SUCCESS

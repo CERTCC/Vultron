@@ -58,11 +58,12 @@ class SvcAddOnBehalfStatusUseCase(SvcBTTriggerBase):
         self._case_id = resolve_case(request.case_id, self._dl).id_
         self._vf_state: CS_vf | None = request.vf_state
         self._d_state: CS_d | None = request.d_state
-        self._required_role = (
-            CVDRole.VENDOR
-            if request.vf_state is not None
-            else CVDRole.DEPLOYER
-        )
+        roles: list[CVDRole] = []
+        if request.vf_state is not None:
+            roles.append(CVDRole.VENDOR)
+        if request.d_state is not None:
+            roles.append(CVDRole.DEPLOYER)
+        self._required_roles = roles
 
     def _build_tree(self) -> py_trees.behaviour.Behaviour:
         def _build_activities(case_manager_id: str) -> list[str]:
@@ -88,7 +89,7 @@ class SvcAddOnBehalfStatusUseCase(SvcBTTriggerBase):
             case_id=self._case_id,
             asserting_actor_id=self._asserting_actor_id,
             target_actor_id=self._target_actor_id,
-            required_role=self._required_role,
+            required_roles=self._required_roles,
             vf_state=self._vf_state,
             d_state=self._d_state,
             result_out=self._result_out,

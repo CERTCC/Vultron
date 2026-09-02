@@ -32,7 +32,7 @@ from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
 )
 from vultron.core.models.case_participant import CaseParticipant
-from vultron.core.states.cs import CS_vf
+from vultron.core.states.cs import CS_d, CS_vf
 from vultron.core.use_cases.triggers.case import (
     AddOnBehalfStatusTriggerRequest,
     AddParticipantStatusTriggerRequest,
@@ -206,13 +206,23 @@ class TestAddOnBehalfRequestValidation:
         )
         assert req.vf_state == CS_vf.Vf
 
-    def test_vf_state_none_accepted(self):
+    def test_vf_state_none_accepted_when_d_state_provided(self):
         req = AddOnBehalfStatusTriggerRequest(
             actor_id="https://example.org/cm",
             case_id="https://example.org/case",
-            target_actor_id="https://example.org/vendor",
+            target_actor_id="https://example.org/deployer",
+            d_state=CS_d.D,
         )
         assert req.vf_state is None
+        assert req.d_state == CS_d.D
+
+    def test_all_none_raises(self):
+        with pytest.raises(ValueError, match="at least one"):
+            AddOnBehalfStatusTriggerRequest(
+                actor_id="https://example.org/cm",
+                case_id="https://example.org/case",
+                target_actor_id="https://example.org/vendor",
+            )
 
 
 class TestVendorImpliesVInvariant:
@@ -237,11 +247,13 @@ class TestVendorImpliesVInvariant:
             context=self.case.id_,
             case_roles=[CVDRole.VENDOR],
         )
+        from vultron.core.states.rm import RM
+
         vendor_participant.participant_statuses.append(
             WireParticipantStatus(
                 context=self.case.id_,
-                rm_state="ACCEPTED",
-                vf_state="Vf",
+                rm_state=RM.ACCEPTED,
+                vf_state=CS_vf.Vf,
             )
         )
         self.case.actor_participant_index[self.vendor_actor.id_] = (

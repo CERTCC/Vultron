@@ -14,7 +14,7 @@ fields (or override optionals to required) where the specific use case demands i
 
 from datetime import datetime, timezone
 
-from pydantic import BaseModel, ConfigDict, field_validator
+from pydantic import BaseModel, ConfigDict, field_validator, model_validator
 
 from vultron.core.models.base import NonEmptyString, UriString
 from vultron.core.states.cs import CS_d, CS_pxa, CS_vf
@@ -275,6 +275,15 @@ class AddOnBehalfStatusTriggerRequest(CaseTriggerRequest):
                 " (ADR-0084, PRM-06-005)"
             )
         return v
+
+    @model_validator(mode="after")
+    def at_least_one_dimension(self) -> "AddOnBehalfStatusTriggerRequest":
+        if self.vf_state is None and self.d_state is None:
+            raise ValueError(
+                "at least one of vf_state or d_state must be provided"
+                " (PRM-06-003/004)"
+            )
+        return self
 
 
 class OfferCaseParticipantRoleTriggerRequest(CaseTriggerRequest):
