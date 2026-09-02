@@ -317,3 +317,43 @@ class TestCheckCsHistoryPrefixNode:
         """Empty-string case_id → SUCCESS (absent case; nothing to guard)."""
         node = CheckCsHistoryPrefixNode(case_id="", status_id=STATUS_ID)
         assert _run(bridge, node) == Status.SUCCESS
+
+
+# ---------------------------------------------------------------------------
+# AC-6: DRY refactor regression — guards still block invalid CS transitions
+# after _resolve_case() replaces inline dl.read() + isinstance (#2957, AC-3)
+# ---------------------------------------------------------------------------
+
+
+class TestCsGuardDryRefactorRegression:
+    """AC-6 regression: _resolve_case() refactor must not change guard outcomes.
+
+    Both guards previously used ``dl.read() + isinstance(VulnerabilityCase)``.
+    AC-3 of #2957 replaced that inline pattern with ``_resolve_case()`` (which
+    wraps ``datalayer.read_case()``).  These tests confirm the blocking
+    behaviour is preserved after that refactor.
+    """
+
+    def test_ephemeral_guard_still_blocks_a_from_pXa(self, dl, bridge):
+        """CheckCsEphemeralStateNode: A-event from pXa → FAILURE via _resolve_case()."""
+        case = _make_case_with_pxa(CS_pxa.pXa)
+        dl.create(case)
+        asserted = as_CaseStatus(
+            id_=STATUS_ID, context=CASE_ID, pxa_state=CS_pxa.pXA
+        )
+        dl.create(asserted)
+
+        node = CheckCsEphemeralStateNode(case_id=CASE_ID, status_id=STATUS_ID)
+        assert _run(bridge, node) == Status.FAILURE
+
+    def test_history_prefix_guard_still_blocks_a_from_pXa(self, dl, bridge):
+        """CheckCsHistoryPrefixNode: A-event from pXa → FAILURE via _resolve_case()."""
+        case = _make_case_with_pxa(CS_pxa.pXa)
+        dl.create(case)
+        asserted = as_CaseStatus(
+            id_=STATUS_ID, context=CASE_ID, pxa_state=CS_pxa.pXA
+        )
+        dl.create(asserted)
+
+        node = CheckCsHistoryPrefixNode(case_id=CASE_ID, status_id=STATUS_ID)
+        assert _run(bridge, node) == Status.FAILURE

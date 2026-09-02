@@ -41,7 +41,6 @@ from py_trees.common import Status
 from vultron.core.behaviors.status.nodes.cs_dimension_filter import (
     _CsStatusGuardBase,
 )
-from vultron.core.models.case import VulnerabilityCase
 from vultron.core.states.cs import (
     CS_vfd,
     is_monotonic_pxa_forward,
@@ -92,10 +91,11 @@ class CheckCsEphemeralStateNode(_CsStatusGuardBase):
             return Status.SUCCESS
         if (f := self._require_datalayer()) is not None:
             return f
-        assert self.datalayer is not None
 
-        case = self.datalayer.read(self.case_id)
-        if not isinstance(case, VulnerabilityCase):
+        case = (
+            self._resolve_case()
+        )  # uses read_case() via _CsStatusGuardBase (AC-3, #2701)
+        if case is None:
             return Status.SUCCESS
 
         try:
@@ -163,10 +163,11 @@ class CheckCsHistoryPrefixNode(_CsStatusGuardBase):
             return Status.SUCCESS
         if (f := self._require_datalayer()) is not None:
             return f
-        assert self.datalayer is not None
 
-        case = self.datalayer.read(self.case_id)
-        if not isinstance(case, VulnerabilityCase):
+        case = (
+            self._resolve_case()
+        )  # uses read_case() via _CsStatusGuardBase (AC-3, #2701)
+        if case is None:
             return Status.SUCCESS
 
         try:

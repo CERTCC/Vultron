@@ -44,6 +44,7 @@ from vultron.core.behaviors.helpers import (
     DataLayerConditionWithPorts,
     PortInformation,
 )
+from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_status import CaseStatus
 from vultron.core.models.dimensions import EmDimension, PxaDimension
 from vultron.core.models.protocols import PersistableModel
@@ -90,6 +91,17 @@ class _CsStatusGuardBase(DataLayerConditionWithPorts):
         self.status_id = status_id
         self.status_obj_fallback = status_obj_fallback
 
+    def _resolve_case(self) -> VulnerabilityCase | None:
+        """Resolve the VulnerabilityCase from the DataLayer (AC-3, #2701).
+
+        Returns None when case_id is absent or the case is not found.
+        Callers must invoke _require_datalayer() before calling this.
+        """
+        assert self.datalayer is not None
+        if not self.case_id:
+            return None
+        return self.datalayer.read_case(self.case_id)
+
     def _resolve_asserted(self) -> CaseStatus | None:
         assert self.datalayer is not None
         obj = self.datalayer.read(self.status_id)
@@ -130,9 +142,6 @@ class FilterCsEmDimensionNode(_CsStatusGuardBase):
             BB_CASE_STATUS_DIM_FILTER: PortInformation(
                 data_type=object, required=False
             ),
-            BB_LEDGER_PAYLOAD_OBJECT_OVERRIDE: PortInformation(
-                data_type=object, required=False
-            ),
         }
 
     @classmethod
@@ -140,13 +149,13 @@ class FilterCsEmDimensionNode(_CsStatusGuardBase):
         return {
             _BB_CS_FILTER_ACC: f"/{_BB_CS_FILTER_ACC}",
             BB_CASE_STATUS_DIM_FILTER: f"/{BB_CASE_STATUS_DIM_FILTER}",
-            BB_LEDGER_PAYLOAD_OBJECT_OVERRIDE: f"/{BB_LEDGER_PAYLOAD_OBJECT_OVERRIDE}",
         }
 
     def _clear(self) -> None:
         self._set_output(_BB_CS_FILTER_ACC, None)
         self._set_output(BB_CASE_STATUS_DIM_FILTER, None)
-        self._set_output(BB_LEDGER_PAYLOAD_OBJECT_OVERRIDE, None)
+        # BB_LEDGER_PAYLOAD_OBJECT_OVERRIDE is FinalizeCsFilterNode's key —
+        # do not zero it here (CONCERN-2711, #2711).
 
     def update(self) -> Status:
         self._clear()  # BT-17-003
@@ -159,7 +168,12 @@ class FilterCsEmDimensionNode(_CsStatusGuardBase):
 
         case = self.datalayer.read_case(self.case_id)
         if case is None:
-            return Status.SUCCESS
+            self.feedback_message = (
+                f"Case '{self.case_id}' not found in DataLayer;"
+                " aborting before GuardedCommit (CLP-10-009, #2710)"
+            )
+            self.logger.warning("%s: %s", self.name, self.feedback_message)
+            return Status.FAILURE
 
         try:
             current = case.current_status
@@ -334,13 +348,17 @@ class FinalizeCsFilterNode(DataLayerConditionWithPorts):
     def update(self) -> Status:
         acc = self._try_get_input(_BB_CS_FILTER_ACC)
         if not isinstance(acc, dict):
-            return Status.SUCCESS  # no filtering in progress
+            # No filtering in progress — clear stale override from a prior tick
+            # (sole-owner clear, BT-17-003, CONCERN-2711).
+            self._set_output(BB_LEDGER_PAYLOAD_OBJECT_OVERRIDE, None)
+            return Status.SUCCESS
 
         refused: list[str] = acc["refused"]
         if not refused:
-            return (
-                Status.SUCCESS
-            )  # all dimensions accepted — no override needed
+            # All dimensions accepted — no override needed; clear stale value
+            # (sole-owner clear, BT-17-003, CONCERN-2711).
+            self._set_output(BB_LEDGER_PAYLOAD_OBJECT_OVERRIDE, None)
+            return Status.SUCCESS
 
         current: CaseStatus = acc["current"]
         asserted: CaseStatus = acc["asserted"]
