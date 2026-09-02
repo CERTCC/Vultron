@@ -43,6 +43,12 @@ If this fails, stop and investigate before proceeding.
    If the user selects **"Create a new bug"**: ask for a description,
    synthesize a title, then **before creating** determine the required fields:
 
+   0. **Invoke `orient-agent` first.** `calve-epics` Mode 1 matches the bug
+      against open Epics using domain terminology drawn from the spec corpus,
+      the glossary, and the schedule — all of which `orient-agent` loads.
+      Running the match before that context is loaded makes it unreliable.
+      Step 3 below then becomes a no-op.
+
    1. **Parent epic** — invoke `calve-epics` Mode 1 to find the best-fit open
       Epic. If it reports no match, present an `AskUserQuestion` with the top 5
       closest epics plus "Specify other epic number". **A parent epic is
@@ -226,8 +232,9 @@ Once the plan is confirmed:
      ```
 
    - Run the **upward-reflection checklist** per
-     `.agents/skills/shared/upward-reflection.md`. Record triggered signals
-     as learning files.
+     `.agents/skills/shared/upward-reflection.md` and **route** each triggered
+     item to the destination that file specifies (BW-07-004). Most route to a
+     GitHub issue or an in-session fix, not to a learning file.
    - Compute diff size: ≤50 → `size:S`; 51–300 → `size:M`; 301+ → `size:L`.
      Update the `size:` label.
    - Invoke `create-pr`:

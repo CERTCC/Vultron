@@ -611,19 +611,40 @@ class TestFromFileMode:
         assert result.returncode != 0
         assert "future" in result.stderr.lower()
 
-    def test_duplicate_destination_exits_nonzero(
+    def test_second_entry_for_same_source_gets_discriminated_path(
         self, fake_repo: Path, tmp_path: Path
     ) -> None:
+        """A work item may produce several learnings (HM-01-002, BW-01-003).
+
+        The second entry is written alongside the first under a slug-suffixed
+        name rather than failing, but the first is never overwritten.
+        """
         src1 = _make_incoming_file(tmp_path, filename=f"{_LEARNING_SOURCE}.md")
-        _run_from_file(src1)
-        # Recreate the source so the second run has something to read.
+        first = _run_from_file(src1)
+        assert first.returncode == 0
+        first_path = Path(first.stdout.strip())
+        first_bytes = first_path.read_bytes()
+
         src2 = _make_incoming_file(
             tmp_path, filename=f"{_LEARNING_SOURCE}-copy.md"
         )
-        content_dup = _LEARNING_CONTENT.replace(
-            _LEARNING_SOURCE, _LEARNING_SOURCE
-        )
-        src2.write_text(content_dup)
+        result = _run_from_file(src2)
+
+        assert result.returncode == 0
+        second_path = Path(result.stdout.strip())
+        assert second_path != first_path
+        assert second_path.name == f"{_LEARNING_SOURCE}-copy.md"
+        assert second_path.exists()
+        # Write-once: the original entry is untouched.
+        assert first_path.read_bytes() == first_bytes
+
+    def test_duplicate_source_and_slug_exits_nonzero(
+        self, fake_repo: Path, tmp_path: Path
+    ) -> None:
+        """Re-archiving the identical incoming filename still fails."""
+        src1 = _make_incoming_file(tmp_path, filename=f"{_LEARNING_SOURCE}.md")
+        assert _run_from_file(src1).returncode == 0
+        src2 = _make_incoming_file(tmp_path, filename=f"{_LEARNING_SOURCE}.md")
         result = _run_from_file(src2)
         assert result.returncode != 0
         assert "already exists" in result.stderr.lower()

@@ -348,8 +348,11 @@ draft commit and use `git diff main...HEAD` normally.
    ```
 
 6. Run the **upward-reflection checklist** per
-   `.agents/skills/shared/upward-reflection.md`. Record each triggered signal
-   as a learning file. Do not write completion summaries here.
+   `.agents/skills/shared/upward-reflection.md` and **route** each triggered
+   item to the destination that file specifies (BW-07-004). Most route to a
+   GitHub issue or an in-session fix, not to a learning file. Do not write
+   completion summaries, and do not record decisions that were made, applied,
+   and shipped in this session (BW-07-008).
 
 7. Invoke `commit` if any learning files were created in `plan/incoming/learnings/`.
 

@@ -4,7 +4,7 @@ description: Defines the structure, location, entry format, and tooling for mana
   `implementation` and `idea` types whose `--source` resolves to a GitHub issue number, `append-history` posts the
   entry body as a comment on the corresponding GitHub issue rather than writing a file. `learning` and `priority`
   types continue to write per-entry write-once files under `plan/history/`, managed by the `append-history` CLI tool.
-version: 1.4.0
+version: 1.5.0
 scope:
 
 - prototype
@@ -32,8 +32,18 @@ groups:
     statement: Each `learning` or `priority` history entry MUST be stored as an individual write-once file at the path
       `plan/history/YYMM/<type>/<entry-id>.md`, where `YYMM` is the two-digit year and two-digit month when the entry
       was created, `<type>` is the entry type (see HM-02-002), and `<entry-id>` is the originating task or idea identifier
-      (e.g., `TASK-BTND5`). `implementation` and `idea` entries whose `--source` resolves to a GitHub issue number use
-      the GitHub comment output mode (HM-08) instead.
+      (e.g., `TASK-BTND5`). When that path is already taken — one work item may produce several learnings — the entry
+      MUST be written to `<entry-id>-<slug>.md`, where `<slug>` is the incoming file's `YYYYMMDD-SLUG` stem (BW-01-003).
+      An existing entry file MUST NOT be overwritten in either case. `implementation` and `idea` entries whose
+      `--source` resolves to a GitHub issue number use the GitHub comment output mode (HM-08) instead.
+    rationale: >-
+      `<entry-id>` derives from `source`, which is not unique: BW-01-003 names incoming files `YYYYMMDD-SLUG`
+      specifically so that several PRs against one issue can each record an observation without colliding. Keying
+      the archive on `source` alone therefore made the second learning for any work item unarchivable, which
+      surfaced during the 2026-09-02 queue audit when 15 of 48 entries failed to archive.
+    relationships:
+    - rel_type: depends_on
+      spec_id: BW-01-003
   - id: HM-01-003
     priority: MUST
     kind: process

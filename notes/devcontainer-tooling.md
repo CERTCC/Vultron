@@ -4,8 +4,10 @@ status: active
 description: >
   Environment-level pitfalls specific to this devcontainer: why every tool must
   run under `uv run`, why `PYTHONPATH` must be cleared, the `UV_NO_SYNC=1`
-  workaround for root-owned venvs, the broken `gh` credential-helper path, and
-  the hard-linked `.agents/` and `.claude/` skill trees.
+  workaround for root-owned venvs, the 10-minute commit timeout the whole-tree
+  flake8 hook demands, the hanging `actionlint` hook, the broken `gh`
+  credential-helper path, and the hard-linked `.agents/` and `.claude/` skill
+  trees.
 related_notes:
   - notes/docker-build.md
   - notes/git-workflow-pitfalls.md
@@ -42,6 +44,38 @@ venv is already built; it bypasses only the sync. Apply to any `uv run` command
 that fails at the sync step rather than the tool itself.
 
 Sources: CONCERN-2321, Bug #2713
+
+## `git commit` Needs a 10-Minute Timeout — the flake8 Hook Runs the Whole Tree
+
+The `flake8 (with CC gate)` pre-commit hook is declared with
+`pass_filenames: false` and `args: ["vultron/", "test/"]`, so it lints the entire
+codebase on every commit regardless of what is staged. That reliably exceeds a
+2-minute default command timeout, and the commit appears to hang.
+
+Run commits as `UV_NO_SYNC=1 git commit ...` with a 600000 ms (10 min) timeout.
+Note that a bare `UV_NO_SYNC=1 uv run flake8` returns quickly — the cost is the
+pre-commit framework's whole-tree invocation, not flake8 itself, so a fast manual
+lint is not evidence that the hook will be fast.
+
+Sources: ISSUE-2479
+
+## The `actionlint` Hook Hangs in the Devcontainer — `SKIP=actionlint`
+
+`.pre-commit-config.yaml` pins `rhysd/actionlint` as a **golang** hook so that
+pre-commit provisions its own toolchain. The config comment already acknowledges
+that "the devcontainer has neither docker nor go on PATH", and with no route to
+the Go download servers pre-commit cannot build the binary — so the hook hangs
+indefinitely rather than failing.
+
+Use `SKIP=actionlint git commit`. This is safe **only** when the commit touches no
+`.github/` workflow YAML, since that is all actionlint inspects. If you are
+changing a workflow, get the lint some other way rather than skipping it.
+
+A durable fix needs one of: a pre-installed `actionlint` binary in the
+devcontainer image, `actionlint-docker` (blocked — no docker either), or a
+`language: system` hook pointing at a preinstalled binary.
+
+Sources: ISSUE-2627
 
 ## Git Credential Helper May Point at a Nonexistent `gh` Path
 
