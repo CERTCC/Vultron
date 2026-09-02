@@ -79,10 +79,13 @@ def populated_case() -> as_VulnerabilityCase:
     Most example functions return an activity. This one returns the case
     *object* itself, so the documentation can show what a case looks like once
     a report has been filed and the finder and vendor have joined.
+
+    It keeps the shared `case()` id rather than minting a fresh one, because the
+    participant records are built against `case()` too: a case whose id differed
+    from its own participants' ``context`` would be an incoherent example.
     """
     participants = [finder_participant(), vendor_participant()]
     return case(
-        random_id=True,
         vulnerability_reports=[gen_report()],
         case_participants=participants,
         actor_participant_index={p.attributed_to: p.id_ for p in participants},

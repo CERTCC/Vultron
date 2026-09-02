@@ -24,8 +24,33 @@ from vultron.wire.as2.vocab.objects.vulnerability_report import (
     as_VulnerabilityReport,
 )
 
-# Rendering utilities, not vocabulary examples.
+# Rendering helpers and the CLI entry point, not vocabulary examples. Only
+# ``main`` is load-bearing here: the other three take a required argument, so
+# ``_requires_arguments`` would exclude them anyway.
 _NOT_EXAMPLES = frozenset({"main", "json2md", "obj_to_file", "print_obj"})
+
+
+def _candidate_example_funcs() -> list:
+    """Every example function reachable from ``vocab_examples``."""
+    funcs = []
+    for name, obj in vars(examples).items():
+        if name.startswith("_") or name in _NOT_EXAMPLES:
+            continue
+        if not inspect.isfunction(obj):
+            continue
+        if not obj.__module__.startswith("vultron.wire.as2.vocab.examples"):
+            continue
+        funcs.append(obj)
+    return sorted(funcs, key=lambda f: f.__name__)
+
+
+def _requires_arguments(func) -> bool:
+    return any(
+        p.default is inspect.Parameter.empty
+        and p.kind
+        in (p.POSITIONAL_ONLY, p.POSITIONAL_OR_KEYWORD, p.KEYWORD_ONLY)
+        for p in inspect.signature(func).parameters.values()
+    )
 
 
 def _example_funcs() -> list:
@@ -35,25 +60,9 @@ def _example_funcs() -> list:
     ``docs/howto/activitypub/`` invoke, so this list is what keeps the docs
     build from being the only place a broken example is detected.
     """
-    funcs = []
-    for name, obj in vars(examples).items():
-        if name.startswith("_") or name in _NOT_EXAMPLES:
-            continue
-        if not inspect.isfunction(obj):
-            continue
-        if not obj.__module__.startswith("vultron.wire.as2.vocab.examples"):
-            continue
-        required = [
-            p
-            for p in inspect.signature(obj).parameters.values()
-            if p.default is inspect.Parameter.empty
-            and p.kind
-            in (p.POSITIONAL_ONLY, p.POSITIONAL_OR_KEYWORD, p.KEYWORD_ONLY)
-        ]
-        if required:
-            continue
-        funcs.append(obj)
-    return sorted(funcs, key=lambda f: f.__name__)
+    return [
+        f for f in _candidate_example_funcs() if not _requires_arguments(f)
+    ]
 
 
 class Foo(as_Base):
@@ -151,6 +160,25 @@ def test_example_func_discovery_is_not_vacuous():
     assert len(names) > 50, f"only found {len(names)} example functions"
     for expected in ("gen_report", "case", "create_case", "propose_embargo"):
         assert expected in names
+
+
+def test_no_example_func_is_excluded_from_the_ratchet():
+    """An example that grows a required argument must fail here, not vanish.
+
+    The ratchet parametrizes over zero-argument functions only, so without this
+    check an example gaining a parameter would silently drop out of coverage
+    while the suite stayed green.
+    """
+    excluded = [
+        f.__name__
+        for f in _candidate_example_funcs()
+        if _requires_arguments(f)
+    ]
+
+    assert excluded == [], (
+        "these example functions take required arguments, so the ratchet does "
+        f"not render them: {', '.join(excluded)}"
+    )
 
 
 class TestVocabUtils(unittest.TestCase):

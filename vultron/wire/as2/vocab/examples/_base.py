@@ -108,6 +108,14 @@ def case_actor() -> as_Service:
 
 
 def case(random_id=False, **kwargs) -> as_VulnerabilityCase:
+    """The example case, optionally with extra fields populated.
+
+    With no arguments this returns the shared `_CASE` singleton, whose id every
+    other case-related example refers to. Any ``kwargs`` are applied on top of
+    that same identity — id, name and attributor are preserved, so a populated
+    case and the participants built against `case()` still agree on which case
+    they belong to. Pass ``random_id=True`` for a case with a fresh id instead.
+    """
     if random_id:
         _case_number = random.randint(10000000, 99999999)
         _case = as_VulnerabilityCase(
@@ -117,6 +125,13 @@ def case(random_id=False, **kwargs) -> as_VulnerabilityCase:
             **kwargs,
         )
         return _case
+    if kwargs:
+        return as_VulnerabilityCase(
+            name=_CASE.name,
+            id_=_CASE.id_,
+            attributed_to=_CASE.attributed_to,
+            **kwargs,
+        )
     return _CASE
 
 
@@ -146,8 +161,10 @@ def _strip_published_udpated(obj: as_Base) -> as_Base:
       Clearing timestamps in place would strip them for every other consumer
       too — the shared-singleton hazard of issue #1328.
 
-    Only the top-level object is stripped; timestamps on inline sub-objects
-    are left as they are.
+    Only the top-level object is stripped; timestamps on inline sub-objects are
+    left as they are, and so are fields *derived* from the timestamps —
+    `as_VulnerabilityCase.genesis_hash` is computed from ``published``
+    (CLP-08-003), so a stripped case renders a hash the reader cannot recompute.
     """
     fields = type(obj).model_fields
     updates: dict[str, None] = {

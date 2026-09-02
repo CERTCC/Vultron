@@ -18,7 +18,7 @@ from vultron.wire.as2.vocab.base.objects.activities.transitive import (
     as_Invite,
     as_Reject,
 )
-from vultron.wire.as2.vocab.base.base import as_Base
+from vultron.wire.as2.vocab.base.objects.actors import as_Actor
 from vultron.wire.as2.vocab.examples._base import (
     _COORDINATOR,
     case,
@@ -43,7 +43,7 @@ from vultron.wire.as2.factories import (
 
 
 def _participant_for(
-    actor: as_Base,
+    actor: as_Actor,
     case_roles: list[CVDRole],
     participant_statuses: list[as_ParticipantStatus] | None = None,
 ) -> as_CaseParticipant:
