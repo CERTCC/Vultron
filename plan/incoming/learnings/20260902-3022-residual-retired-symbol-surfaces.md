@@ -1,7 +1,7 @@
 ---
 title: "Two residual surfaces survive the MS-15-004 guard: 'replaces the old X' docstring asides, and CLP-09-003's uncovered protocol MUST"
 type: learning
-timestamp: "2026-09-02"
+timestamp: "2026-09-02T15:00:00Z"
 source: ISSUE-3022
 signal: concern
 ---

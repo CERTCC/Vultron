@@ -1,7 +1,7 @@
 ---
 title: "A retired-symbol sweep is not a substitution: SEMANTICS_ACTIVITY_PATTERNS → SEMANTIC_REGISTRY changed the data shape"
 type: learning
-timestamp: "2026-09-02"
+timestamp: "2026-09-02T15:00:00Z"
 source: ISSUE-3022
 signal: spec-ambiguity
 ---

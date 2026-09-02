@@ -1,7 +1,7 @@
 ---
 title: "A grep-corpus guard resolves its own documentation: the phantom-symbol check had to exclude lint.py to see the symbol it was built for"
 type: learning
-timestamp: "2026-09-02"
+timestamp: "2026-09-02T15:00:00Z"
 source: ISSUE-3022
 signal: design-question
 ---
