@@ -2653,6 +2653,47 @@ groups:
     stories:
     - story_2022_088
     - story_2022_066
+  - id: CM-23-011
+    priority: MUST
+    kind: protocol
+    statement: >-
+      When the Case Actor receives `Leave(VulnerabilityCase)` from the Case Owner
+      while the case still holds an active embargo (`active_embargo` is non-None
+      and the current EM state is `EM.ACTIVE` or `EM.REVISE`), it MUST decline the
+      closure with an `as:Reject` response ("received and understood but declined",
+      MSM-05-001) and MUST NOT execute the CM-23-002 closure sequence (no
+      participant advances to `RM.CLOSED`; no `case_fully_closed` entry is
+      emitted). The Case Owner MUST terminate the active embargo first, then
+      re-issue the close. Declining the close does NOT itself terminate the
+      embargo — the embargo remains active until terminated through the normal EM
+      path. This is the terminal, case-global counterpart to the
+      participant-scoped VP-13-005 (participants SHOULD NOT close while embargoed)
+      and VP-13-009 (a participant close while others remain engaged does not
+      auto-terminate the embargo): owner-close ends the case for everyone, so the
+      soft participant-level guidance is raised to a hard case-actor refusal.
+    rationale: >-
+      Owner-close is a hard, terminal write boundary (ADR-0085): the Case Actor
+      then accepts no further external ledger writes. VP-13-009 keeps an embargo
+      alive across a participant close only while others remain engaged;
+      owner-close leaves none and no authority to lift it, so an embargo left
+      active could never be discharged. Refusing the premature close forces an
+      explicit terminate-then-close ordering. `Leave` is understood but declined —
+      hence `as:Reject`, not `Create(ProcessingFault)` (MSM-05-001).
+    verification: >-
+      A test confirms that a Case Owner `Leave(VulnerabilityCase)` on a case with
+      an active embargo produces an `as:Reject` response and does not advance any
+      participant to `RM.CLOSED` or emit `case_fully_closed`; after the embargo is
+      terminated, the same close proceeds through the CM-23-002 sequence.
+    relationships:
+    - rel_type: refines
+      spec_id: CM-23-002
+    - rel_type: refines
+      spec_id: VP-13-005
+    adr:
+    - ADR-0085
+    - ADR-0050
+    stories:
+    - story_2022_066
 - id: CM-24
   title: CaseActor-Delegated Activity Authorship Contract
   description: >-
