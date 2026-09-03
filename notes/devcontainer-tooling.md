@@ -47,15 +47,19 @@ Sources: CONCERN-2321, Bug #2713
 
 ## `git commit` Needs a 10-Minute Timeout — the flake8 Hook Runs the Whole Tree
 
-The `flake8 (with CC gate)` pre-commit hook is declared with
-`pass_filenames: false` and `args: ["vultron/", "test/"]`, so it lints the entire
-codebase on every commit regardless of what is staged. That reliably exceeds a
-2-minute default command timeout, and the commit appears to hang.
+The `flake8 (with CC gate)` pre-commit hook is `pass_filenames: false` and lints
+the entire `vultron/`+`test/` tree on every commit regardless of what is staged
+(~35s). It is now routed through `.agents/skills/shared/run-if-changed.sh`, which
+skips the run when the sources, `.flake8`, and `uv.lock` are unchanged since the
+last successful flake8 run. `run-linters`, `format-code`, and this hook share
+that cache, so if `run-linters` ran just before the commit the hook is a fast
+no-op.
 
-Run commits as `UV_NO_SYNC=1 git commit ...` with a 600000 ms (10 min) timeout.
-Note that a bare `UV_NO_SYNC=1 uv run flake8` returns quickly — the cost is the
-pre-commit framework's whole-tree invocation, not flake8 itself, so a fast manual
-lint is not evidence that the hook will be fast.
+Still give `git commit` a 600000 ms (10 min) timeout with `UV_NO_SYNC=1`: the
+guard only skips when nothing relevant changed, so a cold cache or any edited
+source file makes the hook pay the full ~35s whole-tree cost. A fast manual
+`uv run flake8` is not evidence the hook will be fast — the cost is the
+whole-tree invocation, not flake8 startup.
 
 Sources: ISSUE-2479
 
