@@ -11,6 +11,9 @@ relevant_packages:
   - vultron/core/models/participant.py
   - vultron/wire/as2/vocab/objects/case_participant.py
   - vultron/core/use_cases/query/action_rules.py
+  - vultron/core/predicates/participants.py
+  - vultron/core/behaviors/case/nodes/on_behalf_guards.py
+  - vultron/core/use_cases/triggers/case/add_on_behalf_status.py
   - test/core/models/test_participant.py
 ---
 
@@ -268,3 +271,24 @@ exist and they are not interchangeable:
 Evaluate `RM.CLOSED` terminal rules *before* the `current == new` no-op check.
 Ordering them the other way silently permits a transition out of a terminal
 state whenever the target happens to equal the current state.
+
+## Assertion Authority and On-Behalf Exceptions (PRM-06)
+
+Participant status is self-declaratory by default (PRM-06-001, ADR-0084). Two
+narrow on-behalf exceptions exist:
+
+- **v→V** (`CS_vf.Vf`): a Case Manager or Case Owner MAY assert vendor awareness
+  on behalf of a notified-but-not-joined vendor (PRM-06-003).
+- **d→D** (`CS_d.D`): the same asserting actors MAY assert deployer deployment
+  under externally-evidenced exceptional circumstances (PRM-06-004).
+- **f→F** (`CS_vf.VF`) is always Vendor-only and cannot be asserted on behalf
+  of another actor (PRM-06-005).
+
+The **Vendor-implies-V invariant** (PRM-06-002): a participant holding
+`CVDRole.VENDOR` cannot assert `CS_vf.vf` (vendor-unaware) — a vendor that
+has joined a case is by definition aware of it. Enforced by
+`vendor_vf_invariant_ok` in `vultron/core/predicates/participants.py`.
+
+Implementation: `SvcAddOnBehalfStatusUseCase` in
+`vultron/core/use_cases/triggers/case/add_on_behalf_status.py`; BT guards
+in `vultron/core/behaviors/case/nodes/on_behalf_guards.py`.

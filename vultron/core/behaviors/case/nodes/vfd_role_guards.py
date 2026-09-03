@@ -26,6 +26,9 @@ Nodes enforce CVD protocol correctness for received-side status authorization
   MUST NOT hold ``CVDRole.OBSERVER`` as their only role (CM-25-005)
 - :class:`CheckIsCaseOwnerNode` — hard bypass in ``StatusAdoptionGate``:
   sender MUST hold ``CVDRole.CASE_OWNER`` (RSH-01-002)
+
+On-behalf assertion guards (ADR-0084) live in :mod:`on_behalf_guards` and are
+re-exported here for backward compatibility.
 """
 
 import logging

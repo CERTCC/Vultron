@@ -128,6 +128,10 @@ from vultron.core.behaviors.case.nodes.vfd_role_guards import (
     CheckIsCaseOwnerNode,
     CheckNotSoleObserverVfdNode,
 )
+from vultron.core.behaviors.case.nodes.on_behalf_guards import (
+    CheckOnBehalfAuthorizedNode,
+    EnsureOnBehalfParticipantExistsNode,
+)
 from vultron.core.behaviors.case.nodes.update import (
     ApplyCaseUpdateNode,
     BroadcastCaseUpdateNode,
@@ -201,6 +205,9 @@ __all__ = [
     "create_case_manager_gated_tree",
     # vfd_role_guards (condition nodes)
     "CheckNotSoleObserverVfdNode",
+    # on_behalf_guards (ADR-0084)
+    "CheckOnBehalfAuthorizedNode",
+    "EnsureOnBehalfParticipantExistsNode",
     # suggest_actor (leaf nodes)
     "ActorAlreadyParticipantNode",
     "EmitAcceptActorRecommendationNode",

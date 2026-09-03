@@ -898,13 +898,17 @@ class TestCreateParticipantStatusNode:
         assert "status_id" not in result_out
 
     def test_same_state_vf_write_allowed_at_write_node(self):
-        """CSB-16-001: same-state VF write (no actual transition) is allowed."""
+        """CSB-16-001: same-state VF write (no actual transition) is allowed.
+
+        Uses CS_vf.Vf because VENDOR participants cannot hold CS_vf.vf
+        (Vendor-implies-V, PRM-06-002, ADR-0084).
+        """
         from py_trees.common import Status
 
-        self._seed_participant_vf_state(CS_vf.vf)
+        self._seed_participant_vf_state(CS_vf.Vf)
 
         bt_result, result_out = self._run_node(
-            rm_state=None, vf_state=CS_vf.vf, d_state=None, pxa_state=None
+            rm_state=None, vf_state=CS_vf.Vf, d_state=None, pxa_state=None
         )
 
         assert bt_result.status == Status.SUCCESS
@@ -1856,3 +1860,172 @@ class TestViolationPxaEmEntailment:
         from vultron.core.states.em import EM
 
         assert self._check(CS_pxa.Pxa, EM.NONE) is None
+
+
+class TestCreateParticipantStatusNodeCrossMachineOnBypassPath:
+    """CreateParticipantStatusNode enforces cross-machine entailments (#3100).
+
+    Bypass callers (DevelopFixNode, DeployFixNode, etc.) reach
+    CreateParticipantStatusNode without going through
+    ValidateTriggerTransitionsNode.  The write node must reject a
+    CSB-18-001/CSB-17-001 violation so those callers cannot persist an
+    impossible RM+VF or VF+D combination.
+    """
+
+    @pytest.fixture(autouse=True)
+    def setup(self):
+        import py_trees
+
+        from vultron.adapters.driven.datalayer_sqlite import (
+            SqliteDataLayer,
+            reset_datalayer,
+        )
+        from vultron.adapters.driven.trigger_activity_adapter import (
+            TriggerActivityAdapter,
+        )
+        from vultron.core.behaviors.bridge import BTBridge
+        from vultron.enums.roles import CVDRole
+        from vultron.wire.as2.vocab.base.objects.actors import as_Service
+        from vultron.wire.as2.vocab.objects.case_participant import (
+            as_CaseParticipant,
+        )
+        from vultron.wire.as2.vocab.objects.vulnerability_case import (
+            as_VulnerabilityCase,
+        )
+
+        py_trees.blackboard.Blackboard.enable_activity_stream()
+        py_trees.blackboard.Blackboard.storage.clear()
+
+        self.actor = as_Service(name="Vendor Bypass")
+        actor_id = self.actor.id_
+        reset_datalayer(actor_id)
+        self.dl = SqliteDataLayer("sqlite:///:memory:", actor_id=actor_id)
+        self.dl.clear_all()
+        self.dl.create(self.actor)
+
+        self.case_actor = as_Service(name="Case Actor Bypass")
+        reset_datalayer(self.case_actor.id_)
+        self.dl.create(self.case_actor)
+
+        self.case = as_VulnerabilityCase(name="Test Case #3100")
+        self.actor_participant = as_CaseParticipant(
+            attributed_to=actor_id,
+            context=self.case.id_,
+            case_roles=[CVDRole.VENDOR],
+        )
+        self.case_manager_participant = as_CaseParticipant(
+            attributed_to=self.case_actor.id_,
+            context=self.case.id_,
+            case_roles=[CVDRole.CASE_MANAGER],
+        )
+        self.case.actor_participant_index[actor_id] = (
+            self.actor_participant.id_
+        )
+        self.case.actor_participant_index[self.case_actor.id_] = (
+            self.case_manager_participant.id_
+        )
+        self.dl.create(self.case)
+        self.dl.create(self.actor_participant)
+        self.dl.create(self.case_manager_participant)
+        self.bridge = BTBridge(
+            datalayer=self.dl,
+            trigger_activity=TriggerActivityAdapter(self.dl),
+        )
+        yield
+        try:
+            self.dl.clear_all()
+        finally:
+            self.dl.close()
+            reset_datalayer(actor_id)
+            reset_datalayer(self.case_actor.id_)
+        py_trees.blackboard.Blackboard.storage.clear()
+
+    def _run_node(self, **kwargs):
+        from vultron.core.behaviors.case.nodes.participant import (
+            CreateParticipantStatusNode,
+        )
+
+        result_out: dict = {}
+        node = CreateParticipantStatusNode(
+            case_id=self.case.id_,
+            actor_id=self.actor.id_,
+            result_out=result_out,
+            **kwargs,
+        )
+        bt_result = self.bridge.execute_with_setup(
+            node, actor_id=self.actor.id_
+        )
+        return bt_result, result_out
+
+    def test_vf_fix_ready_with_rm_start_rejected_by_write_node(self):
+        """CSB-18-001 bypass guard (#3100): write node refuses VF=VF when RM=START.
+
+        CreateParticipantStatusNode now calls cross_machine_violations() so a
+        caller that bypasses ValidateTriggerTransitionsNode cannot persist a
+        state that the trigger guard would have refused.
+        """
+        from py_trees.common import Status
+
+        bt_result, result_out = self._run_node(
+            rm_state=None, vf_state=CS_vf.VF, d_state=None, pxa_state=None
+        )
+
+        assert bt_result.status == Status.FAILURE
+        assert "status_id" not in result_out
+
+
+def test_validate_trigger_returns_failure_on_corrupt_participant_status():
+    """#3103: VultronValidationError from resolve_participant_state_from_dl is caught.
+
+    Before the fix, a participant with a non-core-shaped status let
+    VultronValidationError escape update(), producing a 500.  After the fix the
+    node returns Status.FAILURE with a descriptive feedback_message.
+
+    Uses a stubbed DataLayer so the bad RM state bypasses the SQLite adapter's
+    rehydration path — matching the test pattern at line 176 in this file.
+    """
+    from py_trees.common import Status
+    from vultron.core.behaviors.case.nodes.participant.trigger_validation import (
+        ValidateTriggerTransitionsNode,
+    )
+
+    ACTOR_ID = "https://example.org/corrupt-vendor"
+    CASE_ID = "https://example.org/case-3103"
+    PARTICIPANT_ID = "https://example.org/participant-3103"
+
+    class _BadRmDim:
+        state = "not-an-rm"
+
+    class _CorruptStatus:
+        rm = _BadRmDim()
+        vf = None
+        d = None
+
+    class _CorruptParticipant:
+        participant_statuses = [_CorruptStatus()]
+
+    class _StubCase:
+        actor_participant_index = {ACTOR_ID: PARTICIPANT_ID}
+        case_participants: list = []
+
+    class _StubDL:
+        def read_case(self, case_id: str):
+            return _StubCase()
+
+        def read(self, id_: str):
+            return _CorruptParticipant()
+
+    node = ValidateTriggerTransitionsNode(
+        case_id=CASE_ID,
+        actor_id=ACTOR_ID,
+        rm_state=RM.RECEIVED,
+        vf_state=None,
+        d_state=None,
+        pxa_state=None,
+    )
+    node.datalayer = _StubDL()  # type: ignore[assignment]
+
+    result = node.update()
+
+    assert result == Status.FAILURE
+    assert "core-shaped" in node.feedback_message
