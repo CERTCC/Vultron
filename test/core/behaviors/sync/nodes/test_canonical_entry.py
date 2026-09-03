@@ -30,6 +30,7 @@ from test.core.behaviors.sync.nodes.conftest import (
     PARTICIPANT_ACTOR_ID,
     CASE_ID,
 )
+from vultron.core.models._helpers import _now_utc
 from vultron.core.behaviors.sync.nodes.canonical_entry import (
     _validate_canonical_entry,
 )
@@ -42,6 +43,9 @@ def _note_snapshot_with_actor(actor_id: str) -> dict[str, object]:
     return {
         "type": "Add",
         "actor": actor_id,
+        # CLP-07-011: the commit boundary requires a claimed timestamp on every
+        # recorded snapshot, so every fixture here carries one.
+        "published": _now_utc().isoformat(),
         "object": {
             "type": "Note",
             "id": "https://example.org/notes/note-prov",
@@ -103,6 +107,7 @@ def test_validate_canonical_entry_allows_case_actor_for_case_authored_signature(
     snapshot = {
         "type": "Announce",
         "actor": CASE_ACTOR_ID,
+        "published": _now_utc().isoformat(),
         "object": {
             "type": "VulnerabilityCase",
             "id": CASE_ID,
@@ -127,6 +132,7 @@ def test_validate_canonical_entry_allows_case_actor_for_invite_vulnerability_cas
     snapshot = {
         "type": "Invite",
         "actor": CASE_ACTOR_ID,
+        "published": _now_utc().isoformat(),
         "object": {
             "type": "Organization",
             "id": participant_actor_id,
@@ -183,6 +189,7 @@ def test_validate_canonical_entry_allows_case_actor_for_native_init(
     snapshot = {
         "type": snapshot_type,
         "actor": CASE_ACTOR_ID,
+        "published": _now_utc().isoformat(),
         "object": {"type": object_type, "id": "https://example.org/obj/1"},
         "context": CASE_ID,
     }
@@ -227,10 +234,11 @@ def _ts_snapshot(published: str | datetime | None = _ENTRY_PUBLISHED) -> dict:
 def _call_with_ts(
     snapshot: dict,
     *,
-    case_published: datetime = _CASE_PUBLISHED,
-    prev_entry_published: datetime | None = None,
+    case_published: datetime | None = _CASE_PUBLISHED,
+    prev_actor_published: datetime | None = None,
     future_tolerance: timedelta | None = None,
     staleness_window: timedelta | None = None,
+    skew_tolerance: timedelta = timedelta(0),
 ) -> None:
     _validate_canonical_entry(
         case_id=CASE_ID,
@@ -239,31 +247,38 @@ def _call_with_ts(
         payload_snapshot=snapshot,
         event_type="note_added",
         case_published=case_published,
-        prev_entry_published=prev_entry_published,
+        prev_actor_published=prev_actor_published,
         future_tolerance=future_tolerance,
         staleness_window=staleness_window,
+        skew_tolerance=skew_tolerance,
     )
 
 
-@pytest.mark.spec("CLP-14-002")
-def test_clp14_002_rejects_missing_published():
-    with pytest.raises(VultronCanonicalEntryError, match="CLP-14-002"):
+@pytest.mark.spec("CLP-07-011")
+def test_clp07_011_rejects_missing_published():
+    """A snapshot with no ``published`` is not the verbatim AS2 activity.
+
+    Cited as CLP-07-011, not CLP-14-002: CLP-14-002 constrains
+    ``CaseLedgerEntry.published`` (the commit stamp, enforced by the model),
+    while this is the *asserted activity's* own field.
+    """
+    with pytest.raises(VultronCanonicalEntryError, match="CLP-07-011"):
         _call_with_ts(_ts_snapshot(published=None))
 
 
-@pytest.mark.spec("CLP-14-002")
-def test_clp14_002_rejects_malformed_published():
-    with pytest.raises(VultronCanonicalEntryError, match="CLP-14-002"):
+@pytest.mark.spec("CLP-07-011")
+def test_clp07_011_rejects_malformed_published():
+    with pytest.raises(VultronCanonicalEntryError, match="CLP-07-011"):
         _call_with_ts(_ts_snapshot(published="not-a-date"))
 
 
-@pytest.mark.spec("CLP-14-002")
-def test_clp14_002_accepts_valid_iso_published():
+@pytest.mark.spec("CLP-07-011")
+def test_clp07_011_accepts_valid_iso_published():
     _call_with_ts(_ts_snapshot())
 
 
-@pytest.mark.spec("CLP-14-002")
-def test_clp14_002_accepts_datetime_object_published():
+@pytest.mark.spec("CLP-07-011")
+def test_clp07_011_accepts_datetime_object_published():
     snap = _ts_snapshot()
     snap["published"] = _ENTRY_PUBLISHED
     _call_with_ts(snap)
@@ -281,22 +296,41 @@ def test_clp14_006_accepts_entry_equal_to_case_published():
     _call_with_ts(_ts_snapshot(published=_CASE_PUBLISHED))
 
 
-@pytest.mark.spec("CLP-14-003")
-def test_clp14_003_rejects_timestamp_regression():
+@pytest.mark.spec("CLP-14-006")
+def test_clp14_006_accepts_entry_within_skew_tolerance():
+    """Unsynchronised clocks get slack; ADR-0079 rejected wall-clock ordering."""
+    before_case = _CASE_PUBLISHED - timedelta(minutes=2)
+    _call_with_ts(
+        _ts_snapshot(published=before_case),
+        skew_tolerance=timedelta(minutes=5),
+    )
+
+
+@pytest.mark.spec("CLP-14-006")
+def test_clp14_006_skipped_when_case_published_is_none():
+    """The genesis entry commits before the case is readable; that is not a bug."""
+    _call_with_ts(
+        _ts_snapshot(published=_CASE_PUBLISHED - timedelta(days=365)),
+        case_published=None,
+    )
+
+
+@pytest.mark.spec("CLP-15-003")
+def test_clp15_003_rejects_timestamp_regression():
     prev = _ENTRY_PUBLISHED + timedelta(seconds=10)
-    with pytest.raises(VultronCanonicalEntryError, match="CLP-14-003"):
-        _call_with_ts(_ts_snapshot(), prev_entry_published=prev)
+    with pytest.raises(VultronCanonicalEntryError, match="CLP-15-003"):
+        _call_with_ts(_ts_snapshot(), prev_actor_published=prev)
 
 
-@pytest.mark.spec("CLP-14-003")
-def test_clp14_003_accepts_non_decreasing_timestamp():
+@pytest.mark.spec("CLP-15-003")
+def test_clp15_003_accepts_non_decreasing_timestamp():
     prev = _ENTRY_PUBLISHED - timedelta(seconds=1)
-    _call_with_ts(_ts_snapshot(), prev_entry_published=prev)
+    _call_with_ts(_ts_snapshot(), prev_actor_published=prev)
 
 
-@pytest.mark.spec("CLP-14-003")
-def test_clp14_003_accepts_equal_timestamps():
-    _call_with_ts(_ts_snapshot(), prev_entry_published=_ENTRY_PUBLISHED)
+@pytest.mark.spec("CLP-15-003")
+def test_clp15_003_accepts_equal_timestamps():
+    _call_with_ts(_ts_snapshot(), prev_actor_published=_ENTRY_PUBLISHED)
 
 
 @pytest.mark.spec("CLP-14-007")
@@ -343,12 +377,32 @@ def test_clp14_008_skipped_when_window_is_none():
     )
 
 
-def test_clp14_timestamp_checks_skipped_when_case_published_is_none():
-    """Omitting case_published bypasses all timestamp checks."""
+@pytest.mark.spec("CLP-07-011")
+def test_timestamp_checks_are_not_gated_on_case_published():
+    """Omitting ``case_published`` must NOT bypass the other checks.
+
+    This is the regression the whole of ISSUE-2824 came down to: the guard used
+    to run only ``if case_published is not None``, and the sole production call
+    site never passed it, so nothing was ever checked.  Each check now gates
+    itself on the context it needs.
+    """
+    with pytest.raises(VultronCanonicalEntryError, match="CLP-07-011"):
+        _validate_canonical_entry(
+            case_id=CASE_ID,
+            actor_id=OWNER_ACTOR_ID,
+            disposition="recorded",
+            payload_snapshot=_ts_snapshot(published=None),
+            event_type="note_added",
+        )
+
+
+@pytest.mark.spec("CLP-07-011")
+def test_timestamp_checks_skipped_for_rejected_disposition():
+    """Non-recorded entries are outside the canonical chain and stay relaxed."""
     _validate_canonical_entry(
         case_id=CASE_ID,
         actor_id=OWNER_ACTOR_ID,
-        disposition="recorded",
+        disposition="rejected",
         payload_snapshot=_ts_snapshot(published=None),
         event_type="note_added",
     )

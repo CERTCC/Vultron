@@ -483,6 +483,11 @@ class AcceptInviteToEmbargoOnCaseReceivedUseCase:
                 "type": "Lapse",
                 "actor": accepting_actor_id,
                 "context": case_id,
+                # CLP-07-011: a snapshot without ``published`` is not the
+                # verbatim AS2 activity, and the CLP-14 commit-boundary guard
+                # rejects it (ISSUE-2824).  This is a CaseActor-synthesised
+                # lapse event (CM-28-009), so its clock is the event time.
+                "published": datetime.now(tz=timezone.utc).isoformat(),
                 "object": {
                     "type": "Invite",
                     "id": invite_id or case_id,

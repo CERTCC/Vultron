@@ -130,6 +130,14 @@ def _build_activity_snapshot(
     a received-side use case saw only ``actor_id`` (the CaseActor), so the Offer
     the CaseActor forwarded to a transferee attributed the vendor's intent to the
     CaseActor itself.  See CM-24-002 and notes/ownership-transfer.md.
+
+    ``published`` is carried for the same class of reason (ISSUE-3149).  It is
+    the sender's *claimed* event time, and it is the only field the CLP-14-007
+    and CLP-14-008 commit-boundary guards have to work with.  Omitting it let
+    ``VultronActivity.published`` fall back to ``default_factory=now_utc`` —
+    the receiver's own clock — so both guards compared the receiver's clock
+    against itself and could never fire.  See CLP-15-004 and ADR-0079
+    § "Residual Uncertainty".
     """
     activity_type = str(activity.type_) if activity.type_ else "Activity"
     return VultronActivity(
@@ -137,6 +145,7 @@ def _build_activity_snapshot(
         type_=activity_type,
         actor=actor_id,
         attributed_to=_get_id(getattr(activity, "attributed_to", None)),
+        published=_get_timestamp(activity, "published"),
         object_=obj,
         target=target,
         origin=_get_id(origin),
