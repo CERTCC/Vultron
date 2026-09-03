@@ -747,7 +747,7 @@ groups:
       independently, with byte-identical message text (ARCH-15-004 violation, live
       drift hazard), and each enforced a subset the other did not. ISSUE-2906
       established that composing the rule set once — not sharing the individual
-      predicates — is what keeps two paths from drifting; `cross_machine_violations()`
+      predicates — is what keeps two paths from drifting; `composite_state_violations()`
       is the existing instance of that shape.
     relationships:
     - rel_type: refines

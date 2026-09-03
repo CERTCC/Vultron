@@ -201,9 +201,9 @@ Three properties of that pass are load-bearing:
   would refuse, never the reverse. Do not cite it as a defence against a
   regressive `rm` licensing a `vf`; no such input exists.
 - **Emit and receive share one evaluator.**
-  `cross_machine_violations()` in `vultron/core/states/cross_machine_invariants.py`
+  `composite_state_violations()` in `vultron/core/states/composite_state_invariants.py`
   composes the three rules; `ValidateTriggerTransitionsNode._validate_entailments`
-  and `_adjudicate_cross_machine_entailments` both call it and neither calls the
+  and `_adjudicate_composite_state_entailments` both call it and neither calls the
   individual `violation_*` functions. Before #2906 the receive path composed only
   VF↔D by hand, so an assertion the actor would have refused to *emit* was
   accepted, hash-chained and replicated when it arrived from a peer instead.

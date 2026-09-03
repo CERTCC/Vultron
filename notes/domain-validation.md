@@ -336,7 +336,7 @@ violation it can recognise in that input (EH-07-001, BTND-10-002). The
 inference "we reject atomically, so the first violation is enough" is wrong
 and was written into the code twice before ADR-0086 removed it — once in
 `ValidateTriggerTransitionsNode._validate_entailments`, once in
-`cross_machine_violations()`' ordering rationale.
+`composite_state_violations()`' ordering rationale.
 
 The reason it is wrong: because the rejection *is* atomic, nothing partial was
 accepted, so a caller told one reason at a time gains nothing from the round
@@ -391,7 +391,7 @@ predicates still lets each caller pick a different subset — which is exactly
 what happened: only the guard evaluated the cross-machine entailments, only
 the write node evaluated the compound CS transition, and both duplicated the
 VF/D/PXA transition checks and role gates with byte-identical message text
-(an ARCH-15-004 violation). `cross_machine_violations()` is the existing
+(an ARCH-15-004 violation). `composite_state_violations()` is the existing
 instance of the right shape; see also
 [bt-integration.md](bt-integration.md) and the ISSUE-2906 lesson that
 composing the set — not sharing its members — is what makes divergence

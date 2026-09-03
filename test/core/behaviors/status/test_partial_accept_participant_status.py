@@ -70,8 +70,8 @@ from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.behaviors.sync.nodes.chain import _to_persistable_entry
 from vultron.core.models.events.sync import AnnounceLogEntryReceivedEvent
 from vultron.core.models.dimensions import DDimension
-from vultron.core.states.cross_machine_invariants import (
-    cross_machine_violations,
+from vultron.core.states.composite_state_invariants import (
+    composite_state_violations,
 )
 from vultron.core.states.cs import CS_d, CS_pxa, CS_vf
 from vultron.core.states.em import EM
@@ -774,17 +774,19 @@ class TestLedgerApplyRmRatchet:
     def test_regressive_rm_in_ledger_entry_does_not_regress_replica(
         self, store_for
     ):
-        """Replica at VALID; entry asserts RECEIVED + vfd=VFd.
+        """Replica at ACCEPTED; entry asserts VALID + vfd=VFd.
 
         Monotonic visibility (see notes/sync-ledger-replication.md): the
-        replica keeps ``rm`` at VALID while still applying the accepted
-        ``vfd`` advance.
+        replica keeps ``rm`` at ACCEPTED while still applying the accepted
+        ``vfd`` advance.  The entry uses rm=ACCEPTED, vf=VF so the
+        post-ratchet effective state (rm=ACCEPTED, vf=VF) satisfies the
+        composite-state entailments (RSH-05-021).
         """
         dl = store_for(ACTOR_ID)
-        current = _current_status(RM.VALID, CS_vf.Vf, CS_pxa.pxa)
+        current = _current_status(RM.ACCEPTED, CS_vf.Vf, CS_pxa.pxa)
         _seed_case(dl, current, None)
 
-        entry = _status_snapshot_entry(rm_state="RECEIVED", vf_state="VF")
+        entry = _status_snapshot_entry(rm_state="VALID", vf_state="VF")
         event = _announce_event(entry)
 
         bridge = BTBridge(
@@ -801,7 +803,7 @@ class TestLedgerApplyRmRatchet:
 
         latest = _latest_status(dl, PARTICIPANT_ID)
         assert (
-            _rm_of(latest) == RM.VALID.name
+            _rm_of(latest) == RM.ACCEPTED.name
         ), "a replicated entry must not regress the replica's rm state"
         assert (
             _vf_of(latest) == CS_vf.VF.name
@@ -819,15 +821,20 @@ class TestLedgerApplyRmRatchet:
         itself, or a replayed entry — and skipping the save in that case appends
         the un-ratcheted status while the ratchet's own log line claims the
         local value was carried forward (RSH-05-007, SYNC-02-002).
+
+        The test uses rm=ACCEPTED as the local state so that after ratcheting
+        the regression rm=VALID → rm=ACCEPTED the effective state is
+        rm=ACCEPTED+vf=VF, which satisfies the composite-state entailments
+        (RSH-05-021).
         """
         dl = store_for(ACTOR_ID)
-        current = _current_status(RM.VALID, CS_vf.Vf, CS_pxa.pxa)
+        current = _current_status(RM.ACCEPTED, CS_vf.Vf, CS_pxa.pxa)
         _seed_case(dl, current, None)
         # Present as a stored object, absent from participant_statuses.
-        dl.create(_asserted_status(RM.RECEIVED, CS_vf.VF, CS_pxa.pxa))
+        dl.create(_asserted_status(RM.VALID, CS_vf.VF, CS_pxa.pxa))
         assert ASSERTED_STATUS_ID not in _status_ids(dl, PARTICIPANT_ID)
 
-        entry = _status_snapshot_entry(rm_state="RECEIVED", vf_state="VF")
+        entry = _status_snapshot_entry(rm_state="VALID", vf_state="VF")
         event = _announce_event(entry)
 
         bridge = BTBridge(
@@ -843,7 +850,7 @@ class TestLedgerApplyRmRatchet:
         assert result.status == Status.SUCCESS
 
         latest = _latest_status(dl, PARTICIPANT_ID)
-        assert _rm_of(latest) == RM.VALID.name, (
+        assert _rm_of(latest) == RM.ACCEPTED.name, (
             "the ratcheted rm must be persisted even when the status object"
             " was already present in the local DataLayer"
         )
@@ -1387,8 +1394,8 @@ class TestAdjudicateDimensionsCrossMachineEntailments:
     The receive path checked only VF↔D, so a peer could assert ``vf=VF``
     alongside a pre-acceptance ``rm`` and have it recorded as canonical.
 
-    Both paths now share ``cross_machine_violations()``, so the two cannot
-    drift apart (RSH-05-020).
+    All three paths now share ``composite_state_violations()``, so they cannot
+    drift apart (RSH-05-020, RSH-05-021).
     """
 
     @staticmethod
@@ -1649,7 +1656,7 @@ class TestAdjudicateDimensionsCrossMachineEntailments:
             " clears rather than carrying a prior value forward"
         )
         assert (
-            cross_machine_violations(
+            composite_state_violations(
                 RM.ACCEPTED,
                 None,
                 update_fields["d"].state if "d" in update_fields else CS_d.D,
@@ -1744,20 +1751,20 @@ class TestAdjudicateDimensionsCrossMachineEntailments:
         assert "vf" not in update_fields, "the vf claim stands as asserted"
 
 
-class TestCrossMachineViolationsSharedHelper:
-    """The emit and receive paths share one entailment evaluator (#2906).
+class TestCompositeStateViolationsSharedHelper:
+    """The emit, receive, and replica-apply paths share one entailment evaluator (#2906).
 
-    ``cross_machine_violations()`` is the single place the RM↔VF, RM↔D and
-    VF↔D rules are composed, so the two protocol paths cannot drift apart.
+    ``composite_state_violations()`` is the single place the RM↔VF, RM↔D and
+    VF↔D rules are composed, so the three protocol paths cannot drift apart.
     """
 
     @staticmethod
     def _violations(rm, vf, d):
-        from vultron.core.states.cross_machine_invariants import (
-            cross_machine_violations,
+        from vultron.core.states.composite_state_invariants import (
+            composite_state_violations,
         )
 
-        return cross_machine_violations(rm, vf, d)
+        return composite_state_violations(rm, vf, d)
 
     def test_no_violations_for_a_consistent_state(self):
 
@@ -1848,14 +1855,14 @@ class TestCrossMachineViolationsSharedHelper:
             trigger_validation.ValidateTriggerTransitionsNode._validate_entailments
         )
 
-        assert "cross_machine_violations" in source
+        assert "composite_state_violations" in source
         for rule in (
             "violation_rm_vf_entailment",
             "violation_rm_d_entailment",
             "violation_vf_d_entailment",
         ):
             assert rule not in source, (
-                f"{rule} is composed by cross_machine_violations(); calling it"
-                " directly here re-introduces the emit/receive divergence"
+                f"{rule} is composed by composite_state_violations(); calling it"
+                " directly here re-introduces the emit/receive/replica-apply divergence"
                 " that #2906 fixed"
             )
