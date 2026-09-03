@@ -958,6 +958,78 @@ groups:
     - protocol
     adr:
     - ADR-0073
+  - id: CLP-10-015
+    priority: MUST
+    kind: protocol
+    statement: >-
+      When a received-side use case must identify a *subject* that the incoming
+      message names — the invitee of an embargo invitation, the actor whose
+      consent an accept/reject records, or the target of any participant-scoped
+      action — it MUST read that identity from the received activity, not from
+      `resolve_receiving_actor_id()`. `resolve_receiving_actor_id()` is
+      legitimate only as the `actor_id` passed to `execute_with_setup()`
+      (CLP-10-005) — i.e. *whose store is running the tree* — never as a stand-in
+      for *whom the message is about*.
+    rationale: >-
+      The receiving actor and the message subject coincide in the ordinary
+      single-recipient case, which is why substituting one for the other went
+      unnoticed. They diverge whenever a message is relayed on a participant's
+      behalf (the CaseActor forwarding), CLI dispatch, or log replay — there the
+      running store's actor is not the invitee. Resolving the subject as
+      `resolve_receiving_actor_id()` then records consent against, or addresses
+      an action to, the wrong participant, and the divergence is
+      protocol-observable: a conforming peer sees the state change land on an
+      actor the message never named. Source: ISSUE-2762, ADR-0022.
+    verification: >-
+      `TestInviteeIsTheAddressee` and `TestInviteeIdProperty` in
+      `test/core/use_cases/received/test_embargo_invite_lapse.py` confirm that the
+      resolved invitee is taken from the activity's addressees and not from the
+      receiving actor when the two differ.
+    relationships:
+    - rel_type: refines
+      spec_id: CLP-10-005
+    tags:
+    - protocol
+    adr:
+    - ADR-0022
+    lint_suppress:
+    - missing_story_reference
+  - id: CLP-10-016
+    priority: MUST
+    kind: protocol
+    statement: >-
+      Subject-identity resolution (CLP-10-015) MUST be by **addressee
+      membership**, not by position in the `to:` list. When the receiving actor
+      is among the recipients it is the subject; when exactly one recipient
+      exists and it is not this store's actor, that recipient is the subject;
+      when several recipients exist and none is this store's actor the case is
+      ambiguous and the resolver MUST warn and degrade rather than select
+      `to[0]`.
+    rationale: >-
+      Selecting `to[0]` positionally makes a multi-recipient message resolve to
+      the same subject in every replica — inviting the wrong participant
+      everywhere except the one store where `to[0]` happens to be correct.
+      Preferring the receiving actor when it is a recipient is what makes a
+      multi-recipient invitation correct in *each* recipient's own replica, and
+      it is canonical by construction because `inbox_handler` normalises the
+      receiving actor against `activity.to` (HP-09-001). Degrading with a WARNING
+      on genuine ambiguity preserves the canonical ledger commit that rides in
+      the same single tree (ADR-0022) rather than dropping the message. Source:
+      ISSUE-2762, ADR-0022.
+    verification: >-
+      Inspection of `resolve_invitee_id()` in
+      `vultron/core/use_cases/received/embargo.py` confirms resolution is by
+      addressee membership with the ordered fallbacks above, mirroring
+      `_is_primary_submit_report_recipient` in `received/report.py`.
+    relationships:
+    - rel_type: refines
+      spec_id: CLP-10-015
+    tags:
+    - protocol
+    adr:
+    - ADR-0022
+    lint_suppress:
+    - missing_story_reference
 - id: CLP-11
   title: Protocol Request/Reply State Detection
   description: Requirements for querying whether a protocol-level request/reply pair

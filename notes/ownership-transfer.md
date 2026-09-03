@@ -406,3 +406,27 @@ exception).
 The invariant to assert: the accepting actor's `case.attributed_to` MUST change
 on its own replica. The demo CI integration tests (`test/ci/invariants/`) are the
 authoritative runtime enforcement.
+
+## Open Question: What the CaseActor Does With a Rejected Offer
+
+CM-21-010 settles the **addressing** of a declined transfer — a
+`Reject(Offer(VulnerabilityCase))` is addressed to the CaseActor's inbox
+(`to=[case_actor_id]`), symmetric with the Accept path (CM-21-006) and the
+original Offer hop (CM-21-005). What the CaseActor does *on receiving* that
+rejection is deliberately left open:
+
+- **Is the rejection ledgered?** The Accept path commits a `CaseLedgerEntry` and
+  broadcasts `Announce(CaseLedgerEntry)` (CM-21-007). It is unresolved whether a
+  declined transfer earns a ledger entry of its own, or leaves no canonical
+  trace beyond the CaseActor's local state reverting.
+- **Does the offerer learn of the rejection?** With the Reject addressed to the
+  CaseActor rather than the offerer, the offerer is not a direct recipient. Some
+  notification hop (or a ledger broadcast, per the point above) would be needed
+  for the offerer to discover the decline.
+- **Is the case re-offerable?** Whether a rejected Offer can be re-issued to the
+  same transferee, or to a different one, and whether any cooldown or state
+  cleanup is required first, is unspecified.
+
+These are received-side behavioral questions, distinct from the routing rule
+CM-21-010 fixes; resolving them will likely add received-side CM-21 entries and
+may warrant an ADR extension to ADR-0053.
