@@ -1802,7 +1802,7 @@ class TestViolationPxaEmEntailment:
     """
 
     def _check(self, pxa, em):
-        from vultron.core.states.cross_machine_invariants import (
+        from vultron.core.states.composite_state_invariants import (
             violation_pxa_em_entailment,
         )
 

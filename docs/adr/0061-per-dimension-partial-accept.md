@@ -99,8 +99,8 @@ Per-dimension rules:
 > a forward move, so the carried value always ranks at or above the asserted one
 > on the RM progress scale.
 >
-> Emit and receive share one evaluator, `cross_machine_violations()` in
-> `vultron/core/states/cross_machine_invariants.py`. Before this amendment the
+> Emit and receive share one evaluator, `composite_state_violations()` in
+> `vultron/core/states/composite_state_invariants.py`. Before this amendment the
 > receive path composed only VF↔D by hand while the emit path composed all
 > three, so an assertion the actor would have refused to *emit* was accepted,
 > hash-chained and replicated when it arrived from a peer instead.

@@ -12,7 +12,7 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-"""Unit tests for `vultron.core.states.cross_machine_invariants`.
+"""Unit tests for `vultron.core.states.composite_state_invariants`.
 
 Covers violation_vf_d_entailment (#2893): d=D requires vf=VF (the *fD* compound
 state is structurally impossible, per CSB-17-001), and the derivation of
@@ -61,7 +61,7 @@ class TestRmStatesConsistentWithFix:
         graph means adding an RM transition cannot silently invalidate the
         approximation.
         """
-        from vultron.core.states.cross_machine_invariants import (
+        from vultron.core.states.composite_state_invariants import (
             RM_STATES_CONSISTENT_WITH_FIX,
         )
 
@@ -88,7 +88,7 @@ class TestRmStatesConsistentWithFix:
         an oversight. Closing it needs the participant's RM *history*; no
         predicate over one snapshot can do it.
         """
-        from vultron.core.states.cross_machine_invariants import (
+        from vultron.core.states.composite_state_invariants import (
             RM_STATES_CONSISTENT_WITH_FIX,
         )
 
@@ -106,7 +106,7 @@ class TestRmStatesConsistentWithFix:
     @pytest.mark.spec("CSB-18-001")
     def test_states_off_the_acceptance_path_are_excluded(self):
         """No pre-acceptance state licenses the F bit."""
-        from vultron.core.states.cross_machine_invariants import (
+        from vultron.core.states.composite_state_invariants import (
             RM_STATES_CONSISTENT_WITH_FIX,
         )
 
@@ -121,7 +121,7 @@ class TestViolationVfDEntailment:
     """Unit tests for violation_vf_d_entailment() (#2893)."""
 
     def _check(self, vf, d):
-        from vultron.core.states.cross_machine_invariants import (
+        from vultron.core.states.composite_state_invariants import (
             violation_vf_d_entailment,
         )
 

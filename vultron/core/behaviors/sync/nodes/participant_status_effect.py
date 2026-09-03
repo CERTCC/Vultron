@@ -13,15 +13,22 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-"""Ledger effect node for add_participant_status_to_participant entries.
+"""Ledger effect nodes for add_participant_status_to_participant entries.
 
 Provides :class:`ApplyParticipantStatusFromLedgerNode`, which applies an
 ``add_participant_status_to_participant`` ledger entry to the local participant
-record, and the RM ratchet that keeps that application monotonic (RSH-05-007,
-ADR-0061).
+record, enforcing the RM ratchet (RSH-05-007) and composite-state entailments
+(RSH-05-021, ADR-0061).
 
-Per specs/multi-actor-demo.yaml DEMOMA-07-003 step 3 and
-specs/sync-ledger-replication.yaml SYNC-02-002.
+Provides :class:`EmitImpossibleStateFaultNode`, which emits
+``Create(ProcessingFault)`` with failure class
+``StatusAssertionRefused/ImpossibleState`` to the CaseActor when the Apply node
+returns FAILURE.  The two nodes are wired in a Selector in ``announce_tree.py``
+to guarantee that either the status is applied successfully or a fault is emitted.
+
+Per specs/multi-actor-demo.yaml DEMOMA-07-003 step 3,
+specs/sync-ledger-replication.yaml SYNC-02-002, and
+specs/received-status-handling.yaml RSH-05-021.
 """
 
 from __future__ import annotations
@@ -39,7 +46,13 @@ from vultron.core.behaviors.sync.nodes.effects import _extract_id_from_field
 from vultron.core.models._helpers import _as_id
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.dimensions import RmDimension
+from vultron.core.models.fault_classes import (
+    VULTRON_FAILURE_STATUS_ASSERTION_REFUSED_IMPOSSIBLE_STATE,
+)
 from vultron.core.models.participant_status import ParticipantStatus
+from vultron.core.states.composite_state_invariants import (
+    composite_state_violations,
+)
 from vultron.core.states.rm import RM, is_rm_at_least
 
 logger = logging.getLogger(__name__)
@@ -249,6 +262,26 @@ class ApplyParticipantStatusFromLedgerNode(DataLayerActionWithPorts):
             return Status.FAILURE
         status_obj = ratcheted
 
+        rm = status_obj.rm.state
+        vf = status_obj.vf.state if status_obj.vf is not None else None
+        d = status_obj.d.state if status_obj.d is not None else None
+        violations = composite_state_violations(rm, vf, d)
+        if violations:
+            self.feedback_message = violations[0].message
+            self.logger.warning(
+                "%s: ledger entry '%s' for participant '%s' describes an"
+                " impossible composite state (rm=%s, vf=%s, d=%s):"
+                " %s — refusing to apply (RSH-05-021)",
+                self.name,
+                status_id,
+                participant_id,
+                rm.name,
+                vf.name if vf is not None else "None",
+                d.name if d is not None else "None",
+                violations[0].message,
+            )
+            return Status.FAILURE
+
         # Saved unconditionally: ``status_obj`` carries the RM ratchet applied
         # above; skipping the save would silently discard that ratchet,
         # regressing the replica's RM visibility (RSH-05-007, SYNC-02-002).
@@ -265,3 +298,75 @@ class ApplyParticipantStatusFromLedgerNode(DataLayerActionWithPorts):
             participant_id,
         )
         return Status.SUCCESS
+
+
+class EmitImpossibleStateFaultNode(DataLayerActionWithPorts):
+    """Emit ``Create(ProcessingFault)`` for an impossible composite state.
+
+    This node is the fallback in the Selector that wraps
+    :class:`ApplyParticipantStatusFromLedgerNode`.  When the Apply node returns
+    FAILURE (either from a composite-state entailment violation or from an
+    unreadable local participant record), this node emits a
+    ``Create(ProcessingFault)`` with failure class
+    ``StatusAssertionRefused/ImpossibleState`` to the CaseActor and then returns
+    FAILURE, so the Selector's FAILURE propagates up to block
+    ``PersistReceivedLogEntry`` (SYNC-12-001, RSH-05-021).
+
+    The fault is omitted gracefully when no ``TriggerActivityPort`` is wired
+    (integration tests, demo runners without a trigger factory), so the tree
+    still fails correctly without raising.
+    """
+
+    @classmethod
+    def input_ports(cls) -> dict[str, PortInformation]:
+        ports = super().input_ports()
+        ports["activity"] = PortInformation(data_type=object, required=True)
+        return ports
+
+    @classmethod
+    def _domain_port_remappings(cls) -> dict[str, str]:
+        return {"activity": "/activity"}
+
+    def initialise(self) -> None:
+        super().initialise()
+        self.activity = self.get_input("activity")
+
+    def update(self) -> Status:
+        activity = self.activity
+        if activity is None or self.actor_id is None:
+            self.logger.warning(
+                "%s: missing activity or actor_id — cannot emit ProcessingFault",
+                self.name,
+            )
+            return Status.FAILURE
+
+        failed_id = getattr(activity, "activity_id", None)
+        sender_id = getattr(activity, "actor_id", None)
+        case_id = getattr(activity, "context_id", None)
+
+        if self.trigger_activity_factory is None:
+            self.logger.warning(
+                "%s: no TriggerActivityPort — ProcessingFault not emitted"
+                " for failed activity '%s' (RSH-05-021)",
+                self.name,
+                failed_id,
+            )
+            return Status.FAILURE
+
+        if failed_id and sender_id:
+            self.trigger_activity_factory.emit_processing_fault(
+                actor=self.actor_id,
+                failed_activity_id=failed_id,
+                failure_class=VULTRON_FAILURE_STATUS_ASSERTION_REFUSED_IMPOSSIBLE_STATE,
+                to=[sender_id],
+                case_id=case_id,
+            )
+            self.logger.info(
+                "%s: emitted ProcessingFault/ImpossibleState to '%s'"
+                " for failed activity '%s' (RSH-05-021)",
+                self.name,
+                sender_id,
+                failed_id,
+            )
+
+        return Status.FAILURE

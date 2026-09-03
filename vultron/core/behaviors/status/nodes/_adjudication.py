@@ -30,9 +30,9 @@ from vultron.core.models.dimensions import (
     VfDimension,
 )
 from vultron.core.models.participant_status import ParticipantStatus
-from vultron.core.states.cross_machine_invariants import (
+from vultron.core.states.composite_state_invariants import (
     EntailmentViolation,
-    cross_machine_violations,
+    composite_state_violations,
 )
 from vultron.core.states.cs import (
     CS_d,
@@ -53,7 +53,7 @@ logger = logging.getLogger(__name__)
 
 # `vf` and `d` are the only dimensions the cross-machine entailment pass can
 # refuse, which bounds how many rounds it can need (see
-# `_adjudicate_cross_machine_entailments`).
+# `_adjudicate_composite_state_entailments`).
 _REFUSABLE_DIMENSIONS = 2
 
 # The two per-dimension state types `_effective_state` reads.  A value-restricted
@@ -121,7 +121,7 @@ def _adjudicate_vf(
     between status messages, and strict adjacency belongs to local write nodes
     only (CSB-16-001).  What *does* constrain a first observation is the
     cross-machine entailment pass in
-    :func:`_adjudicate_cross_machine_entailments` — a ready fix still requires
+    :func:`_adjudicate_composite_state_entailments` — a ready fix still requires
     an accepted report (#2906).
     """
     if (
@@ -241,7 +241,7 @@ def _refusal_target(
 
     ``None`` therefore means the contradiction lives entirely in the state the
     receiver already holds, which no per-dimension refusal on this path can
-    repair — see :func:`_adjudicate_cross_machine_entailments`.
+    repair — see :func:`_adjudicate_composite_state_entailments`.
     """
     for candidate in (violation.dimension, *violation.alternatives):
         if candidate in refused:
@@ -267,7 +267,7 @@ def _carry_current_dimension(
     return _d_carry(current_d)
 
 
-def _adjudicate_cross_machine_entailments(
+def _adjudicate_composite_state_entailments(
     current: ParticipantStatus,
     asserted: ParticipantStatus,
     refused: list[str],
@@ -293,8 +293,8 @@ def _adjudicate_cross_machine_entailments(
     These are the same rules the emit path enforces in
     :class:`~vultron.core.behaviors.case.nodes.participant.trigger_validation\
     .ValidateTriggerTransitionsNode`, composed by the shared
-    :func:`~vultron.core.states.cross_machine_invariants\
-    .cross_machine_violations` (CSB-17-001, CSB-18-001, RSH-05-020).  Where the
+    :func:`~vultron.core.states.composite_state_invariants\
+    .composite_state_violations` (CSB-17-001, CSB-18-001, RSH-05-020).  Where the
     emit path refuses the whole trigger, the receive path refuses only the
     disqualified dimension and carries the participant's current value forward
     (RSH-05-001, RSH-05-002).
@@ -329,7 +329,7 @@ def _adjudicate_cross_machine_entailments(
         )
         effective_vf = _effective_state(update_fields, "vf", asserted_vf)
         effective_d = _effective_state(update_fields, "d", asserted_d)
-        violations = cross_machine_violations(
+        violations = composite_state_violations(
             effective_rm, effective_vf, effective_d
         )
         if not violations:
@@ -463,7 +463,7 @@ def _adjudicate_dimensions(
     # Cross-machine entailments on the effective state (CSB-17-001, CSB-18-001,
     # RSH-05-020, #2906): a claim can be individually well-formed in every
     # dimension and still describe a state no sequence of events could produce.
-    _adjudicate_cross_machine_entailments(
+    _adjudicate_composite_state_entailments(
         current,
         asserted,
         refused,
