@@ -74,8 +74,6 @@ or `IMPROVE`:
    fix(pr-execute): address <N> findings from triage
 
    <bullet per finding: phase-name — short description>
-
-   Co-Authored-By: Claude Sonnet 4.6 <noreply@anthropic.com>
    ```
 
 4. Record `commit_ref` (short SHA) for each finding addressed in this commit.
@@ -181,8 +179,6 @@ Commit CI fixes separately from Phase 2 fixes:
 
 ```text
 fix(ci): resolve CI failures — <summary>
-
-Co-Authored-By: Claude Sonnet 4.6 <noreply@anthropic.com>
 ```
 
 Record `commit_ref` for each CI finding addressed.
