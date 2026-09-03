@@ -50,3 +50,7 @@ on the received path, and the choice turns on whether withdrawal of consent is a
 distinct protocol event from rejection. Related: the `cc:`-on-invite removal
 filed as Concern #2996 came out of the same investigation, as did
 [[20260901-2762-optional-lookup-participant-fallback]].
+
+---
+
+**Resolved**: 2026-09-03 — filed as type:Concern #3142 "SIGNATORY has no legal received-side path to reject an embargo revision (lapse-timing contested)" (parent Epic #3125, milestone Protocol Correctness). The concern also captures the deeper lapse-on-propose vs lapse-on-accept question surfaced while grilling this entry. Docs PR: <https://github.com/CERTCC/Vultron/pull/3147>.

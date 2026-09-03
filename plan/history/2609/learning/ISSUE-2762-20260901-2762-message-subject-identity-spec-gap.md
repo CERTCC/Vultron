@@ -47,3 +47,7 @@ did not reuse it.
 
 Interim guidance landed in `vultron/core/AGENTS.md` § "A Message Subject Is
 Never `resolve_receiving_actor_id()`".
+
+---
+
+**Promoted**: 2026-09-03 — captured in `specs/case-ledger-processing.yaml` (new CLP-10-015 and CLP-10-016: message-subject identities MUST be read from the received activity by addressee membership, not from `resolve_receiving_actor_id()`). Docs PR: <https://github.com/CERTCC/Vultron/pull/3147>.

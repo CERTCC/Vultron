@@ -35,3 +35,7 @@ Filed as #3070. Related but distinct: #3051 (the docs build does not run
 `--strict`, so warnings never fail). Fixing either alone leaves a hole:
 issue #3051 makes failures fatal but only when the workflow runs, while #3070
 makes it run but only matters once failures are fatal.
+
+---
+
+**Archived**: 2026-09-03 — tracked in #3070 (OPEN): DOCBW-02-001 trigger paths omit `vultron/**`, the computed source of the executable-example pages. The spec/workflow correction belongs with that issue (it requires a `.github/` workflow change, not doc-only). No promotion here.

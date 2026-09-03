@@ -370,14 +370,7 @@ message.
 
 ### Issue tracker
 
-Issues live in GitHub Issues. See `docs/agents/issue-tracker.md`.
-
-**Epics are the `Epic` issue type, not a label.** An Epic is a first-class
-GitHub issue whose `issueType` is `Epic`, with its member issues wired as
-sub-issues via GraphQL (the `addSubIssue` mutation). There is no "epic" label —
-do not create or search for one. Detect Epics by `issueType.name == "Epic"` and
-find their contents through the sub-issue relationship, not a label query. Create
-them with the `create-epic` skill.
+Issues live in GitHub Issues, including **Epics** (the `Epic` issue type, not a label). See `docs/agents/issue-tracker.md`.
 
 **Never use `gh issue create`** — it cannot set issue types, parent/child
 relationships, or blocker/blocked-by links. Use

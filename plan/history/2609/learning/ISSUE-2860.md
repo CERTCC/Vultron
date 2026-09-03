@@ -34,3 +34,7 @@ on it, grep for the named validator/guard and confirm it actually raises/refuses
 `accepted-provisional` ADRs for present-tense claims of enforcement that no test
 pins, and/or a convention that provisional ADRs phrase unbuilt contracts in the
 future/conditional tense ("will raise") until a linked regression test exists.
+
+---
+
+**Promoted**: 2026-09-03 — general convention captured in `notes/specs-vs-adrs.md` (§ "A Provisional ADR Must Phrase an Unbuilt Contract in the Future Tense"). The specific defects this entry named were already corrected on `main` while resolving #2860 (now CLOSED): ADR-0075 § "Validation" and `notes/case-state-model.md` § "Role-Specific VFD Access" both now describe guard-layer enforcement and the non-raising `mode="before"` auto-seed. Docs PR: <https://github.com/CERTCC/Vultron/pull/3147>.
