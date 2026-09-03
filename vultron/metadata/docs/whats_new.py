@@ -48,19 +48,21 @@ WHATS_NEW_PAGE = "docs/about/whats_new.md"
 NO_PAGES_MESSAGE = "_No pages added in the last 90 days._"
 
 
-# Draft pages that MkDocs excludes from the build (``draft_docs`` in mkdocs.yml)
-# have no built page, so linking to one 404s. Keep this in sync with mkdocs.yml:
-# draft_docs lists ``draft-*.md`` with a single un-drafted exception. (Pages in
-# ``not_in_nav`` are still built and reachable by URL, so they are NOT excluded.)
+# Draft pages that MkDocs excludes from the production build (``draft_docs`` in
+# mkdocs.yml) have no built page, so linking to one 404s. Keep this in sync with
+# mkdocs.yml draft_docs, which lists ``draft-*.md`` (with a single un-drafted
+# exception) and the ``developer/`` tree (maintainer pages, DOCBW-03-004). Pages
+# in ``not_in_nav`` are still built and reachable by URL, so they are NOT excluded.
 _DRAFT_EXCEPTIONS = frozenset({"reference/draft-vultron-spec.md"})
+_DRAFT_DIRS = ("developer/",)
 
 
 def _is_published(path: str) -> bool:
-    """Whether MkDocs builds a page for this source path.
+    """Whether MkDocs builds a production page for this source path.
 
     Excludes underscore-prefixed segments and ``includes/`` (never standalone
-    pages) and ``draft-*`` files that mkdocs.yml ``draft_docs`` drops from the
-    build — a link to any of these would 404.
+    pages), ``draft-*`` files, and the ``developer/`` tree — all dropped from the
+    production build by mkdocs.yml ``draft_docs``, so a link to any would 404.
     """
     rel = path.removeprefix("docs/")
     parts = rel.split("/")
@@ -68,6 +70,8 @@ def _is_published(path: str) -> bool:
         return False
     if rel in _DRAFT_EXCEPTIONS:
         return True
+    if rel.startswith(_DRAFT_DIRS):
+        return False
     return not posixpath.basename(rel).startswith("draft-")
 
 

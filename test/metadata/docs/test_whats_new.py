@@ -63,6 +63,18 @@ def test_render_recent_pages_keeps_undrafted_exception():
     assert "](../../reference/draft-vultron-spec/)" in out
 
 
+def test_render_recent_pages_excludes_developer_tree():
+    """developer/ pages are draft_docs (DOCBW-03-004) — excluded from prod build."""
+    out = render_recent_pages(
+        [
+            "docs/developer/how-to/build.md",
+            "docs/reference/quick_reference.md",
+        ]
+    )
+    assert "developer/how-to/build" not in out
+    assert "quick_reference" in out
+
+
 def test_render_recent_pages_docs_root_index_does_not_crash():
     """docs/index.md collapses to "" — relpath must not raise (#3144)."""
     out = render_recent_pages(["docs/index.md"])
