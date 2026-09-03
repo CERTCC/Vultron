@@ -142,7 +142,23 @@ No open entries.
 > the tracker was closed prematurely, or fixed only one of several races sharing
 > a job name.  Repoint in that case; delete only when the flake is gone.
 >
-> `fvcv-handoff Demo Integration` / `fvcv-handoff Invariant Harness` now point to
+> **`fvcv-handoff` has two distinct signatures — match on the message, not the
+> job name.** The row above points at #2257, but a second, unrelated failure
+> shape is live as of 2026-09-03 and is tracked by **#2768**:
+>
+> ```text
+> CHECK FAILED: Vendor2 replica matches authoritative Vendor1 state —
+> Auth has no entry at index 19 — replica is ahead of auth or coverage check is stale
+> ```
+>
+> Confirmed on `main` @ `dd93fecbd` as well as twice on PR #3110, always at index
+> 19 — the scenario is deterministic in shape so the race window sits at the same
+> entry, which makes a single log look deterministic. `main` passed the run
+> before, so it is intermittent. Note that `auth` here is Vendor1, itself a
+> fanout recipient rather than the CaseActor, so this is two replicas racing and
+> `sync.py` tolerates auth ahead but not auth behind.
+>
+> `fvcv-handoff Demo Integration` / `fvcv-handoff Invariant Harness` also point to
 > #2257 (`AddCaseParticipantReceivedBT` failure).  Root error:
 > `VultronValidationError: AddCaseParticipantReceivedBT did not succeed ... case '...' not found`
 > — finder receives `add_case_participant_to_case` before the case exists in its
