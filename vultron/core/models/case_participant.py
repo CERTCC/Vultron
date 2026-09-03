@@ -43,11 +43,18 @@ from vultron.core.models._helpers import _new_urn
 from vultron.core.models._wire_spelling import reject_wire_spelled_keys
 from vultron.core.models.base import CoreObject, NonEmptyString
 from vultron.errors import VultronValidationError
-from vultron.core.models.dimensions import PecDimension, RmDimension
+from vultron.core.models.dimensions import (
+    DDimension,
+    PecDimension,
+    RmDimension,
+    VfDimension,
+)
 from vultron.core.models.participant_status import (
     ParticipantStatus,
     coerce_cvd_roles,
     coerce_em_consent_state,
+    participant_status_d_state,
+    participant_status_vf_state,
 )
 from vultron.core.states.participant_embargo_consent import PEC, PEC_Trigger
 from vultron.core.states.rm import RM, is_valid_rm_transition
@@ -233,11 +240,8 @@ class CaseParticipant(CoreObject):
         Returns:
             ``True`` when the status was appended, ``False`` when blocked.
         """
-        current = (
-            self.participant_statuses[-1].rm.state
-            if self.participant_statuses
-            else RM.START
-        )
+        latest = self.participant_status
+        current = latest.rm.state if latest is not None else RM.START
         if not is_valid_rm_transition(current, rm_state):
             logger.warning(
                 "Invalid RM transition %s → %s for participant %s; skipping",
@@ -247,9 +251,30 @@ class CaseParticipant(CoreObject):
             )
             return False
         _consent_state = coerce_em_consent_state(self.embargo_consent_state)
+        # Carry the vendor and deployer paths forward.  Omitting them does not
+        # leave them absent: `ParticipantStatus` re-seeds `vf` for a VENDOR and
+        # `d` for a DEPLOYER at their *initial* state, so an RM-only append
+        # silently reset a vendor that had already reached VF back to
+        # vendor-unaware (#2264's failure mode, #3111).
+        current_vf = (
+            participant_status_vf_state(latest) if latest is not None else None
+        )
+        current_d = (
+            participant_status_d_state(latest) if latest is not None else None
+        )
         self.participant_statuses.append(
             ParticipantStatus(
                 rm=RmDimension(state=rm_state),
+                vf=(
+                    VfDimension(state=current_vf)
+                    if current_vf is not None
+                    else None
+                ),
+                d=(
+                    DDimension(state=current_d)
+                    if current_d is not None
+                    else None
+                ),
                 context=context,
                 attributed_to=actor,
                 consent=(

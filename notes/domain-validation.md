@@ -411,7 +411,33 @@ The composed evaluator is `participant_transition_violations()` in
 `behaviors/case/nodes/participant/common.py`, which also owns the
 `feedback_message` rendering and the `result_out["error"]` write. The
 `test/architecture/test_participant_status_validation.py` ratchet fails any node
-that names an individual predicate instead.
+that names an individual predicate instead, and discovers the population of
+validators structurally rather than from a list — which is how it found the two
+writers below. Its `_DECLARED_EXCLUSIONS` records the sites that legitimately sit
+outside the evaluator, each with a reason; the unresolved consolidation is #3111.
+
+### Pitfall: an RM-only append resets the vendor and deployer paths
+
+`ParticipantStatus` re-seeds `vf` for a VENDOR and `d` for a DEPLOYER at their
+**initial** state when the field is omitted (`_seed_role_dimensions`). So a
+status built with only `rm` does not leave those dimensions alone — it silently
+rewinds them:
+
+```python
+# vendor at vf=VF (fix ready)
+participant.append_rm_state(RM.CLOSED, actor, context)
+# -> latest status now reads vf=vf (vendor unaware); the fix un-happened
+```
+
+`CaseParticipant.append_rm_state()` did exactly this until #3111. Any writer that
+appends a `ParticipantStatus` MUST carry the participant's current `vf`/`d`
+forward, the way `CreateParticipantStatusNode` does. This is the #2264 rule —
+absence and an initial value are different things — and omission is the third
+door onto it, alongside assignment and `append`.
+
+The general shape: **a model that auto-seeds a field on construction turns
+"omit it" into "reset it".** Check every constructor call for a type with
+`mode="before"` seeding validators.
 
 ### Pitfall: composing the set exposed a standing RM violation
 
