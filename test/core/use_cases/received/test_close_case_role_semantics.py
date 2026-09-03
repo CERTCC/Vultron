@@ -192,6 +192,7 @@ def _seed_rm(dl: SqliteDataLayer, actor_id: str, rm_state: RM) -> None:
     rung, and a bystander retains whatever rung it was seeded at.
     """
     case = dl.read(CASE_ID)
+    assert isinstance(case, VulnerabilityCase)
     participant_id = case.actor_participant_index[actor_id]
     participant = dl.read(participant_id)
     assert isinstance(participant, CaseParticipant)

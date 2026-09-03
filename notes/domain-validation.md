@@ -8,7 +8,7 @@ description: >
 related_specs:
   - specs/architecture.yaml (ARCH-10-001, ARCH-15-001 through ARCH-15-004,
     ARCH-21-001 through ARCH-21-005)
-  - specs/case-management.yaml (CM-27-001 through CM-27-003)
+  - specs/case-management.yaml (CM-23-012, CM-27-001 through CM-27-003)
   - specs/participant-role-management.yaml (PRM-03-003)
   - specs/error-handling.yaml (EH-05-002, EH-07-001 through EH-07-003)
   - specs/behavior-tree-node-design.yaml (BTND-10-001 through BTND-10-003)
