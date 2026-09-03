@@ -390,6 +390,42 @@ that concern, children of Epic #1394). As each B site migrates, remove its
 Activity type from the DL-05-004 exemption set (DL-06-005) until the set reaches
 zero.
 
+## A DataLayer Fallback Is a Smell for a Masked Protocol Bug
+
+Reading a protocol-significant field from the DataLayer *as a fallback* — when
+that field could have arrived in the received message — is a smell for a masked
+bug or race. When a handler tries `event.activity.object_...` and, finding it
+absent, falls back to `dl.read(...)`, it usually only works because a prior
+delivery happened to store the value; that hidden dependency on delivery order
+is a latent race, not a safety net.
+
+`_read_invite_roles()` in
+`vultron/core/use_cases/received/accept_invite_tree.py` (ISSUE-2719) read invite
+roles from the DataLayer rather than from the received activity. A protocol field
+that is *present in the message* must be read from the message; treating the
+DataLayer as a substitute source silently tolerates a message that never carried
+it.
+
+**How to apply:**
+
+- Read protocol-significant fields from the received message
+  (`event.activity.object_...`) — the authoritative carrier under the Actor
+  Knowledge Model.
+- A **missing** protocol field is a protocol VIOLATION, not a cue to search the
+  store: log it and return an empty/default result. Do not silently DL-fallback.
+- DataLayer reads stay correct for **persisted state that cannot travel in the
+  message** — the local `VulnerabilityCase` for derived fields, idempotency/dedup
+  guards, correlation indexes. The smell is specifically substituting a DL read
+  for a field the message should have carried.
+
+This is the same message-primacy principle as the semantic-content rule in
+[Activity Read-Back](#activity-read-back-semantic-content-vs-envelope-reconstitution-adr-0035-dl-06)
+(DL-06-001/002: core MUST NOT re-read a stored activity to interpret it) and the
+message-subject-identity rule in
+[notes/wire-core-boundary.md](wire-core-boundary.md).
+
+*Source: ISSUE-2719 — `_read_invite_roles()` DataLayer fallback.*
+
 ## Received Activity Artifacts: Inline Sub-Field Snapshots Are Intentional
 
 **Principle.** A received Activity is an **artifact** — the exact wire object

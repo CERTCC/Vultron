@@ -15,3 +15,7 @@ fires) must be structurally valid before the system promotes `pXa → PXa`. If w
 `pxa → PXa` would look like a 2-dimension simultaneous jump and be rejected incorrectly.
 
 This ordering is tested explicitly by `test_ephemeral_pXa_promoted_before_write`.
+
+---
+
+**Archived**: 2026-09-03 — already captured. Validating the ephemeral/requested compound state before promotion-to-forced-form-for-storage is the two-boundary model in `specs/cs-behavior.yaml` CSB-17-003 (refines SM-09-001) — the pX→PX case this entry describes. No new promotion needed.

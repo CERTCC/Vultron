@@ -54,3 +54,7 @@ a new one with `model_copy(update=...)` — the established idiom in this codeba
 Whenever a helper takes a shared fixture and returns "the same thing, adjusted",
 check who else holds that instance before reaching for mutation.
 See [[wire-artifact-immutability]].
+
+---
+
+**Promoted**: 2026-09-03 — captured in `notes/wire-artifact-immutability.md` ("Clearing a Field: `model_copy`, Not a Cast-Silenced Assignment"). Docs PR: <https://github.com/CERTCC/Vultron/pull/3147>.

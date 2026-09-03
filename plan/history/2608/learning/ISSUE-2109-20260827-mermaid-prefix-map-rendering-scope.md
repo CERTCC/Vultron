@@ -22,3 +22,7 @@ composes recursively: each node controls the rendering of its direct children.
 **How to apply:** When adding a `_mermaid_prefix_map` override to customise
 display, place it on the *composite* (non-leaf) node that owns the subtree, not
 on the leaf nodes whose names should change.
+
+---
+
+**Promoted**: 2026-09-03 — captured in `notes/bt-pitfalls.md` ("`_mermaid_prefix_map` Is Scoped to the Rendering Node, Not the Named Node"). Docs PR: <https://github.com/CERTCC/Vultron/pull/3147>.

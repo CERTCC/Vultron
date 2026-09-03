@@ -52,3 +52,7 @@ learning).
   polarity reversed: the semantic loss was in the *merged-in* branch's
   resolution, not in `main`'s new callers. Reviewing a catch-up merge means
   diffing the resolved file against **both** parents, not just running the suite.
+
+---
+
+**Promoted**: 2026-09-03 — captured in `notes/git-workflow-pitfalls.md` ("A Catch-Up Merge Can Silently Revert a Prior PR's Wiring — Diff Against Both Parents"). Docs PR: <https://github.com/CERTCC/Vultron/pull/3147>.

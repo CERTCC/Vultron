@@ -17,6 +17,7 @@ related_notes:
   - notes/datalayer-design.md
   - notes/triggers-test-coverage.md
   - notes/demo-ci-invariants.md
+  - notes/wire-artifact-immutability.md
 relevant_packages:
   - pytest
   - py_trees
@@ -404,6 +405,60 @@ path entirely untested.
 per path where that path is the *sole* source of truth — all other paths are left
 empty or unpopulated. "One test exercises both paths" means neither path is
 verified independently.
+
+### A Wrong Base Class Silently Skips the Branch the Test Names
+
+A fixture built on the wrong base class can report a function as covered while
+never executing the line that matters — worse than missing coverage, which at
+least reads as a known gap. A `test_json2md` passed continuously while the
+function was 100% broken for every real input, because its fixture was
+`class Foo(as_Base)`: the code is guarded by `hasattr(obj, "published")`, but
+`published`/`updated` live on `as_Object`, one level down, so the guard evaluated
+`False`, the body never ran, and the test asserted nothing went wrong.
+
+**Pattern:** when a function branches on `hasattr`, `isinstance`,
+`in model_fields`, or any other capability probe, the fixture MUST be a type that
+*takes* the branch. Prefer a real domain type over a minimal stand-in subclass
+(here `as_VulnerabilityReport`, not a local `Foo(as_Base)`). When a stand-in is
+genuinely needed, assert the precondition explicitly so the fixture cannot
+silently drift out of the branch:
+
+```python
+report = _frozen_report()
+self.assertIsNotNone(report.published)
+self.assertTrue(type(report).model_config.get("frozen"))
+```
+
+`as_Base` and `as_Object` differ in both field set *and* mutability (ADR-0017),
+so picking the wrong one changes what the test can possibly detect — see
+[notes/wire-artifact-immutability.md](wire-artifact-immutability.md).
+
+Source: ISSUE-2904
+
+### A Received-Side Test Only Sees Bugs Its Fixture Shape Can Reach
+
+Three fixture/assertion traps that let a sender-side field silently vanish before
+core code could read it (the sending and receiving halves were tested separately
+and each was right about its own side):
+
+- **A "so that receivers can…" clause in a spec is a claim about the *receiving*
+  side.** It is not satisfied by the sender setting the field. Assert it by
+  reading the field back out of the *extracted event* (`request.activity`), not
+  out of the wire object the sender built.
+- **Fixture shape decides which bug a test can see.** A received-side fixture in
+  the *simple* shape (`actor=vendor_id`) cannot detect a defect that only appears
+  in the *delegated* shape (`actor=case_actor_id, attributed_to=vendor_id`), even
+  when its assertion names the right field — because in the simple shape
+  `request.actor_id` happens to equal the value being checked. For anything under
+  CM-24, seed `actor=case_actor_id` with a *distinct* `attributed_to`; if the two
+  are the same actor, the test proves nothing about which one the code read.
+- **Field-by-field copy functions rot silently.** A builder like
+  `_build_activity_snapshot` that enumerates fields by hand omits every field
+  added to the source type since it was written, and nothing fails. When a
+  received-side read comes up empty, suspect the extraction/snapshot copy before
+  the sender.
+
+Source: ISSUE-2789
 
 ---
 

@@ -189,6 +189,36 @@ MS-14). The `decision-audit` skill hunts for exactly this contradiction.
 > more thing to keep in sync and one more source of drift. Expanding the status
 > vocabulary keeps a single source of truth. See ADR-0043.
 
+### A Provisional ADR Must Phrase an Unbuilt Contract in the Future Tense
+
+The `accepted-provisional` status warns that the *decision* is unvalidated, but
+it does not stop the prose from asserting an *enforcement contract* in the
+present, definite tense of a shipped one. That is a distinct trap: a reader (or
+a downstream note that quotes the ADR verbatim) takes "the validator raises
+`X` on violation" as a fact about the code, when it names an intended behavior
+that was never built — and nothing ties the sentence to a test, so the drift is
+silent. ADR-0075 did exactly this: it stated that `ParticipantStatus`
+construction "validates role-dimension invariants… raising `VultronValidationError`",
+a `mode="after"` raise that was never written (the real validator is a
+`mode="before"` auto-seed that deliberately does not raise). `notes/case-state-model.md`
+copied the claim, and a bug (#2860) was filed on the false premise that the
+invariant was unenforced — when it is in fact enforced at the guard layer.
+
+**How to apply:**
+
+- When writing a provisional (or proposed) ADR, phrase any not-yet-built
+  enforcement in the **future or conditional** tense ("will raise", "is expected
+  to refuse") until a linked regression test pins it. Reserve present-tense
+  "raises / refuses / validates" for behavior that a test actually exercises.
+- Before relying on a provisional ADR's present-tense enforcement claim — or a
+  note that cites one — grep for the named validator/guard and confirm it truly
+  raises or refuses. The claim may be aspirational.
+- This is the tense-level companion to the cardinal rule above: the status must
+  match the *decision's* confidence, and the prose tense must match the
+  *implementation's* build state.
+
+Source: ISSUE-2860
+
 ## Cross-Referencing Pattern
 
 When creating both an ADR and spec entries, wire them together:

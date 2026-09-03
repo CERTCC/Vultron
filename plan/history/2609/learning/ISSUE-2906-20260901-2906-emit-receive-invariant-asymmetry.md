@@ -44,3 +44,7 @@ the other.
 the emit path does not call the individual predicates directly. Composing the
 rule set — not just sharing the individual predicates — is what makes the
 divergence impossible rather than merely fixed. Recorded as RSH-05-020.
+
+---
+
+**Promoted**: 2026-09-03 — captured in `notes/predicates-rule-layer.md` ("Auditing for One-Sided Invariants (Emit vs. Receive)"). Docs PR: <https://github.com/CERTCC/Vultron/pull/3147>.

@@ -102,6 +102,20 @@ suspenders for edge cases the runtime guard might miss).
 4. Run `test/test_semantic_activity_patterns.py`.
 5. If `RegistryOrderError`, move entry earlier than the conflicting general one.
 
+### Extraction Port Return Type — Return the Discriminated Union, Not the Base
+
+`extract_intent()` / `extract_event()` MUST declare their return type as
+`AnyReceivedEvent` (defined in `vultron/core/models/events/__init__.py` as the
+`Union` of every concrete `*ReceivedEvent` subclass), **not** the base
+`VultronEvent`. Returning the union is what lets callers narrow exhaustively at
+the port boundary — a base-class alias erases the discriminant and forces
+downstream `isinstance` guessing. This is an internal typing convention (a peer
+implementation cannot observe our return annotation), so it lives here rather
+than in `specs/`; it is the concrete application of CS-10-001's "named,
+domain-typed objects at port boundaries" to the semantic-extraction port.
+
+Source: ISSUE-2491
+
 ---
 
 ## Constructing Outbound Activities

@@ -2311,6 +2311,40 @@ groups:
     stories:
     - story_2022_050
     - story_2022_051
+  - id: CM-21-010
+    priority: MUST
+    kind: protocol
+    statement: >-
+      An actor emitting `Reject(Offer(VulnerabilityCase))` (ownership-transfer
+      variant) MUST address the activity to the CaseActor's inbox
+      (`to: [case_actor_id]`) rather than directly to the offerer.
+    rationale: >-
+      Rejection routing must be symmetric with the Accept path (CM-21-006): the
+      Offer was addressed to the CaseActor (CM-21-005), so its rejection must be
+      too.  If the transferee's Reject goes only to the offerer, the CaseActor —
+      the authoritative record of ownership — never learns the transfer was
+      declined and its view of who owns the case can silently diverge from
+      reality.  What the CaseActor does on receiving a rejection (whether it
+      ledgers the declined transfer, whether the offerer is notified, and
+      whether the case may be re-offered) is a separate open question tracked in
+      `notes/ownership-transfer.md`.
+    note: >-
+      This entry governs *addressing* only, mirroring CM-21-005/CM-21-006. The
+      downstream received-side behavior of the rejection is deliberately out of
+      scope here — see the Open Question in `notes/ownership-transfer.md`.
+    verification: >-
+      Inspection of `vultron/demo/exchange/transfer_ownership_demo.py` confirms that an
+      ownership-transfer `Reject(Offer(VulnerabilityCase))` is addressed to the CaseActor's inbox
+      (`to: [case_actor_id]`), symmetric with the Accept path.
+    relationships:
+    - rel_type: refines
+      spec_id: CM-21-001
+    - rel_type: refines
+      spec_id: CM-21-006
+    adr:
+    - ADR-0053
+    lint_suppress:
+    - missing_story_reference
 - id: CM-22
   title: CaseActor-Authoritative Case Creation
   description: >-
@@ -3355,9 +3389,17 @@ groups:
       so that timestampless statuses sort to the bottom rather than the top.
       Source: #2737.
     verification: >-
-      Unit test: construct a VulnerabilityCase with an auto-seeded status
-      (urn:uuid ID, no timestamps) and a received status (HTTPS ID, no
-      timestamps); assert current_status returns the received status.
+      Unit test the ordering key `status_recency_key` in
+      `vultron/core/models/_helpers.py` directly, since that is where both the
+      `current_status` and the wire `as_CaseStatus` readers converge. Construct
+      two status projections that carry no `updated`/`published` timestamps —
+      one with a `urn:uuid:` ID and one with an `https://` ID — and assert the
+      key orders them by neither ID scheme (both must sort to the bottom via the
+      `datetime.min` fallback). Note: only the wire-side projection can actually
+      present timestampless statuses; core `CaseStatus` re-narrows `published`
+      and `updated` to non-`Optional` aware datetimes via `CoreObject`, so the
+      timestamp-absent branch is unreachable defensive code on the core path and
+      only exercisable on the `as_CaseStatus` wire branch.
     relationships:
     - rel_type: refines
       spec_id: CM-27-001
