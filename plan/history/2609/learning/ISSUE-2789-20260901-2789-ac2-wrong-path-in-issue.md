@@ -38,3 +38,7 @@ Related: the AC-4 clause "new integration test verifies Finder notification via
 ledger broadcast" was likewise already delivered, as
 `TestOwnershipTransferAnnounceReachesFinderAC5c` in
 `test/demo/test_fvcv_handoff_demo.py` (commit `36a7ba97c`).
+
+---
+
+**Promoted**: 2026-09-03 — captured in `notes/git-workflow-pitfalls.md` ("An Issue That Names a Missing File Is Making a Claim About the Path, Not the Behaviour"). Docs PR: <https://github.com/CERTCC/Vultron/pull/3147>.

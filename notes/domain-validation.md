@@ -615,3 +615,29 @@ inspection to a `model_post_init` or a class-level
 `@model_validator(mode="before")`.
 
 Source: ISSUE-2294
+
+## Pitfall: `mode="before"` Validators Run in Reverse Definition Order
+
+When a Pydantic v2 model declares multiple `@model_validator(mode="before")`
+validators, they execute in **reverse definition order** — the last-defined
+validator runs first. Two before-validators with an ordering dependency are a
+silent-data-loss trap, because the dependency is invisible from reading the
+model top to bottom.
+
+`ParticipantStatus` hit exactly this
+(`vultron/core/models/participant_status.py`): `_enforce_role_dimension_invariant`
+is defined *after* `_migrate_flat_fields`, so it ran *first*, saw `data["vf"]`
+absent, seeded `data["vf"] = {}`, and `_migrate_flat_fields` then found the key
+already present and skipped flat-key migration — a `vf_state=CS_vf.Vf` passed at
+construction was silently reset to the initial state.
+
+**How to apply:** when two `mode="before"` validators on the same model have an
+ordering dependency, either (a) merge them into a single validator, or (b) guard
+the later-running (earlier-defined) one against data the first-running
+(later-defined) one has already set — e.g. check for the flat keys (`vf_state`,
+`vfState`, `d_state`, `dState`) before seeding an empty dict, so the invariant
+only seeds when *no* form of the value is present in the raw data. This is the
+same silent-reset family as the shape-guard pitfall above ([Shape Guards](#shape-guards-one-canonical-reader-per-dimension-2232)):
+an absent-looking dimension quietly substituted for a real one.
+
+*Source: ISSUE-2662 — reverse-order regression fixed in `ParticipantStatus`.*

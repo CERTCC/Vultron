@@ -25,3 +25,7 @@ A follow-up spec entry should be added covering:
 - SE-XX-YYY: The semantic extraction port (extract_intent / extract_event) MUST
   declare its return type as the full discriminated union of concrete
   VultronEvent subclasses rather than the base VultronEvent type.
+
+---
+
+**Promoted**: 2026-09-03 — captured in `vultron/wire/as2/AGENTS.md` (§ "Extraction Port Return Type — Return the Discriminated Union, Not the Base"). Not routed to `specs/`: the extraction port return annotation is not protocol-observable by a peer implementation. Docs PR: <https://github.com/CERTCC/Vultron/pull/3147>.

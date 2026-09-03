@@ -36,3 +36,7 @@ have.
 
 `_adjudicate_case_status` has the same absent-current shape for `pxa` and the
 same answer, noted in its docstring.
+
+---
+
+**Promoted**: 2026-09-03 — captured in `notes/status-dimension-objects.md` ("History-Relative Rules Cannot Constrain a First Observation"). Docs PR: <https://github.com/CERTCC/Vultron/pull/3147>.

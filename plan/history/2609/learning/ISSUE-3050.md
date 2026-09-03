@@ -51,3 +51,7 @@ Pinned by `test_never_combination_is_root_for_a_role_holder` and
 `test_role_gate_derives_its_entailments` in
 `test/core/states/test_participant_transitions.py`, which encode both halves so
 the semantics cannot be "corrected" back.
+
+---
+
+**Archived**: 2026-09-03 — already captured. `specs/error-handling.yaml` EH-07-002 already states the remediation premise this entry asks for (a violation is derived when the caller's expected remediation for the overlapping single-dimension violation also clears it; for a role gate that remediation is withdrawing the assertion, not acquiring the role — cites ADR-0075), and its rationale records the three-reviewers lesson. Pinned by `test_never_combination_is_root_for_a_role_holder` and `test_role_gate_derives_its_entailments`. No new promotion needed.

@@ -812,3 +812,23 @@ producer MUST clear its own key on every no-op tick — is in
 § "Per-dimension partial accept".
 
 Source: CONCERN-2711
+
+## `_mermaid_prefix_map` Is Scoped to the Rendering Node, Not the Named Node
+
+`BtNode.to_mermaid()` defines its `fixname()` helper as a closure over
+`self._mermaid_prefix_map` — where `self` is the node that *called*
+`to_mermaid()`, not the node whose name is being rendered
+(`vultron/bt/base/bt_node.py`). Because `to_mermaid()` composes recursively with
+each node rendering the names of its direct children, a prefix override always
+comes from the **parent** doing the rendering:
+
+- A `_mermaid_prefix_map["c"] = "CHECK: "` override on a composite applies to all
+  of that composite's children as it renders them.
+- An override placed on a *leaf* has no effect when a parent renders that leaf's
+  name — the parent's map wins.
+
+**How to apply**: to customise a subtree's mermaid display, place the
+`_mermaid_prefix_map` override on the **composite (non-leaf) node that owns the
+subtree**, never on the leaf nodes whose names you want changed.
+
+Source: ISSUE-2109

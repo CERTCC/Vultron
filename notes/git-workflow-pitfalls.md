@@ -68,6 +68,44 @@ API name in `vultron/` and `test/` via `grep` rather than waiting for failures.
 
 Source: ISSUE-2238
 
+## A Catch-Up Merge Can Silently Revert a Prior PR's Wiring — Diff Against Both Parents
+
+The polarity-reversed twin of the previous entry: there, the semantic loss was in
+`main`'s new callers; here it is in the **merged-in branch's conflict resolution**.
+A branch cut from a pre-refactor `main` resolves a conflict by keeping its own
+side, restoring a procedural call site that a prior PR had moved into a BT node —
+and every test still passes, because both shapes queue the same activity in the
+same outbox with the same factory kwargs. The distinguishing fact (*which tree
+`execute()` builds*) is a structural property no behavioural assertion covered.
+
+Two rules:
+
+- **Reviewing a catch-up merge means diffing the resolved file against *both*
+  parents**, not just running the suite. A conflict resolution that keeps "our"
+  side can revert an upstream rewiring without a single failing test.
+- **When a refactor's whole point is *where* a side effect happens** (e.g.
+  CLP-10-005 / ADR-0022 moving a forward out of `execute()` into a node), add an
+  assertion on the *structure*, not only on the effect: spy the tree factory, and
+  `assert not hasattr(module, "<retired helper>")`. Testing a new tree factory in
+  isolation proves nothing calls it — grep for callers of a new factory before
+  closing the issue; a factory with only test callers is a red flag.
+
+Source: ISSUE-2789
+
+## An Issue That Names a Missing File Is Making a Claim About the Path, Not the Behaviour
+
+When an issue body names a file path and says it "does not exist yet", verify the
+*capability* does not already exist elsewhere before creating the file. An issue
+written before a feature landed will name a plausible-but-wrong location, so the
+file genuinely is absent — but the behaviour it describes may already ship under a
+different path, and creating the named file duplicates it (e.g. a second
+FVCV-handoff demo in `demo/exchange/` when the real multi-container scenario lives
+in `demo/scenario/`). How to apply: grep the bare filename repo-wide first;
+`notes/` cross-references are the fastest tell of the real path, since they track
+it. Treat "the file does not exist" as a claim about the path, not the behaviour.
+
+Source: ISSUE-2789
+
 ## Multiple Related Fix PRs Targeting a Shared CI Suite Must Use an Integration Branch
 
 When 3+ related bug fix PRs are open simultaneously and all affect the same CI

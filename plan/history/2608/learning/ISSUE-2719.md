@@ -57,3 +57,7 @@ specifically to fields that the protocol message itself is supposed to carry.
   Accept arrived.
 - Fixed 2026-08-27 by reading from `event.activity.object_` (the raw wire Invite
   embedded in the Accept activity).
+
+---
+
+**Promoted**: 2026-09-03 — captured in `notes/datalayer-design.md` ("A DataLayer Fallback Is a Smell for a Masked Protocol Bug"). Docs PR: <https://github.com/CERTCC/Vultron/pull/3147>.

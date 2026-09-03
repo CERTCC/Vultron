@@ -53,3 +53,7 @@ target the wire projection (or note the core path is defensive/unreachable).
 The related wire-layer question — whether `validate_datetime` should normalize
 naive datetimes at the edge (ADR-0032) rather than each consumer coercing — is
 tracked separately as Concern #3098 (do not re-track it here).
+
+---
+
+**Promoted**: 2026-09-03 — captured in `specs/case-management.yaml` (CM-29-001 verification refined: test `status_recency_key` directly; the timestamp-absent branch is unreachable on the core path — `CoreObject` re-narrows to non-Optional aware datetimes — and exercisable only on the wire `as_CaseStatus` branch). Docs PR: <https://github.com/CERTCC/Vultron/pull/3147>.

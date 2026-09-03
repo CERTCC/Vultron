@@ -2,14 +2,14 @@
 name: commit
 description: >
   Thin git stage-and-commit wrapper. Stages the specified files and commits
-  with a clear message and the required Co-authored-by trailer. Does not
+  with a clear message. Does not
   perform finalization (history updates, plan cleanup) — the caller owns that.
   Use after all finalization and validation steps are complete.
 ---
 
 # Skill: Commit
 
-Stage and commit changes with the required Co-authored-by trailer. This skill
+Stage and commit changes. This skill
 does only one thing: git add + git commit. The caller is responsible for all
 finalization steps (updating history files, cleaning plan files, running
 linters and tests) before invoking this skill.
@@ -37,18 +37,13 @@ unless every change in the working tree belongs to this commit.
 ```bash
 uv run git commit -m "<subject line>
 
-<body: what changed and why, as bullet points>
-
-Co-authored-by: Claude Sonnet 4.6 <noreply@anthropic.com>"
+<body: what changed and why, as bullet points>"
 ```
 
 Commit message conventions:
 
 - Subject line: imperative mood, ≤72 characters, no trailing period
 - Body: bullet points describing what changed and why
-- **`Co-authored-by` trailer is required on every commit** — include it
-  verbatim as the last line of every commit message, including history
-  archive commits. `pr-triage` Phase 3 flags any commit that is missing it.
 
 ## Constraints
 
