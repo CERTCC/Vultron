@@ -929,8 +929,9 @@ class TestCreateParticipantStatusNode:
 
         The adjacent transition vf → Vf is structurally valid; the node must
         still refuse it when the actor lacks VENDOR role.  This tests the
-        write-boundary defense-in-depth check in _check_vf_precondition,
-        bypassing ValidateTriggerTransitionsNode.
+        write-boundary defense-in-depth check the write node performs through
+        participant_transition_violations() (BTND-10-003), bypassing
+        ValidateTriggerTransitionsNode.
         """
         from py_trees.common import Status
         from vultron.core.models.case_participant import CaseParticipant

@@ -77,10 +77,16 @@ from vultron.core.states.rm import RM, is_valid_rm_transition
 from vultron.enums.roles import CVDRole
 from vultron.errors import Violation
 
-# VF states that assert vendor awareness or fix readiness.  Both are
-# VENDOR-specific: only an actor that maintains the affected product can become
-# aware of the report as its vendor or produce a fix for it.
+# The spec each VF state's VENDOR requirement traces to.  The gate covers
+# *every* VF value, not only the ones that assert awareness or fix readiness:
+# the vendor path belongs to VENDOR participants, so a non-VENDOR asserting any
+# `vf` value is claiming a dimension it does not have (ADR-0075).  This is the
+# same rule `_d_violations` applies to the deployer path (#2963); the two
+# dimensions had drifted apart, with `vf` gating only `{Vf, VF}`, which let a
+# non-VENDOR open a vendor path at `vf` that SM-09-001's public-disclosure
+# promotion then advanced to `Vf` behind the gate's back (#3135).
 _VENDOR_ONLY_VF: dict[CS_vf, str] = {
+    CS_vf.vf: "ADR-0075",
     CS_vf.Vf: "ADR-0075",
     CS_vf.VF: "CSB-15-001",
 }
@@ -117,14 +123,22 @@ def _vf_violations(
     requested_vf: CS_vf | None,
     actor_roles: Sequence[CVDRole],
 ) -> list[Violation]:
-    """CSB-15-001 / CSB-16-001 / PRM-06-002 / ADR-0075: VF role gates and transition."""
+    """CSB-15-001 / CSB-16-001 / PRM-06-002 / ADR-0075: VF role gates and transition.
+
+    The role gate covers *any* asserted VF value, not only ``Vf``/``VF``: the
+    vendor path belongs to VENDOR participants, so a non-VENDOR asserting ``vf``
+    is claiming a dimension it does not have (ADR-0075, #3135).  This mirrors
+    :func:`_d_violations` on the deployer path (#2963).
+    """
     if requested_vf is None:
         return []
     violations: list[Violation] = []
     # PRM-06-002 (Vendor-implies-V): a VENDOR is by definition already aware of
     # the case, so it can never validly report vendor-unaware.  This is the
-    # converse of the gate below — that one refuses a non-vendor claiming
-    # awareness; this one refuses a vendor disclaiming it.
+    # converse of the gate below — that one refuses a non-vendor claiming any
+    # part of the vendor path; this one refuses a vendor disclaiming awareness.
+    # The two are disjoint by construction: exactly one can fire for a given
+    # (roles, requested_vf) pair, because they test opposite role predicates.
     if not vendor_vf_invariant_ok(list(actor_roles), requested_vf):
         violations.append(
             Violation(
@@ -133,13 +147,12 @@ def _vf_violations(
                 dimensions=("vf",),
             )
         )
-    if (
-        spec := _VENDOR_ONLY_VF.get(requested_vf)
-    ) is not None and not has_vendor_role(list(actor_roles)):
+    if not has_vendor_role(list(actor_roles)):
         violations.append(
             Violation(
                 f"CVDRole.VENDOR required for VF state {requested_vf!r}"
-                f" ({spec}); actor roles: {list(actor_roles)!r}",
+                f" ({_VENDOR_ONLY_VF[requested_vf]}); actor roles:"
+                f" {list(actor_roles)!r}",
                 dimensions=("vf",),
             )
         )
@@ -240,6 +253,10 @@ def _compound_violations(
 
     Skipped when there is no VF history to compare against — the per-dimension
     checks are the whole story for a participant's first VF-bearing snapshot.
+    ``current_vf is None`` is the whole of that condition: ``effective_vf`` is
+    ``current_vf`` whenever no ``vf`` was requested and non-``None`` otherwise,
+    so it can only be ``None`` when ``current_vf`` already is.  It is tested
+    anyway to narrow the type for the ``_compound_vfd`` call below.
     """
     if current_vf is None or effective_vf is None:
         return []
@@ -283,8 +300,14 @@ def _classify(violations: Sequence[Violation]) -> list[Violation]:
 
     The test is dimension overlap rather than a rule-to-rule dependency graph,
     so a rule added later is classified correctly by construction and the
-    labelling cannot go stale.
+    labelling cannot go stale.  That guarantee depends on every rule naming its
+    read set, which is why :class:`~vultron.core.states\
+    .cross_machine_invariants.EntailmentViolation.reads` is required rather than
+    defaulted: an empty ``dimensions`` would be labelled root unconditionally.
     """
+    assert all(
+        violation.dimensions for violation in violations
+    ), "every Violation must name the dimensions its rule reads (EH-07-002)"
     faulted: set[str] = {
         violation.dimensions[0]
         for violation in violations
@@ -339,8 +362,13 @@ def participant_transition_violations(
             the enumerated case-closure quarantine (#3106) sets this ``False`` — see
             ``force_rm_state`` on
             :class:`~vultron.core.behaviors.case.nodes.participant.status\
-            .CreateParticipantStatusNode`.  It suppresses one *rule*, never a
-            violation the evaluator has already produced (BTND-10-002).
+            .CreateParticipantStatusNode`.  It drops one *rule* from the set and
+            never suppresses another rule's violation (BTND-10-002): the
+            remaining violations' messages are identical either way.  It does
+            shift *labels*, because dropping the RM rule takes ``"rm"`` out of
+            :func:`_classify`'s faulted set, so a multi-dimension violation
+            reading ``rm`` reports root instead of derived.  Moot in practice —
+            every quarantined call site asserts RM only.
 
     Returns:
         One :class:`~vultron.errors.Violation` per violated rule, each naming

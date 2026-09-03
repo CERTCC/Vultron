@@ -419,9 +419,9 @@ outside the evaluator, each with a reason; the unresolved consolidation is #3111
 ### Pitfall: an RM-only append resets the vendor and deployer paths
 
 `ParticipantStatus` re-seeds `vf` for a VENDOR and `d` for a DEPLOYER at their
-**initial** state when the field is omitted (`_seed_role_dimensions`). So a
-status built with only `rm` does not leave those dimensions alone — it silently
-rewinds them:
+**initial** state when the field is omitted
+(`ParticipantStatus._enforce_role_dimension_invariant`). So a status built with
+only `rm` does not leave those dimensions alone — it silently rewinds them:
 
 ```python
 # vendor at vf=VF (fix ready)
@@ -429,15 +429,50 @@ participant.append_rm_state(RM.CLOSED, actor, context)
 # -> latest status now reads vf=vf (vendor unaware); the fix un-happened
 ```
 
-`CaseParticipant.append_rm_state()` did exactly this until #3111. Any writer that
+`CaseParticipant.append_rm_state()` did exactly this until #3134. Any writer that
 appends a `ParticipantStatus` MUST carry the participant's current `vf`/`d`
 forward, the way `CreateParticipantStatusNode` does. This is the #2264 rule —
 absence and an initial value are different things — and omission is the third
 door onto it, alongside assignment and `append`.
 
+Carry a path forward **only while its role is still held.** `cvd_role` on the new
+snapshot is recomputed from the participant's current roles, so carrying a
+dimension whose role has since been dropped produces a snapshot asserting a path
+its own role list denies (ADR-0075).
+
+The wire twin `as_CaseParticipant.append_rm_state()` had the same omission in a
+worse shape: `as_ParticipantStatus` has no seeding validator, so omission
+**dropped** the dimension rather than rewinding it. Both were fixed together
+(#3134) — when a core mutator and its wire counterpart both build a status, fix
+both or the rule has a live counter-example one directory over (ARCH-15-004).
+
 The general shape: **a model that auto-seeds a field on construction turns
-"omit it" into "reset it".** Check every constructor call for a type with
-`mode="before"` seeding validators.
+"omit it" into "reset it"; one that does not turns it into "drop it".** Neither is
+"leave it alone." Check every constructor call for a type with `mode="before"`
+seeding validators.
+
+### Pitfall: a forced promotion runs after validation
+
+`CreateParticipantStatusNode._apply_ac1_promotions()` applies SM-09-001's forced
+promotions (`pXa→PXa`, `pXA→PXA`, `vP→VP`) **after**
+`participant_transition_violations()` has run, and it is the promoted values that
+get persisted. So the evaluator does not see everything that lands:
+`_EffectiveStates`' docstring says as much. Do not read "one evaluator governs
+every `ParticipantStatus` write" as "everything persisted was validated."
+
+That gap was live. A non-VENDOR could assert `vf` (the role gate covered only
+`{Vf, VF}`), and any later write with a public-aware `pxa` promoted it to `Vf` —
+a value the same actor is refused if it asserts it directly. Fixed by closing the
+*first* link: the VF role gate now covers **every** asserted `vf` value, so a
+non-VENDOR cannot put anything on the vendor path and the promotion has nothing
+ungated to advance (#3135). That also removes a drift between the two dimensions
+— `_d_violations` had gated every asserted `d` since #2963, and `vf` had not.
+
+The promotion itself is still not role-gated. It is unreachable rather than
+guarded, which is a weaker guarantee: **if you add another route by which a
+participant can acquire a dimension its role does not license, you reopen this.**
+The receive path's carry-forward and any new model mutator are the places to
+watch.
 
 ### Pitfall: composing the set exposed a standing RM violation
 
@@ -478,6 +513,20 @@ passed `result_out`. Aggregation stays *within* one node per path, so
 BT-13-001's first-failing-leaf contract (`BTBridge.get_failure_reason`) is
 unaffected — sibling guard nodes in a `memory=False` `Sequence` still
 short-circuit and cannot co-report.
+
+**`details` is not present on every validation rejection**, and that is a
+consequence of the previous paragraph rather than a gap. Only the composed
+evaluator populates `result_out["error"]` with a violation-carrying exception.
+The sibling role guards that run *before* it in
+`add_participant_status_trigger_tree` — `CheckNotSoleObserverVfdNode` and
+`CheckDeployerRoleNode` — do not, so when one of them fails,
+`SvcBTTriggerBase.execute()` falls through to a generic `VultronValidationError`
+built from `get_failure_reason(tree)` and the 422 body has no `details` key.
+EH-05-002 only mandates `details` for a response reporting more than one
+violation, and those guards report one, so this conforms — but do not write a
+client that assumes `details` is always there. A visible consequence: because
+`CheckDeployerRoleNode` fires first, the evaluator's own DEPLOYER gate never gets
+to report on the trigger path, only on the five paths that bypass the guard.
 
 ---
 

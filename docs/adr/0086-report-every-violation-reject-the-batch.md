@@ -176,6 +176,16 @@ teardown — remain the standing argument against changing it.
   participant RM state at all is tracked as ISSUE-3106.
 - Bad, because `message` content changes for multi-violation failures, so any
   test or log assertion matching the single-error text needs updating.
+- Neutral, because composing the set does **not** make everything persisted
+  validated. `CreateParticipantStatusNode._apply_ac1_promotions()` applies
+  SM-09-001's forced promotions after the evaluator has run, and the promoted
+  values are what land. That gap was exploitable — a non-VENDOR could assert
+  `vf` and have it promoted to `Vf` behind the VENDOR gate — and is closed by
+  widening the VF role gate to cover every asserted value, matching what the
+  deployer path had done since ISSUE-2963 (ISSUE-3135). The promotion is now
+  unreachable with an ungated value rather than itself role-gated, so a new
+  route by which a participant can acquire a dimension its role does not
+  license would reopen it.
 - Bad, because EH-05-001 gains an optional field, which is a public-surface
   change to every Vultron error response, not only this endpoint.
 - Neutral, because the aggregation is confined to one node per path. The sibling

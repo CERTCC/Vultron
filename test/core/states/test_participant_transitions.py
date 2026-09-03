@@ -299,20 +299,95 @@ class TestRoleGates:
         assert violation.dimensions == ("vf",)
         assert "PRM-06-002" in violation.message
 
-    def test_non_vendor_may_assert_vendor_unaware(self):
-        """The Vendor-implies-V rule constrains only VENDOR participants."""
-        assert (
-            _violations(
-                current_vf=CS_vf.vf,
-                requested_vf=CS_vf.vf,
-                actor_roles=[CVDRole.REPORTER],
-            )
-            == []
+    def test_non_vendor_may_not_assert_vendor_unaware(self):
+        """A non-VENDOR has no vendor path to assert anything on (#3135).
+
+        The role gate covers *any* asserted VF value, not only the ones that
+        claim awareness or fix readiness, mirroring the deployer path (#2963).
+        Before #3135 a non-VENDOR could assert ``vf`` and thereby open a vendor
+        path, which SM-09-001's public-disclosure promotion then advanced to
+        ``Vf`` — a value the same actor could not assert directly.
+
+        The Vendor-implies-V rule (PRM-06-002) does not fire here: it constrains
+        VENDOR participants, and the two gates test opposite role predicates, so
+        exactly one of them can apply to any given assertion.
+        """
+        (violation,) = _violations(
+            current_vf=CS_vf.vf,
+            requested_vf=CS_vf.vf,
+            actor_roles=[CVDRole.REPORTER],
         )
+        assert violation.dimensions == ("vf",)
+        assert "CVDRole.VENDOR required" in violation.message
+        assert "PRM-06-002" not in violation.message
 
     def test_vendor_role_satisfies_the_vf_gate(self):
         assert (
             _violations(requested_vf=CS_vf.Vf, actor_roles=[CVDRole.VENDOR])
+            == []
+        )
+
+
+class TestNonVendorCannotOpenAVendorPath:
+    """#3135: close the route that fed SM-09-001's promotion an ungated ``vf``.
+
+    ``_apply_ac1_promotions`` runs *after* validation, so a ``vf`` the evaluator
+    accepted could be promoted to ``Vf`` — a value the same actor could not
+    assert directly — and persisted without ever passing the VENDOR gate. The
+    fix closes the first link: a non-VENDOR can no longer put a value on the
+    vendor path at all, so there is nothing for the promotion to advance.
+
+    These tests pin the *first* step of that two-step repro. Keeping them green
+    is what makes the promotion's missing role gate unreachable rather than
+    merely unlikely.
+    """
+
+    def test_non_vendor_cannot_open_the_path_at_vf(self):
+        """Step 1 of the repro: this used to return no violations."""
+        (violation,) = _violations(
+            current_vf=None,
+            requested_vf=CS_vf.vf,
+            actor_roles=[CVDRole.OBSERVER],
+        )
+        assert violation.dimensions == ("vf",)
+        assert "CVDRole.VENDOR required" in violation.message
+
+    def test_every_vf_value_is_gated_for_a_non_vendor(self):
+        """The gate covers the whole dimension, not an enumerated subset.
+
+        An enumerated subset is what let the two dimensions drift: ``d`` gated
+        every value (#2963) while ``vf`` gated only ``{Vf, VF}``.
+
+        ``VF`` additionally trips the RM↔VF entailment, so this asserts the role
+        gate is *present* rather than alone — and that the entailment it drags in
+        is labelled derived, since the role gate already faulted ``vf``.
+        """
+        for value in CS_vf:
+            violations = _violations(
+                current_vf=None,
+                requested_vf=value,
+                actor_roles=[CVDRole.OBSERVER],
+            )
+            gates = [
+                v
+                for v in violations
+                if "CVDRole.VENDOR required" in v.message
+                and v.dimensions == ("vf",)
+            ]
+            assert len(gates) == 1, (value, violations)
+            assert gates[0].derived is False, value
+            for other in violations:
+                if other is not gates[0]:
+                    assert other.derived is True, (value, other)
+
+    def test_a_vendor_is_gated_by_none_of_this(self):
+        """The gate refuses non-vendors, not vendors (ADR-0075)."""
+        assert (
+            _violations(
+                current_vf=None,
+                requested_vf=CS_vf.Vf,
+                actor_roles=[CVDRole.VENDOR],
+            )
             == []
         )
 

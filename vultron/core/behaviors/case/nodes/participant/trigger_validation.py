@@ -82,9 +82,18 @@ class ValidateTriggerTransitionsNode(DataLayerCondition):
     - The RM↔VF, RM↔D and VF↔D cross-machine entailments (CSB-17-001,
       CSB-18-001) and the compound CS transition (SM-09-002).
 
-    When the participant has no current status (first write) the initial states
-    ``RM.START``, initial VF/D state, ``CS_pxa.pxa`` are used as the baseline, so
-    the first valid transition from each initial state always passes.
+    When the participant has no current status (first write) the baseline is
+    ``RM.START``, ``CS_pxa.pxa``, and **absent** VF and D — ``None``, not an
+    initial value (ADR-0075).  Absence means there is no transition to measure,
+    so no per-dimension VF/D rule can fire; the role gate is what refuses an
+    assertion on a path the participant does not have (#2906).
+
+    This node writes ``result_out["error"]`` when it refuses, which is a
+    deliberate exception to :class:`DataLayerCondition`'s otherwise
+    side-effect-free contract.  The aggregate exception has to reach
+    ``SvcBTTriggerBase.execute()`` for the FastAPI layer to project it into the
+    422 ``details`` array (EH-05-002, EH-07-003), and ``result_out`` is the
+    existing channel for that.  It carries diagnostics only — no protocol state.
 
     Returns ``SUCCESS`` without validation when the participant or case cannot
     be read from the DataLayer — ``CreateParticipantStatusNode`` downstream

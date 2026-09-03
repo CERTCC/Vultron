@@ -196,12 +196,15 @@ class EntailmentViolation(NamedTuple):
     refuses ``rm``.  The emit path classifies a violation as derived when a
     dimension it reads already carries a single-dimension violation
     (EH-07-002), so it needs the read set rather than the refusal candidates.
+    ``reads`` is deliberately **required**: defaulting it to ``()`` would let a
+    rule added later be silently classified root, which is exactly the staleness
+    ``_classify`` claims is impossible by construction.
     """
 
     dimension: str
     message: str
+    reads: tuple[str, ...]
     alternatives: tuple[str, ...] = ()
-    reads: tuple[str, ...] = ()
 
 
 def cross_machine_violations(

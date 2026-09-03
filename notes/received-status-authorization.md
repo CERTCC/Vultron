@@ -202,9 +202,14 @@ Three properties of that pass are load-bearing:
   regressive `rm` licensing a `vf`; no such input exists.
 - **Emit and receive share one evaluator.**
   `cross_machine_violations()` in `vultron/core/states/cross_machine_invariants.py`
-  composes the three rules; `ValidateTriggerTransitionsNode._validate_entailments`
-  and `_adjudicate_cross_machine_entailments` both call it and neither calls the
-  individual `violation_*` functions. Before #2906 the receive path composed only
+  composes the three rules, and neither path calls the individual `violation_*`
+  functions. The receive path reaches it through
+  `_adjudicate_cross_machine_entailments`. The emit path reaches it one level
+  further out: since ADR-0086 the entailments are one member of the composed
+  `participant_transition_violations()` rule set (via `_entailment_violations`),
+  which both `ValidateTriggerTransitionsNode` and `CreateParticipantStatusNode`
+  call — so the emit path now enforces the entailments at the *write* boundary as
+  well as the guard. Before #2906 the receive path composed only
   VF↔D by hand, so an assertion the actor would have refused to *emit* was
   accepted, hash-chained and replicated when it arrived from a peer instead.
   A ratchet test asserts the emit path still delegates.
