@@ -30,3 +30,7 @@ runtime data state.
 update the port contract docstring to say "MUST NOT raise `NotImplementedError`"
 and add a test that documents propagation as the programming-error signal.  Do NOT
 add a try/except guard that masks it.
+
+---
+
+**Archived**: 2026-09-03 — already captured in `notes/domain-validation.md` (§ "Contrast: NotImplementedError from a Property Is a Programming Error", Source ISSUE-2668), including the ValueError-vs-NotImplementedError table and the port-contract rule. No new promotion needed.

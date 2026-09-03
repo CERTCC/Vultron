@@ -39,3 +39,7 @@ the mechanism.
 Related: [[20260901-2906-reported-cause-was-wrong]] — same family, a
 correctly-observed symptom paired with a premise that does not survive contact
 with the spec.
+
+---
+
+**Promoted**: 2026-09-03 — captured in `notes/spec-authoring-rules.md` ("A Retired-Symbol Sweep Is Not a Substitution — Check the Shape First"). Docs PR: <DOCS_PR_URL>.

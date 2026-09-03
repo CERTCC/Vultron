@@ -47,3 +47,7 @@ Related: the two-branch base hierarchy means `as_Base` and `as_Object` differ
 in both field set *and* mutability — see [[wire-artifact-immutability]] and
 ADR-0017. Picking the wrong one for a fixture changes what the test can
 possibly detect.
+
+---
+
+**Promoted**: 2026-09-03 — captured in `notes/testing-pitfalls.md` ("A Wrong Base Class Silently Skips the Branch the Test Names"). Docs PR: <DOCS_PR_URL>.

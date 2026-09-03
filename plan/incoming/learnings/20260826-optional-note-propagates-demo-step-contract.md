@@ -17,3 +17,7 @@ failure is non-fatal, defeating the purpose of the context manager.
 extracts a result ID must return `Optional[T]` rather than `T`. Callers should treat
 `None` as "step failed, demo_step already recorded it" and skip dependent steps via
 conditional `in_reply_to`.
+
+---
+
+**Promoted**: 2026-09-03 — captured in `notes/demo-scenario-authoring.md` ("A Helper That Extracts a Result Inside `demo_step` Must Return `Optional[T]`"). Docs PR: <DOCS_PR_URL>.

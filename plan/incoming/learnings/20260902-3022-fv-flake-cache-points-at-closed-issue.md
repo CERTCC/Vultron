@@ -42,3 +42,7 @@ repoint the row. Only delete a row when the flake is actually gone.
 Related: [[20260826-sibling-demo-async-race-not-fixed]] — the same race window
 across sibling scenarios, and the reason a per-scenario job name is a coarse key
 for "which race".
+
+---
+
+**Archived**: 2026-09-03 — already resolved. `notes/flaky-tests.md` rows for `fv Demo Integration` / `fv Invariant Harness` were repointed to #3033 (OPEN) on 2026-09-02. No further action.

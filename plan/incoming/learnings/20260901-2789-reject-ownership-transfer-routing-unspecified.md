@@ -48,3 +48,7 @@ Suggested shape: a CM-21-0xx entry mirroring CM-21-006 for the `Reject`, plus a
 decision on whether rejection is a ledgered event. If the answer to (1) is yes,
 this also wants an ADR-0053 amendment, since "route Offer and Accept through the
 CaseActor" would become "route the whole negotiation".
+
+---
+
+**Promoted**: 2026-09-03 — captured in `specs/case-management.yaml` (new CM-21-010: `Reject(Offer(VulnerabilityCase))` MUST address the CaseActor inbox, symmetric with CM-21-006) and `notes/ownership-transfer.md` (Open Question on received-side handling of a rejected offer). Docs PR: <DOCS_PR_URL>.

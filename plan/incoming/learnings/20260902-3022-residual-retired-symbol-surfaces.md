@@ -77,3 +77,7 @@ Note also that the ratchet ceiling (`MAX_UNCOVERED_PROTOCOL_SPECS = 937`) was
 left alone despite the count dropping to 919. Lowering it to the new floor would
 tighten the guard but could break in-flight parallel branches sitting between
 920 and 937; that is a separate call.
+
+---
+
+**Resolved**: 2026-09-03 — filed as type:Concern #3143 "CLP-09-003 commit-coverage MUST is untested; MS-15-004 phantom-symbol guard has a residual escape hatch" (parent Epic #2578, milestone Verifiable Conformance). Both surfaces from this entry are captured there. Docs PR: <DOCS_PR_URL>.

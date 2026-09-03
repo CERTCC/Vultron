@@ -11,3 +11,7 @@ Code review during #2998 surfaced two pre-existing bugs unrelated to the PR:
 - #3097: `test/core/behaviors/bt_harness.py:189` — `assert_failure(allow_internal=True)` never asserts `result.internal_error is True`, so crash-path classification tests give false confidence.
 
 Both filed under Epic #607, milestone 26, size:S.
+
+---
+
+**Archived**: 2026-09-03 — already tracked and now closed: #3096 (CLOSED) and #3097 (CLOSED). No new promotion needed.

@@ -46,3 +46,7 @@ a package usually mixes prose with real definitions.
 
 Related: [[20260831-spec-corpus-marker-design]] — the marker+ratchet precedent
 for preferring a self-enforcing structural guard over an enumeration that drifts.
+
+---
+
+**Promoted**: 2026-09-03 — captured in `notes/spec-authoring-rules.md` ("A Grep-Corpus Guard Can Resolve Its Own Documentation"). Docs PR: <DOCS_PR_URL>.

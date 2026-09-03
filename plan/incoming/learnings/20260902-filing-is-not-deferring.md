@@ -27,3 +27,7 @@ in untouched files must be filed as issues), also ask: is this fix trivially
 small? If yes, apply it now and close the issue in the same PR. Filing without
 fixing is only correct when the fix is non-trivial, requires its own tests, or
 would substantially change the PR's character.
+
+---
+
+**Archived**: 2026-09-03 — already captured in `.claude/skills/shared/completeness-doctrine.md` (section "Filing Is Not Deferring"). No new promotion needed.

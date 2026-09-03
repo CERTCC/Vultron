@@ -53,3 +53,7 @@ no test used it. The new
   enumerates fields by hand, so every field added to `VultronObject` since it was
   written is absent by default and nothing fails. Worth checking the rest of its
   omissions against what core actually needs.
+
+---
+
+**Promoted**: 2026-09-03 — captured in `notes/testing-pitfalls.md` ("A Received-Side Test Only Sees Bugs Its Fixture Shape Can Reach"). Docs PR: <DOCS_PR_URL>.

@@ -17,3 +17,7 @@ variant.
 
 A spec entry should be added to document `read_case()` as the canonical typed accessor
 for `VulnerabilityCase` retrieval from `CasePersistence`.
+
+---
+
+**Archived**: 2026-09-03 — already captured. `read_case` is documented as the canonical typed `VulnerabilityCase` accessor in `specs/datalayer.yaml` DL-04-002. No new promotion needed.
