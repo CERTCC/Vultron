@@ -30,6 +30,9 @@ from typing import cast
 from py_trees.common import Status
 
 from vultron.core.behaviors.helpers import DataLayerActionWithPorts
+from vultron.core.behaviors.status.nodes.threat_termination import (
+    resolve_pxa_threat_state,
+)
 from vultron.core.models.protocols import PersistableModel
 from vultron.core.ports.case_persistence import CaseOutboxPersistence
 from vultron.core.states.cross_machine_invariants import (
@@ -73,28 +76,11 @@ class PxaEmInvariantDiagnosticNode(DataLayerActionWithPorts):
         self.sender_actor_id = sender_actor_id
 
     def _get_pxa_state(self):
-        """Extract PXA state from status_obj (same resolution as ThreatTerminationBranchNode)."""
-        from vultron.core.states.cs import CS_pxa
-
+        """Return PXA state from status_obj if a threat is present; None otherwise."""
         case_status = getattr(self.status_obj, "case_status", None)
         if case_status is None:
             case_status = self.status_obj
-        if case_status is None:
-            return None
-        if hasattr(case_status, "pxa"):
-            pxa_state = getattr(case_status, "pxa").state
-        elif hasattr(case_status, "pxa_state"):
-            pxa_state = getattr(case_status, "pxa_state")
-        else:
-            return None
-        if pxa_state is None:
-            return None
-        try:
-            if pxa_state == CS_pxa.pxa:
-                return None
-        except Exception:
-            return None
-        return pxa_state
+        return resolve_pxa_threat_state(case_status)
 
     def update(self) -> Status:
         if not self.case_id:
