@@ -1099,7 +1099,9 @@ class TestAddCaseStatusTreeSeam2:
         dl.create(status_obj)
 
         activity = add_status_to_case_activity(
-            status_obj, target=case.id_, actor=ACTOR_ID
+            status_obj,
+            target=as_VulnerabilityCase(id_=CASE_ID),
+            actor=ACTOR_ID,
         )
         event = cast(AddCaseStatusToCaseReceivedEvent, extract_event(activity))
 
@@ -1117,9 +1119,11 @@ class TestAddCaseStatusTreeSeam2:
         tree = add_case_status_tree(request=event, call_out=call_out)
         bridge = BTBridge(datalayer=dl)
         result = bridge.execute_with_setup(
-            tree=tree, actor_id=ACTOR_ID, activity=event
+            tree=tree, actor_id=CASE_MANAGER_ID, activity=event
         )
-        assert result.status == Status.FAILURE
+        # FailureIsSuccess wraps the teardown Sequence, so the outer BT returns
+        # SUCCESS even when the authorization gate blocked teardown.
+        assert result.status == Status.SUCCESS
 
         # EM state must NOT have changed — guard blocked teardown
         updated = cast(VulnerabilityCase, dl.read(CASE_ID))
@@ -1135,7 +1139,13 @@ class TestAddCaseStatusTreeSeam2:
         )
 
         tree = add_case_status_tree(request=event)
-        node_types = {type(n).__name__ for n in tree.children}
+
+        def _collect_node_types(node):
+            yield type(node).__name__
+            for child in getattr(node, "children", []):
+                yield from _collect_node_types(child)
+
+        node_types = set(_collect_node_types(tree))
         assert "ThreatTerminationBranchNode" in node_types, (
             "add_case_status_tree must contain ThreatTerminationBranchNode"
             " (RSH-03-001, ADR-0046)"
@@ -1557,4 +1567,134 @@ class TestFilterCsEmDimensionNodeClearBehavior:
         assert stored is sentinel, (
             "FilterCsEmDimensionNode._clear() must not zero"
             " BB_LEDGER_PAYLOAD_OBJECT_OVERRIDE (CONCERN-2711, #2957)"
+        )
+
+
+# ---------------------------------------------------------------------------
+# AC-2 / AC-3: PxaEmInvariantDiagnosticNode (CONCERN-3008)
+# ---------------------------------------------------------------------------
+
+DIAG_CASE_ID = "https://example.org/cases/diag-3008"
+DIAG_STATUS_ID = f"{DIAG_CASE_ID}/statuses/s1"
+DIAG_CM_ID = "https://example.org/actors/diag-cm"
+DIAG_ACTOR_ID = "https://example.org/actors/diag-actor"
+
+
+class TestPxaEmInvariantDiagnosticNode:
+    """PxaEmInvariantDiagnosticNode posts a Note iff invariant still violated.
+
+    AC-2: PERMISSIVE gate — teardown fires, EM becomes EXITED, no violation →
+          no Note queued in outbox.
+    AC-3: Blocked gate (AlwaysFail) — teardown blocked, EM stays ACTIVE,
+          violation detected → Note queued in outbox.
+    """
+
+    def _build_dl_with_active_embargo(self, actor_id: str = DIAG_CM_ID):
+        from vultron.enums.roles import CVDRole
+
+        dl = SqliteDataLayer("sqlite:///:memory:", actor_id=actor_id)
+        cm_participant = CaseParticipant(
+            id_=f"{DIAG_CASE_ID}/participants/cm",
+            context=DIAG_CASE_ID,
+            attributed_to=actor_id,
+            case_roles=[CVDRole.CASE_MANAGER],
+        )
+        embargo = as_EmbargoEvent(
+            id_=f"{DIAG_CASE_ID}/embargo_events/e1", context=DIAG_CASE_ID
+        )
+        case = VulnerabilityCase(
+            id_=DIAG_CASE_ID,
+            name="Diag Test Case",
+            attributed_to=actor_id,
+        )
+        case.add_participant(cm_participant)
+        case.active_embargo = embargo.id_
+        case.append_case_status(em_state=EM.ACTIVE)
+        status_obj = as_CaseStatus(
+            id_=DIAG_STATUS_ID, context=DIAG_CASE_ID, pxa_state=CS_pxa.Pxa
+        )
+        dl.create(case)
+        dl.create(cm_participant)
+        dl.create(embargo)
+        dl.create(status_obj)
+        return dl, status_obj
+
+    def _make_event(self, dl, status_obj):
+        from vultron.semantic_registry import extract_event
+
+        activity = add_status_to_case_activity(
+            status_obj,
+            target=as_VulnerabilityCase(id_=DIAG_CASE_ID),
+            actor=DIAG_ACTOR_ID,
+        )
+        return cast(AddCaseStatusToCaseReceivedEvent, extract_event(activity))
+
+    @pytest.mark.spec("CSB-18-002")
+    @pytest.mark.spec("CSB-18-003")
+    @pytest.mark.spec("CSB-18-004")
+    def test_permissive_gate_teardown_fires_no_note_posted(self):
+        """AC-2: PERMISSIVE gate — teardown fires, EM=EXITED → no violation → no Note."""
+        from vultron.adapters.driven.trigger_activity_adapter import (
+            TriggerActivityAdapter,
+        )
+
+        dl, status_obj = self._build_dl_with_active_embargo()
+        event = self._make_event(dl, status_obj)
+
+        tree = add_case_status_tree(
+            request=event, call_out=STATUS_AUTHORIZATION_PERMISSIVE
+        )
+        bridge = BTBridge(
+            datalayer=dl,
+            trigger_activity=TriggerActivityAdapter(dl),
+        )
+        result = bridge.execute_with_setup(
+            tree=tree, actor_id=DIAG_CM_ID, activity=event
+        )
+        assert result.status == Status.SUCCESS
+
+        updated = cast(VulnerabilityCase, dl.read(DIAG_CASE_ID))
+        assert updated.current_status.em.state == EM.EXITED
+
+        # EM.EXITED proves teardown fired; diagnostic node finds no violation — no Note needed.
+
+    @pytest.mark.spec("CSB-18-002")
+    @pytest.mark.spec("CSB-18-003")
+    @pytest.mark.spec("CSB-18-004")
+    def test_blocked_gate_invariant_violated_note_posted(self):
+        """AC-3: AlwaysFail gate — teardown blocked, EM=ACTIVE → violation → Note posted."""
+        from vultron.adapters.driven.trigger_activity_adapter import (
+            TriggerActivityAdapter,
+        )
+
+        dl, status_obj = self._build_dl_with_active_embargo(
+            actor_id=f"{DIAG_CM_ID}-blocked"
+        )
+        event = self._make_event(dl, status_obj)
+
+        call_out = StatusAuthorizationCallOutBundle(
+            embargo_teardown_authorization_gate_factory=lambda name: AlwaysFail(
+                name
+            )
+        )
+        tree = add_case_status_tree(request=event, call_out=call_out)
+        bridge = BTBridge(
+            datalayer=dl,
+            trigger_activity=TriggerActivityAdapter(dl),
+        )
+        result = bridge.execute_with_setup(
+            tree=tree, actor_id=f"{DIAG_CM_ID}-blocked", activity=event
+        )
+        assert result.status == Status.SUCCESS
+
+        # EM must still be ACTIVE — gate blocked teardown
+        updated = cast(VulnerabilityCase, dl.read(DIAG_CASE_ID))
+        assert updated.current_status.em.state == EM.ACTIVE
+
+        # AlwaysFail gate blocks teardown — only the diagnostic node can post.
+        # Exactly one Note activity must be in the outbox.
+        outbox = dl.outbox_list()
+        assert len(outbox) == 1, (
+            "PxaEmInvariantDiagnosticNode must post exactly one Note when the"
+            " gate blocks teardown and the CSB-18 invariant is still violated"
         )
