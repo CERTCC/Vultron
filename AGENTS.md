@@ -370,32 +370,19 @@ message.
 
 ### Issue tracker
 
-Issues live in GitHub Issues. See `docs/agents/issue-tracker.md`.
+Issues live in GitHub Issues. See
+[docs/agents/issue-tracker.md](docs/agents/issue-tracker.md) for the full rules.
+Non-negotiables:
 
-**Epics are the `Epic` issue type, not a label.** An Epic is a first-class
-GitHub issue whose `issueType` is `Epic`, with its member issues wired as
-sub-issues via GraphQL (the `addSubIssue` mutation). There is no "epic" label —
-do not create or search for one. Detect Epics by `issueType.name == "Epic"` and
-find their contents through the sub-issue relationship, not a label query. Create
-them with the `create-epic` skill.
-
-**Never use `gh issue create`** — it cannot set issue types, parent/child
-relationships, or blocker/blocked-by links. Use
-`.agents/skills/manage-github-issue/manage_github_issue.sh` or the
-`createIssue` GraphQL mutation directly. Type IDs and relationship mutations:
-`.agents/skills/manage-github-issue/REFERENCE.md`.
-
-**Never pass backtick-containing markdown in a double-quoted `--body`.**
-Use a single-quoted heredoc:
-
-```bash
-gh issue comment <N> --repo CERTCC/Vultron --body "$(cat <<'EOF'
-Use `code` freely here.
-EOF
-)"
-```
-
-Same rule applies to `gh issue edit --body`, `gh pr create --body`, etc.
+- **Never use `gh issue create`** — it cannot set issue types or parent/child
+  and blocker links. Use
+  `.agents/skills/manage-github-issue/manage_github_issue.sh` (or the
+  `createIssue` GraphQL mutation).
+- **Epics are the `Epic` issue type, not a label** — detect by
+  `issueType.name == "Epic"`, not a label query; create with the `create-epic`
+  skill.
+- **Never pass backtick markdown in a double-quoted `--body`** — use a
+  single-quoted heredoc.
 
 ### Triage labels
 
