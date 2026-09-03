@@ -27,6 +27,10 @@ from typing import Optional
 
 import httpx2 as httpx
 
+from vultron.demo.helpers.polling import (
+    CROSS_CONTAINER_TIMEOUT,
+    _poll_until,
+)
 from vultron.demo.utils import DataLayerClient, post_to_trigger
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCase,
@@ -155,6 +159,8 @@ def verify_replica_state(
     case_id: str,
     vendor_actor_id: str,
     reporter_actor_id: str,
+    auth_coverage_timeout_seconds: float = CROSS_CONTAINER_TIMEOUT,
+    poll_interval_seconds: float = 0.5,
 ) -> None:
     """Verify that a replica actor's case state matches the authoritative state.
 
@@ -174,6 +180,11 @@ def verify_replica_state(
         vendor_actor_id: Full URI of the Vendor actor (retained for symmetry).
         reporter_actor_id: Full URI of the Reporter/Finder actor (retained for
             future participant-status checks).
+        auth_coverage_timeout_seconds: How long to wait for the authoritative
+            ledger to catch up to the replica's tail index before declaring
+            divergence. Defaults to the cross-container delivery budget.
+        poll_interval_seconds: Seconds between authoritative-ledger reads while
+            waiting for it to cover the replica's tail index.
 
     Raises:
         AssertionError: If any replica invariant is violated, *including* a case
@@ -226,43 +237,56 @@ def verify_replica_state(
 
     # 4. Log-state hash consistency
     #
-    # Read the replica snapshot *before* the auth snapshot. These are two
-    # separate point-in-time DataLayer dumps, and the auth (single writer) may
-    # commit and fan out a new entry between them (SYNC fanout race). Under the
-    # single-writer regime the auth ledger is always a superset of any replica's
-    # — a replica holds an index only because the auth committed it earlier —
-    # so an auth read taken *after* the replica read is guaranteed to cover
-    # every index the replica reported. Reading auth first would instead let a
-    # concurrent commit make the auth snapshot staler than the replica snapshot,
-    # producing a spurious "replica is ahead of auth" failure (issue #2768).
+    # Read the replica ledger first to fix the tail index we compare at, then
+    # wait for the authoritative ledger to catch up to that index. The two
+    # ledgers grow independently and new entries propagate between participants
+    # with a delay (SYNC fanout), so at any single instant the authoritative
+    # copy may not yet hold an entry the replica has already received. Asserting
+    # a strict point-in-time superset therefore fires spuriously while an entry
+    # is still in flight (issue #2768) — the read order does not matter, because
+    # the entry is genuinely still arriving, not merely read in the wrong order.
+    # Instead we poll the authoritative ledger until it covers the replica's
+    # tail index, and only report divergence if it never does. The bounded wait
+    # distinguishes "entry still arriving" from "entry the authoritative
+    # single-writer never committed".
     replica_entries = _get_log_entries_for_case(replica_client, case_id)
-    auth_entries = _get_log_entries_for_case(auth_client, case_id)
     assert len(replica_entries) > 0, (
         "Replica has no CaseLedgerEntry records for the case — "
         "LedgerFanout replication did not complete"
     )
-    assert len(auth_entries) > 0, (
-        "Authoritative store has no CaseLedgerEntry records for the case — "
-        "the single-writer ledger is empty (case never committed or lost)"
-    )
-    auth_tail = max(auth_entries, key=lambda e: e["log_index"])
     replica_tail = max(replica_entries, key=lambda e: e["log_index"])
-    # Compare at the replica's current tail index: the auth actor may have
-    # committed additional entries after the replica read (fanout race). Because
-    # the auth snapshot is taken last, it covers the replica's tail index unless
-    # the replica genuinely holds an entry the auth never wrote.
     compare_index = replica_tail["log_index"]
-    auth_entry_by_index = {e["log_index"]: e for e in auth_entries}
-    auth_at_compare = auth_entry_by_index.get(compare_index)
-    assert auth_at_compare is not None, (
-        f"Auth has no entry at index {compare_index} — the replica holds an "
-        "index the authoritative single-writer never committed "
-        "(hash-chain divergence)"
+
+    # Filled in by the poll below; the final successful read is what we compare
+    # against. An empty authoritative ledger simply never covers compare_index,
+    # so it surfaces as the same divergence timeout rather than a separate case.
+    auth_entries: list[dict] = []
+    auth_entry_by_index: dict[int, dict] = {}
+
+    def _auth_covers_replica_tail() -> bool:
+        nonlocal auth_entries, auth_entry_by_index
+        auth_entries = _get_log_entries_for_case(auth_client, case_id)
+        auth_entry_by_index = {e["log_index"]: e for e in auth_entries}
+        return compare_index in auth_entry_by_index
+
+    _poll_until(
+        _auth_covers_replica_tail,
+        timeout_seconds=auth_coverage_timeout_seconds,
+        poll_interval=poll_interval_seconds,
+        error_msg=(
+            f"Auth ledger never caught up to replica tail index "
+            f"{compare_index} within {auth_coverage_timeout_seconds:g}s — the "
+            "replica holds an index the authoritative single-writer never "
+            "committed (hash-chain divergence)"
+        ),
     )
+
+    auth_at_compare = auth_entry_by_index[compare_index]
+    auth_tail = max(auth_entries, key=lambda e: e["log_index"])
     if auth_tail["log_index"] > compare_index:
         logger.debug(
-            "Auth has grown to index %d during coverage wait; "
-            "comparing at replica's current tail index %d",
+            "Auth has grown to index %d past the replica's tail index %d; "
+            "comparing at the replica's tail",
             auth_tail["log_index"],
             compare_index,
         )
@@ -285,6 +309,8 @@ def verify_finder_replica_state(
     case_id: str,
     vendor_actor_id: str,
     reporter_actor_id: str,
+    auth_coverage_timeout_seconds: float = CROSS_CONTAINER_TIMEOUT,
+    poll_interval_seconds: float = 0.5,
 ) -> None:
     """Backward-compatible wrapper for :func:`verify_replica_state`.
 
@@ -305,4 +331,6 @@ def verify_finder_replica_state(
         case_id=case_id,
         vendor_actor_id=vendor_actor_id,
         reporter_actor_id=reporter_actor_id,
+        auth_coverage_timeout_seconds=auth_coverage_timeout_seconds,
+        poll_interval_seconds=poll_interval_seconds,
     )

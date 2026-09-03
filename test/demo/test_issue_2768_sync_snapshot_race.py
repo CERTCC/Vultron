@@ -13,36 +13,50 @@
 
 """Regression guard for issue #2768.
 
-``verify_replica_state`` reads the authoritative and replica ledgers with two
-separate point-in-time DataLayer dumps.  Under the single-writer regime
-(notes/sync-ledger-replication.md) the authoritative CaseActor is the only
-writer, so its ledger is *always* a superset of any replica's — a replica only
-ever holds an index because the auth committed it earlier and fanned it out.
+``verify_replica_state`` compares a participant's copy of a case's activity
+ledger against the authoritative (case-owner) copy.  In a multi-party case the
+two ledgers grow independently and new entries propagate between participants
+with a delay (SYNC fanout, see notes/sync-ledger-replication.md), so at any
+single instant the authoritative copy may not yet hold an entry a replica has
+already received — the entry is still *in flight*, not missing.
 
-The only way the auth can *appear* to lack an index the replica holds is a
-**stale auth snapshot**: if the auth ledger is read first, a concurrent auth
-commit landing before the replica read makes the auth snapshot older than the
-replica snapshot, and the compare-index lookup then wrongly accuses the replica
-of being "ahead of auth".
+Issue #2768 originally read this as a snapshot read-ordering artifact.  It is
+not: the fcvcv / fvcv-handoff demos showed the authoritative ledger genuinely
+lacking the replica's tail index even when read last (freshest), because the
+entry had reached the replica but not yet the authoritative copy.  Reordering
+the two reads cannot fix an entry that is still arriving.
 
-The fix reads the replica snapshot first and the auth snapshot second, so the
-auth read is guaranteed to cover every index the replica reported.  This test
-models a concurrent commit between the two reads and asserts no spurious
-failure; it fails if the reads are ever reordered so auth is read first.
+The fix waits for the authoritative ledger to catch up to the replica's tail
+index (a bounded poll) and only reports divergence if it never does.  These
+tests assert both halves of that behavior:
+
+* a transiently-lagging authoritative ledger that catches up must **not** raise
+  (the #2768 spurious failure), and
+* an authoritative ledger that never gains the replica's tail entry **must**
+  raise (genuine hash-chain divergence is still caught).
 """
 
 from types import SimpleNamespace
 from unittest.mock import MagicMock
+
+import pytest
 
 import vultron.demo.helpers.sync as sync_module
 
 _CASE_ID = "urn:uuid:test-case-2768-0001"
 
 
-def test_verify_replica_state_survives_stale_auth_snapshot(monkeypatch):
-    """A concurrent auth commit between the ledger reads must not fire the
-    compare-index assertion (#2768)."""
-    # Both stores hold a matching, minimal copy of the case.
+def _entries_up_to(highest: int) -> list[dict]:
+    """One canonical hash chain covering indices ``0..highest``."""
+    return [
+        {"log_index": i, "entry_hash": f"hash-{i}", "case_id": _CASE_ID}
+        for i in range(highest + 1)
+    ]
+
+
+def _stub_case_reads(monkeypatch):
+    """Make the case-existence and participant/embargo checks (steps 1-3) pass
+    so control reliably reaches the log-consistency section under test."""
     monkeypatch.setattr(
         sync_module, "_case_or_none", lambda client, cid: {"id_": cid}
     )
@@ -53,34 +67,65 @@ def test_verify_replica_state_survives_stale_auth_snapshot(monkeypatch):
     )
     monkeypatch.setattr(sync_module, "as_VulnerabilityCase", fake_case_cls)
 
-    # Model a concurrent auth commit landing between the two snapshot reads.
-    # The first read observes indices 0..7; by the second read index 8 has been
-    # committed and fanned out, so it observes 0..8.  The entry hash for a given
-    # index is identical on both sides (one canonical hash chain).  Because the
-    # skew is temporal, the return value depends on call order, not the client:
-    # reading the replica first (0..7) then auth (0..8) compares at index 7 and
-    # succeeds; reading auth first (0..7) then replica (0..8) compares at index
-    # 8, which the stale auth snapshot lacks, and trips the assertion.
-    calls = {"n": 0}
 
-    def _staggered_entries(client, cid):
-        calls["n"] += 1
-        highest = min(6 + calls["n"], 8)  # call 1 -> 7, call 2 -> 8
-        return [
-            {"log_index": i, "entry_hash": f"hash-{i}", "case_id": cid}
-            for i in range(highest + 1)
-        ]
+def test_verify_replica_state_waits_for_lagging_auth_ledger(monkeypatch):
+    """An entry still in flight to the authoritative ledger must not be reported
+    as divergence — the check waits for it to arrive (#2768)."""
+    _stub_case_reads(monkeypatch)
 
-    monkeypatch.setattr(
-        sync_module, "_get_log_entries_for_case", _staggered_entries
-    )
+    auth_client = MagicMock(name="auth")
+    replica_client = MagicMock(name="replica")
 
-    # Must not raise: the replica snapshot is read first, so the later auth
-    # snapshot is a superset of the replica's tail index.
+    # The replica already holds index 8 (freshly fanned out to it). The
+    # authoritative ledger is one entry behind on the first read and catches up
+    # on the next — the entry was in flight, not missing.
+    auth_reads = {"n": 0}
+
+    def _entries(client, cid):
+        if client is replica_client:
+            return _entries_up_to(8)
+        auth_reads["n"] += 1
+        return _entries_up_to(7 if auth_reads["n"] == 1 else 8)
+
+    monkeypatch.setattr(sync_module, "_get_log_entries_for_case", _entries)
+
+    # Must not raise: the authoritative ledger covers index 8 by the second read.
     sync_module.verify_replica_state(
-        auth_client=MagicMock(),
-        replica_client=MagicMock(),
+        auth_client=auth_client,
+        replica_client=replica_client,
         case_id=_CASE_ID,
         vendor_actor_id="urn:uuid:vendor",
         reporter_actor_id="urn:uuid:reporter",
+        auth_coverage_timeout_seconds=5.0,
+        poll_interval_seconds=0.0,
     )
+    # Proves the check re-read the authoritative ledger rather than asserting on
+    # the first, still-lagging read.
+    assert auth_reads["n"] >= 2
+
+
+def test_verify_replica_state_reports_unrecoverable_divergence(monkeypatch):
+    """If the authoritative ledger never gains the replica's tail entry, that is
+    genuine divergence and must still be reported, not masked by the wait."""
+    _stub_case_reads(monkeypatch)
+
+    auth_client = MagicMock(name="auth")
+    replica_client = MagicMock(name="replica")
+
+    def _entries(client, cid):
+        if client is replica_client:
+            return _entries_up_to(8)
+        return _entries_up_to(7)  # authoritative ledger never gains index 8
+
+    monkeypatch.setattr(sync_module, "_get_log_entries_for_case", _entries)
+
+    with pytest.raises(AssertionError, match="hash-chain divergence"):
+        sync_module.verify_replica_state(
+            auth_client=auth_client,
+            replica_client=replica_client,
+            case_id=_CASE_ID,
+            vendor_actor_id="urn:uuid:vendor",
+            reporter_actor_id="urn:uuid:reporter",
+            auth_coverage_timeout_seconds=0.05,
+            poll_interval_seconds=0.01,
+        )
