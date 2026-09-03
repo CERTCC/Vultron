@@ -108,9 +108,13 @@ class TransitionCStoFixReady(DataLayerActionWithPorts):
     def _ensure_vendor_aware(self) -> Status:
         """Advance actor to VF=Vf if still at initial state (CSB-16-001 strict adjacency)."""
         assert self.datalayer is not None
-        case = self.datalayer.read_case(self._case_id)
-        if case is None:
-            return Status.SUCCESS
+        # Regime 1 (ADR-0087, #3101): fix development coordinates an *existing*
+        # case — there is no create path here — so a vanished case is an
+        # anomaly, not a routine skip. Previously this returned SUCCESS and let
+        # update() proceed into status creation against a missing case.
+        case, failure = self._require_case(self._case_id)
+        if failure is not None:
+            return failure
         participant_id = case.actor_participant_index.get(self._actor_id)
         if participant_id is None:
             return Status.SUCCESS
@@ -206,12 +210,9 @@ class _EmitParticipantStatusActivityBase(DataLayerActionWithPorts):
             self.logger.error("%s: %s", self.name, self.feedback_message)
             return Status.FAILURE
 
-        case = self.datalayer.read_case(self._case_id)
-        if case is None:
-            self.logger.warning(
-                "%s: case '%s' not found", self.name, self._case_id
-            )
-            return Status.FAILURE
+        case, failure = self._require_case(self._case_id)
+        if failure is not None:
+            return failure  # Regime 1 (ADR-0087)
 
         case_manager_id = resolve_case_manager_id(case, self.datalayer)
         if not case_manager_id:

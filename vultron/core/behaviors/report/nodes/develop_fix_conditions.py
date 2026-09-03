@@ -128,12 +128,9 @@ class CheckCSFixNotYetReady(DataLayerConditionWithPorts):
             return f
         assert self.datalayer is not None
 
-        case = self.datalayer.read_case(self._case_id)
-        if case is None:
-            self.logger.warning(
-                "%s: case '%s' not found", self.name, self._case_id
-            )
-            return Status.FAILURE
+        case, failure = self._require_case(self._case_id)
+        if failure is not None:
+            return failure  # Regime 1 (ADR-0087)
 
         participant_id = case.actor_participant_index.get(self._actor_id)
         if participant_id is None:

@@ -168,12 +168,9 @@ class AllParticipantsRMClosedConditionNode(DataLayerConditionWithPorts):
             self.feedback_message = "No case_id — skipping auto-close check"
             return Status.FAILURE
 
-        case = self.datalayer.read_case(self.case_id)
-        if case is None:
-            self.feedback_message = (
-                f"Case '{self.case_id}' not found or wrong type"
-            )
-            return Status.FAILURE
+        case, failure = self._require_case(self.case_id)
+        if failure is not None:
+            return failure  # Regime 1 (ADR-0087)
 
         if not self._all_participants_closed(case):
             self.feedback_message = (

@@ -84,6 +84,9 @@ def _create_and_attach_participant(
             participant.id_,
         )
 
+    # Regime 1 (ADR-0087): module-level resolver (bare `dl`, not a node) —
+    # a missing case is logged at ERROR and returned as None so the calling
+    # node fails loudly. Conformance allowlist: module-resolver category.
     stored_case = dl.read_case(case_id)
     if stored_case is None:
         node_logger.error("Case %s not found in DataLayer", case_id)

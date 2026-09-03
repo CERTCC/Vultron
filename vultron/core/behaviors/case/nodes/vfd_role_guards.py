@@ -63,6 +63,10 @@ def _resolve_actor_roles(
     Returns ``None`` when the case or participant record cannot be resolved;
     the calling node should return ``Status.FAILURE`` in that case.
     """
+    # Regime 1 (ADR-0087): module-level resolver (bare `datalayer`, not a node)
+    # shared by several role guards — a missing case is logged and returned as
+    # None so each calling node fails. Conformance allowlist: module-resolver
+    # category (the node cannot pass `self` to _require_case from here).
     case = datalayer.read_case(case_id)
     if case is None:
         logger.warning("%s: case '%s' not found", node_name, case_id)
@@ -303,19 +307,9 @@ class CheckIsCaseOwnerNode(DataLayerConditionWithPorts):
 
         case_id = self._case_id or self._case_id_bb
 
-        if not case_id:
-            self.logger.debug(
-                "%s: no case_id available — cannot check CASE_OWNER role",
-                self.name,
-            )
-            return Status.FAILURE
-
-        case = self.datalayer.read_case(case_id)
-        if case is None:
-            self.logger.debug(
-                "%s: case '%s' not found or wrong type", self.name, case_id
-            )
-            return Status.FAILURE
+        case, failure = self._require_case(case_id)
+        if failure is not None:
+            return failure  # Regime 1: CASE_OWNER role gate needs the case (ADR-0087)
 
         participant_id = case.actor_participant_index.get(
             self._sender_actor_id

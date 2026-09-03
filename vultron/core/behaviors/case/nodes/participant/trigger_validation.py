@@ -126,6 +126,10 @@ class ValidateTriggerTransitionsNode(DataLayerCondition):
         assert self.datalayer is not None
         dl = self.datalayer
 
+        # Regime 2 / defer-downstream (ADR-0087): this validation pre-stage runs
+        # ahead of CreateParticipantStatusNode, which authoritatively reports a
+        # missing case/participant. Passing through as SUCCESS here avoids a
+        # duplicate failure and lets the canonical reporter own it (allowlist).
         case = dl.read_case(self._case_id)
         if case is None:
             # CreateParticipantStatusNode will report this; pass through.

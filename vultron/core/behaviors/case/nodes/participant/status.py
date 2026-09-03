@@ -225,17 +225,12 @@ class CreateParticipantStatusNode(DataLayerActionWithPorts):
         return _EffectiveStates(vf=eff_vf, d=eff_d, pxa=eff_pxa)
 
     def _resolve_target(
-        self, dl: object
+        self,
     ) -> "tuple[VulnerabilityCase, str] | None":
         """Return (case, participant_id), or None after reporting a failure."""
-        case = dl.read_case(self._case_id)  # type: ignore[attr-defined]
-        if case is None:
-            self.logger.error(
-                "%s: Case '%s' not found in DataLayer",
-                self.name,
-                self._case_id,
-            )
-            self.feedback_message = f"Case '{self._case_id}' not found"
+        # Regime 1 (ADR-0087): a case must exist to attach a ParticipantStatus.
+        case, failure = self._require_case(self._case_id)
+        if failure is not None:
             return None
 
         participant_id = case.actor_participant_index.get(self._actor_id)
@@ -304,7 +299,7 @@ class CreateParticipantStatusNode(DataLayerActionWithPorts):
             self.feedback_message = "DataLayer not available"
             return Status.FAILURE
 
-        target = self._resolve_target(dl)
+        target = self._resolve_target()
         if target is None:
             return Status.FAILURE
         case, participant_id = target

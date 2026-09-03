@@ -103,16 +103,14 @@ class EmitAddCaseParticipantNode(DataLayerActionWithPorts):
         """Return True if invitee was already a participant (idempotency skip)."""
         return bool(self._invitee_already_participant_bb)
 
-    def _resolve_actor_recipients(self) -> list[str]:
+    def _resolve_actor_recipients(self, case) -> list[str]:
         """Return HTTP actor URLs for all existing participants, excluding the new invitee.
 
         Uses ``case.actor_participant_index`` (keys are actor HTTP URLs) rather
         than ``case.case_participants`` (which may contain bare UUID strings that
-        are not valid delivery addresses).
+        are not valid delivery addresses). The case is resolved (and its absence
+        hard-failed) by ``update()`` via ``_require_case`` — Regime 1, ADR-0087.
         """
-        case = self.datalayer.read_case(self.case_id)  # type: ignore[union-attr]
-        if case is None:
-            return []
         return [
             actor_url
             for actor_url in case.actor_participant_index
@@ -182,7 +180,13 @@ class EmitAddCaseParticipantNode(DataLayerActionWithPorts):
             )
             return Status.FAILURE
 
-        others = self._resolve_actor_recipients()
+        # Regime 1 (ADR-0087, #3101): accepting an invite coordinates an
+        # existing case; a missing case is an anomaly, not a silent
+        # empty-recipient emit+commit.
+        case, failure = self._require_case(self.case_id)
+        if failure is not None:
+            return failure
+        others = self._resolve_actor_recipients(case)
         actor_id: str = self.actor_id  # type: ignore[assignment]
         try:
             activity_id = self._emit_activity(participant_id, actor_id, others)

@@ -96,6 +96,9 @@ class PxaEmInvariantDiagnosticNode(DataLayerActionWithPorts):
         assert self.datalayer is not None
         assert self.actor_id is not None
 
+        # Lenient diagnostic (ADR-0087): this node only *warns* on an invariant
+        # violation and never fails the tree (every path is SUCCESS). An
+        # unresolvable case has nothing to diagnose (conformance allowlist).
         case = self.datalayer.read_case(self.case_id)
         if case is None:
             return Status.SUCCESS
