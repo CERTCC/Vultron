@@ -47,6 +47,7 @@ from vultron.core.models._helpers import _as_id
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.dimensions import RmDimension
 from vultron.core.models.fault_classes import (
+    VULTRON_FAILURE_STATUS_ASSERTION_REFUSED_CORRUPT_LOCAL_RECORD,
     VULTRON_FAILURE_STATUS_ASSERTION_REFUSED_IMPOSSIBLE_STATE,
 )
 from vultron.core.models.participant_status import ParticipantStatus
@@ -139,6 +140,7 @@ class ApplyParticipantStatusFromLedgerNode(DataLayerActionWithPorts):
     def initialise(self) -> None:
         super().initialise()
         self.activity = self.get_input("activity")
+        self._failure_cause: str | None = None
 
     def _apply_rm_ratchet(
         self,
@@ -259,6 +261,7 @@ class ApplyParticipantStatusFromLedgerNode(DataLayerActionWithPorts):
                 participant_id,
                 status_id,
             )
+            self._failure_cause = "CORRUPT_LOCAL_RECORD"
             return Status.FAILURE
         status_obj = ratcheted
 
@@ -301,26 +304,24 @@ class ApplyParticipantStatusFromLedgerNode(DataLayerActionWithPorts):
 
 
 class EmitImpossibleStateFaultNode(DataLayerActionWithPorts):
-    """Emit ``Create(ProcessingFault)`` for an impossible composite state.
+    """Emit ``Create(ProcessingFault)`` when the Apply node fails.
 
     This node is the fallback in the Selector that wraps
     :class:`ApplyParticipantStatusFromLedgerNode`.  When the Apply node returns
-    FAILURE (either from a composite-state entailment violation or from an
-    unreadable local participant record), this node emits a
-    ``Create(ProcessingFault)`` with failure class
-    ``StatusAssertionRefused/ImpossibleState`` to the CaseActor and then returns
-    FAILURE, so the Selector's FAILURE propagates up to block
-    ``PersistReceivedLogEntry`` (SYNC-12-001, RSH-05-021).
+    FAILURE it writes ``_failure_cause`` before returning; this node reads it
+    to select the precise fault class:
+
+    - RSH-05-021 (impossible composite state): emits
+      ``StatusAssertionRefused/ImpossibleState``
+    - ARCH-15-001 (unreadable local participant record): emits
+      ``StatusAssertionRefused/CorruptLocalRecord``
+
+    After emitting it returns FAILURE, so the Selector's FAILURE propagates up
+    to block ``PersistReceivedLogEntry`` (SYNC-12-001, RSH-05-021).
 
     The fault is omitted gracefully when no ``TriggerActivityPort`` is wired
     (integration tests, demo runners without a trigger factory), so the tree
     still fails correctly without raising.
-
-    Note: this node fires for *both* FAILURE causes from the Apply node —
-    composite-state violations (RSH-05-021) and unreadable local participant
-    records (ARCH-15-001).  For the latter, ``ImpossibleState`` is semantically
-    imprecise; a future task should add a distinct
-    ``StatusAssertionRefused/CorruptLocalRecord`` class for that path.
     """
 
     @classmethod
@@ -359,18 +360,33 @@ class EmitImpossibleStateFaultNode(DataLayerActionWithPorts):
             )
             return Status.FAILURE
 
+        failure_class = (
+            VULTRON_FAILURE_STATUS_ASSERTION_REFUSED_IMPOSSIBLE_STATE
+        )
+        if self.parent is not None and hasattr(self.parent, "children"):
+            for sibling in self.parent.children:
+                if isinstance(sibling, ApplyParticipantStatusFromLedgerNode):
+                    if (
+                        getattr(sibling, "_failure_cause", None)
+                        == "CORRUPT_LOCAL_RECORD"
+                    ):
+                        failure_class = VULTRON_FAILURE_STATUS_ASSERTION_REFUSED_CORRUPT_LOCAL_RECORD
+                    break
+
         if failed_id and sender_id:
             self.trigger_activity_factory.emit_processing_fault(
                 actor=self.actor_id,
                 failed_activity_id=failed_id,
-                failure_class=VULTRON_FAILURE_STATUS_ASSERTION_REFUSED_IMPOSSIBLE_STATE,
+                failure_class=failure_class,
                 to=[sender_id],
                 case_id=case_id,
             )
+            class_label = failure_class.rsplit("/", 1)[-1]
             self.logger.info(
-                "%s: emitted ProcessingFault/ImpossibleState to '%s'"
-                " for failed activity '%s' (RSH-05-021)",
+                "%s: emitted ProcessingFault/%s to '%s'"
+                " for failed activity '%s'",
                 self.name,
+                class_label,
                 sender_id,
                 failed_id,
             )

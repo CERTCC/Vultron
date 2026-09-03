@@ -1095,7 +1095,7 @@ class TestAnnounceTreeEmitImpossibleStateFault:
         from vultron.core.behaviors.bridge import BTBridge
         from vultron.core.models.case_participant import CaseParticipant
         from vultron.core.models.fault_classes import (
-            VULTRON_FAILURE_STATUS_ASSERTION_REFUSED_IMPOSSIBLE_STATE,
+            VULTRON_FAILURE_STATUS_ASSERTION_REFUSED_CORRUPT_LOCAL_RECORD,
         )
         from vultron.core.ports.trigger_activity import TriggerActivityPort
 
@@ -1137,5 +1137,5 @@ class TestAnnounceTreeEmitImpossibleStateFault:
         call_kwargs = trigger_activity.emit_processing_fault.call_args.kwargs
         assert (
             call_kwargs["failure_class"]
-            == VULTRON_FAILURE_STATUS_ASSERTION_REFUSED_IMPOSSIBLE_STATE
+            == VULTRON_FAILURE_STATUS_ASSERTION_REFUSED_CORRUPT_LOCAL_RECORD
         )

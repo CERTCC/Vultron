@@ -34,3 +34,9 @@ VULTRON_FAILURE_STATUS_ASSERTION_REFUSED = (
 VULTRON_FAILURE_STATUS_ASSERTION_REFUSED_IMPOSSIBLE_STATE = (
     f"{VULTRON_FAILURE_STATUS_ASSERTION_REFUSED}/ImpossibleState"
 )
+
+# ARCH-15-001: replica refused a ledger entry because its own stored
+# participant record is not core-shaped and the RM ratchet cannot be enforced.
+VULTRON_FAILURE_STATUS_ASSERTION_REFUSED_CORRUPT_LOCAL_RECORD = (
+    f"{VULTRON_FAILURE_STATUS_ASSERTION_REFUSED}/CorruptLocalRecord"
+)
