@@ -304,9 +304,13 @@ groups:
       impossible protocol record.
     verification: >-
       ``vendor_vf_invariant_ok`` in ``vultron/core/predicates/participants.py``
-      enforces this predicate; it is called from both
-      ``ValidateTriggerTransitionsNode._check_vf_role`` (trigger path) and
-      ``CreateParticipantStatusNode._check_vf_precondition`` (BT action path).
+      enforces this predicate.  It is called once, from ``_vf_violations`` inside
+      ``participant_transition_violations`` in
+      ``vultron/core/states/participant_transitions.py``, which both
+      ``ValidateTriggerTransitionsNode`` (trigger path) and
+      ``CreateParticipantStatusNode`` (BT action path) go through — BTND-10-002
+      forbids either node from calling the predicate directly, and
+      ``test/architecture/test_participant_status_validation.py`` ratchets that.
     adr:
     - ADR-0084
     tags:
@@ -361,10 +365,12 @@ groups:
       event.
     verification: >-
       ``AddOnBehalfStatusTriggerRequest.vf_state_not_fix_ready`` rejects
-      ``CS_vf.VF`` at the request boundary before any BT runs.
-      ``CreateParticipantStatusNode._check_vf_precondition`` and
-      ``ValidateTriggerTransitionsNode._check_vf_role`` both enforce the
-      VENDOR-only rule on the self-report path.
+      ``CS_vf.VF`` at the request boundary before any BT runs.  On the self-report
+      path the VENDOR-only rule lives in ``_vf_violations`` inside
+      ``participant_transition_violations``
+      (``vultron/core/states/participant_transitions.py``), which both
+      ``CreateParticipantStatusNode`` and ``ValidateTriggerTransitionsNode``
+      call (BTND-10-002).
     adr:
     - ADR-0084
     tags:

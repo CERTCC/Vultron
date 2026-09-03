@@ -201,10 +201,17 @@ Three properties of that pass are load-bearing:
   would refuse, never the reverse. Do not cite it as a defence against a
   regressive `rm` licensing a `vf`; no such input exists.
 - **Emit and receive share one evaluator.**
-  `composite_state_violations()` in `vultron/core/states/composite_state_invariants.py`
-  composes the three rules; `ValidateTriggerTransitionsNode._validate_entailments`
-  and `_adjudicate_composite_state_entailments` both call it and neither calls the
-  individual `violation_*` functions. Before #2906 the receive path composed only
+  `composite_state_violations()` in
+  `vultron/core/states/composite_state_invariants.py` composes the three rules,
+  and no path calls the individual `violation_*` functions. The receive path
+  reaches it through `_adjudicate_composite_state_entailments`, and the
+  replica-apply path through `ApplyParticipantStatusFromLedgerNode`
+  (RSH-05-021). The emit path reaches it one level further out: since ADR-0086
+  the entailments are one member of the composed
+  `participant_transition_violations()` rule set (via `_entailment_violations`),
+  which both `ValidateTriggerTransitionsNode` and `CreateParticipantStatusNode`
+  call — so the emit path now enforces the entailments at the *write* boundary as
+  well as the guard. Before #2906 the receive path composed only
   VF↔D by hand, so an assertion the actor would have refused to *emit* was
   accepted, hash-chained and replicated when it arrived from a peer instead.
   A ratchet test asserts the emit path still delegates.
@@ -435,7 +442,7 @@ This node is the enforcement mechanism for CSB-18-002, CSB-18-003, and
 CSB-18-004 (PXA↔EM cross-machine entailment). When `EmbargoTeardownAuthorizationGate`
 permits teardown, the embargo terminates and the invariant is satisfied.
 When the gate blocks teardown, the invariant remains violated — a contradictory
-state that `violation_pxa_em_entailment()` (cross_machine_invariants.py) detects
+state that `violation_pxa_em_entailment()` (composite_state_invariants.py) detects
 as a post-cascade diagnostic. `PxaEmInvariantDiagnosticNode` is the production
 caller, wired after `ThreatTerminationBranchNode` in `add_case_status_tree`; it
 posts a Note to the case on violation (CONCERN-3008, issue #3115).

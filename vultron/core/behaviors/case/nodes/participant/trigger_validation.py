@@ -21,6 +21,14 @@ requested state must be a valid adjacent step from the actor's current state.
 :class:`~vultron.core.behaviors.case.nodes.participant.status\
 .CreateParticipantStatusNode` writes anything to the DataLayer.
 
+Both nodes evaluate the *same* rule set, composed once by
+:func:`~vultron.core.states.participant_transitions\
+.participant_transition_violations` and reached through
+:func:`~vultron.core.behaviors.case.nodes.participant.common\
+.validate_participant_status_write` (BTND-10-002, ADR-0086).  They cannot
+double-report: this guard fails first and the enclosing ``Sequence`` aborts
+before the write node ticks.
+
 This is the trigger-path counterpart of
 :class:`~vultron.core.behaviors.status.nodes.dimension_filter\
 .FilterParticipantStatusDimensionsNode` (received wire path).  The two differ
@@ -28,12 +36,14 @@ in disposition: the received path uses per-dimension partial-accept (a refused
 dimension carries the current value forward so other dimensions still land);
 the trigger path is fail-closed (a self-reported invalid jump is rejected
 outright — the actor controls its own state machine and must request valid
-steps).
+steps).  That asymmetry is Postel's maxim applied to the two sides of the wire,
+not an inconsistency to reconcile — see `notes/domain-validation.md`.
 
-Per specs/behavior-tree-node-design.yaml BTND-10-001,
+Per specs/behavior-tree-node-design.yaml BTND-10-001, BTND-10-002,
 specs/status-dimension-objects.yaml SDO-02-004,
-specs/cs-behavior.yaml CSB-16-001, CSB-16-002, CSB-18-001.
-Closes #2081 (AC-1, AC-2, AC-3, AC-6), #1903 (AC-1, AC-2, AC-3), #2236.
+specs/cs-behavior.yaml CSB-16-001, CSB-16-002, CSB-18-001,
+specs/error-handling.yaml EH-07-001, EH-07-002.
+Closes #2081 (AC-1, AC-2, AC-3, AC-6), #1903 (AC-1, AC-2, AC-3), #2236, #3050.
 """
 
 import logging
@@ -41,71 +51,49 @@ import logging
 from py_trees.common import Status
 
 from vultron.core.behaviors.case.nodes.participant.common import (
-    resolve_participant_state_from_dl,
+    resolve_transition_context_or_report,
+    validate_participant_status_write,
 )
 from vultron.core.behaviors.helpers import DataLayerCondition
-from vultron.core.models.case_participant import CaseParticipant
-from vultron.errors import VultronValidationError
-from vultron.core.states.composite_state_invariants import (
-    composite_state_violations,
-)
-from vultron.core.states.cs import (
-    CS_d,
-    CS_pxa,
-    CS_vf,
-    is_valid_d_transition,
-    is_valid_pxa_transition,
-    is_valid_vf_transition,
-)
-from vultron.core.predicates.participants import vendor_vf_invariant_ok
-from vultron.core.states.rm import RM, is_valid_rm_transition
-from vultron.core.predicates.roles import has_vendor_role
+from vultron.core.states.cs import CS_d, CS_pxa, CS_vf
+from vultron.core.states.rm import RM
 
 logger = logging.getLogger(__name__)
-
-
-def _resolve_current_pxa(case: object, participant: object) -> CS_pxa:
-    """Return the participant's current PXA state before a new snapshot lands.
-
-    Reads the participant's own status history first (authoritative for PXA
-    because this node records PXA on the participant snapshot, not on
-    ``case.case_statuses``).  Falls back to case-level PXA then ``CS_pxa.pxa``
-    when the participant has no PXA-bearing snapshot yet.
-    """
-    statuses = getattr(participant, "participant_statuses", None) or []
-    for status in reversed(statuses):
-        pxa_dim = getattr(getattr(status, "case_status", None), "pxa", None)
-        pxa_state = getattr(pxa_dim, "state", None)
-        if isinstance(pxa_state, CS_pxa):
-            return pxa_state
-    # Fall back to case-level PXA.
-    try:
-        current_status = case.current_status  # type: ignore[attr-defined]
-    except (AttributeError, ValueError):
-        return CS_pxa.pxa
-    pxa_dim = getattr(getattr(current_status, "pxa", None), "state", None)
-    return pxa_dim if isinstance(pxa_dim, CS_pxa) else CS_pxa.pxa
 
 
 class ValidateTriggerTransitionsNode(DataLayerCondition):
     """Fail-closed transition guard for the add-participant-status trigger path.
 
     Validates each non-``None`` requested dimension against the participant's
-    current state using strict-adjacency checks.  Returns ``FAILURE`` with a
-    descriptive ``feedback_message`` when any dimension would be an illegal
-    jump; returns ``SUCCESS`` otherwise.
+    current state.  Returns ``FAILURE`` with a ``feedback_message`` naming
+    **every** violated rule when the write is illegal, and ``SUCCESS``
+    otherwise.
 
-    Rules (per BTND-10-001, CSB-18-001):
+    Rules (per BTND-10-001, BTND-10-002, CSB-18-001) are composed by
+    :func:`~vultron.core.states.participant_transitions\
+    .participant_transition_violations` — this node evaluates none of them
+    itself.  In summary:
 
-    - ``None`` target → skip that dimension (AC-5).
+    - ``None`` target → that dimension asserts nothing and is skipped (AC-5).
     - ``target == current`` → same-state confirmation, always valid (AC-4).
-    - ``target != current`` and invalid adjacent step → ``FAILURE`` (AC-1/2/3).
-    - VFD has F bit (VFd/VFD) and effective RM ∉ {ACCEPTED, DEFERRED, CLOSED}
-      → ``FAILURE`` (CSB-18-001, #2236).
+    - An illegal adjacent step in RM, VF, D or PXA (AC-1/2/3).
+    - The VENDOR gate on the vendor path and the DEPLOYER gate on the deployer
+      path (CSB-15-001, CSB-15-002, ADR-0075).
+    - The RM↔VF, RM↔D and VF↔D cross-machine entailments (CSB-17-001,
+      CSB-18-001) and the compound CS transition (SM-09-002).
 
-    When the participant has no current status (first write) the initial states
-    ``RM.START``, initial VF/D state, ``CS_pxa.pxa`` are used as the baseline, so
-    the first valid transition from each initial state always passes.
+    When the participant has no current status (first write) the baseline is
+    ``RM.START``, ``CS_pxa.pxa``, and **absent** VF and D — ``None``, not an
+    initial value (ADR-0075).  Absence means there is no transition to measure,
+    so no per-dimension VF/D rule can fire; the role gate is what refuses an
+    assertion on a path the participant does not have (#2906).
+
+    This node writes ``result_out["error"]`` when it refuses, which is a
+    deliberate exception to :class:`DataLayerCondition`'s otherwise
+    side-effect-free contract.  The aggregate exception has to reach
+    ``SvcBTTriggerBase.execute()`` for the FastAPI layer to project it into the
+    422 ``details`` array (EH-05-002, EH-07-003), and ``result_out`` is the
+    existing channel for that.  It carries diagnostics only — no protocol state.
 
     Returns ``SUCCESS`` without validation when the participant or case cannot
     be read from the DataLayer — ``CreateParticipantStatusNode`` downstream
@@ -120,6 +108,7 @@ class ValidateTriggerTransitionsNode(DataLayerCondition):
         vf_state: "CS_vf | None",
         d_state: "CS_d | None",
         pxa_state: "CS_pxa | None",
+        result_out: dict,
         name: str | None = None,
     ) -> None:
         super().__init__(name=name or self.__class__.__name__)
@@ -129,84 +118,7 @@ class ValidateTriggerTransitionsNode(DataLayerCondition):
         self._vf_state = vf_state
         self._d_state = d_state
         self._pxa_state = pxa_state
-
-    def _check_vf_role(self, participant_obj: object) -> "Status | None":
-        """Return FAILURE when the VF assertion violates a role rule.
-
-        Two rules are enforced (ADR-0075, ADR-0084):
-
-        * AC-4 / PRM-06-002 — a VENDOR-role participant cannot self-assert
-          ``CS_vf.vf`` (vendor-unaware): they are by definition already aware.
-        * ADR-0075 / CSB-15-001 — only VENDOR may assert Vf or VF; a non-vendor
-          participant cannot claim vendor-awareness or fix-readiness.
-
-        Returns ``None`` (pass) when no VF state is requested.
-        """
-        if self._vf_state is None:
-            return None
-        actor_roles = (
-            list(participant_obj.roles)  # type: ignore[attr-defined]
-            if isinstance(participant_obj, CaseParticipant)
-            else []
-        )
-        if not vendor_vf_invariant_ok(actor_roles, self._vf_state):
-            self.feedback_message = (
-                f"Vendor-implies-V: CVDRole.VENDOR participant cannot assert"
-                f" {self._vf_state!r} (PRM-06-002, ADR-0084)"
-            )
-            self.logger.info("%s: %s", self.name, self.feedback_message)
-            return Status.FAILURE
-        if self._vf_state == CS_vf.vf:
-            return None  # non-vendor asserting vf is valid
-        if not has_vendor_role(actor_roles):
-            self.feedback_message = (
-                f"CVDRole.VENDOR required for VF state"
-                f" {self._vf_state!r} (ADR-0075); actor roles: {actor_roles!r}"
-            )
-            self.logger.info("%s: %s", self.name, self.feedback_message)
-            return Status.FAILURE
-        return None
-
-    def _check_pxa_transition(
-        self, case: object, participant_obj: object
-    ) -> "Status | None":
-        """Validate the requested PXA transition; return FAILURE or None."""
-        if self._pxa_state is None or not isinstance(
-            participant_obj, CaseParticipant
-        ):
-            return None
-        current_pxa = _resolve_current_pxa(case, participant_obj)
-        if self._pxa_state != current_pxa and not is_valid_pxa_transition(
-            current_pxa, self._pxa_state
-        ):
-            self.feedback_message = (
-                f"Invalid PXA transition"
-                f" {current_pxa!r} → {self._pxa_state!r}"
-            )
-            self.logger.info("%s: %s", self.name, self.feedback_message)
-            return Status.FAILURE
-        return None
-
-    def _resolve_current_state(
-        self, dl: object, participant_id: str
-    ) -> "tuple[RM, CS_vf | None, CS_d | None] | Status":
-        """Return current (rm, vf, d) or Status.FAILURE on shape mismatch.
-
-        Wraps resolve_participant_state_from_dl so the try/except lives outside
-        update(), keeping update()'s McCabe complexity ≤ 10 (C901).
-        """
-        try:
-            return resolve_participant_state_from_dl(
-                dl,  # type: ignore[arg-type]
-                participant_id,
-            )
-        except VultronValidationError as exc:
-            self.feedback_message = (
-                f"Participant '{participant_id}' status is not core-shaped:"
-                f" {exc} (ARCH-15-001)"
-            )
-            self.logger.warning("%s: %s", self.name, self.feedback_message)
-            return Status.FAILURE
+        self._result_out = result_out
 
     def update(self) -> Status:
         if (f := self._require_datalayer()) is not None:
@@ -224,89 +136,21 @@ class ValidateTriggerTransitionsNode(DataLayerCondition):
             # CreateParticipantStatusNode will report this; pass through.
             return Status.SUCCESS
 
-        state = self._resolve_current_state(dl, participant_id)
-        if isinstance(state, Status):
-            return state
-        current_rm, current_vf, current_d = state
-        participant_obj = dl.read(participant_id)
-
-        # --- RM dimension ---
-        if (
-            self._rm_state is not None
-            and self._rm_state != current_rm
-            and not is_valid_rm_transition(current_rm, self._rm_state)
-        ):
-            self.feedback_message = (
-                f"Invalid RM transition {current_rm!r} → {self._rm_state!r}"
-            )
-            self.logger.info("%s: %s", self.name, self.feedback_message)
-            return Status.FAILURE
-
-        # --- VF dimension ---
-        if (
-            self._vf_state is not None
-            and current_vf is not None
-            and self._vf_state != current_vf
-            and not is_valid_vf_transition(current_vf, self._vf_state)
-        ):
-            self.feedback_message = (
-                f"Invalid VF transition"
-                f" {current_vf!r} → {self._vf_state!r}"
-            )
-            self.logger.info("%s: %s", self.name, self.feedback_message)
-            return Status.FAILURE
-
-        # --- D dimension ---
-        if (
-            self._d_state is not None
-            and current_d is not None
-            and self._d_state != current_d
-            and not is_valid_d_transition(current_d, self._d_state)
-        ):
-            self.feedback_message = (
-                f"Invalid D transition" f" {current_d!r} → {self._d_state!r}"
-            )
-            self.logger.info("%s: %s", self.name, self.feedback_message)
-            return Status.FAILURE
-
-        # --- VF role eligibility (ADR-0075, #2862) ---
-        if (failure := self._check_vf_role(participant_obj)) is not None:
-            return failure
-
-        # --- PXA dimension ---
-        if (
-            failure := self._check_pxa_transition(case, participant_obj)
-        ) is not None:
-            return failure
-
-        effective_rm = (
-            self._rm_state if self._rm_state is not None else current_rm
+        context = resolve_transition_context_or_report(
+            self, dl, case, participant_id
         )
-        effective_vf = (
-            self._vf_state if self._vf_state is not None else current_vf
-        )
-        effective_d = self._d_state if self._d_state is not None else current_d
-        return self._validate_entailments(
-            effective_rm, effective_vf, effective_d
-        )
+        if isinstance(context, Status):
+            return context
 
-    def _validate_entailments(
-        self,
-        rm: "RM",
-        vf: "CS_vf | None",
-        d: "CS_d | None",
-    ) -> Status:
-        """CSB-18-001/CSB-17-001: check RM↔VF, RM↔D, and VF↔D cross-machine entailments.
-
-        The rules are composed by ``composite_state_violations()`` rather than
-        called individually here, so this emit-side gate and the receive-side
-        adjudication in ``vultron.core.behaviors.status.nodes._adjudication``
-        enforce the same set (#2906).  Emitting is all-or-nothing, so the first
-        violation is enough to refuse the whole trigger.
-        """
-        violations = composite_state_violations(rm, vf, d)
-        if violations:
-            self.feedback_message = violations[0].message
-            self.logger.info("%s: %s", self.name, self.feedback_message)
-            return Status.FAILURE
-        return Status.SUCCESS
+        failure = validate_participant_status_write(
+            self,
+            context,
+            case_id=self._case_id,
+            actor_id=self._actor_id,
+            rm_state=self._rm_state,
+            vf_state=self._vf_state,
+            d_state=self._d_state,
+            pxa_state=self._pxa_state,
+            result_out=self._result_out,
+        )
+        return Status.SUCCESS if failure is None else failure

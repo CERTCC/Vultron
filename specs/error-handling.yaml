@@ -128,6 +128,17 @@ groups:
       classified as root or derived. A rule reading a single dimension is always
       root. A rule reading more than one dimension is derived when any dimension it
       reads already carries a single-dimension violation, and root otherwise.
+      Dimension overlap is a proxy for the real test, which is remediation: a
+      violation is derived when the remediation the caller is expected to apply to
+      the overlapping single-dimension violation also clears it. The proxy holds
+      only while that premise does. For a transition fault the expected remediation
+      is asserting a legal value, which clears the entailment that read the illegal
+      one. For a role gate the expected remediation is **withdrawing the
+      assertion**, not acquiring the role — a participant does not hold a dimension
+      it has no role for at all (a non-DEPLOYER's `d` is absent, not initial;
+      ADR-0075) and an actor cannot grant itself a role. Any rule family added later
+      whose expected remediation is neither of those MUST be checked against the
+      remediation test before relying on the overlap proxy.
     rationale: >-
       One bad dimension frequently entails further violations, so unranked
       thoroughness degrades into a wall of errors that one fix clears most of. The
@@ -135,6 +146,12 @@ groups:
       graph, so a newly added rule is classified correctly by construction and the
       labelling cannot go stale. The root multi-dimension case is the informative
       one: every dimension moved legally on its own and the combination is impossible.
+      The remediation premise is stated normatively above because it is load-bearing
+      and was previously left implicit: three separate reviewers read the overlap rule
+      as a pure graph property, concluded a role gate mislabels its entailments, and
+      built a repro that put a participant on a dimension it had no role for — a state
+      ADR-0075 makes unreachable. The finding dissolved each time, but only after
+      re-deriving the domain premise the requirement never stated.
     relationships:
     - rel_type: refines
       spec_id: EH-07-001

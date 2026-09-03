@@ -123,11 +123,13 @@ rule set grows.
 
 ### Surface the list, do not make callers parse a string
 
-`VultronValidationError` gains a `failures` list, following `DemoFailureError`'s
-existing shape, and renders the full list through `__str__`. The FastAPI
-translation adds a `details` array to the 422 body alongside the existing
-`message`. Callers that want individual violations read `details`; callers that
-want a human-readable summary keep reading `message`.
+`VultronValidationError` gains a `violations` list, following
+`DemoFailureError`'s existing `failures` shape, and renders the full list
+through `__str__`. Each entry carries the rule's `message`, the `dimensions` the
+rule reads, and its root/derived classification. The FastAPI translation adds a
+`details` array to the 422 body alongside the existing `message`. Callers that
+want individual violations read `details`; callers that want a human-readable
+summary keep reading `message`.
 
 The existing plumbing carries this end to end with one change:
 `SvcBTTriggerBase.execute()` already re-raises whatever exception it finds at
@@ -164,9 +166,26 @@ teardown — remain the standing argument against changing it.
 - Good, because the root/derived split keeps thoroughness from degrading into a
   wall of consequential errors.
 - Good, because the five call sites that bypass the trigger guard get the same
-  diagnostics as the trigger path, at no additional cost.
+  diagnostics as the trigger path. **Correction (#3050):** this was asserted to
+  cost nothing, and for VF, D and PXA it does not. It is not true for RM. Giving
+  the write node the whole rule set made it validate RM for the first time, and
+  three of those sites — `close_case_effect.py` and both in `leave.py` — stamp a
+  departing participant `RM.CLOSED` from whatever rung its RM machine is on,
+  which the RM machine does not permit. They carry a documented `force_rm_state`
+  exemption suppressing only the RM rule; whether case closure should force
+  participant RM state at all is tracked as ISSUE-3106.
 - Bad, because `message` content changes for multi-violation failures, so any
   test or log assertion matching the single-error text needs updating.
+- Neutral, because composing the set does **not** make everything persisted
+  validated. `CreateParticipantStatusNode._apply_ac1_promotions()` applies
+  SM-09-001's forced promotions after the evaluator has run, and the promoted
+  values are what land. That gap was exploitable — a non-VENDOR could assert
+  `vf` and have it promoted to `Vf` behind the VENDOR gate — and is closed by
+  widening the VF role gate to cover every asserted value, matching what the
+  deployer path had done since ISSUE-2963 (ISSUE-3135). The promotion is now
+  unreachable with an ungated value rather than itself role-gated, so a new
+  route by which a participant can acquire a dimension its role does not
+  license would reopen it.
 - Bad, because EH-05-001 gains an optional field, which is a public-surface
   change to every Vultron error response, not only this endpoint.
 - Neutral, because the aggregation is confined to one node per path. The sibling

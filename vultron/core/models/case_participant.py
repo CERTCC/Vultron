@@ -43,11 +43,22 @@ from vultron.core.models._helpers import _new_urn
 from vultron.core.models._wire_spelling import reject_wire_spelled_keys
 from vultron.core.models.base import CoreObject, NonEmptyString
 from vultron.errors import VultronValidationError
-from vultron.core.models.dimensions import PecDimension, RmDimension
+from vultron.core.models.dimensions import (
+    DDimension,
+    PecDimension,
+    RmDimension,
+    VfDimension,
+)
 from vultron.core.models.participant_status import (
     ParticipantStatus,
     coerce_cvd_roles,
     coerce_em_consent_state,
+    participant_status_d_state,
+    participant_status_vf_state,
+)
+from vultron.core.predicates.roles import (
+    has_deployer_role,
+    has_vendor_role,
 )
 from vultron.core.states.participant_embargo_consent import PEC, PEC_Trigger
 from vultron.core.states.rm import RM, is_valid_rm_transition
@@ -232,12 +243,17 @@ class CaseParticipant(CoreObject):
 
         Returns:
             ``True`` when the status was appended, ``False`` when blocked.
+
+        Raises:
+            VultronValidationError: when the latest status carries a ``vf`` or
+                ``d`` dimension that is present but malformed — the readers used
+                to carry those paths forward refuse to degrade a corrupt row into
+                an absence (ARCH-15-002).  A blocked transition is reported by the
+                ``False`` return; a corrupt row is not, so callers that branch only
+                on the boolean must still let this propagate.
         """
-        current = (
-            self.participant_statuses[-1].rm.state
-            if self.participant_statuses
-            else RM.START
-        )
+        latest = self.participant_status
+        current = latest.rm.state if latest is not None else RM.START
         if not is_valid_rm_transition(current, rm_state):
             logger.warning(
                 "Invalid RM transition %s → %s for participant %s; skipping",
@@ -247,9 +263,41 @@ class CaseParticipant(CoreObject):
             )
             return False
         _consent_state = coerce_em_consent_state(self.embargo_consent_state)
+        roles = coerce_cvd_roles(self.case_roles)
+        # Carry the vendor and deployer paths forward.  Omitting them does not
+        # leave them absent: `ParticipantStatus._enforce_role_dimension_invariant`
+        # re-seeds `vf` for a VENDOR and `d` for a DEPLOYER at their *initial*
+        # state, so an RM-only append silently reset a vendor that had already
+        # reached VF back to vendor-unaware (#2264's failure mode, #3134).
+        #
+        # Carry a path forward only while its role is still held.  `cvd_role` on
+        # the new snapshot is recomputed from the *current* roles, so carrying a
+        # dimension whose role has since been dropped would produce a snapshot
+        # asserting a path its role list denies — ADR-0075 says a non-VENDOR has
+        # no vendor path and a non-DEPLOYER has no deployer path.
+        current_vf = (
+            participant_status_vf_state(latest)
+            if latest is not None and has_vendor_role(roles)
+            else None
+        )
+        current_d = (
+            participant_status_d_state(latest)
+            if latest is not None and has_deployer_role(roles)
+            else None
+        )
         self.participant_statuses.append(
             ParticipantStatus(
                 rm=RmDimension(state=rm_state),
+                vf=(
+                    VfDimension(state=current_vf)
+                    if current_vf is not None
+                    else None
+                ),
+                d=(
+                    DDimension(state=current_d)
+                    if current_d is not None
+                    else None
+                ),
                 context=context,
                 attributed_to=actor,
                 consent=(
@@ -257,7 +305,7 @@ class CaseParticipant(CoreObject):
                     if _consent_state is not None
                     else None
                 ),
-                cvd_role=coerce_cvd_roles(self.case_roles),
+                cvd_role=roles,
             )
         )
         return True

@@ -1388,7 +1388,8 @@ class TestAdjudicateDimensionsRoleGuards:
 class TestAdjudicateDimensionsCrossMachineEntailments:
     """Receive-path RM↔VF and RM↔D entailment checks (#2906).
 
-    The emit path (``ValidateTriggerTransitionsNode._validate_entailments``)
+    The emit path (``participant_transition_violations()``, reached from both
+    ``ValidateTriggerTransitionsNode`` and ``CreateParticipantStatusNode``)
     refuses a state snapshot whose fix-readiness or fix-deployment bit is set
     while RM has not reached acceptance — a causal impossibility (CSB-18-001).
     The receive path checked only VF↔D, so a peer could assert ``vf=VF``
@@ -1844,16 +1845,19 @@ class TestCompositeStateViolationsSharedHelper:
             assert violation.alternatives == ()
 
     def test_emit_path_uses_the_shared_helper(self):
-        """Regression guard: the emit path must not re-implement the rules."""
+        """Regression guard: the emit path must not re-implement the rules.
+
+        Since ADR-0086 the emit path reaches the entailments one level further
+        out — ``participant_transition_violations()`` composes them alongside
+        the per-dimension and role rules — so the guard is asserted there.  The
+        per-node half of the ratchet lives in
+        ``test/architecture/test_participant_status_validation.py``.
+        """
         import inspect
 
-        from vultron.core.behaviors.case.nodes.participant import (
-            trigger_validation,
-        )
+        from vultron.core.states import participant_transitions
 
-        source = inspect.getsource(
-            trigger_validation.ValidateTriggerTransitionsNode._validate_entailments
-        )
+        source = inspect.getsource(participant_transitions)
 
         assert "composite_state_violations" in source
         for rule in (

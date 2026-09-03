@@ -763,15 +763,39 @@ Source: ISSUE-2238
 
 ## BT Write Nodes Must Validate Transitions at Their Own Boundary
 
-A BT node that writes CS/VFD/PXA/EM/RM state MUST call the relevant
-`is_valid_*_transition()` function inside the write node itself, not only in
-upstream guard or condition nodes. Upstream guards can be absent or bypassed when
-the write node is reused in a new tree. For VFD writes see CSB-16-001; for PXA
-writes see CSB-16-002 and SM-09-001; for EM writes route through
-`EmbargoLifecycle` (EMB-18-001). See
-[notes/embargo-lifecycle.md](embargo-lifecycle.md).
+A BT node that writes CS/VFD/PXA/EM/RM state MUST validate the transition inside
+the write node itself, not only in an upstream guard or condition node. Upstream
+guards can be absent or bypassed when the write node is reused in a new tree
+(BTND-10-001, BTND-10-003).
 
-Source: CONCERN-2412
+**How it discharges that duty depends on the dimension set**, and for
+`ParticipantStatus` the answer changed with ADR-0086:
+
+- **`ParticipantStatus` writes** (`rm`/`vf`/`d`/`pxa`): call
+  `participant_transition_violations()` from
+  `vultron/core/states/participant_transitions.py` — in practice via
+  `validate_participant_status_write()` in
+  `behaviors/case/nodes/participant/common.py`, which also renders the
+  `feedback_message` and writes `result_out["error"]`. Do **not** call the
+  individual `is_valid_*_transition()` / `violation_*` predicates: BTND-10-002
+  requires the rules to be composed once so two paths cannot enforce different
+  subsets, and `test/architecture/test_participant_status_validation.py` fails
+  any validating node that names a predicate directly. Reporting *every*
+  violation rather than the first is part of the same requirement (EH-07-001) —
+  rejecting the write atomically does not license a one-reason diagnostic.
+- **`CaseStatus` and other dimension writes**: call the relevant
+  `is_valid_*_transition()` directly. For VFD writes see CSB-16-001; for PXA
+  writes see CSB-16-002 and SM-09-001.
+- **EM writes**: route through `EmbargoLifecycle` (EMB-18-001). See
+  [notes/embargo-lifecycle.md](embargo-lifecycle.md).
+
+The trigger path and the write path both validate; that is deliberate, not
+redundant. On the trigger path the guard fails first and the enclosing `Sequence`
+aborts, so nothing double-reports, and five call sites reach the write node
+without any guard at all — for those the write node's own check is the only
+validation there is.
+
+Sources: CONCERN-2412, ISSUE-3050 (ADR-0086)
 
 ## BT Nodes Must Not Clear Blackboard Keys They Do Not Own
 

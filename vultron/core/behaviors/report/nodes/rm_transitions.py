@@ -103,6 +103,19 @@ class _ReportPhaseRMTransition(DataLayerActionWithPorts):
     Subclasses set :attr:`_target_rm`.  This is the only place a report-phase RM
     record is constructed (ARCH-15-004); the three concrete nodes differ solely
     in their target state and in whether they require a case.
+
+    **Deliberately outside the composed ParticipantStatus evaluator.**
+    BTND-10-002 routes case-participant writes through
+    :func:`~vultron.core.states.participant_transitions\
+    .participant_transition_violations`, and this node does not use it because it
+    is a different lifecycle, not an oversight: it operates on a *report* before
+    a case exists, so there is no case participant, no VF/D/PXA dimension and no
+    role to gate on, and its current state comes from
+    :func:`_current_report_phase_rm_state` (report-scoped) rather than
+    ``resolve_participant_state_from_dl`` (case-scoped).  RM adjacency is
+    therefore the whole rule set that applies here.  Recorded as a declared
+    exclusion in ``test/architecture/test_participant_status_validation.py``;
+    whether the two lifecycles should share one evaluator is ISSUE-3111.
     """
 
     #: Target RM state; set by each concrete subclass.
