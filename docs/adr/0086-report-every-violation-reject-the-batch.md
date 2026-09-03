@@ -21,7 +21,7 @@ problem it finds and reports only that one:
 - `CreateParticipantStatusNode.update()` runs `_check_vf_precondition`,
   `_check_d_precondition`, `_check_pxa_precondition` and
   `_check_compound_transition`, likewise returning at the first.
-- `cross_machine_violations()` already returns *every* violated entailment as a
+- `composite_state_violations()` already returns *every* violated entailment as a
   list, and both callers discard all but element zero.
 
 The caller — a human or an agent driving the `add-participant-status` trigger —
@@ -36,7 +36,7 @@ decision:
 2. **Does rejecting as a unit license reporting only one reason?** No — but the
    codebase asserted that it does. `_validate_entailments`' docstring read
    "Emitting is all-or-nothing, so the first violation is enough to refuse the
-   whole trigger," and `cross_machine_violations()` justified its ordering so
+   whole trigger," and `composite_state_violations()` justified its ordering so
    that "a caller that reports only the first violation reports the same one it
    always did."
 
@@ -94,7 +94,7 @@ code.
 ### Report every violation
 
 A single shared evaluator — `participant_transition_violations()`, modelled on
-the existing `cross_machine_violations()` — evaluates the per-dimension
+the existing `composite_state_violations()` — evaluates the per-dimension
 transition rules, the role gates and the cross-machine entailments, and returns
 every violated rule. Both `ValidateTriggerTransitionsNode` and
 `CreateParticipantStatusNode` call it and report the whole list.
@@ -208,7 +208,7 @@ merely fixed.
 
 - Good, because it fixes the diagnostics and the duplication in one coherent
   change, addressing the reason the diagnostics were awkward to fix.
-- Good, because it reuses `cross_machine_violations()`' established shape rather
+- Good, because it reuses `composite_state_violations()`' established shape rather
   than inventing a parallel one.
 - Neutral, because the write node keeps its own validation call rather than
   becoming a thin delegate; BTND-10-001 requires the write boundary to be

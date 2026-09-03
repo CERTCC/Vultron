@@ -50,8 +50,8 @@ from vultron.core.states.cs import (
     is_valid_pxa_transition,
     is_valid_vf_transition,
 )
-from vultron.core.states.cross_machine_invariants import (
-    cross_machine_violations,
+from vultron.core.states.composite_state_invariants import (
+    composite_state_violations,
 )
 from vultron.core.states.cs_invariants import (
     cs_from_dimensions,
@@ -425,7 +425,7 @@ class CreateParticipantStatusNode(DataLayerActionWithPorts):
                 errors.append(self.feedback_message)
 
         if not errors:
-            for violation in cross_machine_violations(eff_rm, eff_vf, eff_d):
+            for violation in composite_state_violations(eff_rm, eff_vf, eff_d):
                 errors.append(violation.message)
 
         if errors:
