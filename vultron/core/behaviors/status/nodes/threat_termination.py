@@ -22,6 +22,7 @@ Per RSH-03-001 to RSH-03-003, ADR-0046.
 """
 
 import logging
+from typing import cast
 
 import py_trees
 from py_trees.common import Status
@@ -30,8 +31,39 @@ from vultron.core.behaviors.embargo.trigger_tree import terminate_embargo_bt
 from vultron.core.behaviors.helpers import DataLayerConditionWithPorts
 from vultron.core.models.protocols import PersistableModel
 from vultron.core.models._helpers import _as_id
+from vultron.core.states.cs import CS_pxa
 
 logger = logging.getLogger(__name__)
+
+
+def resolve_pxa_threat_state(case_status: object) -> CS_pxa | None:
+    """Return the PXA state if a threat is present; return None otherwise.
+
+    A threat is any ``CS_pxa`` state other than ``pxa`` (all-lowercase —
+    no P, X, or A set).  Accepts the resolved ``case_status`` object
+    (not the outer ``status_obj`` wrapper).
+
+    Returns ``None`` when:
+    - ``case_status`` is None
+    - ``case_status`` has no PXA attribute
+    - The resolved state is ``CS_pxa.pxa``
+    """
+    if case_status is None:
+        return None
+    if hasattr(case_status, "pxa"):
+        pxa_state = getattr(case_status, "pxa").state
+    elif hasattr(case_status, "pxa_state"):
+        pxa_state = getattr(case_status, "pxa_state")
+    else:
+        return None
+    if pxa_state is None:
+        return None
+    try:
+        if pxa_state == CS_pxa.pxa:
+            return None
+    except Exception:
+        return None
+    return cast(CS_pxa, pxa_state)
 
 
 class _ThreatTerminationSkipConditionNode(DataLayerConditionWithPorts):
@@ -75,8 +107,6 @@ class _ThreatTerminationSkipConditionNode(DataLayerConditionWithPorts):
 
     def _threat_present(self) -> bool:
         """Return True if pxa state has at least one of P, X, or A set."""
-        from vultron.core.states.cs import CS_pxa
-
         case_status: object = getattr(self.status_obj, "case_status", None)
         if case_status is None:
             case_status = self.status_obj
@@ -94,20 +124,7 @@ class _ThreatTerminationSkipConditionNode(DataLayerConditionWithPorts):
         ):
             case_status = self._case_status_from_datalayer()
 
-        if case_status is None:
-            return False
-        if hasattr(case_status, "pxa"):
-            pxa_state = getattr(case_status, "pxa").state
-        elif hasattr(case_status, "pxa_state"):
-            pxa_state = getattr(case_status, "pxa_state")
-        else:
-            return False
-        if pxa_state is None:
-            return False
-        try:
-            return bool(pxa_state != CS_pxa.pxa)
-        except Exception:
-            return False
+        return resolve_pxa_threat_state(case_status) is not None
 
     def update(self) -> Status:
         if not self._threat_present():
@@ -179,6 +196,7 @@ class ThreatTerminationBranchNode(py_trees.composites.Selector):
 
 
 __all__ = [
+    "resolve_pxa_threat_state",
     "_ThreatTerminationSkipConditionNode",
     "ThreatTerminationBranchNode",
 ]

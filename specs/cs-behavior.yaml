@@ -2364,9 +2364,14 @@ groups:
     Invariants that span two state machines simultaneously. These are
     causal entailments, not local transition constraints: they capture states
     that are logically contradictory given the sequence of events that
-    produced them. Violations are detected and reported by
-    vultron/core/states/composite_state_invariants.py but are NOT enforced at
-    emit time — they are diagnosed post-hoc.
+    produced them. CSB-18-001 is enforced at emit time via
+    ValidateTriggerTransitionsNode and on the receive path via
+    composite_state_violations() (composite_state_invariants.py).
+    CSB-18-002 through CSB-18-004 (PXA↔EM) are enforced on the receive
+    path via ThreatTerminationBranchNode in add_case_status_tree;
+    violation_pxa_em_entailment() (composite_state_invariants.py) is the
+    post-cascade diagnostic caller via PxaEmInvariantDiagnosticNode
+    (CONCERN-3008, issue #3115).
   specs:
   - id: CSB-18-001
     priority: MUST_NOT
@@ -2435,7 +2440,11 @@ groups:
       termination, not mere transition ambiguity. This is a causal
       entailment, not a timing race — it is NOT enforced at emit time
       because the sequence of events is what makes it contradictory.
-      Implemented in violation_pxa_em_entailment() (composite_state_invariants.py).
+      Enforced on the receive path via ThreatTerminationBranchNode
+      (add_case_status_tree.py, RSH-03-001) when the authorization gate
+      permits teardown. Diagnostic check: violation_pxa_em_entailment()
+      (composite_state_invariants.py); post-cascade caller:
+      PxaEmInvariantDiagnosticNode (CONCERN-3008, issue #3115).
       Source: ISSUE-2372.
     testable: true
     preconditions:
@@ -2454,8 +2463,11 @@ groups:
     rationale: >-
       Same causal logic as CSB-18-002. The X event (exploit public) triggers
       embargo termination; EM cannot remain ACTIVE after X has been recorded.
-      This is a causal entailment diagnosed post-hoc, not enforced at emit.
-      Implemented in violation_pxa_em_entailment() (composite_state_invariants.py).
+      This is a causal entailment, not enforced at emit. Enforced on the
+      receive path via ThreatTerminationBranchNode (RSH-03-002). Diagnostic
+      check: violation_pxa_em_entailment() (composite_state_invariants.py);
+      post-cascade caller: PxaEmInvariantDiagnosticNode (CONCERN-3008,
+      issue #3115).
     testable: true
     preconditions:
     - description: A PXA state and an EM state are both available for the same case
@@ -2476,9 +2488,11 @@ groups:
     rationale: >-
       Same causal logic as CSB-18-002 and CSB-18-003. The A event (attacks
       observed) triggers embargo termination; EM cannot remain ACTIVE after A
-      has been recorded. This is a causal entailment diagnosed post-hoc, not
-      enforced at emit.
-      Implemented in violation_pxa_em_entailment() (composite_state_invariants.py).
+      has been recorded. This is a causal entailment, not enforced at emit.
+      Enforced on the receive path via ThreatTerminationBranchNode (RSH-03-003).
+      Diagnostic check: violation_pxa_em_entailment() (composite_state_invariants.py);
+      post-cascade caller: PxaEmInvariantDiagnosticNode (CONCERN-3008,
+      issue #3115).
     testable: true
     preconditions:
     - description: A PXA state and an EM state are both available for the same case
