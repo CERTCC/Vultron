@@ -216,43 +216,55 @@ Dimension objects that are constructed directly by target state value
 the transition contract** in SDO-02-002. BT write nodes that use this pattern
 MUST validate the `(current → target)` pair before persisting.
 
-The valid-transition helper functions in `vultron/core/states/` provide this:
-
-```python
-from vultron.core.states.cs import is_valid_vfd_transition, is_valid_pxa_transition
-from vultron.core.states.rm import is_valid_rm_transition
-
-# In a write node's update():
-if target_state is not None and target_state != current_state:
-    if not is_valid_vfd_transition(current_state, target_state):
-        self.feedback_message = (
-            f"Invalid VFD transition {current_state!r} → {target_state!r}"
-        )
-        return Status.FAILURE
-```
-
-Rules:
+The rules a write must satisfy are the same in every case:
 
 - `target == current` → proceed (status confirmation; valid protocol observation)
-- `is_valid_*_transition(current, target)` is `True` → proceed
+- The `(current → target)` step is legal → proceed
 - Otherwise → `Status.FAILURE` with a descriptive `feedback_message`
-- `None` target → skip validation (caller is preserving current state)
+- `None` target → asserts nothing about that dimension; no per-dimension rule
+  applies. Note that a `None` *current* `vf`/`d` means the dimension is
+  **absent**, not at its initial state (ADR-0075)
+
+What differs is **how** a node evaluates them, and for `ParticipantStatus` that
+changed with ADR-0086:
+
+- **`ParticipantStatus` writes**: call `participant_transition_violations()`
+  (`vultron/core/states/participant_transitions.py`), normally through
+  `validate_participant_status_write()` in
+  `behaviors/case/nodes/participant/common.py`. It composes the per-dimension
+  transitions, the VENDOR/DEPLOYER role gates, the cross-machine entailments and
+  the compound CS transition, and returns **every** violated rule. Calling the
+  individual `is_valid_*_transition()` / `violation_*` predicates from a
+  validating node is a BTND-10-002 violation and
+  `test/architecture/test_participant_status_validation.py` fails on it.
+- **`CaseStatus` and other dimension writes**: call the relevant
+  `is_valid_*_transition()` helper from `vultron/core/states/` directly.
 
 The ideal is for write nodes to be fail-closed regardless of whether an upstream
-guard is present, weak, or bypassed. See BTND-10-001, SDO-02-004, CSB-16-001/002.
+guard is present, weak, or bypassed. See BTND-10-001, BTND-10-003, SDO-02-004,
+CSB-16-001/002.
 
 The primary write boundary is `CreateParticipantStatusNode` in
 `vultron/core/behaviors/case/nodes/participant/status.py` — all VFD/RM/PXA
-state-write paths in the prototype route through it. In practice,
-`CreateParticipantStatusNode` itself does not validate inline (see
-`notes/bt-pitfalls.md` § "State-Validation Bypass"). Instead, each call path
-relies on an upstream guard node:
+state-write paths in the prototype route through it, and since ADR-0086 it
+validates the **whole** rule set itself rather than trusting an upstream guard
+(BTND-10-003). Five production call sites reach it without any guard, so its own
+check is the only validation on those paths. Where a guard *is* present it
+enforces the same composed rule set:
 
-- **Trigger path**: `ValidateTriggerTransitionsNode` — fail-closed; invalid jump
-  raises `VultronValidationError` before `CreateParticipantStatusNode` runs.
+- **Trigger path**: `ValidateTriggerTransitionsNode` — fail-closed; reports every
+  violation and fails the enclosing `Sequence` before the write node ticks, so the
+  two do not double-report.
 - **Received wire path**: `FilterParticipantStatusDimensionsNode` +
   `ValidateRMTransitionNode` — partial-accept; refused dimensions carry the
-  current value forward.
+  current value forward. The opposite disposition from the trigger path, on
+  purpose: Postel's maxim, not an inconsistency (ADR-0061, ADR-0086). See
+  [notes/domain-validation.md](domain-validation.md).
+
+Two `ParticipantStatus` writers still sit outside the composed evaluator
+(`CaseParticipant.append_rm_state()` and
+`_ReportPhaseRMTransition._guard_transition()`), each enforcing RM adjacency only;
+consolidating them is #3111.
 
 `test/architecture/test_vfd_rm_pxa_write_sites.py` (the AC-7 ratchet) AST-scans
 `vultron/core/behaviors/` for every dimension constructor call and fails on any

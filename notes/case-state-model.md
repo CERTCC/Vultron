@@ -123,7 +123,7 @@ verdicts split between *still valid* and *superseded by structure*.
 
 | Legacy rule (`validations.py`) | Verdict | Current expression |
 |---|---|---|
-| `is_valid_state`: `vF` / `fD` impossible → 32 states | Still valid, **structural and runtime** | After ADR-0075 split VFD into separate `CS_vf`/`CS_d` types, `*fD*` is no longer structurally unrepresentable. Runtime enforcement is via `composite_state_violations()` (`composite_state_invariants.py`), which composes `violation_vf_d_entailment()` with the two RM rules; both the trigger path (`ValidateTriggerTransitionsNode`) and the received path (`_adjudicate_dimensions`) call the composed evaluator, and a ratchet test forbids either from calling the individual predicates. See [notes/received-status-authorization.md](received-status-authorization.md) § "Independent adjudication cannot see a combination". CSB-17-001, RSH-05-020 |
+| `is_valid_state`: `vF` / `fD` impossible → 32 states | Still valid, **structural and runtime** | After ADR-0075 split VFD into separate `CS_vf`/`CS_d` types, `*fD*` is no longer structurally unrepresentable. Runtime enforcement is via `composite_state_violations()` (`composite_state_invariants.py`), which composes `violation_vf_d_entailment()` with the two RM rules. The received path (`_adjudicate_dimensions`) and the replica-apply path (`ApplyParticipantStatusFromLedgerNode`, RSH-05-021) call it directly; since ADR-0086 the emit path reaches it as one member of the wider `participant_transition_violations()` rule set, which both `ValidateTriggerTransitionsNode` and `CreateParticipantStatusNode` call. Ratchet tests forbid any of them from calling the individual predicates. See [notes/received-status-authorization.md](received-status-authorization.md) § "Independent adjudication cannot see a combination". CSB-17-001, RSH-05-020 |
 | `is_valid_transition`: Hamming distance 1 | Still valid | `cs_transition_event()`, CSB-17-002 |
 | `is_valid_transition`: monotone, same dimension | Still valid | Delegated to `is_valid_vfd_transition` / `is_valid_pxa_transition`; compound check in `is_valid_cs_transition()`, CSB-17-002 |
 | `TRANSITION_RULES`: `...pX. → ...PX.` | Still valid | `required_next_cs_events()`; generalises CSB-13-001 from the entry cascade to every `pX` successor. CSB-17-003 |
@@ -753,3 +753,46 @@ call is an alternative to fixed heuristics.
 **See**: `specs/agentic-readiness.yaml` and `specs/case-management.yaml` for
 the CVD action rules; `notes/bt-fuzzer-nodes.md` for related external
 touchpoints.
+
+---
+
+## CS Representation: Keep the Compound Enum (do not introduce `CaseState(BaseModel)`)
+
+**Decision (CONCERN-2099, planning group G06 / #2834):** The case-state
+representation stays as it is. The top-level `CS` enum in
+`vultron/core/states/cs.py` is already composed from the two sub-machine enums —
+it is `CompoundState(CS_vfd, CS_pxa)` yielding the 32 reachable states — which is
+exactly the decomposition the long-standing `# TODO consider replacing this with
+a combination of VfdState and PxaState / either directly or just creating
+CaseState(BaseModel)` comment contemplated. That TODO is now **resolved by the
+code that already exists**, and the resolution is "keep the compound enum," so
+the stale TODO is to be retired (tracked as a small follow-on Task under
+Epic #2684).
+
+Why not a `CaseState(BaseModel)` structured model:
+
+- New `vultron/core/` protocol code already consumes the **split** sub-machine
+  enums directly (`CS_vfd` / `CS_pxa`, and the ADR-0075 per-participant `CS_vf` /
+  `CS_d`). It does not reach for the monolithic `CS`.
+- The monolithic 32-member `CS` enum is retained mainly for the legacy
+  `vultron/bt/` simulator, which indexes states as compound labels. Replacing it
+  with a Pydantic model would churn the legacy simulator for no core benefit.
+- Structured, per-dimension decomposition of live status already exists via the
+  **ADR-0036 dimension objects** on `CaseStatus` / `ParticipantStatus`. A second
+  structured representation (`CaseState(BaseModel)`) would duplicate that surface
+  and create a divergence risk with no consumer that needs it.
+
+**Companion verdict (CONCERN-1912):** explicit transition constructors are **not**
+adopted; the field-mutation write path is retained. ADR-0033 already rejected
+transition constructors as a second write path and set the bar for reopening the
+question — the migration audit must show the field-mutation path is error-prone in
+practice (concretely, ≥2 distinct field-mutation error classes at promotion
+sites). The staged types now exist (`vultron/core/models/staged_case.py`:
+`IncomingReport` / `Case` / `EmbargoedCase`), so the migration is substantially
+real, but no such error evidence has surfaced. The ADR-0033 reopen precondition is
+therefore unmet and #1912 resolves to "no change." See
+`notes/lifecycle-staged-types.md`.
+
+**See**: `docs/adr/0033-lifecycle-staged-case-types.md`,
+`docs/adr/0036-status-dimension-objects.md`,
+`docs/adr/0075-split-vfd-state-machine.md`; `vultron/core/states/cs.py`.
