@@ -343,7 +343,7 @@ A DEPLOYER-only participant (holds `CVDRole.DEPLOYER`, `vf=None`) may advance
 in the same case has `vf.state=CS_vf.VF` (fix-ready). This causal gate prevents
 a deployer from recording fix deployment before any vendor has produced a fix.
 
-**Implementation** (CSB-15-004):
+**Planned implementation** (CSB-15-004, pending #3109):
 
 - **Predicate**: `some_vendor_at_vf(participants: list[CaseParticipant]) -> bool`
   in `vultron/core/predicates/participants.py`. Pure function; no I/O.
