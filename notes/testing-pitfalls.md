@@ -309,8 +309,9 @@ test passes `allow_internal=True` (see `BTExecutionResult.internal_error`). Use
 that flag **only** when the crash path is the subject of the test; reaching for it
 to quiet an unexplained failure re-creates the problem it detects. Because it
 switches the classification guard off, it is accepted **only together with
-`reason`** — a test that opts out of the automatic check has to name what it
-expects instead, or the reason lives in a comment again:
+`reason`** and it also enforces `result.internal_error is True` — a test that
+opts out of the automatic check has to name what it expects and must be testing
+a genuine crash path, not a protocol FAILURE whose message happens to match:
 
 ```python
 bt_scenario.assert_failure(
