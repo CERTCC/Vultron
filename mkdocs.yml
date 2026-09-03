@@ -7,6 +7,7 @@ nav:
   - Vultron: 'index.md'
   - Tutorials:
     - 'tutorials/index.md'
+    - Submit a Report to a Vultron Actor: 'tutorials/submit-a-report.md'
     - Run the Receive-Report Demo: 'tutorials/receive_report_demo.md'
     - Running the Other Demos: 'tutorials/other_demos.md'
     - Running the Multi-Actor Container Demos: 'tutorials/container_demos.md'
