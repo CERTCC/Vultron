@@ -191,6 +191,12 @@ class BTTestScenario:
                 "allow_internal=True disables the crash guard, so it requires "
                 "reason='<substring>' naming the failure the test expects."
             )
+            assert result.internal_error is True, (
+                "allow_internal=True is for crash-path tests only. "
+                "The tree returned a plain protocol FAILURE (internal_error=False). "
+                "Remove allow_internal=True, or fix the node so it raises rather "
+                "than returning FAILURE for this condition."
+            )
         else:
             assert not result.internal_error, (
                 "Expected a protocol FAILURE but the tree raised: "
