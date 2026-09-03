@@ -130,6 +130,7 @@ nav:
           - FVV Demo: 'howto/demos/fvv-demo.md'
   - Reference:
     - 'reference/index.md'
+    - Protocol Quick Reference: 'reference/quick_reference.md'
     - Protocol Architecture:
       - Concept Taxonomy: 'reference/vultron-taxonomy.md'
       - Glossary: 'reference/glossary.md'
