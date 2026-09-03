@@ -65,9 +65,15 @@ repos:
 
       - id: flake8
         name: flake8 (with CC gate)
-        entry: uv run flake8
+        # Routed through run-if-changed.sh so this whole-tree lint is skipped
+        # when the sources, .flake8, and uv.lock are unchanged since the last
+        # successful flake8 run (e.g. the run-linters pass just before commit).
+        # Same cache key + inputs as the skills, so they share one cache entry.
+        entry: .agents/skills/shared/run-if-changed.sh
         language: system
-        args: ["vultron/", "test/"]
+        args:
+          ["flake8", "vultron/", "test/", ".flake8", "uv.lock", "--",
+           "uv", "run", "flake8", "vultron/", "test/"]
         pass_filenames: false
 
       - id: spec-lint

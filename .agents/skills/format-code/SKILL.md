@@ -8,7 +8,7 @@ tags:
   - dev-workflow
 shell: "zsh"
 commands:
-  - "uv run black vultron/ test/ && uv run flake8 vultron/ test/"
+  - "G=.agents/skills/shared/run-if-changed.sh; \"$G\" black vultron/ test/ pyproject.toml uv.lock -- uv run black vultron/ test/ && \"$G\" flake8 vultron/ test/ .flake8 uv.lock -- uv run flake8 vultron/ test/"
 inputs:
   - name: repo_root
     description: "Repository root"
@@ -37,13 +37,19 @@ consistent code style and avoids pre-commit failures.
 ## Procedure
 
 1. From the repository root, run Black and flake8 on the `vultron/` and
-   `test/` directories:
+   `test/` directories. Route each through the shared `run-if-changed.sh`
+   guard so a tool is skipped when its inputs (source files + its config +
+   `uv.lock`) are unchanged since the last successful run:
 
 ```bash
-uv run black vultron/ test/ && uv run flake8 vultron/ test/
+G=.agents/skills/shared/run-if-changed.sh
+"$G" black  vultron/ test/ pyproject.toml uv.lock -- uv run black  vultron/ test/
+"$G" flake8 vultron/ test/ .flake8       uv.lock -- uv run flake8 vultron/ test/
 ```
 
-1. Inspect the output and stage changes if any files were reformatted.
+1. Inspect the output and stage changes if any files were reformatted. A
+   `... inputs unchanged since last success — skipping` line means the guard
+   reused a prior pass; it is not an error.
 
 ## Constraints / Rules
 
@@ -55,7 +61,9 @@ uv run black vultron/ test/ && uv run flake8 vultron/ test/
 
 ```bash
 cd "$REPO_ROOT"
-uv run black vultron/ test/ && uv run flake8 vultron/ test/
+G=.agents/skills/shared/run-if-changed.sh
+"$G" black  vultron/ test/ pyproject.toml uv.lock -- uv run black  vultron/ test/
+"$G" flake8 vultron/ test/ .flake8       uv.lock -- uv run flake8 vultron/ test/
 ```
 
 ## Rationale
