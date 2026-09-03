@@ -2366,11 +2366,12 @@ groups:
     that are logically contradictory given the sequence of events that
     produced them. CSB-18-001 is enforced at emit time via
     ValidateTriggerTransitionsNode and on the receive path via
-    cross_machine_violations() (cross_machine_invariants.py).
+    composite_state_violations() (composite_state_invariants.py).
     CSB-18-002 through CSB-18-004 (PXA↔EM) are enforced on the receive
-    path via ThreatTerminationBranchNode in add_case_status_tree; the
-    diagnostic function violation_pxa_em_entailment() has no production
-    callers until CONCERN-3008 is resolved.
+    path via ThreatTerminationBranchNode in add_case_status_tree;
+    violation_pxa_em_entailment() (composite_state_invariants.py) is the
+    post-cascade diagnostic caller via PxaEmInvariantDiagnosticNode
+    (CONCERN-3008, issue #3115).
   specs:
   - id: CSB-18-001
     priority: MUST_NOT
@@ -2398,7 +2399,7 @@ groups:
       complete alternative over a single snapshot and would refuse far more real
       traffic than it caught; a complete check needs the participant's RM
       history (ISSUE-3015).
-      Implemented in cross_machine_violations() (cross_machine_invariants.py),
+      Implemented in composite_state_violations() (composite_state_invariants.py),
       which composes violation_rm_vf_entailment() and violation_rm_d_entailment()
       — the per-dimension form the rule takes after ADR-0075 split the compound
       CS_vfd into independent CS_vf and CS_d. Enforced on both protocol paths:
@@ -2410,12 +2411,12 @@ groups:
     preconditions:
     - description: Any participant state snapshot is available for inspection
     verification: >-
-      Call cross_machine_violations(rm, vf, d) for each participant; assert an
+      Call composite_state_violations(rm, vf, d) for each participant; assert an
       empty list is returned for all valid combined states. Unit tests in
       test/core/behaviors/status/test_partial_accept_participant_status.py
       confirm both paths refuse an F or D bit set against a pre-acceptance RM,
       and that a batched advance through acceptance reported in one message is
-      accepted whole. Tests in test/core/states/test_cross_machine_invariants.py
+      accepted whole. Tests in test/core/states/test_composite_state_invariants.py
       derive RM_STATES_CONSISTENT_WITH_FIX from the RM transition graph, so a new
       transition out of RM.ACCEPTED cannot silently invalidate the
       approximation, and pin which of its members are ambiguous.
@@ -2442,8 +2443,9 @@ groups:
       Enforced on the receive path via ThreatTerminationBranchNode
       (add_case_status_tree.py, RSH-03-001) when the authorization gate
       permits teardown. Diagnostic check: violation_pxa_em_entailment()
-      (cross_machine_invariants.py); post-cascade caller tracked by
-      CONCERN-3008. Source: ISSUE-2372.
+      (composite_state_invariants.py); post-cascade caller:
+      PxaEmInvariantDiagnosticNode (CONCERN-3008, issue #3115).
+      Source: ISSUE-2372.
     testable: true
     preconditions:
     - description: A PXA state and an EM state are both available for the same case
@@ -2463,8 +2465,9 @@ groups:
       embargo termination; EM cannot remain ACTIVE after X has been recorded.
       This is a causal entailment, not enforced at emit. Enforced on the
       receive path via ThreatTerminationBranchNode (RSH-03-002). Diagnostic
-      check: violation_pxa_em_entailment() (cross_machine_invariants.py);
-      post-cascade caller tracked by CONCERN-3008.
+      check: violation_pxa_em_entailment() (composite_state_invariants.py);
+      post-cascade caller: PxaEmInvariantDiagnosticNode (CONCERN-3008,
+      issue #3115).
     testable: true
     preconditions:
     - description: A PXA state and an EM state are both available for the same case
@@ -2487,8 +2490,9 @@ groups:
       observed) triggers embargo termination; EM cannot remain ACTIVE after A
       has been recorded. This is a causal entailment, not enforced at emit.
       Enforced on the receive path via ThreatTerminationBranchNode (RSH-03-003).
-      Diagnostic check: violation_pxa_em_entailment() (cross_machine_invariants.py);
-      post-cascade caller tracked by CONCERN-3008.
+      Diagnostic check: violation_pxa_em_entailment() (composite_state_invariants.py);
+      post-cascade caller: PxaEmInvariantDiagnosticNode (CONCERN-3008,
+      issue #3115).
     testable: true
     preconditions:
     - description: A PXA state and an EM state are both available for the same case

@@ -15,7 +15,7 @@
 
 """Post-cascade PXA↔EM cross-machine invariant diagnostic node.
 
-Calls :func:`~vultron.core.states.cross_machine_invariants.violation_pxa_em_entailment`
+Calls :func:`~vultron.core.states.composite_state_invariants.violation_pxa_em_entailment`
 after :class:`~vultron.core.behaviors.status.nodes.threat_termination.ThreatTerminationBranchNode`
 has had a chance to terminate the embargo.  When the invariant is still
 violated — embargo still active with PXA P/X/A bit set — posts a
@@ -35,7 +35,7 @@ from vultron.core.behaviors.status.nodes.threat_termination import (
 )
 from vultron.core.models.protocols import PersistableModel
 from vultron.core.ports.case_persistence import CaseOutboxPersistence
-from vultron.core.states.cross_machine_invariants import (
+from vultron.core.states.composite_state_invariants import (
     violation_pxa_em_entailment,
 )
 
