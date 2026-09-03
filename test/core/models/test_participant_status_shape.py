@@ -54,6 +54,7 @@ from vultron.core.models.participant_status import (
 )
 from vultron.core.states.cs import CS_d, CS_vf
 from vultron.core.states.rm import RM
+from vultron.enums.roles import CVDRole
 from vultron.errors import VultronValidationError
 
 _ACTOR = "https://example.org/actors/alice"
@@ -219,6 +220,90 @@ class TestParticipantStatusDStateHelper:
 
         with pytest.raises(VultronValidationError, match="'d' dimension"):
             participant_status_d_state(_Bogus())
+
+
+class TestRoleDimensionInvariant:
+    """Where the VFD role-dimension invariant (ADR-0075) is enforced (#2860).
+
+    ADR-0075 and ``notes/case-state-model.md`` once described a
+    ``model_validator`` on ``ParticipantStatus`` that *raises* at construction
+    when ``vf`` is set without ``CVDRole.VENDOR`` (or ``d`` without
+    ``CVDRole.DEPLOYER``).  That raise was never implemented, and it must not
+    be: the receive path builds a core ``ParticipantStatus`` at the wire→core
+    boundary (``vultron/wire/as2/extractor/_builders.py``) from the sender's
+    *untrusted, self-reported* ``cvd_role``.  A hard raise there would turn the
+    receive path's per-dimension partial-accept (ADR-0061, RSH-05-001/002) into
+    whole-object rejection — the emit/receive Postel asymmetry documented in
+    ``notes/domain-validation.md`` that must not be "reconciled".
+
+    So the model does exactly one thing: it *auto-seeds* the applicable
+    dimension for VENDOR/DEPLOYER roles (``_enforce_role_dimension_invariant``).
+    It deliberately does **not** reject a stray dimension.  Role authorization
+    is enforced where the acting participant's *authoritative* roles are known:
+
+    * trigger/emit path — ``ValidateTriggerTransitionsNode._check_vf_role`` plus
+      ``CheckVendorRoleNode`` / ``CheckDeployerRoleNode`` /
+      ``CheckNotSoleObserverVfdNode`` in the add-participant-status trigger tree
+      (fail-closed; see ``test_vfd_role_guards.py``).
+    * receive path — ``_adjudicate_vf`` / ``_adjudicate_d`` in
+      ``_adjudication.py`` refuse the dimension using the participant's
+      authoritative ``case_roles`` (partial-accept; see
+      ``test_vf_write_refused_without_vendor_role`` in
+      ``test_partial_accept_participant_status.py``).
+    """
+
+    def test_vendor_role_auto_seeds_vf_dimension(self):
+        """VENDOR role seeds a non-None vf dimension at its initial state."""
+        status = ParticipantStatus(context=_CONTEXT, cvd_role=[CVDRole.VENDOR])
+        assert status.vf is not None
+        assert status.d is None
+
+    def test_deployer_role_auto_seeds_d_dimension(self):
+        """DEPLOYER role seeds a non-None d dimension at its initial state."""
+        status = ParticipantStatus(
+            context=_CONTEXT, cvd_role=[CVDRole.DEPLOYER]
+        )
+        assert status.d is not None
+        assert status.vf is None
+
+    def test_vendor_and_deployer_roles_seed_both_dimensions(self):
+        status = ParticipantStatus(
+            context=_CONTEXT,
+            cvd_role=[CVDRole.VENDOR, CVDRole.DEPLOYER],
+        )
+        assert status.vf is not None
+        assert status.d is not None
+
+    def test_observer_default_seeds_neither_dimension(self):
+        """The default OBSERVER role seeds no vf/d dimension."""
+        status = ParticipantStatus(context=_CONTEXT)
+        assert status.cvd_role == [CVDRole.OBSERVER]
+        assert status.vf is None
+        assert status.d is None
+
+    def test_stray_vf_on_non_vendor_is_not_rejected_by_the_model(self):
+        """A non-VENDOR status carrying vf constructs — the model does not raise.
+
+        Enforcement is delegated to the trigger and receive guards (see class
+        docstring). This pins the #2860 decision: re-adding a construction-time
+        raise here would break receive-path partial-accept.
+        """
+        status = ParticipantStatus(
+            context=_CONTEXT,
+            cvd_role=[CVDRole.OBSERVER],
+            vf=VfDimension(state=CS_vf.VF),
+        )
+        assert status.vf is not None
+        assert status.vf.state is CS_vf.VF
+
+    def test_stray_d_on_non_deployer_is_not_rejected_by_the_model(self):
+        status = ParticipantStatus(
+            context=_CONTEXT,
+            cvd_role=[CVDRole.OBSERVER],
+            d=DDimension(state=CS_d.D),
+        )
+        assert status.d is not None
+        assert status.d.state is CS_d.D
 
 
 # ---------------------------------------------------------------------------

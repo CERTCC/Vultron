@@ -49,11 +49,12 @@ data-model ambiguity in place. See CONCERN-2595 for the full context.
 Chosen option: **Direction 3a** — split at the per-participant level with two
 nullable fields on `ParticipantStatus`.
 
-Rationale: structural `None` makes role-based inapplicability unrepresentable
-rather than merely rejected at runtime. A DEPLOYER-only participant literally
-cannot have a `vf` value (it is `None`); a VENDOR-only participant cannot have a
-`d` value. This eliminates the guard-compensating pattern for role checks on these
-dimensions. Direction 1 leaves the ambiguity intact. Direction 2 adds runtime
+Rationale: the split retires the overloaded `CS_vfd.vfd` null element, which
+had meant both "initial state" and "not applicable". A DEPLOYER-only
+participant's vendor path is now the absent `vf` field (`None`) rather than a
+value that has to be interpreted by role; likewise a VENDOR-only participant's
+deployer path is the absent `d` field. Direction 1 leaves the ambiguity intact.
+Direction 2 adds runtime
 predicates without removing the ambiguous field. Direction 3b changes the
 case-aggregate CS model, which is orthogonal and unnecessary — the compound
 `CS_vfd` (4 states) at the case level is unchanged.
@@ -65,16 +66,24 @@ The implementation is sequenced as three additive+removable tasks:
 - #2664 — Remove `CS_vfd`, `VfdDimension`, and retired guard nodes
 
 Status is `accepted-provisional` because implementation is not yet complete;
-the spec changes and model_validator contract are the validated direction, but
-the final shape may be refined during #2663.
+the spec changes and dimension-split direction are validated, but the final
+shape may be refined during #2663.
 
 ### Consequences
 
-- Good, because role-based inapplicability becomes structural — no guard needed
-  for "does this participant have a vendor path?"
-- Good, because `ParticipantStatus` construction validates role-dimension
-  invariants at object-creation time, raising `VultronValidationError` on
-  violation rather than silently accepting impossible states.
+- Good, because the two dimensions are independently nullable: a participant's
+  vendor path and deployer path are separate fields rather than positions in a
+  single overloaded chain, so each can be present or absent on its own.
+- Good, because `ParticipantStatus` construction *auto-seeds* the applicable
+  dimension for a VENDOR or DEPLOYER role
+  (`_enforce_role_dimension_invariant`), so a role-consistent object never has
+  to be assembled by hand.
+- Neutral, because the split does **not** by itself make an inapplicable
+  dimension unrepresentable: the model seeds but does not reject a stray `vf`
+  on a non-VENDOR (or `d` on a non-DEPLOYER). Role *authorization* stays at the
+  guard layer, enforced against the acting participant's authoritative
+  `case_roles` — see [Validation](#validation) for why a construction-time
+  raise is deliberately avoided.
 - Good, because the case-level `CS_vfd` 4-state enum and `cs_invariants.py`
   history validity logic are unchanged — the split is per-participant only.
 - Bad, because migration of all `ParticipantStatus.vfd_state` call sites (#2663)
@@ -84,11 +93,35 @@ the final shape may be refined during #2663.
 
 ## Validation
 
-Validated by the `model_validator(mode='after')` on `ParticipantStatus` that
-enforces the role-dimension invariant table (see `notes/case-state-model.md`
-§ "Role-Specific VFD Access"). Implementation tasks #2662–#2664 will add unit
-tests confirming that construction with a violated invariant raises
-`VultronValidationError`.
+The role-dimension invariant is enforced at the *guard* layer, not at
+construction. The `model_validator` on `ParticipantStatus`
+(`_enforce_role_dimension_invariant`, `mode="before"`) only auto-seeds the
+applicable dimension for VENDOR/DEPLOYER roles; it deliberately does **not**
+raise on a stray dimension. Enforcement lives where the acting participant's
+*authoritative* `case_roles` are known:
+
+- **Trigger / emit path** (fail-closed): `ValidateTriggerTransitionsNode`
+  (`_check_vf_role`) and the `CheckVendorRoleNode` / `CheckDeployerRoleNode` /
+  `CheckNotSoleObserverVfdNode` guards on the add-participant-status trigger
+  tree refuse the whole write when a role is missing (BTND-10-001, CSB-15-001,
+  CSB-15-002, CM-25-005).
+- **Receive path** (partial-accept): `_adjudicate_vf` / `_adjudicate_d`
+  (`_adjudication.py`) refuse just the offending dimension against the
+  authoritative roles and carry the current value forward (RSH-05-001/002).
+
+A construction-time raise is deliberately **not** added: the wire→core
+extractor (`vultron/wire/as2/extractor/_builders.py`) builds a
+`ParticipantStatus` from the sender's *untrusted, self-reported* `cvd_role`, so
+a hard raise there would convert receive-path per-dimension partial-accept into
+whole-object rejection — violating the emit/receive Postel asymmetry documented
+in `notes/domain-validation.md`. See issue #2860.
+
+Validated by unit tests in `test/core/models/test_participant_status_shape.py`
+(`TestRoleDimensionInvariant` — auto-seed behaviour and that a stray dimension
+is *not* rejected by the model), `test/core/behaviors/case/nodes/test_vfd_role_guards.py`
+(trigger-path refusal), and
+`test/core/behaviors/status/test_partial_accept_participant_status.py`
+(receive-path refusal/acceptance).
 
 ## More Information
 
