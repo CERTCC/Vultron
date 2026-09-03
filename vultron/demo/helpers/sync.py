@@ -241,6 +241,10 @@ def verify_replica_state(
         "Replica has no CaseLedgerEntry records for the case — "
         "LedgerFanout replication did not complete"
     )
+    assert len(auth_entries) > 0, (
+        "Authoritative store has no CaseLedgerEntry records for the case — "
+        "the single-writer ledger is empty (case never committed or lost)"
+    )
     auth_tail = max(auth_entries, key=lambda e: e["log_index"])
     replica_tail = max(replica_entries, key=lambda e: e["log_index"])
     # Compare at the replica's current tail index: the auth actor may have
