@@ -1802,7 +1802,7 @@ class TestViolationPxaEmEntailment:
     """
 
     def _check(self, pxa, em):
-        from vultron.core.states.cross_machine_invariants import (
+        from vultron.core.states.composite_state_invariants import (
             violation_pxa_em_entailment,
         )
 
@@ -1960,7 +1960,7 @@ class TestCreateParticipantStatusNodeCrossMachineOnBypassPath:
     def test_vf_fix_ready_with_rm_start_rejected_by_write_node(self):
         """CSB-18-001 bypass guard (#3100): write node refuses VF=VF when RM=START.
 
-        CreateParticipantStatusNode now calls cross_machine_violations() so a
+        CreateParticipantStatusNode now calls composite_state_violations() so a
         caller that bypasses ValidateTriggerTransitionsNode cannot persist a
         state that the trigger guard would have refused.
         """

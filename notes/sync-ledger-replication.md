@@ -234,6 +234,16 @@ invariants under normal operation and partial failure:
    moves at the same rank (`VALID` ↔ `INVALID`) are re-adjudication rather than
    regression (RSH-05-007, ADR-0061).
 
+   A second invariant is enforced on the same path: if the entry's effective
+   composite state violates the RM↔VF, RM↔D, or VF↔D entailments
+   (`composite_state_violations()`), the replica MUST NOT apply the status
+   and MUST emit `Create(ProcessingFault)` with failure class
+   `StatusAssertionRefused/ImpossibleState` to the CaseActor (RSH-05-021,
+   guaranteed by tree structure via `Selector(ApplyOrFault)` in
+   `announce_tree.py`). For the ARCH-15-001 sub-case (unreadable local
+   participant record), the emitted class is
+   `StatusAssertionRefused/CorruptLocalRecord`.
+
    The ratcheted status is saved to the DataLayer **unconditionally**. The node
    appends the object it reads *back* from the DataLayer — a wire-typed instance
    is required, because appending the core model to a
