@@ -124,10 +124,11 @@ class ApplyCloseCaseFromLedgerNode(_LedgerEffectNode):
             pxa_state=None,
             result_out=result_out,
             name=f"{self.name}.CreateParticipantStatus",
-            # Quarantine: this stamps RM.CLOSED regardless of the rung the
-            # departing actor's RM machine is on, which the protocol does not
-            # permit.  Whether closure should touch participant RM at all is
-            # tracked as type:Concern #3106; see `force_rm_state`.
+            # Sanctioned override (CM-23-012, resolving #3106): this replica is
+            # replicating the *departing actor's* own self-declaratory Leave
+            # (ADR-0084) named in the ledger entry, advancing only that single
+            # actor to RM.CLOSED regardless of rung.  It never touches any other
+            # (bystander) participant on this replica.  See `force_rm_state`.
             force_rm_state=True,
         )
         node.datalayer = self.datalayer

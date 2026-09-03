@@ -13,6 +13,23 @@ Issues and PRDs for this repo live as GitHub issues. Use the `gh` CLI for all op
 
 Infer the repo from `git remote -v` — `gh` does this automatically when run inside a clone.
 
+## Epics
+
+Epics are the `Epic` issue type, **not** a label. An Epic is a first-class GitHub issue whose `issueType` is `Epic`, with its member issues wired as sub-issues via GraphQL (the `addSubIssue` mutation). There is no "epic" label — do not create or search for one. Detect Epics by `issueType.name == "Epic"` and find their contents through the sub-issue relationship, not a label query. Create them with the `create-epic` skill.
+
+## Backtick-safe bodies
+
+**Never pass backtick-containing markdown in a double-quoted `--body`.** Use a single-quoted heredoc:
+
+```bash
+gh issue comment <N> --repo CERTCC/Vultron --body "$(cat <<'EOF'
+Use `code` freely here.
+EOF
+)"
+```
+
+The same rule applies to `gh issue edit --body`, `gh pr create --body`, etc.
+
 ## Pull requests as a triage surface
 
 **PRs as a request surface: no.**
@@ -24,15 +41,6 @@ When set to `yes`, PRs run through the same labels and states as issues, using t
 - **Comment / label / close**: `gh pr comment`, `gh pr edit --add-label`/`--remove-label`, `gh pr close`.
 
 GitHub shares one number space across issues and PRs, so a bare `#42` may be either — resolve with `gh pr view 42` and fall back to `gh issue view 42`.
-
-## Epics
-
-**Epics are the `Epic` issue type, not a label.** An Epic is a first-class
-GitHub issue whose `issueType` is `Epic`, with its member issues wired as
-sub-issues via GraphQL (the `addSubIssue` mutation). There is no "epic" label —
-do not create or search for one. Detect Epics by `issueType.name == "Epic"` and
-find their contents through the sub-issue relationship, not a label query. Create
-them with the `create-epic` skill.
 
 ## When a skill says "publish to the issue tracker"
 

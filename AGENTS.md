@@ -175,9 +175,7 @@ entry vs. both.
 **Before committing**, run skills in order:
 
 1. `run-linters` — all four linters (Black, flake8, mypy, pyright) must pass.
-   Supersedes `format-code` (which is just Black + flake8), so run it alone —
-   no separate `format-code` step. Each tool is memoized by `run-if-changed.sh`
-   (see below), so re-running is cheap when nothing changed.
+   Supersedes `format-code`, so run it alone — no separate `format-code` step.
 2. `run-tests` — unit suite once; read output. If `vultron/demo/` or `test/demo/`
    touched, also run full suite: `uv run pytest -m "" --tb=short 2>&1 | tail -5`
 3. `build-docs` — only if `docs/` modified
@@ -192,15 +190,9 @@ The monthly `README.md` under `plan/history/YYMM/` is gitignored — do not stag
 Pre-commit hooks are fail-only. If a hook fails, run `run-linters` (black,
 flake8, mypy, pyright) or `format-code` (markdown), re-stage, then commit.
 
-**Lint memoization**: black/flake8/mypy/pyright are invoked through
-`.agents/skills/shared/run-if-changed.sh <key> <inputs>... -- <cmd>`, which
-fingerprints each tool's inputs (the `vultron/`+`test/` sources, its config
-file, and `uv.lock`) and skips the run when they are unchanged since the last
-success. `run-linters`, `format-code`, and the flake8 pre-commit hook share one
-cache per tool, so a `run-linters` pass immediately before `commit` makes the
-hook a fast no-op — but any edit to a relevant file forces a fresh run, and a
-failure is never cached. A `... inputs unchanged ... skipping` line is expected,
-not an error.
+**Lint memoization**: linters run through `run-if-changed.sh`, which skips a
+tool when its inputs are unchanged since the last success (a `... skipping`
+line is expected, not an error). Details in the `run-linters` skill.
 
 **After a PR merges** in a named worktree slot:
 `bash "$HOME/.copilot/skills/manage-worktree/scripts/manage_worktree.sh" reset <slot-name>`
@@ -375,25 +367,19 @@ message.
 
 ### Issue tracker
 
-Issues live in GitHub Issues, including **Epics** (the `Epic` issue type, not a label). See `docs/agents/issue-tracker.md`.
+Issues live in GitHub Issues. See
+[docs/agents/issue-tracker.md](docs/agents/issue-tracker.md) for the full rules.
+Non-negotiables:
 
-**Never use `gh issue create`** — it cannot set issue types, parent/child
-relationships, or blocker/blocked-by links. Use
-`.agents/skills/manage-github-issue/manage_github_issue.sh` or the
-`createIssue` GraphQL mutation directly. Type IDs and relationship mutations:
-`.agents/skills/manage-github-issue/REFERENCE.md`.
-
-**Never pass backtick-containing markdown in a double-quoted `--body`.**
-Use a single-quoted heredoc:
-
-```bash
-gh issue comment <N> --repo CERTCC/Vultron --body "$(cat <<'EOF'
-Use `code` freely here.
-EOF
-)"
-```
-
-Same rule applies to `gh issue edit --body`, `gh pr create --body`, etc.
+- **Never use `gh issue create`** — it cannot set issue types or parent/child
+  and blocker links. Use
+  `.agents/skills/manage-github-issue/manage_github_issue.sh` (or the
+  `createIssue` GraphQL mutation).
+- **Epics are the `Epic` issue type, not a label** — detect by
+  `issueType.name == "Epic"`, not a label query; create with the `create-epic`
+  skill.
+- **Never pass backtick markdown in a double-quoted `--body`** — use a
+  single-quoted heredoc.
 
 ### Triage labels
 
