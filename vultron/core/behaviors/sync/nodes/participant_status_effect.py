@@ -315,6 +315,12 @@ class EmitImpossibleStateFaultNode(DataLayerActionWithPorts):
     The fault is omitted gracefully when no ``TriggerActivityPort`` is wired
     (integration tests, demo runners without a trigger factory), so the tree
     still fails correctly without raising.
+
+    Note: this node fires for *both* FAILURE causes from the Apply node —
+    composite-state violations (RSH-05-021) and unreadable local participant
+    records (ARCH-15-001).  For the latter, ``ImpossibleState`` is semantically
+    imprecise; a future task should add a distinct
+    ``StatusAssertionRefused/CorruptLocalRecord`` class for that path.
     """
 
     @classmethod
