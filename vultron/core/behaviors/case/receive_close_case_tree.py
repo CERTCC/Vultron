@@ -56,6 +56,7 @@ from vultron.core.behaviors.sync.nodes import (
     PersistLogEntryNode,
     ReconstructChainTailNode,
 )
+from vultron.core.models._helpers import _now_utc
 
 logger = logging.getLogger(__name__)
 
@@ -155,6 +156,10 @@ def create_close_case_received_tree(
                 payload_snapshot={
                     "type": "Leave",
                     "actor": sender_actor_id,
+                    # CLP-07-011: a snapshot without ``published`` is not the
+                    # verbatim AS2 activity, and the CLP-14 commit-boundary
+                    # guard rejects it (ISSUE-2824).
+                    "published": _now_utc().isoformat(),
                     "object_": {"type": "VulnerabilityCase", "id_": case_id},
                     "context": case_id,
                 },

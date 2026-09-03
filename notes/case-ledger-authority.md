@@ -9,6 +9,7 @@ related_specs:
 related_notes:
   - notes/activitystreams-semantics.md
   - notes/case-state-model.md
+  - notes/configuration.md
   - notes/ownership-transfer.md
   - notes/sync-ledger-replication.md
 relevant_packages:
@@ -332,6 +333,47 @@ that rejects entries violating CLP-07-001 through CLP-07-004 *before*
 they enter the hash chain. Failing fast at commit time keeps the
 canonical chain clean and surfaces bugs immediately, rather than allowing
 silent pollution that's discovered only when replicas diverge.
+
+### An Entry Has Two Timestamps, and They Belong to Different Layers
+
+*Spec: CLP-14, CLP-15; ADR-0079 § "Validation". Issue #2824.*
+
+`CaseLedgerEntry.published` is the CaseActor's **commit** stamp.
+`payloadSnapshot.published` is the asserting actor's **claimed** event time.
+Deciding which one an invariant is about is not a detail — get it wrong and the
+check is either vacuous or falsely rejecting:
+
+- Commit-timestamp invariants (CLP-14-002/003/006 read against the envelope)
+  hold **by construction** — one writer, one clock. They belong to the
+  conformance harness (`check_clp14_timestamp_invariants`), which is the only
+  vantage point that sees a whole ledger. An entry never sees its predecessor,
+  so the *model* layer can never enforce them; asserting that it should is what
+  produced seven permanently-red `xfail(strict=True)` stubs.
+- Claimed-timestamp invariants (CLP-14-006/007/008, CLP-15-003) cannot hold by
+  construction, because a participant chose the value. They belong to
+  `_validate_entry_timestamps` at the commit boundary.
+
+Three traps, all found the hard way:
+
+1. **Claimed-timestamp monotonicity MUST be scoped per snapshot actor.**
+   Comparing claimed times across actors is exactly the wall-clock ordering
+   ADR-0079 rejected as option C. CLP-15-003 says "within the same
+   participant's event stream" for this reason.
+2. **A CaseActor-authored snapshot needs a `published` too.** Hand-built
+   snapshot dicts kept omitting it, which makes the snapshot something other
+   than the verbatim AS2 activity CLP-07-011 requires. New commit call sites
+   must set it (`_now_utc().isoformat()`).
+3. **Never gate a whole guard on one optional argument.** The CLP-14 guard sat
+   behind `if case_published is not None:` and the sole production call site
+   never passed it, so nothing was checked for the guard's entire life while
+   its unit tests passed by calling it directly. Gate each check on the context
+   *it* needs, and test enforcement through the production node, not the
+   private validator.
+
+CLP-15-001 and CLP-15-002 bind the *participant*, and CLP-15-005 forbids the
+CaseActor from reconstructing participant-internal causal order. Their
+verification is `check_causal_edges` (DEMOMA-22-005), not a per-assertion
+check.
 
 ---
 

@@ -269,7 +269,7 @@ linked file before touching that area. New pitfalls MUST be routed per
 | Domain object validation | [domain-validation](notes/domain-validation.md) | assignment and `append` bypass validation (CM-27-001, PRM-03-003); no `self` assignment in `mode="after"` validators (ARCH-21-004); silent `None` == fake `SUCCESS` (ARCH-15); `getattr` misses `ValueError`; `model_fields` is empty in `__init_subclass__`; rejecting atomically does **not** license reporting only the first violation (EH-07-001, ADR-0086); every `ParticipantStatus`-write validator calls `participant_transition_violations()`, never the individual `is_valid_*`/`violation_*` predicates (BTND-10-002), and `force_rm_state` is a pinned exemption — do not add users (#3106); trigger path fails closed while receive path partial-accepts — Postel's maxim, do not "reconcile" them |
 | Behavior tree nodes | [bt-pitfalls](notes/bt-pitfalls.md) | write nodes validate their own transitions (CSB-16, EMB-18-001); guarded commits run as CASE_MANAGER (BT-17-005/006); a BT's store follows its executing actor (BT-05-005/006); never clear a blackboard key you don't own; guard names name the transition, not the symptom |
 | BT integration / concurrency | [bt-integration](notes/bt-integration.md), [bt-pitfalls](notes/bt-pitfalls.md) | blackboard needs a module-level `RLock` under `BackgroundTasks`; trigger-side `execute()` delegates SM transitions (BT-15-001); `internal_error is False` means "nothing escaped the bridge", not "no bug" — a node's own `except Exception` and every nested-`BTBridge` hop defeat it |
-| Case ledger | [case-ledger-authority](notes/case-ledger-authority.md), [ownership-transfer](notes/ownership-transfer.md) | ledger is not a process log (CLP-07); commits are role-gated (CLP-09); `create_receive_activity_tree` already injects the guarded commit — a second one in `effect_nodes` forks the chain (CLP-09-001) |
+| Case ledger | [case-ledger-authority](notes/case-ledger-authority.md), [ownership-transfer](notes/ownership-transfer.md) | ledger is not a process log (CLP-07); commits are role-gated (CLP-09); `create_receive_activity_tree` already injects the guarded commit — a second one in `effect_nodes` forks the chain (CLP-09-001); an entry has **two** timestamps and they belong to different layers — commit stamp to the CI harness, claimed `payloadSnapshot.published` to the commit boundary, monotonic **per snapshot actor** only; every hand-built snapshot dict sets `published` (CLP-07-011); never gate a whole guard on one optional argument (#2824) |
 | Who sends what to whom | [case-communication-model](notes/case-communication-model.md) | `case_addressees()` is the wrong recipient (PCR-08-001/002); no identity spoofing or foreign CaseActor IDs on the received side; Invite/Accept routes through the Case Actor (PCR-08-007/008); delegated emit sets `actor=case_actor_id`, `attributed_to=requesting_actor_id` and gates on the **role** (CM-24) |
 | Pattern matching / semantics | [activitystreams-semantics](notes/activitystreams-semantics.md), [activitystreams-state-update](notes/activitystreams-state-update.md) | registry patterns must match the inbound wire format; `target_` is permissive unless `strict=True` (SE-08); `Reject(Invite(…))` carries the case in `inner_target` (CM-11-003); `SemanticEntry` phrases use only `{actor}`/`{object}`/`{target}` (SE-07-005) |
 | Persistence / stores | [datalayer-design](notes/datalayer-design.md) | `dl.read()` returns core objects (ADR-0034); core must not re-read wire activities for semantics (ADR-0035); an actor id **is** a store name (DL-07-004); `_dehydrate_data` deliberately keeps inline Activity sub-fields as snapshots |
@@ -298,17 +298,15 @@ linked file before touching that area. New pitfalls MUST be routed per
   or `test/`.
 - **`dl.save/create/update/delete()` in `execute()` bypasses the BT audit trail** —
   ratchet: `test/architecture/test_no_dl_mutations_in_execute.py` (#1071).
-- **Receive-side ordering is guards → commit → effects** (CLP-10-006), and
-  received-side `execute()` never calls `commit_log_entry_trigger()` directly
-  (BT-06-006, SYNC-02-002).
-- **Stub adapter files must raise `NotImplementedError`** — docstring-only stubs
-  hide integration gaps (OX-10-004, OX-11-004).
+- **Receive-side ordering is guards → commit → effects** (CLP-10-006); received
+  `execute()` never calls `commit_log_entry_trigger()` (BT-06-006, SYNC-02-002).
+  **Stub adapters raise `NotImplementedError`** — docstring-only stubs hide
+  integration gaps (OX-10-004, OX-11-004).
 - **Protocol-declared fields must stay in sync with concrete classes**, and
   `TypeGuard` discriminators may `hasattr`-check only Protocol-declared attributes
   (CS-20-001/002).
 - **Emit nodes in case-scoped trigger BTs fail fast on a missing CaseActor**
-  (PCR-08-011); **peer broadcast nodes must not mask delivery failure with
-  SUCCESS** (BT-14-001).
+  (PCR-08-011); **peer broadcast nodes must not mask delivery failure** (BT-14-001).
 - **Small habits**: mypy infers a type from the first branch assignment (use
   distinct names per `except`/`if`-else branch); pre-build dedup sets before
   fallback loops (`seen = set(d.values())`, O(n×m) → O(n+m)); walrus for
@@ -319,34 +317,31 @@ linked file before touching that area. New pitfalls MUST be routed per
 - **Superseded notes sections are archived via `append-history note`** (PD-03-002,
   PD-03-004); **large migrations partition by node shape, then domain**
   ([notes/agentic-workflow.md](notes/agentic-workflow.md)); **MkDocs `not_in_nav`
-  and `exclude_docs` are not the same**
-  ([notes/documentation-strategy.md](notes/documentation-strategy.md)).
+  ≠ `exclude_docs`** ([notes/documentation-strategy.md](notes/documentation-strategy.md)).
 - **Transport-role naming must stay explicit** — core ports docs, adapter notes,
   ADR refs and codebase reference pages change together. Likewise
-  `HashChainLedgerRecord` (in-memory) vs. `CaseLedgerEntry` (wire-serializable):
-  distinct types, imported by full module path (ARCH-12-007).
+  `HashChainLedgerRecord` (in-memory) vs. `CaseLedgerEntry` (wire): distinct
+  types, imported by full module path (ARCH-12-007).
 - **Idempotency responsibility chain** —
   [`vultron/core/AGENTS.md`](vultron/core/AGENTS.md); **avoid `BaseModel` in
   ports** — [`vultron/core/ports/AGENTS.md`](vultron/core/ports/AGENTS.md);
-  **ledger commit precedes outbox write** and **local-only correlation markers use
-  `disposition="rejected"`** —
-  [`vultron/core/behaviors/case/AGENTS.md`](vultron/core/behaviors/case/AGENTS.md).
+  **ledger commit precedes outbox write**, **local-only correlation markers use
+  `disposition="rejected"`** — [`vultron/core/behaviors/case/AGENTS.md`](vultron/core/behaviors/case/AGENTS.md).
 
 ---
 
 ## Skill Interaction Rules
 
-- Always use the `ask_user` tool for user questions — never plain text.
-- Provide a recommended answer on every `ask_user` call.
-- Rule applies transitively when skills compose (`learn` → `grill-me`, etc.).
+- Always use the `ask_user` tool for user questions — never plain text; provide a
+  recommended answer on every call. Applies transitively when skills compose
+  (`learn` → `grill-me`, etc.).
 
 ---
 
 ## Governance note for agents
 
-Agents MAY update `AGENTS.md` to correct/clarify rules, but substantive
-changes SHOULD be discussed via Issue or PR. Include rationale in the commit
-message.
+Agents MAY update `AGENTS.md` to correct/clarify rules, but substantive changes
+SHOULD be discussed via Issue or PR. Include rationale in the commit message.
 
 ---
 
@@ -359,15 +354,15 @@ message.
   note, update its `status`, `related_specs`, and `related_notes` in the same
   change; cross-links SHOULD be two-way. Full write-up + schema:
   [notes/notes-frontmatter.md](notes/notes-frontmatter.md).
-- **Docs links must be relative**: links in `docs/` MUST be relative and MUST NOT
-  go above `docs/`. Run `uv run mkdocs build --strict` before committing docs.
-  `docs/developer/` pages are draft docs — visible in `mkdocs serve` but excluded from production builds.
+- **Docs links must be relative** and MUST NOT go above `docs/`. Run
+  `uv run mkdocs build --strict` before committing docs. `docs/developer/` pages
+  are draft docs — visible in `mkdocs serve`, excluded from production builds.
 - **Demo script lifecycle logging**: see
   [`vultron/adapters/AGENTS.md`](vultron/adapters/AGENTS.md) for `demo_step` /
   `demo_check` pattern.
-- **Project history entries**: use `uv run append-history` — never write
-  directly to `plan/history/`. See HM-01–HM-05 and
-  `notes/history-management.md`. During `orient-agent`, read only `plan/*.md`.
+- **Project history entries**: use `uv run append-history` — never write directly
+  to `plan/history/`. See HM-01–HM-05 and `notes/history-management.md`. During
+  `orient-agent`, read only `plan/*.md`.
 
 ---
 

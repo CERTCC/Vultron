@@ -46,6 +46,28 @@ def _as_utc(value: datetime | None) -> datetime | None:
     return value
 
 
+def parse_published(value: Any) -> datetime | None:
+    """Return *value* as a timezone-aware UTC datetime, or ``None``.
+
+    Accepts a ``datetime`` or an ISO 8601 string; anything else — including a
+    string that is not valid ISO 8601 — yields ``None`` so callers can tell
+    "absent" from "unparseable" by checking the raw value themselves.  Naive
+    inputs are assumed UTC, consistent with :func:`_as_utc`.
+
+    Shared by the case-ledger commit-boundary guard and the per-actor
+    predecessor lookup that feeds it, so both read a claimed
+    ``payloadSnapshot.published`` the same way (CS-22-001).
+    """
+    if isinstance(value, datetime):
+        return _as_utc(value)
+    if isinstance(value, str):
+        try:
+            return _as_utc(datetime.fromisoformat(value))
+        except ValueError:
+            return None
+    return None
+
+
 def status_recency_key(
     updated: datetime | None, published: datetime | None
 ) -> datetime:

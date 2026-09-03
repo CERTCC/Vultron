@@ -25,6 +25,7 @@ from vultron.core.behaviors.helpers import (
     DataLayerActionWithPorts,
     PortInformation,
 )
+from vultron.config.app import get_config
 from vultron.core.behaviors.sync.nodes.canonical_entry import (
     _validate_canonical_entry,
 )
@@ -34,6 +35,7 @@ from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.case_ledger_entry import VultronCaseLedgerEntry
 from vultron.core.models.replication_state import VultronReplicationState
 from vultron.core.sync_helpers import _find_equivalent_recorded_entry
+from vultron.core.sync_helpers import _find_prev_actor_published
 from vultron.core.sync_helpers import _reconstruct_tail_hash
 from vultron.errors import VultronError
 from vultron.errors import VultronValidationError
@@ -299,6 +301,16 @@ class CreateLogEntryNode(DataLayerActionWithPorts):
         from vultron.core.use_cases._helpers import _find_case_actor_id
 
         case_actor_id = _find_case_actor_id(self.datalayer, self.case_id)
+        # Temporal context for the CLP-14/CLP-15 claimed-timestamp guard.  The
+        # guard used to be gated on ``case_published`` being supplied and this
+        # call site never supplied it, so it never ran (ISSUE-2824).
+        #
+        # ``read_case`` returning ``None`` is expected, not an error: the
+        # genesis ``create_case`` entry is committed alongside case creation, so
+        # the case may not be readable yet.  The guard skips CLP-14-006 in that
+        # case and still applies every other check.
+        case = self.datalayer.read_case(self.case_id)
+        ledger_cfg = get_config().ledger
         _validate_canonical_entry(
             case_id=self.case_id,
             actor_id=self.actor_id,
@@ -306,6 +318,15 @@ class CreateLogEntryNode(DataLayerActionWithPorts):
             disposition=self.disposition,
             payload_snapshot=self.payload_snapshot,
             event_type=self.event_type,
+            case_published=case.published if case is not None else None,
+            prev_actor_published=_find_prev_actor_published(
+                case_id=self.case_id,
+                payload_snapshot=self.payload_snapshot,
+                dl=self.datalayer,
+            ),
+            future_tolerance=ledger_cfg.future_tolerance,
+            staleness_window=ledger_cfg.staleness_window,
+            skew_tolerance=ledger_cfg.clock_skew_tolerance,
         )
 
         existing = _find_equivalent_recorded_entry(

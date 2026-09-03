@@ -22,6 +22,8 @@ Non-CaseManager actors MUST skip the forwarding step cleanly (role gate).
 """
 
 import pytest
+
+from vultron.core.models._helpers import _now_utc
 from py_trees.common import Status
 from unittest.mock import patch
 
@@ -71,6 +73,9 @@ class _FakeOfferActivity:
                 "id": OFFER_ID,
                 "type": "Offer",
                 "actor": VENDOR_ID,
+                # CLP-07-011: real activities always carry ``published``; a
+                # fake that omits it is rejected at the commit boundary.
+                "published": _now_utc().isoformat(),
                 "object": {"id": CASE_ID, "type": "VulnerabilityCase"},
                 "target": {"id": TRANSFEREE_ID, "type": "Service"},
             }

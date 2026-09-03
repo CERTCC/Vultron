@@ -152,17 +152,46 @@ from a malicious or malfunctioning participant.
 
 ## Validation
 
-Conformance tests in `test/ci/invariants/common.py` verify:
+Enforcement splits along the two timestamps an entry carries, and the split is
+load-bearing — conflating them produces either a vacuous check or a false
+rejection (Issue #2824).
 
+**Commit timestamp** (`CaseLedgerEntry.published`, stamped by the CaseActor).
+`check_clp14_timestamp_invariants` in `test/ci/invariants/common.py`, run by
+every scenario through `universal_harness.py`, verifies:
+
+- `entry.published` is non-null for all entries.
 - `entry[N].published >= entry[N-1].published` for all consecutive recorded
   entries within a case.
-- `entry.published` is non-null for all entries.
 - `log_index` values are unique within a case and form a gapless sequence.
 - All entries in a case share the same `case_id`.
-- No entry's `published` precedes the case's own `published` timestamp.
+- No entry's `published` precedes the case-creation entry's timestamp.
 
-These are tracked as a separate implementation issue (runtime enforcement via
-extension of `_validate_canonical_entry` and conformance tests).
+A single writer stamping from one clock satisfies these by construction; the
+harness is what catches a replica that does not.
+
+**Claimed timestamp** (`payloadSnapshot.published`, chosen by the asserting
+actor). `_validate_entry_timestamps`, reached from every commit through
+`CreateLogEntryNode`, rejects an assertion that:
+
+- carries no parseable `published` at all (CLP-07-011);
+- predates the case by more than the configured clock-skew tolerance
+  (CLP-14-006);
+- regresses behind that *same actor's* previous assertion (CLP-15-003);
+- sits beyond the future tolerance or staleness window (CLP-14-007,
+  CLP-14-008).
+
+Monotonicity of the claimed timestamp is scoped to one actor's stream. Applying
+it across actors would reintroduce option C: two participants' clocks are not
+comparable, so a later-committed assertion from one legitimately carries an
+earlier claimed time than an earlier-committed one from another. Thresholds are
+tunable via `AppConfig.ledger` (CLP-14-009).
+
+The participant emission obligations CLP-15-001 and CLP-15-002 are not
+enforceable per-assertion — that is the point of the residual uncertainty above,
+and CLP-15-005 forbids the attempt. They are validated at the conformance layer
+by `check_causal_edges`, which compares declared causal edges against observed
+ledger order across a whole scenario (DEMOMA-22-005).
 
 ## More Information
 
