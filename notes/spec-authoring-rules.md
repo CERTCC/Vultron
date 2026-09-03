@@ -146,6 +146,60 @@ quoted/path form, and update every spec entry that references it — including
 
 Source: ISSUE-2011
 
+### A Grep-Corpus Guard Can Resolve Its Own Documentation
+
+Any lint check that validates spec prose against a *textual* scan of the source
+tree — the MS-15-004 phantom-symbol guard (`_check_phantom_symbols` in
+`vultron/metadata/specs/lint.py`) is the canonical case — can be blinded by its
+own docstrings and error messages. Naming a symbol in the check's own prose puts
+that token back into the scanned corpus, so the guard resolves it as "live" and
+stops flagging the very defect it was written to catch (verified directly:
+`'SEMANTICS_ACTIVITY_PATTERNS' in _SourceScan(Path('.')).symbols` became `True`
+once the docstring named it).
+
+**How to apply:**
+
+- When adding such a check, assert the negative directly — a test that a symbol
+  named *only* inside the linter's own source is still rejected — rather than
+  assuming the corpus excludes it.
+- Prefer **file-scoped** exclusions over **package-scoped** ones. A linter
+  package usually mixes prose (safe to exclude) with real spec-cited definitions
+  (must stay scanned): excluding all of `vultron/metadata/specs/` re-introduced
+  false positives for `SHOULD_NOT` (a real `RFC2119Priority` member in
+  `schema.py`) and `SCREAMING_SNAKE_CASE` (a token *shape* named in MS-15-004's
+  own statement).
+- Keep the two exclusion sets distinct and documented: the phantom-*ID* allowlist
+  excludes only `test/metadata/specs` (a stale spec ID cited by the linter is a
+  real defect, so `vultron/metadata/specs/` stays scanned), while the *symbol*
+  corpus additionally excludes `lint.py` (which names symbols as examples, not as
+  code the specs describe).
+
+Source: ISSUE-3022
+
+### A Retired-Symbol Sweep Is Not a Substitution — Check the Shape First
+
+An acceptance criterion phrased as a mechanical substitution ("replace all N
+occurrences of `OLD` with `NEW`") carries an unstated premise that the swap is
+meaning-preserving. When the replacement has a **different data shape**, a
+find-and-replace silently turns a stale requirement into a *wrong* one — strictly
+worse, because a wrong MUST reads as authoritative.
+
+Concretely, `SEMANTICS_ACTIVITY_PATTERNS` was a
+`dict[MessageSemantics, ActivityPattern]`; `SEMANTIC_REGISTRY` is an ordered
+`list[SemanticEntry]` in which *every* `MessageSemantics` value has an entry —
+including the `UNKNOWN` / `UNKNOWN_UNRESOLVABLE_OBJECT` sentinels, whose entries
+carry `pattern=None`. Three specs phrased in dict terms had to be re-derived, not
+renamed: statements about a value having no "entry", about "keys", or about
+"containment" all invert when a mapping becomes a sequence.
+
+**How to apply:** before auditing a corpus for a retired symbol, ask whether the
+replacement has the same shape. If a mapping became a sequence (or vice versa),
+treat every statement phrased in terms of *keys*, *entries*, or *containment* as
+a candidate for a semantic rewrite. When authoring such an issue, state the
+intent ("every reference names the live registry accurately"), not the mechanism.
+
+Source: ISSUE-3022
+
 ### Sub-Agent Spec Splits: Re-Run the Violation Detection Script After the Parallel Pass
 
 After parallel sub-agents split compound spec requirements, re-run the

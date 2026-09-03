@@ -291,3 +291,37 @@ case_status = case_status.model_copy(update={"em": updated_em})
 
 This is the single most complex migration site (`embargo_lifecycle.py` has
 ~17 flat-field accesses). The impl agent should prioritize this file.
+
+---
+
+## History-Relative Rules Cannot Constrain a First Observation
+
+When adjudicating a dimension value, separate the rules into two kinds:
+
+- **History-free** rules — entailments and role gates — depend only on the value
+  and the participant's structure. They apply to *any* observation, including the
+  first.
+- **History-relative** rules — monotonicity, adjacency, regression — compare the
+  incoming value against a prior one. They have nothing to bite on when there is
+  no prior value (`current is None`): a first observation cannot "regress" from a
+  state the receiver never held.
+
+So a dimension that can legitimately be absent needs **one rule of each kind** —
+a history-free rule to constrain the first observation and a history-relative
+rule to constrain subsequent ones. Do **not** manufacture a synthetic baseline
+(e.g. treating absence as the enum's initial state) just to make a
+history-relative rule apply: that invents history the receiver does not have and
+turns a legal first observation into a spurious refusal.
+
+**Corollary — absence is structural, not initial.** An absent `vf`/`d` dimension
+means the participant has no vendor/deployer path at all under ADR-0075, not that
+the dimension sits at its initial value. Reading a missing `CS_vf.vf` as the
+initial state produces bogus VF↔D entailment refusals. Test the dimension object
+for *presence* (`is None`) before applying any rule that assumes a value.
+
+The concrete VF/D adjudication rules that follow from this are already captured
+in `_adjudicate_vf`'s docstring and in spec RSH-05-020's note; this card records
+only the general principle so it transfers to any absent-capable dimension. See
+[[bt-pitfalls]] § write-side validation and [[case-state-model]].
+
+Source: ISSUE-2906
