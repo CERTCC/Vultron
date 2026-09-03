@@ -21,7 +21,11 @@ from vultron.core.models.case_participant import (
 )
 from vultron.core.models.dimensions import RmDimension
 from vultron.core.models.participant_status import ParticipantStatus
-from vultron.core.predicates.participants import all_participants_rm_closed
+from vultron.core.predicates.participants import (
+    all_participants_rm_closed,
+    vendor_vf_invariant_ok,
+)
+from vultron.core.states.cs import CS_vf
 from vultron.core.states.rm import RM
 from vultron.enums.roles import CVDRole
 
@@ -137,3 +141,36 @@ class TestAllParticipantsRmClosed:
             roles=[CVDRole.COORDINATOR, CVDRole.CASE_MANAGER],
         )
         assert all_participants_rm_closed([p]) is True
+
+
+class TestVendorVfInvariantOk:
+    """vendor_vf_invariant_ok: VENDOR participant cannot hold CS_vf.vf (ADR-0084, PRM-06-002)."""
+
+    def test_none_vf_state_always_ok(self):
+        assert vendor_vf_invariant_ok([CVDRole.VENDOR], None) is True
+
+    def test_vendor_with_vf_fails(self):
+        assert vendor_vf_invariant_ok([CVDRole.VENDOR], CS_vf.vf) is False
+
+    def test_vendor_with_Vf_ok(self):
+        assert vendor_vf_invariant_ok([CVDRole.VENDOR], CS_vf.Vf) is True
+
+    def test_vendor_with_VF_ok(self):
+        assert vendor_vf_invariant_ok([CVDRole.VENDOR], CS_vf.VF) is True
+
+    def test_non_vendor_with_vf_ok(self):
+        assert vendor_vf_invariant_ok([CVDRole.COORDINATOR], CS_vf.vf) is True
+
+    def test_non_vendor_with_Vf_ok(self):
+        assert vendor_vf_invariant_ok([CVDRole.COORDINATOR], CS_vf.Vf) is True
+
+    def test_empty_roles_with_vf_ok(self):
+        assert vendor_vf_invariant_ok([], CS_vf.vf) is True
+
+    def test_vendor_plus_coordinator_with_vf_fails(self):
+        assert (
+            vendor_vf_invariant_ok(
+                [CVDRole.VENDOR, CVDRole.COORDINATOR], CS_vf.vf
+            )
+            is False
+        )

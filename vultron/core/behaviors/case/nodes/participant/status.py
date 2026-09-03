@@ -50,11 +50,15 @@ from vultron.core.states.cs import (
     is_valid_pxa_transition,
     is_valid_vf_transition,
 )
+from vultron.core.states.cross_machine_invariants import (
+    cross_machine_violations,
+)
 from vultron.core.states.cs_invariants import (
     cs_from_dimensions,
     is_valid_cs_transition,
 )
 from vultron.core.states.em import EM
+from vultron.core.predicates.participants import vendor_vf_invariant_ok
 from vultron.core.states.rm import RM
 from vultron.core.predicates.roles import has_deployer_role, has_vendor_role
 
@@ -198,12 +202,25 @@ class CreateParticipantStatusNode(DataLayerActionWithPorts):
     def _check_vf_precondition(
         self, current_vf: CS_vf | None, participant_obj: object
     ) -> "Status | None":
-        """CSB-16-001 / ADR-0075 / CSB-15-001: validate VF transition and role before writing."""
+        """CSB-16-001 / ADR-0075 / CSB-15-001 / PRM-06-002: validate VF transition and role before writing."""
         actor_roles = (
             participant_obj.roles  # type: ignore[union-attr]
             if isinstance(participant_obj, CaseParticipant)
             else []
         )
+        if not vendor_vf_invariant_ok(actor_roles, self._vf_state):
+            self.logger.warning(
+                "%s: Vendor-implies-V violated: actor '%s' holds VENDOR but"
+                " asserts %s (PRM-06-002, ADR-0084)",
+                self.name,
+                self._actor_id,
+                self._vf_state,
+            )
+            self.feedback_message = (
+                f"Vendor-implies-V: VENDOR cannot assert"
+                f" {self._vf_state!r} (PRM-06-002)"
+            )
+            return Status.FAILURE
         if self._vf_state in (CS_vf.Vf, CS_vf.VF) and not has_vendor_role(
             actor_roles
         ):
@@ -365,6 +382,7 @@ class CreateParticipantStatusNode(DataLayerActionWithPorts):
         current_vf: "CS_vf | None",
         current_d: "CS_d | None",
         pxa_before: CS_pxa,
+        eff_rm: "RM",
         eff_vf: "CS_vf | None",
         eff_d: "CS_d | None",
         eff_pxa: CS_pxa,
@@ -376,6 +394,10 @@ class CreateParticipantStatusNode(DataLayerActionWithPorts):
         callers always receive a complete diagnostic.  The compound CS-transition
         check is only run when all per-dimension checks pass — it is derived when
         any single-dimension violation is already present (EH-07-002).
+
+        Also enforces cross-machine entailments (CSB-18-001, CSB-17-001) so
+        bypass callers (DevelopFixNode, DeployFixNode, etc.) cannot persist a
+        state that ValidateTriggerTransitionsNode would have refused (#3100).
 
         Returns ``Status.FAILURE`` with a joined ``feedback_message`` when any
         check fails; ``None`` when all checks pass.
@@ -401,6 +423,10 @@ class CreateParticipantStatusNode(DataLayerActionWithPorts):
                 is not None
             ):
                 errors.append(self.feedback_message)
+
+        if not errors:
+            for violation in cross_machine_violations(eff_rm, eff_vf, eff_d):
+                errors.append(violation.message)
 
         if errors:
             self.feedback_message = "; ".join(errors)
@@ -445,6 +471,7 @@ class CreateParticipantStatusNode(DataLayerActionWithPorts):
         pxa_before = _resolve_pxa_state(case, participant_obj)
 
         # Effective states before promotion (what the caller requested)
+        eff_rm = self._rm_state if self._rm_state is not None else current_rm
         eff_vf = self._vf_state if self._vf_state is not None else current_vf
         eff_d = self._d_state if self._d_state is not None else current_d
         eff_pxa = (
@@ -455,6 +482,7 @@ class CreateParticipantStatusNode(DataLayerActionWithPorts):
             current_vf,
             current_d,
             pxa_before,
+            eff_rm,
             eff_vf,
             eff_d,
             eff_pxa,
