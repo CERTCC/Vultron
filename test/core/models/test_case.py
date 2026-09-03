@@ -13,6 +13,8 @@
 
 """Tests for the core VulnerabilityCase domain model (step 6 of issue #699)."""
 
+from datetime import datetime, timezone
+
 import pytest
 
 from vultron.core.models.base import CoreObject
@@ -131,6 +133,30 @@ class TestVulnerabilityCaseCurrentStatus:
         c = VulnerabilityCase(id_=_CASE_ID)
         with pytest.raises(ValueError):
             _ = c.current_status
+
+    def test_current_status_prefers_newer_timestamp_over_id_scheme(self):
+        """A newer ``updated`` wins even when its ``id_`` sorts lower.
+
+        Guards CM-29-001: the ``id_`` scheme must never arbitrate recency. A
+        urn:uuid ID (``'u'``) sorts lexically above an https ID (``'h'``), so
+        this catches any regression that reintroduced ``id_`` as a tiebreaker
+        overriding an authoritative timestamp. (In the core branch timestamps
+        are always populated, so the timestampless path is exercised on the
+        wire branch — see test/wire/as2/vocab/test_vulnerability_case.py.)
+        """
+        older = CaseStatus(
+            id_="urn:uuid:00000000-0000-0000-0000-000000000001",
+            context=_CASE_ID,
+            updated=datetime(2020, 1, 1, tzinfo=timezone.utc),
+        )
+        newer = CaseStatus(
+            id_="https://coord.example/status/1",
+            context=_CASE_ID,
+            updated=datetime(2026, 1, 1, tzinfo=timezone.utc),
+        )
+        c = VulnerabilityCase(id_=_CASE_ID)
+        c.case_statuses = [older, newer]
+        assert c.current_status is newer
 
 
 class TestVulnerabilityCaseAddReport:

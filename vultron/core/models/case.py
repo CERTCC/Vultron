@@ -23,7 +23,11 @@ from typing import Any, Literal
 
 from pydantic import Field, model_validator
 
-from vultron.core.models._helpers import _new_urn, _now_utc
+from vultron.core.models._helpers import (
+    _new_urn,
+    _now_utc,
+    status_recency_key,
+)
 from vultron.core.models.base import CoreObject
 from vultron.core.models.case_ledger import compute_genesis_hash
 from vultron.core.models.case_participant import CaseParticipant
@@ -359,8 +363,11 @@ class VulnerabilityCase(CoreObject):
     def current_status(self) -> CaseStatus:
         """Return the most recent materialized :class:`CaseStatus`.
 
-        Uses ``updated`` then ``published`` then ``id_`` as sort key to
-        handle cases where timestamps may be equal or absent.
+        Recency is resolved by ``updated`` then ``published`` via
+        :func:`status_recency_key`. When both are absent the status sorts to
+        the bottom (``datetime.min``); ``id_`` MUST NOT be used as a tiebreaker
+        because its scheme is an implementation artefact, not a time proxy
+        (CM-29-001).
 
         Raises:
             ValueError: When no materialized :class:`CaseStatus` exists.
@@ -374,7 +381,7 @@ class VulnerabilityCase(CoreObject):
             )
         return max(
             materialized,
-            key=lambda cs: cs.updated or cs.published or cs.id_,
+            key=lambda cs: status_recency_key(cs.updated, cs.published),
         )
 
     @property
