@@ -123,11 +123,13 @@ rule set grows.
 
 ### Surface the list, do not make callers parse a string
 
-`VultronValidationError` gains a `failures` list, following `DemoFailureError`'s
-existing shape, and renders the full list through `__str__`. The FastAPI
-translation adds a `details` array to the 422 body alongside the existing
-`message`. Callers that want individual violations read `details`; callers that
-want a human-readable summary keep reading `message`.
+`VultronValidationError` gains a `violations` list, following
+`DemoFailureError`'s existing `failures` shape, and renders the full list
+through `__str__`. Each entry carries the rule's `message`, the `dimensions` the
+rule reads, and its root/derived classification. The FastAPI translation adds a
+`details` array to the 422 body alongside the existing `message`. Callers that
+want individual violations read `details`; callers that want a human-readable
+summary keep reading `message`.
 
 The existing plumbing carries this end to end with one change:
 `SvcBTTriggerBase.execute()` already re-raises whatever exception it finds at
