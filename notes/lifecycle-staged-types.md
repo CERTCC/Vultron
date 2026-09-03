@@ -177,3 +177,30 @@ folded into the staged-types work. Tracked as a separate Idea issue.
 **Resolved**: ADR-0036 and `specs/status-dimension-objects.yaml` capture the
 design and normative requirements. See `notes/status-dimension-objects.md`
 for implementation guidance.
+
+## Transition Constructors: Not Adopted (field-mutation retained)
+
+**Decision (CONCERN-1912, planning group G06 / #2834):** the write path stays as
+field mutation on the staged types; explicit transition constructors (a second,
+transition-verb-shaped write API) are **not** introduced.
+
+ADR-0033 already evaluated and rejected transition constructors as a second write
+path that risks divergence from the field-mutation path, and set an explicit
+reopen bar: the option "may be reopened if the migration audit shows the
+field-mutation path is error-prone in practice." The concrete threshold applied
+here for "error-prone in practice" is **≥2 distinct classes of field-mutation
+error** observed at staged-type promotion sites (e.g., promoting to
+`EmbargoedCase` without setting `active_embargo`, or mutating `case_statuses`
+without materialising a `CaseStatus`).
+
+State of the evidence: the staged types are substantially implemented
+(`vultron/core/models/staged_case.py` defines `IncomingReport`, `Case`, and
+`EmbargoedCase`, each with `model_validator` invariants keyed to LST-02), so the
+migration is real enough to audit — but no recurring field-mutation error classes
+have surfaced. The ADR-0033 reopen precondition is therefore **unmet**, and #1912
+resolves to "no change; retain field mutation." Re-open only if the bar above is
+later met. The companion CS-representation verdict (CONCERN-2099) is recorded in
+`notes/case-state-model.md`.
+
+**See**: `docs/adr/0033-lifecycle-staged-case-types.md`;
+`vultron/core/models/staged_case.py`; `notes/case-state-model.md`.
