@@ -107,6 +107,9 @@ def case_actor() -> as_Service:
     return _CASE_ACTOR
 
 
+_IDENTITY_KEYS = frozenset({"name", "id_", "attributed_to"})
+
+
 def case(random_id=False, **kwargs) -> as_VulnerabilityCase:
     """The example case, optionally with extra fields populated.
 
@@ -115,16 +118,24 @@ def case(random_id=False, **kwargs) -> as_VulnerabilityCase:
     that same identity — id, name and attributor are preserved, so a populated
     case and the participants built against `case()` still agree on which case
     they belong to. Pass ``random_id=True`` for a case with a fresh id instead.
+
+    ``kwargs`` must not include ``name``, ``id_``, or ``attributed_to`` — those
+    identity fields are always supplied by this helper and cannot be overridden.
+    Passing any of them raises ``ValueError``.
     """
+    overlap = _IDENTITY_KEYS & kwargs.keys()
+    if overlap:
+        raise ValueError(
+            f"kwargs must not override identity fields: {sorted(overlap)!r}"
+        )
     if random_id:
         _case_number = random.randint(10000000, 99999999)
-        _case = as_VulnerabilityCase(
+        return as_VulnerabilityCase(
             name=f"{_VENDOR.name} Case #{_case_number}",
             id_=_make_id("VulnerabilityCase"),
             attributed_to=_VENDOR.id_,
             **kwargs,
         )
-        return _case
     if kwargs:
         return as_VulnerabilityCase(
             name=_CASE.name,
