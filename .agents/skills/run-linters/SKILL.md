@@ -9,7 +9,7 @@ tags:
   - dev-workflow
 shell: "zsh"
 commands:
-  - "uv run black vultron/ test/ && uv run flake8 vultron/ test/ && uv run mypy && uv run pyright"
+  - "G=.agents/skills/shared/run-if-changed.sh; \"$G\" black vultron/ test/ pyproject.toml uv.lock -- uv run black vultron/ test/ && \"$G\" flake8 vultron/ test/ .flake8 uv.lock -- uv run flake8 vultron/ test/ && \"$G\" mypy vultron/ test/ .mypy.ini uv.lock -- uv run mypy && \"$G\" pyright vultron/ test/ pyrightconfig.json uv.lock -- uv run pyright"
 inputs:
   - name: repo_root
     description: "Repository root where the command will be executed"
@@ -21,8 +21,18 @@ outputs:
 
 # Skill: Run Linters
 
+Each tool is routed through the shared `run-if-changed.sh` guard, which skips a
+tool when its inputs (the `vultron/`+`test/` sources, that tool's config file,
+and `uv.lock`) are unchanged since its last successful run. So back-to-back
+lint passes — and the flake8 pre-commit hook — reuse work instead of repeating
+it, while any edit to a relevant file forces a fresh run.
+
 ```bash
-uv run black vultron/ test/ && uv run flake8 vultron/ test/ && uv run mypy && uv run pyright
+G=.agents/skills/shared/run-if-changed.sh
+"$G" black   vultron/ test/ pyproject.toml     uv.lock -- uv run black  vultron/ test/
+"$G" flake8  vultron/ test/ .flake8            uv.lock -- uv run flake8 vultron/ test/
+"$G" mypy    vultron/ test/ .mypy.ini          uv.lock -- uv run mypy
+"$G" pyright vultron/ test/ pyrightconfig.json uv.lock -- uv run pyright
 ```
 
 ## Constraints
@@ -30,3 +40,6 @@ uv run black vultron/ test/ && uv run flake8 vultron/ test/ && uv run mypy && uv
 - Run `black` first — formatting errors cause spurious `flake8` failures.
 - `flake8` enforces a CC gate (`max-complexity = 10` in `.flake8`); functions exceeding CC=10 are a hard failure (IMPLTS-07-008).
 - All four tools must exit 0 before staging.
+- A `... inputs unchanged since last success — skipping` line is the guard
+  reusing a prior pass, not a failure. On failure the guard records nothing, so
+  the next run re-executes the tool.
