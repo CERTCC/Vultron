@@ -51,4 +51,4 @@ CaseActor" would become "route the whole negotiation".
 
 ---
 
-**Promoted**: 2026-09-03 — captured in `specs/case-management.yaml` (new CM-21-010: `Reject(Offer(VulnerabilityCase))` MUST address the CaseActor inbox, symmetric with CM-21-006) and `notes/ownership-transfer.md` (Open Question on received-side handling of a rejected offer). Docs PR: <DOCS_PR_URL>.
+**Promoted**: 2026-09-03 — captured in `specs/case-management.yaml` (new CM-21-010: `Reject(Offer(VulnerabilityCase))` MUST address the CaseActor inbox, symmetric with CM-21-006) and `notes/ownership-transfer.md` (Open Question on received-side handling of a rejected offer). Docs PR: <https://github.com/CERTCC/Vultron/pull/3147>.

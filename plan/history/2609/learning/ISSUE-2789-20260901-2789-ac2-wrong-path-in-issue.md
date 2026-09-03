@@ -41,4 +41,4 @@ ledger broadcast" was likewise already delivered, as
 
 ---
 
-**Promoted**: 2026-09-03 — captured in `notes/git-workflow-pitfalls.md` ("An Issue That Names a Missing File Is Making a Claim About the Path, Not the Behaviour"). Docs PR: <DOCS_PR_URL>.
+**Promoted**: 2026-09-03 — captured in `notes/git-workflow-pitfalls.md` ("An Issue That Names a Missing File Is Making a Claim About the Path, Not the Behaviour"). Docs PR: <https://github.com/CERTCC/Vultron/pull/3147>.

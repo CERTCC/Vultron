@@ -27,4 +27,4 @@ set by the first-running (later-defined) validator.
 
 ---
 
-**Promoted**: 2026-09-03 — captured in `notes/domain-validation.md` ("Pitfall: `mode=\"before\"` Validators Run in Reverse Definition Order"). Docs PR: <DOCS_PR_URL>.
+**Promoted**: 2026-09-03 — captured in `notes/domain-validation.md` ("Pitfall: `mode=\"before\"` Validators Run in Reverse Definition Order"). Docs PR: <https://github.com/CERTCC/Vultron/pull/3147>.

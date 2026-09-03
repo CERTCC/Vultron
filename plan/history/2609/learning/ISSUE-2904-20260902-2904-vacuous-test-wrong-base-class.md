@@ -50,4 +50,4 @@ possibly detect.
 
 ---
 
-**Promoted**: 2026-09-03 — captured in `notes/testing-pitfalls.md` ("A Wrong Base Class Silently Skips the Branch the Test Names"). Docs PR: <DOCS_PR_URL>.
+**Promoted**: 2026-09-03 — captured in `notes/testing-pitfalls.md` ("A Wrong Base Class Silently Skips the Branch the Test Names"). Docs PR: <https://github.com/CERTCC/Vultron/pull/3147>.

@@ -55,4 +55,4 @@ learning).
 
 ---
 
-**Promoted**: 2026-09-03 — captured in `notes/git-workflow-pitfalls.md` ("A Catch-Up Merge Can Silently Revert a Prior PR's Wiring — Diff Against Both Parents"). Docs PR: <DOCS_PR_URL>.
+**Promoted**: 2026-09-03 — captured in `notes/git-workflow-pitfalls.md` ("A Catch-Up Merge Can Silently Revert a Prior PR's Wiring — Diff Against Both Parents"). Docs PR: <https://github.com/CERTCC/Vultron/pull/3147>.

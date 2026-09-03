@@ -47,4 +47,4 @@ divergence impossible rather than merely fixed. Recorded as RSH-05-020.
 
 ---
 
-**Promoted**: 2026-09-03 — captured in `notes/predicates-rule-layer.md` ("Auditing for One-Sided Invariants (Emit vs. Receive)"). Docs PR: <DOCS_PR_URL>.
+**Promoted**: 2026-09-03 — captured in `notes/predicates-rule-layer.md` ("Auditing for One-Sided Invariants (Emit vs. Receive)"). Docs PR: <https://github.com/CERTCC/Vultron/pull/3147>.

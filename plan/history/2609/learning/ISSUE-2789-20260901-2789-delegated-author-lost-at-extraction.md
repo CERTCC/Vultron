@@ -56,4 +56,4 @@ no test used it. The new
 
 ---
 
-**Promoted**: 2026-09-03 — captured in `notes/testing-pitfalls.md` ("A Received-Side Test Only Sees Bugs Its Fixture Shape Can Reach"). Docs PR: <DOCS_PR_URL>.
+**Promoted**: 2026-09-03 — captured in `notes/testing-pitfalls.md` ("A Received-Side Test Only Sees Bugs Its Fixture Shape Can Reach"). Docs PR: <https://github.com/CERTCC/Vultron/pull/3147>.

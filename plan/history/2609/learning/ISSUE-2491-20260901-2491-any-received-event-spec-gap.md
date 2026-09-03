@@ -28,4 +28,4 @@ A follow-up spec entry should be added covering:
 
 ---
 
-**Promoted**: 2026-09-03 — captured in `vultron/wire/as2/AGENTS.md` (§ "Extraction Port Return Type — Return the Discriminated Union, Not the Base"). Not routed to `specs/`: the extraction port return annotation is not protocol-observable by a peer implementation. Docs PR: <DOCS_PR_URL>.
+**Promoted**: 2026-09-03 — captured in `vultron/wire/as2/AGENTS.md` (§ "Extraction Port Return Type — Return the Discriminated Union, Not the Base"). Not routed to `specs/`: the extraction port return annotation is not protocol-observable by a peer implementation. Docs PR: <https://github.com/CERTCC/Vultron/pull/3147>.

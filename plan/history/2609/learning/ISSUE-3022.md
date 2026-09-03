@@ -80,4 +80,4 @@ tighten the guard but could break in-flight parallel branches sitting between
 
 ---
 
-**Resolved**: 2026-09-03 — filed as type:Concern #3143 "CLP-09-003 commit-coverage MUST is untested; MS-15-004 phantom-symbol guard has a residual escape hatch" (parent Epic #2578, milestone Verifiable Conformance). Both surfaces from this entry are captured there. Docs PR: <DOCS_PR_URL>.
+**Resolved**: 2026-09-03 — filed as type:Concern #3143 "CLP-09-003 commit-coverage MUST is untested; MS-15-004 phantom-symbol guard has a residual escape hatch" (parent Epic #2578, milestone Verifiable Conformance). Both surfaces from this entry are captured there. Docs PR: <https://github.com/CERTCC/Vultron/pull/3147>.

@@ -20,4 +20,4 @@ conditional `in_reply_to`.
 
 ---
 
-**Promoted**: 2026-09-03 — captured in `notes/demo-scenario-authoring.md` ("A Helper That Extracts a Result Inside `demo_step` Must Return `Optional[T]`"). Docs PR: <DOCS_PR_URL>.
+**Promoted**: 2026-09-03 — captured in `notes/demo-scenario-authoring.md` ("A Helper That Extracts a Result Inside `demo_step` Must Return `Optional[T]`"). Docs PR: <https://github.com/CERTCC/Vultron/pull/3147>.

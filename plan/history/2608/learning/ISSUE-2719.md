@@ -60,4 +60,4 @@ specifically to fields that the protocol message itself is supposed to carry.
 
 ---
 
-**Promoted**: 2026-09-03 — captured in `notes/datalayer-design.md` ("A DataLayer Fallback Is a Smell for a Masked Protocol Bug"). Docs PR: <DOCS_PR_URL>.
+**Promoted**: 2026-09-03 — captured in `notes/datalayer-design.md` ("A DataLayer Fallback Is a Smell for a Masked Protocol Bug"). Docs PR: <https://github.com/CERTCC/Vultron/pull/3147>.

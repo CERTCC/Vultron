@@ -25,4 +25,4 @@ on the leaf nodes whose names should change.
 
 ---
 
-**Promoted**: 2026-09-03 — captured in `notes/bt-pitfalls.md` ("`_mermaid_prefix_map` Is Scoped to the Rendering Node, Not the Named Node"). Docs PR: <DOCS_PR_URL>.
+**Promoted**: 2026-09-03 — captured in `notes/bt-pitfalls.md` ("`_mermaid_prefix_map` Is Scoped to the Rendering Node, Not the Named Node"). Docs PR: <https://github.com/CERTCC/Vultron/pull/3147>.

@@ -57,4 +57,4 @@ See [[wire-artifact-immutability]].
 
 ---
 
-**Promoted**: 2026-09-03 — captured in `notes/wire-artifact-immutability.md` ("Clearing a Field: `model_copy`, Not a Cast-Silenced Assignment"). Docs PR: <DOCS_PR_URL>.
+**Promoted**: 2026-09-03 — captured in `notes/wire-artifact-immutability.md` ("Clearing a Field: `model_copy`, Not a Cast-Silenced Assignment"). Docs PR: <https://github.com/CERTCC/Vultron/pull/3147>.

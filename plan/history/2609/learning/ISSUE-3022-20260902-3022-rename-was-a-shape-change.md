@@ -42,4 +42,4 @@ with the spec.
 
 ---
 
-**Promoted**: 2026-09-03 — captured in `notes/spec-authoring-rules.md` ("A Retired-Symbol Sweep Is Not a Substitution — Check the Shape First"). Docs PR: <DOCS_PR_URL>.
+**Promoted**: 2026-09-03 — captured in `notes/spec-authoring-rules.md` ("A Retired-Symbol Sweep Is Not a Substitution — Check the Shape First"). Docs PR: <https://github.com/CERTCC/Vultron/pull/3147>.
