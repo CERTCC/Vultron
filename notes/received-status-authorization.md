@@ -435,10 +435,10 @@ This node is the enforcement mechanism for CSB-18-002, CSB-18-003, and
 CSB-18-004 (PXA↔EM cross-machine entailment). When `EmbargoTeardownAuthorizationGate`
 permits teardown, the embargo terminates and the invariant is satisfied.
 When the gate blocks teardown, the invariant remains violated — a contradictory
-state that `violation_pxa_em_entailment()` (cross_machine_invariants.py) can
-detect. That function currently has no production callers; wiring it as a
-post-cascade diagnostic (with a Note posted to the case on violation) is
-tracked by CONCERN-3008.
+state that `violation_pxa_em_entailment()` (cross_machine_invariants.py) detects
+as a post-cascade diagnostic. `PxaEmInvariantDiagnosticNode` is the production
+caller, wired after `ThreatTerminationBranchNode` in `add_case_status_tree`; it
+posts a Note to the case on violation (CONCERN-3008, issue #3115).
 
 ---
 
