@@ -33,6 +33,7 @@ In this section, you will find:
 other processes
 - :simple-activitypub: An in-depth exploration of applying the [ActivityPub](activitypub/index.md) protocol as an underlying foundation to
   the Vultron Protocol.
+- :material-transit-connection: A guide to [wiring a capability](wire_capability.md) into the reference implementation — replacing a call-out stub with real backend logic.
 
 </div>
 
