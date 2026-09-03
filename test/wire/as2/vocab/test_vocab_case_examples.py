@@ -346,5 +346,38 @@ class TestVocabCaseStatusExamples(unittest.TestCase):
         self.assertEqual(activity.object_, status)
 
 
+class TestCaseKwargsOverlapGuard(unittest.TestCase):
+    def test_case_kwargs_overlap_name_raises_value_error(self):
+        with self.assertRaises(ValueError):
+            examples.case(name="My Vuln")
+
+    def test_case_kwargs_overlap_id_raises_value_error(self):
+        with self.assertRaises(ValueError):
+            examples.case(id_="custom-id")
+
+    def test_case_kwargs_overlap_attributed_to_raises_value_error(self):
+        with self.assertRaises(ValueError):
+            examples.case(
+                attributed_to="urn:uuid:00000000-0000-0000-0000-000000000000"
+            )
+
+    def test_case_random_id_kwargs_overlap_name_raises_value_error(self):
+        with self.assertRaises(ValueError):
+            examples.case(random_id=True, name="My Vuln")
+
+    def test_case_random_id_kwargs_overlap_id_raises_value_error(self):
+        with self.assertRaises(ValueError):
+            examples.case(random_id=True, id_="custom-id")
+
+    def test_case_random_id_kwargs_overlap_attributed_to_raises_value_error(
+        self,
+    ):
+        with self.assertRaises(ValueError):
+            examples.case(
+                random_id=True,
+                attributed_to="urn:uuid:00000000-0000-0000-0000-000000000000",
+            )
+
+
 if __name__ == "__main__":
     unittest.main()
