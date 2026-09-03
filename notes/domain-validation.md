@@ -474,29 +474,37 @@ participant can acquire a dimension its role does not license, you reopen this.*
 The receive path's carry-forward and any new model mutator are the places to
 watch.
 
-### Pitfall: composing the set exposed a standing RM violation
+### Pitfall: composing the set exposed a non-adjacent RM write at the close sites
 
 Giving the write node the *whole* rule set made it validate RM for the first
-time, and three call sites promptly failed: `close_case_effect.py` and both
-sites in `leave.py` stamp a departing participant `RM.CLOSED` regardless of the
-rung its RM machine is on. `RM.CLOSED` is reachable only from `ACCEPTED`,
-`INVALID` or `DEFERRED`, so `START → CLOSED` is a transition the protocol does
-not have — a BTND-10-001 violation that was invisible while the write node
-ignored RM. ADR-0086 predicted the bypass sites would gain trigger-path
-diagnostics "at no additional cost"; for RM that is not true.
+time, and three call sites surfaced: `close_case_effect.py` and both sites in
+`leave.py` stamp a departing actor `RM.CLOSED` regardless of the rung its RM
+machine is on. `RM.CLOSED` is reachable by adjacency only from `ACCEPTED`,
+`INVALID` or `DEFERRED`, so from an earlier rung this write is non-adjacent —
+which the emit-side adjacency rule (BTND-10-001) would otherwise refuse, and
+which was invisible while the write node ignored RM. ADR-0086 predicted the
+bypass sites would gain trigger-path diagnostics "at no additional cost"; for RM
+that is not true.
 
 Those sites carry a `force_rm_state=True` exemption that suppresses **only** the
 RM adjacency rule, pinned to that exact list by the ratchet above so it can only
 shrink. Do not add users, and do not read the exemption as "closure may write
 whatever it likes": every other rule still applies.
 
-Whether case closure should force participant RM state *at all* is a live
-protocol question, deliberately left open — participants are expected to reach
-`RM.CLOSED` by closing their own report handling, not by being pushed there, and
-the demo scenarios' "all participants `RM.CLOSED`" milestone (DEMOMA-07-003) is
-correct precisely because the demos get them there through the protocol. It is
-tracked as `type:Concern` [#3106](https://github.com/CERTCC/Vultron/issues/3106)
-so the design conversation happens before the behaviour changes.
+**Resolved (CM-23-012, [#3106](https://github.com/CERTCC/Vultron/issues/3106)):**
+the override is *sanctioned*, not a standing violation. A `Leave` is the
+departing actor's own self-declaratory closure act (ADR-0084), so advancing
+*that single actor* to `RM.CLOSED` regardless of rung is legitimate
+self-declaration — the RM adjacency rule is a report-handling invariant that a
+case-level `Leave` legitimately overrides. The scope is the key constraint: each
+site advances exactly one named actor (the leaver, or the case actor closing its
+own lifecycle on owner Leave, ADR-0051). Closure **never** force-advances a
+non-leaving ("bystander") participant — a participant that never sent `Leave`
+has made no closure declaration, so it retains its last RM state when the case
+closes around it ("the library closed before every book was returned"). The demo
+scenarios' "all participants `RM.CLOSED`" milestone (DEMOMA-07-003) is reached
+because every participant closes its own handling through the protocol, not
+because closure pushes them there.
 
 ### Surfacing a violation list
 

@@ -114,26 +114,34 @@ class CreateParticipantStatusNode(DataLayerActionWithPorts):
         Args:
             force_rm_state: Skip the RM adjacency rule for this write.
 
-                **Quarantine — do not add new users.** Set only by the three
-                case-closure call sites that stamp a departing participant
-                ``RM.CLOSED`` regardless of the rung its RM machine is actually
-                on: ``sync/nodes/close_case_effect.py`` (the received close
-                fan-out) and ``case/nodes/leave.py`` (twice).  ``RM.CLOSED`` is
-                reachable only from ``ACCEPTED``, ``INVALID`` or ``DEFERRED``,
-                so those writes request a transition the protocol does not have
-                — a standing BTND-10-001 violation that was invisible until
-                this node started validating RM at all (ADR-0086, #3050).
+                **Do not add new users.** Set only by the three case-closure
+                call sites that advance a *single departing actor* to
+                ``RM.CLOSED`` regardless of the rung its RM machine is on:
+                ``sync/nodes/close_case_effect.py`` (the received close fan-out)
+                and ``case/nodes/leave.py`` (twice).  ``RM.CLOSED`` is reachable
+                by adjacency only from ``ACCEPTED``, ``INVALID`` or ``DEFERRED``,
+                so from any earlier rung this write is non-adjacent — which is
+                why the RM adjacency rule (BTND-10-001) is suppressed here.
+
+                This override is *sanctioned*, not a workaround (CM-23-012,
+                resolving Concern #3106): a ``Leave`` is the departing actor's
+                own authoritative, self-declaratory closure act (ADR-0084), so
+                advancing that actor to ``RM.CLOSED`` regardless of rung is
+                legitimate self-declaration rather than an externally imposed
+                jump.  The emit-side adjacency rule is a report-handling
+                invariant that a case-level ``Leave`` legitimately overrides;
+                every *other* rule (VF/D/PXA, role gates, entailments) still
+                applies.
+
+                Closure NEVER force-advances a non-leaving ("bystander")
+                participant: each site targets one named actor, and bystanders
+                retain their last RM state when the case closes around them
+                (CM-23-012).  Do not read this exemption as "closure may write
+                whatever it likes."
 
                 The other two guard-bypassing sites (``develop_fix.py``,
                 ``deploy_fix.py``) pass ``rm_state=None`` and so need no
                 exemption: they assert nothing about RM.
-
-                Whether case closure should be forcing participant RM state
-                *at all* is a protocol question, deliberately not answered here;
-                it is tracked as ``type:Concern`` #3106 so the design
-                conversation happens before the behaviour changes.  Participants are expected
-                to reach ``RM.CLOSED`` by closing their own report handling, not
-                by being pushed there.
 
                 ``test/architecture/test_participant_status_validation.py``
                 pins the exempt call sites, so the list can only shrink.
