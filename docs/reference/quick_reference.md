@@ -39,7 +39,7 @@ process models below.
 ## Message Types at a Glance
 
 The complete message set is
-$M_{i,j} = M^{rm} \cup M^{em} \cup M^{cs} \cup M^{*}$ (29 types).
+$M_{i,j} = M^{rm} \cup M^{em} \cup M^{cs} \cup M^{*}$ (28 types).
 Every message is emitted by the Participant whose state changed; the
 "Response Expected" column shows what the recipient is expected to send
 back.
@@ -80,7 +80,7 @@ back.
     The [ActivityStreams 2.0](../howto/activitypub/activities/index.md)
     wire format collapses the revision-negotiation messages: `EV` is
     sent as `EP`, `EC` is sent as `EA`, and `EJ` is sent as `ER`. The
-    formal 29-type set above remains normative for protocol semantics;
+    formal 28-type set above remains normative for protocol semantics;
     the collapse is an implementation detail of the current prototype.
 
 ## State Transition Summary
