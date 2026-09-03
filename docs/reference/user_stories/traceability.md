@@ -12,21 +12,35 @@ to an existing requirement are marked *No mapped requirements*.
 Source user stories: `docs/reference/user_stories/story_2022_NNN.md`
 Source specifications: `specs/*.yaml`
 
+<!-- EDITOR NOTES (for anyone hand-editing the section tables below):
+  1. Each section is an HTML <table> so that a story addressed by several specs
+     can rowspan the story cells. For md_in_html to process the markdown links
+     inside cells, the `markdown` attribute MUST be present on EVERY level of
+     the table (table -> thead/tbody -> tr, then markdown="span" on each td).
+     Drop it from any level and that subtree's links silently render as raw
+     text — and broken anchors in raw text are NOT caught by the strict build.
+  2. Spec IDs link to the requirement's GROUP anchor on its tier page, e.g.
+     `../specs/protocol.md#vp-02` for VP-02-001. The strict link check only
+     knows heading anchors, so never link a per-requirement `#vp-02-001` (see
+     mkdocs.yml `validation.links.anchors`). The tier page (protocol /
+     architecture / project / process) is the requirement's `kind` in the
+     spec registry, not its source `.yaml` file. -->
+
 ---
 
 ## Table of Contents
 
 | Section | Line | Stories | Theme |
 |---------|------|---------|-------|
-| [1. Vulnerability Reporting](#1-vulnerability-reporting) | ~33 | 001–020 | Report submission, reception, validation, tracking |
-| [2. Policy Discovery and Management](#2-policy-discovery-and-management) | ~200 | 021–030 | Disclosure policies, policy publication and lookup |
-| [3. Embargo Management](#3-embargo-management) | ~379 | 031–050 | Embargo proposals, negotiation, termination |
-| [4. Case Management and Participant Roles](#4-case-management-and-participant-roles) | ~562 | 051–080 | Case creation, participants, coordinators, roles |
-| [5. Actor Identity, Privacy, and Security](#5-actor-identity-privacy-and-security) | ~999 | 081–090 | Actor registration, identity, privacy constraints |
-| [6. Communication and Messaging](#6-communication-and-messaging) | ~1202 | 091–100 | Inbox/outbox, notifications, acknowledgements |
-| [7. Publication and Disclosure](#7-publication-and-disclosure) | ~1443 | 101–106 | Coordinated publication, advisories, disclosure timing |
-| [8. Bug Bounty and Incentives](#8-bug-bounty-and-incentives) | ~1694 | 107–109 | Bug bounty programs and incentives |
-| [9. Prioritization, Assessment, and Fix Verification](#9-prioritization-assessment-and-fix-verification) | ~1749 | 110–111 | SSVC scoring, fix readiness |
+| [1. Vulnerability Reporting](#1-vulnerability-reporting) | ~47 | 001–020 | Report submission, reception, validation, tracking |
+| [2. Policy Discovery and Management](#2-policy-discovery-and-management) | ~214 | 021–030 | Disclosure policies, policy publication and lookup |
+| [3. Embargo Management](#3-embargo-management) | ~393 | 031–050 | Embargo proposals, negotiation, termination |
+| [4. Case Management and Participant Roles](#4-case-management-and-participant-roles) | ~576 | 051–080 | Case creation, participants, coordinators, roles |
+| [5. Actor Identity, Privacy, and Security](#5-actor-identity-privacy-and-security) | ~1013 | 081–090 | Actor registration, identity, privacy constraints |
+| [6. Communication and Messaging](#6-communication-and-messaging) | ~1216 | 091–100 | Inbox/outbox, notifications, acknowledgements |
+| [7. Publication and Disclosure](#7-publication-and-disclosure) | ~1457 | 101–106 | Coordinated publication, advisories, disclosure timing |
+| [8. Bug Bounty and Incentives](#8-bug-bounty-and-incentives) | ~1708 | 107–109 | Bug bounty programs and incentives |
+| [9. Prioritization, Assessment, and Fix Verification](#9-prioritization-assessment-and-fix-verification) | ~1763 | 110–111 | SSVC scoring, fix readiness |
 
 ---
 
