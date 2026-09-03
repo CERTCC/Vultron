@@ -257,7 +257,7 @@ class TestAssertFailureRequiresAReason:
             status=Status.FAILURE,
             feedback_message="Input port 'case_id' not set",
         )
-        with pytest.raises(AssertionError):
+        with pytest.raises(AssertionError, match="crash-path"):
             bt_scenario.assert_failure(
                 result, reason="Input port", allow_internal=True
             )
