@@ -108,8 +108,8 @@ Per-dimension rules:
 > The guarantee is conditional: if the participant's current state satisfies the
 > entailments, so does the recorded state. An already-impossible incumbent state
 > cannot be repaired by refusing a dimension, because every carry-forward writes
-> the offending value back; that case is logged instead. It is reachable only via
-> the replica-apply path, which ratchets `rm` alone (ISSUE-3009).
+> the offending value back; that case is logged instead. It is reachable via the replica-apply path, which detects the violation,
+> emits `Create(ProcessingFault)`, and refuses the entry (RSH-05-021).
 >
 > This does **not** narrow the monotone-forward rule above: multi-step `vf`, `d`
 > and `pxa` advances remain accepted (CSB-16-001), because a peer may have
@@ -134,14 +134,16 @@ entry committed. Such an assertion carries no acceptable information, and
 recording it would grow both the status history and the hash chain with no
 state change.
 
-Symmetrically on the replica side —
-though only for `rm`; see ISSUE-3009 —
-`ApplyParticipantStatusFromLedgerNode` now ratchets `rm`: an
-`Announce(CaseLedgerEntry)` that would move the local `rm` backwards on the
-progress scale has that dimension carried forward at the local value, while
-every other dimension is applied as the entry describes it. Lateral moves at
-the same rank (`VALID` ↔ `INVALID`, `DEFERRED` ↔ `ACCEPTED`) are the Case
-Actor re-adjudicating, not a regression, and are applied unchanged.
+On the replica side, `ApplyParticipantStatusFromLedgerNode` enforces two
+invariants. First, the RM ratchet (RSH-05-007): an `Announce(CaseLedgerEntry)`
+that would move the local `rm` backwards has that dimension carried forward at
+the local value, while every other dimension is applied as the entry describes
+it. Lateral moves at the same rank (`VALID` ↔ `INVALID`, `DEFERRED` ↔
+`ACCEPTED`) are the Case Actor re-adjudicating, not a regression, and are
+applied unchanged. Second, the composite-state fault (RSH-05-021): if the
+entry's effective state violates `composite_state_violations()`, the tree MUST
+NOT apply the status and MUST emit `Create(ProcessingFault)` with failure class
+`StatusAssertionRefused/ImpossibleState` to the CaseActor.
 
 ### Consequences
 
