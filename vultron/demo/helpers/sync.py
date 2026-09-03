@@ -225,8 +225,18 @@ def verify_replica_state(
         logger.info("✓ Replica active_embargo matches: %s", auth_embargo_id)
 
     # 4. Log-state hash consistency
-    auth_entries = _get_log_entries_for_case(auth_client, case_id)
+    #
+    # Read the replica snapshot *before* the auth snapshot. These are two
+    # separate point-in-time DataLayer dumps, and the auth (single writer) may
+    # commit and fan out a new entry between them (SYNC fanout race). Under the
+    # single-writer regime the auth ledger is always a superset of any replica's
+    # — a replica holds an index only because the auth committed it earlier —
+    # so an auth read taken *after* the replica read is guaranteed to cover
+    # every index the replica reported. Reading auth first would instead let a
+    # concurrent commit make the auth snapshot staler than the replica snapshot,
+    # producing a spurious "replica is ahead of auth" failure (issue #2768).
     replica_entries = _get_log_entries_for_case(replica_client, case_id)
+    auth_entries = _get_log_entries_for_case(auth_client, case_id)
     assert len(replica_entries) > 0, (
         "Replica has no CaseLedgerEntry records for the case — "
         "LedgerFanout replication did not complete"
@@ -234,16 +244,16 @@ def verify_replica_state(
     auth_tail = max(auth_entries, key=lambda e: e["log_index"])
     replica_tail = max(replica_entries, key=lambda e: e["log_index"])
     # Compare at the replica's current tail index: the auth actor may have
-    # received additional entries during coverage-wait loops (fanout race).
-    # Coverage was already verified by wait_for_contiguous_ledger_coverage
-    # before this call, so comparing at the replica's tail is sufficient to
-    # verify hash-chain integrity up to the point the replica has reached.
+    # committed additional entries after the replica read (fanout race). Because
+    # the auth snapshot is taken last, it covers the replica's tail index unless
+    # the replica genuinely holds an entry the auth never wrote.
     compare_index = replica_tail["log_index"]
     auth_entry_by_index = {e["log_index"]: e for e in auth_entries}
     auth_at_compare = auth_entry_by_index.get(compare_index)
     assert auth_at_compare is not None, (
-        f"Auth has no entry at index {compare_index} — "
-        "replica is ahead of auth or coverage check is stale"
+        f"Auth has no entry at index {compare_index} — the replica holds an "
+        "index the authoritative single-writer never committed "
+        "(hash-chain divergence)"
     )
     if auth_tail["log_index"] > compare_index:
         logger.debug(
