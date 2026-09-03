@@ -166,7 +166,14 @@ teardown — remain the standing argument against changing it.
 - Good, because the root/derived split keeps thoroughness from degrading into a
   wall of consequential errors.
 - Good, because the five call sites that bypass the trigger guard get the same
-  diagnostics as the trigger path, at no additional cost.
+  diagnostics as the trigger path. **Correction (#3050):** this was asserted to
+  cost nothing, and for VF, D and PXA it does not. It is not true for RM. Giving
+  the write node the whole rule set made it validate RM for the first time, and
+  three of those sites — `close_case_effect.py` and both in `leave.py` — stamp a
+  departing participant `RM.CLOSED` from whatever rung its RM machine is on,
+  which the RM machine does not permit. They carry a documented `force_rm_state`
+  exemption suppressing only the RM rule; whether case closure should force
+  participant RM state at all is tracked as ISSUE-3106.
 - Bad, because `message` content changes for multi-violation failures, so any
   test or log assertion matching the single-error text needs updating.
 - Bad, because EH-05-001 gains an optional field, which is a public-surface

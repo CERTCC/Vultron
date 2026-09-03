@@ -51,6 +51,8 @@ _VALIDATING_NODE_MODULES: tuple[str, ...] = (
 # deliberately outside the shared evaluator's domain.  Each needs a reason, and
 # `test_no_undeclared_participant_status_validator` fails when a module joins
 # the population without appearing here or in _VALIDATING_NODE_MODULES.
+#
+# The divergence these exclusions record is tracked as type:Concern #3111.
 _DECLARED_EXCLUSIONS: dict[str, str] = {
     # Report-phase RM latch: operates on a *report*, before a case exists, so
     # there is no case participant, no VF/D/PXA dimension and no role gate for
