@@ -111,12 +111,20 @@ If the gate passes, `EmitAddCaseStatusToSelfNode` emits a self-addressed
 Positioned after `AppendCaseStatusToCaseNode`.
 
 ```text
-EmbargoTeardownAuthorizationGate (Evaluator call-out, RequireCaseOwnerApproval default)
-ThreatTerminationBranchNode    ← fires teardown on CS.P OR CS.X OR CS.A
+TeardownEffectsOrSkip (FailureIsSuccess)
+└─ TeardownEffects (Sequence)
+    ├─ EmbargoTeardownAuthorizationGate (call-out, RequireCaseOwnerApproval default)
+    └─ ThreatTerminationBranchNode    ← fires teardown on CS.P OR CS.X OR CS.A
+PxaEmInvariantDiagnosticNode          ← posts Note to case if invariant still violated
 ```
 
 `ThreatTerminationBranchNode` replaces and extends `PublicDisclosureBranchNode`,
 which is removed from `add_participant_status_tree`.
+
+The `FailureIsSuccess` decorator mirrors the `add_participant_status_tree` pattern:
+gate FAILURE does not abort the outer Sequence, so the `PxaEmInvariantDiagnosticNode`
+always runs and can detect lingering CSB-18-002..004 violations regardless of whether
+the gate permitted or blocked teardown (CONCERN-3008).
 
 ## Validation
 

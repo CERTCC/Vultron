@@ -68,7 +68,7 @@ _DECLARED_EXCLUSIONS: dict[str, str] = {
     # adjudicates each dimension independently and carries the participant's
     # current value forward for refused ones (ADR-0061, RSH-05-001), which is
     # the opposite disposition by design — the two halves of Postel's maxim.
-    # It already shares `cross_machine_violations()`, which is the part both
+    # It already shares `composite_state_violations()`, which is the part both
     # paths genuinely have in common (#2906).
     "vultron/core/behaviors/status/nodes/_adjudication.py": (
         "receive path — per-dimension partial accept, deliberately the"
@@ -80,6 +80,21 @@ _DECLARED_EXCLUSIONS: dict[str, str] = {
     "vultron/core/models/case_participant.py": (
         "model mutator — not a BT node; no case context or role information"
         " available to feed the composed evaluator"
+    ),
+    # Replica-apply path (RSH-05-021), a third disposition distinct from both
+    # emit and receive: the assertion was already made and validated by the
+    # peer that emitted it, and this node decides whether the local replica can
+    # *apply* the resulting ledger entry.  It MUST NOT use the emit evaluator.
+    # The emit evaluator's role gates ask whether the *asserting* actor held
+    # VENDOR/DEPLOYER, which this node neither knows nor is entitled to
+    # re-adjudicate; it checks only the composite-state entailments, which are
+    # actor-independent structural facts about the state itself.  Its refusal
+    # is also different in kind — it emits Create(ProcessingFault) rather than
+    # failing a caller's write (see EmitImpossibleStateFaultNode).
+    "vultron/core/behaviors/sync/nodes/participant_status_effect.py": (
+        "replica-apply path — applies a peer-validated ledger entry; no"
+        " asserting-actor roles in hand, and refuses via ProcessingFault"
+        " rather than by rejecting a local write (RSH-05-021)"
     ),
 }
 
@@ -97,7 +112,7 @@ _COMPOSED_PREDICATES: tuple[str, ...] = (
     "is_valid_d_transition",
     "is_valid_pxa_transition",
     "is_valid_cs_transition",
-    "cross_machine_violations",
+    "composite_state_violations",
     "violation_rm_vf_entailment",
     "violation_rm_d_entailment",
     "violation_vf_d_entailment",

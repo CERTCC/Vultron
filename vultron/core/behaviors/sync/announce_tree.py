@@ -4,6 +4,9 @@
 import py_trees
 
 from vultron.core.behaviors.embargo.nodes import ApplyEmbargoTeardownNode
+from vultron.core.behaviors.sync.nodes.participant_status_effect import (
+    EmitImpossibleStateFaultNode,
+)
 from vultron.core.behaviors.sync.nodes import (
     ApplyCloseCaseFromLedgerNode,
     ApplyInviteAcceptFromLedgerNode,
@@ -89,8 +92,19 @@ def create_announce_log_entry_tree() -> py_trees.behaviour.Behaviour:
                             IsParticipantStatusEventNode(
                                 name="IsParticipantStatusEvent"
                             ),
-                            ApplyParticipantStatusFromLedgerNode(
-                                name="ApplyParticipantStatusFromLedger"
+                            # RSH-05-021: either Apply succeeds or fault is
+                            # emitted to CaseActor and FAILURE propagates.
+                            py_trees.composites.Selector(
+                                name="ApplyOrFault",
+                                memory=False,
+                                children=[
+                                    ApplyParticipantStatusFromLedgerNode(
+                                        name="ApplyParticipantStatusFromLedger"
+                                    ),
+                                    EmitImpossibleStateFaultNode(
+                                        name="EmitImpossibleStateFault"
+                                    ),
+                                ],
                             ),
                         ],
                     ),

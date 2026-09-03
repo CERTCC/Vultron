@@ -11,6 +11,7 @@ related_notes:
   - notes/message-type-reference.md
   - notes/protocol-event-cascades.md
   - notes/received-status-authorization.md
+  - notes/domain-validation.md
 relevant_packages:
   - transitions
   - vultron/bt/embargo_management
@@ -122,7 +123,7 @@ verdicts split between *still valid* and *superseded by structure*.
 
 | Legacy rule (`validations.py`) | Verdict | Current expression |
 |---|---|---|
-| `is_valid_state`: `vF` / `fD` impossible → 32 states | Still valid, **structural and runtime** | After ADR-0075 split VFD into separate `CS_vf`/`CS_d` types, `*fD*` is no longer structurally unrepresentable. Runtime enforcement is via `cross_machine_violations()` (`cross_machine_invariants.py`), which composes `violation_vf_d_entailment()` with the two RM rules. The received path (`_adjudicate_dimensions`) calls it directly; since ADR-0086 the emit path reaches it as one member of the wider `participant_transition_violations()` rule set, which both `ValidateTriggerTransitionsNode` and `CreateParticipantStatusNode` call. Ratchet tests forbid any of them from calling the individual predicates. See [notes/received-status-authorization.md](received-status-authorization.md) § "Independent adjudication cannot see a combination". CSB-17-001, RSH-05-020 |
+| `is_valid_state`: `vF` / `fD` impossible → 32 states | Still valid, **structural and runtime** | After ADR-0075 split VFD into separate `CS_vf`/`CS_d` types, `*fD*` is no longer structurally unrepresentable. Runtime enforcement is via `composite_state_violations()` (`composite_state_invariants.py`), which composes `violation_vf_d_entailment()` with the two RM rules. The received path (`_adjudicate_dimensions`) and the replica-apply path (`ApplyParticipantStatusFromLedgerNode`, RSH-05-021) call it directly; since ADR-0086 the emit path reaches it as one member of the wider `participant_transition_violations()` rule set, which both `ValidateTriggerTransitionsNode` and `CreateParticipantStatusNode` call. Ratchet tests forbid any of them from calling the individual predicates. See [notes/received-status-authorization.md](received-status-authorization.md) § "Independent adjudication cannot see a combination". CSB-17-001, RSH-05-020 |
 | `is_valid_transition`: Hamming distance 1 | Still valid | `cs_transition_event()`, CSB-17-002 |
 | `is_valid_transition`: monotone, same dimension | Still valid | Delegated to `is_valid_vfd_transition` / `is_valid_pxa_transition`; compound check in `is_valid_cs_transition()`, CSB-17-002 |
 | `TRANSITION_RULES`: `...pX. → ...PX.` | Still valid | `required_next_cs_events()`; generalises CSB-13-001 from the entry cascade to every `pX` successor. CSB-17-003 |
@@ -261,10 +262,14 @@ Participant-Agnostic: EM ↔ CS_pxa
 Participant-Specific: RM ↔ CS_vf (vendor path) + CS_d (deployer path)
 ```
 
-The vendor and deployer paths are **structurally separated**: `ParticipantStatus.vf`
-is `None` for non-VENDOR participants, and `ParticipantStatus.d` is `None` for
-non-DEPLOYER participants. A `model_validator` on `ParticipantStatus` enforces both
-directions of this invariant at construction time and raises on violation.
+The vendor and deployer paths are **structurally separated** into two
+independently nullable fields: `ParticipantStatus.vf` carries the vendor path
+and `ParticipantStatus.d` the deployer path. A `model_validator` on
+`ParticipantStatus` (`_enforce_role_dimension_invariant`, `mode="before"`)
+*auto-seeds* the applicable dimension for a VENDOR or DEPLOYER role, so a
+role-consistent object is produced by construction. It does **not**, however,
+raise on a stray dimension — role *authorization* is enforced at the guard
+layer, not at construction (see [Role-Specific VFD Access](#role-specific-vfd-access)).
 
 ### Implementation: CaseStatus vs. ParticipantStatus
 
@@ -281,9 +286,9 @@ The canonical Python implementation is in
 
 - `rm: RmDimension` — Report management state (default `RM.START`)
 - `vf: VfDimension | None` — Vendor-path sub-state (`CS_vf`: `vf` → `Vf` → `VF`);
-  `None` for non-VENDOR participants (structurally enforced)
+  auto-seeded for VENDOR participants, `None` by default otherwise
 - `d: DDimension | None` — Deployer-path sub-state (`CS_d`: `d` → `D`);
-  `None` for non-DEPLOYER participants (structurally enforced)
+  auto-seeded for DEPLOYER participants, `None` by default otherwise
 - `actor` — references the participant Actor
 - `context` — references the `VulnerabilityCase`
 - `case_engagement: bool` — whether participant is engaged
@@ -297,23 +302,46 @@ participant state tuple `(q^rm, q^em, q^cs)`.
 
 ### Role-Specific VFD Access
 
-The `vf` and `d` fields are structurally assigned by participant role. The
-`model_validator` on `ParticipantStatus` enforces both directions:
+The `vf` and `d` fields are auto-seeded by participant role. The
+`model_validator` on `ParticipantStatus` (`_enforce_role_dimension_invariant`,
+`mode="before"`) seeds the applicable dimension when the corresponding role is
+present and the dimension is absent:
 
-| Role(s) | `vf` | `d` |
+| Role(s) | `vf` (auto-seeded default) | `d` (auto-seeded default) |
 |---------|------|-----|
-| VENDOR only | `VfDimension()` (non-None, required) | `None` (required) |
-| DEPLOYER only | `None` (required) | `DDimension()` (non-None, required) |
-| VENDOR + DEPLOYER | `VfDimension()` (non-None, required) | `DDimension()` (non-None, required) |
-| Finder / Reporter / Coordinator / Observer | `None` (required) | `None` (required) |
+| VENDOR only | `VfDimension()` (non-None) | `None` |
+| DEPLOYER only | `None` | `DDimension()` (non-None) |
+| VENDOR + DEPLOYER | `VfDimension()` (non-None) | `DDimension()` (non-None) |
+| Finder / Reporter / Coordinator / Observer | `None` | `None` |
 
-Attempting to construct a `ParticipantStatus` that violates this invariant
-raises `VultronValidationError` immediately — it is never silently corrected.
+The seeding covers the common case (a role-consistent status is produced
+automatically), but the model **does not enforce the reverse direction**: it
+will *not* raise if a caller explicitly attaches a `vf` to a non-VENDOR status
+or a `d` to a non-DEPLOYER status. Role *authorization* is enforced at the
+guard layer, against the acting participant's **authoritative** `case_roles`,
+on both write paths:
+
+- **Trigger / emit path** (fail-closed — the whole write is refused):
+  `ValidateTriggerTransitionsNode._check_vf_role` and the
+  `CheckVendorRoleNode` / `CheckDeployerRoleNode` / `CheckNotSoleObserverVfdNode`
+  guards on the add-participant-status trigger tree (BTND-10-001, CSB-15-001,
+  CSB-15-002, CM-25-005).
+- **Receive path** (partial-accept — only the offending dimension is refused
+  and the current value carried forward): `_adjudicate_vf` / `_adjudicate_d`
+  in `vultron/core/behaviors/status/nodes/_adjudication.py` (RSH-05-001/002).
+
+This split is deliberate. The wire→core extractor
+(`vultron/wire/as2/extractor/_builders.py`) builds a `ParticipantStatus` from
+the sender's *untrusted, self-reported* `cvd_role`. A construction-time raise
+would fire inside that boundary and turn the receive path's per-dimension
+partial-accept into whole-object rejection — breaking the emit/receive Postel
+asymmetry documented in `notes/domain-validation.md` (do not "reconcile" the
+two paths). See issue #2860 and [ADR-0075](../docs/adr/0075-split-vfd-state-machine.md).
 
 The previous single-field `vfd: VfdDimension` (using `CS_vfd` with 4 states
 `vfd → Vfd → VFd → VFD`) is replaced by these two nullable fields. The old
 `CS_vfd.vfd` "null element" workaround for non-applicable participants is
-superseded by structural `None`.
+superseded by the two independently nullable fields (`None` = path absent).
 
 ### Consequence for Handler Implementation
 

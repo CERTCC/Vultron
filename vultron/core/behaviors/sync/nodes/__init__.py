@@ -79,6 +79,7 @@ from vultron.core.behaviors.sync.nodes.note_effect import (
 )
 from vultron.core.behaviors.sync.nodes.participant_status_effect import (
     ApplyParticipantStatusFromLedgerNode,
+    EmitImpossibleStateFaultNode,
 )
 from vultron.core.behaviors.sync.nodes.offer_report_effect import (
     ApplyOfferReportFromLedgerNode,
@@ -129,6 +130,7 @@ __all__ = [
     "ApplyCloseCaseFromLedgerNode",
     # participant_status_effect
     "ApplyParticipantStatusFromLedgerNode",
+    "EmitImpossibleStateFaultNode",
     # per-effect ledger-apply modules
     "ApplyOfferReportFromLedgerNode",
     "ApplyOwnershipTransferFromLedgerNode",

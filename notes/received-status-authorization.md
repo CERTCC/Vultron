@@ -201,11 +201,13 @@ Three properties of that pass are load-bearing:
   would refuse, never the reverse. Do not cite it as a defence against a
   regressive `rm` licensing a `vf`; no such input exists.
 - **Emit and receive share one evaluator.**
-  `cross_machine_violations()` in `vultron/core/states/cross_machine_invariants.py`
-  composes the three rules, and neither path calls the individual `violation_*`
-  functions. The receive path reaches it through
-  `_adjudicate_cross_machine_entailments`. The emit path reaches it one level
-  further out: since ADR-0086 the entailments are one member of the composed
+  `composite_state_violations()` in
+  `vultron/core/states/composite_state_invariants.py` composes the three rules,
+  and no path calls the individual `violation_*` functions. The receive path
+  reaches it through `_adjudicate_composite_state_entailments`, and the
+  replica-apply path through `ApplyParticipantStatusFromLedgerNode`
+  (RSH-05-021). The emit path reaches it one level further out: since ADR-0086
+  the entailments are one member of the composed
   `participant_transition_violations()` rule set (via `_entailment_violations`),
   which both `ValidateTriggerTransitionsNode` and `CreateParticipantStatusNode`
   call — so the emit path now enforces the entailments at the *write* boundary as
@@ -435,6 +437,15 @@ The CASE_OWNER sender gate that was part of `PublicDisclosureBranchNode`
 is dropped: authorization already occurred at StatusAdoptionGate. By the time
 `ThreatTerminationBranchNode` runs, the canonical state write has been
 authorized.
+
+This node is the enforcement mechanism for CSB-18-002, CSB-18-003, and
+CSB-18-004 (PXA↔EM cross-machine entailment). When `EmbargoTeardownAuthorizationGate`
+permits teardown, the embargo terminates and the invariant is satisfied.
+When the gate blocks teardown, the invariant remains violated — a contradictory
+state that `violation_pxa_em_entailment()` (composite_state_invariants.py) detects
+as a post-cascade diagnostic. `PxaEmInvariantDiagnosticNode` is the production
+caller, wired after `ThreatTerminationBranchNode` in `add_case_status_tree`; it
+posts a Note to the case on violation (CONCERN-3008, issue #3115).
 
 ---
 

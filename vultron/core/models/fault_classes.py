@@ -28,3 +28,15 @@ _VULTRON_NS = "https://certcc.github.io/Vultron/ns"
 VULTRON_FAILURE_STATUS_ASSERTION_REFUSED = (
     f"{_VULTRON_NS}/errors/StatusAssertionRefused"
 )
+
+# RSH-05-021: replica refused a ledger entry because the effective
+# composite state violates the RM↔VF, RM↔D, or VF↔D entailments.
+VULTRON_FAILURE_STATUS_ASSERTION_REFUSED_IMPOSSIBLE_STATE = (
+    f"{VULTRON_FAILURE_STATUS_ASSERTION_REFUSED}/ImpossibleState"
+)
+
+# ARCH-15-001: replica refused a ledger entry because its own stored
+# participant record is not core-shaped and the RM ratchet cannot be enforced.
+VULTRON_FAILURE_STATUS_ASSERTION_REFUSED_CORRUPT_LOCAL_RECORD = (
+    f"{VULTRON_FAILURE_STATUS_ASSERTION_REFUSED}/CorruptLocalRecord"
+)

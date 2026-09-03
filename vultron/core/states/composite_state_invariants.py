@@ -13,7 +13,7 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-"""Cross-machine entailment invariants for the Vultron composite state.
+"""Composite-state entailment invariants for the Vultron protocol.
 
 Validates that combinations of RM, VFD, and EM states are mutually consistent.
 
@@ -32,17 +32,20 @@ but is NOT enforced on the emit path: asserting P CAUSES the embargo to
 terminate (the embargo teardown is a consequence, not a prerequisite).  These
 constraints belong on the receive path and are provided here for future use.
 
-:func:`cross_machine_violations` composes the RM↔VF, RM↔D and VF↔D rules into
-the single evaluator that *both* protocol paths use — the emit path via
+:func:`composite_state_violations` composes the RM↔VF, RM↔D and VF↔D rules into
+the single evaluator that *all three* protocol paths use — the emit path via
 :func:`~vultron.core.states.participant_transitions\
 .participant_transition_violations`, which folds these rules in alongside the
-per-dimension and role rules for both the trigger guard and the write node
-(ADR-0086), and the receive path via
-``vultron.core.behaviors.status.nodes._adjudication``.  Before #2906 the
+per-dimension and role rules so that both the trigger guard and the write node
+enforce them (ADR-0086); the receive path via
+``vultron.core.behaviors.status.nodes._adjudication``; and the replica-apply
+path via
+:class:`~vultron.core.behaviors.sync.nodes.participant_status_effect\
+.ApplyParticipantStatusFromLedgerNode` (RSH-05-021).  Before #2906 the
 receive path composed only VF↔D by hand, so a peer could have an impossible
 RM/VF pair recorded as canonical that the same actor would have refused to
-emit.  Composing once is what keeps the two from drifting apart again
-(RSH-05-020).
+emit.  Composing once is what keeps the paths from drifting apart again
+(RSH-05-020, RSH-05-021).
 
 Source: docs/topics/process_models/model_interactions/rm_em_cs.md
 Spec: CSB-18-001 (emit and receive paths), CSB-18-002..004 (receive path, future)
@@ -207,13 +210,14 @@ class EntailmentViolation(NamedTuple):
     alternatives: tuple[str, ...] = ()
 
 
-def cross_machine_violations(
+def composite_state_violations(
     rm: RM, vf: CS_vf | None, d: CS_d | None
 ) -> list[EntailmentViolation]:
-    """Return every cross-machine entailment violated by ``(rm, vf, d)``.
+    """Return every composite-state entailment violated by ``(rm, vf, d)``.
 
-    Composes the three participant-state entailments in one place so the emit
-    and receive paths cannot enforce different subsets of them (#2906):
+    Composes the three participant-state entailments in one place so the emit,
+    receive, and replica-apply paths cannot enforce different subsets of them
+    (#2906, RSH-05-021):
 
     * RM↔VF (CSB-18-001) — a fix cannot be *ready* before the report is accepted.
     * RM↔D (CSB-18-001) — a fix cannot be *deployed* before the report is accepted.

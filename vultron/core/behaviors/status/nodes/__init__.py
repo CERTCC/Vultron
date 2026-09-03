@@ -40,6 +40,8 @@ Submodules:
 - ``case_status``: Idempotency guard and append nodes for the
   AddCaseStatusToCase workflow, plus EmitCaseStatusUpdateNode for direct
   ledger writes after EM/PXA mutations (RSH-04-002, RSH-04-003)
+- ``cs_invariant_diagnostic``: Post-cascade PXA↔EM invariant check
+  (PxaEmInvariantDiagnosticNode; CSB-18-002..004, CONCERN-3008)
 - ``cs_invariant_guards``: CS ordering invariant precondition guards
   (CheckCsEphemeralStateNode, CheckCsHistoryPrefixNode; CSB-17-012,
   CSB-17-005, ISSUE-2524)
@@ -90,6 +92,9 @@ from vultron.core.behaviors.status.nodes.lifecycle import (
 from vultron.core.behaviors.status.nodes.rm_anomaly import (
     EmitRMGapNoteNode,
 )
+from vultron.core.behaviors.status.nodes.cs_invariant_diagnostic import (
+    PxaEmInvariantDiagnosticNode,
+)
 
 __all__ = [
     # conditions
@@ -114,6 +119,8 @@ __all__ = [
     "EmitAddCaseStatusToSelfNode",
     "EmitCloseCaseNode",
     "EmitRMGapNoteNode",
+    # cs_invariant_diagnostic
+    "PxaEmInvariantDiagnosticNode",
     # case_status
     "BB_CASE_STATUS_DIM_FILTER",
     "CASE_STATUS_ALREADY_PRESENT",

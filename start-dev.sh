@@ -87,12 +87,16 @@ if [ "$BUILD_GRAPH" = true ]; then
             -v /run/host-services/ssh-auth.sock:/run/host-services/ssh-auth.sock
         )
     fi
-    docker run "${BUILD_ARGS[@]}" "$IMAGE_NAME" bash -lc '
+    # Non-login shell: `bash -lc` would source /etc/profile and reset PATH to the
+    # system default, dropping /app/.venv/bin. `uv run` resolves the project venv
+    # regardless of PATH (uv itself lives on the system PATH), matching how every
+    # Dockerfile CMD invokes project tools.
+    docker run "${BUILD_ARGS[@]}" "$IMAGE_NAME" bash -c '
         set -euo pipefail
         git fetch --prune --quiet origin
         git checkout -q -f -B main origin/main
         git clean -fdq
-        graphify update .
+        uv run graphify update .
     '
     echo ""
     echo "Shared graph updated at $SHARED_GRAPH"

@@ -22,7 +22,7 @@
 * the per-dimension transition checks (RM, VF, D, PXA);
 * the VENDOR and DEPLOYER role gates;
 * the RM↔VF, RM↔D and VF↔D cross-machine entailments, by delegating to
-  :func:`~vultron.core.states.cross_machine_invariants.cross_machine_violations`;
+  :func:`~vultron.core.states.composite_state_invariants.composite_state_violations`;
 * the compound CS transition.
 
 Every node that validates such a write calls this function rather than the
@@ -52,8 +52,8 @@ PRM-06-002, SM-09-002.  ADR: ADR-0086, ADR-0084.
 
 from collections.abc import Sequence
 
-from vultron.core.states.cross_machine_invariants import (
-    cross_machine_violations,
+from vultron.core.states.composite_state_invariants import (
+    composite_state_violations,
 )
 from vultron.core.states.cs import (
     CS_d,
@@ -229,13 +229,13 @@ def _entailment_violations(
 ) -> list[Violation]:
     """CSB-17-001 / CSB-18-001: the cross-machine entailments.
 
-    Delegates to :func:`cross_machine_violations`, which is the single place
+    Delegates to :func:`composite_state_violations`, which is the single place
     the RM↔VF, RM↔D and VF↔D rules are composed, so the emit and receive paths
     cannot enforce different subsets of them (#2906, RSH-05-020).
     """
     return [
         Violation(entailment.message, dimensions=entailment.reads)
-        for entailment in cross_machine_violations(
+        for entailment in composite_state_violations(
             effective_rm, effective_vf, effective_d
         )
     ]
@@ -302,7 +302,7 @@ def _classify(violations: Sequence[Violation]) -> list[Violation]:
     so a rule added later is classified correctly by construction and the
     labelling cannot go stale.  That guarantee depends on every rule naming its
     read set, which is why :class:`~vultron.core.states\
-    .cross_machine_invariants.EntailmentViolation.reads` is required rather than
+    .composite_state_invariants.EntailmentViolation.reads` is required rather than
     defaulted: an empty ``dimensions`` would be labelled root unconditionally.
     """
     assert all(
