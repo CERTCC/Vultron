@@ -114,7 +114,7 @@ print(render_create_actor())
 The server responds with `201 Created` and the new actor record:
 
 ```json
-{"id":"http://localhost:7999/api/v2/actors/vendorco","type":"Organization","name":"VendorCo","published":"2026-01-01T00:00:00Z","updated":"2026-01-01T00:00:00Z"}
+{"id":"http://localhost:7999/api/v2/actors/vendorco","type":"Organization","name":"VendorCo","published":"2026-01-01T00:00:00+00:00","updated":"2026-01-01T00:00:00+00:00"}
 ```
 
 Your `published` and `updated` timestamps will differ; everything else matches.
