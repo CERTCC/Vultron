@@ -44,14 +44,31 @@ def translate_domain_errors(exc: Exception) -> HTTPException:
             },
         )
     if isinstance(exc, (VultronValidationError, PydanticValidationError)):
+        detail: dict[str, object] = {
+            "status": 422,
+            "error": "ValidationError",
+            "message": str(exc),
+            "activity_id": getattr(exc, "activity_id", None),
+        }
+        # EH-05-002: when the boundary recognised more than one violation,
+        # surface them as structured entries so callers are not forced to parse
+        # `message` — a fragility ISSUE-2112 named, since a change to internal
+        # check order silently alters which error a text parser picks up.
+        # `message` still renders the whole set, so text-only consumers are no
+        # worse off.
+        violations = getattr(exc, "violations", ())
+        if violations:
+            detail["details"] = [
+                {
+                    "message": violation.message,
+                    "classification": violation.classification,
+                    "dimensions": list(violation.dimensions),
+                }
+                for violation in violations
+            ]
         return HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-            detail={
-                "status": 422,
-                "error": "ValidationError",
-                "message": str(exc),
-                "activity_id": getattr(exc, "activity_id", None),
-            },
+            detail=detail,
         )
     raise exc
 

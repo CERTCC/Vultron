@@ -34,8 +34,10 @@ constraints belong on the receive path and are provided here for future use.
 
 :func:`cross_machine_violations` composes the RM↔VF, RM↔D and VF↔D rules into
 the single evaluator that *both* protocol paths use — the emit path via
-:class:`~vultron.core.behaviors.case.nodes.participant.trigger_validation\
-.ValidateTriggerTransitionsNode` and the receive path via
+:func:`~vultron.core.states.participant_transitions\
+.participant_transition_violations`, which folds these rules in alongside the
+per-dimension and role rules for both the trigger guard and the write node
+(ADR-0086), and the receive path via
 ``vultron.core.behaviors.status.nodes._adjudication``.  Before #2906 the
 receive path composed only VF↔D by hand, so a peer could have an impossible
 RM/VF pair recorded as canonical that the same actor would have refused to
@@ -188,11 +190,18 @@ class EntailmentViolation(NamedTuple):
     and resolves nothing — so it needs the full candidate list, not just the
     preferred name.  See
     ``vultron.core.behaviors.status.nodes._adjudication._refusal_target``.
+
+    ``reads`` names *every* dimension the rule inspects, which is a different
+    question from which one it refuses: RM↔VF reads ``("rm", "vf")`` but never
+    refuses ``rm``.  The emit path classifies a violation as derived when a
+    dimension it reads already carries a single-dimension violation
+    (EH-07-002), so it needs the read set rather than the refusal candidates.
     """
 
     dimension: str
     message: str
     alternatives: tuple[str, ...] = ()
+    reads: tuple[str, ...] = ()
 
 
 def cross_machine_violations(
@@ -212,9 +221,11 @@ def cross_machine_violations(
     deployer path (ADR-0075).  An absent dimension asserts nothing, so no rule
     can be violated through it.
 
-    The order is stable and matches the order the emit path enforced before
-    the checks were consolidated, so a caller that reports only the first
-    violation reports the same one it always did.
+    The order is stable, so the rules are always reported in the same
+    sequence.  Note that reporting only ``violations[0]`` is *not* a licensed
+    reduction: rejecting the whole write is a statement about what gets
+    persisted, not about how much of the diagnosis the caller is owed
+    (EH-07-001, ADR-0086).
 
     This function answers only "which rules does this combination violate".
     Deciding *which dimension to refuse* is the caller's, because the answer
@@ -236,15 +247,21 @@ def cross_machine_violations(
     violations: list[EntailmentViolation] = []
     if vf is not None:
         if (msg := violation_rm_vf_entailment(rm, vf)) is not None:
-            violations.append(EntailmentViolation("vf", msg))
+            violations.append(
+                EntailmentViolation("vf", msg, reads=("rm", "vf"))
+            )
     if d is not None:
         if (msg := violation_rm_d_entailment(rm, d)) is not None:
-            violations.append(EntailmentViolation("d", msg))
+            violations.append(EntailmentViolation("d", msg, reads=("rm", "d")))
     if (msg := violation_vf_d_entailment(vf, d)) is not None:
         # VF↔D constrains a pair: `d` is preferred (deployment is the dependent
         # claim), but refusing `vf` resolves the same contradiction when `vf` is
         # the side that moved.
-        violations.append(EntailmentViolation("d", msg, alternatives=("vf",)))
+        violations.append(
+            EntailmentViolation(
+                "d", msg, alternatives=("vf",), reads=("vf", "d")
+            )
+        )
     return violations
 
 

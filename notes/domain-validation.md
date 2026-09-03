@@ -405,6 +405,38 @@ checks are the only validation. This does not double-report on the trigger
 path — the guard fails first and the enclosing `Sequence` aborts before the
 write node ticks.
 
+The composed evaluator is `participant_transition_violations()` in
+`vultron/core/states/participant_transitions.py`; both nodes reach it through
+`validate_participant_status_write()` in
+`behaviors/case/nodes/participant/common.py`, which also owns the
+`feedback_message` rendering and the `result_out["error"]` write. The
+`test/architecture/test_participant_status_validation.py` ratchet fails any node
+that names an individual predicate instead.
+
+### Pitfall: composing the set exposed a standing RM violation
+
+Giving the write node the *whole* rule set made it validate RM for the first
+time, and three call sites promptly failed: `close_case_effect.py` and both
+sites in `leave.py` stamp a departing participant `RM.CLOSED` regardless of the
+rung its RM machine is on. `RM.CLOSED` is reachable only from `ACCEPTED`,
+`INVALID` or `DEFERRED`, so `START → CLOSED` is a transition the protocol does
+not have — a BTND-10-001 violation that was invisible while the write node
+ignored RM. ADR-0086 predicted the bypass sites would gain trigger-path
+diagnostics "at no additional cost"; for RM that is not true.
+
+Those sites carry a `force_rm_state=True` exemption that suppresses **only** the
+RM adjacency rule, pinned to that exact list by the ratchet above so it can only
+shrink. Do not add users, and do not read the exemption as "closure may write
+whatever it likes": every other rule still applies.
+
+Whether case closure should force participant RM state *at all* is a live
+protocol question, deliberately left open — participants are expected to reach
+`RM.CLOSED` by closing their own report handling, not by being pushed there, and
+the demo scenarios' "all participants `RM.CLOSED`" milestone (DEMOMA-07-003) is
+correct precisely because the demos get them there through the protocol. It is
+tracked as `type:Concern` [#3106](https://github.com/CERTCC/Vultron/issues/3106)
+so the design conversation happens before the behaviour changes.
+
 ### Surfacing a violation list
 
 `VultronValidationError` carries the violations as structured data and renders

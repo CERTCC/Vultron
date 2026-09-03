@@ -13,18 +13,33 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-"""Participant status snapshot node for add-participant-status trigger BT."""
+"""Participant status snapshot node for add-participant-status trigger BT.
+
+The write boundary validates its own writes (BTND-10-001, BTND-10-003): five
+production call sites reach :class:`CreateParticipantStatusNode` without passing
+through :class:`~vultron.core.behaviors.case.nodes.participant\
+.trigger_validation.ValidateTriggerTransitionsNode` — ``develop_fix.py``,
+``deploy_fix.py``, ``close_case_effect.py`` and two in ``leave.py`` — and for
+those this node's check is the only validation.  Both nodes evaluate the same
+composed rule set via :func:`~vultron.core.behaviors.case.nodes.participant\
+.common.validate_participant_status_write` (BTND-10-002, ADR-0086).
+"""
+
+from typing import NamedTuple
 
 from py_trees.common import Status
 
 from vultron.core.behaviors.case.nodes.participant.common import (
-    resolve_participant_state_from_dl,
+    ParticipantTransitionContext,
+    resolve_participant_transition_context,
+    validate_participant_status_write,
 )
 from vultron.core.behaviors.helpers import DataLayerActionWithPorts
 from vultron.core.behaviors.narrative_log import (
     log_cs_transition,
     log_rm_transition,
 )
+from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_status import CaseStatus
 from vultron.core.models.participant_status import (
     ParticipantStatus,
@@ -44,31 +59,10 @@ from vultron.core.states.cs import (
     CS_d,
     CS_pxa,
     CS_vf,
-    CS_vfd,
     is_pxa_public_aware,
-    is_valid_d_transition,
-    is_valid_pxa_transition,
-    is_valid_vf_transition,
-)
-from vultron.core.states.cross_machine_invariants import (
-    cross_machine_violations,
-)
-from vultron.core.states.cs_invariants import (
-    cs_from_dimensions,
-    is_valid_cs_transition,
 )
 from vultron.core.states.em import EM
-from vultron.core.predicates.participants import vendor_vf_invariant_ok
 from vultron.core.states.rm import RM
-from vultron.core.predicates.roles import has_deployer_role, has_vendor_role
-
-
-def _vf_d_to_vfd(vf: CS_vf, d: CS_d) -> CS_vfd | None:
-    """Map a (CS_vf, CS_d) pair to the equivalent CS_vfd member, or None."""
-    try:
-        return CS_vfd[f"{vf}{d}"]
-    except KeyError:
-        return None
 
 
 def _resolve_em_state(case: object) -> EM:
@@ -83,38 +77,21 @@ def _resolve_em_state(case: object) -> EM:
     return em_state if em_state is not None else EM.NONE
 
 
-def _pxa_from_case(case: object) -> CS_pxa | None:
-    """Return the case-level PXA state, or ``None`` when unavailable."""
-    try:
-        current_status = case.current_status  # type: ignore[attr-defined]
-    except (AttributeError, ValueError):
-        return None
-    pxa_state = getattr(getattr(current_status, "pxa", None), "state", None)
-    return pxa_state if isinstance(pxa_state, CS_pxa) else None
+class _EffectiveStates(NamedTuple):
+    """The CS dimension values this node persists.
 
-
-def _resolve_pxa_state(case: object, participant: object) -> CS_pxa:
-    """Return the PXA state in force before this node writes a new snapshot.
-
-    The participant's own latest ``ParticipantStatus.case_status.pxa`` is
-    authoritative: this node records PXA on the *participant* snapshot and
-    does not append to ``case.case_statuses``, so ``case.current_status``
-    would report a stale ``pxa`` and make every repeat write look like a fresh
-    public-disclosure event.
-
-    Falls back to the case-level PXA (then ``CS_pxa.pxa``) when the
-    participant has no PXA-bearing snapshot yet.
+    Each is the requested value when one was asserted and the participant's
+    current value otherwise, with the SM-09-001 promotions applied.  The
+    promotions run *after* validation deliberately — they are a forced
+    correction at the write boundary, not something the caller asked for — so
+    ``vf`` and ``pxa`` can differ from what the evaluator saw.  ``d`` is never
+    promoted, and this is the single derivation of it, so validation and
+    persistence cannot disagree about the deployer path.
     """
-    statuses = getattr(participant, "participant_statuses", None) or []
-    for status in reversed(statuses):
-        pxa_state = getattr(
-            getattr(getattr(status, "case_status", None), "pxa", None),
-            "state",
-            None,
-        )
-        if isinstance(pxa_state, CS_pxa):
-            return pxa_state
-    return _pxa_from_case(case) or CS_pxa.pxa
+
+    vf: CS_vf | None
+    d: CS_d | None
+    pxa: CS_pxa
 
 
 class CreateParticipantStatusNode(DataLayerActionWithPorts):
@@ -130,7 +107,37 @@ class CreateParticipantStatusNode(DataLayerActionWithPorts):
         pxa_state: "CS_pxa | None",
         result_out: dict,
         name: str | None = None,
+        force_rm_state: bool = False,
     ) -> None:
+        """Create the node.
+
+        Args:
+            force_rm_state: Skip the RM adjacency rule for this write.
+
+                **Quarantine — do not add new users.** Set only by the three
+                case-closure call sites that stamp a departing participant
+                ``RM.CLOSED`` regardless of the rung its RM machine is actually
+                on: ``sync/nodes/close_case_effect.py`` (the received close
+                fan-out) and ``case/nodes/leave.py`` (twice).  ``RM.CLOSED`` is
+                reachable only from ``ACCEPTED``, ``INVALID`` or ``DEFERRED``,
+                so those writes request a transition the protocol does not have
+                — a standing BTND-10-001 violation that was invisible until
+                this node started validating RM at all (ADR-0086, #3050).
+
+                The other two guard-bypassing sites (``develop_fix.py``,
+                ``deploy_fix.py``) pass ``rm_state=None`` and so need no
+                exemption: they assert nothing about RM.
+
+                Whether case closure should be forcing participant RM state
+                *at all* is a protocol question, deliberately not answered here;
+                it is tracked as ``type:Concern`` #3106 so the design
+                conversation happens before the behaviour changes.  Participants are expected
+                to reach ``RM.CLOSED`` by closing their own report handling, not
+                by being pushed there.
+
+                ``test/architecture/test_participant_status_validation.py``
+                pins the exempt call sites, so the list can only shrink.
+        """
         super().__init__(name=name or self.__class__.__name__)
         self._case_id = case_id
         self._actor_id = actor_id
@@ -139,6 +146,7 @@ class CreateParticipantStatusNode(DataLayerActionWithPorts):
         self._d_state = d_state
         self._pxa_state = pxa_state
         self._result_out = result_out
+        self._force_rm_state = force_rm_state
 
     def _persist_status(
         self, dl: object, participant_id: str, status: "ParticipantStatus"
@@ -155,26 +163,6 @@ class CreateParticipantStatusNode(DataLayerActionWithPorts):
         ):
             participant_obj.add_participant_status(wire_status)
             dl.save(participant_obj)  # type: ignore[attr-defined]
-
-    def _build_dimensions(
-        self,
-        current_vf: CS_vf | None,
-        current_d: CS_d | None,
-    ) -> "tuple[VfDimension | None, DDimension | None]":
-        """Return (vf_dim, d_dim) for the new snapshot."""
-        vf_dim: VfDimension | None = None
-        if self._vf_state is not None:
-            vf_dim = VfDimension(state=self._vf_state)
-        elif current_vf is not None:
-            vf_dim = VfDimension(state=current_vf)
-
-        d_dim: DDimension | None = None
-        if self._d_state is not None:
-            d_dim = DDimension(state=self._d_state)
-        elif current_d is not None:
-            d_dim = DDimension(state=current_d)
-
-        return vf_dim, d_dim
 
     def _build_participant_metadata(
         self, participant_obj: object
@@ -199,168 +187,6 @@ class CreateParticipantStatusNode(DataLayerActionWithPorts):
         )
         return status_roles, consent_dim
 
-    def _check_vf_precondition(
-        self, current_vf: CS_vf | None, participant_obj: object
-    ) -> "Status | None":
-        """CSB-16-001 / ADR-0075 / CSB-15-001 / PRM-06-002: validate VF transition and role before writing."""
-        actor_roles = (
-            participant_obj.roles  # type: ignore[union-attr]
-            if isinstance(participant_obj, CaseParticipant)
-            else []
-        )
-        if not vendor_vf_invariant_ok(actor_roles, self._vf_state):
-            self.logger.warning(
-                "%s: Vendor-implies-V violated: actor '%s' holds VENDOR but"
-                " asserts %s (PRM-06-002, ADR-0084)",
-                self.name,
-                self._actor_id,
-                self._vf_state,
-            )
-            self.feedback_message = (
-                f"Vendor-implies-V: VENDOR cannot assert"
-                f" {self._vf_state!r} (PRM-06-002)"
-            )
-            return Status.FAILURE
-        if self._vf_state in (CS_vf.Vf, CS_vf.VF) and not has_vendor_role(
-            actor_roles
-        ):
-            spec = "ADR-0075" if self._vf_state == CS_vf.Vf else "CSB-15-001"
-            self.logger.warning(
-                "%s: actor '%s' lacks VENDOR role required for %s (%s, #2862)",
-                self.name,
-                self._actor_id,
-                self._vf_state,
-                spec,
-            )
-            self.feedback_message = (
-                f"VENDOR role required for {self._vf_state} target ({spec})"
-            )
-            return Status.FAILURE
-        if self._vf_state is None or current_vf is None:
-            return None
-        if self._vf_state != current_vf and not is_valid_vf_transition(
-            current_vf, self._vf_state
-        ):
-            self.logger.warning(
-                "%s: invalid VF transition %s → %s for actor '%s'",
-                self.name,
-                current_vf,
-                self._vf_state,
-                self._actor_id,
-            )
-            self.feedback_message = (
-                f"Invalid VF transition {current_vf!r} → {self._vf_state!r}"
-            )
-            return Status.FAILURE
-        return None
-
-    def _check_d_precondition(
-        self, current_d: CS_d | None, participant_obj: object
-    ) -> "Status | None":
-        """CSB-16-001 / CSB-15-002: validate D transition and role before writing."""
-        if self._d_state is not None:
-            actor_roles = (
-                participant_obj.roles  # type: ignore[union-attr]
-                if isinstance(participant_obj, CaseParticipant)
-                else []
-            )
-            if not has_deployer_role(actor_roles):
-                self.logger.warning(
-                    "%s: actor '%s' lacks DEPLOYER role required for D (CSB-15-002)",
-                    self.name,
-                    self._actor_id,
-                )
-                self.feedback_message = (
-                    "DEPLOYER role required for D target (CSB-15-002)"
-                )
-                return Status.FAILURE
-        if self._d_state is None or current_d is None:
-            return None
-        if self._d_state != current_d and not is_valid_d_transition(
-            current_d, self._d_state
-        ):
-            self.logger.warning(
-                "%s: invalid D transition %s → %s for actor '%s'",
-                self.name,
-                current_d,
-                self._d_state,
-                self._actor_id,
-            )
-            self.feedback_message = (
-                f"Invalid D transition {current_d!r} → {self._d_state!r}"
-            )
-            return Status.FAILURE
-        return None
-
-    def _check_pxa_precondition(self, pxa_before: CS_pxa) -> "Status | None":
-        """CSB-16-002: validate PXA transition before writing."""
-        if self._pxa_state is None:
-            return None
-        if self._pxa_state != pxa_before and not is_valid_pxa_transition(
-            pxa_before, self._pxa_state
-        ):
-            self.logger.warning(
-                "%s: invalid PXA transition %s → %s for actor '%s'",
-                self.name,
-                pxa_before,
-                self._pxa_state,
-                self._actor_id,
-            )
-            self.feedback_message = (
-                f"Invalid PXA transition {pxa_before!r} → {self._pxa_state!r}"
-            )
-            return Status.FAILURE
-        return None
-
-    def _check_compound_transition(
-        self,
-        prev_vf: "CS_vf | None",
-        prev_d: "CS_d | None",
-        prev_pxa: CS_pxa,
-        next_vf: "CS_vf | None",
-        next_d: "CS_d | None",
-        next_pxa: CS_pxa,
-    ) -> "Status | None":
-        """SM-09-002 / AC-3: reject compound transitions that change >1 dimension."""
-        if prev_vf is None or next_vf is None:
-            return None  # no VF history; per-dimension checks suffice
-        prev_d = prev_d or CS_d.d
-        next_d = next_d or CS_d.d
-        prev_vfd = _vf_d_to_vfd(prev_vf, prev_d)
-        next_vfd = _vf_d_to_vfd(next_vf, next_d)
-        if next_vfd is None:
-            self.logger.warning(
-                "%s: impossible compound VF+D state (%s, %s) for actor '%s'"
-                " (SM-09-002)",
-                self.name,
-                next_vf,
-                next_d,
-                self._actor_id,
-            )
-            self.feedback_message = (
-                f"Impossible compound VF+D state ({next_vf!r}, {next_d!r})"
-            )
-            return Status.FAILURE
-        if prev_vfd is None:
-            return None
-        prev_cs = cs_from_dimensions(prev_vfd, prev_pxa)
-        next_cs = cs_from_dimensions(next_vfd, next_pxa)
-        if not is_valid_cs_transition(prev_cs, next_cs, allow_null=True):
-            self.logger.warning(
-                "%s: invalid compound CS transition %s → %s for actor '%s'"
-                " (SM-09-002)",
-                self.name,
-                prev_cs.name,
-                next_cs.name,
-                self._actor_id,
-            )
-            self.feedback_message = (
-                f"Invalid compound CS transition"
-                f" {prev_cs.name!r} → {next_cs.name!r}"
-            )
-            return Status.FAILURE
-        return None
-
     def _apply_ac1_promotions(
         self,
         eff_vf: "CS_vf | None",
@@ -377,70 +203,32 @@ class CreateParticipantStatusNode(DataLayerActionWithPorts):
             eff_vf = CS_vf.Vf
         return eff_vf, eff_pxa
 
-    def _validate_transitions(
-        self,
-        current_vf: "CS_vf | None",
-        current_d: "CS_d | None",
-        pxa_before: CS_pxa,
-        eff_rm: "RM",
-        eff_vf: "CS_vf | None",
-        eff_d: "CS_d | None",
-        eff_pxa: CS_pxa,
-        participant_obj: object,
-    ) -> "Status | None":
-        """EH-07-001/BTND-10-002: collect all per-dimension failures (#2112).
+    def _effective_states(
+        self, context: ParticipantTransitionContext
+    ) -> _EffectiveStates:
+        """Return the post-promotion CS dimension values to persist."""
+        eff_vf = (
+            self._vf_state
+            if self._vf_state is not None
+            else context.current_vf
+        )
+        eff_d = (
+            self._d_state if self._d_state is not None else context.current_d
+        )
+        eff_pxa = (
+            self._pxa_state
+            if self._pxa_state is not None
+            else context.current_pxa
+        )
+        # AC-1: pX → PX and vP → VP forced promotions (SM-09-001)
+        eff_vf, eff_pxa = self._apply_ac1_promotions(eff_vf, eff_pxa)
+        return _EffectiveStates(vf=eff_vf, d=eff_d, pxa=eff_pxa)
 
-        Runs every per-dimension check and collects errors before returning, so
-        callers always receive a complete diagnostic.  The compound CS-transition
-        check is only run when all per-dimension checks pass — it is derived when
-        any single-dimension violation is already present (EH-07-002).
-
-        Also enforces cross-machine entailments (CSB-18-001, CSB-17-001) so
-        bypass callers (DevelopFixNode, DeployFixNode, etc.) cannot persist a
-        state that ValidateTriggerTransitionsNode would have refused (#3100).
-
-        Returns ``Status.FAILURE`` with a joined ``feedback_message`` when any
-        check fails; ``None`` when all checks pass.
-        """
-        errors: list[str] = []
-
-        if (
-            self._check_vf_precondition(current_vf, participant_obj)
-            is not None
-        ):
-            errors.append(self.feedback_message)
-        if self._check_d_precondition(current_d, participant_obj) is not None:
-            errors.append(self.feedback_message)
-        if self._pxa_state is not None:
-            if self._check_pxa_precondition(pxa_before) is not None:
-                errors.append(self.feedback_message)
-
-        if not errors:
-            if (
-                self._check_compound_transition(
-                    current_vf, current_d, pxa_before, eff_vf, eff_d, eff_pxa
-                )
-                is not None
-            ):
-                errors.append(self.feedback_message)
-
-        if not errors:
-            for violation in cross_machine_violations(eff_rm, eff_vf, eff_d):
-                errors.append(violation.message)
-
-        if errors:
-            self.feedback_message = "; ".join(errors)
-            return Status.FAILURE
-        return None
-
-    def update(self) -> Status:
-        dl = self.datalayer
-        if dl is None:
-            self.logger.error("%s: DataLayer not available", self.name)
-            self.feedback_message = "DataLayer not available"
-            return Status.FAILURE
-
-        case = dl.read_case(self._case_id)
+    def _resolve_target(
+        self, dl: object
+    ) -> "tuple[VulnerabilityCase, str] | None":
+        """Return (case, participant_id), or None after reporting a failure."""
+        case = dl.read_case(self._case_id)  # type: ignore[attr-defined]
         if case is None:
             self.logger.error(
                 "%s: Case '%s' not found in DataLayer",
@@ -448,7 +236,7 @@ class CreateParticipantStatusNode(DataLayerActionWithPorts):
                 self._case_id,
             )
             self.feedback_message = f"Case '{self._case_id}' not found"
-            return Status.FAILURE
+            return None
 
         participant_id = case.actor_participant_index.get(self._actor_id)
         if participant_id is None:
@@ -462,72 +250,85 @@ class CreateParticipantStatusNode(DataLayerActionWithPorts):
                 f"Actor '{self._actor_id}' not found in"
                 f" case '{self._case_id}'"
             )
-            return Status.FAILURE
+            return None
+        return case, participant_id
 
-        current_rm, current_vf, current_d = resolve_participant_state_from_dl(
-            dl, participant_id
-        )
-        participant_obj = dl.read(participant_id)
-        pxa_before = _resolve_pxa_state(case, participant_obj)
-
-        # Effective states before promotion (what the caller requested)
-        eff_rm = self._rm_state if self._rm_state is not None else current_rm
-        eff_vf = self._vf_state if self._vf_state is not None else current_vf
-        eff_d = self._d_state if self._d_state is not None else current_d
-        eff_pxa = (
-            self._pxa_state if self._pxa_state is not None else pxa_before
-        )
-
-        guard = self._validate_transitions(
-            current_vf,
-            current_d,
-            pxa_before,
-            eff_rm,
-            eff_vf,
-            eff_d,
-            eff_pxa,
-            participant_obj,
-        )
-        if guard is not None:
-            return guard
-
-        # AC-1: pX → PX and vP → VP forced promotions (SM-09-001)
-        eff_vf, eff_pxa = self._apply_ac1_promotions(eff_vf, eff_pxa)
-
+    def _build_status(
+        self,
+        case: VulnerabilityCase,
+        context: ParticipantTransitionContext,
+        effective: _EffectiveStates,
+    ) -> ParticipantStatus:
+        """Return the ParticipantStatus snapshot for this write."""
         case_status: CaseStatus | None = None
         if self._pxa_state is not None:
             case_status = CaseStatus(
                 context=self._case_id,
                 attributed_to=self._actor_id,
                 em=EmDimension(state=_resolve_em_state(case)),
-                pxa=PxaDimension(state=eff_pxa),
+                pxa=PxaDimension(state=effective.pxa),
             )
 
         status_roles, consent_dim = self._build_participant_metadata(
-            participant_obj
+            context.participant
         )
-
-        vf_dim: VfDimension | None = (
-            VfDimension(state=eff_vf) if eff_vf is not None else None
-        )
-        _, d_dim = self._build_dimensions(current_vf, current_d)
-
-        status = ParticipantStatus(
+        return ParticipantStatus(
             context=self._case_id,
             attributed_to=self._actor_id,
             rm=RmDimension(
                 state=(
                     self._rm_state
                     if self._rm_state is not None
-                    else current_rm
+                    else context.current_rm
                 )
             ),
-            vf=vf_dim,
-            d=d_dim,
+            vf=(
+                VfDimension(state=effective.vf)
+                if effective.vf is not None
+                else None
+            ),
+            d=(
+                DDimension(state=effective.d)
+                if effective.d is not None
+                else None
+            ),
             consent=consent_dim,
             cvd_role=status_roles,
             case_status=case_status,
         )
+
+    def update(self) -> Status:
+        dl = self.datalayer
+        if dl is None:
+            self.logger.error("%s: DataLayer not available", self.name)
+            self.feedback_message = "DataLayer not available"
+            return Status.FAILURE
+
+        target = self._resolve_target(dl)
+        if target is None:
+            return Status.FAILURE
+        case, participant_id = target
+
+        context = resolve_participant_transition_context(
+            dl, case, participant_id
+        )
+        failure = validate_participant_status_write(
+            self,
+            context,
+            case_id=self._case_id,
+            actor_id=self._actor_id,
+            rm_state=self._rm_state,
+            vf_state=self._vf_state,
+            d_state=self._d_state,
+            pxa_state=self._pxa_state,
+            result_out=self._result_out,
+            validate_rm_transition=not self._force_rm_state,
+        )
+        if failure is not None:
+            return failure
+
+        effective = self._effective_states(context)
+        status = self._build_status(case, context, effective)
         self._persist_status(dl, participant_id, status)
 
         self._result_out["status_id"] = status.id_
@@ -540,19 +341,13 @@ class CreateParticipantStatusNode(DataLayerActionWithPorts):
             self._actor_id,
             self._case_id,
         )
-        self._log_transitions(
-            current_rm, current_vf, current_d, pxa_before, eff_pxa, eff_vf
-        )
+        self._log_transitions(context, effective)
         return Status.SUCCESS
 
     def _log_transitions(
         self,
-        rm_before: RM,
-        vf_before: CS_vf | None,
-        d_before: CS_d | None,
-        pxa_before: CS_pxa,
-        effective_pxa: "CS_pxa | None" = None,
-        effective_vf: "CS_vf | None" = None,
+        context: ParticipantTransitionContext,
+        effective: _EffectiveStates,
     ) -> None:
         """Emit narrative INFO lines for the dimensions this node advanced."""
         if self._rm_state is not None:
@@ -560,27 +355,32 @@ class CreateParticipantStatusNode(DataLayerActionWithPorts):
                 self.logger,
                 self._actor_id,
                 self._case_id,
-                rm_before,
+                context.current_rm,
                 self._rm_state,
             )
         # Log VF: if explicitly requested OR if vP promotion forced a change
-        vf_written = (
-            effective_vf if effective_vf is not None else self._vf_state
-        )
-        if vf_written is not None:
+        if effective.vf is not None:
             log_cs_transition(
                 self.logger,
                 self._actor_id,
                 self._case_id,
-                vf_before if vf_before is not None else CS_vf.vf,
-                vf_written,
+                (
+                    context.current_vf
+                    if context.current_vf is not None
+                    else CS_vf.vf
+                ),
+                effective.vf,
             )
         if self._d_state is not None:
             log_cs_transition(
                 self.logger,
                 self._actor_id,
                 self._case_id,
-                d_before if d_before is not None else CS_d.d,
+                (
+                    context.current_d
+                    if context.current_d is not None
+                    else CS_d.d
+                ),
                 self._d_state,
             )
         # Log PXA using the effective (possibly promoted) value
@@ -589,10 +389,6 @@ class CreateParticipantStatusNode(DataLayerActionWithPorts):
                 self.logger,
                 self._actor_id,
                 self._case_id,
-                pxa_before,
-                (
-                    effective_pxa
-                    if effective_pxa is not None
-                    else self._pxa_state
-                ),
+                context.current_pxa,
+                effective.pxa,
             )

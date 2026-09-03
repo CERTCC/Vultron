@@ -80,7 +80,11 @@ def add_participant_status_trigger_bt(
         result_out: Mutable dict populated by
             :class:`CreateParticipantStatusNode` with ``'status_id'`` and
             ``'participant_id'``; read by the ``activity_builder`` closure
-            in ``SvcAddParticipantStatusUseCase``.
+            in ``SvcAddParticipantStatusUseCase``.  Both validation nodes also
+            write the aggregate :exc:`~vultron.errors.VultronValidationError`
+            to ``'error'`` on refusal, which ``SvcBTTriggerBase.execute()``
+            re-raises so the violation list reaches the HTTP layer
+            (EH-05-002, EH-07-003).
         activity_builder: ``(case_manager_id: str) -> list[str]`` —
             called by ``sender_side_bt`` after resolving the Case Manager;
             must create the ``Add(ParticipantStatus)`` activity and return
@@ -115,6 +119,7 @@ def add_participant_status_trigger_bt(
                 vf_state=vf_state,
                 d_state=d_state,
                 pxa_state=pxa_state,
+                result_out=result_out,
             ),
             CreateParticipantStatusNode(
                 case_id=case_id,

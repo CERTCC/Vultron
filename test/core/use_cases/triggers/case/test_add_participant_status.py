@@ -27,6 +27,7 @@ Covers:
 from typing import cast
 
 import pytest
+from py_trees.common import Status
 
 from vultron.core.models.dimensions import DDimension, RmDimension, VfDimension
 from vultron.core.states.cs import CS_d, CS_pxa, CS_vf
@@ -603,26 +604,32 @@ class TestCreateParticipantStatusNode:
         assert result_out["participant_id"] == self.actor_participant.id_
 
     def test_node_persists_status_with_explicit_rm_state(self):
-        """CreateParticipantStatusNode persists ParticipantStatus with given RM."""
+        """CreateParticipantStatusNode persists ParticipantStatus with given RM.
+
+        ``RM.RECEIVED`` is the only legal step from the participant's baseline
+        ``RM.START``: since #3050 the write node validates the RM rung too, so
+        an ``RM.ACCEPTED`` jump here would be refused rather than persisted.
+        """
         from vultron.core.models.participant_status import ParticipantStatus
         from vultron.core.states.rm import RM
 
         bt_result, result_out = self._run_node(
-            rm_state=RM.ACCEPTED, vf_state=None, d_state=None, pxa_state=None
+            rm_state=RM.RECEIVED, vf_state=None, d_state=None, pxa_state=None
         )
 
+        assert bt_result.status == Status.SUCCESS, bt_result.feedback_message
         status_id = result_out.get("status_id")
         assert isinstance(status_id, str), "result_out must contain status_id"
         stored = self.dl.read(status_id)
         assert isinstance(stored, ParticipantStatus)
-        assert stored.rm.state == RM.ACCEPTED
+        assert stored.rm.state == RM.RECEIVED
 
     def test_node_appends_status_to_participant(self):
         """CreateParticipantStatusNode appends the status to participant_statuses."""
         from vultron.core.states.rm import RM
 
         _, result_out = self._run_node(
-            rm_state=RM.ACCEPTED, vf_state=None, d_state=None, pxa_state=None
+            rm_state=RM.RECEIVED, vf_state=None, d_state=None, pxa_state=None
         )
 
         status_id = result_out.get("status_id")
@@ -736,13 +743,16 @@ class TestCreateParticipantStatusNode:
         from vultron.core.states.rm import RM
 
         with caplog.at_level(logging.INFO):
-            self._run_node(
-                rm_state=RM.ACCEPTED,
+            bt_result, _ = self._run_node(
+                rm_state=RM.RECEIVED,
                 vf_state=None,
                 d_state=None,
                 pxa_state=None,
             )
 
+        # Assert the write actually happened: a refused write emits no CS line
+        # either, which would make this test pass vacuously.
+        assert bt_result.status == Status.SUCCESS, bt_result.feedback_message
         assert not self._cs_narrative_records(caplog)
 
     def test_no_cs_line_when_vf_state_unchanged(self, caplog):
@@ -1085,11 +1095,11 @@ class TestCreateParticipantStatusNode:
         assert "status_id" in result_out
 
     def test_validate_transitions_reports_all_dimension_errors(self):
-        """#2112 AC-1/AC-2: _validate_transitions() collects all dimension failures.
+        """#2112: the write node collects all dimension failures.
 
         When VF and D are simultaneously invalid (actor lacks both VENDOR and
         DEPLOYER roles), both error messages must appear in feedback_message.
-        Regression test for the first-error-only bug in _validate_transitions().
+        Regression test for the first-error-only bug.
         """
         from py_trees.common import Status
         from vultron.core.models.case_participant import CaseParticipant
@@ -1119,6 +1129,111 @@ class TestCreateParticipantStatusNode:
             f"Expected D role error (CSB-15-002) in feedback_message;"
             f" got: {bt_result.feedback_message!r}"
         )
+
+    # ------------------------------------------------------------------
+    # #3050 AC-3: the write node does not assume the guard ran (BTND-10-003)
+    # ------------------------------------------------------------------
+
+    def test_write_node_validates_without_the_trigger_guard(self):
+        """AC-3: constructed directly, the write node still refuses and reports.
+
+        Five production call sites reach this node without passing through
+        ``ValidateTriggerTransitionsNode`` (``develop_fix.py``,
+        ``deploy_fix.py``, ``close_case_effect.py``, two in ``leave.py``), so
+        for those its check is the only validation.  ``_run_node()`` builds the
+        node alone, reproducing that shape.
+        """
+        bt_result, result_out = self._run_node(
+            rm_state=RM.CLOSED,  # START → CLOSED skips the RM ladder
+            vf_state=None,
+            d_state=None,
+            pxa_state=CS_pxa.PXA,  # pxa → PXA is not an adjacent step
+        )
+
+        assert bt_result.status == Status.FAILURE
+        assert "status_id" not in result_out, "nothing may be persisted"
+        assert "Invalid RM transition" in bt_result.feedback_message
+        assert "Invalid PXA transition" in bt_result.feedback_message
+
+    def test_write_node_publishes_structured_violations_to_result_out(self):
+        """AC-4/AC-6: the aggregate error is data, not just a message string."""
+        bt_result, result_out = self._run_node(
+            rm_state=RM.CLOSED,
+            vf_state=None,
+            d_state=None,
+            pxa_state=CS_pxa.PXA,
+        )
+
+        assert bt_result.status == Status.FAILURE
+        error = result_out.get("error")
+        assert isinstance(error, VultronValidationError)
+
+        roots = [v for v in error.violations if v.classification == "root"]
+        assert [v.dimensions for v in roots] == [("rm",), ("pxa",)], (
+            "both independently-broken dimensions must arrive as structured"
+            f" root violations: {[v.message for v in error.violations]}"
+        )
+
+    def test_force_rm_state_exempts_only_the_rm_rule(self):
+        """The case-closure quarantine advances RM past the ladder.
+
+        This is the behaviour ``close_case_effect.py`` and ``leave.py`` rely on
+        to stamp a departing participant ``RM.CLOSED``.  It is a known
+        BTND-10-001 violation, tracked as type:Concern #3106; the point of the test
+        is that the exemption is narrow — every other rule still applies.
+        """
+        from vultron.core.behaviors.case.nodes.participant import (
+            CreateParticipantStatusNode,
+        )
+
+        result_out: dict = {}
+        node = CreateParticipantStatusNode(
+            case_id=self.case.id_,
+            actor_id=self.actor.id_,
+            rm_state=RM.CLOSED,  # START → CLOSED, illegal but exempted
+            vf_state=None,
+            d_state=None,
+            pxa_state=CS_pxa.PXA,  # still an illegal PXA step
+            result_out=result_out,
+            force_rm_state=True,
+        )
+        bt_result = self.bridge.execute_with_setup(
+            node, actor_id=self.actor.id_
+        )
+
+        assert bt_result.status == Status.FAILURE
+        assert "Invalid RM transition" not in bt_result.feedback_message
+        assert "Invalid PXA transition" in bt_result.feedback_message, (
+            "force_rm_state exempts the RM rule only; it is not a validation"
+            f" bypass. Got: {bt_result.feedback_message!r}"
+        )
+
+    def test_force_rm_state_permits_the_closure_stamp(self):
+        """The exempted write itself succeeds — today's closure behaviour."""
+        from vultron.core.behaviors.case.nodes.participant import (
+            CreateParticipantStatusNode,
+        )
+        from vultron.core.models.participant_status import ParticipantStatus
+
+        result_out: dict = {}
+        node = CreateParticipantStatusNode(
+            case_id=self.case.id_,
+            actor_id=self.actor.id_,
+            rm_state=RM.CLOSED,
+            vf_state=None,
+            d_state=None,
+            pxa_state=None,
+            result_out=result_out,
+            force_rm_state=True,
+        )
+        bt_result = self.bridge.execute_with_setup(
+            node, actor_id=self.actor.id_
+        )
+
+        assert bt_result.status == Status.SUCCESS, bt_result.feedback_message
+        stored = self.dl.read(result_out["status_id"])
+        assert isinstance(stored, ParticipantStatus)
+        assert stored.rm.state == RM.CLOSED
 
 
 # ---------------------------------------------------------------------------
@@ -1306,6 +1421,68 @@ class TestValidateTriggerTransitions:
         before = self._status_count()
         self._execute(rm_state=RM.RECEIVED)
         assert self._status_count() == before + 1
+
+    # ------------------------------------------------------------------
+    # #3050 — report every violation, reject the batch (ADR-0086)
+    # ------------------------------------------------------------------
+
+    def test_trigger_path_reports_every_violation_and_persists_nothing(self):
+        """AC-4/AC-10: two illegal dimensions, both reported, nothing written.
+
+        The fix-one-resubmit loop ISSUE-2112 reported: the caller used to be
+        told about RM, fix it, resubmit, and only then hear about PXA.  Since
+        the rejection is atomic nothing partial landed either, so the round trip
+        bought no progress (EH-07-001).
+        """
+        before = self._status_count()
+
+        with pytest.raises(VultronValidationError) as exc_info:
+            self._execute(rm_state=RM.CLOSED, pxa_state=CS_pxa.PXA)
+
+        rendered = str(exc_info.value)
+        assert "Invalid RM transition" in rendered, rendered
+        assert "Invalid PXA transition" in rendered, rendered
+        assert self._status_count() == before, "the batch must be rejected"
+
+    def test_trigger_path_error_carries_structured_violations(self):
+        """AC-6/AC-7: the aggregate error reaches the caller as data.
+
+        ``ValidateTriggerTransitionsNode`` writes it to ``result_out['error']``
+        and ``SvcBTTriggerBase.execute()`` re-raises it, so the violation list
+        survives the BT boundary without anyone parsing a joined string.
+        """
+        with pytest.raises(VultronValidationError) as exc_info:
+            self._execute(rm_state=RM.CLOSED, pxa_state=CS_pxa.PXA)
+
+        violations = exc_info.value.violations
+        roots = [v for v in violations if v.classification == "root"]
+        assert [v.dimensions for v in roots] == [("rm",), ("pxa",)], (
+            "both single-dimension violations must arrive as structured data:"
+            f" {[v.message for v in violations]}"
+        )
+        # The compound CS rule also trips (a 3-bit PXA jump is not one CS
+        # event) but reads pxa, so it is reported as a consequence.
+        assert any(v.classification == "derived" for v in violations)
+
+    def test_trigger_path_labels_a_derived_violation(self):
+        """AC-5/AC-10: the entailment is derived once vf itself is faulted.
+
+        ``vf → VF`` skips ``Vf``, and the RM↔VF entailment it also trips reads
+        ``vf``, so one fix clears both and only the VF step is a root cause
+        (EH-07-002).
+        """
+        # Establish current_vf=CS_vf.vf via the VENDOR auto-seed.
+        self._execute(rm_state=RM.START)
+
+        with pytest.raises(VultronValidationError) as exc_info:
+            self._execute(vf_state=CS_vf.VF)
+
+        by_dimensions = {v.dimensions: v for v in exc_info.value.violations}
+        assert by_dimensions[("vf",)].classification == "root"
+        assert by_dimensions[("rm", "vf")].classification == "derived", (
+            "the RM↔VF entailment is a consequence of the illegal VF step,"
+            f" not an independent problem: {exc_info.value.violations}"
+        )
 
 
 # ---------------------------------------------------------------------------

@@ -124,6 +124,11 @@ class ApplyCloseCaseFromLedgerNode(_LedgerEffectNode):
             pxa_state=None,
             result_out=result_out,
             name=f"{self.name}.CreateParticipantStatus",
+            # Quarantine: this stamps RM.CLOSED regardless of the rung the
+            # departing actor's RM machine is on, which the protocol does not
+            # permit.  Whether closure should touch participant RM at all is
+            # tracked as type:Concern #3106; see `force_rm_state`.
+            force_rm_state=True,
         )
         node.datalayer = self.datalayer
         node.actor_id = departing_actor_id
