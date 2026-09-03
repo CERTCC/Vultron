@@ -244,6 +244,24 @@ class TestAssertFailureRequiresAReason:
                 result, reason="embargo not found", allow_internal=True
             )
 
+    def test_allow_internal_rejects_a_plain_protocol_failure(
+        self, bt_scenario: BTTestScenario
+    ) -> None:
+        """allow_internal=True must fail when internal_error is False.
+
+        A plain protocol FAILURE whose feedback_message contains the expected
+        substring must not pass — the caller opted into crash-path testing, so
+        the result must actually be a crash (internal_error=True).
+        """
+        result = BTExecutionResult(
+            status=Status.FAILURE,
+            feedback_message="Input port 'case_id' not set",
+        )
+        with pytest.raises(AssertionError):
+            bt_scenario.assert_failure(
+                result, reason="Input port", allow_internal=True
+            )
+
     def test_reason_is_checked_on_a_protocol_failure_too(
         self, bt_scenario: BTTestScenario
     ) -> None:
