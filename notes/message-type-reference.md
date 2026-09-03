@@ -214,9 +214,9 @@ years.
 
 MSM-06-002 requires a ratchet test asserting every `SEMANTIC_REGISTRY` entry
 reaches its designated primary reference page, so a new registry entry cannot be
-added without being documented or explicitly exempted. **That ratchet does not
-exist yet** — building it is #2998. Until it lands, nothing prevents the drift
-this section is warning about.
+added without being documented or explicitly exempted. **That ratchet is
+implemented in `test/architecture/test_msm_coverage_ratchet.py`**, landed in
+PR 2998.
 
 ## Diátaxis: these pages are an extraction, not a new surface
 

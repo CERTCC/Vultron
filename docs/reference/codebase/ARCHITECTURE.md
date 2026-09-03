@@ -34,6 +34,7 @@ HTTP POST /inbox  (wire: AS2 JSON)
 | Layer or module | Owns | Must not own | Evidence |
 |-----------------|------|--------------|----------|
 | `vultron/core/` | Domain models, ports (Protocols), use cases, state enums, behavior trees, scoring | FastAPI, SQLModel, AS2 types | `notes/architecture-hexagonal.md`, `test/architecture/` |
+| `vultron/core/predicates/` | Pure predicate functions (role checks, embargo eligibility, role-gated state invariants) — no I/O, no DataLayer | `behaviors/`, `services/`, `ports/` imports (cycle risk) | `notes/predicates-rule-layer.md` |
 | `vultron/core/ports/wire_render.py` | `WireRenderPort` — driven port contract for rendering core objects to wire-shaped JSON | Core-to-wire import | `vultron/core/ports/wire_render.py` |
 | `vultron/wire/as2/` | AS2 vocabulary (Pydantic), parser, semantic extractor, activity factories | Core domain logic, FastAPI | `vultron/wire/as2/AGENTS.md` |
 | `vultron/adapters/driving/` | HTTP routers, CLI, MCP server; triggers use cases | Business logic, persistence | `vultron/adapters/driving/fastapi/` |

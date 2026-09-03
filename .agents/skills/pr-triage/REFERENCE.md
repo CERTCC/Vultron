@@ -184,8 +184,8 @@ by GitHub, so check both.
 A conflict means the PR cannot be merged at all — it is the most complete form
 of "broken" in the FAIL/IMPROVE/NEW-ISSUE taxonomy. Resolving it is never out of
 scope and never a separate issue: only the conflicted branch can be fixed, and
-only by whoever holds it. Do not tag a conflict `new-issue-ask` or
-`new-issue-no-ask`.
+only by whoever holds it. Do not tag a conflict `defer-ask` or
+`inversion-halt`.
 
 ### Stacked PRs
 
@@ -248,10 +248,14 @@ File: `.claude/pr-{number}-triage.json`
 
 | Value | When to use |
 |---|---|
-| `fix-now` | Trivial fix OR non-trivial but same family |
-| `fix-now-expand-scope` | Non-trivial, same family, expands PR scope meaningfully |
-| `new-issue-ask` | Non-trivial, distant cousin — execute files issue then asks user |
-| `new-issue-no-ask` | Requires separate design effort — execute files issue and continues |
+| `fix-now` | Anything the agent can just do that is not an "also" excursion — fixed inline, no issue filed (the diff is the record) |
+| `fix-now-file` | An "also" excursion, fixed now and filed so the PR closes it (replaces `fix-now-expand-scope`; size is not a constraint) |
+| `defer-ask` | Second-order work too big to finish now — execute files, presents a measured remainder, and asks; on silence, fixes it now (replaces `new-issue-ask`) |
+| `inversion-halt` | Work that inverts an issue/spec/ADR premise — execute explains and asks if/what to file; on silence, halts the PR |
+
+`new-issue-no-ask` is removed — silent deferral does not exist. See
+`.claude/skills/shared/completeness-doctrine.md` § "Filing Is Not Deferring" and
+"The Two Gates".
 
 ---
 

@@ -186,8 +186,9 @@ Ask: **"Proceed with this plan, redirect, or narrow scope?"**
 - **Confirms**: proceed to Phase 4.
 - **Redirects** to a different area: update understanding and return to
   Phase 2 for the redirected scope.
-- **Narrows scope**: note which sibling hits will be filed as new Bug issues
-  rather than fixed in this PR.
+- **Narrows scope**: the user is explicitly deferring specific sibling hits —
+  this *is* Gate 1 approval, given directly. File each deferred hit as a Bug
+  issue. Everything not narrowed out is still fixed now.
 
 **Do not begin implementation until the user confirms the plan.**
 
@@ -207,15 +208,21 @@ Once the plan is confirmed:
    disproportionate, skip the test but create a follow-up Bug issue explaining
    why. Do not silently omit the test.
 
-2. **Fix the root cause** — not just the symptom. If the root cause is
-   provably out of scope, fix the symptom and create a Bug issue for the
-   root cause before closing this one.
+2. **Fix the root cause** — not just the symptom. "The root cause is out of
+   scope" is a deferral: it must clear Gate 1 in
+   `.agents/skills/shared/completeness-doctrine.md` (a **measured remainder** and
+   explicit approval), not be asserted. If it clears the gate, fix the symptom,
+   file a Bug issue for the root cause, and document the cause before closing.
 
-3. **Handle sibling hits**:
-   - Hits small enough to fix in the same PR: fix them.
-   - Hits out of scope: file each as a new Bug-type issue via the
-     `manage-github-issue` helper. Reference each in the PR description
-     (`Also filed: #NNN`). See [REFERENCE.md](REFERENCE.md) § "Escalation".
+3. **Handle sibling hits** (these are *first-order* findings — revealed by the
+   original bug — so the default is **fix now**, never defer):
+   - Fix each one in this PR.
+   - If a hit is an **"also" excursion** (fails the "also" test in the
+     completeness doctrine), also file a Bug issue via `manage-github-issue`
+     and have this PR **close** it: add `- Closes #NNN` to the PR body with a
+     one-line "why". Filing the record does not mean leaving the work.
+   - Defer a sibling hit only through Gate 1 (measured remainder + approval).
+     See [REFERENCE.md](REFERENCE.md) § "Escalation".
 
 4. **Iterate**: run `format-code`, `run-linters`, `run-tests`; refine until
    all relevant tests pass. Apply branch-ownership and pre-existing-failure

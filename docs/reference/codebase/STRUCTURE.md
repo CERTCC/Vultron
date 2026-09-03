@@ -7,14 +7,14 @@
 | Path | Purpose | Evidence |
 |------|---------|----------|
 | `vultron/` | Main Python package — all production source | `pyproject.toml` `[tool.setuptools.packages.find]` |
-| `vultron/core/` | Domain layer: models, ports, use cases, states, behaviors | `notes/architecture-hexagonal.md` |
+| `vultron/core/` | Domain layer: models, ports, use cases, states, behaviors, predicate rules | `notes/architecture-hexagonal.md` |
 | `vultron/wire/` | Wire format layer: AS2 vocabulary, parser, extractor, factories | `notes/architecture-hexagonal.md` |
 | `vultron/adapters/` | Adapter layer: driving (HTTP/CLI/MCP), driven (SQLite, delivery), connectors | `notes/architecture-hexagonal.md` |
 | `vultron/bt/` | Behavior tree node library grouped by CVD domain area | `vultron/bt/` directory listing |
 | `vultron/config/` | Layer-neutral configuration models and loading logic | `vultron/config/app.py`, `vultron/config/actor.py` |
 | `vultron/enums/` | Shared CVD-domain enums (roles, states) imported by config and core | `vultron/enums/` |
 | `vultron/demo/` | Demo scenario runners and seed-config helpers | `pyproject.toml` entry points |
-| `vultron/metadata/` | Spec registry, history CLI, notes metadata tooling | `vultron/metadata/specs/`, `vultron/metadata/history/` |
+| `vultron/metadata/` | Spec registry, history CLI, notes metadata tooling, message-semantics mapping renderer | `vultron/metadata/specs/`, `vultron/metadata/history/`, `vultron/metadata/msm/` |
 | `vultron/scripts/` | CLI entry points (`vultrabot`) | `pyproject.toml` `[project.scripts]` |
 | `vultron/semantic_registry/` | ActivityStreams semantic pattern registry | `vultron/semantic_registry/` |
 | `test/` | Pytest test suite (mirrors `vultron/` layout) | `pyproject.toml` `[tool.pytest.ini_options]` |
@@ -45,7 +45,8 @@
 
 | Boundary | What belongs here | What must not be here |
 |----------|-------------------|------------------------|
-| `vultron/core/` | Domain models, ports (Protocol classes), use cases, states, behaviors | FastAPI, wire-format (AS2), adapter imports |
+| `vultron/core/` | Domain models, ports (Protocol classes), use cases, states, behaviors, predicates | FastAPI, wire-format (AS2), adapter imports |
+| `vultron/core/predicates/` | Pure predicate functions over domain values (role checks, embargo eligibility, state invariants) | I/O, DataLayer, `behaviors/`, `services/`, `ports/` imports |
 | `vultron/wire/as2/` | AS2 vocabulary (Pydantic models), parser, semantic extractor, factories | Core domain import of AS2 types; FastAPI |
 | `vultron/adapters/` | HTTP handlers, SQLite data layer, outbound delivery, CLI, MCP, connectors | Core domain logic (no business rules) |
 | `vultron/config/` | Configuration models and loading only | Imports from `vultron.adapters` or `vultron.core` |

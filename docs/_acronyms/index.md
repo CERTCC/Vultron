@@ -115,6 +115,7 @@ sense the docs actually use.
 *[IEEE]: Institute of Electrical and Electronics Engineers
 *[IETF]: Internet Engineering Task Force
 *[IoT]: Internet of Things
+*[I/O]: Input/Output
 *[IP]: Internet Protocol
 *[ISAC]: Information Sharing and Analysis Center
 *[ISACs]: Information Sharing and Analysis Centers
@@ -128,6 +129,9 @@ sense the docs actually use.
 *[JSON]: JavaScript Object Notation
 *[JTAG]: Joint Test Action Group
 *[JVN]: Japan Vulnerability Notes
+
+*[LLM]: Large Language Model
+*[LLMs]: Large Language Models
 
 *[MADR]: Markdown Any Decision Records
 *[ML]: Machine Learning
