@@ -25,6 +25,15 @@ When set to `yes`, PRs run through the same labels and states as issues, using t
 
 GitHub shares one number space across issues and PRs, so a bare `#42` may be either — resolve with `gh pr view 42` and fall back to `gh issue view 42`.
 
+## Epics
+
+**Epics are the `Epic` issue type, not a label.** An Epic is a first-class
+GitHub issue whose `issueType` is `Epic`, with its member issues wired as
+sub-issues via GraphQL (the `addSubIssue` mutation). There is no "epic" label —
+do not create or search for one. Detect Epics by `issueType.name == "Epic"` and
+find their contents through the sub-issue relationship, not a label query. Create
+them with the `create-epic` skill.
+
 ## When a skill says "publish to the issue tracker"
 
 Create a GitHub issue.
