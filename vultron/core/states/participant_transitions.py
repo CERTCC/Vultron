@@ -40,6 +40,11 @@ was accepted (EH-07-001).  Reporting everything unranked has the mirror
 failure, so each violation is labelled root or derived by dimension overlap
 (EH-07-002) — see :func:`_classify`.
 
+Role membership is tested through the predicates in
+:mod:`vultron.core.predicates.roles` rather than inline ``CVDRole`` membership
+checks (#3058), so the role rules have one implementation here and one
+definition there.
+
 Spec: EH-07-001, EH-07-002, BTND-10-001, BTND-10-002, BTND-10-003,
 CSB-15-001, CSB-15-002, CSB-16-001, CSB-16-002, CSB-17-001, CSB-18-001,
 SM-09-002.  ADR: ADR-0086.
@@ -62,6 +67,10 @@ from vultron.core.states.cs import (
 from vultron.core.states.cs_invariants import (
     cs_from_dimensions,
     is_valid_cs_transition,
+)
+from vultron.core.predicates.roles import (
+    has_deployer_role,
+    has_vendor_role,
 )
 from vultron.core.states.rm import RM, is_valid_rm_transition
 from vultron.enums.roles import CVDRole
@@ -113,7 +122,7 @@ def _vf_violations(
     violations: list[Violation] = []
     if (
         spec := _VENDOR_ONLY_VF.get(requested_vf)
-    ) is not None and CVDRole.VENDOR not in actor_roles:
+    ) is not None and not has_vendor_role(list(actor_roles)):
         violations.append(
             Violation(
                 f"CVDRole.VENDOR required for VF state {requested_vf!r}"
@@ -149,7 +158,7 @@ def _d_violations(
     if requested_d is None:
         return []
     violations: list[Violation] = []
-    if CVDRole.DEPLOYER not in actor_roles:
+    if not has_deployer_role(list(actor_roles)):
         violations.append(
             Violation(
                 f"CVDRole.DEPLOYER required for D state {requested_d!r}"
