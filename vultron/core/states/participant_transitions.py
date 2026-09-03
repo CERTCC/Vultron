@@ -47,7 +47,7 @@ definition there.
 
 Spec: EH-07-001, EH-07-002, BTND-10-001, BTND-10-002, BTND-10-003,
 CSB-15-001, CSB-15-002, CSB-16-001, CSB-16-002, CSB-17-001, CSB-18-001,
-SM-09-002.  ADR: ADR-0086.
+PRM-06-002, SM-09-002.  ADR: ADR-0086, ADR-0084.
 """
 
 from collections.abc import Sequence
@@ -68,6 +68,7 @@ from vultron.core.states.cs_invariants import (
     cs_from_dimensions,
     is_valid_cs_transition,
 )
+from vultron.core.predicates.participants import vendor_vf_invariant_ok
 from vultron.core.predicates.roles import (
     has_deployer_role,
     has_vendor_role,
@@ -116,10 +117,22 @@ def _vf_violations(
     requested_vf: CS_vf | None,
     actor_roles: Sequence[CVDRole],
 ) -> list[Violation]:
-    """CSB-15-001 / ADR-0075 / CSB-16-001: VF role gate and transition."""
+    """CSB-15-001 / CSB-16-001 / PRM-06-002 / ADR-0075: VF role gates and transition."""
     if requested_vf is None:
         return []
     violations: list[Violation] = []
+    # PRM-06-002 (Vendor-implies-V): a VENDOR is by definition already aware of
+    # the case, so it can never validly report vendor-unaware.  This is the
+    # converse of the gate below — that one refuses a non-vendor claiming
+    # awareness; this one refuses a vendor disclaiming it.
+    if not vendor_vf_invariant_ok(list(actor_roles), requested_vf):
+        violations.append(
+            Violation(
+                f"Vendor-implies-V: a CVDRole.VENDOR participant cannot assert"
+                f" {requested_vf!r} (PRM-06-002, ADR-0084)",
+                dimensions=("vf",),
+            )
+        )
     if (
         spec := _VENDOR_ONLY_VF.get(requested_vf)
     ) is not None and not has_vendor_role(list(actor_roles)):

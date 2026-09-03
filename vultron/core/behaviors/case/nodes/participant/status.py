@@ -31,7 +31,7 @@ from py_trees.common import Status
 
 from vultron.core.behaviors.case.nodes.participant.common import (
     ParticipantTransitionContext,
-    resolve_participant_transition_context,
+    resolve_transition_context_or_report,
     validate_participant_status_write,
 )
 from vultron.core.behaviors.helpers import DataLayerActionWithPorts
@@ -309,9 +309,12 @@ class CreateParticipantStatusNode(DataLayerActionWithPorts):
             return Status.FAILURE
         case, participant_id = target
 
-        context = resolve_participant_transition_context(
-            dl, case, participant_id
+        context = resolve_transition_context_or_report(
+            self, dl, case, participant_id
         )
+        if isinstance(context, Status):
+            return context
+
         failure = validate_participant_status_write(
             self,
             context,

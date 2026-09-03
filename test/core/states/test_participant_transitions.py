@@ -284,6 +284,32 @@ class TestRoleGates:
                 for v in violations
             ), f"d={requested_d!r} must be gated on DEPLOYER (CSB-15-002)"
 
+    def test_vendor_cannot_disclaim_awareness(self):
+        """PRM-06-002: a VENDOR can never report vendor-unaware.
+
+        The converse of the gate above.  That one refuses a non-vendor claiming
+        awareness; this one refuses a vendor disclaiming it — holding the VENDOR
+        role *is* awareness of the case (ADR-0084).
+        """
+        (violation,) = _violations(
+            current_vf=CS_vf.vf,
+            requested_vf=CS_vf.vf,  # same-state, but illegal for a VENDOR
+            actor_roles=[CVDRole.VENDOR],
+        )
+        assert violation.dimensions == ("vf",)
+        assert "PRM-06-002" in violation.message
+
+    def test_non_vendor_may_assert_vendor_unaware(self):
+        """The Vendor-implies-V rule constrains only VENDOR participants."""
+        assert (
+            _violations(
+                current_vf=CS_vf.vf,
+                requested_vf=CS_vf.vf,
+                actor_roles=[CVDRole.REPORTER],
+            )
+            == []
+        )
+
     def test_vendor_role_satisfies_the_vf_gate(self):
         assert (
             _violations(requested_vf=CS_vf.Vf, actor_roles=[CVDRole.VENDOR])

@@ -2199,6 +2199,7 @@ def test_validate_trigger_returns_failure_on_corrupt_participant_status():
         vf_state=None,
         d_state=None,
         pxa_state=None,
+        result_out={},
     )
     node.datalayer = _StubDL()  # type: ignore[assignment]
 

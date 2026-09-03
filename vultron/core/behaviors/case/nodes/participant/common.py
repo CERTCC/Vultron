@@ -320,6 +320,32 @@ def resolve_participant_transition_context(
     )
 
 
+def resolve_transition_context_or_report(
+    node: py_trees.behaviour.Behaviour,
+    dl: CasePersistence,
+    case: VulnerabilityCase,
+    participant_id: str,
+) -> "ParticipantTransitionContext | Status":
+    """Resolve the transition context, or report a shape mismatch as FAILURE.
+
+    ``resolve_participant_state_from_dl`` raises when the participant's latest
+    status is not core-shaped (ARCH-15-001/002): that is a corrupt row, not an
+    absence, and must not be degraded into an initial state (#2232, #2264).  A
+    BT node cannot let the exception escape ``update()``, so this converts it to
+    ``Status.FAILURE`` with a descriptive ``feedback_message`` once, for every
+    node that validates such a write.
+    """
+    try:
+        return resolve_participant_transition_context(dl, case, participant_id)
+    except VultronValidationError as exc:
+        node.feedback_message = (
+            f"Participant '{participant_id}' status is not core-shaped:"
+            f" {exc} (ARCH-15-001)"
+        )
+        node.logger.warning(f"{node.name}: {node.feedback_message}")
+        return Status.FAILURE
+
+
 def validate_participant_status_write(
     node: py_trees.behaviour.Behaviour,
     context: ParticipantTransitionContext,

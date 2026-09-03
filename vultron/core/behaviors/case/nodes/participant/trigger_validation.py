@@ -51,7 +51,7 @@ import logging
 from py_trees.common import Status
 
 from vultron.core.behaviors.case.nodes.participant.common import (
-    resolve_participant_transition_context,
+    resolve_transition_context_or_report,
     validate_participant_status_write,
 )
 from vultron.core.behaviors.helpers import DataLayerCondition
@@ -127,9 +127,15 @@ class ValidateTriggerTransitionsNode(DataLayerCondition):
             # CreateParticipantStatusNode will report this; pass through.
             return Status.SUCCESS
 
+        context = resolve_transition_context_or_report(
+            self, dl, case, participant_id
+        )
+        if isinstance(context, Status):
+            return context
+
         failure = validate_participant_status_write(
             self,
-            resolve_participant_transition_context(dl, case, participant_id),
+            context,
             case_id=self._case_id,
             actor_id=self._actor_id,
             rm_state=self._rm_state,
