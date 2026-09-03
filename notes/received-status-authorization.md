@@ -431,6 +431,15 @@ is dropped: authorization already occurred at StatusAdoptionGate. By the time
 `ThreatTerminationBranchNode` runs, the canonical state write has been
 authorized.
 
+This node is the enforcement mechanism for CSB-18-002, CSB-18-003, and
+CSB-18-004 (PXA↔EM cross-machine entailment). When `EmbargoTeardownAuthorizationGate`
+permits teardown, the embargo terminates and the invariant is satisfied.
+When the gate blocks teardown, the invariant remains violated — a contradictory
+state that `violation_pxa_em_entailment()` (cross_machine_invariants.py) can
+detect. That function currently has no production callers; wiring it as a
+post-cascade diagnostic (with a Note posted to the case on violation) is
+tracked by CONCERN-3008.
+
 ---
 
 ## Call-Out Bundle

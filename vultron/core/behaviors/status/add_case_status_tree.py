@@ -96,8 +96,11 @@ def add_case_status_tree(
        returns SUCCESS otherwise, publishing the filtered CaseStatus.
     7. Append and persist — write the filtered CaseStatus to the case record.
     8. ``EmbargoTeardownAuthorizationGate`` (Selector) — call-out gate (RSH-02-001).
-       Default is ``AlwaysSucceed``; production adapters may inject a gate
-       that blocks side-effects for certain actors or scenarios.
+       Default is :data:`STATUS_AUTHORIZATION_DETERMINISTIC`
+       (``RequireCaseOwnerApprovalNode``, always FAILURE — teardown blocked);
+       inject :data:`STATUS_AUTHORIZATION_PERMISSIVE` for demo/trusted
+       deployments (AlwaysSucceed). Protocol-ask routing subtree replacement
+       tracked by #2885.
     9. ``ThreatTerminationBranchNode`` — fires embargo teardown when the
        CaseStatus has at least one of P=True, X=True, or A=True and the case
        has an active embargo (RSH-03-001 to RSH-03-003).
