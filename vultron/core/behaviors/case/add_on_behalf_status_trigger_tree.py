@@ -36,7 +36,7 @@ import py_trees
 from vultron.core.behaviors.case.nodes.participant import (
     CreateParticipantStatusNode,
 )
-from vultron.core.behaviors.case.nodes.vfd_role_guards import (
+from vultron.core.behaviors.case.nodes.on_behalf_guards import (
     CheckOnBehalfAuthorizedNode,
     EnsureOnBehalfParticipantExistsNode,
 )
