@@ -50,6 +50,7 @@ from transitions import MachineError
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.dimensions import EmDimension
 from vultron.core.ports.case_persistence import CasePersistence
+from vultron.core.predicates.embargo import pxa_is_embargo_eligible
 from vultron.core.states.cs import CS_pxa
 from vultron.core.states.em import EM, EM_Trigger, EMAdapter, create_em_machine
 from vultron.core.states.participant_embargo_consent import (
@@ -898,7 +899,7 @@ class EmbargoLifecycle:
         Raises:
             VultronInvalidStateTransitionError: When ``pxa_state != CS_pxa.pxa``.
         """
-        if pxa_state != CS_pxa.pxa:
+        if not pxa_is_embargo_eligible(pxa_state):
             raise VultronInvalidStateTransitionError(
                 f"Cannot {operation} on case '{case_id}': public awareness,"
                 f" exploit publication, or attack observation is set"

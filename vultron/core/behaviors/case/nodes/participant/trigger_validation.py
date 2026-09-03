@@ -57,7 +57,7 @@ from vultron.core.states.cs import (
     is_valid_vf_transition,
 )
 from vultron.core.states.rm import RM, is_valid_rm_transition
-from vultron.enums.roles import CVDRole
+from vultron.core.predicates.roles import has_vendor_role
 
 logger = logging.getLogger(__name__)
 
@@ -142,7 +142,7 @@ class ValidateTriggerTransitionsNode(DataLayerCondition):
             if isinstance(participant_obj, CaseParticipant)
             else []
         )
-        if CVDRole.VENDOR in actor_roles:
+        if has_vendor_role(actor_roles):
             return None
         self.feedback_message = (
             f"CVDRole.VENDOR required for VF state"

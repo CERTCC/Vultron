@@ -28,7 +28,7 @@ from vultron.core.states.participant_embargo_consent import (
     PEC_Trigger,
 )
 from vultron.core.states.rm import RM
-from vultron.enums.roles import CVDRole
+from vultron.core.predicates.roles import has_case_manager_role
 from vultron.errors import VultronNotFoundError, VultronValidationError
 
 logger = logging.getLogger(__name__)
@@ -609,7 +609,7 @@ def _resolve_case_manager_id(
         p = dl.read(p_id)
         if not isinstance(p, CaseParticipant):
             continue
-        if CVDRole.CASE_MANAGER in p.roles:
+        if has_case_manager_role(p.roles):
             manager_actor_id = getattr(p, "attributed_to", None)
             return _as_id(manager_actor_id)
 
@@ -619,10 +619,9 @@ def _resolve_case_manager_id(
     for participant_ref in case.case_participants:
         if not isinstance(participant_ref, str):
             # Inline participant object — no DataLayer read needed.
-            if (
-                isinstance(participant_ref, CaseParticipant)
-                and CVDRole.CASE_MANAGER in participant_ref.roles
-            ):
+            if isinstance(
+                participant_ref, CaseParticipant
+            ) and has_case_manager_role(participant_ref.roles):
                 attributed = getattr(participant_ref, "attributed_to", None)
                 return _as_id(attributed)
             continue
@@ -632,7 +631,7 @@ def _resolve_case_manager_id(
         p = dl.read(participant_ref)
         if not isinstance(p, CaseParticipant):
             continue
-        if CVDRole.CASE_MANAGER in p.roles:
+        if has_case_manager_role(p.roles):
             manager_actor_id = getattr(p, "attributed_to", None)
             return _as_id(manager_actor_id)
     return None

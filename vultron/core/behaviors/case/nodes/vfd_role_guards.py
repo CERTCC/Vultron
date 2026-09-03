@@ -38,6 +38,12 @@ from vultron.core.behaviors.helpers import (
 )
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.ports.case_persistence import CasePersistence
+from vultron.core.predicates.roles import (
+    has_case_owner_role,
+    has_deployer_role,
+    has_vendor_role,
+    is_sole_observer,
+)
 from vultron.enums.roles import CVDRole
 
 logger = logging.getLogger(__name__)
@@ -114,7 +120,7 @@ class CheckVendorRoleNode(DataLayerConditionWithPorts):
             )
             return Status.FAILURE
 
-        if CVDRole.VENDOR not in roles:
+        if not has_vendor_role(roles):
             self.feedback_message = (
                 f"Actor '{self._actor_id}' does not hold CVDRole.VENDOR"
                 f" — f→F (VFd) transition blocked (CSB-15-001)"
@@ -171,7 +177,7 @@ class CheckDeployerRoleNode(DataLayerConditionWithPorts):
             )
             return Status.FAILURE
 
-        if CVDRole.DEPLOYER not in roles:
+        if not has_deployer_role(roles):
             self.feedback_message = (
                 f"Actor '{self._actor_id}' does not hold CVDRole.DEPLOYER"
                 f" — d→D (VFD) transition blocked (CSB-15-002)"
@@ -227,7 +233,7 @@ class CheckNotSoleObserverVfdNode(DataLayerConditionWithPorts):
             )
             return Status.FAILURE
 
-        if roles == [CVDRole.OBSERVER]:
+        if is_sole_observer(roles):
             self.feedback_message = (
                 f"Actor '{self._actor_id}' holds only CVDRole.OBSERVER"
                 f" — v→V (Vfd) transition blocked (CM-25-005)"
@@ -325,7 +331,7 @@ class CheckIsCaseOwnerNode(DataLayerConditionWithPorts):
             return Status.FAILURE
 
         roles = participant.roles if hasattr(participant, "roles") else []
-        if CVDRole.CASE_OWNER in roles:
+        if has_case_owner_role(roles):
             self.logger.debug(
                 "%s: sender '%s' IS CASE_OWNER for case '%s'",
                 self.name,

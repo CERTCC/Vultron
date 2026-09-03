@@ -46,6 +46,7 @@ from vultron.core.states.rm import (
     is_monotonic_rm_forward,
     is_valid_rm_transition,
 )
+from vultron.core.predicates.roles import has_deployer_role, has_vendor_role
 from vultron.enums.roles import CVDRole
 
 logger = logging.getLogger(__name__)
@@ -126,7 +127,7 @@ def _adjudicate_vf(
     if (
         asserted_vf is not None
         and roles is not None
-        and CVDRole.VENDOR not in roles
+        and not has_vendor_role(roles)
     ):
         return True, _vf_carry(current_vf)
     if asserted_vf is None and current_vf is not None:
@@ -159,7 +160,7 @@ def _adjudicate_d(
     if (
         asserted_d is not None
         and roles is not None
-        and CVDRole.DEPLOYER not in roles
+        and not has_deployer_role(roles)
     ):
         return True, _d_carry(current_d)
     if asserted_d is None and current_d is not None:
