@@ -140,14 +140,9 @@ six-step checklist (enum → pattern → use-case → map → tests).
 - **Inbox**: `vultron/adapters/driving/fastapi/routers/actors/` (package; `_routes.py` defines endpoints)
 - **Errors**: `vultron/errors.py`
 - **Demo**: `vultron/demo/cli.py` (entry point)
-- **Case States**: `vultron/core/states/cs.py` — CS/VFD/PXA enums are
-  authoritative; `vultron/core/states/cs_invariants.py` holds the CS validity,
-  transition and history invariants (CSB-17). `vultron/core/case_states/` is the
-  legacy string-pattern reference model, retained as an independent oracle and
-  still imported by `states/cs.py` and `use_cases/query/action_rules.py`. Reach
-  for `cs_invariants.py` for new protocol-path work; the legacy module's only
-  remaining new-code use is as the oracle in the CSB-17 equivalence tests
-  (ADR-0060)
+- **Case States**: `vultron/core/states/cs.py` (CS/VFD/PXA enums, authoritative)
+  and `cs_invariants.py` (CSB-17 invariants) → [notes/case-state-model.md](notes/case-state-model.md)
+  for the legacy-oracle relationship (ADR-0060)
 
 Full core-layer map → [`vultron/core/AGENTS.md`](vultron/core/AGENTS.md).
 Full wire-layer map → [`vultron/wire/as2/AGENTS.md`](vultron/wire/as2/AGENTS.md).
@@ -348,12 +343,10 @@ message.
 - Use `markdownlint-cli2` for markdown; `black` is Python-only. Default config
   ignores only `wip_notes/**`; all other dirs are linted.
 - **Notes frontmatter** (NF-06-001, NF-06-002): every `notes/*.md` (except
-  `README.md`) needs `title` and `status` frontmatter. `superseded_by` is a
-  scalar string. Schema: `vultron/metadata/notes/schema.py`. **Maintenance rule
-  (NF-06-001, documented here per NF-06-002):** when you modify a note, review
-  and update its `status`, `related_specs`, and `related_notes` in the same
-  change — a new spec citation or cross-note link in the body means a new
-  frontmatter entry, and cross-links SHOULD be two-way.
+  `README.md`) needs `title` + `status`. **Maintenance rule:** when you modify a
+  note, update its `status`, `related_specs`, and `related_notes` in the same
+  change; cross-links SHOULD be two-way. Full write-up + schema:
+  [notes/notes-frontmatter.md](notes/notes-frontmatter.md).
 - **Docs links must be relative**: links in `docs/` MUST be relative and MUST NOT
   go above `docs/`. Run `uv run mkdocs build --strict` before committing docs.
   `docs/developer/` pages are draft docs — visible in `mkdocs serve` but excluded from production builds.
