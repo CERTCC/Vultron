@@ -34,9 +34,7 @@ git add -A
 git commit -m "wip: interrupted handoff — <short description>
 
 [WIP] This commit captures in-progress work at session interrupt time.
-The bug is NOT fixed. See the issue comment for handoff notes.
-
-Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>"
+The bug is NOT fixed. See the issue comment for handoff notes."
 ```
 
 If the working tree is clean, skip this step.

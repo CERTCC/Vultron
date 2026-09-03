@@ -117,9 +117,7 @@ adding `.claude/pr-*.json` to `.gitignore` (when missing) creates a dirty file.
 Commit the `.gitignore` change immediately if it was written:
 
 ```bash
-git add .gitignore && git commit -m "chore: gitignore pr-*.json session artifacts
-
-Co-Authored-By: Claude Sonnet 4.6 <noreply@anthropic.com>"
+git add .gitignore && git commit -m "chore: gitignore pr-*.json session artifacts"
 ```
 
 ### Step 3 — Worktree Check

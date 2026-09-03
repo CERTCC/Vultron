@@ -233,9 +233,7 @@ Always open a PR. If Phase 5 produced doc changes, commit them first:
 git add specs/ notes/ docs/adr/ AGENTS.md
 git commit -m "docs: plan issue #${ISSUE_NUMBER} — <short title>
 
-- <bullet: what was added or changed>
-
-Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>"
+- <bullet: what was added or changed>"
 ```
 
 Then invoke the `create-pr` skill:
