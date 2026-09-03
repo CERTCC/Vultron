@@ -150,7 +150,16 @@ RUN git -C /app rev-parse --verify --quiet refs/remotes/origin/main >/dev/null \
         | xargs -r -n1 git -C /app branch -D \
     && git -C /app stash clear \
     && git -C /app reflog expire --expire=all --all \
-    && git -C /app gc --prune=now --quiet
+    && git -C /app gc --prune=now --quiet \
+    # Strip any graphify auto-rebuild hooks baked in from the host .git. These
+    # rebuild the whole knowledge graph on every commit/branch-switch; with 8
+    # slots that saturated the host. The graph is now built once, centrally, via
+    # `start-dev.sh --build-graph` and mounted read-only. See README-DEV.md.
+    && rm -f /app/.git/hooks/post-commit /app/.git/hooks/post-checkout \
+    # Ship a writable graphify-out so start-dev.sh can mount the shared graph.json
+    # read-only INTO it while the query flow's scratch (.vocab.txt, memory/) still
+    # writes locally. Created here so the later `chown -R vscode:vscode /app` owns it.
+    && mkdir -p /app/graphify-out
 
 # Create non-root developer user matching the VS Code devcontainer convention
 RUN groupadd --gid 1000 vscode \
