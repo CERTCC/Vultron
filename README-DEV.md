@@ -73,34 +73,38 @@ After cloning, install the git hooks used in this project:
 # Code quality hooks (black, markdownlint, flake8, spec/ADR validators)
 pre-commit install
 
-# Knowledge graph hooks (rebuilds graphify-out/ after commits and branch switches)
-# Optional — requires graphify: pip install graphifyy
-graphify hook install
 ```
 
-The graphify hooks run in the background and only fire when `graphify-out/` already
-exists (i.e., after you've run `/graphify .` at least once). They won't interfere
-with the pre-commit hooks or slow down your commits.
+Do **not** install the graphify git hooks — see "Knowledge graph" below for why.
 
-### Knowledge graph hooks in a linked worktree
+## Knowledge graph (graphify)
 
-`graphify hook install` writes to the shared hooks directory, and its hook
-deliberately exits early in any linked worktree (it compares `git rev-parse
---git-dir` against `--git-common-dir` and bails when they differ). That guard is
-correct: hooks are shared across worktrees but `graphify-out/` is per-worktree, so
-without it a commit in one worktree would rebuild whichever `graphify-out/` happened
-to be in the current directory.
+The `graphify-out/` knowledge graph is a single derived artifact of `origin/main`,
+built by **one** authority and mounted **read-only** into every dev slot.
 
-To opt a single worktree back in, point that worktree at the tracked `.githooks/`
-directory:
+Do **not** run `graphify hook install`. Those hooks rebuild the entire graph
+(incremental AST extraction *plus* a full re-cluster of the whole graph) on every
+commit and every branch switch. With several slots running at once — and, worse,
+on the **uncapped** host clone — that saturates the machine for minutes. Building
+is centralized instead:
 
 ```shell
-git config extensions.worktreeConfig true
-git config --worktree core.hooksPath .githooks
+# Rebuild the shared graph on demand (CPU-capped, from origin/main). Running
+# slots pick up the new graph on their next restart.
+./start-dev.sh --build-graph
 ```
 
-Use `--worktree`, not `--local`: `--local` writes to the shared `.git/config` and
-would apply to every worktree at once.
+Inside a slot, `graph.json` is mounted read-only, so agents can
+`graphify query`/`path`/`explain` but cannot trigger a rebuild. The query flow's
+scratch (`.vocab.txt`, `memory/`) writes to a throwaway in-container `graphify-out/`
+and is discarded on teardown.
+
+If you previously ran `graphify hook install` in your host checkout, remove it —
+the host hooks run with no CPU cap and are the worst offender:
+
+```shell
+graphify hook uninstall   # run once in your ~/dev/<repo> host checkout
+```
 
 Two caveats:
 
