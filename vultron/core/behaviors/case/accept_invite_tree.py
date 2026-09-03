@@ -66,7 +66,6 @@ from vultron.core.ports.case_persistence import CaseOutboxPersistence
 from vultron.core.ports.sync_activity import SyncActivityPort
 from vultron.core.states.em import EM
 from vultron.core.states.participant_embargo_consent import PEC_Trigger
-from vultron.core.states.rm import RM
 from vultron.enums.roles import validate_roles
 from vultron.core.models._helpers import _as_id
 
@@ -454,17 +453,11 @@ class CreateInviteeParticipantAtReceivedNode(DataLayerActionWithPorts):
             return Status.SUCCESS
 
         roles = self._read_invite_roles()
-        participant = VultronParticipant(
-            id_=f"{self.case_id}/participants/{self.invitee_id.split('/')[-1]}",
-            attributed_to=self.invitee_id,
-            context=self.case_id,
-            case_roles=roles,
-        )
         # CM-11-001: Accept(Invite) records RM.RECEIVED only. The full
         # triage cycle is a distinct step run by the invitee after replica
         # delivery (PCR-08-010).
-        participant.append_rm_state(
-            RM.RECEIVED, actor=self.invitee_id, context=self.case_id
+        participant = VultronParticipant.new_at_received(
+            self.case_id, self.invitee_id, roles
         )
         if roles:
             self.logger.info(

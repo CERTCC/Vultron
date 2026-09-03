@@ -262,6 +262,73 @@ class CaseParticipant(CoreObject):
         )
         return True
 
+    @classmethod
+    def new_at_rm(
+        cls,
+        rm_state: RM,
+        case_id: str,
+        invitee_id: str,
+        roles: list[CVDRole] | None = None,
+    ) -> "CaseParticipant":
+        """Create a participant placed at *rm_state* in one step (CM-11-001).
+
+        Validates that *rm_state* is reachable from ``RM.START`` in a single
+        hop via :func:`~vultron.core.states.rm.is_valid_rm_transition`.  This
+        encodes the invariant structurally: callers cannot over-advance the RM
+        ladder by calling :meth:`append_rm_state` multiple times.
+
+        Args:
+            rm_state: Target RM state; must be adjacent to ``RM.START``.
+            case_id: URI of the case this participant belongs to.
+            invitee_id: URI of the actor being added as participant.
+            roles: CVD roles to assign; defaults to an empty list.
+
+        Returns:
+            A new :class:`CaseParticipant` whose latest
+            :class:`~vultron.core.models.participant_status.ParticipantStatus`
+            carries *rm_state*.
+
+        Raises:
+            VultronValidationError: when *rm_state* is not adjacent to
+                ``RM.START``.
+        """
+        if not is_valid_rm_transition(RM.START, rm_state):
+            raise VultronValidationError(
+                f"RM state {rm_state!r} is not reachable from RM.START"
+                " in one hop; use append_rm_state() for multi-hop advances"
+            )
+        participant = cls(
+            id_=f"{case_id}/participants/{invitee_id.split('/')[-1]}",
+            attributed_to=invitee_id,
+            context=case_id,
+            case_roles=roles or [],
+        )
+        participant.append_rm_state(
+            rm_state, actor=invitee_id, context=case_id
+        )
+        return participant
+
+    @classmethod
+    def new_at_received(
+        cls,
+        case_id: str,
+        invitee_id: str,
+        roles: list[CVDRole] | None = None,
+    ) -> "CaseParticipant":
+        """Create a participant at ``RM.RECEIVED`` (CM-11-001 convenience factory).
+
+        Equivalent to ``new_at_rm(RM.RECEIVED, case_id, invitee_id, roles)``.
+
+        Args:
+            case_id: URI of the case this participant belongs to.
+            invitee_id: URI of the actor being added as participant.
+            roles: CVD roles to assign; defaults to an empty list.
+
+        Returns:
+            A new :class:`CaseParticipant` at ``RM.RECEIVED``.
+        """
+        return cls.new_at_rm(RM.RECEIVED, case_id, invitee_id, roles)
+
     def add_participant_status(self, status: ParticipantStatus) -> None:
         """Append a ParticipantStatus to this participant's history.
 
