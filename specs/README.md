@@ -78,6 +78,7 @@ Load additional files only when the task touches the relevant area. See the
 | Status dimension objects (per-machine EM/PXA/RM/VFD/PEC decomposition) | `status-dimension-objects.yaml`, `notes/status-dimension-objects.md` |
 | Received-side status authorization (StatusAdoptionGate, EmbargoTeardownAuthorizationGate, ThreatTerminationBranchNode) | `received-status-handling.yaml`, `notes/received-status-authorization.md` |
 | CaseProposal protocol (distributed case actor initialization) | `case-proposal.yaml` |
+| Protocol asks (ask-and-terminate, outstanding-ask registers, expiry, processing faults) | `protocol-asks.yaml`, `notes/protocol-asks.md` |
 | Protocol conformance | `vultron-protocol-spec.yaml`, `vultron-as2-mapping.yaml`, `message-semantics-mapping.yaml` |
 | Wire vocabulary | `vocabulary-model.yaml` |
 | Activity factory functions | `activity-factories.yaml` |
@@ -178,9 +179,15 @@ Specifications are organized by topic with minimal overlap. Cross-references lin
   shorthand labels (RS, EP, CV, etc.) used in behavioral conformance specs
   (RMB, EMB, CSB) to their `MessageSemantics` enum values and corresponding AS2
   wire-format entries in `vultron-as2-mapping.yaml`. Closes the three-hop traceability
-  chain: shorthand → `MessageSemantics` → VAM spec ID. Also explicitly documents
-  shorthands (RE, EE, EK, CE, CK) that have no AS2 semantic dispatch entry.
-  (MSM-01 through MSM-03)
+  chain: shorthand → `MessageSemantics` → VAM spec ID. The correspondence is
+  many-to-many in both directions — several shorthands may collapse onto one wire
+  activity, and one shorthand may expand across several. Shorthands with no
+  dedicated dispatch entry (RE, EE, EK, CE, CK, GK, GE) are not unimplemented:
+  MSM-05 specifies the mechanisms that serve them, partitioning faults by failure
+  mode and acknowledging ledger-replicated state cumulatively via hash-chain
+  continuity. MSM-06 requires the reference pages under `docs/reference/messages/`
+  to render their mapping tables from the registries rather than by hand.
+  (MSM-01 through MSM-06; see ADR-0083 and `notes/message-type-reference.md`)
 
 - **`vultron-as2-mapping.yaml`** - Authoritative mapping from each `MessageSemantics`
   enum value to its ActivityStreams 2.0 wire representation: activity type,
@@ -442,6 +449,7 @@ is reserved for `testability.yaml`).
 | `ARCH` | `architecture.yaml` |
 | `AKM` | `actor-knowledge-model.yaml` |
 | `AR` | `agentic-readiness.yaml` |
+| `ASK` | `protocol-asks.yaml` |
 | `BT` | `behavior-tree-integration.yaml` |
 | `BTC` | `bt-composability.yaml` |
 | `BTND` | `behavior-tree-node-design.yaml` |

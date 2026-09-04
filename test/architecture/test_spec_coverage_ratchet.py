@@ -34,10 +34,16 @@ from vultron.metadata.specs.coverage import SPEC_MARKER_RE
 # on main without a @pytest.mark.spec marker (merged into this branch).
 # Lowered to 946 after xfail test with @pytest.mark.spec("CSB-15-004") was
 # added, reducing the uncovered count from 948 to 946 (Bug #2607).
+# Lowered to 937 — the actual uncovered count — when ADR-0080 added 28
+# kind=protocol requirements (ASK-01..ASK-08, CP-05-007, OX-14-002, RSH-07-004,
+# RSH-07-005) and covered all 28 in test_protocol_asks_specs.py, closing the
+# 9-ID slack that had accumulated between the count and the ceiling (#2880).
 # Lower this constant as more @pytest.mark.spec markers are added;
-# never raise it to hide regressions in your own PR.
+# never raise it to hide regressions in your own PR. Keep it pinned to the
+# actual count — slack between the two is room for uncovered specs to grow
+# unnoticed, which is the regression this ratchet exists to prevent.
 # ---------------------------------------------------------------------------
-MAX_UNCOVERED_PROTOCOL_SPECS = 946
+MAX_UNCOVERED_PROTOCOL_SPECS = 937
 
 _TEST_ROOT = _corpus.REPO_ROOT / "test"
 _SPEC_DIR = _corpus.REPO_ROOT / "specs"
@@ -57,6 +63,7 @@ def _collect_marked_ids() -> frozenset[str]:
     return frozenset(ids)
 
 
+@pytest.mark.spec_corpus
 @pytest.mark.spec("SR-05-005")
 def test_protocol_spec_coverage_floor():
     """Uncovered protocol-kind specs must not exceed MAX_UNCOVERED_PROTOCOL_SPECS.

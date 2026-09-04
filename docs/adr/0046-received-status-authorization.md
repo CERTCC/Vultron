@@ -76,6 +76,20 @@ without coupling the trees directly: when StatusAdoptionGate passes, the CaseAct
   implementations must ensure the CASE_MANAGER role check on
   `add_case_status_tree` is satisfied by the CaseActor's own identity
 
+> **Amended by ADR-0080 (2026-08-31).** Both gates become **conversation-state
+> routing subtrees** rather than single-tick Evaluator call-outs (RSH-07-004).
+> The two-gate division of responsibility, the CASE_OWNER structural bypass, and
+> the write-before-side-effect ordering are all unchanged; what changes is that a
+> gate awaiting the Case Owner emits an ask and terminates successfully instead of
+> answering the authorization question inline. See ADR-0080 and
+> `notes/protocol-asks.md`.
+>
+> One consequence of the original design is worth reading in that light: because
+> the gate sits *after* `AppendParticipantStatusNode`, the participant's claim is
+> already recorded while adoption is pending. That is exactly the legitimate
+> not-yet state ASK-02-005 requires an ask to leave behind, so this tree needed no
+> new intermediate state to become askable.
+
 ## Gate Definitions
 
 ### StatusAdoptionGate (`add_participant_status_tree`)
@@ -97,12 +111,20 @@ If the gate passes, `EmitAddCaseStatusToSelfNode` emits a self-addressed
 Positioned after `AppendCaseStatusToCaseNode`.
 
 ```text
-EmbargoTeardownAuthorizationGate (Evaluator call-out, RequireCaseOwnerApproval default)
-ThreatTerminationBranchNode    ← fires teardown on CS.P OR CS.X OR CS.A
+TeardownEffectsOrSkip (FailureIsSuccess)
+└─ TeardownEffects (Sequence)
+    ├─ EmbargoTeardownAuthorizationGate (call-out, RequireCaseOwnerApproval default)
+    └─ ThreatTerminationBranchNode    ← fires teardown on CS.P OR CS.X OR CS.A
+PxaEmInvariantDiagnosticNode          ← posts Note to case if invariant still violated
 ```
 
 `ThreatTerminationBranchNode` replaces and extends `PublicDisclosureBranchNode`,
 which is removed from `add_participant_status_tree`.
+
+The `FailureIsSuccess` decorator mirrors the `add_participant_status_tree` pattern:
+gate FAILURE does not abort the outer Sequence, so the `PxaEmInvariantDiagnosticNode`
+always runs and can detect lingering CSB-18-002..004 violations regardless of whether
+the gate permitted or blocked teardown (CONCERN-3008).
 
 ## Validation
 

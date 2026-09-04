@@ -7,14 +7,14 @@
 | Path | Purpose | Evidence |
 |------|---------|----------|
 | `vultron/` | Main Python package — all production source | `pyproject.toml` `[tool.setuptools.packages.find]` |
-| `vultron/core/` | Domain layer: models, ports, use cases, states, behaviors | `notes/architecture-hexagonal.md` |
+| `vultron/core/` | Domain layer: models, ports, use cases, states, behaviors, predicate rules | `notes/architecture-hexagonal.md` |
 | `vultron/wire/` | Wire format layer: AS2 vocabulary, parser, extractor, factories | `notes/architecture-hexagonal.md` |
 | `vultron/adapters/` | Adapter layer: driving (HTTP/CLI/MCP), driven (SQLite, delivery), connectors | `notes/architecture-hexagonal.md` |
 | `vultron/bt/` | Behavior tree node library grouped by CVD domain area | `vultron/bt/` directory listing |
 | `vultron/config/` | Layer-neutral configuration models and loading logic | `vultron/config/app.py`, `vultron/config/actor.py` |
 | `vultron/enums/` | Shared CVD-domain enums (roles, states) imported by config and core | `vultron/enums/` |
 | `vultron/demo/` | Demo scenario runners and seed-config helpers | `pyproject.toml` entry points |
-| `vultron/metadata/` | Spec registry, history CLI, notes metadata tooling | `vultron/metadata/specs/`, `vultron/metadata/history/` |
+| `vultron/metadata/` | Spec registry, history CLI, notes metadata tooling, message-semantics mapping renderer | `vultron/metadata/specs/`, `vultron/metadata/history/`, `vultron/metadata/msm/` |
 | `vultron/scripts/` | CLI entry points (`vultrabot`) | `pyproject.toml` `[project.scripts]` |
 | `vultron/semantic_registry/` | ActivityStreams semantic pattern registry | `vultron/semantic_registry/` |
 | `test/` | Pytest test suite (mirrors `vultron/` layout) | `pyproject.toml` `[tool.pytest.ini_options]` |
@@ -22,7 +22,7 @@
 | `specs/` | Structured YAML specification files | `specs/README.md` |
 | `notes/` | Durable design insight Markdown files | `notes/README.md` |
 | `docs/` | MkDocs documentation source | `Makefile` `docs` target |
-| `plan/` | Agent workflow files: implementation plan, priorities, learnings, history | `plan/BUILD_LEARNINGS.md`, `plan/IMPLEMENTATION_PLAN.md` |
+| `plan/` | Agent workflow files: learnings queue and history archive | `plan/history/`, `plan/incoming/` |
 | `.github/workflows/` | CI/CD pipeline definitions | `.github/workflows/python-app.yml` |
 | `.devcontainer/` | Dev container configuration | `.devcontainer/Dockerfile` |
 | `integration_tests/` | Separate integration test suite | `integration_tests/README.md` |
@@ -45,7 +45,8 @@
 
 | Boundary | What belongs here | What must not be here |
 |----------|-------------------|------------------------|
-| `vultron/core/` | Domain models, ports (Protocol classes), use cases, states, behaviors | FastAPI, wire-format (AS2), adapter imports |
+| `vultron/core/` | Domain models, ports (Protocol classes), use cases, states, behaviors, predicates | FastAPI, wire-format (AS2), adapter imports |
+| `vultron/core/predicates/` | Pure predicate functions over domain values (role checks, embargo eligibility, state invariants) | I/O, DataLayer, `behaviors/`, `services/`, `ports/` imports |
 | `vultron/wire/as2/` | AS2 vocabulary (Pydantic models), parser, semantic extractor, factories | Core domain import of AS2 types; FastAPI |
 | `vultron/adapters/` | HTTP handlers, SQLite data layer, outbound delivery, CLI, MCP, connectors | Core domain logic (no business rules) |
 | `vultron/config/` | Configuration models and loading only | Imports from `vultron.adapters` or `vultron.core` |
@@ -70,7 +71,6 @@ Enforced by: `test/architecture/test_core_no_adapter_imports.py`, `test/architec
 |--------|---------|
 | `vultron/core/ports/wire_render.py` | `WireRenderPort` driven-port Protocol for wire-shaped JSON rendering |
 | `vultron/adapters/driven/wire_render/as2.py` | AS2 adapter implementing `WireRenderPort` via `VOCABULARY` registry |
-| `vultron/core/behaviors/case/nodes/case_actor_setup.py` | Case-actor-specific setup BT nodes (extracted from `case_setup.py`) |
 | `vultron/core/behaviors/embargo/nodes/terminate.py` | Embargo termination BT nodes |
 | `vultron/core/behaviors/sync/nodes/event_conditions.py` | Sync event-condition BT nodes (extracted from `conditions.py`) |
 | `vultron/core/behaviors/bridge.py` | BT bridge node |

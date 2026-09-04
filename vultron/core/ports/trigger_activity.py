@@ -20,7 +20,7 @@ nodes use to create, store, and queue outbound ActivityStreams activities.
 Defining the port here keeps ``vultron/core/`` completely free of wire-layer
 imports (ARCH-01-001).
 
-Methods return ``(activity_id, activity_dict)`` so callers can:
+Methods return ``(activity_id, activity_json)`` so callers can:
 
 1. Queue the ``activity_id`` to the actor's outbox.
 2. Include the ``activity_dict`` in the HTTP response.
@@ -71,8 +71,8 @@ class TriggerActivityPort(Protocol):
         context_id: str,
         attributed_to: str,
         in_reply_to: str | None = None,
-    ) -> tuple[str, dict[str, Any]]:
-        """Create and persist a Note object; return ``(note_id, note_dict)``."""
+    ) -> tuple[str, str]:
+        """Create and persist a Note object; return ``(note_id, note_json)``."""
         ...
 
     def create_note_activity(
@@ -90,7 +90,7 @@ class TriggerActivityPort(Protocol):
         case_id: str,
         actor: str,
         to: list[str] | None = None,
-    ) -> tuple[str, dict[str, Any]]:
+    ) -> tuple[str, str]:
         """Create and persist an ``Add(Note, Case)`` activity.
 
         Returns ``(activity_id, activity_dict)``.
@@ -107,7 +107,7 @@ class TriggerActivityPort(Protocol):
         actor: str,
         to: str,
         target: str,
-    ) -> tuple[str, dict[str, Any]]:
+    ) -> tuple[str, str]:
         """Create and persist an ``Offer(VulnerabilityReport)`` activity.
 
         Returns ``(offer_id, offer_dict)``.
@@ -120,7 +120,7 @@ class TriggerActivityPort(Protocol):
         report_id: str,
         actor: str,
         to: list[str] | None = None,
-    ) -> tuple[str, dict[str, Any]]:
+    ) -> tuple[str, str]:
         """Create and persist a ``Reject(Offer)`` close-report activity.
 
         Returns ``(activity_id, activity_dict)``.
@@ -132,7 +132,7 @@ class TriggerActivityPort(Protocol):
         offer_id: str,
         actor: str,
         to: list[str] | None = None,
-    ) -> tuple[str, dict[str, Any]]:
+    ) -> tuple[str, str]:
         """Create and persist a ``TentativeReject(Offer)`` activity.
 
         Returns ``(activity_id, activity_dict)``.
@@ -145,7 +145,7 @@ class TriggerActivityPort(Protocol):
         report_id: str,
         actor: str,
         to: list[str] | None = None,
-    ) -> tuple[str, dict[str, Any]]:
+    ) -> tuple[str, str]:
         """Create and persist an ``Accept(Offer)`` validate-report activity.
 
         Returns ``(activity_id, activity_dict)``.
@@ -158,7 +158,7 @@ class TriggerActivityPort(Protocol):
         offer_id: str,
         actor: str,
         to: list[str] | None = None,
-    ) -> tuple[str, dict[str, Any]]:
+    ) -> tuple[str, str]:
         """Create and persist a ``Read(Offer(Report))`` ack-report activity.
 
         Per ADR-0021 CLP-10-001: routes the activity to the Case Actor so the
@@ -176,7 +176,7 @@ class TriggerActivityPort(Protocol):
         case_id: str,
         actor: str,
         to: list[str] | None = None,
-    ) -> tuple[str, dict[str, Any]]:
+    ) -> tuple[str, str]:
         """Create and persist a ``Create(VulnerabilityCase)`` activity.
 
         Returns ``(activity_id, activity_dict)``.
@@ -188,7 +188,7 @@ class TriggerActivityPort(Protocol):
         case_id: str,
         actor: str,
         to: list[str] | None = None,
-    ) -> tuple[str, dict[str, Any]]:
+    ) -> tuple[str, str]:
         """Create and persist a ``Leave(VulnerabilityCase)`` close-case activity.
 
         Per ADR-0021 CLP-10-001: routes the activity to the Case Actor so the
@@ -202,7 +202,7 @@ class TriggerActivityPort(Protocol):
         case_id: str,
         actor: str,
         to: list[str] | None = None,
-    ) -> tuple[str, dict[str, Any]]:
+    ) -> tuple[str, str]:
         """Create and persist an ``Accept(VulnerabilityCase)`` engage activity.
 
         Returns ``(activity_id, activity_dict)``.
@@ -214,7 +214,7 @@ class TriggerActivityPort(Protocol):
         case_id: str,
         actor: str,
         to: list[str] | None = None,
-    ) -> tuple[str, dict[str, Any]]:
+    ) -> tuple[str, str]:
         """Create and persist a ``TentativeReject(VulnerabilityCase)`` activity.
 
         Returns ``(activity_id, activity_dict)``.
@@ -226,7 +226,7 @@ class TriggerActivityPort(Protocol):
         actor: str,
         object_id: str,
         case_id: str,
-    ) -> tuple[str, dict[str, Any]]:
+    ) -> tuple[str, str]:
         """Create and persist an ``Add(object, Case)`` activity.
 
         Returns ``(activity_id, activity_dict)``.
@@ -259,7 +259,7 @@ class TriggerActivityPort(Protocol):
         to: list[str] | None = None,
         offer_id: str | None = None,
         offer_actor_id: str | None = None,
-    ) -> tuple[str, dict[str, Any]]:
+    ) -> tuple[str, str]:
         """Create and persist a ``Create(as_CaseProposal)`` activity.
 
         Builds an ``as_CaseProposal`` from the ``VulnerabilityReport``
@@ -292,7 +292,7 @@ class TriggerActivityPort(Protocol):
         attributed_to: str | None = None,
         roles: list[str] | None = None,
         target: VulnerabilityCase | None = None,
-    ) -> tuple[str, dict[str, Any]]:
+    ) -> tuple[str, str]:
         """Create and persist an ``Invite(Actor, Case)`` activity.
 
         ``actor`` SHOULD be the Case Actor ID (PCR-08-007); ``attributed_to``
@@ -312,7 +312,7 @@ class TriggerActivityPort(Protocol):
         self,
         invite_id: str,
         actor: str,
-    ) -> tuple[str, dict[str, Any]]:
+    ) -> tuple[str, str]:
         """Create and persist an ``Accept(Invite)`` activity.
 
         Returns ``(activity_id, activity_dict)``.
@@ -323,7 +323,7 @@ class TriggerActivityPort(Protocol):
         self,
         invite_id: str,
         actor: str,
-    ) -> tuple[str, dict[str, Any]]:
+    ) -> tuple[str, str]:
         """Create and persist a ``Reject(Invite)`` activity.
 
         Returns ``(activity_id, activity_dict)``.
@@ -335,7 +335,7 @@ class TriggerActivityPort(Protocol):
         cp_offer_id: str,
         actor: str,
         to: list[str] | None = None,
-    ) -> tuple[str, dict[str, Any]]:
+    ) -> tuple[str, str]:
         """Create and persist an ``Accept(Offer(CaseParticipant))`` activity.
 
         Sent by the Case Owner to the CaseActor after reviewing the
@@ -352,7 +352,7 @@ class TriggerActivityPort(Protocol):
         to: list[str] | None = None,
         id_: str | None = None,
         roles: list[str] | None = None,
-    ) -> tuple[str, dict[str, Any]]:
+    ) -> tuple[str, str]:
         """Create and persist a ``Offer(Actor, Case)`` recommendation activity.
 
         ``id_`` allows callers to supply a deterministic ID for idempotency.
@@ -372,7 +372,7 @@ class TriggerActivityPort(Protocol):
         to: list[str] | None = None,
         id_: str | None = None,
         roles: list[Any] | None = None,
-    ) -> tuple[str, dict[str, Any]]:
+    ) -> tuple[str, str]:
         """Create and persist an ``Offer(CaseParticipant, Case)`` activity.
 
         Transforms the original ``Offer(Actor, Case)`` into an
@@ -393,7 +393,7 @@ class TriggerActivityPort(Protocol):
         actor: str,
         to: list[str] | None = None,
         id_: str | None = None,
-    ) -> tuple[str, dict[str, Any]]:
+    ) -> tuple[str, str]:
         """Create and persist an ``AcceptActorRecommendation`` activity.
 
         Sent by the CaseActor to the original recommender after the Case Owner
@@ -411,7 +411,7 @@ class TriggerActivityPort(Protocol):
         actor: str,
         to: list[str] | None = None,
         id_: str | None = None,
-    ) -> tuple[str, dict[str, Any]]:
+    ) -> tuple[str, str]:
         """Create and persist a ``RejectActorRecommendation`` activity.
 
         Sent by the CaseActor to the original recommender after the Case Owner
@@ -429,7 +429,7 @@ class TriggerActivityPort(Protocol):
         actor: str,
         to: list[str] | None = None,
         id_: str | None = None,
-    ) -> tuple[str, dict[str, Any]]:
+    ) -> tuple[str, str]:
         """Create and persist an ``Accept(Offer)`` actor-recommendation activity.
 
         The recommendation offer is reconstructed ephemerally from
@@ -477,7 +477,7 @@ class TriggerActivityPort(Protocol):
         target_actor_id: str,
         actor: str,
         to: list[str] | None = None,
-    ) -> tuple[str, dict[str, Any]]:
+    ) -> tuple[str, str]:
         """Create and persist ``Offer(CaseParticipantRole, target=Actor, context=VulnerabilityCase)``.
 
         Canonical role-delegation wire format (ADR-0039).  ``role`` is the
@@ -497,7 +497,7 @@ class TriggerActivityPort(Protocol):
         vendor_id: str,
         actor: str,
         to: list[str] | None = None,
-    ) -> tuple[str, dict[str, Any]]:
+    ) -> tuple[str, str]:
         """Create and persist an ``Accept(_OfferCaseParticipantRoleActivity)`` (ADR-0039).
 
         Ephemerally reconstructs the original Offer (using ``offer_id``,
@@ -539,7 +539,7 @@ class TriggerActivityPort(Protocol):
         case_id: str,
         actor: str,
         to: list[str] | None = None,
-    ) -> tuple[str, dict[str, Any]]:
+    ) -> tuple[str, str]:
         """Create and persist an ``Invite(EmbargoEvent, Case)`` proposal.
 
         Returns ``(activity_id, activity_dict)``.
@@ -552,7 +552,7 @@ class TriggerActivityPort(Protocol):
         case_id: str,
         actor: str,
         to: list[str] | None = None,
-    ) -> tuple[str, dict[str, Any]]:
+    ) -> tuple[str, str]:
         """Create and persist an ``Accept(Invite)`` embargo-accept activity.
 
         Returns ``(activity_id, activity_dict)``.
@@ -565,7 +565,7 @@ class TriggerActivityPort(Protocol):
         case_id: str,
         actor: str,
         to: list[str] | None = None,
-    ) -> tuple[str, dict[str, Any]]:
+    ) -> tuple[str, str]:
         """Create and persist a ``Reject(Invite)`` embargo-reject activity.
 
         Returns ``(activity_id, activity_dict)``.
@@ -578,7 +578,7 @@ class TriggerActivityPort(Protocol):
         case_id: str,
         actor: str,
         to: list[str] | None = None,
-    ) -> tuple[str, dict[str, Any]]:
+    ) -> tuple[str, str]:
         """Create and persist an ``Announce(EmbargoEvent)`` activity.
 
         Returns ``(activity_id, activity_dict)``.
@@ -591,7 +591,7 @@ class TriggerActivityPort(Protocol):
         case_id: str,
         actor: str,
         to: list[str] | None = None,
-    ) -> tuple[str, dict[str, Any]]:
+    ) -> tuple[str, str]:
         """Create and persist a ``Remove(EmbargoEvent, origin=case)`` ET activity.
 
         Corresponds to the ET (Embargo Termination) protocol message.
@@ -607,7 +607,7 @@ class TriggerActivityPort(Protocol):
         content: str | None = None,
         to: list[str] | None = None,
         attributed_to: str | None = None,
-    ) -> tuple[str, dict[str, Any]]:
+    ) -> tuple[str, str]:
         """Create and persist an ``Offer(VulnerabilityCase)`` ownership-transfer activity.
 
         Returns ``(activity_id, activity_dict)`` (TRIG-11-001).
@@ -619,10 +619,39 @@ class TriggerActivityPort(Protocol):
         offer_id: str,
         actor: str,
         to: list[str] | None = None,
-    ) -> tuple[str, dict[str, Any]]:
+    ) -> tuple[str, str]:
         """Create and persist an ``Accept(Offer(VulnerabilityCase))`` ownership-transfer activity.
 
         Returns ``(activity_id, activity_dict)`` (TRIG-11-002).
+        """
+        ...
+
+    # -----------------------------------------------------------------------
+    # Processing fault (NACK)
+    # -----------------------------------------------------------------------
+
+    def emit_processing_fault(
+        self,
+        actor: str,
+        failed_activity_id: str,
+        failure_class: str,
+        to: list[str],
+        case_id: str | None = None,
+    ) -> str:
+        """Create and persist a ``Create(ProcessingFault)`` NACK activity.
+
+        Sent by the receiving actor to the authenticated sender when a
+        status assertion could not be processed (ASK-07-001, ADR-0080).
+
+        Args:
+            actor: URI of the receiving actor emitting the fault.
+            failed_activity_id: URI of the failed activity (ASK-07-004).
+            failure_class: URI identifying the failure class (ASK-07-005).
+            to: Recipient list; SHOULD contain the original sender's URI.
+            case_id: Optional case context URI for logging.
+
+        Returns:
+            The activity ID.
         """
         ...
 

@@ -203,7 +203,12 @@ class TestRecordCaseCreationEvents:
             actor_id=actor_id,
             # case_id intentionally omitted
         )
-        bt_scenario.assert_failure(result)
+        # The missing required port *is* the subject here: a required input
+        # was deliberately not supplied, so the tree fails via the port
+        # contract rather than via a protocol decision (CONCERN-3019).
+        bt_scenario.assert_failure(
+            result, reason="Input port 'case_id'", allow_internal=True
+        )
 
     def test_record_case_created_leaf_fails_without_staged_case(
         self,
@@ -218,7 +223,14 @@ class TestRecordCaseCreationEvents:
             case_id=case_obj.id_,
             # case_for_creation_events intentionally omitted
         )
-        bt_scenario.assert_failure(result)
+        # The missing required port *is* the subject here: a required input
+        # was deliberately not supplied, so the tree fails via the port
+        # contract rather than via a protocol decision (CONCERN-3019).
+        bt_scenario.assert_failure(
+            result,
+            reason="Input port 'case_for_creation_events'",
+            allow_internal=True,
+        )
 
     def test_activity_key_optional_node_succeeds_without_it(
         self,

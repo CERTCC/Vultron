@@ -382,3 +382,93 @@ def test_wait_for_pending_inbox_quiescent_raises_when_not_empty():
             timeout_seconds=0,
             poll_interval=0.01,
         )
+
+
+# ---------------------------------------------------------------------------
+# case_actor_participant_id_in (extracted in #2789)
+# ---------------------------------------------------------------------------
+
+
+def _case_with_index(index: dict[str, str]):
+    """Build an as_VulnerabilityCase carrying *index* as its participant index."""
+    from vultron.wire.as2.vocab.objects.vulnerability_case import (
+        as_VulnerabilityCase,
+    )
+
+    case = as_VulnerabilityCase(id_="urn:uuid:case-cap", name="Case")
+    case.actor_participant_index.update(index)
+    return case
+
+
+class TestCaseActorParticipantIdIn:
+    """The read-free CaseActor lookup `setup_canonical_case` depends on.
+
+    `find_case_actor_participant_id` is only ever monkeypatched in the suite, so
+    the predicate it delegates to had no coverage of its own until this class.
+    `setup_canonical_case` asserts on the result, which turns a silent miss into
+    a confusing failure about `ProposeReportCaseToActorNode` — so the match rule
+    is worth pinning explicitly.
+    """
+
+    def test_returns_the_case_actor_uri(self):
+        from vultron.demo.helpers.polling import case_actor_participant_id_in
+
+        case = _case_with_index(
+            {
+                "http://vendor.test/api/v2/actors/vendor": "urn:uuid:p1",
+                "http://ca.test/api/v2/actors/case-actor": "urn:uuid:p2",
+                "http://finder.test/api/v2/actors/finder": "urn:uuid:p3",
+            }
+        )
+        assert (
+            case_actor_participant_id_in(case)
+            == "http://ca.test/api/v2/actors/case-actor"
+        )
+
+    def test_returns_none_when_no_case_actor_participant(self):
+        from vultron.demo.helpers.polling import case_actor_participant_id_in
+
+        case = _case_with_index(
+            {
+                "http://vendor.test/api/v2/actors/vendor": "urn:uuid:p1",
+                "http://finder.test/api/v2/actors/finder": "urn:uuid:p2",
+            }
+        )
+        assert case_actor_participant_id_in(case) is None
+
+    def test_returns_none_for_an_empty_index(self):
+        from vultron.demo.helpers.polling import case_actor_participant_id_in
+
+        assert case_actor_participant_id_in(_case_with_index({})) is None
+
+    def test_matches_on_the_shared_slug_constant(self):
+        """The predicate must follow CASE_ACTOR_SLUG, not a private literal.
+
+        The slug is the container-wide CaseActor identity (CP-08-002/003). If it
+        is ever renamed, this lookup has to move with it rather than silently
+        stop matching.
+        """
+        from vultron.demo.helpers.polling import case_actor_participant_id_in
+        from vultron.demo.utils import CASE_ACTOR_SLUG
+
+        actor_id = f"http://ca.test/api/v2/actors/{CASE_ACTOR_SLUG}"
+        case = _case_with_index({actor_id: "urn:uuid:p1"})
+        assert case_actor_participant_id_in(case) == actor_id
+
+    def test_find_case_actor_participant_id_delegates_to_the_predicate(self):
+        """The polling wrapper must reuse the predicate, not re-implement it."""
+        from vultron.demo.helpers.polling import find_case_actor_participant_id
+
+        actor_id = "http://ca.test/api/v2/actors/case-actor"
+        client = MagicMock()
+        client.dl_path.return_value = "/actors/x/datalayer/urn:uuid:case-cap"
+        client.get.return_value = {
+            "id": "urn:uuid:case-cap",
+            "type": "VulnerabilityCase",
+            "name": "Case",
+            "actorParticipantIndex": {actor_id: "urn:uuid:p1"},
+        }
+        assert (
+            find_case_actor_participant_id(client, "urn:uuid:case-cap")
+            == actor_id
+        )

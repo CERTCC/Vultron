@@ -19,6 +19,7 @@ Class-based use case for the add-note-to-case trigger behavior.
 No HTTP framework imports permitted here.
 """
 
+import json
 import logging
 from typing import cast
 
@@ -83,7 +84,7 @@ class SvcAddNoteToCaseUseCase(SvcBTTriggerBase):
                 actor=self._actor_id,
                 to=[case_manager_id],
             )
-            self._captured["activity"] = add_dict
+            self._captured["activity"] = json.loads(add_dict)
             self._result_out["add_activity_id"] = add_id
             return [create_id, add_id]
 

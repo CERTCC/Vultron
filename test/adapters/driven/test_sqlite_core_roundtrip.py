@@ -41,7 +41,7 @@ from vultron.core.models.participant_status import (
 )
 from vultron.core.models.report import VulnerabilityReport
 from vultron.core.models.vulnerability_record import VulnerabilityRecord
-from vultron.core.states import CS_vfd, RM
+from vultron.core.states import RM
 from vultron.enums.roles import CVDRole
 from vultron.errors import VultronValidationError
 from vultron.wire.as2.vocab.base.objects.object_types import as_Note
@@ -229,9 +229,7 @@ def _mixed_spelling_case_row(case_id):
     each entry is dumped ``by_alias``, which is what makes core validation of
     the *participant* fail while the case itself looks well formed.
     """
-    status = as_ParticipantStatus(
-        context=case_id, rm_state=RM.ACCEPTED, vfd_state=CS_vfd.vfd
-    )
+    status = as_ParticipantStatus(context=case_id, rm_state=RM.ACCEPTED)
     participant = as_CaseParticipant(
         id_="urn:uuid:participant-2232",
         attributed_to="https://example.org/actors/finder",

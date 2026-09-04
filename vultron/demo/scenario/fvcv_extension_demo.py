@@ -27,7 +27,7 @@ import logging
 import os
 import sys
 
-from vultron.core.states.cs import CS_vfd
+from vultron.core.states.cs import CS_vf
 from vultron.core.states.rm import RM
 from vultron.wire.as2.vocab.base.objects.activities.transitive import (
     as_Offer,
@@ -76,6 +76,7 @@ from vultron.demo.helpers.milestones import (
 )
 from vultron.demo.helpers.notes import participant_adds_note_to_case
 from vultron.demo.helpers.polling import (
+    drain_phase1_ledger,
     find_case_actor_participant_id,
     find_case_invite_for_actor,
     find_cp_offer_for_case,
@@ -87,7 +88,7 @@ from vultron.demo.helpers.polling import (
     wait_for_contiguous_ledger_coverage,
     wait_for_event_type_in_ledger,
     wait_for_participant_rm_state,
-    wait_for_participant_vfd_state,
+    wait_for_participant_vf_state,
 )
 from vultron.demo.helpers.seeding import (
     get_actor_by_id,
@@ -213,6 +214,7 @@ def _phase_report_submission(
         receiver_client=vendor_client,
         receiver=vendor_in_vendor,
         offer=offer,
+        timeout_seconds=60.0,
     )
 
     # Wait for the initial participants (Finder + Vendor1 + CaseActor) before
@@ -285,6 +287,17 @@ def _phase_report_submission(
             reporter_actor_id=finder.id_,
         )
 
+    # Drain the CaseActor's outbox before Phase 2 starts (ADR-0026, ADR-0058,
+    # issue #2819).
+    drain_phase1_ledger(
+        auth_client=vendor_client,
+        case_id=case.id_,
+        replica_pairs=[
+            (finder_client, "Finder"),
+            (coordinator_client, "Coordinator"),
+        ],
+    )
+
     case = as_VulnerabilityCase.model_validate(
         vendor_client.get(vendor_client.dl_path(case.id_))
     )
@@ -348,6 +361,7 @@ def _phase_coordinator_suggests_vendor2(
         cp_offer_id = find_cp_offer_for_case(
             client=vendor_client,
             case_id=case.id_,
+            timeout_seconds=40.0,
         )
         logger.info("Offer(CaseParticipant) ID: %s", cp_offer_id)
 
@@ -637,14 +651,12 @@ def _phase_fix_lifecycle(
             actor=vendor_in_vendor,
             case_id=case.id_,
         )
-        with demo_check(
-            "Vendor1 participant vfd_state transitions to VFd or VFD"
-        ):
-            wait_for_participant_vfd_state(
+        with demo_check("Vendor1 participant vf_state transitions to VF"):
+            wait_for_participant_vf_state(
                 client=vendor_client,
                 case_id=case.id_,
                 actor_id=vendor.id_,
-                expected_states={CS_vfd.VFd, CS_vfd.VFD},
+                expected_states={CS_vf.VF},
             )
 
     with demo_gate(
@@ -661,30 +673,28 @@ def _phase_fix_lifecycle(
             actor=vendor2_in_vendor2,
             case_id=case.id_,
         )
-        with demo_check(
-            "Vendor2 participant vfd_state transitions to VFd or VFD"
-        ):
-            wait_for_participant_vfd_state(
+        with demo_check("Vendor2 participant vf_state transitions to VF"):
+            wait_for_participant_vf_state(
                 client=vendor2_client,
                 case_id=case.id_,
                 actor_id=vendor2.id_,
-                expected_states={CS_vfd.VFd, CS_vfd.VFD},
+                expected_states={CS_vf.VF},
             )
 
     with demo_check(
         "M5: Finder replica shows both vendors CS include F (fix ready)"
     ):
-        wait_for_participant_vfd_state(
+        wait_for_participant_vf_state(
             client=vendor_client,
             case_id=case.id_,
             actor_id=vendor.id_,
-            expected_states={CS_vfd.VFd, CS_vfd.VFD},
+            expected_states={CS_vf.VF},
         )
-        wait_for_participant_vfd_state(
+        wait_for_participant_vf_state(
             client=finder_client,
             case_id=case.id_,
             actor_id=vendor.id_,
-            expected_states={CS_vfd.VFd, CS_vfd.VFD},
+            expected_states={CS_vf.VF},
         )
         verify_fix_ready(
             receiver_client=vendor_client,
@@ -696,17 +706,17 @@ def _phase_fix_lifecycle(
     with demo_check(
         "M6: Finder replica shows both vendors CS include F (fix ready) — vendors stop at VFd"
     ):
-        wait_for_participant_vfd_state(
+        wait_for_participant_vf_state(
             client=vendor_client,
             case_id=case.id_,
             actor_id=vendor.id_,
-            expected_states={CS_vfd.VFd},
+            expected_states={CS_vf.VF},
         )
-        wait_for_participant_vfd_state(
+        wait_for_participant_vf_state(
             client=finder_client,
             case_id=case.id_,
             actor_id=vendor.id_,
-            expected_states={CS_vfd.VFd},
+            expected_states={CS_vf.VF},
         )
         verify_fix_ready(
             receiver_client=vendor_client,
@@ -784,17 +794,17 @@ def _phase_publication(
             client=finder_client,
             case_id=case.id_,
         )
-        wait_for_participant_vfd_state(
+        wait_for_participant_vf_state(
             client=vendor_client,
             case_id=case.id_,
             actor_id=vendor.id_,
-            expected_states={CS_vfd.VFd},
+            expected_states={CS_vf.VF},
         )
-        wait_for_participant_vfd_state(
+        wait_for_participant_vf_state(
             client=finder_client,
             case_id=case.id_,
             actor_id=vendor.id_,
-            expected_states={CS_vfd.VFd},
+            expected_states={CS_vf.VF},
         )
         verify_publicly_disclosed(
             receiver_client=vendor_client,

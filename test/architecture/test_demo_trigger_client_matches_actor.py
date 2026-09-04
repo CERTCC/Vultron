@@ -19,8 +19,8 @@
 it against ``client.base_url``, so the pair decides which container answers.
 Name an actor a different container hosts and the request does not go to that
 actor: either the slug is unknown there and it 404s several hundred lines from
-the mistake, or the slug *is* known and ``get_actor_dl`` mints an empty store for
-it, so the behaviour runs against the wrong actor's state (#2549).
+the mistake, or (before ADR-0081) the slug *was* known and ``get_actor_dl``
+returned that store, running the behaviour against the wrong actor's state.
 
 fvcv-handoff shipped the 404 form of this — the Coordinator's
 ``invite-actor-to-case`` posted to the vendor container, justified by a comment

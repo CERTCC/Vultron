@@ -15,15 +15,16 @@ from vultron.core.models._helpers import _now_utc as _core_now_utc
 from vultron.core.models.base import VultronObject
 from vultron.core.models.case_ledger_entry import VultronCaseLedgerEntry
 from vultron.core.models.dimensions import (
+    DDimension,
     EmDimension,
     PecDimension,
     PxaDimension,
     RmDimension,
-    VfdDimension,
+    VfDimension,
 )
 from vultron.core.models.enums import VultronObjectType as VOtype
 from vultron.core.models.participant_status import coerce_cvd_roles
-from vultron.core.states.cs import CS_pxa, CS_vfd
+from vultron.core.states.cs import CS_d, CS_pxa, CS_vf
 from vultron.core.states.em import EM
 from vultron.core.states.participant_embargo_consent import PEC
 from vultron.core.states.rm import RM
@@ -49,11 +50,29 @@ logger = logging.getLogger(__name__)
 
 
 def _get_id(field: object) -> str | None:
+    """Resolve an AS2 reference field to its id string, or ``None``.
+
+    AS2 permits a reference to be a URI string, an inline object, or an array of
+    either, so all three shapes are resolved here.  When no id can be recovered
+    the answer is ``None`` — never ``str(field)``.  A Python repr is not a URI,
+    and these values reach `payloadSnapshot`, which is hashed into `entry_hash`
+    and replicated to every participant: an absent field is recoverable, a
+    ``"{'id': ...}"`` string in the chain is not (ARCH-15-001, CLP-07-011).
+    """
     if field is None:
         return None
     if isinstance(field, str):
-        return field
-    return getattr(field, "id_", str(field)) or None
+        return field or None
+    if isinstance(field, dict):
+        raw = field.get("id") or field.get("id_")
+        return raw if isinstance(raw, str) and raw else None
+    if isinstance(field, (list, tuple)):
+        for item in field:
+            if (resolved := _get_id(item)) is not None:
+                return resolved
+        return None
+    raw_id = getattr(field, "id_", None)
+    return raw_id if isinstance(raw_id, str) and raw_id else None
 
 
 def _get_id_list(field: object) -> list[str] | None:
@@ -101,12 +120,23 @@ def _build_activity_snapshot(
     origin: object,
     context: object,
 ) -> VultronActivity:
-    """Build a VultronActivity snapshot from raw AS2 fields."""
+    """Build a VultronActivity snapshot from raw AS2 fields.
+
+    ``attributed_to`` is carried because it is the *only* record of who asked for
+    a delegated message: under CM-24-001 the CaseActor is the `actor` of an
+    Activity it sends on a participant's behalf, and CM-24-002 puts the
+    requesting participant in ``attributed_to`` "so that receivers can recover
+    the originating identity".  Dropping it here made that recovery impossible —
+    a received-side use case saw only ``actor_id`` (the CaseActor), so the Offer
+    the CaseActor forwarded to a transferee attributed the vendor's intent to the
+    CaseActor itself.  See CM-24-002 and notes/ownership-transfer.md.
+    """
     activity_type = str(activity.type_) if activity.type_ else "Activity"
     return VultronActivity(
         id_=activity.id_,
         type_=activity_type,
         actor=actor_id,
+        attributed_to=_get_id(getattr(activity, "attributed_to", None)),
         object_=obj,
         target=target,
         origin=_get_id(origin),
@@ -380,12 +410,30 @@ def _coerce_rm(raw: object) -> RM:
     return RM.START
 
 
-def _coerce_vfd(raw: object) -> CS_vfd:
-    if isinstance(raw, CS_vfd):
+def _coerce_vf(raw: object) -> CS_vf | None:
+    if raw is None:
+        return None
+    if isinstance(raw, CS_vf):
         return raw
     if isinstance(raw, str):
-        return CS_vfd[raw]
-    return CS_vfd.vfd
+        try:
+            return CS_vf[raw]
+        except KeyError:
+            raise ValueError(f"Unknown CS_vf value: {raw!r}") from None
+    return None
+
+
+def _coerce_d(raw: object) -> CS_d | None:
+    if raw is None:
+        return None
+    if isinstance(raw, CS_d):
+        return raw
+    if isinstance(raw, str):
+        try:
+            return CS_d[raw]
+        except KeyError:
+            raise ValueError(f"Unknown CS_d value: {raw!r}") from None
+    return None
 
 
 def _coerce_pec_or_none(raw: object) -> PEC | None:
@@ -465,8 +513,17 @@ def _build_participant_status_object(obj: object) -> dict[str, Any]:
                 rm=RmDimension(
                     state=_coerce_rm(getattr(obj, "rm_state", None))
                 ),
-                vfd=VfdDimension(
-                    state=_coerce_vfd(getattr(obj, "vfd_state", None))
+                vf=(
+                    VfDimension(state=_vf)
+                    if (_vf := _coerce_vf(getattr(obj, "vf_state", None)))
+                    is not None
+                    else None
+                ),
+                d=(
+                    DDimension(state=_d)
+                    if (_d := _coerce_d(getattr(obj, "d_state", None)))
+                    is not None
+                    else None
                 ),
                 consent=(
                     PecDimension(state=pec_val)

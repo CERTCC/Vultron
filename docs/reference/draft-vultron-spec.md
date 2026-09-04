@@ -311,7 +311,7 @@ specification is **not uniform**, and implementers must not assume symmetry.
 | Shorthand | Dispatchable? | Notes |
 |---|---|---|
 | `RK` | **Yes** | `MessageSemantics.ACK_REPORT`; wire form `Read(Offer(VulnerabilityReport))` |
-| `EK`, `CK` | No | No `MessageSemantics` value; no entry in `SEMANTICS_ACTIVITY_PATTERNS` |
+| `EK`, `CK` | No | No `MessageSemantics` value; no entry in `SEMANTIC_REGISTRY` |
 | `RE`, `EE`, `CE` | No | No `MessageSemantics` value; no wire representation |
 
 **Error message types are deliberately unmodelled, not merely unimplemented.**
@@ -733,7 +733,7 @@ is ready, nor ready before the vendor is aware.
 
 Transition drive authority is governed by §12.4.1.
 
-- *Source: `vultron/core/states/cs.py` (`CS_vfd`);
+- *Source: `vultron/core/states/cs.py` (`CS_vf`, `CS_d`);
   `docs/topics/process_models/cs/`*
 
 ### 8.2 PXA — Participant-Agnostic Axis (Public/eXploit/Attacks)

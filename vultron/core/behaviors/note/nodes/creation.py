@@ -15,13 +15,13 @@
 
 """Creation-oriented note BT nodes."""
 
+import json
 from typing import Any
 
 from py_trees.common import Status
 
 from vultron.core.behaviors.helpers import DataLayerActionWithPorts
 from vultron.core.models._helpers import _as_id
-from vultron.core.models.case import VulnerabilityCase
 
 
 class CreateNoteNode(DataLayerActionWithPorts):
@@ -53,7 +53,7 @@ class CreateNoteNode(DataLayerActionWithPorts):
         assert self.trigger_activity_factory is not None
 
         try:
-            note_id, note_dict = self.trigger_activity_factory.create_note(
+            note_id, note_blob = self.trigger_activity_factory.create_note(
                 name=self.note_name,
                 content=self.note_content,
                 context_id=self.case_id,
@@ -61,7 +61,7 @@ class CreateNoteNode(DataLayerActionWithPorts):
                 in_reply_to=self.in_reply_to,
             )
             self.result_out["note_id"] = note_id
-            self.result_out["note_dict"] = note_dict
+            self.result_out["note_dict"] = json.loads(note_blob)
             self.feedback_message = f"Created note '{note_id}'"
             self.logger.info(f"{self.name}: {self.feedback_message}")
             return Status.SUCCESS
@@ -101,7 +101,7 @@ class AttachNoteFromResultNode(DataLayerActionWithPorts):
             return f
 
         case: Any = self.datalayer.read(self.case_id)  # type: ignore[union-attr]
-        if not isinstance(case, VulnerabilityCase):
+        if case is None:
             self.feedback_message = f"case '{self.case_id}' not found"
             self.logger.warning(f"{self.name}: {self.feedback_message}")
             return Status.FAILURE

@@ -28,6 +28,7 @@ along that same "who is being addressed" seam: ``emit_response`` answers the
 ``accept_offer`` holds the Case Owner's own Accept response.
 """
 
+import json
 from typing import cast
 
 from py_trees.common import Status
@@ -46,7 +47,6 @@ from vultron.core.behaviors.case.nodes.participant.roles import (
 from vultron.core.behaviors.case.nodes.suggest_actor._snapshot import (
     _snapshot_with_context,
 )
-from vultron.core.models.case import VulnerabilityCase
 from vultron.core.ports.case_persistence import (
     CaseOutboxPersistence,
     CasePersistence,
@@ -75,8 +75,8 @@ def _resolve_owner_recipient(
     never the intent, and returning ``None`` lets the caller fail loudly
     instead of silently delivering to itself (ARCH-15-001).
     """
-    case_obj = dl.read(case_id)
-    if isinstance(case_obj, VulnerabilityCase):
+    case_obj = dl.read_case(case_id)
+    if case_obj is not None:
         owner_id = resolve_case_owner_id(case_obj, dl)
         if owner_id:
             return owner_id
@@ -114,8 +114,8 @@ class RecordRecommendationRecommenderNode(DataLayerActionWithPorts):
 
     def update(self) -> Status:
         assert self.datalayer is not None
-        case = self.datalayer.read(self.case_id)
-        if not isinstance(case, VulnerabilityCase):
+        case = self.datalayer.read_case(self.case_id)
+        if case is None:
             return Status.SUCCESS
 
         if (
@@ -231,7 +231,7 @@ class EmitOfferCaseParticipantToOwnerNode(DataLayerActionWithPorts):
                 )
                 self.logger.error(self.feedback_message)
                 return Status.FAILURE
-            activity_id, activity_dict = factory.offer_actor_to_case(
+            activity_id, activity_blob = factory.offer_actor_to_case(
                 recommender_id=self.recommender_id,
                 recommended_id=self.recommended_id,
                 case_id=self.case_id,
@@ -240,6 +240,7 @@ class EmitOfferCaseParticipantToOwnerNode(DataLayerActionWithPorts):
                 to=[owner_id],
                 roles=roles,
             )
+            activity_dict = json.loads(activity_blob)
             snapshot = _snapshot_with_context(activity_dict, self.case_id)
             commit_tree = create_commit_log_entry_tree(
                 case_id=self.case_id,

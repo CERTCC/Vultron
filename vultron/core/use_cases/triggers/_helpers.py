@@ -31,7 +31,7 @@ from vultron.core.ports.case_persistence import (
 )
 from vultron.core.ports.trigger_activity import TriggerActivityPort
 from vultron.core.use_cases._helpers import _find_case_actor_id
-from vultron.errors import VultronNotFoundError, VultronValidationError
+from vultron.errors import VultronNotFoundError
 
 logger = logging.getLogger(__name__)
 
@@ -47,16 +47,12 @@ def resolve_actor(actor_id: str, dl: CasePersistence):
 
 
 def resolve_case(case_id: str, dl: CasePersistence) -> VulnerabilityCase:
-    """Resolve a VulnerabilityCase by ID; raise domain error if absent or wrong type."""
-    case_raw = dl.read(case_id)
-    if case_raw is None or not isinstance(case_raw, VulnerabilityCase):
+    """Resolve a VulnerabilityCase by ID; raise domain error if absent."""
+    case_raw = dl.read_case(case_id)
+    if case_raw is None:
         case_raw = dl.find_case_by_short_id(case_id)
     if case_raw is None:
         raise VultronNotFoundError("VulnerabilityCase", case_id)
-    if not isinstance(case_raw, VulnerabilityCase):
-        raise VultronValidationError(
-            f"Expected VulnerabilityCase, got {type(case_raw).__name__}."
-        )
     return case_raw
 
 

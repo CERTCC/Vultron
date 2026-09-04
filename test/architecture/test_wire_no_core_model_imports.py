@@ -15,9 +15,15 @@
 """Architecture boundary test: wire layer must not introduce new direct imports of core models.
 
 ``vultron/wire/`` converts core domain objects to ActivityStreams 2.0 wire
-format.  Translation MUST go through the explicit ``as_Foo.from_core(core_obj)``
-seam on each wire vocab class — not through arbitrary direct imports of
-``vultron.core.models.*`` types scattered across wire modules.
+format.  Translation MUST go through an explicit seam — not through arbitrary
+direct imports of ``vultron.core.models.*`` types scattered across wire modules.
+
+Per ADR-0082 that seam is the declarative pairing registry plus the generic
+adapter-side translator (ARCH-23-001).  It is **no longer** a per-class
+``as_Foo.from_core(core_obj)`` method: amended ARCH-12-005 forbids
+``from_core()``/``to_core()`` on wire vocabulary classes, precisely because those
+methods construct core objects at runtime and so required the very import this
+module prohibits.
 
 Spec: ARCH-22-001, ARCH-22-002, ARCH-22-003
 
@@ -38,9 +44,19 @@ This means:
   to fail until the resolved entry is removed from ``KNOWN_VIOLATIONS``.
 
 Remove entries from ``KNOWN_VIOLATIONS`` one by one as each violation is fixed.
-When the set is empty, the companion goal test (``test_wire_core_model_import_boundary_goal``)
-will XPASS and force deletion of its ``xfail`` marker, signalling completion
-(ARCH-22-003).
+
+Goal state
+----------
+The goal is **not** an empty set.  ARCH-22-003 as amended by ADR-0082 targets an
+*enumerated exemption set*: at least ``vocab/base/registry.py``, whose
+``find_in_core_type_map`` import ARCH-12-010 mandates.  A goal of ``frozenset()``
+was unreachable, and an unreachable goal invites an implementer to violate a MUST
+in order to make it pass.
+
+The goal test below still asserts ``_VIOLATIONS == frozenset()``.  Retargeting it
+at the exemption set and retiring its ``xfail`` marker is #2944's job — do not
+change the assertion here, or the ratchet loses its only enforcement of
+ARCH-22-002 in the meantime.
 """
 
 import ast
@@ -92,7 +108,8 @@ _VIOLATIONS: frozenset[str] = _collect_violations()
 
 
 # ---------------------------------------------------------------------------
-# Known pre-existing violations awaiting migration to the from_core() seam.
+# Known pre-existing violations awaiting migration to the adapter-side
+# translator seam (ARCH-23-001), or enumeration as an ARCH-22-003 exemption.
 # Remove an entry from this set when the violation is resolved.
 # ---------------------------------------------------------------------------
 KNOWN_VIOLATIONS: frozenset[str] = frozenset(
@@ -115,6 +132,7 @@ KNOWN_VIOLATIONS: frozenset[str] = frozenset(
         "vultron/wire/as2/vocab/objects/case_participant.py",
         "vultron/wire/as2/vocab/objects/case_participant_role.py",
         "vultron/wire/as2/vocab/objects/case_proposal.py",
+        "vultron/wire/as2/vocab/objects/processing_fault.py",
         "vultron/wire/as2/vocab/objects/case_reference.py",
         "vultron/wire/as2/vocab/objects/case_status.py",
         "vultron/wire/as2/vocab/objects/embargo_event.py",
@@ -138,15 +156,19 @@ def test_no_new_wire_core_model_imports() -> None:
 
     Spec: ARCH-22-001, ARCH-22-002
 
-    New wire→core model imports must go through the ``as_Foo.from_core()``
-    translation seam instead.  See module docstring for the ratchet strategy.
+    New wire→core model imports must go through the pairing registry and the
+    adapter-side translator (ARCH-23-001) instead.  See module docstring for the
+    ratchet strategy.
     """
     new_violations = _VIOLATIONS - KNOWN_VIOLATIONS
 
     assert not new_violations, (
         "NEW wire→core model imports detected (ARCH-22-001):\n"
         + "\n".join(f"  + {v}" for v in sorted(new_violations))
-        + "\n\nUse ``as_Foo.from_core(core_obj)`` instead of importing core types directly.\n"
+        + "\n\nDeclare the core↔wire pairing to the adapter-side translator "
+        "(ARCH-23-001) instead of importing core types directly.\n"
+        "Do not add a per-class from_core()/to_core() method — amended "
+        "ARCH-12-005 forbids those on wire vocabulary classes.\n"
         "Add to KNOWN_VIOLATIONS only if the import cannot yet be removed."
     )
 
@@ -173,20 +195,22 @@ def test_all_known_violations_still_present() -> None:
 @pytest.mark.xfail(
     strict=True,
     reason=(
-        "ARCH-22-003: Goal state — all wire→core model import violations resolved. "
-        "Tracked by #2670. When the last actual wire→core model import is removed "
-        "from the codebase, _VIOLATIONS becomes frozenset() and this test XPASSes, "
-        "failing the build — delete this xfail marker and clear KNOWN_VIOLATIONS then."
+        "ARCH-22-003: Goal state. NOTE — this assertion targets frozenset(), which "
+        "ADR-0082 established is unreachable: ARCH-12-001, ARCH-20-002 and "
+        "ARCH-12-010 each mandate an import it forbids. ARCH-22-003 as amended "
+        "targets an enumerated exemption set instead. Retargeting this test and "
+        "retiring the marker is #2944's job; tracked by #2670."
     ),
 )
 def test_wire_core_model_import_boundary_goal() -> None:
-    """Goal: wire layer has zero direct vultron.core.models imports.
+    """Goal: wire layer imports core models only where a MUST mandates it.
 
     Spec: ARCH-22-003
 
     This test is ``xfail(strict=True)`` while any wire module still imports
-    ``vultron.core.models``.  Once every actual violation is resolved,
-    ``_VIOLATIONS`` becomes ``frozenset()`` and the test XPASSes, which causes
-    a strict-xfail CI failure and forces deletion of this marker.
+    ``vultron.core.models``.  The assertion below is deliberately left targeting
+    ``frozenset()`` even though ARCH-22-003 now targets an enumerated exemption
+    set — retargeting it is #2944's job, and until then this marker is the only
+    thing keeping the goal visible.  See the module docstring's "Goal state".
     """
     assert _VIOLATIONS == frozenset()

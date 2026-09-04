@@ -13,12 +13,14 @@ on:
     paths:
       - "specs/**"
       - "vultron/metadata/specs/**"
+      - "docs/reference/codebase/**"
       - ".github/workflows/spec-check.yml"
   pull_request:
     branches: ["main"]
     paths:
       - "specs/**"
       - "vultron/metadata/specs/**"
+      - "docs/reference/codebase/**"
       - ".github/workflows/spec-check.yml"
   workflow_dispatch:
 
@@ -43,6 +45,62 @@ jobs:
         # PYTHONPATH='' (quoted) is identical in effect to PYTHONPATH= but
         # distinguishable by shellcheck, which flags the bare form as SC1007.
         run: PYTHONPATH='' uv run spec-lint specs/
+      - name: Notify CI failure
+        if: failure() && (github.event_name == 'push' || github.event_name == 'schedule')
+        uses: ./.github/actions/notify-failure
+        with:
+          mode: notify
+          workflow-label: ci:workflow-spec-check
+          token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Close CI failure issue
+        if: success() && (github.event_name == 'push' || github.event_name == 'schedule')
+        uses: ./.github/actions/notify-failure
+        with:
+          mode: close
+          workflow-label: ci:workflow-spec-check
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+  # Run pytest tests that read the actual specs/ corpus.  Triggered alongside
+  # spec-lint so a PR touching only specs/** goes red when it breaks the
+  # coverage ratchet or the spec-lint test.  See Bug #2903.
+  spec-tests:
+    name: Spec Corpus Tests (pytest)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: ./.github/actions/debounce-main-push
+      - name: Set up Python and uv
+        uses: ./.github/actions/setup-python-uv
+      - name: Run spec_corpus pytest suite
+        run: uv run pytest -m spec_corpus --tb=short
+      - name: Notify CI failure
+        if: failure() && (github.event_name == 'push' || github.event_name == 'schedule')
+        uses: ./.github/actions/notify-failure
+        with:
+          mode: notify
+          workflow-label: ci:workflow-spec-check
+          token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Close CI failure issue
+        if: success() && (github.event_name == 'push' || github.event_name == 'schedule')
+        uses: ./.github/actions/notify-failure
+        with:
+          mode: close
+          workflow-label: ci:workflow-spec-check
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+  # Run the docs/reference/codebase/ path-existence ratchet.  Triggered
+  # alongside spec-check so a PR touching only docs/reference/codebase/**
+  # goes red when it introduces a phantom path citation.  See Issue #2552.
+  docs-path-ratchet:
+    name: Codebase Docs Path Ratchet
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: ./.github/actions/debounce-main-push
+      - name: Set up Python and uv
+        uses: ./.github/actions/setup-python-uv
+      - name: Run codebase docs path ratchet
+        run: uv run pytest test/architecture/test_codebase_docs_paths.py --tb=short
       - name: Notify CI failure
         if: failure() && (github.event_name == 'push' || github.event_name == 'schedule')
         uses: ./.github/actions/notify-failure

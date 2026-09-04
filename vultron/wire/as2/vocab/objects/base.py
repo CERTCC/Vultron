@@ -18,6 +18,9 @@ Provides a base class for all Vultron ActivityStreams Objects.
 
 from typing import Any, ClassVar, TypeAlias
 
+from pydantic import Field
+
+from vultron.wire.as2.vocab.base.base import VULTRON_CONTEXT_URI
 from vultron.wire.as2.vocab.base.enums import VocabNamespace
 from vultron.wire.as2.vocab.base.links import ActivityStreamRef
 from vultron.wire.as2.vocab.base.objects.base import as_Object
@@ -99,6 +102,11 @@ class VultronAS2Object(as_Object):
     """
 
     _vocab_ns: ClassVar[VocabNamespace] = VocabNamespace.VULTRON
+    context_: str = Field(
+        default=VULTRON_CONTEXT_URI,
+        validation_alias="@context",
+        serialization_alias="@context",
+    )
     _field_map: ClassVar[dict[str, str]] = {}
     #: Ref fields that MUST stay inline through persistence. Public (no leading
     #: underscore) because the storage adapter reads it; see the class docstring.

@@ -81,6 +81,24 @@ def _create_actor(client, base_api: str, slug: str, actor_type: str) -> str:
     return actor_id
 
 
+def _register_peer(
+    client,
+    host_slug: str,
+    peer_id: str,
+    name: str,
+    actor_type: str = "Organization",
+) -> None:
+    """Register a peer in the hosted actor's address book (ADR-0081)."""
+    resp = client.post(
+        f"/api/v2/actors/{host_slug}/peers/",
+        json={"id": peer_id, "name": name, "actor_type": actor_type},
+    )
+    assert resp.status_code in (
+        200,
+        201,
+    ), f"Peer registration failed ({resp.status_code}): {resp.text}"
+
+
 def _make_log_entry(
     case_id: str,
     log_index: int,
@@ -134,16 +152,20 @@ def test_sync_single_peer_happy_path_replication(two_app_setup) -> None:
     peer_actor_id = _create_actor(
         peer_tc, peer_base_api, "peer-sync-901", "Organization"
     )
-    # as_CaseActor must know peer recipient for outbox routing.
-    _create_actor(
-        case_actor_tc, peer_base_api, "peer-sync-901", "Organization"
+    # Register peer as address-book entry on case-actor's app for outbox routing (ADR-0081).
+    _register_peer(
+        case_actor_tc, "case-actor-sync-901", peer_actor_id, "peer-sync-901"
     )
 
     case = as_VulnerabilityCase(name="SYNC-901 integration case")
-    case.genesis_hash = compute_genesis_hash(
-        case_id=case.id_,
-        created_at=datetime.now(timezone.utc),
-        case_actor_id=case_actor_id,
+    object.__setattr__(
+        case,
+        "genesis_hash",
+        compute_genesis_hash(
+            case_id=case.id_,
+            created_at=datetime.now(timezone.utc),
+            case_actor_id=case_actor_id,
+        ),
     )
     case_actor_participant = as_CaseParticipant(
         attributed_to=case_actor_id,
@@ -232,12 +254,16 @@ def test_sync_predecessor_mismatch_reject_and_replay(two_app_setup) -> None:
     # CLP-08-005).
     case_actor_dl = case_actor_iso.store_for(case_actor_id)
     peer_dl = peer_iso.store_for(peer_actor_id)
-    # Cross-register actors so each app can route to the other.
-    _create_actor(
-        case_actor_tc, peer_base_api, "peer-sync-902", "Organization"
+    # Cross-register actors as peers so each app can route to the other (ADR-0081).
+    _register_peer(
+        case_actor_tc, "case-actor-sync-902", peer_actor_id, "peer-sync-902"
     )
-    _create_actor(
-        peer_tc, case_actor_base_api, "case-actor-sync-902", "Service"
+    _register_peer(
+        peer_tc,
+        "peer-sync-902",
+        case_actor_id,
+        "case-actor-sync-902",
+        "Service",
     )
 
     case = as_VulnerabilityCase(
@@ -387,10 +413,14 @@ def test_sync_duplicate_delivery_idempotency(
     case = as_VulnerabilityCase(
         name="SYNC-903 duplicate delivery integration case"
     )
-    case.genesis_hash = compute_genesis_hash(
-        case_id=case.id_,
-        created_at=datetime.now(timezone.utc),
-        case_actor_id=case_actor_id,
+    object.__setattr__(
+        case,
+        "genesis_hash",
+        compute_genesis_hash(
+            case_id=case.id_,
+            created_at=datetime.now(timezone.utc),
+            case_actor_id=case_actor_id,
+        ),
     )
     case_actor_participant = as_CaseParticipant(
         attributed_to=case_actor_id,

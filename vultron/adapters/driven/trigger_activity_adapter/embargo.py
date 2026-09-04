@@ -44,7 +44,7 @@ class _EmbargoMixin:
         case_id: str,
         actor: str,
         to: list[str] | None = None,
-    ) -> tuple[str, dict[str, Any]]:
+    ) -> tuple[str, str]:
         """Create and persist an ``Invite(as_EmbargoEvent, Case)`` proposal."""
         embargo = _to_wire(self._dl.read(embargo_id), as_EmbargoEvent)
         activity = em_propose_embargo_activity(
@@ -57,7 +57,7 @@ class _EmbargoMixin:
                 "propose_embargo: activity '%s' already exists — skipping",
                 activity.id_,
             )
-        return activity.id_, activity.model_dump(**_DUMP_KWARGS)
+        return activity.id_, activity.model_dump_json(**_DUMP_KWARGS)
 
     def accept_embargo(
         self,
@@ -65,7 +65,7 @@ class _EmbargoMixin:
         case_id: str,
         actor: str,
         to: list[str] | None = None,
-    ) -> tuple[str, dict[str, Any]]:
+    ) -> tuple[str, str]:
         """Create and persist an ``Accept(Invite)`` embargo-accept activity."""
         proposal = cast(Any, self._dl.read(proposal_id))
         activity = em_accept_embargo_activity(
@@ -78,7 +78,7 @@ class _EmbargoMixin:
                 "accept_embargo: activity '%s' already exists — skipping",
                 activity.id_,
             )
-        return activity.id_, activity.model_dump(**_DUMP_KWARGS)
+        return activity.id_, activity.model_dump_json(**_DUMP_KWARGS)
 
     def reject_embargo(
         self,
@@ -86,7 +86,7 @@ class _EmbargoMixin:
         case_id: str,
         actor: str,
         to: list[str] | None = None,
-    ) -> tuple[str, dict[str, Any]]:
+    ) -> tuple[str, str]:
         """Create and persist a ``Reject(Invite)`` embargo-reject activity."""
         proposal = cast(Any, self._dl.read(proposal_id))
         activity = em_reject_embargo_activity(
@@ -99,7 +99,7 @@ class _EmbargoMixin:
                 "reject_embargo: activity '%s' already exists — skipping",
                 activity.id_,
             )
-        return activity.id_, activity.model_dump(**_DUMP_KWARGS)
+        return activity.id_, activity.model_dump_json(**_DUMP_KWARGS)
 
     def announce_embargo(
         self,
@@ -107,7 +107,7 @@ class _EmbargoMixin:
         case_id: str,
         actor: str,
         to: list[str] | None = None,
-    ) -> tuple[str, dict[str, Any]]:
+    ) -> tuple[str, str]:
         """Create and persist an ``Announce(as_EmbargoEvent)`` activity."""
         embargo = _to_wire(self._dl.read(embargo_id), as_EmbargoEvent)
         activity = announce_embargo_activity(
@@ -120,7 +120,7 @@ class _EmbargoMixin:
                 "announce_embargo: activity '%s' already exists — skipping",
                 activity.id_,
             )
-        return activity.id_, activity.model_dump(**_DUMP_KWARGS)
+        return activity.id_, activity.model_dump_json(**_DUMP_KWARGS)
 
     def terminate_embargo(
         self,
@@ -128,7 +128,7 @@ class _EmbargoMixin:
         case_id: str,
         actor: str,
         to: list[str] | None = None,
-    ) -> tuple[str, dict[str, Any]]:
+    ) -> tuple[str, str]:
         """Create and persist a ``Remove(as_EmbargoEvent, origin=case)`` ET activity."""
         embargo = _to_wire(self._dl.read(embargo_id), as_EmbargoEvent)
         activity = remove_embargo_from_case_activity(
@@ -141,4 +141,4 @@ class _EmbargoMixin:
                 "terminate_embargo: activity '%s' already exists — skipping",
                 activity.id_,
             )
-        return activity.id_, activity.model_dump(**_DUMP_KWARGS)
+        return activity.id_, activity.model_dump_json(**_DUMP_KWARGS)

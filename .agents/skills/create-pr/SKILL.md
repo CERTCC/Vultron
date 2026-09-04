@@ -146,9 +146,12 @@ Run the appropriate suite based on PR type:
 **Docs PR** (`type: docs`):
 
 ```bash
-# Linters only — no Python changed
+# Linters only — no Python changed. Scope matches run-linters and build
+# Phase 6; bare `uv run flake8` walks the whole repo (including scripts/,
+# which carries pre-existing C901/E741 findings no other gate covers) and
+# fails every docs PR on debt it did not introduce.
 uv run black --check .
-uv run flake8
+uv run flake8 vultron/ test/
 uv run mypy vultron
 uv run pyright
 ```

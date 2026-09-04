@@ -43,15 +43,18 @@ Only a multi-node setup can show this, and only since each node in this harness
 got its *own* storage deployment: while every node shared one anonymous
 ``sqlite:///:memory:``, the cross-authority slug collision that
 :func:`~vultron.adapters.driven.datalayer_sqlite.engine.actor_slug` produces for
-two ``.../actors/case-actor`` ids (#2549) resolved to a single shared store, so
-the phantom store *was* the real one and this whole failure mode was invisible
+two ``.../actors/case-actor`` ids resolved to a single shared store, so the
+phantom store *was* the real one and this whole failure mode was invisible
 locally while failing under Docker.  See ``test/demo/conftest.py::node_db_url``.
+After ADR-0081 no legitimate path opens a store for a foreign-authority id, but
+the per-node deployment naming remains essential for a multi-node harness.
 
 Issue: #2484
 """
 
 import re
 from dataclasses import dataclass
+from datetime import datetime, timezone
 
 import pytest
 
@@ -123,9 +126,8 @@ def topology(request):
 
     The *slug* stays ``case-actor`` in every case: that is what
     :func:`~vultron.core.behaviors.case.case_actor_identity.is_case_actor_identity`
-    reads, and varying the authority instead is also what keeps the
-    cross-authority slug collision (#2549) in play — which is the condition
-    under test.
+    reads, and varying the authority is what makes each node's CaseActor
+    genuinely distinct — the cross-authority isolation this test exercises.
 
     Deliberately does *not* patch ``VULTRON_ACTOR__CASE_ACTOR_SERVICE_URL``: the
     replica is seeded directly with a remote CASE_MANAGER, which is the state a
@@ -187,7 +189,12 @@ def _create_actor(client, actor_id: str, name: str, type_: str) -> None:
     )
 
 
-def _seed_case(dl, topo: _Topology, case_id: str) -> None:
+def _seed_case(
+    dl,
+    topo: _Topology,
+    case_id: str,
+    published: datetime | None = None,
+) -> None:
     """Write a case replica whose CASE_MANAGER is the remote CaseActor.
 
     This is the post-handoff shape: the participant wearing
@@ -202,6 +209,11 @@ def _seed_case(dl, topo: _Topology, case_id: str) -> None:
     exactly what a *failed* case read produces.  Under an active embargo the two
     outcomes finally differ, so ``test_the_invite_carries_the_case_not_a_bare_id``
     can tell "read the case" from "read an empty store".
+
+    *published* pins the VulnerabilityCase timestamp so all replicas share the
+    same genesis hash regardless of wall-clock second boundaries.  When None a
+    fresh timestamp is used — callers seeding multiple replicas MUST pass the
+    same value to all calls or they risk divergent genesis hashes (#2727).
     """
     manager = CaseParticipant(
         id_=f"{case_id}/participants/case-actor",
@@ -217,7 +229,7 @@ def _seed_case(dl, topo: _Topology, case_id: str) -> None:
         id_=f"{case_id}/embargoes/e0",
         context=case_id,
     )
-    case = VulnerabilityCase(
+    case_kwargs: dict = dict(
         id_=case_id,
         name="remote CaseActor invite",
         attributed_to=topo.ca_actor_id,
@@ -235,6 +247,9 @@ def _seed_case(dl, topo: _Topology, case_id: str) -> None:
         ],
         active_embargo=str(embargo.id_),
     )
+    if published is not None:
+        case_kwargs["published"] = published
+    case = VulnerabilityCase(**case_kwargs)
     dl.create(manager)
     dl.create(owner_participant)
     dl.create(embargo)
@@ -264,10 +279,17 @@ def _bootstrap(topo: _Topology, case_id: str):
         topo.invitee.client, topo.invitee_actor_id, "Invitee", "Organization"
     )
 
+    # A single shared timestamp pins genesis_hash across both replicas.
+    # Without this, each VulnerabilityCase() call uses _now_utc() independently;
+    # if a wall-clock second ticks between the two _seed_case calls the two
+    # replicas diverge, and CheckHashOrRejectOnMismatchNode fires when ca_host
+    # fans out Announce(CaseLedgerEntry) to owner (#2727).
+    case_published = datetime.now(timezone.utc).replace(microsecond=0)
+
     owner_dl = topo.owner.store_for(topo.owner_actor_id)
     ca_dl = topo.ca_host.store_for(topo.ca_actor_id)
-    _seed_case(owner_dl, topo, case_id)
-    _seed_case(ca_dl, topo, case_id)
+    _seed_case(owner_dl, topo, case_id, published=case_published)
+    _seed_case(ca_dl, topo, case_id, published=case_published)
     return owner_dl, ca_dl, topo.invitee.store_for(topo.invitee_actor_id)
 
 
@@ -287,6 +309,52 @@ def _invite(topo: _Topology, case_id: str) -> dict:
 # ---------------------------------------------------------------------------
 # Tests
 # ---------------------------------------------------------------------------
+
+
+class TestBootstrapInvariant:
+    """Bootstrap invariants that must hold before any scenario test runs.
+
+    These guard the preconditions that every test in TestInviteWithARemoteCaseActor
+    depends on.  A failure here is a test-infrastructure defect, not a protocol
+    bug.  See issue #2727.
+    """
+
+    def test_genesis_hash_matches_across_replicas(self, topology):
+        """Both case replicas must share the same genesis hash.
+
+        ``_bootstrap`` seeds the same VulnerabilityCase on owner_dl and ca_dl.
+        If the two VulnerabilityCase instances are constructed at different
+        wall-clock seconds they receive different ``published`` timestamps,
+        which feeds ``compute_genesis_hash`` and produces divergent hashes.
+        When ca_host later fans out ``Announce(CaseLedgerEntry)`` with
+        ``prev_log_hash`` derived from ca_host's genesis, owner's
+        ``CheckHashOrRejectOnMismatchNode`` detects the mismatch and rejects
+        the entry — so ``test_the_owners_own_store_records_the_invite`` finds
+        an empty ledger and fails.
+
+        The fix: ``_bootstrap`` passes a single shared ``published`` timestamp
+        to both ``_seed_case`` calls so both replicas compute the same hash.
+        """
+        case_id = "urn:uuid:genesis-hash-invariant"
+        owner_dl, ca_dl, _ = _bootstrap(topology, case_id)
+
+        owner_case = owner_dl.read(case_id)
+        ca_case = ca_dl.read(case_id)
+
+        assert owner_case is not None, "case not seeded on owner"
+        assert ca_case is not None, "case not seeded on ca_host"
+
+        owner_genesis = getattr(owner_case, "genesis_hash", None)
+        ca_genesis = getattr(ca_case, "genesis_hash", None)
+
+        assert owner_genesis, "owner case has no genesis_hash"
+        assert ca_genesis, "ca_host case has no genesis_hash"
+        assert owner_genesis == ca_genesis, (
+            "owner and ca_host case replicas have divergent genesis hashes:"
+            f" owner={owner_genesis!r}, ca_host={ca_genesis!r}."
+            " This causes CheckHashOrRejectOnMismatchNode to fire when"
+            " ca_host fans out Announce(CaseLedgerEntry) to owner (#2727)."
+        )
 
 
 @pytest.mark.spec("PCR-08-007")

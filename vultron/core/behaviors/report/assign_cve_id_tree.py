@@ -64,7 +64,7 @@ import py_trees
 from py_trees.common import Status
 from py_trees.ports import BehaviourWithPorts, NoDataAvailable, PortInformation
 
-from vultron.enums.roles import CVDRole
+from vultron.core.predicates.roles import has_cna_role
 
 if TYPE_CHECKING:
     from vultron.core.behaviors.call_out.bundles.assign_cve_id import (
@@ -131,7 +131,7 @@ class _IsIDAssignmentAuthorityNode(BehaviourWithPorts):
             )
             return Status.FAILURE
 
-        if CVDRole.CVE_NUMBERING_AUTHORITY in roles:
+        if has_cna_role(roles):
             self.logger.debug(
                 f"{self.name}: actor holds CNA role"
                 " — proceed to authority check"

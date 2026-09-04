@@ -42,17 +42,21 @@ class _FakeTriggerFactory:
         context_id: str,
         attributed_to: str,
         in_reply_to: str | None,
-    ) -> tuple[str, dict[str, str]]:
+    ) -> tuple[str, str]:
+        import json
+
         return (
             NOTE_ID,
-            {
-                "id": NOTE_ID,
-                "name": name,
-                "content": content,
-                "context": context_id,
-                "attributedTo": attributed_to,
-                "inReplyTo": in_reply_to or "",
-            },
+            json.dumps(
+                {
+                    "id": NOTE_ID,
+                    "name": name,
+                    "content": content,
+                    "context": context_id,
+                    "attributedTo": attributed_to,
+                    "inReplyTo": in_reply_to or "",
+                }
+            ),
         )
 
 

@@ -515,8 +515,10 @@ class TestActorAlreadyParticipantNode:
     def _node(self, participant_index=None):
         dl = MagicMock()
         case_obj = MagicMock()
-        case_obj.actor_participant_index = participant_index or {}
-        dl.read.return_value = case_obj
+        object.__setattr__(
+            case_obj, "actor_participant_index", participant_index or {}
+        )
+        dl.read_case.return_value = case_obj
         node = ActorAlreadyParticipantNode(
             recommended_id=_RECOMMENDED,
             case_id=_CASE_ID,
@@ -865,7 +867,7 @@ class TestEmitNoteDuplicateRecommendationToOwnerNodeContent:
         dl = MagicMock()
         case_obj = MagicMock()
         case_obj.attributed_to = self._OWNER_ID
-        dl.read.return_value = case_obj
+        dl.read_case.return_value = case_obj
         factory = MagicMock()
         factory.create_note.return_value = ("note-id-1", MagicMock())
         factory.add_note_to_case.return_value = ("activity-id-1", MagicMock())

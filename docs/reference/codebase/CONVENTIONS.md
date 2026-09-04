@@ -41,7 +41,7 @@
 - **Import grouping/order**: stdlib → third-party → local; isort enforces black profile
 - **Absolute imports only**: no relative imports; all intra-package references use full `vultron.*` paths
 - **Layer isolation**: `vultron/core/` must not import from `vultron/adapters/` or `vultron/wire/`; `vultron/config/` must not import from `vultron/adapters/` or `vultron/core/`
-- **Backward-compat re-exports**: split modules re-export all public names from their `__init__.py` to avoid breaking callers (e.g., `vultron/adapters/driven/datalayer_sqlite.py`)
+- **Backward-compat re-exports**: split modules re-export all public names from their `__init__.py` to avoid breaking callers (e.g., `vultron/adapters/driven/datalayer_sqlite/`)
 - **`__init__.py` F401 exception**: unused imports in `__init__.py` files are allowed (flake8 per-file-ignore)
 
 ### 3a) BT Node Blackboard Conventions
@@ -55,6 +55,7 @@
   - Wire layer: raises `vultron.wire.errors` types on parse/validation failure
   - Core use cases: raises `vultron.errors.VultronValidationError` or similar domain errors; fail-fast at use-case boundary (ARCH-15)
   - Adapters: catch and translate errors into HTTP responses or log entries
+- **Pydantic validator exceptions**: any custom exception raised from a `model_validator` or `field_validator` MUST inherit from `ValueError` (or `TypeError`/`AssertionError`) so Pydantic wraps it in `ValidationError` rather than letting it escape `model_validate()`. See `VultronProtocolViolationError` in `vultron/errors.py` for the canonical example; its docstring explains the requirement (issue #2905).
 - **Logging**: use `logging.getLogger(__name__)` at module level; `logger.debug(...)` for trace detail, `logger.warning(...)` for recoverable issues
 - **Sensitive data**: no specific redaction rules observed; [ASK USER] whether PII from vulnerability reports requires redaction at log points
 

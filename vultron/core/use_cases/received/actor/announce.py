@@ -12,7 +12,6 @@ from vultron.core.behaviors.case.announce_case_received_tree import (
 from vultron.core.models.events.actor import (
     AnnounceVulnerabilityCaseReceivedEvent,
 )
-from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.ledger_gap_buffer import (
     LedgerGapBuffer,
     get_ledger_gap_buffer,
@@ -94,10 +93,7 @@ class AnnounceVulnerabilityCaseReceivedUseCase:
             )
             return
 
-        if (
-            not isinstance(case_obj, VulnerabilityCase)
-            and getattr(case_obj, "type_", None) != "VulnerabilityCase"
-        ):
+        if getattr(case_obj, "type_", None) != "VulnerabilityCase":
             logger.warning(
                 "AnnounceVulnerabilityCase: object in activity '%s' is not a"
                 " VulnerabilityCase (%s) — skipping",

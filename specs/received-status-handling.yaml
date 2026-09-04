@@ -571,9 +571,10 @@ groups:
       value does not discard an accepted PXA value from the same CaseStatus
       snapshot, and vice versa.
     note: >
-      Implemented by `FilterCsEmDimensionNode` and `FilterCsPxaDimensionNode`
-      in `vultron/core/behaviors/status/nodes/cs_dimension_filter.py`, wired
-      as precondition guards of `add_case_status_tree`. See ISSUE-2256.
+      Implemented by the three-node sequence `FilterCsEmDimensionNode`,
+      `FilterCsPxaDimensionNode`, and `FinalizeCsFilterNode` in
+      `vultron/core/behaviors/status/nodes/cs_dimension_filter.py`, wired as
+      precondition guards of `add_case_status_tree`. See ISSUE-2256.
     lint_suppress:
     - missing_story_reference
   - id: RSH-05-016
@@ -619,6 +620,224 @@ groups:
       Implemented by `FinalizeCsFilterNode.update()` returning `Status.FAILURE`
       when `(filtered.em.state, filtered.pxa.state) == (current.em.state,
       current.pxa.state)`.
+    lint_suppress:
+    - missing_story_reference
+  - id: RSH-05-018
+    priority: MUST
+    kind: protocol
+    statement: >
+      When adjudicating the EM dimension of a received `Add(CaseStatus)`, the
+      receiver MUST accept the asserted EM state if and only if it is identical
+      to the current EM state or it is a valid EM state-machine transition from
+      the current EM state, as determined by `is_valid_em_transition()`. Any
+      other asserted EM value MUST be refused and the current EM value carried
+      forward (RSH-05-016).
+    rationale: >
+      EM follows a directed state machine
+      (NO_EMBARGO → PROPOSED ↔ ACTIVE ↔ REVISE → EXITED). Out-of-order or
+      backward EM assertions do not correspond to legal protocol events; applying
+      them would corrupt the canonical EM state shared by all participants.
+      Using `is_valid_em_transition()` as the acceptance predicate ensures only
+      structurally valid EM transitions are applied.
+    verification: >
+      Unit tests in `test/core/behaviors/status/test_add_case_status_bt.py`
+      confirm that `FilterCsEmDimensionNode` accepts EM states that satisfy
+      `is_valid_em_transition()` or are identical to the current EM state, and
+      refuses all other asserted EM values by carrying the current value forward.
+    note: >
+      Implemented by `FilterCsEmDimensionNode.update()` in
+      `vultron/core/behaviors/status/nodes/cs_dimension_filter.py`. The predicate
+      is applied as `asserted_em != current_em and not is_valid_em_transition(current_em, asserted_em)`;
+      an identity assertion (`asserted == current`) is always accepted without
+      invoking `is_valid_em_transition()`.
+    lint_suppress:
+    - missing_story_reference
+  - id: RSH-05-019
+    priority: MUST
+    kind: protocol
+    statement: >
+      When adjudicating the PXA dimension of a received `Add(CaseStatus)`, the
+      receiver MUST accept the asserted PXA state if and only if it is identical
+      to the current PXA state or it is a monotone forward move from the current
+      PXA state, as determined by `is_monotonic_pxa_forward()`. Any other
+      asserted PXA value MUST be refused and the current PXA value carried
+      forward (RSH-05-016).
+    rationale: >
+      PXA state is monotone: bits only advance from unaware to aware (p→P,
+      x→X, a→A) and never reverse. The received-side filter uses the weaker
+      `is_monotonic_pxa_forward()` check — not the strict single-step adjacency
+      `is_valid_pxa_transition()` that applies to local write nodes
+      (CSB-16-002) — because a remote peer may have observed multiple PXA
+      events between messages and report a combined advance that skips
+      intermediate steps. Applying the strict check would refuse a valid
+      multi-step advance from a peer that simply missed delivering earlier
+      messages.
+    verification: >
+      Unit tests in `test/core/behaviors/status/test_add_case_status_bt.py`
+      confirm that `FilterCsPxaDimensionNode` accepts PXA states that satisfy
+      `is_monotonic_pxa_forward()` or are identical to the current PXA state,
+      and refuses non-monotone-forward assertions by carrying the current value
+      forward.
+    note: >
+      Implemented by `FilterCsPxaDimensionNode.update()` in
+      `vultron/core/behaviors/status/nodes/cs_dimension_filter.py`. The predicate
+      is `asserted_pxa != current_pxa and not is_monotonic_pxa_forward(current_pxa, asserted_pxa)`;
+      CSB-16-002 strict single-step adjacency applies only to local write nodes,
+      not to the received-side filter.
+    lint_suppress:
+    - missing_story_reference
+  - id: RSH-05-020
+    priority: MUST
+    kind: protocol
+    statement: >
+      After adjudicating each dimension of a received
+      `Add(ParticipantStatus, CaseParticipant)` independently, the receiver MUST
+      evaluate the cross-machine entailments (RM↔VF and RM↔D per CSB-18-001,
+      VF↔D per CSB-17-001) against the *effective* — post-adjudication — state.
+      For each violated entailment the receiver MUST refuse the dimension whose
+      *asserted* value the sender moved, carrying the participant's current
+      value for it forward (RSH-05-002), and MUST NOT report as refused a
+      dimension the sender omitted or restated unchanged. The receiver MUST
+      evaluate the same entailment set the emit path evaluates.
+    rationale: >
+      Per-dimension adjudication cannot see a claim that is impossible only in
+      combination: a fix that is ready or deployed entails a report the
+      participant has already accepted, and a deployed fix entails a ready one.
+      Before this requirement the receive path composed only VF↔D, so an
+      assertion the actor would have refused to *emit* was accepted, recorded,
+      hash-chained and replicated to every participant when it arrived from a
+      peer instead (ISSUE-2906).
+      Refusing the dimension that *moved* is what makes the refusal effective
+      rather than cosmetic. VF↔D constrains a pair, so either side can be the
+      offending claim; refusing the incumbent side carries its value straight
+      back, which leaves the impossible combination recorded while reporting a
+      refusal that changed nothing.
+      Evaluating against the effective state matters for the `vf`→`d` chain: a
+      refused or carried-forward `vf` must not license the `d` the sender paired
+      it with (ISSUE-2893). It is not a tightening for `rm` — `rm` is refused
+      only when the asserted value is not a forward move, so the carried value
+      always ranks at or above the asserted one on the RM progress scale, and
+      `RM_STATES_CONSISTENT_WITH_FIX` is exactly the top of that scale.
+      Requiring one shared evaluator rather than two equivalent ones is what
+      keeps the emit and receive paths from silently diverging again.
+      This is narrower than refusing a multi-step VF or D advance, which remains
+      legal on the received path (CSB-16-001): the entailments refuse claims
+      that no sequence of events could produce, not claims that skipped an
+      intermediate report.
+    verification: >
+      Unit tests in
+      `test/core/behaviors/status/test_partial_accept_participant_status.py`
+      confirm that `vf=VF` and `d=D` asserted alongside a pre-acceptance
+      effective `rm` are each refused with the current value carried forward;
+      that the same values are accepted once `rm` has reached acceptance; that a
+      VF↔D violation refuses the side that moved, so an asserted `vf` is refused
+      rather than an incumbent `d` carried straight back; that a dimension the
+      sender omitted is never named as refused; that a refusal retiring one
+      violation does not trigger a second on a stale one; that a dimension
+      already refused upstream is not named twice; and that the refusal stays
+      per-dimension. An end-to-end test runs the full tree and confirms the
+      refused value does not reach the committed `payloadSnapshot`.
+    note: >
+      Implemented by `_adjudicate_composite_state_entailments()` in
+      `vultron/core/behaviors/status/nodes/_adjudication.py`. The three rules
+      are composed by `composite_state_violations()` in
+      `vultron/core/states/composite_state_invariants.py`, which is also what
+      `ValidateTriggerTransitionsNode._validate_entailments` calls on the emit
+      path — the shared evaluator this requirement mandates. The shared
+      evaluator reports the candidate dimensions each rule can disqualify, in
+      preference order; choosing among them is the receive path's job, because
+      the emit path refuses the whole snapshot and needs no choice.
+
+      The pass re-evaluates after each refusal rather than acting on a single
+      sweep of the violation list: a refusal changes the effective state and can
+      retire a violation reported alongside it, and acting on the stale entry
+      would refuse a second dimension for a contradiction that no longer exists.
+      Only `vf` and `d` are refusable and neither is refused twice, so the loop
+      terminates.
+
+      The guarantee is conditional: if the participant's *current* state
+      satisfies the entailments, so does the recorded state. When the incumbent
+      state is already impossible no per-dimension refusal can repair it, since
+      every carry-forward writes the offending value back; that case is logged
+      and left alone. It is reachable today only via the replica-apply path,
+      which enforces only the RM ratchet (ISSUE-3009).
+
+      A `None` dimension is absent, not at its initial state (ADR-0075), so no
+      entailment applies through it — a non-VENDOR participant asserting `d=D`
+      is unconstrained by VF↔D.
+
+      The RM↔VF and RM↔D halves are sound but not complete, and deliberately so.
+      Their real constraint is that the actor passed through `RM.ACCEPTED` at
+      some point, which a single snapshot cannot establish:
+      `RM_STATES_CONSISTENT_WITH_FIX` is the set of states reachable from
+      `ACCEPTED`, and `DEFERRED` and `CLOSED` are each reachable without it too.
+      Tightening this needs the participant's recorded RM *history* rather than a
+      better predicate over the latest value, and would have to keep accepting a
+      peer that advances through acceptance and reports fix readiness in one
+      message (CSB-16-001). ISSUE-3015 records the analysis.
+
+      The replica-apply path (`ApplyParticipantStatusFromLedgerNode`) is
+      governed by RSH-05-007 (RM ratchet) and RSH-05-021 (composite-state
+      fault on impossible content).
+    relationships:
+    - rel_type: refines
+      spec_id: RSH-05-001
+    lint_suppress:
+    - missing_story_reference
+  - id: RSH-05-021
+    priority: MUST
+    kind: protocol
+    statement: >
+      When applying an `Announce(CaseLedgerEntry)` for an
+      `add_participant_status_to_participant` event, the behavior tree MUST
+      evaluate the composite-state entailments (RM↔VF and RM↔D per CSB-18-001,
+      VF↔D per CSB-17-001) against the effective participant state from the
+      entry. If any entailment is violated the tree MUST NOT apply the status
+      update, and MUST guarantee emission of `Create(ProcessingFault)` with
+      failure class `StatusAssertionRefused/ImpossibleState` to the CaseActor
+      as a guaranteed side-effect of the failure path (tree-structural guarantee,
+      not node-level side effect).
+    rationale: >
+      A CaseActor that is buggy or hostile can commit an entry whose participant
+      state violates `composite_state_violations()` — the same entailment set
+      the emit and receive paths already enforce. Without this check, every
+      replica silently adopts an impossible combination: the same actor would
+      have refused to *emit* the value, yet accepts it when the CaseActor
+      broadcasts it. Silence is the specific problem: the contradiction is
+      only discoverable by reading devlogs.
+      Using `Create(ProcessingFault)` rather than `Reject(CaseLedgerEntry)`
+      avoids triggering a CaseActor replay loop — the committed entry cannot
+      be uncommitted, so replaying it would produce the same refusal
+      indefinitely. `ProcessingFault` is the right signal for semantic
+      invalidity (ASK-07-001). The failure class
+      `StatusAssertionRefused/ImpossibleState` is a URI sub-path of
+      `StatusAssertionRefused`, so a consumer that understands the parent class
+      recognises this as a narrower form of the same fault.
+      The tree-structural guarantee (rather than node-level fault emission) keeps
+      the apply node a pure domain check (returns FAILURE on violation) and
+      the emission a composable side-effect, consistent with protocol-significant
+      behavior living in the tree (BTND-01).
+    note: >
+      `composite_state_violations()` in `vultron/core/states/composite_state_invariants.py`
+      is the shared evaluator; both the emit path
+      (`ValidateTriggerTransitionsNode._validate_entailments`) and the receive
+      path (`_adjudicate_composite_state_entailments`) already call it.
+      The tree change wraps the inner Sequence in a Selector whose fallback
+      node emits `Create(ProcessingFault)` and then returns FAILURE, so the
+      overall Sequence still fails and `PersistReceivedLogEntry` is blocked
+      (SYNC-12-001 is preserved).
+      The failure class constant
+      `VULTRON_FAILURE_STATUS_ASSERTION_REFUSED_IMPOSSIBLE_STATE` lives in
+      `vultron/core/models/fault_classes.py` alongside
+      `VULTRON_FAILURE_STATUS_ASSERTION_REFUSED`.
+      The existing RM ratchet (RSH-05-007) is unchanged: a ratcheted entry is
+      still valid (regression prevention is a replica-visibility invariant, not
+      a content-validity check) and does not trigger the fault path.
+    relationships:
+    - rel_type: refines
+      spec_id: RSH-05-001
+    - rel_type: depends_on
+      spec_id: RSH-05-007
     lint_suppress:
     - missing_story_reference
 
@@ -737,46 +956,95 @@ groups:
   title: Conservative Default Authorization Policy for Status Gates
   description: >
     Both StatusAdoptionGate and EmbargoTeardownAuthorizationGate MUST default to
-    `RequireCaseOwnerApproval` — an Evaluator that performs an Offer/Accept/Reject
-    round-trip with the Case Owner before allowing PXA assertion adoption or
-    embargo teardown side-effects. Permissive backends are valid but MUST be
-    explicitly configured.
-    Derived from CONCERN-2092 and ADR-0076.
+    requiring explicit Case Owner authorization before allowing PXA assertion
+    adoption or embargo teardown side-effects. Permissive backends are valid but
+    MUST be explicitly configured.
+    Derived from CONCERN-2092 and ADR-0076; the mechanism is amended by ADR-0080
+    (CONCERN-2812, CONCERN-2809) — see RSH-07-004.
   specs:
   - id: RSH-07-001
     priority: MUST
     kind: protocol
     statement: >
-      The default backend for the `CaseOwnerApprovesStatusUpdate` Evaluator
-      call-out in `StatusAdoptionGate` MUST be `RequireCaseOwnerApproval` —
-      an Evaluator that sends an `Offer` to the Case Owner and waits for
-      `Accept` or `Reject` before allowing the PXA assertion to be adopted
-      as canonical case state.
+      `StatusAdoptionGate` MUST default to requiring explicit Case Owner
+      authorization before a non-owner participant's PXA assertion is adopted as
+      canonical case state.
     rationale: >
       A permissive default (e.g., `AlwaysSucceed`) means any admitted
       participant — including a hostile or malfunctioning Observer admitted
       as a sentinel — can force PXA adoption and thereby trigger embargo
       teardown without any Case Owner confirmation. The default posture must
       be conservative; permissive behavior requires explicit opt-in. See ADR-0076.
+      Amended by ADR-0080: the conservative default stands, but the mechanism is
+      no longer an Evaluator that "waits for" a reply — see RSH-07-004.
     verification: >
-      Inspection of `StatusAuthorizationCallOutBundle` confirms
-      `status_adoption_gate_factory` defaults to `RequireCaseOwnerApproval`,
-      not `AlwaysSucceed`.
+      With the default bundle and a non-owner sender, no `Add(CaseStatus)` is
+      emitted until Case Owner authorization is recorded in the case ledger.
+    adr:
+    - ADR-0076
+    - ADR-0080
     lint_suppress:
     - missing_story_reference
   - id: RSH-07-002
     priority: MUST
     kind: protocol
     statement: >
-      The default backend for `EmbargoTeardownAuthorizationGate` MUST be
-      `RequireCaseOwnerApproval`. See also RSH-02-002.
+      `EmbargoTeardownAuthorizationGate` MUST default to requiring explicit Case
+      Owner authorization before embargo teardown side-effects execute. See also
+      RSH-02-002.
     rationale: >
       Belt-and-suspenders: both gates default conservatively. See RSH-02-002
-      rationale and ADR-0076 for full justification.
+      rationale and ADR-0076 for full justification. Amended by ADR-0080 for the
+      mechanism only; the conservative default is unchanged.
     verification: >
-      Inspection of `StatusAuthorizationCallOutBundle` confirms
-      `embargo_teardown_authorization_gate_factory` defaults to
-      `RequireCaseOwnerApproval`, not `AlwaysSucceed`.
+      With the default bundle, `ThreatTerminationBranchNode` does not execute until
+      Case Owner authorization is recorded in the case ledger.
+    adr:
+    - ADR-0076
+    - ADR-0080
+    lint_suppress:
+    - missing_story_reference
+  - id: RSH-07-004
+    priority: MUST
+    kind: protocol
+    statement: >
+      Each status authorization gate MUST be composed as a conversation-state
+      routing subtree per ASK-02-001, and MUST NOT be composed as a single-tick
+      Evaluator call-out that answers the authorization question inline.
+    rationale: >
+      At the moment authorization is first needed, no answer exists, so an
+      Evaluator asked "is this approved?" can only ever answer no. This is why
+      `RequireCaseOwnerApprovalNode` returns `FAILURE` unconditionally and why the
+      ADR-0046/ADR-0076 authorization model was unreachable by any pathway
+      (CONCERN-2812). The gate instead routes on whether authorization has been
+      recorded, refused, requested-and-outstanding, or never requested, emitting
+      the request and terminating in the last case.
+    verification: >
+      Inspection confirms each gate is a routing subtree whose branches cover
+      authorized, refused, outstanding, and not-yet-asked, and that no
+      `CallOutBackendFactory` returns an unconditional `FAILURE` node as the
+      conservative default.
+    adr:
+    - ADR-0080
+    lint_suppress:
+    - missing_story_reference
+  - id: RSH-07-005
+    priority: MUST_NOT
+    kind: protocol
+    statement: >
+      A status authorization gate MUST NOT be satisfied by relaxing its default to a
+      permissive backend in order to make a blocked path proceed.
+    rationale: >
+      `STATUS_AUTHORIZATION_PERMISSIVE` exists for trusted-participant and demo
+      deployments (RSH-07-003). Using it to work around an unreachable gate
+      converts a protocol guarantee into a configuration posture, which is the
+      defect CONCERN-2092 filed in the first place.
+    verification: >
+      The production default bundle is the conservative one, and permissive
+      injection sites are enumerated and documented.
+    adr:
+    - ADR-0076
+    - ADR-0080
     lint_suppress:
     - missing_story_reference
   - id: RSH-07-003

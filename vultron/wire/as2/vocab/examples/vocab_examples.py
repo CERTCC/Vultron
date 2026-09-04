@@ -61,6 +61,7 @@ from vultron.wire.as2.vocab.examples.case import (  # noqa: F401
     defer_case,
     engage_case,
     offer_case_ownership_transfer,
+    populated_case,
     reengage_case,
     reject_case_ownership_transfer,
     update_case,
@@ -89,10 +90,12 @@ from vultron.wire.as2.vocab.examples.participant import (  # noqa: F401
     case_participant,
     coordinator_participant,
     create_participant,
+    finder_participant,
     invite_to_case,
     reject_invite_to_case,
     remove_participant_from_case,
     rm_invite_to_case,
+    vendor_participant,
 )
 from vultron.wire.as2.vocab.examples.report import (  # noqa: F401
     close_report,

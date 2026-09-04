@@ -44,7 +44,9 @@ triggers/           (outbound message sent)
 The package root (`vultron/core/use_cases/`) contains only:
 
 - `__init__.py` — Package declaration
-- `use_case_map.py` — `USE_CASE_MAP`: authoritative `MessageSemantics` →
-  use-case class routing table
 - `_helpers.py` — Shared helper functions used across `received/` and
   `triggers/`
+
+The authoritative `MessageSemantics` → use-case class routing table is no
+longer in this package: it is derived from `SEMANTIC_REGISTRY` by
+`use_case_map()` in `vultron/semantic_registry/`.

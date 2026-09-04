@@ -12,7 +12,6 @@
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
 import random
-from typing import Any, cast
 from uuid import uuid4
 
 from vultron.wire.as2.vocab.base.base import as_Base
@@ -108,15 +107,42 @@ def case_actor() -> as_Service:
     return _CASE_ACTOR
 
 
-def case(random_id=False) -> as_VulnerabilityCase:
+_IDENTITY_KEYS = frozenset({"name", "id_", "attributed_to"})
+
+
+def case(random_id=False, **kwargs) -> as_VulnerabilityCase:
+    """The example case, optionally with extra fields populated.
+
+    With no arguments this returns the shared `_CASE` singleton, whose id every
+    other case-related example refers to. Any ``kwargs`` are applied on top of
+    that same identity — id, name and attributor are preserved, so a populated
+    case and the participants built against `case()` still agree on which case
+    they belong to. Pass ``random_id=True`` for a case with a fresh id instead.
+
+    ``kwargs`` must not include ``name``, ``id_``, or ``attributed_to`` — those
+    identity fields are always supplied by this helper and cannot be overridden.
+    Passing any of them raises ``ValueError``.
+    """
+    overlap = _IDENTITY_KEYS & kwargs.keys()
+    if overlap:
+        raise ValueError(
+            f"kwargs must not override identity fields: {sorted(overlap)!r}"
+        )
     if random_id:
         _case_number = random.randint(10000000, 99999999)
-        _case = as_VulnerabilityCase(
+        return as_VulnerabilityCase(
             name=f"{_VENDOR.name} Case #{_case_number}",
             id_=_make_id("VulnerabilityCase"),
             attributed_to=_VENDOR.id_,
+            **kwargs,
         )
-        return _case
+    if kwargs:
+        return as_VulnerabilityCase(
+            name=_CASE.name,
+            id_=_CASE.id_,
+            attributed_to=_CASE.attributed_to,
+            **kwargs,
+        )
     return _CASE
 
 
@@ -130,12 +156,34 @@ def gen_report() -> as_VulnerabilityReport:
 
 
 def _strip_published_udpated(obj: as_Base) -> as_Base:
-    # strip out published and updated timestamps if they are present
-    if hasattr(obj, "published"):
-        cast(Any, obj).published = None
-    if hasattr(obj, "updated"):
-        cast(Any, obj).updated = None
-    return obj
+    """Return a copy of *obj* with its ``published``/``updated`` timestamps cleared.
+
+    Both timestamps default to build time, so leaving them in would make every
+    rendered example churn on each docs build.
+
+    This returns a copy rather than clearing the timestamps in place, for two
+    independent reasons:
+
+    - Wire objects are frozen by design (`as_Object` sets ``frozen=True``,
+      ADR-0074): a wire artifact is evidence of what was sent or received, so
+      assignment raises rather than silently rewriting it.
+    - The examples are shared module-level singletons (`_REPORT`, `_CASE`,
+      the actors), and the example API router serves those same instances.
+      Clearing timestamps in place would strip them for every other consumer
+      too — the shared-singleton hazard of issue #1328.
+
+    Only the top-level object is stripped; timestamps on inline sub-objects are
+    left as they are, and so are fields *derived* from the timestamps —
+    `as_VulnerabilityCase.genesis_hash` is computed from ``published``
+    (CLP-08-003), so a stripped case renders a hash the reader cannot recompute.
+    """
+    fields = type(obj).model_fields
+    updates: dict[str, None] = {
+        name: None for name in ("published", "updated") if name in fields
+    }
+    if not updates:
+        return obj
+    return obj.model_copy(update=updates)
 
 
 def json2md(obj: as_Base) -> str:

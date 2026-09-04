@@ -269,7 +269,9 @@ class CreateLogEntryNode(DataLayerActionWithPorts):
     @classmethod
     def output_ports(cls) -> dict[str, PortInformation]:
         return {
-            "log_entry": PortInformation(data_type=object, required=True),
+            "log_entry": PortInformation(
+                data_type=VultronCaseLedgerEntry, required=True
+            ),
             "log_entry_preexisting": PortInformation(
                 data_type=object, required=True
             ),
@@ -355,7 +357,9 @@ class PersistLogEntryNode(DataLayerActionWithPorts):
     @classmethod
     def input_ports(cls) -> dict[str, PortInformation]:
         ports = super().input_ports()
-        ports["log_entry"] = PortInformation(data_type=object, required=True)
+        ports["log_entry"] = PortInformation(
+            data_type=VultronCaseLedgerEntry, required=True
+        )
         ports["log_entry_preexisting"] = PortInformation(
             data_type=bool, required=False
         )

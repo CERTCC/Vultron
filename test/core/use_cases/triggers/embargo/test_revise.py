@@ -128,7 +128,7 @@ def test_propose_embargo_revision_in_revise_state_succeeds(
     actor, dl = finder_actor_and_dl
 
     case = _build_active_embargo_case_with_case_manager(dl, actor.id_)
-    case.current_status.em_state = EM.REVISE
+    case.append_case_status(em_state=EM.REVISE)
     dl.save(case)
 
     participant_id = case.actor_participant_index[actor.id_]

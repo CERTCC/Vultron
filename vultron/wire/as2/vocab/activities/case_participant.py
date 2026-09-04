@@ -74,7 +74,7 @@ class _CreateParticipantActivity(as_Create):
             parts.extend(["in", str(self.context)])
 
         if parts:
-            self.name = " ".join(parts)
+            object.__setattr__(self, "name", " ".join(parts))
         return self
 
 

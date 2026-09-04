@@ -41,7 +41,6 @@ from vultron.core.behaviors.helpers import (
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.embargo_event import EmbargoEvent
 from vultron.core.models.enums import VultronObjectType
-from vultron.core.models.case import VulnerabilityCase
 from vultron.core.ports.case_persistence import CasePersistence
 from vultron.core.services.embargo_lifecycle import (
     EmbargoLifecycle,
@@ -233,8 +232,8 @@ class AdvanceEMStateToActiveNode(DataLayerActionWithPorts):
             )
             return Status.FAILURE
 
-        stored_case = self.datalayer.read(case_id, raise_on_missing=False)
-        if not isinstance(stored_case, VulnerabilityCase):
+        stored_case = self.datalayer.read_case(case_id, raise_on_missing=False)
+        if stored_case is None:
             self.logger.error(
                 "%s: Case %s not found in DataLayer", self.name, case_id
             )
@@ -335,8 +334,8 @@ class AttachEmbargoToCaseNode(DataLayerActionWithPorts):
         case_id = self.bb_case_id
         embargo_id = self.bb_default_embargo_id
 
-        stored_case = self.datalayer.read(case_id, raise_on_missing=False)
-        if not isinstance(stored_case, VulnerabilityCase):
+        stored_case = self.datalayer.read_case(case_id, raise_on_missing=False)
+        if stored_case is None:
             self.logger.error(
                 "%s: Case %s not found in DataLayer", self.name, case_id
             )
@@ -420,8 +419,8 @@ class SeedOwnerAsSignatoryNode(DataLayerActionWithPorts):
         if embargo_initialized is False:
             return Status.SUCCESS
 
-        stored_case = self.datalayer.read(case_id, raise_on_missing=False)
-        if not isinstance(stored_case, VulnerabilityCase):
+        stored_case = self.datalayer.read_case(case_id, raise_on_missing=False)
+        if stored_case is None:
             self.logger.error(
                 "%s: Case %s not found in DataLayer", self.name, case_id
             )

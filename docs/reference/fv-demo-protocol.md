@@ -334,7 +334,7 @@ POST /api/v2/actors/{vendor_id}/demo/notify-fix-deployed
   "to": ["http://vendor:7999/api/v2/actors/{ca-uuid}"],
   "object": {
     "type": "ParticipantStatus",
-    "vfd_state": "VFd",
+    "vf_state": "Vf",
     "attributed_to": "http://vendor:7999/api/v2/actors/vendor"
   },
   "target": {
@@ -539,7 +539,7 @@ simulation — it is a live protocol run.
 | `vultron/adapters/driving/fastapi/routers/actors.py` | Inbox endpoint |
 | `vultron/wire/as2/extractor.py` | Activity pattern matching (AS2 → MessageSemantics) |
 | `vultron/core/dispatcher.py` | Message routing (MessageSemantics → use case) |
-| `vultron/semantic_registry/` | Use-case registry (`USE_CASE_MAP`) |
+| `vultron/semantic_registry/` | Semantic dispatch registry (`SEMANTIC_REGISTRY`, `use_case_map()`) |
 | `docker/docker-compose-multi-actor.yml` | Multi-container topology |
 | `docker/seed-configs/` | Per-container actor seed configurations |
 

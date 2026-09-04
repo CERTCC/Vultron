@@ -177,8 +177,15 @@ analytical model, which is genuinely useful and genuinely non-normative.
   making the legacy module useful precisely as long as it is still present.
 - Neutral: two implementations of the same rules coexist. Acceptable because one
   is explicitly non-normative and the tests pin them together.
-- Neutral: `cs_invariants.py` is a library, not an enforcement point. Wiring it
-  into emit/BT paths is #2236's job; nothing calls it on the protocol path yet.
+- Good: `cs_invariants.py` is now wired into both BT write paths and the CS
+  receive path. Write-path enforcement (#2479): `CreateParticipantStatusNode`
+  enforces AC-3 compound-transition validation (`is_valid_cs_transition`) and
+  AC-1 ephemeral-state promotion (`pXa→PXa`, `pXA→PXA`, `vP→VP`);
+  `AppendCaseStatusToCaseNode` and `EmitCaseStatusUpdateNode` enforce AC-1
+  promotion for `CaseStatus` writes. Receive-path enforcement (#2524, PR #2888):
+  `CheckCsEphemeralStateNode` and `CheckCsHistoryPrefixNode` wired as
+  precondition guards in `add_case_status_tree`. Broader emit/BT enforcement
+  (RM/EM × CS cross-machine rules) remains #2236's job.
 - Bad: the retirement of `case_states/` is now a recorded intention with two
   named prerequisites rather than a completed act, so it can still rot if those
   prerequisites are not tracked.

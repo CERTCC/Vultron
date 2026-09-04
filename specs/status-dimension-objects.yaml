@@ -168,38 +168,53 @@ groups:
     priority: MUST
     kind: project
     statement: Because unknown keys are ignored by default in Pydantic v2, removing a flat-field migration shim from `CaseStatus`
-      or `ParticipantStatus` MUST be accompanied by a `model_validator(mode="before")` that raises `VultronValidationError`
-      when a retired flat key (`rm_state`/`rmState`, `vfd_state`/`vfdState`, `em_consent_state`/`emConsentState`, `em_state`/`emState`,
-      `pxa_state`/`pxaState`) is present. Deleting the shim without such a guard is prohibited.
+      or `ParticipantStatus` MUST NOT leave a retired flat key (`rm_state`/`rmState`, `vfd_state`/`vfdState`, `em_consent_state`/`emConsentState`,
+      `em_state`/`emState`, `pxa_state`/`pxaState`) silently discardable. The guarantee MUST be the `extra="forbid"` model
+      configuration that ARCH-12-003 requires of every core-branch type, not a per-class `model_validator(mode="before")`
+      reject-guard; such a guard MUST NOT be added or retained for this purpose.
     rationale: 'With `extra="ignore"`, a flat `rm_state` key would be silently discarded and `rm.state` would default to `RM.START`
       — a whole RM ladder lost with no error, which is the defect class of issue #2232 and a violation of ARCH-15-001/ARCH-15-002.
-      The guard converts the loss into a loud failure that `DataLayer._from_row` already catches and recovers via the wire→core
-      projection path (ADR-0062).'
-    verification: '`ParticipantStatus.model_validate({"rm_state": "RECEIVED"})` and the camelCase equivalent both raise `VultronValidationError`;
-      neither yields a model whose `rm.state` is `RM.START`.'
+      `extra="forbid"` is strictly stronger than a reject-guard enumerating the known flat keys: it also catches typos and
+      stale keys from an older schema, needs no per-class maintenance, and covers every registered core type rather than the
+      two named here. Because Pydantic itself raises, the failure surfaces as a pydantic `ValidationError` rather than
+      `VultronValidationError`, and no wire→core recovery is attempted (ADR-0082 supersedes the ADR-0062 backstop).'
+    verification: '`ParticipantStatus.model_validate({"rm_state": "RECEIVED"})` and the camelCase equivalent both raise pydantic
+      `ValidationError`; neither yields a model whose `rm.state` is `RM.START`. No `CaseStatus` or `ParticipantStatus` class
+      declares a `model_validator(mode="before")` reject-guard for those keys.'
     relationships:
     - rel_type: depends_on
       spec_id: SDO-03-003
       note: SDO-03-003 requires the shims to go; this requirement constrains how they are removed safely.
+    - rel_type: depends_on
+      spec_id: ARCH-12-003
+      note: ARCH-12-003 supplies the `extra="forbid"` configuration that replaces the per-class reject-guard.
     - rel_type: refines
       spec_id: ARCH-15-002
     adr:
     - ADR-0062
     - ADR-0063
+    - ADR-0082
 - id: SDO-04
   title: Wire Projection and Migration Scope
   specs:
   - id: SDO-04-001
     priority: MUST
     kind: protocol
-    statement: The wire-layer projections as_CaseStatus and as_ParticipantStatus MUST be updated in the same implementation
-      as the core model changes so that from_core() and to_core() correctly handle the new dimension-object field shape.
+    statement: The wire-layer shapes as_CaseStatus and as_ParticipantStatus, and the adapter-side translators that pair them
+      with their core counterparts, MUST be updated in the same implementation as the core model changes so that translation
+      in both directions correctly handles the dimension-object field shape.
     rationale: Deferring wire changes creates an extended period of core/wire divergence requiring shim adapters. Both layers
-      are in scope per ADR-0036.
-    verification: Inspection of `vultron/wire/as2/` confirms `as_CaseStatus.from_core()` and `as_ParticipantStatus.from_core()`
-      correctly project the new dimension-object field shape without accessing flat enum fields.
+      are in scope per ADR-0036, and per ADR-0082 the translation itself is a third artifact on the adapter side that must
+      move with them.
+    verification: Inspection confirms the adapter-side `CaseStatus` and `ParticipantStatus` translators project the dimension-object
+      field shape in both directions without accessing flat enum fields.
+    relationships:
+    - rel_type: depends_on
+      spec_id: ARCH-12-005
+      note: ARCH-12-005 locates the translation on the adapter side rather than as methods on the wire classes.
     adr:
     - ADR-0036
+    - ADR-0082
     stories:
     - story_2022_062
     - story_2022_088

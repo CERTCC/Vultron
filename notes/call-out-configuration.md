@@ -8,10 +8,14 @@ description: >
   planning session for issue #1631.
 related_specs:
   - specs/behavior-tree-integration.yaml
+  - specs/received-status-handling.yaml
+  - specs/em-behavior.yaml
 related_notes:
   - notes/coordination-agents.md
   - notes/bt-fuzzer-nodes.md
   - notes/configuration.md
+  - notes/received-status-authorization.md
+  - notes/embargo-lifecycle.md
 relevant_packages:
   - vultron/core/behaviors
   - vultron/demo/fuzzer
@@ -82,6 +86,104 @@ Currently there are four `p=0.5` nodes (all default to `AlwaysSucceed`):
 | `WantToProposeEmbargo` | Embargo | Happy path = want to propose |
 | `AllPartiesKnown` | Reporting to others | Happy path = all parties identified |
 | `NotificationsComplete` | Reporting to others | Happy path = notifications done |
+
+---
+
+## Security-Significant Gate Audit (#2676)
+
+ADR-0076 flipped the two named status gates to a conservative default and
+declared a project-wide exception to the ceiling/floor rule (now generalized
+as a normative rule in **BT-23-012**). Issue #2676 audited **every**
+`CallOutBackendFactory` field across all bundles under
+`vultron/core/behaviors/call_out/bundles/` against that exception's criterion:
+
+> A gate qualifies as **security-significant** when its permissive backend
+> would let a party **other than the Case Owner** *unilaterally* cause
+> **canonical case-state adoption** or **embargo teardown** on the **received
+> side** — not merely operational inconvenience.
+
+### Qualifying gates (default conservative)
+
+Exactly two, both received-side, both already flipped under ADR-0076
+(delivered by #2092) — no further change:
+
+| Gate | Bundle field | Default |
+|---|---|---|
+| `StatusAdoptionGate` (`CaseOwnerApprovesStatusUpdate`) | `status_adoption_gate_factory` | `RequireCaseOwnerApprovalNode` (RSH-07-001) |
+| `EmbargoTeardownAuthorizationGate` | `embargo_teardown_authorization_gate_factory` | `RequireCaseOwnerApprovalNode` (RSH-07-002) |
+
+`STATUS_AUTHORIZATION_PERMISSIVE` is the explicit opt-in override; the FastAPI
+inbox adapter wires it for the two inbound status semantics
+(`vultron/adapters/driving/fastapi/inbox_port_factories.py`), making the
+trusted-deployment posture visible in code (RSH-07-003).
+
+> **Mechanism vs. posture (ADR-0080 / RSH-07-004).** The tables and guard in
+> this audit classify the conservative-default *posture* — which of these gates
+> must default to the floor rather than to a p-driven permissive backend. That
+> posture is settled and unchanged. The *mechanism* that currently implements it
+> for the two status gates — `RequireCaseOwnerApprovalNode`, an interim blocking
+> stub that returns `FAILURE` unconditionally (`nodes.py`, self-described as
+> such) — is **superseded** by RSH-07-004 (ADR-0080, CONCERN-2812), which found
+> the ADR-0046/ADR-0076 Evaluator model unreachable at the moment authorization
+> is first needed and mandates a conversation-state *routing subtree* instead.
+> RSH-07-004's verification explicitly requires that "no `CallOutBackendFactory`
+> returns an unconditional `FAILURE` node as the conservative default." So when
+> the routing subtree lands, the qualifying-gate rows above stay in this table
+> (they remain security-significant), but the `Default` mechanism changes and
+> the guard's `test_status_gates_conservative_default_blocks` assertion must be
+> revised to check the security *property* rather than the `FAILURE` tick. This
+> audit deliberately did not implement RSH-07-004 (a separate, larger change);
+> it only pins the current interim reality.
+
+### Look-alike gates that do NOT qualify (default stays permissive)
+
+Two embargo gates share surface structure with the qualifying set but fail the
+criterion. They are called out here because a future reader auditing for
+`AlwaysSucceed` on an authorization-flavored gate will find them and must not
+"harden" them:
+
+- **`CaseOwnerApprovesEmbargoResponse`** (`case_owner_approves_embargo_response_factory`,
+  `embargo/response_decision_tree.py`) — received-side, and carries the same
+  `CheckIsCaseOwner` gospel-bypass as `StatusAdoptionGate`. But its permissive
+  default is *accept-by-default*, which **EMB-15-001 (MUST) requires**, and
+  entering/maintaining an embargo is the **protective** direction — the
+  opposite of the teardown/premature-disclosure threat ADR-0076 addresses.
+  Flipping it to a blocking default would both violate EMB-15-001 and route
+  non-owners to the reject arm, *reducing* embargo protection. Not
+  security-significant.
+- **`EmbargoExitPolicyGuard`** (`embargo_exit_policy_guard_factory`,
+  `embargo/terminate_active_embargo_tree.py`) — its permissive default does
+  authorize embargo *exit* (the teardown direction), but this is a
+  **trigger-side** seam: the actor's own voluntary exit of an embargo it is a
+  party to (self-authorized), not a channel a remote non-owner controls. It is
+  gated behind a fail-closed reason Selector (all three
+  `exit_embargo_*` reason factories default `AlwaysFail`), so the tree makes no
+  forward progress by default, and EMB-14-002 frames the guard as an optional
+  policy veto ("MAY veto"). Flipping it to a blocking default would kill EMB-14's
+  legitimate voluntary-exit path. Not security-significant. (The received-side
+  teardown path *is* covered — by `EmbargoTeardownAuthorizationGate`, above.)
+
+### Remaining gates
+
+Every other bundle field (report validation, prioritization, CVE/vulnerability
+ID assignment, exploit acquisition, fix/mitigation deployment and monitoring,
+report closure, publication, actor discovery, and the remaining embargo
+proposal/response evaluators) is a **local operational decision** — the actor's
+own triage, data retrieval, or content production — with no mechanism to impose
+canonical case state or an embargo consequence on another party. The
+ceiling/floor rule (BT-23-002/006/007) governs them.
+
+### Outcome
+
+No additional gates require flipping. The audit's normative product is the
+generalized rule **BT-23-012** (so the criterion binds future gate authors);
+its durable analysis is this section; its regression guard is
+`test/core/behaviors/call_out/test_security_significant_defaults.py`. ADR-0025's
+security-significant exception (and ADR-0076) already stand and needed no change
+(#2676 AC-5's "if additional gates are found" condition was not triggered). The
+conservative-default *posture* recorded here is unaffected by ADR-0080 —
+RSH-07-004 amends only the *mechanism* for the two status gates (see the
+mechanism-vs-posture note above).
 
 ---
 
@@ -430,3 +532,21 @@ The simulation controller drives each iteration forward by:
 A tick-count-only limit was rejected because many use-case BTs only activate
 on incoming activities; "ticks" have no direct meaning in the event-driven
 prototype. Progress is measured by RM state advancement across actors.
+
+## Capabilities Grounded in External Versioned Standards Are One Call-Out Unit
+
+When a BT capability is grounded in an external, independently-versioned
+specification (e.g. CNA Operational Rules), treat the full capability as a
+single Evaluator call-out point rather than exposing each criterion as a
+separate call-out. The correct substitution unit is the whole capability
+(replace the evaluator for the new rules edition), not individual criteria.
+Modeling it as N individual call-out points misrepresents the update boundary
+and makes adoption of a new rules edition require N separate factory changes
+instead of one. See BTND-05-007, ADR-0071.
+
+Source: CONCERN-2108
+
+## Automation Potential and Call-Out Point Shape Are Orthogonal
+
+Assign shape using the ADR-0024 seam-structure decision tree only — not by how
+automatable the step looks. See BT-18-005, BT-18-006.

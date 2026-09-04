@@ -4,9 +4,14 @@ status: active
 description: "CVD case state model: six binary dimensions (RM/EM/CS), CaseStatus append-only history, and canonical CaseLedgerEntry history."
 related_specs:
   - specs/case-management.yaml
+  - specs/cs-behavior.yaml
+  - specs/received-status-handling.yaml
 related_notes:
   - notes/activitystreams-semantics.md
+  - notes/message-type-reference.md
   - notes/protocol-event-cascades.md
+  - notes/received-status-authorization.md
+  - notes/domain-validation.md
 relevant_packages:
   - transitions
   - vultron/bt/embargo_management
@@ -118,7 +123,7 @@ verdicts split between *still valid* and *superseded by structure*.
 
 | Legacy rule (`validations.py`) | Verdict | Current expression |
 |---|---|---|
-| `is_valid_state`: `vF` / `fD` impossible → 32 states | Still valid, **structural** | `CS_vfd` has 4 members, so the combinations are unrepresentable. Ratchet test, not a runtime predicate. CSB-17-001 |
+| `is_valid_state`: `vF` / `fD` impossible → 32 states | Still valid, **structural and runtime** | After ADR-0075 split VFD into separate `CS_vf`/`CS_d` types, `*fD*` is no longer structurally unrepresentable. Runtime enforcement is via `composite_state_violations()` (`composite_state_invariants.py`), which composes `violation_vf_d_entailment()` with the two RM rules. The received path (`_adjudicate_dimensions`) and the replica-apply path (`ApplyParticipantStatusFromLedgerNode`, RSH-05-021) call it directly; since ADR-0086 the emit path reaches it as one member of the wider `participant_transition_violations()` rule set, which both `ValidateTriggerTransitionsNode` and `CreateParticipantStatusNode` call. Ratchet tests forbid any of them from calling the individual predicates. See [notes/received-status-authorization.md](received-status-authorization.md) § "Independent adjudication cannot see a combination". CSB-17-001, RSH-05-020 |
 | `is_valid_transition`: Hamming distance 1 | Still valid | `cs_transition_event()`, CSB-17-002 |
 | `is_valid_transition`: monotone, same dimension | Still valid | Delegated to `is_valid_vfd_transition` / `is_valid_pxa_transition`; compound check in `is_valid_cs_transition()`, CSB-17-002 |
 | `TRANSITION_RULES`: `...pX. → ...PX.` | Still valid | `required_next_cs_events()`; generalises CSB-13-001 from the entry cascade to every `pX` successor. CSB-17-003 |
@@ -158,8 +163,12 @@ deliberately deferred and gated on two migrations:
    `case_states.patterns.potential_actions` — which is also the live
    `actors_get_action_rules` endpoint's only source.
 
-Note that `cs_invariants.py` is a **library, not an enforcement point**. Wiring
-it into the emit / BT paths is issue #2236's scope.
+As of PR #2479, `cs_invariants.py` is wired into the BT write paths:
+`is_valid_cs_transition` (AC-3 / SM-09-002) is enforced in
+`CreateParticipantStatusNode`, and pX→PX / vP→VP promotion (AC-1 / SM-09-001)
+is enforced in `CreateParticipantStatusNode`, `AppendCaseStatusToCaseNode`, and
+`EmitCaseStatusUpdateNode`. Receive-path history validation
+(`is_valid_cs_history`) remains unwired — see #2524.
 
 ---
 
@@ -253,10 +262,14 @@ Participant-Agnostic: EM ↔ CS_pxa
 Participant-Specific: RM ↔ CS_vf (vendor path) + CS_d (deployer path)
 ```
 
-The vendor and deployer paths are **structurally separated**: `ParticipantStatus.vf`
-is `None` for non-VENDOR participants, and `ParticipantStatus.d` is `None` for
-non-DEPLOYER participants. A `model_validator` on `ParticipantStatus` enforces both
-directions of this invariant at construction time and raises on violation.
+The vendor and deployer paths are **structurally separated** into two
+independently nullable fields: `ParticipantStatus.vf` carries the vendor path
+and `ParticipantStatus.d` the deployer path. A `model_validator` on
+`ParticipantStatus` (`_enforce_role_dimension_invariant`, `mode="before"`)
+*auto-seeds* the applicable dimension for a VENDOR or DEPLOYER role, so a
+role-consistent object is produced by construction. It does **not**, however,
+raise on a stray dimension — role *authorization* is enforced at the guard
+layer, not at construction (see [Role-Specific VFD Access](#role-specific-vfd-access)).
 
 ### Implementation: CaseStatus vs. ParticipantStatus
 
@@ -273,9 +286,9 @@ The canonical Python implementation is in
 
 - `rm: RmDimension` — Report management state (default `RM.START`)
 - `vf: VfDimension | None` — Vendor-path sub-state (`CS_vf`: `vf` → `Vf` → `VF`);
-  `None` for non-VENDOR participants (structurally enforced)
+  auto-seeded for VENDOR participants, `None` by default otherwise
 - `d: DDimension | None` — Deployer-path sub-state (`CS_d`: `d` → `D`);
-  `None` for non-DEPLOYER participants (structurally enforced)
+  auto-seeded for DEPLOYER participants, `None` by default otherwise
 - `actor` — references the participant Actor
 - `context` — references the `VulnerabilityCase`
 - `case_engagement: bool` — whether participant is engaged
@@ -289,23 +302,46 @@ participant state tuple `(q^rm, q^em, q^cs)`.
 
 ### Role-Specific VFD Access
 
-The `vf` and `d` fields are structurally assigned by participant role. The
-`model_validator` on `ParticipantStatus` enforces both directions:
+The `vf` and `d` fields are auto-seeded by participant role. The
+`model_validator` on `ParticipantStatus` (`_enforce_role_dimension_invariant`,
+`mode="before"`) seeds the applicable dimension when the corresponding role is
+present and the dimension is absent:
 
-| Role(s) | `vf` | `d` |
+| Role(s) | `vf` (auto-seeded default) | `d` (auto-seeded default) |
 |---------|------|-----|
-| VENDOR only | `VfDimension()` (non-None, required) | `None` (required) |
-| DEPLOYER only | `None` (required) | `DDimension()` (non-None, required) |
-| VENDOR + DEPLOYER | `VfDimension()` (non-None, required) | `DDimension()` (non-None, required) |
-| Finder / Reporter / Coordinator / Observer | `None` (required) | `None` (required) |
+| VENDOR only | `VfDimension()` (non-None) | `None` |
+| DEPLOYER only | `None` | `DDimension()` (non-None) |
+| VENDOR + DEPLOYER | `VfDimension()` (non-None) | `DDimension()` (non-None) |
+| Finder / Reporter / Coordinator / Observer | `None` | `None` |
 
-Attempting to construct a `ParticipantStatus` that violates this invariant
-raises `VultronValidationError` immediately — it is never silently corrected.
+The seeding covers the common case (a role-consistent status is produced
+automatically), but the model **does not enforce the reverse direction**: it
+will *not* raise if a caller explicitly attaches a `vf` to a non-VENDOR status
+or a `d` to a non-DEPLOYER status. Role *authorization* is enforced at the
+guard layer, against the acting participant's **authoritative** `case_roles`,
+on both write paths:
+
+- **Trigger / emit path** (fail-closed — the whole write is refused):
+  `ValidateTriggerTransitionsNode._check_vf_role` and the
+  `CheckVendorRoleNode` / `CheckDeployerRoleNode` / `CheckNotSoleObserverVfdNode`
+  guards on the add-participant-status trigger tree (BTND-10-001, CSB-15-001,
+  CSB-15-002, CM-25-005).
+- **Receive path** (partial-accept — only the offending dimension is refused
+  and the current value carried forward): `_adjudicate_vf` / `_adjudicate_d`
+  in `vultron/core/behaviors/status/nodes/_adjudication.py` (RSH-05-001/002).
+
+This split is deliberate. The wire→core extractor
+(`vultron/wire/as2/extractor/_builders.py`) builds a `ParticipantStatus` from
+the sender's *untrusted, self-reported* `cvd_role`. A construction-time raise
+would fire inside that boundary and turn the receive path's per-dimension
+partial-accept into whole-object rejection — breaking the emit/receive Postel
+asymmetry documented in `notes/domain-validation.md` (do not "reconcile" the
+two paths). See issue #2860 and [ADR-0075](../docs/adr/0075-split-vfd-state-machine.md).
 
 The previous single-field `vfd: VfdDimension` (using `CS_vfd` with 4 states
 `vfd → Vfd → VFd → VFD`) is replaced by these two nullable fields. The old
 `CS_vfd.vfd` "null element" workaround for non-applicable participants is
-superseded by structural `None`.
+superseded by the two independently nullable fields (`None` = path absent).
 
 ### Consequence for Handler Implementation
 
@@ -327,6 +363,28 @@ When handlers process incoming Activities:
 Getting this wrong — e.g., updating `CaseStatus.em_state` with a
 participant-specific value, or forgetting to scope RM updates to the correct
 participant — would produce incorrect case state representations.
+
+### CSB-15-004 Causal Gate: DEPLOYER-only d→D
+
+A DEPLOYER-only participant (holds `CVDRole.DEPLOYER`, `vf=None`) may advance
+`d.state` from `CS_d.d` to `CS_d.D` only when at least one VENDOR participant
+in the same case has `vf.state=CS_vf.VF` (fix-ready). This causal gate prevents
+a deployer from recording fix deployment before any vendor has produced a fix.
+
+**Planned implementation** (CSB-15-004, pending #3109):
+
+- **Predicate**: `some_vendor_at_vf(participants: list[CaseParticipant]) -> bool`
+  in `vultron/core/predicates/participants.py`. Pure function; no I/O.
+- **BT node**: `CheckSomeVendorAtVFNode` in
+  `vultron/core/behaviors/case/nodes/vfd_role_guards.py`. Reads all case
+  participants from the DataLayer and delegates to the predicate.
+- **BT wiring**: in `add_participant_status_trigger_tree.py`, when `d_state`
+  is non-None the sequence is `CheckDeployerRoleNode` (role check) →
+  `CheckSomeVendorAtVFNode` (causal precondition) → `ValidateTriggerTransitionsNode`
+  → `CreateParticipantStatusNode` → emit.
+
+The gate is generic — "some vendor at VF" — because per-deployer/per-vendor
+dependency tracking is intentionally out of scope (Concern #2665).
 
 ### OPP-06 — Future VFD/PXA transition handling
 
@@ -695,3 +753,46 @@ call is an alternative to fixed heuristics.
 **See**: `specs/agentic-readiness.yaml` and `specs/case-management.yaml` for
 the CVD action rules; `notes/bt-fuzzer-nodes.md` for related external
 touchpoints.
+
+---
+
+## CS Representation: Keep the Compound Enum (do not introduce `CaseState(BaseModel)`)
+
+**Decision (CONCERN-2099, planning group G06 / #2834):** The case-state
+representation stays as it is. The top-level `CS` enum in
+`vultron/core/states/cs.py` is already composed from the two sub-machine enums —
+it is `CompoundState(CS_vfd, CS_pxa)` yielding the 32 reachable states — which is
+exactly the decomposition the long-standing `# TODO consider replacing this with
+a combination of VfdState and PxaState / either directly or just creating
+CaseState(BaseModel)` comment contemplated. That TODO is now **resolved by the
+code that already exists**, and the resolution is "keep the compound enum," so
+the stale TODO is to be retired (tracked as a small follow-on Task under
+Epic #2684).
+
+Why not a `CaseState(BaseModel)` structured model:
+
+- New `vultron/core/` protocol code already consumes the **split** sub-machine
+  enums directly (`CS_vfd` / `CS_pxa`, and the ADR-0075 per-participant `CS_vf` /
+  `CS_d`). It does not reach for the monolithic `CS`.
+- The monolithic 32-member `CS` enum is retained mainly for the legacy
+  `vultron/bt/` simulator, which indexes states as compound labels. Replacing it
+  with a Pydantic model would churn the legacy simulator for no core benefit.
+- Structured, per-dimension decomposition of live status already exists via the
+  **ADR-0036 dimension objects** on `CaseStatus` / `ParticipantStatus`. A second
+  structured representation (`CaseState(BaseModel)`) would duplicate that surface
+  and create a divergence risk with no consumer that needs it.
+
+**Companion verdict (CONCERN-1912):** explicit transition constructors are **not**
+adopted; the field-mutation write path is retained. ADR-0033 already rejected
+transition constructors as a second write path and set the bar for reopening the
+question — the migration audit must show the field-mutation path is error-prone in
+practice (concretely, ≥2 distinct field-mutation error classes at promotion
+sites). The staged types now exist (`vultron/core/models/staged_case.py`:
+`IncomingReport` / `Case` / `EmbargoedCase`), so the migration is substantially
+real, but no such error evidence has surfaced. The ADR-0033 reopen precondition is
+therefore unmet and #1912 resolves to "no change." See
+`notes/lifecycle-staged-types.md`.
+
+**See**: `docs/adr/0033-lifecycle-staged-case-types.md`,
+`docs/adr/0036-status-dimension-objects.md`,
+`docs/adr/0075-split-vfd-state-machine.md`; `vultron/core/states/cs.py`.

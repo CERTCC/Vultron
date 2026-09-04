@@ -12,8 +12,7 @@ inbound ActivityStreams activity:
 - ``include_activity`` — whether to populate ``VultronEvent.activity``
   during extraction (replaces the old ``_ACTIVITY_SEMANTICS`` set)
 
-Ordering of entries in ``SEMANTIC_REGISTRY`` matches the previously-defined
-``SEMANTICS_ACTIVITY_PATTERNS`` ordering — more specific patterns before
+Entries in ``SEMANTIC_REGISTRY`` are ordered more specific patterns before
 general ones, ``UNKNOWN`` last.
 
 This package is a neutral layer importable by wire, core, adapter, and test
@@ -59,6 +58,7 @@ Public API
 from itertools import combinations
 from typing import Any
 
+from vultron.core.models.events import AnyReceivedEvent
 from vultron.core.models.events.base import MessageSemantics, VultronEvent
 from vultron.errors import RegistryOrderError
 from vultron.semantic_registry._entry import SemanticEntry
@@ -68,6 +68,7 @@ from . import (
     case,
     case_participant,
     embargo,
+    fault,
     note,
     report,
     status,
@@ -219,6 +220,7 @@ SEMANTIC_REGISTRY: list[SemanticEntry] = (
     + case_participant.ENTRIES
     + note.ENTRIES
     + status.ENTRIES
+    + fault.ENTRIES
     + unknown.ENTRIES  # MUST be last — catch-all sentinels
 )
 
@@ -269,8 +271,8 @@ __all__ = [
 
 def extract_event(
     activity: as_Activity,
-) -> VultronEvent:
-    """Extract a typed ``VultronEvent`` from an AS2 activity.
+) -> AnyReceivedEvent:
+    """Extract a typed ``AnyReceivedEvent`` from an AS2 activity.
 
     This is the public entry point for the inbound activity pipeline.  It
     combines pattern matching (``find_matching_semantics``) with field
@@ -282,6 +284,13 @@ def extract_event(
 
     Returns:
         A concrete ``VultronEvent`` subclass populated with domain fields.
+
+    Note:
+        This wrapper always uses the 72 h default ``min_rsvp_window`` when
+        clamping inbound ``Invite.end_time`` values (EP-07-003).  Callers
+        that need actor-configured floor enforcement must call
+        ``extract_intent()`` directly and pass
+        ``min_rsvp_window=actor_config.min_rsvp_window``.
     """
     semantics = find_matching_semantics(activity)
     entry = lookup_entry(semantics)
@@ -296,8 +305,7 @@ def extract_event(
 def use_case_map() -> dict[MessageSemantics, type]:
     """Return a mapping of ``MessageSemantics`` → use-case class.
 
-    Equivalent to the old ``USE_CASE_MAP`` dict.  Used by the dispatcher
-    initializer to build its routing table.
+    Used by the dispatcher initializer to build its routing table.
     """
     return {e.semantics: e.use_case_class for e in SEMANTIC_REGISTRY}
 

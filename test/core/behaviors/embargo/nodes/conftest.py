@@ -13,16 +13,13 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-"""Shared fixtures for test/core/behaviors/embargo/nodes tests.
-
-Imports as_VulnerabilityCase as a side effect to populate the global vocabulary
-registry before any test in this package runs.
-"""
+"""Shared fixtures for test/core/behaviors/embargo/nodes tests."""
 
 import py_trees
 import pytest
 
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+from vultron.core.models.case import VulnerabilityCase
 from vultron.core.states.em import EM
 from vultron.enums.roles import CVDRole
 from vultron.wire.as2.vocab.objects.case_participant import as_CaseParticipant
@@ -41,15 +38,15 @@ def make_case_and_embargo(
     case_suffix: str,
     em_state: EM = EM.ACTIVE,
     attributed_to: str = CASE_MANAGER_ACTOR,
-) -> tuple[as_VulnerabilityCase, as_EmbargoEvent]:
-    """Create an in-memory as_VulnerabilityCase + as_EmbargoEvent pair.
+) -> tuple[VulnerabilityCase, as_EmbargoEvent]:
+    """Create an in-memory VulnerabilityCase + as_EmbargoEvent pair.
 
     ``attributed_to`` is required for any tree that commits to the canonical
     ledger: the per-case genesis hash is derived from it (CLP-08-001/002), and
     without one ``ReconstructChainTailNode`` cannot anchor an empty chain and the
     commit fails with "per-case genesis hash is unavailable".
     """
-    case = as_VulnerabilityCase(
+    case = VulnerabilityCase(
         id_=f"https://example.org/cases/case_{case_suffix}",
         name=f"Test Case {case_suffix}",
         attributed_to=attributed_to,
@@ -59,7 +56,7 @@ def make_case_and_embargo(
         context=case.id_,
     )
     case.active_embargo = embargo.id_
-    case.current_status.em_state = em_state
+    case.append_case_status(em_state=em_state)
     return case, embargo
 
 
@@ -68,7 +65,7 @@ def make_case_with_manager(
     em_state: EM = EM.ACTIVE,
     case_manager_actor: str = CASE_MANAGER_ACTOR,
     other_participants: tuple[str, ...] = (OTHER_PARTICIPANT_ACTOR,),
-) -> tuple[as_VulnerabilityCase, as_CaseParticipant, SqliteDataLayer]:
+) -> tuple[VulnerabilityCase, as_CaseParticipant, SqliteDataLayer]:
     """Return a DataLayer with a case, a CASE_MANAGER, and other participants.
 
     The case gets at least one participant besides the manager by default,

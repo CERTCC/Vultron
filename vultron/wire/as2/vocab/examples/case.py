@@ -12,7 +12,6 @@
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
 from vultron.wire.as2.vocab.base.objects.activities.transitive import (
-    as_Undo,
     as_Accept,
     as_Add,
     as_Create,
@@ -31,7 +30,14 @@ from vultron.wire.as2.vocab.examples._base import (
     gen_report,
     vendor,
 )
+from vultron.wire.as2.vocab.examples.participant import (
+    finder_participant,
+    vendor_participant,
+)
 from vultron.wire.as2.vocab.objects.case_participant import as_CaseParticipant
+from vultron.wire.as2.vocab.objects.vulnerability_case import (
+    as_VulnerabilityCase,
+)
 from vultron.enums.roles import CVDRole
 from vultron.wire.as2.factories import (
     accept_case_ownership_transfer_activity,
@@ -47,15 +53,16 @@ from vultron.wire.as2.factories import (
 
 
 def create_case() -> as_Create:
-    _case = case(random_id=True)
-    _case.add_report(_REPORT.id_)
     participant = as_CaseParticipant(
         case_roles=[CVDRole.VENDOR],
         attributed_to=_VENDOR.id_,
         name=_VENDOR.name,
-        context=_case.id_,
     )
-    _case.add_participant(participant)
+    _case = case(
+        random_id=True,
+        vulnerability_reports=[_REPORT.id_],
+        case_participants=[participant],
+    )
 
     activity = create_case_activity(
         _case,
@@ -64,6 +71,25 @@ def create_case() -> as_Create:
         context=_REPORT.id_,
     )
     return activity
+
+
+def populated_case() -> as_VulnerabilityCase:
+    """A case object carrying its report and its finder and vendor participants.
+
+    Most example functions return an activity. This one returns the case
+    *object* itself, so the documentation can show what a case looks like once
+    a report has been filed and the finder and vendor have joined.
+
+    It keeps the shared `case()` id rather than minting a fresh one, because the
+    participant records are built against `case()` too: a case whose id differed
+    from its own participants' ``context`` would be an incoherent example.
+    """
+    participants = [finder_participant(), vendor_participant()]
+    return case(
+        vulnerability_reports=[gen_report()],
+        case_participants=participants,
+        actor_participant_index={p.attributed_to: p.id_ for p in participants},
+    )
 
 
 def add_report_to_case() -> as_Add:
@@ -110,16 +136,12 @@ def defer_case() -> as_Ignore:
     return activity
 
 
-def reengage_case() -> as_Undo:
+def reengage_case() -> as_Join:
     _vendor = vendor()
     _case = case()
-    _deferral = defer_case()
 
-    activity = as_Undo(
-        actor=_vendor.id_,
-        object_=_deferral,
-        content="We're reengaging this case.",
-        context=_case.id_,
+    activity = rm_engage_case_activity(
+        _case, actor=_vendor.id_, content="We're reengaging this case."
     )
     return activity
 

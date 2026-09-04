@@ -25,6 +25,11 @@ repos:
         # Use the system language so pre-commit resolves the executable via PATH
         language: system
         args: ["--fix", "--config", ".markdownlint-cli2.yaml", "**/*.md"]
+        # The args above already carry the glob, so pre-commit must not append
+        # the staged filenames too: markdownlint-cli2 re-globs per argument, and
+        # a commit staging ~100 markdown files hangs for over 10 minutes.
+        # Linting the whole tree takes ~13s.
+        pass_filenames: false
         files: \.(md|markdown)$
 
       - id: validate-notes-frontmatter
@@ -33,6 +38,14 @@ repos:
         language: system
         files: ^notes/.*\.md$
         exclude: ^notes/README\.md$
+        pass_filenames: false
+
+      - id: validate-incoming-learnings-frontmatter
+        name: Validate incoming learnings frontmatter
+        entry: uv run python -c "from vultron.metadata.history.incoming import validate_incoming_learnings; validate_incoming_learnings()"
+        language: system
+        files: ^plan/incoming/learnings/.*\.md$
+        exclude: ^plan/incoming/learnings/README\.md$
         pass_filenames: false
 
       - id: validate-adr-frontmatter
@@ -52,9 +65,15 @@ repos:
 
       - id: flake8
         name: flake8 (with CC gate)
-        entry: uv run flake8
+        # Routed through run-if-changed.sh so this whole-tree lint is skipped
+        # when the sources, .flake8, and uv.lock are unchanged since the last
+        # successful flake8 run (e.g. the run-linters pass just before commit).
+        # Same cache key + inputs as the skills, so they share one cache entry.
+        entry: .agents/skills/shared/run-if-changed.sh
         language: system
-        args: ["vultron/", "test/"]
+        args:
+          ["flake8", "vultron/", "test/", ".flake8", "uv.lock", "--",
+           "uv", "run", "flake8", "vultron/", "test/"]
         pass_filenames: false
 
       - id: spec-lint

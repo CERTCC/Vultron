@@ -252,3 +252,18 @@ meaningful at INFO.
 | SL-04-001 | All state transitions MUST be logged at INFO — the missing messages above violate this |
 | SL-04-006 | Narrative template SHOULD; see table above |
 | SL-04-007 | Infrastructure patterns MUST NOT be at INFO; see demotion list above |
+
+## Designed Self-Healing Recovery Paths MUST NOT Log at ERROR
+
+A BT node whose failure is handled by a downstream fallback node (Selector
+sibling, reject-and-replay loop) is logging a self-healing event. Log at
+`WARNING` (recoverable) or `INFO`, not `ERROR`. `ERROR` is for conditions with
+no recovery path. Ask: is there a wired fallback that guarantees convergence?
+If yes, downgrade and name the recovery in the message.
+
+Source: ISSUE-2169
+
+## Bulk Logging-Level Refactors Need a Consistency Grep Pass
+
+Grep-check all matching functions before commit — a partial sweep leaves two
+conventions in the same module.

@@ -38,7 +38,7 @@ import logging
 import os
 import sys
 
-from vultron.core.states.cs import CS_vfd
+from vultron.core.states.cs import CS_vf
 from vultron.core.states.rm import RM
 from vultron.wire.as2.vocab.base.objects.activities.transitive import (
     as_Offer,
@@ -84,9 +84,10 @@ from vultron.demo.helpers.milestones import (
     verify_case_closed,
     verify_publicly_disclosed,
 )
-from vultron.demo.helpers.verification import _check_participant_vfd_state_in
+from vultron.demo.helpers.verification import _check_participant_vf_state_in
 from vultron.demo.helpers.notes import participant_adds_note_to_case
 from vultron.demo.helpers.polling import (
+    drain_phase1_ledger,
     find_case_actor_participant_id,
     PARTICIPANT_JOIN_TIMEOUT,
     find_case_invite_for_actor,
@@ -98,7 +99,7 @@ from vultron.demo.helpers.polling import (
     wait_for_contiguous_ledger_coverage,
     wait_for_event_type_in_ledger,
     wait_for_participant_rm_state,
-    wait_for_participant_vfd_state,
+    wait_for_participant_vf_state,
 )
 from vultron.demo.helpers.seeding import (
     get_actor_by_id,
@@ -233,6 +234,7 @@ def _phase_report_submission(
         receiver_client=c1_client,
         receiver=c1_in_c1,
         offer=offer,
+        timeout_seconds=60.0,
     )
 
     # Wait for the initial participants (Finder + C1 + CaseActor) before
@@ -260,23 +262,22 @@ def _phase_report_submission(
     logger.info("C2 invite created: %s", invite.id_)
 
     # Wait for the CaseActor-routed Invite to appear in C2's DataLayer.
-    invite_id = None
     with demo_gate("CaseActor-routed Invite for C2 stored in C2's DataLayer"):
         invite_id = find_case_invite_for_actor(
             client=c2_client,
             case_id=case.id_,
             invitee_id=c2.id_,
         )
-    logger.info("CaseActor Invite for C2: %s", invite_id)
+        logger.info("CaseActor Invite for C2: %s", invite_id)
 
-    # C2 accepts the invite.
-    with demo_step("C2 accepts the case invitation"):
-        post_to_trigger(
-            client=c2_client,
-            actor_id=c2_in_c2.id_,
-            behavior="accept-case-invite",
-            body={"invite_id": invite_id},
-        )
+        # C2 accepts the invite.
+        with demo_step("C2 accepts the case invitation"):
+            post_to_trigger(
+                client=c2_client,
+                actor_id=c2_in_c2.id_,
+                behavior="accept-case-invite",
+                body={"invite_id": invite_id},
+            )
 
     # Wait for C2's container to replicate the case.
     with demo_check("C2's DataLayer received case replica"):
@@ -302,6 +303,17 @@ def _phase_report_submission(
             receiver_actor_id=c1.id_,
             reporter_actor_id=finder.id_,
         )
+
+    # Drain the CaseActor's outbox before Phase 2 starts (ADR-0026, ADR-0058,
+    # issue #2819).
+    drain_phase1_ledger(
+        auth_client=c1_client,
+        case_id=case.id_,
+        replica_pairs=[
+            (finder_client, "Finder"),
+            (c2_client, "C2"),
+        ],
+    )
 
     case = as_VulnerabilityCase.model_validate(
         c1_client.get(c1_client.dl_path(case.id_))
@@ -360,6 +372,7 @@ def _phase_c2_suggests_vendor(
         cp_offer_id = find_cp_offer_for_case(
             client=c1_client,
             case_id=case.id_,
+            timeout_seconds=40.0,
         )
         logger.info("Offer(CaseParticipant) ID: %s", cp_offer_id)
 
@@ -639,61 +652,59 @@ def _phase_fix_lifecycle(
             case_id=case.id_,
         )
 
-        with demo_check(
-            "Vendor participant vfd_state transitions to VFd or VFD"
-        ):
-            wait_for_participant_vfd_state(
+        with demo_check("Vendor participant vf_state transitions to VF"):
+            wait_for_participant_vf_state(
                 client=vendor_client,
                 case_id=case.id_,
                 actor_id=vendor.id_,
-                expected_states={CS_vfd.VFd, CS_vfd.VFD},
+                expected_states={CS_vf.VF},
             )
 
         with demo_check(
             "M5: C1 replica shows Vendor CS includes F (fix ready)"
         ):
-            wait_for_participant_vfd_state(
+            wait_for_participant_vf_state(
                 client=c1_client,
                 case_id=case.id_,
                 actor_id=vendor.id_,
-                expected_states={CS_vfd.VFd, CS_vfd.VFD},
+                expected_states={CS_vf.VF},
             )
-            _check_participant_vfd_state_in(
+            _check_participant_vf_state_in(
                 c1_client,
                 case.id_,
                 vendor.id_,
-                {CS_vfd.VFd, CS_vfd.VFD},
+                {CS_vf.VF},
                 "M5: C1 replica fix ready",
             )
-            _check_participant_vfd_state_in(
+            _check_participant_vf_state_in(
                 vendor_client,
                 case.id_,
                 vendor.id_,
-                {CS_vfd.VFd, CS_vfd.VFD},
+                {CS_vf.VF},
                 "M5: Vendor replica fix ready",
             )
 
         with demo_check(
             "M6: C1 replica shows Vendor CS includes F (fix ready) — vendor stops at VFd"
         ):
-            wait_for_participant_vfd_state(
+            wait_for_participant_vf_state(
                 client=c1_client,
                 case_id=case.id_,
                 actor_id=vendor.id_,
-                expected_states={CS_vfd.VFd},
+                expected_states={CS_vf.VF},
             )
-            _check_participant_vfd_state_in(
+            _check_participant_vf_state_in(
                 c1_client,
                 case.id_,
                 vendor.id_,
-                {CS_vfd.VFd},
+                {CS_vf.VF},
                 "M6: C1 replica fix ready",
             )
-            _check_participant_vfd_state_in(
+            _check_participant_vf_state_in(
                 vendor_client,
                 case.id_,
                 vendor.id_,
-                {CS_vfd.VFd},
+                {CS_vf.VF},
                 "M6: Vendor replica fix ready",
             )
 
@@ -765,11 +776,11 @@ def _phase_publication(
             client=finder_client,
             case_id=case.id_,
         )
-        wait_for_participant_vfd_state(
+        wait_for_participant_vf_state(
             client=c1_client,
             case_id=case.id_,
             actor_id=vendor.id_,
-            expected_states={CS_vfd.VFd},
+            expected_states={CS_vf.VF},
         )
         verify_publicly_disclosed(
             receiver_client=c1_client,

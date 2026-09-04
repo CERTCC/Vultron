@@ -83,7 +83,7 @@ groups:
       `make_dispatcher()` uses in production.
     rationale: >-
       Using production wiring guarantees that routing-safety-net tests fail
-      immediately when a `USE_CASE_MAP` registration is missing or a
+      immediately when a `SEMANTIC_REGISTRY` use-case registration is missing or a
       use-case constructor signature drifts.
     relationships:
     - rel_type: depends_on
@@ -134,7 +134,7 @@ groups:
       (report, case, embargo, note, actor, status, sync) asserting that the
       correct use case fires and produces the expected DataLayer side effect.
     rationale: >-
-      Per-domain coverage catches `USE_CASE_MAP` registration gaps immediately
+      Per-domain coverage catches `SEMANTIC_REGISTRY` use-case registration gaps immediately
       without requiring exhaustive per-enum-value tests.
     relationships:
     - rel_type: depends_on
@@ -147,7 +147,7 @@ groups:
     statement: >-
       A routing-safety-net test MUST use `build_test_pipeline()` (real wiring)
       and MUST NOT mock `_DISPATCHER`, `prepare_for_dispatch`, or
-      `USE_CASE_MAP`.
+      `use_case_map()`.
     rationale: >-
       Mocking the exact symbols the test is supposed to exercise defeats the
       purpose of a routing safety net.

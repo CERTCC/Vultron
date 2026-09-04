@@ -27,15 +27,6 @@ import pytest
 
 
 @pytest.mark.spec("VM-08-002")
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "VM-08-002: as_Object lacks frozen=True; received wire Activities can be "
-        "mutated after construction. Implement frozen wire branch via #2652. "
-        "When #2652 lands, as_Object.model_config['frozen'] becomes True, this "
-        "test XPASSes, and the xfail marker should be removed."
-    ),
-)
 def test_wire_activity_base_is_frozen():
     """as_Object.model_config must have frozen=True (VM-08-002)."""
     from vultron.wire.as2.vocab.base.objects.base import as_Object
@@ -44,15 +35,6 @@ def test_wire_activity_base_is_frozen():
 
 
 @pytest.mark.spec("VM-08-003")
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "VM-08-003: TriggerActivityPort.submit_report returns dict[str, Any], "
-        "not a frozen wire blob. Port interface must be redesigned via #2653. "
-        "When #2653 lands, the second element of the return tuple becomes a "
-        "wire object type, get_origin returns None, and this test XPASSes."
-    ),
-)
 def test_trigger_activity_port_returns_wire_blob_not_dict():
     """TriggerActivityPort activity methods must return frozen wire blobs, not dicts (VM-08-003)."""
     from vultron.core.ports.trigger_activity import TriggerActivityPort

@@ -34,6 +34,7 @@ Per specs/behavior-tree-node-design.yaml BTND-03-009 through BTND-03-011:
   initialise() rather than direct blackboard attribute access.
 """
 
+import json
 import logging
 from typing import TYPE_CHECKING, Any, cast, overload
 
@@ -42,7 +43,6 @@ from pydantic import BaseModel
 from py_trees.common import Status
 from py_trees.ports import BehaviourWithPorts, NoDataAvailable, PortInformation
 
-from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.participant_status import (
     participant_status_rm_state,
@@ -565,18 +565,18 @@ class _EmitSingleActivityBase(DataLayerActionWithPorts):
         super().__init__(name=name or self.__class__.__name__)
         self._captured = captured
 
-    def _call_factory(self) -> tuple[str, dict]:
+    def _call_factory(self) -> tuple[str, str]:
         """Invoke the trigger-activity factory.  Subclasses must implement this.
 
         Returns:
-            ``(activity_id, activity_dict)``
+            ``(activity_id, activity_json)``
 
         Raises:
             NotImplementedError: Subclasses must implement this method.
         """
         raise NotImplementedError
 
-    def _on_success(self, activity_id: str, activity_dict: dict) -> None:
+    def _on_success(self, activity_id: str, activity_blob: str) -> None:
         """Optional hook called after a successful outbox write.
 
         Override in concrete nodes to emit domain-specific log messages or
@@ -590,7 +590,7 @@ class _EmitSingleActivityBase(DataLayerActionWithPorts):
             self.logger.error(self.feedback_message)
             return f
         try:
-            activity_id, activity_dict = self._call_factory()
+            activity_id, activity_blob = self._call_factory()
             # `outbox_append`, not the retired `record_outbox_item(actor_id, …)`:
             # this store is already the executing actor's own, so naming the
             # actor again is both redundant and a way to get it wrong (ADR-0073,
@@ -599,12 +599,12 @@ class _EmitSingleActivityBase(DataLayerActionWithPorts):
                 activity_id
             )
             if self._captured is not None:
-                self._captured["activity"] = activity_dict
+                self._captured["activity"] = json.loads(activity_blob)
         except Exception as e:
             self.feedback_message = f"{self.__class__.__name__} failed: {e}"
             self.logger.error(self.feedback_message)
             return Status.FAILURE
-        self._on_success(activity_id, activity_dict)
+        self._on_success(activity_id, activity_blob)
         return Status.SUCCESS
 
 
@@ -716,8 +716,10 @@ class FindParticipantByActorIdNode(DataLayerConditionWithPorts):
             return f
         assert self.datalayer is not None
 
-        case_obj = self.datalayer.read(self.case_id, raise_on_missing=False)
-        if not isinstance(case_obj, VulnerabilityCase):
+        case_obj = self.datalayer.read_case(
+            self.case_id, raise_on_missing=False
+        )
+        if case_obj is None:
             self.feedback_message = f"Case {self.case_id} not found"
             self.logger.debug("%s: %s", self.name, self.feedback_message)
             return Status.FAILURE

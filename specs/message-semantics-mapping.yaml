@@ -2,15 +2,19 @@ id: MSM
 title: Protocol Shorthand to MessageSemantics Mapping
 description: 'Authoritative normative bridge from protocol message shorthand labels (RS, EP, CV, etc.) used in behavioral
   conformance specs to their MessageSemantics enum values and corresponding AS2 wire-format specifications. Each entry provides
-  one row in the three-hop chain: shorthand to MessageSemantics enum value to AS2 wire form. Shorthands with no dedicated
-  dispatch value (protocol-layer error and acknowledgment signals) are explicitly documented as such.'
-version: 0.1.0
+  one row in the three-hop chain: shorthand to MessageSemantics enum value to AS2 wire form. The correspondence is
+  many-to-many in both directions: several shorthands may collapse onto one wire activity (CV/CF onto vf_state, CP/CX/CA onto
+  pxa_state, EV/EJ/EC onto EP/ER/EA), and one shorthand may expand across several wire activities (GI, EP). Shorthands with
+  no dedicated dispatch value are the protocol-layer error and acknowledgment signals; these are not unimplemented — the
+  purposes they name are served by mechanisms partitioned on a different axis, specified normatively in MSM-05.'
+version: 0.3.0
 scope:
 - prototype
 - production
 tags:
 - messaging
 - protocol
+- documentation
 groups:
 - id: MSM-01
   title: RM Protocol Message Shorthands
@@ -24,8 +28,8 @@ groups:
       form is `Offer(VulnerabilityReport)` per VAM-02-002.
     verification: >-
       Inspection of `vultron/wire/` confirms that `MessageSemantics.SUBMIT_REPORT`
-      is keyed to an `ActivityPattern` matching `Offer(VulnerabilityReport)` in
-      `SEMANTICS_ACTIVITY_PATTERNS`.
+      is paired with an `ActivityPattern` matching `Offer(VulnerabilityReport)` in
+      `SEMANTIC_REGISTRY`.
     relationships:
     - rel_type: derives_from
       spec_id: VAM-02-002
@@ -39,8 +43,8 @@ groups:
       form is `TentativeReject(Offer(VulnerabilityReport))` per VAM-02-005.
     verification: >-
       Inspection of `vultron/wire/` confirms that `MessageSemantics.INVALIDATE_REPORT`
-      is keyed to an `ActivityPattern` matching
-      `TentativeReject(Offer(VulnerabilityReport))` in `SEMANTICS_ACTIVITY_PATTERNS`.
+      is paired with an `ActivityPattern` matching
+      `TentativeReject(Offer(VulnerabilityReport))` in `SEMANTIC_REGISTRY`.
     relationships:
     - rel_type: derives_from
       spec_id: VAM-02-005
@@ -54,8 +58,8 @@ groups:
       is `Accept(Offer(VulnerabilityReport))` per VAM-02-004.
     verification: >-
       Inspection of `vultron/wire/` confirms that `MessageSemantics.VALIDATE_REPORT`
-      is keyed to an `ActivityPattern` matching `Accept(Offer(VulnerabilityReport))`
-      in `SEMANTICS_ACTIVITY_PATTERNS`.
+      is paired with an `ActivityPattern` matching `Accept(Offer(VulnerabilityReport))`
+      in `SEMANTIC_REGISTRY`.
     relationships:
     - rel_type: derives_from
       spec_id: VAM-02-004
@@ -72,8 +76,8 @@ groups:
       not a report-validity judgment.
     verification: >-
       Inspection of `vultron/wire/` confirms that `MessageSemantics.DEFER_CASE` is
-      keyed to an `ActivityPattern` matching `Ignore(VulnerabilityCase)` in
-      `SEMANTICS_ACTIVITY_PATTERNS`.
+      paired with an `ActivityPattern` matching `Ignore(VulnerabilityCase)` in
+      `SEMANTIC_REGISTRY`.
     relationships:
     - rel_type: derives_from
       spec_id: VAM-03-004
@@ -89,8 +93,8 @@ groups:
       `Join` captures the case-participation decision, symmetric with `Ignore` for `RD`.
     verification: >-
       Inspection of `vultron/wire/` confirms that `MessageSemantics.ENGAGE_CASE` is
-      keyed to an `ActivityPattern` matching `Join(VulnerabilityCase)` in
-      `SEMANTICS_ACTIVITY_PATTERNS`.
+      paired with an `ActivityPattern` matching `Join(VulnerabilityCase)` in
+      `SEMANTIC_REGISTRY`.
     relationships:
     - rel_type: derives_from
       spec_id: VAM-03-003
@@ -104,8 +108,8 @@ groups:
       is `Reject(Offer(VulnerabilityReport))` per VAM-02-006.
     verification: >-
       Inspection of `vultron/wire/` confirms that `MessageSemantics.CLOSE_REPORT`
-      is keyed to an `ActivityPattern` matching `Reject(Offer(VulnerabilityReport))`
-      in `SEMANTICS_ACTIVITY_PATTERNS`.
+      is paired with an `ActivityPattern` matching `Reject(Offer(VulnerabilityReport))`
+      in `SEMANTIC_REGISTRY`.
     relationships:
     - rel_type: derives_from
       spec_id: VAM-02-006
@@ -116,16 +120,19 @@ groups:
     priority: MUST
     kind: protocol
     statement: Protocol shorthand `RE` (Report Management Error) has no dedicated `MessageSemantics` dispatch value and no
-      entry in `SEMANTICS_ACTIVITY_PATTERNS`; it is a protocol-layer error signal with no AS2 wire representation in the current
-      semantic registry.
-    testable: false
-    rationale: '`RE` is a protocol-level acknowledgment of an error condition in report management. The AS2-based semantic
-      dispatch pipeline does not currently define a wire pattern or `MessageSemantics` value for error signals; implementations
-      handling `RE` must do so outside the `find_matching_semantics()` dispatch path.'
+      entry in `SEMANTIC_REGISTRY`; report-management error conditions MUST instead be reported through the
+      failure-mode mechanisms specified in MSM-05-001.
+    rationale: '`RE` names an error condition scoped to report management. The implementation does not partition faults by
+      state machine, so there is no `RE`-shaped wire form; it partitions by failure mode instead — not understood, declined,
+      or needing explanation (MSM-05-001). Read this entry as "mapped onto a different axis", not as "unimplemented".'
+    relationships:
+    - rel_type: refines
+      spec_id: MSM-05-001
     verification: >-
-      Inspection of `vultron/wire/` confirms that `RE` is absent from both
-      `MessageSemantics` and `SEMANTICS_ACTIVITY_PATTERNS`; a unit test asserts this
-      absence to prevent unintended additions.
+      Inspection of `vultron/core/models/events/base.py` and
+      `vultron/semantic_registry/` confirms that no `MessageSemantics` member and no
+      registry entry names `RE`; a unit test asserts this absence to prevent
+      unintended additions.
     lint_suppress:
     - missing_story_reference
   - id: MSM-01-008
@@ -135,8 +142,8 @@ groups:
       its AS2 wire form is `Read(Offer(VulnerabilityReport))` per VAM-02-003.
     verification: >-
       Inspection of `vultron/wire/` confirms that `MessageSemantics.ACK_REPORT` is
-      keyed to an `ActivityPattern` matching `Read(Offer(VulnerabilityReport))` in
-      `SEMANTICS_ACTIVITY_PATTERNS`.
+      paired with an `ActivityPattern` matching `Read(Offer(VulnerabilityReport))` in
+      `SEMANTIC_REGISTRY`.
     relationships:
     - rel_type: derives_from
       spec_id: VAM-02-003
@@ -156,9 +163,9 @@ groups:
       AS2 wire form is `Invite(Event)[context=VulnerabilityCase]` per VAM-05-005.
     verification: >-
       Inspection of `vultron/wire/` confirms that
-      `MessageSemantics.INVITE_TO_EMBARGO_ON_CASE` is keyed to an `ActivityPattern`
+      `MessageSemantics.INVITE_TO_EMBARGO_ON_CASE` is paired with an `ActivityPattern`
       matching `Invite(Event)[context=VulnerabilityCase]` in
-      `SEMANTICS_ACTIVITY_PATTERNS`.
+      `SEMANTIC_REGISTRY`.
     relationships:
     - rel_type: derives_from
       spec_id: VAM-05-005
@@ -172,9 +179,9 @@ groups:
       its AS2 wire form is `Accept(Invite(Event)[context=VulnerabilityCase])` per VAM-05-006.
     verification: >-
       Inspection of `vultron/wire/` confirms that
-      `MessageSemantics.ACCEPT_INVITE_TO_EMBARGO_ON_CASE` is keyed to an
+      `MessageSemantics.ACCEPT_INVITE_TO_EMBARGO_ON_CASE` is paired with an
       `ActivityPattern` matching `Accept(Invite(Event)[context=VulnerabilityCase])`
-      in `SEMANTICS_ACTIVITY_PATTERNS`.
+      in `SEMANTIC_REGISTRY`.
     relationships:
     - rel_type: derives_from
       spec_id: VAM-05-006
@@ -203,7 +210,7 @@ groups:
       Inspection of `vultron/wire/` confirms that
       `MessageSemantics.REJECT_INVITE_TO_EMBARGO_ON_CASE` maps to
       `Reject(Invite(Event)[context=VulnerabilityCase])` in
-      `SEMANTICS_ACTIVITY_PATTERNS`, and EJ is processed as an alias for ER when
+      `SEMANTIC_REGISTRY`, and EJ is processed as an alias for ER when
       the receiver is in EM REVISE.
     relationships:
     - rel_type: derives_from
@@ -234,9 +241,9 @@ groups:
       its AS2 wire form is `Reject(Invite(Event)[context=VulnerabilityCase])` per VAM-05-007.
     verification: >-
       Inspection of `vultron/wire/` confirms that
-      `MessageSemantics.REJECT_INVITE_TO_EMBARGO_ON_CASE` is keyed to an
+      `MessageSemantics.REJECT_INVITE_TO_EMBARGO_ON_CASE` is paired with an
       `ActivityPattern` matching `Reject(Invite(Event)[context=VulnerabilityCase])`
-      in `SEMANTICS_ACTIVITY_PATTERNS`.
+      in `SEMANTIC_REGISTRY`.
     relationships:
     - rel_type: derives_from
       spec_id: VAM-05-007
@@ -250,8 +257,8 @@ groups:
       its AS2 wire form is `Remove(Event)` per VAM-05-003.
     verification: >-
       Inspection of `vultron/wire/` confirms that
-      `MessageSemantics.REMOVE_EMBARGO_EVENT_FROM_CASE` is keyed to an
-      `ActivityPattern` matching `Remove(Event)` in `SEMANTICS_ACTIVITY_PATTERNS`.
+      `MessageSemantics.REMOVE_EMBARGO_EVENT_FROM_CASE` is paired with an
+      `ActivityPattern` matching `Remove(Event)` in `SEMANTIC_REGISTRY`.
     relationships:
     - rel_type: derives_from
       spec_id: VAM-05-003
@@ -262,52 +269,68 @@ groups:
     priority: MUST
     kind: protocol
     statement: Protocol shorthand `EE` (Embargo Management Error) has no dedicated `MessageSemantics` dispatch value and no
-      entry in `SEMANTICS_ACTIVITY_PATTERNS`; it is a protocol-layer error signal with no AS2 wire representation in the current
-      semantic registry.
-    rationale: 'Symmetric with MSM-01-007 (`RE`): embargo-layer error signals are not modeled as AS2 semantic dispatch entries.
-      Tests SHOULD assert that `EE` is absent from `MessageSemantics` and `SEMANTICS_ACTIVITY_PATTERNS` to catch unintended
-      additions.'
+      entry in `SEMANTIC_REGISTRY`; embargo-management error conditions MUST instead be reported through the
+      failure-mode mechanisms specified in MSM-05-001.
+    rationale: 'Symmetric with MSM-01-007 (`RE`): faults are partitioned by failure mode rather than by state machine, so no
+      embargo-scoped error wire form exists. Tests SHOULD assert that `EE` is absent from `MessageSemantics` and the semantic
+      registry to catch unintended additions.'
+    relationships:
+    - rel_type: refines
+      spec_id: MSM-05-001
     verification: >-
-      Inspection of `vultron/wire/` confirms that `EE` is absent from both
-      `MessageSemantics` and `SEMANTICS_ACTIVITY_PATTERNS`; a unit test asserts this
-      absence to prevent unintended additions.
+      Inspection of `vultron/core/models/events/base.py` and
+      `vultron/semantic_registry/` confirms that no `MessageSemantics` member and no
+      registry entry names `EE`; a unit test asserts this absence to prevent
+      unintended additions.
     lint_suppress:
     - missing_story_reference
   - id: MSM-02-009
     priority: MUST
     kind: protocol
     statement: Protocol shorthand `EK` (Embargo Management Acknowledgment) has no dedicated `MessageSemantics` dispatch value
-      and no entry in `SEMANTICS_ACTIVITY_PATTERNS`; it is a protocol-layer acknowledgment signal with no AS2 wire representation
-      in the current semantic registry.
-    rationale: 'Symmetric with MSM-01-007 (`RE`): embargo-layer acknowledgment signals are not modeled as AS2 semantic dispatch
-      entries. Tests SHOULD assert that `EK` is absent from `MessageSemantics` and `SEMANTICS_ACTIVITY_PATTERNS`.'
+      and no entry in `SEMANTIC_REGISTRY`; acknowledgement of embargo state carried on the case ledger MUST instead
+      follow the cumulative hash-chain mechanism specified in MSM-05-002.
+    rationale: 'Per-message positive acknowledgement is redundant for ledger-replicated state: a matching `prev_log_hash`
+      already proves receipt of every prior entry (MSM-05-002). Tests SHOULD assert that `EK` is absent from
+      `MessageSemantics` and the semantic registry.'
+    relationships:
+    - rel_type: refines
+      spec_id: MSM-05-002
     verification: >-
-      Inspection of `vultron/wire/` confirms that `EK` is absent from both
-      `MessageSemantics` and `SEMANTICS_ACTIVITY_PATTERNS`; a unit test asserts this
-      absence to prevent unintended additions.
+      Inspection of `vultron/core/models/events/base.py` and
+      `vultron/semantic_registry/` confirms that no `MessageSemantics` member and no
+      registry entry names `EK`; a unit test asserts this absence to prevent
+      unintended additions.
     lint_suppress:
     - missing_story_reference
 - id: MSM-03
   title: CS Protocol Message Shorthands
-  description: Normative shorthand-to-semantic mappings for CVD Case State (CS) protocol messages, covering CV, CF, CD, CP,
-    CX, CA, CE, and CK. All CS status shorthands (CV through CA) share the ADD_CASE_STATUS_TO_CASE semantic; the specific
-    state transition is encoded in the CaseStatus object payload rather than in the activity type.
+  description: 'Normative shorthand-to-semantic mappings for CVD Case State (CS) protocol messages, covering CV, CF, CD, CP,
+    CX, CA, CE, and CK. CS status shorthands are split across two semantics by dimension scope, because the CS hypercube mixes
+    participant-scoped and case-scoped dimensions: the participant-scoped V/F/D dimensions (CV, CF, CD) dispatch as
+    ADD_PARTICIPANT_STATUS_TO_PARTICIPANT and are encoded in the ParticipantStatus payload, while the case-scoped P/X/A
+    dimensions (CP, CX, CA) dispatch as ADD_CASE_STATUS_TO_CASE and are encoded in the CaseStatus payload. There are no
+    case-level V/F/D states (ADR-0075). In both groups the specific state transition is encoded in the object payload rather
+    than in the activity type.'
   specs:
   - id: MSM-03-001
     priority: MUST
     kind: protocol
-    statement: Protocol shorthand `CV` (Vendor Aware) MUST dispatch as `MessageSemantics.ADD_CASE_STATUS_TO_CASE`; its AS2
-      wire form is `Add(CaseStatus)[target=VulnerabilityCase]` per VAM-08-002. The `CaseStatus` payload encodes the `vendor_aware`
-      state flag.
+    statement: Protocol shorthand `CV` (Vendor Aware) MUST dispatch as `MessageSemantics.ADD_PARTICIPANT_STATUS_TO_PARTICIPANT`;
+      its AS2 wire form is `Add(ParticipantStatus)[target=CaseParticipant]` per VAM-08-004. The `ParticipantStatus` payload
+      encodes vendor awareness in the `vf_state` field (`CS_vf`), advancing the vendor-path ladder from `vf` to `Vf`.
+    rationale: 'The V dimension is participant-scoped, not case-scoped: it records whether a *specific* vendor is aware. Per
+      ADR-0075 there is no case-level V/F/D state, and a case-level `Add(CaseStatus)` cannot express which vendor became
+      aware, which is the purpose of the V dimension in MPCVD. Corrected from an earlier revision that mapped `CV` to
+      `ADD_CASE_STATUS_TO_CASE` with a nonexistent `vendor_aware` payload field; see ADR-0083.'
     verification: >-
-      Inspection of `vultron/wire/` confirms that
-      `MessageSemantics.ADD_CASE_STATUS_TO_CASE` is keyed to an `ActivityPattern`
-      matching `Add(CaseStatus)[target=VulnerabilityCase]` in
-      `SEMANTICS_ACTIVITY_PATTERNS`, and the `vendor_aware` flag is encoded in the
-      `CaseStatus` payload.
+      Inspection of `vultron/semantic_registry/status.py` confirms that
+      `MessageSemantics.ADD_PARTICIPANT_STATUS_TO_PARTICIPANT` is paired with an
+      `ActivityPattern` matching `Add(ParticipantStatus)[target=CaseParticipant]`, and
+      that `as_ParticipantStatus` declares `vf_state` while `as_CaseStatus` does not.
     relationships:
     - rel_type: derives_from
-      spec_id: VAM-08-002
+      spec_id: VAM-08-004
     stories:
     - story_2022_062
     - story_2022_081
@@ -315,17 +338,22 @@ groups:
   - id: MSM-03-002
     priority: MUST
     kind: protocol
-    statement: Protocol shorthand `CF` (Fix Ready) MUST dispatch as `MessageSemantics.ADD_CASE_STATUS_TO_CASE`; its AS2 wire
-      form is `Add(CaseStatus)[target=VulnerabilityCase]` per VAM-08-002. The `CaseStatus` payload encodes the `fix_ready`
-      state flag.
+    statement: Protocol shorthand `CF` (Fix Ready) MUST dispatch as `MessageSemantics.ADD_PARTICIPANT_STATUS_TO_PARTICIPANT`;
+      its AS2 wire form is `Add(ParticipantStatus)[target=CaseParticipant]` per VAM-08-004. The `ParticipantStatus` payload
+      encodes fix readiness in the `vf_state` field (`CS_vf`), advancing the vendor-path ladder from `Vf` to `VF`.
+    rationale: 'The F dimension shares the participant-scoped vendor-path sub-machine with V (`CS_vf`: `vf` → `Vf` → `VF`),
+      so fix readiness is recorded against the specific vendor that produced the fix. Same scope reasoning as MSM-03-001.
+      Corrected from an earlier revision that mapped `CF` to `ADD_CASE_STATUS_TO_CASE` with a nonexistent `fix_ready` payload
+      field; see ADR-0083.'
     verification: >-
-      Inspection of `vultron/wire/` confirms that
-      `MessageSemantics.ADD_CASE_STATUS_TO_CASE` maps to
-      `Add(CaseStatus)[target=VulnerabilityCase]`, and the `fix_ready` flag is
-      encoded in the `CaseStatus` payload sent with CF.
+      Inspection of `vultron/semantic_registry/status.py` confirms that
+      `MessageSemantics.ADD_PARTICIPANT_STATUS_TO_PARTICIPANT` maps to
+      `Add(ParticipantStatus)[target=CaseParticipant]`, and that fix readiness is
+      carried by `as_ParticipantStatus.vf_state` rather than by any `as_CaseStatus`
+      field.
     relationships:
     - rel_type: derives_from
-      spec_id: VAM-08-002
+      spec_id: VAM-08-004
     stories:
     - story_2022_107
     - story_2022_062
@@ -333,17 +361,22 @@ groups:
   - id: MSM-03-003
     priority: MUST
     kind: protocol
-    statement: Protocol shorthand `CD` (Fix Deployed) MUST dispatch as `MessageSemantics.ADD_CASE_STATUS_TO_CASE`; its AS2
-      wire form is `Add(CaseStatus)[target=VulnerabilityCase]` per VAM-08-002. The `CaseStatus` payload encodes the `fix_deployed`
-      state flag.
+    statement: Protocol shorthand `CD` (Fix Deployed) MUST dispatch as `MessageSemantics.ADD_PARTICIPANT_STATUS_TO_PARTICIPANT`;
+      its AS2 wire form is `Add(ParticipantStatus)[target=CaseParticipant]` per VAM-08-004. The `ParticipantStatus` payload
+      encodes deployment in the `d_state` field (`CS_d`), advancing the deployer-path ladder from `d` to `D`.
+    rationale: 'The D dimension is participant-scoped on the *deployer*, and ADR-0075 split it into its own sub-machine
+      (`CS_d`) precisely because its scope differs from the vendor path. `as_ParticipantStatus.d_state` is `None` for
+      non-DEPLOYER participants (structurally enforced). Corrected from an earlier revision that mapped `CD` to
+      `ADD_CASE_STATUS_TO_CASE` with a nonexistent `fix_deployed` payload field; see ADR-0083.'
     verification: >-
-      Inspection of `vultron/wire/` confirms that
-      `MessageSemantics.ADD_CASE_STATUS_TO_CASE` maps to
-      `Add(CaseStatus)[target=VulnerabilityCase]`, and the `fix_deployed` flag is
-      encoded in the `CaseStatus` payload sent with CD.
+      Inspection of `vultron/semantic_registry/status.py` confirms that
+      `MessageSemantics.ADD_PARTICIPANT_STATUS_TO_PARTICIPANT` maps to
+      `Add(ParticipantStatus)[target=CaseParticipant]`, and that deployment is
+      carried by `as_ParticipantStatus.d_state` rather than by any `as_CaseStatus`
+      field.
     relationships:
     - rel_type: derives_from
-      spec_id: VAM-08-002
+      spec_id: VAM-08-004
     stories:
     - story_2022_107
     - story_2022_103
@@ -403,27 +436,441 @@ groups:
     priority: MUST
     kind: protocol
     statement: Protocol shorthand `CE` (Case State Error) has no dedicated `MessageSemantics` dispatch value and no entry
-      in `SEMANTICS_ACTIVITY_PATTERNS`; it is a protocol-layer error signal with no AS2 wire representation in the current
-      semantic registry.
-    rationale: 'Symmetric with MSM-01-007 (`RE`): case-state-layer error signals are not modeled as AS2 semantic dispatch
-      entries. Tests SHOULD assert that `CE` is absent from `MessageSemantics` and `SEMANTICS_ACTIVITY_PATTERNS`.'
+      in `SEMANTIC_REGISTRY`; case-state error conditions MUST instead be reported through the failure-mode
+      mechanisms specified in MSM-05-001.
+    rationale: 'Symmetric with MSM-01-007 (`RE`): faults are partitioned by failure mode rather than by state machine, so no
+      case-state-scoped error wire form exists. Tests SHOULD assert that `CE` is absent from `MessageSemantics` and the
+      semantic registry.'
+    relationships:
+    - rel_type: refines
+      spec_id: MSM-05-001
     verification: >-
-      Inspection of `vultron/wire/` confirms that `CE` is absent from both
-      `MessageSemantics` and `SEMANTICS_ACTIVITY_PATTERNS`; a unit test asserts this
-      absence to prevent unintended additions.
+      Inspection of `vultron/core/models/events/base.py` and
+      `vultron/semantic_registry/` confirms that no `MessageSemantics` member and no
+      registry entry names `CE`; a unit test asserts this absence to prevent
+      unintended additions.
     lint_suppress:
     - missing_story_reference
   - id: MSM-03-008
     priority: MUST
     kind: protocol
     statement: Protocol shorthand `CK` (Case State Acknowledgment) has no dedicated `MessageSemantics` dispatch value and
-      no entry in `SEMANTICS_ACTIVITY_PATTERNS`; it is a protocol-layer acknowledgment signal with no AS2 wire representation
-      in the current semantic registry.
-    rationale: 'Symmetric with MSM-01-007 (`RE`): case-state-layer acknowledgment signals are not modeled as AS2 semantic
-      dispatch entries. Tests SHOULD assert that `CK` is absent from `MessageSemantics` and `SEMANTICS_ACTIVITY_PATTERNS`.'
+      no entry in `SEMANTIC_REGISTRY`; acknowledgement of case-state changes carried on the case ledger MUST instead
+      follow the cumulative hash-chain mechanism specified in MSM-05-002.
+    rationale: 'Symmetric with MSM-02-009 (`EK`): case-state changes are ledger-replicated, so hash-chain continuity already
+      acknowledges them cumulatively and a per-message ack would be redundant. Tests SHOULD assert that `CK` is absent from
+      `MessageSemantics` and the semantic registry.'
+    relationships:
+    - rel_type: refines
+      spec_id: MSM-05-002
     verification: >-
-      Inspection of `vultron/wire/` confirms that `CK` is absent from both
-      `MessageSemantics` and `SEMANTICS_ACTIVITY_PATTERNS`; a unit test asserts this
-      absence to prevent unintended additions.
+      Inspection of `vultron/core/models/events/base.py` and
+      `vultron/semantic_registry/` confirms that no `MessageSemantics` member and no
+      registry entry names `CK`; a unit test asserts this absence to prevent
+      unintended additions.
+    lint_suppress:
+    - missing_story_reference
+- id: MSM-04
+  title: General Protocol Message Shorthands
+  description: 'Normative shorthand-to-semantic mappings for General (non-state-machine) protocol messages, covering GI, GK,
+    and GE. Unlike the RM, EM, and CS groups, the General shorthands map to wire activities by expansion: a single shorthand
+    covers several distinct wire activities rather than collapsing several shorthands into one.'
+  specs:
+  - id: MSM-04-001
+    priority: MUST
+    kind: protocol
+    statement: The note lifecycle MUST realize protocol shorthand `GI` (General Inquiry) as
+      `MessageSemantics.CREATE_NOTE`, `MessageSemantics.ADD_NOTE_TO_CASE`, and
+      `MessageSemantics.REMOVE_NOTE_FROM_CASE`; their AS2 wire forms are `Create(Note)` per VAM-07-001,
+      `Add(Note)[target=VulnerabilityCase]` per VAM-07-002, and `Remove(Note)[target=VulnerabilityCase]` per VAM-07-003.
+      These are not the whole of `GI` — MSM-04-002 adds the actor-suggestion exchange.
+    rationale: '`GI` is defined in the formal protocol as any message conveying non-state-change information, so it is
+      inherently one-to-many on the wire. The `Create` then `Add` split is a wire-layer artifact with no formal counterpart:
+      the formal set models the inquiry, not the object lifecycle that carries it.'
+    verification: >-
+      Inspection of `vultron/semantic_registry/note.py` confirms all three
+      note-scoped entries are registered, and that no single `MessageSemantics`
+      value is named for `GI`.
+    relationships:
+    - rel_type: derives_from
+      spec_id: VAM-07-001
+    - rel_type: derives_from
+      spec_id: VAM-07-002
+    - rel_type: derives_from
+      spec_id: VAM-07-003
+    lint_suppress:
+    - missing_story_reference
+  - id: MSM-04-002
+    priority: MUST
+    kind: protocol
+    statement: Protocol shorthand `GI` MUST additionally cover the actor-suggestion exchange, dispatching as
+      `MessageSemantics.OFFER_ACTOR_TO_CASE`, `MessageSemantics.OFFER_CASE_PARTICIPANT`,
+      `MessageSemantics.ACCEPT_OFFER_CASE_PARTICIPANT`, or `MessageSemantics.REJECT_OFFER_CASE_PARTICIPANT`.
+    rationale: '`messages.md` lists "suggesting a potential Participant to be added to a case" among its `GI` examples, so
+      actor suggestion is a `GI` expansion and MUST NOT be classified as case management. What the formal set models as one
+      inquiry the implementation realizes as a multi-hop negotiation with its own accept and reject responses.'
+    verification: >-
+      Inspection of `vultron/semantic_registry/actor.py` confirms the four
+      actor-suggestion entries are registered, and `docs/reference/formal_protocol/messages.md`
+      lists participant suggestion as a `GI` example.
+    relationships:
+    - rel_type: derives_from
+      spec_id: VAM-04-001
+    - rel_type: derives_from
+      spec_id: VAM-04-010
+    - rel_type: derives_from
+      spec_id: VAM-04-002
+    - rel_type: derives_from
+      spec_id: VAM-04-003
+    lint_suppress:
+    - missing_story_reference
+  - id: MSM-04-003
+    priority: MUST
+    kind: protocol
+    statement: Protocol shorthands `GK` (General Acknowledgement) and `GE` (General Error) MUST NOT be assigned dedicated
+      `MessageSemantics` dispatch values; the purposes they name are served by the mechanisms specified in MSM-05.
+    rationale: Recording these as plain absences invites the reading that the behaviour is unimplemented. It is implemented,
+      on a different axis — see MSM-05-001 and MSM-05-002.
+    verification: >-
+      Inspection of the semantic registry confirms no entry is named for `GK` or
+      `GE`, and that the MSM-05 mechanisms are registered.
+    relationships:
+    - rel_type: refines
+      spec_id: MSM-05-001
+    - rel_type: refines
+      spec_id: MSM-05-002
+    lint_suppress:
+    - missing_story_reference
+- id: MSM-05
+  title: Fault and Acknowledgement Mechanism Evolution
+  description: 'Normative record of how the formal protocol''s per-model error and acknowledgement shorthands (RE, EE, CE, GE
+    and RK, EK, CK, GK) are realized in the AS2 wire vocabulary. The formal set partitions both concerns by which state
+    machine the message belonged to; the implementation partitions faults by failure mode and acknowledges replicated state
+    cumulatively. These are orthogonal axes, so the shorthands have no one-to-one wire counterparts even though the
+    behaviours they describe are implemented.'
+  specs:
+  - id: MSM-05-001
+    priority: MUST
+    kind: protocol
+    statement: 'Fault reporting MUST be partitioned by failure mode rather than by state machine, using exactly three
+      mechanisms: `Create(ProcessingFault)` when a message was received but not understood; `as:Reject` when a message was
+      received and understood but declined; and `Create(Note)` or `Add(Note)[target=VulnerabilityCase]` when the condition
+      requires narrative explanation.'
+    rationale: 'Failure mode is actionable to a receiver in a way that originating state machine is not. Not-understood calls
+      for a format or version fix, declined calls for a protocol-level decision, and needs-explanation calls for a human. The
+      formal RE, EE, CE and GE partition carries no such signal, which is why it was not reproduced.'
+    verification: >-
+      Inspection of the semantic registry confirms `create_processing_fault`,
+      the `as:Reject`-based entries, and the note-scoped entries are all registered.
+    lint_suppress:
+    - missing_story_reference
+  - id: MSM-05-002
+    priority: MUST
+    kind: protocol
+    statement: 'Acknowledgement of replicated case-ledger state MUST be cumulative and implicit via hash-chain continuity. A
+      receiver whose `prev_log_hash` matches its local tail MUST NOT emit an acknowledgement, and MUST emit
+      `Reject(CaseLedgerEntry)` on a mismatch, whereupon the CaseActor replays all entries after the last accepted hash.'
+    rationale: A matching `prev_log_hash` already proves receipt of every prior entry, so per-message positive
+      acknowledgement would be redundant. This is negative acknowledgement with gap-fill replay, structurally closer to a
+      cumulative ACK or SACK scheme than to the formal per-message EK, CK and GK design. `RK` remains a real wire activity
+      (MSM-01-008) because report submission is not ledger-replicated.
+    verification: >-
+      Inspection of `RejectLedgerEntryReceivedUseCase` in
+      `vultron/core/use_cases/received/sync.py` confirms the mismatch-and-replay
+      behaviour, and the registry contains no per-message `EK`, `CK`, or `GK` entry.
+    lint_suppress:
+    - missing_story_reference
+  - id: MSM-05-003
+    priority: MUST_NOT
+    kind: protocol
+    statement: Implementations MUST NOT infer error semantics from the `as:Reject` verb alone, because `as:Reject` also
+      carries legitimate protocol rejections including `close_report`, `reject_invite_to_embargo_on_case`,
+      `reject_invite_actor_to_case`, `reject_case_proposal`, and `reject_case_ownership_transfer`.
+    rationale: '`as:Reject` is overloaded across error reporting and ordinary protocol refusal. A receiver that treats every
+      `as:Reject` as a fault will misclassify routine protocol traffic as errors.'
+    verification: >-
+      Inspection of the semantic registry confirms multiple non-error entries are
+      keyed to `as:Reject` patterns.
+    lint_suppress:
+    - missing_story_reference
+  - id: MSM-05-004
+    priority: MUST_NOT
+    kind: process
+    statement: Documentation MUST NOT describe the wire fault taxonomy as `RmError`, `EmError`, `CsError`, or `GmError`
+      discriminated by `as:inReplyTo`; those types exist in no ontology file and no code, and `ActivityPattern.in_reply_to_`
+      is used by no registered pattern.
+    rationale: '`docs/howto/activitypub/activities/error.md` depicts this taxonomy, and it has never been built. Citing it
+      leads implementers to a wire format that does not exist. Note also the name collision: `VultronError` in
+      `vultron/errors.py` is a Python exception base class, unrelated to the wire type of the same name in that diagram.'
+    verification: >-
+      A grep for `RmError`, `EmError`, `CsError`, and `GmError` across `vultron/`
+      and the whole of `docs/` returns no definitions and no documentation
+      references, and no registered `ActivityPattern` sets `in_reply_to_`. The grep
+      MUST cover `docs/howto/` — that is where the taxonomy is currently depicted.
+    lint_suppress:
+    - missing_story_reference
+- id: MSM-06
+  title: Message Type Reference Rendering
+  description: Requirements governing the consolidated per-message-type reference pages under `docs/reference/messages/`, so
+    that the shorthand-to-wire mapping presented to implementers cannot drift from this specification or from the semantic
+    registry.
+  specs:
+  - id: MSM-06-001
+    priority: MUST
+    kind: process
+    statement: The shorthand-to-wire-form mapping tables in `docs/reference/messages/` MUST be rendered at build time from
+      the MSM spec registry joined against `SEMANTIC_REGISTRY`, and MUST NOT be hand-written markdown.
+    rationale: 'Hand-maintained mapping tables drift silently. The orphaned example JSON files under
+      `docs/reference/examples/` and the failing example blocks tracked by issue 2904 are what that drift looks like once
+      it has accumulated. Rendering from the registries makes divergence impossible rather than merely detectable.'
+    verification: >-
+      Inspection of `docs/reference/messages/*.md` confirms each mapping table is
+      produced by a `markdown_exec` block reading the spec and semantic registries,
+      following the `docs/reference/specs/*.md` pattern.
+    lint_suppress:
+    - missing_story_reference
+    - phantom_path_ref
+  - id: MSM-06-002
+    priority: MUST
+    kind: process
+    statement: Every `SEMANTIC_REGISTRY` entry MUST be designated to exactly one *primary* page under
+      `docs/reference/messages/` and MUST appear on that page, or be explicitly exempted as a dispatcher fallback rather
+      than a protocol message. An entry MAY additionally be cross-referenced from other pages, and MUST be where a
+      collapse or an evolved mechanism gives it a second home.
+    rationale: 'Without a completeness check a new registry entry can be added without ever being documented, so every entry
+      needs one page that owns it. A bare "exactly one page" rule would be unsatisfiable, because the mapping is many-to-many
+      — see `notes/message-type-reference.md` for the entries that legitimately need a second home. A *primary* page keeps the
+      completeness guarantee without contradicting MSM-06-003. The dispatch fallbacks are the intended exemptions.'
+    verification: >-
+      A ratchet test enumerates `SEMANTIC_REGISTRY` and asserts exactly one primary-page
+      designation for every entry outside the declared exemption set, and that the entry
+      appears on its designated page.
+    lint_suppress:
+    - missing_story_reference
+    - phantom_path_ref
+  - id: MSM-06-003
+    priority: MUST
+    kind: process
+    statement: Each mapping row MUST carry a status indicating whether the relationship is direct, a collapse of several
+      shorthands onto one wire activity, an expansion of one shorthand across several wire activities, or a mechanism that
+      evolved onto a different axis per MSM-05.
+    rationale: Reference material must state what is true, including divergence from the normative message set. A table that
+      shows only direct mappings and omits the rest reads as a complete correspondence and misleads implementers about both
+      the collapses and the evolved mechanisms.
+    verification: >-
+      Inspection of the rendered pages confirms a status column is present and
+      populated for every row.
+    lint_suppress:
+    - missing_story_reference
+- id: MSM-07
+  title: Participant Embargo Consent (PEC) State Machine Coupling to EM Wire Activities
+  description: >-
+    Normative record of how each EM wire activity drives the per-participant Participant
+    Embargo Consent (PEC) state machine as a side-effect, and which PEC transitions are
+    internal cascades or timer-based events with no corresponding wire message. PEC is a
+    participant-local state machine tracking each actor's relationship to the shared case
+    embargo; its transitions are not independent protocol messages and have no formal
+    shorthands in the 28-shorthand set. PEC state answers the question: "has this
+    participant explicitly accepted or rejected the *current* active embargo?" Unlike
+    RM state (self-reported by the participant) and VF/D state (self-reported by
+    vendor/deployer), PEC state is set by the CaseActor (CM-28-003) based on observed
+    participant behavior — incoming Accept/Reject wire activities, timer-enforced lapses,
+    and cascades from shared EM state changes. The five states are NO_EMBARGO (no embargo
+    in scope), INVITED (awaiting response), SIGNATORY (accepted current terms), LAPSED
+    (terms changed since last acceptance), and DECLINED (explicitly refused or timed out
+    without responding). Normative authority: specs/case-management.yaml CM-18.
+    Decision: ADR-0048.
+  specs:
+  - id: MSM-07-001
+    priority: MUST
+    kind: protocol
+    statement: >-
+      The Participant Embargo Consent (PEC) state machine MUST NOT be assigned any
+      formal shorthand in the 28-shorthand protocol message set; all PEC transitions
+      are either side-effects of EM wire activities (MSM-07-002 through MSM-07-005)
+      or timer-based internal events (MSM-07-006) with no dedicated wire message or
+      dispatch value of their own.
+    rationale: >-
+      PEC is participant-local state tracking each actor's relationship to the shared
+      EM state, not a parallel message-driven machine. Extending the formal set with
+      PEC-specific shorthands would imply dedicated wire messages where none exist and
+      none are needed — the EM messages already carry the PEC signal as a side-effect.
+      Documenting PEC as a side-effect is the faithful description of the design.
+    verification: >-
+      A grep for PEC-specific entries across vultron/core/models/events/base.py and
+      vultron/semantic_registry/ confirms no MessageSemantics member and no registry
+      entry is named exclusively for a PEC transition.
+    relationships:
+    - rel_type: derives_from
+      spec_id: CM-18-003
+    lint_suppress:
+    - missing_story_reference
+  - id: MSM-07-002
+    priority: MUST
+    kind: protocol
+    statement: >-
+      The wire activity INVITE_TO_EMBARGO_ON_CASE (EP wire form:
+      Invite(Event)[context=VulnerabilityCase]) MUST apply the PEC INVITE trigger to
+      the invited participant, advancing their consent state from NO_EMBARGO, DECLINED,
+      or LAPSED to INVITED.
+    rationale: >-
+      An embargo proposal is an invitation to consent; the EP wire activity conveys
+      the invitation and the PEC machine records each participant's position. Participants
+      already in SIGNATORY are unaffected by EP; INVITE is a no-op from SIGNATORY
+      (CM-18-004). The PEC trigger is applied via EmbargoLifecycle.record_participant_consent()
+      inside the InviteToEmbargoOnCaseReceivedUseCase received-side handler.
+    verification: >-
+      Inspection of vultron/core/use_cases/received/embargo.py and
+      vultron/core/services/embargo_lifecycle.py confirms that processing
+      INVITE_TO_EMBARGO_ON_CASE applies PEC_Trigger.INVITE to each named invitee
+      via record_participant_consent().
+    relationships:
+    - rel_type: derives_from
+      spec_id: CM-18-003
+    - rel_type: refines
+      spec_id: MSM-02-001
+    lint_suppress:
+    - missing_story_reference
+  - id: MSM-07-003
+    priority: MUST
+    kind: protocol
+    statement: >-
+      The wire activity ACCEPT_INVITE_TO_EMBARGO_ON_CASE (EA wire form:
+      Accept(Invite(Event)[context=VulnerabilityCase])) has two-audience semantics:
+      (1) when the sending actor is the case owner it MUST advance the shared EM
+      state from PROPOSED to ACTIVE (or from REVISE to ACTIVE for EC); (2) for
+      any accepting participant it MUST apply the PEC ACCEPT trigger, advancing
+      their consent state from INVITED, NO_EMBARGO, or LAPSED to SIGNATORY.
+    rationale: >-
+      The same wire activity simultaneously drives the case-level EM machine
+      (for the case owner) and the participant-level PEC machine (for the accepting
+      actor). An implementer handling this activity MUST update both machines, not
+      just the EM state. The PEC ACCEPT trigger is valid directly from NO_EMBARGO
+      because consent can be self-determined without an invitation (ADR-0048,
+      CM-18-003).
+    verification: >-
+      Inspection of vultron/core/use_cases/received/embargo.py confirms
+      AcceptInviteToEmbargoOnCaseReceivedUseCase applies EmbargoLifecycle
+      with the sending actor's PEC updated to SIGNATORY regardless of whether
+      the actor is the case owner driving EM.
+    relationships:
+    - rel_type: derives_from
+      spec_id: CM-18-003
+    - rel_type: refines
+      spec_id: MSM-02-002
+    lint_suppress:
+    - missing_story_reference
+  - id: MSM-07-004
+    priority: MUST
+    kind: protocol
+    statement: >-
+      The wire activity REJECT_INVITE_TO_EMBARGO_ON_CASE (ER wire form:
+      Reject(Invite(Event)[context=VulnerabilityCase])) has two-audience semantics:
+      (1) when the sending actor is the case owner it MUST advance the shared EM
+      state from PROPOSED to NONE (for ER) or leave EM in ACTIVE (for EJ); (2)
+      for any rejecting participant it MUST apply the PEC DECLINE trigger, advancing
+      their consent state from INVITED, NO_EMBARGO, or LAPSED to DECLINED.
+    rationale: >-
+      Symmetric with MSM-07-003: the reject wire activity drives both the EM machine
+      (case-owner path) and the PEC machine (rejecting participant path). The PEC
+      DECLINE trigger is valid directly from NO_EMBARGO for symmetric reasons to
+      ACCEPT (ADR-0048, CM-18-003).
+    verification: >-
+      Inspection of vultron/core/use_cases/received/embargo.py confirms
+      RejectInviteToEmbargoOnCaseReceivedUseCase applies EmbargoLifecycle
+      with the sending actor's PEC updated to DECLINED regardless of EM ownership.
+    relationships:
+    - rel_type: derives_from
+      spec_id: CM-18-003
+    - rel_type: refines
+      spec_id: MSM-02-006
+    lint_suppress:
+    - missing_story_reference
+  - id: MSM-07-005
+    priority: MUST
+    kind: protocol
+    statement: >-
+      When the shared EM state transitions from ACTIVE to REVISE (driven by an
+      EV / INVITE_TO_EMBARGO_ON_CASE wire activity), implementations MUST
+      automatically apply the PEC REVISE trigger to every participant currently
+      in SIGNATORY state, advancing them to LAPSED. No separate outbound wire
+      activity is emitted for these per-participant PEC transitions; the cascade
+      is an internal side-effect of the EM state change.
+    rationale: >-
+      LAPSED means "I accepted the prior embargo terms, but those terms have
+      changed and my prior consent no longer applies." Because the revision is
+      a case-level event the cascade must be atomic with the EM transition —
+      leaving any SIGNATORY participant in place while EM is REVISE would allow
+      the case to proceed as though all prior signatories had re-accepted the
+      revised terms, which they have not. The REVISE cascade is performed by
+      EmbargoLifecycle._cascade_pec_revise() inside propose_embargo().
+    verification: >-
+      Inspection of vultron/core/services/embargo_lifecycle.py confirms that
+      propose_embargo() calls _cascade_pec_revise() and that SIGNATORY
+      participants are transitioned to LAPSED before the EM REVISE transition
+      is persisted. Unit tests in test/core/services/test_embargo_lifecycle.py
+      assert the cascade.
+    relationships:
+    - rel_type: derives_from
+      spec_id: CM-18-003
+    - rel_type: refines
+      spec_id: MSM-02-003
+    lint_suppress:
+    - missing_story_reference
+  - id: MSM-07-006
+    priority: MUST
+    kind: protocol
+    statement: >-
+      When the shared EM state transitions to EXITED (driven by an ET /
+      REMOVE_EMBARGO_EVENT_FROM_CASE wire activity), implementations MUST
+      automatically apply the PEC RESET trigger to every participant, advancing
+      all consent states to NO_EMBARGO. No separate outbound wire activity is
+      emitted for these per-participant PEC transitions; the cascade is an
+      internal side-effect of the EM termination.
+    rationale: >-
+      NO_EMBARGO is the correct state when no embargo is in scope (ADR-0048).
+      Terminating the embargo removes it from scope for all participants, so
+      their per-participant consent records must reflect that absence. The RESET
+      cascade is performed by EmbargoLifecycle._cascade_pec_reset() inside
+      terminate_active_embargo().
+    verification: >-
+      Inspection of vultron/core/services/embargo_lifecycle.py confirms that
+      terminate_active_embargo() calls _cascade_pec_reset() and that all
+      participants reach NO_EMBARGO. Unit tests in
+      test/core/services/test_embargo_lifecycle.py assert the cascade.
+    relationships:
+    - rel_type: derives_from
+      spec_id: CM-18-003
+    - rel_type: refines
+      spec_id: MSM-02-007
+    lint_suppress:
+    - missing_story_reference
+  - id: MSM-07-007
+    priority: MUST
+    kind: protocol
+    statement: >-
+      The timer-based pocket-veto transitions — INVITED to DECLINED and LAPSED
+      to DECLINED after the invitation deadline passes — MUST be enforced lazily
+      with no outbound wire message emitted for the PEC state change itself.
+      The CaseActor MUST author a case-ledger entry recording the lapse (CM-28-005)
+      so the consent change is visible in the canonical ledger, but no additional
+      protocol wire activity is required.
+    rationale: >-
+      Inaction cannot produce an outbound message because there is no actor-observable
+      event to report. The lapse is a derived conclusion from (invite_rsvp_deadline,
+      now); the ledger entry is the record of that conclusion, not a message sent
+      by the lapsing participant. Requiring a wire message would demand the system
+      speak on behalf of a participant who has said nothing, which contradicts the
+      Actor Knowledge Model (AKM).
+    verification: >-
+      Inspection of vultron/core/services/embargo_lifecycle.py confirms
+      detect_and_apply_lapse() applies PEC_Trigger.DECLINE without emitting
+      an outbound wire activity, and that a CaseActor-authored ledger entry
+      is written per CM-28-005.
+    relationships:
+    - rel_type: derives_from
+      spec_id: CM-18-002
+    - rel_type: derives_from
+      spec_id: CM-28-005
     lint_suppress:
     - missing_story_reference

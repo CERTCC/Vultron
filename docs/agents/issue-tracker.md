@@ -4,7 +4,7 @@ Issues and PRDs for this repo live as GitHub issues. Use the `gh` CLI for all op
 
 ## Conventions
 
-- **Create an issue**: `gh issue create --title "..." --body "..."`. Use a heredoc for multi-line bodies.
+- **Create an issue**: use `.agents/skills/manage-github-issue/manage_github_issue.sh` (or the `createIssue` GraphQL mutation directly). **Never use `gh issue create`** — it cannot set the issue type, parent/child (sub-issue) relationships, or blocker/blocked-by links, all of which are required on create. Type IDs and relationship mutations are in `.agents/skills/manage-github-issue/REFERENCE.md`; use the `create-epic` skill for Epics.
 - **Read an issue**: `gh issue view <number> --comments`, filtering comments by `jq` and also fetching labels.
 - **List issues**: `gh issue list --state open --json number,title,body,labels,comments --jq '[.[] | {number, title, body, labels: [.labels[].name], comments: [.comments[].body]}]'` with appropriate `--label` and `--state` filters.
 - **Comment on an issue**: `gh issue comment <number> --body "..."`
@@ -12,6 +12,23 @@ Issues and PRDs for this repo live as GitHub issues. Use the `gh` CLI for all op
 - **Close**: `gh issue close <number> --comment "..."`
 
 Infer the repo from `git remote -v` — `gh` does this automatically when run inside a clone.
+
+## Epics
+
+Epics are the `Epic` issue type, **not** a label. An Epic is a first-class GitHub issue whose `issueType` is `Epic`, with its member issues wired as sub-issues via GraphQL (the `addSubIssue` mutation). There is no "epic" label — do not create or search for one. Detect Epics by `issueType.name == "Epic"` and find their contents through the sub-issue relationship, not a label query. Create them with the `create-epic` skill.
+
+## Backtick-safe bodies
+
+**Never pass backtick-containing markdown in a double-quoted `--body`.** Use a single-quoted heredoc:
+
+```bash
+gh issue comment <N> --repo CERTCC/Vultron --body "$(cat <<'EOF'
+Use `code` freely here.
+EOF
+)"
+```
+
+The same rule applies to `gh issue edit --body`, `gh pr create --body`, etc.
 
 ## Pull requests as a triage surface
 

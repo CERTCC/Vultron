@@ -26,8 +26,9 @@ import httpx2 as httpx
 from vultron.adapters.utils import parse_id
 from vultron.core.predicates.participants import all_participants_rm_closed
 from vultron.core.states.cs import (
+    CS_d,
     CS_pxa,
-    CS_vfd,
+    CS_vf,
     is_pxa_attacks_observed,
     is_pxa_exploit_public,
     is_pxa_public_aware,
@@ -63,8 +64,9 @@ def _fetch_participant(
         actor_id: Full URI of the actor whose participant record to fetch.
         dl_actor_id: Full URI of the actor whose *store* to read, when that is
             not the client's own actor.  Needed for a self-hosted CaseActor: it
-            shares its owner's container but not its store (ADR-0073 decision
-            5), so reading the owner's replica reports the owner's view of a
+            shares its owner's container but not its store
+            (ADR-0073#peer-records-in-knowers-store), so reading the owner's
+            replica reports the owner's view of a
             participant, not the CaseActor's authoritative one.
 
     Returns:
@@ -248,20 +250,20 @@ def _check_participant_rm_state_in(
         )
 
 
-def _check_participant_vfd_state_in(
+def _check_participant_vf_state_in(
     client: DataLayerClient,
     case_id: str,
     actor_id: str,
-    expected_states: "set[CS_vfd]",
+    expected_states: "set[CS_vf]",
     label: str,
 ) -> None:
-    """Assert actor's latest participant vfd_state is in *expected_states*.
+    """Assert actor's latest participant vf_state is in *expected_states*.
 
     Args:
         client: DataLayerClient for the target container.
         case_id: Full URI of the ``as_VulnerabilityCase``.
         actor_id: Full URI of the actor to check.
-        expected_states: Set of acceptable ``CS_vfd`` values.
+        expected_states: Set of acceptable ``CS_vf`` values.
         label: Human-readable label for ``AssertionError`` messages.
     """
     participant = _fetch_participant(client, case_id, actor_id)
@@ -275,11 +277,46 @@ def _check_participant_vfd_state_in(
             f"{label}: participant for actor '{actor_id}' has no participant"
             " statuses"
         )
-    latest_vfd = latest.vfd_state
-    if latest_vfd not in expected_states:
+    latest_vf = latest.vf_state
+    if latest_vf not in expected_states:
         raise AssertionError(
-            f"{label}: expected vfd_state in {expected_states!r}, "
-            f"found {latest_vfd!r}"
+            f"{label}: expected vf_state in {expected_states!r}, "
+            f"found {latest_vf!r}"
+        )
+
+
+def _check_participant_d_state_in(
+    client: DataLayerClient,
+    case_id: str,
+    actor_id: str,
+    expected_states: "set[CS_d]",
+    label: str,
+) -> None:
+    """Assert actor's latest participant d_state is in *expected_states*.
+
+    Args:
+        client: DataLayerClient for the target container.
+        case_id: Full URI of the ``as_VulnerabilityCase``.
+        actor_id: Full URI of the actor to check.
+        expected_states: Set of acceptable ``CS_d`` values.
+        label: Human-readable label for ``AssertionError`` messages.
+    """
+    participant = _fetch_participant(client, case_id, actor_id)
+    if participant is None:
+        raise AssertionError(
+            f"{label}: participant for actor '{actor_id}' not found"
+        )
+    latest = participant.participant_status
+    if latest is None:
+        raise AssertionError(
+            f"{label}: participant for actor '{actor_id}' has no participant"
+            " statuses"
+        )
+    latest_d = latest.d_state
+    if latest_d not in expected_states:
+        raise AssertionError(
+            f"{label}: expected d_state in {expected_states!r}, "
+            f"found {latest_d!r}"
         )
 
 
@@ -291,7 +328,7 @@ def _assert_participant_pxa_only(
     """Assert *participant* has a public-aware pxa_state (no VFD check).
 
     Used for non-vendor/non-deployer receivers (e.g. coordinators) whose
-    vfd_state never advances beyond ``vfd`` — only pxa is meaningful for them
+    vf_state/d_state never advances (non-vendor/deployer) — only pxa is meaningful for them
     after a public-disclosure event (CSB-15-003).
 
     Raises:
@@ -311,16 +348,14 @@ def _assert_participant_pxa_only(
         )
 
 
-def _assert_participant_vfd_pxa(
+def _assert_participant_vf_pxa(
     participant: as_CaseParticipant,
     label: str,
     vendor_actor_id: str,
 ) -> None:
-    """Assert *participant* has fix-ready (VFd or VFD) and a public-aware pxa_state.
+    """Assert *participant* has fix-ready (VF=VF) and a public-aware pxa_state.
 
-    Vendor-only actors stop at VFd per CSB-15-002 (d→D requires DEPLOYER role).
-    Both VFd and VFD are accepted here since the caller may be a vendor or a
-    deployer.
+    Both fix-ready-only and fix-deployed actors have vf_state=CS_vf.VF.
 
     Args:
         participant: The ``as_CaseParticipant`` to check.
@@ -328,19 +363,18 @@ def _assert_participant_vfd_pxa(
         vendor_actor_id: Full URI of the vendor actor (used in error messages).
 
     Raises:
-        AssertionError: If the participant's vfd_state is not in {VFd, VFD} or
+        AssertionError: If the participant's vf_state is not CS_vf.VF or
             its pxa_state is not public-aware.
     """
     public_aware = {CS_pxa.Pxa, CS_pxa.PxA, CS_pxa.PXa, CS_pxa.PXA}
-    fix_ready_or_deployed = {CS_vfd.VFd, CS_vfd.VFD}
     latest = participant.participant_status
     if latest is None:
         raise AssertionError(
             f"M6 {label}: participant {vendor_actor_id!r} has no statuses"
         )
-    if latest.vfd_state not in fix_ready_or_deployed:
+    if latest.vf_state != CS_vf.VF:
         raise AssertionError(
-            f"M6 {label}: vfd_state is not VFd or VFD, found {latest.vfd_state!r}"
+            f"M6 {label}: vf_state is not VF (fix ready), found {latest.vf_state!r}"
         )
     cs = getattr(latest, "case_status", None)
     pxa = getattr(cs, "pxa_state", None) if cs is not None else None

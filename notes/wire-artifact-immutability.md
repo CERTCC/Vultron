@@ -28,7 +28,40 @@ required by the lenient wire branch per ARCH-12-002) while simultaneously
 preventing post-construction mutation via `ConfigDict(frozen=True)`. The
 `validate_assignment=False` exemption on `as_Object` (ADR-0064) affects
 type-checking on field writes — it does not preclude `frozen=True`, which
-raises `TypeError` on any attribute assignment regardless of type.
+rejects any attribute assignment regardless of type. Under Pydantic v2 that
+rejection surfaces as a `ValidationError` with `type=frozen_instance`, not a
+`TypeError`; code that means to clear a field on a wire object must build a
+new one via `model_copy(update=...)` instead (issue #2904).
+
+---
+
+## Clearing a Field: `model_copy`, Not a Cast-Silenced Assignment
+
+To clear or override a field on a frozen wire object, build a new one with
+`model_copy(update=...)`. Two things about getting there are worth carrying
+forward:
+
+- **A `cast(Any, obj).field = None` that only exists to silence a checker is a
+  smell — the checker was right.** `mypy`/`pyright` pass on the assignment
+  precisely because the cast erased the type that would have flagged the frozen
+  target. The line can never work at runtime (`frozen=True` raises). Prefer the
+  shape that needs no cast rather than casting to make an illegal assignment
+  type-check.
+
+- **Copying is correct even where in-place mutation *could* be made to work,
+  because of the shared-singleton hazard.** The wire example objects (`_REPORT`,
+  `_CASE`, the actors) are module-level singletons that
+  `adapters/driving/fastapi/routers/examples.py` serves over HTTP. Stripping a
+  field in place — via `object.__setattr__` or by dropping `frozen=True` — would
+  permanently mutate the live API responses as a side effect of building the
+  docs (the same class of bug that closed #1328). Returning a new object leaves
+  every other holder of the instance untouched.
+
+When probing which fields exist before copying, read `type(obj).model_fields`,
+not `hasattr`: `hasattr` is also true for properties and extras, and passing
+those to `model_copy(update=...)` writes a key that does not serialize.
+
+Source: ISSUE-2904.
 
 ---
 
@@ -81,7 +114,9 @@ ordering concern (CONCERN-2546).
 
 ### Current gaps (as of CONCERN-2545)
 
-- `TriggerActivityAdapter` returns `model_dump()` dict, not a frozen blob.
+The following gaps remain outstanding; the `TriggerActivityAdapter` dict-return
+gap was resolved by #2652/#2653.
+
 - `EmitInviteActorToCaseNode._emit()` derives `payload_snapshot` via
   `_drop_bare_inline_refs(activity_dict)` — the snapshot is not the exact
   emitted form.

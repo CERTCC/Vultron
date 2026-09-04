@@ -34,6 +34,7 @@ model validators:
 from __future__ import annotations
 
 import logging
+from datetime import datetime
 from typing import Any, Literal
 
 from pydantic import Field, field_serializer, field_validator, model_validator
@@ -42,11 +43,22 @@ from vultron.core.models._helpers import _new_urn
 from vultron.core.models._wire_spelling import reject_wire_spelled_keys
 from vultron.core.models.base import CoreObject, NonEmptyString
 from vultron.errors import VultronValidationError
-from vultron.core.models.dimensions import PecDimension, RmDimension
+from vultron.core.models.dimensions import (
+    DDimension,
+    PecDimension,
+    RmDimension,
+    VfDimension,
+)
 from vultron.core.models.participant_status import (
     ParticipantStatus,
     coerce_cvd_roles,
     coerce_em_consent_state,
+    participant_status_d_state,
+    participant_status_vf_state,
+)
+from vultron.core.predicates.roles import (
+    has_deployer_role,
+    has_vendor_role,
 )
 from vultron.core.states.participant_embargo_consent import PEC, PEC_Trigger
 from vultron.core.states.rm import RM, is_valid_rm_transition
@@ -81,6 +93,7 @@ class CaseParticipant(CoreObject):
     accepted_embargo_ids: list[NonEmptyString] = Field(default_factory=list)
     embargo_consent_state: PEC = Field(default=PEC.NO_EMBARGO)
     participant_case_name: NonEmptyString | None = None
+    invite_rsvp_deadline: datetime | None = None
 
     @model_validator(mode="before")
     @classmethod
@@ -230,12 +243,17 @@ class CaseParticipant(CoreObject):
 
         Returns:
             ``True`` when the status was appended, ``False`` when blocked.
+
+        Raises:
+            VultronValidationError: when the latest status carries a ``vf`` or
+                ``d`` dimension that is present but malformed — the readers used
+                to carry those paths forward refuse to degrade a corrupt row into
+                an absence (ARCH-15-002).  A blocked transition is reported by the
+                ``False`` return; a corrupt row is not, so callers that branch only
+                on the boolean must still let this propagate.
         """
-        current = (
-            self.participant_statuses[-1].rm.state
-            if self.participant_statuses
-            else RM.START
-        )
+        latest = self.participant_status
+        current = latest.rm.state if latest is not None else RM.START
         if not is_valid_rm_transition(current, rm_state):
             logger.warning(
                 "Invalid RM transition %s → %s for participant %s; skipping",
@@ -245,9 +263,41 @@ class CaseParticipant(CoreObject):
             )
             return False
         _consent_state = coerce_em_consent_state(self.embargo_consent_state)
+        roles = coerce_cvd_roles(self.case_roles)
+        # Carry the vendor and deployer paths forward.  Omitting them does not
+        # leave them absent: `ParticipantStatus._enforce_role_dimension_invariant`
+        # re-seeds `vf` for a VENDOR and `d` for a DEPLOYER at their *initial*
+        # state, so an RM-only append silently reset a vendor that had already
+        # reached VF back to vendor-unaware (#2264's failure mode, #3134).
+        #
+        # Carry a path forward only while its role is still held.  `cvd_role` on
+        # the new snapshot is recomputed from the *current* roles, so carrying a
+        # dimension whose role has since been dropped would produce a snapshot
+        # asserting a path its role list denies — ADR-0075 says a non-VENDOR has
+        # no vendor path and a non-DEPLOYER has no deployer path.
+        current_vf = (
+            participant_status_vf_state(latest)
+            if latest is not None and has_vendor_role(roles)
+            else None
+        )
+        current_d = (
+            participant_status_d_state(latest)
+            if latest is not None and has_deployer_role(roles)
+            else None
+        )
         self.participant_statuses.append(
             ParticipantStatus(
                 rm=RmDimension(state=rm_state),
+                vf=(
+                    VfDimension(state=current_vf)
+                    if current_vf is not None
+                    else None
+                ),
+                d=(
+                    DDimension(state=current_d)
+                    if current_d is not None
+                    else None
+                ),
                 context=context,
                 attributed_to=actor,
                 consent=(
@@ -255,10 +305,77 @@ class CaseParticipant(CoreObject):
                     if _consent_state is not None
                     else None
                 ),
-                cvd_role=coerce_cvd_roles(self.case_roles),
+                cvd_role=roles,
             )
         )
         return True
+
+    @classmethod
+    def new_at_rm(
+        cls,
+        rm_state: RM,
+        case_id: str,
+        invitee_id: str,
+        roles: list[CVDRole] | None = None,
+    ) -> "CaseParticipant":
+        """Create a participant placed at *rm_state* in one step (CM-11-001).
+
+        Validates that *rm_state* is reachable from ``RM.START`` in a single
+        hop via :func:`~vultron.core.states.rm.is_valid_rm_transition`.  This
+        encodes the invariant structurally: callers cannot over-advance the RM
+        ladder by calling :meth:`append_rm_state` multiple times.
+
+        Args:
+            rm_state: Target RM state; must be adjacent to ``RM.START``.
+            case_id: URI of the case this participant belongs to.
+            invitee_id: URI of the actor being added as participant.
+            roles: CVD roles to assign; defaults to an empty list.
+
+        Returns:
+            A new :class:`CaseParticipant` whose latest
+            :class:`~vultron.core.models.participant_status.ParticipantStatus`
+            carries *rm_state*.
+
+        Raises:
+            VultronValidationError: when *rm_state* is not adjacent to
+                ``RM.START``.
+        """
+        if not is_valid_rm_transition(RM.START, rm_state):
+            raise VultronValidationError(
+                f"RM state {rm_state!r} is not reachable from RM.START"
+                " in one hop; use append_rm_state() for multi-hop advances"
+            )
+        participant = cls(
+            id_=f"{case_id}/participants/{invitee_id.split('/')[-1]}",
+            attributed_to=invitee_id,
+            context=case_id,
+            case_roles=roles or [],
+        )
+        participant.append_rm_state(
+            rm_state, actor=invitee_id, context=case_id
+        )
+        return participant
+
+    @classmethod
+    def new_at_received(
+        cls,
+        case_id: str,
+        invitee_id: str,
+        roles: list[CVDRole] | None = None,
+    ) -> "CaseParticipant":
+        """Create a participant at ``RM.RECEIVED`` (CM-11-001 convenience factory).
+
+        Equivalent to ``new_at_rm(RM.RECEIVED, case_id, invitee_id, roles)``.
+
+        Args:
+            case_id: URI of the case this participant belongs to.
+            invitee_id: URI of the actor being added as participant.
+            roles: CVD roles to assign; defaults to an empty list.
+
+        Returns:
+            A new :class:`CaseParticipant` at ``RM.RECEIVED``.
+        """
+        return cls.new_at_rm(RM.RECEIVED, case_id, invitee_id, roles)
 
     def add_participant_status(self, status: ParticipantStatus) -> None:
         """Append a ParticipantStatus to this participant's history.

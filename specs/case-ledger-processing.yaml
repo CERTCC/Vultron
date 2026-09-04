@@ -478,9 +478,10 @@ groups:
     statement: Core snapshot-construction code MUST NOT special-case individual field
       names to reach the wire spelling (e.g. moving a nested `consent.state` to a
       flat `emConsentState`). Structural differences between the core and wire shapes
-      are the responsibility of the wire class's `from_core()` projection.
-    rationale: A per-field patch in core is a partial reimplementation of `from_core()`
-      that drifts as either shape evolves, and it is invisible to the wire layer's
+      are the responsibility of the adapter-side translator for that pairing
+      (ARCH-12-005), reached through the rendering port.
+    rationale: A per-field patch in core is a partial reimplementation of the translator
+      that drifts as either shape evolves, and it is invisible to the adapter layer's
       own round-trip tests. Each such patch also silently defines the canonical shape
       for exactly one type, leaving every other nested type unhandled.
     verification: No module under `vultron/core/` assigns a camelCase key into a snapshot
@@ -488,8 +489,12 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: CLP-07-009
+    - rel_type: depends_on
+      spec_id: ARCH-12-005
+      note: ARCH-12-005 names the adapter-side translator as the sole owner of the structural projection.
     adr:
     - ADR-0063
+    - ADR-0082
 - id: CLP-08
   title: Per-Case Genesis Hash Derivation and Origin Binding
   specs:
@@ -623,14 +628,14 @@ groups:
     kind: protocol
     statement: Every protocol-significant use case or BT subtree (per BT-06-001) MUST
       produce exactly one canonical commit; a coverage test MUST enumerate protocol-significant
-      entries (e.g., everything reachable from `USE_CASE_MAP`) and assert each one
+      entries (e.g., everything reachable from `use_case_map()`) and assert each one
       reaches a commit, rather than relying on manual audit to discover missing commits
     rationale: '`validate_report`, `ack_report`, and `close_case` produced no canonical
       ledger entry at all on `main` for an unknown span of time (issue #998/#1022).
-      Dispatch completeness is already enforced structurally for `USE_CASE_MAP` (DR-02-002,
+      Dispatch completeness is already enforced structurally for `use_case_map()` (DR-02-002,
       UCORG-02-002); commit completeness had no equivalent structural check and was
       found only by a manual re-audit.'
-    verification: A coverage test enumerates all use cases reachable via `USE_CASE_MAP`
+    verification: A coverage test enumerates all use cases reachable via `use_case_map()`
       and asserts that each one produces at least one `CaseLedgerEntry` with `disposition="recorded"`
       in a representative demo run.
     stories:
@@ -953,6 +958,78 @@ groups:
     - protocol
     adr:
     - ADR-0073
+  - id: CLP-10-015
+    priority: MUST
+    kind: protocol
+    statement: >-
+      When a received-side use case must identify a *subject* that the incoming
+      message names — the invitee of an embargo invitation, the actor whose
+      consent an accept/reject records, or the target of any participant-scoped
+      action — it MUST read that identity from the received activity, not from
+      `resolve_receiving_actor_id()`. `resolve_receiving_actor_id()` is
+      legitimate only as the `actor_id` passed to `execute_with_setup()`
+      (CLP-10-005) — i.e. *whose store is running the tree* — never as a stand-in
+      for *whom the message is about*.
+    rationale: >-
+      The receiving actor and the message subject coincide in the ordinary
+      single-recipient case, which is why substituting one for the other went
+      unnoticed. They diverge whenever a message is relayed on a participant's
+      behalf (the CaseActor forwarding), CLI dispatch, or log replay — there the
+      running store's actor is not the invitee. Resolving the subject as
+      `resolve_receiving_actor_id()` then records consent against, or addresses
+      an action to, the wrong participant, and the divergence is
+      protocol-observable: a conforming peer sees the state change land on an
+      actor the message never named. Source: ISSUE-2762, ADR-0022.
+    verification: >-
+      `TestInviteeIsTheAddressee` and `TestInviteeIdProperty` in
+      `test/core/use_cases/received/test_embargo_invite_lapse.py` confirm that the
+      resolved invitee is taken from the activity's addressees and not from the
+      receiving actor when the two differ.
+    relationships:
+    - rel_type: refines
+      spec_id: CLP-10-005
+    tags:
+    - protocol
+    adr:
+    - ADR-0022
+    lint_suppress:
+    - missing_story_reference
+  - id: CLP-10-016
+    priority: MUST
+    kind: protocol
+    statement: >-
+      Subject-identity resolution (CLP-10-015) MUST be by **addressee
+      membership**, not by position in the `to:` list. When the receiving actor
+      is among the recipients it is the subject; when exactly one recipient
+      exists and it is not this store's actor, that recipient is the subject;
+      when several recipients exist and none is this store's actor the case is
+      ambiguous and the resolver MUST warn and degrade rather than select
+      `to[0]`.
+    rationale: >-
+      Selecting `to[0]` positionally makes a multi-recipient message resolve to
+      the same subject in every replica — inviting the wrong participant
+      everywhere except the one store where `to[0]` happens to be correct.
+      Preferring the receiving actor when it is a recipient is what makes a
+      multi-recipient invitation correct in *each* recipient's own replica, and
+      it is canonical by construction because `inbox_handler` normalises the
+      receiving actor against `activity.to` (HP-09-001). Degrading with a WARNING
+      on genuine ambiguity preserves the canonical ledger commit that rides in
+      the same single tree (ADR-0022) rather than dropping the message. Source:
+      ISSUE-2762, ADR-0022.
+    verification: >-
+      Inspection of `resolve_invitee_id()` in
+      `vultron/core/use_cases/received/embargo.py` confirms resolution is by
+      addressee membership with the ordered fallbacks above, mirroring
+      `_is_primary_submit_report_recipient` in `received/report.py`.
+    relationships:
+    - rel_type: refines
+      spec_id: CLP-10-015
+    tags:
+    - protocol
+    adr:
+    - ADR-0022
+    lint_suppress:
+    - missing_story_reference
 - id: CLP-11
   title: Protocol Request/Reply State Detection
   description: Requirements for querying whether a protocol-level request/reply pair
@@ -963,17 +1040,27 @@ groups:
   - id: CLP-11-001
     priority: MUST
     kind: protocol
-    statement: Open/closed state for a protocol request/reply pair (e.g., `Offer(CaseParticipant)`
-      awaiting `Accept` or `Reject`) MUST be determined by querying the case ledger
-      via `CasePersistence.find_protocol_pair()`, not by inspecting the outbox.
+    statement: Whether a protocol request/reply pair (e.g., `Offer(CaseParticipant)`
+      awaiting `Accept` or `Reject`) has been authorized MUST be determined by querying
+      the case ledger via `CasePersistence.find_protocol_pair()`, and MUST NOT be determined
+      by inspecting the outbox.
     rationale: 'The outbox is a delivery queue: entries are removed when the activity
       is sent and MUST NOT be used to infer protocol state. The case ledger is the
       canonical append-only protocol history and survives actor restarts. Any code
       that reads the outbox to determine whether a request is still in-flight is architecturally
       incorrect and MUST be replaced.'
+    note: >-
+      Narrowed by ADR-0080. This requirement governs the *authorization* question
+      ("was this permitted?"), which only the ledger may answer. It does not forbid an
+      actor-scoped working-set register of outstanding asks (ASK-04), which answers the
+      distinct question "what am I waiting on, and what do I owe?" — and which
+      DL-06-002 requires be recorded as core state rather than re-derived. A register
+      MUST NOT be consulted for authorization (ASK-02-004).
     verification: A unit test confirms that `CasePersistence.find_protocol_pair()`
-      queries the `CaseLedgerEntry` log to determine open/closed state, and that no
-      code path reads the outbox to make this determination.
+      queries the `CaseLedgerEntry` log to determine authorization state, and that no
+      code path reads the outbox or an outstanding-ask register to make this determination.
+    adr:
+    - ADR-0080
     stories:
     - story_2022_045
     - story_2022_088
@@ -986,6 +1073,14 @@ groups:
       ledger; `PendingAssertionStore` suppresses duplicate near-term re-emits while
       waiting for the `CaseLedgerEntry` round-trip. Merging them would conflate durable
       protocol state with short-lived emit-suppression state.'
+    note: >-
+      Clarified by ADR-0080. This prohibition is on unifying the *registers*, not on
+      sharing their machinery. The create / close-on-named-event / time-out lifecycle,
+      its reaping and its enumeration are implemented once and instantiated separately
+      per use (ASK-04-007) — the durable ask register may block, the ephemeral
+      suppressor may not (CLP-06-002, CLP-06-005).
+    adr:
+    - ADR-0080
   - id: CLP-11-003
     priority: MUST
     kind: protocol

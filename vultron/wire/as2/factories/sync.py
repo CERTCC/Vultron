@@ -20,7 +20,7 @@ replication activities. Internal activity subclasses are imported here
 and MUST NOT be imported by callers.
 
 Spec: ``specs/activity-factories.yaml`` AF-01-001 through AF-04-003.
-Spec: ``specs/case-event-log-synchronization.yaml`` SYNC-09-002,
+Spec: ``specs/sync-ledger-replication.yaml`` SYNC-09-002,
 SYNC-03-001, SYNC-03-002.
 """
 

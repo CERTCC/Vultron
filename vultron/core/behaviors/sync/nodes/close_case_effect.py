@@ -29,7 +29,6 @@ from vultron.core.behaviors.sync.nodes._helpers import (
     _LedgerEffectNode,
     _extract_id_from_field,
 )
-from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.participant_status import participant_status_rm_state
 
@@ -80,8 +79,8 @@ class ApplyCloseCaseFromLedgerNode(_LedgerEffectNode):
             )
             return Status.SUCCESS
 
-        case = self.datalayer.read(case_id)
-        if not isinstance(case, VulnerabilityCase):
+        case = self.datalayer.read_case(case_id)
+        if case is None:
             self.logger.debug(
                 "%s: case '%s' not found in local DataLayer"
                 " — skipping (non-fatal, partial case view)",
@@ -120,10 +119,17 @@ class ApplyCloseCaseFromLedgerNode(_LedgerEffectNode):
             case_id=case_id,
             actor_id=departing_actor_id,
             rm_state=RM.CLOSED,
-            vfd_state=None,
+            vf_state=None,
+            d_state=None,
             pxa_state=None,
             result_out=result_out,
             name=f"{self.name}.CreateParticipantStatus",
+            # Sanctioned override (CM-23-012, resolving #3106): this replica is
+            # replicating the *departing actor's* own self-declaratory Leave
+            # (ADR-0084) named in the ledger entry, advancing only that single
+            # actor to RM.CLOSED regardless of rung.  It never touches any other
+            # (bystander) participant on this replica.  See `force_rm_state`.
+            force_rm_state=True,
         )
         node.datalayer = self.datalayer
         node.actor_id = departing_actor_id

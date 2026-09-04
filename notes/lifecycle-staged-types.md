@@ -118,6 +118,22 @@ separate hand-written promotion function. On invariant violation it raises a
 descriptive error at the boundary (fail-fast), never a silent `None` propagated
 into core. This is ADR-0032 applied at the read boundary.
 
+**This works on a real `dl.read()` result, not just a core-constructed object.**
+Root `AGENTS.md` carried a contradicting rule for a while ("staged-type
+`model_validate` only works on core-constructed objects; don't use on `dl.read()`
+results; check pre-conditions directly on the returned object"), and no test
+covered the actual read boundary, so nothing could adjudicate it. Verified against
+a real SQLite round-trip: `case_statuses` rehydrate as materialized `CaseStatus`
+objects and `EmbargoedCase.model_validate(stored)` promotes successfully. The rule
+was wrong and is gone; the behaviour is now pinned by
+`test/core/models/test_staged_case.py::TestDataLayerRoundTrip::test_promotion_works_on_a_real_datalayer_read`.
+
+Note that the surviving *alternative* is not a contradiction: an upstream BT guard
+such as `HasActiveEmbargoNode` (see
+`vultron/core/behaviors/embargo/nodes/lifecycle.py`) may establish the same
+preconditions before a node runs. That is a guard placement choice, not evidence
+that promotion at the read boundary fails.
+
 ## Transition Model: Data Is the Source of Truth
 
 The case *data* is the single source of truth; the stage is **always re-derived,
@@ -161,3 +177,30 @@ folded into the staged-types work. Tracked as a separate Idea issue.
 **Resolved**: ADR-0036 and `specs/status-dimension-objects.yaml` capture the
 design and normative requirements. See `notes/status-dimension-objects.md`
 for implementation guidance.
+
+## Transition Constructors: Not Adopted (field-mutation retained)
+
+**Decision (CONCERN-1912, planning group G06 / #2834):** the write path stays as
+field mutation on the staged types; explicit transition constructors (a second,
+transition-verb-shaped write API) are **not** introduced.
+
+ADR-0033 already evaluated and rejected transition constructors as a second write
+path that risks divergence from the field-mutation path, and set an explicit
+reopen bar: the option "may be reopened if the migration audit shows the
+field-mutation path is error-prone in practice." The concrete threshold applied
+here for "error-prone in practice" is **≥2 distinct classes of field-mutation
+error** observed at staged-type promotion sites (e.g., promoting to
+`EmbargoedCase` without setting `active_embargo`, or mutating `case_statuses`
+without materialising a `CaseStatus`).
+
+State of the evidence: the staged types are substantially implemented
+(`vultron/core/models/staged_case.py` defines `IncomingReport`, `Case`, and
+`EmbargoedCase`, each with `model_validator` invariants keyed to LST-02), so the
+migration is real enough to audit — but no recurring field-mutation error classes
+have surfaced. The ADR-0033 reopen precondition is therefore **unmet**, and #1912
+resolves to "no change; retain field mutation." Re-open only if the bar above is
+later met. The companion CS-representation verdict (CONCERN-2099) is recorded in
+`notes/case-state-model.md`.
+
+**See**: `docs/adr/0033-lifecycle-staged-case-types.md`;
+`vultron/core/models/staged_case.py`; `notes/case-state-model.md`.

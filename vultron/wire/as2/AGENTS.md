@@ -102,6 +102,20 @@ suspenders for edge cases the runtime guard might miss).
 4. Run `test/test_semantic_activity_patterns.py`.
 5. If `RegistryOrderError`, move entry earlier than the conflicting general one.
 
+### Extraction Port Return Type — Return the Discriminated Union, Not the Base
+
+`extract_intent()` / `extract_event()` MUST declare their return type as
+`AnyReceivedEvent` (defined in `vultron/core/models/events/__init__.py` as the
+`Union` of every concrete `*ReceivedEvent` subclass), **not** the base
+`VultronEvent`. Returning the union is what lets callers narrow exhaustively at
+the port boundary — a base-class alias erases the discriminant and forces
+downstream `isinstance` guessing. This is an internal typing convention (a peer
+implementation cannot observe our return annotation), so it lives here rather
+than in `specs/`; it is the concrete application of CS-10-001's "named,
+domain-typed objects at port boundaries" to the semantic-extraction port.
+
+Source: ISSUE-2491
+
 ---
 
 ## Constructing Outbound Activities
@@ -138,3 +152,13 @@ and
 [notes/activitystreams-semantics.md](../../../notes/activitystreams-semantics.md)
 for all AS2 pitfalls (pattern matching, Union serialization, wire format vs.
 domain model, `serialize_as_any=True`, rehydration, bootstrap activities, etc.).
+
+**Outbound `@context` MUST cite the Vultron namespace, not only AS2** —
+`VultronAS2Object.context_` MUST default to the Vultron JSON-LD context URI
+(`https://certcc.github.io/Vultron/ns/context.jsonld`), not the bare
+ActivityStreams namespace (`https://www.w3.org/ns/activitystreams`). The AS2
+namespace does not declare Vultron-specific types (`VulnerabilityCase`,
+`EmbargoEvent`, etc.); using it alone means receivers cannot resolve those type
+names. The Vultron context document imports AS2 internally, so citing only the
+Vultron URI is both correct and sufficient. See VM-10-001, ADR-0069.
+*Source: CONCERN-2105*

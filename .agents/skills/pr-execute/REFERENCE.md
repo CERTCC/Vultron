@@ -125,15 +125,17 @@ After running the test suite, scan `XFAIL` lines in pytest output. For each:
 1. Extract `#<N>` from the `reason` string (regex `#(\d+)`).
 2. If no issue number found: this is an unmanaged xfail — file a new `bug` +
    `flaky-test` issue, update the `reason` string in the PR to reference it,
-   record as `outcome: filed`.
+   record as `outcome: fixed` with the new `issue_number` (the xfail now points to
+a live issue — the finding is resolved).
 3. If issue number found: `gh issue view <N> --json state`
    - `open` → fine, no action needed.
    - `closed` → the fix landed without removing the marker; file a new tracking
-     issue, update the reason string, record as `outcome: filed`.
+     issue, update the reason string, record as `outcome: fixed` with the new `issue_number` (the xfail now points to
+a live issue — the finding is resolved).
 
 The rule: **every `xfail` must point to a live open issue**. An xfail with a
 dead or missing reference is treated as unmanaged debt and triggers a
-`new-issue-no-ask` finding.
+NEW-ISSUE finding — file a fresh tracking issue for it.
 
 > **xfail-tracking issues vs flaky-test issues**: these are distinct categories.
 > An xfail-tracking issue documents a known architectural violation or pre-existing
@@ -222,8 +224,6 @@ Merge branch 'main' into task/1234-slug
 Resolved conflicts in:
 - vultron/core/models/case/case.py — kept both new fields
 - uv.lock — regenerated after taking main's version
-
-Co-Authored-By: Claude Sonnet 4.6 <noreply@anthropic.com>
 ```
 
 ---
@@ -250,11 +250,14 @@ The immediate issue is fixed but something related cannot be addressed now.
 
 ### ❌ Cannot Address / Needs Discussion
 
-The comment raises something outside the PR's scope or requiring design work.
+The comment raises something genuinely too big to finish now. "Separate
+treatment" is a deferral — it must clear Gate 1 (measured remainder + explicit
+approval), not be asserted by the act of filing. If you can just fix it, fix it.
 
 **Reply template**:
-> "This would require {brief explanation}. Filed as #{issue_number} for
-> separate treatment. Can we discuss whether this should block merge?"
+> "This would require {brief explanation}. I did {what}, and {measured
+> remainder} concretely remains. Filed as #{issue_number}. Can we discuss
+> whether to fold it in here or leave it for #{issue_number}?"
 
 ### Do NOT Resolve If
 
@@ -312,12 +315,12 @@ File: `.claude/pr-{number}-execute.json`
       "comment_resolution": null
     },
     {
-      "finding_id": "phase9-distant-refactor-0",
-      "outcome": "deferred-ask",
-      "commit_ref": null,
+      "finding_id": "phase9-retry-logic-0",
+      "outcome": "fixed",
+      "commit_ref": "abc1234",
       "issue_number": 999,
-      "skip_reason": "Non-trivial, distant cousin — filed as #999, awaiting user decision on fold-in.",
-      "comment_resolution": null
+      "skip_reason": null,
+      "comment_resolution": "'also' excursion — filed #999 and fixed it in this PR; PR closes #999."
     }
   ],
   "execute_comment_url": "https://github.com/CERTCC/Vultron/pull/1234#issuecomment-..."
@@ -328,10 +331,15 @@ File: `.claude/pr-{number}-execute.json`
 
 | Value | Meaning |
 |---|---|
-| `fixed` | Applied inline; commit_ref recorded |
-| `filed` | GitHub issue created; issue_number recorded |
-| `deferred-ask` | Issue filed; user asked whether to fold in; awaiting decision |
-| `skipped` | Could not address; skip_reason explains why |
+| `fixed` | Applied inline; commit_ref recorded. `issue_number` is `null` for a plain `fix-now`, or set for a `fix-now-file` excursion the PR closes |
+| `deferred-ask` | Gate 1: issue filed, a measured remainder presented, and the user **explicitly approved** deferral. Silence does not produce this outcome — silence produces `fixed` |
+| `halted` | Gate 2: an inversion the user did not resolve; PR set to draft/blocked; pipeline stopped |
+| `skipped` | Could not address (e.g., unresolved conflict, pre-existing failure filed with evidence); skip_reason explains why |
+
+There is no standalone `filed` outcome — filing a record is not an endpoint.
+A filed finding is either `fixed` (the PR closes it) or `deferred-ask`
+(explicitly approved). See `.claude/skills/shared/completeness-doctrine.md`
+§ "Filing Is Not Deferring".
 
 **Integrity check**: `len(results)` must equal `len(triage.findings)`. Every
 finding must have an outcome. `pr-verify` checks this count and warns if they
@@ -361,8 +369,9 @@ cannot produce a READY-TO-MERGE verdict.
 ## PR Execute: #<number> — <title>
 
 **Fixes applied**: <N> commits
-**Issues filed**: <M>
-**Deferred (awaiting your input)**: <K>
+**Excursions filed and fixed**: <M> (PR closes them)
+**Deferred (you approved)**: <K>
+**Halted (inversion, awaiting you)**: <H>
 **Tests run**: unit only / unit + integration
 **CI status**: ✅ passing / ❌ failing / ⏳ timed out
 **Base sync**: ✅ merged `<base_ref>` @ `def5678` — <N> conflicts resolved / ✅ already current / ❌ conflicts unresolved
@@ -382,22 +391,31 @@ _Omit this section entirely when the merge was clean._
 
 ### Fixed
 
-| Finding | Commit |
-|---|---|
-| phase5-missing-nonemptystring-0: Field must use OptionalNonEmptyString | `abc1234` |
-| phase8-unused-import-0: Remove unused import | `abc1234` |
-
-### Filed as Issues
-
-| Finding | Issue |
-|---|---|
-| phase9-distant-refactor-0: Refactor dispatcher | #999 |
-
-### Deferred — Awaiting Your Input
-
-| Finding | Issue | Question |
+| Finding | Commit | Closes |
 |---|---|---|
-| phase8-extract-helper-0: Extract helper function | #1000 | Fold into this PR or leave for #1000? |
+| phase5-missing-nonemptystring-0: Field must use OptionalNonEmptyString | `abc1234` | — |
+| phase8-unused-import-0: Remove unused import | `abc1234` | — |
+| phase9-retry-logic-0: "also" excursion — rewrote retry logic | `abc1234` | #999 |
+
+_The `Closes` column shows `fix-now-file` excursions the PR closes; `—` means a
+plain `fix-now` recorded by the diff alone._
+
+### Deferred — You Approved
+
+| Finding | Issue | Measured remainder |
+|---|---|---|
+| phase9-migrate-callsites-0: Migrate remaining call sites | #1000 | 3 of 47 done; 44 remain, each a distinct signature change |
+
+_Only appears when you **explicitly approved** deferral. Silence produces a fix,
+not a deferral._
+
+### Halted — Inversion, Awaiting You
+
+| Finding | Overturned premise |
+|---|---|
+| phase6-embargo-premise-0 | Issue assumed embargo state is single-owner; the fix requires multi-owner, which contradicts ADR-0012 |
+
+_PR is set to draft/blocked until you resolve the inversion._
 
 ### Skipped
 

@@ -33,14 +33,17 @@ changes, and note them in a PR comment. Do not just flag and stop.
 The scope boundary is **the problem the issue describes and its close relatives**
 — not just the files already in the diff.
 
-Use this decision tree for anything you find beyond the original issue:
+Use this decision tree for anything you find beyond the original issue. FILE
+(does this warrant a record?) and DEFER (fix now, or leave for later?) are
+**separate** decisions; the default is fix-now. See
+`.agents/skills/shared/completeness-doctrine.md`.
 
-1. **Trivial fix, any conceptual distance** → fix it now, mention it in the PR comment. Don't cut an issue.
-2. **Non-trivial, same family** → fix it now. Expand the PR scope. Cut a GitHub issue if useful for tracking, but close it in this same PR.
-3. **Non-trivial, distant cousin** → cut a GitHub issue, then ask the user: "I found X — should I fold it into this PR or leave it for the new issue?" Give a recommendation based on effort ratio (if fixing now is cheaper than reloading context later, lean toward fixing now).
-4. **Requires separate design effort** (you recognize the problem but don't have the solution, or solving it requires deep investigation of a different domain) → cut a GitHub issue, keep this PR focused, do not ask.
+1. **Not an "also" excursion** — you can explain fixing it and the original thing in one sentence without the word "also" → fix it now, no issue. The diff is the record.
+2. **An "also" excursion** → fix it now **and** file an issue this PR closes (`- Closes #N`), with a one-line "why". Filing does not mean deferring.
+3. **Genuinely too big to finish now** → defer only through Gate 1: file, present a *measured remainder* (what you did, what concretely remains) in plain language, and get explicit approval. On silence, fix it now. Only *second-order* findings (revealed while fixing an excursion) are eligible.
+4. **Inverts a premise** the issue or its backing specs/ADRs rested on → Gate 2: explain the overturned premise in plain language, ask if/what to file, and do not act on it unreviewed. On silence, halt the PR.
 
-**Same family** means: if you had to explain why you fixed both things in this PR, you could do it in one sentence without using the word "also." Siblings, cousins, aunts/uncles of the original problem — things that share the same parent concept. Distant cousins share an ancestor if you trace far enough, but the connection requires too many hops to justify expanding this PR.
+**The "also" test**: if explaining why you fixed both things needs the word "also," it is a genuine excursion (file it). If not, it is simply doing the task (no file). Siblings, cousins, aunts/uncles of the original problem share the same parent concept; a fix that needs "also" has drifted far enough to warrant its own record.
 
 **Never** create a NEW-ISSUE finding and leave it unaddressed in the report without following the decision tree above.
 
@@ -80,7 +83,6 @@ Check against `.agents/skills/shared/pr-body-guide.md`:
 - Closing references at the **top**, one per bullet
 - Required sections present (Summary, Changes, Verification for impl PRs)
 - Test counts in Verification are real numbers, not placeholders
-- Co-authored-by trailer present in all commits
 
 ### Phase 4 — Domain Context
 

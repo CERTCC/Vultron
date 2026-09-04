@@ -16,6 +16,46 @@
 The `vultron.errors` module provides exceptions for Vultron
 """
 
+from collections.abc import Iterable, Sequence
+from typing import NamedTuple
+
+
+class Violation(NamedTuple):
+    """One violated rule in a rejection that reports every violation.
+
+    A validation boundary that refuses its input as a unit still owes its
+    caller every violation it can recognise (EH-07-001).  This is the unit of
+    that report: the rule's human-readable ``message``, the ``dimensions`` the
+    rule reads, and whether it is a root cause or a consequence of another
+    reported violation (EH-07-002).
+
+    ``derived`` is a property of the *set*, not of the rule on its own, so it
+    is assigned by whichever evaluator produced the complete list — see
+    :func:`~vultron.core.states.participant_transitions\
+    .participant_transition_violations`.
+    """
+
+    message: str
+    dimensions: tuple[str, ...] = ()
+    derived: bool = False
+
+    @property
+    def classification(self) -> str:
+        """``"derived"`` or ``"root"`` — the EH-07-002 label for this rule."""
+        return "derived" if self.derived else "root"
+
+
+def _render_violations(header: str, violations: Sequence[Violation]) -> str:
+    """Return *header* followed by one indented line per violation.
+
+    One rendering serves both contracts: the whole set in ``str()`` (EH-07-003)
+    and the whole set in an HTTP ``message`` field (EH-05-002), which is
+    ``str()`` of the same exception.
+    """
+    lines = [f"{header} ({len(violations)} violation(s)):"]
+    lines.extend(f"  [{v.classification}] {v.message}" for v in violations)
+    return "\n".join(lines)
+
 
 class VultronError(Exception):
     """Base class for all Vultron exceptions"""
@@ -43,11 +83,31 @@ VultronConflictError = VultronInvalidStateTransitionError
 
 
 class VultronValidationError(VultronError):
-    """Raised when domain validation of a resource or request fails."""
+    """Raised when domain validation of a resource or request fails.
 
-    def __init__(self, message: str, activity_id: str | None = None):
+    When the boundary recognised more than one violation, pass them as
+    ``violations``: they are kept as structured data on the exception and
+    ``str()`` renders the whole set, so no caller has to parse the joined
+    message to recover the individual rules (EH-07-003).  This follows
+    :exc:`DemoFailureError`'s shape, the house pattern for
+    accumulate-all-then-fail (DEMOCI-01-003).
+    """
+
+    def __init__(
+        self,
+        message: str,
+        activity_id: str | None = None,
+        violations: Iterable[Violation] | None = None,
+    ):
         self.activity_id = activity_id
+        self.violations: tuple[Violation, ...] = tuple(violations or ())
         super().__init__(message)
+
+    def __str__(self) -> str:
+        summary = super().__str__()
+        if not self.violations:
+            return summary
+        return _render_violations(summary, self.violations)
 
 
 class VultronCanonicalEntryError(VultronError):
@@ -100,7 +160,7 @@ class VultronOutboxObjectIntegrityError(VultronError):
         super().__init__(message)
 
 
-class VultronProtocolViolationError(VultronError):
+class VultronProtocolViolationError(VultronError, ValueError):
     """Raised when an inbound protocol message violates a mandatory requirement.
 
     The inbound mirror of :exc:`VultronOutboxObjectIntegrityError`.  While
@@ -112,6 +172,13 @@ class VultronProtocolViolationError(VultronError):
     participant as a bare URI string rather than a fully inline typed object.
     Receivers MUST raise this error and reject the bootstrap rather than
     silently synthesising participant state from domain knowledge.
+
+    ``ValueError`` is included in the base classes so that Pydantic absorbs
+    this error when it is raised from a ``model_validator`` or
+    ``field_validator`` and wraps it in a ``ValidationError`` rather than
+    letting it escape the ``model_validate()`` call.  Callers that need to
+    distinguish a protocol violation from an ordinary validation failure can
+    inspect ``ValidationError.errors()[0]['ctx']['error']``.
     """
 
 

@@ -22,11 +22,10 @@ Composes the DEMOMA-07-003 workflow as a Sequence BT
 StatusAdoptionGate of the two-seam authorization model (ADR-0046, RSH-01-001 to RSH-01-004):
 after ``AppendParticipantStatusNode`` records the raw peer update, a
 ``StatusAdoptionGate`` (Selector/Fallback) decides whether the CaseActor
-should adopt the status, then ``EmitAddCaseStatusToSelfNode`` emits a
-self-addressed ``Add(CaseStatus)`` to trigger EmbargoTeardownAuthorizationGate in
-``add_case_status_tree``.  Embargo teardown and other side-effects belong in
-EmbargoTeardownAuthorizationGate; ``add_participant_status_tree`` does not execute them directly
-(RSH-01-004).
+should adopt the status, then ``EmitCaseStatusUpdateNode`` writes the
+post-adoption CaseStatus directly to the case ledger without routing through
+the inbox seam (RSH-04-004).  Side-effects (embargo teardown) belong in
+``add_case_status_tree``; this tree does not execute them directly (RSH-01-004).
 
     AddParticipantStatusBT (Sequence)
     ├─ VerifySenderIsParticipantNode          # Step 1: sender must be known participant
@@ -39,7 +38,11 @@ EmbargoTeardownAuthorizationGate; ``add_participant_status_tree`` does not execu
     ├─ StatusAdoptionGate (Selector)           # StatusAdoptionGate authorization (RSH-01-002)
     │   ├─ CheckIsCaseOwnerNode               # Hard bypass: CASE_OWNER gospel (RSH-01-002)
     │   └─ CaseOwnerApprovesStatusUpdate      # Call-out: non-owners need approval
-    ├─ EmitAddCaseStatusToSelfNode            # StatusAdoptionGate emit → triggers EmbargoTeardownAuthorizationGate (RSH-01-003)
+    ├─ EmitCaseStatusUpdateNode               # Direct ledger write (RSH-04-004, RSH-01-003)
+    ├─ TeardownEffectsOrSkip (FailureIsSuccess)
+    │   └─ TeardownEffects (Sequence)
+    │       ├─ EmbargoTeardownAuthorizationGate  # Call-out gate (RSH-02-001)
+    │       └─ ThreatTerminationBranchNode       # Embargo teardown on P/X/A (RSH-03-001)
     └─ EmitRMGapNoteNode                      # Emit Add(Note,Case) on RM anomaly (RSH-06-004)
 
 ``FilterParticipantStatusDimensionsNode`` adjudicates ``rm``, ``vfd`` and
@@ -74,10 +77,13 @@ from vultron.core.behaviors.status.append_participant_status_tree import (
     append_participant_status_tree,
 )
 from vultron.core.behaviors.status.nodes import (
-    EmitAddCaseStatusToSelfNode,
+    EmitCaseStatusUpdateNode,
     EmitRMGapNoteNode,
     FilterParticipantStatusDimensionsNode,
     VerifySenderIsParticipantNode,
+)
+from vultron.core.behaviors.status.nodes.threat_termination import (
+    ThreatTerminationBranchNode,
 )
 from vultron.core.models.events.status import (
     AddParticipantStatusToParticipantReceivedEvent,
@@ -118,11 +124,16 @@ def add_participant_status_tree(
     - ``CaseOwnerApprovesStatusUpdate`` — call-out backed by
       ``call_out.status_adoption_gate_factory``; default is ``AlwaysSucceed``
 
-    When the gate passes, ``EmitAddCaseStatusToSelfNode`` emits a
-    self-addressed ``Add(CaseStatus)`` to the executing CaseActor, decoupling
-    EmbargoTeardownAuthorizationGate (side-effects, embargo teardown) in ``add_case_status_tree``
-    (RSH-01-003).  This tree does NOT execute embargo teardown directly
-    (RSH-01-004).
+    When the gate passes, ``EmitCaseStatusUpdateNode`` writes the post-adoption
+    CaseStatus directly to the case ledger and fans it out to participants
+    (RSH-01-003, RSH-04-004).  A ``FailureIsSuccess``-wrapped ``TeardownEffects``
+    Sequence then attempts embargo teardown: the ``EmbargoTeardownAuthorizationGate``
+    call-out gates execution, and ``ThreatTerminationBranchNode`` fires when the
+    received CaseStatus has P=True, X=True, or A=True (RSH-03-001 to RSH-03-003).
+    The ``FailureIsSuccess`` wrapper ensures the tree still returns SUCCESS when
+    the gate blocks teardown, mirroring the tolerant semantics in the use case
+    layer.  This replaces the side-effect handling previously routed via the
+    ``add_case_status_tree`` inbox-loopback (RSH-04-004).
 
     Args:
         request: The parsed inbound domain event.
@@ -191,10 +202,34 @@ def add_participant_status_tree(
                 validate_rm=False,
             ),
             status_adoption_gate,
-            EmitAddCaseStatusToSelfNode(
-                participant_status_id=status_id,
+            EmitCaseStatusUpdateNode(
                 case_id=tree_case_id,
-                name="EmitAddCaseStatusToSelf",
+                name="EmitCaseStatusUpdate",
+            ),
+            py_trees.decorators.FailureIsSuccess(
+                name="TeardownEffectsOrSkip",
+                child=py_trees.composites.Sequence(
+                    name="TeardownEffects",
+                    memory=False,
+                    children=[
+                        call_out.embargo_teardown_authorization_gate_factory(
+                            "EmbargoTeardownAuthorizationGate"
+                        ),
+                        ThreatTerminationBranchNode(
+                            # Prefer the peer's embedded CaseStatus for the
+                            # PXA check; enable DataLayer fallback so that
+                            # when it is absent _threat_present reads the
+                            # case's current_status (written by
+                            # EmitCaseStatusUpdateNode just above).
+                            status_obj=getattr(
+                                status_obj, "case_status", None
+                            ),
+                            case_id=tree_case_id,
+                            name="ThreatTerminationBranch",
+                            use_datalayer_fallback=True,
+                        ),
+                    ],
+                ),
             ),
             EmitRMGapNoteNode(
                 sender_actor_id=actor_id,

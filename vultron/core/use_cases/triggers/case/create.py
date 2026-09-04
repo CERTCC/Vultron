@@ -14,7 +14,7 @@
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
 import logging
-from typing import Any, cast
+from typing import cast
 
 import py_trees.behaviour
 
@@ -63,7 +63,7 @@ class SvcCreateCaseUseCase(SvcBTTriggerBase):
     def _build_tree(self) -> py_trees.behaviour.Behaviour:
         to = self._to
 
-        def _build_activity(case_id: str) -> tuple[str, dict[str, Any]]:
+        def _build_activity(case_id: str) -> tuple[str, str]:
             return self._factory.create_case(
                 case_id=case_id, actor=self._actor_id, to=to
             )

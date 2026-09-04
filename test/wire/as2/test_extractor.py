@@ -241,7 +241,7 @@ def test_extract_intent_participant_case_roles():
         attributed_to="https://example.org/alice",
         context="https://example.org/cases/1",
     )
-    participant.case_roles = [CVDRole.VENDOR]
+    object.__setattr__(participant, "case_roles", [CVDRole.VENDOR])
     # CreateCaseParticipant pattern: Create + CASE_PARTICIPANT + context=VULNERABILITY_CASE
     activity = as_Create(
         actor="https://example.org/alice",
@@ -278,17 +278,17 @@ def test_extract_intent_case_status_name():
 
 
 @pytest.mark.spec("VAM-08-003")
-def test_extract_intent_participant_status_vfd_state():
-    """as_ParticipantStatus.vfd_state is populated from the wire as_ParticipantStatus."""
+def test_extract_intent_participant_status_vf_state():
+    """vf_state is extracted and populated on the core ParticipantStatus (ADR-0075)."""
     from vultron.wire.as2.vocab.base.objects.activities.transitive import (
         as_Create,
     )
     from vultron.wire.as2.vocab.objects.case_status import as_ParticipantStatus
-    from vultron.core.states.cs import CS_vfd
+    from vultron.core.states.cs import CS_vf
 
     ps = as_ParticipantStatus(
         context="https://example.org/cases/1",
-        vfd_state=CS_vfd.Vfd,
+        vf_state=CS_vf.Vf,
     )
     activity = as_Create(
         actor="https://example.org/alice",
@@ -298,7 +298,7 @@ def test_extract_intent_participant_status_vfd_state():
 
     s = cast(Any, event).status
     assert s is not None
-    assert s.vfd.state == CS_vfd.Vfd
+    assert s.vf.state == CS_vf.Vf
 
 
 # ---------------------------------------------------------------------------
@@ -396,3 +396,225 @@ def test_invite_rsvp_deadline_none_when_naive_end_time():
 
     assert hasattr(event, "rsvp_deadline")
     assert cast(Any, event).rsvp_deadline is None
+
+
+@pytest.mark.spec("CM-28-006")
+def test_invite_rsvp_deadline_warns_when_naive_end_time(caplog):
+    """CM-28-006: naive end_time MUST be logged as malformed, not silently dropped."""
+    import logging
+
+    naive_deadline = datetime.now() + timedelta(days=5)  # no tzinfo
+    invite = _make_embargo_invite(end_time=naive_deadline)
+
+    with caplog.at_level(
+        logging.WARNING, logger="vultron.wire.as2.extractor._extract"
+    ):
+        caplog.clear()
+        event = extract_event(invite)
+
+    assert cast(Any, event).rsvp_deadline is None
+    warning_msgs = [
+        r.message for r in caplog.records if r.levelno >= logging.WARNING
+    ]
+    assert any(
+        "naive" in msg.lower() or "malformed" in msg.lower()
+        for msg in warning_msgs
+    ), f"Expected a warning about naive/malformed end_time; got: {warning_msgs}"
+
+
+@pytest.mark.spec("EP-07-003")
+def test_invite_rsvp_deadline_clamped_uses_custom_min_rsvp_window():
+    """EP-07-003: extract_intent uses the caller-supplied min_rsvp_window for clamping."""
+    from vultron.wire.as2.extractor._extract import extract_intent
+    from vultron.semantic_registry import find_matching_semantics, lookup_entry
+
+    # deadline 5 days out: above 72 h default floor, but below 10-day custom floor
+    deadline = datetime.now(tz=timezone.utc) + timedelta(days=5)
+    invite = _make_embargo_invite(end_time=deadline)
+
+    semantics = find_matching_semantics(invite)
+    entry = lookup_entry(semantics)
+    event = extract_intent(
+        invite,
+        semantics=semantics,
+        event_class=entry.event_class,
+        include_activity=entry.include_activity,
+        min_rsvp_window=timedelta(days=10),
+    )
+
+    ev = cast(Any, event)
+    assert ev.rsvp_deadline is not None
+    # Clamped to 10-day floor — must be strictly greater than 5-day deadline
+    assert ev.rsvp_deadline > deadline.astimezone(timezone.utc)
+
+
+# --- discriminated-union return-type narrowing tests (issue #2491) ---
+
+
+@pytest.mark.spec("CS-10-001")
+def test_extract_event_return_type_narrows_via_isinstance():
+    """extract_event() returns a discriminated union; isinstance narrows to the
+    concrete subclass without any cast(Any, ...) workaround."""
+    from vultron.core.models.events.report import CreateReportReceivedEvent
+    from vultron.wire.as2.vocab.base.objects.activities.transitive import (
+        as_Create,
+    )
+    from vultron.wire.as2.vocab.objects.vulnerability_report import (
+        as_VulnerabilityReport,
+    )
+
+    report = as_VulnerabilityReport(name="VR-001", content="test content")
+    activity = as_Create(
+        actor="https://example.org/finder",
+        object_=report,
+    )
+    event = extract_event(activity)
+
+    assert isinstance(event, CreateReportReceivedEvent)
+    # After narrowing: access the concrete property directly — no cast needed.
+    assert event.report_id == report.id_
+
+
+@pytest.mark.spec("CS-10-001")
+def test_extract_intent_return_type_narrows_via_isinstance():
+    """extract_intent() return annotation is AnyReceivedEvent; isinstance
+    dispatch on the concrete subclass works after the call."""
+    from vultron.core.models.events.report import SubmitReportReceivedEvent
+    from vultron.semantic_registry import find_matching_semantics, lookup_entry
+    from vultron.wire.as2.extractor._extract import extract_intent
+    from vultron.wire.as2.vocab.base.objects.activities.transitive import (
+        as_Offer,
+    )
+    from vultron.wire.as2.vocab.objects.vulnerability_report import (
+        as_VulnerabilityReport,
+    )
+
+    report = as_VulnerabilityReport(name="VR-002", content="submission")
+    activity = as_Offer(
+        actor="https://example.org/reporter",
+        object_=report,
+    )
+    semantics = find_matching_semantics(activity)
+    entry = lookup_entry(semantics)
+    event = extract_intent(
+        activity,
+        semantics=semantics,
+        event_class=entry.event_class,
+        include_activity=entry.include_activity,
+    )
+
+    assert isinstance(event, SubmitReportReceivedEvent)
+    # Concrete-class property accessible without cast.
+    assert event.report_id == report.id_
+
+
+@pytest.mark.spec("CS-10-001")
+def test_any_received_event_covers_all_registry_event_classes():
+    """AnyReceivedEvent must include every event_class registered in SEMANTIC_REGISTRY.
+
+    This locks in exhaustiveness: adding a new ReceivedEvent subclass without
+    updating AnyReceivedEvent will fail here at test time, not only at static
+    analysis time.
+    """
+    from typing import get_args
+
+    from vultron.core.models.events import AnyReceivedEvent
+    from vultron.semantic_registry import SEMANTIC_REGISTRY
+
+    union_types = set(get_args(AnyReceivedEvent))
+    for entry in SEMANTIC_REGISTRY:
+        assert entry.event_class in union_types, (
+            f"{entry.event_class.__name__} (semantics={entry.semantics.name}) "
+            f"is in SEMANTIC_REGISTRY but not in AnyReceivedEvent"
+        )
+
+
+# ---------------------------------------------------------------------------
+# `attributed_to` on the activity snapshot (CM-24-002, issue #3012)
+# ---------------------------------------------------------------------------
+
+
+def _ownership_offer(attributed_to: Any) -> Any:
+    """Build a delegated ownership-transfer Offer carrying *attributed_to*.
+
+    Goes through the factory (ARCH: tests must not reach into
+    ``vultron.wire.as2.vocab.activities`` directly — see
+    ``test_activity_factory_imports.py``).  ``as_Object.attributed_to`` is typed
+    ``Any | None``, so the factory accepts the inline-object and array shapes
+    AS2 permits, which is what lets this exercise a non-URI value.
+    """
+    from vultron.wire.as2.factories import (
+        offer_case_ownership_transfer_activity,
+    )
+    from vultron.wire.as2.vocab.base.objects.actors import as_Service
+    from vultron.wire.as2.vocab.objects.vulnerability_case import (
+        as_VulnerabilityCase,
+    )
+
+    return offer_case_ownership_transfer_activity(
+        as_VulnerabilityCase(id_="https://example.org/cases/c1", name="C1"),
+        target=as_Service(
+            id_="https://example.org/actors/coordinator", name="Coordinator"
+        ),
+        actor="https://example.org/actors/case-actor",
+        attributed_to=attributed_to,
+    )
+
+
+@pytest.mark.spec("CM-24-002")
+def test_activity_snapshot_carries_attributed_to():
+    """The delegated author must survive extraction into `event.activity`.
+
+    CM-24-002 puts the requesting participant in `attributed_to` "so that
+    receivers can recover the originating identity".  `_build_activity_snapshot`
+    dropped the field, so no received-side use case could recover it and the
+    CaseActor forwarded Offers attributing a participant's intent to itself
+    (#3012).
+    """
+    vendor = "https://example.org/users/vendor"
+    event = extract_event(_ownership_offer(vendor))
+
+    assert event.activity is not None
+    assert event.activity.attributed_to == vendor
+
+
+@pytest.mark.spec("CLP-07-011")
+@pytest.mark.parametrize(
+    "raw, expected",
+    [
+        pytest.param(
+            {"id": "https://example.org/users/vendor", "type": "Person"},
+            "https://example.org/users/vendor",
+            id="inline-object-resolves-to-its-id",
+        ),
+        pytest.param(
+            [
+                "https://example.org/users/vendor",
+                "https://example.org/users/other",
+            ],
+            "https://example.org/users/vendor",
+            id="array-resolves-to-first-id",
+        ),
+        pytest.param(
+            {"type": "Person"},
+            None,
+            id="object-without-id-resolves-to-absent",
+        ),
+        pytest.param([], None, id="empty-array-resolves-to-absent"),
+    ],
+)
+def test_activity_snapshot_never_reprs_a_non_uri_attributed_to(raw, expected):
+    """A non-URI `attributedTo` resolves to its id or to ``None`` — never a repr.
+
+    AS2 permits `attributedTo` to be an object or an array.  `_get_id` used to
+    fall back to ``str(field)``, which put a Python repr such as
+    ``"{'id': ..., 'type': 'Person'}"`` into the snapshot.  That value is hashed
+    into `entry_hash` and replicated to every participant, where an absent field
+    is recoverable and a garbage string is not (CLP-07-011, ARCH-15-001).
+    """
+    event = extract_event(_ownership_offer(raw))
+
+    assert event.activity is not None
+    assert event.activity.attributed_to == expected
+    if event.activity.attributed_to is not None:
+        assert not event.activity.attributed_to.startswith(("{", "["))

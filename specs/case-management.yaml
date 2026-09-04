@@ -618,9 +618,14 @@ groups:
   - id: CM-08-002
     priority: MUST_NOT
     kind: protocol
-    statement: Domain objects MUST NOT directly inherit from ActivityStreams base types; explicit `from_core()` / `to_core()`
-      translation methods MUST be provided at the wire boundary (see `specs/architecture.yaml` ARCH-12-001 through ARCH-12-007
-      and `notes/domain-model-separation.md`)
+    statement: Domain objects MUST NOT directly inherit from ActivityStreams base types, and wire classes MUST NOT carry
+      translation methods; core↔wire translation MUST be provided by the adapter-side translator resolved through the
+      declarative pairing registry (see `specs/architecture.yaml` ARCH-12-001 through ARCH-12-007, ARCH-23-001, and
+      `notes/domain-model-separation.md`)
+    rationale: The two branches stay distinct type hierarchies, and the translation between them lives on the adapter side —
+      the one layer permitted to see both — so neither branch imports the other.
+    adr:
+    - ADR-0082
 - id: CM-09
   title: Redacted Case View
   specs:
@@ -1796,7 +1801,7 @@ groups:
       its consent state in a single transition, so a placeholder entry is unnecessary. Emitting two entries per participant would
       also shift every downstream `log_index`; PR #1746 was reverted for exactly that, having broken `fvcv-extension` VFD
       replication timing. Holding initialization to one entry per participant keeps `log_index` order stable and preserves the
-      ADR-0041 property that `log_index` order is causal order.'
+      ADR-0079 property that `log_index` order is causal order (CLP-14-001).'
     verification: Integration tests in `test/demo/` confirm that the default embargo is
       established before each participant's PEC state is written during case initialization, so
       each initial `ParticipantStatus` carries the correct post-initialization consent value.
@@ -1924,20 +1929,25 @@ groups:
     priority: MUST
     kind: project
     statement: >-
-      The wire projection (`as_ParticipantStatus.from_core()`) MUST derive the
-      `embargoAdherence` value from the consent state rather than copying a stored field.
+      The core→wire translation of `ParticipantStatus` MUST derive the `embargoAdherence` value
+      from the consent state rather than copying a stored field.
     rationale: >-
-      Deriving from consent state at projection time ensures the wire value is always
+      Deriving from consent state at translation time ensures the wire value is always
       consistent with the authoritative PEC state, eliminating the drift risk that arises
       when a stored boolean is copied.
-    verification: Inspection of `vultron/core/` confirms that `as_ParticipantStatus.from_core()`
-      derives the `embargoAdherence` wire value from `consent.state` rather than copying a
-      stored boolean.
+    verification: Inspection of the adapter-side `ParticipantStatus` translator confirms the
+      `embargoAdherence` wire value is derived from `consent.state` rather than copied from a
+      stored boolean, and a translation test asserts the emitted value tracks a change to
+      `consent.state`.
     relationships:
     - rel_type: refines
       spec_id: CM-18-008
+    - rel_type: depends_on
+      spec_id: ARCH-12-005
+      note: ARCH-12-005 places the translation on the adapter side, so the derivation lives there rather than on the wire class.
     adr:
     - ADR-0056
+    - ADR-0082
 - id: CM-19
   title: Participant Index Discipline
   specs:
@@ -2301,6 +2311,40 @@ groups:
     stories:
     - story_2022_050
     - story_2022_051
+  - id: CM-21-010
+    priority: MUST
+    kind: protocol
+    statement: >-
+      An actor emitting `Reject(Offer(VulnerabilityCase))` (ownership-transfer
+      variant) MUST address the activity to the CaseActor's inbox
+      (`to: [case_actor_id]`) rather than directly to the offerer.
+    rationale: >-
+      Rejection routing must be symmetric with the Accept path (CM-21-006): the
+      Offer was addressed to the CaseActor (CM-21-005), so its rejection must be
+      too.  If the transferee's Reject goes only to the offerer, the CaseActor —
+      the authoritative record of ownership — never learns the transfer was
+      declined and its view of who owns the case can silently diverge from
+      reality.  What the CaseActor does on receiving a rejection (whether it
+      ledgers the declined transfer, whether the offerer is notified, and
+      whether the case may be re-offered) is a separate open question tracked in
+      `notes/ownership-transfer.md`.
+    note: >-
+      This entry governs *addressing* only, mirroring CM-21-005/CM-21-006. The
+      downstream received-side behavior of the rejection is deliberately out of
+      scope here — see the Open Question in `notes/ownership-transfer.md`.
+    verification: >-
+      Inspection of `vultron/demo/exchange/transfer_ownership_demo.py` confirms that an
+      ownership-transfer `Reject(Offer(VulnerabilityCase))` is addressed to the CaseActor's inbox
+      (`to: [case_actor_id]`), symmetric with the Accept path.
+    relationships:
+    - rel_type: refines
+      spec_id: CM-21-001
+    - rel_type: refines
+      spec_id: CM-21-006
+    adr:
+    - ADR-0053
+    lint_suppress:
+    - missing_story_reference
 - id: CM-22
   title: CaseActor-Authoritative Case Creation
   description: >-
@@ -2642,6 +2686,94 @@ groups:
 
     stories:
     - story_2022_088
+    - story_2022_066
+  - id: CM-23-011
+    priority: MUST
+    kind: protocol
+    statement: >-
+      When the Case Actor receives `Leave(VulnerabilityCase)` from the Case Owner
+      while the case still holds an active embargo (`active_embargo` is non-None
+      and the current EM state is `EM.ACTIVE` or `EM.REVISE`), it MUST decline the
+      closure with an `as:Reject` response ("received and understood but declined",
+      MSM-05-001) and MUST NOT execute the CM-23-002 closure sequence (no
+      participant advances to `RM.CLOSED`; no `case_fully_closed` entry is
+      emitted). The Case Owner MUST terminate the active embargo first, then
+      re-issue the close. Declining the close does NOT itself terminate the
+      embargo — the embargo remains active until terminated through the normal EM
+      path. This is the terminal, case-global counterpart to the
+      participant-scoped VP-13-005 (participants SHOULD NOT close while embargoed)
+      and VP-13-009 (a participant close while others remain engaged does not
+      auto-terminate the embargo): owner-close ends the case for everyone, so the
+      soft participant-level guidance is raised to a hard case-actor refusal.
+    rationale: >-
+      Owner-close is a hard, terminal write boundary (ADR-0085): the Case Actor
+      then accepts no further external ledger writes. VP-13-009 keeps an embargo
+      alive across a participant close only while others remain engaged;
+      owner-close leaves none and no authority to lift it, so an embargo left
+      active could never be discharged. Refusing the premature close forces an
+      explicit terminate-then-close ordering. `Leave` is understood but declined —
+      hence `as:Reject`, not `Create(ProcessingFault)` (MSM-05-001).
+    verification: >-
+      A test confirms that a Case Owner `Leave(VulnerabilityCase)` on a case with
+      an active embargo produces an `as:Reject` response and does not advance any
+      participant to `RM.CLOSED` or emit `case_fully_closed`; after the embargo is
+      terminated, the same close proceeds through the CM-23-002 sequence.
+    relationships:
+    - rel_type: refines
+      spec_id: CM-23-002
+    - rel_type: refines
+      spec_id: VP-13-005
+    adr:
+    - ADR-0085
+    - ADR-0050
+    stories:
+    - story_2022_066
+  - id: CM-23-012
+    priority: MUST
+    kind: protocol
+    statement: >-
+      Leave(VulnerabilityCase) advances only the leaving actor's own RM state to
+      RM.CLOSED, regardless of which RM rung that actor currently holds (START,
+      RECEIVED, VALID, ACCEPTED, DEFERRED, or INVALID). Case closure MUST NOT
+      advance any non-leaving ("bystander") participant's RM state: on owner
+      Leave, only the Case Owner and the Case Actor advance to RM.CLOSED
+      (CM-23-002); every other participant MUST retain its last RM state. The
+      characterization of owner-close as ending "the case for everyone"
+      (CM-23-011) refers to the case-level write boundary — the Case Actor
+      accepts no further external ledger entries (ADR-0085) — and MUST NOT be
+      read as a directive to force each remaining participant's RM dimension to
+      RM.CLOSED.
+    rationale: >-
+      A participant's RM state is the self-declaratory record of how that
+      participant handled the report (ADR-0084). A Leave is that participant's
+      own authoritative closure act, so advancing the leaving actor to RM.CLOSED
+      regardless of rung is legitimate self-declaration, not an externally
+      imposed jump — which is why the RM source→dest adjacency rule (RM.CLOSED
+      reachable by adjacency only from ACCEPTED/INVALID/DEFERRED) is
+      intentionally overridden at the leave/close write sites. A bystander that
+      never sent Leave has made no closure declaration; forcing its RM to
+      RM.CLOSED would fabricate a declaration it never made. Such a participant
+      simply remains at its last rung when the case ends around it (the library
+      closes before every book is returned). The demos' "all participants
+      RM.CLOSED" milestone (DEMOMA-07-003) is reached because every participant
+      closes its own handling through the protocol, not because closure pushes
+      them there.
+    verification: >-
+      A test confirms that an owner Leave(VulnerabilityCase) advances only the
+      Case Owner and Case Actor to RM.CLOSED and leaves a bystander participant
+      that was at RM.RECEIVED or RM.VALID at its prior RM state; and that the
+      leaving actor is advanced to RM.CLOSED even from a non-adjacent starting
+      rung (e.g. RM.RECEIVED).
+    relationships:
+    - rel_type: refines
+      spec_id: CM-23-001
+    - rel_type: refines
+      spec_id: CM-23-002
+    adr:
+    - ADR-0050
+    - ADR-0084
+    - ADR-0085
+    stories:
     - story_2022_066
 - id: CM-24
   title: CaseActor-Delegated Activity Authorship Contract
@@ -3280,3 +3412,43 @@ groups:
       spec_id: CM-27-001
     adr:
     - ADR-0064
+- id: CM-29
+  title: Case Status Recency Resolution
+  description: Rules for determining which CaseStatus snapshot is the most recent
+    when multiple snapshots exist in the case_statuses history.
+  specs:
+  - id: CM-29-001
+    priority: MUST
+    kind: project
+    statement: >-
+      `VulnerabilityCase.current_status` MUST determine the most-recent
+      `CaseStatus` by comparing `updated` then `published` timestamps only.
+      The `id_` field MUST NOT be used as a sort tiebreaker.
+    rationale: >-
+      Using `id_` as a fallback when timestamps are absent produces
+      scheme-dependent ordering: auto-seeded statuses carry UUID-based IDs
+      (`urn:uuid:…`, starting with `'u'`) which sort lexically higher than
+      HTTPS-scheme IDs (`https://…`, starting with `'h'`), causing the
+      initial auto-seeded status to beat a legitimately newer received status
+      when both lack explicit timestamps. ID scheme is an implementation
+      artefact, not a time proxy. When timestamps are absent or equal, the
+      fallback MUST resolve to the earliest possible time (e.g., `datetime.min`)
+      so that timestampless statuses sort to the bottom rather than the top.
+      Source: #2737.
+    verification: >-
+      Unit test the ordering key `status_recency_key` in
+      `vultron/core/models/_helpers.py` directly, since that is where both the
+      `current_status` and the wire `as_CaseStatus` readers converge. Construct
+      two status projections that carry no `updated`/`published` timestamps —
+      one with a `urn:uuid:` ID and one with an `https://` ID — and assert the
+      key orders them by neither ID scheme (both must sort to the bottom via the
+      `datetime.min` fallback). Note: only the wire-side projection can actually
+      present timestampless statuses; core `CaseStatus` re-narrows `published`
+      and `updated` to non-`Optional` aware datetimes via `CoreObject`, so the
+      timestamp-absent branch is unreachable defensive code on the core path and
+      only exercisable on the `as_CaseStatus` wire branch.
+    relationships:
+    - rel_type: refines
+      spec_id: CM-27-001
+    lint_suppress:
+    - missing_story_reference

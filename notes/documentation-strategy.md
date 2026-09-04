@@ -7,6 +7,8 @@ description: >
 related_notes:
   - notes/bt-integration.md
   - notes/case-state-model.md
+  - notes/message-type-reference.md
+  - notes/spec-authoring-rules.md
 relevant_packages:
   - vultron/bt
   - vultron/core
@@ -97,8 +99,8 @@ evaluate:
 definitions disagree on state names or valid states, the enum code wins.
 Update the documentation to match the enum, never the reverse (unless the
 enum itself is explicitly identified as a bug by a maintainer). Canonical
-enum files: `vultron/bt/report_management/states.py` (RM),
-`vultron/bt/embargo_management/states.py` (EM),
+enum files: `vultron/core/states/rm.py` (RM),
+`vultron/core/states/em.py` (EM),
 `vultron/core/states/cs.py` (CS/VFD/PXA).
 
 ---
@@ -266,3 +268,8 @@ into a clearly marked "historical" section rather than delete:
 A reasonable convention: add a front-matter note to historical docs stating
 the document predates the ActivityStreams implementation and may not reflect
 current design. This preserves historical context without causing confusion.
+
+## MkDocs `not_in_nav` and `exclude_docs` Are Not the Same
+
+Files excluded from nav MUST ALSO be listed in `not_in_nav`; the overlay list
+*replaces* the base list rather than extending it.

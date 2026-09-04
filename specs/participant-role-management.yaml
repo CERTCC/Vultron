@@ -271,3 +271,107 @@ groups:
     tags:
     - testing
     - tooling
+- id: PRM-06
+  title: Assertion Authority and On-Behalf Exceptions
+  specs:
+  - id: PRM-06-001
+    priority: MUST
+    kind: protocol
+    statement: >-
+      Participant status is self-declaratory by default: each participant
+      asserts its own RM and VFD state without external approval.  This is why
+      they are *participant* status items (ADR-0084).
+    rationale: >-
+      The self-declaratory model keeps state authority with the role holder.
+      Deviations must be narrow, externally evidenced, and explicitly named
+      (ADR-0084).
+    adr:
+    - ADR-0084
+    tags:
+    - protocol
+    lint_suppress:
+    - missing_story_reference
+  - id: PRM-06-002
+    priority: MUST_NOT
+    kind: protocol
+    statement: >-
+      A participant holding ``CVDRole.VENDOR`` MUST NOT assert a VF state of
+      ``CS_vf.vf`` (vendor-unaware).  Valid Vendor VF states are
+      ``{CS_vf.Vf, CS_vf.VF}`` (ADR-0084).
+    rationale: >-
+      A vendor that has joined a case is by definition aware of it.  Allowing
+      a vendor to assert the vendor-unaware state (``vf``) would create an
+      impossible protocol record.
+    verification: >-
+      ``vendor_vf_invariant_ok`` in ``vultron/core/predicates/participants.py``
+      enforces this predicate.  It is called once, from ``_vf_violations`` inside
+      ``participant_transition_violations`` in
+      ``vultron/core/states/participant_transitions.py``, which both
+      ``ValidateTriggerTransitionsNode`` (trigger path) and
+      ``CreateParticipantStatusNode`` (BT action path) go through — BTND-10-002
+      forbids either node from calling the predicate directly, and
+      ``test/architecture/test_participant_status_validation.py`` ratchets that.
+    adr:
+    - ADR-0084
+    tags:
+    - protocol
+  - id: PRM-06-003
+    priority: MAY
+    kind: protocol
+    statement: >-
+      A Case Manager or Case Owner MAY assert ``v→V`` (``CS_vf.Vf``) on behalf
+      of a Vendor-role holder when the notification or invite is evidenced (any
+      vendor acknowledgement — including ``Read(Invite(Case))`` — suffices).
+      Scoped to a vendor notified or invited but not yet — or never — a
+      participant (ADR-0084).
+    rationale: >-
+      Closes the vendor-awareness gap (CONCERN-2087): a vendor can be marked
+      informed even if it never joins the case, so case history is accurate.
+    verification: >-
+      ``SvcAddOnBehalfStatusUseCase`` implements this path; the asserting
+      actor's CASE_MANAGER or CASE_OWNER role is verified by
+      ``CheckOnBehalfAuthorizedNode`` before any write occurs.
+    adr:
+    - ADR-0084
+    tags:
+    - protocol
+  - id: PRM-06-004
+    priority: MAY
+    kind: protocol
+    statement: >-
+      A Case Manager or Case Owner MAY assert ``d→D`` (``CS_d.D``) on behalf
+      of a Deployer-role holder under the same externally-evidenced pattern
+      (a MAY, expected to be rare; deployment is normally self-reported by the
+      Deployer) (ADR-0084).
+    rationale: >-
+      Exceptional circumstances (e.g. the deployer no longer active) require
+      a narrow exception path; the on-behalf restriction keeps it from becoming
+      a general proxy capability.
+    adr:
+    - ADR-0084
+    tags:
+    - protocol
+  - id: PRM-06-005
+    priority: MUST_NOT
+    kind: protocol
+    statement: >-
+      ``f→F`` (fix ready, ``CS_vf.VF``) MUST NOT be asserted by any actor
+      other than the Vendor-role holder.  Fix readiness is not externally
+      knowable; no on-behalf assertion is ever permitted for this transition
+      (ADR-0084).
+    rationale: >-
+      Allowing a non-vendor to assert fix-readiness would let the Case Actor
+      fabricate protocol-visible fix state, undermining the meaning of the F
+      event.
+    verification: >-
+      ``AddOnBehalfStatusTriggerRequest.vf_state_not_fix_ready`` rejects
+      ``CS_vf.VF`` at the request boundary before any BT runs.  On the self-report
+      path the VENDOR-only rule lives in ``_vf_violations`` inside
+      ``participant_transition_violations``
+      (``vultron/core/states/participant_transitions.py``), which both
+      ``CreateParticipantStatusNode`` and ``ValidateTriggerTransitionsNode``
+      call (BTND-10-002).
+    adr:
+    - ADR-0084
+    tags:
+    - protocol

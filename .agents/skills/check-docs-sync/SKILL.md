@@ -3,7 +3,8 @@ name: check-docs-sync
 description: >
   Three-question docs-sync check: identifies docs/ pages that need updating
   after an implementation or bug-fix change, applies small updates inline
-  (PD-03-007), and files a type:Concern issue for large multi-page rewrites.
+  (PD-03-007) behind a blocking lint-docs gate, offers write-docs for large
+  multi-page rewrites, and files a type:Concern issue when those are deferred.
   Invoked after the PR is pushed (while CI runs), by build (Phase 8), bugfix
   (Phase 4 finalize), and learn (Phase 8).
 ---
@@ -19,6 +20,11 @@ After the PR is pushed (CI starts in the cloud), while CI runs in parallel
 locally. Apply any small docs updates and commit them before the finalize steps
 (archive-history, learnings). Invoked by `build` (Phase 8), `bugfix` (Phase 4
 finalize), and `learn` (Phase 8) for consistency.
+
+Prose rules for every page this skill touches live in
+[`../shared/docs-style-guide.md`](../shared/docs-style-guide.md), made normative
+by `specs/diataxis-requirements.yaml` DF-09-001. This skill does not restate
+them — it enforces them via the `lint-docs` gate in Step 3.
 
 ## Procedure
 
@@ -77,8 +83,12 @@ genuine multi-page rewrites that would bloat the PR beyond its original scope.
 For each small update:
 
 1. Write the change to the target `docs/` file.
-2. Invoke `format-markdown` to lint the updated file before building.
-3. Invoke `build-docs` to validate the build passes, tee-ing output to a temp
+2. Invoke `lint-docs` on the changed pages. This is a **blocking gate**: it
+   fixes mechanical style findings in place, and any finding it reports must be
+   resolved before proceeding. If it escalates a quadrant misclassification,
+   act on the recommendation it gives or hand the page to `write-docs`.
+3. Invoke `format-markdown` to lint the updated file before building.
+4. Invoke `build-docs` to validate the build passes, tee-ing output to a temp
    file so full context is available on failure:
 
    ```bash
@@ -86,12 +96,29 @@ For each small update:
    # On failure with insufficient tail output: grep /tmp/mkdocs-build.log
    ```
 
-4. Fix any linting or build errors before proceeding.
+5. Fix any linting or build errors before proceeding.
 
-### Step 4 — File Concern for large updates
+For a new page, or a full rewrite of an existing one, invoke `write-docs` with
+`mode: inline` instead of writing the page directly. It handles quadrant
+classification, concept ordering, nav wiring, and term registration, and leaves
+the result in this branch for the caller to commit.
 
-For each large update (multi-page rewrite needed), invoke the `new-item` skill
-to file a `type:Concern` issue. Provide these details as context:
+### Step 4 — Offer write-docs, then file a Concern
+
+For each large update (multi-page rewrite needed), **offer `write-docs` before
+deferring**. PD-03-007 prefers an inline update, so the Concern is the fallback,
+not the default. Recommend one course and ask for confirmation:
+
+> "`docs/topics/process_models/em/` needs three pages rewritten after this
+> embargo-consent change. I recommend invoking `write-docs` now with
+> `mode: inline` — the pages are adjacent and the change is mechanical, so it
+> adds roughly 200 lines to this PR rather than a week of context reconstruction.
+> Alternatively I file a Concern and defer. Proceed with `write-docs`?"
+
+If the user accepts, invoke `write-docs` with `mode: inline` and skip the rest
+of this step. If the user declines, or the scope genuinely exceeds this PR,
+invoke the `new-item` skill to file a `type:Concern` issue. Provide these
+details as context:
 
 - **Type**: Concern
 - **Title**: `docs: update <area> pages after <change>`
@@ -119,7 +146,11 @@ Return a summary of what was done:
 ## Constraints
 
 - Only update `docs/` — do not modify code, tests, or `specs/`.
-- Always invoke `build-docs` after each inline `docs/` update; do not skip.
+- Always invoke `lint-docs` and then `build-docs` after each inline `docs/`
+  update; do not skip either. `lint-docs` is a blocking gate (DF-09-001).
 - Small updates MUST be applied in the same PR, not deferred (PD-03-007).
-- File a Concern issue for every large update; never silently skip.
+- Offer `write-docs` before filing a Concern for a large update. Deferring
+  without offering the inline path first inverts PD-03-007's preference.
+- File a Concern issue for every large update that is not done inline; never
+  silently skip.
 - Cite PD-03-007 in every Concern issue body.

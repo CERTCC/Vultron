@@ -7,6 +7,7 @@ nav:
   - Vultron: 'index.md'
   - Tutorials:
     - 'tutorials/index.md'
+    - Submit a Report to a Vultron Actor: 'tutorials/submit-a-report.md'
     - Run the Receive-Report Demo: 'tutorials/receive_report_demo.md'
     - Running the Other Demos: 'tutorials/other_demos.md'
     - Running the Multi-Actor Container Demos: 'tutorials/container_demos.md'
@@ -19,6 +20,11 @@ nav:
       - Interoperability: 'topics/background/interoperability.md'
       - Defining CVD Success: 'topics/background/cvd_success.md'
     - The Case Model: 'topics/case_model.md'
+    - Case Ledger Synchronization: 'topics/case_ledger_sync.md'
+    - Protocol Event Flow: 'topics/protocol_flow.md'
+    - Message Semantics: 'topics/message_semantics.md'
+    - Actor Knowledge Model: 'topics/actor-knowledge-model.md'
+    - Reference Implementation Architecture: 'topics/reference_architecture.md'
     - Process Models:
       - 'topics/process_models/index.md'
       - Report Management:
@@ -30,6 +36,7 @@ nav:
         - Default Embargoes: 'topics/process_models/em/defaults.md'
         - Negotiating Embargoes: 'topics/process_models/em/negotiating.md'
         - Adding Participants: 'topics/process_models/em/working_with_others.md'
+        - Participant Embargo Consent: 'topics/process_models/em/participant-embargo-consent.md'
         - Early Termination: 'topics/process_models/em/early_termination.md'
         - Case Splits and Merges: 'topics/process_models/em/split_merge.md'
       - Case State:
@@ -38,6 +45,7 @@ nav:
         - CS States: 'topics/process_models/cs/cs_model.md'
         - CS Transitions: 'topics/process_models/cs/transitions.md'
         - CS Process Model: 'topics/process_models/cs/model_definition.md'
+        - CS Model Limitations: 'topics/process_models/cs/cs_model_limitations.md'
       - Model Interactions:
         - 'topics/process_models/model_interactions/index.md'
         - RM and EM Interactions: 'topics/process_models/model_interactions/rm_em.md'
@@ -71,6 +79,7 @@ nav:
         - Receive EM Messages: 'topics/behavior_logic/msg_em_bt.md'
         - Receive CS Messages: 'topics/behavior_logic/msg_cs_bt.md'
         - Receive Other Messages: 'topics/behavior_logic/msg_other_bt.md'
+    - Capability Model: 'topics/capability_model/index.md'
     - Other Uses of Vultron:
       - 'topics/other_uses/index.md'
       - Stakeholder Roles: 'topics/other_uses/roles_influence.md'
@@ -79,13 +88,7 @@ nav:
       - Situation Awareness: 'topics/other_uses/situation_awareness.md'
       - VEP: 'topics/other_uses/vep.md'
       - CVD Action Rules: 'topics/other_uses/action_rules.md'
-    - Future Work:
-      - 'topics/future_work/index.md'
-      - CS Model Limitations: 'topics/future_work/cs_model_limitations.md'
-      - CVD Directory: 'topics/future_work/cvd_directory.md'
-      - Reward Functions: 'topics/future_work/reward_functions.md'
-      - Ontology: 'topics/future_work/ontology.md'
-      - Modeling and Simulation: 'topics/future_work/mod_sim.md'
+      - CVD Directory: 'topics/other_uses/cvd_directory.md'
     - Demo Scenarios:
       - 'topics/scenarios/index.md'
       - FV: 'topics/scenarios/fv.md'
@@ -110,6 +113,9 @@ nav:
             - Initializing a Case: 'howto/activitypub/activities/initialize_case.md'
             - Managing a Case: 'howto/activitypub/activities/manage_case.md'
             - Transferring a Case: 'howto/activitypub/activities/transfer_ownership.md'
+            - CaseProposal Flow: 'howto/activitypub/activities/case_proposal.md'
+            - Ledger Replication: 'howto/activitypub/activities/ledger_replication.md'
+            - Role Delegation: 'howto/activitypub/activities/role_delegation.md'
             - Suggest an Actor for a Case: 'howto/activitypub/activities/suggest_actor.md'
             - Invite an Actor to a Case: 'howto/activitypub/activities/invite_actor.md'
             - Initialize a Participant: 'howto/activitypub/activities/initialize_participant.md'
@@ -120,10 +126,12 @@ nav:
             - Acknowledging a Report: 'howto/activitypub/activities/acknowledge.md'
             - Error Handling: 'howto/activitypub/activities/error.md'
       - Worked Example: 'howto/worked_example.md'
+      - Wiring a Capability: 'howto/wire_capability.md'
       - Demo How-Tos:
           - FVV Demo: 'howto/demos/fvv-demo.md'
   - Reference:
     - 'reference/index.md'
+    - Protocol Quick Reference: 'reference/quick_reference.md'
     - Protocol Architecture:
       - Concept Taxonomy: 'reference/vultron-taxonomy.md'
       - Glossary: 'reference/glossary.md'
@@ -226,6 +234,8 @@ nav:
       - Observing Skill: 'reference/measuring_cvd/observing_skill.md'
       - Benchmarking CVD: 'reference/measuring_cvd/benchmarking.md'
       - Benchmarking MPCVD: 'reference/measuring_cvd/benchmarking_mpcvd.md'
+      - Reward Functions: 'reference/measuring_cvd/reward_functions.md'
+      - Modeling and Simulation: 'reference/measuring_cvd/mod_sim.md'
     - User Stories:
       - 'reference/user_stories/index.md'
       - Traceability Matrix: 'reference/user_stories/traceability.md'
@@ -313,7 +323,15 @@ nav:
       - 'Scope Ledger Replication Mechanics to a Companion Spec; Single-Hub Fan-Out Is Normative': 'adr/0077-ledger-replication-companion-spec.md'
       - "Retire CVDRole.FINDER — Reporter Is the Protocol-Salient Role": 'adr/0078-retire-finder-role.md'
       - 'CaseLedger Causal Ordering: CaseActor Observation Order Is the Canonical Causal Order': 'adr/0079-case-ledger-causal-ordering.md'
+      - 'Asking Permission Is a Protocol Message, Not a Suspended Behavior': 'adr/0080-protocol-asks-not-suspended-behaviors.md'
+      - "Peer Knowledge Lives in the Hosted Actor's Own Store, Not as a Hosted Actor": 'adr/0081-peer-knowledge-in-hosted-actor-store.md'
+      - 'Wire/Core Boundary: One Declarative Pairing Registry, One Translator, and Reject Unknown Keys': 'adr/0082-wire-core-boundary-pairing-registry.md'
+      - 'The Formal Message Set and the AS2 Wire Vocabulary Are Deliberately Different Shapes': 'adr/0083-formal-message-set-and-as2-vocabulary-are-different-shapes.md'
+      - 'Participant Status Is Self-Declaratory, With Narrow Externally-Evidenced On-Behalf Exceptions': 'adr/0084-participant-assertion-authority.md'
+      - 'Owner-Close Is a Hard Write Boundary; RM.CLOSED Is Terminal and Rejoin Is Unsupported': 'adr/0085-case-lifecycle-boundaries.md'
+      - 'Report Every Violation, Reject the Batch': 'adr/0086-report-every-violation-reject-the-batch.md'
   - About:
+    - What's New: 'about/whats_new.md'
     - Contributing: 'about/contributing.md'
     - FAQ: 'about/faq.md'
     - Acknowledgements: 'about/acknowledgements.md'
@@ -329,7 +347,6 @@ not_in_nav: |
   *diagram*.md
   *table*.md
   *.ttl
-  codebase/**
   reference/codebase/**
   # Maintainer/agent-facing pages intentionally excluded from the published nav
   agents/*.md
@@ -342,10 +359,24 @@ validation:
     # declared in not_in_nav above. Surfaces future un-navved pages (e.g. new
     # ADRs) and fails any --strict build (see mkdocs-build-strict.sh). #1304.
     omitted_files: warn
+  links:
+    # Fail --strict on a link to a #fragment that does not exist on the target
+    # page. Default is `info`, which is silent in the warning count: a page can
+    # ship dozens of dead in-page links and still look clean. Note that this
+    # check only knows about heading anchors: the per-requirement
+    # `<a id="clp-14-001">` anchors in the generated spec tables are real and
+    # work in a browser, but linking to one still warns here. Cite the
+    # requirement ID in the link text and point the href at its group anchor
+    # (`#clp-14`).
+    anchors: warn
 draft_docs: |
   draft-*.md
   !reference/draft-vultron-spec.md
-  docs/developer/
+  # Patterns are relative to docs_dir; `docs/developer/` was mis-anchored
+  # (matched a nonexistent docs/docs/developer/) so these maintainer pages were
+  # silently published. Exclude them from production builds per DOCBW-03-004
+  # while `mkdocs serve` still renders them for local review.
+  developer/
 theme:
   logo: 'assets/Software_Engineering_Institute_Unitmark_White.svg'
   name: 'material'

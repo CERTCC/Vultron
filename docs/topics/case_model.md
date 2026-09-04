@@ -126,7 +126,8 @@ in `CaseParticipant.participant_statuses`.
 | Field | Description |
 |---|---|
 | `rm` | `RmDimension` — the participant's Report Management (RM) state (Start → Received → … → Closed) |
-| `vfd` | `VfdDimension` — Vendor/Fix/Deployed (VFD) fix-path state (vfd → … → VFD) |
+| `vf` | `VfDimension` — Vendor-awareness / Fix-readiness state (vf → Vf → VF); present only for VENDOR participants |
+| `d` | `DDimension` — Fix-deployment state (d → D); present only for DEPLOYER participants |
 | `consent` | `PecDimension` — this participant's Participant Embargo Consent (PEC) state |
 | `cvd_role` | The CVD roles this participant held at the time of the snapshot |
 | `case_engagement` | Whether this participant is actively engaged |
@@ -149,7 +150,8 @@ Dimension objects are defined in `vultron/core/models/dimensions.py`:
 | `EmDimension` | Embargo Management (EM) | None/Proposed/Active/Revise/eXited | `CaseStatus` |
 | `PxaDimension` | Publication/eXploit/Active-attacks (PXA) | public awareness, exploit, active-attacks | `CaseStatus` |
 | `RmDimension` | Report Management (RM) | Start → Received → … → Closed | `ParticipantStatus` |
-| `VfdDimension` | Vendor/Fix/Deployed (VFD) | vfd → Vfd → VFd → VFD | `ParticipantStatus` |
+| `VfDimension` | Vendor-awareness / Fix-readiness (VF) | vf → Vf → VF | `ParticipantStatus` (VENDOR only) |
+| `DDimension` | Fix-deployment (D) | d → D | `ParticipantStatus` (DEPLOYER only) |
 | `PecDimension` | Participant Embargo Consent (PEC) | NO_EMBARGO / INVITED / SIGNATORY / LAPSED / DECLINED | `ParticipantStatus` |
 
 ## `CVDRole`
@@ -210,7 +212,8 @@ classDiagram
 
     class ParticipantStatus {
         rm RmDimension
-        vfd VfdDimension
+        vf VfDimension
+        d DDimension
         consent PecDimension
         embargo_adherence bool
     }
@@ -250,6 +253,8 @@ brokers all inter-participant messages. It participates as a
 
 ## See also
 
+- [Case Ledger Synchronization](case_ledger_sync.md) — how the canonical
+  ledger orders events and how replicas catch up to it
 - [Process Models](process_models/index.md) — RM, EM, and CS state machines
   that drive status transitions
 - [Demo Scenarios](scenarios/index.md) — how the objects evolve end-to-end

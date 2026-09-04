@@ -177,6 +177,155 @@ class TestStatusUseCases:
             bad_status.id_ not in status_ids
         ), "Bad status should not have been appended"
 
+    def test_refused_case_status_emits_processing_fault(self, make_payload):
+        """On genuine BT FAILURE, emit_processing_fault is called toward the sender (ASK-07-001)."""
+        from unittest.mock import MagicMock
+
+        receiver_id = "https://test.example/api/v2/actors/test-actor"
+        sender_id = "https://example.org/users/vendor"
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id=receiver_id,
+        )
+        case = as_VulnerabilityCase(
+            id_="https://example.org/cases/case_fault_cs",
+            name="Fault Test Case",
+        )
+        initial_status = as_CaseStatus(
+            id_="https://example.org/cases/case_fault_cs/statuses/s_init",
+            context=case.id_,
+            em_state=EM.NONE,
+        )
+        case.case_statuses.append(initial_status)
+        dl.create(case)
+
+        bad_status = as_CaseStatus(
+            id_="https://example.org/cases/case_fault_cs/statuses/s_bad",
+            context=case.id_,
+            em_state=EM.ACTIVE,
+        )
+        dl.create(bad_status)
+
+        activity = add_status_to_case_activity(
+            bad_status, target=case, actor=sender_id
+        )
+        event = make_payload(activity)
+        event = event.model_copy(update={"receiving_actor_id": receiver_id})
+
+        mock_trigger = MagicMock()
+        mock_trigger.emit_processing_fault.return_value = "urn:uuid:fault-1"
+
+        AddCaseStatusToCaseReceivedUseCase(
+            dl, event, trigger_activity=mock_trigger
+        ).execute()
+
+        mock_trigger.emit_processing_fault.assert_called_once()
+        call_kwargs = mock_trigger.emit_processing_fault.call_args
+        to_arg = call_kwargs.kwargs.get("to") or call_kwargs.args[3]
+        assert sender_id in to_arg
+
+    def test_refused_case_status_no_fault_without_trigger_activity(
+        self, make_payload
+    ):
+        """No error when trigger_activity is None (fault is silently skipped)."""
+        receiver_id = "https://test.example/api/v2/actors/test-actor"
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id=receiver_id,
+        )
+        case = as_VulnerabilityCase(
+            id_="https://example.org/cases/case_fault_cs2",
+            name="Fault No-Trigger Case",
+        )
+        initial_status = as_CaseStatus(
+            id_="https://example.org/cases/case_fault_cs2/statuses/s_init",
+            context=case.id_,
+            em_state=EM.NONE,
+        )
+        case.case_statuses.append(initial_status)
+        dl.create(case)
+
+        bad_status = as_CaseStatus(
+            id_="https://example.org/cases/case_fault_cs2/statuses/s_bad",
+            context=case.id_,
+            em_state=EM.ACTIVE,
+        )
+        dl.create(bad_status)
+
+        activity = add_status_to_case_activity(
+            bad_status,
+            target=case,
+            actor="https://example.org/users/vendor",
+        )
+        event = make_payload(activity)
+
+        AddCaseStatusToCaseReceivedUseCase(
+            dl, event, trigger_activity=None
+        ).execute()
+
+    def test_refused_participant_status_emits_processing_fault(
+        self, make_payload
+    ):
+        """On BT FAILURE for AddParticipantStatus, emit_processing_fault is called (ASK-07-001)."""
+        from unittest.mock import MagicMock
+
+        receiver_id = "https://example.org/users/vendor-ps-fault"
+        sender_id = "https://example.org/users/vendor-ps-fault"
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id=receiver_id,
+        )
+
+        case_id = "https://example.org/cases/case_ps_fault"
+        participant = as_CaseParticipant(
+            id_=f"{case_id}/participants/p",
+            context=case_id,
+            attributed_to=sender_id,
+        )
+        pstatus = as_ParticipantStatus(
+            id_=f"{case_id}/participants/p/statuses/s1",
+            context=case_id,
+            rm_state=RM.CLOSED,
+        )
+        participant.participant_statuses.append(pstatus)
+        dl.create(participant)
+        dl.create(pstatus)
+
+        case = as_VulnerabilityCase(
+            id_=case_id,
+            name="PS Fault Test Case",
+        )
+        case.case_participants.append(participant.id_)
+        case.actor_participant_index[sender_id] = participant.id_
+        dl.create(case)
+
+        dup_status = as_ParticipantStatus(
+            id_=f"{case_id}/participants/p/statuses/s_dup_closed",
+            context=case_id,
+            rm_state=RM.CLOSED,
+        )
+        dl.create(dup_status)
+
+        activity = add_status_to_participant_activity(
+            dup_status,
+            target=participant,
+            actor=sender_id,
+            context=case,
+        )
+        event = make_payload(activity, receiving_actor_id=receiver_id)
+
+        mock_trigger = MagicMock()
+        mock_trigger.emit_processing_fault.return_value = "urn:uuid:fault-2"
+
+        AddParticipantStatusToParticipantReceivedUseCase(
+            dl, event, trigger_activity=mock_trigger
+        ).execute()
+
+        mock_trigger.emit_processing_fault.assert_called_once()
+        call_kwargs = mock_trigger.emit_processing_fault.call_args
+        to_arg = call_kwargs.kwargs.get("to") or call_kwargs.args[3]
+        assert sender_id in to_arg
+
     def test_add_case_status_allows_valid_em_transition(
         self, monkeypatch, make_payload
     ):
@@ -358,6 +507,56 @@ class TestStatusUseCases:
             )
         finally:
             py_trees.blackboard.Blackboard.storage.clear()
+
+    def test_add_case_status_to_case_rejects_empty_status_id(self, caplog):
+        """execute() logs a warning and returns early when status_id is empty string."""
+        import logging
+        from unittest.mock import MagicMock
+
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id="https://test.example/api/v2/actors/test-actor",
+        )
+        mock_event = MagicMock()
+        mock_event.status_id = ""
+        mock_event.case_id = "https://example.org/cases/test-empty-id"
+        mock_event.receiving_actor_id = None
+
+        with caplog.at_level(logging.WARNING):
+            try:
+                AddCaseStatusToCaseReceivedUseCase(dl, mock_event).execute()
+            except Exception:
+                pass  # pre-fix: guard misses "" and BT setup fails
+
+        assert "missing status_id or case_id" in caplog.text
+
+    def test_add_participant_status_to_participant_rejects_empty_status_id(
+        self, caplog
+    ):
+        """execute() logs a warning and returns early when status_id is empty string."""
+        import logging
+        from unittest.mock import MagicMock
+
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id="https://test.example/api/v2/actors/test-actor",
+        )
+        mock_event = MagicMock()
+        mock_event.status_id = ""
+        mock_event.participant_id = (
+            "https://example.org/cases/test/participants/p"
+        )
+        mock_event.receiving_actor_id = None
+
+        with caplog.at_level(logging.WARNING):
+            try:
+                AddParticipantStatusToParticipantReceivedUseCase(
+                    dl, mock_event
+                ).execute()
+            except Exception:
+                pass  # pre-fix: guard misses "" and BT setup fails
+
+        assert "missing status_id" in caplog.text
 
 
 # ---------------------------------------------------------------------------

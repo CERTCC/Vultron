@@ -266,8 +266,10 @@ class TestInitializeDefaultEmbargoNode:
                 stored_case = cast(
                     Any, self.persistence.read(kwargs["case_id"])
                 )
-                stored_case.active_embargo = kwargs["embargo_id"]
-                stored_case.current_status.em_state = EM.ACTIVE
+                object.__setattr__(
+                    stored_case, "active_embargo", kwargs["embargo_id"]
+                )
+                stored_case.append_case_status(em_state=EM.ACTIVE)
                 self.persistence.save(stored_case)
                 return object()
 

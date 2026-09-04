@@ -188,7 +188,7 @@ class TestSvcInviteActorToCaseUseCase:
         This asserted a 404 before. Holding a local record was never a protocol
         requirement — the record was read and discarded, delivery derives the
         invitee's inbox from its URI alone, and under per-actor storage a peer's
-        record lives in *its* store, not the inviter's (ADR-0073 decision 5). So
+        record lives in *its* store, not the inviter's (ADR-0073#peer-records-in-knowers-store). So
         the old behaviour refused invitations to actors that exist and are
         reachable, which is every cross-node invitee in a real deployment.
 
@@ -369,7 +369,9 @@ class TestInviteRolesAndEmbargoEnrichment:
         actor, dl = _make_actor_dl("CaseOwner")
         invitee, _ = _make_actor_dl("Invitee")
         dl.create(invitee)
-        case = as_VulnerabilityCase(
+        from vultron.core.models.case import VulnerabilityCase
+
+        case = VulnerabilityCase(
             attributed_to=actor.id_, name="Test Case", content="Content"
         )
         dl.create(case)
@@ -381,7 +383,7 @@ class TestInviteRolesAndEmbargoEnrichment:
             )
             dl.create(embargo)
             case.active_embargo = embargo.id_
-            case.current_status.em_state = EM.ACTIVE
+            case.append_case_status(em_state=EM.ACTIVE)
             dl.save(case)
         elif with_embargo:
             case.active_embargo = f"{case.id_}/embargo/e1"
@@ -455,8 +457,8 @@ class TestInviteRolesAndEmbargoEnrichment:
         dl.create(embargo)
         from vultron.core.states.em import EM
 
-        case.active_embargo = embargo.id_
-        case.current_status.em_state = EM.ACTIVE
+        object.__setattr__(case, "active_embargo", embargo.id_)
+        case.append_case_status(em_state=EM.ACTIVE)
         dl.save(case)
 
         request = InviteActorToCaseTriggerRequest(
@@ -664,7 +666,7 @@ class TestSvcSuggestActorToCaseUseCase:
         This asserted a 404 before, for the same reason the invite path did, and
         it was wrong for the same reason: the whole point of a recommendation is
         to name an actor the case does not have yet, and under per-actor storage
-        that actor's record lives in *its* store (ADR-0073 decision 5). The old
+        that actor's record lives in *its* store (ADR-0073#peer-records-in-knowers-store). The old
         behaviour refused every genuinely remote candidate — in the fcvcv demo,
         ``suggest-actor-to-case`` answered ``404 Actor '…/vendor-deployer' not
         found`` for a vendor that was running and reachable in another container

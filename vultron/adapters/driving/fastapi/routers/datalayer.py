@@ -283,10 +283,13 @@ def get_actor_outbox(
     # Instead, query the DataLayer queue directly for the actor's outbox IDs.
     activity_ids = cast(CaseOutboxPersistence, datalayer).outbox_list()
 
-    outbox = as_OrderedCollection(id_=f"{canonical_id}/outbox")
-    outbox.items = [
-        rehydrate(activity_id, dl=datalayer) for activity_id in activity_ids
-    ]
+    outbox = as_OrderedCollection(
+        id_=f"{canonical_id}/outbox",
+        items=[
+            rehydrate(activity_id, dl=datalayer)
+            for activity_id in activity_ids
+        ],
+    )
 
     return AS2JSONResponse(outbox)
 
@@ -327,7 +330,7 @@ def reset_datalayer(
     so on a clean node it has nothing to iterate and the seed silently never ran;
     and those example actors are named under ``https://vultron.example/users/…``,
     which is not ``{base_url}actors/{slug}`` and so can never be addressed on this
-    node (ADR-0073 decision 2).  Provisioning an actor is ``POST /actors/``, and
+    node (ADR-0073#url-segment-computed-not-looked-up).  Provisioning an actor is ``POST /actors/``, and
     callers that need a populated node call it — see
     ``vultron.demo.utils.seed_exchange_actors``.
 

@@ -26,7 +26,6 @@ from vultron.core.behaviors.helpers import (
     PortInformation,
 )
 from vultron.core.behaviors.narrative_log import log_em_transition
-from vultron.core.models.case import VulnerabilityCase
 from vultron.core.services.embargo_lifecycle import (
     EmbargoLifecycle,
     TransitionMode,
@@ -178,8 +177,8 @@ class ResetParticipantConsentNode(DataLayerActionWithPorts):
             return f
         assert self.datalayer is not None
 
-        case = self.datalayer.read(self.case_id)
-        if not isinstance(case, VulnerabilityCase):
+        case = self.datalayer.read_case(self.case_id)
+        if case is None:
             self.feedback_message = f"Case '{self.case_id}' not found"
             self.logger.warning("%s: %s", self.name, self.feedback_message)
             return Status.FAILURE
@@ -309,7 +308,7 @@ class SendAnnounceEmbargoEventNode(_SendEmbargoActivityBase):
     def _resolve_embargo_and_manager(self) -> "tuple[str, str] | Status":
         assert self.datalayer is not None
         try:
-            case = self.datalayer.read(self._case_id)
+            case = self.datalayer.read_case(self._case_id)
         except Exception as exc:
             self.feedback_message = (
                 f"Failed to read case '{self._case_id}': {exc}"
@@ -317,7 +316,7 @@ class SendAnnounceEmbargoEventNode(_SendEmbargoActivityBase):
             self.logger.warning("%s: %s", self.name, self.feedback_message)
             return Status.FAILURE
 
-        if not isinstance(case, VulnerabilityCase):
+        if case is None:
             self.feedback_message = f"Case '{self._case_id}' not found"
             self.logger.warning("%s: %s", self.name, self.feedback_message)
             return Status.FAILURE
@@ -392,8 +391,8 @@ class RemoveFromProposedEmbargoesNode(DataLayerActionWithPorts):
             return f
         assert self.datalayer is not None
 
-        case = self.datalayer.read(self.case_id)
-        if not isinstance(case, VulnerabilityCase):
+        case = self.datalayer.read_case(self.case_id)
+        if case is None:
             self.feedback_message = f"Case '{self.case_id}' not found"
             return Status.FAILURE
 

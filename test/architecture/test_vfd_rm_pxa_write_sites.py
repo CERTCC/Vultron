@@ -42,9 +42,19 @@ from test.architecture import _corpus
 # One entry per call-site occurrence (multiplicity matters).
 #
 # Classification key:
-#   PROTECTED  — user-driven write covered by ValidateTriggerTransitionsNode
-#                (trigger path) or FilterParticipantStatusDimensionsNode
-#                (received path)
+#   PROTECTED  — write covered by transition validation.  For the trigger path
+#                ValidateTriggerTransitionsNode runs first, and for the received
+#                path FilterParticipantStatusDimensionsNode does — but neither
+#                is what makes the write-node sites safe, because five call
+#                sites reach CreateParticipantStatusNode through *neither*
+#                (develop_fix.py, deploy_fix.py, close_case_effect.py and two
+#                in leave.py).  What protects them is that the write node
+#                validates its own writes against the shared evaluator
+#                (BTND-10-001, BTND-10-003, ADR-0086); the upstream guard is
+#                defence in depth, not the guarantee.  Three of those five
+#                sites force RM.CLOSED and carry a sanctioned `force_rm_state`
+#                override (CM-23-012, resolving #3106) pinned by
+#                test_participant_status_validation.py.
 #   BOOTSTRAP  — initial / authoritative seeding write; no prior state to
 #                violate; outside the scope of transition validation
 #   PREDICATE  — read-only dimension instantiation (guard / is_*() checks),
@@ -57,10 +67,17 @@ from test.architecture import _corpus
 # ---------------------------------------------------------------------------
 AUDITED_SITES: list[tuple[str, str]] = sorted(
     [
-        # PROTECTED — CreateParticipantStatusNode (trigger + received paths)
+        # PROTECTED — CreateParticipantStatusNode validates its own writes.
+        # One site per dimension, each constructed from the single
+        # `_EffectiveStates` derivation that validation also read, so the node
+        # cannot validate one value and persist another.  Was 3 VfDimension and
+        # 2 DDimension before #3050 removed the dead vf half of
+        # `_build_dimensions` and folded `_build_d_dimension` into the effective
+        # states (ARCH-15-004).
         ("case/nodes/participant/status.py", "PxaDimension"),
         ("case/nodes/participant/status.py", "RmDimension"),
-        ("case/nodes/participant/status.py", "VfdDimension"),
+        ("case/nodes/participant/status.py", "VfDimension"),
+        ("case/nodes/participant/status.py", "DDimension"),
         # BOOTSTRAP — case_proposal_received_tree: seeds RM.RECEIVED/VALID/ACCEPTED
         ("case/case_proposal_received_tree.py", "RmDimension"),
         ("case/case_proposal_received_tree.py", "RmDimension"),
@@ -70,32 +87,43 @@ AUDITED_SITES: list[tuple[str, str]] = sorted(
         #  _upgrade_participant_to_accepted deleted in #2808)
         ("case/nodes/participant/common.py", "RmDimension"),
         ("case/nodes/participant/common.py", "RmDimension"),
-        ("case/nodes/participant/common.py", "VfdDimension"),
+        ("case/nodes/participant/common.py", "VfDimension"),
+        ("case/nodes/participant/common.py", "DDimension"),
         # BOOTSTRAP — owner.py: initial owner RM state seeding
         ("case/nodes/participant/owner.py", "RmDimension"),
         ("case/nodes/participant/owner.py", "RmDimension"),
-        # PREDICATE — deploy_fix.py: VfdDimension.is_fix_deployed() / is_fix_ready()
-        ("report/nodes/deploy_fix.py", "VfdDimension"),
-        ("report/nodes/deploy_fix.py", "VfdDimension"),
-        # PREDICATE — develop_fix_conditions.py: VfdDimension.is_fix_ready()
-        ("report/nodes/develop_fix_conditions.py", "VfdDimension"),
+        # PREDICATE — deploy_fix.py: DDimension.is_fix_deployed()
+        ("report/nodes/deploy_fix.py", "DDimension"),
+        ("report/nodes/deploy_fix.py", "DDimension"),
+        # PREDICATE — develop_fix_conditions.py: VfDimension.is_fix_ready()
+        ("report/nodes/develop_fix_conditions.py", "VfDimension"),
         # RM-TRACKED — rm_transitions.py: the single report-phase RM write.
         # Was three near-identical sites (RM.VALID / RM.INVALID / RM.CLOSED);
         # collapsed to one `_ReportPhaseRMTransition._write_latch` in ISSUE-2548
         # so the latch has exactly one construction site (ARCH-15-004).
         ("report/nodes/rm_transitions.py", "RmDimension"),
         # FILTER — _adjudicate_dimensions carry-forward (extracted from dimension_filter.py)
+        # One site per dimension: every refusal reason — role guard, omitted
+        # assertion, non-monotone move, cross-machine entailment — carries the
+        # participant's current value forward and so is spelled once, in
+        # `_vf_carry` / `_d_carry` (ARCH-15-004, #2906).  Was 3 VfDimension and
+        # 4 DDimension sites before those helpers were extracted.
         ("status/nodes/_adjudication.py", "PxaDimension"),
         ("status/nodes/_adjudication.py", "RmDimension"),
-        ("status/nodes/_adjudication.py", "VfdDimension"),
+        ("status/nodes/_adjudication.py", "VfDimension"),
+        ("status/nodes/_adjudication.py", "DDimension"),
         # FILTER — CaseStatus per-dimension carry-forward (ISSUE-2256)
         ("status/nodes/cs_dimension_filter.py", "PxaDimension"),
+        # SNAPSHOT — EmitCaseStatusUpdateNode: post-mutation CaseStatus snapshot (ISSUE-2175)
+        # Second PxaDimension: AC-1 _promote_pxa() result applied in AppendCaseStatusToCaseNode
+        ("status/nodes/case_status.py", "PxaDimension"),
+        ("status/nodes/case_status.py", "PxaDimension"),
         # REPLICATE — participant_status_effect.py: monotonic RM ratchet
         ("sync/nodes/participant_status_effect.py", "RmDimension"),
     ]
 )
 
-_TARGET_NAMES = {"VfdDimension", "RmDimension", "PxaDimension"}
+_TARGET_NAMES = {"VfDimension", "DDimension", "RmDimension", "PxaDimension"}
 _BEHAVIORS_ROOT = _corpus.REPO_ROOT / "vultron" / "core" / "behaviors"
 
 

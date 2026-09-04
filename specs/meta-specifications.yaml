@@ -575,7 +575,7 @@ groups:
     adr:
     - ADR-0027
 - id: MS-15
-  title: Spec Statements Must Not Reference Phantom Paths
+  title: Spec Statements Must Not Reference Phantom Paths or Phantom Symbols
   specs:
   - id: MS-15-001
     priority: MUST_NOT
@@ -624,9 +624,68 @@ groups:
     rationale: >-
       The placeholder or lint_suppress mechanism makes the spec-first intent explicit
       rather than silently passing a phantom-path check by accident.
+    verification: >-
+      `test_lint_phantom_path_placeholder_exempt` and
+      `test_lint_phantom_path_suppress` in `test/metadata/specs/test_lint.py` confirm
+      both opt-out forms clear the hard error.
     relationships:
     - rel_type: refines
       spec_id: MS-15-001
+    tags:
+    - documentation
+    - tooling
+  - id: MS-15-004
+    priority: MUST_NOT
+    kind: process
+    statement: >-
+      A spec item's `statement`, `verification`, `behavioral step`, `precondition`,
+      and `postcondition` fields MUST NOT reference a backticked all-caps code
+      symbol containing at least one underscore that appears nowhere in the
+      `vultron/` or `test/` Python sources.
+    rationale: >-
+      MS-15-001 only inspects backticked tokens containing a directory separator, so
+      a bare symbol name passed it silently. That gap let the retired
+      `SEMANTICS_ACTIVITY_PATTERNS` name survive across five spec files, eight of
+      them MUST-level `kind: protocol` statements, from the registry move until
+      issue #3022. A MUST about a symbol nobody can find is worse than an absent
+      requirement: the agent either invents a replacement or drops the obligation.
+      The single-underscore floor excludes the token shapes that are not symbols —
+      RFC 2119 keywords, protocol shorthands, one-word state names. Resolution is
+      textual and tree-wide rather than a binding lookup, preferring a false
+      negative over blocking a legitimate reference. `rationale` narrates history
+      and is excluded, as in MS-15-001.
+    verification: >-
+      `test_lint_phantom_symbol_is_hard_error` in `test/metadata/specs/test_lint.py`
+      confirms a spec naming an absent symbol exits non-zero; the sibling
+      `_existing_symbol_passes` and `_resolves_from_test_tree` cases confirm a live
+      symbol in either tree is accepted.
+    relationships:
+    - rel_type: refines
+      spec_id: MS-15-001
+      note: extends the phantom-reference guarantee from paths to code symbols
+    tags:
+    - documentation
+    - tooling
+  - id: MS-15-005
+    priority: MUST
+    kind: process
+    statement: >-
+      A requirement that deliberately names a retired code symbol, or a convention
+      token that was never code, MUST opt out with
+      `lint_suppress: [phantom_symbol_ref]`.
+    rationale: >-
+      Two legitimate reasons to name a symbol that does not resolve: recording that
+      it was removed (SE-08-005 documents the retirement of a semantic), and naming
+      a proposed spec-authoring tag rather than an identifier (PROTO-04-001's
+      `PROD_ONLY`). Requiring the explicit opt-out keeps both visible as deliberate
+      choices instead of leaving them indistinguishable from the stale MUSTs
+      MS-15-004 exists to catch.
+    verification: >-
+      `test_lint_phantom_symbol_suppress` in `test/metadata/specs/test_lint.py`
+      confirms the opt-out clears the hard error.
+    relationships:
+    - rel_type: refines
+      spec_id: MS-15-004
     tags:
     - documentation
     - tooling

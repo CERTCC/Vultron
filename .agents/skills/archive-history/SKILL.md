@@ -90,13 +90,8 @@ markdownlint-cli2 --fix --config .markdownlint-cli2.yaml \
 
 ```bash
 git add plan/history/
-git commit -m "history: archive <TYPE> <SOURCE> — <TITLE>
-
-Co-authored-by: Claude Sonnet 4.6 <noreply@anthropic.com>"
+git commit -m "history: archive <TYPE> <SOURCE> — <TITLE>"
 ```
-
-The `Co-authored-by` trailer is **required** on this commit just as on all
-others — the history commit is the most commonly missing it.
 
 ### Step 5 — Push
 

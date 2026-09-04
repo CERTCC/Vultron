@@ -44,6 +44,7 @@ from ._base import _TriggerAdapterBase
 from .actors import _ActorsMixin
 from .cases import _CasesMixin
 from .embargo import _EmbargoMixin
+from .fault import _FaultMixin
 from .notes import _NotesMixin
 from .reports import _ReportsMixin
 
@@ -56,6 +57,7 @@ class TriggerActivityAdapter(
     _CasesMixin,
     _ActorsMixin,
     _EmbargoMixin,
+    _FaultMixin,
     _TriggerAdapterBase,
 ):
     """Driven adapter for constructing and persisting outbound wire activities.

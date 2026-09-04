@@ -16,25 +16,33 @@
 """
 AddCaseStatus behavior tree composition.
 
-EmbargoTeardownAuthorizationGate of the two-seam authorization model (ADR-0046, RSH-02-001 to
-RSH-03-003): after the canonical CaseStatus write, a ``EmbargoTeardownAuthorizationGate``
-(Selector/Fallback) gates side-effect execution, and
-``ThreatTerminationBranchNode`` fires embargo teardown when the CaseStatus
-signals a threat (P=True OR X=True OR A=True).
+Two-seam authorization model (ADR-0046, RSH-02-001 to RSH-03-003): after the
+canonical CaseStatus write, a ``FailureIsSuccess``-wrapped ``TeardownEffects``
+Sequence gates and fires embargo teardown when the CaseStatus signals a threat
+(P=True OR X=True OR A=True).  A post-cascade ``PxaEmInvariantDiagnosticNode``
+then verifies the CSB-18-002..004 invariant and posts a Note to the case if the
+invariant is still violated (e.g. authorization gate blocked teardown).
 
     AddCaseStatusToCaseBT (Sequence)
     ├─ CheckCaseStatusIdempotencyNode              # precondition guard (CLP-10-009)
+    ├─ CheckCsEphemeralStateNode                   # pX ephemeral guard (CSB-17-012, ISSUE-2524)
+    ├─ CheckCsHistoryPrefixNode                    # history prefix guard (CSB-17-005, ISSUE-2524)
     ├─ FilterCsEmDimensionNode                     # per-dim EM adjudication (RSH-05, ISSUE-2256)
     ├─ FilterCsPxaDimensionNode                    # per-dim PXA adjudication (RSH-05, ISSUE-2256)
     ├─ FinalizeCsFilterNode                        # whole-refusal gate; FAILURE if nothing new
     ├─ GuardedCommitOrSkip                         # canonical ledger commit (CLP-10-006)
     ├─ AppendCaseStatusToCaseNode                  # AC-1: append status and persist
-    ├─ EmbargoTeardownAuthorizationGate (Selector) # EmbargoTeardownAuthorizationGate (RSH-02-001)
-    │   └─ SideEffectsApproved                    # call-out; default AlwaysSucceed
-    └─ ThreatTerminationBranchNode                 # Embargo teardown (RSH-03-001)
+    ├─ TeardownEffectsOrSkip (FailureIsSuccess)    # RSH-03-001 to RSH-03-003
+    │   └─ TeardownEffects (Sequence)
+    │       ├─ EmbargoTeardownAuthorizationGate    # call-out (RSH-02-001)
+    │       └─ ThreatTerminationBranchNode         # Embargo teardown (RSH-03-001)
+    └─ PxaEmInvariantDiagnosticNode                # CSB-18-002..004 post-cascade check
 
 Per issue #758 (BT-SM Integration: AddCaseStatusToCaseReceivedUseCase),
 RSH-02-001 to RSH-03-003, ADR-0046, CLP-10-006, CLP-10-009.
+Per issue #2524 (CS invariants: ephemeral-state and history guards), CSB-17-012,
+CSB-17-005.
+Per CONCERN-3008 (PXA↔EM entailment enforcement), CSB-18-002..004.
 """
 
 import logging
@@ -58,6 +66,13 @@ from vultron.core.behaviors.status.nodes.cs_dimension_filter import (
     FilterCsPxaDimensionNode,
     FinalizeCsFilterNode,
 )
+from vultron.core.behaviors.status.nodes.cs_invariant_guards import (
+    CheckCsEphemeralStateNode,
+    CheckCsHistoryPrefixNode,
+)
+from vultron.core.behaviors.status.nodes.cs_invariant_diagnostic import (
+    PxaEmInvariantDiagnosticNode,
+)
 from vultron.core.behaviors.status.nodes.threat_termination import (
     ThreatTerminationBranchNode,
 )
@@ -72,22 +87,30 @@ def add_case_status_tree(
     """Create the behavior tree for the AddCaseStatusToCase workflow.
 
     Handles receipt of an ``Add(CaseStatus, VulnerabilityCase)`` activity.
-    Implements seven nodes in a Sequence:
+    Implements nine nodes in a Sequence:
 
     1. Idempotency check — fail fast if the status is already present.
-    2. Per-dimension EM adjudication — accept valid advances, carry forward
-       refused EM; always returns SUCCESS (RSH-05, ISSUE-2256).
-    3. Per-dimension PXA adjudication — accepts monotone-forward PXA moves,
+    2. Ephemeral-state guard — rejects CaseStatus that violates the pX→P
+       constraint (CSB-17-012, ISSUE-2524).
+    3. History-prefix guard — rejects single-step PXA transitions that would
+       produce an invalid CS history prefix (CSB-17-005, ISSUE-2524).
+    4. Per-dimension EM adjudication — accept valid advances, carry forward
+       refused EM; returns FAILURE when the case is not found in the DataLayer
+       (CLP-10-009), otherwise SUCCESS (RSH-05, ISSUE-2256).
+    5. Per-dimension PXA adjudication — accepts monotone-forward PXA moves,
        carries forward refused PXA; always returns SUCCESS (RSH-05, ISSUE-2256).
-    4. Whole-refusal gate — returns FAILURE if no dimension carries new state;
+    6. Whole-refusal gate — returns FAILURE if no dimension carries new state;
        returns SUCCESS otherwise, publishing the filtered CaseStatus.
-    5. Append and persist — write the filtered CaseStatus to the case record.
-    6. ``EmbargoTeardownAuthorizationGate`` (Selector) — call-out gate (RSH-02-001).
-       Default is ``AlwaysSucceed``; production adapters may inject a gate
-       that blocks side-effects for certain actors or scenarios.
-    7. ``ThreatTerminationBranchNode`` — fires embargo teardown when the
-       CaseStatus has at least one of P=True, X=True, or A=True and the case
-       has an active embargo (RSH-03-001 to RSH-03-003).
+    7. Append and persist — write the filtered CaseStatus to the case record.
+    8. ``TeardownEffectsOrSkip`` (``FailureIsSuccess`` decorator) — wraps a
+       Sequence of the ``EmbargoTeardownAuthorizationGate`` call-out
+       (RSH-02-001) and ``ThreatTerminationBranchNode`` (RSH-03-001 to
+       RSH-03-003). Decorated so that authorization-gate FAILURE does not
+       abort the outer Sequence — teardown side-effects are optional.
+    9. ``PxaEmInvariantDiagnosticNode`` — reads fresh EM state from the
+       DataLayer after the teardown block and posts a ``Note`` to the case
+       if the CSB-18-002..004 invariant is still violated (e.g. gate blocked
+       teardown). Always returns SUCCESS. (CONCERN-3008)
 
     Args:
         request: The parsed inbound domain event.
@@ -99,8 +122,9 @@ def add_case_status_tree(
         Root node of the ``AddCaseStatusToCaseBT`` Sequence.
     """
     status_id = request.status_id or ""
-    case_id = request.case_id or ""
+    case_id: str | None = request.case_id or None
     status_obj = request.status
+    sender_actor_id = request.actor_id or None
 
     root = create_receive_activity_tree(
         name="AddCaseStatusToCaseBT",
@@ -109,6 +133,16 @@ def add_case_status_tree(
             CheckCaseStatusIdempotencyNode(
                 case_id=case_id,
                 status_id=status_id,
+            ),
+            CheckCsEphemeralStateNode(
+                case_id=case_id,
+                status_id=status_id,
+                status_obj_fallback=status_obj,
+            ),
+            CheckCsHistoryPrefixNode(
+                case_id=case_id,
+                status_id=status_id,
+                status_obj_fallback=status_obj,
             ),
             FilterCsEmDimensionNode(
                 case_id=case_id,
@@ -124,13 +158,28 @@ def add_case_status_tree(
                 status_id=status_id,
                 status_obj_fallback=status_obj,
             ),
-            call_out.embargo_teardown_authorization_gate_factory(
-                "EmbargoTeardownAuthorizationGate"
+            py_trees.decorators.FailureIsSuccess(
+                name="TeardownEffectsOrSkip",
+                child=py_trees.composites.Sequence(
+                    name="TeardownEffects",
+                    memory=False,
+                    children=[
+                        call_out.embargo_teardown_authorization_gate_factory(
+                            "EmbargoTeardownAuthorizationGate"
+                        ),
+                        ThreatTerminationBranchNode(
+                            status_obj=status_obj,
+                            case_id=case_id or None,
+                            name="ThreatTerminationBranch",
+                        ),
+                    ],
+                ),
             ),
-            ThreatTerminationBranchNode(
+            PxaEmInvariantDiagnosticNode(
                 status_obj=status_obj,
-                case_id=case_id or None,
-                name="ThreatTerminationBranch",
+                case_id=case_id,
+                sender_actor_id=sender_actor_id,
+                name="PxaEmInvariantDiagnostic",
             ),
         ],
     )

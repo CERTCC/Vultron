@@ -76,11 +76,11 @@ class CreateReportReceivedUseCase:
 - **Data Layer port**: `vultron/core/ports/datalayer.py` — `DataLayer`
   Protocol
 - **BT Bridge**: `vultron/core/behaviors/bridge.py`
-- **BT nodes/trees**: `vultron/core/behaviors/report/`, `case/`,
-  `helpers.py`
-- **Canonical Case History**: `CaseEvent` and `record_event()` were
-  removed in #792. All protocol-significant history is now in the
-  `CaseLedgerEntry` hash chain; see `notes/case-ledger-authority.md`.
+- **BT nodes/trees**: `vultron/core/behaviors/report/`, `case/`, `helpers.py`
+- **Predicate layer** (`vultron/core/predicates/`): Pure rule layer (ISSUE-3058) — MAY import
+  `states/`/`enums/`; MUST NOT import `behaviors/`/`services/`. See [notes/predicates-rule-layer.md](../../notes/predicates-rule-layer.md).
+- **Canonical Case History**: `CaseEvent` and `record_event()` removed in #792;
+  history is in `CaseLedgerEntry` hash chain — `notes/case-ledger-authority.md`.
 
 ---
 
@@ -128,33 +128,26 @@ makes implicit subtype assumptions explicit and runtime-verified.
 
 ### Untyped Closures Are Invisible to mypy — Extract to Named Functions
 
-When refactoring or extracting logic from an untyped function body or closure
-(e.g., inside `extractor.py`), mypy does not check the body of untyped
-functions. Hidden type errors only surface once the code is promoted to a
-named, typed function. Always extract closures to named, fully-typed helper
-functions; do not leave logic inside untyped lambda or nested-function
-bodies. Specifically: AS2 fields that carry an object or ID reference (e.g.,
-`context`, `origin`, `in_reply_to`) MUST be converted to `str | None` using
-`_get_id(field)` before assigning to a `NonEmptyString | None` snapshot
-field — passing the raw AS2 object directly is a type error that mypy will
-catch only after extraction.
+mypy does not check the body of an untyped function, so hidden type errors
+surface only once logic is promoted to a named, typed function. Always
+extract closures (e.g. inside `extractor.py`) rather than leaving logic in
+lambdas or nested functions. Specifically: AS2 fields carrying an object or
+ID reference (`context`, `origin`, `in_reply_to`) MUST be converted with
+`_get_id(field)` before assignment to a `NonEmptyString | None` snapshot
+field — passing the raw AS2 object is an error mypy catches only after
+extraction.
 
 ### Domain Objects Belong in `core/models/`, Not `wire/as2/vocab/objects/`
 
 `VulnerabilityCase`, `VulnerabilityReport`, `CaseParticipant`,
-`EmbargoPolicy`, `CaseStatus`, `CaseLedgerEntry`, and `VulnerabilityRecord` are
-**domain objects**. They currently live in `vultron/wire/as2/vocab/objects/`
-because the codebase was built wire-first, but their correct home is
-`vultron/core/models/`. The wire layer should import and project from core,
-not the other way around.
-
-Consequence: `VultronActivity.object_` is typed `Any | None` because core
-cannot import wire types. Referencing wire-layer domain objects in core code
-is a layer-boundary violation. Do **not** add new cross-layer imports from
-`vultron/core/` into `vultron/wire/as2/`. The migration of these objects to
-core is tracked in issue #539. See
-[notes/domain-model-separation.md](../../notes/domain-model-separation.md)
-for the full architectural direction.
+`EmbargoPolicy`, `CaseStatus`, `CaseLedgerEntry` and `VulnerabilityRecord` are
+**domain objects** that still live under `vultron/wire/as2/vocab/objects/`
+because the codebase was built wire-first. The wire layer imports and
+projects from core, never the reverse — which is why
+`VultronActivity.object_` is typed `Any | None`. Do **not** add new imports
+from `vultron/core/` into `vultron/wire/as2/`. Migration tracked in #539;
+full direction in
+[notes/domain-model-separation.md](../../notes/domain-model-separation.md).
 
 ### Adding SemanticEntry: Use Domain Sub-Module, Not `__init__.py`
 
@@ -167,19 +160,13 @@ directly. Editing `__init__.py` for individual entry additions defeats the
 purpose of the split (reducing merge conflicts) and risks silently corrupting
 the ordering invariant that keeps the `UNKNOWN` fallback last.
 
-### EM State Writes Are Owned by `EmbargoLifecycle` (EMB-18-001, retired in #2712)
+### EM State Writes Are Owned by `EmbargoLifecycle` (EMB-18-001)
 
-The `caller_owns_em_io` guard and the `WriteEmStateNode` BT node are **retired**.
-Do not reintroduce them.
-
-**Current rule:** `EmbargoLifecycle` service methods always read `em_before` from
-the DataLayer when not supplied and always write `em_after` back. BT nodes call
-service methods directly; they never assign `case.current_status.em` inline.
-
-See also `vultron/core/behaviors/AGENTS.md` § "EM State Reads and Writes Must Use
-Canonical Nodes".
-
-<!-- Source: ISSUE-1474; pattern retired ISSUE-2712 -->
+The `caller_owns_em_io` guard and `WriteEmStateNode` are **retired** (#2712);
+do not reintroduce them. BT nodes call `EmbargoLifecycle` service methods
+directly and never assign `case.current_status.em` inline. Full rule:
+`vultron/core/behaviors/AGENTS.md` § "EM State Reads and Writes Must Use
+Canonical Nodes". *Source: ISSUE-1474; retired ISSUE-2712*
 
 ---
 
@@ -204,30 +191,39 @@ does this function depend on anything above `models/`? If not, put it in
 
 ---
 
-### Receive-Side Wire Objects: Dual `isinstance` / `type_` Check for Core Types
+### Receive-Side Object Validation: Use `type_` Duck-Typing Check
 
-Core received-side use cases process incoming wire-layer activities before
-objects are stored in the DataLayer. At this boundary `case_obj` may be a
-wire-layer `as_VulnerabilityCase`, not a core `VulnerabilityCase` — so
-`isinstance(case_obj, VulnerabilityCase)` returns `False`.
+Per ADR-0034, `dl.read()` and `dl.read_case()` return fully rehydrated core
+`VulnerabilityCase` objects. `isinstance(case_obj, VulnerabilityCase)` checks
+are no longer needed after a `read_case()` call — use a `None` check instead.
 
-Without importing wire types in core (which would violate ARCH-01-001), use a
-dual check:
+At the received-side boundary where `case_obj` comes from `activity.object_`
+(not from the DataLayer), use a `type_` duck-typing check to validate the type
+without importing wire types (ARCH-01-001):
 
 ```python
-if (
-    not isinstance(case_obj, VulnerabilityCase)
-    and getattr(case_obj, "type_", None) != "VulnerabilityCase"
-):
-    # reject — neither core type nor wire type claiming to be a VulnerabilityCase
+if getattr(case_obj, "type_", None) != "VulnerabilityCase":
+    # reject — not a VulnerabilityCase
     return
 ```
 
-This accepts both `VulnerabilityCase` objects from `dl.read()` and
-`as_VulnerabilityCase` objects from incoming activities, and rejects anything
-else, without importing from `vultron/wire/`.
+This works for both core `VulnerabilityCase` (which has `type_ = "VulnerabilityCase"`)
+and any object claiming to be one, without importing from `vultron/wire/`.
 
 <!-- Source: ISSUE-1504 -->
+
+---
+
+### A Message Subject Is Never `resolve_receiving_actor_id()`
+
+`resolve_receiving_actor_id()` answers only *whose replica am I applying this
+to?*; its sole legitimate consumer is `execute_with_setup(actor_id=...)`.
+Every **subject** the message names (invitee, accepting/rejecting actor,
+target actor) MUST be read from the message and threaded into the tree as
+leaf-node data (ADR-0022), resolved by **addressee membership, not position**
+in `to:` — use `resolve_invitee_id()`, never `= receiving_actor_id`. Full
+rule, both failure shapes and the resolution order:
+[notes/bt-integration.md](../../notes/bt-integration.md). *ISSUE-2762*
 
 ---
 

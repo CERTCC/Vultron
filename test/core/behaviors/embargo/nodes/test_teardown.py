@@ -108,7 +108,7 @@ class TestHasEmbargoActiveNode:
             actor_id="https://test.example/api/v2/actors/test-actor",
         )
         case, _ = make_case_and_embargo("hea3", em_state=EM.EXITED)
-        case.active_embargo = None
+        object.__setattr__(case, "active_embargo", None)
         dl.create(case)
 
         setup_blackboard(dl)
@@ -244,7 +244,7 @@ class TestClearActiveEmbargoNode:
             actor_id="https://test.example/api/v2/actors/test-actor",
         )
         case, _ = make_case_and_embargo("caen3", em_state=EM.EXITED)
-        case.active_embargo = None
+        object.__setattr__(case, "active_embargo", None)
         dl.create(case)
 
         setup_blackboard(dl)
@@ -370,7 +370,9 @@ class TestResetParticipantConsentNode:
             id_=f"{case.id_}/participants/p1",
             attributed_to="https://example.org/users/finder",
         )
-        participant.embargo_consent_state = PEC.SIGNATORY.value
+        object.__setattr__(
+            participant, "embargo_consent_state", PEC.SIGNATORY.value
+        )
         case.case_participants.append(participant.id_)
         dl.create(case)
         dl.create(participant)
@@ -392,7 +394,7 @@ class TestResetParticipantConsentNode:
             actor_id="https://test.example/api/v2/actors/test-actor",
         )
         case, _ = make_case_and_embargo("rpcn2", em_state=EM.ACTIVE)
-        case.case_participants = []
+        object.__setattr__(case, "case_participants", [])
         dl.create(case)
 
         setup_blackboard(dl)
@@ -524,7 +526,7 @@ class TestApplyEmbargoTeardownNode:
             actor_id="https://test.example/api/v2/actors/test-actor",
         )
         case, _ = make_case_and_embargo("atn3", em_state=EM.EXITED)
-        case.active_embargo = None
+        object.__setattr__(case, "active_embargo", None)
         dl.create(case)
 
         setup_blackboard(dl)
@@ -571,7 +573,9 @@ class TestApplyEmbargoTeardownNode:
             id_=f"{case.id_}/participants/p1",
             attributed_to="https://example.org/users/finder",
         )
-        participant.embargo_consent_state = PEC.SIGNATORY.value
+        object.__setattr__(
+            participant, "embargo_consent_state", PEC.SIGNATORY.value
+        )
         case.case_participants.append(participant.id_)
         dl.create(case)
         dl.create(participant)

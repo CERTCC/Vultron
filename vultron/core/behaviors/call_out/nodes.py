@@ -19,7 +19,7 @@ the ``<DOMAIN>_DETERMINISTIC`` bundles: :class:`AlwaysSucceed` (always returns
 
 These are core-owned, production-usable backends: the DETERMINISTIC bundle is
 the happy-path default a real actor uses when a call-out point has no wired-in
-coordination agent yet (ADR-0025). They deliberately carry **no** probabilistic
+capability implementation yet (ADR-0025). They deliberately carry **no** probabilistic
 behaviour — that belongs exclusively to the simulation layer
 (``vultron/demo/fuzzer/base.py``'s ``WeightedBehavior`` family, kept out of core
 per BT-16-001).

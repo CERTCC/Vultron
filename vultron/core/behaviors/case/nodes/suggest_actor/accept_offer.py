@@ -21,6 +21,7 @@ owner-side response node; ``emit`` retains the CaseActor-side forwarding and
 notification nodes.
 """
 
+import json
 from typing import cast
 
 from py_trees.common import Status
@@ -50,7 +51,7 @@ class EmitAcceptCaseParticipantOfferNode(DataLayerActionWithPorts):
         self.case_actor_id = case_actor_id
         self._captured = captured
 
-    def _emit(self) -> tuple[str, dict]:
+    def _emit(self) -> tuple[str, str]:
         assert self.trigger_activity_factory is not None
         assert self.actor_id is not None
         return self.trigger_activity_factory.accept_case_participant_offer(
@@ -74,7 +75,7 @@ class EmitAcceptCaseParticipantOfferNode(DataLayerActionWithPorts):
                 activity_id
             )
             if self._captured is not None:
-                self._captured["activity"] = activity_dict
+                self._captured["activity"] = json.loads(activity_dict)
             self.logger.info(
                 "Actor '%s' accepted Offer(CaseParticipant) '%s' → CaseActor '%s'",
                 self.actor_id,

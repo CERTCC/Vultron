@@ -66,7 +66,7 @@ class AddCaseStatusToCaseReceivedUseCase:
         request = self._request
         status_id = request.status_id
         case_id = request.case_id
-        if status_id is None or case_id is None:
+        if not status_id or not case_id:
             logger.warning(
                 "add_case_status_to_case: missing status_id or case_id"
             )
@@ -116,6 +116,20 @@ class AddCaseStatusToCaseReceivedUseCase:
                     request.activity_id,
                     reason_str,
                 )
+                if self._trigger_activity is not None and request.actor_id:
+                    from vultron.core.models.fault_classes import (
+                        VULTRON_FAILURE_STATUS_ASSERTION_REFUSED,
+                    )
+
+                    self._trigger_activity.emit_processing_fault(
+                        actor=resolve_receiving_actor_id(
+                            self._dl, request.receiving_actor_id
+                        ),
+                        failed_activity_id=request.activity_id,
+                        failure_class=VULTRON_FAILURE_STATUS_ASSERTION_REFUSED,
+                        to=[request.actor_id],
+                        case_id=case_id,
+                    )
 
 
 class CreateParticipantStatusReceivedUseCase:
@@ -176,7 +190,7 @@ class AddParticipantStatusToParticipantReceivedUseCase:
 
     def execute(self) -> None:
         request = self._request
-        if request.status_id is None or request.participant_id is None:
+        if not request.status_id or not request.participant_id:
             logger.warning(
                 "add_participant_status_to_participant: missing status_id"
                 " or participant_id"
@@ -216,11 +230,24 @@ class AddParticipantStatusToParticipantReceivedUseCase:
 
         if result.status != Status.SUCCESS:
             reason = BTBridge.get_failure_reason(tree)
+            reason_str = reason or result.feedback_message or ""
             logger.warning(
                 "AddParticipantStatusBT did not succeed for activity '%s': %s",
                 request.activity_id,
-                reason or result.feedback_message,
+                reason_str,
             )
+            if self._trigger_activity is not None and request.actor_id:
+                from vultron.core.models.fault_classes import (
+                    VULTRON_FAILURE_STATUS_ASSERTION_REFUSED,
+                )
+
+                self._trigger_activity.emit_processing_fault(
+                    actor=receiving_actor_id,
+                    failed_activity_id=request.activity_id,
+                    failure_class=VULTRON_FAILURE_STATUS_ASSERTION_REFUSED,
+                    to=[request.actor_id],
+                    case_id=case_id,
+                )
 
     def _resolve_case_id_for_log_cascade(self) -> str | None:
         request = self._request

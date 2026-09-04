@@ -38,7 +38,6 @@ from vultron.core.behaviors.case.nodes.participant.status import (
     CreateParticipantStatusNode,
 )
 from vultron.core.behaviors.helpers import DataLayerActionWithPorts
-from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.participant_status import (
     participant_status_rm_state,
@@ -79,8 +78,8 @@ class AdvanceParticipantToRMClosedNode(DataLayerActionWithPorts):
             return f
         assert self.datalayer is not None
 
-        case = self.datalayer.read(self._case_id)
-        if not isinstance(case, VulnerabilityCase):
+        case = self.datalayer.read_case(self._case_id)
+        if case is None:
             self.logger.warning(
                 "%s: case '%s' not found or wrong type",
                 self.name,
@@ -125,10 +124,17 @@ class AdvanceParticipantToRMClosedNode(DataLayerActionWithPorts):
             case_id=self._case_id,
             actor_id=self._leaving_actor_id,
             rm_state=RM.CLOSED,
-            vfd_state=None,
+            vf_state=None,
+            d_state=None,
             pxa_state=None,
             result_out=result_out,
             name=f"{self.name}.CreateParticipantStatus",
+            # Sanctioned override (CM-23-012, resolving #3106): a Leave is the
+            # leaving actor's own self-declaratory closure act (ADR-0084), so
+            # advancing *that actor* to RM.CLOSED regardless of its current rung
+            # is legitimate self-declaration; the RM adjacency rule is
+            # suppressed only for this single-actor write.  See `force_rm_state`.
+            force_rm_state=True,
         )
         node.datalayer = self.datalayer
         node.actor_id = self._leaving_actor_id
@@ -182,8 +188,8 @@ class AdvanceCaseActorToRMClosedNode(DataLayerActionWithPorts):
             return f
         assert self.datalayer is not None
 
-        case = self.datalayer.read(self._case_id)
-        if not isinstance(case, VulnerabilityCase):
+        case = self.datalayer.read_case(self._case_id)
+        if case is None:
             self.logger.warning(
                 "%s: case '%s' not found or wrong type",
                 self.name,
@@ -226,10 +232,18 @@ class AdvanceCaseActorToRMClosedNode(DataLayerActionWithPorts):
             case_id=self._case_id,
             actor_id=self._case_actor_id,
             rm_state=RM.CLOSED,
-            vfd_state=None,
+            vf_state=None,
+            d_state=None,
             pxa_state=None,
             result_out=result_out,
             name=f"{self.name}.CreateParticipantStatus",
+            # Sanctioned override (CM-23-012, resolving #3106): on owner Leave
+            # the *case actor* closes its own RM lifecycle (ADR-0051) as the
+            # penultimate step before case_fully_closed.  Advancing this single
+            # actor to RM.CLOSED regardless of rung is legitimate; the RM
+            # adjacency rule is suppressed only for this write.  Bystander
+            # participants are never advanced here.  See `force_rm_state`.
+            force_rm_state=True,
         )
         node.datalayer = self.datalayer
         node.actor_id = self._case_actor_id

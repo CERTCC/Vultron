@@ -193,6 +193,18 @@ def _create_actor(client, base_api: str, slug: str, name: str) -> str:
     return actor_id
 
 
+def _register_peer(client, host_slug: str, peer_id: str, name: str) -> None:
+    """Register a peer in the hosted actor's address book (ADR-0081)."""
+    resp = client.post(
+        f"/api/v2/actors/{host_slug}/peers/",
+        json={"id": peer_id, "name": name, "actor_type": "Organization"},
+    )
+    assert resp.status_code in (
+        200,
+        201,
+    ), f"Peer registration failed ({resp.status_code}): {resp.text}"
+
+
 def _post_to_inbox(client, actor_slug: str, activity) -> None:
     """POST *activity* JSON to ``/api/v2/actors/{actor_slug}/inbox/``."""
     resp = client.post(
@@ -256,10 +268,8 @@ def _bootstrap_case_for_participant(
         participant_tc, participant_base_api, participant_slug, "Participant"
     )
 
-    # Register participant on owner's app so the router can deliver there.
-    _create_actor(
-        owner_tc, participant_base_api, participant_slug, "Participant"
-    )
+    # Register participant as peer on owner's app so the router can deliver there.
+    _register_peer(owner_tc, owner_slug, participant_actor_id, "Participant")
 
     # Build the SubmitReport offer and deliver it to owner's inbox.
     # This triggers the create_receive_report_case_tree BT which creates
@@ -337,7 +347,9 @@ def _bootstrap_case_for_participant(
     assert (
         case_obj is not None
     ), f"case {case_id!r} not readable from the owner's own store"
-    case_obj.active_embargo = f"{case_id}/embargoes/bootstrap-embargo"
+    object.__setattr__(
+        case_obj, "active_embargo", f"{case_id}/embargoes/bootstrap-embargo"
+    )
 
     # The owner submitted the CaseProposal, so it holds CASE_OWNER — a role never
     # delegated to the CaseActor.  RM.RECEIVED is the state it holds after taking

@@ -17,14 +17,16 @@ Provides an EmbargoEvent object for the Vultron ActivityStreams Vocabulary.
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
 from datetime import datetime, timedelta
-from typing import Literal, TypeAlias, cast
+from typing import ClassVar, Literal, TypeAlias, cast
 
 from pydantic import Field, model_validator
 
 from vultron.core.models.embargo_event import EmbargoEvent as CoreEmbargoEvent
+from vultron.wire.as2.vocab.base.base import VULTRON_CONTEXT_URI
 from vultron.wire.as2.vocab.base.dt_utils import (
     now_utc,
 )
+from vultron.wire.as2.vocab.base.enums import VocabNamespace
 from vultron.wire.as2.vocab.base.links import ActivityStreamRef
 from vultron.wire.as2.vocab.base.objects.object_types import as_Event
 from vultron.wire.as2.vocab.base.utils import name_of
@@ -46,6 +48,12 @@ class as_EmbargoEvent(as_Event):
     Domain logic lives in :class:`vultron.core.models.embargo_event.EmbargoEvent`.
     """
 
+    _vocab_ns: ClassVar[VocabNamespace] = VocabNamespace.VULTRON
+    context_: str = Field(
+        default=VULTRON_CONTEXT_URI,
+        validation_alias="@context",
+        serialization_alias="@context",
+    )
     type_: Literal["EmbargoEvent"] = Field(  # type: ignore[assignment]
         default="EmbargoEvent",
         validation_alias="type",
@@ -76,7 +84,9 @@ class as_EmbargoEvent(as_Event):
             parts.append(f"start: {start_iso}")
         if self.end_time:
             parts.append(f"end: {end_iso}")
-        self.name = " ".join([str(part) for part in parts])
+        object.__setattr__(
+            self, "name", " ".join([str(part) for part in parts])
+        )
         return self
 
     @classmethod

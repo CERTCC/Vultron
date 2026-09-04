@@ -4,6 +4,7 @@ date: 2026-08-13
 deciders: Vultron maintainers
 consulted: Vultron maintainers
 informed: Vultron contributors
+partially_superseded_by: docs/adr/0082-wire-core-boundary-pairing-registry.md
 ---
 
 # Normalise Wire → Core at Ingress, and Enforce It Again at the Persistence Boundary
@@ -99,9 +100,11 @@ the shapes converge.
   reasonably wonder which one is authoritative. Mitigated by
   `notes/datalayer-design.md`, which names the persistence boundary as the
   backstop.
-- Bad, because `_NORMALIZE_WIRE_TO_CORE` covers 7 of the 15 shadowing types. The
-  other 8 differ only by key spelling today, so they are misspelled rather than
-  unreadable — tracked in #2401.
+- Bad, because `_NORMALIZE_WIRE_TO_CORE` is a hand-maintained list that has to be
+  extended by hand for each shadowing type. It covered 7 of the 15 at the time of
+  this decision — the other 8 differed only by key spelling, so they were
+  misspelled rather than unreadable — and completing the set took issues #2401,
+  #2268 and #2402. All fifteen are covered now, behind a grow-only ratchet test.
 - Neutral, because per-write child projection costs one `model_fields` scan on
   objects that are already being serialised.
 
@@ -152,6 +155,21 @@ the shapes converge.
   once, with no incremental path — not an acceptable shape for a bug fix.
 
 ## More Information
+
+**Partially superseded by [ADR-0082](0082-wire-core-boundary-pairing-registry.md).**
+That decision takes the unification this ADR named as the right end state and
+deferred: with
+`extra="forbid"` on the core branch and a declarative core↔wire pairing registry,
+the *second* of the two enforcement points chosen here stops being needed. The
+persistence-boundary backstop — `_normalize_to_core()`,
+`_NORMALIZE_WIRE_TO_CORE`, and the grow-only ratchet — is deleted, because the
+invariant it maintains by hand becomes a property of the type system. The
+ingress placement stands: inbound wire data is still normalised where it
+arrives, and only the mechanism changes, from a direct `to_core()` call to a
+`WireParsePort` call. "Readers stay strict" stands unchanged. That is why this
+ADR keeps `status: accepted` rather than being retired — the decision a reader
+comes here for is still in force, and it remains authoritative for the code as it
+stands.
 
 Related: issue #2232 (the shape duality), issue #2264 (initial-state
 substitution sites), issue #2268 (migrating the remaining shadowing types).

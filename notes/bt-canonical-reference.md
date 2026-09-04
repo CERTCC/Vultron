@@ -175,8 +175,15 @@ misimplemented patterns. The canonical structure is:
 `a_EvaluatePriority_520` is a fuzzer node — a stub for real-world
 prioritization logic. In the prototype this becomes the
 **priority-check node** described in IDEA-26041004: a node that returns
-SUCCESS (engage), FAILURE (defer), or RUNNING (evaluation pending). The
-default implementation returns SUCCESS to preserve current demo behavior.
+SUCCESS (engage) or FAILURE (defer). The default implementation returns
+SUCCESS to preserve current demo behavior.
+
+It MUST NOT return RUNNING for "evaluation pending" — EDF-04-002 and
+ASK-01-003 forbid representing a wait that way, and `BTBridge.execute_tree`
+cannot host it. A prioritization judgment that a locally-run capability can
+answer is an ordinary call-out point answered within the tick; one that needs
+another actor's decision is a protocol ask, so the node emits the ask and
+terminates. See [protocol-asks.md](protocol-asks.md) and ADR-0080.
 
 This subtree MUST be a child of the validate BT (or its parent), not a
 procedural function called after `bt.run()` returns.
@@ -335,3 +342,12 @@ documentation of the workflow. See also `specs/behavior-tree-node-design.yaml`
 BTND-02-001 and `notes/bt-design-patterns.md`.
 
 ---
+
+## `CheckIsCaseOwnerNode` Lives in `vfd_role_guards.py`, Not `conditions.py`
+
+It was placed there because `conditions.py` was at the 500-line cap when the node
+was added (ISSUE-1841). `__init__.py` re-exports it alongside the other role
+guards. If `conditions.py` grows further, consider extracting proposal-related
+nodes into `proposal_conditions.py`.
+
+Source: ISSUE-1841

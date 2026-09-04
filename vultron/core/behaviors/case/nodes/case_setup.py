@@ -35,7 +35,6 @@ from vultron.core.behaviors.helpers import (
     DataLayerActionWithPorts,
     PortInformation,
 )
-from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.vultron_types import VultronCase
 
 
@@ -146,8 +145,8 @@ class RecordOfferReceivedEventNode(DataLayerActionWithPorts):
             self.logger.error(f"{self.name}: case_id not found in blackboard")
             return Status.FAILURE
 
-        case = self.datalayer.read(case_id)
-        if not isinstance(case, VulnerabilityCase):
+        case = self.datalayer.read_case(case_id)
+        if case is None:
             self.logger.error(
                 f"{self.name}: Case {case_id} not found in DataLayer"
             )
@@ -197,7 +196,7 @@ class RecordCaseCreatedEventNode(DataLayerActionWithPorts):
             return Status.FAILURE
 
         case = self.case_for_creation_events_bb
-        if not isinstance(case, VulnerabilityCase):
+        if case is None:
             self.logger.error(
                 f"{self.name}: case_for_creation_events missing or invalid"
             )
@@ -282,7 +281,7 @@ class EnsureCaseActorHostedNode(DataLayerActionWithPorts):
     CP-04-002, CP-04-004).
 
     A copy also goes into the sending actor's own store, as an address-book entry
-    for a peer it now knows (ADR-0073 decision 5) — sibling nodes resolve the
+    for a peer it now knows (ADR-0073#peer-records-in-knowers-store) — sibling nodes resolve the
     CaseActor from the *executing* actor's store.  The two writes are not
     redundant: one publishes an endpoint, the other records knowledge.  Under a
     shared store they were indistinguishable, which is why one used to do.

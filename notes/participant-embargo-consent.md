@@ -8,8 +8,11 @@ related_specs:
   - specs/case-management.yaml
   - specs/embargo-policy.yaml
   - specs/em-behavior.yaml
+  - specs/message-semantics-mapping.yaml
 related_notes:
   - notes/stub-objects.md
+  - notes/embargo-lifecycle.md
+  - notes/message-type-reference.md
 relevant_packages:
   - transitions
   - vultron/bt/embargo_management
@@ -61,22 +64,53 @@ participant's consent state is `SIGNATORY`; `False` for all other states.
 
 ## Transition Table
 
-| From | Trigger | To |
-|---|---|---|
-| `NO_EMBARGO` | Embargo proposed; participant invited | `INVITED` |
-| `NO_EMBARGO` | Direct/implicit/self-determined consent | `SIGNATORY` |
-| `NO_EMBARGO` | Refusal without a formal invitation | `DECLINED` |
-| `INVITED` | `Accept(Invite(Embargo))` received | `SIGNATORY` |
-| `INVITED` | `Reject(Invite(Embargo))` received | `DECLINED` |
-| `INVITED` | Invitation timeout (pocket veto) | `DECLINED` |
-| `SIGNATORY` | Shared EM enters `REVISE` state | `LAPSED` |
-| `LAPSED` | Re-invitation extended for revised terms | `INVITED` |
-| `LAPSED` | Direct `Accept` of revised embargo terms | `SIGNATORY` |
-| `LAPSED` | Re-acceptance timeout (pocket veto) | `DECLINED` |
-| `DECLINED` | Case owner re-extends invitation | `INVITED` |
-| Any | Shared EM exits (`EXITED`) | `NO_EMBARGO` |
+"Trigger source" column classifies each transition by what drives it:
+**Wire** = inbound wire activity (CaseActor observes the message and updates PEC);
+**Cascade** = automatic side-effect of a shared EM state change (no outbound PEC message);
+**Timer** = pocket-veto lapse enforced lazily by the CaseActor (CM-28-003, no wire message).
+
+| From | Event | To | Trigger source |
+|---|---|---|---|
+| `NO_EMBARGO` | Participant invited to embargo | `INVITED` | Wire: `EP` / `INVITE_TO_EMBARGO_ON_CASE` |
+| `NO_EMBARGO` | Direct / implicit / self-determined consent | `SIGNATORY` | Wire: `EA` / `ACCEPT_INVITE_TO_EMBARGO_ON_CASE` |
+| `NO_EMBARGO` | Refusal without a formal invitation | `DECLINED` | Wire: `ER` / `REJECT_INVITE_TO_EMBARGO_ON_CASE` |
+| `INVITED` | `Accept(Invite(Embargo))` received | `SIGNATORY` | Wire: `EA` / `ACCEPT_INVITE_TO_EMBARGO_ON_CASE` |
+| `INVITED` | `Reject(Invite(Embargo))` received | `DECLINED` | Wire: `ER` / `REJECT_INVITE_TO_EMBARGO_ON_CASE` |
+| `INVITED` | Invitation deadline passed (pocket veto) | `DECLINED` | Timer: no wire message; CaseActor authors ledger entry (CM-28-005) |
+| `SIGNATORY` | Shared EM enters `REVISE` state | `LAPSED` | Cascade: `EV` side-effect; no outbound PEC message |
+| `LAPSED` | Re-invited for revised embargo terms | `INVITED` | Wire: `EP` / `INVITE_TO_EMBARGO_ON_CASE` |
+| `LAPSED` | Direct `Accept` of revised terms | `SIGNATORY` | Wire: `EA` / `ACCEPT_INVITE_TO_EMBARGO_ON_CASE` |
+| `LAPSED` | Re-acceptance deadline passed (pocket veto) | `DECLINED` | Timer: no wire message; CaseActor authors ledger entry (CM-28-005) |
+| `DECLINED` | Case owner re-extends invitation | `INVITED` | Wire: `EP` / `INVITE_TO_EMBARGO_ON_CASE` |
+| Any | Shared EM exits (`EXITED`) | `NO_EMBARGO` | Cascade: `ET` side-effect; no outbound PEC message |
 
 Normative: `specs/case-management.yaml` CM-18-003. Decision: ADR-0048.
+MSM coupling: `specs/message-semantics-mapping.yaml` MSM-07.
+
+---
+
+## PEC Is Set by the CaseActor, Not Self-Reported
+
+*Spec: CM-28-003. MSM-07.*
+
+This is the key distinction between PEC and the other per-participant state machines:
+
+- **RM state** is self-reported by the participant (e.g., "I accept this report").
+- **VF/D state** is self-reported by the vendor/deployer (e.g., "I built the fix").
+- **PEC state** is set by the **CaseActor** (holding `CVDRole.CASE_MANAGER`) based on
+  *observed* participant behavior:
+  - The CaseActor observes an inbound `Accept(Invite(EmbargoEvent))` and records
+    `SIGNATORY` for the sending participant.
+  - The CaseActor observes a `Reject(...)` and records `DECLINED`.
+  - The CaseActor enforces the pocket-veto deadline and records `DECLINED` on lapse.
+  - The CaseActor cascades `LAPSED` to all SIGNATORY participants when EM enters
+    `REVISE`, and `NO_EMBARGO` to all when EM exits.
+
+The participant never pushes their own PEC value. There is no "I am now SIGNATORY"
+self-report activity; the participant's intent is inferred from the Accept/Reject
+activity they sent, and the CaseActor records the conclusion. This is why PEC
+transitions do not require a dedicated wire message partition in the formal set —
+the signal is already in the EM wire activities.
 
 ---
 
@@ -158,7 +192,7 @@ Consent-write sites (all ten route through `apply_pec_transition()`):
 | `case/accept_invite_tree.py` | yes | yes |
 | `embargo/nodes/proposal.py` | yes | yes |
 | `use_cases/_helpers.py` | yes | yes |
-| `services/embargo_lifecycle.py` (5 sites) | yes | yes |
+| `services/embargo_lifecycle.py` (6 sites) | yes | yes |
 
 All ten sites now use `apply_pec_transition()` as the single authoritative
 consent-write path (CM-18-005). `EmbargoLifecycle` is the intended long-term
@@ -187,6 +221,11 @@ Do not introduce a second timeout notion — they will drift.
 - The timeout is a **configurable policy option** (per-case or global setting)
 - Enforcement authority is the CaseActor holding `CVDRole.CASE_MANAGER`
   (CM-28-003)
+- The deadline is stored on the **invited participant's** record
+  (`CaseParticipant.invite_rsvp_deadline`), and `detect_and_apply_lapse()`
+  reads the record of the actor whose lapse is being evaluated. Those two must
+  name the same participant or enforcement silently never fires — see
+  "Whose record holds the deadline" below
 - Enforcement is **lazy**, not scheduled: lapse is derived from
   `(end_time, now)` whenever PEC state is read or an inbound `Accept`/`Reject`
   is processed. No scheduler is required for correctness. The
@@ -232,6 +271,35 @@ default 45 days hence). Read them independently; never substitute one for the
 other. `end_time` is inherited from `as_Object`
 (`vultron/wire/as2/vocab/base/objects/base.py`), so no vocabulary extension was
 needed to add this.
+
+### Whose record holds the deadline
+
+*Source: ISSUE-2762.*
+
+The RSVP deadline and the `PEC_Trigger.INVITE` transition both belong to the
+**invited participant** — the actor the `Invite` names in `to:` — not to
+whichever actor's replica happens to be processing the message.
+`_store_invite_deadline()` writes `invite_rsvp_deadline` on the participant
+record found via `case.actor_participant_index[invitee_id]`, and
+`EmbargoLifecycle.detect_and_apply_lapse()` later reads the record of the actor
+whose lapse it is evaluating. If the write and the read name different
+participants, enforcement cannot fire and nothing raises: the invitee has no
+deadline to lapse against, and the record that *did* receive one is not the one
+being checked.
+
+The failure is silent in both directions, which is why it survived for a
+release: `OptionalLookupParticipantNode` is lenient by design and
+`UpdateParticipantEmbargoPecNode` returns SUCCESS when no participant is on the
+blackboard. CM-28-003 makes the CaseActor the enforcement authority for invite
+expiry, so deriving the invitee from the receiving actor puts the deadline on
+the enforcer's own record and disarms exactly the actor responsible for acting
+on it.
+
+Resolve the invitee by addressee membership rather than by position —
+`resolve_invitee_id()` in `vultron/core/use_cases/received/embargo.py` — so a
+multi-recipient `Invite` is correct in every recipient's replica instead of
+only the first one's. See also `notes/bt-integration.md` § "The message subject
+is a fourth identity, and it must stay separate".
 
 ### It Is an `Invite`, Not an `Offer`
 

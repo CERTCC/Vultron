@@ -1,6 +1,6 @@
 ---
-status: accepted-provisional
-date: 2026-08-12
+status: accepted
+date: 2026-08-28
 deciders: Vultron maintainers
 consulted: Vultron maintainers
 informed: Vultron contributors
@@ -20,10 +20,10 @@ A deadline mechanism is in fact already specified. CM-18-002 defines the
 configurable policy window (default: 7 days)." That window is *receiver-local
 and implicit* — nothing about it appears on the wire, so the two parties have
 no shared instant at which the invite lapses. It is also entirely unimplemented:
-`PEC_Trigger.DECLINE` is fired from exactly two sites
+`PEC_Trigger.DECLINE` was fired from exactly two sites
 (`vultron/core/behaviors/embargo/announce_teardown_tree.py`,
-`vultron/core/services/embargo_lifecycle.py`), both explicit-`Reject` paths. No
-timer exists.
+`vultron/core/services/embargo_lifecycle.py`), both explicit-`Reject` paths.
+No timer existed.
 
 The question is therefore not "should invites expire" — that is settled — but
 **where the deadline lives and who is authoritative about it**.
@@ -150,14 +150,17 @@ sender a way to get their own invite discarded.
 - A test that a late `Accept` with an incompatible embargo produces a fresh
   invite rather than a rejection, and that case participation survives.
 
-This ADR is `accepted-provisional`: the direction is ratified. The wire layer
-is now implemented (PR #2816, issues #2211/#2712): `em_propose_embargo_activity()`
-accepts `rsvp_deadline` on `Invite.end_time`; `InviteToEmbargoOnCaseReceivedEvent`
+This ADR is `accepted`: all four decision parts are implemented. Wire layer
+(PR #2816, issues #2211/#2712): `em_propose_embargo_activity()` accepts
+`rsvp_deadline` on `Invite.end_time`; `InviteToEmbargoOnCaseReceivedEvent`
 exposes `rsvp_deadline` with UTC normalisation; sub-floor values are clamped
 on receipt; `ActorConfig` carries `min_rsvp_window` (72h) and
-`default_rsvp_window` (7d). Remaining: CaseActor lazy-evaluation enforcement
-(Part 3 of the decision) and the late-`Accept` compatibility predicate (Part 4).
-Revise this ADR to `accepted` once those land.
+`default_rsvp_window` (7d). CaseActor lazy-evaluation enforcement (Part 3) and
+late-`Accept` compatibility (Part 4) landed in issues #2212/#2213:
+`EmbargoLifecycle.detect_and_apply_lapse()` applies `PEC_Trigger.DECLINE` on
+read when `invite_rsvp_deadline` is set and passed; the three EMB-17 branches
+(honor, re-invite, no-op) are implemented in
+`AcceptInviteToEmbargoOnCaseReceivedUseCase`.
 
 ## Pros and Cons of the Options
 

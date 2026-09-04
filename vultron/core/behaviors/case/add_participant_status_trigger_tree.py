@@ -42,10 +42,9 @@ from vultron.core.behaviors.case.nodes.participant import (
 from vultron.core.behaviors.case.nodes.vfd_role_guards import (
     CheckDeployerRoleNode,
     CheckNotSoleObserverVfdNode,
-    CheckVendorRoleNode,
 )
 from vultron.core.behaviors.sender.send_tree import sender_side_bt
-from vultron.core.states.cs import CS_pxa, CS_vfd
+from vultron.core.states.cs import CS_d, CS_pxa, CS_vf
 from vultron.core.states.rm import RM
 
 
@@ -53,35 +52,39 @@ def add_participant_status_trigger_bt(
     case_id: str,
     actor_id: str,
     rm_state: "RM | None",
-    vfd_state: "CS_vfd | None",
+    vf_state: "CS_vf | None",
+    d_state: "CS_d | None",
     pxa_state: "CS_pxa | None",
     result_out: dict,
     activity_builder: Callable[[str], list[str]],
 ) -> py_trees.behaviour.Behaviour:
     """Return the trigger-side BT for the add-participant-status workflow.
 
-    When ``vfd_state`` is ``CS_vfd.Vfd`` the tree is preceded by
+    When ``vf_state`` is ``CS_vf.Vf`` the tree is preceded by
     :class:`~vultron.core.behaviors.case.nodes.vfd_role_guards.CheckNotSoleObserverVfdNode`
-    (CM-25-005).  When ``vfd_state`` is ``CS_vfd.VFd`` the tree is preceded by
-    :class:`~vultron.core.behaviors.case.nodes.vfd_role_guards.CheckVendorRoleNode`
-    (CSB-15-001).  When ``vfd_state`` is ``CS_vfd.VFD`` the tree is preceded by
+    (CM-25-005).  When ``d_state`` is non-``None`` the tree is also preceded by
     :class:`~vultron.core.behaviors.case.nodes.vfd_role_guards.CheckDeployerRoleNode`
-    (CSB-15-002).  All guards return ``FAILURE`` when the actor fails the
-    required role check, blocking the ``CreateParticipantStatusNode`` downstream.
+    (CSB-15-002): vendor-only actors may not advance the d→D dimension.
 
     Args:
         case_id: ID of the VulnerabilityCase.
         actor_id: ID of the actor self-reporting their status.
         rm_state: RM state override from the trigger request
             (``None`` → use the actor's current RM state).
-        vfd_state: CS_vfd state override from the trigger request
-            (``None`` → use the actor's current VFD state).
+        vf_state: CS_vf state override from the trigger request
+            (``None`` → use the actor's current VF state).
+        d_state: CS_d state override from the trigger request
+            (``None`` → use the actor's current D state).
         pxa_state: CS_pxa value for an optional CaseStatus snapshot
             (``None`` → no CaseStatus attached).
         result_out: Mutable dict populated by
             :class:`CreateParticipantStatusNode` with ``'status_id'`` and
             ``'participant_id'``; read by the ``activity_builder`` closure
-            in ``SvcAddParticipantStatusUseCase``.
+            in ``SvcAddParticipantStatusUseCase``.  Both validation nodes also
+            write the aggregate :exc:`~vultron.errors.VultronValidationError`
+            to ``'error'`` on refusal, which ``SvcBTTriggerBase.execute()``
+            re-raises so the violation list reaches the HTTP layer
+            (EH-05-002, EH-07-003).
         activity_builder: ``(case_manager_id: str) -> list[str]`` —
             called by ``sender_side_bt`` after resolving the Case Manager;
             must create the ``Add(ParticipantStatus)`` activity and return
@@ -90,21 +93,19 @@ def add_participant_status_trigger_bt(
     Returns:
         A ``py_trees.composites.Sequence`` that:
 
-        - (optional) Role-guard node when ``vfd_state`` is ``Vfd``, ``VFd``, or ``VFD``.
+        - (optional) Role-guard node when ``vf_state`` is ``CS_vf.Vf``.
+        - Validates the trigger transitions.
         - Creates the ParticipantStatus snapshot (BT-15-001).
         - Resolves the Case Manager, builds the activity, and queues it.
     """
     children: list[py_trees.behaviour.Behaviour] = []
 
-    if vfd_state == CS_vfd.Vfd:
+    if vf_state == CS_vf.Vf:
         children.append(
             CheckNotSoleObserverVfdNode(case_id=case_id, actor_id=actor_id)
         )
-    elif vfd_state == CS_vfd.VFd:
-        children.append(
-            CheckVendorRoleNode(case_id=case_id, actor_id=actor_id)
-        )
-    elif vfd_state == CS_vfd.VFD:
+
+    if d_state is not None:
         children.append(
             CheckDeployerRoleNode(case_id=case_id, actor_id=actor_id)
         )
@@ -115,14 +116,17 @@ def add_participant_status_trigger_bt(
                 case_id=case_id,
                 actor_id=actor_id,
                 rm_state=rm_state,
-                vfd_state=vfd_state,
+                vf_state=vf_state,
+                d_state=d_state,
                 pxa_state=pxa_state,
+                result_out=result_out,
             ),
             CreateParticipantStatusNode(
                 case_id=case_id,
                 actor_id=actor_id,
                 rm_state=rm_state,
-                vfd_state=vfd_state,
+                vf_state=vf_state,
+                d_state=d_state,
                 pxa_state=pxa_state,
                 result_out=result_out,
             ),

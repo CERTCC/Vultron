@@ -207,6 +207,129 @@ class TestAppendRmState:
             p.append_rm_state(RM.ACCEPTED, _ACTOR, _CONTEXT)
         assert "Invalid RM transition" in caplog.text
 
+    def test_vendor_path_is_carried_forward(self):
+        """An RM-only append MUST NOT reset the vendor path (#3134).
+
+        Omitting ``vf`` does not leave it absent: ``ParticipantStatus`` re-seeds
+        it for a VENDOR at the *initial* state, so a vendor that had reached
+        ``VF`` (fix ready) silently reverted to ``vf`` (vendor unaware) on the
+        next RM advance.  This is #2264's failure mode — absence and an initial
+        value are different things — at a site that had never been audited for
+        it.
+        """
+        from vultron.core.models.dimensions import VfDimension
+        from vultron.core.models.participant_status import (
+            participant_status_vf_state,
+        )
+        from vultron.core.states.cs import CS_vf
+
+        p = CaseParticipant(
+            attributed_to=_ACTOR,
+            context=_CONTEXT,
+            case_roles=[CVDRole.VENDOR],
+        )
+        p.add_participant_status(
+            ParticipantStatus(
+                context=_CONTEXT,
+                attributed_to=_ACTOR,
+                rm=RmDimension(state=RM.ACCEPTED),
+                vf=VfDimension(state=CS_vf.VF),
+                cvd_role=[CVDRole.VENDOR],
+            )
+        )
+
+        assert p.append_rm_state(RM.CLOSED, _ACTOR, _CONTEXT) is True
+
+        latest = p.participant_status
+        assert latest is not None
+        assert latest.rm.state == RM.CLOSED
+        assert (
+            participant_status_vf_state(latest) == CS_vf.VF
+        ), "the vendor produced a fix; advancing RM must not un-produce it"
+
+    def test_deployer_path_is_carried_forward(self):
+        """The deployer-path counterpart of the vendor case (#3134)."""
+        from vultron.core.models.dimensions import DDimension, VfDimension
+        from vultron.core.models.participant_status import (
+            participant_status_d_state,
+        )
+        from vultron.core.states.cs import CS_d, CS_vf
+
+        p = CaseParticipant(
+            attributed_to=_ACTOR,
+            context=_CONTEXT,
+            case_roles=[CVDRole.VENDOR, CVDRole.DEPLOYER],
+        )
+        p.add_participant_status(
+            ParticipantStatus(
+                context=_CONTEXT,
+                attributed_to=_ACTOR,
+                rm=RmDimension(state=RM.ACCEPTED),
+                vf=VfDimension(state=CS_vf.VF),
+                d=DDimension(state=CS_d.D),
+                cvd_role=[CVDRole.VENDOR, CVDRole.DEPLOYER],
+            )
+        )
+
+        assert p.append_rm_state(RM.CLOSED, _ACTOR, _CONTEXT) is True
+
+        latest = p.participant_status
+        assert latest is not None
+        assert participant_status_d_state(latest) == CS_d.D
+
+    def test_absent_paths_stay_absent_for_a_non_vendor(self):
+        """A participant with no vendor or deployer path gains neither.
+
+        The carry-forward must not manufacture a dimension the participant does
+        not have (ADR-0075).
+        """
+        p = CaseParticipant(
+            attributed_to=_ACTOR,
+            context=_CONTEXT,
+            case_roles=[CVDRole.REPORTER],
+        )
+
+        assert p.append_rm_state(RM.RECEIVED, _ACTOR, _CONTEXT) is True
+
+        latest = p.participant_status
+        assert latest is not None
+        assert latest.vf is None
+        assert latest.d is None
+
+    def test_path_is_not_carried_once_its_role_is_dropped(self):
+        """A carried dimension must not outlive the role that licensed it.
+
+        ``cvd_role`` on the new snapshot is recomputed from the participant's
+        current roles, so carrying ``vf`` after VENDOR was removed would emit a
+        snapshot asserting a vendor path its own role list denies (ADR-0075).
+        """
+        from vultron.core.models.dimensions import VfDimension
+        from vultron.core.states.cs import CS_vf
+
+        p = CaseParticipant(
+            attributed_to=_ACTOR,
+            context=_CONTEXT,
+            case_roles=[CVDRole.VENDOR],
+        )
+        p.add_participant_status(
+            ParticipantStatus(
+                context=_CONTEXT,
+                attributed_to=_ACTOR,
+                rm=RmDimension(state=RM.ACCEPTED),
+                vf=VfDimension(state=CS_vf.VF),
+                cvd_role=[CVDRole.VENDOR],
+            )
+        )
+        p.remove_role(CVDRole.VENDOR)
+
+        assert p.append_rm_state(RM.CLOSED, _ACTOR, _CONTEXT) is True
+
+        latest = p.participant_status
+        assert latest is not None
+        assert (
+            latest.vf is None
+        ), "vf must not survive the loss of the VENDOR role"
+
 
 # ---------------------------------------------------------------------------
 # add_participant_status

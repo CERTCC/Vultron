@@ -60,8 +60,8 @@ Run /pr-triage first (or /pr-ship to run the full pipeline).
 
 ### Phase 2 — Apply fix-now Fixes
 
-For each finding where `decision_outcome` is `fix-now` or `fix-now-expand-scope`
-and `severity` is `FAIL` or `IMPROVE`:
+For each finding where `decision_outcome` is `fix-now` and `severity` is `FAIL`
+or `IMPROVE`:
 
 > Note: findings with `severity: NEW-ISSUE` are handled exclusively in Phase 3,
 > regardless of their `decision_outcome`. Do not process them here.
@@ -74,8 +74,6 @@ and `severity` is `FAIL` or `IMPROVE`:
    fix(pr-execute): address <N> findings from triage
 
    <bullet per finding: phase-name — short description>
-
-   Co-Authored-By: Claude Sonnet 4.6 <noreply@anthropic.com>
    ```
 
 4. Record `commit_ref` (short SHA) for each finding addressed in this commit.
@@ -85,21 +83,52 @@ every push includes the sync commit and passes local tests first.
 
 ### Phase 3 — Handle NEW-ISSUE Findings
 
-For each finding with `severity: NEW-ISSUE`:
+For each finding with `severity: NEW-ISSUE`. **Filing a record is not the same
+as deferring the work** — the default is to fix now and let the PR close the
+issue. See `.claude/skills/shared/completeness-doctrine.md` § "Filing Is Not
+Deferring" and "The Two Gates".
 
-**`new-issue-ask`** (non-trivial, distant cousin):
+**`fix-now-file`** (an "also" excursion you fix now):
 
-1. File a GitHub issue via `manage-github-issue` capturing the finding description.
+1. File a GitHub issue via `manage-github-issue` capturing the finding.
 2. Add the issue to Project #24: `bash .agents/skills/shared/add-to-project.sh <N>`.
-3. Record the finding as `outcome: deferred-ask` with the new `issue_number`.
-4. Do NOT fold the work into this PR yet — the deferred-ask items are surfaced
-   in the execute comment and again in pr-verify for the user to decide.
+3. **Fix it in this PR** (fold into the Phase 2 batch). Add `- Closes #N` to the
+   PR body and a one-line "why" in the Changes section (see `pr-body-guide.md`).
+4. Record `outcome: fixed` with the `issue_number`.
 
-**`new-issue-no-ask`** (requires separate design effort):
+**`defer-ask`** (Gate 1 — second-order work genuinely too big to finish now):
 
-1. File a GitHub issue via `manage-github-issue`.
-2. Add to Project #24.
-3. Record as `outcome: filed` with `issue_number`.
+1. File a GitHub issue via `manage-github-issue` and add it to Project #24.
+2. Post the deferral-ask (see "No User Prompts (Except Two)" below): describe
+   the remainder in plain language with a **measured remainder** (what you did,
+   what concretely remains, the ratio) — not an attempt count.
+3. **On explicit approval**: record `outcome: deferred-ask` with `issue_number`
+   and leave the work for the filed issue.
+4. **On silence or no approval**: fix it now (fold into the Phase 2 batch),
+   `- Closes #N`, and record `outcome: fixed`. Silence is never consent to
+   defer.
+
+Only *second-order* findings are eligible for `defer-ask`. A first-order
+finding is never deferred — fix it.
+
+**`inversion-halt`** (Gate 2 — the work inverts an issue/spec/ADR premise):
+
+1. Do **not** file autonomously and do **not** act on the new premise.
+2. Post the inversion-ask (see below): explain the overturned premise in plain
+   language and ask if/what to file.
+3. **On response**: act as directed (file and/or fix per the human's call).
+4. **On silence**: record `outcome: halted`, mark the PR draft/blocked, and
+   stop. An inversion is a circuit breaker.
+
+**Pre-existing findings are not exempt (BW-07-009).** A finding in a file this
+PR did not touch still gets a `type:Bug` or `type:Concern` issue here, before
+the session ends. There is no advisory tier: posting it only as an
+`[ADVISORY]` PR comment, or describing it in a `plan/incoming/learnings/`
+file, does not count as tracking it — neither can be assigned, scheduled, or
+closed. Nor does citing the PR that surfaced it: a merged PR number is not a
+tracking reference. In the 2026-09-02 audit, nearly every finding parked this way
+was eventually re-found and filed by a later session — the deferral bought
+nothing but the rediscovery cost, and four findings fell through entirely.
 
 ### Phase 4 — Resolve Review Thread Comments
 
@@ -150,8 +179,6 @@ Commit CI fixes separately from Phase 2 fixes:
 
 ```text
 fix(ci): resolve CI failures — <summary>
-
-Co-Authored-By: Claude Sonnet 4.6 <noreply@anthropic.com>
 ```
 
 Record `commit_ref` for each CI finding addressed.
@@ -263,20 +290,32 @@ Record `final_ci_status: "failing"`. List the unresolved CI failures. Run
 4. Record `execute_comment_url` in the artifact; re-write the file with the URL.
 5. Print artifact path and outcome summary to stdout.
 
-## No User Prompts (Except One)
+## No User Prompts (Except Two)
 
-Execute runs to completion without user prompts, with one exception:
+Execute runs to completion without user prompts, with two exceptions — the two
+gates from `.claude/skills/shared/completeness-doctrine.md`. Note the default is
+always fix-now; a gate is the exception, not the reflex.
 
-**`new-issue-ask` findings**: after filing the issue, post a comment noting the
-finding, then stop and ask the user:
+**Gate 1 — `defer-ask`**: after filing the issue, post the deferral-ask and ask:
 
-> "Found a non-trivial issue (distant cousin): <description> — filed as #N.
-> Should I fold this into the current PR, or leave it for the new issue?
-> (If no response, I'll leave it for the issue and continue.)"
+> "This is genuinely too big to finish in this PR. Here's what I did and what
+> concretely remains: <measured remainder — the ratio, in plain language>.
+> Filed as #N. May I defer the remainder to that issue?
+> (If no response, I'll fix it now rather than defer.)"
 
-Wait for a response. If no response within the session, record as `deferred-ask`
-and continue. The question is genuine — do not treat silence as approval to
-expand scope.
+Wait for a response. **On silence: fix it now** — fold the work in, `- Closes #N`,
+record `outcome: fixed`. Silence is never approval to defer. Do not present an
+attempt count in place of a measured remainder.
+
+**Gate 2 — `inversion-halt`**: do not file or act autonomously. Post the
+inversion-ask:
+
+> "This work overturns an assumption the issue/spec/ADR rested on:
+> <the premise, in plain language>. That may invalidate other issues or docs
+> that shared it. Is this a real inversion, and if so what should I file?"
+
+Wait for a response. **On silence: halt** — record `outcome: halted`, set the PR
+to draft/blocked, and stop. Do not proceed on the new premise unreviewed.
 
 ## Artifact Location
 

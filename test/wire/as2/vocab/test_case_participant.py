@@ -217,13 +217,13 @@ class TestParticipantStatusProperty(unittest.TestCase):
     def setUp(self):
         from datetime import datetime, timezone
 
-        from vultron.core.states.cs import CS_vfd
+        from vultron.core.states.cs import CS_vf
         from vultron.core.states.rm import RM
         from vultron.wire.as2.vocab.objects.case_status import (
             as_ParticipantStatus,
         )
 
-        self.CS_vfd = CS_vfd
+        self.CS_vf = CS_vf
         self.RM = RM
         self.as_ParticipantStatus = as_ParticipantStatus
         self.dt = datetime
@@ -236,22 +236,22 @@ class TestParticipantStatusProperty(unittest.TestCase):
     ):
         """Bug #659: tiebreaker must prefer append-order over timestamp.
 
-        Initial vfd status is created locally with ``published=now()``.
-        A subsequently appended VFd status carries a sender-supplied
+        Initial vf status is created locally with ``published=now()``.
+        A subsequently appended Vf status carries a sender-supplied
         ``published`` that may be *earlier* than the local initial value
         (clock skew, batched processing, etc.). The property must still
-        return the appended VFd entry.
+        return the appended Vf entry.
         """
         appended = self.as_ParticipantStatus(
             context=self.case_id,
             attributed_to=self.actor_id,
             rm_state=self.RM.ACCEPTED,
-            vfd_state=self.CS_vfd.VFd,
+            vf_state=self.CS_vf.Vf,
             published=self.dt(2026, 6, 2, 16, 26, 48, tzinfo=self.tz.utc),
             updated=self.dt(2026, 6, 2, 16, 26, 48, tzinfo=self.tz.utc),
         )
         # Construct participant with empty list so the validator creates
-        # the initial vfd with published=now() (which will be > appended's).
+        # the initial status with published=now() (which will be > appended's).
         participant = as_CaseParticipant(
             attributed_to=self.actor_id, context=self.case_id
         )
@@ -261,7 +261,7 @@ class TestParticipantStatusProperty(unittest.TestCase):
         latest = participant.participant_status
         self.assertIsNotNone(latest)
         assert latest is not None  # narrow for type checker
-        self.assertEqual(self.CS_vfd.VFd, latest.vfd_state)
+        self.assertEqual(self.CS_vf.Vf, latest.vf_state)
         self.assertEqual(self.RM.ACCEPTED, latest.rm_state)
 
     def test_returns_none_when_empty(self):
@@ -270,8 +270,8 @@ class TestParticipantStatusProperty(unittest.TestCase):
             attributed_to=self.actor_id, context=self.case_id
         )
         # init_participant_status_if_empty populates one status by default;
-        # explicitly clear to exercise the empty branch.
-        participant.participant_statuses = []
+        # use object.__setattr__ to bypass frozen and exercise the empty branch.
+        object.__setattr__(participant, "participant_statuses", [])
         self.assertIsNone(participant.participant_status)
 
     def test_returns_single_status_when_only_one_present(self):
@@ -285,6 +285,123 @@ class TestParticipantStatusProperty(unittest.TestCase):
             participant_statuses=[only],
         )
         self.assertIs(only, participant.participant_status)
+
+
+class TestWireAppendRmStateCarriesPaths(unittest.TestCase):
+    """``as_CaseParticipant.append_rm_state`` must not drop vf/d (#3134).
+
+    The wire twin of the core defect, in a worse shape: ``as_ParticipantStatus``
+    has no role-seeding validator, so omitting ``vf_state``/``d_state`` leaves
+    them ``None`` — the vendor path is *dropped* rather than rewound to its
+    initial value.
+    """
+
+    def setUp(self):
+        self.actor_id = "https://example.org/actors/alice"
+        self.case_id = "https://example.org/cases/case-001"
+
+    def _participant(self, roles, vf_state=None, d_state=None, rm_state=None):
+        from vultron.core.states.rm import RM
+        from vultron.wire.as2.vocab.objects.case_status import (
+            as_ParticipantStatus,
+        )
+
+        return as_CaseParticipant(
+            attributed_to=self.actor_id,
+            context=self.case_id,
+            case_roles=roles,
+            participant_statuses=[
+                as_ParticipantStatus(
+                    attributed_to=self.actor_id,
+                    context=self.case_id,
+                    rm_state=rm_state or RM.ACCEPTED,
+                    vf_state=vf_state,
+                    d_state=d_state,
+                    cvd_role=roles,
+                )
+            ],
+        )
+
+    def test_vendor_path_is_carried_forward(self):
+        from vultron.core.states.cs import CS_vf
+        from vultron.core.states.rm import RM
+        from vultron.enums.roles import CVDRole
+
+        p = self._participant([CVDRole.VENDOR], vf_state=CS_vf.VF)
+
+        self.assertTrue(
+            p.append_rm_state(RM.CLOSED, self.actor_id, self.case_id)
+        )
+
+        latest = p.participant_status
+        assert latest is not None
+        self.assertEqual(RM.CLOSED, latest.rm_state)
+        self.assertEqual(
+            CS_vf.VF,
+            latest.vf_state,
+            "the vendor produced a fix; advancing RM must not drop it",
+        )
+
+    def test_deployer_path_is_carried_forward(self):
+        from vultron.core.states.cs import CS_d, CS_vf
+        from vultron.core.states.rm import RM
+        from vultron.enums.roles import CVDRole
+
+        p = self._participant(
+            [CVDRole.VENDOR, CVDRole.DEPLOYER],
+            vf_state=CS_vf.VF,
+            d_state=CS_d.D,
+        )
+
+        self.assertTrue(
+            p.append_rm_state(RM.CLOSED, self.actor_id, self.case_id)
+        )
+
+        latest = p.participant_status
+        assert latest is not None
+        self.assertEqual(CS_d.D, latest.d_state)
+        self.assertEqual(CS_vf.VF, latest.vf_state)
+
+    def test_absent_paths_stay_absent_for_a_non_vendor(self):
+        """The carry-forward must not manufacture a path (ADR-0075)."""
+        from vultron.core.states.rm import RM
+        from vultron.enums.roles import CVDRole
+
+        p = self._participant([CVDRole.REPORTER], rm_state=RM.RECEIVED)
+
+        self.assertTrue(
+            p.append_rm_state(RM.VALID, self.actor_id, self.case_id)
+        )
+
+        latest = p.participant_status
+        assert latest is not None
+        self.assertIsNone(latest.vf_state)
+        self.assertIsNone(latest.d_state)
+
+    def test_path_is_not_carried_once_its_role_is_dropped(self):
+        """A carried dimension must not outlive the role that licensed it.
+
+        ``cvd_role`` on the new snapshot is recomputed from the participant's
+        current roles, so carrying ``vf`` after VENDOR was removed would emit a
+        snapshot asserting a vendor path its own role list denies (ADR-0075).
+        """
+        from vultron.core.states.cs import CS_vf
+        from vultron.core.states.rm import RM
+        from vultron.enums.roles import CVDRole
+
+        p = self._participant([CVDRole.VENDOR], vf_state=CS_vf.VF)
+        object.__setattr__(p, "case_roles", [CVDRole.OBSERVER])
+
+        self.assertTrue(
+            p.append_rm_state(RM.CLOSED, self.actor_id, self.case_id)
+        )
+
+        latest = p.participant_status
+        assert latest is not None
+        self.assertIsNone(
+            latest.vf_state,
+            "vf must not survive the loss of the VENDOR role",
+        )
 
 
 if __name__ == "__main__":

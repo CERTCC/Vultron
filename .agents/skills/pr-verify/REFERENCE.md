@@ -62,7 +62,7 @@ this PR. Please decide whether to fold them in before merge:
 | ✅ CONFIRMED | Fix present at HEAD; commit ref valid |
 | ❌ UNRESOLVED | Commit ref found but HEAD does not show the fix |
 | ❌ MISSING-COMMIT | Commit ref not found on branch |
-| 📋 NOTED | filed/skipped/deferred-ask — no code check; issue confirmed open |
+| 📋 NOTED | skipped/deferred-ask/halted — no code check; issue confirmed open |
 | ⚠️ INCOMPLETE-EXECUTE | Finding count mismatch; execute likely interrupted |
 | ⚠️ UNVERIFIED-CI-FAILING | CI still failing after execute's push; fix may be correct but cannot be confirmed |
 | 🔀 MERGE-CONFLICT | `mergeable: CONFLICTING`, `mergeStateStatus: DIRTY`, or conflict markers found at HEAD |

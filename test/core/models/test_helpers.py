@@ -108,6 +108,55 @@ def test_report_phase_status_id_different_states():
     assert id_received != id_valid
 
 
+# --- status_recency_key (CM-29-001) ---------------------------------------
+
+
+def test_status_recency_key_prefers_updated_over_published():
+    from datetime import datetime, timezone
+
+    from vultron.core.models._helpers import status_recency_key
+
+    updated = datetime(2026, 6, 1, tzinfo=timezone.utc)
+    published = datetime(2026, 1, 1, tzinfo=timezone.utc)
+    assert status_recency_key(updated, published) == updated
+
+
+def test_status_recency_key_falls_back_to_published():
+    from datetime import datetime, timezone
+
+    from vultron.core.models._helpers import status_recency_key
+
+    published = datetime(2026, 1, 1, tzinfo=timezone.utc)
+    assert status_recency_key(None, published) == published
+
+
+def test_status_recency_key_timestampless_sorts_to_bottom():
+    from datetime import datetime, timezone
+
+    from vultron.core.models._helpers import status_recency_key
+
+    key = status_recency_key(None, None)
+    assert key == datetime.min.replace(tzinfo=timezone.utc)
+    assert key.tzinfo is timezone.utc
+
+
+def test_status_recency_key_normalises_naive_to_utc():
+    """Naive timestamps (wire ISO strings without offset) are treated as UTC.
+
+    Regression for #2979: a naive ``updated`` compared against the aware
+    ``datetime.min`` floor would otherwise raise ``TypeError`` in ``max()``.
+    """
+    from datetime import datetime, timezone
+
+    from vultron.core.models._helpers import status_recency_key
+
+    naive = datetime(2026, 1, 1)  # no tzinfo
+    key = status_recency_key(naive, None)
+    assert key == datetime(2026, 1, 1, tzinfo=timezone.utc)
+    # Comparable against the timestampless floor without raising.
+    assert key > status_recency_key(None, None)
+
+
 # --- has_case_statuses ----------------------------------------------------
 
 

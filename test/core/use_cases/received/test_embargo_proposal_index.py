@@ -57,7 +57,7 @@ from vultron.wire.as2.factories import em_propose_embargo_activity
 from vultron.wire.as2.vocab.base.objects.actors import as_Service
 from vultron.wire.as2.vocab.objects.case_participant import as_CaseParticipant
 from vultron.wire.as2.vocab.objects.embargo_event import as_EmbargoEvent
-from vultron.wire.as2.vocab.objects.vulnerability_case import (
+from vultron.wire.as2.vocab.objects.vulnerability_case import (  # noqa: F401
     as_VulnerabilityCase,
 )
 
@@ -66,11 +66,11 @@ def _make_case_with_case_manager(dl, actor_id, em_state=EM.PROPOSED):
     """Create and persist a VulnerabilityCase with a CASE_MANAGER participant."""
     from vultron.enums.roles import CVDRole
 
-    case = as_VulnerabilityCase(
+    case = VulnerabilityCase(
         name="Proposal Index Test",
         attributed_to=actor_id,
     )
-    case.current_status.em_state = em_state
+    case.append_case_status(em_state=em_state)
     dl.create(case)
 
     case_manager = as_Service(name="CaseManager")

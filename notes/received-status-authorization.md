@@ -9,6 +9,7 @@ description: >
 related_specs:
   - specs/received-status-handling.yaml
   - specs/behavior-tree-integration.yaml
+  - specs/cs-behavior.yaml
 related_notes:
   - notes/bt-integration.md
   - notes/call-out-configuration.md
@@ -71,8 +72,13 @@ AddParticipantStatusBT (Sequence)
 ├─ AppendParticipantStatusNode          ← records the accepted portion
 ├─ StatusAdoptionGate (Fallback)         ← NEW
 │   ├─ CheckIsCaseOwnerNode             ← hard bypass: CASE_OWNER = gospel
-│   └─ CaseOwnerApprovesStatusUpdate    ← Evaluator call-out (RequireCaseOwnerApproval)
-├─ EmitAddCaseStatusToSelfNode          ← NEW: triggers canonicalization
+│   └─ CaseOwnerApprovesStatusUpdate    ← authorization seam (as-built: RequireCaseOwnerApproval;
+│                                          RSH-07-004 replaces the shape — see below)
+├─ EmitCaseStatusUpdateNode             ← direct ledger write (RSH-04-004, #2857)
+├─ TeardownEffectsOrSkip (FailureIsSuccess)
+│   └─ TeardownEffects (Sequence)
+│       ├─ EmbargoTeardownAuthorizationGate  ← call-out gate (RSH-02-001)
+│       └─ ThreatTerminationBranchNode       ← teardown on P/X/A (RSH-03-001)
 └─ EmitRMGapNoteNode                    ← NEW: Add(Note,Case) on RM anomaly (RSH-06-004, ADR-0067)
 ```
 
@@ -166,6 +172,89 @@ Two things the guard tracks that are easy to conflate:
   dimension(s) … with no change to the asserted value`; calling the latter a
   refusal would misdescribe the audit trail.
 
+#### Independent adjudication cannot see a combination (RSH-05-020)
+
+Each dimension can be individually well-formed and the snapshot still describe a
+state no sequence of events could produce: a *ready* or *deployed* fix entails a
+report the participant has already accepted, and a deployed fix entails a ready
+one. So a final pass evaluates the cross-machine entailments — RM↔VF and RM↔D
+(CSB-18-001) and VF↔D (CSB-17-001) — and refuses whichever dimension they
+disqualify, carrying the current value forward like any other refusal.
+
+Three properties of that pass are load-bearing:
+
+- **It refuses the dimension that *moved*.** VF↔D constrains a pair, so either
+  side can be the offending claim. Refusing the incumbent side carries its value
+  straight back — the impossible combination stays recorded and the audit trail
+  reports a refusal that changed nothing. A dimension the sender omitted is
+  never reported as refused, which keeps the `refused` / `update_fields` split
+  above honest. Because the choice is path-specific, the shared evaluator reports
+  *candidate* dimensions per rule and the receive path picks; the emit path
+  refuses the whole snapshot and needs no choice.
+- **It runs on the *effective* state, not the assertion.** This matters for the
+  `vf`→`d` chain: a refused or carried-forward `vf` must not license the `d` the
+  sender paired it with (#2893). It is *not* a tightening for `rm` — `rm` is
+  refused only when the asserted value is not a forward move, so the carried
+  value always ranks at or above the asserted one on the RM progress scale, and
+  `RM_STATES_CONSISTENT_WITH_FIX` is exactly the top of that scale. Reading the
+  effective `rm` can therefore only ever *accept* something the asserted `rm`
+  would refuse, never the reverse. Do not cite it as a defence against a
+  regressive `rm` licensing a `vf`; no such input exists.
+- **Emit and receive share one evaluator.**
+  `composite_state_violations()` in
+  `vultron/core/states/composite_state_invariants.py` composes the three rules,
+  and no path calls the individual `violation_*` functions. The receive path
+  reaches it through `_adjudicate_composite_state_entailments`, and the
+  replica-apply path through `ApplyParticipantStatusFromLedgerNode`
+  (RSH-05-021). The emit path reaches it one level further out: since ADR-0086
+  the entailments are one member of the composed
+  `participant_transition_violations()` rule set (via `_entailment_violations`),
+  which both `ValidateTriggerTransitionsNode` and `CreateParticipantStatusNode`
+  call — so the emit path now enforces the entailments at the *write* boundary as
+  well as the guard. Before #2906 the receive path composed only
+  VF↔D by hand, so an assertion the actor would have refused to *emit* was
+  accepted, hash-chained and replicated when it arrived from a peer instead.
+  A ratchet test asserts the emit path still delegates.
+
+What this is **not**: it is not a vf→Vf→VF ladder check. Non-adjacent forward
+advances stay legal on the received path (CSB-16-001) — a peer may advance
+several steps between status messages. An absent dimension (`None`) is likewise
+*absent*, not at its initial state (ADR-0075): a non-VENDOR participant has no
+vendor path, so no entailment applies through it, and a first observation of a
+dimension is accepted when nothing contradicts it.
+
+**The RM↔VF and RM↔D halves are sound, not complete.** Their real constraint is
+that the actor passed through `RM.ACCEPTED` at some point — a *history* property
+(`rm_em_cs.md` § Fix Ready). A `ParticipantStatus` carries only the current RM
+value, so `RM_STATES_CONSISTENT_WITH_FIX` approximates it with the set of states
+reachable *from* `ACCEPTED`. `DEFERRED` and `CLOSED` are in that set and are each
+also reachable without acceptance (`VALID → DEFERRED`, `INVALID → CLOSED`), so
+neither proves it. They stay in anyway: excluding them would refuse a peer that
+advances through acceptance and reports fix readiness in one message, which
+CSB-16-001 explicitly permits. Narrowing to `{ACCEPTED}` is the only complete
+option over one snapshot and costs far more than it catches. A test derives the
+set from the RM transition graph so it cannot drift, and a second test pins which
+members are ambiguous. Tightening it properly needs RM history (#3015).
+
+**What it guarantees is conditional.** If the participant's *current* state
+satisfies the entailments, so does the recorded state. It cannot promise more:
+when the incumbent state is already impossible, every carry-forward writes the
+offending value back, so no per-dimension refusal can repair it. That case is
+logged and left alone rather than reported as the refusal of a claim the sender
+never made. Read a log line naming an unrepairable incumbent state as evidence
+of a write that bypassed this pass, not of a bad assertion.
+
+The pass also re-evaluates after each refusal instead of sweeping the violation
+list once, because a refusal can retire a violation reported alongside it —
+refusing `d` for RM↔D clears the D bit, which retires VF↔D too. Acting on the
+stale entry would refuse a second dimension for a contradiction that no longer
+exists.
+
+The replica-apply path (`ApplyParticipantStatusFromLedgerNode`) is deliberately
+out of scope. It applies CaseActor-authored canonical entries the CaseActor
+already adjudicated, and is governed by the RM ratchet in RSH-05-007. That is
+also the only way an impossible incumbent state is reachable today (#3009).
+
 ### CASE_OWNER gospel-bypass rationale
 
 CASE_OWNER is the human decision-maker for the case. Their reported status
@@ -174,24 +263,60 @@ updates would be circular. The BT Fallback structure makes this a hard
 structural skip: if `CheckIsCaseOwnerNode` succeeds, the approval call-out is
 never reached.
 
-For all other senders, the `CaseOwnerApprovesStatusUpdate` Evaluator call-out
-provides the hook. The default backend is `RequireCaseOwnerApproval` — an
-Evaluator that performs an Offer/Accept/Reject round-trip with the Case Owner
-before allowing the assertion to be adopted as canonical. A permissive backend
-(e.g., `AlwaysSucceed`) MAY be configured for trusted-participant or demo
-deployments but MUST be explicitly configured (RSH-07-003, ADR-0076).
+For all other senders, `CaseOwnerApprovesStatusUpdate` is the seam that requires
+explicit Case Owner authorization before the assertion is adopted as canonical.
+A permissive backend (e.g., `AlwaysSucceed`) MAY be configured for
+trusted-participant or demo deployments but MUST be explicitly configured
+(RSH-07-003, ADR-0076) — and MUST NOT be used to route around a gate that is
+blocking (RSH-07-005).
 
-### Self-addressed `Add(CaseStatus)` pattern
+> **Mechanism amended by ADR-0080 (2026-08-31).** The seam is **not** a
+> single-tick Evaluator that "performs an Offer/Accept/Reject round-trip and
+> waits", and `RequireCaseOwnerApproval` is **not** the default backend to
+> implement. RSH-07-004 requires each gate be composed as a
+> **conversation-state routing subtree**, and forbids the Evaluator shape: at the
+> moment authorization is first needed no answer exists, so an Evaluator asked
+> "is this approved?" can only ever answer *no*. That is precisely why
+> `RequireCaseOwnerApprovalNode` is a deny-always stub, and why the
+> ADR-0046/ADR-0076 model was unreachable by any pathway (CONCERN-2812,
+> CONCERN-2809). The node is **deleted rather than completed**.
+>
+> The gate instead routes on whether authorization has been *recorded*,
+> *refused*, *requested-and-outstanding*, or *never requested* — emitting
+> `Offer(Proposal)` to the Case Owner and terminating with `SUCCESS` in the last
+> case, where `SUCCESS` means *I asked* (ASK-01-002). Authorization is always
+> read from the case ledger, never from the outstanding-ask register
+> (ASK-02-004). The conservative default posture that ADR-0076 establishes is
+> **unchanged**; only its shape is.
+>
+> See [protocol-asks.md](protocol-asks.md), `specs/protocol-asks.yaml`
+> (ASK-01 through ASK-08), and RSH-07-004/RSH-07-005. The replacement work is
+> tracked by #2885.
 
-When `StatusAdoptionGate` passes, `EmitAddCaseStatusToSelfNode` emits
-`Add(CaseStatus, VulnerabilityCase)` addressed to the CaseActor itself (acting
-as CASE_MANAGER). This activity is routed through
-`AddCaseStatusToCaseReceivedUseCase` → `add_case_status_tree`, where the
-CASE_MANAGER-only gate passes naturally because the CaseActor is the sender.
+### Direct-write canonicalization pattern (#2857)
 
-This pattern decouples the two gates: `add_participant_status_tree` does not
-know or care about teardown; `add_case_status_tree` does not know whether the
-canonical write came from an external message or an internal self-emit.
+When `StatusAdoptionGate` passes, `EmitCaseStatusUpdateNode` writes the
+post-adoption `CaseStatus` snapshot directly to the case ledger via an inner
+`BTBridge` call to `create_commit_log_entry_tree` (RSH-04-002, RSH-04-003,
+RSH-04-004).  The node MUST NOT route through the inbox seam: no
+`Add(CaseStatus)` activity is emitted to the CaseActor itself.
+
+Embargo teardown side-effects (previously a downstream result of the inbox
+path flowing into `add_case_status_tree`) are now handled inline immediately
+after `EmitCaseStatusUpdateNode` via a `FailureIsSuccess`-wrapped
+`TeardownEffects` Sequence:
+
+- `EmbargoTeardownAuthorizationGate` — call-out that gates execution
+  (RSH-02-001).
+- `ThreatTerminationBranchNode` — fires `terminate_embargo_bt` when the
+  adopted `CaseStatus` carries P=True, X=True, or A=True (RSH-03-001 to
+  RSH-03-003).
+
+The `FailureIsSuccess` wrapper ensures the outer tree still returns SUCCESS
+when the authorization gate blocks teardown, mirroring the tolerant
+semantics in the use case layer.  This replaced the former inbox-loopback
+kludge (`EmitAddCaseStatusToSelfNode`) which required `add_case_status_tree`
+to act as an indirect side-effect channel.
 
 ---
 
@@ -208,12 +333,14 @@ Extends the same liberal-accept pattern that ADR-0061 / ISSUE-2235 applied to
 ```text
 AddCaseStatusToCaseBT (Sequence)
 ├─ CheckCaseStatusIdempotencyNode       ← precondition guard (CLP-10-009)
-├─ FilterCsEmDimensionNode              ← per-dim EM adjudication; always SUCCESS
-├─ FilterCsPxaDimensionNode             ← per-dim PXA adjudication; always SUCCESS
+├─ CheckCsEphemeralStateNode            ← pX ephemeral guard (CSB-17-012, #2524)
+├─ CheckCsHistoryPrefixNode             ← history prefix guard (CSB-17-005, #2524)
+├─ FilterCsEmDimensionNode              ← per-dim EM adjudication (RSH-05-018); FAILURE when case absent (CLP-10-009, #2957), SUCCESS otherwise
+├─ FilterCsPxaDimensionNode             ← per-dim PXA adjudication (RSH-05-019); always SUCCESS
 ├─ FinalizeCsFilterNode                 ← FAILURE on whole-refusal; publishes filter
 ├─ GuardedCommitOrSkip                  ← canonical ledger commit (CLP-10-006)
 ├─ AppendCaseStatusToCaseNode           ← records accepted portion
-├─ EmbargoTeardownAuthorizationGate     ← call-out (RequireCaseOwnerApproval)
+├─ EmbargoTeardownAuthorizationGate     ← authorization seam (as-built; RSH-07-004)
 └─ ThreatTerminationBranchNode          ← fires teardown on CS.P, CS.X, CS.A
 ```
 
@@ -222,15 +349,22 @@ removed; per-dimension filter nodes are its replacement.
 
 ### Three-node design
 
-`FilterCsEmDimensionNode` runs first: it clears both `BB_CASE_STATUS_DIM_FILTER`
-and `BB_LEDGER_PAYLOAD_OBJECT_OVERRIDE` unconditionally (RSH-05-010, BT-17-003),
-evaluates the EM transition, and writes a per-tick accumulator dict to the
-blackboard.
+`FilterCsEmDimensionNode` runs first: it clears `BB_CASE_STATUS_DIM_FILTER` and
+the per-tick accumulator unconditionally (RSH-05-010, BT-17-003), returns FAILURE
+when the case is not found in the DataLayer (CLP-10-009, #2957 AC-1), evaluates
+the EM transition per the acceptance predicate in RSH-05-018
+(`is_valid_em_transition()`), and writes a per-tick accumulator dict to the
+blackboard. `BB_LEDGER_PAYLOAD_OBJECT_OVERRIDE` is **not** touched here; its
+sole owner is `FinalizeCsFilterNode` (CONCERN-2711, #2957 AC-2).
 
-`FilterCsPxaDimensionNode` runs second: it reads the accumulator by reference
-and mutates it in place to add any PXA refusal. This pattern is required because
-py_trees forbids a port key appearing in both `input_ports` and `output_ports` of
-the same node.
+`FilterCsPxaDimensionNode` runs second: it reads the accumulator via the
+`_BB_CS_FILTER_ACC` input port, evaluates the PXA transition per the acceptance
+predicate in RSH-05-019 (`is_monotonic_pxa_forward()`), and writes the
+updated accumulator back via `_set_output(_BB_CS_FILTER_ACC_WRITE, acc)` — an
+explicit write-back using a dual-alias output port (`_BB_CS_FILTER_ACC_WRITE`)
+mapped to the same physical blackboard key (`/{_BB_CS_FILTER_ACC}`). This
+satisfies the py_trees constraint that forbids the same logical port name from
+appearing in both `input_ports()` and `output_ports()` of the same node (#2706).
 
 `FinalizeCsFilterNode` runs third: it reads the completed accumulator, builds the
 `model_copy`-filtered `CaseStatus` (refused dimensions carry current values
@@ -248,7 +382,7 @@ no new state is carried (RSH-05-005).
 |---|---|---|
 | `cs_dim_filter_accumulator` | `FilterCsEmDimensionNode` (write+clear) | `FilterCsPxaDimensionNode`, `FinalizeCsFilterNode` (read) |
 | `append_case_status_dim_filter` | `FilterCsEmDimensionNode` (clear), `FinalizeCsFilterNode` (write) | `AppendCaseStatusToCaseNode` |
-| `ledger_payload_object_override` | `FilterCsEmDimensionNode` (clear), `FinalizeCsFilterNode` (write) | `CommitCaseLedgerEntryNode` |
+| `ledger_payload_object_override` | `FinalizeCsFilterNode` (sole owner: write+clear) | `CommitCaseLedgerEntryNode` |
 
 The `ledger_payload_object_override` override fields use camelCase wire aliases
 (`emState`, `pxaState`) per RSH-05-012. `FinalizeCsFilterNode` is registered
@@ -265,17 +399,24 @@ in `_RECOGNIZED_OVERRIDE_PRODUCERS` per RSH-05-014.
 ```text
 AddCaseStatusToCaseBT (Sequence) — effect nodes only
 ├─ AppendCaseStatusToCaseNode           ← canonical write
-├─ EmbargoTeardownAuthorizationGate     ← Evaluator call-out (RequireCaseOwnerApproval)
+├─ EmbargoTeardownAuthorizationGate     ← authorization seam (as-built; RSH-07-004)
 └─ ThreatTerminationBranchNode          ← fires teardown on CS.P, CS.X, CS.A
 ```
 
 ### EmbargoTeardownAuthorizationGate
 
-An Evaluator call-out that gates the entire side-effects block. Default:
-`RequireCaseOwnerApproval` (conservative: blocks until Case Owner approves,
-RSH-07-002, ADR-0076). An implementation MAY configure a permissive backend
-(e.g., `AlwaysSucceed` via `STATUS_AUTHORIZATION_PERMISSIVE`) for trusted or
-demo deployments (RSH-07-003).
+Gates the entire side-effects block, requiring explicit Case Owner authorization
+before teardown runs (RSH-07-002, ADR-0076). An implementation MAY configure a
+permissive backend (e.g., `AlwaysSucceed` via
+`STATUS_AUTHORIZATION_PERMISSIVE`) for trusted or demo deployments (RSH-07-003),
+but MUST NOT do so to unblock a gate that is refusing (RSH-07-005).
+
+As built, the seam is an Evaluator call-out whose default backend is
+`RequireCaseOwnerApproval`, which returns `FAILURE` unconditionally. Per
+ADR-0080 / RSH-07-004 that shape is superseded: the gate becomes a
+conversation-state routing subtree, and `RequireCaseOwnerApprovalNode` is
+deleted rather than completed. See the amendment note under **StatusAdoptionGate**
+above and [protocol-asks.md](protocol-asks.md); tracked by #2885.
 
 Note: the self-addressed `Add(CaseStatus)` path arrives with the CaseActor as
 sender (CASE_MANAGER role). This means even when `EmbargoTeardownAuthorizationGate` requires
@@ -297,6 +438,15 @@ is dropped: authorization already occurred at StatusAdoptionGate. By the time
 `ThreatTerminationBranchNode` runs, the canonical state write has been
 authorized.
 
+This node is the enforcement mechanism for CSB-18-002, CSB-18-003, and
+CSB-18-004 (PXA↔EM cross-machine entailment). When `EmbargoTeardownAuthorizationGate`
+permits teardown, the embargo terminates and the invariant is satisfied.
+When the gate blocks teardown, the invariant remains violated — a contradictory
+state that `violation_pxa_em_entailment()` (composite_state_invariants.py) detects
+as a post-cascade diagnostic. `PxaEmInvariantDiagnosticNode` is the production
+caller, wired after `ThreatTerminationBranchNode` in `add_case_status_tree`; it
+posts a Note to the case on violation (CONCERN-3008, issue #3115).
+
 ---
 
 ## Call-Out Bundle
@@ -310,9 +460,13 @@ class StatusAuthorizationCallOutBundle:
     embargo_teardown_authorization_gate_factory: CallOutBackendFactory = ...  # RequireCaseOwnerApproval
 ```
 
-Both fields default to `RequireCaseOwnerApproval` (RSH-07-001, RSH-07-002,
-ADR-0076). Demo and trusted-participant deployments that need automated
-adoption MUST explicitly configure a permissive backend — e.g.:
+As built, both fields default to `RequireCaseOwnerApproval` (RSH-07-001,
+RSH-07-002, ADR-0076). Under ADR-0080 / RSH-07-004 that default is retired along
+with the node: no `CallOutBackendFactory` may return an unconditional `FAILURE`
+node as the conservative default, because the conservative posture is expressed
+by the routing subtree's branches, not by a backend that always refuses. Demo and
+trusted-participant deployments that need automated adoption MUST explicitly
+configure a permissive backend — e.g.:
 
 ```python
 STATUS_AUTHORIZATION_PERMISSIVE = StatusAuthorizationCallOutBundle(
@@ -395,13 +549,13 @@ issue will refactor the inbound path to use direct ledger writes as well
 
 | Node / Tree | EM transition | Covered by `EmitCaseStatusUpdateNode`? |
 |---|---|---|
-| `ProposeEmbargoLifecycleNode` in `propose_embargo_trigger_bt` (initial proposal) | NO_EMBARGO → PROPOSED | Pending (ISSUE-2175) |
-| `ProposeEmbargoLifecycleNode` in `propose_embargo_revision_trigger_bt` (revision, with `ValidateEmbargoRevisionStateNode` guard) | ACTIVE → REVISE | Pending (ISSUE-2175) |
-| `AcceptEmbargoLifecycleNode` (trigger) | PROPOSED → ACTIVE | Pending |
-| `RejectEmbargoLifecycleNode` (trigger) | PROPOSED → NO_EMBARGO | Pending |
-| `TerminateEmbargoLifecycleNode` (trigger) | ACTIVE/REVISE → EXITED | Pending |
-| `RejectProposedEmbargoLifecycleNode` (cascade) | PROPOSED → NO_EMBARGO | Pending |
-| `ApplyEmbargoTeardownNode` (sync/announce) | ACTIVE/REVISE → EXITED | Pending |
+| `ProposeEmbargoLifecycleNode` in `propose_embargo_trigger_bt` (initial proposal) | NO_EMBARGO → PROPOSED | Implemented (#2857) |
+| `ProposeEmbargoLifecycleNode` in `propose_embargo_revision_trigger_bt` (revision, with `ValidateEmbargoRevisionStateNode` guard) | ACTIVE → REVISE | Implemented (#2857) |
+| `AcceptEmbargoLifecycleNode` (trigger) | PROPOSED → ACTIVE | Implemented (#2857) |
+| `RejectEmbargoLifecycleNode` (trigger) | PROPOSED → NO_EMBARGO | Implemented (#2857) |
+| `TerminateEmbargoLifecycleNode` (trigger) | ACTIVE/REVISE → EXITED | Implemented (#2857) |
+| `RejectProposedEmbargoLifecycleNode` (cascade) | PROPOSED → NO_EMBARGO | Implemented (#2857) |
+| `ApplyEmbargoTeardownNode` (sync/announce) | ACTIVE/REVISE → EXITED | Implemented (#2857) |
 
 ---
 

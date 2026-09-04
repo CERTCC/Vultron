@@ -102,20 +102,38 @@ Accepting actor triggers accept-case-ownership-transfer
   handshake (ADR-0026); developers can apply the same mental model.
 - Bad, because this is a breaking change to the wire routing for both
   activities; existing devlogs and test fixtures must be updated.
-- Bad, because `OfferCaseOwnershipTransferReceivedUseCase` must be
+- ~~Bad, because `OfferCaseOwnershipTransferReceivedUseCase` must be
   extended to forward the Offer to the transferee — currently it only
-  stores the offer object.
+  stores the offer object.~~ Resolved by #2067:
+  `ForwardOfferToTransfereeNode` (wrapped in `create_case_manager_gated_tree`)
+  is now an effect node in `create_offer_ownership_transfer_tree`, called
+  from `OfferCaseOwnershipTransferReceivedUseCase.execute()` via
+  `BTBridge(trigger_activity=...)` (CM-21-005, CLP-10-005).
 
 ## Validation
 
 - Spec entries CM-21-005 through CM-21-007 in `specs/case-management.yaml`
   encode the MUST requirements; the architecture ratchet tests verify
   boundary compliance.
-- The FVCV-handoff demo (`fvcv_handoff_demo.py`) removes the
-  `post_to_inbox_and_wait` self-delivery workaround and verifies Finder
-  receives an `Announce(CaseLedgerEntry)` for the transfer automatically.
+- The FVCV-handoff demo (`vultron/demo/scenario/fvcv_handoff_demo.py`) removes
+  the `post_to_inbox_and_wait` self-delivery workaround, and
+  `_phase_ownership_handoff` verifies that the Finder's own replica receives the
+  `accept_case_ownership_transfer` ledger entry — which can only arrive via the
+  `Announce(CaseLedgerEntry)` broadcast, since the Finder is party to neither
+  side of the transfer.
+- `TestOwnershipTransferAnnounceReachesFinderAC5c`
+  (`test/demo/test_fvcv_handoff_demo.py`) proves the same cascade at the HTTP
+  level with three isolated actor apps and no manual trigger.
+- The exchange demo (`vultron/demo/exchange/transfer_ownership_demo.py`) shows
+  the routing at the wire level for both the accept and reject paths (#2789).
 - Unit tests confirm `EmitOfferCaseOwnershipTransferNode` and
   `EmitAcceptCaseOwnershipTransferNode` address the CaseActor.
+- `ForwardOfferToTransfereeNode` and `create_offer_ownership_transfer_tree`
+  are covered by `test_offer_ownership_transfer_tree.py` (#2067), and
+  `test_offer_cascade_forward_lives_in_the_bt_not_in_execute`
+  (`test/core/use_cases/received/actor/test_ownership.py`) pins the use case to
+  that tree — a catch-up merge had reverted the wiring while every behavioural
+  test kept passing (#2789).
 
 ## More Information
 

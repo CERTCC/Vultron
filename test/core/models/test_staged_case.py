@@ -59,7 +59,7 @@ def _minimal_case() -> VulnerabilityCase:
     """Minimal VulnerabilityCase that satisfies Case invariants."""
     vc = VulnerabilityCase(attributed_to=_ACTOR)
     vc.vulnerability_reports.append(_REPORT_ID)
-    vc.case_participants = _minimal_case_participants()
+    object.__setattr__(vc, "case_participants", _minimal_case_participants())
     # case_statuses is seeded by _init_case_statuses when attributed_to is set
     return vc
 
@@ -67,7 +67,7 @@ def _minimal_case() -> VulnerabilityCase:
 def _embargoed_case_data() -> VulnerabilityCase:
     """VulnerabilityCase that satisfies EmbargoedCase invariants."""
     vc = _minimal_case()
-    vc.active_embargo = _EMBARGO_ID
+    object.__setattr__(vc, "active_embargo", _EMBARGO_ID)
     # Seed a status with em_state=ACTIVE
     vc.case_statuses = [
         CaseStatus(
@@ -132,7 +132,9 @@ class TestIncomingReport:
     def test_model_validate_raises_when_participants_present(self):
         vc = VulnerabilityCase()
         vc.vulnerability_reports.append(_REPORT_ID)
-        vc.case_participants = _minimal_case_participants()
+        object.__setattr__(
+            vc, "case_participants", _minimal_case_participants()
+        )
         with pytest.raises(VultronValidationError):
             IncomingReport.model_validate(vc)
 
@@ -164,7 +166,9 @@ class TestCase:
 
     def test_raises_when_no_reports(self):
         vc = VulnerabilityCase(attributed_to=_ACTOR)
-        vc.case_participants = _minimal_case_participants()
+        object.__setattr__(
+            vc, "case_participants", _minimal_case_participants()
+        )
         with pytest.raises(VultronValidationError, match="report"):
             Case.model_validate(vc)
 
@@ -172,7 +176,7 @@ class TestCase:
         vc = VulnerabilityCase(attributed_to=_ACTOR)
         vc.vulnerability_reports.append(_REPORT_ID)
         one: list[str | CaseParticipant] = ["urn:uuid:p1"]
-        vc.case_participants = one
+        object.__setattr__(vc, "case_participants", one)
         with pytest.raises(
             VultronValidationError, match="reporter and receiver"
         ):
@@ -182,7 +186,7 @@ class TestCase:
         vc = VulnerabilityCase(attributed_to=_ACTOR)
         vc.vulnerability_reports.append(_REPORT_ID)
         none: list[str | CaseParticipant] = []
-        vc.case_participants = none
+        object.__setattr__(vc, "case_participants", none)
         with pytest.raises(VultronValidationError):
             Case.model_validate(vc)
 
@@ -190,7 +194,9 @@ class TestCase:
         # Construct with no attributed_to so _init_case_statuses does not seed.
         vc = VulnerabilityCase()
         vc.vulnerability_reports.append(_REPORT_ID)
-        vc.case_participants = _minimal_case_participants()
+        object.__setattr__(
+            vc, "case_participants", _minimal_case_participants()
+        )
         # case_statuses is empty (no attributed_to to trigger auto-seed)
         assert vc.case_statuses == []
         with pytest.raises(
@@ -202,7 +208,9 @@ class TestCase:
         """String-only case_statuses must not pass the Case invariant (LST-02-002)."""
         vc = VulnerabilityCase()
         vc.vulnerability_reports.append(_REPORT_ID)
-        vc.case_participants = _minimal_case_participants()
+        object.__setattr__(
+            vc, "case_participants", _minimal_case_participants()
+        )
         vc.case_statuses = ["urn:uuid:status-string-id"]
         with pytest.raises(
             VultronValidationError, match="materialized CaseStatus"
@@ -307,7 +315,7 @@ class TestEmbargoedCase:
     def test_inherits_case_invariants(self):
         """EmbargoedCase is a Case: it also enforces Case invariants."""
         vc = VulnerabilityCase(attributed_to=_ACTOR)
-        vc.active_embargo = _EMBARGO_ID
+        object.__setattr__(vc, "active_embargo", _EMBARGO_ID)
         # No reports: should fail the Case check first
         with pytest.raises(VultronValidationError):
             EmbargoedCase.model_validate(vc)
@@ -366,6 +374,37 @@ class TestDataLayerRoundTrip:
         vc = VulnerabilityCase.model_validate(dumped)
         with pytest.raises(VultronValidationError):
             EmbargoedCase.model_validate(vc)
+
+    def test_promotion_works_on_a_real_datalayer_read(self):
+        """``dl.read()`` output narrows via ``model_validate`` (LST-05-001).
+
+        The sibling tests above round-trip through ``model_dump`` in-process,
+        which leaves the actual read boundary — the one LST-05-001 is *about* —
+        uncovered.  Root ``AGENTS.md`` consequently carried a contradicting rule
+        for some time ("staged-type ``model_validate`` only works on
+        core-constructed objects; don't use on ``dl.read()`` results"), and
+        nothing in the suite could adjudicate it.  It does not hold: a real
+        SQLite round-trip rehydrates ``case_statuses`` as materialized
+        ``CaseStatus`` objects, so promotion succeeds.  This test pins that so
+        the claim cannot resurface unverified.
+        """
+        from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+
+        dl = SqliteDataLayer(actor_id=_ACTOR)
+        vc = _embargoed_case_data()
+        dl.create(vc)
+
+        stored = dl.read(vc.id_)
+        assert isinstance(stored, VulnerabilityCase)
+        assert type(stored).__name__ == "VulnerabilityCase", (
+            "the DataLayer must rehydrate the base type, not a staged subtype "
+            "(LST-05-003)"
+        )
+        assert all(isinstance(s, CaseStatus) for s in stored.case_statuses)
+
+        promoted = EmbargoedCase.model_validate(stored)
+        assert isinstance(promoted, EmbargoedCase)
+        assert promoted.active_embargo == _EMBARGO_ID
 
 
 # ---------------------------------------------------------------------------

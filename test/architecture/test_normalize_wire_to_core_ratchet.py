@@ -40,7 +40,7 @@ Related: issue #2232 (the shape duality), issue #2268 (migrating the rest).
 import vultron.adapters.driven.datalayer_sqlite  # noqa: F401
 from vultron.adapters.driven.db_record import _NORMALIZE_WIRE_TO_CORE
 from vultron.core.models.registry import CORE_VOCABULARY
-from vultron.wire.as2.vocab.base.registry import VOCABULARY
+from vultron.wire.as2.vocab.base.registry import VOCABULARY, WIRE_TYPE_MAP
 
 _WIRE_MODULE_PREFIX = "vultron.wire.as2"
 
@@ -69,10 +69,15 @@ _NOT_YET_NORMALIZED: frozenset[str] = frozenset()
 
 
 def _shadowing_types() -> dict[str, type]:
-    """Return wire classes whose bare ``type_`` collides with a core type."""
+    """Return wire classes whose type_ value collides with a core type name.
+
+    After ARCH-23-002 (VOCABULARY/CORE_VOCABULARY keys disjoint), the collision
+    check moves from VOCABULARY to WIRE_TYPE_MAP, which is keyed by wire type_
+    values and contains all 15 formerly-shadowing wire classes.
+    """
     return {
         type_: cls
-        for type_, cls in VOCABULARY.items()
+        for type_, cls in WIRE_TYPE_MAP.items()
         if type_ in CORE_VOCABULARY
         and cls.__module__.startswith(_WIRE_MODULE_PREFIX)
     }
@@ -82,6 +87,7 @@ def test_registries_are_populated():
     """Guard the guard: an empty registry would make every assertion vacuous."""
     assert len(CORE_VOCABULARY) > 10
     assert len(VOCABULARY) > 50
+    assert len(WIRE_TYPE_MAP) > 50
 
 
 def test_normalize_set_may_only_grow():

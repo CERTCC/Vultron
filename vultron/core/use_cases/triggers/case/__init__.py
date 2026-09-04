@@ -23,6 +23,7 @@ one-module-per-use-case while preserving existing imports such as:
 
 from vultron.core.use_cases.triggers.requests import (
     AddObjectToCaseTriggerRequest,
+    AddOnBehalfStatusTriggerRequest,
     AddParticipantStatusTriggerRequest,
     AddReportToCaseTriggerRequest,
     CreateCaseTriggerRequest,
@@ -32,6 +33,7 @@ from vultron.core.use_cases.triggers.requests import (
 )
 
 from .add_object import SvcAddObjectToCaseUseCase
+from .add_on_behalf_status import SvcAddOnBehalfStatusUseCase
 from .add_participant_status import SvcAddParticipantStatusUseCase
 from .add_report import SvcAddReportToCaseUseCase
 from .create import SvcCreateCaseUseCase
@@ -41,6 +43,7 @@ from .leave import SvcLeaveCaseUseCase
 
 __all__ = [
     "AddObjectToCaseTriggerRequest",
+    "AddOnBehalfStatusTriggerRequest",
     "AddParticipantStatusTriggerRequest",
     "AddReportToCaseTriggerRequest",
     "CreateCaseTriggerRequest",
@@ -48,6 +51,7 @@ __all__ = [
     "EngageCaseTriggerRequest",
     "LeaveCaseTriggerRequest",
     "SvcAddObjectToCaseUseCase",
+    "SvcAddOnBehalfStatusUseCase",
     "SvcAddParticipantStatusUseCase",
     "SvcAddReportToCaseUseCase",
     "SvcCreateCaseUseCase",

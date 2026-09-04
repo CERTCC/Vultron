@@ -40,18 +40,21 @@ import pytest
 
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.dimensions import (
+    DDimension,
     PecDimension,
     RmDimension,
-    VfdDimension,
+    VfDimension,
 )
 from vultron.core.states.participant_embargo_consent import PEC
 from vultron.core.models.participant_status import (
     ParticipantStatus,
+    participant_status_d_state,
     participant_status_rm_state,
-    participant_status_vfd_state,
+    participant_status_vf_state,
 )
-from vultron.core.states.cs import CS_vfd
+from vultron.core.states.cs import CS_d, CS_vf
 from vultron.core.states.rm import RM
+from vultron.enums.roles import CVDRole
 from vultron.errors import VultronValidationError
 
 _ACTOR = "https://example.org/actors/alice"
@@ -171,47 +174,136 @@ class TestParticipantStatusRmStateHelper:
             participant_status_rm_state(_Bogus())
 
 
-class TestParticipantStatusVfdStateHelper:
-    """``participant_status_vfd_state`` is the canonical VFD-dimension reader.
+class TestParticipantStatusVfStateHelper:
+    """``participant_status_vf_state`` is the canonical VF-dimension reader."""
 
-    The VFD dimension had the identical degrade (``getattr(status, "vfd", None)``
-    → substitute ``CS_vfd.vfd``) sitting a few lines from the RM one, so fixing
-    only RM would have left the same defect alive one dimension over (#2232).
-    """
-
-    def test_returns_state_for_core_shaped_status(self):
+    def test_returns_state_for_core_shaped_vendor_status(self):
         status = ParticipantStatus(
-            context=_CONTEXT, vfd=VfdDimension(state=CS_vfd.Vfd)
+            context=_CONTEXT, vf=VfDimension(state=CS_vf.Vf)
         )
-        assert participant_status_vfd_state(status) is CS_vfd.Vfd
+        assert participant_status_vf_state(status) is CS_vf.Vf
 
-    def test_returns_initial_state_when_unset(self):
-        """A core status defaults its VFD dimension — that is not an error."""
+    def test_returns_none_when_no_vf_dimension(self):
+        """A non-vendor status has no vf dimension — returns None, not an error."""
         status = ParticipantStatus(context=_CONTEXT)
-        assert participant_status_vfd_state(status) is CS_vfd.vfd
+        assert participant_status_vf_state(status) is None
 
-    def test_raises_on_wire_shaped_status(self):
-        """A flat ``vfd_state`` status has no ``vfd`` — that must raise."""
-        from vultron.wire.as2.vocab.objects.case_status import (
-            as_ParticipantStatus,
-        )
-
-        wire_status = as_ParticipantStatus(
-            context=_CONTEXT, vfd_state=CS_vfd.Vfd
-        )
-        assert getattr(wire_status, "vfd", None) is None
-
-        with pytest.raises(VultronValidationError, match="'vfd' dimension"):
-            participant_status_vfd_state(wire_status)
-
-    def test_raises_when_vfd_carries_no_vfd_state(self):
-        """A present-but-unusable ``vfd`` must raise rather than substitute."""
+    def test_raises_when_vf_carries_no_valid_state(self):
+        """A present-but-unusable ``vf`` must raise rather than substitute."""
 
         class _Bogus:
-            vfd = object()
+            vf = object()
 
-        with pytest.raises(VultronValidationError, match="no valid VFD state"):
-            participant_status_vfd_state(_Bogus())
+        with pytest.raises(VultronValidationError, match="'vf' dimension"):
+            participant_status_vf_state(_Bogus())
+
+
+class TestParticipantStatusDStateHelper:
+    """``participant_status_d_state`` is the canonical D-dimension reader."""
+
+    def test_returns_state_for_core_shaped_deployer_status(self):
+        status = ParticipantStatus(
+            context=_CONTEXT, d=DDimension(state=CS_d.D)
+        )
+        assert participant_status_d_state(status) is CS_d.D
+
+    def test_returns_none_when_no_d_dimension(self):
+        """A non-deployer status has no d dimension — returns None, not an error."""
+        status = ParticipantStatus(context=_CONTEXT)
+        assert participant_status_d_state(status) is None
+
+    def test_raises_when_d_carries_no_valid_state(self):
+        """A present-but-unusable ``d`` must raise rather than substitute."""
+
+        class _Bogus:
+            d = object()
+
+        with pytest.raises(VultronValidationError, match="'d' dimension"):
+            participant_status_d_state(_Bogus())
+
+
+class TestRoleDimensionInvariant:
+    """Where the VFD role-dimension invariant (ADR-0075) is enforced (#2860).
+
+    ADR-0075 and ``notes/case-state-model.md`` once described a
+    ``model_validator`` on ``ParticipantStatus`` that *raises* at construction
+    when ``vf`` is set without ``CVDRole.VENDOR`` (or ``d`` without
+    ``CVDRole.DEPLOYER``).  That raise was never implemented, and it must not
+    be: the receive path builds a core ``ParticipantStatus`` at the wire→core
+    boundary (``vultron/wire/as2/extractor/_builders.py``) from the sender's
+    *untrusted, self-reported* ``cvd_role``.  A hard raise there would turn the
+    receive path's per-dimension partial-accept (ADR-0061, RSH-05-001/002) into
+    whole-object rejection — the emit/receive Postel asymmetry documented in
+    ``notes/domain-validation.md`` that must not be "reconciled".
+
+    So the model does exactly one thing: it *auto-seeds* the applicable
+    dimension for VENDOR/DEPLOYER roles (``_enforce_role_dimension_invariant``).
+    It deliberately does **not** reject a stray dimension.  Role authorization
+    is enforced where the acting participant's *authoritative* roles are known:
+
+    * trigger/emit path — ``ValidateTriggerTransitionsNode._check_vf_role`` plus
+      ``CheckVendorRoleNode`` / ``CheckDeployerRoleNode`` /
+      ``CheckNotSoleObserverVfdNode`` in the add-participant-status trigger tree
+      (fail-closed; see ``test_vfd_role_guards.py``).
+    * receive path — ``_adjudicate_vf`` / ``_adjudicate_d`` in
+      ``_adjudication.py`` refuse the dimension using the participant's
+      authoritative ``case_roles`` (partial-accept; see
+      ``test_vf_write_refused_without_vendor_role`` in
+      ``test_partial_accept_participant_status.py``).
+    """
+
+    def test_vendor_role_auto_seeds_vf_dimension(self):
+        """VENDOR role seeds a non-None vf dimension at its initial state."""
+        status = ParticipantStatus(context=_CONTEXT, cvd_role=[CVDRole.VENDOR])
+        assert status.vf is not None
+        assert status.d is None
+
+    def test_deployer_role_auto_seeds_d_dimension(self):
+        """DEPLOYER role seeds a non-None d dimension at its initial state."""
+        status = ParticipantStatus(
+            context=_CONTEXT, cvd_role=[CVDRole.DEPLOYER]
+        )
+        assert status.d is not None
+        assert status.vf is None
+
+    def test_vendor_and_deployer_roles_seed_both_dimensions(self):
+        status = ParticipantStatus(
+            context=_CONTEXT,
+            cvd_role=[CVDRole.VENDOR, CVDRole.DEPLOYER],
+        )
+        assert status.vf is not None
+        assert status.d is not None
+
+    def test_observer_default_seeds_neither_dimension(self):
+        """The default OBSERVER role seeds no vf/d dimension."""
+        status = ParticipantStatus(context=_CONTEXT)
+        assert status.cvd_role == [CVDRole.OBSERVER]
+        assert status.vf is None
+        assert status.d is None
+
+    def test_stray_vf_on_non_vendor_is_not_rejected_by_the_model(self):
+        """A non-VENDOR status carrying vf constructs — the model does not raise.
+
+        Enforcement is delegated to the trigger and receive guards (see class
+        docstring). This pins the #2860 decision: re-adding a construction-time
+        raise here would break receive-path partial-accept.
+        """
+        status = ParticipantStatus(
+            context=_CONTEXT,
+            cvd_role=[CVDRole.OBSERVER],
+            vf=VfDimension(state=CS_vf.VF),
+        )
+        assert status.vf is not None
+        assert status.vf.state is CS_vf.VF
+
+    def test_stray_d_on_non_deployer_is_not_rejected_by_the_model(self):
+        status = ParticipantStatus(
+            context=_CONTEXT,
+            cvd_role=[CVDRole.OBSERVER],
+            d=DDimension(state=CS_d.D),
+        )
+        assert status.d is not None
+        assert status.d.state is CS_d.D
 
 
 # ---------------------------------------------------------------------------

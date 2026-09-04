@@ -29,7 +29,6 @@ from vultron.core.behaviors.case.nodes.participant.common import (
 )
 from vultron.core.states.rm import RM
 from vultron.core.models._helpers import _report_phase_status_id
-from vultron.core.models.case import VulnerabilityCase
 from vultron.errors import VultronInvalidStateTransitionError
 
 
@@ -150,8 +149,8 @@ class _CheckParticipantRMStateBase(DataLayerConditionWithPorts):
             return f
         assert self.datalayer is not None
 
-        case = self.datalayer.read(self._case_id)
-        if not isinstance(case, VulnerabilityCase):
+        case = self.datalayer.read_case(self._case_id)
+        if case is None:
             self.logger.warning(
                 "%s: case '%s' not found", self.name, self._case_id
             )
@@ -167,7 +166,7 @@ class _CheckParticipantRMStateBase(DataLayerConditionWithPorts):
             )
             return Status.FAILURE
 
-        rm_state, _ = resolve_participant_state_from_dl(
+        rm_state, _, _ = resolve_participant_state_from_dl(
             self.datalayer, participant_id
         )
         target = self._target_rm
@@ -241,8 +240,15 @@ class EnsureEmbargoExists(CaseIdInputPortMixin, DataLayerConditionWithPorts):
         if case_id is None:
             return Status.FAILURE
 
-        case = self.datalayer.read(case_id)
-        if getattr(case, "active_embargo", None) is None:
+        case = self.datalayer.read_case(case_id)
+        if case is None:
+            self.logger.warning(
+                "%s: Case not found for report %s — validation blocked",
+                self.name,
+                self.report_id,
+            )
+            return Status.FAILURE
+        if case.active_embargo is None:
             self.logger.warning(
                 "%s: Case for report %s has no active embargo — "
                 "validation blocked (DUR-07-004)",

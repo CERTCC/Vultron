@@ -24,7 +24,6 @@ from vultron.wire.as2.vocab.base.objects.activities.transitive import (
     as_Leave,
     as_Offer,
     as_Reject,
-    as_Undo,
     as_Update,
 )
 from vultron.wire.as2.vocab.base.objects.base import as_Object
@@ -207,16 +206,11 @@ class TestVocabCaseLifecycleExamples(unittest.TestCase):
         vendor = examples.vendor()
         case = examples.case()
 
-        self.assertIsInstance(activity, as_Undo)
-        self.assertEqual(activity.type_, "Undo")
+        self.assertIsInstance(activity, as_Join)
+        self.assertEqual(activity.type_, "Join")
 
         self.assertEqual(activity.actor, vendor.id_)
-        inner_activity = cast(as_Ignore, activity.object_)
-        self.assertEqual(inner_activity.type_, "Ignore")
-        self.assertEqual(inner_activity.actor, vendor.id_)
-        self.assertEqual(inner_activity.object_, case)
-
-        self.assertEqual(activity.context, case.id_)
+        self.assertEqual(activity.object_, case)
 
     def test_update_case(self):
         activity = examples.update_case()
@@ -350,6 +344,39 @@ class TestVocabCaseStatusExamples(unittest.TestCase):
         self.assertEqual(activity.actor, vendor.id_)
         self.assertEqual(activity.target, case.id_)
         self.assertEqual(activity.object_, status)
+
+
+class TestCaseKwargsOverlapGuard(unittest.TestCase):
+    def test_case_kwargs_overlap_name_raises_value_error(self):
+        with self.assertRaises(ValueError):
+            examples.case(name="My Vuln")
+
+    def test_case_kwargs_overlap_id_raises_value_error(self):
+        with self.assertRaises(ValueError):
+            examples.case(id_="custom-id")
+
+    def test_case_kwargs_overlap_attributed_to_raises_value_error(self):
+        with self.assertRaises(ValueError):
+            examples.case(
+                attributed_to="urn:uuid:00000000-0000-0000-0000-000000000000"
+            )
+
+    def test_case_random_id_kwargs_overlap_name_raises_value_error(self):
+        with self.assertRaises(ValueError):
+            examples.case(random_id=True, name="My Vuln")
+
+    def test_case_random_id_kwargs_overlap_id_raises_value_error(self):
+        with self.assertRaises(ValueError):
+            examples.case(random_id=True, id_="custom-id")
+
+    def test_case_random_id_kwargs_overlap_attributed_to_raises_value_error(
+        self,
+    ):
+        with self.assertRaises(ValueError):
+            examples.case(
+                random_id=True,
+                attributed_to="urn:uuid:00000000-0000-0000-0000-000000000000",
+            )
 
 
 if __name__ == "__main__":

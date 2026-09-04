@@ -33,6 +33,12 @@ was both an ARCH-12-003 violation and structurally insufficient, and the
 `WireRenderPort` driven seam that replaces it. Lists the five consumers of the
 old core-side aliasing, the reject-guard that MUST accompany deletion of any
 flat-field shim (SDO-03-005), and why persisted rows are unaffected.
+The decision stands but its **mechanism is revised by ADR-0082**: the adapter
+resolves the counterpart through the pairing registry and delegates to the
+adapter-side translator rather than calling `wire_cls.from_core()`. This port
+covers only the **core→wire** half of ARCH-01-001; the mirror-image
+`WireParsePort` (ADR-0082) covers wire→core. Design rationale for both:
+`notes/wire-core-boundary.md`.
 Normative requirements: `specs/architecture.yaml` ARCH-20,
 `specs/case-ledger-processing.yaml` CLP-07-009/010.
 **Load when**: touching `alias_generator`/`by_alias` anywhere, building or
@@ -44,12 +50,17 @@ Strict vs. loose domain object boundary contract: where objects transition from
 loose (wire-deserialized, possibly-None fields) to strict (all required fields
 resolved), fail-fast patterns at use-case, BT node, and helper boundaries,
 canonical helper locations (`use_cases/_helpers.py`), and the named
-silent-failure sites from CONCERN-1360 with before/after behavior.
+silent-failure sites from CONCERN-1360 with before/after behavior. Also records
+why rejecting an input as a unit does **not** license reporting only the first
+violation, the root-vs-derived classification for multi-violation reports, and
+why the trigger path fails closed while the receive path partial-accepts — the
+two halves of Postel's maxim, not an inconsistency to reconcile (ADR-0086).
 Normative requirements: `specs/architecture.yaml` ARCH-15-001 through
-ARCH-15-004.
+ARCH-15-004; `specs/error-handling.yaml` EH-05-002, EH-07.
 **Load when**: implementing or reviewing error handling in use cases or BT nodes,
-auditing helpers that return `None` on failure, or designing new domain helpers
-that require non-None inputs.
+auditing helpers that return `None` on failure, designing new domain helpers
+that require non-None inputs, or deciding how much diagnostic detail a
+validation boundary owes its caller.
 
 **`vultron/core/ports/AGENTS.md`**
 Port-focused architecture guidance for `vultron/core/ports/`: inbound vs
@@ -112,6 +123,20 @@ types (`validate_assignment=False`) and post-construction immutability
 point), outbound factory/port interfaces (`TriggerActivityPort`,
 `SyncActivityPort`), `CaseLedgerEntry.payloadSnapshot` construction, or
 auditing `outbox_delivery.py` for enrichment mutations. Source: CONCERN-2545.
+
+**`wire-core-boundary.md`**
+The wire/core boundary contract (ADR-0082): one declarative core↔wire pairing
+registry, one generic bidirectional translator on the adapter side, and
+`extra="forbid"` on the core branch as the structural guarantee. Explains why
+ARCH-01-001 (core→wire) and ARCH-22-001 (wire→core) are *different* rules and
+why ADR-0063 solved only the first; why "zero wire→core imports" was
+unreachable; the four duplications the pairing registry replaces; and the
+measured blast radii (25 vs 570 failures) with the `embargo_adherence`
+computed-field and `id_` round-trip findings. Also records which half of
+`as_ObjectRef` is AS2-faithful and which half is a kludge.
+**Load when**: touching core↔wire translation, the vocabulary registries,
+`_field_map`/`from_core`/`to_core`, the ARCH-22 import ratchet, or adding a
+validator that raises on a core-branch type. Source: G02 / CONCERN-2830.
 
 **`vultron/wire/as2/factories/AGENTS.md`**
 Factory-function operating rules for outbound Vultron protocol activities.
@@ -261,9 +286,14 @@ issues #810, #811, #812, #1633, #1640.
 Design decisions and migration path for the AS2 vocabulary registry refactor:
 auto-registration via `__init_subclass__`, flat registry dict, `VocabNamespace`
 enum, fail-fast on unknown types, and dynamic discovery at startup. Operating
-rules are in `vultron/wire/as2/vocab/AGENTS.md`.
+rules are in `vultron/wire/as2/vocab/AGENTS.md`. `VOCABULARY` (keyed by full
+`as_*` class name) and `WIRE_TYPE_MAP` (keyed by wire `type_` value) are
+disjoint, so a core type's wire counterpart is resolved through `WIRE_TYPE_MAP`,
+never by name coincidence (ARCH-23-002). The declarative pairing registry that
+supersedes both lookups (ARCH-23-001) is still pending — issue #2937.
 **Load when**: adding new vocabulary classes, debugging deserialization failures,
-or planning the `@activitystreams_object` decorator removal migration.
+resolving a core type's wire counterpart, or planning the
+`@activitystreams_object` decorator removal migration.
 
 **`vultron/wire/as2/AGENTS.md`**
 Wire-layer semantic extraction guidance: pattern ordering invariant,
@@ -350,6 +380,21 @@ bundles. Derived from #1631 planning; implemented by #1152.
 **Load when**: implementing or extending call-out point backend injection in
 demo scenarios or tests; designing the bundle/singleton layout in
 `vultron/demo/fuzzer/bundles/`; understanding the three-mode backend model.
+
+**`protocol-asks.md`**
+The protocol-ask primitive: why an actor asks and terminates rather than
+suspending (nothing in the codebase returns `RUNNING`, and the bridge cannot host
+it), the conversation-state routing tree shape, the outstanding-ask register and
+why it never authorizes anything, per-ask-kind expiry with a Sentinel reaping
+seam, and `Create(ProcessingFault)`. Names the two hand-built reference
+implementations to generalise (`suggest_actor_tree.py`, `VultronOfferRecord`) and
+the missing shared emit path that blocks all of it. Normative requirements:
+`specs/protocol-asks.yaml` (ASK-01 through ASK-08). ADR: ADR-0080.
+**Load when**: implementing or reviewing any gate that needs another actor's
+permission, working on `RequireCaseOwnerApprovalNode` or the status authorization
+gates, adding an ask/reply exchange, touching `find_protocol_pair` or
+`PendingAssertionStore`, or implementing processing-fault notification.
+Source: CONCERN-2829.
 
 **`received-status-authorization.md`**
 Two-gate design for received-side CaseStatus canonicalization: StatusAdoptionGate
@@ -588,6 +633,15 @@ bulk module-rename lessons, and known documentation gaps.
 **Load when**: adding or moving modules, following established code
 organization conventions, or orienting to the module boundary rules.
 
+**`demo-scenario-authoring.md`**
+How to write a multi-actor demo scenario without faking the protocol: puppeteer
+actors through trigger endpoints rather than spoofing via inbox injection, never
+carry one actor's mail to another's inbox, extract helpers before the second use,
+keep console-script entry points callable with no arguments, and treat docker
+service names as routing labels rather than actor identities.
+**Load when**: writing or reviewing a demo scenario, adding a scenario helper, or
+deciding whether a demo step is puppeteering or spoofing.
+
 **`demo-ci-invariants.md`**
 Design notes for the case-ledger invariant harness in demo CI: the
 separate-job pattern (DEMOCI-04) that gives the invariant harness its own
@@ -655,6 +709,15 @@ xdist compatibility notes, and alternatives considered.
 a new architecture ratchet test, auditing full-suite performance, or evaluating
 xdist compatibility.
 
+**`testing-pitfalls.md`**
+Full write-ups for the pytest pitfalls that `test/AGENTS.md` only indexes:
+reading a killed run, the two-tier timeout guardrail and why a tight ceiling
+reads as flakiness, fixture/blackboard isolation, py_trees test patterns,
+assertion-quality traps (vacuous asserts, "falls back to" tests, bare
+`MagicMock`), and test layout rules for module splits.
+**Load when**: writing or debugging tests, diagnosing an order-dependent or
+apparently-flaky failure, or reviewing a test for vacuous assertions.
+
 **`flaky-tests.md`**
 Fast-lookup catalog of known flaky tests and CI jobs → tracking issue numbers.
 Used by `pr-execute` as a cache before querying GitHub. GitHub is ground truth;
@@ -662,6 +725,23 @@ this file is a speed hint. Maintained by `pr-execute` (add) and `bugfix`/`build`
 (remove on issue close).
 **Load when**: triaging a pre-existing test failure in `pr-execute`, or auditing
 the current set of known-flaky tests.
+
+**`devcontainer-tooling.md`**
+Environment-level pitfalls in this devcontainer: why every tool runs under
+`uv run`, why `PYTHONPATH` must be cleared, the `UV_NO_SYNC=1` workaround for a
+root-owned venv, the broken `gh` credential-helper path, and the hard-linked
+`.agents/` and `.claude/` skill trees.
+**Load when**: a tool fails to start, `git push` cannot authenticate, or you are
+about to edit a skill file.
+
+**`ci-workflow-authoring.md`**
+Pitfalls when writing or reading GitHub Actions workflows: PyYAML resolving bare
+`on:` to `True`, matrix booleans failing differently at job- vs. step-level
+`if:`, `actionlint` and block-scalar indentation, single-quoted apostrophes, the
+mandatory `notify-failure` wiring, and how to read a red job that never ran its
+assertions.
+**Load when**: adding or editing a `.github/workflows/` file, or diagnosing a CI
+failure whose logs do not match the test it blames.
 
 **`docker-build.md`**
 Project-specific Docker build observations: dependency layer caching, image
@@ -774,6 +854,14 @@ composite capability design, and the fuzzer-node discovery methodology.
 working on the fuzzer-to-capability replacement roadmap, or explaining the
 capability shape concept to new contributors.
 
+**`git-workflow-pitfalls.md`**
+The git and GitHub side of agentic development: rebase failures that are false
+positives, `freshen-branch.sh` recovery, integration branches for related fix
+PRs, `claim-issue.sh` preconditions, ADR number races, and the combined
+verify-ACs-then-add-`Closes #N` rule.
+**Load when**: a rebase or merge misbehaves, several related fix PRs are open at
+once, or an issue looks implemented but is still open.
+
 **`agents-md-structure.md`**
 Routing policy for `AGENTS.md` content: the decision tree for whether new
 guidance belongs in root `AGENTS.md`, a per-directory `AGENTS.md` file
@@ -799,6 +887,31 @@ Docs chronology and trust levels, process models, formal protocol reference,
 behavior simulator reference, Do Work behaviors, and ISO crosswalks.
 **Load when**: evaluating where new documentation belongs, or cross-referencing
 Vultron docs to ISO/CVD process standards.
+
+**`message-type-reference.md`**
+Why the formal message set (shorthands partitioned by state machine) and the
+AS2 wire vocabulary (`SEMANTIC_REGISTRY`) are different shapes, and how the
+many-to-many mapping between them is documented. Contains the full collapse
+inventory (CV/CF on `vf_state`, CP/CX/CA on `pxa_state`, EV/EJ/EC onto EP/ER/EA),
+the expansion inventory (GI, EP, and the `Create`+`Add` split), the fault
+trichotomy (not-understood / declined / needs-explanation), the cumulative
+hash-chain acknowledgement model, the `docs/reference/messages/` page
+architecture, and the MSM-03 post-mortem on `CV`/`CF`/`CD` being mapped to the
+wrong object. Normative requirements:
+`specs/message-semantics-mapping.yaml` MSM-04 through MSM-06. ADR: ADR-0083.
+**Load when**: writing or reviewing anything that claims a protocol shorthand
+maps to an AS2 wire form, working on `docs/reference/messages/`, adding a
+`SEMANTIC_REGISTRY` entry, or reasoning about fault reporting and
+acknowledgement. Source: IDEA-605.
+
+**`spec-authoring-rules.md`**
+Mechanical rules for authoring spec YAML: the exact enums `spec-lint` accepts
+for `kind`, `priority`, and `rel_type`; keys silently dropped by `spec-dump`;
+the protocol-coverage ratchet and its strict-`xfail` pattern; and the audit
+passes required when retiring a name or splitting a compound requirement.
+**Load when**: adding or editing any `specs/*.yaml` entry, or debugging a
+spec-lint / `spec-dump` failure. Pair with `specs-vs-adrs.md` for *whether* the
+requirement belongs in a spec at all.
 
 **`notes-frontmatter.md`**
 Design decisions for YAML frontmatter schema in `notes/*.md` files: required

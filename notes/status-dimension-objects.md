@@ -7,10 +7,13 @@ description: >
   pattern, wire projection, and call-site migration scope.
 related_specs:
   - specs/status-dimension-objects.yaml
+  - specs/architecture.yaml
 related_notes:
+  - notes/wire-core-boundary.md
   - notes/lifecycle-staged-types.md
   - notes/case-state-model.md
   - notes/embargo-lifecycle.md
+  - notes/message-type-reference.md
 relevant_packages:
   - vultron/core/models/case_status.py
   - vultron/core/models/participant_status.py
@@ -74,9 +77,10 @@ Decompose each machine into a small Pydantic `BaseModel` — a *dimension object
 em: EmDimension = Field(default_factory=EmDimension)
 pxa: PxaDimension = Field(default_factory=PxaDimension)
 
-# ParticipantStatus (after)
+# ParticipantStatus (after — ADR-0036 original; ADR-0075 then split vfd into vf+d)
 rm: RmDimension = Field(default_factory=RmDimension)
-vfd: VfdDimension = Field(default_factory=VfdDimension)
+vf: VfDimension | None = None   # non-None for VENDOR participants
+d: DDimension | None = None     # non-None for DEPLOYER participants
 consent: PecDimension | None = None
 ```
 
@@ -89,7 +93,9 @@ consent: PecDimension | None = None
 | `EmDimension` | `EM` | `CaseStatus.em_state` |
 | `PxaDimension` | `CS_pxa` | `CaseStatus.pxa_state` |
 | `RmDimension` | `RM` | `ParticipantStatus.rm_state` |
-| `VfdDimension` | `CS_vfd` | `ParticipantStatus.vfd_state` |
+| `VfDimension` | `CS_vf` | `ParticipantStatus.vf` (VENDOR participants; ADR-0075) |
+| `DDimension` | `CS_d` | `ParticipantStatus.d` (DEPLOYER participants; ADR-0075) |
+| `VfdDimension` | `CS_vfd` | retained in `vultron/bt/` legacy only; use `VfDimension`/`DDimension` in new code |
 | `PecDimension` | `PEC` | `ParticipantStatus.em_consent_state` |
 
 The `*Dimension` suffix was chosen to avoid collision with the existing
@@ -153,18 +159,23 @@ never mutated; a new record is appended with the updated dimension values.
 ## Wire Projection
 
 `as_CaseStatus` and `as_ParticipantStatus` project dimension objects to the
-wire format. The `from_core()` / `to_core()` methods must handle the nested
-dimension-object dict shape:
+wire format. That projection must handle the nested dimension-object dict shape:
 
 ```python
-# from_core() — core dimension objects → wire flat fields (for backward wire compat)
+# core dimension objects → wire flat fields (for backward wire compat)
 # OR — wire flat fields remain nested dicts (simpler, no backward wire compat needed
 #       since there are no extant records to preserve)
 ```
 
 Because there are no extant persisted records to preserve, the simplest
-approach is to match the wire JSON shape to the new nested structure and
-update `from_core()` / `to_core()` accordingly.
+approach is to match the wire JSON shape to the new nested structure.
+
+**Do not implement this as `from_core()` / `to_core()` methods on the wire
+classes.** ARCH-12-005 as amended by ADR-0082 forbids those methods; projection
+belongs to the generic bidirectional translator on the adapter side. Declare the
+core↔wire pairing and its field map to that translator (ARCH-23-001) and put the
+dimension-object shape handling there. See
+[notes/wire-core-boundary.md](wire-core-boundary.md).
 
 ---
 
@@ -179,7 +190,7 @@ is mechanical:
 | `status.em_state` | `status.em.state` |
 | `status.pxa_state` | `status.pxa.state` |
 | `status.rm_state` | `status.rm.state` |
-| `status.vfd_state` | `status.vfd.state` |
+| `status.vfd_state` | `status.vf.state` (VENDOR) or `status.d.state` (DEPLOYER) |
 | `status.em_consent_state` | `status.consent.state` (or `None` check) |
 | `CaseStatus(em_state=EM.ACTIVE, ...)` | `CaseStatus(em=EmDimension(state=EM.ACTIVE), ...)` |
 
@@ -205,43 +216,55 @@ Dimension objects that are constructed directly by target state value
 the transition contract** in SDO-02-002. BT write nodes that use this pattern
 MUST validate the `(current → target)` pair before persisting.
 
-The valid-transition helper functions in `vultron/core/states/` provide this:
-
-```python
-from vultron.core.states.cs import is_valid_vfd_transition, is_valid_pxa_transition
-from vultron.core.states.rm import is_valid_rm_transition
-
-# In a write node's update():
-if target_state is not None and target_state != current_state:
-    if not is_valid_vfd_transition(current_state, target_state):
-        self.feedback_message = (
-            f"Invalid VFD transition {current_state!r} → {target_state!r}"
-        )
-        return Status.FAILURE
-```
-
-Rules:
+The rules a write must satisfy are the same in every case:
 
 - `target == current` → proceed (status confirmation; valid protocol observation)
-- `is_valid_*_transition(current, target)` is `True` → proceed
+- The `(current → target)` step is legal → proceed
 - Otherwise → `Status.FAILURE` with a descriptive `feedback_message`
-- `None` target → skip validation (caller is preserving current state)
+- `None` target → asserts nothing about that dimension; no per-dimension rule
+  applies. Note that a `None` *current* `vf`/`d` means the dimension is
+  **absent**, not at its initial state (ADR-0075)
+
+What differs is **how** a node evaluates them, and for `ParticipantStatus` that
+changed with ADR-0086:
+
+- **`ParticipantStatus` writes**: call `participant_transition_violations()`
+  (`vultron/core/states/participant_transitions.py`), normally through
+  `validate_participant_status_write()` in
+  `behaviors/case/nodes/participant/common.py`. It composes the per-dimension
+  transitions, the VENDOR/DEPLOYER role gates, the cross-machine entailments and
+  the compound CS transition, and returns **every** violated rule. Calling the
+  individual `is_valid_*_transition()` / `violation_*` predicates from a
+  validating node is a BTND-10-002 violation and
+  `test/architecture/test_participant_status_validation.py` fails on it.
+- **`CaseStatus` and other dimension writes**: call the relevant
+  `is_valid_*_transition()` helper from `vultron/core/states/` directly.
 
 The ideal is for write nodes to be fail-closed regardless of whether an upstream
-guard is present, weak, or bypassed. See BTND-10-001, SDO-02-004, CSB-16-001/002.
+guard is present, weak, or bypassed. See BTND-10-001, BTND-10-003, SDO-02-004,
+CSB-16-001/002.
 
 The primary write boundary is `CreateParticipantStatusNode` in
 `vultron/core/behaviors/case/nodes/participant/status.py` — all VFD/RM/PXA
-state-write paths in the prototype route through it. In practice,
-`CreateParticipantStatusNode` itself does not validate inline (see
-`notes/bt-pitfalls.md` § "State-Validation Bypass"). Instead, each call path
-relies on an upstream guard node:
+state-write paths in the prototype route through it, and since ADR-0086 it
+validates the **whole** rule set itself rather than trusting an upstream guard
+(BTND-10-003). Five production call sites reach it without any guard, so its own
+check is the only validation on those paths. Where a guard *is* present it
+enforces the same composed rule set:
 
-- **Trigger path**: `ValidateTriggerTransitionsNode` — fail-closed; invalid jump
-  raises `VultronValidationError` before `CreateParticipantStatusNode` runs.
+- **Trigger path**: `ValidateTriggerTransitionsNode` — fail-closed; reports every
+  violation and fails the enclosing `Sequence` before the write node ticks, so the
+  two do not double-report.
 - **Received wire path**: `FilterParticipantStatusDimensionsNode` +
   `ValidateRMTransitionNode` — partial-accept; refused dimensions carry the
-  current value forward.
+  current value forward. The opposite disposition from the trigger path, on
+  purpose: Postel's maxim, not an inconsistency (ADR-0061, ADR-0086). See
+  [notes/domain-validation.md](domain-validation.md).
+
+Two `ParticipantStatus` writers still sit outside the composed evaluator
+(`CaseParticipant.append_rm_state()` and
+`_ReportPhaseRMTransition._guard_transition()`), each enforcing RM adjacency only;
+consolidating them is #3111.
 
 `test/architecture/test_vfd_rm_pxa_write_sites.py` (the AC-7 ratchet) AST-scans
 `vultron/core/behaviors/` for every dimension constructor call and fails on any
@@ -268,3 +291,37 @@ case_status = case_status.model_copy(update={"em": updated_em})
 
 This is the single most complex migration site (`embargo_lifecycle.py` has
 ~17 flat-field accesses). The impl agent should prioritize this file.
+
+---
+
+## History-Relative Rules Cannot Constrain a First Observation
+
+When adjudicating a dimension value, separate the rules into two kinds:
+
+- **History-free** rules — entailments and role gates — depend only on the value
+  and the participant's structure. They apply to *any* observation, including the
+  first.
+- **History-relative** rules — monotonicity, adjacency, regression — compare the
+  incoming value against a prior one. They have nothing to bite on when there is
+  no prior value (`current is None`): a first observation cannot "regress" from a
+  state the receiver never held.
+
+So a dimension that can legitimately be absent needs **one rule of each kind** —
+a history-free rule to constrain the first observation and a history-relative
+rule to constrain subsequent ones. Do **not** manufacture a synthetic baseline
+(e.g. treating absence as the enum's initial state) just to make a
+history-relative rule apply: that invents history the receiver does not have and
+turns a legal first observation into a spurious refusal.
+
+**Corollary — absence is structural, not initial.** An absent `vf`/`d` dimension
+means the participant has no vendor/deployer path at all under ADR-0075, not that
+the dimension sits at its initial value. Reading a missing `CS_vf.vf` as the
+initial state produces bogus VF↔D entailment refusals. Test the dimension object
+for *presence* (`is None`) before applying any rule that assumes a value.
+
+The concrete VF/D adjudication rules that follow from this are already captured
+in `_adjudicate_vf`'s docstring and in spec RSH-05-020's note; this card records
+only the general principle so it transfers to any absent-capable dimension. See
+[[bt-pitfalls]] § write-side validation and [[case-state-model]].
+
+Source: ISSUE-2906

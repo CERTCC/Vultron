@@ -41,21 +41,33 @@ If this fails, stop and investigate before proceeding.
    ```
 
    If the user selects **"Create a new bug"**: ask for a description,
-   synthesize a title, and create the issue:
+   synthesize a title, then **before creating** determine the required fields:
+
+   0. **Invoke `orient-agent` first.** `calve-epics` Mode 1 matches the bug
+      against open Epics using domain terminology drawn from the spec corpus,
+      the glossary, and the schedule — all of which `orient-agent` loads.
+      Running the match before that context is loaded makes it unreliable.
+      Step 3 below then becomes a no-op.
+
+   1. **Parent epic** — invoke `calve-epics` Mode 1 to find the best-fit open
+      Epic. If it reports no match, present an `AskUserQuestion` with the top 5
+      closest epics plus "Specify other epic number". **A parent epic is
+      required** — do not create the issue until one is confirmed.
+
+   2. **Milestone** — query open milestones and ask the user to confirm the
+      best-fit one (see `shared/issue-creation-requirements.md` for defaults).
+
+   Then create with all three required fields:
 
    ```bash
    BUG_TYPE_ID=$(bash .agents/skills/shared/board-id.sh issue-type Bug)
    ISSUE_NUMBER=$(.agents/skills/manage-github-issue/manage_github_issue.sh \
      --title "${BUG_TITLE}" \
      --body "${BUG_BODY}" \
-     --issue-type-id "${BUG_TYPE_ID}")
+     --issue-type-id "${BUG_TYPE_ID}" \
+     --parent "${EPIC_NUMBER}" \
+     --milestone "${MILESTONE_NUMBER}")
    ```
-
-   Immediately after creation, route the new issue onto the epic forest:
-   invoke `calve-epics` Mode 1 on `${ISSUE_NUMBER}`. If `calve-epics` reports
-   no matching epic, present an `AskUserQuestion` with the top 5 closest open
-   epics plus "Specify other epic number". **A parent epic is required** —
-   do not proceed to Phase 2 until the issue is wired to a parent.
 
 3. Invoke `orient-agent` to load baseline context.
 4. Fetch the issue body and comments.
@@ -156,8 +168,9 @@ Invoke `deepen-context` with focus hints derived from the investigation
 
 ## Phase 3 — Present Findings (BLOCKING)
 
-Present a single structured briefing via `ask_user`. Include every item
-from Phase 2 with concrete evidence:
+Embed the complete briefing in the `question` field of the `ask_user` call —
+do **not** output it as free text before the tool call. Include every item
+from Phase 2 with concrete evidence directly in the question text:
 
 ```text
 Reproduced at: <file:line>
@@ -173,8 +186,9 @@ Ask: **"Proceed with this plan, redirect, or narrow scope?"**
 - **Confirms**: proceed to Phase 4.
 - **Redirects** to a different area: update understanding and return to
   Phase 2 for the redirected scope.
-- **Narrows scope**: note which sibling hits will be filed as new Bug issues
-  rather than fixed in this PR.
+- **Narrows scope**: the user is explicitly deferring specific sibling hits —
+  this *is* Gate 1 approval, given directly. File each deferred hit as a Bug
+  issue. Everything not narrowed out is still fixed now.
 
 **Do not begin implementation until the user confirms the plan.**
 
@@ -194,15 +208,21 @@ Once the plan is confirmed:
    disproportionate, skip the test but create a follow-up Bug issue explaining
    why. Do not silently omit the test.
 
-2. **Fix the root cause** — not just the symptom. If the root cause is
-   provably out of scope, fix the symptom and create a Bug issue for the
-   root cause before closing this one.
+2. **Fix the root cause** — not just the symptom. "The root cause is out of
+   scope" is a deferral: it must clear Gate 1 in
+   `.agents/skills/shared/completeness-doctrine.md` (a **measured remainder** and
+   explicit approval), not be asserted. If it clears the gate, fix the symptom,
+   file a Bug issue for the root cause, and document the cause before closing.
 
-3. **Handle sibling hits**:
-   - Hits small enough to fix in the same PR: fix them.
-   - Hits out of scope: file each as a new Bug-type issue via the
-     `manage-github-issue` helper. Reference each in the PR description
-     (`Also filed: #NNN`). See [REFERENCE.md](REFERENCE.md) § "Escalation".
+3. **Handle sibling hits** (these are *first-order* findings — revealed by the
+   original bug — so the default is **fix now**, never defer):
+   - Fix each one in this PR.
+   - If a hit is an **"also" excursion** (fails the "also" test in the
+     completeness doctrine), also file a Bug issue via `manage-github-issue`
+     and have this PR **close** it: add `- Closes #NNN` to the PR body with a
+     one-line "why". Filing the record does not mean leaving the work.
+   - Defer a sibling hit only through Gate 1 (measured remainder + approval).
+     See [REFERENCE.md](REFERENCE.md) § "Escalation".
 
 4. **Iterate**: run `format-code`, `run-linters`, `run-tests`; refine until
    all relevant tests pass. Apply branch-ownership and pre-existing-failure
@@ -219,8 +239,9 @@ Once the plan is confirmed:
      ```
 
    - Run the **upward-reflection checklist** per
-     `.agents/skills/shared/upward-reflection.md`. Record triggered signals
-     as learning files.
+     `.agents/skills/shared/upward-reflection.md` and **route** each triggered
+     item to the destination that file specifies (BW-07-004). Most route to a
+     GitHub issue or an in-session fix, not to a learning file.
    - Compute diff size: ≤50 → `size:S`; 51–300 → `size:M`; 301+ → `size:L`.
      Update the `size:` label.
    - Invoke `create-pr`:

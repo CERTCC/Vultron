@@ -8,6 +8,7 @@ description: >
 related_notes:
   - notes/append-only-file-handling.md
   - notes/agents-md-structure.md
+  - notes/git-workflow-pitfalls.md
 related_specs:
   - specs/build-workflow.yaml
   - specs/history-management.yaml
@@ -169,34 +170,47 @@ each have an observation to record.
 
 ### What belongs here
 
-Entries fall into two tiers. Add an optional `signal:` frontmatter field to
-mark the tier explicitly (see BW-07-002).
+The queue is narrow by design. A finding gets a learning file **only** when it
+is one of two things (tag it with the matching `signal:` frontmatter field, per
+BW-07-002):
 
-**Tier 1 — high-urgency signals** (tag with `signal: <type>`):
-
-- `spec-gap` — behaviour implemented in code with no corresponding spec entry
+- `spec-gap` — behaviour implemented in code with no corresponding spec entry.
+  Only externally-observable or protocol-visible behaviour qualifies; file
+  locations, naming conventions, and agent guidance go to `AGENTS.md` instead
 - `spec-ambiguity` — a requirement was unclear; record what interpretation was
   made so `learn` can clarify it
 - `spec-contradiction` — two requirements appeared to conflict; record which
   were at odds and how the conflict was resolved
-- `design-question` — an architectural decision was made mid-build beyond what
-  the issue specified; record the rationale for `learn` to evaluate
-- `concern` — a fragility, risk, or debt item encountered that should be
-  tracked as a GitHub Concern issue
+- `theme-candidate` — a general claim you believe but cannot verify from a
+  single instance. It stays queued until a second independent witness
+  corroborates it (BW-07-005); an uncorroborated candidate is archived
+  unpromoted after 30 days (BW-07-007)
 
-**Tier 2 — general observations** (no `signal:` tag required):
+`learn` processes the `spec-*` signals before `theme-candidate` and untagged
+entries (BW-07-003).
 
-- `tooling-issue` — environment or tooling problems (e.g., `PYTHONPATH`
-  contamination, `git rebase` sequencer quirks)
-- `process-issue` — tracking failures (stale issue body, issue already
-  implemented, missing `Closes` footer)
-- Constraints or invariants discovered in the code that aren't documented
-- Patterns that keep recurring and should become `AGENTS.md` guidance
-- Gotchas or pitfalls encountered that should be preserved for future runs
+Everything else is **routed at discovery to a nearer owner, not queued**
+(BW-07-004). Before completing a `build` or `bugfix` session the agent MUST run
+the upward-reflection checklist (BW-07-001) — see
+[`upward-reflection.md`](../.agents/skills/shared/upward-reflection.md) for the
+full routing table — and send each triggered item to exactly one destination:
 
-The `build` and `bugfix` skills MUST run the upward-reflection checklist
-(BW-07-001) before writing learning files to ensure Tier-1 signals are not
-silently omitted.
+- Something that exists but is wrong → a GitHub `type:Concern` issue
+- Something that should exist but does not → a GitHub `type:Idea` issue
+- A broken tool, skill, or tracking artefact → a fix applied in the same session
+- A narrow but true fact about the code → an assertion at the site (regression
+  test, type annotation, or comment) in the same session
+- A code-review finding in a file the change did not touch → a GitHub
+  `type:Bug`/`type:Concern` issue, filed in the session that surfaced it, never
+  a learning file or a PR-comment advisory (BW-07-009)
+
+The signal values `design-question`, `concern`, `tooling-issue`, and
+`process-issue` are **retired** (BW-07-002): they all named findings with a
+definite owner and action, so they are now routed above rather than queued. The
+`append-history` CLI rejects them for new entries and accepts them only when
+parsing pre-existing archived files. A decision that was made, applied, and
+shipped within the session — asking nothing of any future reader — is not a
+learning at all (BW-07-008); its record is the commit, the diff, and the PR body.
 
 ### What does NOT belong here
 
@@ -288,3 +302,11 @@ Selector (priority order)
 Each condition node checks a file-system signal; each action node invokes
 the corresponding skill. The BT's selector ensures the highest-priority
 condition is always serviced first.
+
+## Large Migration Tasks: Partition by Node Shape (Type), Then Domain for Size
+
+For tasks that migrate many nodes (e.g., Ports adoption), classify nodes by their
+structural shape first (trivial reparent / read-only extra inputs / complex
+output ports), then split by domain only to balance PR size. "Each PR should be a
+lot of the same thing." See ISSUE-1809 for the typed-Ports chain decomposition as
+the reference example.

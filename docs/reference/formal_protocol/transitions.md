@@ -108,7 +108,7 @@ corresponding sender state transition.
 | Sender Preconditions<br/>$s_n \in S_i$<br/>$q^{cs},q^{rm},q^{em}$ | Transition<br/>$(s_n \xrightarrow{} s_{n+1})$<br/>$q^{cs},q^{rm},q^{em}$ | Message Type<br/>$\rightharpoonup$<br/>$M_{ij}$ |
 |:-----------------------------------------------------------------:|:------------------------------------------------------------------------:|:-------------------------------------------------------:|
 | $*,A,*$                                                           | $-, -, -$                                                                |                          $RS$                           |
-| $*,\{R,V\},*$                                                     | $-, \xrightarrow{i} I, -$                                                |                          $RI$                           |
+| $*,R,*$                                                     | $-, \xrightarrow{i} I, -$                                                |                          $RI$                           |
 | $*,\{R,I\},*$                                                     | $-, \xrightarrow{v} V, -$                                                |                          $RV$                           |
 | $*,\{V,A\},*$                                                     | $-, \xrightarrow{d} D, -$                                                |                          $RD$                           |
 | $*,\{V,D\},*$                                                     | $-, \xrightarrow{a} A, -$                                                |                          $RA$                           |

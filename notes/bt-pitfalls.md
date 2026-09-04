@@ -13,6 +13,10 @@ related_notes:
   - notes/bt-integration.md
   - notes/bt-canonical-reference.md
   - notes/bt-design-patterns.md
+  - notes/domain-validation.md
+  - notes/embargo-lifecycle.md
+  - notes/received-status-authorization.md
+  - notes/testing-pitfalls.md
 relevant_packages:
   - py_trees
   - vultron/core/behaviors
@@ -64,6 +68,17 @@ Sequence node's own `feedback_message` is always `""`. Always use
 leaf) to get a meaningful message. Apply this pattern **everywhere**
 `feedback_message` is logged after a BT failure — not just for a single BT
 class.
+
+**First-failing-leaf is a transport rule, not a diagnostics budget.** BT-13-001
+governs how one message is *retrieved*; it does not cap how much a node may put
+in that message. A node whose validation can fail several ways independently
+MUST report all of them in its own `feedback_message` rather than returning at
+the first (EH-07-001). Because a `memory=False` `Sequence` short-circuits, only
+one leaf fails per tick anyway, so aggregating *within* a node is fully
+compatible with the depth-first walk. Aggregating *across* sibling guard nodes
+is not, and would require restructuring the tree. See
+[domain-validation.md](domain-validation.md) § "Rejecting as a Unit Does Not
+License Reporting One Reason" (#2112, ADR-0086).
 
 ---
 
@@ -439,6 +454,36 @@ if result.status != Status.SUCCESS:
 Raising inside the outer `except Exception` handler in `update()` ensures the
 calling node returns `FAILURE` rather than `SUCCESS`.
 
+### …And That Idiom Is Why `internal_error` Cannot See a Nested Crash
+
+(CONCERN-3019, 2026-09-02)
+
+`BTExecutionResult` carries `internal_error`, which separates a protocol outcome
+the tree is entitled to report from a programming error that escaped a node.
+`BTBridge.execute_tree` sets it for anything that is not a `VultronError`, plus
+the two non-convergent exits (root left `INVALID`, `max_iterations` exhausted).
+Read it as **"an internal error reached the bridge"**, never as "no bug
+occurred", because the pattern immediately above defeats it twice over:
+
+- The `raise RuntimeError(...)` the ✅ example prescribes is caught by the
+  calling node's *own* `except Exception` in `update()` and converted to
+  `Status.FAILURE`. So the outer bridge sees an ordinary failure and the flag
+  stays `False` — verified at `case/nodes/actor.py`.
+- The nine nodes that run a subtree through their own `BTBridge` discard the
+  inner `result.internal_error` and return a bare `Status.FAILURE`
+  (`case/nodes/lifecycle.py`, `status/nodes/case_status.py`, and seven more), so
+  a crash inside a subtree is invisible in the outer result.
+
+Both gaps are uniform across every nested-bridge site — there is no site where
+the flag survives the hop. Propagating it through nested calls is tracked on
+CONCERN-3019; until then, do not branch on `internal_error is False` as
+evidence that a failure was deliberate.
+
+On the test side the mirror-image rule — a FAILURE assertion must prove the
+harness can produce the reason it names — is in
+[notes/testing-pitfalls.md](testing-pitfalls.md) § "A FAILURE Test Must Prove
+the Harness Can Produce Its Named Reason".
+
 ---
 
 ## Guard Name Must Match the State-Machine Transition Precondition
@@ -509,7 +554,21 @@ with pytest.raises(py_trees.blackboard.timebomb.NoDataAvailable):
     node.initialise()  # calls get_input() → raises here
 ```
 
-<!-- Source: ISSUE-1808; spec: BTND-03-011; ADR: ADR-0044 -->
+**`NoDataAvailable` is not the only thing that surfaces here.** `get_input()`
+also raises `TypeError` when the key holds a value that is not an instance of
+the port's declared `data_type` — and unlike `NoDataAvailable`, that one is
+**not** caught by `_try_get_input()`, which catches only `NoDataAvailable` and
+`NotImplementedError`. So it escapes `initialise()`, unwinds the tick, and is
+absorbed by `BTBridge.execute_tree`'s blanket `except Exception`: the **whole
+tree** reports FAILURE with the type-mismatch message logged, not the one node
+returning `Status.FAILURE`. That is a deliberate departure from the usual "BT
+nodes return FAILURE, they do not raise" convention (§ BT-HELPER-01) — a
+violated blackboard type contract is a wiring error, not a protocol condition,
+so failing closed is intended. A port declared `data_type=object` accepts
+anything and never reaches this path. See ADR-0044 § Consequences and
+`vultron/core/behaviors/AGENTS.md` § "Port `data_type` Is Enforced".
+
+<!-- Source: ISSUE-1808, ISSUE-2907, ISSUE-3011; spec: BTND-03-011; ADR: ADR-0044 -->
 
 ---
 
@@ -668,3 +727,108 @@ def update(self) -> Status:
 error), placing it inside the `try` block causes the `except BtNodePreconditionError`
 handler to swallow it silently, returning `FAILURE` with a misleading
 `feedback_message` rather than propagating the real error.
+
+## Guarded-Commit BTs Must Execute Under the CASE_MANAGER Actor's Identity
+
+`CheckIsCaseManagerNode` compares the *blackboard* `actor_id` against the case's
+CASE_MANAGER participant. Any code that calls `execute_with_setup` for a BT
+containing `GuardedCommitCaseLedgerEntryBT` MUST pass the *receiving* actor's ID
+(e.g. `request.receiving_actor_id`), NOT the sender's (`request.actor_id`). This
+applies to production received-side use cases and to tests alike.
+
+In tests, use `actor_id=case_manager_actor_id`; in received-side use cases, use
+`resolve_receiving_actor_id(self._dl, request.receiving_actor_id)`, which falls
+back to the **store's own actor** when the field is absent and raises when
+neither source yields one. Do **not** fall back to `request.actor_id`: that is
+the sender, and since `actor_id` now selects the store, using it routes every
+read and write into an actor other than the one whose replica is being updated.
+
+BT nodes that also need the *sender* ID must store it as a private attribute
+(e.g. `self._target_actor_id`); `DataLayerAction.setup()` will overwrite the
+blackboard `actor_id`, and a stored attribute is the only safe way to keep it.
+See BT-17-005, BT-17-006, BT-05-006.
+
+Sources: ISSUE-2300, ISSUE-2238
+
+## A BT's Store Follows Its Executing Actor
+
+The blackboard `datalayer` is the store of the blackboard `actor_id`, reconciled
+in `BTBridge._store_for_actor` (BT-05-005). Seeding one actor's store and
+executing as another therefore leaves the tree reading an empty one: the symptom
+is a role gate that skips, or a "case not found" warning — not an error. Where a
+tree is role-gated, the role holder, the receiving actor and the store owner must
+be **one** actor (BT-05-006); letting any two drift is a silent skip.
+
+Source: ISSUE-2238
+
+## BT Write Nodes Must Validate Transitions at Their Own Boundary
+
+A BT node that writes CS/VFD/PXA/EM/RM state MUST validate the transition inside
+the write node itself, not only in an upstream guard or condition node. Upstream
+guards can be absent or bypassed when the write node is reused in a new tree
+(BTND-10-001, BTND-10-003).
+
+**How it discharges that duty depends on the dimension set**, and for
+`ParticipantStatus` the answer changed with ADR-0086:
+
+- **`ParticipantStatus` writes** (`rm`/`vf`/`d`/`pxa`): call
+  `participant_transition_violations()` from
+  `vultron/core/states/participant_transitions.py` — in practice via
+  `validate_participant_status_write()` in
+  `behaviors/case/nodes/participant/common.py`, which also renders the
+  `feedback_message` and writes `result_out["error"]`. Do **not** call the
+  individual `is_valid_*_transition()` / `violation_*` predicates: BTND-10-002
+  requires the rules to be composed once so two paths cannot enforce different
+  subsets, and `test/architecture/test_participant_status_validation.py` fails
+  any validating node that names a predicate directly. Reporting *every*
+  violation rather than the first is part of the same requirement (EH-07-001) —
+  rejecting the write atomically does not license a one-reason diagnostic.
+- **`CaseStatus` and other dimension writes**: call the relevant
+  `is_valid_*_transition()` directly. For VFD writes see CSB-16-001; for PXA
+  writes see CSB-16-002 and SM-09-001.
+- **EM writes**: route through `EmbargoLifecycle` (EMB-18-001). See
+  [notes/embargo-lifecycle.md](embargo-lifecycle.md).
+
+The trigger path and the write path both validate; that is deliberate, not
+redundant. On the trigger path the guard fails first and the enclosing `Sequence`
+aborts, so nothing double-reports, and five call sites reach the write node
+without any guard at all — for those the write node's own check is the only
+validation there is.
+
+Sources: CONCERN-2412, ISSUE-3050 (ADR-0086)
+
+## BT Nodes Must Not Clear Blackboard Keys They Do Not Own
+
+A node's `_clear()` or tick-start zero-write MUST only target keys that node is
+the sole producer of. Clearing a shared global key (e.g.
+`BB_LEDGER_PAYLOAD_OBJECT_OVERRIDE`) in a node that is not its producer silently
+destroys a value written by an earlier node in the same Sequence, even when the
+clear runs for BT-17-003 compliance.
+
+Ownership rule: **the node that writes the key on its active path is the sole
+node that clears it on its no-op path.** The complementary requirement — that a
+producer MUST clear its own key on every no-op tick — is in
+[notes/received-status-authorization.md](received-status-authorization.md)
+§ "Per-dimension partial accept".
+
+Source: CONCERN-2711
+
+## `_mermaid_prefix_map` Is Scoped to the Rendering Node, Not the Named Node
+
+`BtNode.to_mermaid()` defines its `fixname()` helper as a closure over
+`self._mermaid_prefix_map` — where `self` is the node that *called*
+`to_mermaid()`, not the node whose name is being rendered
+(`vultron/bt/base/bt_node.py`). Because `to_mermaid()` composes recursively with
+each node rendering the names of its direct children, a prefix override always
+comes from the **parent** doing the rendering:
+
+- A `_mermaid_prefix_map["c"] = "CHECK: "` override on a composite applies to all
+  of that composite's children as it renders them.
+- An override placed on a *leaf* has no effect when a parent renders that leaf's
+  name — the parent's map wins.
+
+**How to apply**: to customise a subtree's mermaid display, place the
+`_mermaid_prefix_map` override on the **composite (non-leaf) node that owns the
+subtree**, never on the leaf nodes whose names you want changed.
+
+Source: ISSUE-2109

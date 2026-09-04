@@ -31,7 +31,6 @@ from vultron.core.behaviors.helpers import (
 )
 from vultron.core.models.events.case import UpdateCaseReceivedEvent
 from vultron.core.models._helpers import _as_id
-from vultron.core.models.case import VulnerabilityCase
 
 
 class CheckCaseUpdateOwnerNode(DataLayerConditionWithPorts):
@@ -67,8 +66,8 @@ class CheckCaseUpdateOwnerNode(DataLayerConditionWithPorts):
             return f
         assert self.datalayer is not None
         assert self.actor_id is not None
-        case = self.datalayer.read(self.case_id)
-        if not isinstance(case, VulnerabilityCase):
+        case = self.datalayer.read_case(self.case_id)
+        if case is None:
             self.feedback_message = f"case '{self.case_id}' not found"
             self.logger.warning(
                 "%s: case '%s' not found in DataLayer",
@@ -128,8 +127,8 @@ class CaptureCaseUpdateBroadcastExclusionsNode(DataLayerConditionWithPorts):
         assert self.datalayer is not None
         assert self.actor_id is not None
 
-        case = self.datalayer.read(self.case_id)
-        if not isinstance(case, VulnerabilityCase):
+        case = self.datalayer.read_case(self.case_id)
+        if case is None:
             self.feedback_message = f"case '{self.case_id}' not found"
             self.logger.warning(
                 "%s: case '%s' not found in DataLayer",
@@ -163,8 +162,8 @@ class ApplyCaseUpdateNode(DataLayerActionWithPorts):
         assert self.datalayer is not None
         assert self.actor_id is not None
 
-        stored_case = self.datalayer.read(self.case_id)
-        if not isinstance(stored_case, VulnerabilityCase):
+        stored_case = self.datalayer.read_case(self.case_id)
+        if stored_case is None:
             self.logger.warning(
                 "%s: case '%s' not found in DataLayer",
                 self.name,
@@ -224,8 +223,8 @@ class BroadcastCaseUpdateNode(DataLayerActionWithPorts):
         assert self.datalayer is not None
         assert self.actor_id is not None
 
-        case = self.datalayer.read(self.case_id)
-        if not isinstance(case, VulnerabilityCase):
+        case = self.datalayer.read_case(self.case_id)
+        if case is None:
             self.feedback_message = f"case '{self.case_id}' not found"
             self.logger.warning(
                 "%s: case '%s' not found in DataLayer",

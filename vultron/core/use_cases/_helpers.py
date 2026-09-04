@@ -28,7 +28,7 @@ from vultron.core.states.participant_embargo_consent import (
     PEC_Trigger,
 )
 from vultron.core.states.rm import RM
-from vultron.enums.roles import CVDRole
+from vultron.core.predicates.roles import has_case_manager_role
 from vultron.errors import VultronNotFoundError, VultronValidationError
 
 logger = logging.getLogger(__name__)
@@ -222,8 +222,8 @@ def _case_actor_by_role(dl: CasePersistence, case_id: str) -> str | None:
         is_case_actor_identity,
     )
 
-    case_obj = dl.read(case_id)
-    if not isinstance(case_obj, VulnerabilityCase):
+    case_obj = dl.read_case(case_id)
+    if case_obj is None:
         return None
     manager_id = _resolve_case_manager_id(case_obj, dl)
     return manager_id if is_case_actor_identity(manager_id) else None
@@ -282,8 +282,8 @@ def _find_case_actor_id(dl: CasePersistence, case_id: str) -> str | None:
         return established
 
     if pending_creator_ids:
-        case = dl.read(case_id)
-        if isinstance(case, VulnerabilityCase):
+        case = dl.read_case(case_id)
+        if case is not None:
             manager_id = _resolve_case_manager_id(case, dl)
             if manager_id is not None and manager_id in pending_creator_ids:
                 return manager_id
@@ -401,13 +401,9 @@ def resolve_case(case_id: str, dl: CasePersistence):
     ``triggers`` package ``__init__`` (which would cause circular imports when
     called from the BT nodes layer).
     """
-    case_raw = dl.read(case_id)
+    case_raw = dl.read_case(case_id)
     if case_raw is None:
         raise VultronNotFoundError("VulnerabilityCase", case_id)
-    if not isinstance(case_raw, VulnerabilityCase):
-        raise VultronValidationError(
-            f"Expected VulnerabilityCase, got {type(case_raw).__name__}."
-        )
     return case_raw
 
 
@@ -486,10 +482,10 @@ def update_participant_rm_state(
     ``triggers`` package ``__init__`` (which would cause circular imports when
     called from the BT nodes layer).
     """
-    case_obj = dl.read(case_id)
-    if not isinstance(case_obj, VulnerabilityCase):
+    case_obj = dl.read_case(case_id)
+    if case_obj is None:
         logger.warning(
-            "update_participant_rm_state: case '%s' not found or wrong type",
+            "update_participant_rm_state: case '%s' not found",
             case_id,
         )
         return False
@@ -613,7 +609,7 @@ def _resolve_case_manager_id(
         p = dl.read(p_id)
         if not isinstance(p, CaseParticipant):
             continue
-        if CVDRole.CASE_MANAGER in p.roles:
+        if has_case_manager_role(p.roles):
             manager_actor_id = getattr(p, "attributed_to", None)
             return _as_id(manager_actor_id)
 
@@ -623,10 +619,9 @@ def _resolve_case_manager_id(
     for participant_ref in case.case_participants:
         if not isinstance(participant_ref, str):
             # Inline participant object — no DataLayer read needed.
-            if (
-                isinstance(participant_ref, CaseParticipant)
-                and CVDRole.CASE_MANAGER in participant_ref.roles
-            ):
+            if isinstance(
+                participant_ref, CaseParticipant
+            ) and has_case_manager_role(participant_ref.roles):
                 attributed = getattr(participant_ref, "attributed_to", None)
                 return _as_id(attributed)
             continue
@@ -636,7 +631,7 @@ def _resolve_case_manager_id(
         p = dl.read(participant_ref)
         if not isinstance(p, CaseParticipant):
             continue
-        if CVDRole.CASE_MANAGER in p.roles:
+        if has_case_manager_role(p.roles):
             manager_actor_id = getattr(p, "attributed_to", None)
             return _as_id(manager_actor_id)
     return None

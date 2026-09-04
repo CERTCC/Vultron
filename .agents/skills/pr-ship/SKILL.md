@@ -4,7 +4,7 @@ description: >
   End-to-end PR review pipeline. Detects the PR on the current branch, then
   runs pr-triage → pr-execute → pr-verify in sequence. Supports resume: if
   artifacts already exist from a prior run, skips forward to the right phase.
-  No user prompts except the one deferred-ask pause in pr-execute. Precondition:
+  No user prompts except the two gate pauses (defer-ask, inversion-halt) in pr-execute. Precondition:
   an open PR must exist for the current branch (or provide an explicit PR number).
 ---
 
@@ -14,7 +14,8 @@ description: >
 
 Single entry point for the full triage → execute → verify pipeline. Run this
 after pushing a branch with an open PR and let it complete. The only expected
-pause is a `new-issue-ask` finding in execute — all other steps run unattended.
+pauses are the two gates in execute — a `defer-ask` (may I defer this?) and an
+`inversion-halt` (a premise was overturned) — all other steps run unattended.
 
 ## Quick Start
 
@@ -81,9 +82,9 @@ sends the pipeline back through execute.
 
 **Run all steps in a single uninterrupted pass.** Do not end your turn or wait
 for user input between steps. When a sub-skill returns, proceed immediately to
-the next step without pausing. The only valid mid-pipeline stop is a
-`new-issue-ask` prompt inside pr-execute. Every other step transition is
-automatic.
+the next step without pausing. The only valid mid-pipeline stops are the two
+gate prompts inside pr-execute — `defer-ask` and `inversion-halt`. Every other
+step transition is automatic.
 
 ## Workflow
 
@@ -116,9 +117,7 @@ adding `.claude/pr-*.json` to `.gitignore` (when missing) creates a dirty file.
 Commit the `.gitignore` change immediately if it was written:
 
 ```bash
-git add .gitignore && git commit -m "chore: gitignore pr-*.json session artifacts
-
-Co-Authored-By: Claude Sonnet 4.6 <noreply@anthropic.com>"
+git add .gitignore && git commit -m "chore: gitignore pr-*.json session artifacts"
 ```
 
 ### Step 3 — Worktree Check
@@ -151,8 +150,10 @@ If resuming past execute: print `⏩ Skipping execute — artifact found at .cla
 
 Otherwise: invoke the `pr-execute` skill with the PR number.
 
-If execute pauses for a `new-issue-ask` decision: wait for the user's response,
-then continue. This is the only interactive pause in the pipeline.
+If execute pauses for a `defer-ask` or `inversion-halt` decision: wait for the
+user's response, then continue. On silence, execute applies its own rule
+(fix-now for a defer-ask; halt the PR for an inversion-halt). These are the only
+interactive pauses in the pipeline.
 
 If execute stops due to a blocking test failure (pre-existing with linked Bug
 issue): report the blocked status and stop pr-ship. The user must resolve the

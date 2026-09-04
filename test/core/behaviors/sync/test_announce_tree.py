@@ -27,6 +27,7 @@ from vultron.wire.as2.factories import announce_log_entry_activity
 from vultron.wire.as2.vocab.objects.case_ledger_entry import (
     as_CaseLedgerEntry as WireCaseLedgerEntry,
 )
+from vultron.core.models.case import VulnerabilityCase
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCase,
 )
@@ -77,7 +78,7 @@ def case_actor(datalayer):
 
 @pytest.fixture
 def case_obj(datalayer):
-    case = as_VulnerabilityCase(id_=CASE_ID, attributed_to=OWNER_ACTOR_ID)
+    case = VulnerabilityCase(id_=CASE_ID, attributed_to=OWNER_ACTOR_ID)
     datalayer.save(case)
     return case
 
@@ -215,11 +216,11 @@ def _make_remove_embargo_entry(
 
 def _make_case_with_em_active(
     datalayer: SqliteDataLayer,
-) -> as_VulnerabilityCase:
-    case = as_VulnerabilityCase(
+) -> VulnerabilityCase:
+    case = VulnerabilityCase(
         id_=CASE_ID, name="Test Case", attributed_to=OWNER_ACTOR_ID
     )
-    case.current_status.em_state = EM.ACTIVE
+    case.append_case_status(em_state=EM.ACTIVE)
     datalayer.create(case)
     return case
 
@@ -254,10 +255,10 @@ class TestAnnounceLogEntryAppliesEmbargoTeardown:
         self, bridge, datalayer, case_actor
     ):
         """Already-stored entry exits early without re-applying effects (SYNC-12-003)."""
-        case = as_VulnerabilityCase(
+        case = VulnerabilityCase(
             id_=CASE_ID, name="Test Case", attributed_to=OWNER_ACTOR_ID
         )
-        case.current_status.em_state = EM.EXITED  # effect already applied
+        case.append_case_status(em_state=EM.EXITED)  # effect already applied
         datalayer.create(case)
         entry = _make_remove_embargo_entry(0)
         datalayer.save(
@@ -293,10 +294,10 @@ class TestAnnounceLogEntryAppliesEmbargoTeardown:
     @pytest.mark.spec("SYNC-12-003")
     def test_em_exited_is_idempotent(self, bridge, datalayer, case_actor):
         """Running BT when case is already EM.EXITED must succeed silently."""
-        case = as_VulnerabilityCase(
+        case = VulnerabilityCase(
             id_=CASE_ID, name="Test Case", attributed_to=OWNER_ACTOR_ID
         )
-        case.current_status.em_state = EM.EXITED
+        case.append_case_status(em_state=EM.EXITED)
         datalayer.create(case)
         entry = _make_remove_embargo_entry(0, case.genesis_hash)
         event = _make_event(entry, actor_id=case_actor.id_)
@@ -770,9 +771,9 @@ def _make_close_case_entry(
 
 def _make_case_with_departing_participant(
     datalayer: SqliteDataLayer,
-) -> as_VulnerabilityCase:
+) -> VulnerabilityCase:
     """Seed CASE_ID with a departing participant so the apply node can find them."""
-    case = as_VulnerabilityCase(id_=CASE_ID, attributed_to=OWNER_ACTOR_ID)
+    case = VulnerabilityCase(id_=CASE_ID, attributed_to=OWNER_ACTOR_ID)
     participant = CaseParticipant(
         id_=DEPARTING_PARTICIPANT_ID,
         attributed_to=DEPARTING_ACTOR_ID,
@@ -937,7 +938,7 @@ class TestAnnounceLogEntryAppliesOwnershipTransfer:
         self, bridge, datalayer, case_actor
     ):
         """Running BT when case already has correct owner must succeed silently."""
-        case = as_VulnerabilityCase(id_=CASE_ID, attributed_to=NEW_OWNER_ID)
+        case = VulnerabilityCase(id_=CASE_ID, attributed_to=NEW_OWNER_ID)
         datalayer.save(case)
         entry = _make_ownership_transfer_entry(
             0, NEW_OWNER_ID, case.genesis_hash
@@ -976,3 +977,165 @@ class TestAnnounceLogEntryAppliesOwnershipTransfer:
         updated = datalayer.read(CASE_ID)
         assert updated is not None
         assert updated.attributed_to == OWNER_ACTOR_ID
+
+
+# ---------------------------------------------------------------------------
+# RSH-05-021: Selector(ApplyOrFault) — fault emission and persist blocking
+# ---------------------------------------------------------------------------
+
+
+def _make_participant_status_entry_with_states(
+    log_index: int,
+    prev_hash: str,
+    status_id: str,
+    participant_id: str,
+    rm_state: str,
+    vf_state: str,
+) -> VultronCaseLedgerEntry:
+    return _to_persistable_entry(
+        HashChainLedgerRecord(
+            case_id=CASE_ID,
+            log_index=log_index,
+            object_id=f"https://example.org/activities/status-{log_index}",
+            event_type="add_participant_status_to_participant",
+            payload_snapshot={
+                "object": {
+                    "id": status_id,
+                    "type": "ParticipantStatus",
+                    "rmState": rm_state,
+                    "vfState": vf_state,
+                    "context": CASE_ID,
+                },
+                "target": {"id": participant_id},
+            },
+            prev_log_hash=prev_hash,
+        )
+    )
+
+
+class TestAnnounceTreeEmitImpossibleStateFault:
+    """Full-tree tests: Selector(ApplyOrFault) emits fault and blocks persist.
+
+    Covers RSH-05-021 (impossible composite state) and ARCH-15-001
+    (malformed local participant record) end-to-end through
+    ``create_announce_log_entry_tree()``.
+    """
+
+    @pytest.mark.spec("RSH-05-021")
+    @pytest.mark.spec("SYNC-12-001")
+    def test_impossible_composite_state_emits_fault_and_blocks_persist(
+        self, datalayer, case_actor, case_obj
+    ):
+        """Full tree: rm=VALID+vf=VF violates RM↔VF entailment.
+
+        EmitImpossibleStateFaultNode must fire (emit_processing_fault called
+        with ImpossibleState class), and PersistReceivedLogEntry must NOT
+        store the entry (RSH-05-021, SYNC-12-001).
+        """
+        from vultron.core.behaviors.bridge import BTBridge
+        from vultron.core.models.case_participant import CaseParticipant
+        from vultron.core.models.fault_classes import (
+            VULTRON_FAILURE_STATUS_ASSERTION_REFUSED_IMPOSSIBLE_STATE,
+        )
+        from vultron.core.ports.trigger_activity import TriggerActivityPort
+
+        trigger_activity = MagicMock(spec=TriggerActivityPort)
+        trigger_bridge = BTBridge(
+            datalayer=datalayer, trigger_activity=trigger_activity
+        )
+
+        participant = CaseParticipant(
+            id_=PARTICIPANT_ID,
+            attributed_to=PARTICIPANT_ACTOR_ID,
+            context=CASE_ID,
+        )
+        datalayer.create(participant)
+
+        status_id = "https://example.org/statuses/impossible-rm-valid-vf"
+        entry = _make_participant_status_entry_with_states(
+            log_index=0,
+            prev_hash=case_obj.genesis_hash,
+            status_id=status_id,
+            participant_id=PARTICIPANT_ID,
+            rm_state="VALID",
+            vf_state="VF",
+        )
+        event = _make_event(entry, actor_id=case_actor.id_)
+
+        result = trigger_bridge.execute_with_setup(
+            tree=create_announce_log_entry_tree(),
+            actor_id=PARTICIPANT_ACTOR_ID,
+            activity=event,
+            sync_port=MagicMock(spec=SyncActivityPort),
+        )
+
+        assert result.status == Status.FAILURE
+        assert datalayer.read(entry.id_) is None, "entry must not be stored"
+        trigger_activity.emit_processing_fault.assert_called_once()
+        call_kwargs = trigger_activity.emit_processing_fault.call_args.kwargs
+        assert (
+            call_kwargs["failure_class"]
+            == VULTRON_FAILURE_STATUS_ASSERTION_REFUSED_IMPOSSIBLE_STATE
+        )
+        assert case_actor.id_ in call_kwargs["to"]
+
+    @pytest.mark.spec("ARCH-15-001")
+    @pytest.mark.spec("RSH-05-021")
+    @pytest.mark.spec("SYNC-12-001")
+    def test_malformed_local_record_emits_fault_and_blocks_persist(
+        self, datalayer, case_actor, case_obj
+    ):
+        """Full tree: malformed local participant record → fault emitted, entry not stored.
+
+        Simulates ARCH-15-001 by patching _apply_rm_ratchet to return None,
+        representing a participant whose local status record is not core-shaped.
+        EmitImpossibleStateFaultNode fires because it is the Selector fallback
+        for ANY FAILURE from ApplyParticipantStatusFromLedgerNode.
+        """
+        from vultron.core.behaviors.bridge import BTBridge
+        from vultron.core.models.case_participant import CaseParticipant
+        from vultron.core.models.fault_classes import (
+            VULTRON_FAILURE_STATUS_ASSERTION_REFUSED_CORRUPT_LOCAL_RECORD,
+        )
+        from vultron.core.ports.trigger_activity import TriggerActivityPort
+
+        trigger_activity = MagicMock(spec=TriggerActivityPort)
+        trigger_bridge = BTBridge(
+            datalayer=datalayer, trigger_activity=trigger_activity
+        )
+
+        participant = CaseParticipant(
+            id_=PARTICIPANT_ID,
+            attributed_to=PARTICIPANT_ACTOR_ID,
+            context=CASE_ID,
+        )
+        datalayer.create(participant)
+
+        entry = _make_participant_status_entry(0, case_obj.genesis_hash)
+        event = _make_event(entry, actor_id=case_actor.id_)
+
+        tree = create_announce_log_entry_tree()
+        apply_node = _find_node_by_name(
+            tree, "ApplyParticipantStatusFromLedger"
+        )
+        assert apply_node is not None
+        # Simulate ARCH-15-001: replica's recorded status is not core-shaped.
+        apply_node._apply_rm_ratchet = (  # type: ignore[method-assign]
+            lambda *args, **kwargs: None
+        )
+
+        result = trigger_bridge.execute_with_setup(
+            tree=tree,
+            actor_id=PARTICIPANT_ACTOR_ID,
+            activity=event,
+            sync_port=MagicMock(spec=SyncActivityPort),
+        )
+
+        assert result.status == Status.FAILURE
+        assert datalayer.read(entry.id_) is None, "entry must not be stored"
+        trigger_activity.emit_processing_fault.assert_called_once()
+        call_kwargs = trigger_activity.emit_processing_fault.call_args.kwargs
+        assert (
+            call_kwargs["failure_class"]
+            == VULTRON_FAILURE_STATUS_ASSERTION_REFUSED_CORRUPT_LOCAL_RECORD
+        )

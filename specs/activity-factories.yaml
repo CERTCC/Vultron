@@ -44,16 +44,31 @@ groups:
     priority: MUST
     kind: project
     statement: When a factory parameter represents a domain entity whose fields determine how the wire object is enriched
-      (e.g. a `VulnerabilityCase` whose `em_state` determines whether `activeEmbargo` appears in the stub), the factory MUST
-      accept the core domain object and perform the core→wire projection internally. Adapters and BT nodes MUST NOT pre-build
-      partial wire objects (e.g. a `VulnerabilityCaseStub`) to pass as factory arguments — doing so moves projection logic
-      out of the factory and into a layer that should be a thin pass-through, and risks omitting fields that the factory would
-      have included (e.g. `end_time` on `EmbargoEvent`).
-    rationale: 'Wire objects are projections of core objects. The factory layer is the single sanctioned location for core→wire
-      projection; it already imports both core and wire types. Pushing projection into adapters splits the invariant across
-      two layers, making it easy for enrichment to be incomplete (issue #1300: `active_embargo` stored as `str | None` in
-      core meant a bare URI reached the wire instead of an `EmbargoEvent` with `end_time` because the adapter never read the
-      embargo entity from the DataLayer).'
+      (e.g. a case whose embargo state determines whether `activeEmbargo` appears in the stub), the factory MUST accept that
+      entity already projected into its complete wire counterpart and MUST derive the enrichment from that wire object's own
+      fields. The core→wire projection MUST be delegated to the adapter-side translator (ARCH-12-005) and performed before
+      the factory is called; factories MUST NOT import a core domain type or perform the projection themselves. Callers MUST
+      NOT hand a factory a hand-built *partial* wire object (e.g. a `VulnerabilityCaseStub` assembled field-by-field) — an
+      incompletely projected argument risks omitting fields the translator would have included (e.g. `end_time` on an embargo
+      event).
+    rationale: 'ADR-0082 gives the adapter-side translator sole ownership of core→wire projection. A factory that projects
+      internally must import the core domain model, which is why `factories/actor.py` and `factories/case.py` are wire→core
+      import violations under ARCH-22-001; sanctioning the factory layer as a second projection site would pin them in place
+      permanently. The invariant the original rule protected — enrichment is complete and expressed in one place — is preserved
+      by requiring a *complete* translator-produced wire object rather than a hand-built partial one (issue #1300: a bare
+      `active_embargo` URI reached the wire instead of an embargo event with `end_time`).'
+    verification: No module under `vultron/wire/as2/factories/` imports from `vultron.core.models` (enforced by the ARCH-22
+      wire→core ratchet test), and each factory that enriches from a domain entity reads only fields of the wire object it
+      was handed.
+    relationships:
+    - rel_type: depends_on
+      spec_id: ARCH-12-005
+      note: ARCH-12-005 names the adapter-side translator as the sole owner of core→wire projection, which this requirement
+        delegates to.
+    - rel_type: implements
+      spec_id: ARCH-22-001
+    adr:
+    - ADR-0082
 - id: AF-02
   title: Module Structure
   specs:

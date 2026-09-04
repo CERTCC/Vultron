@@ -378,7 +378,7 @@ class TestFvcvHandoffMilestoneAssertions:
         with (
             patch.object(demo, "wait_for_participant_rm_state"),
             patch.object(demo, "actor_notifies_fix_ready"),
-            patch.object(demo, "wait_for_participant_vfd_state"),
+            patch.object(demo, "wait_for_participant_vf_state"),
             patch.object(demo, "verify_fix_ready") as mock_m4,
             patch.object(
                 demo,
@@ -427,7 +427,7 @@ class TestFvcvHandoffMilestoneAssertions:
                 "actor_notifies_fix_ready",
                 side_effect=lambda *a, **kw: call_order.append("fix_ready"),
             ),
-            patch.object(demo, "wait_for_participant_vfd_state"),
+            patch.object(demo, "wait_for_participant_vf_state"),
             patch.object(demo, "verify_fix_ready"),
         ):
             demo._phase_fix_lifecycle(
@@ -474,7 +474,7 @@ class TestFvcvHandoffMilestoneAssertions:
         with (
             patch.object(demo, "actor_notifies_published"),
             patch.object(demo, "wait_for_case_em_terminated"),
-            patch.object(demo, "wait_for_participant_vfd_state"),
+            patch.object(demo, "wait_for_participant_vf_state"),
             patch.object(demo, "verify_publicly_disclosed") as mock_m6,
             patch.object(
                 demo,
@@ -525,7 +525,7 @@ class TestFvcvHandoffMilestoneAssertions:
                 demo, "actor_notifies_published", side_effect=_notify
             ),
             patch.object(demo, "wait_for_case_em_terminated"),
-            patch.object(demo, "wait_for_participant_vfd_state"),
+            patch.object(demo, "wait_for_participant_vf_state"),
             patch.object(demo, "verify_publicly_disclosed"),
             patch.object(
                 demo,
@@ -1263,6 +1263,7 @@ class TestPhaseOwnershipHandoffForwardedOfferId:
         """
         import contextlib
 
+        finder_client = self._client()
         vendor_client = self._client()
         coordinator_client = self._client()
         vendor_in_vendor = self._actor("urn:test:vendor")
@@ -1317,6 +1318,9 @@ class TestPhaseOwnershipHandoffForwardedOfferId:
             patch.object(demo, "wait_for_case_on_container"),
             patch.object(demo, "wait_for_case_participants"),
             patch.object(demo, "wait_for_case_attributed_to"),
+            patch.object(
+                demo, "wait_for_event_type_in_ledger"
+            ) as mock_ledger_wait,
             patch.object(demo, "as_VulnerabilityCase") as mock_vc,
             patch.object(
                 demo,
@@ -1336,6 +1340,7 @@ class TestPhaseOwnershipHandoffForwardedOfferId:
             mock_ta.model_validate.side_effect = lambda x: next(ta_seq)
             mock_vc.model_validate.return_value = case
             demo._phase_ownership_handoff(
+                finder_client=finder_client,
                 vendor_client=vendor_client,
                 coordinator_client=coordinator_client,
                 finder=self._actor("urn:test:finder"),
@@ -1346,6 +1351,8 @@ class TestPhaseOwnershipHandoffForwardedOfferId:
                 case=case,
             )
 
+        self._last_finder_client = finder_client
+        self._last_ledger_wait = mock_ledger_wait
         return (
             trigger_calls,
             mock_find,
@@ -1354,6 +1361,27 @@ class TestPhaseOwnershipHandoffForwardedOfferId:
             case,
             original_offer,
         )
+
+    @pytest.mark.spec("CM-21-007")
+    def test_finder_ledger_entry_is_awaited_on_finders_own_replica(self):
+        """The phase must gate on the Finder's replica holding the transfer entry.
+
+        ADR-0053's validation criterion: an actor outside the negotiation learns
+        of the completed transfer from ``Announce(CaseLedgerEntry)`` alone.  The
+        observable therefore has to be read on the *Finder's* container — reading
+        it on Vendor1's proves only that the CaseActor's own copy replicated to
+        the offerer (EDF-06-002).
+        """
+        _, _, _, _, case, _ = self._invoke_phase("urn:test:forwarded-offer")
+
+        self._last_ledger_wait.assert_called_once()
+        kwargs = self._last_ledger_wait.call_args.kwargs
+        assert kwargs["client"] is self._last_finder_client, (
+            "the ownership-transfer ledger entry must be awaited on the"
+            " Finder's own container, not the offerer's"
+        )
+        assert kwargs["case_id"] == case.id_
+        assert kwargs["event_type"] == "accept_case_ownership_transfer"
 
     def test_find_ownership_transfer_offer_for_actor_is_called(self):
         """find_ownership_transfer_offer_for_actor must be called (not wait_for_object_stored)."""
@@ -1547,3 +1575,96 @@ class TestFvcvHandoffCausalGates:
             )
 
         coverage_wait_called.assert_not_called()
+
+
+# ---------------------------------------------------------------------------
+# Regression test — ISSUE-2811 timeout fix
+# ---------------------------------------------------------------------------
+
+
+class TestFvcvHandoffRmTriageTimeout:
+    """_phase_report_submission must forward timeout_seconds=60.0 to
+    run_direct_path_rm_triage so the causal gate (ADR-0058) does not race
+    under 4-container CI load (ISSUE-2811)."""
+
+    def _actor(self, id_: str = "urn:test:actor"):
+        a = MagicMock()
+        a.id_ = id_
+        return a
+
+    def _case(self, id_: str = "urn:test:case"):
+        c = MagicMock()
+        c.id_ = id_
+        return c
+
+    def _client(self):
+        c = MagicMock()
+        c.get.return_value = {}
+        return c
+
+    def test_phase_report_submission_passes_60s_timeout_to_rm_triage(self):
+        """Regression: fvcv_handoff CI timed out at 20 s default (ISSUE-2811)."""
+        import contextlib
+
+        finder = self._actor("urn:test:finder")
+        vendor = self._actor("urn:test:vendor")
+        coordinator = self._actor("urn:test:coordinator")
+        coordinator_in_coordinator = self._actor("urn:test:coordinator")
+        vendor2 = self._actor("urn:test:vendor2")
+        vendor_in_vendor = self._actor("urn:test:vendor")
+        report = MagicMock()
+        offer = MagicMock()
+        offer.id_ = "urn:test:offer"
+        case = self._case()
+
+        with (
+            patch.object(demo, "reset_containers"),
+            patch.object(
+                demo,
+                "seed_containers_fvcv",
+                return_value=(finder, vendor, coordinator, vendor2),
+            ),
+            patch.object(
+                demo,
+                "get_actor_by_id",
+                side_effect=[vendor_in_vendor, coordinator_in_coordinator],
+            ),
+            patch.object(
+                demo, "reporter_submits_report", return_value=(report, offer)
+            ),
+            patch.object(
+                demo, "run_direct_path_rm_triage", return_value=case
+            ) as mock_rm_triage,
+            patch.object(demo, "wait_for_case_participants"),
+            patch.object(demo, "wait_for_case_on_container"),
+            patch.object(demo, "as_VulnerabilityCase") as mock_vc,
+            patch.object(
+                demo,
+                "demo_check",
+                side_effect=lambda _: contextlib.nullcontext(),
+            ),
+            patch.object(
+                demo,
+                "demo_step",
+                side_effect=lambda _: contextlib.nullcontext(),
+            ),
+        ):
+            mock_vc.model_validate.return_value = case
+            demo._phase_report_submission(
+                finder_client=self._client(),
+                vendor_client=self._client(),
+                coordinator_client=self._client(),
+                case_actor_client=self._client(),
+                vendor2_client=self._client(),
+                finder_id=None,
+                vendor_id=None,
+                coordinator_id=None,
+                vendor2_id=None,
+            )
+
+        _call = mock_rm_triage.call_args
+        assert _call is not None
+        assert _call.kwargs.get("timeout_seconds") == 60.0, (
+            "run_direct_path_rm_triage must receive timeout_seconds=60.0; "
+            "the 20-second default races under 4-container CI load (ISSUE-2811)"
+        )

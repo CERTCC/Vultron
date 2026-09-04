@@ -22,7 +22,12 @@ Spec coverage:
 
 import pytest
 
-from vultron.errors import BtNodePreconditionError, VultronError
+from vultron.errors import (
+    BtNodePreconditionError,
+    Violation,
+    VultronError,
+    VultronValidationError,
+)
 
 
 def test_bt_node_precondition_error_is_vultron_error():
@@ -96,3 +101,75 @@ def test_update_catches_bt_node_precondition_error():
     status = node.update()
     assert status == Status.FAILURE
     assert node.feedback_message == "case not on blackboard"
+
+
+# ---------------------------------------------------------------------------
+# VultronValidationError violation list (EH-07-003)
+# ---------------------------------------------------------------------------
+
+
+class TestVultronValidationErrorViolations:
+    """A multi-violation rejection carries its violations as structured data.
+
+    EH-07-003: callers MUST NOT have to parse a joined message to recover the
+    individual rules.  Follows ``DemoFailureError``'s shape (DEMOCI-01-003).
+    """
+
+    @staticmethod
+    def _error():
+        return VultronValidationError(
+            "Refused write",
+            violations=[
+                Violation("rm is wrong", dimensions=("rm",)),
+                Violation(
+                    "the pair is impossible",
+                    dimensions=("rm", "vf"),
+                    derived=True,
+                ),
+            ],
+        )
+
+    def test_violations_are_available_without_parsing_the_message(self):
+        error = self._error()
+
+        assert [v.message for v in error.violations] == [
+            "rm is wrong",
+            "the pair is impossible",
+        ]
+        assert [v.dimensions for v in error.violations] == [
+            ("rm",),
+            ("rm", "vf"),
+        ]
+
+    def test_str_renders_every_violation(self):
+        """EH-05-002: ``message`` must show the whole set, not just the first.
+
+        The HTTP layer uses ``str(exc)`` for the 422 ``message`` field, so a
+        text-only consumer still sees everything.
+        """
+        rendered = str(self._error())
+
+        assert "rm is wrong" in rendered
+        assert "the pair is impossible" in rendered
+        assert "2 violation(s)" in rendered
+        assert "Refused write" in rendered
+
+    def test_str_labels_each_violation_root_or_derived(self):
+        rendered = str(self._error())
+
+        assert "[root] rm is wrong" in rendered
+        assert "[derived] the pair is impossible" in rendered
+
+    def test_classification_defaults_to_root(self):
+        assert Violation("m").classification == "root"
+        assert Violation("m", derived=True).classification == "derived"
+
+    def test_error_without_violations_renders_its_message_unchanged(self):
+        """The single-error case is untouched — no summary line, no list."""
+        assert str(VultronValidationError("plain message")) == "plain message"
+        assert VultronValidationError("plain message").violations == ()
+
+    def test_activity_id_still_works_positionally(self):
+        """``violations`` is a third parameter; existing call sites are intact."""
+        error = VultronValidationError("m", "urn:uuid:activity-1")
+        assert error.activity_id == "urn:uuid:activity-1"

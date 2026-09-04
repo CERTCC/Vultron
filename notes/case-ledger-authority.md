@@ -9,6 +9,7 @@ related_specs:
 related_notes:
   - notes/activitystreams-semantics.md
   - notes/case-state-model.md
+  - notes/ownership-transfer.md
   - notes/sync-ledger-replication.md
 relevant_packages:
   - vultron/wire/as2

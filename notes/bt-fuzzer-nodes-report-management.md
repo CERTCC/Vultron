@@ -22,6 +22,7 @@ related_notes:
   - notes/bt-fuzzer-rm-publication.md
   - notes/bt-fuzzer-rm-reporting.md
   - notes/bt-fuzzer-rm-closure.md
+  - notes/call-out-configuration.md
 relevant_packages:
   - vultron/bt/report_management
 ---
@@ -315,6 +316,27 @@ those Actuators are each replaced by this full `PublishArtifactBT` subtree.
 (called from `create_publication_tree` per arm via `_make_artifact_arm`)
 
 **Spec requirements**: BT-20-004 (see `specs/behavior-tree-integration.yaml`)
+
+---
+
+## A `NoNew*` Flag Implies an Upstream Sentinel Seam
+
+A BT condition node named `NoNew*` does not compute anything — it *reads a flag*
+that something else had to write. Whenever you meet one, trace the flag to its
+writer and record that writer as a **Sentinel** call-out point in the catalog. The
+node is the consumer; the seam is upstream of it, outside the tree.
+
+The three worked instances are
+[`bt-fuzzer-rm-validation.md`](bt-fuzzer-rm-validation.md) § "`NoNewValidationInfo`",
+[`bt-fuzzer-rm-prioritization.md`](bt-fuzzer-rm-prioritization.md), and
+[`bt-fuzzer-rm-fix.md`](bt-fuzzer-rm-fix.md): in each, the Sentinel registers with
+an external event source and writes a change-detection flag to the BT blackboard
+or local DataLayer, which the `NoNew*` node then reads each tick. Shape assignment
+follows ADR-0024's seam-structure decision tree, not the flag's automation
+potential — see [`call-out-configuration.md`](call-out-configuration.md).
+
+Leaving the Sentinel unrecorded makes the node look self-contained and hides a
+real integration point, which is how the stub gaps below arise.
 
 ---
 

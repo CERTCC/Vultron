@@ -2364,9 +2364,14 @@ groups:
     Invariants that span two state machines simultaneously. These are
     causal entailments, not local transition constraints: they capture states
     that are logically contradictory given the sequence of events that
-    produced them. Violations are detected and reported by
-    vultron/core/states/cross_machine_invariants.py but are NOT enforced at
-    emit time — they are diagnosed post-hoc.
+    produced them. CSB-18-001 is enforced at emit time via
+    ValidateTriggerTransitionsNode and on the receive path via
+    composite_state_violations() (composite_state_invariants.py).
+    CSB-18-002 through CSB-18-004 (PXA↔EM) are enforced on the receive
+    path via ThreatTerminationBranchNode in add_case_status_tree;
+    violation_pxa_em_entailment() (composite_state_invariants.py) is the
+    post-cascade diagnostic caller via PxaEmInvariantDiagnosticNode
+    (CONCERN-3008, issue #3115).
   specs:
   - id: CSB-18-001
     priority: MUST_NOT
@@ -2381,14 +2386,40 @@ groups:
       a fix ready if they have accepted the report for action (RM ∈ {ACCEPTED,
       DEFERRED, CLOSED}). RM states RECEIVED/INVALID/VALID precede acceptance,
       so F-bit + pre-acceptance RM is a causal impossibility.
-      Implemented in violation_rm_vfd_entailment() (cross_machine_invariants.py).
+      The underlying constraint is a *history* property — rm_em_cs.md requires
+      that the actor "passed through q^rm = Accepted at some point" — while a
+      ParticipantStatus carries only the current RM value. The check therefore
+      approximates it with RM_STATES_CONSISTENT_WITH_FIX, which is exactly the
+      set of states reachable from RM.ACCEPTED. That is sound but not complete:
+      DEFERRED and CLOSED are each also reachable without visiting ACCEPTED
+      (VALID->DEFERRED, INVALID->CLOSED), so neither proves acceptance. They are
+      included deliberately, because excluding them would refuse the legitimate
+      batched update in which a peer advances through ACCEPTED and reports fix
+      readiness in one message (CSB-16-001). Narrowing to {ACCEPTED} is the only
+      complete alternative over a single snapshot and would refuse far more real
+      traffic than it caught; a complete check needs the participant's RM
+      history (ISSUE-3015).
+      Implemented in composite_state_violations() (composite_state_invariants.py),
+      which composes violation_rm_vf_entailment() and violation_rm_d_entailment()
+      — the per-dimension form the rule takes after ADR-0075 split the compound
+      CS_vfd into independent CS_vf and CS_d. Enforced on both protocol paths:
+      the emit path refuses the whole trigger
+      (ValidateTriggerTransitionsNode._validate_entailments) and the receive path
+      refuses the disqualified dimension (RSH-05-020, ISSUE-2906).
       Source: ISSUE-2372.
     testable: true
     preconditions:
     - description: Any participant state snapshot is available for inspection
     verification: >-
-      Call violation_rm_vfd_entailment(rm, vfd) for each participant; assert
-      None is returned for all valid combined states.
+      Call composite_state_violations(rm, vf, d) for each participant; assert an
+      empty list is returned for all valid combined states. Unit tests in
+      test/core/behaviors/status/test_partial_accept_participant_status.py
+      confirm both paths refuse an F or D bit set against a pre-acceptance RM,
+      and that a batched advance through acceptance reported in one message is
+      accepted whole. Tests in test/core/states/test_composite_state_invariants.py
+      derive RM_STATES_CONSISTENT_WITH_FIX from the RM transition graph, so a new
+      transition out of RM.ACCEPTED cannot silently invalidate the
+      approximation, and pin which of its members are ambiguous.
     relationships:
     - rel_type: constrains
       spec_id: CSB-16-001
@@ -2409,7 +2440,11 @@ groups:
       termination, not mere transition ambiguity. This is a causal
       entailment, not a timing race — it is NOT enforced at emit time
       because the sequence of events is what makes it contradictory.
-      Implemented in violation_pxa_em_entailment() (cross_machine_invariants.py).
+      Enforced on the receive path via ThreatTerminationBranchNode
+      (add_case_status_tree.py, RSH-03-001) when the authorization gate
+      permits teardown. Diagnostic check: violation_pxa_em_entailment()
+      (composite_state_invariants.py); post-cascade caller:
+      PxaEmInvariantDiagnosticNode (CONCERN-3008, issue #3115).
       Source: ISSUE-2372.
     testable: true
     preconditions:
@@ -2428,8 +2463,11 @@ groups:
     rationale: >-
       Same causal logic as CSB-18-002. The X event (exploit public) triggers
       embargo termination; EM cannot remain ACTIVE after X has been recorded.
-      This is a causal entailment diagnosed post-hoc, not enforced at emit.
-      Implemented in violation_pxa_em_entailment() (cross_machine_invariants.py).
+      This is a causal entailment, not enforced at emit. Enforced on the
+      receive path via ThreatTerminationBranchNode (RSH-03-002). Diagnostic
+      check: violation_pxa_em_entailment() (composite_state_invariants.py);
+      post-cascade caller: PxaEmInvariantDiagnosticNode (CONCERN-3008,
+      issue #3115).
     testable: true
     preconditions:
     - description: A PXA state and an EM state are both available for the same case
@@ -2450,9 +2488,11 @@ groups:
     rationale: >-
       Same causal logic as CSB-18-002 and CSB-18-003. The A event (attacks
       observed) triggers embargo termination; EM cannot remain ACTIVE after A
-      has been recorded. This is a causal entailment diagnosed post-hoc, not
-      enforced at emit.
-      Implemented in violation_pxa_em_entailment() (cross_machine_invariants.py).
+      has been recorded. This is a causal entailment, not enforced at emit.
+      Enforced on the receive path via ThreatTerminationBranchNode (RSH-03-003).
+      Diagnostic check: violation_pxa_em_entailment() (composite_state_invariants.py);
+      post-cascade caller: PxaEmInvariantDiagnosticNode (CONCERN-3008,
+      issue #3115).
     testable: true
     preconditions:
     - description: A PXA state and an EM state are both available for the same case
@@ -2462,3 +2502,80 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: CSB-18-002
+- id: CSB-19
+  title: CS Ordering Invariants Under Out-of-Order Ledger Delivery
+  description: Normative requirements for how CS ordering invariants interact
+    with the ADR-0037 out-of-order ledger entry buffer. Clarifies when invariant
+    guards are evaluated relative to buffer receipt and buffer drain.
+  specs:
+  - id: CSB-19-001
+    priority: MUST
+    kind: protocol
+    statement: >-
+      CS ordering invariants (ephemeral-state guard, history-prefix validity,
+      CP-before-ET ordering) MUST be evaluated at buffer-drain time — that is,
+      against the causal-order replay produced by the ADR-0037 gap buffer —
+      not at the time of original out-of-order receipt.
+    rationale: >-
+      An out-of-order `Announce(CaseLedgerEntry)` carrying a CS update is
+      buffered by `BufferOutOfOrderEntryNode` before any domain effects are
+      applied; the CS state machine is not touched at buffer-receipt time.
+      When the gap fills, the buffer drain re-runs the full announce receive
+      BT on each buffered entry in log_index order (ADR-0037, CLP-14-001),
+      so CS guards see the entries in correct causal sequence. Evaluating
+      guards at original receipt would produce false violations whenever the
+      predecessor CS entry has not yet arrived.
+    adr:
+    - ADR-0037
+    - ADR-0079
+    relationships:
+    - rel_type: depends_on
+      spec_id: CSB-12-001
+    lint_suppress:
+    - missing_story_reference
+  - id: CSB-19-002
+    priority: MUST_NOT
+    kind: protocol
+    statement: >-
+      A buffered out-of-order CS ledger entry MUST NOT trigger an ephemeral-state
+      violation or history-prefix validation failure at the time it is buffered.
+      Such checks MUST be deferred until the entry is replayed in causal order
+      during buffer drain.
+    rationale: >-
+      An ephemeral-state entry (e.g., a pX-state CaseStatus arriving before its
+      P-state predecessor) is structurally valid in isolation; the violation
+      would only be real if the predecessor never arrives. Flagging it at buffer
+      time produces a false positive and may cause the entry to be incorrectly
+      rejected, breaking convergence.
+    relationships:
+    - rel_type: refines
+      spec_id: CSB-19-001
+    lint_suppress:
+    - missing_story_reference
+  - id: CSB-19-003
+    priority: MUST
+    kind: protocol
+    statement: >-
+      The CP-before-ET ordering constraint (CSB-12-001: CS→P MUST be recorded
+      before ET is emitted) is preserved under out-of-order ledger delivery
+      because the CaseActor commits entries in causal order (CLP-14-001). The
+      P-state ledger entry always carries a lower log_index than the ET entry
+      that follows it; the buffer drain therefore always processes P before ET
+      when both are buffered.
+    rationale: >-
+      CSB-12-001 is enforced at the CaseActor write-side: the CaseActor commits
+      the P-state entry before committing the ET entry. This means the P-state
+      entry's log_index is strictly lower than the ET entry's log_index. The
+      ADR-0037 buffer drains in log_index order, so the constraint cannot be
+      violated by reordered delivery alone. No receiver-side re-enforcement
+      of the temporal constraint is required; the causal order in the ledger
+      is sufficient.
+    relationships:
+    - rel_type: refines
+      spec_id: CSB-19-001
+    - rel_type: depends_on
+      spec_id: CSB-12-001
+    - rel_type: depends_on
+      spec_id: CLP-14-001
+    lint_suppress:
+    - missing_story_reference

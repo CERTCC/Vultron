@@ -19,14 +19,17 @@ Three composable precondition guards (RSH-05, ADR-0061, ISSUE-2256):
 
 1. ``FilterCsEmDimensionNode``  — adjudicates EM; initialises the tick
    accumulator; clears all per-tick BB keys (BT-17-003).
-2. ``FilterCsPxaDimensionNode`` — adjudicates PXA; reads+updates the
-   accumulator written by the EM node.
+2. ``FilterCsPxaDimensionNode`` — adjudicates PXA; reads and explicitly
+   writes back the accumulator via a dual-alias output port (#2706).
 3. ``FinalizeCsFilterNode``     — combines results, checks whole-refusal,
    and publishes ``BB_CASE_STATUS_DIM_FILTER`` /
    ``BB_LEDGER_PAYLOAD_OBJECT_OVERRIDE``.
 
-Each dimension guard always returns SUCCESS; only ``FinalizeCsFilterNode``
-can return FAILURE (whole-refusal — nothing new accepted).
+``FilterCsEmDimensionNode`` returns FAILURE when the asserted status cannot
+be resolved (unresolvable → guard aborts before GuardedCommit, CLP-10-009).
+``FilterCsPxaDimensionNode`` always returns SUCCESS.  Only
+``FinalizeCsFilterNode`` can return FAILURE (whole-refusal — nothing new
+accepted).
 """
 
 import logging
@@ -59,28 +62,26 @@ BB_CASE_STATUS_DIM_FILTER = "append_case_status_dim_filter"
 #: within a single tick.  Not for external consumption.
 _BB_CS_FILTER_ACC = "cs_dim_filter_accumulator"
 
+#: Dual-alias write name for the accumulator.  py_trees forbids the same
+#: logical port name from appearing in both input_ports() and output_ports()
+#: of the same node, so FilterCsPxaDimensionNode uses this distinct logical
+#: name mapped to the same physical key ``/{_BB_CS_FILTER_ACC}`` for its
+#: output port (#2706).
+_BB_CS_FILTER_ACC_WRITE = "cs_dim_filter_accumulator_write"
 
-class FilterCsEmDimensionNode(DataLayerConditionWithPorts):
-    """Adjudicates the EM dimension of a received CaseStatus (RSH-05, ISSUE-2256).
 
-    Read-only precondition guard (CLP-10-006).  Initialises the per-tick
-    accumulator and evaluates whether the asserted EM transition is acceptable.
-    Refused EM is carried forward (current value); accepted EM passes through.
+class _CsStatusGuardBase(DataLayerConditionWithPorts):
+    """Shared init and _resolve_asserted for CS status guard nodes.
 
-    Also clears ``BB_CASE_STATUS_DIM_FILTER`` and
-    ``BB_LEDGER_PAYLOAD_OBJECT_OVERRIDE`` unconditionally at tick start so
-    that no prior execution's values leak into this tick (BT-17-003).
-
-    Always returns SUCCESS — individual dimension refusal is not a tree failure;
-    ``FinalizeCsFilterNode`` decides whole-refusal.
-
-    Must run before ``FilterCsPxaDimensionNode`` and ``FinalizeCsFilterNode``
-    in the precondition_guards sequence.
+    Subclasses accept ``(case_id, status_id, status_obj_fallback, name)`` and
+    can resolve the asserted :class:`~vultron.core.models.case_status.CaseStatus`
+    from the DataLayer, falling back to ``status_obj_fallback`` when not found.
+    Private; not part of the public API.
     """
 
     def __init__(
         self,
-        case_id: str,
+        case_id: str | None,
         status_id: str,
         status_obj_fallback: PersistableModel | None = None,
         name: str | None = None,
@@ -89,6 +90,66 @@ class FilterCsEmDimensionNode(DataLayerConditionWithPorts):
         self.case_id = case_id
         self.status_id = status_id
         self.status_obj_fallback = status_obj_fallback
+
+    def _resolve_case(self) -> VulnerabilityCase | None:
+        """Resolve the VulnerabilityCase from the DataLayer (AC-3, #2701).
+
+        Returns None when case_id is absent or the case is not found.
+        Callers must invoke _require_datalayer() before calling this.
+        """
+        assert self.datalayer is not None
+        if not self.case_id:
+            return None
+        result = self.datalayer.read_case(self.case_id)
+        # Defensive isinstance: guards against misbehaving adapter stubs that
+        # bypass read_case()'s internal type check (the annotation is not
+        # enforced at runtime).
+        if isinstance(result, VulnerabilityCase):
+            return result
+        if result is not None:
+            logger.warning(
+                "%s: read_case(%r) returned unexpected type %s; treating as not found",
+                self.__class__.__name__,
+                self.case_id,
+                type(result).__name__,
+            )
+        return None
+
+    def _resolve_asserted(self) -> CaseStatus | None:
+        assert self.datalayer is not None
+        obj = self.datalayer.read(self.status_id)
+        if isinstance(obj, CaseStatus):
+            return obj
+        obj = self.status_obj_fallback
+        return obj if isinstance(obj, CaseStatus) else None
+
+
+class FilterCsEmDimensionNode(_CsStatusGuardBase):
+    """Adjudicates the EM dimension of a received CaseStatus (RSH-05, ISSUE-2256).
+
+    Read-only precondition guard (CLP-10-006).  Initialises the per-tick
+    accumulator and evaluates whether the asserted EM transition is acceptable.
+    Refused EM is carried forward (current value); accepted EM passes through.
+
+    Also clears ``BB_CASE_STATUS_DIM_FILTER`` unconditionally at tick start
+    so that no prior execution's value leaks into this tick (BT-17-003).
+    ``BB_LEDGER_PAYLOAD_OBJECT_OVERRIDE`` is solely owned by
+    :class:`FinalizeCsFilterNode`, which clears it on every exit path.
+
+    Returns SUCCESS when the status can be resolved and EM adjudication runs.
+    Returns FAILURE when:
+
+    - The case is not found in the DataLayer — the tree must not commit a
+      ledger entry for an unresolvable case (CLP-10-009, #2710).
+    - The asserted status cannot be resolved from the DataLayer or the
+      fallback (CLP-10-009, #2704).
+
+    Individual EM dimension refusal is not a tree failure; ``FinalizeCsFilterNode``
+    decides whole-refusal.
+
+    Must run before ``FilterCsPxaDimensionNode`` and ``FinalizeCsFilterNode``
+    in the precondition_guards sequence.
+    """
 
     @classmethod
     def output_ports(cls) -> dict[str, PortInformation]:
@@ -99,9 +160,6 @@ class FilterCsEmDimensionNode(DataLayerConditionWithPorts):
             BB_CASE_STATUS_DIM_FILTER: PortInformation(
                 data_type=object, required=False
             ),
-            BB_LEDGER_PAYLOAD_OBJECT_OVERRIDE: PortInformation(
-                data_type=object, required=False
-            ),
         }
 
     @classmethod
@@ -109,32 +167,31 @@ class FilterCsEmDimensionNode(DataLayerConditionWithPorts):
         return {
             _BB_CS_FILTER_ACC: f"/{_BB_CS_FILTER_ACC}",
             BB_CASE_STATUS_DIM_FILTER: f"/{BB_CASE_STATUS_DIM_FILTER}",
-            BB_LEDGER_PAYLOAD_OBJECT_OVERRIDE: f"/{BB_LEDGER_PAYLOAD_OBJECT_OVERRIDE}",
         }
 
     def _clear(self) -> None:
         self._set_output(_BB_CS_FILTER_ACC, None)
         self._set_output(BB_CASE_STATUS_DIM_FILTER, None)
-        self._set_output(BB_LEDGER_PAYLOAD_OBJECT_OVERRIDE, None)
-
-    def _resolve_asserted(self) -> CaseStatus | None:
-        assert self.datalayer is not None
-        obj = self.datalayer.read(self.status_id)
-        if isinstance(obj, CaseStatus):
-            return obj
-        obj = self.status_obj_fallback
-        return obj if isinstance(obj, CaseStatus) else None
+        # BB_LEDGER_PAYLOAD_OBJECT_OVERRIDE is FinalizeCsFilterNode's key —
+        # do not zero it here (CONCERN-2711, #2711).
 
     def update(self) -> Status:
         self._clear()  # BT-17-003
 
+        if not self.case_id:
+            return Status.SUCCESS
         if (f := self._require_datalayer()) is not None:
             return f
         assert self.datalayer is not None
 
-        case = self.datalayer.read(self.case_id)
-        if not isinstance(case, VulnerabilityCase):
-            return Status.SUCCESS
+        case = self._resolve_case()
+        if case is None:
+            self.feedback_message = (
+                f"Case '{self.case_id}' not found in DataLayer;"
+                " aborting before GuardedCommit (CLP-10-009, #2710)"
+            )
+            self.logger.warning("%s: %s", self.name, self.feedback_message)
+            return Status.FAILURE
 
         try:
             current = case.current_status
@@ -145,7 +202,13 @@ class FilterCsEmDimensionNode(DataLayerConditionWithPorts):
 
         asserted = self._resolve_asserted()
         if asserted is None:
-            return Status.SUCCESS
+            self.logger.warning(
+                "%s: status '%s' unresolvable (not in DataLayer, no fallback);"
+                " aborting before GuardedCommit (CLP-10-009)",
+                self.name,
+                self.status_id,
+            )
+            return Status.FAILURE
 
         acc: dict[str, Any] = {
             "status_id": self.status_id,
@@ -179,7 +242,14 @@ class FilterCsPxaDimensionNode(DataLayerConditionWithPorts):
 
     Read-only precondition guard (CLP-10-006).  Reads the per-tick accumulator
     written by :class:`FilterCsEmDimensionNode`, evaluates whether the asserted
-    PXA state is a monotone forward move, and updates the accumulator.
+    PXA state is a monotone forward move, and writes the updated accumulator
+    back via an explicit ``_set_output`` call.
+
+    The write-back uses a dual-alias output port (``_BB_CS_FILTER_ACC_WRITE``)
+    mapped to the same physical blackboard key as the input port
+    (``_BB_CS_FILTER_ACC``).  This satisfies the py_trees constraint that
+    forbids the same logical port name from appearing in both ``input_ports()``
+    and ``output_ports()`` of the same node (#2706).
 
     Always returns SUCCESS.  Must run after ``FilterCsEmDimensionNode`` and
     before ``FinalizeCsFilterNode`` in the precondition_guards sequence.
@@ -198,16 +268,22 @@ class FilterCsPxaDimensionNode(DataLayerConditionWithPorts):
         }
 
     @classmethod
+    def output_ports(cls) -> dict[str, PortInformation]:
+        return {
+            _BB_CS_FILTER_ACC_WRITE: PortInformation(
+                data_type=object, required=False
+            ),
+        }
+
+    @classmethod
     def _domain_port_remappings(cls) -> dict[str, str]:
         return {
             _BB_CS_FILTER_ACC: f"/{_BB_CS_FILTER_ACC}",
+            # Dual-alias: different logical name, same physical key (#2706).
+            _BB_CS_FILTER_ACC_WRITE: f"/{_BB_CS_FILTER_ACC}",
         }
 
     def update(self) -> Status:
-        # The accumulator is a mutable dict stored by reference on the
-        # blackboard.  Mutating it in-place propagates to FinalizeCsFilterNode
-        # without requiring a separate output port (which py_trees forbids from
-        # overlapping with input ports).
         acc = self._try_get_input(_BB_CS_FILTER_ACC)
         if not isinstance(acc, dict):
             return Status.SUCCESS
@@ -217,6 +293,10 @@ class FilterCsPxaDimensionNode(DataLayerConditionWithPorts):
 
         current_pxa = current.pxa.state
         asserted_pxa = asserted.pxa.state
+        # Received-side: intentionally uses the weaker monotone check (RSH-05).
+        # A remote peer may have skipped steps between messages; strict
+        # single-step adjacency (is_valid_pxa_transition) applies only to
+        # local write nodes (CSB-16-002).
         if asserted_pxa != current_pxa and not is_monotonic_pxa_forward(
             current_pxa, asserted_pxa
         ):
@@ -230,6 +310,7 @@ class FilterCsPxaDimensionNode(DataLayerConditionWithPorts):
                 acc.get("status_id", "?"),
             )
 
+        self._set_output(_BB_CS_FILTER_ACC_WRITE, acc)
         return Status.SUCCESS
 
 
@@ -285,13 +366,17 @@ class FinalizeCsFilterNode(DataLayerConditionWithPorts):
     def update(self) -> Status:
         acc = self._try_get_input(_BB_CS_FILTER_ACC)
         if not isinstance(acc, dict):
-            return Status.SUCCESS  # no filtering in progress
+            # No filtering in progress — clear stale override from a prior tick
+            # (sole-owner clear, BT-17-003, CONCERN-2711).
+            self._set_output(BB_LEDGER_PAYLOAD_OBJECT_OVERRIDE, None)
+            return Status.SUCCESS
 
         refused: list[str] = acc["refused"]
         if not refused:
-            return (
-                Status.SUCCESS
-            )  # all dimensions accepted — no override needed
+            # All dimensions accepted — no override needed; clear stale value
+            # (sole-owner clear, BT-17-003, CONCERN-2711).
+            self._set_output(BB_LEDGER_PAYLOAD_OBJECT_OVERRIDE, None)
+            return Status.SUCCESS
 
         current: CaseStatus = acc["current"]
         asserted: CaseStatus = acc["asserted"]
@@ -312,6 +397,9 @@ class FinalizeCsFilterNode(DataLayerConditionWithPorts):
                 " and no other dimension carries new state"
             )
             self.logger.info("%s: %s", self.name, self.feedback_message)
+            # Sole-owner clear: no stale override must survive this tick
+            # (BT-17-003, CONCERN-2711).
+            self._set_output(BB_LEDGER_PAYLOAD_OBJECT_OVERRIDE, None)
             return Status.FAILURE
 
         self._set_output(
@@ -328,7 +416,7 @@ class FinalizeCsFilterNode(DataLayerConditionWithPorts):
                 "object_id": status_id,
                 "producer_type": self.__class__.__name__,
                 "fields": {
-                    "emState": str(filtered.em.state),
+                    "emState": filtered.em.state.name,
                     "pxaState": filtered.pxa.state.name,
                 },
             },

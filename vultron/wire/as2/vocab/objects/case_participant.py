@@ -40,6 +40,10 @@ from vultron.core.models.participant_status import (
     coerce_cvd_roles,
     coerce_em_consent_state,
 )
+from vultron.core.predicates.roles import (
+    has_deployer_role,
+    has_vendor_role,
+)
 from vultron.core.states.rm import RM, is_valid_rm_transition
 from vultron.enums.roles import CVDRole, serialize_roles, validate_roles
 from vultron.core.models.base import NonEmptyString
@@ -143,9 +147,9 @@ class as_CaseParticipant(VultronAS2Object):
             return self
 
         if hasattr(self.attributed_to, "name"):
-            self.name = self.attributed_to.name
+            object.__setattr__(self, "name", self.attributed_to.name)
         else:
-            self.name = str(self.attributed_to)
+            object.__setattr__(self, "name", str(self.attributed_to))
 
         return self
 
@@ -156,26 +160,21 @@ class as_CaseParticipant(VultronAS2Object):
             return self
 
         # participant status is empty, so initialize it with a default status
-        self.participant_statuses = [
-            as_ParticipantStatus(
-                context=self.context or self.id_,
-                attributed_to=self.attributed_to,
-                em_consent_state=coerce_em_consent_state(
-                    self.embargo_consent_state
+        object.__setattr__(
+            self,
+            "participant_statuses",
+            [
+                as_ParticipantStatus(
+                    context=self.context or self.id_,
+                    attributed_to=self.attributed_to,
+                    em_consent_state=coerce_em_consent_state(
+                        self.embargo_consent_state
+                    ),
+                    cvd_role=coerce_cvd_roles(self.case_roles),
                 ),
-                cvd_role=coerce_cvd_roles(self.case_roles),
-            ),
-        ]
-        return self
-
-    def _sync_latest_status_metadata(self) -> None:
-        if not self.participant_statuses:
-            return
-        latest = self.participant_statuses[-1]
-        latest.cvd_role = coerce_cvd_roles(self.case_roles)
-        latest.em_consent_state = coerce_em_consent_state(
-            self.embargo_consent_state
+            ],
         )
+        return self
 
     @property
     def participant_status(self) -> as_ParticipantStatus | None:
@@ -206,11 +205,12 @@ class as_CaseParticipant(VultronAS2Object):
 
         Returns True when the status was appended, False when blocked.
         """
-        current = (
-            self.participant_statuses[-1].rm_state
+        latest = (
+            self.participant_statuses[-1]
             if self.participant_statuses
-            else RM.START
+            else None
         )
+        current = latest.rm_state if latest is not None else RM.START
         if not is_valid_rm_transition(current, rm_state):
             logger.warning(
                 "Invalid RM transition %s → %s for participant %s; skipping",
@@ -219,80 +219,36 @@ class as_CaseParticipant(VultronAS2Object):
                 self.id_,
             )
             return False
+        roles = coerce_cvd_roles(self.case_roles)
+        # Carry the vendor and deployer paths forward, mirroring the core
+        # mutator.  On the wire branch omission *drops* the dimension rather
+        # than rewinding it (`as_ParticipantStatus` has no role-seeding
+        # validator), which is strictly more lossy than the core bug #3134
+        # names.  Carry a path only while its role is still held: `cvd_role` is
+        # recomputed from the current roles, and ADR-0075 says a non-VENDOR has
+        # no vendor path and a non-DEPLOYER no deployer path.
         self.participant_statuses.append(
             as_ParticipantStatus(
                 attributed_to=actor,
                 context=context,
                 rm_state=rm_state,
+                vf_state=(
+                    latest.vf_state
+                    if latest is not None and has_vendor_role(roles)
+                    else None
+                ),
+                d_state=(
+                    latest.d_state
+                    if latest is not None and has_deployer_role(roles)
+                    else None
+                ),
                 em_consent_state=coerce_em_consent_state(
                     self.embargo_consent_state
                 ),
-                cvd_role=coerce_cvd_roles(self.case_roles),
+                cvd_role=roles,
             )
         )
         return True
-
-    def add_role(
-        self, role: CVDRole, raise_when_present: bool = False
-    ) -> None:
-        """Add a role to the participant.
-
-        Idempotent when role already exists. Raises ``KeyError`` when
-        ``raise_when_present=True`` and the role is already present.
-
-        Args:
-            role: CVD role to add.
-            raise_when_present: when True, raise KeyError if role already held.
-
-        Raises:
-            KeyError: when raise_when_present is True and role already present.
-        """
-        roles = set(self.case_roles)
-        if role not in roles:
-            roles.add(role)
-        else:
-            logger.info(
-                "Attempted to add role %s to participant %s, but role was already present",
-                role,
-                self,
-            )
-            if raise_when_present:
-                raise KeyError(
-                    f"Role {role} was already present in participant.case_roles"
-                )
-        self.case_roles = list(roles)
-        self._sync_latest_status_metadata()
-
-    def remove_role(
-        self, role: CVDRole, raise_when_missing: bool = False
-    ) -> None:
-        """Remove a role from the participant.
-
-        Idempotent when role does not exist. Raises ``KeyError`` when
-        ``raise_when_missing=True`` and the role is not held.
-
-        Args:
-            role: CVD role to remove.
-            raise_when_missing: when True, raise KeyError if role not present.
-
-        Raises:
-            KeyError: when raise_when_missing is True and role not present.
-        """
-        roles = set(self.case_roles)
-        if role in roles:
-            roles.remove(role)
-        else:
-            logger.info(
-                "Attempted to remove role %s from participant %s, but role was not present",
-                role,
-                self,
-            )
-            if raise_when_missing:
-                raise KeyError(
-                    f"Role {role} was not present to delete from participant.case_roles"
-                )
-        self.case_roles = list(roles)
-        self._sync_latest_status_metadata()
 
     def has_role(self, role: CVDRole) -> bool:
         """Return True when the participant holds the given role."""

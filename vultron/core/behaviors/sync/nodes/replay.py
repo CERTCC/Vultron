@@ -178,7 +178,9 @@ class CollectAndSortCaseLedgerEntriesNode(DataLayerActionWithPorts):
     @classmethod
     def output_ports(cls) -> dict[str, PortInformation]:
         return {
-            "replay_entry": PortInformation(data_type=object, required=True),
+            "replay_entry": PortInformation(
+                data_type=VultronCaseLedgerEntry, required=True
+            ),
             "replay_peer_id": PortInformation(data_type=str, required=True),
             "replay_case_ledger_entries": PortInformation(
                 data_type=object, required=True
@@ -278,7 +280,7 @@ class SendMissingEntriesNode(DataLayerActionWithPorts):
         ports = super().input_ports()
         ports["case_actor_id"] = PortInformation(data_type=str, required=True)
         ports["replay_entry"] = PortInformation(
-            data_type=object, required=True
+            data_type=VultronCaseLedgerEntry, required=True
         )
         ports["replay_peer_id"] = PortInformation(data_type=str, required=True)
         ports["replay_case_ledger_entries"] = PortInformation(

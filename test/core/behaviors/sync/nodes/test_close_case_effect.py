@@ -19,9 +19,10 @@ from vultron.core.behaviors.sync.nodes.close_case_effect import (
     ApplyCloseCaseFromLedgerNode,
 )
 from vultron.core.models.case_ledger import HashChainLedgerRecord
+from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.states.rm import RM
-from vultron.wire.as2.vocab.objects.case_participant import as_CaseParticipant
-from vultron.wire.as2.vocab.objects.vulnerability_case import (
+from vultron.core.models.case import VulnerabilityCase
+from vultron.wire.as2.vocab.objects.vulnerability_case import (  # noqa: F401
     as_VulnerabilityCase,
 )
 
@@ -44,12 +45,12 @@ def _make_close_case_entry(actor_id: str = DEPARTING_ACTOR_ID):
 
 @pytest.fixture
 def case_with_participant(datalayer):
-    participant = as_CaseParticipant(
+    participant = CaseParticipant(
         id_=DEPARTING_PARTICIPANT_ID,
         attributed_to=DEPARTING_ACTOR_ID,
         context=CASE_ID,
     )
-    case = as_VulnerabilityCase(
+    case = VulnerabilityCase(
         id_=CASE_ID, name="Test Case", attributed_to=OWNER_ACTOR_ID
     )
     case.add_participant(participant)

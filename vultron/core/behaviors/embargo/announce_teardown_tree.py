@@ -292,7 +292,13 @@ def reject_invite_to_embargo_tree(
         Root node of the ``RejectInviteToEmbargoBT`` Sequence.
     """
     effect_nodes: list[py_trees.behaviour.Behaviour] = [
-        OptionalLookupParticipantNode(case_id=case_id),
+        # The DECLINE belongs to the actor who rejected, not to whoever's
+        # replica this is: a Reject routes through the CaseActor (PCR-08), so
+        # leaving target_actor_id unset made the node fall back to the BT
+        # execution actor and decline the CaseActor's own consent instead.
+        OptionalLookupParticipantNode(
+            case_id=case_id, target_actor_id=rejecting_actor_id
+        ),
         UpdateParticipantEmbargoPecNode(pec_trigger=PEC_Trigger.DECLINE),
     ]
     if embargo_id is not None:

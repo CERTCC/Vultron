@@ -93,7 +93,7 @@ class TestReadEmStateNode:
             actor_id="https://test.example/api/v2/actors/test-actor",
         )
         case, _ = make_case_and_embargo("rsn3", em_state=EM.NONE)
-        case.active_embargo = None
+        case.set_embargo(None)
         dl.create(case)
         setup_blackboard(dl)
 
@@ -148,7 +148,7 @@ class TestReadEmStateNode:
             side_effect=ValueError("no materialized CaseStatus")
         )
         mock_dl = MagicMock()
-        mock_dl.read.return_value = mock_case
+        mock_dl.read_case.return_value = mock_case
 
         result_out: dict = {}
         node = ReadEmStateNode(

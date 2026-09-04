@@ -40,7 +40,7 @@ class as_Object(as_Base, VultronObject):
     # stay lenient for inbound AS2 data (ARCH-12-002).  VultronObject now
     # carries ValidatedAssignmentMixin, so without this override the flag
     # propagates here via the cross-branch MRO.
-    model_config = ConfigDict(validate_assignment=False)
+    model_config = ConfigDict(validate_assignment=False, frozen=True)
 
     # Wire-branch types must NOT self-register in CORE_TYPE_MAP (issue #2416).
     # Setting False here propagates to all as_Object subclasses via inheritance,

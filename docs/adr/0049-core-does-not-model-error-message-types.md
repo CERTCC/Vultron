@@ -148,6 +148,16 @@ the non-thing, not in building it.
   rejects unprocessable inbound with no sender notification. Whether the
   protocol needs a negative-acknowledgment / error-reply facet is a separate
   design question, not a port of `FollowUpOnErrorMessage`.
+  **Discharged by ADR-0080 (2026-08-31), CONCERN-1880.** That Concern is the
+  Concern this ADR asked to be filed, and the deferral is now resolved with a
+  recorded *yes*: an authenticated sender whose message fails after
+  authentication receives `Create(ProcessingFault)` (ASK-07-001). This ADR's own
+  decision is **unchanged** — core still does not model the RE/EE/CE/GE/GI
+  message family, and `create_inbound_error_followup_tree` is still not created.
+  One dedicated fault object type carried on `Create` is not that family, and it
+  was designed on its own merits (from the need to close an outstanding ask
+  promptly rather than let it expire) rather than reverse-derived from
+  `FollowUpOnErrorMessage`, which is what this ADR required of any later design.
 - BT-18-004 (call-out points are injection seams via backend factories) and
   BT-16-001 (core must not import from `vultron/demo/`) informed the rejection
   of the seam-stub option.

@@ -15,17 +15,20 @@
 
 """VFD role-guard condition nodes for the add-participant-status trigger.
 
-Nodes enforce CVD protocol correctness for self-reported VFD transitions
-(CSB-15-001, CSB-15-002) and received-side status authorization (RSH-01-002):
+Nodes enforce CVD protocol correctness for received-side status authorization
+(RSH-01-002):
 
-- :class:`CheckVendorRoleNode` — gates f→F (vfd_state=VFd): actor MUST hold
-  ``CVDRole.VENDOR``
+- :class:`CheckVendorRoleNode` — gates vf→VF (vf_state=Vf): actor MUST hold
+  ``CVDRole.VENDOR`` (CSB-15-001)
 - :class:`CheckDeployerRoleNode` — gates d→D (vfd_state=VFD): actor MUST hold
-  ``CVDRole.DEPLOYER``
-- :class:`CheckNotSoleObserverVfdNode` — gates v→V (vfd_state=Vfd): actor
+  ``CVDRole.DEPLOYER`` (CSB-15-002; causal-gate enforcement pending #2593)
+- :class:`CheckNotSoleObserverVfdNode` — gates v→V (vf_state=Vf): actor
   MUST NOT hold ``CVDRole.OBSERVER`` as their only role (CM-25-005)
 - :class:`CheckIsCaseOwnerNode` — hard bypass in ``StatusAdoptionGate``:
   sender MUST hold ``CVDRole.CASE_OWNER`` (RSH-01-002)
+
+On-behalf assertion guards (ADR-0084) live in :mod:`on_behalf_guards` and are
+re-exported here for backward compatibility.
 """
 
 import logging
@@ -36,9 +39,14 @@ from py_trees.ports import NoDataAvailable, PortInformation
 from vultron.core.behaviors.helpers import (
     DataLayerConditionWithPorts,
 )
-from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.ports.case_persistence import CasePersistence
+from vultron.core.predicates.roles import (
+    has_case_owner_role,
+    has_deployer_role,
+    has_vendor_role,
+    is_sole_observer,
+)
 from vultron.enums.roles import CVDRole
 
 logger = logging.getLogger(__name__)
@@ -55,11 +63,9 @@ def _resolve_actor_roles(
     Returns ``None`` when the case or participant record cannot be resolved;
     the calling node should return ``Status.FAILURE`` in that case.
     """
-    case = datalayer.read(case_id)
-    if not isinstance(case, VulnerabilityCase):
-        logger.warning(
-            "%s: case '%s' not found or wrong type", node_name, case_id
-        )
+    case = datalayer.read_case(case_id)
+    if case is None:
+        logger.warning("%s: case '%s' not found", node_name, case_id)
         return None
 
     participant_id = case.actor_participant_index.get(actor_id)
@@ -82,7 +88,7 @@ def _resolve_actor_roles(
 
 
 class CheckVendorRoleNode(DataLayerConditionWithPorts):
-    """Gate f→F (vfd_state=VFd): actor MUST hold CVDRole.VENDOR.
+    """Gate vf→VF: actor MUST hold CVDRole.VENDOR.
 
     Returns ``SUCCESS`` when the executing actor holds ``CVDRole.VENDOR`` in
     their ``CaseParticipant.roles`` for the given case.  Returns ``FAILURE``
@@ -117,7 +123,7 @@ class CheckVendorRoleNode(DataLayerConditionWithPorts):
             )
             return Status.FAILURE
 
-        if CVDRole.VENDOR not in roles:
+        if not has_vendor_role(roles):
             self.feedback_message = (
                 f"Actor '{self._actor_id}' does not hold CVDRole.VENDOR"
                 f" — f→F (VFd) transition blocked (CSB-15-001)"
@@ -135,7 +141,7 @@ class CheckVendorRoleNode(DataLayerConditionWithPorts):
 
 
 class CheckDeployerRoleNode(DataLayerConditionWithPorts):
-    """Gate d→D (vfd_state=VFD): actor MUST hold CVDRole.DEPLOYER.
+    """Gate d→D: actor MUST hold CVDRole.DEPLOYER.
 
     Returns ``SUCCESS`` when the executing actor holds ``CVDRole.DEPLOYER`` in
     their ``CaseParticipant.roles`` for the given case.  A vendor-only actor
@@ -174,7 +180,7 @@ class CheckDeployerRoleNode(DataLayerConditionWithPorts):
             )
             return Status.FAILURE
 
-        if CVDRole.DEPLOYER not in roles:
+        if not has_deployer_role(roles):
             self.feedback_message = (
                 f"Actor '{self._actor_id}' does not hold CVDRole.DEPLOYER"
                 f" — d→D (VFD) transition blocked (CSB-15-002)"
@@ -192,7 +198,7 @@ class CheckDeployerRoleNode(DataLayerConditionWithPorts):
 
 
 class CheckNotSoleObserverVfdNode(DataLayerConditionWithPorts):
-    """Gate v→V (vfd_state=Vfd): actor MUST NOT hold OBSERVER as their only role.
+    """Gate v→V (vf_state=Vf): actor MUST NOT hold OBSERVER as their only role.
 
     Returns ``FAILURE`` when the actor's ``case_roles`` list is exactly
     ``[CVDRole.OBSERVER]``, blocking the VFD vendor-awareness transition.
@@ -230,7 +236,7 @@ class CheckNotSoleObserverVfdNode(DataLayerConditionWithPorts):
             )
             return Status.FAILURE
 
-        if roles == [CVDRole.OBSERVER]:
+        if is_sole_observer(roles):
             self.feedback_message = (
                 f"Actor '{self._actor_id}' holds only CVDRole.OBSERVER"
                 f" — v→V (Vfd) transition blocked (CM-25-005)"
@@ -304,8 +310,8 @@ class CheckIsCaseOwnerNode(DataLayerConditionWithPorts):
             )
             return Status.FAILURE
 
-        case = self.datalayer.read(case_id)
-        if not isinstance(case, VulnerabilityCase):
+        case = self.datalayer.read_case(case_id)
+        if case is None:
             self.logger.debug(
                 "%s: case '%s' not found or wrong type", self.name, case_id
             )
@@ -328,7 +334,7 @@ class CheckIsCaseOwnerNode(DataLayerConditionWithPorts):
             return Status.FAILURE
 
         roles = participant.roles if hasattr(participant, "roles") else []
-        if CVDRole.CASE_OWNER in roles:
+        if has_case_owner_role(roles):
             self.logger.debug(
                 "%s: sender '%s' IS CASE_OWNER for case '%s'",
                 self.name,

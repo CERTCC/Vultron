@@ -32,7 +32,7 @@ import logging
 import os
 import sys
 
-from vultron.core.states.cs import CS_vfd
+from vultron.core.states.cs import CS_vf
 from vultron.core.states.rm import RM
 from vultron.wire.as2.vocab.base.objects.activities.transitive import (
     as_Offer,
@@ -93,7 +93,7 @@ from vultron.demo.helpers.polling import (
     wait_for_contiguous_ledger_coverage,
     wait_for_event_type_in_ledger,
     wait_for_participant_rm_state,
-    wait_for_participant_vfd_state,
+    wait_for_participant_vf_state,
 )
 from vultron.demo.helpers.seeding import (
     get_actor_by_id,
@@ -228,6 +228,7 @@ def _phase_report_submission(
         receiver_client=c1_client,
         receiver=c1_in_c1,
         offer=offer,
+        timeout_seconds=60.0,
     )
 
     # Wait for initial participants (Finder + C1 + CaseActor).
@@ -254,6 +255,7 @@ def _phase_report_submission(
 
 
 def _phase_ownership_handoff(
+    finder_client: DataLayerClient,
     c1_client: DataLayerClient,
     c2_client: DataLayerClient,
     c1: as_Actor,
@@ -391,6 +393,24 @@ def _phase_ownership_handoff(
             client=c2_client,
             case_id=case.id_,
             expected_attributed_to=c2.id_,
+        )
+
+    # ADR-0053's own validation criterion, checked here as well as in
+    # fvcv-handoff: an actor outside the negotiation learns of the completed
+    # transfer from the ledger broadcast alone.  The Finder is neither the old
+    # nor the new owner, so its replica can only hold this entry if the CaseActor
+    # committed it and fanned out Announce(CaseLedgerEntry) to every participant
+    # (CM-21-007).  Read on the Finder's own container — reading it on C1's
+    # proves only that the offerer's replica caught up (EDF-06-002).
+    with demo_check(
+        "Finder replica received the ownership-transfer ledger entry"
+        " via Announce(CaseLedgerEntry) (CM-21-007, ADR-0053)"
+    ):
+        wait_for_event_type_in_ledger(
+            client=finder_client,
+            case_id=case.id_,
+            event_type="accept_case_ownership_transfer",
+            timeout_seconds=90.0,
         )
 
     logger.info(
@@ -716,30 +736,28 @@ def _phase_fix_lifecycle(
             case_id=case.id_,
         )
 
-        with demo_check(
-            "Vendor participant vfd_state transitions to VFd or VFD"
-        ):
-            wait_for_participant_vfd_state(
+        with demo_check("Vendor participant vf_state transitions to VF"):
+            wait_for_participant_vf_state(
                 client=vendor_client,
                 case_id=case.id_,
                 actor_id=vendor.id_,
-                expected_states={CS_vfd.VFd, CS_vfd.VFD},
+                expected_states={CS_vf.VF},
             )
 
         with demo_check(
             "Finder replica shows Vendor CS includes F (fix ready)"
         ):
-            wait_for_participant_vfd_state(
+            wait_for_participant_vf_state(
                 client=c1_client,
                 case_id=case.id_,
                 actor_id=vendor.id_,
-                expected_states={CS_vfd.VFd, CS_vfd.VFD},
+                expected_states={CS_vf.VF},
             )
-            wait_for_participant_vfd_state(
+            wait_for_participant_vf_state(
                 client=finder_client,
                 case_id=case.id_,
                 actor_id=vendor.id_,
-                expected_states={CS_vfd.VFd, CS_vfd.VFD},
+                expected_states={CS_vf.VF},
             )
             verify_fix_ready(
                 receiver_client=c1_client,
@@ -751,17 +769,17 @@ def _phase_fix_lifecycle(
         with demo_check(
             "Finder replica shows Vendor CS includes F (fix ready) — vendor stops at VFd"
         ):
-            wait_for_participant_vfd_state(
+            wait_for_participant_vf_state(
                 client=c1_client,
                 case_id=case.id_,
                 actor_id=vendor.id_,
-                expected_states={CS_vfd.VFd},
+                expected_states={CS_vf.VF},
             )
-            wait_for_participant_vfd_state(
+            wait_for_participant_vf_state(
                 client=finder_client,
                 case_id=case.id_,
                 actor_id=vendor.id_,
-                expected_states={CS_vfd.VFd},
+                expected_states={CS_vf.VF},
             )
             verify_fix_ready(
                 receiver_client=c1_client,
@@ -830,17 +848,17 @@ def _phase_publication(
             client=finder_client,
             case_id=case.id_,
         )
-        wait_for_participant_vfd_state(
+        wait_for_participant_vf_state(
             client=c1_client,
             case_id=case.id_,
             actor_id=vendor.id_,
-            expected_states={CS_vfd.VFd},
+            expected_states={CS_vf.VF},
         )
-        wait_for_participant_vfd_state(
+        wait_for_participant_vf_state(
             client=finder_client,
             case_id=case.id_,
             actor_id=vendor.id_,
-            expected_states={CS_vfd.VFd},
+            expected_states={CS_vf.VF},
         )
         verify_publicly_disclosed(
             receiver_client=c1_client,
@@ -1064,6 +1082,7 @@ def run_fccv_handoff_demo(
         finder_in_finder = get_actor_by_id(finder_client, finder.id_)
 
         case = _phase_ownership_handoff(
+            finder_client=finder_client,
             c1_client=c1_client,
             c2_client=c2_client,
             c1=c1,

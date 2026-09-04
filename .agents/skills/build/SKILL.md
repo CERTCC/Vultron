@@ -164,14 +164,28 @@ Invoke `deepen-context` with focus hints derived from the issue body
 
 2. Search `vultron/` and `test/` to confirm the current state.
 3. Do not assume missing functionality; verify in code.
-4. If a blocking prerequisite is discovered, create and wire it:
+4. If a blocking prerequisite is discovered, create and wire it. Inherit
+   the current task's milestone; if it has none, pick the best-fit one
+   (see `shared/issue-creation-requirements.md`):
 
    ```bash
+   TASK_TYPE_ID=$(bash .agents/skills/shared/board-id.sh issue-type Task)
+   MILESTONE_NUMBER=$(gh issue view "${ISSUE_NUMBER}" --repo CERTCC/Vultron \
+     --json milestone --jq '.milestone.number // ""')
+   # Determine parent epic from the current task's parent
+   EPIC_NUMBER=$(gh api graphql -f query='{
+     repository(owner:"CERTCC", name:"Vultron") {
+       issue(number: '"${ISSUE_NUMBER}"') { parent { number } }
+     }
+   }' --jq '.data.repository.issue.parent.number // ""')
+
    NEW_ISSUE=$(.agents/skills/manage-github-issue/manage_github_issue.sh \
      --title "<prerequisite title>" \
      --body "<description>" \
+     --issue-type-id "${TASK_TYPE_ID}" \
      --label "size:<S|M|L>" \
-     --parent <CURRENT_TASK_NUMBER>)
+     --parent "${EPIC_NUMBER:-${ISSUE_NUMBER}}" \
+     --milestone "${MILESTONE_NUMBER}")
    bash .agents/skills/shared/add-to-project.sh "${NEW_ISSUE}"
    ```
 
@@ -237,15 +251,23 @@ on what "done" means — loaded by `orient-agent` in Phase 1.
      exists under `test/core/use_cases/triggers/` (see
      `notes/triggers-test-coverage.md`).
 
-**Scope expansion judgment:** If implementing this task reveals adjacent work
-that clearly belongs with it, apply the following:
+**Scope expansion judgment:** If implementing this task reveals adjacent work,
+the default is to **fix it now** — FILE (keep a record) and DEFER (leave it for
+later) are separate decisions. Apply
+`.agents/skills/shared/completeness-doctrine.md`:
 
-- Would it require a new GitHub issue, a design decision, or an irreversible
-  change? → Ask the user if present. If unattended, make the best-judgment
-  call, record the rationale as a learning file in `plan/incoming/learnings/`,
-  and continue.
-- Trivially additive (clearly-missing test, obvious type annotation fix)?
-  → Just do it.
+- Not an "also" excursion (you can explain it and the task in one sentence
+  without "also") → just do it; no issue, the diff is the record.
+- An "also" excursion → fix it now **and** file an issue this PR closes
+  (`- Closes #N`, one-line "why"). Filing is not deferring.
+- Genuinely too big to finish now → defer only via Gate 1: file, present a
+  **measured remainder** in plain language, and get explicit approval. On
+  silence (unattended), **fix it now** — do not defer, and do not park the
+  rationale in a learning file as a substitute for doing or tracking the work.
+  Only second-order findings are eligible.
+- Inverts a premise the issue or its specs/ADRs rested on → Gate 2: explain the
+  overturned premise, ask if/what to file. On silence (unattended), **halt** —
+  leave the PR blocked rather than acting on the new premise unreviewed.
 
 ### Phase 6 — Validate
 
@@ -334,8 +356,11 @@ draft commit and use `git diff main...HEAD` normally.
    ```
 
 6. Run the **upward-reflection checklist** per
-   `.agents/skills/shared/upward-reflection.md`. Record each triggered signal
-   as a learning file. Do not write completion summaries here.
+   `.agents/skills/shared/upward-reflection.md` and **route** each triggered
+   item to the destination that file specifies (BW-07-004). Most route to a
+   GitHub issue or an in-session fix, not to a learning file. Do not write
+   completion summaries, and do not record decisions that were made, applied,
+   and shipped in this session (BW-07-008).
 
 7. Invoke `commit` if any learning files were created in `plan/incoming/learnings/`.
 

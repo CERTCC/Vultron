@@ -88,8 +88,8 @@ def _accepted_wire_patch(
     """Return the adjudicated dimension values keyed by their wire aliases.
 
     The canonical ledger's ``payload_snapshot['object']`` is the *sender's*
-    wire-shaped ``ParticipantStatus`` — flat ``rmState``/``vfdState``, nested
-    ``caseStatus``, plus ``@context``, ``emConsentState`` and ``cvdRole``.  The
+    wire-shaped ``ParticipantStatus`` — flat ``rmState``/``vfState``/``dState``,
+    nested ``caseStatus``, plus ``@context``, ``emConsentState`` and ``cvdRole``.  The
     override is therefore published as a **patch** rather than a replacement
     object: patching leaves the snapshot's shape exactly as the non-override
     path produces it and rewrites only what was adjudicated (RSH-05-004,
@@ -99,7 +99,7 @@ def _accepted_wire_patch(
     rendered = port.render(filtered)
     return {
         k: rendered[k]
-        for k in ("rmState", "vfdState", "caseStatus")
+        for k in ("rmState", "vfState", "dState", "caseStatus")
         if k in rendered
     }
 
@@ -143,7 +143,8 @@ def _significant_state(status: ParticipantStatus) -> tuple:
     case_status = status.case_status
     return (
         status.rm.state,
-        status.vfd.state,
+        None if status.vf is None else status.vf.state,
+        None if status.d is None else status.d.state,
         None if case_status is None else case_status.em.state,
         None if case_status is None else case_status.pxa.state,
         None if status.consent is None else status.consent.state,
@@ -160,8 +161,10 @@ def _dimension_state(status: ParticipantStatus, dimension: str) -> Any:
     """
     if dimension == "rm":
         return status.rm.state
-    if dimension == "vfd":
-        return status.vfd.state
+    if dimension == "vf":
+        return None if status.vf is None else status.vf.state
+    if dimension == "d":
+        return None if status.d is None else status.d.state
     if dimension == "pxa":
         return (
             None
@@ -381,7 +384,9 @@ class FilterParticipantStatusDimensionsNode(DataLayerConditionWithPorts):
             self._publish((), None)
             return Status.SUCCESS
 
-        refused, update_fields = _adjudicate_dimensions(current, asserted)
+        refused, update_fields = _adjudicate_dimensions(
+            current, asserted, roles=list(participant.case_roles)
+        )
         rm_anomaly = self._detect_rm_anomaly(
             refused, current.rm.state, asserted.rm.state
         )
@@ -436,8 +441,8 @@ class FilterParticipantStatusDimensionsNode(DataLayerConditionWithPorts):
             != _dimension_state(asserted, dim)
         ]
         self.logger.warning(
-            "%s: %s for participant '%s' (asserted rm=%s vfd=%s pxa=%s;"
-            " recording rm=%s vfd=%s pxa=%s) — RSH-05 partial accept",
+            "%s: %s for participant '%s' (asserted rm=%s vf=%s d=%s pxa=%s;"
+            " recording rm=%s vf=%s d=%s pxa=%s) — RSH-05 partial accept",
             self.name,
             (
                 f"rewrote dimension(s) {', '.join(rewritten)}"
@@ -448,14 +453,16 @@ class FilterParticipantStatusDimensionsNode(DataLayerConditionWithPorts):
             ),
             self.participant_id,
             asserted.rm.state,
-            asserted.vfd.state,
+            None if asserted.vf is None else asserted.vf.state,
+            None if asserted.d is None else asserted.d.state,
             (
                 None
                 if asserted.case_status is None
                 else asserted.case_status.pxa.state
             ),
             filtered.rm.state,
-            filtered.vfd.state,
+            None if filtered.vf is None else filtered.vf.state,
+            None if filtered.d is None else filtered.d.state,
             (
                 None
                 if filtered.case_status is None

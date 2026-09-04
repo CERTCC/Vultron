@@ -13,6 +13,7 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
+import json
 import logging
 from typing import cast
 
@@ -51,7 +52,7 @@ class SvcDeferCaseUseCase(SvcBTTriggerBase):
                 actor=self._actor_id,
                 to=[case_manager_id],
             )
-            self._captured["activity"] = activity_dict
+            self._captured["activity"] = json.loads(activity_dict)
             return [activity_id]
 
         return defer_case_trigger_bt(
