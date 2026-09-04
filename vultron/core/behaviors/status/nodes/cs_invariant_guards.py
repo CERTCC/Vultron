@@ -72,7 +72,6 @@ class CheckCsEphemeralStateNode(_CsStatusGuardBase):
 
     Returns SUCCESS when:
 
-    - The case is not found in the DataLayer.
     - No materialized :class:`CaseStatus` exists yet (first-ever status).
     - The asserted status is unresolvable (deferred to
       :class:`FilterCsEmDimensionNode`, which will abort with FAILURE).
@@ -80,7 +79,8 @@ class CheckCsEphemeralStateNode(_CsStatusGuardBase):
     - The asserted state satisfies the required-next-event constraint.
 
     Returns FAILURE when the current state is pX and the asserted PXA does
-    not have P=True.
+    not have P=True, or when the referenced case cannot be resolved
+    (Regime 1, ADR-0087; ``case_id`` absent is still a no-op SUCCESS).
 
     Must run before :class:`FilterCsEmDimensionNode` in ``precondition_guards``.
     Per issue #2524 AC-1, CSB-17-012.
@@ -92,11 +92,9 @@ class CheckCsEphemeralStateNode(_CsStatusGuardBase):
         if (f := self._require_datalayer()) is not None:
             return f
 
-        case = (
-            self._resolve_case()
-        )  # uses read_case() via _CsStatusGuardBase (AC-3, #2701)
-        if case is None:
-            return Status.SUCCESS
+        case, failure = self._require_case(self.case_id)
+        if failure is not None:
+            return failure  # Regime 1: case must exist (ADR-0087, #2701)
 
         try:
             current = case.current_status
@@ -164,11 +162,9 @@ class CheckCsHistoryPrefixNode(_CsStatusGuardBase):
         if (f := self._require_datalayer()) is not None:
             return f
 
-        case = (
-            self._resolve_case()
-        )  # uses read_case() via _CsStatusGuardBase (AC-3, #2701)
-        if case is None:
-            return Status.SUCCESS
+        case, failure = self._require_case(self.case_id)
+        if failure is not None:
+            return failure  # Regime 1: case must exist (ADR-0087, #2701)
 
         try:
             current = case.current_status

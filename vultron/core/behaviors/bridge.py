@@ -596,11 +596,29 @@ class BTBridge:
                 feedback_message=msg,
             )
         with _BT_GLOBAL_LOCK:
+            # Execution-scoped blackboard keys: each lives for exactly one BT
+            # execution and is reset to its pre-execution state in the finally
+            # block below, on EVERY outcome (SUCCESS, FAILURE, Sequence
+            # short-circuit, or exception).  The finally block is the single
+            # DRY teardown for anything that must not leak across executions —
+            # see the comment there for why it covers both resource release and
+            # cross-execution state hygiene (#3101).
             managed_keys = [
                 "datalayer",
                 "trigger_activity_factory",
                 "sync_port",
                 "wire_render_port",
+                # Owned by FinalizeCsFilterNode (add_case_status_tree), which
+                # clears it on its own no-op path.  But an earlier node in that
+                # memory=False Sequence can FAILURE-short-circuit before
+                # Finalize ever ticks (e.g. FilterCsEmDimensionNode aborting on
+                # a case that vanished mid-coordination), leaving the override
+                # stranded on the process-global blackboard for the next
+                # execution to misread (#3101).  Resetting it here at the
+                # execution boundary is the role-neutral backstop: no single
+                # node owns "clean up when the Sequence aborts", so the bridge
+                # does, exactly once, for every outcome.
+                "ledger_payload_object_override",
             ]
             storage = py_trees.blackboard.Blackboard.storage
             key_aliases: set[str] = set()
@@ -643,15 +661,27 @@ class BTBridge:
                 )
             finally:
                 # Restore managed blackboard keys to their pre-execution state.
-                # setup_tree() writes these keys to Blackboard.storage, which
-                # is process-global; without explicit cleanup the entries
-                # persist after execution, keeping SqliteDataLayer objects and
-                # TriggerActivityAdapter objects (both hold sqlite3 connections)
-                # alive until the next BT execution overwrites them.  That
-                # delayed release causes ResourceWarning: unclosed database
-                # when GC runs at an unpredictable moment — typically during
-                # the next test's SQL activity, which pytest promotes to a test
-                # failure via PytestUnraisableExceptionWarning (pytest 9.1.0+).
+                # Blackboard.storage is process-global, so anything setup_tree()
+                # or the ticked nodes write there outlives the execution unless
+                # reset here.  This single finally is the DRY teardown for two
+                # otherwise-separate hazards:
+                #
+                #  1. Resource release.  setup_tree() writes SqliteDataLayer and
+                #     TriggerActivityAdapter objects (both hold sqlite3
+                #     connections); leaving them keeps the connections alive
+                #     until the next execution overwrites the key.  That delayed
+                #     release causes ResourceWarning: unclosed database when GC
+                #     runs at an unpredictable moment — typically during the
+                #     next test's SQL activity, which pytest promotes to a test
+                #     failure via PytestUnraisableExceptionWarning (pytest
+                #     9.1.0+).
+                #
+                #  2. Cross-execution state hygiene.  A node-written key such as
+                #     ledger_payload_object_override can be left stranded when a
+                #     Sequence FAILURE-short-circuits before its owning node
+                #     ticks (#3101).  Resetting it here guarantees no stale
+                #     hand-off state bleeds into the next execution, no matter
+                #     which node aborted or why.
                 #
                 # ``trigger_activity_factory`` is included here even though
                 # each setup_tree() call re-writes it: restoring the previous

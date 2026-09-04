@@ -99,13 +99,9 @@ class CheckCaseStatusIdempotencyNode(
             return f
         assert self.datalayer is not None
 
-        case = self.datalayer.read_case(self.case_id)
-        if case is None:
-            self.feedback_message = f"Case '{self.case_id}' not found"
-            self.logger.warning(
-                "CheckCaseStatusIdempotency: %s", self.feedback_message
-            )
-            return Status.FAILURE
+        case, failure = self._require_case(self.case_id)
+        if failure is not None:
+            return failure  # Regime 1 (ADR-0087)
 
         existing_ids = [_as_id(s) for s in case.case_statuses]
         if self.status_id in existing_ids:
@@ -197,13 +193,9 @@ class AppendCaseStatusToCaseNode(DataLayerActionWithPorts):
             return f
         assert self.datalayer is not None
 
-        case = self.datalayer.read_case(self.case_id)
-        if case is None:
-            self.feedback_message = f"Case '{self.case_id}' not found"
-            self.logger.warning(
-                "AppendCaseStatusToCase: %s", self.feedback_message
-            )
-            return Status.FAILURE
+        case, failure = self._require_case(self.case_id)
+        if failure is not None:
+            return failure  # Regime 1 (ADR-0087)
 
         # Use the per-dimension-filtered status when available; otherwise fall
         # back to the raw asserted object (no filtering was needed or applied).
@@ -287,11 +279,9 @@ class EmitCaseStatusUpdateNode(DataLayerActionWithPorts):
         assert self.datalayer is not None
         assert self.actor_id is not None
 
-        case = self.datalayer.read_case(self.case_id)
-        if case is None:
-            self.feedback_message = f"Case '{self.case_id}' not found"
-            self.logger.warning("%s: %s", self.name, self.feedback_message)
-            return Status.FAILURE
+        case, failure = self._require_case(self.case_id)
+        if failure is not None:
+            return failure  # Regime 1 (ADR-0087)
 
         # Within-tick idempotency: if this node already committed a CaseStatus
         # for this case during the current BT execution, skip the duplicate write.

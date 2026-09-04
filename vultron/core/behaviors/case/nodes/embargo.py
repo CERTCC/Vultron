@@ -232,12 +232,9 @@ class AdvanceEMStateToActiveNode(DataLayerActionWithPorts):
             )
             return Status.FAILURE
 
-        stored_case = self.datalayer.read_case(case_id, raise_on_missing=False)
-        if stored_case is None:
-            self.logger.error(
-                "%s: Case %s not found in DataLayer", self.name, case_id
-            )
-            return Status.FAILURE
+        stored_case, failure = self._require_case(case_id)
+        if failure is not None:
+            return failure  # Regime 1 (ADR-0087)
 
         if _as_id(stored_case.active_embargo) is not None:
             self.logger.debug(
@@ -334,12 +331,9 @@ class AttachEmbargoToCaseNode(DataLayerActionWithPorts):
         case_id = self.bb_case_id
         embargo_id = self.bb_default_embargo_id
 
-        stored_case = self.datalayer.read_case(case_id, raise_on_missing=False)
-        if stored_case is None:
-            self.logger.error(
-                "%s: Case %s not found in DataLayer", self.name, case_id
-            )
-            return Status.FAILURE
+        stored_case, failure = self._require_case(case_id)
+        if failure is not None:
+            return failure  # Regime 1 (ADR-0087)
 
         active_embargo_id = _as_id(stored_case.active_embargo)
         if active_embargo_id is None:
@@ -419,12 +413,9 @@ class SeedOwnerAsSignatoryNode(DataLayerActionWithPorts):
         if embargo_initialized is False:
             return Status.SUCCESS
 
-        stored_case = self.datalayer.read_case(case_id, raise_on_missing=False)
-        if stored_case is None:
-            self.logger.error(
-                "%s: Case %s not found in DataLayer", self.name, case_id
-            )
-            return Status.FAILURE
+        stored_case, failure = self._require_case(case_id)
+        if failure is not None:
+            return failure  # Regime 1 (ADR-0087)
 
         participant_id = stored_case.actor_participant_index.get(self.actor_id)
         if not participant_id:

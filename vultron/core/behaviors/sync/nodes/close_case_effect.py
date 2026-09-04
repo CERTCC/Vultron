@@ -79,15 +79,9 @@ class ApplyCloseCaseFromLedgerNode(_LedgerEffectNode):
             )
             return Status.SUCCESS
 
-        case = self.datalayer.read_case(case_id)
+        case = self._resolve_case_replica(case_id)
         if case is None:
-            self.logger.debug(
-                "%s: case '%s' not found in local DataLayer"
-                " — skipping (non-fatal, partial case view)",
-                self.name,
-                case_id,
-            )
-            return Status.SUCCESS
+            return Status.SUCCESS  # Regime 2 (ADR-0087): partial replica, skip
 
         if departing_actor_id not in case.actor_participant_index:
             self.logger.debug(

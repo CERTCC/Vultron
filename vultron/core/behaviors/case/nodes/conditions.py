@@ -254,12 +254,9 @@ class CheckIsCaseManagerNode(DataLayerConditionWithPorts):
             )
             return Status.FAILURE
 
-        case = self.datalayer.read_case(case_id)
-        if case is None:
-            self.logger.warning(
-                f"{self.name}: case '{case_id}' not found in DataLayer"
-            )
-            return Status.FAILURE
+        case, failure = self._require_case(case_id)
+        if failure is not None:
+            return failure  # Regime 1: case must exist (ADR-0087)
 
         manager_id = _resolve_case_manager_id(case, self.datalayer)
         if manager_id is None:

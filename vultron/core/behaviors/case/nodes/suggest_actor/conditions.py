@@ -60,6 +60,10 @@ class ActorAlreadyParticipantNode(DataLayerActionWithPorts):
         if (f := self._require_datalayer()) is not None:
             return f
         assert self.datalayer is not None
+        # Regime 3 (ADR-0087): a condition testing whether an actor is *already*
+        # a participant. An absent case ⇒ empty index ⇒ recommended not present
+        # ⇒ FAILURE ("not already a participant"), which is the correct answer
+        # here, so the graceful ``getattr`` default is intentional (allowlist).
         case_obj = self.datalayer.read_case(self.case_id)
         index = getattr(case_obj, "actor_participant_index", {}) or {}
         if self.recommended_id in index:

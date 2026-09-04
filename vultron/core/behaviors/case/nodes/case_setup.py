@@ -145,12 +145,9 @@ class RecordOfferReceivedEventNode(DataLayerActionWithPorts):
             self.logger.error(f"{self.name}: case_id not found in blackboard")
             return Status.FAILURE
 
-        case = self.datalayer.read_case(case_id)
-        if case is None:
-            self.logger.error(
-                f"{self.name}: Case {case_id} not found in DataLayer"
-            )
-            return Status.FAILURE
+        case, failure = self._require_case(case_id)
+        if failure is not None:
+            return failure  # Regime 1: case must exist (ADR-0087)
 
         self._set_output("case_for_creation_events", case)
         return Status.SUCCESS

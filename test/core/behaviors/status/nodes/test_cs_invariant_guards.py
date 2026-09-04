@@ -149,13 +149,19 @@ class TestCheckCsEphemeralStateNode:
         node = CheckCsEphemeralStateNode(case_id=CASE_ID, status_id=STATUS_ID)
         assert _run(bridge, node) == Status.SUCCESS
 
-    def test_case_not_found_succeeds(self, bridge):
-        """Case not in DataLayer → SUCCESS (cannot evaluate constraint)."""
+    def test_case_not_found_fails(self, bridge):
+        """Case referenced but not in DataLayer → FAILURE (Regime 1, ADR-0087).
+
+        A present-but-unresolvable case_id is an anomaly; each Regime-1 node
+        hard-fails via ``require_case`` rather than deferring to a downstream
+        gate. (Absent case_id remains a no-op SUCCESS — see the ARCH-15-001
+        tests below.)
+        """
         node = CheckCsEphemeralStateNode(
             case_id="https://example.org/cases/nonexistent",
             status_id=STATUS_ID,
         )
-        assert _run(bridge, node) == Status.SUCCESS
+        assert _run(bridge, node) == Status.FAILURE
 
     def test_unresolvable_asserted_defers(self, dl, bridge):
         """Status not in DL and no fallback → SUCCESS (deferred to FilterCsEm)."""
@@ -272,13 +278,13 @@ class TestCheckCsHistoryPrefixNode:
         node = CheckCsHistoryPrefixNode(case_id=CASE_ID, status_id=STATUS_ID)
         assert _run(bridge, node) == Status.SUCCESS
 
-    def test_case_not_found_succeeds(self, bridge):
-        """Case not in DataLayer → SUCCESS."""
+    def test_case_not_found_fails(self, bridge):
+        """Case referenced but not in DataLayer → FAILURE (Regime 1, ADR-0087)."""
         node = CheckCsHistoryPrefixNode(
             case_id="https://example.org/cases/nonexistent",
             status_id=STATUS_ID,
         )
-        assert _run(bridge, node) == Status.SUCCESS
+        assert _run(bridge, node) == Status.FAILURE
 
     def test_first_ever_status_succeeds(self, dl, bridge):
         """No current status (first ever) → SUCCESS.

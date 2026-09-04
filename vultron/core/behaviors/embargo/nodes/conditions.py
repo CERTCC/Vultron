@@ -42,15 +42,9 @@ class ValidateCaseExistsNode(DataLayerConditionWithPorts):
             return f
         assert self.datalayer is not None
 
-        case = self.datalayer.read_case(self.case_id)
-        if case is None:
-            self.feedback_message = (
-                f"Case '{self.case_id}' not found or not a valid case model"
-            )
-            self.logger.warning(
-                "ValidateCaseExists: %s", self.feedback_message
-            )
-            return Status.FAILURE
+        case, failure = self._require_case(self.case_id)
+        if failure is not None:
+            return failure  # Regime 1 (ADR-0087)
 
         return Status.SUCCESS
 
@@ -73,10 +67,9 @@ class IsActiveEmbargoNode(DataLayerConditionWithPorts):
             return f
         assert self.datalayer is not None
 
-        case = self.datalayer.read_case(self.case_id)
-        if case is None:
-            self.feedback_message = f"Case '{self.case_id}' not found"
-            return Status.FAILURE
+        case, failure = self._require_case(self.case_id)
+        if failure is not None:
+            return failure  # Regime 1 (ADR-0087)
 
         active = case.active_embargo
         active_id = (
@@ -125,11 +118,9 @@ class LookupParticipantNode(DataLayerConditionWithPorts):
             return f
         assert self.datalayer is not None
 
-        case = self.datalayer.read_case(self.case_id)
-        if case is None:
-            self.feedback_message = f"Case '{self.case_id}' not found"
-            self.logger.warning("%s: %s", self.name, self.feedback_message)
-            return Status.FAILURE
+        case, failure = self._require_case(self.case_id)
+        if failure is not None:
+            return failure  # Regime 1 (ADR-0087)
 
         actor_id = self.actor_id
         if actor_id is None:
@@ -210,6 +201,10 @@ class OptionalLookupParticipantNode(DataLayerConditionWithPorts):
         if self.datalayer is None:
             return Status.SUCCESS
 
+        # Regime 2 / optional lookup (ADR-0087): this is the *optional* variant
+        # of the participant lookup — an absent case (e.g. a partial replica)
+        # skips as SUCCESS rather than failing, unlike LookupParticipantNode
+        # which requires the case (conformance allowlist).
         case = self.datalayer.read_case(self.case_id)
         if case is None:
             self.feedback_message = f"Case '{self.case_id}' not found — skipping participant lookup"
@@ -293,10 +288,9 @@ class HasActiveEmbargoNode(DataLayerConditionWithPorts):
             return f
         assert self.datalayer is not None
 
-        case = self.datalayer.read_case(self.case_id)
-        if case is None:
-            self.feedback_message = f"Case '{self.case_id}' not found"
-            return Status.FAILURE
+        case, failure = self._require_case(self.case_id)
+        if failure is not None:
+            return failure  # Regime 1 (ADR-0087)
 
         active = case.active_embargo
         active_id = (
@@ -333,10 +327,9 @@ class IsProposedEmbargoNode(DataLayerConditionWithPorts):
             return f
         assert self.datalayer is not None
 
-        case = self.datalayer.read_case(self.case_id)
-        if case is None:
-            self.feedback_message = f"Case '{self.case_id}' not found"
-            return Status.FAILURE
+        case, failure = self._require_case(self.case_id)
+        if failure is not None:
+            return failure  # Regime 1 (ADR-0087)
 
         try:
             em_state = case.current_status.em.state
@@ -383,10 +376,9 @@ class HasCaseStatusesNode(DataLayerConditionWithPorts):
             return f
         assert self.datalayer is not None
 
-        case = self.datalayer.read_case(self.case_id)
-        if case is None:
-            self.feedback_message = f"Case '{self.case_id}' not found"
-            return Status.FAILURE
+        case, failure = self._require_case(self.case_id)
+        if failure is not None:
+            return failure  # Regime 1 (ADR-0087)
 
         if not has_case_statuses(case):
             self.feedback_message = (

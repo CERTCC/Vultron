@@ -151,6 +151,12 @@ class EmitInviteActorToCaseNode(DataLayerActionWithPorts):
         # CM-17-002: pass the full case object so the adapter+factory can
         # project it to an enriched stub (with end_time) when em_state==ACTIVE.
         assert self.datalayer is not None and self.actor_id is not None
+        # Regime 3 (ADR-0087): the case is *optional enrichment* here, not
+        # coordination state — the Invite is fully specified by invitee/case_id/
+        # actor/roles, and the factory tolerates target=None (CM-17-002 only
+        # enriches the stub when the case is present and em_state==ACTIVE). A
+        # missing local case therefore emits a bare stub rather than failing;
+        # this read is deliberately unguarded (conformance allowlist).
         case = self.datalayer.read_case(self.case_id)
         activity_id, activity_blob = factory.invite_actor_to_case(
             invitee_id=self.invitee_id,
@@ -293,14 +299,12 @@ class ProposeCaseToActorNode(DataLayerActionWithPorts):
         Returns the report ID string on success, or ``None`` after setting
         ``feedback_message`` on any error.
         """
-        if self.datalayer is None:
-            self.feedback_message = "DataLayer not available"
-            return None
-
-        case = self.datalayer.read_case(case_id)
-        if case is None:
-            self.feedback_message = f"Case '{case_id}' not found"
-            self.logger.error("%s: %s", self.name, self.feedback_message)
+        # Regime 1 (ADR-0087): building a CaseProposal requires the case; a
+        # missing DataLayer / case yields the canonical FAILURE feedback+log via
+        # the helper, and this method maps that to its None → caller-FAILURE
+        # contract.
+        case, failure = self._require_case(case_id)
+        if failure is not None:
             return None
 
         if not case.vulnerability_reports:

@@ -88,6 +88,10 @@ class CollectCaseAddresseesNode(DataLayerActionWithPorts):
             )
             return Status.FAILURE
 
+        # Regime 3 (ADR-0087): this node runs during case *creation*, so the
+        # case legitimately may not exist yet — an absent case yields no
+        # addressees (a brand-new case has no other participants) and the
+        # Create proceeds. Deliberately unguarded (conformance allowlist).
         case_obj = self.datalayer.read_case(case_id)
         if case_obj is not None:
             addressees = [

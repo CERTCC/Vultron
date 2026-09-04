@@ -125,6 +125,27 @@ class ExceptionNode(py_trees.behaviour.Behaviour):
         raise RuntimeError("Intentional test exception")
 
 
+class StageLedgerOverrideThenFail(py_trees.behaviour.Behaviour):
+    """Stage the ledger override on the blackboard, then FAILURE (#3101).
+
+    Reproduces the short-circuit shape from ``add_case_status_tree``: a node
+    writes ``ledger_payload_object_override`` to the process-global blackboard
+    and a later node in the same ``memory=False`` Sequence FAILUREs before
+    ``FinalizeCsFilterNode`` — the key's owner — can clear it.  Writes the
+    ``/``-prefixed alias the port machinery uses.
+    """
+
+    def __init__(self, name: str = "StageLedgerOverrideThenFail"):
+        super().__init__(name=name)
+
+    def update(self) -> Status:
+        py_trees.blackboard.Blackboard.storage[
+            "/ledger_payload_object_override"
+        ] = {"object_id": "stale-object-from-vanished-case"}
+        self.feedback_message = "staged override then aborting"
+        return Status.FAILURE
+
+
 # Fixtures
 
 
@@ -450,6 +471,71 @@ def test_execute_with_setup_restores_preexisting_context(
 
     assert result.status == Status.SUCCESS
     assert storage["/datalayer"] is sentinel_dl
+
+
+def test_execute_with_setup_clears_stale_ledger_override(
+    bridge, test_actor_id
+):
+    """A FAILURE short-circuit leaves no stale ledger override (#3101).
+
+    ``ledger_payload_object_override`` is a within-execution hand-off written by
+    ``FinalizeCsFilterNode`` and consumed by ``CommitCaseLedgerEntryNode``.  If
+    an earlier node in the ``memory=False`` Sequence FAILUREs first, Finalize
+    never ticks to clear it, so before #3101 the value stranded on the
+    process-global blackboard and the *next* execution misread it.  The bridge
+    now resets the key at the execution boundary regardless of outcome, so it
+    must be absent after a short-circuiting run and the following run must start
+    clean.
+    """
+    storage = py_trees.blackboard.Blackboard.storage
+
+    result = bridge.execute_with_setup(
+        tree=StageLedgerOverrideThenFail(), actor_id=test_actor_id
+    )
+
+    assert result.status == Status.FAILURE
+    assert "ledger_payload_object_override" not in storage
+    assert "/ledger_payload_object_override" not in storage
+
+    # A subsequent execution must not see the vanished-case override.
+    captured: dict[str, Any] = {}
+
+    class _CaptureOverride(py_trees.behaviour.Behaviour):
+        def update(self) -> Status:
+            captured["present"] = (
+                "/ledger_payload_object_override" in storage
+                or "ledger_payload_object_override" in storage
+            )
+            return Status.SUCCESS
+
+    second = bridge.execute_with_setup(
+        tree=_CaptureOverride(name="CaptureOverride"), actor_id=test_actor_id
+    )
+    assert second.status == Status.SUCCESS
+    assert captured["present"] is False
+
+
+def test_execute_with_setup_restores_preexisting_ledger_override(
+    bridge, test_actor_id
+):
+    """A caller-set ledger override is restored, not unconditionally deleted.
+
+    The bridge resets the key to its *pre-execution* state (ADR-0087), so a
+    value present before the run survives it — the cleanup targets only what the
+    execution itself left behind.
+    """
+    storage = py_trees.blackboard.Blackboard.storage
+    sentinel = {"object_id": "caller-provided"}
+    storage["/ledger_payload_object_override"] = sentinel
+
+    try:
+        result = bridge.execute_with_setup(
+            tree=StageLedgerOverrideThenFail(), actor_id=test_actor_id
+        )
+        assert result.status == Status.FAILURE
+        assert storage["/ledger_payload_object_override"] is sentinel
+    finally:
+        storage.pop("/ledger_payload_object_override", None)
 
 
 # Integration tests

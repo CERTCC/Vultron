@@ -37,6 +37,7 @@ from vultron.core.behaviors.sync.nodes.chain import (
 )
 from vultron.core.behaviors.sync.nodes.fanout import (
     CollectLogEntryRecipientsNode,
+    CollectNonClosedLogEntryRecipientsNode,
     _SendLogEntryToEachNode,
 )
 from vultron.core.behaviors.sync.nodes.ownership_offer_effect import (
@@ -313,6 +314,56 @@ class TestCollectLogEntryRecipientsNodeOutputPorts:
         )
         assert written is not None
         assert isinstance(written, list)
+
+
+# ---------------------------------------------------------------------------
+# fanout.py — recipient collectors hard-fail on a missing case (#3101, ADR-0087)
+# ---------------------------------------------------------------------------
+
+
+class TestFanoutCollectorsRequireCase:
+    """Both recipient collectors are Regime 1 (ADR-0087, #3101).
+
+    Fan-out runs *after* the local commit persisted the entry to the case, so a
+    ``case_id`` that no longer resolves is an anomaly — not a routine
+    zero-recipient skip. Before #3101 these nodes warned, emitted ``[]``, and
+    returned SUCCESS, silently dropping replication of a committed entry even
+    though the commit tree treats non-SUCCESS as a real failure (ADR-0073,
+    BT-05-006). They now hard-fail through ``_require_case``.
+    """
+
+    @pytest.mark.parametrize(
+        "node_cls",
+        [
+            CollectLogEntryRecipientsNode,
+            CollectNonClosedLogEntryRecipientsNode,
+        ],
+    )
+    def test_missing_case_fails(
+        self, bt_scenario: BTTestScenario, node_cls: type
+    ) -> None:
+        case_id = "https://example.org/cases/absent-case"
+        # log_entry is a required port, so provide one — the failure must come
+        # from the unresolved case, not from a missing hand-off value.
+        entry = VultronCaseLedgerEntry(
+            case_id=case_id,
+            log_object_id="https://example.org/activities/act-001",
+            event_type="close_case",
+        )
+        result = bt_scenario.run(
+            node_cls(case_id=case_id),
+            actor_id=ACTOR_ID,
+            log_entry=entry,
+        )
+        bt_scenario.assert_failure(result)
+        assert result.feedback_message == (
+            f"case '{case_id}' not found in DataLayer"
+        )
+        # No recipients written: the flip is a hard fail, not a silent [].
+        assert (
+            py_trees.blackboard.Blackboard.storage.get("/fanout_recipients")
+            is None
+        )
 
 
 # ---------------------------------------------------------------------------

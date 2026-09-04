@@ -330,6 +330,7 @@ nav:
       - 'Participant Status Is Self-Declaratory, With Narrow Externally-Evidenced On-Behalf Exceptions': 'adr/0084-participant-assertion-authority.md'
       - 'Owner-Close Is a Hard Write Boundary; RM.CLOSED Is Terminal and Rejoin Is Unsupported': 'adr/0085-case-lifecycle-boundaries.md'
       - 'Report Every Violation, Reject the Batch': 'adr/0086-report-every-violation-reject-the-batch.md'
+      - 'Case-Resolution Disposition for BT Nodes Is Chosen by Role, Not Re-Decided Per Call Site': 'adr/0087-case-resolution-disposition-policy.md'
   - About:
     - What's New: 'about/whats_new.md'
     - Contributing: 'about/contributing.md'
