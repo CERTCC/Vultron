@@ -48,15 +48,19 @@ through the helpers, each falling into one of four examined categories:
   than a node, so it cannot call ``self._require_case``; it fails via ``None``
   return and the calling node returns ``FAILURE``.
 
-The set is **exact**: a new direct ``read_case`` site fails the test (route it
-through the helpers, or add it to ``KNOWN_ALLOWLIST`` with a category comment);
-an allowlist entry that no longer appears also fails (remove it).
+The allowlist is **exact and per-call**: each entry sanctions exactly one
+``read_case`` in that scope. A new direct ``read_case`` site fails the test
+(route it through the helpers, or add it to ``KNOWN_ALLOWLIST`` with a category
+comment); a *second* ``read_case`` added inside an already-allowlisted scope
+fails too (the call count exceeds the one sanctioned); and an allowlist entry
+whose call no longer appears also fails (remove it).
 
 Spec: ADR-0087 (``docs/adr/0087-case-resolution-disposition-policy.md``).
 Related: #3101, #2701, SYNC-02-002, ADR-0073.
 """
 
 import ast
+from collections import Counter
 
 from test.architecture import _corpus
 
@@ -65,11 +69,22 @@ _HELPERS = _BEHAVIORS_ROOT / "helpers.py"
 
 
 class _ReadCaseScopeVisitor(ast.NodeVisitor):
-    """Collect class-qualified scopes containing a ``.read_case(`` call."""
+    """Count ``.read_case(`` calls per class-qualified scope.
+
+    ``counts`` is the per-scope call count; ``scopes`` (the set of scopes with
+    at least one call) is derived from it for the detector-validation tests.
+    Counting rather than set-collapsing is deliberate: the allowlist sanctions
+    *one* call per listed scope, so a second unsanctioned ``read_case`` added
+    inside an already-allowlisted scope still trips the ratchet.
+    """
 
     def __init__(self) -> None:
         self._stack: list[str] = []
-        self.scopes: set[str] = set()
+        self.counts: "Counter[str]" = Counter()
+
+    @property
+    def scopes(self) -> set[str]:
+        return set(self.counts)
 
     def _enter(self, node: ast.AST) -> None:
         self._stack.append(node.name)  # type: ignore[attr-defined]
@@ -83,7 +98,7 @@ class _ReadCaseScopeVisitor(ast.NodeVisitor):
     def visit_Call(self, node: ast.Call) -> None:
         func = node.func
         if isinstance(func, ast.Attribute) and func.attr == "read_case":
-            self.scopes.add(".".join(self._stack) or "<module>")
+            self.counts[".".join(self._stack) or "<module>"] += 1
         self.generic_visit(node)
 
 
@@ -94,18 +109,25 @@ def _read_case_scopes(tree: ast.AST) -> set[str]:
     return visitor.scopes
 
 
-def _collect_sites() -> frozenset[tuple[str, str]]:
-    """Return ``(relpath, scope)`` for every direct read_case under behaviors/."""
-    sites: set[tuple[str, str]] = set()
+def _read_case_counts(tree: ast.AST) -> "Counter[str]":
+    """Return direct read_case call counts keyed by class-qualified scope."""
+    visitor = _ReadCaseScopeVisitor()
+    visitor.visit(tree)
+    return visitor.counts
+
+
+def _collect_sites() -> "Counter[tuple[str, str]]":
+    """Return read_case call counts keyed by ``(relpath, scope)`` under behaviors/."""
+    sites: "Counter[tuple[str, str]]" = Counter()
     for py_file, tree in _corpus.files_mentioning(
         ".read_case(", under=_BEHAVIORS_ROOT
     ):
         if py_file == _HELPERS:
             continue
         rel = py_file.relative_to(_corpus.REPO_ROOT).as_posix()
-        for scope in _read_case_scopes(tree):
-            sites.add((rel, scope))
-    return frozenset(sites)
+        for scope, count in _read_case_counts(tree).items():
+            sites[(rel, scope)] += count
+    return sites
 
 
 # ---------------------------------------------------------------------------
@@ -199,19 +221,32 @@ def test_case_resolution_routes_through_helpers():
     allowlist categories.
     """
     actual = _collect_sites()
-    new_sites = actual - KNOWN_ALLOWLIST
-    resolved = KNOWN_ALLOWLIST - actual
+    # Each KNOWN_ALLOWLIST entry sanctions exactly one read_case in that scope.
+    expected: "Counter[tuple[str, str]]" = Counter(
+        dict.fromkeys(KNOWN_ALLOWLIST, 1)
+    )
+    new_sites = actual - expected
+    resolved = expected - actual
 
     diff_lines: list[str] = []
     if new_sites:
         diff_lines.append(
-            "NEW direct read_case sites (route case resolution through"
+            "NEW or EXTRA direct read_case sites (route case resolution through"
             " require_case/_require_case (Regime 1) or resolve_case_replica"
             " (Regime 2) per ADR-0087; if the site is a deliberate Regime 2/3/"
             "lenient/module-resolver exception, add it to KNOWN_ALLOWLIST with"
             " a category comment):"
         )
-        diff_lines.extend(f"  + {p}::{s}" for p, s in sorted(new_sites))
+        for p, s in sorted(new_sites):
+            total = actual[(p, s)]
+            sanctioned = expected.get((p, s), 0)
+            suffix = (
+                f"  ({total} calls, {sanctioned} sanctioned — an extra"
+                " read_case was added to an already-allowlisted scope)"
+                if sanctioned
+                else ""
+            )
+            diff_lines.append(f"  + {p}::{s}{suffix}")
     if resolved:
         diff_lines.append(
             "RESOLVED sites (remove these from KNOWN_ALLOWLIST — the direct"
@@ -219,7 +254,7 @@ def test_case_resolution_routes_through_helpers():
         )
         diff_lines.extend(f"  - {p}::{s}" for p, s in sorted(resolved))
 
-    assert actual == KNOWN_ALLOWLIST, "\n\n" + "\n".join(diff_lines)
+    assert actual == expected, "\n\n" + "\n".join(diff_lines)
 
 
 # ---------------------------------------------------------------------------
@@ -255,3 +290,18 @@ def test_detector_ignores_other_reads() -> None:
         "        items = self.datalayer.list_objects('X')\n"
     )
     assert _read_case_scopes(tree) == set()
+
+
+def test_detector_counts_multiple_read_case_in_scope() -> None:
+    """Two read_case calls in one scope are counted, not collapsed to one.
+
+    This is what lets the ratchet catch a second unsanctioned read_case added
+    inside an already-allowlisted scope.
+    """
+    tree = _corpus.parse_inline(
+        "class FooNode:\n"
+        "    def update(self):\n"
+        "        a = self.datalayer.read_case(self.case_id)\n"
+        "        b = self.datalayer.read_case(self.other_id)\n"
+    )
+    assert _read_case_counts(tree) == Counter({"FooNode.update": 2})

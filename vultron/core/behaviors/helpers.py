@@ -190,6 +190,7 @@ def require_case(
     datalayer = getattr(node, "datalayer", None)
     if datalayer is None:
         node.feedback_message = "DataLayer not available"
+        node.logger.error(f"{node.name}: {node.feedback_message}")
         return None, Status.FAILURE  # type: ignore[return-value]
     if not case_id:
         node.feedback_message = "no case_id available to resolve case"
