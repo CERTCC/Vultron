@@ -1533,7 +1533,7 @@ function handleRemoveEmbargo(
   return { nodes, logLines }
 }
 
-// --- close_case → a participant closes its own report --------------------------
+// --- close_case → a participant's self-declaratory Leave (CM-23-012) -----------
 
 function handleCloseCase(
   entry: CaseLedgerEntry,
@@ -1562,15 +1562,24 @@ function handleCloseCase(
       : 'caseactor'
   ensureParticipant(participants, closerLane, laneIndex)
 
-  // Advance the closer's RM to CLOSED. The per-participant RM→CLOSED transition
-  // rides on this event (the current generator emits no separate CLOSED status
-  // snapshot). Validate it against the RM machine: `close` is legal only from a
-  // closable disposition (ACCEPTED / DEFERRED / INVALID). A close from an un-disposed
-  // state (e.g. RECEIVED) is a genuine protocol violation — it surfaces the
-  // late-joiner RM-lifecycle gap where invited/handed-off participants close without
-  // ever validating/accepting (a generator-side issue; see ui/CLAUDE.md).
-  let violation = false
-  let violationReason: string | undefined
+  // Advance the closer's RM to CLOSED as a SELF-DECLARATORY LEAVE — from ANY rung,
+  // with NO RM-machine adjacency check. A `close_case` ledger entry is the leaving
+  // actor's own Leave(VulnerabilityCase): per CM-23-012 / ADR-0084 a Leave is that
+  // actor's authoritative closure act, so it advances ONLY that actor to RM.CLOSED
+  // regardless of the rung it currently holds (START / RECEIVED / VALID / …),
+  // intentionally OVERRIDING the RM adjacency rule (CLOSED reachable only from
+  // ACCEPTED / DEFERRED / INVALID) that the RM machine — and thus
+  // protocol_states.json — enforces. So a leaver closing from RECEIVED is legitimate,
+  // NOT a violation.
+  //
+  // This is a DELIBERATE procedural overlay, NOT a machine transition. The Leave /
+  // `force_rm_state` rule lives in behavior-tree code (leave.py, close_case_effect.py)
+  // and a prose spec statement (CM-23-012); it has no exportable transition table, so
+  // it MUST NOT be judged via isLegalTransition('rm', …, 'close') nor "fixed" by adding
+  // an edge to the artifact — the RM machine is shared by every role, so doing so would
+  // make it falsely accept an un-disposed report `close` for a vendor too, masking a
+  // real violation. See ui/CLAUDE.md §9 (declarative-vs-procedural boundary). The
+  // CM-23-012 citation here is the anti-drift tripwire if the rule ever changes.
   let rmNote: string | undefined
   // (closerLane is never 'unknown' — the resolution above falls back to 'caseactor'.)
   if (
@@ -1579,22 +1588,9 @@ function handleCloseCase(
     shadow.rm[closerLane] !== 'CLOSED'
   ) {
     const src = shadow.rm[closerLane]
-    if (isLegalTransition('rm', src, 'close')) {
-      shadow.rm[closerLane] = 'CLOSED'
-      rmNote = `RM: ${src} → CLOSED`
-      logLines.push(`  ↳ close_case: ${closerLane} RM ${src} → CLOSED`)
-    } else {
-      violation = true
-      violationReason =
-        `The RM machine has no "close" transition from ${src}. ` +
-        `A report can only be closed from ACCEPTED, DEFERRED, or INVALID — ` +
-        `closing from ${src} skips the required disposition of the report.`
-      rmNote = `RM: ${src} → CLOSED (illegal)`
-      logLines.push(
-        `  ↳ PROTOCOL VIOLATION: rm "close" illegal from "${src}" (subject=${closerLane}); forcing CLOSED`
-      )
-      shadow.rm[closerLane] = 'CLOSED'
-    }
+    shadow.rm[closerLane] = 'CLOSED'
+    rmNote = `RM: ${src} → CLOSED (self-declaratory Leave)`
+    logLines.push(`  ↳ close_case: ${closerLane} Leave → RM ${src} → CLOSED (CM-23-012)`)
   }
 
   const closerName = participants.get(closerLane)?.name ?? closerLane
@@ -1607,8 +1603,7 @@ function handleCloseCase(
     [`${closerName} closed the case`, ...(rmNote ? [rmNote] : []), `EM: ${shadow.emState}`],
     'Case Closed',
     () => [`${closerName} closed the case`],
-    violation,
-    violationReason
+    false
   )
   return { nodes, logLines }
 }
