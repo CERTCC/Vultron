@@ -49,6 +49,8 @@ from vultron.core.use_cases.received.case.lifecycle import (
 )
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
+from vultron.core.models.dimensions import RmDimension
+from vultron.core.models.participant_status import ParticipantStatus
 from vultron.enums.roles import CVDRole
 from vultron.semantic_registry import extract_event
 from vultron.wire.as2.factories import announce_log_entry_activity
@@ -178,6 +180,36 @@ def _make_close_case_event(
         activity=activity,
         receiving_actor_id=receiving_actor_id,
     )
+
+
+def _seed_rm(dl: SqliteDataLayer, actor_id: str, rm_state: RM) -> None:
+    """Append a ParticipantStatus at *rm_state* to *actor_id*'s participant.
+
+    Uses the core append API so the seeded rung round-trips through
+    ``_participant_rm_states`` exactly as a protocol-written status would. Lets a
+    test start a participant at a specific RM rung (e.g. RECEIVED/VALID) before a
+    Leave, which is what CM-23-012 is about: the leaver advances regardless of
+    rung, and a bystander retains whatever rung it was seeded at.
+    """
+    case = dl.read(CASE_ID)
+    assert isinstance(case, VulnerabilityCase)
+    participant_id = case.actor_participant_index[actor_id]
+    participant = dl.read(participant_id)
+    assert isinstance(participant, CaseParticipant)
+    participant.add_participant_status(
+        ParticipantStatus(
+            attributed_to=actor_id,
+            context=CASE_ID,
+            rm=RmDimension(state=rm_state),
+        )
+    )
+    dl.save(participant)
+
+
+def _latest_rm(dl: SqliteDataLayer, actor_id: str) -> RM | None:
+    """Return the actor's most-recent RM state, or None if it has no status."""
+    states = _participant_rm_states(dl, actor_id)
+    return states[-1] if states else None
 
 
 def _participant_rm_states(dl: SqliteDataLayer, actor_id: str) -> list[RM]:
@@ -488,4 +520,83 @@ class TestCloseCaseFanOut:
         assert RM.CLOSED not in rm_states, (
             f"Announce(close_case for OWNER) must NOT advance VENDOR to RM.CLOSED;"
             f" rm_states={rm_states}"
+        )
+
+
+# ---------------------------------------------------------------------------
+# CM-23-012: closure is a per-leaver RM write, never a bystander cascade
+# ---------------------------------------------------------------------------
+
+
+class TestClosureRMBoundary:
+    """CM-23-012: a Leave advances only the leaver's RM (regardless of rung);
+    owner-close leaves every bystander at its prior RM rung."""
+
+    @pytest.mark.spec("CM-23-012")
+    def test_leaver_advances_to_closed_from_non_adjacent_rung(self):
+        """Owner Leave from RM.RECEIVED still reaches RM.CLOSED.
+
+        RECEIVED -> CLOSED is not a valid RM adjacency (CLOSED is reachable only
+        from ACCEPTED/INVALID/DEFERRED). CM-23-012: the leaver's own Leave is a
+        self-declaratory closure act, so the leaver advances regardless of rung
+        via the sanctioned force_rm_state override.
+        """
+        dl = _make_full_dl()
+        _seed_rm(dl, OWNER_ID, RM.RECEIVED)
+
+        CloseCaseReceivedUseCase(
+            dl=dl,
+            request=_make_close_case_event(sender_actor_id=OWNER_ID),
+            sync_port=SyncActivityAdapter(dl),
+        ).execute()
+
+        assert _latest_rm(dl, OWNER_ID) == RM.CLOSED, (
+            "Leaver seeded at RM.RECEIVED must still advance to RM.CLOSED"
+            f" (CM-23-012); rm_states={_participant_rm_states(dl, OWNER_ID)}"
+        )
+
+    @pytest.mark.spec("CM-23-012")
+    def test_owner_leave_leaves_bystander_at_prior_rung(self):
+        """Owner Leave must leave a bystander at exactly its prior RM rung.
+
+        Stronger than 'not CLOSED': a vendor seeded at RM.VALID must remain at
+        RM.VALID after owner-close — closure does not touch its RM at all.
+        """
+        dl = _make_full_dl()
+        _seed_rm(dl, VENDOR_ID, RM.VALID)
+
+        CloseCaseReceivedUseCase(
+            dl=dl,
+            request=_make_close_case_event(sender_actor_id=OWNER_ID),
+            sync_port=SyncActivityAdapter(dl),
+        ).execute()
+
+        assert _latest_rm(dl, VENDOR_ID) == RM.VALID, (
+            "Bystander seeded at RM.VALID must retain RM.VALID after owner-close"
+            f" (CM-23-012); rm_states={_participant_rm_states(dl, VENDOR_ID)}"
+        )
+
+    @pytest.mark.spec("CM-23-012")
+    def test_fanout_leaves_bystander_at_prior_rung(self):
+        """Fan-out of a close_case entry for OWNER must leave the replica's own
+        VENDOR participant at its prior rung (RM.ACCEPTED), not advance it."""
+        dl = _make_full_dl(store_owner_id=VENDOR_ID)
+        _seed_rm(dl, VENDOR_ID, RM.ACCEPTED)
+        entry = _make_close_case_ledger_entry(dl, departing_actor_id=OWNER_ID)
+
+        event = _make_announce_event(
+            entry=entry, sender_actor_id=CASE_ACTOR_ID
+        )
+
+        tree = create_announce_log_entry_tree()
+        BTBridge(datalayer=dl).execute_with_setup(
+            tree=tree,
+            actor_id=VENDOR_ID,
+            activity=event,
+            sync_port=MagicMock(spec=SyncActivityPort),
+        )
+
+        assert _latest_rm(dl, VENDOR_ID) == RM.ACCEPTED, (
+            "Fan-out of OWNER's close must leave VENDOR at RM.ACCEPTED"
+            f" (CM-23-012); rm_states={_participant_rm_states(dl, VENDOR_ID)}"
         )

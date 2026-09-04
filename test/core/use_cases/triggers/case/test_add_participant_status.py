@@ -1176,12 +1176,14 @@ class TestCreateParticipantStatusNode:
         )
 
     def test_force_rm_state_exempts_only_the_rm_rule(self):
-        """The case-closure quarantine advances RM past the ladder.
+        """The case-closure override advances RM past the ladder.
 
         This is the behaviour ``close_case_effect.py`` and ``leave.py`` rely on
-        to stamp a departing participant ``RM.CLOSED``.  It is a known
-        BTND-10-001 violation, tracked as type:Concern #3106; the point of the test
-        is that the exemption is narrow — every other rule still applies.
+        to advance a departing participant to ``RM.CLOSED``.  It is a sanctioned
+        self-declared-Leave override (CM-23-012, resolving #3106): the RM
+        adjacency rule is legitimately suppressed for the single departing actor.
+        The point of the test is that the exemption is narrow — every other rule
+        still applies.
         """
         from vultron.core.behaviors.case.nodes.participant import (
             CreateParticipantStatusNode,

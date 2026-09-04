@@ -35,6 +35,36 @@ new one via `model_copy(update=...)` instead (issue #2904).
 
 ---
 
+## Clearing a Field: `model_copy`, Not a Cast-Silenced Assignment
+
+To clear or override a field on a frozen wire object, build a new one with
+`model_copy(update=...)`. Two things about getting there are worth carrying
+forward:
+
+- **A `cast(Any, obj).field = None` that only exists to silence a checker is a
+  smell — the checker was right.** `mypy`/`pyright` pass on the assignment
+  precisely because the cast erased the type that would have flagged the frozen
+  target. The line can never work at runtime (`frozen=True` raises). Prefer the
+  shape that needs no cast rather than casting to make an illegal assignment
+  type-check.
+
+- **Copying is correct even where in-place mutation *could* be made to work,
+  because of the shared-singleton hazard.** The wire example objects (`_REPORT`,
+  `_CASE`, the actors) are module-level singletons that
+  `adapters/driving/fastapi/routers/examples.py` serves over HTTP. Stripping a
+  field in place — via `object.__setattr__` or by dropping `frozen=True` — would
+  permanently mutate the live API responses as a side effect of building the
+  docs (the same class of bug that closed #1328). Returning a new object leaves
+  every other holder of the instance untouched.
+
+When probing which fields exist before copying, read `type(obj).model_fields`,
+not `hasattr`: `hasattr` is also true for properties and extras, and passing
+those to `model_copy(update=...)` writes a key that does not serialize.
+
+Source: ISSUE-2904.
+
+---
+
 ## Inbound: A/B Split
 
 Routing and use-case execution often need a more hydrated form than raw wire

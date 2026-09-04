@@ -208,3 +208,31 @@ labels (`actor1`–`actor4`) so the compose file is scenario-agnostic (ISSUE-178
 Until then, use the existing services with role-alias bindings.
 
 Source: ISSUE-1216, plan/incoming/learnings/20260722-fccv-handoff-container-remapping.md
+
+---
+
+## A Helper That Extracts a Result Inside `demo_step` Must Return `Optional[T]`
+
+`demo_step` (`vultron/demo/utils.py`) is a context manager that **suppresses
+exceptions** so one failed step records itself without crashing the whole
+scenario. Any demo helper that both wraps a `post_to_trigger` call in `demo_step`
+*and* extracts a result ID from it therefore cannot promise a value — on failure
+the `demo_step` swallows the error and control falls through with nothing
+extracted. Such a helper MUST be typed `-> Optional[T]`, not `-> T`.
+
+**Why:** The alternative — re-raising outside `demo_step` — would crash the
+scenario even when the failure is non-fatal, defeating the whole point of the
+context manager. So the suppression contract propagates outward: every caller
+now has to treat the return as possibly-absent.
+
+**How to apply:**
+
+- Type any such helper `-> Optional[T]` (e.g. `participant_adds_note_to_case` in
+  `vultron/demo/helpers/notes.py` returns `Optional[as_Note]`).
+- In callers, treat `None` as "this step failed and `demo_step` already recorded
+  it" — do not raise. Guard every `.id_` (or other attribute) access on the
+  returned value.
+- Skip dependent steps when the value is `None`, e.g. by making the next step's
+  `in_reply_to` conditional on the prior result being present.
+
+Source: ISSUE-2390

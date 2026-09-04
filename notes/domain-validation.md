@@ -8,7 +8,7 @@ description: >
 related_specs:
   - specs/architecture.yaml (ARCH-10-001, ARCH-15-001 through ARCH-15-004,
     ARCH-21-001 through ARCH-21-005)
-  - specs/case-management.yaml (CM-27-001 through CM-27-003)
+  - specs/case-management.yaml (CM-23-012, CM-27-001 through CM-27-003)
   - specs/participant-role-management.yaml (PRM-03-003)
   - specs/error-handling.yaml (EH-05-002, EH-07-001 through EH-07-003)
   - specs/behavior-tree-node-design.yaml (BTND-10-001 through BTND-10-003)
@@ -474,29 +474,37 @@ participant can acquire a dimension its role does not license, you reopen this.*
 The receive path's carry-forward and any new model mutator are the places to
 watch.
 
-### Pitfall: composing the set exposed a standing RM violation
+### Pitfall: composing the set exposed a non-adjacent RM write at the close sites
 
 Giving the write node the *whole* rule set made it validate RM for the first
-time, and three call sites promptly failed: `close_case_effect.py` and both
-sites in `leave.py` stamp a departing participant `RM.CLOSED` regardless of the
-rung its RM machine is on. `RM.CLOSED` is reachable only from `ACCEPTED`,
-`INVALID` or `DEFERRED`, so `START → CLOSED` is a transition the protocol does
-not have — a BTND-10-001 violation that was invisible while the write node
-ignored RM. ADR-0086 predicted the bypass sites would gain trigger-path
-diagnostics "at no additional cost"; for RM that is not true.
+time, and three call sites surfaced: `close_case_effect.py` and both sites in
+`leave.py` stamp a departing actor `RM.CLOSED` regardless of the rung its RM
+machine is on. `RM.CLOSED` is reachable by adjacency only from `ACCEPTED`,
+`INVALID` or `DEFERRED`, so from an earlier rung this write is non-adjacent —
+which the emit-side adjacency rule (BTND-10-001) would otherwise refuse, and
+which was invisible while the write node ignored RM. ADR-0086 predicted the
+bypass sites would gain trigger-path diagnostics "at no additional cost"; for RM
+that is not true.
 
 Those sites carry a `force_rm_state=True` exemption that suppresses **only** the
 RM adjacency rule, pinned to that exact list by the ratchet above so it can only
 shrink. Do not add users, and do not read the exemption as "closure may write
 whatever it likes": every other rule still applies.
 
-Whether case closure should force participant RM state *at all* is a live
-protocol question, deliberately left open — participants are expected to reach
-`RM.CLOSED` by closing their own report handling, not by being pushed there, and
-the demo scenarios' "all participants `RM.CLOSED`" milestone (DEMOMA-07-003) is
-correct precisely because the demos get them there through the protocol. It is
-tracked as `type:Concern` [#3106](https://github.com/CERTCC/Vultron/issues/3106)
-so the design conversation happens before the behaviour changes.
+**Resolved (CM-23-012, [#3106](https://github.com/CERTCC/Vultron/issues/3106)):**
+the override is *sanctioned*, not a standing violation. A `Leave` is the
+departing actor's own self-declaratory closure act (ADR-0084), so advancing
+*that single actor* to `RM.CLOSED` regardless of rung is legitimate
+self-declaration — the RM adjacency rule is a report-handling invariant that a
+case-level `Leave` legitimately overrides. The scope is the key constraint: each
+site advances exactly one named actor (the leaver, or the case actor closing its
+own lifecycle on owner Leave, ADR-0051). Closure **never** force-advances a
+non-leaving ("bystander") participant — a participant that never sent `Leave`
+has made no closure declaration, so it retains its last RM state when the case
+closes around it ("the library closed before every book was returned"). The demo
+scenarios' "all participants `RM.CLOSED`" milestone (DEMOMA-07-003) is reached
+because every participant closes its own handling through the protocol, not
+because closure pushes them there.
 
 ### Surfacing a violation list
 
@@ -607,3 +615,29 @@ inspection to a `model_post_init` or a class-level
 `@model_validator(mode="before")`.
 
 Source: ISSUE-2294
+
+## Pitfall: `mode="before"` Validators Run in Reverse Definition Order
+
+When a Pydantic v2 model declares multiple `@model_validator(mode="before")`
+validators, they execute in **reverse definition order** — the last-defined
+validator runs first. Two before-validators with an ordering dependency are a
+silent-data-loss trap, because the dependency is invisible from reading the
+model top to bottom.
+
+`ParticipantStatus` hit exactly this
+(`vultron/core/models/participant_status.py`): `_enforce_role_dimension_invariant`
+is defined *after* `_migrate_flat_fields`, so it ran *first*, saw `data["vf"]`
+absent, seeded `data["vf"] = {}`, and `_migrate_flat_fields` then found the key
+already present and skipped flat-key migration — a `vf_state=CS_vf.Vf` passed at
+construction was silently reset to the initial state.
+
+**How to apply:** when two `mode="before"` validators on the same model have an
+ordering dependency, either (a) merge them into a single validator, or (b) guard
+the later-running (earlier-defined) one against data the first-running
+(later-defined) one has already set — e.g. check for the flat keys (`vf_state`,
+`vfState`, `d_state`, `dState`) before seeding an empty dict, so the invariant
+only seeds when *no* form of the value is present in the raw data. This is the
+same silent-reset family as the shape-guard pitfall above ([Shape Guards](#shape-guards-one-canonical-reader-per-dimension-2232)):
+an absent-looking dimension quietly substituted for a real one.
+
+*Source: ISSUE-2662 — reverse-order regression fixed in `ParticipantStatus`.*

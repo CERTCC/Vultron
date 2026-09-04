@@ -140,14 +140,9 @@ six-step checklist (enum → pattern → use-case → map → tests).
 - **Inbox**: `vultron/adapters/driving/fastapi/routers/actors/` (package; `_routes.py` defines endpoints)
 - **Errors**: `vultron/errors.py`
 - **Demo**: `vultron/demo/cli.py` (entry point)
-- **Case States**: `vultron/core/states/cs.py` — CS/VFD/PXA enums are
-  authoritative; `vultron/core/states/cs_invariants.py` holds the CS validity,
-  transition and history invariants (CSB-17). `vultron/core/case_states/` is the
-  legacy string-pattern reference model, retained as an independent oracle and
-  still imported by `states/cs.py` and `use_cases/query/action_rules.py`. Reach
-  for `cs_invariants.py` for new protocol-path work; the legacy module's only
-  remaining new-code use is as the oracle in the CSB-17 equivalence tests
-  (ADR-0060)
+- **Case States**: `vultron/core/states/cs.py` (CS/VFD/PXA enums, authoritative)
+  and `cs_invariants.py` (CSB-17 invariants) → [notes/case-state-model.md](notes/case-state-model.md)
+  for the legacy-oracle relationship (ADR-0060)
 
 Full core-layer map → [`vultron/core/AGENTS.md`](vultron/core/AGENTS.md).
 Full wire-layer map → [`vultron/wire/as2/AGENTS.md`](vultron/wire/as2/AGENTS.md).
@@ -179,12 +174,12 @@ entry vs. both.
 
 **Before committing**, run skills in order:
 
-1. `format-code` — Black + flake8
-2. `run-linters` — all four linters must pass
-3. `run-tests` — unit suite once; read output. If `vultron/demo/` or `test/demo/`
+1. `run-linters` — all four linters (Black, flake8, mypy, pyright) must pass.
+   Supersedes `format-code`, so run it alone — no separate `format-code` step.
+2. `run-tests` — unit suite once; read output. If `vultron/demo/` or `test/demo/`
    touched, also run full suite: `uv run pytest -m "" --tb=short 2>&1 | tail -5`
-4. `build-docs` — only if `docs/` modified
-5. `commit` skill — include Co-authored-by trailer
+3. `build-docs` — only if `docs/` modified
+4. `commit` skill — include Co-authored-by trailer
 
 **PR body**: use `.agents/skills/shared/pr-body-guide.md` template. Put
 `- Closes #N` at top, one per line.
@@ -192,8 +187,12 @@ entry vs. both.
 **`append-history`**: stage the new entry file (`git add plan/history/`).
 The monthly `README.md` under `plan/history/YYMM/` is gitignored — do not stage it.
 
-Pre-commit hooks are fail-only. If a hook fails, run `format-code` (black/markdown)
-or `run-linters` (flake8), re-stage, then commit.
+Pre-commit hooks are fail-only. If a hook fails, run `run-linters` (black,
+flake8, mypy, pyright) or `format-code` (markdown), re-stage, then commit.
+
+**Lint memoization**: linters run through `run-if-changed.sh`, which skips a
+tool when its inputs are unchanged since the last success (a `... skipping`
+line is expected, not an error). Details in the `run-linters` skill.
 
 **After a PR merges** in a named worktree slot:
 `bash "$HOME/.copilot/skills/manage-worktree/scripts/manage_worktree.sh" reset <slot-name>`
@@ -268,7 +267,7 @@ linked file before touching that area. New pitfalls MUST be routed per
 | Persistence / stores | [datalayer-design](notes/datalayer-design.md) | `dl.read()` returns core objects (ADR-0034); core must not re-read wire activities for semantics (ADR-0035); an actor id **is** a store name (DL-07-004); `_dehydrate_data` deliberately keeps inline Activity sub-fields as snapshots |
 | Embargo / consent | [embargo-lifecycle](notes/embargo-lifecycle.md), [participant-embargo-consent](notes/participant-embargo-consent.md) | delegate to `EmbargoLifecycle`, never inline `EMAdapter`; consent only via `apply_pec_transition()` (CM-18-005/006); `embargo_adherence` is a `@computed_field` (ADR-0056); don't downgrade consent on retries; test `REVISE → REVISE` separately |
 | Participant records | [participant-role-management](notes/participant-role-management.md) | `actor_participant_index` is the fast path, and RM mutation MUST use it (CM-19-003); RM terminal guard runs before the same-state shortcut |
-| Devcontainer / tooling | [devcontainer-tooling](notes/devcontainer-tooling.md) | always `uv run`; clear `PYTHONPATH` first; `UV_NO_SYNC=1` on sync failures; give `git commit` a 10-min timeout (whole-tree flake8 hook); `SKIP=actionlint` when not touching workflows (hook hangs, no Go); wrong `gh` path in the credential helper; `.agents/` and `.claude/` skills are hard links — edit only `.agents/` |
+| Devcontainer / tooling | [devcontainer-tooling](notes/devcontainer-tooling.md) | always `uv run`; clear `PYTHONPATH` first; `UV_NO_SYNC=1` on sync failures; give `git commit` a 10-min timeout (whole-tree flake8 hook — usually a fast no-op if `run-linters` just ran, but ~35s cold or after source edits); `SKIP=actionlint` when not touching workflows (hook hangs, no Go); wrong `gh` path in the credential helper; `.agents/` and `.claude/` skills are hard links — edit only `.agents/` |
 | git / branches / PRs | [git-workflow-pitfalls](notes/git-workflow-pitfalls.md) | rebase "local changes" can be a false positive; conflict-free ≠ working merge; related fix PRs need an integration branch (`create-pr` can't target one); `claim-issue.sh` needs a synced branch; re-check ADR numbers before merge; verify every AC against `origin/main` and always add `Closes #N`; scan peer files before closing |
 | GH Actions / CI YAML | [ci-workflow-authoring](notes/ci-workflow-authoring.md) | a red job may never have run its assertions (and an all-skipped run is green); `notify-failure` is mandatory on `main`/`schedule` (CISEC-05); PyYAML reads bare `on:` as `True`; matrix booleans differ job- vs. step-level; `python3 -c` blocks break `actionlint`; single-quoted YAML needs doubled apostrophes |
 | Spec authoring | [spec-authoring-rules](notes/spec-authoring-rules.md) | strict enums for `kind`/`priority`/`rel_type`; `references:` is dropped (use `adr:`); a new `kind: protocol` entry needs a marker test or strict `xfail`; grep bare filenames when retiring a name; "CaseActor MUST …" is usually a role/object category error |
@@ -348,12 +347,10 @@ message.
 - Use `markdownlint-cli2` for markdown; `black` is Python-only. Default config
   ignores only `wip_notes/**`; all other dirs are linted.
 - **Notes frontmatter** (NF-06-001, NF-06-002): every `notes/*.md` (except
-  `README.md`) needs `title` and `status` frontmatter. `superseded_by` is a
-  scalar string. Schema: `vultron/metadata/notes/schema.py`. **Maintenance rule
-  (NF-06-001, documented here per NF-06-002):** when you modify a note, review
-  and update its `status`, `related_specs`, and `related_notes` in the same
-  change — a new spec citation or cross-note link in the body means a new
-  frontmatter entry, and cross-links SHOULD be two-way.
+  `README.md`) needs `title` + `status`. **Maintenance rule:** when you modify a
+  note, update its `status`, `related_specs`, and `related_notes` in the same
+  change; cross-links SHOULD be two-way. Full write-up + schema:
+  [notes/notes-frontmatter.md](notes/notes-frontmatter.md).
 - **Docs links must be relative**: links in `docs/` MUST be relative and MUST NOT
   go above `docs/`. Run `uv run mkdocs build --strict` before committing docs.
   `docs/developer/` pages are draft docs — visible in `mkdocs serve` but excluded from production builds.
@@ -370,25 +367,19 @@ message.
 
 ### Issue tracker
 
-Issues live in GitHub Issues. See `docs/agents/issue-tracker.md`.
+Issues live in GitHub Issues. See
+[docs/agents/issue-tracker.md](docs/agents/issue-tracker.md) for the full rules.
+Non-negotiables:
 
-**Never use `gh issue create`** — it cannot set issue types, parent/child
-relationships, or blocker/blocked-by links. Use
-`.agents/skills/manage-github-issue/manage_github_issue.sh` or the
-`createIssue` GraphQL mutation directly. Type IDs and relationship mutations:
-`.agents/skills/manage-github-issue/REFERENCE.md`.
-
-**Never pass backtick-containing markdown in a double-quoted `--body`.**
-Use a single-quoted heredoc:
-
-```bash
-gh issue comment <N> --repo CERTCC/Vultron --body "$(cat <<'EOF'
-Use `code` freely here.
-EOF
-)"
-```
-
-Same rule applies to `gh issue edit --body`, `gh pr create --body`, etc.
+- **Never use `gh issue create`** — it cannot set issue types or parent/child
+  and blocker links. Use
+  `.agents/skills/manage-github-issue/manage_github_issue.sh` (or the
+  `createIssue` GraphQL mutation).
+- **Epics are the `Epic` issue type, not a label** — detect by
+  `issueType.name == "Epic"`, not a label query; create with the `create-epic`
+  skill.
+- **Never pass backtick markdown in a double-quoted `--body`** — use a
+  single-quoted heredoc.
 
 ### Triage labels
 

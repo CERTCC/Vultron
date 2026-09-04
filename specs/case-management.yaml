@@ -2311,6 +2311,40 @@ groups:
     stories:
     - story_2022_050
     - story_2022_051
+  - id: CM-21-010
+    priority: MUST
+    kind: protocol
+    statement: >-
+      An actor emitting `Reject(Offer(VulnerabilityCase))` (ownership-transfer
+      variant) MUST address the activity to the CaseActor's inbox
+      (`to: [case_actor_id]`) rather than directly to the offerer.
+    rationale: >-
+      Rejection routing must be symmetric with the Accept path (CM-21-006): the
+      Offer was addressed to the CaseActor (CM-21-005), so its rejection must be
+      too.  If the transferee's Reject goes only to the offerer, the CaseActor —
+      the authoritative record of ownership — never learns the transfer was
+      declined and its view of who owns the case can silently diverge from
+      reality.  What the CaseActor does on receiving a rejection (whether it
+      ledgers the declined transfer, whether the offerer is notified, and
+      whether the case may be re-offered) is a separate open question tracked in
+      `notes/ownership-transfer.md`.
+    note: >-
+      This entry governs *addressing* only, mirroring CM-21-005/CM-21-006. The
+      downstream received-side behavior of the rejection is deliberately out of
+      scope here — see the Open Question in `notes/ownership-transfer.md`.
+    verification: >-
+      Inspection of `vultron/demo/exchange/transfer_ownership_demo.py` confirms that an
+      ownership-transfer `Reject(Offer(VulnerabilityCase))` is addressed to the CaseActor's inbox
+      (`to: [case_actor_id]`), symmetric with the Accept path.
+    relationships:
+    - rel_type: refines
+      spec_id: CM-21-001
+    - rel_type: refines
+      spec_id: CM-21-006
+    adr:
+    - ADR-0053
+    lint_suppress:
+    - missing_story_reference
 - id: CM-22
   title: CaseActor-Authoritative Case Creation
   description: >-
@@ -2692,6 +2726,53 @@ groups:
     adr:
     - ADR-0085
     - ADR-0050
+    stories:
+    - story_2022_066
+  - id: CM-23-012
+    priority: MUST
+    kind: protocol
+    statement: >-
+      Leave(VulnerabilityCase) advances only the leaving actor's own RM state to
+      RM.CLOSED, regardless of which RM rung that actor currently holds (START,
+      RECEIVED, VALID, ACCEPTED, DEFERRED, or INVALID). Case closure MUST NOT
+      advance any non-leaving ("bystander") participant's RM state: on owner
+      Leave, only the Case Owner and the Case Actor advance to RM.CLOSED
+      (CM-23-002); every other participant MUST retain its last RM state. The
+      characterization of owner-close as ending "the case for everyone"
+      (CM-23-011) refers to the case-level write boundary — the Case Actor
+      accepts no further external ledger entries (ADR-0085) — and MUST NOT be
+      read as a directive to force each remaining participant's RM dimension to
+      RM.CLOSED.
+    rationale: >-
+      A participant's RM state is the self-declaratory record of how that
+      participant handled the report (ADR-0084). A Leave is that participant's
+      own authoritative closure act, so advancing the leaving actor to RM.CLOSED
+      regardless of rung is legitimate self-declaration, not an externally
+      imposed jump — which is why the RM source→dest adjacency rule (RM.CLOSED
+      reachable by adjacency only from ACCEPTED/INVALID/DEFERRED) is
+      intentionally overridden at the leave/close write sites. A bystander that
+      never sent Leave has made no closure declaration; forcing its RM to
+      RM.CLOSED would fabricate a declaration it never made. Such a participant
+      simply remains at its last rung when the case ends around it (the library
+      closes before every book is returned). The demos' "all participants
+      RM.CLOSED" milestone (DEMOMA-07-003) is reached because every participant
+      closes its own handling through the protocol, not because closure pushes
+      them there.
+    verification: >-
+      A test confirms that an owner Leave(VulnerabilityCase) advances only the
+      Case Owner and Case Actor to RM.CLOSED and leaves a bystander participant
+      that was at RM.RECEIVED or RM.VALID at its prior RM state; and that the
+      leaving actor is advanced to RM.CLOSED even from a non-adjacent starting
+      rung (e.g. RM.RECEIVED).
+    relationships:
+    - rel_type: refines
+      spec_id: CM-23-001
+    - rel_type: refines
+      spec_id: CM-23-002
+    adr:
+    - ADR-0050
+    - ADR-0084
+    - ADR-0085
     stories:
     - story_2022_066
 - id: CM-24
@@ -3355,9 +3436,17 @@ groups:
       so that timestampless statuses sort to the bottom rather than the top.
       Source: #2737.
     verification: >-
-      Unit test: construct a VulnerabilityCase with an auto-seeded status
-      (urn:uuid ID, no timestamps) and a received status (HTTPS ID, no
-      timestamps); assert current_status returns the received status.
+      Unit test the ordering key `status_recency_key` in
+      `vultron/core/models/_helpers.py` directly, since that is where both the
+      `current_status` and the wire `as_CaseStatus` readers converge. Construct
+      two status projections that carry no `updated`/`published` timestamps —
+      one with a `urn:uuid:` ID and one with an `https://` ID — and assert the
+      key orders them by neither ID scheme (both must sort to the bottom via the
+      `datetime.min` fallback). Note: only the wire-side projection can actually
+      present timestampless statuses; core `CaseStatus` re-narrows `published`
+      and `updated` to non-`Optional` aware datetimes via `CoreObject`, so the
+      timestamp-absent branch is unreachable defensive code on the core path and
+      only exercisable on the `as_CaseStatus` wire branch.
     relationships:
     - rel_type: refines
       spec_id: CM-27-001

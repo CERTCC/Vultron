@@ -83,7 +83,6 @@ Check against `.agents/skills/shared/pr-body-guide.md`:
 - Closing references at the **top**, one per bullet
 - Required sections present (Summary, Changes, Verification for impl PRs)
 - Test counts in Verification are real numbers, not placeholders
-- Co-authored-by trailer present in all commits
 
 ### Phase 4 — Domain Context
 

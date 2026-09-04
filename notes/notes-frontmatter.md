@@ -264,6 +264,22 @@ should use `status: superseded` with `superseded_by` pointing to the replacement
 
 ---
 
+## Maintenance Rule (NF-06-001)
+
+When you modify any `notes/*.md` file, review and update its frontmatter in the
+**same** change — in particular `status`, `related_specs`, and `related_notes`.
+A new spec citation or cross-note link added to the body means a corresponding
+new frontmatter entry. Cross-links between notes SHOULD be two-way: if note A's
+frontmatter lists note B under `related_notes`, note B SHOULD list A.
+
+The schema is defined in `vultron/metadata/notes/schema.py`
+(`NoteStatus`, `NotesFrontmatter`); `superseded_by` is a scalar string, required
+when `status: superseded`. Per NF-06-002, root `AGENTS.md` carries a one-line
+statement of this rule so agents apply it consistently; this section is the
+canonical write-up.
+
+---
+
 ## Layer and Import Rules
 
 - `vultron/metadata/` is a **standalone tooling layer**.

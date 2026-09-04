@@ -7,6 +7,7 @@ nav:
   - Vultron: 'index.md'
   - Tutorials:
     - 'tutorials/index.md'
+    - Submit a Report to a Vultron Actor: 'tutorials/submit-a-report.md'
     - Run the Receive-Report Demo: 'tutorials/receive_report_demo.md'
     - Running the Other Demos: 'tutorials/other_demos.md'
     - Running the Multi-Actor Container Demos: 'tutorials/container_demos.md'
@@ -372,7 +373,11 @@ validation:
 draft_docs: |
   draft-*.md
   !reference/draft-vultron-spec.md
-  docs/developer/
+  # Patterns are relative to docs_dir; `docs/developer/` was mis-anchored
+  # (matched a nonexistent docs/docs/developer/) so these maintainer pages were
+  # silently published. Exclude them from production builds per DOCBW-03-004
+  # while `mkdocs serve` still renders them for local review.
+  developer/
 theme:
   logo: 'assets/Software_Engineering_Institute_Unitmark_White.svg'
   name: 'material'

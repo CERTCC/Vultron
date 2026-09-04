@@ -2,6 +2,9 @@
 
 ## Available tutorials
 
+- [Submit a Report to a Vultron Actor](submit-a-report.md) — start the
+  reference implementation, construct a `Create(VulnerabilityReport)` message
+  by hand, post it to an actor's inbox, and confirm the actor received it.
 - [Run the Receive-Report Demo](receive_report_demo.md) — start the Vultron
   demo environment with Docker Compose and run three vulnerability-report
   workflows end-to-end.

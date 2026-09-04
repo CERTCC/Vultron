@@ -224,8 +224,6 @@ Merge branch 'main' into task/1234-slug
 Resolved conflicts in:
 - vultron/core/models/case/case.py — kept both new fields
 - uv.lock — regenerated after taking main's version
-
-Co-Authored-By: Claude Sonnet 4.6 <noreply@anthropic.com>
 ```
 
 ---
