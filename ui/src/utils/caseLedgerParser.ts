@@ -73,6 +73,11 @@ export type LedgerEventType =
   | 'offer_case_participant'
   | 'accept_offer_case_participant'
   | 'accept_actor_recommendation'
+  // Case-ownership handoff (the -handoff scenarios): the current owner offers to
+  // transfer case ownership to another actor, who accepts. `reject_case_ownership_transfer`
+  // exists in the protocol source but is not emitted by any current fixture.
+  | 'offer_case_ownership_transfer'
+  | 'accept_case_ownership_transfer'
 
 /** A case-level status snapshot (`CaseStatus`): the global EM/PXA pair. */
 export interface CaseStatusSnapshot {

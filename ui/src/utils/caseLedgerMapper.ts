@@ -655,6 +655,10 @@ function handleEntry(
       return handleAcceptInvite(entry, participants, shadow, x, laneIndex)
     case 'reject_invite_actor_to_case':
       return handleRejectInvite(entry, participants, shadow, x, laneIndex)
+    case 'offer_case_ownership_transfer':
+      return handleOfferOwnershipTransfer(entry, participants, shadow, x, laneIndex)
+    case 'accept_case_ownership_transfer':
+      return handleAcceptOwnershipTransfer(entry, participants, shadow, x, laneIndex)
     case 'add_case_participant':
       // Roster bookkeeping: the case manager records a participant on the case.
       // The visible join renders via accept_invite; here we only ensure the lane
@@ -1064,6 +1068,102 @@ function handleRejectInvite(
     [`${name} declined the invitation to the case`, 'Reject(Invite) → inviter', 'Actor does not join the case'],
     'Invite Declined',
     () => [`${name} declined to join the case`],
+    false
+  )
+  return { nodes, logLines: [] }
+}
+
+// --- offer/accept_case_ownership_transfer → case-ownership handoff -----------
+
+/**
+ * Case-ownership HANDOFF (the `-handoff` scenarios: fvcv-handoff, fccv-handoff).
+ * The current case owner offers to transfer ownership to another actor, who then
+ * accepts. Rendered as an offer→accept node pair mirroring the invite/accept
+ * grammar, so the handoff — previously invisible (these verbs hit the `default`
+ * branch and were dropped) — reads as one coordinated moment across two lanes.
+ *
+ * This is a deliberate demo OVERLAY (ui/CLAUDE.md §9): ownership transfer is a
+ * procedural act — it moves the CASE_OWNER role + the case's `attributedTo`, but is
+ * NOT an RM/EM/VFD/PXA machine transition — so it touches NO shadow machine state and
+ * is judged against no artifact. (It also does not migrate a lane's role LABEL; the
+ * log-replay lanes are labeled by host identity, not by CASE_OWNER, so there is no
+ * owner badge to move. Label migration stays deferred per §5's "static labels.")
+ *
+ * `offer`: `actor` = the OUTGOING owner (resolves to vendor-1 in both fixtures);
+ * `target.id` = the INCOMING owner (resolves to `coordinator`); `target.name` = its
+ * display name; `content` = a human sentence. The decision node goes in the outgoing
+ * owner's lane.
+ */
+function handleOfferOwnershipTransfer(
+  entry: CaseLedgerEntry,
+  participants: Map<string, ParticipantState>,
+  _shadow: ShadowState,
+  x: number,
+  laneIndex: LaneIndexMap
+): MapResult {
+  const outgoingLane = actorUrlToLaneId(entry.payloadSnapshot?.actor)
+  ensureParticipant(participants, outgoingLane, laneIndex)
+  if (outgoingLane === 'unknown') {
+    return { nodes: [], logLines: ['  ↳ offer_case_ownership_transfer (could not resolve outgoing owner)'] }
+  }
+  const incomingLane = actorUrlToLaneId(
+    entry.payloadSnapshot?.target?.id ?? entry.payloadSnapshot?.target?.attributedTo
+  )
+  const outgoingName = participants.get(outgoingLane)?.name ?? outgoingLane
+  const incomingName =
+    entry.payloadSnapshot?.target?.name ??
+    (incomingLane !== 'unknown' ? participants.get(incomingLane)?.name : undefined) ??
+    'another actor'
+  const nodes = synthesizeCluster(
+    entry,
+    participants,
+    outgoingLane,
+    x,
+    'Offer Ownership Transfer',
+    [
+      `${outgoingName} offers to transfer case ownership to ${incomingName}`,
+      'Offer(VulnerabilityCase) → new owner',
+      'Awaiting acceptance',
+    ],
+    'Ownership Offered',
+    () => [`Case ownership offered to ${incomingName}`],
+    false
+  )
+  return { nodes, logLines: [] }
+}
+
+/**
+ * The incoming owner accepts the ownership transfer. `actor` = the INCOMING owner
+ * (the `coordinator` lane in both fixtures). Emits a "Ownership Accepted" decision
+ * node in the incoming owner's lane; the handoff is complete. No shadow-machine
+ * change (see handleOfferOwnershipTransfer).
+ */
+function handleAcceptOwnershipTransfer(
+  entry: CaseLedgerEntry,
+  participants: Map<string, ParticipantState>,
+  _shadow: ShadowState,
+  x: number,
+  laneIndex: LaneIndexMap
+): MapResult {
+  const incomingLane = actorUrlToLaneId(entry.payloadSnapshot?.actor)
+  ensureParticipant(participants, incomingLane, laneIndex)
+  if (incomingLane === 'unknown') {
+    return { nodes: [], logLines: ['  ↳ accept_case_ownership_transfer (could not resolve new owner)'] }
+  }
+  const incomingName = participants.get(incomingLane)?.name ?? incomingLane
+  const nodes = synthesizeCluster(
+    entry,
+    participants,
+    incomingLane,
+    x,
+    'Ownership Accepted',
+    [
+      `${incomingName} accepted case ownership`,
+      'Accept(Offer) — case-manager role transferred',
+      `${incomingName} is now the Case Owner`,
+    ],
+    'Ownership Transferred',
+    () => [`${incomingName} is now the Case Owner`],
     false
   )
   return { nodes, logLines: [] }

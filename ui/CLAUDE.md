@@ -306,7 +306,9 @@ like `"ACCEPTED VFD ACTIVE Pxa"` is a cross-check only — trust structured fiel
 > from `main` changed the case-ledger VOCABULARY (see the "⚠️ 2026-08 VOCABULARY
 > SHIFT" box under §5) and added two scenarios (`fcv-reject`, `fcvcv`). The mapper
 > + parser were updated and all 9 fixtures regenerated. The GAP notes below are
-> retained as historical context; the handoff work (GAP 3) is still deferred.
+> retained as historical context. GAP 3 (case-ownership handoff) is now largely done:
+> the transfer is DEPICTED (2026-09-08) as an offer→accept node pair; only role-LABEL
+> migration remains deferred.
 
 **How to (re)generate the logs** (Docker, on the user's real machine — not in
 this container): the exec bit on the script is not reliably preserved on OneDrive,
@@ -367,16 +369,23 @@ through to `unknown` → dropped. Need lane ids + `makeParticipant` cases +
 vendor, in the C-scenarios it appears alongside a coordinator, so its role may be
 scenario-dependent — VERIFY from each log's `actorParticipantIndex`/roles before coding).
 
-**GAP 3 — case-ownership HANDOFF (hardest).** The `-handoff` scenarios transfer the
-case-manager role BETWEEN actors mid-case (protocol events
-`offer_case_ownership_transfer` / `accept_case_ownership_transfer` /
-`reject_case_ownership_transfer` exist in the source; confirm exactly how they
-surface in the handoff logs — the top-level `eventType` set above didn't obviously
-include them, so they may be carried differently). The mapper currently assumes ONE
-fixed `caseactor` lane for the whole case. Handoff breaks that assumption and likely
-touches the lane model itself, plus the `rmState==='N/A'` "who is the coordinator"
-marker used by `buildInviteAction` (§9). Scope this carefully against the real
-handoff logs before coding — it's more than a new event handler.
+**GAP 3 — case-ownership HANDOFF (✅ transfer now DEPICTED, 2026-09-08).** The
+`-handoff` scenarios (`fvcv-handoff`, `fccv-handoff`) transfer the case-manager role
+BETWEEN actors mid-case. As of the 2026-08 regeneration these DO surface as
+first-class ledger verbs — `offer_case_ownership_transfer` (`actor` = outgoing owner
+→ `vendor-1`; `target.id`/`target.name` = incoming owner → `coordinator`; `content` =
+a human sentence) and `accept_case_ownership_transfer` (`actor` = incoming owner).
+(`reject_case_ownership_transfer` exists in the source but is emitted by NO current
+fixture.) They used to hit the `default` branch and were silently dropped; the mapper
+now renders them as an **offer→accept node pair** (`handleOfferOwnershipTransfer` /
+`handleAcceptOwnershipTransfer`) mirroring the invite/accept grammar — "Offer Ownership
+Transfer" in the outgoing owner's lane, "Ownership Accepted" in the incoming owner's.
+This is a procedural OVERLAY (§9): it touches NO shadow machine state (ownership move =
+a `cvdRole`/`attributedTo` change, not an RM/EM/VFD/PXA transition).
+**Still deferred:** migrating a lane's role LABEL to mark the new owner — the log-replay
+lanes are labeled by host identity, not by CASE_OWNER, so there is no owner badge to
+move (see §5 "static labels"). If an owner badge is ever added, that's where the label
+migration would hook in.
 
 **Suggested approach for the next session:** (1) re-read the actual logs in
 `devlogs/{fcv,fvcv-*,fccv-*}/case-actor/*.jsonl` (ground truth — invariant tests
@@ -404,12 +413,15 @@ build/lint (no node in-container).
   lane (documented as mirroring ADR-0026 `_phase_coordinator_suggests_vendor2`); the
   other two verbs of the handshake become event-log lines. The actual join still
   renders via the existing `accept_invite` node.
-- **Handoff (fvcv/fccv-handoff) DEFERRED.** No ledger verb / no state machine —
-  ownership transfer is behavior-tree only (`ownership_transfer_tree.py`,
-  TRIG-11-001/002, delivered actor→actor via inbox/outbox) and surfaces in the
-  ledger ONLY as a `cvdRole` change (CASE_OWNER vendor→coordinator) + the case
-  object's `attributedTo` flip. This is squarely a demo overlay (procedural rule,
-  §9 boundary). Those scenarios will replay but not depict the transfer until built.
+- **Handoff (fvcv/fccv-handoff) — transfer now DEPICTED (2026-09-08; SUPERSEDES the
+  2026-07 "DEFERRED / no ledger verb" note).** This decision was made when ownership
+  transfer surfaced in the ledger ONLY as a `cvdRole`/`attributedTo` change. The 2026-08
+  regeneration changed that: the transfer is now emitted as first-class
+  `offer_case_ownership_transfer` / `accept_case_ownership_transfer` verbs, so the mapper
+  depicts it as an offer→accept node pair (see GAP 3 above, now resolved). It remains a
+  procedural OVERLAY (§9) with no shadow-machine change. Only the role-LABEL migration
+  (marking the coordinator as the new CASE_OWNER) stays deferred — there is no owner
+  badge in the lanes to migrate.
 
 **Upstream quirks to raise with Allen (not UI bugs):**
 1. In `fvcv-handoff` and `fccv-extension`, actor5's `ParticipantStatus.cvdRole` reads
