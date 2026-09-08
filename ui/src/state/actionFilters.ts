@@ -436,6 +436,42 @@ export function getVendorActions(state: DemoState, vendorId: string): Action[] {
     })
   }
 
+  // ---- Case-ownership transfer (demo overlay) ----------------------------------
+  // Ownership transfer is PROCEDURAL, not a state machine — it moves the CASE_OWNER
+  // role + case.attributedTo (CM-21-001..010, TRIG-11-001/002, ADR-0053), with NO
+  // entry in protocol_states.json. So this is a deliberate overlay (ui/CLAUDE.md §9),
+  // not an isLegalTransition gate.
+  //
+  // CONVENTION (not enforced protocol): we only offer this to the CURRENT owner. The
+  // protocol code imposes no owner-authority guard on offering — any actor with a case
+  // replica may offer — but restricting to the owner reads far more clearly in a demo.
+  // (The post-close boundary is likewise unspecified upstream — ADR-0085.)
+  if (state.caseOwnerId === vendorId && !state.pendingOwnerOfferTo) {
+    // One offer per eligible recipient (parameterless action model → encode the
+    // target in the id). Vendor→vendor scope: recipients are other visible, open
+    // vendors. The offer therefore only appears once another vendor has joined.
+    const recipients = getVendors(state).filter(
+      (v) => v.id !== vendorId && v.visible && !v.hasClosed
+    )
+    for (const recipient of recipients) {
+      actions.push({
+        id: `offer-ownership-to-${recipient.id}`,
+        label: `Offer Case Ownership → ${recipient.name}`,
+        description: `Offer to transfer CASE_OWNER of the case to ${recipient.name} (routed via the Case Actor)`,
+        enabled: true,
+      })
+    }
+  }
+  // The recipient of a pending offer may accept it.
+  if (state.pendingOwnerOfferTo === vendorId) {
+    actions.push({
+      id: 'accept-case-ownership',
+      label: 'Accept Case Ownership',
+      description: 'Accept the transfer and become the new CASE_OWNER of the case',
+      enabled: true,
+    })
+  }
+
   // ---- Invite: onboard another vendor while the case is open (demo overlay) ----
   const invite = buildInviteAction(state)
   if (invite) actions.push(invite)

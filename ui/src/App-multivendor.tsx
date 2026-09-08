@@ -17,6 +17,7 @@ import * as finderActions from './actions/finderActions'
 import * as vendorActions from './actions/vendorActions'
 import * as caseActorActions from './actions/caseActorActions'
 import * as inviteActions from './actions/inviteActions'
+import * as ownershipActions from './actions/ownershipActions'
 import * as externalActionHandlers from './actions/externalActions'
 
 function App() {
@@ -38,11 +39,13 @@ function App() {
       laneIndex: 0,
     })
 
-    // Initialize first Vendor
+    // Initialize first Vendor. Role is the BASE 'VENDOR' label; the ', CASE_OWNER'
+    // suffix is derived from demoState.caseOwnerId at render time (see the ActorPanel
+    // mapping below), so the owner badge migrates when ownership is transferred.
     participants.set('vendor-1', {
       id: 'vendor-1',
       name: 'Vendor',
-      role: PARTICIPANT_ROLES.vendor,
+      role: 'VENDOR',
       color: PARTICIPANT_COLORS.vendor1,
       rmState: 'START',
       vfdState: 'vfd',
@@ -77,6 +80,7 @@ function App() {
       eventLog: [],
       nextXPosition: INITIAL_X_POSITION,
       invitedVendors: new Set<string>(),
+      caseOwnerId: 'vendor-1',
     }
   })
 
@@ -287,7 +291,7 @@ function App() {
     participants.set('vendor-1', {
       id: 'vendor-1',
       name: 'Vendor',
-      role: PARTICIPANT_ROLES.vendor,
+      role: 'VENDOR',  // base label; CASE_OWNER badge derived from caseOwnerId at render
       color: PARTICIPANT_COLORS.vendor1,
       rmState: 'START',
       vfdState: 'vfd',
@@ -321,6 +325,7 @@ function App() {
       eventLog: [],
       nextXPosition: INITIAL_X_POSITION,
       invitedVendors: new Set<string>(),
+      caseOwnerId: 'vendor-1',
     })
     setStateHistory([])
   }, [])
@@ -340,6 +345,21 @@ function App() {
       // The inviter is whoever clicked; the handler is inviter-generic.
       if (actionId === 'invite-vendor') {
         newState = inviteActions.handleInviteVendor(newState, participantId)
+        setDemoState(newState)
+        return
+      }
+
+      // Case-ownership transfer (offer/accept) is a participant-generic handshake, like
+      // invite, so handle it before per-role routing. The offer id encodes its target
+      // (`offer-ownership-to-<targetId>`) because the action model is parameterless.
+      if (actionId.startsWith('offer-ownership-to-')) {
+        const targetId = actionId.slice('offer-ownership-to-'.length)
+        newState = ownershipActions.handleOfferCaseOwnership(newState, participantId, targetId)
+        setDemoState(newState)
+        return
+      }
+      if (actionId === 'accept-case-ownership') {
+        newState = ownershipActions.handleAcceptCaseOwnership(newState, participantId)
         setDemoState(newState)
         return
       }
@@ -540,7 +560,13 @@ function App() {
                 key={participant.id}
                 participantId={participant.id}
                 name={participant.name}
-                role={participant.role}
+                role={
+                  // Derive the CASE_OWNER badge from case-level ownership state so it
+                  // migrates on transfer, rather than baking it into a static label.
+                  participant.id === demoState.caseOwnerId
+                    ? `${participant.role}, CASE_OWNER`
+                    : participant.role
+                }
                 color={participant.color}
                 rmState={participant.rmState}
                 emState={demoState.emState}

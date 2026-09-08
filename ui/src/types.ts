@@ -60,6 +60,11 @@ export interface DemoState {
   nextXPosition: number
   invitedVendors: Set<string>  // Track all invited vendors (e.g., 'vendor-2', 'vendor-3')
   embargoProposerId?: string  // Track who proposed current embargo/revision (e.g., 'finder', 'vendor-1', 'caseactor')
+  caseOwnerId?: string  // Case-level: which participant currently holds CASE_OWNER. Seeded to
+                        // 'vendor-1'; moves on an accepted ownership transfer (ownershipActions).
+                        // The CASE_OWNER label is DERIVED from this at render, so the badge migrates.
+  pendingOwnerOfferTo?: string  // Participant id an ownership offer is currently addressed to
+                                // (offer→accept handshake), or undefined when none is pending.
   hasPendingFinderNote?: boolean  // Case-level: an unanswered Finder question exists. Independent of `phase` so RM transitions (e.g. defer) don't hide the reply option (see actionFilters reply gating)
   stepSnapshots?: StepSnapshot[]  // Log Replay only: machine states as of each visual
                                   // step (index i = state after timeline column i is

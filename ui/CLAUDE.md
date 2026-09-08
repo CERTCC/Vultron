@@ -458,7 +458,7 @@ build/lint (no node in-container).
    demo "violation" that hinges on a state-machine edge, check whether a procedural act
    (Leave, role rule, handoff) legitimately overrides that machine.
 
-### ⚠️ Multi-Vendor demo — possible gaps surfaced by the coordinator JSONLs (2026-07, NOT yet acted on)
+### ⚠️ Multi-Vendor demo — possible gaps surfaced by the coordinator JSONLs (2026-07; item 2 partially done 2026-09-08)
 
 While extending Log Replay for the coordinator scenarios, three things surfaced that
 the protocol-driven **Multi-Vendor** demo (`App-multivendor.tsx` + `actions/*` +
@@ -472,8 +472,21 @@ read of `App-multivendor.tsx`/`actions/` to verify:
    vendor. The Multi-Vendor roster is finder/vendor(s)/caseactor, where "caseactor" is
    the *virtual* coordinator; it likely has no notion of a real coordinator
    participant holding CASE_OWNER + an RM lifecycle.
-2. **Case-ownership handoff** — CASE_OWNER migrating vendor→coordinator mid-case
-   (see deferred handoff above). The demo almost certainly assumes a fixed owner.
+2. **Case-ownership handoff** — CASE_OWNER migrating mid-case. **PARTIALLY DONE
+   (2026-09-08): vendor→vendor transfer is implemented.** The demo now carries a
+   case-level `caseOwnerId` (+ `pendingOwnerOfferTo`) on `DemoState`, seeded to
+   `vendor-1`; the CASE_OWNER label is **derived from `caseOwnerId` at render** (so the
+   badge migrates on transfer) rather than baked into the static `PARTICIPANT_ROLES.vendor`
+   string. An offer→accept overlay (`actions/ownershipActions.ts`, wired inviter-generic
+   in `handleAction`, filtered in `getVendorActions`) lets the current owner offer to
+   another visible vendor, who accepts. It's a procedural OVERLAY (§9): NO machine-state
+   change, mirroring specs **CM-21-001..010 / TRIG-11-001/002 / ADR-0053** (not derived
+   from `protocol_states.json`, which has no ownership machine). **Convention flag:** the
+   "only the current owner may offer" gate is a DEMO convention — the protocol code
+   imposes no owner-authority guard on offering, and no case-state precondition
+   (post-close boundary is the open ADR-0085 question). **Still deferred:** targeting a
+   real **coordinator** (needs gap #1's coordinator participant), and `reject`/cancel
+   (no fixture; downstream reject behavior is an open question).
 3. **The suggest-actor handshake** (coordinator recommends → CaseActor forwards →
    owner approves → invite) — a multi-step onboarding distinct from the demo's direct
    invite path.
