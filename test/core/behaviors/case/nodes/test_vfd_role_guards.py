@@ -19,7 +19,7 @@
   (CSB-15-001)
 - CheckDeployerRoleNode: gates d→D (d_state=D); actor must hold CVDRole.DEPLOYER
   (CSB-15-002)
-- CheckNotSoleObserverVfdNode: gates v→V (vfd_state=Vfd); sole-OBSERVER actors
+- CheckNotSoleObserverVfdNode: gates v→V (vf_state=Vf); sole-OBSERVER actors
   MUST NOT emit VFD transitions (CM-25-005)
 """
 
