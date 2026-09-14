@@ -138,6 +138,10 @@ class _PublicDisclosureSkipConditionNode(DataLayerConditionWithPorts):
         if self.datalayer is None or not self.case_id:
             return Status.SUCCESS
 
+        # Lenient guard (ADR-0087): this node returns FAILURE only to *signal*
+        # that a teardown is required; every other path is SUCCESS ("nothing to
+        # tear down"). An unresolvable case cannot require a teardown, so
+        # SUCCESS is the correct nothing-to-do answer (conformance allowlist).
         case = self.datalayer.read_case(self.case_id)
         if case is None:
             return Status.SUCCESS

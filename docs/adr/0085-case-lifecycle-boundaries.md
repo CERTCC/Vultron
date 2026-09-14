@@ -95,6 +95,20 @@ GI traffic, and it lets canonical history grow after close. Option C was rejecte
 "MAY reject" is not "MUST reject," so implementations would still diverge — the
 ambiguity CONCERN-1894 filed.
 
+### Closure is a case-level boundary, not a participant RM cascade
+
+Owner-close being "global and terminal" describes the **case-level write
+boundary** — the Case Actor accepts no further external ledger entries — not the
+RM dimension of every participant. Owner-close advances exactly two participants
+to `RM.CLOSED`: the Case Owner (the leaver) and the Case Actor (CM-23-002). It
+advances no others. A `Leave` advances only the leaving actor's own RM state,
+regardless of the rung it was on, because a `Leave` is that actor's own
+self-declaratory closure act (ADR-0084). Every remaining ("bystander")
+participant retains its last RM state when the case closes around it; closure
+never force-advances a participant that did not itself leave. Same locked-door
+store: the front door locks, but a book a patron never returned stays wherever
+it was left. This is stated as CM-23-012.
+
 ### Rejoin: closed is terminal, defer-don't-close is the workaround
 
 `RM.CLOSED` remains terminal. There is no rejoin transition. A participant that
@@ -150,5 +164,7 @@ code is required.
 - CONCERN-1902 — `SvcCloseCaseUseCase` unreachable under auto-create-case (source)
 - ADR-0050 — `Leave(VulnerabilityCase)` is the canonical RM closure mechanism
 - ADR-0084 — Participant Assertion Authority (companion decision)
+- CONCERN-3106 — whether case closure should force participant RM state
+  (resolved: only the leaver advances; bystanders retain their rung — CM-23-012)
 - Deferred: post-join role change (`Update(CaseParticipant)`, #3065) and case
   reopen mechanics (#3066) are tracked as Ideas under Epic #2567.

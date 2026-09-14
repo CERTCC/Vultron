@@ -147,10 +147,9 @@ class ReadProposedEmbargoIdNode(DataLayerActionWithPorts):
             return f
         assert self.datalayer is not None
 
-        case = self.datalayer.read_case(self._case_id)
-        if case is None:
-            self.feedback_message = f"Case '{self._case_id}' not found"
-            return Status.FAILURE
+        case, failure = self._require_case(self._case_id)
+        if failure is not None:
+            return failure  # Regime 1 (ADR-0087)
 
         proposed = case.proposed_embargoes
         if not proposed:

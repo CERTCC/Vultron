@@ -110,10 +110,13 @@ class SendTerminateEmbargoActivityNode(_SendEmbargoActivityBase):
             return [case_manager_id]
 
         assert self.datalayer is not None
+        # Regime 3 / defer-to-upstream (ADR-0087): this is addressing
+        # enrichment, not coordination. A missing case is caught and failed by
+        # the nodes that precede this one in the sequence; here we simply fall
+        # back to the meaningful default recipient (the case manager) rather
+        # than a silent empty list. Deliberately unguarded (conformance allowlist).
         case = self.datalayer.read_case(self._case_id)
         if case is None:
-            # Nothing better to say than the old answer; a missing case is
-            # reported by the nodes that precede this one in the sequence.
             return [case_manager_id]
         return case_addressees(case, actor_id)
 

@@ -177,11 +177,9 @@ class ResetParticipantConsentNode(DataLayerActionWithPorts):
             return f
         assert self.datalayer is not None
 
-        case = self.datalayer.read_case(self.case_id)
-        if case is None:
-            self.feedback_message = f"Case '{self.case_id}' not found"
-            self.logger.warning("%s: %s", self.name, self.feedback_message)
-            return Status.FAILURE
+        case, failure = self._require_case(self.case_id)
+        if failure is not None:
+            return failure  # Regime 1 (ADR-0087)
 
         reset_case_participant_embargo_consent(self.datalayer, case)
         self.feedback_message = (
@@ -307,19 +305,9 @@ class SendAnnounceEmbargoEventNode(_SendEmbargoActivityBase):
 
     def _resolve_embargo_and_manager(self) -> "tuple[str, str] | Status":
         assert self.datalayer is not None
-        try:
-            case = self.datalayer.read_case(self._case_id)
-        except Exception as exc:
-            self.feedback_message = (
-                f"Failed to read case '{self._case_id}': {exc}"
-            )
-            self.logger.warning("%s: %s", self.name, self.feedback_message)
-            return Status.FAILURE
-
-        if case is None:
-            self.feedback_message = f"Case '{self._case_id}' not found"
-            self.logger.warning("%s: %s", self.name, self.feedback_message)
-            return Status.FAILURE
+        case, failure = self._require_case(self._case_id)
+        if failure is not None:
+            return failure  # Regime 1 (ADR-0087)
 
         case_manager_id = _resolve_case_manager_id(case, self.datalayer)
         if case_manager_id is None:
@@ -391,10 +379,9 @@ class RemoveFromProposedEmbargoesNode(DataLayerActionWithPorts):
             return f
         assert self.datalayer is not None
 
-        case = self.datalayer.read_case(self.case_id)
-        if case is None:
-            self.feedback_message = f"Case '{self.case_id}' not found"
-            return Status.FAILURE
+        case, failure = self._require_case(self.case_id)
+        if failure is not None:
+            return failure  # Regime 1 (ADR-0087)
 
         proposed_ids = [_as_id(e) for e in case.proposed_embargoes]
         if self.embargo_id in proposed_ids:

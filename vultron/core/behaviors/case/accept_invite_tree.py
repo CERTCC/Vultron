@@ -224,14 +224,9 @@ class CheckInviteeNotAlreadyParticipantNode(
             return f
         assert self.datalayer is not None
 
-        case = self.datalayer.read_case(self.case_id)
-        if case is None:
-            self.logger.warning(
-                "%s: case '%s' not found",
-                self.name,
-                self.case_id,
-            )
-            return Status.FAILURE
+        case, failure = self._require_case(self.case_id)
+        if failure is not None:
+            return failure  # Regime 1: case must exist (ADR-0087)
 
         existing_ids = [_as_id(p) for p in case.case_participants]
         already_participant = (

@@ -359,8 +359,8 @@ def participant_transition_violations(
         requested_pxa: The PXA state being asserted, or ``None``.
         actor_roles: The asserting actor's ``CVDRole`` list, for the role gates.
         validate_rm_transition: Whether to apply the RM adjacency rule.  Only
-            the enumerated case-closure quarantine (#3106) sets this ``False`` — see
-            ``force_rm_state`` on
+            the enumerated sanctioned self-declared-Leave override (CM-23-012,
+            resolving #3106) sets this ``False`` — see ``force_rm_state`` on
             :class:`~vultron.core.behaviors.case.nodes.participant.status\
             .CreateParticipantStatusNode`.  It drops one *rule* from the set and
             never suppresses another rule's violation (BTND-10-002): the
@@ -368,7 +368,7 @@ def participant_transition_violations(
             shift *labels*, because dropping the RM rule takes ``"rm"`` out of
             :func:`_classify`'s faulted set, so a multi-dimension violation
             reading ``rm`` reports root instead of derived.  Moot in practice —
-            every quarantined call site asserts RM only.
+            every override call site asserts RM only.
 
     Returns:
         One :class:`~vultron.errors.Violation` per violated rule, each naming

@@ -44,7 +44,6 @@ from vultron.core.behaviors.helpers import (
     DataLayerConditionWithPorts,
     PortInformation,
 )
-from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_status import CaseStatus
 from vultron.core.models.dimensions import EmDimension, PxaDimension
 from vultron.core.models.protocols import PersistableModel
@@ -90,30 +89,6 @@ class _CsStatusGuardBase(DataLayerConditionWithPorts):
         self.case_id = case_id
         self.status_id = status_id
         self.status_obj_fallback = status_obj_fallback
-
-    def _resolve_case(self) -> VulnerabilityCase | None:
-        """Resolve the VulnerabilityCase from the DataLayer (AC-3, #2701).
-
-        Returns None when case_id is absent or the case is not found.
-        Callers must invoke _require_datalayer() before calling this.
-        """
-        assert self.datalayer is not None
-        if not self.case_id:
-            return None
-        result = self.datalayer.read_case(self.case_id)
-        # Defensive isinstance: guards against misbehaving adapter stubs that
-        # bypass read_case()'s internal type check (the annotation is not
-        # enforced at runtime).
-        if isinstance(result, VulnerabilityCase):
-            return result
-        if result is not None:
-            logger.warning(
-                "%s: read_case(%r) returned unexpected type %s; treating as not found",
-                self.__class__.__name__,
-                self.case_id,
-                type(result).__name__,
-            )
-        return None
 
     def _resolve_asserted(self) -> CaseStatus | None:
         assert self.datalayer is not None
@@ -184,14 +159,12 @@ class FilterCsEmDimensionNode(_CsStatusGuardBase):
             return f
         assert self.datalayer is not None
 
-        case = self._resolve_case()
-        if case is None:
-            self.feedback_message = (
-                f"Case '{self.case_id}' not found in DataLayer;"
-                " aborting before GuardedCommit (CLP-10-009, #2710)"
-            )
-            self.logger.warning("%s: %s", self.name, self.feedback_message)
-            return Status.FAILURE
+        case, failure = self._require_case(self.case_id)
+        if failure is not None:
+            # Regime 1: authoritative gate for the AddCaseStatus tree — the
+            # tree must not commit a ledger entry for an unresolvable case
+            # (CLP-10-009, #2710). Canonical FAILURE via ADR-0087 helper.
+            return failure
 
         try:
             current = case.current_status

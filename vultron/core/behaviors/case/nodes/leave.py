@@ -78,14 +78,9 @@ class AdvanceParticipantToRMClosedNode(DataLayerActionWithPorts):
             return f
         assert self.datalayer is not None
 
-        case = self.datalayer.read_case(self._case_id)
-        if case is None:
-            self.logger.warning(
-                "%s: case '%s' not found or wrong type",
-                self.name,
-                self._case_id,
-            )
-            return Status.FAILURE
+        case, failure = self._require_case(self._case_id)
+        if failure is not None:
+            return failure  # Regime 1: case must exist (ADR-0087)
 
         participant_id = case.actor_participant_index.get(
             self._leaving_actor_id
@@ -129,10 +124,11 @@ class AdvanceParticipantToRMClosedNode(DataLayerActionWithPorts):
             pxa_state=None,
             result_out=result_out,
             name=f"{self.name}.CreateParticipantStatus",
-            # Quarantine: this stamps RM.CLOSED regardless of the rung the
-            # leaving actor's RM machine is on, which the protocol does not
-            # permit.  Whether closure should touch participant RM at all is
-            # tracked as type:Concern #3106; see `force_rm_state`.
+            # Sanctioned override (CM-23-012, resolving #3106): a Leave is the
+            # leaving actor's own self-declaratory closure act (ADR-0084), so
+            # advancing *that actor* to RM.CLOSED regardless of its current rung
+            # is legitimate self-declaration; the RM adjacency rule is
+            # suppressed only for this single-actor write.  See `force_rm_state`.
             force_rm_state=True,
         )
         node.datalayer = self.datalayer
@@ -187,14 +183,9 @@ class AdvanceCaseActorToRMClosedNode(DataLayerActionWithPorts):
             return f
         assert self.datalayer is not None
 
-        case = self.datalayer.read_case(self._case_id)
-        if case is None:
-            self.logger.warning(
-                "%s: case '%s' not found or wrong type",
-                self.name,
-                self._case_id,
-            )
-            return Status.FAILURE
+        case, failure = self._require_case(self._case_id)
+        if failure is not None:
+            return failure  # Regime 1: case must exist (ADR-0087)
 
         participant_id = case.actor_participant_index.get(self._case_actor_id)
         if participant_id is None:
@@ -236,11 +227,12 @@ class AdvanceCaseActorToRMClosedNode(DataLayerActionWithPorts):
             pxa_state=None,
             result_out=result_out,
             name=f"{self.name}.CreateParticipantStatus",
-            # Quarantine: this stamps RM.CLOSED regardless of the rung the
-            # *case actor's* RM machine is on — the party that stays and closes
-            # the case, not the departing one — which the protocol does not
-            # permit.  Whether closure should touch participant RM at all is
-            # tracked as type:Concern #3106; see `force_rm_state`.
+            # Sanctioned override (CM-23-012, resolving #3106): on owner Leave
+            # the *case actor* closes its own RM lifecycle (ADR-0051) as the
+            # penultimate step before case_fully_closed.  Advancing this single
+            # actor to RM.CLOSED regardless of rung is legitimate; the RM
+            # adjacency rule is suppressed only for this write.  Bystander
+            # participants are never advanced here.  See `force_rm_state`.
             force_rm_state=True,
         )
         node.datalayer = self.datalayer

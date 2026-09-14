@@ -84,6 +84,9 @@ def _create_and_attach_participant(
             participant.id_,
         )
 
+    # Regime 1 (ADR-0087): module-level resolver (bare `dl`, not a node) —
+    # a missing case is logged at ERROR and returned as None so the calling
+    # node fails loudly. Conformance allowlist: module-resolver category.
     stored_case = dl.read_case(case_id)
     if stored_case is None:
         node_logger.error("Case %s not found in DataLayer", case_id)
@@ -375,8 +378,9 @@ def validate_participant_status_write(
 
     Args:
         validate_rm_transition: Passed through to the evaluator.  ``False`` only
-            for the enumerated case-closure quarantine (``force_rm_state``);
-            every other caller leaves the full rule set in force.
+            for the enumerated sanctioned self-declared-Leave override
+            (``force_rm_state``, CM-23-012); every other caller leaves the full
+            rule set in force.
 
     Returns:
         ``Status.FAILURE`` when the write is refused, ``None`` when it is legal

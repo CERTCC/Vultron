@@ -2728,6 +2728,53 @@ groups:
     - ADR-0050
     stories:
     - story_2022_066
+  - id: CM-23-012
+    priority: MUST
+    kind: protocol
+    statement: >-
+      Leave(VulnerabilityCase) advances only the leaving actor's own RM state to
+      RM.CLOSED, regardless of which RM rung that actor currently holds (START,
+      RECEIVED, VALID, ACCEPTED, DEFERRED, or INVALID). Case closure MUST NOT
+      advance any non-leaving ("bystander") participant's RM state: on owner
+      Leave, only the Case Owner and the Case Actor advance to RM.CLOSED
+      (CM-23-002); every other participant MUST retain its last RM state. The
+      characterization of owner-close as ending "the case for everyone"
+      (CM-23-011) refers to the case-level write boundary — the Case Actor
+      accepts no further external ledger entries (ADR-0085) — and MUST NOT be
+      read as a directive to force each remaining participant's RM dimension to
+      RM.CLOSED.
+    rationale: >-
+      A participant's RM state is the self-declaratory record of how that
+      participant handled the report (ADR-0084). A Leave is that participant's
+      own authoritative closure act, so advancing the leaving actor to RM.CLOSED
+      regardless of rung is legitimate self-declaration, not an externally
+      imposed jump — which is why the RM source→dest adjacency rule (RM.CLOSED
+      reachable by adjacency only from ACCEPTED/INVALID/DEFERRED) is
+      intentionally overridden at the leave/close write sites. A bystander that
+      never sent Leave has made no closure declaration; forcing its RM to
+      RM.CLOSED would fabricate a declaration it never made. Such a participant
+      simply remains at its last rung when the case ends around it (the library
+      closes before every book is returned). The demos' "all participants
+      RM.CLOSED" milestone (DEMOMA-07-003) is reached because every participant
+      closes its own handling through the protocol, not because closure pushes
+      them there.
+    verification: >-
+      A test confirms that an owner Leave(VulnerabilityCase) advances only the
+      Case Owner and Case Actor to RM.CLOSED and leaves a bystander participant
+      that was at RM.RECEIVED or RM.VALID at its prior RM state; and that the
+      leaving actor is advanced to RM.CLOSED even from a non-adjacent starting
+      rung (e.g. RM.RECEIVED).
+    relationships:
+    - rel_type: refines
+      spec_id: CM-23-001
+    - rel_type: refines
+      spec_id: CM-23-002
+    adr:
+    - ADR-0050
+    - ADR-0084
+    - ADR-0085
+    stories:
+    - story_2022_066
 - id: CM-24
   title: CaseActor-Delegated Activity Authorship Contract
   description: >-

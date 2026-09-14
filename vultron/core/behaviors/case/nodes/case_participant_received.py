@@ -55,16 +55,9 @@ class AddCaseParticipantToCaseReceivedNode(DataLayerActionWithPorts):
             return f
         assert self.datalayer is not None
         participant = self.datalayer.read(self.participant_id)
-        case = self.datalayer.read_case(self.case_id)
-
-        if case is None:
-            self.feedback_message = f"case '{self.case_id}' not found"
-            self.logger.warning(
-                "%s: case '%s' not found",
-                self.name,
-                self.case_id,
-            )
-            return Status.FAILURE
+        case, failure = self._require_case(self.case_id)
+        if failure is not None:
+            return failure  # Regime 1: case must exist (ADR-0087)
 
         if not isinstance(participant, CaseParticipant):
             self.feedback_message = (
@@ -115,16 +108,9 @@ class RemoveCaseParticipantFromCaseReceivedNode(DataLayerActionWithPorts):
             return f
         assert self.datalayer is not None
 
-        case = self.datalayer.read_case(self.case_id)
-
-        if case is None:
-            self.feedback_message = f"case '{self.case_id}' not found"
-            self.logger.warning(
-                "%s: case '%s' not found",
-                self.name,
-                self.case_id,
-            )
-            return Status.FAILURE
+        case, failure = self._require_case(self.case_id)
+        if failure is not None:
+            return failure  # Regime 1: case must exist (ADR-0087)
 
         existing_ids = [_as_id(p) for p in case.case_participants]
         if self.participant_id not in existing_ids:

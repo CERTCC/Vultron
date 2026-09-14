@@ -125,16 +125,18 @@ _SHARED_ENTRY_POINT = "validate_participant_status_write"
 _SHARED_EVALUATOR = "participant_transition_violations"
 
 # ---------------------------------------------------------------------------
-# force_rm_state quarantine — (path_relative_to_repo_root, occurrences)
+# force_rm_state override — (path_relative_to_repo_root, occurrences)
 #
-# These sites stamp a departing participant RM.CLOSED regardless of the rung
-# its RM machine is on.  RM.CLOSED is reachable only from ACCEPTED, INVALID or
-# DEFERRED, so each is a standing BTND-10-001 violation, invisible until the
-# write node began validating RM in #3050.  Whether case closure should force
-# participant RM state at all is a protocol question tracked as type:Concern #3106.
+# These sites advance a single departing actor to RM.CLOSED regardless of the
+# rung its RM machine is on.  RM.CLOSED is reachable by adjacency only from
+# ACCEPTED, INVALID or DEFERRED, so each is a non-adjacent RM write that the
+# emit-side adjacency rule (BTND-10-001) would otherwise refuse.  This is a
+# sanctioned self-declared-Leave override (CM-23-012, resolving #3106): a Leave
+# is the departing actor's own authoritative closure act (ADR-0084), and the
+# override never touches a non-leaving (bystander) participant.
 #
-# This list MUST only shrink.  Do not add entries: fix the call site, or take
-# the design question to the Concern issue first.
+# This list MUST only shrink.  Do not add entries: a new site would be forcing
+# RM.CLOSED on some actor without a self-declared Leave to justify it.
 # ---------------------------------------------------------------------------
 _RM_FORCE_QUARANTINE: dict[str, int] = {
     "vultron/core/behaviors/sync/nodes/close_case_effect.py": 1,

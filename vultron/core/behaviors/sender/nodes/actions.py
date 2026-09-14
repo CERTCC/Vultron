@@ -53,13 +53,13 @@ class ResolveCaseManagerNode(DataLayerActionWithPorts):
         assert self.datalayer is not None
         assert self.actor_id is not None
 
-        case = self.datalayer.read_case(self.case_id)
-        if case is None:
-            self.feedback_message = (
-                f"Case '{self.case_id}' not found or wrong type"
-            )
+        # Regime 1 (ADR-0087): case must exist; preserve the BT-17-003
+        # output-clear on the failure path before returning the canonical
+        # FAILURE from _require_case.
+        case, failure = self._require_case(self.case_id)
+        if failure is not None:
             self._set_output("case_manager_id", None)  # BT-17-003
-            return Status.FAILURE
+            return failure
 
         case_manager_id = _resolve_case_manager_id(case, self.datalayer)
         if case_manager_id is None:

@@ -52,8 +52,9 @@ from test.architecture import _corpus
 #                validates its own writes against the shared evaluator
 #                (BTND-10-001, BTND-10-003, ADR-0086); the upstream guard is
 #                defence in depth, not the guarantee.  Three of those five
-#                sites force RM.CLOSED and carry a documented `force_rm_state`
-#                exemption (#3106) pinned by test_participant_status_validation.py.
+#                sites force RM.CLOSED and carry a sanctioned `force_rm_state`
+#                override (CM-23-012, resolving #3106) pinned by
+#                test_participant_status_validation.py.
 #   BOOTSTRAP  — initial / authoritative seeding write; no prior state to
 #                violate; outside the scope of transition validation
 #   PREDICATE  — read-only dimension instantiation (guard / is_*() checks),

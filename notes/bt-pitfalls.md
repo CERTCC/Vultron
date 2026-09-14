@@ -337,6 +337,36 @@ the producer node takes a no-op path.
 
 ---
 
+## Execution-Scoped Hand-off Keys Are Reset by the Bridge, Not by a Node
+
+(#3101 / CONCERN-2711, 2026-09-03; see `docs/adr/0087-case-resolution-disposition-policy.md`)
+
+The "no-op path must clear its own key" rule above assumes a **single owning
+node** can clear the key on every path it takes. That assumption breaks for a
+key written mid-tree by one node and consumed by a *later* node in the same
+`execute_with_setup` run — e.g. `BB_LEDGER_PAYLOAD_OBJECT_OVERRIDE`, written by
+`FinalizeCsFilterNode` and consumed by the guarded-commit node. Because a
+`memory=False` Sequence short-circuits on the first FAILURE, the consumer may
+never run, so **no node can guarantee cleanup on every outcome** (#3101: a
+missing-case FAILURE left the override stale, and the next execution committed a
+ledger entry against it).
+
+**Rule**: A cross-execution hand-off key like this is *execution-scoped*, not
+node-owned. List it in `BTBridge.execute_with_setup`'s `managed_keys` so the
+bridge resets it to its pre-execution state in the `finally` block on **every**
+outcome. Whatever execution wrote the key has it reset at its own teardown, so
+no execution leaks it forward regardless of which node short-circuited. (This is
+the exception to "`execute_with_setup` cleans only `datalayer` and
+`trigger_activity_factory`" above — the managed-keys set is the allowlist of
+execution-scoped keys the bridge also resets.)
+
+**Do NOT** instead zero the key from an unrelated node's `_clear()`: a node must
+not clear a blackboard key it does not own (CONCERN-2711), because a peer that
+legitimately owns the key would see it corrupted. Ownership stays with the
+producer; *lifetime* is enforced by the bridge.
+
+---
+
 ## Namespaced Inter-Node Handoff Keys
 
 (CONCERN-1335, 2026-07-10; see `specs/behavior-tree-node-design.yaml` BTND-03-004)
