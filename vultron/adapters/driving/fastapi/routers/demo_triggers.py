@@ -57,6 +57,7 @@ from vultron.adapters.driving.fastapi.trigger_models import (
     NotifyPublishedRequest,
     SyncLogEntryRequest,
 )
+from vultron.core.models._helpers import _now_utc
 from vultron.core.models.case_ledger_entry import VultronCaseLedgerEntry
 from vultron.core.models.case import VulnerabilityCase
 from vultron.wire.as2.vocab.objects.case_ledger_entry import (
@@ -335,6 +336,10 @@ def demo_sync_log_entry(
         "type": "Announce",
         "object": {"type": "VulnerabilityCase", "id": case_id},
         "actor": case_actor_id,
+        # CLP-07-011: a recorded snapshot must be the verbatim AS2 activity, and
+        # an AS2 activity always carries ``published``.  The commit boundary
+        # rejects a snapshot without one (ISSUE-2824).
+        "published": _now_utc().isoformat(),
         "context": case_id,
     }
 

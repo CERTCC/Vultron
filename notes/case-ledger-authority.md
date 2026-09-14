@@ -9,6 +9,7 @@ related_specs:
 related_notes:
   - notes/activitystreams-semantics.md
   - notes/case-state-model.md
+  - notes/configuration.md
   - notes/ownership-transfer.md
   - notes/sync-ledger-replication.md
 relevant_packages:
@@ -332,6 +333,65 @@ that rejects entries violating CLP-07-001 through CLP-07-004 *before*
 they enter the hash chain. Failing fast at commit time keeps the
 canonical chain clean and surfaces bugs immediately, rather than allowing
 silent pollution that's discovered only when replicas diverge.
+
+### An Entry Has Two Timestamps, and They Belong to Different Layers
+
+*Spec: CLP-14, CLP-15; ADR-0079 § "Validation". Issue #2824.*
+
+`CaseLedgerEntry.published` is the CaseActor's **commit** stamp.
+`payloadSnapshot.published` is the asserting actor's **claimed** event time.
+Deciding which one an invariant is about is not a detail — get it wrong and the
+check is either vacuous or falsely rejecting:
+
+- Commit-timestamp invariants (CLP-14-002/003/006 read against the envelope)
+  hold **by construction** — one writer, one clock. They belong to the
+  conformance harness (`check_clp14_timestamp_invariants`), which is the only
+  vantage point that sees a whole ledger. An entry never sees its predecessor,
+  so the *model* layer can never enforce them; asserting that it should is what
+  produced seven permanently-red `xfail(strict=True)` stubs.
+- Claimed-timestamp invariants (CLP-14-006/007/008, CLP-15-003) cannot hold by
+  construction, because a participant chose the value. They belong to
+  `_validate_entry_timestamps` at the commit boundary.
+
+Five traps, all found the hard way:
+
+1. **Claimed-timestamp monotonicity MUST be scoped per snapshot actor.**
+   Comparing claimed times across actors is exactly the wall-clock ordering
+   ADR-0079 rejected as option C. CLP-15-003 says "within the same
+   participant's event stream" for this reason.
+2. **CLP-15-003 is reported, never refused.** The CaseActor sees *arrival*
+   order, not causal order, and the transport promises no ordering (ADR-0037).
+   Refusing a regression is the reconstruction CLP-15-005 forbids, and it loses
+   the assertion completely — the guarded commit precedes the effect nodes
+   (CLP-10-006), so a raise aborts the whole receive sequence with no ledger
+   record and no retry. Two report bands: `INFO` within the configured
+   clock-skew tolerance, `WARNING` beyond it.
+3. **A snapshot the CaseActor builds on a participant's behalf carries that
+   participant's claimed time**, from the triggering activity — use
+   `claimed_published_iso()`. Stamping `_now_utc()` under a participant's actor
+   URI puts a foreign clock in that actor's claimed stream, which trap 2 then
+   reports as a regression, and leaves CLP-14-007/008 comparing the receiver's
+   clock against itself. A snapshot the CaseActor genuinely authors (its own
+   actor URI) does use its own clock.
+4. **A missing inbound `published` is a validity failure, not something to
+   fill in.** `as_Base` defaults the field to `now_utc` so the same classes can
+   author outbound activities; on the inbound path that default is the
+   receiver's clock posing as the sender's claim, and after `model_validate` the
+   two are indistinguishable. `parse_activity` therefore refuses it on the raw
+   body (CLP-15-006), which is why nothing downstream needs an
+   "absent claimed time" branch. Note this is *not* CLP-07-011 — that requires
+   the snapshot be the verbatim activity, and says nothing about `published`.
+5. **Never gate a whole guard on one optional argument.** The CLP-14 guard sat
+   behind `if case_published is not None:` and the sole production call site
+   never passed it, so nothing was checked for the guard's entire life while
+   its unit tests passed by calling it directly. Gate each check on the context
+   *it* needs, and test enforcement through the production node, not the
+   private validator.
+
+CLP-15-001 and CLP-15-002 bind the *participant*, and CLP-15-005 forbids the
+CaseActor from reconstructing participant-internal causal order. Their
+verification is `check_causal_edges` (DEMOMA-22-005), not a per-assertion
+check.
 
 ---
 

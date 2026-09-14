@@ -36,9 +36,16 @@ Environment variables
     Override :attr:`DatabaseConfig.db_url`.
 ``VULTRON_MODE``
     Override :attr:`AppConfig.mode` (``prototype`` or ``prod``).
+``VULTRON_LEDGER__CLOCK_SKEW_TOLERANCE_SECONDS``
+    Override :attr:`LedgerConfig.clock_skew_tolerance_seconds` (CLP-14-009).
+``VULTRON_LEDGER__FUTURE_TOLERANCE_SECONDS``
+    Override :attr:`LedgerConfig.future_tolerance_seconds` (CLP-14-009).
+``VULTRON_LEDGER__STALENESS_WINDOW_DAYS``
+    Override :attr:`LedgerConfig.staleness_window_days` (CLP-14-009).
 """
 
 from vultron.config.actor import ActorConfig
+from vultron.config.ledger import LedgerConfig
 from vultron.config.app import (
     AppConfig,
     DatabaseConfig,
@@ -55,6 +62,7 @@ __all__ = [
     "ActorConfig",
     "AppConfig",
     "DatabaseConfig",
+    "LedgerConfig",
     "RunMode",
     "ServerConfig",
     "YamlConfigSource",
