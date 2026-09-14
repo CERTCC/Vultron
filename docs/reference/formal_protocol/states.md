@@ -3,7 +3,7 @@
 {% include-markdown "../../includes/normative.md" %}
 
 Each Participant in an MPCVD case has a corresponding RM state, an EM state, and an overall CS state.
-Therefore, we can represent a Participant's state as a triple comprising the state of each of these models.
+Therefore, a Participant's state can be represented as a triple comprising the state of each of these models.
 
 !!! note "*Participant State*"
 
@@ -18,8 +18,8 @@ Good Participant situation awareness makes for good CVD decision making.
     Participants SHOULD track the state of other Participants in a case 
     to inform their own decision making as it pertains to the case.
 
-Elsewhere, we provide an example [Case Object](../../howto/case_object.md) model to facilitate such tracking.
-However, the protocol we are developing is expected to function even when incomplete information is available to
+An example [Case Object](../../howto/case_object.md) model that facilitates such tracking appears elsewhere.
+However, the Vultron protocol is expected to function even when incomplete information is available to
 any given Participant.
 
 !!! note ""  
@@ -94,14 +94,14 @@ Note that the above definition splits the case state
 and the public-exploit-attack ($pxa \xrightarrow{\dots} PXA$) sub-models
 from the [Case State Model](../../topics/process_models/cs/index.md).
 This is done for two reasons.
-First, it gives us a more compact notation to represent the 32 states of the CS model.
+First, it gives a more compact notation for representing the 32 states of the CS model.
 Second, as described in [Model Interactions](../../topics/process_models/model_interactions/index.md), it highlights the fact that
 the Vendor fix path represents the state of an individual Participant, whereas the public-exploit-attack sub-model
 represents facts about the world at large.
 Because not all Participants
 are Vendors or Deployers, Participants might not have a corresponding
-state on the $vfd \xrightarrow{} VFD$ axis. Therefore, we add a null
-element $\varnothing$ to the set of states representing the Vendor fix
+state on the $vfd \xrightarrow{} VFD$ axis. Therefore, a null
+element $\varnothing$ is added to the set of states representing the Vendor fix
 path.
 
 Thus, one might conclude that a total of 1,400 states is possible for each Participant.
@@ -120,7 +120,7 @@ Thus, one might conclude that a total of 1,400 states is possible for each Parti
 
 However, this dramatically overstates the possibilities for individual CVD Participant Roles because many of these
 states will be unreachable to individual Participants.
-In the remainder of this section, we detail these differences.
+The remainder of this section details these differences.
 
 ## Unreachable States
 
@@ -129,7 +129,7 @@ not matter.
 Similarly, for any Participant, the RM $Start$ state represents a case that the
 Participant doesn't even know about yet.
 Therefore, the $Start$ state also implies that the EM and CVD Case states do not matter.
-We use $*$ to represent the "don't care" value.
+The symbol $*$ represents the "don't care" value.
 
 ???+ note "Unreachable EM and CS States when RM is in  *Closed* or *Start*"
 
@@ -150,7 +150,7 @@ Furthermore, when a vulnerability becomes public, the EM state no longer matters
 
     $$q^{cs} \in \cdot\cdot\cdot PX \cdot \implies q^{em} \in *$$
 
-Taken together, we can modify our state model to reflect these limitations.
+Taken together, these limitations narrow the state model.
 The result is shown below.
 
 !!! note "Participant States With Unreachable States Removed"
@@ -276,7 +276,7 @@ Vendor Participants without a deployment capability can only create fixes, limit
 the fix path: $\{Vfd,~VFd\}$.
 Additional discussion of the distinction between Vendors with and without a deployment capability can be found in [A State-Based Model for Multi-Party Coordinated Vulnerability Disclosure](https://resources.sei.cmu.edu/library/asset-view.cfm?assetid=735513){:target="_blank"}.
 
-We apply these caveats to the generic model above to arrive at a Vendor state shown below.
+Applying these caveats to the generic model above yields the Vendor state shown below.
 
 !!! note "Vendor Participant State Space"
 
@@ -454,7 +454,7 @@ As tallied below, there are 128 possible states for a Vendor with deployment cap
 
 ## Non-Vendor Deployers
 
-We just explained that not all Vendors are Deployers.
+As explained above, not all Vendors are Deployers.
 Likewise, not all Deployers are Vendors.
 Most CVD cases leave Non-Vendor Deployers entirely out of the CVD process, so their appearance is expected to be rare in
 actual cases.
@@ -609,7 +609,7 @@ Therefore, their set of possible states is even more restricted than Vendors, as
         \end{cases}$$
 
 Thus, Non-Vendor Deployers can be expected to be in 1 of 100 possible
-states, as we show next.
+states, as shown next.
 
 !!! note "Non-Vendor Deployer State Space Size"
     $$  \begin{split}
@@ -626,7 +626,7 @@ Specifically, Finder/Reporters fall into this category, as do Coordinators.
 Other roles, as outlined in the [*CERT Guide to Coordinated Vulnerability Disclosure*](https://certcc.github.io/CERT-Guide-to-CVD){:target="_blank"},
 could be included here as well.
 Because they do not participate directly in the Vendor fix path, these Non-Vendor, Non-Deployer CVD Participants fall
-into the $\varnothing$ case substate we added above.
+into the $\varnothing$ case substate added above.
 Their state model is shown below.
 
 !!! note "Non-Vendor, Non-Deployer Participant State Space"
@@ -722,10 +722,10 @@ below.
 
 ### Finder-Reporters
 
-As we discussed in [RM Interactions](../../topics/process_models/rm/rm_interactions.md#the-secret-lives-of-finders),
+As discussed in [RM Interactions](../../topics/process_models/rm/rm_interactions.md#the-secret-lives-of-finders),
 the early Finder states are largely hidden from view from other CVD Participants unless they choose to engage
 in the CVD process in the first place.
-Therefore, for a CVD protocol, we only need to care about Finder states once they have reached RM $Accepted$.
+Therefore, for a CVD protocol, Finder states matter only once they have reached RM $Accepted$.
 Coincidentally, this is also a convenient way to mark the transition from Finder to Reporter.
 
 !!! note "Finder-Reporter State Space"
@@ -805,7 +805,7 @@ Coincidentally, this is also a convenient way to mark the transition from Finder
         (C,*,*) \\
         \end{cases}$$
 
-Thus, for all practical purposes, we can ignore the hidden states in the above and conclude that Finders who go on to
+Thus, for all practical purposes, the hidden states above can be ignored: Finders who go on to
 become Reporters have only 29 possible states during a CVD case.
 
 !!! note "Finder-Reporter State Space Size"
@@ -821,16 +821,16 @@ become Reporters have only 29 possible states during a CVD case.
 
     $$|S_{total}| = \prod_{i=1}^{N} |S_i|$$
 
-Now we can touch on the lower bounds of the state space of an MPCVD case.
-Generically, we would expect the state space for $N$ Participants to
-take the form given at right.
+The lower bound on the state space of an MPCVD case follows.
+Generically, the state space for $N$ Participants
+takes the form given at right.
 
 The upper bound on the MPCVD state space is $352^N \approx 10^{2.55N}$.
-However, because of the Role-specific limits just described, we already know that this overcounts the possible states
+However, because of the Role-specific limits just described, this overcounts the possible states
 significantly.
-We can do better still.
-If we ignore transient states while Participants converge on a consistent view of the global state of a case, we can
-drastically reduce the state space for an MPCVD case.
+A tighter bound is possible.
+Ignoring transient states while Participants converge on a consistent view of the global state of a case
+drastically reduces the state space for an MPCVD case.
 Why?
 There are two reasons:
 
@@ -841,7 +841,7 @@ There are two reasons:
 
 2. Similarly, the five EM states are also global to the case and should converge rapidly.
 
-Given these two observations, we can pull those Participant-agnostic terms out of the state calculations for individual Participants,
+Given these two observations, those Participant-agnostic terms can be pulled out of the state calculations for individual Participants,
 
 !!! note "MPCVD State Space With Participant-Agnostic Terms Factored Separately"
 
@@ -865,7 +865,7 @@ which leaves
             Others = 2 + 5  = 7 \\
         \end{cases}$$
 
-So our state space looks like
+So the state space looks like
 
 !!! note "MPCVD State Space Size Formula"
 
@@ -880,7 +880,7 @@ So our state space looks like
             7^{N_{Other}} \\
         \end{split}$$
 
-With these values in mind, we see that
+With these values in mind:
 
 - A two-party (Finder-Vendor) case might have a lower bound state space of $40 \times 3 \times 16 = 1,920$ states.
 
@@ -922,5 +922,5 @@ For a case to really begin, the Finder must at least reach the $A$ state.
 Therefore, at the point when a second party finds out about the vulnerability from a Finder,
 the Finder/Reporter is presumed to be already at $q_{Finder}=(A, N, pxa)$.
 
-We will show in [Transitions](transitions.md) how this plays out.
-But first, we need to define the message types that can be exchanged between Participants.
+The [Transitions](transitions.md) page shows how this plays out.
+But first, the message types that Participants can exchange must be defined.
