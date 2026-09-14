@@ -23,7 +23,7 @@ from vultron.core.behaviors.helpers import (
 )
 from vultron.core.models.case import has_case_statuses
 from vultron.core.models.case_participant import CaseParticipant
-from vultron.core.states.em import EM_EMBARGO_ACTIVE
+from vultron.core.states.em import EM, EM_EMBARGO_ACTIVE
 from vultron.errors import VultronInvalidStateTransitionError
 
 
@@ -367,43 +367,38 @@ class IsCloseBlockedByActiveEmbargoNode(DataLayerConditionWithPorts):
 class IsProposedEmbargoNode(DataLayerConditionWithPorts):
     """Check that the case EM state is PROPOSED.
 
-    Returns SUCCESS when ``case.current_status.em.state == EM.PROPOSED``.
-    Returns FAILURE for any other EM state (including ACTIVE, REVISE, NONE,
-    EXITED), halting the parent Sequence so the proposed-embargo arm is skipped.
+    Returns SUCCESS when the EM state is ``EM.PROPOSED``. Returns FAILURE for
+    any other EM state (including ACTIVE, REVISE, NONE, EXITED), halting the
+    parent Sequence so the proposed-embargo arm is skipped.
+
+    Reads the EM state from ``result_out["em_before"]`` populated by an upstream
+    :class:`~vultron.core.behaviors.embargo.nodes.em_state.ReadEmStateNode`
+    (AC-1: EM-state reads go through ``Read*StateNode``, never inline). Returns
+    FAILURE when ``em_before`` is absent (e.g. the read node found no
+    materialized CaseStatus and failed upstream).
 
     Analogous to :class:`IsActiveEmbargoNode` but for the PROPOSED state.
     """
 
-    def __init__(self, case_id: str, name: str | None = None) -> None:
+    def __init__(
+        self,
+        case_id: str,
+        result_out: dict[str, object],
+        name: str | None = None,
+    ) -> None:
         super().__init__(name=name or self.__class__.__name__)
         self.case_id = case_id
+        self._result_out = result_out
 
     def update(self) -> Status:
-        if (f := self._require_datalayer()) is not None:
-            return f
-        assert self.datalayer is not None
+        em_before = self._result_out.get("em_before")
+        if em_before == EM.PROPOSED:
+            return Status.SUCCESS
 
-        case, failure = self._require_case(self.case_id)
-        if failure is not None:
-            return failure  # Regime 1 (ADR-0087)
-
-        try:
-            em_state = case.current_status.em.state
-        except (ValueError, AttributeError):
-            self.feedback_message = (
-                f"Case '{self.case_id}' has no materialized CaseStatus"
-            )
-            return Status.FAILURE
-
-        from vultron.core.states.em import EM
-
-        if em_state != EM.PROPOSED:
-            self.feedback_message = (
-                f"Case '{self.case_id}' EM state is '{em_state}', not PROPOSED"
-            )
-            return Status.FAILURE
-
-        return Status.SUCCESS
+        self.feedback_message = (
+            f"Case '{self.case_id}' EM state is '{em_before}', not PROPOSED"
+        )
+        return Status.FAILURE
 
 
 class HasCaseStatusesNode(DataLayerConditionWithPorts):

@@ -22,6 +22,7 @@ from vultron.core.behaviors.embargo.nodes.conditions import (
     HasActiveEmbargoNode,
     HasCaseStatusesNode,
     IsActiveEmbargoNode,
+    IsProposedEmbargoNode,
     ValidateCaseExistsNode,
 )
 from vultron.core.states.em import EM
@@ -279,3 +280,40 @@ class TestHasCaseStatusesNode:
         bt.tick()
 
         assert node.status == py_trees.common.Status.FAILURE
+
+
+class TestIsProposedEmbargoNode:
+    """IsProposedEmbargoNode reads EM state from result_out (AC-1)."""
+
+    def _tick(self, result_out: dict) -> py_trees.common.Status:
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id="https://test.example/api/v2/actors/test-actor",
+        )
+        setup_blackboard(dl)
+        node = IsProposedEmbargoNode(
+            case_id="https://example.org/cases/ipn",
+            result_out=result_out,
+        )
+        bt = py_trees.trees.BehaviourTree(root=node)
+        bt.setup()
+        bt.tick()
+        return node.status
+
+    def test_success_when_em_before_is_proposed(self):
+        """SUCCESS when the upstream read published em_before=PROPOSED."""
+        assert (
+            self._tick({"em_before": EM.PROPOSED})
+            == py_trees.common.Status.SUCCESS
+        )
+
+    def test_failure_when_em_before_is_not_proposed(self):
+        """FAILURE for any other EM state (does not read the DataLayer)."""
+        assert (
+            self._tick({"em_before": EM.ACTIVE})
+            == py_trees.common.Status.FAILURE
+        )
+
+    def test_failure_when_em_before_absent(self):
+        """FAILURE when no upstream ReadEmStateNode populated em_before."""
+        assert self._tick({}) == py_trees.common.Status.FAILURE
