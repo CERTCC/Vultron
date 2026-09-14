@@ -87,7 +87,8 @@ def parse_published(value: Any) -> datetime | None:
     else:
         return None
     aware = as_utc(parsed)
-    return None if aware is None else aware.astimezone(timezone.utc)
+    assert aware is not None  # as_utc only returns None for None input
+    return aware.astimezone(timezone.utc)
 
 
 def claimed_published_iso(activity_obj: Any) -> str:
