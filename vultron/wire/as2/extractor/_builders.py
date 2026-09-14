@@ -11,7 +11,7 @@ import logging
 from datetime import datetime
 from typing import Any, Callable
 
-from vultron.core.models._helpers import _now_utc as _core_now_utc
+from vultron.core.models._helpers import now_utc as _core_now_utc
 from vultron.core.models.base import VultronObject
 from vultron.core.models.case_ledger_entry import VultronCaseLedgerEntry
 from vultron.core.models.dimensions import (

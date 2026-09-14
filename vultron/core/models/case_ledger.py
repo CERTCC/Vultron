@@ -63,7 +63,7 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, Field, model_validator
 
-from vultron.core.models._helpers import _now_utc
+from vultron.core.models._helpers import now_utc
 from vultron.core.models.base import ValidatedAssignmentMixin
 
 logger = logging.getLogger(__name__)
@@ -227,7 +227,7 @@ class HashChainLedgerRecord(ValidatedAssignmentMixin, BaseModel):
         description="SHA-256 hex hash of this entry's canonical content (auto-computed)",
     )
     received_at: datetime = Field(
-        default_factory=_now_utc,
+        default_factory=now_utc,
         description="Server-generated TZ-aware UTC timestamp at receipt",
     )
     reason_code: str | None = Field(
@@ -249,7 +249,7 @@ class HashChainLedgerRecord(ValidatedAssignmentMixin, BaseModel):
             return data
         data = dict(data)
         if "received_at" not in data:
-            data["received_at"] = _now_utc()
+            data["received_at"] = now_utc()
         received_val = data["received_at"]
         received_iso = (
             received_val.isoformat()

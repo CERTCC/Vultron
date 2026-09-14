@@ -41,7 +41,7 @@ those entries natively (CM-22-003).
 
 from typing import TYPE_CHECKING, Any
 
-from vultron.core.models._helpers import _now_utc
+from vultron.core.models._helpers import now_utc
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.case_status import CaseStatus
@@ -64,7 +64,7 @@ def build_create_case_snapshot(
     return {
         "type": "Create",
         "actor": actor_id,
-        "published": _now_utc().isoformat(),
+        "published": now_utc().isoformat(),
         "object": case_dict,
         "context": case_id,
     }
@@ -92,7 +92,7 @@ def build_add_report_to_case_snapshot(
     snapshot: dict[str, Any] = {
         "type": "Add",
         "actor": actor_id,
-        "published": _now_utc().isoformat(),
+        "published": now_utc().isoformat(),
         "object": report_dict,
         "target": case_dict,
         "context": case_id,
@@ -119,7 +119,7 @@ def build_add_participant_status_snapshot(
     return {
         "type": "Add",
         "actor": actor_id,
-        "published": _now_utc().isoformat(),
+        "published": now_utc().isoformat(),
         "object": status_dict,
         "target": participant_dict,
         "context": case_id,
@@ -141,7 +141,7 @@ def build_add_case_status_snapshot(
     return {
         "type": "Add",
         "actor": actor_id,
-        "published": _now_utc().isoformat(),
+        "published": now_utc().isoformat(),
         "object": status_dict,
         "target": case_dict,
         "context": case_id,

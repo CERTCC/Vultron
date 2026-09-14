@@ -31,7 +31,7 @@ from test.core.behaviors.sync.nodes.conftest import (
     PARTICIPANT_ACTOR_ID,
     CASE_ID,
 )
-from vultron.core.models._helpers import _now_utc
+from vultron.core.models._helpers import now_utc
 from vultron.core.behaviors.sync.nodes.canonical_entry import (
     _validate_canonical_entry,
 )
@@ -46,7 +46,7 @@ def _note_snapshot_with_actor(actor_id: str) -> dict[str, object]:
         "actor": actor_id,
         # CLP-07-011: the commit boundary requires a claimed timestamp on every
         # recorded snapshot, so every fixture here carries one.
-        "published": _now_utc().isoformat(),
+        "published": now_utc().isoformat(),
         "object": {
             "type": "Note",
             "id": "https://example.org/notes/note-prov",
@@ -108,7 +108,7 @@ def test_validate_canonical_entry_allows_case_actor_for_case_authored_signature(
     snapshot = {
         "type": "Announce",
         "actor": CASE_ACTOR_ID,
-        "published": _now_utc().isoformat(),
+        "published": now_utc().isoformat(),
         "object": {
             "type": "VulnerabilityCase",
             "id": CASE_ID,
@@ -133,7 +133,7 @@ def test_validate_canonical_entry_allows_case_actor_for_invite_vulnerability_cas
     snapshot = {
         "type": "Invite",
         "actor": CASE_ACTOR_ID,
-        "published": _now_utc().isoformat(),
+        "published": now_utc().isoformat(),
         "object": {
             "type": "Organization",
             "id": participant_actor_id,
@@ -190,7 +190,7 @@ def test_validate_canonical_entry_allows_case_actor_for_native_init(
     snapshot = {
         "type": snapshot_type,
         "actor": CASE_ACTOR_ID,
-        "published": _now_utc().isoformat(),
+        "published": now_utc().isoformat(),
         "object": {"type": object_type, "id": "https://example.org/obj/1"},
         "context": CASE_ID,
     }

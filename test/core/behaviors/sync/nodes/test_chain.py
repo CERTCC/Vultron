@@ -6,7 +6,7 @@ import logging
 import py_trees
 import pytest
 
-from vultron.core.models._helpers import _now_utc
+from vultron.core.models._helpers import now_utc
 from py_trees.common import Status
 
 from test.core.behaviors.sync.nodes.conftest import (
@@ -29,7 +29,7 @@ def _canonical_note_snapshot(actor_id: str) -> dict[str, object]:
         "type": "Add",
         "actor": actor_id,
         # CLP-07-011: recorded snapshots carry the asserter's claimed timestamp.
-        "published": _now_utc().isoformat(),
+        "published": now_utc().isoformat(),
         "object": {
             "type": "Note",
             "id": "https://example.org/notes/note-1",
@@ -43,7 +43,7 @@ def _canonical_case_announce_snapshot() -> dict[str, object]:
     return {
         "type": "Announce",
         "actor": OWNER_ACTOR_ID,
-        "published": _now_utc().isoformat(),
+        "published": now_utc().isoformat(),
         "object": {
             "type": "VulnerabilityCase",
             "id": CASE_ID,

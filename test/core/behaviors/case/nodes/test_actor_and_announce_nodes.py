@@ -21,7 +21,7 @@ from typing import Any, cast
 import py_trees
 import pytest
 
-from vultron.core.models._helpers import _now_utc
+from vultron.core.models._helpers import now_utc
 from py_trees.common import Status
 
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
@@ -520,7 +520,7 @@ class TestEmitInviteActorToCaseNodePassesRolesNoneToFactory:
                     "actor": ACTOR_ID,
                     # The real factory always emits ``published``; the commit
                     # boundary requires it (CLP-07-011).
-                    "published": _now_utc().isoformat(),
+                    "published": now_utc().isoformat(),
                     "object_": {"type": "CoreActor", "id_": INVITEE_ID},
                     "target": {
                         "type": "VulnerabilityCase",

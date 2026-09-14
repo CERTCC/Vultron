@@ -21,11 +21,9 @@ from typing import ClassVar, Literal, TypeAlias, cast
 
 from pydantic import Field, model_validator
 
+from vultron.core.models._helpers import now_utc
 from vultron.core.models.embargo_event import EmbargoEvent as CoreEmbargoEvent
 from vultron.wire.as2.vocab.base.base import VULTRON_CONTEXT_URI
-from vultron.wire.as2.vocab.base.dt_utils import (
-    now_utc,
-)
 from vultron.wire.as2.vocab.base.enums import VocabNamespace
 from vultron.wire.as2.vocab.base.links import ActivityStreamRef
 from vultron.wire.as2.vocab.base.objects.object_types import as_Event
