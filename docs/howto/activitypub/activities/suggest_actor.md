@@ -15,7 +15,7 @@ to suggest that another actor be invited to participate in the case.
 
     The process described here makes an assumption that there is a case owner who is responsible for coordinating the 
     case. Participants having the case owner role can in principle just directly invite other actors to participate in 
-    the case, and they might not need the suggestion mechanism described here. However, we include this mechanism
+    the case, and they might not need the suggestion mechanism described here. However, this mechanism is included
     to account for the possibilities that:
     
     - there could be multiple case owners, and they might not all agree on who should be invited to participate in the 

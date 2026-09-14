@@ -60,7 +60,7 @@ In our protocol design, we were careful to focus the EM process on establishing 
 lifted.
 That is not the same as actually scheduling publications following the embargo termination.
 Our experience at the CERT/CC shows that this distinction is rarely a significant problem since many case Participants
-simply publish at their own pace shortly after the embargo ends.
+publish at their own pace shortly after the embargo ends.
 However, at times, case Participants may find it necessary to coordinate even more closely on publication scheduling.
 
 !!! example "TLP and Embargoes"

@@ -422,7 +422,7 @@ protocol. Every state transition implies a different message type.
 ##### Receive Report
 
 To begin, a Participant must receive a report. Recall that the *Start*
-state is a placeholder, so this action simply puts the receiving
+state is a placeholder, so this action puts the receiving
 Participant into the *Received* state at the beginning of their
 involvement in the case.
 

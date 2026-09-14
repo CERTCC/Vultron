@@ -32,7 +32,7 @@ leaves 8 possible states for the case to be in:
     \end{aligned}
     $$
 
-!!! question "Can we do better than simply assigning equal likelihood $p(q|Vf\cdot\cdot\cdot\cdot) = 0.125$ to each of these states?"
+!!! question "Can we do better than assigning equal likelihood $p(q|Vf\cdot\cdot\cdot\cdot) = 0.125$ to each of these states?"
 
     Yes, we can use
     our [PageRank computations](../../reference/measuring_cvd/random_walk.md) to inform our estimates.

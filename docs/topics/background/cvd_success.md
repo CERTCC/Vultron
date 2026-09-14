@@ -20,7 +20,7 @@ in the lifespan of every vulnerability, shown in the table below.
 | Fix Ready | **F** | Exploit Public | **X** |
 | Fix Deployed | **D** | Attacks Observed | **A** |
 
-For now, we simply present the 12 desired criteria in roughly descending order of desirability according to the partial
+The following table presents the 12 desired criteria in roughly descending order of desirability according to the partial
 order developed in that formalization.
 Items closer to the top of the list are indicators of CVD skill.
 

@@ -323,7 +323,7 @@ stateDiagram-v2
 
 ## A Menagerie of MPCVD Scenarios
 
-Other MPCVD RM interaction configurations are possible, of course. We demonstrate a few such
+Other MPCVD RM interaction configurations are possible. We demonstrate a few such
 scenarios in the following figures.
 This time each node represents a Participant's entire RM model. We have observed all of the
 following interactions at the CERT/CC.

@@ -90,7 +90,7 @@ behaving independently of all the others. Therefore:
 
     where $N_{vprod}$ represents the number of vendor-product pairs.
 
-This is of course undesirable, as it would result in a wide distribution
+This is undesirable, as it would result in a wide distribution
 of realized histories that more closely resemble the randomness
 assumptions outlined above than a skillful, coordinated effort. Further
 discussion of measuring MPCVD skill can be found below.
@@ -140,7 +140,7 @@ set of recommended actions derived from those states.
 One possible function would be to apply a simple voting heuristic such
 as waiting for a simple majority of vendors to reach a state before
 taking action as that state recommends. In our 4/5 $VFdpxa$ example, the
-coordinating parties would simply behave as if the case were in that
+coordinating parties would behave as if the case were in that
 state for all.
 
 Another function could be to weight vendors and products by some
@@ -206,7 +206,7 @@ users of other affected products to unnecessary risks.
     $$
 
     Where $m = |\mathcal{M}| \geq 1$. The edge case when $|\mathcal{M}| = 1$
-    is simply the regular (non-multiparty) case.
+    is the regular (non-multiparty) case.
 
     We can then set desired criteria for the set $\mathcal{M}$, as in the
     benchmarks described in [Benchmarking](./benchmarking.md). In the MPCVD case, we propose to generalize the

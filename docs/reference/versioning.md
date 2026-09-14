@@ -31,6 +31,5 @@ Version increments work as follows:
     Example: the third small update to `2024.4` is `2024.4.3`, even if it
     is released in May 2024 or later.
 
-Because we are still in the early stages of the project, no backward
-compatibility commitments are made or implied at this time.
-We anticipate this will change as the protocol matures.
+No backward compatibility commitments are made or implied at this stage.
+This will change as the protocol matures.

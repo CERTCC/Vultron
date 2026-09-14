@@ -187,7 +187,7 @@ order $(\mathbb{D},\leq_{\mathbb{D}})$ just described.
 
     We observe that
     $\mathbb{D}^{h}$ acts as a Boolean vector of desiderata met by a given
-    $h$. Since $0 \leq f_d \leq 1$, simply taking its inverse could in the
+    $h$. Since $0 \leq f_d \leq 1$, taking its inverse could in the
     general case lead to some large values for rare events. For convenience,
     we use $-log(f_d)$ as our proxy for skill. For example, if a desideratum
     were found to occur in every case (indicating no skill required),
@@ -198,7 +198,7 @@ order $(\mathbb{D},\leq_{\mathbb{D}})$ just described.
     Taking the dot product of $\mathbb{D}^h$ with the set of $-log(f_d)$
     values for each $d \in \mathbb{D}$ represented as a vector, we arrive at
     a single value representing the skill exhibited for each history $h$.
-    Careful readers may note that this value is equivalent to the
+    This value is equivalent to the
      [TF-IDF](https://en.wikipedia.org/wiki/Tf%E2%80%93idf){:target="_blank"} score for
     a search for the "skill terms" represented by $\mathbb{D}$ across the
     corpus of possible histories $\mathcal{H}$.

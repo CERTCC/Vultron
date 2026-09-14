@@ -309,13 +309,13 @@ However,
 
     Participants MAY choose to terminate their compliance with an embargo at any time.
 
-While this is usually an undesirable development, it is important that it be clearly communicated to other Participants
+While this is usually an undesirable development, it must be communicated to other Participants
 so that they can make informed decisions about the viability of the extant embargo.
 
 !!! note ""
 
     Any changes to a Participant's intention to adhere to an active
-    embargo SHOULD be communicated clearly in addition to any necessary
+    embargo SHOULD be communicated in addition to any necessary
     notifications regarding RM or EM state changes.
 
 !!! note ""
