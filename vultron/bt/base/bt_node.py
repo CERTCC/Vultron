@@ -269,9 +269,9 @@ class BtNode:
             # add preamble
             parts.append("```mermaid")
             if topdown:
-                parts.append("graph TD")
+                parts.append("flowchart TD")
             else:
-                parts.append("graph LR")
+                parts.append("flowchart LR")
 
         def fixname(nstr: str) -> str:
             for prefix, symbol in self._mermaid_prefix_map.items():
