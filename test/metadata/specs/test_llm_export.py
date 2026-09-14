@@ -478,3 +478,118 @@ class TestMainLlmJsonKindFlag:
             main_llm_json()
         assert exc_info.value.code == 2
         assert "--kind requires a value" in capsys.readouterr().err
+
+
+# ---------------------------------------------------------------------------
+# Field-completeness guard for the LLM export
+# ---------------------------------------------------------------------------
+
+NOTE_YAML = {
+    "id": "NT",
+    "title": "Note Export",
+    "description": "Spec file exercising the note field",
+    "version": "1.0",
+    "scope": ["prototype"],
+    "groups": [
+        {
+            "id": "NT-01",
+            "title": "Notes",
+            "specs": [
+                {
+                    "id": "NT-01-001",
+                    "priority": "MUST",
+                    "kind": "protocol",
+                    "statement": "NT-01-001 MUST be exported with its note",
+                    "note": "This binds the sender only; a receiver MUST NOT "
+                    "enforce it.",
+                },
+                {
+                    "id": "NT-01-002",
+                    "priority": "MUST",
+                    "kind": "protocol",
+                    "statement": "NT-01-002 MUST be exported without a note",
+                },
+            ],
+        }
+    ],
+}
+
+
+class TestNoteIsExported:
+    """``note`` must reach the LLM export, not just the YAML.
+
+    ``AGENTS.md`` tells agents to load specs through this exporter and never to
+    read raw ``specs/*.yaml``, so a field the exporter drops is a field no agent
+    ever sees. ``note`` is where a requirement records which side an obligation
+    binds and what a receiver must *not* do about it — exactly the guidance whose
+    absence causes a requirement to be implemented at the wrong layer. It was
+    silently unmapped for 52 requirements across the corpus (ISSUE-2824 review).
+    """
+
+    @pytest.fixture
+    def note_registry(self, tmp_path):
+        (tmp_path / "nt.yaml").write_text(yaml.dump(NOTE_YAML))
+        return load_registry(tmp_path)
+
+    def _by_id(self, note_registry):
+        payload = json.loads(to_llm_json(note_registry))
+        return {r["id"]: r for r in payload["requirements"]}
+
+    def test_note_is_present_when_set(self, note_registry):
+        recs = self._by_id(note_registry)
+        assert recs["NT-01-001"]["note"] == (
+            "This binds the sender only; a receiver MUST NOT enforce it."
+        )
+
+    def test_note_is_absent_when_unset(self, note_registry):
+        """Omitted rather than exported as null, matching `rationale`."""
+        assert "note" not in self._by_id(note_registry)["NT-01-002"]
+
+    def test_every_schema_field_is_exported_or_deliberately_dropped(self):
+        """Catch the next unmapped field at authoring time, not years later.
+
+        ``note`` went unexported because nothing compared the schema's fields
+        against the exporter's output. The dropped set is explicit so adding a
+        field to ``StatementSpec`` forces a decision here.
+        """
+        from vultron.metadata.specs.schema import StatementSpec
+
+        # Deliberately not exported, each for a stated reason.
+        dropped = {
+            # Authoring-time bookkeeping, not requirement content.
+            "deprecated",
+            "superseded_by",
+            "tracking_issue",
+            "lint_suppress",
+            "stories",
+            "references",
+            "exceptions",
+            "trigger",
+        }
+        exported = {
+            "id",
+            "topic",
+            "group",
+            "group_title",
+            "type",
+            "priority",
+            "statement",
+            "kind",
+            "scope",
+            "tags",
+            "rationale",
+            "note",
+            "testable",
+            "relationships",
+            "adr",
+            "verification",
+        }
+
+        declared = set(StatementSpec.model_fields)
+        unaccounted = declared - exported - dropped
+        assert not unaccounted, (
+            "StatementSpec fields neither exported nor listed as deliberately "
+            f"dropped: {sorted(unaccounted)}. Add to the export in "
+            "vultron/metadata/specs/llm_export.py, or to `dropped` here with a "
+            "reason."
+        )

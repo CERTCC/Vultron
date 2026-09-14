@@ -126,6 +126,13 @@ ENTRIES: list[SemanticEntry] = [
         use_case_class=DeferCaseReceivedUseCase,
         phrase="{actor} deferred the case",
         wire_activity_class=_RmDeferCaseActivity,
+        # Matches its ENGAGE_CASE sibling above.  Without it the event carries
+        # no activity, so the ledger snapshot is dumped from the VultronEvent —
+        # which has neither `type` nor `published` — and the commit aborts at
+        # the canonical-signature check.  A received Ignore(VulnerabilityCase)
+        # therefore never reached the ledger, and when the receiving actor held
+        # CASE_MANAGER the abort also skipped the RM→DEFERRED transition.
+        include_activity=True,
     ),
     SemanticEntry(
         semantics=MessageSemantics.ADD_REPORT_TO_CASE,
