@@ -26,7 +26,7 @@ interleaved with participant creation and status-transition helpers.
 
 from vultron.core.models._helpers import _as_id
 from vultron.core.models.case import VulnerabilityCase
-from vultron.core.models.case_participant import CaseParticipant
+from vultron.core.participants._lookup import iter_case_participants
 from vultron.core.ports.case_persistence import CasePersistence
 from vultron.enums.roles import CVDRole
 
@@ -38,27 +38,11 @@ def resolve_participant_actor_by_role(
 ) -> str | None:
     """Return the actor ID of the participant holding *role*, or None.
 
-    Checks ``actor_participant_index`` first (fast path), then falls back to
-    iterating ``case_participants`` for bootstrap-phase inline objects.
+    Delegates to :func:`~vultron.core.participants._lookup.iter_case_participants`
+    for the two-phase participant scan (fast path via ``actor_participant_index``,
+    bootstrap fallback via ``case_participants``).
     """
-    for p_id in case.actor_participant_index.values():
-        p = dl.read(p_id)
-        if not isinstance(p, CaseParticipant):
-            continue
-        if role in p.roles:
-            return _as_id(getattr(p, "attributed_to", None))
-
-    indexed_ids = set(case.actor_participant_index.values())
-    for p_ref in case.case_participants:
-        if not isinstance(p_ref, str):
-            if isinstance(p_ref, CaseParticipant) and role in p_ref.roles:
-                return _as_id(getattr(p_ref, "attributed_to", None))
-            continue
-        if p_ref in indexed_ids:
-            continue
-        p = dl.read(p_ref)
-        if not isinstance(p, CaseParticipant):
-            continue
+    for p in iter_case_participants(case, dl):
         if role in p.roles:
             return _as_id(getattr(p, "attributed_to", None))
     return None
