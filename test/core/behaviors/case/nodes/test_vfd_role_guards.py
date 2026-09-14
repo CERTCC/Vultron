@@ -509,6 +509,56 @@ def test_deployer_allowed_when_some_vendor_at_vf(
     assert result.status == Status.SUCCESS
 
 
+@pytest.fixture
+def case_with_vendor_at_vf_in_fallback(
+    bt_scenario: BTTestScenario,
+    vendor_at_vf_participant: VultronParticipant,
+    deployer_participant: VultronParticipant,
+) -> VultronCase:
+    """Vendor at VF is in case_participants but NOT in actor_participant_index.
+
+    Exercises the _collect_all_participants fallback path: the VENDOR entry is
+    a bare string ID in case_participants with no corresponding entry in
+    actor_participant_index, forcing the fallback DataLayer read.
+    """
+    case = VultronCase(
+        id_=CASE_ID,
+        name="Test Case",
+        case_participants=[
+            vendor_at_vf_participant.id_,
+            deployer_participant.id_,
+        ],
+        actor_participant_index={
+            DEPLOYER_ACTOR_ID: deployer_participant.id_,
+        },
+    )
+    bt_scenario.seed(vendor_at_vf_participant, deployer_participant, case)
+    return case
+
+
+@pytest.mark.spec("CSB-15-004")
+@pytest.mark.executes_as(DEPLOYER_ACTOR_ID)
+def test_deployer_allowed_when_vendor_at_vf_via_fallback(
+    bt_scenario: BTTestScenario,
+    case_with_vendor_at_vf_in_fallback: VultronCase,
+) -> None:
+    """SUCCESS when vendor-at-VF is found via the case_participants fallback path.
+
+    The VENDOR participant is NOT in actor_participant_index (simulating a
+    bootstrap-phase inline object or non-indexed entry). _collect_all_participants
+    must discover it through the fallback DataLayer read and still satisfy the
+    causal gate.
+    """
+    result = bt_scenario.run(
+        CheckSomeVendorAtVFNode(
+            case_id=case_with_vendor_at_vf_in_fallback.id_,
+            actor_id=DEPLOYER_ACTOR_ID,
+        ),
+        actor_id=DEPLOYER_ACTOR_ID,
+    )
+    assert result.status == Status.SUCCESS
+
+
 def test_not_sole_observer_failure_when_actor_not_in_case(
     bt_scenario: BTTestScenario,
     observer_participant: VultronParticipant,
