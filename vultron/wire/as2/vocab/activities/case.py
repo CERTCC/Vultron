@@ -367,6 +367,31 @@ class _RmRejectInviteToCaseActivity(as_Reject):
         return self
 
 
+class _RmRejectCloseCaseActivity(as_Reject):
+    """The Case Actor declines an owner's Leave(VulnerabilityCase) close.
+
+    Emitted per CM-23-011: when the Case Owner sends Leave(VulnerabilityCase)
+    while the case still holds an active embargo, the Case Actor declines the
+    closure with an ``as:Reject`` ("received and understood but declined",
+    MSM-05-001) instead of running the CM-23-002 closure sequence.  The owner
+    must terminate the embargo first, then re-issue the close.
+
+    `object_`: the `_RmCloseCaseActivity` (the Leave) being declined (inline
+        typed object required — bare string IDs are rejected at construction
+        time).
+    """
+
+    object_: _RmCloseCaseActivity = Field(
+        ..., validation_alias="object", serialization_alias="object"
+    )
+
+    @model_validator(mode="after")
+    def set_in_reply_to_from_leave(self):
+        if self.in_reply_to is None:
+            object.__setattr__(self, "in_reply_to", self.object_.id_)
+        return self
+
+
 class _AnnounceVulnerabilityCaseActivity(as_Announce):
     """The case owner announces full case details to a newly accepted invitee.
 

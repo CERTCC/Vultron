@@ -23,6 +23,7 @@ from vultron.core.behaviors.helpers import (
 )
 from vultron.core.models.case import has_case_statuses
 from vultron.core.models.case_participant import CaseParticipant
+from vultron.core.states.em import EM_EMBARGO_ACTIVE
 from vultron.errors import VultronInvalidStateTransitionError
 
 
@@ -306,6 +307,61 @@ class HasActiveEmbargoNode(DataLayerConditionWithPorts):
             return Status.FAILURE
 
         return Status.SUCCESS
+
+
+class IsCloseBlockedByActiveEmbargoNode(DataLayerConditionWithPorts):
+    """Guard: an owner's close must be declined because an embargo is live.
+
+    Returns SUCCESS when the case has an active embargo (``active_embargo`` is
+    non-None) AND the EM state is ``EM.ACTIVE`` or ``EM.REVISE`` — the
+    CM-23-011 condition under which the Case Actor declines an owner
+    ``Leave(VulnerabilityCase)`` with an ``as:Reject`` instead of running the
+    CM-23-002 closure sequence.  Returns FAILURE otherwise, so the parent
+    Selector falls through to the normal closure effects.
+
+    Reads the EM state from ``result_out["em_before"]`` populated by an
+    upstream :class:`~vultron.core.behaviors.embargo.nodes.em_state
+    .ReadEmStateNode` (AC-1: EM-state reads go through ``Read*StateNode``),
+    and tests it against the canonical ``EM_EMBARGO_ACTIVE`` set.
+    ``active_embargo`` is a direct case-object reference, not an EM/RM/CS state
+    read, so it is read here directly via ``case.active_embargo_id``.
+    """
+
+    def __init__(
+        self,
+        case_id: str,
+        result_out: dict[str, object],
+        name: str | None = None,
+    ) -> None:
+        super().__init__(name=name or self.__class__.__name__)
+        self.case_id = case_id
+        self._result_out = result_out
+
+    def update(self) -> Status:
+        if (f := self._require_datalayer()) is not None:
+            return f
+        assert self.datalayer is not None
+
+        case, failure = self._require_case(self.case_id)
+        if failure is not None:
+            return failure  # Regime 1 (ADR-0087)
+
+        active_id = case.active_embargo_id
+        em_before = self._result_out.get("em_before")
+        if active_id is not None and em_before in EM_EMBARGO_ACTIVE:
+            self.feedback_message = (
+                f"Case '{self.case_id}' has an active embargo"
+                f" (em_state={em_before}); owner close declined (CM-23-011)"
+            )
+            self.logger.info("%s: %s", self.name, self.feedback_message)
+            return Status.SUCCESS
+
+        self.feedback_message = (
+            f"Case '{self.case_id}' close is not embargo-blocked"
+            f" (active_embargo={active_id!r}, em_state={em_before})"
+        )
+        self.logger.debug("%s: %s", self.name, self.feedback_message)
+        return Status.FAILURE
 
 
 class IsProposedEmbargoNode(DataLayerConditionWithPorts):

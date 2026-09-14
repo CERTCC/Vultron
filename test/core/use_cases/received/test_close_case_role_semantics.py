@@ -30,6 +30,9 @@ from unittest.mock import MagicMock
 
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
+from vultron.adapters.driven.trigger_activity_adapter import (
+    TriggerActivityAdapter,
+)
 from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.sync.announce_tree import (
     create_announce_log_entry_tree,
@@ -43,6 +46,7 @@ from vultron.core.models.events.base import MessageSemantics
 from vultron.core.models.events.case import CloseCaseReceivedEvent
 from vultron.core.models.events.sync import AnnounceLogEntryReceivedEvent
 from vultron.core.ports.sync_activity import SyncActivityPort
+from vultron.core.states.em import EM
 from vultron.core.states.rm import RM
 from vultron.core.use_cases.received.case.lifecycle import (
     CloseCaseReceivedUseCase,
@@ -600,3 +604,172 @@ class TestClosureRMBoundary:
             "Fan-out of OWNER's close must leave VENDOR at RM.ACCEPTED"
             f" (CM-23-012); rm_states={_participant_rm_states(dl, VENDOR_ID)}"
         )
+
+
+# ---------------------------------------------------------------------------
+# CM-23-011: owner close is declined via as:Reject while an embargo is live
+# ---------------------------------------------------------------------------
+
+
+def _seed_active_embargo(
+    dl: SqliteDataLayer, em_state: EM = EM.ACTIVE
+) -> None:
+    """Give CASE_ID a live embargo: active_embargo set + EM state *em_state*."""
+    case = dl.read_case(CASE_ID)
+    assert isinstance(case, VulnerabilityCase)
+    case.active_embargo = f"{CASE_ID}/embargo_events/e1"
+    case.append_case_status(em_state=em_state)
+    dl.save(case)
+
+
+def _terminate_embargo(dl: SqliteDataLayer) -> None:
+    """Clear the active embargo and move EM to EXITED (normal EM teardown)."""
+    case = dl.read_case(CASE_ID)
+    assert isinstance(case, VulnerabilityCase)
+    case.active_embargo = None
+    case.append_case_status(em_state=EM.EXITED)
+    dl.save(case)
+
+
+def _case_fully_closed_present(dl: SqliteDataLayer) -> bool:
+    from vultron.core.models.case_ledger_entry import CaseLedgerEntry
+
+    return any(
+        isinstance(obj, CaseLedgerEntry)
+        and getattr(obj, "case_id", None) == CASE_ID
+        and getattr(obj, "event_type", None) == "case_fully_closed"
+        for obj in dl.list_objects("CaseLedgerEntry")
+    )
+
+
+class TestOwnerLeaveDuringActiveEmbargo:
+    """CM-23-011: owner Leave while an embargo is live is declined, not closed."""
+
+    @pytest.mark.spec("CM-23-011")
+    @pytest.mark.parametrize("em_state", [EM.ACTIVE, EM.REVISE])
+    def test_owner_leave_during_embargo_runs_no_closure(self, em_state):
+        """Owner Leave under an active/revise embargo advances no one to
+        RM.CLOSED and writes no case_fully_closed entry (AC-1)."""
+        dl = _make_full_dl()
+        _seed_active_embargo(dl, em_state=em_state)
+
+        CloseCaseReceivedUseCase(
+            dl=dl,
+            request=_make_close_case_event(sender_actor_id=OWNER_ID),
+            sync_port=SyncActivityAdapter(dl),
+            trigger_activity=TriggerActivityAdapter(dl),
+        ).execute()
+
+        assert RM.CLOSED not in _participant_rm_states(dl, OWNER_ID), (
+            "Owner must NOT reach RM.CLOSED while an embargo is live"
+            f" (CM-23-011); rm_states={_participant_rm_states(dl, OWNER_ID)}"
+        )
+        assert RM.CLOSED not in _participant_rm_states(dl, CASE_ACTOR_ID), (
+            "CaseActor must NOT reach RM.CLOSED while an embargo is live"
+            " (CM-23-011)"
+        )
+        assert not _case_fully_closed_present(dl), (
+            "No case_fully_closed entry may be written while embargoed"
+            " (CM-23-011)"
+        )
+
+    @pytest.mark.spec("CM-23-011")
+    def test_owner_leave_during_embargo_emits_reject_to_owner(self):
+        """The decline is surfaced as an as:Reject of the Leave, addressed back
+        to the owner (AC-2, MSM-05-001)."""
+        dl = _make_full_dl()
+        _seed_active_embargo(dl, em_state=EM.ACTIVE)
+
+        CloseCaseReceivedUseCase(
+            dl=dl,
+            request=_make_close_case_event(sender_actor_id=OWNER_ID),
+            sync_port=SyncActivityAdapter(dl),
+            trigger_activity=TriggerActivityAdapter(dl),
+        ).execute()
+
+        outbox = dl.outbox_list()
+        assert (
+            len(outbox) == 1
+        ), f"Exactly one activity (the as:Reject) must be queued; outbox={outbox}"
+        reject = dl.read(outbox[0])
+        assert reject is not None, "as:Reject must be readable from the outbox"
+        assert getattr(reject, "type_", None) == "Reject", (
+            f"Declined close must be an as:Reject (MSM-05-001);"
+            f" got type_={getattr(reject, 'type_', None)}"
+        )
+        assert OWNER_ID in (
+            getattr(reject, "to", None) or []
+        ), f"as:Reject must be addressed to the owner; to={getattr(reject, 'to', None)}"
+        inner = getattr(reject, "object_", None)
+        assert (
+            getattr(inner, "type_", None) == "Leave"
+        ), "as:Reject must decline the Leave activity itself"
+
+    @pytest.mark.spec("CM-23-011")
+    def test_close_proceeds_after_embargo_terminated(self):
+        """After the embargo is terminated, re-issuing the owner Leave runs the
+        full CM-23-002 closure sequence (AC-3)."""
+        dl = _make_full_dl()
+        _seed_active_embargo(dl, em_state=EM.ACTIVE)
+
+        # First close: declined while embargoed.
+        CloseCaseReceivedUseCase(
+            dl=dl,
+            request=_make_close_case_event(sender_actor_id=OWNER_ID),
+            sync_port=SyncActivityAdapter(dl),
+            trigger_activity=TriggerActivityAdapter(dl),
+        ).execute()
+        assert RM.CLOSED not in _participant_rm_states(dl, OWNER_ID)
+        assert not _case_fully_closed_present(dl)
+
+        # Terminate the embargo, then re-issue the same close.
+        _terminate_embargo(dl)
+        CloseCaseReceivedUseCase(
+            dl=dl,
+            request=_make_close_case_event(sender_actor_id=OWNER_ID),
+            sync_port=SyncActivityAdapter(dl),
+            trigger_activity=TriggerActivityAdapter(dl),
+        ).execute()
+
+        assert RM.CLOSED in _participant_rm_states(dl, OWNER_ID), (
+            "After embargo termination the owner close must proceed to"
+            f" RM.CLOSED (CM-23-011/CM-23-002);"
+            f" rm_states={_participant_rm_states(dl, OWNER_ID)}"
+        )
+        assert RM.CLOSED in _participant_rm_states(
+            dl, CASE_ACTOR_ID
+        ), "After embargo termination the CaseActor must reach RM.CLOSED"
+        assert _case_fully_closed_present(
+            dl
+        ), "After embargo termination a case_fully_closed entry must be written"
+
+    @pytest.mark.spec("CM-23-011")
+    def test_owner_close_not_closed_when_reject_emit_cannot_run(self):
+        """If the as:Reject emit cannot run (no trigger_activity port), the
+        embargoed owner close must still NOT close the case.
+
+        Guards the structural invariant: the decline decision gates the close
+        arm, so an emit failure can never fall through into closing an
+        embargoed case (CM-23-011).
+        """
+        dl = _make_full_dl()
+        _seed_active_embargo(dl, em_state=EM.ACTIVE)
+
+        # No trigger_activity port → EmitRejectCloseCaseNode fails.
+        CloseCaseReceivedUseCase(
+            dl=dl,
+            request=_make_close_case_event(sender_actor_id=OWNER_ID),
+            sync_port=SyncActivityAdapter(dl),
+            trigger_activity=None,
+        ).execute()
+
+        assert RM.CLOSED not in _participant_rm_states(dl, OWNER_ID), (
+            "Owner must NOT reach RM.CLOSED when the decline emit could not run"
+            f" (CM-23-011); rm_states={_participant_rm_states(dl, OWNER_ID)}"
+        )
+        assert RM.CLOSED not in _participant_rm_states(
+            dl, CASE_ACTOR_ID
+        ), "CaseActor must NOT reach RM.CLOSED when the decline emit fails"
+        assert not _case_fully_closed_present(
+            dl
+        ), "No case_fully_closed entry may be written when the decline emit fails"

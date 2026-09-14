@@ -42,6 +42,7 @@ from vultron.wire.as2.vocab.activities.case import (
     _RmDeferCaseActivity,
     _RmEngageCaseActivity,
     _RmInviteToCaseActivity,
+    _RmRejectCloseCaseActivity,
     _RmRejectInviteToCaseActivity,
     _UpdateCaseActivity,
 )
@@ -135,6 +136,7 @@ _LOG_ENTRY = as_CaseLedgerEntry(
 _SUBMIT = _RmSubmitReportActivity(actor=_ACTOR, object_=_REPORT)
 _STUB = VulnerabilityCaseStub(id_=_CASE.id_)
 _INVITE = _RmInviteToCaseActivity(actor=_ACTOR, object_=_ACTOR, target=_STUB)
+_LEAVE = _RmCloseCaseActivity(actor=_ACTOR, object_=_CASE)
 _PROPOSE = _EmProposeEmbargoActivity(
     actor=_ACTOR,
     object_=as_EmbargoEvent(name="Embargo Event"),
@@ -202,6 +204,9 @@ class TestBareStringObjectRejected(unittest.TestCase):
     def test_rm_reject_invite_rejects_string(self):
         self._assert_string_rejected(_RmRejectInviteToCaseActivity)
 
+    def test_rm_reject_close_rejects_string(self):
+        self._assert_string_rejected(_RmRejectCloseCaseActivity)
+
     def test_em_accept_embargo_rejects_string(self):
         self._assert_string_rejected(_EmAcceptEmbargoActivity)
 
@@ -255,6 +260,10 @@ class TestInlineTypedObjectAccepted(unittest.TestCase):
     def test_rm_reject_invite_accepts_typed(self):
         obj = _RmRejectInviteToCaseActivity(actor=_ACTOR.id_, object_=_INVITE)
         assert isinstance(obj.object_, _RmInviteToCaseActivity)
+
+    def test_rm_reject_close_accepts_typed(self):
+        obj = _RmRejectCloseCaseActivity(actor=_ACTOR.id_, object_=_LEAVE)
+        assert isinstance(obj.object_, _RmCloseCaseActivity)
 
     def test_em_accept_embargo_accepts_typed(self):
         obj = _EmAcceptEmbargoActivity(actor=_ACTOR.id_, object_=_PROPOSE)
