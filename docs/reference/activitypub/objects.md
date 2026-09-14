@@ -12,19 +12,18 @@ The ActivityStreams Vocabulary defines a number of native object types that can 
 ActivityPub protocol. These fall into the following categories:
 
 - **Actors** (see [below](#actors))
-- **Activities** (see the [Activities](./activities/index.md) section for more information)
+- **Activities** (see the [Activities](../../howto/activitypub/activities/index.md) section for more information)
 - **Other (non-Activity) Object Types** (see [below](#other-non-activity-object-types))
 
 ### Actors
 
 !!! info inline end "Actor vs CaseParticipant"
 
-    As we will see below, we will introduce a new object type called [`CaseParticipant`](#caseparticipant)
-    to represent the participants in a `VulnerabilityCase`.
-    This is because the `as:Actor` types are intended to represent persistent identities within a larger 
-    ActivityPub network, while a `CaseParticipant` is a contextual identity that associates an actor to a 
-    specific `VulnerabilityCase` object.
-    We need to make this distinction so that the Vultron protocol can represent a single actor participating in 
+    The [`CaseParticipant`](#caseparticipant) object type (defined below) represents the participants
+    in a `VulnerabilityCase`.
+    The `as:Actor` types represent persistent identities within a larger ActivityPub network, while a
+    `CaseParticipant` is a contextual identity that associates an actor to a specific `VulnerabilityCase`
+    object. This distinction allows the Vultron protocol to represent a single actor participating in
     multiple cases, with discrete roles and statuses within the context of each case.
 
 The standard ActivityStreams actor types can be used in Vultron. These include:
@@ -51,19 +50,19 @@ ActivityStreams also includes a number of native object types, including:
 - `as:Relationship`
 - `as:Tombstone`
 
-Of these, we mainly use `as:Note` to represent comments on a [`VulnerabilityCase`](#vulnerabilitycase).
-The [`EmbargoEvent`](#embargoevent) object a specialization of the `as:Event` object.
-There is nothing stopping systems that implement the Vultron protocol from using other ActivityStreams object types
-as needed, but we do not define any special semantics for these objects in the context of the Vultron protocol.
+`as:Note` is used to represent comments on a [`VulnerabilityCase`](#vulnerabilitycase).
+The [`EmbargoEvent`](#embargoevent) object is a specialization of the `as:Event` object.
+Systems implementing the Vultron protocol may use other ActivityStreams object types as needed;
+no special semantics are defined for those objects in the context of the Vultron protocol.
 
 ## Vultron-specific objects
 
 !!! tip inline end "See also"
 
-    As a reminder, we already described these objects in the [Case Object](../case_object.md) section.
-    This section is intended to describe how these objects are represented as ActivityStreams objects.
+    These objects are also described in the [Case Object](../../howto/case_object.md) section.
+    This section describes how these objects are represented as ActivityStreams objects.
 
-We define the following objects for use in the Vultron AS vocabulary:
+The following objects are defined for use in the Vultron AS vocabulary:
 
 - [`VulnerabilityReport`](#vulnerabilityreport)
 - [`VulnerabilityCase`](#vulnerabilitycase)
@@ -75,12 +74,12 @@ We define the following objects for use in the Vultron AS vocabulary:
 ### VulnerabilityReport
 
 A `VulnerabilityReport` object is used to represent a vulnerability report as an ActivityStreams object.
-We are not attempting to fully define a vulnerability report data object in this protocol.
-Instead, we are defining a minimal set of properties that are necessary to support the protocol.
+This protocol does not define a full vulnerability report data object.
+Instead, it defines a minimal set of properties necessary to support the protocol.
 
-In the example below, we show a `VulnerabilityReport` object that contains a simple text description of a
-vulnerability in the `content` property. However, in a real implementation, the `content` property might contain
-any sort of vulnerability report format that could be embedded as part of the JSON object.
+The example below shows a `VulnerabilityReport` object containing a simple text description of a
+vulnerability in the `content` property. In a real implementation, the `content` property may contain
+any vulnerability report format that can be embedded as part of the JSON object.
 
 Examples of what might go into the `content` property of a `VulnerabilityReport` object include:
 
@@ -93,16 +92,14 @@ Examples of what might go into the `content` property of a `VulnerabilityReport`
 - A plain text description of the vulnerability, for example a markdown-formatted text description with section
   headings and links to external resources
 
-We are deliberately leaving the format of the `content` property open-ended in order to allow for flexibility in the
-types of vulnerability reports that can be represented. However, we do recommend that the `content` property be used to
-represent a widely-used structured format whenever possible, since this will allow for more automation in the processing of
+The format of the `content` property is deliberately open-ended to allow for flexibility in the types of
+vulnerability reports that can be represented. The `content` property SHOULD represent a widely-used
+structured format whenever possible, since this allows for more automation in the processing of
 vulnerability reports.
 
-While we recommend that the `content` property be used to contain text-based vulnerability report formats, we also
-recognize the potential need for some vulnerability reports to take the form of binary attachments, such as PDF
-documents, images, audio files, or video files. In these cases, the `content` property could contain a link to the binary
-file or an embedded encoding of the binary file. However, we recommend that binary attachments be avoided whenever
-possible, since they can be more difficult to process automatically.
+Binary attachments (PDF documents, images, audio files, video files) are supported; in those cases,
+the `content` property MAY contain a link to the binary file or an embedded encoding. Binary attachments
+SHOULD be avoided whenever possible since they are more difficult to process automatically.
 
 ```python exec="true" idprefix=""
 from vultron.wire.as2.vocab.examples.vocab_examples import gen_report, json2md
@@ -113,18 +110,18 @@ print(json2md(gen_report()))
 !!! tip "Articles and Documents"
 
     A VulnerabilityReport or advisory draft could also be an `as:Article` or
-    `as:Document`, but at the moment we don't use those types explicitly.
+    `as:Document`, but those types are not used explicitly by the protocol.
 
 ### VulnerabilityCase
 
 A `VulnerabilityCase` object is used to represent a vulnerability case as an ActivityStreams object.
-As with `VulnerabilityReport`, we are not attempting to fully define a vulnerability case data object in this protocol.
-Instead, we are defining a minimal set of properties that are necessary to support the protocol.
-The `VulnerabilityCase` object is intended to be consistent with the [Case Object](../case_object.md) defined elsewhere.
+As with `VulnerabilityReport`, this protocol does not define a full vulnerability case data object.
+Instead, it defines a minimal set of properties necessary to support the protocol.
+The `VulnerabilityCase` object is consistent with the [Case Object](../../howto/case_object.md) defined elsewhere.
 
 !!! tip "ActivityStreams Objects are for Interoperability"
 
-    The objects we define here are intended to be used to promote interoperability between systems that communicate using
+    These objects are intended to promote interoperability between systems that communicate using
     ActivityPub. They are not intended to be used as a data model for a single system. For example, one vendor might use
     Github issues to track vulnerability cases, while another might use Jira. Both vendors could use the same
     `VulnerabilityCase` object to represent their cases in ActivityPub, but they would not necessarily use the same
@@ -139,7 +136,7 @@ print(json2md(populated_case()))
 ### CaseStatus
 
 A `CaseStatus` object is used to represent the participant-agnostic status of a `VulnerabilityCase` object.
-We describe the semantics of the `CaseStatus` object in the [Case Object](../case_object.md) section.
+The semantics of the `CaseStatus` object are described in the [Case Object](../../howto/case_object.md) section.
 The distinction between *participant-agnostic* and *participant-specific* status is described in the
 [Global vs Local](../../topics/process_models/model_interactions/index.md) section.
 

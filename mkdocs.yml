@@ -12,6 +12,7 @@ nav:
     - Running the Other Demos: 'tutorials/other_demos.md'
     - Running the Multi-Actor Container Demos: 'tutorials/container_demos.md'
     - Run the FV Demo: 'tutorials/fv-demo.md'
+    - Worked Example: 'tutorials/worked_example.md'
   - Explanation:
     - 'topics/index.md'
     - Background:
@@ -118,7 +119,6 @@ nav:
       - Process Implementation: 'howto/process_implementation.md'
       - Vultron ActivityPub:
           - 'howto/activitypub/index.md'
-          - Vultron AS Objects: 'howto/activitypub/objects.md'
           - Vultron AS Activities:
             - Intro: 'howto/activitypub/activities/index.md'
             - Reporting a Vulnerability: 'howto/activitypub/activities/report_vulnerability.md'
@@ -137,7 +137,6 @@ nav:
             - Status Updates: 'howto/activitypub/activities/status_updates.md'
             - Acknowledging a Report: 'howto/activitypub/activities/acknowledge.md'
             - Error Handling: 'howto/activitypub/activities/error.md'
-      - Worked Example: 'howto/worked_example.md'
       - Wiring a Capability: 'howto/wire_capability.md'
       - Demo How-Tos:
           - FVV Demo: 'howto/demos/fvv-demo.md'
@@ -157,6 +156,8 @@ nav:
       - Messages: 'reference/formal_protocol/messages.md'
       - Transitions: 'reference/formal_protocol/transitions.md'
       - Protocol Summary: 'reference/formal_protocol/conclusion.md'
+    - ActivityPub:
+      - Vultron AS Objects: 'reference/activitypub/objects.md'
     - Messages:
       - 'reference/messages/index.md'
       - Report Management (RM): 'reference/messages/rm.md'

@@ -31,9 +31,9 @@ flowchart TB
 
 !!! tip inline end "See also"
 
-    Descriptions of the [`CaseStatus`](../objects.md#casestatus) and
-    [`ParticipantStatus`](../objects.md#participantstatus), and [`CaseParticipant`](../objects.md#caseparticipant)
-    objects can be found in the [Objects](../objects.md) section.
+    Descriptions of the [`CaseStatus`](../../../reference/activitypub/objects.md#casestatus) and
+    [`ParticipantStatus`](../../../reference/activitypub/objects.md#participantstatus), and [`CaseParticipant`](../../../reference/activitypub/objects.md#caseparticipant)
+    objects can be found in the [Objects](../../../reference/activitypub/objects.md) section.
 
 In addition to the Create/Add process for
 each of these, there are sometimes additional activities that are triggered in
@@ -44,7 +44,7 @@ response to a status update or a comment:
 
 !!! tip "A Note on `as:Notes`"
 
-    The ActivityStreams vocabulary includes an [`as:Note`](../objects.md) object, which is
+    The ActivityStreams vocabulary includes an [`as:Note`](../../../reference/activitypub/objects.md) object, which is
     used to represent a comment or short post. This object represents
     comments on a case.
 

@@ -405,7 +405,7 @@ consulted when implementing state-related handlers or BT nodes:
 
 - `docs/topics/process_models/model_interactions/index.md` — canonical
   explanation of the participant-agnostic vs. participant-specific split
-- `docs/howto/activitypub/objects.md` — how objects are structured in the
+- `docs/reference/activitypub/objects.md` — how objects are structured in the
   ActivityStreams vocabulary
 - `docs/howto/case_object.md` — case object design (note: predates
   ActivityStreams; see "Documentation vs. Implementation Gap" section above)
