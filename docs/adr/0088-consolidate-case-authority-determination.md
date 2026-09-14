@@ -20,10 +20,14 @@ The distinction is correct and load-bearing. The problem is twofold.
 
 **First, the question is answered in many places, in different ways.** There is
 no single shared way to determine authority, so the check is re-derived per site
-and the project backstops the discipline with ratchet tests (CLP-09-002,
-CLP-09-003) that only fire when a site *forgets* to check — the signature of a
-convention, not a structural guarantee (`notes/case-ledger-authority.md`,
-"Authorization Was a Convention, Not a Gate").
+and the discipline is held together only by convention. Specs CLP-09-002 and
+CLP-09-003 *mandate* commit-authorization ratchets — an enumeration that fails
+when a site commits unguarded, and a coverage test that every use case reaches a
+commit — but those enforcement tests are not yet implemented; only CLP-09-001's
+per-node role check has unit tests today. A ratchet, specified or in place, only
+fires when a site *forgets* to check — the signature of a convention, not a
+structural guarantee (`notes/case-ledger-authority.md`, "Authorization Was a
+Convention, Not a Gate").
 
 **Second — and this is the deeper error — some of those ways determine
 authority from the wrong thing.** They key off *where a thing is hosted* or *the
@@ -50,7 +54,7 @@ them by the wrong signal:
   to keep — but it *is* a twin: one copy in `use_cases/_helpers.py`, one in
   `behaviors/case/nodes/participant/roles.py`, the second existing "to avoid a
   behaviors→use_cases import (BTND-04-003)". Yet `CheckIsCaseManagerNode`
-  (a behaviors node, `case/nodes/conditions.py:45`) performs exactly that import,
+  (a behaviors node in `case/nodes/conditions.py`) performs exactly that import,
   and `use_cases/_helpers._case_actor_by_role` reaches back into behaviors for
   `is_case_actor_identity`. The twin dodges an import two nodes make anyway.
 - **Service-hosting (wrong signal).** `_find_case_actor`
