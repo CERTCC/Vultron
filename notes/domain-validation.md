@@ -168,18 +168,19 @@ restriction (it is below use-cases, above models, and can import from either).
 ## Shape Guards: One Canonical Reader per Dimension (#2232)
 
 `ParticipantStatus` exists in two incompatible shapes: core nests
-`rm: RmDimension` / `vfd: VfdDimension` (SDO-03-002, ADR-0036), while the wire
-projection carries flat `rm_state` / `vfd_state`. Reading a dimension off the
+`rm: RmDimension` / `vf: VfDimension` / `d: DDimension` (SDO-03-002, ADR-0036, ADR-0075), while the wire
+projection carries flat `rm_state` / `vf_state` / `d_state`. Reading a dimension off the
 wrong shape yields `None` — which every reader then quietly substituted an
 initial state for, resetting the participant's ladder (#2264).
 
-**Read a dimension only through its canonical reader.** Both live in
+**Read a dimension only through its canonical reader.** All live in
 `vultron/core/models/participant_status.py`:
 
 | Reader | Returns | Raises |
 |---|---|---|
 | `participant_status_rm_state(status)` | the `RM` state | `VultronValidationError` on a non-core shape |
-| `participant_status_vfd_state(status)` | the `CS_vfd` state | `VultronValidationError` on a non-core shape |
+| `participant_status_vf_state(status)` | the `CS_vf` state or `None` | `VultronValidationError` on a non-core shape |
+| `participant_status_d_state(status)` | the `CS_d` state or `None` | `VultronValidationError` on a non-core shape |
 
 ```python
 # Wrong — a wire-shaped status degrades to the initial state, silently.

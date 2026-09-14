@@ -176,8 +176,8 @@ bootstrap.
 ## Deleting a flat-field shim: the guard is mandatory
 
 `ParticipantStatus._migrate_flat_fields` accepts `rm_state`/`rmState`,
-`vfd_state`/`vfdState`, `em_consent_state`/`emConsentState` and rewrites them
-into the ADR-0036 dimension objects. It violates **SDO-03-003** ("MUST NOT be
+`vf_state`/`vfState`, `d_state`/`dState`, `em_consent_state`/`emConsentState`
+and rewrites them into the ADR-0036 / ADR-0075 dimension objects. It violates **SDO-03-003** ("MUST NOT be
 retained as aliases or shim properties") independently of ARCH-12-003, so it has
 to go.
 

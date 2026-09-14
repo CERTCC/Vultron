@@ -215,13 +215,14 @@ def bring_new_participant_up_to_speed(obj: BtNode) -> bool:
     our_q_cs = obj.bb.q_cs
     their_q_cs = obj.bb.currently_notifying.bt.bb.q_cs
 
-    # they can keep whatever vfd state they had
-    their_vfd = their_q_cs.value.vfd_state.name
+    # they can keep whatever vf+d state they had
+    their_vf = their_q_cs.value.vf_state.name
+    their_d = their_q_cs.value.d_state.name
     # but we need to set their pxa state to match ours
     our_pxa = our_q_cs.value.pxa_state.name
 
     # construct the new CS name
-    new_cs_name = their_vfd + our_pxa
+    new_cs_name = their_vf + their_d + our_pxa
     # look up the new CS enum
     # and set their state to it
     try:

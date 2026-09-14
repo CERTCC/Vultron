@@ -13,11 +13,11 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-"""AC-7 architecture ratchet: audit VFD/RM/PXA dimension write sites.
+"""AC-7 architecture ratchet: audit VF/D/RM/PXA dimension write sites.
 
-AST-scans ``vultron/core/behaviors/`` for every ``VfdDimension``,
-``RmDimension``, and ``PxaDimension`` constructor call and asserts the result
-matches the audited set below.
+AST-scans ``vultron/core/behaviors/`` for every ``VfDimension``,
+``DDimension``, ``RmDimension``, and ``PxaDimension`` constructor call and
+asserts the result matches the audited set below.
 
 A new unclassified constructor call fails this test immediately, which forces
 an explicit audit decision:
@@ -149,7 +149,7 @@ def _collect_sites() -> list[tuple[str, str]]:
 
 
 def test_audited_write_sites_unchanged() -> None:
-    """All VfdDimension/RmDimension/PxaDimension sites match the audited set.
+    """All VfDimension/DDimension/RmDimension/PxaDimension sites match the audited set.
 
     A NEW site (file or extra call in an existing file) causes this test to
     fail with a clear diff so the reviewer can decide which classification
