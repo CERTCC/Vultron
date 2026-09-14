@@ -16,7 +16,7 @@
 """Shared helper utilities for core domain model types."""
 
 import uuid
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Any, cast
 
 # Frozen reference to the real datetime type used for isinstance guards.
@@ -29,6 +29,11 @@ _datetime_type = datetime
 
 def now_utc() -> datetime:
     return datetime.now(timezone.utc).replace(microsecond=0)
+
+
+def days_from_now_utc(days: int = 45) -> datetime:
+    """Return a UTC datetime *days* in the future, at second precision."""
+    return now_utc() + timedelta(days=days)
 
 
 #: Recency floor for statuses that carry no timestamps: they sort to the
