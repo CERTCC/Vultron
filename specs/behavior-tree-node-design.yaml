@@ -737,10 +737,10 @@ groups:
     statement: >-
       The per-dimension transition rules, the role gates and the cross-machine
       entailments applied to a ParticipantStatus write MUST be composed into a single
-      evaluator that returns every violated rule. Every node that validates such a
-      write MUST call that evaluator rather than invoking the individual
-      `is_valid_*_transition()` or `violation_*` predicates directly, and MUST report
-      every violation the evaluator returns.
+      evaluator that returns every violated rule. Every **writer** of such a status —
+      not only every node that validates one — MUST call that evaluator rather than
+      invoking the individual `is_valid_*_transition()` or `violation_*` predicates
+      directly, and MUST report every violation the evaluator returns.
     rationale: >-
       `ValidateTriggerTransitionsNode` and `CreateParticipantStatusNode` each
       implemented the VF, D and PXA transition checks and the role gates
@@ -749,6 +749,16 @@ groups:
       established that composing the rule set once — not sharing the individual
       predicates — is what keeps two paths from drifting; `composite_state_violations()`
       is the existing instance of that shape.
+      Amended by ADR-0089: the original wording bound "every node that validates
+      such a write", and three writers escaped through it by validating nothing at
+      all (`_get_or_create_accepted_status`, `_build_owner_initial_status`,
+      `_build_bootstrap_statuses`) while a fourth escaped by not being a node
+      (`CaseParticipant.append_rm_state`). Binding the writer rather than the
+      validator closes both gaps, and the ratchet keys on constructing a dimension
+      rather than on naming a predicate — so validating less no longer confers
+      invisibility. A dimension-construction gate does not by itself reach the wire
+      projection (`as_CaseParticipant.append_rm_state`), which builds
+      `as_ParticipantStatus` from flat fields; that shape needs its own trigger.
     relationships:
     - rel_type: refines
       spec_id: BTND-10-001
@@ -760,6 +770,7 @@ groups:
       note: Reporting every violation at a ParticipantStatus write boundary
     adr:
     - ADR-0086
+    - ADR-0089
     verification: >-
       An architecture ratchet asserts that no node validating a ParticipantStatus
       write calls the individual transition or entailment predicates directly. A unit
@@ -789,3 +800,96 @@ groups:
     verification: >-
       A write-node-only test (constructing the node directly, without the guard)
       reports every violation and persists nothing.
+  - id: BTND-10-004
+    priority: MUST
+    kind: architecture
+    statement: >-
+      The ParticipantStatus write node MUST be reached as a child of a behavior tree.
+      A node MUST NOT construct the write node inside its own `update()` and invoke
+      that node's `update()` directly.
+    rationale: >-
+      Five sites did exactly that (`develop_fix.py`, `deploy_fix.py`,
+      `close_case_effect.py` and twice in `leave.py`), producing six nested
+      `update()` calls because `develop_fix.py` ticks one shared helper-built node
+      from two places. A nested `update()` call skips `setup()` and the tick cycle,
+      so declared ports are never resolved and the enclosing composite cannot
+      observe the child's status; `deploy_fix.py` and `develop_fix.py` additionally
+      wrapped the call in `try/except`, which is the failure-swallowing shape
+      notes/bt-pitfalls.md documents under "Always Check
+      BTBridge.execute_with_setup Return Value". Six further nodes bypassed the
+      write node entirely, giving three distinct ways to perform one write. One way
+      is the point: two mechanisms for one purpose must both be maintained and
+      tested, and they drift (CS-22-001).
+    relationships:
+    - rel_type: depends_on
+      spec_id: BTND-10-002
+    - rel_type: implements
+      spec_id: ARCH-15-004
+      note: One canonical way to reach the single writer
+    adr:
+    - ADR-0089
+    testable: true
+    verification: >-
+      An architecture ratchet asserts that `CreateParticipantStatusNode` is never
+      constructed within a function whose enclosing scope is another Behaviour's
+      `update()`.
+  - id: BTND-10-005
+    priority: MUST
+    kind: architecture
+    statement: >-
+      The ParticipantStatus write node MUST obtain `case_id` from its declared
+      blackboard port and MUST NOT accept it as a constructor argument. It MUST
+      obtain the subject actor as an explicit argument, and MUST NOT fall back to the
+      executing actor on the blackboard when that argument is absent.
+    rationale: >-
+      A port is the only mechanism for `case_id` that works everywhere: in received
+      trees the case is discovered at tick time by dereferencing the report, so it
+      cannot be supplied at build time. Trees that do know it at build time seed
+      `/case_id` through `BTBridge.execute_with_setup(**context_data)`, so one
+      mechanism suffices for both. The subject actor is the opposite: the blackboard
+      `actor_id` is the *executing* actor and the subject of the write is frequently
+      someone else — the deferring actor, the sender, the leaver — and conflating the
+      two was bug #2300. `_ReportPhaseRMTransition._acting_actor_id()`'s
+      `sender_actor_id or actor_id` fallback is the two-path shape this rule removes:
+      a fallback means both branches need their own tests and the wrong one is
+      selected silently.
+    relationships:
+    - rel_type: depends_on
+      spec_id: BTND-10-004
+    adr:
+    - ADR-0089
+    testable: true
+    verification: >-
+      An architecture ratchet asserts the write node declares a `case_id` input port,
+      exposes no `case_id` constructor parameter, and that no participant-status
+      writer resolves its subject actor by falling back to the blackboard `actor_id`.
+  - id: BTND-10-006
+    priority: MUST_NOT
+    kind: protocol
+    statement: >-
+      Report-scoped RM state recorded before a case exists MUST NOT be persisted as a
+      ParticipantStatus. It MUST be recorded on the report's `ReportCaseLink`.
+    rationale: >-
+      RM state begins at report receipt, and the case may never exist: a receiver may
+      declare a bare report INVALID or CLOSED and never propose a case. That state was
+      held in a standalone ParticipantStatus keyed on (actor, report, rm_state) and
+      used as an existence latch, which gave the type two jobs and therefore made a
+      single writer impossible. The two jobs were also already entangled:
+      `_build_owner_initial_status()` reused the latch's *id* as the participant's
+      first ladder rung, and `_get_or_create_accepted_status()` mutated the stored
+      record in place. `VultronReportCaseLink` already exists for precisely this
+      window (ADR-0041) and is the report-scoped record, so relocating the state there
+      leaves ParticipantStatus ladder-only — and leaves the writer always holding a
+      case, which is why no further case-absence disposition (ADR-0087) is required.
+    relationships:
+    - rel_type: depends_on
+      spec_id: BTND-10-002
+    adr:
+    - ADR-0089
+    - ADR-0041
+    testable: true
+    verification: >-
+      A ratchet asserts `_report_phase_status_id`, `report_phase_context` and
+      `_current_report_phase_rm_state` are absent from the tree, and a unit test
+      asserts a receiver that declares a bare report INVALID records that state on the
+      ReportCaseLink with no ParticipantStatus written.
