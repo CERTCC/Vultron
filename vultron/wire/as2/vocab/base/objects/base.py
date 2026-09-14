@@ -118,11 +118,31 @@ class as_Object(as_Base, VultronObject):
     def validate_datetime(
         cls, value: datetime | str | None
     ) -> datetime | None:
+        """Coerce a wire timestamp, reading a blank string as absence.
+
+        One validator covers all four timestamp fields, so the "if present,
+        then non-empty" invariant (CS-08-001) is expressed here once rather
+        than as four per-field stubs (CS-08-002).
+
+        A blank string is *absence*, not a malformed value: it carries no time,
+        and the alternative — raising — is not available to a nested object.
+        ``parser._expand_inline_value`` refuses an inline object that fails its
+        own class's validation, so treating a cosmetic blank as a fault would
+        reject the whole message over a field the nested object is allowed to
+        omit outright.  Whitespace-only counts as blank, matching the project's
+        canonical predicate (``core.models.base._non_empty``).
+
+        A non-blank string that is not a timestamp stays an error: blank means
+        "not provided", and reporting corrupt data as missing data would tell
+        the sender to supply a field they already sent (ISSUE-3217).
+        """
         if value is None:
             return value
         if isinstance(value, datetime):
             return as_utc(value)
         if isinstance(value, str):
+            if not value.strip():
+                return None
             return as_utc(datetime.fromisoformat(value))
         raise TypeError(f"Unsupported datetime value: {value!r}")
 

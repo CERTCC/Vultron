@@ -18,6 +18,12 @@ from vultron.wire.as2.parser import parse_activity
 #: fills in — see ``test_parse_activity_raises_missing_published_when_absent``.
 PUBLISHED = "2026-03-04T05:06:07+00:00"
 
+#: Every spelling of "the sender supplied no value".  Whitespace-only counts as
+#: blank by the project's canonical predicate (``not v.strip()``, see
+#: ``vultron.core.models.base._non_empty``): a guard that catches ``""`` but not
+#: ``"   "`` has the same blind spot one character over.
+BLANK = ("", " ", "   ", "\t", "\n", " \t\n ")
+
 
 @pytest.mark.spec("MV-01-001")
 def test_parse_activity_raises_missing_type_when_type_absent():
@@ -29,6 +35,30 @@ def test_parse_activity_raises_missing_type_when_type_absent():
 def test_parse_activity_raises_unknown_type_for_unrecognized_type():
     with pytest.raises(VultronParseUnknownTypeError):
         parse_activity({"type": "NoSuchActivityType"})
+
+
+@pytest.mark.spec("MV-01-001")
+@pytest.mark.spec("MV-03-002")
+@pytest.mark.spec("CS-08-001")
+@pytest.mark.parametrize("blank", BLANK)
+def test_parse_activity_reads_blank_type_as_missing_not_unknown(blank: str):
+    """A blank ``type`` names no type, so it is absence, not an unknown type.
+
+    The distinction is observable: the inbox adapter maps
+    ``VultronParseMissingTypeError`` to HTTP 400 and every other parse error to
+    422, so routing a blank ``type`` through ``find_in_vocabulary`` answered a
+    sender who omitted the field with two different status codes depending on
+    how they spelled the omission (ISSUE-3217).
+    """
+    with pytest.raises(VultronParseMissingTypeError):
+        parse_activity(
+            {
+                "type": blank,
+                "actor": "https://example.org/alice",
+                "published": PUBLISHED,
+                "object": "https://example.org/notes/1",
+            }
+        )
 
 
 @pytest.mark.spec("MV-01-001")
@@ -65,6 +95,51 @@ def test_parse_activity_rejects_explicit_null_published():
                 "object": "https://example.org/notes/1",
             }
         )
+
+
+@pytest.mark.spec("CLP-15-006")
+@pytest.mark.spec("MV-03-002")
+@pytest.mark.spec("CS-08-001")
+@pytest.mark.parametrize("blank", BLANK)
+def test_parse_activity_rejects_blank_published(blank: str):
+    """A blank ``published`` carries no claimed time, so it is absence.
+
+    CLP-15-006 refuses an inbound activity that "carries no ``published``", and
+    a field present but empty carries none — CS-08-001's "if present, then
+    non-empty".  Asking only whether the *key* was absent let this reach
+    ``model_validate``, which reported it as a schema fault and so replaced the
+    CLP-15-006 explanation with a Pydantic isoformat dump (ISSUE-3217).
+    """
+    with pytest.raises(VultronParseMissingPublishedError):
+        parse_activity(
+            {
+                "type": "Create",
+                "actor": "https://example.org/alice",
+                "published": blank,
+                "object": "https://example.org/notes/1",
+            }
+        )
+
+
+@pytest.mark.spec("CLP-15-006")
+@pytest.mark.spec("MV-03-002")
+def test_parse_activity_reports_unparseable_published_as_malformed():
+    """Blank is absence; garbage is malformed, and the two stay distinct.
+
+    Pins the boundary the blank guard must not cross.  A bare falsy check would
+    also absorb ``0`` and ``[]``, reporting a corrupt timestamp as a missing
+    one and telling the sender to add a field they already sent.
+    """
+    for value in ("not-a-date", 0, [], {}):
+        with pytest.raises(VultronParseValidationError):
+            parse_activity(
+                {
+                    "type": "Create",
+                    "actor": "https://example.org/alice",
+                    "published": value,
+                    "object": "https://example.org/notes/1",
+                }
+            )
 
 
 @pytest.mark.spec("CLP-15-004")
@@ -176,6 +251,86 @@ def test_parse_activity_extracts_invite_response_semantics_from_nested_stub_case
             getattr(event, "invitee_id", None)
             == "https://example.org/actors/coordinator"
         )
+
+
+@pytest.mark.spec("CS-08-001")
+@pytest.mark.spec("MV-04-003")
+def test_parse_activity_keeps_nested_subtype_when_nested_published_is_blank():
+    """A blank timestamp on a nested object must not erase that object's type.
+
+    ``_expand_inline_value`` types nested dicts so pattern matching can see the
+    inner ``Invite``.  When that validation failed the raw dict was returned
+    instead, the parent validated it as a bare ``as_Link``, and the activity
+    parsed *clean* — extracting as ``UNKNOWN`` with the case id gone, so the
+    inbox answered 202 for a real Accept it had silently mis-routed
+    (ISSUE-3217).  Reading the blank as absence keeps the subtype.
+    """
+    body = _invite_response_body("Accept")
+    body["object"]["published"] = ""  # type: ignore[index]
+
+    event = extract_event(parse_activity(body))
+
+    assert event.semantic_type == MessageSemantics.ACCEPT_INVITE_ACTOR_TO_CASE
+    assert event.case_id == "https://example.org/cases/case-1"
+
+
+@pytest.mark.spec("MV-04-003")
+def test_parse_activity_refuses_malformed_nested_object_of_known_type():
+    """A nested object we recognised but cannot validate is refused, not degraded.
+
+    Substituting the raw dict is silent data loss: the parent accepts it as a
+    bare ``as_Link``, so a corrupt inner object produces a *successful* parse
+    and a 202 for a message the receiver never understood.  Once the type has
+    resolved to a wire class, failing that class's validation is a message
+    fault and belongs in the 422 (ADR-0032: validate at the edge).
+    """
+    body = _invite_response_body("Accept")
+    body["object"]["published"] = "not-a-date"  # type: ignore[index]
+
+    with pytest.raises(VultronParseValidationError):
+        parse_activity(body)
+
+
+@pytest.mark.spec("ARCH-22-001")
+@pytest.mark.spec("MV-04-003")
+def test_parse_activity_keeps_inline_actor_subtype_with_core_only_collections():
+    """An inline actor's subtype must survive its ``inbox``/``outbox``.
+
+    ``OrderedCollection`` is registered only in ``CORE_TYPE_MAP``, so
+    ``find_in_vocabulary`` used to hand the nested expansion a *core*
+    ``CoreActorCollection``; ``as_VultronOrganization.inbox`` rejects a core
+    instance, and the swallowed failure degraded the whole actor to an
+    ``as_Link``.  Nested expansion inside a wire tree resolves wire classes
+    only (ARCH-22-001), so the mismatch cannot arise.
+    """
+    actor = {
+        "type": "Organization",
+        "id": "https://example.org/alice",
+        "name": "Alice",
+        "inbox": {
+            "type": "OrderedCollection",
+            "id": "https://example.org/alice/inbox",
+            "items": [],
+        },
+        "outbox": {
+            "type": "OrderedCollection",
+            "id": "https://example.org/alice/outbox",
+            "items": [],
+        },
+    }
+
+    result = parse_activity(
+        {
+            "type": "Create",
+            "id": "urn:uuid:create-with-inline-actor",
+            "published": PUBLISHED,
+            "actor": actor,
+            "object": "https://example.org/notes/1",
+        }
+    )
+
+    assert type(result.actor).__name__ == "as_VultronOrganization"
+    assert getattr(result.actor, "id_", None) == "https://example.org/alice"
 
 
 def test_parsing_activity_line_is_debug_not_info(caplog):

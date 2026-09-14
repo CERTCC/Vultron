@@ -72,6 +72,19 @@ def test_parse_activity_raises_400_when_type_missing():
     assert exc_info.value.status_code == 400
 
 
+@pytest.mark.parametrize("blank", ["", "   ", "\t"])
+def test_parse_activity_raises_400_when_type_blank(blank: str):
+    """A blank ``type`` is an omitted ``type``, so it gets the same 400.
+
+    Routing it through the vocabulary lookup answered ``UnknownTypeError`` and
+    so a 422, meaning two spellings of "I did not say what this is" drew two
+    different status codes (ISSUE-3217).
+    """
+    with pytest.raises(HTTPException) as exc_info:
+        parse_activity({"type": blank, "actor": _ACTOR_URI})
+    assert exc_info.value.status_code == 400
+
+
 def test_parse_activity_raises_422_for_unknown_type():
     with pytest.raises(HTTPException) as exc_info:
         parse_activity(
