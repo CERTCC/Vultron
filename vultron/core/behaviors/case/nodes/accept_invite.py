@@ -14,6 +14,7 @@
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 """BT leaf node for emitting Add(CaseParticipant) after a successful invite acceptance."""
 
+import json
 import logging
 from typing import cast
 
@@ -139,8 +140,6 @@ class EmitAddCaseParticipantNode(_EmitSingleActivityBase):
 
     def _call_factory(self) -> tuple[str, str]:
         """Build Add(CaseParticipant) activity and commit the canonical ledger entry."""
-        import json  # noqa: PLC0415
-
         assert self.datalayer is not None
         assert self.actor_id is not None
         assert self.trigger_activity_factory is not None
