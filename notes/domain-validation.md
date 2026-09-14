@@ -361,11 +361,30 @@ Both halves come from the liberal-accept epic (ISSUE-2229). Do **not** "fix"
 one to match the other. If you think one is wrong, the question is which half
 of the maxim applies at that boundary, not which path is inconsistent.
 
-Whether the receive path *should* also be all-or-nothing is a genuinely open
-question, tracked separately. ADR-0061's standing argument against it: a
-refusal in one dimension carries no information about the others, and the
-pre-existing all-or-nothing behaviour silently destroyed accepted state and
-killed embargo teardown.
+**The receive path stays liberal — this question is settled (CONCERN-3040).**
+The arguments for all-or-nothing were examined and rejected on two grounds:
+
+1. *RM is self-declaratory* (ADR-0084): the CaseActor has no independent
+   knowledge of a participant's RM state. If a sender asserts `rm=VALID` while
+   the ledger records `ACCEPTED`, the ledger is merely stale — the participant
+   knows their own state. The CaseActor cannot correct a self-report.
+
+2. *PXA dimensions are external observational facts, not self-declared process
+   state.* A threat sentinel may correctly observe `exploit=public` while
+   carrying a stale RM value. Refusing the whole message means the embargo
+   continues past the point of public exploit code. That is a protocol safety
+   failure.
+
+Impossible dimension combinations (RM↔VF, RM↔D, VF↔D) are already refused
+outright by the cross-machine entailment check (RSH-05-020); partial-accept
+does not let them through.
+
+The remaining gap is the sender-feedback problem: a fully-refused receive BT
+returns `202 Accepted / processed` instead of a `rejected` outcome, so senders
+cannot distinguish partial-accept from total failure (ISSUE-2255). That
+diagnostic gap — and the complementary emit-side object-level validation that
+makes backward steps hard to construct — are the open implementation work, not
+the receive-path disposition.
 
 ### Root vs. derived violations
 
