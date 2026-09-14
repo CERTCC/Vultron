@@ -744,6 +744,28 @@ class _EmitSingleActivityBase(DataLayerActionWithPorts):
         post-emit side-effects.  The default implementation is a no-op.
         """
 
+    def _emit_through_seam(self, activity_id: str, activity_blob: str) -> None:
+        """Route activity emission through the shared outbox-enqueue seam.
+
+        Appends *activity_id* to the actor's outbox and populates
+        ``_captured["activity"]`` when a capture dict is present.
+
+        Cross-cutting hooks for outstanding-ask registration (ASK-04-008)
+        and undelivered-activity correlation (OX-14-001) belong here.
+
+        Note: ``_on_success()`` is intentionally NOT called here — callers
+        invoke it *outside* the enclosing try/except so that a hook bug is
+        not silently swallowed as a retryable FAILURE after the write has
+        already committed.
+        """
+        # `outbox_append`, not the retired `record_outbox_item(actor_id, …)`:
+        # this store is already the executing actor's own, so naming the
+        # actor again is both redundant and a way to get it wrong (ADR-0073,
+        # see `CaseOutboxPersistence`).
+        cast(CaseOutboxPersistence, self.datalayer).outbox_append(activity_id)
+        if self._captured is not None:
+            self._captured["activity"] = json.loads(activity_blob)
+
     def update(self) -> Status:
         if (f := self._require_datalayer_and_actor()) is not None:
             return f
@@ -752,15 +774,7 @@ class _EmitSingleActivityBase(DataLayerActionWithPorts):
             return f
         try:
             activity_id, activity_blob = self._call_factory()
-            # `outbox_append`, not the retired `record_outbox_item(actor_id, …)`:
-            # this store is already the executing actor's own, so naming the
-            # actor again is both redundant and a way to get it wrong (ADR-0073,
-            # see `CaseOutboxPersistence`).
-            cast(CaseOutboxPersistence, self.datalayer).outbox_append(
-                activity_id
-            )
-            if self._captured is not None:
-                self._captured["activity"] = json.loads(activity_blob)
+            self._emit_through_seam(activity_id, activity_blob)
         except Exception as e:
             self.feedback_message = f"{self.__class__.__name__} failed: {e}"
             self.logger.error(self.feedback_message)

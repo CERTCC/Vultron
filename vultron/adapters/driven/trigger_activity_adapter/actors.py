@@ -561,7 +561,7 @@ class _ActorsMixin:
         vendor_id: str,
         actor: str,
         to: list[str] | None = None,
-    ) -> str:
+    ) -> tuple[str, str]:
         """Create and persist a ``Reject(_OfferCaseParticipantRoleActivity)`` (ADR-0039)."""
         from vultron.wire.as2.vocab.base.objects.actors import (
             as_Actor,
@@ -587,7 +587,7 @@ class _ActorsMixin:
                 " — skipping",
                 activity.id_,
             )
-        return activity.id_
+        return activity.id_, activity.model_dump_json(**_DUMP_KWARGS)
 
     def offer_case_ownership_transfer(
         self,
