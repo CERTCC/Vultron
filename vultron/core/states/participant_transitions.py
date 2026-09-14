@@ -59,7 +59,6 @@ from vultron.core.states.cs import (
     CS_d,
     CS_pxa,
     CS_vf,
-    CS_vfd,
     is_valid_d_transition,
     is_valid_pxa_transition,
     is_valid_vf_transition,
@@ -90,18 +89,6 @@ _VENDOR_ONLY_VF: dict[CS_vf, str] = {
     CS_vf.Vf: "ADR-0075",
     CS_vf.VF: "CSB-15-001",
 }
-
-
-def _compound_vfd(vf: CS_vf, d: CS_d) -> CS_vfd | None:
-    """Map a ``(CS_vf, CS_d)`` pair to its ``CS_vfd`` member, or ``None``.
-
-    ``None`` means the pair has no compound spelling — ``vfD`` (deployed
-    without ready) is structurally impossible per CSB-17-001.
-    """
-    try:
-        return CS_vfd[f"{vf}{d}"]
-    except KeyError:
-        return None
 
 
 def _rm_violations(current_rm: RM, requested_rm: RM | None) -> list[Violation]:
@@ -255,14 +242,15 @@ def _compound_violations(
     checks are the whole story for a participant's first VF-bearing snapshot.
     ``current_vf is None`` is the whole of that condition: ``effective_vf`` is
     ``current_vf`` whenever no ``vf`` was requested and non-``None`` otherwise,
-    so it can only be ``None`` when ``current_vf`` already is.  It is tested
-    anyway to narrow the type for the ``_compound_vfd`` call below.
+    so it can only be ``None`` when ``current_vf`` already is.
     """
     if current_vf is None or effective_vf is None:
         return []
-    current_vfd = _compound_vfd(current_vf, current_d or CS_d.d)
-    effective_vfd = _compound_vfd(effective_vf, effective_d or CS_d.d)
-    if effective_vfd is None:
+    eff_d = effective_d or CS_d.d
+    cur_d = current_d or CS_d.d
+    try:
+        effective_cs = cs_from_dimensions(effective_vf, eff_d, effective_pxa)
+    except KeyError:
         return [
             Violation(
                 f"Impossible compound VF+D state"
@@ -270,14 +258,14 @@ def _compound_violations(
                 dimensions=("vf", "d"),
             )
         ]
-    if current_vfd is None:
+    try:
+        current_cs = cs_from_dimensions(current_vf, cur_d, current_pxa)
+    except KeyError:
         # The incumbent pair has no compound spelling, so there is no valid
         # source state to measure the move from.  Repairing that is the
         # receive path's problem (RSH-05-020); refusing this write would only
         # strand the participant.
         return []
-    current_cs = cs_from_dimensions(current_vfd, current_pxa)
-    effective_cs = cs_from_dimensions(effective_vfd, effective_pxa)
     if is_valid_cs_transition(current_cs, effective_cs, allow_null=True):
         return []
     return [

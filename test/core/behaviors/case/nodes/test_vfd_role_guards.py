@@ -15,9 +15,9 @@
 
 """Unit tests for VFD role-guard nodes.
 
-- CheckVendorRoleNode: gates f→F (vfd_state=VFd); actor must hold CVDRole.VENDOR
+- CheckVendorRoleNode: gates f→F (vf_state=VF); actor must hold CVDRole.VENDOR
   (CSB-15-001)
-- CheckDeployerRoleNode: gates d→D (vfd_state=VFD); actor must hold CVDRole.DEPLOYER
+- CheckDeployerRoleNode: gates d→D (d_state=D); actor must hold CVDRole.DEPLOYER
   (CSB-15-002)
 - CheckNotSoleObserverVfdNode: gates v→V (vfd_state=Vfd); sole-OBSERVER actors
   MUST NOT emit VFD transitions (CM-25-005)

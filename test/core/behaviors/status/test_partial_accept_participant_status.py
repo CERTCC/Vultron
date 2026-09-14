@@ -121,7 +121,7 @@ _ZERO_HASH = "0" * 64
 # the enum *member name* (``"VALID"``, ``"VFd"``, ``"Pxa"``) — which is also
 # what both serializations carry — so the assertions describe protocol state,
 # not serialization shape.  Comparing enum members directly would not work for
-# ``CS_vfd``/``CS_pxa``, whose ``.value`` is a ``NamedTuple`` rather than the
+# ``CS_pxa``, whose ``.value`` is a ``NamedTuple`` rather than the
 # string that appears on the wire.
 # ---------------------------------------------------------------------------
 

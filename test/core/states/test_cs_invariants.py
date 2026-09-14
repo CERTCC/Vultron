@@ -35,17 +35,17 @@ from vultron.core.case_states.validations import (
 )
 from vultron.core.states.cs import (
     CS,
+    CS_d,
     CS_pxa,
-    CS_vfd,
+    CS_vf,
     PXA_Trigger,
-    VFD_Trigger,
+    is_valid_d_transition,
     is_valid_pxa_transition,
-    is_valid_vfd_transition,
-    is_vfd_vendor_aware,
+    is_valid_vf_transition,
+    is_vf_vendor_aware,
 )
 from vultron.core.states.cs_invariants import (
     CS_EVENT_TO_PXA_TRIGGER,
-    CS_EVENT_TO_VFD_TRIGGER,
     CS_EVENTS,
     CSEvent,
     PXA_EVENTS,
@@ -141,22 +141,8 @@ def test_event_dimension_partition():
 
 
 def test_event_trigger_maps_cover_their_dimensions():
-    assert set(CS_EVENT_TO_VFD_TRIGGER) == VFD_EVENTS
     assert set(CS_EVENT_TO_PXA_TRIGGER) == PXA_EVENTS
-    assert set(CS_EVENT_TO_VFD_TRIGGER.values()) == set(VFD_Trigger)
     assert set(CS_EVENT_TO_PXA_TRIGGER.values()) == set(PXA_Trigger)
-
-
-@pytest.mark.parametrize(
-    "event,trigger",
-    [
-        (CSEvent.V, VFD_Trigger.V),
-        (CSEvent.F, VFD_Trigger.F),
-        (CSEvent.D, VFD_Trigger.D),
-    ],
-)
-def test_vfd_trigger_map_pairs_by_letter(event, trigger):
-    assert CS_EVENT_TO_VFD_TRIGGER[event] is trigger
 
 
 @pytest.mark.parametrize(
@@ -179,8 +165,8 @@ def test_cs_enum_is_exactly_the_legacy_valid_state_set():
     """The 32 CS members are the legacy model's 32 valid states.
 
     This is the state-validity rule (`vF` and `fD` are impossible) expressed
-    structurally: `CS_vfd` has only four members, so the impossible
-    combinations cannot be constructed at all.
+    structurally: the CS state names encode all 6 bits, and invalid combos
+    like `vFd` cannot appear because `CS_vf` has no such member.
     """
     assert {state.name for state in CS} == _legacy_valid_states()
 
@@ -193,11 +179,17 @@ def test_cs_has_32_states():
 @pytest.mark.spec("CSB-17-006")
 @pytest.mark.spec("CSB-17-007")
 def test_impossible_vfd_combinations_are_not_constructible():
-    """No CS_vfd member has F without V, or D without F."""
-    for state in CS_vfd:
-        vendor_aware, fix_ready, fix_deployed = (
-            char.isupper() for char in state.name
-        )
+    """CS state names never have F without V, or D without F.
+
+    The 32 valid CS states are encoded in the enum names: 'vf', 'Vf', 'VF'
+    as the first two characters, 'd'/'D' as the third.  Invalid combos like
+    'fD' (fix without vendor) or 'vD' cannot appear by construction.
+    """
+    for state in CS:
+        name = state.name  # e.g. "VFDpxa"
+        vendor_aware = name[0].isupper()
+        fix_ready = name[1].isupper()
+        fix_deployed = name[2].isupper()
         assert not (fix_ready and not vendor_aware)
         assert not (fix_deployed and not fix_ready)
 
@@ -209,12 +201,15 @@ def test_dimension_round_trip():
 
 @pytest.mark.spec("CSB-17-001")
 def test_cs_from_dimensions_covers_the_full_cross_product():
-    pairs = {
-        cs_from_dimensions(vfd_state, pxa_state)
-        for vfd_state in CS_vfd
+    states = {
+        cs_from_dimensions(vf_state, d_state, pxa_state)
+        for vf_state in CS_vf
+        for d_state in CS_d
         for pxa_state in CS_pxa
+        if not (vf_state == CS_vf.vf and d_state == CS_d.D)
+        if not (vf_state == CS_vf.Vf and d_state == CS_d.D)
     }
-    assert pairs == set(CS)
+    assert states == set(CS)
 
 
 # --- ephemeral states -----------------------------------------------------
@@ -304,11 +299,19 @@ def _satisfies_structural_conditions(src: CS, dst: CS) -> bool:
     if event is None:
         return False
 
-    src_vfd, src_pxa = cs_dimensions(src)
-    dst_vfd, dst_pxa = cs_dimensions(dst)
+    src_vf, src_d, src_pxa = cs_dimensions(src)
+    dst_vf, dst_d, dst_pxa = cs_dimensions(dst)
     if event in VFD_EVENTS:
-        return src_pxa is dst_pxa and is_valid_vfd_transition(src_vfd, dst_vfd)
-    return src_vfd is dst_vfd and is_valid_pxa_transition(src_pxa, dst_pxa)
+        if src_pxa is not dst_pxa:
+            return False
+        if event == CSEvent.D:
+            return src_vf is dst_vf and is_valid_d_transition(src_d, dst_d)
+        return src_d is dst_d and is_valid_vf_transition(src_vf, dst_vf)
+    return (
+        src_vf is dst_vf
+        and src_d is dst_d
+        and is_valid_pxa_transition(src_pxa, dst_pxa)
+    )
 
 
 @pytest.mark.spec("CSB-17-002")
@@ -502,7 +505,7 @@ def test_apply_cs_event_reports_the_nearest_blocker_when_several_apply():
     assert "prerequisite" not in message
     # Both blockers really are live, so this is a precedence choice, not luck.
     assert required_next_cs_events(CS.vfdpXa) == frozenset({CSEvent.P})
-    assert not is_vfd_vendor_aware(cs_dimensions(CS.vfdpXa)[0])
+    assert not is_vf_vendor_aware(cs_dimensions(CS.vfdpXa)[0])
 
 
 # --- history validity -----------------------------------------------------
