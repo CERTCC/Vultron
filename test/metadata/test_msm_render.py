@@ -178,6 +178,20 @@ def test_render_page_general_shows_gi_expansion():
     assert output.count("`GI`") >= 4
 
 
+def test_render_page_heading_false_omits_heading():
+    """render_page(slug, heading=False) returns the table with no ``##`` line.
+
+    The consolidated message-reference pages embed the table under their own
+    H1/section, so they request the heading-less form to avoid a duplicate
+    heading.
+    """
+    output = render_page("rm", heading=False)
+    assert output.startswith("| Shorthand(s) |")
+    assert "## " not in output
+    # Same table content as the heading form, minus the heading.
+    assert render_page("rm").endswith(output)
+
+
 def test_render_page_invalid_slug_raises():
     with pytest.raises(ValueError, match="Unknown page slug"):
         render_page("nonexistent_page")
