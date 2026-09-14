@@ -27,4 +27,4 @@ Remove the redundant sort and document the pool-ordering dependency in the docst
 
 Surfaced during code review of #3189. Pre-existing in `vultron/core/sync_helpers.py:354`.
 
-**Resolved**: 2026-09-14 — planned; implementation tracked in #3229 (combined with CONCERN-3222). Docs PR: <https://github.com/CERTCC/Vultron/pull/3231>.
+**Resolved**: 2026-09-14 — fixed in PR <https://github.com/CERTCC/Vultron/pull/3231> (implementation folded into the planning PR; tracking Task #3229). The redundant `matches.sort(...)` was removed from both `_find_prev_actor_published` and the twin `_find_equivalent_recorded_entry`, each replaced with a comment asserting the pool-ordering invariant.

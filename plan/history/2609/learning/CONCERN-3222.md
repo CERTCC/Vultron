@@ -26,4 +26,4 @@ Apply `parse_published` (or `.astimezone(timezone.utc)`) to `case_published` as 
 
 Surfaced during code review of #3189. Pre-existing in `vultron/core/behaviors/sync/nodes/canonical_entry.py:222`.
 
-**Resolved**: 2026-09-14 — planned; implementation tracked in #3229 (combined with CONCERN-3223). Docs PR: <https://github.com/CERTCC/Vultron/pull/3231>.
+**Resolved**: 2026-09-14 — fixed in PR <https://github.com/CERTCC/Vultron/pull/3231> (implementation folded into the planning PR; tracking Task #3229). `case_published` is now normalized with `parse_published` at `canonical_entry.py`, so the CLP-14-006 violation message renders both operands in UTC.

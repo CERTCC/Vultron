@@ -286,7 +286,9 @@ def _find_equivalent_recorded_entry(
     ]
     if not matches:
         return None
-    matches.sort(key=lambda entry: entry.log_index)
+    # pool is log_index-ascending (recorded_entries_for_case sorts it) and the
+    # loop above preserves that order, so matches[-1] is the highest log_index
+    # without a re-sort.
     return matches[-1]
 
 
@@ -351,5 +353,7 @@ def _find_prev_actor_published(
         matches.append(obj)
     if not matches:
         return None
-    matches.sort(key=lambda entry: entry.log_index)
+    # pool is log_index-ascending (recorded_entries_for_case sorts it) and the
+    # loop above preserves that order, so matches[-1] is this actor's highest
+    # log_index without a re-sort.
     return parse_published(matches[-1].payload_snapshot.get("published"))
