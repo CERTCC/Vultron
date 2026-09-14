@@ -234,7 +234,7 @@ groups:
   - id: CS-13-002
     priority: MUST
     kind: project
-    statement: All datetime values MUST be created via the `now_utc()` helper in `vultron.wire.as2.vocab.base.dt_utils`
+    statement: All datetime values MUST be created via the `now_utc()` helper in `vultron.core.models._helpers`
   - id: CS-13-003
     priority: SHOULD
     kind: architecture
@@ -242,7 +242,7 @@ groups:
   - id: CS-13-004
     priority: MUST
     kind: project
-    statement: Embargo deadline datetimes MUST be computed using the `days_from_now_utc(n)` helper rather than inline arithmetic
+    statement: Embargo deadline datetimes MUST be computed using the `days_from_now_utc(n)` helper in `vultron.core.models._helpers` rather than inline arithmetic
   - id: CS-13-005
     priority: MUST
     kind: protocol

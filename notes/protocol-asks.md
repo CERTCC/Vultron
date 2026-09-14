@@ -254,26 +254,29 @@ fault is protocol history; the *diagnosis* is not.
 
 ## Pitfalls
 
-**There is no general shared emit path yet.** `outbox_append` is called from
-roughly twenty modules, and at least four private emit helpers exist
-independently:
+**A single shared emit seam now exists.** `_EmitSingleActivityBase._emit_through_seam()`
+(in `behaviors/helpers.py`) is the one place all BT node outbox writes go through
+(implemented by #2881). The four previously independent private helpers have been
+replaced by `_call_factory()` / `_on_success()` overrides on `_EmitSingleActivityBase`
+subclasses:
 
 ```text
-case/nodes/actor.py:142                        _emit()
-case/nodes/accept_invite.py:141                _emit_activity()
-case/nodes/delegation.py:213                   _emit()
-case/nodes/suggest_actor/accept_offer.py:53    _emit()
+case/nodes/actor.py                        EmitInviteActorToCaseNode._call_factory()
+case/nodes/accept_invite.py                EmitAddCaseParticipantNode._call_factory()
+case/nodes/delegation.py                   EmitRejectCaseParticipantRoleNode._call_factory()
+case/nodes/suggest_actor/accept_offer.py   EmitAcceptCaseParticipantOfferNode._call_factory()
 ```
 
 `_FaultMixin.emit_processing_fault()` (added in #2989) covers the
-`Create(ProcessingFault)` NACK path specifically, but the general problem —
-consolidating all activity emissions through a single point — remains open.
-Registration that each call site must remember to perform will be forgotten
-(ASK-04-008), so a general shared path is still a prerequisite for the
-CONCERN-2657 correlation work. It **cannot** live in the AS2 factory:
-factories are wire-layer, have no DataLayer, and wire must not import core. It
-belongs on the core side, alongside the shared BT node base classes in
-`behaviors/helpers.py`.
+`Create(ProcessingFault)` NACK path specifically; it does NOT go through
+`_emit_through_seam()` (it uses a separate outbox path).
+
+The shared seam is the prerequisite for ASK-04-008 (correlation hook) and
+OX-14-001 (dead-letter link) from CONCERN-2657. Those hooks belong in
+`_emit_through_seam()` — the seam is the single place to add them.
+
+Architecture ratchet `test/architecture/test_no_direct_outbox_append_in_bt_node_update.py`
+prevents future direct `outbox_append` in BT node `update()` methods.
 
 **Delivery receipt is not agreement.** "Your message arrived" and "I agree to
 what your message said" are different layers and must not be conflated.

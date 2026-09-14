@@ -15,22 +15,18 @@
 
 """Domain representation of an EmbargoEvent."""
 
-from datetime import datetime, timedelta, timezone
+from datetime import datetime
 from typing import Literal
 
 from pydantic import Field
 
+from vultron.core.models._helpers import days_from_now_utc, now_utc
 from vultron.core.models.base import CoreObject, NonEmptyString
-
-
-def _now_utc() -> datetime:
-    """Return the current UTC datetime (timezone-aware)."""
-    return datetime.now(tz=timezone.utc)
 
 
 def _45_days_hence() -> datetime:
     """Return a datetime 45 days in the future (UTC)."""
-    return _now_utc() + timedelta(days=45)
+    return days_from_now_utc(45)
 
 
 class EmbargoEvent(CoreObject):
@@ -47,7 +43,7 @@ class EmbargoEvent(CoreObject):
         validation_alias="type",
         serialization_alias="type",
     )
-    start_time: datetime = Field(default_factory=_now_utc)
+    start_time: datetime = Field(default_factory=now_utc)
     end_time: datetime = Field(default_factory=_45_days_hence)
     context: NonEmptyString  # pyright: ignore[reportGeneralTypeIssues]
 

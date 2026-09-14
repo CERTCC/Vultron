@@ -368,7 +368,7 @@ Five traps, all found the hard way:
    clock-skew tolerance, `WARNING` beyond it.
 3. **A snapshot the CaseActor builds on a participant's behalf carries that
    participant's claimed time**, from the triggering activity — use
-   `claimed_published_iso()`. Stamping `_now_utc()` under a participant's actor
+   `claimed_published_iso()`. Stamping `now_utc()` under a participant's actor
    URI puts a foreign clock in that actor's claimed stream, which trap 2 then
    reports as a regression, and leaves CLP-14-007/008 comparing the receiver's
    clock against itself. A snapshot the CaseActor genuinely authors (its own
@@ -600,8 +600,8 @@ correct implementation.
 
 ## `invite_actor_to_case` Uses `disposition="recorded"` (Issue #1689)
 
-`EmitInviteActorToCaseNode._emit()` (in
-`vultron/core/behaviors/case/nodes/actor.py`) was changed from
+`EmitInviteActorToCaseNode._call_factory()` (in
+`vultron/core/behaviors/case/nodes/actor.py`, renamed from `_emit()` by #2881) was changed from
 `disposition="rejected"` to `disposition="recorded"` in PR #1746.
 
 **Why this matters**: `disposition="rejected"` bypasses

@@ -158,6 +158,7 @@ General information about architectural decision records is available at <https:
 - [ADR-0086 Report Every Violation, Reject the Batch — and the Emit/Receive Dispositions Are Postel's Maxim](0086-report-every-violation-reject-the-batch.md)
 - [ADR-0087 Case-Resolution Disposition for BT Nodes Is Chosen by Role, Not Re-Decided Per Call Site](0087-case-resolution-disposition-policy.md)
 - [ADR-0088 Authority Is the CASE_MANAGER Role; "Case Actor" Is Role-Enactment Shorthand, Not an Identity](0088-consolidate-case-authority-determination.md)
+- [ADR-0089 One `ParticipantStatus` Writer, and Pre-Case RM State Belongs to `ReportCaseLink`](0089-one-participant-status-writer.md)
 
 ## Proposed ADRs
 
