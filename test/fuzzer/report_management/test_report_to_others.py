@@ -1,7 +1,7 @@
 """Tests for vultron.demo.fuzzer.report_management.report_to_others."""
 
-import pytest
 import py_trees
+import pytest
 
 from vultron.demo.fuzzer.base import (
     AlmostAlwaysFail,
@@ -9,7 +9,6 @@ from vultron.demo.fuzzer.base import (
     AlmostCertainlyFail,
     AlwaysSucceed,
     ProbablySucceed,
-    SuccessOrRunning,
     UniformSucceedFail,
     UsuallyFail,
     UsuallySucceed,
@@ -90,14 +89,13 @@ def test_node_name_custom(node_cls):
 
 @pytest.mark.parametrize("node_cls", _ALL_NODES)
 def test_update_returns_status(node_cls):
-    """update() must return a valid py_trees Status."""
+    """update() must answer synchronously with SUCCESS or FAILURE (BT-18-011)."""
     node = node_cls()
     node.setup()
     status = node.update()
     assert status in (
         py_trees.common.Status.SUCCESS,
         py_trees.common.Status.FAILURE,
-        py_trees.common.Status.RUNNING,
     )
 
 
@@ -113,11 +111,11 @@ def test_all_parties_known_base_type():
 
 
 def test_identify_vendors_base_type():
-    assert issubclass(IdentifyVendors, SuccessOrRunning)
+    assert issubclass(IdentifyVendors, AlwaysSucceed)
 
 
 def test_identify_coordinators_base_type():
-    assert issubclass(IdentifyCoordinators, SuccessOrRunning)
+    assert issubclass(IdentifyCoordinators, AlwaysSucceed)
 
 
 def test_identify_others_base_type():
@@ -259,11 +257,11 @@ def test_inject_other_success_rate():
     assert InjectOther.success_rate == pytest.approx(1.0)
 
 
-# --- SuccessOrRunning nodes never return FAILURE ---
+# --- Identify* nodes never return FAILURE (AlwaysSucceed) ---
 
 
 def test_identify_vendors_never_fails():
-    """IdentifyVendors (SuccessOrRunning) must never return FAILURE."""
+    """IdentifyVendors (AlwaysSucceed) must never return FAILURE."""
     node = IdentifyVendors()
     node.setup()
     for _ in range(50):
@@ -272,7 +270,7 @@ def test_identify_vendors_never_fails():
 
 
 def test_identify_coordinators_never_fails():
-    """IdentifyCoordinators (SuccessOrRunning) must never return FAILURE."""
+    """IdentifyCoordinators (AlwaysSucceed) must never return FAILURE."""
     node = IdentifyCoordinators()
     node.setup()
     for _ in range(50):

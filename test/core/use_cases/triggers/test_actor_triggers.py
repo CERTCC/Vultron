@@ -23,17 +23,18 @@ are normalised to full URIs before use.
 """
 
 import logging
-
-import pytest
-
 from test.conftest import seed_case_actor_replica
 from typing import cast
+
+import pytest
 
 from vultron.adapters.driven.datalayer_sqlite import (
     SqliteDataLayer,
     reset_datalayer,
 )
-from vultron.enums.roles import CVDRole
+from vultron.adapters.driven.trigger_activity_adapter import (
+    TriggerActivityAdapter,
+)
 from vultron.core.use_cases.triggers.actor import (
     SvcAcceptActorRecommendationUseCase,
     SvcAcceptCaseInviteUseCase,
@@ -50,6 +51,7 @@ from vultron.core.use_cases.triggers.requests import (
     RejectCaseInviteTriggerRequest,
     SuggestActorToCaseTriggerRequest,
 )
+from vultron.enums.roles import CVDRole
 from vultron.errors import VultronNotFoundError, VultronValidationError
 from vultron.wire.as2.factories import rm_invite_to_case_activity
 from vultron.wire.as2.factories.actor import offer_case_participant_activity
@@ -57,11 +59,8 @@ from vultron.wire.as2.vocab.base.objects.activities.transitive import as_Invite
 from vultron.wire.as2.vocab.base.objects.actors import as_Service
 from vultron.wire.as2.vocab.objects.case_participant import as_CaseParticipant
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
-    as_VulnerabilityCase,
     VulnerabilityCaseStub,
-)
-from vultron.adapters.driven.trigger_activity_adapter import (
-    TriggerActivityAdapter,
+    as_VulnerabilityCase,
 )
 
 _BASE = "http://coordinator:7999/api/v2/actors"
@@ -1677,3 +1676,58 @@ class TestActorDiscoveryCallOut:
         recorded = dl.read(missing_id)
         assert recorded is not None
         assert str(recorded.id_) == missing_id
+
+    @pytest.mark.spec("BT-18-011")
+    def test_running_backend_degrades_gracefully(self, caplog):
+        """A RUNNING backend violates BT-18-011; this procedural path degrades.
+
+        The guard rejects a RUNNING return by raising CallOutContractError. In
+        this single-tick, non-BT path there is no tree to busy-loop, so the
+        request must not crash: it records a minimal peer (as with any other
+        non-SUCCESS) and surfaces the offending backend via a WARNING.
+        """
+        import py_trees
+        from py_trees.common import Status
+
+        from vultron.core.behaviors.call_out.bundles.actor_discovery import (
+            ActorDiscoveryCallOutBundle,
+        )
+
+        class _Running(py_trees.behaviour.Behaviour):
+            def update(self):
+                return Status.RUNNING
+
+        running_bundle = ActorDiscoveryCallOutBundle(
+            resolve_actor_factory=lambda name: _Running(name)  # type: ignore[arg-type]
+        )
+
+        actor, dl = _make_actor_dl("Coordinator")
+        missing_id = "https://example.org/actors/still-resolving"
+        case = as_VulnerabilityCase(
+            attributed_to=actor.id_,
+            name="Running Backend Test",
+            content="Content",
+        )
+        dl.create(case)
+
+        request = InviteActorToCaseTriggerRequest(
+            actor_id=actor.id_,
+            case_id=case.id_,
+            invitee_id=missing_id,
+        )
+        with caplog.at_level(logging.WARNING):
+            # Must NOT raise CallOutContractError out of the use case.
+            result = SvcInviteActorToCaseUseCase(
+                dl,
+                request,
+                trigger_activity=TriggerActivityAdapter(dl),
+                call_out=running_bundle,
+            ).execute()
+
+        assert result is not None
+        # Minimal peer still recorded; the offending backend is named in the log.
+        recorded = dl.read(missing_id)
+        assert recorded is not None
+        assert str(recorded.id_) == missing_id
+        assert "BT-18-011" in caplog.text
+        assert missing_id in caplog.text

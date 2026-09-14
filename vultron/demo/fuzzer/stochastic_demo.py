@@ -82,7 +82,10 @@ def _run_domain_nodes(
     """Setup and tick every node in a domain for n_ticks iterations."""
     logger.info("--- domain: %s (%d call-out points) ---", domain, len(nodes))
     for node in nodes:
-        node.setup()
+        # setup_with_descendants (not setup) so the SynchronousCallOut guard
+        # wrapper each bundle now hands out (BT-18-011) propagates setup to the
+        # backend node it wraps, which is where blackboard clients are attached.
+        node.setup_with_descendants()
     for tick in range(1, n_ticks + 1):
         for node in nodes:
             # Reset to INVALID so each tick is independent

@@ -25,16 +25,18 @@ Covers all acceptance criteria from issue #1812:
 - AC-8: Tree root is a Fallback; guards short-circuit before inner Sequence
 """
 
+from test.core.behaviors.bt_harness import BTTestScenario
+
 import py_trees
 import pytest
 from py_trees.common import Status
 
-from test.core.behaviors.bt_harness import BTTestScenario
-from vultron.core.behaviors.call_out.nodes import AlwaysSucceed
+from vultron.core.behaviors.call_out import unwrap_call_out
 from vultron.core.behaviors.call_out.bundles.develop_fix import (
     DEVELOP_FIX_DETERMINISTIC,
     DevelopFixCallOutBundle,
 )
+from vultron.core.behaviors.call_out.nodes import AlwaysSucceed
 from vultron.core.behaviors.report.develop_fix_tree import (
     create_develop_fix_tree,
 )
@@ -42,11 +44,11 @@ from vultron.core.behaviors.report.nodes.conditions import (
     CheckRMStateAccepted,
 )
 from vultron.core.behaviors.report.nodes.develop_fix import (
-    _EmitParticipantStatusActivityBase,
     CheckCSFixNotYetReady,
     CheckIsVendorRoleNode,
     EmitCFActivity,
     TransitionCStoFixReady,
+    _EmitParticipantStatusActivityBase,
 )
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.dimensions import RmDimension, VfDimension
@@ -263,7 +265,7 @@ def test_default_child_is_always_succeed():
     assert inner_seq.name == "_CreateFixForAcceptedReports"
     # child[1] of inner sequence is the CreateFix call-out node
     create_fix_node = inner_seq.children[1]
-    assert isinstance(create_fix_node, AlwaysSucceed)
+    assert isinstance(unwrap_call_out(create_fix_node), AlwaysSucceed)
     assert create_fix_node.name == "CreateFix"
 
 
@@ -378,7 +380,7 @@ def test_stochastic_bundle_wires_create_fix_fuzzer_node():
         call_out=DEVELOP_FIX_STOCHASTIC,
     )
     inner_seq = tree.children[2]
-    assert isinstance(inner_seq.children[1], CreateFix)
+    assert isinstance(unwrap_call_out(inner_seq.children[1]), CreateFix)
 
 
 # ---------------------------------------------------------------------------

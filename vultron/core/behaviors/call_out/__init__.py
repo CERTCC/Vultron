@@ -33,6 +33,12 @@ simulation artifacts and are injected explicitly via ``call_out=`` by demo /
 test code.
 """
 
+from vultron.core.behaviors.call_out.guard import (
+    CallOutContractError,
+    SynchronousCallOut,
+    guard_call_out_factory,
+    unwrap_call_out,
+)
 from vultron.core.behaviors.call_out.nodes import (
     AlwaysFail,
     AlwaysSucceed,
@@ -45,4 +51,8 @@ __all__ = [
     "AlwaysSucceed",
     "AlwaysFail",
     "RequireCaseOwnerApprovalNode",
+    "CallOutContractError",
+    "SynchronousCallOut",
+    "guard_call_out_factory",
+    "unwrap_call_out",
 ]

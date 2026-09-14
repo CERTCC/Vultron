@@ -43,6 +43,7 @@ from dataclasses import dataclass, field
 
 import py_trees
 
+from vultron.core.behaviors.call_out.bundles.base import CallOutBundle
 from vultron.core.behaviors.call_out.nodes import AlwaysSucceed
 from vultron.core.behaviors.call_out.protocol import CallOutBackendFactory
 
@@ -52,7 +53,7 @@ def _always_succeed(name: str) -> py_trees.behaviour.Behaviour:
 
 
 @dataclass(frozen=True)
-class ActorDiscoveryCallOutBundle:
+class ActorDiscoveryCallOutBundle(CallOutBundle):
     """Call-out backend bundle for the actor discovery domain.
 
     The single field backs the Retriever call-out point that resolves an actor

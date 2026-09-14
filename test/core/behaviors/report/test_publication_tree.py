@@ -22,10 +22,11 @@ Verifies ADR-0028 / BT-20-002 and ADR-0030 / BT-20-004:
 - Collapse 4: single Publish leaf replaced by draft-review-submit pipeline subtree.
 """
 
-import pytest
 import py_trees
+import pytest
 from py_trees.common import Status
 
+from vultron.core.behaviors.call_out import unwrap_call_out
 from vultron.core.behaviors.report.publication_tree import (
     INTENT_DECISION_KEY,
     PublicationIntentDecision,
@@ -144,7 +145,9 @@ def test_stochastic_bundle_evaluator_is_fuzzer_node():
     tree = create_publication_tree(
         case_id=CASE_ID, call_out=PUBLICATION_STOCHASTIC
     )
-    assert isinstance(tree.children[0], PrioritizePublicationIntents)
+    assert isinstance(
+        unwrap_call_out(tree.children[0]), PrioritizePublicationIntents
+    )
 
 
 def test_evaluator_is_first_child():
@@ -181,13 +184,13 @@ def test_default_prepare_nodes_are_deterministic():
     report_seq = tree.children[3].children[0]
 
     assert isinstance(exploit_seq.children[0], ShouldPublishExploit)
-    assert isinstance(exploit_seq.children[1], AlwaysSucceed)
+    assert isinstance(unwrap_call_out(exploit_seq.children[1]), AlwaysSucceed)
 
     assert isinstance(fix_seq.children[0], ShouldPublishFix)
-    assert isinstance(fix_seq.children[1], AlwaysSucceed)
+    assert isinstance(unwrap_call_out(fix_seq.children[1]), AlwaysSucceed)
 
     assert isinstance(report_seq.children[0], ShouldPublishReport)
-    assert isinstance(report_seq.children[1], AlwaysSucceed)
+    assert isinstance(unwrap_call_out(report_seq.children[1]), AlwaysSucceed)
 
 
 def test_stochastic_prepare_nodes_are_fuzzers():
@@ -201,9 +204,9 @@ def test_stochastic_prepare_nodes_are_fuzzers():
     fix_seq = tree.children[2].children[0]
     report_seq = tree.children[3].children[0]
 
-    assert isinstance(exploit_seq.children[1], PrepareExploit)
-    assert isinstance(fix_seq.children[1], PrepareFix)
-    assert isinstance(report_seq.children[1], PrepareReport)
+    assert isinstance(unwrap_call_out(exploit_seq.children[1]), PrepareExploit)
+    assert isinstance(unwrap_call_out(fix_seq.children[1]), PrepareFix)
+    assert isinstance(unwrap_call_out(report_seq.children[1]), PrepareReport)
 
 
 def test_default_publish_pipeline_nodes_are_deterministic():
@@ -214,9 +217,9 @@ def test_default_publish_pipeline_nodes_are_deterministic():
     for arm, label in zip(tree.children[1:], ["Exploit", "Fix", "Report"]):
         pipeline = arm.children[0].children[2]  # PublishArtifactBT_<label>
         assert pipeline.name == f"PublishArtifactBT_{label}"
-        assert isinstance(pipeline.children[0], AlwaysSucceed)
-        assert isinstance(pipeline.children[1], AlwaysSucceed)
-        assert isinstance(pipeline.children[3], AlwaysSucceed)
+        assert isinstance(unwrap_call_out(pipeline.children[0]), AlwaysSucceed)
+        assert isinstance(unwrap_call_out(pipeline.children[1]), AlwaysSucceed)
+        assert isinstance(unwrap_call_out(pipeline.children[3]), AlwaysSucceed)
 
 
 def test_stochastic_publish_pipeline_nodes_are_fuzzers():
@@ -229,13 +232,21 @@ def test_stochastic_publish_pipeline_nodes_are_fuzzers():
     for arm, label in zip(tree.children[1:], ["Exploit", "Fix", "Report"]):
         pipeline = arm.children[0].children[2]  # PublishArtifactBT_<label>
         assert pipeline.name == f"PublishArtifactBT_{label}"
-        assert isinstance(pipeline.children[0], DraftAdvisoryArtifact)
-        assert isinstance(pipeline.children[1], ReviewAdvisoryDraft)
+        assert isinstance(
+            unwrap_call_out(pipeline.children[0]), DraftAdvisoryArtifact
+        )
+        assert isinstance(
+            unwrap_call_out(pipeline.children[1]), ReviewAdvisoryDraft
+        )
         # children[2] is the RevisionArm Selector
         revision_arm = pipeline.children[2]
         do_revise = revision_arm.children[0]
-        assert isinstance(do_revise.children[1], ReviseAdvisoryDraft)
-        assert isinstance(pipeline.children[3], SubmitAdvisoryArtifact)
+        assert isinstance(
+            unwrap_call_out(do_revise.children[1]), ReviseAdvisoryDraft
+        )
+        assert isinstance(
+            unwrap_call_out(pipeline.children[3]), SubmitAdvisoryArtifact
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -268,7 +279,9 @@ def test_full_tick_with_stochastic_evaluator_writes_intent_record():
     )
     tree = create_publication_tree(case_id=CASE_ID, call_out=bundle)
     # Guard: the Evaluator under test is the real stochastic node, not a stub.
-    assert isinstance(tree.children[0], PrioritizePublicationIntents)
+    assert isinstance(
+        unwrap_call_out(tree.children[0]), PrioritizePublicationIntents
+    )
 
     tree.setup_with_descendants()
     tree.tick_once()
@@ -424,7 +437,9 @@ def test_publish_pipeline_factories_used_in_every_arm():
         do_revise = pipeline.children[2].children[0]
         assert do_revise.children[1].name == "CustomRevise"
         assert pipeline.children[3].name == "CustomSubmit"
-        assert not isinstance(pipeline.children[3], SubmitAdvisoryArtifact)
+        assert not isinstance(
+            unwrap_call_out(pipeline.children[3]), SubmitAdvisoryArtifact
+        )
 
 
 # ---------------------------------------------------------------------------

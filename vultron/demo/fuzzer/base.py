@@ -64,24 +64,6 @@ class WeightedBehavior(py_trees.behaviour.Behaviour):
         return Status.FAILURE
 
 
-class SuccessOrRunning(py_trees.behaviour.Behaviour):
-    """Returns ``Status.SUCCESS`` or ``Status.RUNNING`` with equal probability.
-
-    Never returns ``Status.FAILURE``.  Useful for simulating long-running
-    operations that eventually succeed.
-
-    Args:
-        name: Display name for the node.  Defaults to the class name.
-    """
-
-    def __init__(self, name: str = "") -> None:
-        super().__init__(name=name or self.__class__.__name__)
-
-    def update(self) -> Status:
-        """Return SUCCESS or RUNNING with equal probability."""
-        return random.choice((Status.SUCCESS, Status.RUNNING))
-
-
 class AlwaysSucceed(WeightedBehavior):
     """Always returns ``Status.SUCCESS`` (success_rate = 1.0)."""
 
