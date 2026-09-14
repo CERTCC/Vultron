@@ -20,7 +20,7 @@ protocol with other related standards and protocols, including:
 - :material-cube-unfolded: A [Formal Protocol](formal_protocol/index.md) specification for the Vultron Protocol
 - :material-file-document-multiple: [Specifications](specs/index.md) — structured requirements by kind (General, Pattern, Domain, Language, Implementation, Dev Process)
 - :material-format-list-text: An annotated listing of the [Case States](case_states/index.md) of the Vultron Protocol
-- :material-altimeter: [Measuring CVD](measuring_cvd/index.md) — metrics and benchmarks for CVD efficacy
+- :material-altimeter: [Measuring CVD](../topics/measuring_cvd/index.md) — metrics and benchmarks for CVD efficacy
 - :material-book: [User Stories](user_stories/index.md) — requirements captured as user stories
 - :material-language-python: [Documentation](code/index.md) of Python code included in the Vultron Protocol prototype
 - :material-owl: A set of OWL [Ontologies](ontology/index.md) for the Vultron Protocol

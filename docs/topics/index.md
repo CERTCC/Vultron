@@ -26,7 +26,7 @@ This section provides an overview of the Vultron Protocol, including:
 - :material-database-lock-outline: [Actor Knowledge Model](actor-knowledge-model.md)
 - :material-hexagon-outline: [Reference Implementation Architecture](reference_architecture.md)
 - :material-book: [User Stories](../reference/user_stories/index.md) — in [Reference](../reference/index.md)
-- :material-altimeter: [Measuring CVD](../reference/measuring_cvd/index.md) — in [Reference](../reference/index.md)
+- :material-altimeter: [Measuring CVD](measuring_cvd/index.md)
 - :material-source-branch: [Other Uses](other_uses/index.md)
 
 </div>
