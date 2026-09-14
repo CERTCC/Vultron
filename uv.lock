@@ -802,14 +802,14 @@ wheels = [
 
 [[package]]
 name = "mkdocs-print-site-plugin"
-version = "2.8"
+version = "2.9"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "mkdocs-material" },
+    { name = "mkdocs" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/a9/18/5c71f48b83191fb30cc58617fea20f56647eaa6cafd06a7fb34c738c5acb/mkdocs_print_site_plugin-2.8.tar.gz", hash = "sha256:ab1c89cdb468352975e3bb3bb0ef25dcc2bb88931b03f173206dc95ab02f843f", size = 231688, upload-time = "2025-08-03T14:15:07.579Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/2f/20/21a0fcb3a9b631f7135227fd660fe38d7ebe293d7b763378a3dc4dbf7f87/mkdocs_print_site_plugin-2.9.tar.gz", hash = "sha256:fb7f749a73e606e97bec7f871d9fa55ea76ba6d806d7ce124c814ac2327f537a", size = 233307, upload-time = "2026-09-08T11:30:00.048Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/3f/3e/7513f2f37c563da65d1b91781e047f4a1c0ceac8206d4f6042428428e4ad/mkdocs_print_site_plugin-2.8-py3-none-any.whl", hash = "sha256:838bd0a9b7141c11c0f1fdaa51ffe70c35740bec1f07c0806f8018e92f93f9da", size = 21477, upload-time = "2025-08-03T14:15:06.301Z" },
+    { url = "https://files.pythonhosted.org/packages/5d/d6/c1a77877a1206fc164dfded3aa7e0232a9580816da517946509ff14e1945/mkdocs_print_site_plugin-2.9-py3-none-any.whl", hash = "sha256:bd26729160b5e2eec49f027448d1c54086f50b91ba5a0a5999d9d0e75938c345", size = 22165, upload-time = "2026-09-08T11:29:58.93Z" },
 ]
 
 [[package]]
