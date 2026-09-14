@@ -350,3 +350,78 @@ class TestEmbargoAdherenceComputedField:
         status = ParticipantStatus(context=_CONTEXT, consent=None)
         with pytest.raises((AttributeError, ValueError)):
             status.embargo_adherence = True  # type: ignore[misc]
+
+
+class TestParticipantStatusBackwardRMValidator:
+    """AC-1 (ISSUE-3199): construction-time backward RM step is refused.
+
+    The validator fires only when ``previous_rm_state`` is supplied.  When
+    it is absent, construction proceeds as before — no change for existing
+    callers.
+    """
+
+    def test_no_previous_rm_state_always_passes(self):
+        """Without previous_rm_state the validator is a no-op."""
+        status = ParticipantStatus(
+            context=_CONTEXT,
+            rm=RmDimension(state=RM.START),
+        )
+        assert status.rm.state is RM.START
+
+    def test_valid_forward_step_passes(self):
+        """START → RECEIVED is a valid adjacent forward step."""
+        status = ParticipantStatus(
+            context=_CONTEXT,
+            rm=RmDimension(state=RM.RECEIVED),
+            previous_rm_state=RM.START,
+        )
+        assert status.rm.state is RM.RECEIVED
+
+    def test_backward_step_raises(self):
+        """RECEIVED → START is backward; construction must raise."""
+        with pytest.raises(ValueError, match="Backward RM step refused"):
+            ParticipantStatus(
+                context=_CONTEXT,
+                rm=RmDimension(state=RM.START),
+                previous_rm_state=RM.RECEIVED,
+            )
+
+    def test_non_adjacent_backward_raises(self):
+        """CLOSED → RECEIVED is a backward regression; must be refused."""
+        with pytest.raises(ValueError, match="Backward RM step refused"):
+            ParticipantStatus(
+                context=_CONTEXT,
+                rm=RmDimension(state=RM.RECEIVED),
+                previous_rm_state=RM.CLOSED,
+            )
+
+    def test_force_rm_state_bypasses_check(self):
+        """force_rm_state=True suppresses the validator (sanctioned override)."""
+        status = ParticipantStatus(
+            context=_CONTEXT,
+            rm=RmDimension(state=RM.START),
+            previous_rm_state=RM.RECEIVED,
+            force_rm_state=True,
+        )
+        assert status.rm.state is RM.START
+
+    def test_excluded_from_serialization(self):
+        """previous_rm_state and force_rm_state must not appear in model_dump."""
+        status = ParticipantStatus(
+            context=_CONTEXT,
+            rm=RmDimension(state=RM.RECEIVED),
+            previous_rm_state=RM.START,
+            force_rm_state=False,
+        )
+        dumped = status.model_dump()
+        assert "previous_rm_state" not in dumped
+        assert "force_rm_state" not in dumped
+
+    def test_same_state_passes(self):
+        """Asserting the same RM state is not a backward step."""
+        status = ParticipantStatus(
+            context=_CONTEXT,
+            rm=RmDimension(state=RM.RECEIVED),
+            previous_rm_state=RM.RECEIVED,
+        )
+        assert status.rm.state is RM.RECEIVED

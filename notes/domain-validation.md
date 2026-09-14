@@ -379,12 +379,22 @@ Impossible dimension combinations (RM↔VF, RM↔D, VF↔D) are already refused
 outright by the cross-machine entailment check (RSH-05-020); partial-accept
 does not let them through.
 
-The remaining gap is the sender-feedback problem: a fully-refused receive BT
-returns `202 Accepted / processed` instead of a `rejected` outcome, so senders
-cannot distinguish partial-accept from total failure (ISSUE-2255). That
-diagnostic gap — and the complementary emit-side object-level validation that
-makes backward steps hard to construct — are the open implementation work, not
-the receive-path disposition.
+Both gaps are now closed (ISSUE-3199):
+
+- *Sender-feedback*: a wholly-refused receive BT now raises
+  `VultronStatusAssertionRefusedError`, which the inbox `DispatchNode` catches
+  and writes as a `rejected` `InboxOutcome`.  Senders can distinguish
+  partial-accept (`"processed"`) from total refusal (`"rejected"`).
+- *Emit-side object-level validation*: `ParticipantStatus` carries optional
+  `previous_rm_state` / `force_rm_state` constructor fields; when
+  `previous_rm_state` is supplied the model's `mode="after"` validator refuses
+  backward RM steps at construction time, with `force_rm_state=True` as the
+  sanctioned override (same semantics as
+  `CreateParticipantStatusNode.force_rm_state`).  `CreateParticipantStatusNode`
+  now passes `previous_rm_state=context.current_rm` (when not force-closing) to
+  get construction-time double-checking on top of the existing BT validation.
+
+This closes ISSUE-2255 (sender-feedback diagnostics).
 
 ### Root vs. derived violations
 

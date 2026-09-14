@@ -29,7 +29,7 @@ from pydantic.alias_generators import to_camel
 
 from vultron.core.states.cs import CS_d, CS_vf
 from vultron.core.states.participant_embargo_consent import PEC
-from vultron.core.states.rm import RM
+from vultron.core.states.rm import RM, is_valid_rm_transition
 from vultron.enums.roles import CVDRole
 from vultron.errors import VultronValidationError
 from vultron.core.models.base import CoreObject, NonEmptyString
@@ -122,6 +122,51 @@ class ParticipantStatus(CoreObject):
     cvd_role: list[CVDRole] = Field(default_factory=lambda: [CVDRole.OBSERVER])
     tracking_id: NonEmptyString | None = None
     case_status: CaseStatus | None = None
+
+    previous_rm_state: RM | None = Field(
+        default=None,
+        exclude=True,
+        description=(
+            "Caller-supplied previous RM state for construction-time backward-step"
+            " validation (AC-1, ISSUE-3199). When set, the model validator"
+            " _validate_rm_backward_step refuses a backward or invalid RM"
+            " transition unless force_rm_state=True. Not serialised."
+        ),
+    )
+    force_rm_state: bool = Field(
+        default=False,
+        exclude=True,
+        description=(
+            "Suppress the construction-time RM adjacency check. Set only by the"
+            " sanctioned closure call sites (same semantics as"
+            " CreateParticipantStatusNode.force_rm_state). Not serialised."
+        ),
+    )
+
+    @model_validator(mode="after")
+    def _validate_rm_backward_step(self) -> "ParticipantStatus":
+        """Refuse backward RM steps at construction time (AC-1, ISSUE-3199).
+
+        Fires only when the caller supplies ``previous_rm_state``; the check is
+        a no-op when that field is ``None`` (most construction sites do not have
+        the previous state in scope).  Same-state re-assertions are allowed
+        (idempotent), consistent with how ``_rm_violations`` treats them.  Pass
+        ``force_rm_state=True`` to bypass — only the three sanctioned closure
+        call sites should ever do this.
+        """
+        prev = self.previous_rm_state
+        if prev is not None and not self.force_rm_state:
+            requested = self.rm.state
+            if requested != prev and not is_valid_rm_transition(
+                prev, requested
+            ):
+                raise ValueError(
+                    f"Backward RM step refused at construction:"
+                    f" {prev!r} → {requested!r}."
+                    " Pass force_rm_state=True to override"
+                    " (only sanctioned closure sites)."
+                )
+        return self
 
     @model_validator(mode="before")
     @classmethod
