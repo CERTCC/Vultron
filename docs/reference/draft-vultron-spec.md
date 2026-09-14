@@ -773,7 +773,7 @@ disclosure triggers embargo teardown, §10).
     CS ordering. Treat the material cited below as informative for now.
 
 - *Source: `docs/topics/process_models/cs/transitions.md`;
-  `docs/reference/measuring_cvd/possible_histories.md`;
+  `docs/topics/measuring_cvd/possible_histories.md`;
   `notes/behavioral-conformance-specs.md`*
 
 ### 8.4 Receiving CS Messages: Own State vs. Model of Others
@@ -1539,7 +1539,7 @@ implementation. Other implementations are not required to use this structure.
 
 - Ordering constraints on CS state transitions (see §8.3 — these are not yet
   normatively specified)
-- *Source: `docs/reference/measuring_cvd/possible_histories.md`;
+- *Source: `docs/topics/measuring_cvd/possible_histories.md`;
   `docs/topics/process_models/cs/transitions.md`*
 
 ### Annex E — Relationship to ActivityPub [I]
