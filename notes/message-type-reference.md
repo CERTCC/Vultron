@@ -128,15 +128,15 @@ Two consequences for implementers:
   factory helpers (`reject_embargo_trigger_bt`, `em_reject_embargo_activity`).
   `reject_case_ledger_entry` is deliberately excluded from this list: it is the
   ledger NAK of MSM-05-002, not an ordinary refusal.
-- `docs/howto/activitypub/activities/error.md` depicts a four-way wire taxonomy
-  (`RmError`/`EmError`/`CsError`/`GmError` as `as:Reject` discriminated by
-  `as:inReplyTo`). **None of those types exist** — not in the ontology, not in
-  code. And `ActivityPattern.in_reply_to_`, the discriminator that design needs,
-  is declared on the model (`ActivityPattern` is a Pydantic `BaseModel` in
-  `vultron/wire/as2/extractor/_pattern.py`) but is set by **zero** registered
-  patterns. Do not cite that diagram as describing the wire format. MSM-05-004
-  makes this a `MUST NOT` for documentation — note that `error.md` itself has not
-  been corrected yet, so the corpus currently violates it.
+- `docs/howto/activitypub/activities/error.md` previously depicted a phantom
+  four-way wire taxonomy (`RmError`/`EmError`/`CsError`/`GmError` as `as:Reject`
+  discriminated by `as:inReplyTo`). **None of those types ever existed** — not in
+  the ontology, not in code. That diagram has been removed and `error.md` now
+  describes the correct fault trichotomy (PR #3215, issue #3005). The
+  discriminator field `ActivityPattern.in_reply_to_` has also been removed from
+  the model — it was declared but used by zero registered patterns. MSM-05-004
+  remains a `MUST NOT` against citing the phantom taxonomy. Do not cite the old
+  diagram as describing the wire format.
 
 Beware a name collision: `VultronError` in `vultron/errors.py` is a **Python
 exception base class**, unrelated to the wire type of the same name in that
