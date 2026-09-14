@@ -77,9 +77,9 @@ A `VulnerabilityReport` object is used to represent a vulnerability report as an
 This protocol does not define a full vulnerability report data object.
 Instead, it defines a minimal set of properties necessary to support the protocol.
 
-In the example below, we show a `VulnerabilityReport` object that contains a simple text description of a
-vulnerability in the `content` property. However, in a real implementation, the `content` property might contain
-any sort of vulnerability report format that could be embedded as part of the JSON object.
+The example below shows a `VulnerabilityReport` object containing a simple text description of a
+vulnerability in the `content` property. In a real implementation, the `content` property may contain
+any vulnerability report format that can be embedded as part of the JSON object.
 
 Examples of what might go into the `content` property of a `VulnerabilityReport` object include:
 
@@ -110,7 +110,7 @@ print(json2md(gen_report()))
 !!! tip "Articles and Documents"
 
     A VulnerabilityReport or advisory draft could also be an `as:Article` or
-    `as:Document`, but at the moment we don't use those types explicitly.
+    `as:Document`, but those types are not used explicitly by the protocol.
 
 ### VulnerabilityCase
 
@@ -121,7 +121,7 @@ The `VulnerabilityCase` object is consistent with the [Case Object](../../howto/
 
 !!! tip "ActivityStreams Objects are for Interoperability"
 
-    The objects we define here are intended to be used to promote interoperability between systems that communicate using
+    These objects are intended to promote interoperability between systems that communicate using
     ActivityPub. They are not intended to be used as a data model for a single system. For example, one vendor might use
     Github issues to track vulnerability cases, while another might use Jira. Both vendors could use the same
     `VulnerabilityCase` object to represent their cases in ActivityPub, but they would not necessarily use the same
