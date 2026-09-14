@@ -26,6 +26,7 @@ from vultron.core.behaviors.embargo.nodes import (
     PersistEmbargoEventNode,
     ProposeEmbargoLifecycleNode,
     ReadEmbargoIdNode,
+    ReadEmStateNode,
     ReadProposedEmbargoIdNode,
     RejectEmbargoLifecycleNode,
     RejectProposedEmbargoLifecycleNode,
@@ -169,13 +170,15 @@ def reject_proposed_embargo_bt(
     case EM state is PROPOSED.  Mirrors the routing-guard ordering of
     :func:`terminate_embargo_bt`:
 
-    1. ``IsProposedEmbargoNode`` — guard: EM must be PROPOSED; FAILURE otherwise.
-    2. ``ReadProposedEmbargoIdNode`` — read embargo_id from proposed_embargoes.
-    3. ``ResolveCaseManagerNode`` — routing guard; FAILURE = no state change.
-    4. ``RejectProposedEmbargoLifecycleNode`` — EM state mutation (PROPOSED → NO_EMBARGO).
-    5. ``SendRejectEmbargoActivityNode`` — queue ER to Case Manager.
+    1. ``ReadEmStateNode`` — read EM state into ``result_out["em_before"]``
+       (AC-1: EM-state reads go through ``Read*StateNode``).
+    2. ``IsProposedEmbargoNode`` — guard: EM must be PROPOSED; FAILURE otherwise.
+    3. ``ReadProposedEmbargoIdNode`` — read embargo_id from proposed_embargoes.
+    4. ``ResolveCaseManagerNode`` — routing guard; FAILURE = no state change.
+    5. ``RejectProposedEmbargoLifecycleNode`` — EM state mutation (PROPOSED → NO_EMBARGO).
+    6. ``SendRejectEmbargoActivityNode`` — queue ER to Case Manager.
 
-    Both the routing guard (step 3) and state mutation (step 4) are ordered per
+    Both the routing guard (step 4) and state mutation (step 5) are ordered per
     BT-19-001/BT-19-002 so that routing prerequisites are always verified before
     the DataLayer state change is committed.
     """
@@ -183,7 +186,8 @@ def reject_proposed_embargo_bt(
         name="RejectProposedEmbargoBT",
         memory=True,
         children=[
-            IsProposedEmbargoNode(case_id=case_id),
+            ReadEmStateNode(case_id=case_id, result_out=result_out),
+            IsProposedEmbargoNode(case_id=case_id, result_out=result_out),
             ReadProposedEmbargoIdNode(case_id=case_id),
             ResolveCaseManagerNode(case_id=case_id),
             RejectProposedEmbargoLifecycleNode(
