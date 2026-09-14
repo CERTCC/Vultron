@@ -3,7 +3,7 @@ title: Architecture
 description: 'Defines the architectural constraints for the Vultron codebase. The system follows hexagonal architecture (Ports
   and Adapters): the core domain is isolated from all external systems, which interact through defined ports via thin adapters.
   Covers layer separation rules, the shared-base object hierarchy, domain model richness, and the fail-fast validation boundary.'
-version: 1.0.0
+version: 1.1.0
 scope:
 - prototype
 - production
@@ -1267,3 +1267,105 @@ groups:
       note: Names the specific annotation-level case of the wire→core import prohibition.
     adr:
     - ADR-0082
+- id: ARCH-24
+  title: Case-Authority Determination
+  specs:
+  - id: ARCH-24-001
+    priority: MUST
+    kind: architecture
+    statement: >-
+      Determining which actor holds single-writer authority for a case MUST have
+      exactly one implementation — a single role-authority resolver that reads
+      `CaseParticipant.case_roles` — composed by both `behaviors/` and
+      `use_cases/`. No duplicate or twin resolver may exist.
+    rationale: >-
+      The authority check was re-derived per site (twin `_resolve_case_manager_id`
+      / `resolve_case_manager_id` resolvers kept in sync by convention), backstopped
+      only by ratchet tests that fire when a site forgets to check. One shared
+      implementation replaces the convention with a structural guarantee.
+    verification: >-
+      A ratchet test asserts exactly one role-authority resolver module, imported
+      by both `behaviors/` and `use_cases/` (no twin definition).
+    adr:
+    - ADR-0088
+  - id: ARCH-24-002
+    priority: MUST
+    kind: architecture
+    statement: >-
+      The role-authority resolver MUST reside in a neutral layer below `behaviors/`
+      and `use_cases/`, depending only on `models`, `ports`, and `enums`. Resolving
+      case authority MUST NOT require a `behaviors → use_cases` import.
+    rationale: >-
+      The behaviors twin existed to dodge a `behaviors → use_cases` import
+      (BTND-04-003), yet other nodes performed that import anyway and
+      `use_cases/_helpers` reached back into behaviors for the URL-shape gate. A
+      neutral home removes the cross-layer reach entirely.
+    verification: >-
+      The ratchet in ARCH-24-001 additionally asserts no
+      `behaviors → use_cases._helpers` role-resolution import.
+    relationships:
+    - rel_type: refines
+      spec_id: ARCH-24-001
+    - rel_type: implements
+      spec_id: BTND-04-003
+    adr:
+    - ADR-0088
+  - id: ARCH-24-003
+    priority: MUST
+    kind: architecture
+    statement: >-
+      Exactly one authority condition node MUST answer "is the executing actor the
+      case authority", and it MUST call the single role-authority resolver.
+    rationale: >-
+      `CheckIsCaseManagerNode`, `CheckIsOwnCaseActorNode`, and
+      `CheckIsNotOwnCaseActorNode` each resolved authority independently; collapsing
+      them onto one condition node (plus a negation decorator) that calls the
+      resolver removes the divergence.
+    verification: >-
+      A test asserts one authority condition node is the only thing resolving "am I
+      the authority"; `CheckIsOwnCaseActorNode` / `CheckIsNotOwnCaseActorNode` are
+      removed or aliased.
+    relationships:
+    - rel_type: depends_on
+      spec_id: ARCH-24-001
+    adr:
+    - ADR-0088
+  - id: ARCH-24-004
+    priority: MUST_NOT
+    kind: architecture
+    statement: >-
+      No protocol-logic module MUST branch on the `case-actor` name/URL shape (an
+      `is_case_actor_identity` predicate or the `/actors/case-actor` substring) or
+      on `Service`-hosting location to determine authority, recognition, or routing.
+      Authority derives from the `CVDRole.CASE_MANAGER` role alone.
+    rationale: >-
+      Hosting location and URL shape are incidental, and one is provably fragile:
+      `_find_case_actor_id`'s own docstring records a bootstrap window in which the
+      real CaseActor fails its own hosting test and would take the participant arm
+      on its own ledger. Role membership is stable from replica-seed onward.
+    verification: >-
+      A ratchet asserts no protocol-logic module branches on `is_case_actor_identity`
+      or on the `case-actor` URL substring.
+    relationships:
+    - rel_type: refines
+      spec_id: ARCH-24-001
+    adr:
+    - ADR-0088
+  - id: ARCH-24-005
+    priority: MUST_NOT
+    kind: architecture
+    statement: >-
+      The store-consistency / anti-fork guard that gates which store may append
+      canonical ledger entries (`DeclineForeignLedgerCommitNode` / `store_for_actor`)
+      MUST NOT be conflated with authority determination; the two are distinct
+      concerns.
+    rationale: >-
+      Once role-authority says "you may commit," the store guard stops a
+      delegated-emit fall-through from minting a canonical index in a store that is
+      not the log's home (which would fork the hash chain, #2626). Authority (role)
+      and "where the write may land" (store) are different jobs.
+    relationships:
+    - rel_type: depends_on
+      spec_id: ARCH-24-001
+    adr:
+    - ADR-0088
