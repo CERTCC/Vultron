@@ -329,13 +329,41 @@ def _seed_case(
         dl.create(asserted)
 
 
+class _CaptureOverride(py_trees.behaviour.Behaviour):
+    """Probe: snapshot BB_LEDGER_PAYLOAD_OBJECT_OVERRIDE mid-execution.
+
+    The override is an execution-scoped hand-off that ``execute_with_setup``
+    resets at teardown (#3101, ADR-0087), so it cannot be read after the run
+    returns. Appending this probe to an outer ``memory=False`` Sequence lets a
+    test observe the value the guarded-commit path saw, before teardown clears
+    it. Reads the process-global storage directly so an absent key yields
+    ``None`` rather than raising.
+    """
+
+    def __init__(self, sink: dict, name: str = "CaptureOverride"):
+        super().__init__(name=name)
+        self._sink = sink
+
+    def update(self) -> Status:
+        self._sink["override"] = py_trees.blackboard.Blackboard.storage.get(
+            f"/{BB_LEDGER_PAYLOAD_OBJECT_OVERRIDE}"
+        )
+        return Status.SUCCESS
+
+
 def _run_tree(
     dl: SqliteDataLayer,
     asserted: as_ParticipantStatus,
     executing_actor_id: str,
     make_payload: Any,
+    capture: dict | None = None,
 ) -> Any:
-    """Run the full ``add_participant_status_tree`` for *asserted*."""
+    """Run the full ``add_participant_status_tree`` for *asserted*.
+
+    When *capture* is provided, an ``_CaptureOverride`` probe is appended in an
+    outer ``memory=False`` Sequence so the caller can inspect the override the
+    guarded commit saw before ``execute_with_setup`` resets it (#3101).
+    """
     activity = add_status_to_participant_activity(
         status=asserted,
         target=as_CaseParticipant(
@@ -351,6 +379,12 @@ def _run_tree(
         wire_render_port=As2WireRenderAdapter(),
     )
     tree = add_participant_status_tree(request=event, case_id=CASE_ID)
+    if capture is not None:
+        tree = py_trees.composites.Sequence(
+            name="AddParticipantStatusTreeWithProbe",
+            memory=False,
+            children=[tree, _CaptureOverride(sink=capture)],
+        )
     # Production passes the parsed event as ``activity`` (see
     # SvcAddParticipantStatusToParticipantReceivedUseCase); the guarded commit
     # needs it on the blackboard to build a payload snapshot.
@@ -1221,16 +1255,13 @@ class TestOverrideIncludesProducerType:
         asserted = _asserted_status(RM.VALID, CS_vf.VF, CS_pxa.Pxa)
         _seed_case(dl, current, asserted)
 
-        reader = py_trees.blackboard.Client(name="override-shape-reader")
-        reader.register_key(
-            key=BB_LEDGER_PAYLOAD_OBJECT_OVERRIDE,
-            access=py_trees.common.Access.READ,
+        captured: dict = {}
+        result = _run_tree(
+            dl, asserted, ACTOR_ID, make_payload, capture=captured
         )
-
-        result = _run_tree(dl, asserted, ACTOR_ID, make_payload)
         assert result.status == Status.SUCCESS
 
-        override = reader.get(BB_LEDGER_PAYLOAD_OBJECT_OVERRIDE)
+        override = captured.get("override")
         assert isinstance(
             override, dict
         ), "override must be a dict after partial accept"

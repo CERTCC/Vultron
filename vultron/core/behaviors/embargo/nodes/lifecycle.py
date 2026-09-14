@@ -310,10 +310,9 @@ class ReadEmbargoIdNode(DataLayerActionWithPorts):
             return f
         assert self.datalayer is not None
 
-        case = self.datalayer.read_case(self._case_id)
-        if case is None:
-            self.feedback_message = f"Case '{self._case_id}' not found"
-            return Status.FAILURE
+        case, failure = self._require_case(self._case_id)
+        if failure is not None:
+            return failure  # Regime 1 (ADR-0087)
 
         embargo_id = _as_id(case.active_embargo)
         if embargo_id is None:
@@ -353,11 +352,9 @@ class SetEmbargoActiveNode(DataLayerActionWithPorts):
 
         # Idempotency check: avoid calling EmbargoLifecycle when the embargo
         # is already active (ACTIVE + matching id is not a valid ACCEPT source).
-        case = self.datalayer.read_case(self.case_id)
-        if case is None:
-            self.feedback_message = f"Case '{self.case_id}' not found"
-            self.logger.warning("%s: %s", self.name, self.feedback_message)
-            return Status.FAILURE
+        case, failure = self._require_case(self.case_id)
+        if failure is not None:
+            return failure  # Regime 1 (ADR-0087)
 
         current_embargo_id = _as_id(case.active_embargo)
         if current_embargo_id == self.embargo_id:

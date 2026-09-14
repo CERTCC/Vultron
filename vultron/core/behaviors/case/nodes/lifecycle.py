@@ -55,6 +55,15 @@ logger = logging.getLogger(__name__)
 #: to an unadjudicated entry's (RSH-05-009).
 #:
 #: Producers: :class:`~vultron.core.behaviors.status.nodes.dimension_filter.FilterParticipantStatusDimensionsNode`.
+#:
+#: Lifetime: **execution-scoped**.  The producing node writes it mid-tree and a
+#: later commit node consumes it within the same ``execute_with_setup`` run, but
+#: no single node can own its cleanup on every path — a ``memory=False`` Sequence
+#: can FAILURE-short-circuit before the consumer (or the owning finalize node)
+#: ever ticks.  It is therefore listed in ``BTBridge.execute_with_setup``'s
+#: ``managed_keys`` and reset to its pre-execution state in that method's
+#: ``finally`` block on every outcome, so a stranded override never bleeds into
+#: the next execution on the process-global blackboard (#3101; ADR-0087).
 BB_LEDGER_PAYLOAD_OBJECT_OVERRIDE = "ledger_payload_object_override"
 
 

@@ -156,6 +156,7 @@ General information about architectural decision records is available at <https:
 - [ADR-0084 Participant Status Is Self-Declaratory, With Narrow Externally-Evidenced On-Behalf Exceptions](0084-participant-assertion-authority.md)
 - [ADR-0085 Owner-Close Is a Hard Write Boundary; RM.CLOSED Is Terminal and Rejoin Is Unsupported](0085-case-lifecycle-boundaries.md)
 - [ADR-0086 Report Every Violation, Reject the Batch — and the Emit/Receive Dispositions Are Postel's Maxim](0086-report-every-violation-reject-the-batch.md)
+- [ADR-0087 Case-Resolution Disposition for BT Nodes Is Chosen by Role, Not Re-Decided Per Call Site](0087-case-resolution-disposition-policy.md)
 
 ## Proposed ADRs
 

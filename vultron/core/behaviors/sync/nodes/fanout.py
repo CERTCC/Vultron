@@ -114,17 +114,16 @@ class CollectNonClosedLogEntryRecipientsNode(DataLayerActionWithPorts):
         assert self.datalayer is not None
         assert self.actor_id is not None
 
-        entry = cast(VultronCaseLedgerEntry, self.log_entry)
-        case_obj = self.datalayer.read_case(self.case_id)
-        if case_obj is None:
-            self.logger.warning(
-                "%s: case '%s' not found; skipping fan-out for '%s'",
-                self.name,
-                self.case_id,
-                entry.id_,
-            )
-            self._set_output("fanout_recipients", [])
-            return Status.SUCCESS
+        # Regime 1 (ADR-0087, #3101): fan-out runs after the local commit
+        # persisted this entry to the case (DeclineForeignLedgerCommitNode
+        # already handled the not-my-case branch upstream), so a missing case
+        # is an anomaly. Previously this warned, emitted zero recipients, and
+        # returned SUCCESS — silently dropping replication of a committed entry
+        # even though the commit tree treats non-SUCCESS as a real failure
+        # (ADR-0073, BT-05-006).
+        case_obj, failure = self._require_case(self.case_id)
+        if failure is not None:
+            return failure
 
         recipients = [
             actor_id
@@ -277,17 +276,12 @@ class CollectLogEntryRecipientsNode(DataLayerActionWithPorts):
         assert self.datalayer is not None
         assert self.actor_id is not None
 
-        entry = cast(VultronCaseLedgerEntry, self.log_entry)
-        case_obj = self.datalayer.read_case(self.case_id)
-        if case_obj is None:
-            self.logger.warning(
-                "%s: case '%s' not found; skipping fan-out for '%s'",
-                self.name,
-                self.case_id,
-                entry.id_,
-            )
-            self._set_output("fanout_recipients", [])
-            return Status.SUCCESS
+        # Regime 1 (ADR-0087, #3101): see CollectNonClosedLogEntryRecipientsNode
+        # — fan-out follows a local commit, so a missing case is an anomaly, not
+        # a silent zero-recipient SUCCESS.
+        case_obj, failure = self._require_case(self.case_id)
+        if failure is not None:
+            return failure
 
         recipients = case_addressees(
             case_obj, excluding_actor_id=self.actor_id

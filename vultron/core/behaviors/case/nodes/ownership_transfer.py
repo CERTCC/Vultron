@@ -82,6 +82,10 @@ class EmitOfferCaseOwnershipTransferNode(_EmitSingleActivityBase):
         assert self.trigger_activity_factory is not None
         assert self.actor_id is not None
         assert self.datalayer is not None
+        # Regime 3 (ADR-0087): the case is optional addressing enrichment, not
+        # coordination state — a missing local case just leaves `to=None` (the
+        # factory tolerates it); the Offer is still emitted. Unguarded by design
+        # (conformance allowlist).
         case = self.datalayer.read_case(self.case_id)
         case_actor_id: list[str] | None = None
         if case is not None:
@@ -129,6 +133,9 @@ class EmitAcceptCaseOwnershipTransferNode(_EmitSingleActivityBase):
         assert self.trigger_activity_factory is not None
         assert self.actor_id is not None
         assert self.datalayer is not None
+        # Regime 3 (ADR-0087): optional addressing enrichment only — a missing
+        # local case leaves `to=None` and the Accept is still emitted. Unguarded
+        # by design (conformance allowlist).
         case = self.datalayer.read_case(self.case_id)
         case_actor_id: list[str] | None = None
         if case is not None:
@@ -263,11 +270,10 @@ class AcceptCaseOwnershipTransferNode(DataLayerActionWithPorts):
         self.new_owner_id = new_owner_id
 
     def _read_case(self) -> Any | None:
-        assert self.datalayer is not None
-        case = self.datalayer.read_case(self.case_id)
-        if case is None:
-            self.feedback_message = f"case '{self.case_id}' not found"
-            self.logger.warning("%s: %s", self.name, self.feedback_message)
+        # Regime 1 (ADR-0087): canonical FAILURE feedback+log via the helper;
+        # this method maps the failure to its None → caller-FAILURE contract.
+        case, failure = self._require_case(self.case_id)
+        if failure is not None:
             return None
         return case
 

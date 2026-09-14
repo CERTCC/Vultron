@@ -135,11 +135,9 @@ class EnsureOnBehalfParticipantExistsNode(DataLayerActionWithPorts):
         assert self.datalayer is not None
         dl = self.datalayer
 
-        case = dl.read_case(self._case_id)
-        if case is None:
-            self.feedback_message = f"Case '{self._case_id}' not found"
-            self.logger.error("%s: %s", self.name, self.feedback_message)
-            return Status.FAILURE
+        case, failure = self._require_case(self._case_id)
+        if failure is not None:
+            return failure  # Regime 1: case must exist (ADR-0087)
 
         if self._target_actor_id in case.actor_participant_index:
             self.logger.debug(

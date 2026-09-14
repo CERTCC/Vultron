@@ -69,16 +69,9 @@ class AttachNoteToCaseNode(DataLayerActionWithPorts):
             return f
         assert self.datalayer is not None
 
-        case = self.datalayer.read_case(self.case_id)
-        if case is None:
-            self.logger.warning(
-                f"{self.name}: case '{self.case_id}' not found"
-                " — cannot attach note"
-            )
-            self.feedback_message = (
-                f"case '{self.case_id}' not found in DataLayer"
-            )
-            return Status.FAILURE
+        case, failure = self._require_case(self.case_id)
+        if failure is not None:
+            return failure  # Regime 1 (ADR-0087)
 
         existing_ids = [_as_id(n) for n in case.notes]
         if self.note_id in existing_ids:

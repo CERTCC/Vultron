@@ -62,14 +62,14 @@ class ReadEmStateNode(DataLayerConditionWithPorts):
             return f
         assert self.datalayer is not None
 
-        case = self.datalayer.read_case(self._case_id)
-        if case is None:
-            err = VultronValidationError(
-                f"Case '{self._case_id}' not found or invalid."
+        case, failure = self._require_case(self._case_id)
+        if failure is not None:
+            # Regime 1 (ADR-0087): canonical FAILURE + message/log via the
+            # helper; preserve this node's result_out error side-channel.
+            self._result_out["error"] = VultronValidationError(
+                self.feedback_message
             )
-            self._result_out["error"] = err
-            self.feedback_message = str(err)
-            return Status.FAILURE
+            return failure
 
         try:
             em_state = case.current_status.em.state

@@ -476,6 +476,10 @@ class _AddCaseActorParticipantNode(DataLayerActionWithPorts):
             self.feedback_message = "case_id not found in blackboard"
             return Status.FAILURE
 
+        # Regime 3 (ADR-0087): idempotency probe during case construction, not
+        # a coordination guard. A truly-absent case falls through to the
+        # register path, which hard-fails via _create_and_attach_participant
+        # (returns None → FAILURE). Graceful ``is not None`` is intentional.
         stored_case = self.datalayer.read_case(case_id)
         if stored_case is not None:
             if self.actor_id in stored_case.actor_participant_index:
@@ -542,6 +546,9 @@ class _AddVendorOwnerParticipantNode(DataLayerActionWithPorts):
             return Status.FAILURE
 
         # Skip if vendor already has a participant in this case.
+        # Regime 3 (ADR-0087): idempotency probe during case construction. A
+        # truly-absent case falls through to _create_and_attach_participant
+        # below, which hard-fails (returns None → FAILURE at the guard).
         stored_case = self.datalayer.read_case(case_id)
         if stored_case is not None:
             if self._vendor_uri in stored_case.actor_participant_index:
@@ -676,6 +683,9 @@ class _AddReporterParticipantNode(DataLayerActionWithPorts):
 
     def _already_has_participant(self, case_id: str, actor_uri: str) -> bool:
         assert self.datalayer is not None
+        # Regime 3 (ADR-0087): idempotency probe during case construction — an
+        # absent case means "not yet a participant", so the caller proceeds to
+        # the create path (which owns case-absence handling). Allowlist.
         stored_case = self.datalayer.read_case(case_id)
         if stored_case is None:
             return False
@@ -1003,6 +1013,15 @@ class _CommitNativeLedgerEntriesNode(DataLayerActionWithPorts):
             self.feedback_message = "case_id not found in blackboard"
             return Status.FAILURE
 
+        # Audit-best-effort skip (ADR-0087; NOT Regime 1). This node's role is
+        # to record the CaseActor's *audit* ledger — it is not a coordination
+        # precondition for the outbound Accept/Create emissions. A missing case
+        # therefore skips as SUCCESS: the coordination decision is deferred to
+        # the emission node (_WriteCreateCaseMarkerNode), which hard-fails on an
+        # absent case via _require_case. The distinct hard-fail here is a failed
+        # *genesis commit* (case present, write fails) — see _commit_one and the
+        # paired tests test_genesis_create_case_failure_aborts /
+        # test_case_not_found_is_best_effort_success. Conformance allowlist.
         raw_case = self.datalayer.read_case(case_id)
         if raw_case is None:
             logger.warning(
@@ -1152,8 +1171,11 @@ class _SeedVendorOwnerSignatoryNode(DataLayerActionWithPorts):
         if not isinstance(case_id, str):
             self.feedback_message = "case_id not found in blackboard"
             return Status.FAILURE
-            return Status.FAILURE
 
+        # Regime 2 / best-effort seed (ADR-0087): seeding the vendor SIGNATORY
+        # marker is optional enrichment on the receiving side; an absent or
+        # still-forming case is skipped as SUCCESS rather than failing the
+        # proposal-processing tree (conformance allowlist).
         stored_case = self.datalayer.read_case(case_id, raise_on_missing=False)
         if stored_case is None:
             logger.warning(
@@ -1296,6 +1318,9 @@ class _SeedReporterSignatoryNode(DataLayerActionWithPorts):
     ) -> tuple[VulnerabilityCase | None, CaseParticipant | None]:
         """Return (case, participant) for *reporter_uri*, or (None, None) on miss."""
         assert self.datalayer is not None
+        # Regime 2 / best-effort seed (ADR-0087): reporter SIGNATORY seeding is
+        # optional enrichment; an absent/forming case is skipped, not failed
+        # (conformance allowlist).
         stored_case = self.datalayer.read_case(case_id, raise_on_missing=False)
         if stored_case is None:
             logger.warning(
@@ -1637,8 +1662,8 @@ class _WriteCreateCaseMarkerNode(DataLayerActionWithPorts):
         except (NoDataAvailable, NotImplementedError):
             self.wire_render_port = None
 
-    def _collect_reporter_uris(self, case_id: str) -> list[str]:
-        """Return URIs of REPORTER/FINDER participants in *case_id*, excluding vendor.
+    def _collect_reporter_uris(self, raw_case: VulnerabilityCase) -> list[str]:
+        """Return URIs of REPORTER/FINDER participants in *raw_case*, excluding vendor.
 
         CaseActor bootstraps non-vendor participants (ADR-0041 AC-5) by including
         them as direct ``to`` recipients of ``Create(VulnerabilityCase)`` so their
@@ -1647,9 +1672,6 @@ class _WriteCreateCaseMarkerNode(DataLayerActionWithPorts):
         ``Offer(CaseManagerRole)`` round-trip (which ADR-0041 removes).
         """
         assert self.datalayer is not None
-        raw_case = self.datalayer.read_case(case_id)
-        if raw_case is None:
-            return []
         uris: list[str] = []
         for p_id in raw_case.actor_participant_index.values():
             p = self.datalayer.read(p_id)
@@ -1665,11 +1687,10 @@ class _WriteCreateCaseMarkerNode(DataLayerActionWithPorts):
                 uris.append(uri)
         return uris
 
-    def _build_case_object(self, case_id: str) -> "dict[str, Any] | None":
+    def _build_case_object(
+        self, raw_case: VulnerabilityCase
+    ) -> "dict[str, Any] | None":
         assert self.datalayer is not None
-        raw_case = self.datalayer.read_case(case_id)
-        if raw_case is None:
-            return None
         # Materialise each participant ref so _store_embedded_participants
         # on the vendor side receives full objects, not bare ID strings (AC-5).
         materialized: list[Any] = []
@@ -1727,16 +1748,24 @@ class _WriteCreateCaseMarkerNode(DataLayerActionWithPorts):
             )
             return Status.FAILURE
 
+        # Regime 1 (ADR-0087, #3101): the CaseActor authored this case upstream
+        # in the same tree, so an absent case is an anomaly, not a skip.
+        # Resolve once here and pass the object to the payload helpers.
+        case, failure = self._require_case(case_id)
+        if failure is not None:
+            return failure
+
         # Pre-construct the payload that will be (re-)sent as
         # Create(VulnerabilityCase).  Mirrors the logic in
         # _EmitCreateVulnerabilityCaseNode so the retry runner (#1139)
         # can reconstruct the exact same activity without re-running the BT.
         # AC-5 (ADR-0041): embed full inline case object with materialised
         # participants so _store_embedded_participants seeds the vendor replica.
-        case_object = self._build_case_object(case_id)
+        case_object = self._build_case_object(case)
         if case_object is None:
             self.feedback_message = (
-                f"VulnerabilityCase {case_id!r} not found in DataLayer"
+                "wire_render_port not available; cannot render"
+                f" VulnerabilityCase {case_id!r}"
             )
             logger.warning("%s: %s", self.name, self.feedback_message)
             return Status.FAILURE
@@ -1747,7 +1776,7 @@ class _WriteCreateCaseMarkerNode(DataLayerActionWithPorts):
         # non-vendor participant path (no ReportCaseLink required).
         # CP-05-003 / ADR-0045: context = case URI (deferral routing key);
         # in_reply_to = Accept URI (causal antecedent, AS2-correct field).
-        reporter_uris = self._collect_reporter_uris(case_id)
+        reporter_uris = self._collect_reporter_uris(case)
         create_activity = VultronCreateCaseActivity(
             actor=self.actor_id,
             object_=case_object,

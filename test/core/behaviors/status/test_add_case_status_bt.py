@@ -726,13 +726,34 @@ class TestAddCaseStatusTree:
         tree = add_case_status_tree(
             request=event, call_out=STATUS_AUTHORIZATION_PERMISSIVE
         )
+
+        # The override is a within-execution hand-off (FinalizeCsFilterNode
+        # writes it, GuardedCommit consumes it) and the bridge now resets it at
+        # the execution boundary (#3101, ADR-0087), so it is no longer readable
+        # after execute_with_setup returns.  Capture it mid-execution with a
+        # SUCCESS probe appended after the tree: on the accept path nothing
+        # clears it within the tree, so the probe still sees Finalize's write.
+        captured: dict[str, object] = {}
+
+        class _CaptureOverride(py_trees.behaviour.Behaviour):
+            def update(self) -> Status:
+                captured["override"] = (
+                    py_trees.blackboard.Blackboard.storage.get(
+                        "/ledger_payload_object_override"
+                    )
+                )
+                return Status.SUCCESS
+
+        probed = py_trees.composites.Sequence(
+            name="AddCaseStatusToCaseBTWithProbe",
+            memory=False,
+            children=[tree, _CaptureOverride(name="CaptureOverride")],
+        )
         bridge = BTBridge(datalayer=dl)
-        result = bridge.execute_with_setup(tree=tree, actor_id=ACTOR_ID)
+        result = bridge.execute_with_setup(tree=probed, actor_id=ACTOR_ID)
         assert result.status == Status.SUCCESS
 
-        override = py_trees.blackboard.Blackboard.storage.get(
-            "/ledger_payload_object_override"
-        )
+        override = cast(dict, captured.get("override"))
         assert override is not None, (
             "FinalizeCsFilterNode must set BB_LEDGER_PAYLOAD_OBJECT_OVERRIDE"
             " during a partial-accept"
