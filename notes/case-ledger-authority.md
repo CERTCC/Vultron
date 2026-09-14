@@ -353,17 +353,35 @@ check is either vacuous or falsely rejecting:
   construction, because a participant chose the value. They belong to
   `_validate_entry_timestamps` at the commit boundary.
 
-Three traps, all found the hard way:
+Five traps, all found the hard way:
 
 1. **Claimed-timestamp monotonicity MUST be scoped per snapshot actor.**
    Comparing claimed times across actors is exactly the wall-clock ordering
    ADR-0079 rejected as option C. CLP-15-003 says "within the same
    participant's event stream" for this reason.
-2. **A CaseActor-authored snapshot needs a `published` too.** Hand-built
-   snapshot dicts kept omitting it, which makes the snapshot something other
-   than the verbatim AS2 activity CLP-07-011 requires. New commit call sites
-   must set it (`_now_utc().isoformat()`).
-3. **Never gate a whole guard on one optional argument.** The CLP-14 guard sat
+2. **CLP-15-003 is reported, never refused.** The CaseActor sees *arrival*
+   order, not causal order, and the transport promises no ordering (ADR-0037).
+   Refusing a regression is the reconstruction CLP-15-005 forbids, and it loses
+   the assertion completely — the guarded commit precedes the effect nodes
+   (CLP-10-006), so a raise aborts the whole receive sequence with no ledger
+   record and no retry. Two report bands: `INFO` within the configured
+   clock-skew tolerance, `WARNING` beyond it.
+3. **A snapshot the CaseActor builds on a participant's behalf carries that
+   participant's claimed time**, from the triggering activity — use
+   `claimed_published_iso()`. Stamping `_now_utc()` under a participant's actor
+   URI puts a foreign clock in that actor's claimed stream, which trap 2 then
+   reports as a regression, and leaves CLP-14-007/008 comparing the receiver's
+   clock against itself. A snapshot the CaseActor genuinely authors (its own
+   actor URI) does use its own clock.
+4. **A missing inbound `published` is a validity failure, not something to
+   fill in.** `as_Base` defaults the field to `now_utc` so the same classes can
+   author outbound activities; on the inbound path that default is the
+   receiver's clock posing as the sender's claim, and after `model_validate` the
+   two are indistinguishable. `parse_activity` therefore refuses it on the raw
+   body (CLP-15-006), which is why nothing downstream needs an
+   "absent claimed time" branch. Note this is *not* CLP-07-011 — that requires
+   the snapshot be the verbatim activity, and says nothing about `published`.
+5. **Never gate a whole guard on one optional argument.** The CLP-14 guard sat
    behind `if case_published is not None:` and the sole production call site
    never passed it, so nothing was checked for the guard's entire life while
    its unit tests passed by calling it directly. Gate each check on the context

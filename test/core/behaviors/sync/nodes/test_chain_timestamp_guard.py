@@ -24,6 +24,7 @@ here.
 Spec: CLP-14-006, CLP-14-007, CLP-14-009, CLP-15-003, CLP-07-011.
 """
 
+import logging
 from datetime import datetime, timedelta, timezone
 
 import pytest
@@ -152,26 +153,119 @@ def test_create_log_entry_node_tolerates_small_skew_before_case_created(
 
 
 @pytest.mark.spec("CLP-15-003")
-def test_create_log_entry_node_rejects_same_actor_timestamp_regression(
-    bridge, datalayer, timed_case
+@pytest.mark.spec("CLP-15-005")
+def test_create_log_entry_node_records_same_actor_timestamp_regression(
+    bridge, datalayer, timed_case, caplog
 ):
-    """A participant's claimed timestamps MUST NOT regress within its stream."""
+    """A claimed-timestamp regression is recorded and reported, never refused.
+
+    CLP-15-003 binds the *participant*, and CLP-15-005 forbids the CaseActor
+    from reconstructing participant-internal causal order it cannot verify.
+    Arrival order is not causal order — the transport gives no ordering
+    guarantee (ADR-0037) — so refusing here would drop a well-formed assertion.
+    And it would drop it completely: the guarded commit is ordered before the
+    effect nodes (CLP-10-006), so a raise aborts the whole receive sequence with
+    no ledger record and no retry.
+
+    Beyond the configured skew tolerance the regression is reported at WARNING;
+    ``test_..._logs_info_within_skew_tolerance`` covers the milder band. The
+    25-minute gap here is comfortably outside the default 5-minute tolerance —
+    a gap *equal* to the tolerance lands in the INFO band, since the comparison
+    is inclusive.
+    """
+    _persist_prior_entry(
+        datalayer,
+        PARTICIPANT_ACTOR_ID,
+        CASE_CREATED + timedelta(minutes=30),
+    )
+
+    with caplog.at_level(
+        logging.INFO,
+        logger="vultron.core.behaviors.sync.nodes.canonical_entry",
+    ):
+        result = _run(
+            bridge,
+            _note_snapshot(
+                PARTICIPANT_ACTOR_ID, CASE_CREATED + timedelta(minutes=5)
+            ),
+            tail_index=0,
+        )
+
+    assert result.status == Status.SUCCESS
+
+    records = [r for r in caplog.records if "CLP-15-003" in r.getMessage()]
+    assert records, "expected a CLP-15-003 report"
+    assert records[0].levelno == logging.WARNING
+    assert "outside" in records[0].getMessage()
+
+
+@pytest.mark.spec("CLP-15-003")
+def test_create_log_entry_node_logs_info_within_skew_tolerance(
+    bridge, datalayer, timed_case, caplog
+):
+    """A regression inside the skew budget is the milder band, at INFO.
+
+    Unsynchronised clocks and reordered delivery produce small regressions as a
+    matter of course; logging those at WARNING would train operators to ignore
+    the level that signals a participant actually misbehaving
+    (CLP-15-001/002).
+    """
     _persist_prior_entry(
         datalayer,
         PARTICIPANT_ACTOR_ID,
         CASE_CREATED + timedelta(minutes=10),
     )
 
-    result = _run(
-        bridge,
-        _note_snapshot(
-            PARTICIPANT_ACTOR_ID, CASE_CREATED + timedelta(minutes=5)
-        ),
-        tail_index=0,
+    with caplog.at_level(
+        logging.INFO,
+        logger="vultron.core.behaviors.sync.nodes.canonical_entry",
+    ):
+        result = _run(
+            bridge,
+            # 1 minute back, well inside the default 5-minute tolerance.
+            _note_snapshot(
+                PARTICIPANT_ACTOR_ID, CASE_CREATED + timedelta(minutes=9)
+            ),
+            tail_index=0,
+        )
+
+    assert result.status == Status.SUCCESS
+
+    records = [r for r in caplog.records if "CLP-15-003" in r.getMessage()]
+    assert records, "expected a CLP-15-003 report"
+    assert records[0].levelno == logging.INFO
+    assert "within" in records[0].getMessage()
+
+
+@pytest.mark.spec("CLP-15-003")
+def test_create_log_entry_node_silent_when_timestamps_do_not_regress(
+    bridge, datalayer, timed_case, caplog
+):
+    """No report at all when the actor's claimed times are non-decreasing.
+
+    Guards the two tests above against vacuity: they would still pass if the
+    guard logged CLP-15-003 unconditionally.
+    """
+    _persist_prior_entry(
+        datalayer,
+        PARTICIPANT_ACTOR_ID,
+        CASE_CREATED + timedelta(minutes=5),
     )
 
-    assert result.status == Status.FAILURE
-    assert "CLP-15-003" in result.feedback_message
+    with caplog.at_level(
+        logging.INFO,
+        logger="vultron.core.behaviors.sync.nodes.canonical_entry",
+    ):
+        result = _run(
+            bridge,
+            _note_snapshot(
+                PARTICIPANT_ACTOR_ID, CASE_CREATED + timedelta(minutes=10)
+            ),
+            tail_index=0,
+        )
+
+    assert result.status == Status.SUCCESS
+    assert not [r for r in caplog.records if "CLP-15-003" in r.getMessage()]
 
 
 @pytest.mark.spec("CLP-15-003")

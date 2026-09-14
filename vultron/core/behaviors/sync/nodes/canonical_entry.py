@@ -28,11 +28,14 @@ Spec: CLP-07, CLP-12.
 
 from __future__ import annotations
 
+import logging
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
 from vultron.core.models._helpers import _as_utc, parse_published
 from vultron.errors import VultronCanonicalEntryError
+
+logger = logging.getLogger(__name__)
 
 # Every ``(activity_type, object_type)`` pair that may appear as a canonical
 # ledger ``payloadSnapshot``.  Audited against the CaseActor-authoritative
@@ -240,14 +243,40 @@ def _validate_entry_timestamps(
             f"predates case created {case_published} by more than the "
             f"{skew_tolerance} clock-skew tolerance"
         )
-    if (  # CLP-15-003
+    # CLP-15-003 is reported, never refused.  It places its obligation on the
+    # *participant*, and CLP-15-005 forbids the CaseActor from reconstructing
+    # participant-internal causal order it cannot verify.  Arrival order is not
+    # causal order: the transport offers no ordering guarantee (ADR-0037), so
+    # two assertions from one actor can legitimately be committed in the
+    # reverse of the order they were emitted, and CLP-15-003 constrains only
+    # assertions that are actually causally related.  Refusing on this signal
+    # aborted the whole receive sequence — the guarded commit is ordered before
+    # the effect nodes (CLP-10-006) — and dropped the activity with no ledger
+    # record and no retry.  Recording it and reporting it keeps the signal
+    # without losing the assertion.
+    if (
         prev_actor_published is not None
         and entry_published < prev_actor_published
     ):
-        raise VultronCanonicalEntryError(
-            f"{event_type}: CLP-15-003 — entry published {entry_published} "
-            f"regresses before this actor's previous assertion "
-            f"{prev_actor_published}"
+        regression = prev_actor_published - entry_published
+        # Two bands: within the clock-skew budget this is the expected
+        # consequence of unsynchronised clocks and reordered delivery; beyond it
+        # the participant is more likely misbehaving (CLP-15-001/002) and a
+        # human should see it.  Neither is an error — the CaseActor did its job.
+        log = logger.info if regression <= skew_tolerance else logger.warning
+        log(
+            "%s: CLP-15-003 — claimed timestamp %s from actor %s regresses %s "
+            "behind that actor's previous assertion %s (%s tolerance %s). "
+            "Recorded as observed; emission order is the participant's "
+            "obligation and is verified across the scenario, not per "
+            "assertion (CLP-15-005).",
+            event_type,
+            entry_published,
+            payload_snapshot.get("actor"),
+            regression,
+            prev_actor_published,
+            "within" if regression <= skew_tolerance else "outside",
+            skew_tolerance,
         )
     now = datetime.now(tz=timezone.utc)
     if (

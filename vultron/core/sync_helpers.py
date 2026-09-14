@@ -217,6 +217,29 @@ def _semantic_payload(value: Any) -> Any:
     return value
 
 
+def recorded_entries_for_case(
+    *, case_id: str, dl: CasePersistence
+) -> list[CaseLedgerEntry]:
+    """Return *case_id*'s recorded entries, oldest first, in one store scan.
+
+    :meth:`CasePersistence.list_objects` takes no case filter, so it walks every
+    ledger entry in the store regardless of case.  The commit boundary needs
+    this list twice — once for the CLP-15-003 predecessor lookup and once for the
+    idempotency equivalence check — and scanning twice doubles an already O(N)
+    step on every commit (CS-22-001).  Callers that need both pass the result to
+    each helper's ``entries`` argument.
+    """
+    entries = [
+        obj
+        for obj in dl.list_objects("CaseLedgerEntry")
+        if isinstance(obj, CaseLedgerEntry)
+        and obj.case_id == case_id
+        and obj.disposition == "recorded"
+    ]
+    entries.sort(key=lambda entry: entry.log_index)
+    return entries
+
+
 def _find_equivalent_recorded_entry(
     *,
     case_id: str,
@@ -224,6 +247,7 @@ def _find_equivalent_recorded_entry(
     event_type: str,
     payload_snapshot: dict[str, Any],
     dl: CasePersistence,
+    entries: list[CaseLedgerEntry] | None = None,
 ) -> CaseLedgerEntry | None:
     """Return an already-recorded canonical entry with equivalent semantics.
 
@@ -236,15 +260,27 @@ def _find_equivalent_recorded_entry(
     ``published``/``updated`` field it embeds.  Comparing those would make the
     dedup — and with it ADR-0041's ledger-index stability — depend on whether
     the two deliveries happened to land in the same clock second.
+
+    Args:
+        case_id: URI of the parent case.
+        object_id: Candidate entry's ``log_object_id``.
+        event_type: Candidate entry's ``event_type``.
+        payload_snapshot: The candidate ``payloadSnapshot``.
+        dl: DataLayer to query when *entries* is not supplied.
+        entries: Pre-fetched recorded entries for this case, from
+            :func:`recorded_entries_for_case`.  Supplying it avoids a second
+            full store scan when the caller already holds the list.
     """
+    pool = (
+        entries
+        if entries is not None
+        else recorded_entries_for_case(case_id=case_id, dl=dl)
+    )
     wanted = _semantic_payload(payload_snapshot)
     matches: list[CaseLedgerEntry] = [
         obj
-        for obj in dl.list_objects("CaseLedgerEntry")
-        if isinstance(obj, CaseLedgerEntry)
-        and obj.case_id == case_id
-        and obj.disposition == "recorded"
-        and obj.log_object_id == object_id
+        for obj in pool
+        if obj.log_object_id == object_id
         and obj.event_type == event_type
         and _semantic_payload(obj.payload_snapshot) == wanted
     ]
@@ -259,6 +295,7 @@ def _find_prev_actor_published(
     case_id: str,
     payload_snapshot: dict[str, Any],
     dl: CasePersistence,
+    entries: list[CaseLedgerEntry] | None = None,
 ) -> datetime | None:
     """Return the claimed ``published`` this assertion must not regress behind.
 
@@ -275,18 +312,21 @@ def _find_prev_actor_published(
 
     Returns ``None`` when this exact assertion is *already* recorded, because a
     redelivery is not a new event in the stream and CLP-15-003 has nothing to
-    say about it.  Without that carve-out the ordering check and the idempotency
+    say about it.  Without that carve-out the ordering report and the idempotency
     path (:func:`_find_equivalent_recorded_entry`) contradict each other: a
     retry of assertion A that arrives after the actor's later assertion B would
-    be rejected as a regression instead of being recognised as the duplicate it
+    be reported as a regression instead of being recognised as the duplicate it
     is.  Out-of-order and retried delivery is a designed-for condition
-    (ADR-0037), so the ordering check must not turn one into a hard failure.
+    (ADR-0037), so it must not be reported as a participant fault.
 
     Args:
         case_id: URI of the parent case.
         payload_snapshot: The candidate ``payloadSnapshot``.  An empty or
             actor-less snapshot has no stream to compare against.
-        dl: DataLayer to query.
+        dl: DataLayer to query when *entries* is not supplied.
+        entries: Pre-fetched recorded entries for this case, from
+            :func:`recorded_entries_for_case`.  Supplying it avoids a second
+            full store scan when the caller already holds the list.
 
     Returns:
         The predecessor's claimed ``published``; ``None`` when this actor has no
@@ -296,15 +336,15 @@ def _find_prev_actor_published(
     snapshot_actor = payload_snapshot.get("actor")
     if not snapshot_actor:
         return None
+    pool = (
+        entries
+        if entries is not None
+        else recorded_entries_for_case(case_id=case_id, dl=dl)
+    )
     wanted = _semantic_payload(payload_snapshot)
     matches: list[CaseLedgerEntry] = []
-    for obj in dl.list_objects("CaseLedgerEntry"):
-        if (
-            not isinstance(obj, CaseLedgerEntry)
-            or obj.case_id != case_id
-            or obj.disposition != "recorded"
-            or obj.payload_snapshot.get("actor") != snapshot_actor
-        ):
+    for obj in pool:
+        if obj.payload_snapshot.get("actor") != snapshot_actor:
             continue
         if _semantic_payload(obj.payload_snapshot) == wanted:
             return None  # redelivery, not a new event in this actor's stream

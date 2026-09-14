@@ -171,21 +171,43 @@ A single writer stamping from one clock satisfies these by construction; the
 harness is what catches a replica that does not.
 
 **Claimed timestamp** (`payloadSnapshot.published`, chosen by the asserting
-actor). `_validate_entry_timestamps`, reached from every commit through
-`CreateLogEntryNode`, rejects an assertion that:
+actor). Its presence is guaranteed upstream: `parse_activity` refuses an inbound
+activity that carries no `published` (CLP-15-006), because ActivityStreams makes
+the field optional and the wire base class defaults it to `now_utc` — so a
+receiver that let it through could no longer tell a claimed time from its own
+clock, which is exactly how CLP-14-007 and CLP-14-008 were left vacuous
+(Issue #3149).
 
-- carries no parseable `published` at all (CLP-07-011);
+`_validate_entry_timestamps`, reached from every commit through
+`CreateLogEntryNode`, then **refuses** an assertion that:
+
 - predates the case by more than the configured clock-skew tolerance
   (CLP-14-006);
-- regresses behind that *same actor's* previous assertion (CLP-15-003);
 - sits beyond the future tolerance or staleness window (CLP-14-007,
   CLP-14-008).
+
+and **reports without refusing** an assertion whose claimed timestamp regresses
+behind that *same actor's* previous assertion (CLP-15-003) — at `INFO` within the
+clock-skew tolerance, at `WARNING` beyond it.
+
+That asymmetry is the load-bearing part. CLP-15-003 binds the *participant*, and
+the CaseActor observes arrival order, not causal order: the transport gives no
+ordering guarantee (ADR-0037), so two assertions from one actor can legitimately
+be committed in the reverse of the order they were emitted, and CLP-15-003
+constrains only assertions that are actually causally related. Refusing on that
+signal would be the reconstruction CLP-15-005 forbids — and it would discard the
+assertion outright, because the guarded commit precedes the effect nodes
+(CLP-10-006), leaving no ledger record and no retry. Recording it and reporting
+it keeps the signal without losing the assertion.
 
 Monotonicity of the claimed timestamp is scoped to one actor's stream. Applying
 it across actors would reintroduce option C: two participants' clocks are not
 comparable, so a later-committed assertion from one legitimately carries an
-earlier claimed time than an earlier-committed one from another. Thresholds are
-tunable via `AppConfig.ledger` (CLP-14-009).
+earlier claimed time than an earlier-committed one from another. For the same
+reason a snapshot the CaseActor builds on a participant's behalf must carry that
+participant's claimed time, not the CaseActor's clock — mixing the two inside one
+actor's stream manufactures a regression. Thresholds are tunable via
+`AppConfig.ledger` (CLP-14-009).
 
 The participant emission obligations CLP-15-001 and CLP-15-002 are not
 enforceable per-assertion — that is the point of the residual uncertainty above,

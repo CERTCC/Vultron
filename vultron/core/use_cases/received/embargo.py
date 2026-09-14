@@ -17,7 +17,7 @@ from vultron.core.models.events.embargo import (
     RejectInviteToEmbargoOnCaseReceivedEvent,
     RemoveEmbargoEventFromCaseReceivedEvent,
 )
-from vultron.core.models._helpers import _as_id
+from vultron.core.models._helpers import _as_id, claimed_published_iso
 from vultron.core.ports.case_persistence import (
     CasePersistence,
     CaseOutboxPersistence,
@@ -483,11 +483,15 @@ class AcceptInviteToEmbargoOnCaseReceivedUseCase:
                 "type": "Lapse",
                 "actor": accepting_actor_id,
                 "context": case_id,
-                # CLP-07-011: a snapshot without ``published`` is not the
-                # verbatim AS2 activity, and the CLP-14 commit-boundary guard
-                # rejects it (ISSUE-2824).  This is a CaseActor-synthesised
-                # lapse event (CM-28-009), so its clock is the event time.
-                "published": datetime.now(tz=timezone.utc).isoformat(),
+                # The lapse is CaseActor-synthesised (CM-28-009) but the
+                # snapshot is attributed to the accepting participant, so its
+                # claimed time must come from that participant's own clock —
+                # the triggering Accept — not the CaseActor's.  Mixing the two
+                # inside one actor's claimed stream is what CLP-15-003 reads as
+                # a regression.  ``include_activity=True`` on the
+                # ACCEPT_INVITE_TO_EMBARGO_ON_CASE registry entry guarantees the
+                # activity is present; the fallback is defence in depth.
+                "published": claimed_published_iso(self._request.activity),
                 "object": {
                     "type": "Invite",
                     "id": invite_id or case_id,

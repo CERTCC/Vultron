@@ -21,6 +21,7 @@ guard *through* ``CreateLogEntryNode`` stay in ``test_chain.py``; these call
 the validator directly.
 """
 
+import logging
 from datetime import datetime, timedelta, timezone
 
 import pytest
@@ -316,10 +317,22 @@ def test_clp14_006_skipped_when_case_published_is_none():
 
 
 @pytest.mark.spec("CLP-15-003")
-def test_clp15_003_rejects_timestamp_regression():
+@pytest.mark.spec("CLP-15-005")
+def test_clp15_003_reports_timestamp_regression_without_refusing(caplog):
+    """A regression is reported, not refused (CLP-15-005).
+
+    Arrival order is not causal order, so refusing on this signal dropped
+    well-formed assertions — and dropped them entirely, since the guarded commit
+    runs before the effect nodes (CLP-10-006).
+    """
     prev = _ENTRY_PUBLISHED + timedelta(seconds=10)
-    with pytest.raises(VultronCanonicalEntryError, match="CLP-15-003"):
+    with caplog.at_level(
+        logging.INFO,
+        logger="vultron.core.behaviors.sync.nodes.canonical_entry",
+    ):
         _call_with_ts(_ts_snapshot(), prev_actor_published=prev)
+
+    assert [r for r in caplog.records if "CLP-15-003" in r.getMessage()]
 
 
 @pytest.mark.spec("CLP-15-003")

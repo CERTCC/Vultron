@@ -171,7 +171,7 @@ same one:
 | Timestamp | Written by | Rules it answers to |
 |---|---|---|
 | `published` on the entry | the Case Actor, at commit time | CLP-14-002, CLP-14-003, CLP-14-006 read across the whole ledger |
-| `published` inside `payloadSnapshot` | the asserting participant | CLP-14-006 at the commit boundary, CLP-14-007, CLP-14-008, CLP-15-003 |
+| `published` inside `payloadSnapshot` | the asserting participant | CLP-14-006 at the commit boundary, CLP-14-007, CLP-14-008, CLP-15-003, CLP-15-006 |
 
 The distinction matters most for the "never move backwards" rule. Across the
 Case Actor's own commit timestamps it holds because one writer stamps every
@@ -202,14 +202,31 @@ each participant: send events in the order they happened.
 A participant that breaks these rules produces a malformed assertion. That is
 a fault on the sending side, not a Case Actor failure.
 
-The Case Actor cannot police all four at the moment an assertion arrives, and it
+The Case Actor cannot police these at the moment an assertion arrives, and it
 must not try: it may not reconstruct an order it did not observe
-([CLP-15-005](../reference/specs/protocol.md#clp-15)). What it can and does
-check is the timestamp rule — an assertion whose claimed time falls behind the
-same participant's previous assertion is refused. The two ordering rules are
-visible only across a whole case, by comparing the causal links a scenario
-declares against the order the ledger recorded; the conformance suite
-checks them there.
+([CLP-15-005](../reference/specs/protocol.md#clp-15)). It sees the order messages
+*arrived* in, which is not the order they were *sent* in — the transport makes no
+such promise.
+
+So when an assertion's claimed time falls behind the same participant's previous
+assertion, the Case Actor records it and says so, rather than refusing it. A small
+regression is reported quietly; one beyond the configured tolerance is reported as
+a warning. Refusing would throw the message away — the ledger commit happens
+before any of the receiving work, so a refusal loses the whole thing — and the
+Case Actor cannot tell a participant that really did misorder its events from two
+messages that simply arrived out of order.
+
+The two ordering rules are visible only across a whole case, by comparing the
+causal links a scenario declares against the order the ledger recorded; the
+conformance suite checks them there.
+
+One thing the Case Actor does refuse outright: an activity that arrives with no
+`published` time at all. Because the field is optional in ActivityStreams, a
+receiver that filled in the blank with its own clock could no longer tell what
+the sender claimed from what it invented — and every check above would then be
+comparing the Case Actor's clock against itself. A message without a claimed time
+is therefore rejected at the door
+([CLP-15-006](../reference/specs/protocol.md#clp-15)).
 
 ---
 

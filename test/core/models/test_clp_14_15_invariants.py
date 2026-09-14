@@ -42,6 +42,7 @@ against observed ledger order across a whole scenario — the only vantage point
 from which an emission-order obligation is observable at all.
 """
 
+import logging
 from datetime import datetime, timedelta, timezone
 
 import pytest
@@ -333,9 +334,23 @@ def test_clp_15_001_002_out_of_order_emission_detected_at_ledger_order():
 
 
 @pytest.mark.spec("CLP-15-003")
-def test_clp_15_003_participant_published_timestamps_nondecreasing():
-    """A participant's claimed timestamps MUST NOT regress within its stream."""
-    with pytest.raises(VultronCanonicalEntryError, match="CLP-15-003"):
+@pytest.mark.spec("CLP-15-005")
+def test_clp_15_003_regression_is_reported_not_refused(caplog):
+    """A claimed-timestamp regression is recorded and reported, never refused.
+
+    CLP-15-003 binds the participant. CLP-15-005 forbids the CaseActor from
+    reconstructing participant-internal causal order it cannot verify, and
+    arrival order is not causal order — the transport offers no ordering
+    guarantee (ADR-0037). Refusing here dropped the assertion outright, because
+    the guarded commit precedes the effect nodes (CLP-10-006).
+
+    Enforcement through the production node, including the two report levels,
+    is covered in ``test/core/behaviors/sync/nodes/test_chain_timestamp_guard.py``.
+    """
+    with caplog.at_level(
+        logging.INFO,
+        logger="vultron.core.behaviors.sync.nodes.canonical_entry",
+    ):
         _validate_canonical_entry(
             case_id=CASE_ID,
             actor_id=ACTOR_ID,
@@ -348,6 +363,8 @@ def test_clp_15_003_participant_published_timestamps_nondecreasing():
             prev_actor_published=T2,
             staleness_window=None,
         )
+
+    assert [r for r in caplog.records if "CLP-15-003" in r.getMessage()]
 
 
 @pytest.mark.spec("CLP-15-003")
