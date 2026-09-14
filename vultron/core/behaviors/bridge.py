@@ -156,6 +156,11 @@ class BTBridge:
         """
         self.datalayer = datalayer
         self.is_leader = is_leader
+        # Tracks whether the caller provided an explicit guard (not _default_is_leader).
+        # Used to distinguish "caller opted in to a specific policy" from "caller
+        # accepted the default" so that inheritance from an outer BTBridge execution
+        # can be applied only to the latter case (CLP-08-005).
+        self._is_leader_explicit: bool = is_leader is not _default_is_leader
         self.trigger_activity = trigger_activity
         self.sync_port = sync_port
         self.wire_render_port = wire_render_port
@@ -368,6 +373,17 @@ class BTBridge:
             )
             blackboard.wire_render_port = wire_render_port
 
+        # Write is_leader to the blackboard only when this bridge carries an
+        # explicit (non-default) guard.  Default bridges do NOT overwrite the
+        # key so that an outer explicit value is visible to grandchild bridges
+        # (prevents a 3-level-deep inner bridge from reading _default_is_leader
+        # instead of the outermost raft_fn — CLP-08-005, SYNC-09-003).
+        if self._is_leader_explicit:
+            blackboard.register_key(
+                key="is_leader", access=py_trees.common.Access.WRITE
+            )
+            blackboard.is_leader = self.is_leader
+
         if activity is not None:
             blackboard.register_key(
                 key="activity", access=py_trees.common.Access.WRITE
@@ -556,10 +572,21 @@ class BTBridge:
         """
         Convenience method combining setup and execution.
 
-        Checks the leadership guard before executing.  If ``is_leader()``
-        returns ``False``, execution is skipped and a FAILURE result is
-        returned immediately with a descriptive feedback message
-        (SYNC-09-003).
+        Checks the leadership guard before executing.  If the effective
+        ``is_leader()`` returns ``False``, execution is skipped and a FAILURE
+        result is returned immediately with a descriptive feedback message
+        (SYNC-09-003).  The check runs inside ``_BT_GLOBAL_LOCK`` to prevent
+        cross-thread contamination from a concurrent outer execution's
+        blackboard state.
+
+        When this bridge was constructed without an explicit ``is_leader``
+        callable (``_is_leader_explicit`` is False), the method inherits the
+        guard from the current outer BTBridge execution's blackboard key
+        ``/is_leader``.  This ensures that an inner ``BTBridge(datalayer=...)``
+        constructed inside a BT node (e.g. ``EmitCaseStatusUpdateNode``)
+        respects the same leadership constraint as the outer execution rather
+        than silently defaulting to always-True (CLP-08-005).  Non-callable
+        values on the blackboard are ignored to guard against test pollution.
 
         Typical usage from handler:
             result = bridge.execute_with_setup(
@@ -586,16 +613,47 @@ class BTBridge:
             - BT-05-001: BT execution bridge for handler-to-BT invocation
             - SYNC-09-003: Leadership guard check before BT execution
         """
-        if not self.is_leader():
-            msg = (
-                "BT execution skipped: this node is not the replication leader"
-            )
-            self.logger.warning(msg)
-            return BTExecutionResult(
-                status=Status.FAILURE,
-                feedback_message=msg,
-            )
         with _BT_GLOBAL_LOCK:
+            # Resolve the effective leadership guard.
+            #
+            # This check is inside _BT_GLOBAL_LOCK for two reasons:
+            #
+            # 1. Thread safety: the blackboard is process-global.  Reading
+            #    /is_leader outside the lock risks reading a value written by a
+            #    concurrent outer execution that has not yet cleaned up, making
+            #    this bridge's leadership decision depend on another request's
+            #    raft state.  The lock serialises all BT executions, so by the
+            #    time we read the blackboard here the previous execution's
+            #    cleanup has already run (CLP-08-005, SYNC-09-003).
+            #
+            # 2. Accurate inheritance: an outer setup_tree() wrote is_leader
+            #    to the blackboard before calling execute_tree(), which ticked
+            #    the node that spawned this inner bridge.  Reading the
+            #    blackboard here (still inside the same re-entrant lock
+            #    acquisition) sees the outer value rather than a stale residue.
+            #
+            # The callable() guard rejects any non-callable that test pollution
+            # or a future node might write under the /is_leader key, preventing
+            # a TypeError from escaping the error net.
+            inherited_raw = (
+                self._inherited_port("is_leader")
+                if not self._is_leader_explicit
+                else None
+            )
+            inherited = inherited_raw if callable(inherited_raw) else None
+            effective_is_leader = (
+                inherited if inherited is not None else self.is_leader
+            )
+            if not effective_is_leader():
+                msg = (
+                    "BT execution skipped: this node is not the replication"
+                    " leader"
+                )
+                self.logger.warning(msg)
+                return BTExecutionResult(
+                    status=Status.FAILURE,
+                    feedback_message=msg,
+                )
             # Execution-scoped blackboard keys: each lives for exactly one BT
             # execution and is reset to its pre-execution state in the finally
             # block below, on EVERY outcome (SUCCESS, FAILURE, Sequence
@@ -607,6 +665,7 @@ class BTBridge:
                 "datalayer",
                 "trigger_activity_factory",
                 "sync_port",
+                "is_leader",
                 "wire_render_port",
                 # Owned by FinalizeCsFilterNode (add_case_status_tree), which
                 # clears it on its own no-op path.  But an earlier node in that
