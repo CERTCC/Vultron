@@ -262,3 +262,12 @@ See [ActivityPub Activities](../../howto/activitypub/activities/index.md) for de
     $EV$ is sent as $EP$, $EC$ is sent as $EA$, and $EJ$ is sent as $ER$.
     The formal message type set above remains normative for protocol semantics;
     the AS2 mapping is an implementation detail of the current prototype.
+
+!!! note "Error shorthands have no direct wire counterpart"
+
+    $RE$, $EE$, $CE$, and $GE$ are not realised as distinct AS2 activity types.
+    Fault reporting is instead partitioned by **failure mode**: `Create(ProcessingFault)`
+    for a message that was not understood, `as:Reject` for one that was understood but
+    declined, and `Create(Note)` for a condition requiring narrative explanation.
+    See [Error Handling](../../howto/activitypub/activities/error.md) and
+    `specs/message-semantics-mapping.yaml` MSM-05.
