@@ -368,7 +368,7 @@ Five traps, all found the hard way:
    clock-skew tolerance, `WARNING` beyond it.
 3. **A snapshot the CaseActor builds on a participant's behalf carries that
    participant's claimed time**, from the triggering activity — use
-   `claimed_published_iso()`. Stamping `_now_utc()` under a participant's actor
+   `claimed_published_iso()`. Stamping `now_utc()` under a participant's actor
    URI puts a foreign clock in that actor's claimed stream, which trap 2 then
    reports as a regression, and leaves CLP-14-007/008 comparing the receiver's
    clock against itself. A snapshot the CaseActor genuinely authors (its own
