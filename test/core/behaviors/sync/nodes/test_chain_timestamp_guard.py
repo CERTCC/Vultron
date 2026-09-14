@@ -21,7 +21,8 @@ layer where it actually has to fire — rather than by calling the private
 validator directly, so a future regression that unwires the call site fails
 here.
 
-Spec: CLP-14-006, CLP-14-007, CLP-14-009, CLP-15-003, CLP-07-011.
+Spec: CLP-14-006, CLP-14-007, CLP-14-008, CLP-14-009, CLP-15-003, CLP-15-005,
+CLP-07-011.
 """
 
 import logging
@@ -376,6 +377,90 @@ def test_create_log_entry_node_honours_configured_skew_tolerance(
         # still pass if the env prefix drifted and the default (300 s) stayed
         # in force only because some other check happened not to fire.
         assert cfg.ledger.clock_skew_tolerance == timedelta(hours=1)
+        result = _run(bridge, snapshot)
+
+    assert result.status == Status.SUCCESS
+
+
+# The staleness and future-tolerance checks run *after* CLP-14-006, so a stale
+# claim against the hour-old ``timed_case`` would trip that check first. These
+# use a long-lived case so the claim under test is comfortably after creation.
+OLD_CASE_CREATED = datetime.now(tz=timezone.utc) - timedelta(days=365)
+
+
+@pytest.fixture
+def old_case(datalayer):
+    """A stored case created a year ago, so stale claims clear CLP-14-006."""
+    case = VulnerabilityCase(
+        id_=CASE_ID,
+        attributed_to=OWNER_ACTOR_ID,
+        published=OLD_CASE_CREATED,
+    )
+    datalayer.save(case)
+    return case
+
+
+@pytest.mark.spec("CLP-14-008")
+def test_create_log_entry_node_rejects_stale_payload_published(
+    bridge, old_case
+):
+    """A claimed timestamp older than the staleness window is refused.
+
+    CLP-14-008 is a replay defence, so unlike CLP-15-003 this one does refuse:
+    a far-past claim is evidence of a replayed assertion rather than of two
+    clocks disagreeing.
+    """
+    result = _run(
+        bridge,
+        _note_snapshot(
+            PARTICIPANT_ACTOR_ID,
+            datetime.now(tz=timezone.utc) - timedelta(days=30),
+        ),
+    )
+
+    assert result.status == Status.FAILURE
+    assert "CLP-14-008" in result.feedback_message
+
+
+@pytest.mark.spec("CLP-14-009")
+def test_create_log_entry_node_honours_configured_staleness_window(
+    bridge, old_case
+):
+    """CLP-14-009: the deployment can widen the staleness window.
+
+    Asserts the override binds *and* changes the outcome — the same snapshot
+    that fails above is accepted here. Without the outcome half this would pass
+    even if the guard ignored the configured value entirely.
+    """
+    snapshot = _note_snapshot(
+        PARTICIPANT_ACTOR_ID,
+        datetime.now(tz=timezone.utc) - timedelta(days=30),
+    )
+
+    with config_override(VULTRON_LEDGER__STALENESS_WINDOW_DAYS="3650") as cfg:
+        assert cfg.ledger.staleness_window == timedelta(days=3650)
+        result = _run(bridge, snapshot)
+
+    assert result.status == Status.SUCCESS
+
+
+@pytest.mark.spec("CLP-14-009")
+def test_create_log_entry_node_honours_configured_future_tolerance(
+    bridge, old_case
+):
+    """CLP-14-009: the deployment can widen the CLP-14-007 future ceiling."""
+    snapshot = _note_snapshot(
+        PARTICIPANT_ACTOR_ID,
+        datetime.now(tz=timezone.utc) + timedelta(hours=2),
+    )
+
+    # Default 300 s ceiling refuses a claim two hours ahead.
+    assert _run(bridge, snapshot).status == Status.FAILURE
+
+    with config_override(
+        VULTRON_LEDGER__FUTURE_TOLERANCE_SECONDS="86400"
+    ) as cfg:
+        assert cfg.ledger.future_tolerance == timedelta(days=1)
         result = _run(bridge, snapshot)
 
     assert result.status == Status.SUCCESS
