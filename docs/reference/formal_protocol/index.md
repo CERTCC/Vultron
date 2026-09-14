@@ -79,6 +79,6 @@ multiple roles in a given case.
 
 !!! note "*Number of Processes*"
 
-    The total number of processes $N$ is simply the count of unique Participants.
+    The total number of processes $N$ is the count of unique Participants.
 
     $$N = |Participants| = | Reporters \cup Vendors \cup Coordinators \cup Deployers \cup Others |$$

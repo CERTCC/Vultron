@@ -4,7 +4,7 @@
 
 Typically most cases involve multiple participants, having various roles
 within the case. While the most common activities are inviting and adding
-participants, we've also included activities for removing participants.
+participants, this section also covers activities for removing participants.
 
 ```mermaid
 flowchart TB
@@ -66,8 +66,8 @@ flowchart TB
     It seems likely that the general idea should be to use `as:Create` when creating a new object to 
     add to another object (as the `target` of the activity), and `as:Add` when adding an existing object to another object. 
     
-    That said, our intent is that Vultron be consistent with however ActivityPub does this.
-    If what we're describing here is inconsistent with ActivityPub, please let us know in the form of an issue or 
+    Vultron intends to be consistent with however ActivityPub handles this.
+    If the approach described here is inconsistent with ActivityPub, please report it as an issue or 
     pull request.
 
 {% include-markdown "./_invite_to_case.md" heading-offset=1 %}

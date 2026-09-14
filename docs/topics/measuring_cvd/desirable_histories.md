@@ -129,7 +129,7 @@ desired orderings $\mathbb{D}$ as follows:
 
 !!! tip "Ordering vs. Timing"
 
-    Before proceeding, we note that our model focuses on the _ordering_ of
+    Our model focuses on the _ordering_ of
     transitions, not their _timing_. We acknowledge that in some situations,
     the interval between transitions may be of more interest than merely the
     order of those transitions, as a rapid tempo of transitions can alter

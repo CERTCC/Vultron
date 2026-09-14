@@ -247,7 +247,7 @@ The next table lists the effects of receiving an EM message to the receiving Par
 
 !!! tip inline end "Participant-Specific State Messages Promote Shared Situation Awareness"
 
-    Effective coordination is usually improved with Participants' mutual awareness of each other's state, of course.
+    Effective coordination is usually improved with Participants' mutual awareness of each other's state.
 
 The Vendor-specific portions of the CS (*Vendor Awareness*, *Fix Ready*, and
 *Fix Deployed*) are per-Participant states.

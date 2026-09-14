@@ -77,7 +77,7 @@ flowchart TB
 
     Re-engaging a deferred case uses the same `RmEngageCase` (`as:Join`)
     activity. Because the RM model permits reversible transitions between
-    `ACCEPTED` and `DEFERRED`, re-engagement is simply an `accept` transition
+    `ACCEPTED` and `DEFERRED`, re-engagement is an `accept` transition
     emitted from the `DEFERRED` state — there is no separate `RmReEngageCase`
     activity. Using `as:Undo` was considered but rejected: `Undo` implies
     retracting the *effects* of a prior action, whereas re-engagement is a
@@ -89,8 +89,8 @@ flowchart TB
 !!! tip "Close Case vs Close Report"
 
     Closing a report is only relevant when the report is not valid, because 
-    valid reports should be converted to cases. Hence, we define the 
-    `RmCloseReport` activity as a an option for when a report is invalidated
+    valid reports should be converted to cases. Hence, `RmCloseReport` is
+    defined as an option for when a report is invalidated
     before a case is created. Both `RmCloseReport` and `RmCloseCase` are
     defined as subclasses of `as:Leave` to indicate that they are both
     activities that indicate that the actor's participation in the case or

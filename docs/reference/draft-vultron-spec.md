@@ -507,7 +507,7 @@ permitted.
     its own replica and its own view. The cost is that the Case Actor is a
     single point of coordination authority, and its availability bounds case
     progress. This is a deliberate trade-off, not an incidental property of the
-    current implementation — but note that the *requirements* above are
+    current implementation — but the *requirements* above are
     normative regardless of how one weighs the trade-off.
 
 - *Source: `specs/vultron-protocol-spec.yaml` VP-18-001, VP-17-001;

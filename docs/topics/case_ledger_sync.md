@@ -251,7 +251,7 @@ depends on delivery order at all.
 
 ### What gets held, and what does not
 
-A replica holds an entry when the entry does not extend its chain but clearly
+A replica holds an entry when the entry does not extend its chain but
 belongs *later* in the history — its `log_index` is more than one past the end
 of what the replica holds. That is a forward gap: the predecessor has not
 arrived yet.
