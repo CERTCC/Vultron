@@ -425,3 +425,12 @@ class TestParticipantStatusBackwardRMValidator:
             previous_rm_state=RM.RECEIVED,
         )
         assert status.rm.state is RM.RECEIVED
+
+    def test_non_adjacent_forward_raises(self):
+        """A non-adjacent forward jump (e.g. START → ACCEPTED) must be refused."""
+        with pytest.raises(ValueError, match="Invalid RM transition"):
+            ParticipantStatus(
+                context=_CONTEXT,
+                rm=RmDimension(state=RM.ACCEPTED),
+                previous_rm_state=RM.START,
+            )

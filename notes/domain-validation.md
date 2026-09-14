@@ -12,7 +12,7 @@ related_specs:
   - specs/participant-role-management.yaml (PRM-03-003)
   - specs/error-handling.yaml (EH-05-002, EH-07-001 through EH-07-003)
   - specs/behavior-tree-node-design.yaml (BTND-10-001 through BTND-10-003)
-  - specs/received-status-handling.yaml (RSH-05-001, RSH-05-002)
+  - specs/received-status-handling.yaml (RSH-05-001, RSH-05-002, RSH-05-022)
 related_notes:
   - notes/architecture-hexagonal.md
   - notes/bt-integration.md
