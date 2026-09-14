@@ -29,7 +29,7 @@ from pydantic import (
     model_validator,
 )
 
-from vultron.core.models._helpers import _new_urn, _now_utc
+from vultron.core.models._helpers import _new_urn, now_utc
 from vultron.core.models.registry import CORE_TYPE_MAP, CORE_VOCABULARY
 
 
@@ -154,8 +154,8 @@ class VultronObject(ValidatedAssignmentMixin, VultronBase):
     duration: timedelta | None = None
     start_time: datetime | None = None
     end_time: datetime | None = None
-    published: datetime | None = Field(default_factory=_now_utc)
-    updated: datetime | None = Field(default_factory=_now_utc)
+    published: datetime | None = Field(default_factory=now_utc)
+    updated: datetime | None = Field(default_factory=now_utc)
 
     # content
     content: Any | None = None
@@ -207,8 +207,8 @@ class CoreObject(VultronObject):
     # Re-narrow published/updated: the core branch guarantees these are always
     # populated (default_factory ensures it).  VultronObject uses datetime|None
     # (per ARCH-12-002: shared base must be lenient for the wire branch).
-    published: datetime = Field(default_factory=_now_utc)
-    updated: datetime = Field(default_factory=_now_utc)
+    published: datetime = Field(default_factory=now_utc)
+    updated: datetime = Field(default_factory=now_utc)
 
     def __init_subclass__(cls, **kwargs: object) -> None:
         super().__init_subclass__(**kwargs)  # type: ignore[arg-type]

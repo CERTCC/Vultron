@@ -25,7 +25,7 @@ from pydantic import Field, model_validator
 
 from vultron.core.models._helpers import (
     _new_urn,
-    _now_utc,
+    now_utc,
     status_recency_key,
 )
 from vultron.core.models.base import CoreObject
@@ -135,7 +135,7 @@ class VulnerabilityCase(CoreObject):
             case_id = data.get("id") or data.get("id_")
             published_val = data.get("published")
             if published_val is None:
-                published_val = _now_utc()
+                published_val = now_utc()
                 data["published"] = published_val
             elif not isinstance(published_val, datetime):
                 try:

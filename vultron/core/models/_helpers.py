@@ -16,12 +16,24 @@
 """Shared helper utilities for core domain model types."""
 
 import uuid
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Any, cast
 
+# Frozen reference to the real datetime type used for isinstance guards.
+# `now_utc` looks up `datetime` by name at call time so that tests can
+# monkeypatch `_helpers.datetime` to control the clock; those patches must not
+# break isinstance() calls in parse_published, so we capture the real class here
+# before any patch can replace the module-level name.
+_datetime_type = datetime
 
-def _now_utc() -> datetime:
+
+def now_utc() -> datetime:
     return datetime.now(timezone.utc).replace(microsecond=0)
+
+
+def days_from_now_utc(days: int = 45) -> datetime:
+    """Return a UTC datetime *days* in the future, at second precision."""
+    return now_utc() + timedelta(days=days)
 
 
 #: Recency floor for statuses that carry no timestamps: they sort to the
@@ -31,12 +43,12 @@ def _now_utc() -> datetime:
 _MIN_UTC = datetime.min.replace(tzinfo=timezone.utc)
 
 
-def _as_utc(value: datetime | None) -> datetime | None:
+def as_utc(value: datetime | None) -> datetime | None:
     """Return *value* as a timezone-aware UTC datetime, or ``None``.
 
     Wire-deserialized timestamps may be naive (``datetime.fromisoformat`` on an
     offset-less ISO string yields a naive datetime). Assume naive datetimes are
-    UTC — consistent with :func:`_now_utc` — so recency comparisons never mix
+    UTC — consistent with :func:`now_utc` — so recency comparisons never mix
     naive and aware values, which would raise ``TypeError``.
     """
     if value is None:
@@ -52,9 +64,9 @@ def parse_published(value: Any) -> datetime | None:
     Accepts a ``datetime`` or an ISO 8601 string; anything else — including a
     string that is not valid ISO 8601 — yields ``None`` so callers can tell
     "absent" from "unparseable" by checking the raw value themselves.  Naive
-    inputs are assumed UTC, consistent with :func:`_as_utc`.
+    inputs are assumed UTC, consistent with :func:`as_utc`.
 
-    Unlike :func:`_as_utc`, which only *attaches* UTC to a naive value, an
+    Unlike :func:`as_utc`, which only *attaches* UTC to a naive value, an
     aware input in another offset is converted, so the return value is always
     in UTC.  Comparisons work either way — Python compares aware datetimes
     across offsets correctly — but the value is rendered into
@@ -65,19 +77,19 @@ def parse_published(value: Any) -> datetime | None:
     predecessor lookup that feeds it, so both read a claimed
     ``payloadSnapshot.published`` the same way (CS-22-001).
     """
-    if isinstance(value, datetime):
+    if isinstance(value, _datetime_type):
         parsed: datetime | None = value
     elif isinstance(value, str):
         try:
-            parsed = datetime.fromisoformat(value)
+            parsed = _datetime_type.fromisoformat(value)
         except ValueError:
             return None
     else:
         return None
-    aware = _as_utc(parsed)
+    aware = as_utc(parsed)
     assert (
         aware is not None
-    )  # parsed is a datetime here; _as_utc only returns None for None input
+    )  # parsed is a datetime here; as_utc only returns None for None input
     return aware.astimezone(timezone.utc)
 
 
@@ -99,7 +111,7 @@ def claimed_published_iso(activity_obj: Any) -> str:
     covers synthesised and legacy callers only.
     """
     claimed = parse_published(getattr(activity_obj, "published", None))
-    return (claimed or _now_utc()).isoformat()
+    return (claimed or now_utc()).isoformat()
 
 
 def status_recency_key(
@@ -113,7 +125,7 @@ def status_recency_key(
     ``VulnerabilityCase.current_status`` implementations so the invariant lives
     in one place.
     """
-    return _as_utc(updated) or _as_utc(published) or _MIN_UTC
+    return as_utc(updated) or as_utc(published) or _MIN_UTC
 
 
 def _new_urn() -> str:

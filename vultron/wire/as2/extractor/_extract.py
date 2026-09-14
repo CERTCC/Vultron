@@ -90,15 +90,9 @@ def extract_intent(
     # and clamps sub-floor values up to the configured minimum window (EP-07-003).
     if "rsvp_deadline" in event_class.model_fields:
         raw_end_time = getattr(activity, "end_time", None)
-        if isinstance(raw_end_time, datetime) and raw_end_time.tzinfo is None:
-            # CM-28-006: naive end_time MUST be rejected as malformed.
-            logger.warning(
-                "extract_intent: inbound end_time %s on activity %s is"
-                " naive (no timezone); rejected as malformed (CM-28-006)",
-                raw_end_time.isoformat(),
-                getattr(activity, "id_", "<unknown>"),
-            )
-        elif isinstance(raw_end_time, datetime):
+        # ADR-0032: validate_datetime normalises naive datetimes to UTC at the
+        # wire edge, so raw_end_time is always UTC-aware here.
+        if isinstance(raw_end_time, datetime):
             floor = datetime.now(tz=timezone.utc) + min_rsvp_window
             if raw_end_time < floor:
                 logger.info(

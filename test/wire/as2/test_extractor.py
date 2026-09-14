@@ -418,39 +418,29 @@ def test_invite_rsvp_deadline_clamped_when_below_floor():
     assert ev.rsvp_deadline > datetime.now(tz=timezone.utc)
 
 
-@pytest.mark.spec("EP-07-002")
-def test_invite_rsvp_deadline_none_when_naive_end_time():
-    """AC-7 (inbound naive): naive end_time on invite is ignored → rsvp_deadline is None."""
+@pytest.mark.spec("CM-28-006")
+def test_invite_rsvp_deadline_normalized_when_naive_end_time():
+    """CM-28-006: naive end_time is normalised to UTC at the wire edge (ADR-0032).
+
+    Previously the extractor rejected naive end_time as malformed (→ rsvp_deadline=None).
+    ADR-0032's validate_datetime now normalises naive datetimes to UTC before
+    they reach the extractor, so a naive input produces a valid UTC rsvp_deadline.
+    """
+    from datetime import timezone
+
     naive_deadline = datetime.now() + timedelta(days=5)  # no tzinfo
+    assert naive_deadline.tzinfo is None
     invite = _make_embargo_invite(end_time=naive_deadline)
+    # validate_datetime normalises naive → UTC; invite.end_time is now UTC-aware
+    assert invite.end_time is not None
+    assert invite.end_time.tzinfo is not None
+
     event = extract_event(invite)
 
     assert hasattr(event, "rsvp_deadline")
-    assert cast(Any, event).rsvp_deadline is None
-
-
-@pytest.mark.spec("CM-28-006")
-def test_invite_rsvp_deadline_warns_when_naive_end_time(caplog):
-    """CM-28-006: naive end_time MUST be logged as malformed, not silently dropped."""
-    import logging
-
-    naive_deadline = datetime.now() + timedelta(days=5)  # no tzinfo
-    invite = _make_embargo_invite(end_time=naive_deadline)
-
-    with caplog.at_level(
-        logging.WARNING, logger="vultron.wire.as2.extractor._extract"
-    ):
-        caplog.clear()
-        event = extract_event(invite)
-
-    assert cast(Any, event).rsvp_deadline is None
-    warning_msgs = [
-        r.message for r in caplog.records if r.levelno >= logging.WARNING
-    ]
-    assert any(
-        "naive" in msg.lower() or "malformed" in msg.lower()
-        for msg in warning_msgs
-    ), f"Expected a warning about naive/malformed end_time; got: {warning_msgs}"
+    rsvp = cast(Any, event).rsvp_deadline
+    assert rsvp is not None
+    assert rsvp.tzinfo == timezone.utc
 
 
 @pytest.mark.spec("EP-07-003")
