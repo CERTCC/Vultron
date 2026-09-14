@@ -27,4 +27,4 @@ Remove the redundant sort and document the pool-ordering dependency in the docst
 
 Surfaced during code review of #3189. Pre-existing in `vultron/core/sync_helpers.py:354`.
 
-**Resolved**: 2026-09-14 — planned; implementation tracked in #3229 (combined with CONCERN-3222).
+**Resolved**: 2026-09-14 — planned; implementation tracked in #3229 (combined with CONCERN-3222). Docs PR: <https://github.com/CERTCC/Vultron/pull/3231>.

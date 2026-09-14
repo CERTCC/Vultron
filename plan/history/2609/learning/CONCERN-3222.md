@@ -26,4 +26,4 @@ Apply `parse_published` (or `.astimezone(timezone.utc)`) to `case_published` as 
 
 Surfaced during code review of #3189. Pre-existing in `vultron/core/behaviors/sync/nodes/canonical_entry.py:222`.
 
-**Resolved**: 2026-09-14 — planned; implementation tracked in #3229 (combined with CONCERN-3223).
+**Resolved**: 2026-09-14 — planned; implementation tracked in #3229 (combined with CONCERN-3223). Docs PR: <https://github.com/CERTCC/Vultron/pull/3231>.
