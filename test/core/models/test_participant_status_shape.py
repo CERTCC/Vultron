@@ -379,7 +379,7 @@ class TestParticipantStatusBackwardRMValidator:
 
     def test_backward_step_raises(self):
         """RECEIVED → START is backward; construction must raise."""
-        with pytest.raises(ValueError, match="Backward RM step refused"):
+        with pytest.raises(ValueError, match="Invalid RM transition"):
             ParticipantStatus(
                 context=_CONTEXT,
                 rm=RmDimension(state=RM.START),
@@ -388,7 +388,7 @@ class TestParticipantStatusBackwardRMValidator:
 
     def test_non_adjacent_backward_raises(self):
         """CLOSED → RECEIVED is a backward regression; must be refused."""
-        with pytest.raises(ValueError, match="Backward RM step refused"):
+        with pytest.raises(ValueError, match="Invalid RM transition"):
             ParticipantStatus(
                 context=_CONTEXT,
                 rm=RmDimension(state=RM.RECEIVED),
