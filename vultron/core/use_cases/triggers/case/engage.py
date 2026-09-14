@@ -69,6 +69,9 @@ class SvcEngageCaseUseCase(SvcBTTriggerBase):
             activity_builder=_build_activities,
         )
 
+    def _extra_execute_kwargs(self) -> dict:
+        return {"case_id": self._case_id}
+
     def _handle_result(self) -> None:
         # Read the after-state back from storage rather than assuming
         # RM.ACCEPTED: the BT can succeed via an idempotent no-op path, and

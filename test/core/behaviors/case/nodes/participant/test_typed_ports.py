@@ -61,7 +61,6 @@ CASE_ID = "https://example.org/cases/case-001"
 #: silently dropped from the enforcement tests.
 CONSTRUCTOR_KWARGS: dict[str, dict[str, Any]] = {
     "PersistOwnerCaseNode": {},
-    "AdvanceOwnerRmToAcceptedNode": {},
     "RecordOwnerJoinedEventNode": {},
     "AttachOwnerParticipantToCaseNode": {},
     "AttachParticipantToCaseNode": {

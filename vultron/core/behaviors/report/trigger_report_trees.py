@@ -65,6 +65,7 @@ def create_invalidate_report_trigger_tree(
     offer_id: str,
     report_id: str,
     captured: dict | None = None,
+    sender_actor_id: str | None = None,
 ) -> py_trees.behaviour.Behaviour:
     """Create the BT for the invalidate-report trigger workflow.
 
@@ -98,6 +99,7 @@ def create_invalidate_report_trigger_tree(
             TransitionRMtoInvalid(
                 report_id=report_id,
                 offer_id=offer_id,
+                sender_actor_id=sender_actor_id,
             ),
         ],
     )
@@ -113,6 +115,7 @@ def create_reject_report_trigger_tree(
     offer_id: str,
     report_id: str,
     captured: dict | None = None,
+    sender_actor_id: str | None = None,
 ) -> py_trees.behaviour.Behaviour:
     """Create the BT for the reject-report trigger workflow.
 
@@ -148,6 +151,7 @@ def create_reject_report_trigger_tree(
             TransitionRMtoClosed(
                 report_id=report_id,
                 offer_id=offer_id,
+                sender_actor_id=sender_actor_id,
             ),
         ],
     )
@@ -242,56 +246,13 @@ def create_close_case_trigger_tree(
             TransitionRMtoClosed(
                 report_id=report_id,
                 offer_id=offer_id,
+                sender_actor_id=actor_id,
             ),
         ],
     )
     logger.debug(
         "Created CloseCaseTriggerBT for case=%s offer=%s report=%s",
         case_id,
-        offer_id,
-        report_id,
-    )
-    return root
-
-
-def create_close_report_trigger_tree(
-    offer_id: str,
-    report_id: str,
-    result_out: dict,
-    captured: dict | None = None,
-) -> py_trees.behaviour.Behaviour:
-    """Deprecated alias for :func:`create_close_case_trigger_tree`.
-
-    .. deprecated::
-        Use :func:`create_close_case_trigger_tree` directly.  This shim
-        exists only for callers that have not yet been updated; it omits the
-        ``actor_id`` / ``case_id`` / ``call_out`` parameters and therefore
-        bypasses the ``CheckCaseOwner`` guard and ``PreCloseAction`` hook.
-
-    Returns:
-        Root node of the ``CloseReportTriggerBT`` Sequence (legacy structure).
-    """
-    root = py_trees.composites.Sequence(
-        name="CloseReportTriggerBT",
-        memory=False,
-        children=[
-            CheckReportNotClosed(
-                report_id=report_id,
-                result_out=result_out,
-            ),
-            EmitCloseReportActivity(
-                offer_id=offer_id,
-                report_id=report_id,
-                captured=captured,
-            ),
-            TransitionRMtoClosed(
-                report_id=report_id,
-                offer_id=offer_id,
-            ),
-        ],
-    )
-    logger.debug(
-        "Created CloseReportTriggerBT (legacy) for offer=%s report=%s",
         offer_id,
         report_id,
     )

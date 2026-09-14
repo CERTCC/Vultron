@@ -35,16 +35,14 @@ References
 """
 
 import logging
-from typing import TYPE_CHECKING, cast
-
-if TYPE_CHECKING:
-    from vultron.core.behaviors.case.nodes.participant.status import (
-        CreateParticipantStatusNode,
-    )
+from typing import cast
 
 from py_trees.common import Status
 
 from vultron.core.behaviors.helpers import DataLayerActionWithPorts
+from vultron.core.behaviors.case.nodes.participant.status import (
+    CreateParticipantStatusNode,
+)
 from vultron.core.behaviors.case.nodes.participant.roles import (
     resolve_case_manager_id,
 )
@@ -79,31 +77,31 @@ class TransitionCStoFixReady(DataLayerActionWithPorts):
         result_out: dict | None = None,
         name: str | None = None,
     ) -> None:
-        super().__init__(name=name or self.__class__.__name__)
+        _name = name or self.__class__.__name__
+        super().__init__(name=_name)
         self._case_id = case_id
         self._actor_id = actor_id
         self._result_out = result_out if result_out is not None else {}
-
-    def _make_status_node(
-        self, vf_state: CS_vf | None, label: str
-    ) -> "CreateParticipantStatusNode":
-        from vultron.core.behaviors.case.nodes.participant.status import (
-            CreateParticipantStatusNode,
-        )
-
-        assert self.datalayer is not None
-        node = CreateParticipantStatusNode(
-            case_id=self._case_id,
-            actor_id=self._actor_id,
+        # Pre-build status nodes (BTND-10-004: no construction in update()).
+        # BTBridge seeds case_id on the blackboard so CaseIdInputPortMixin reads it.
+        self._vendor_aware_node = CreateParticipantStatusNode(
+            actor_id=actor_id,
             rm_state=None,
-            vf_state=vf_state,
+            vf_state=CS_vf.Vf,
             d_state=None,
             pxa_state=None,
             result_out=self._result_out,
-            name=f"{self.name}.{label}",
+            name=f"{_name}._VendorAware",
         )
-        node.datalayer = self.datalayer
-        return node
+        self._fix_ready_node = CreateParticipantStatusNode(
+            actor_id=actor_id,
+            rm_state=None,
+            vf_state=CS_vf.VF,
+            d_state=None,
+            pxa_state=None,
+            result_out=self._result_out,
+            name=f"{_name}._Create",
+        )
 
     def _ensure_vendor_aware(self) -> Status:
         """Advance actor to VF=Vf if still at initial state (CSB-16-001 strict adjacency)."""
@@ -124,7 +122,14 @@ class TransitionCStoFixReady(DataLayerActionWithPorts):
         if current_vf not in (None, CS_vf.vf):
             return Status.SUCCESS
         try:
-            return self._make_status_node(CS_vf.Vf, "_VendorAware").update()
+            from vultron.core.behaviors.bridge import BTBridge
+
+            result = BTBridge(datalayer=self.datalayer).execute_with_setup(
+                tree=self._vendor_aware_node,
+                actor_id=self._actor_id,
+                case_id=self._case_id,
+            )
+            return result.status
         except Exception as e:
             self.logger.error("%s: Error advancing to VF=Vf: %s", self.name, e)
             return Status.FAILURE
@@ -137,17 +142,22 @@ class TransitionCStoFixReady(DataLayerActionWithPorts):
         if self._ensure_vendor_aware() != Status.SUCCESS:
             return Status.FAILURE
 
-        node = self._make_status_node(CS_vf.VF, "_Create")
         try:
-            status = node.update()
-            if status == Status.SUCCESS:
+            from vultron.core.behaviors.bridge import BTBridge
+
+            result = BTBridge(datalayer=self.datalayer).execute_with_setup(
+                tree=self._fix_ready_node,
+                actor_id=self._actor_id,
+                case_id=self._case_id,
+            )
+            if result.status == Status.SUCCESS:
                 self.logger.debug(
                     "%s: VF → VF for actor '%s' in case '%s'",
                     self.name,
                     self._actor_id,
                     self._case_id,
                 )
-            return status
+            return result.status
         except Exception as e:
             self.logger.error(
                 "%s: Error transitioning to VF=VF: %s", self.name, e

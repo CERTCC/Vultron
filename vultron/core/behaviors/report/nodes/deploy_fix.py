@@ -41,6 +41,9 @@ from py_trees.ports import NoDataAvailable, PortInformation
 from vultron.core.behaviors.case.nodes.participant.common import (
     resolve_participant_state_from_dl,
 )
+from vultron.core.behaviors.case.nodes.participant.status import (
+    CreateParticipantStatusNode,
+)
 from vultron.core.behaviors.helpers import (
     DataLayerActionWithPorts,
     DataLayerConditionWithPorts,
@@ -304,35 +307,36 @@ class TransitionCStoFixDeployed(DataLayerActionWithPorts):
         result_out: dict | None = None,
         name: str | None = None,
     ) -> None:
-        super().__init__(name=name or self.__class__.__name__)
+        _name = name or self.__class__.__name__
+        super().__init__(name=_name)
         self._case_id = case_id
         self._actor_id = actor_id
         self._result_out = result_out if result_out is not None else {}
+        # Pre-build status node (BTND-10-004: no construction in update()).
+        self._fix_deployed_node = CreateParticipantStatusNode(
+            actor_id=actor_id,
+            rm_state=None,
+            vf_state=None,
+            d_state=CS_d.D,
+            pxa_state=None,
+            result_out=self._result_out,
+            name=f"{_name}._Create",
+        )
 
     def update(self) -> Status:
         if (f := self._require_datalayer()) is not None:
             return f
         assert self.datalayer is not None
 
-        from vultron.core.behaviors.case.nodes.participant.status import (
-            CreateParticipantStatusNode,
-        )
-
-        node = CreateParticipantStatusNode(
-            case_id=self._case_id,
-            actor_id=self._actor_id,
-            rm_state=None,
-            vf_state=None,
-            d_state=CS_d.D,
-            pxa_state=None,
-            result_out=self._result_out,
-            name=f"{self.name}._Create",
-        )
-        node.datalayer = self.datalayer
-
         try:
-            status = node.update()
-            if status == Status.SUCCESS:
+            from vultron.core.behaviors.bridge import BTBridge
+
+            result = BTBridge(datalayer=self.datalayer).execute_with_setup(
+                tree=self._fix_deployed_node,
+                actor_id=self._actor_id,
+                case_id=self._case_id,
+            )
+            if result.status == Status.SUCCESS:
                 # The narrative INFO line (SL-04-006) is emitted by
                 # CreateParticipantStatusNode, which knows the before-state.
                 self.logger.debug(
@@ -341,7 +345,7 @@ class TransitionCStoFixDeployed(DataLayerActionWithPorts):
                     self._actor_id,
                     self._case_id,
                 )
-            return status
+            return result.status
         except Exception as e:
             self.logger.error(
                 "%s: Error transitioning to VFD: %s", self.name, e

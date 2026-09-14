@@ -113,6 +113,7 @@ class SvcValidateReportUseCase(SvcBTTriggerBase):
             report_id=self._report.id_,
             offer_id=self._offer.offer_id,
             captured=self._captured,
+            sender_actor_id=self._actor_id,
         )
 
     def _handle_result(self) -> None:
@@ -135,6 +136,7 @@ class SvcInvalidateReportUseCase(SvcBTTriggerBase):
             offer_id=self._offer.offer_id,
             report_id=self._report.id_,
             captured=self._captured,
+            sender_actor_id=self._actor_id,
         )
 
     def _handle_result(self) -> None:
@@ -162,6 +164,7 @@ class SvcRejectReportUseCase(SvcBTTriggerBase):
             offer_id=self._offer.offer_id,
             report_id=self._report.id_,
             captured=self._captured,
+            sender_actor_id=self._actor_id,
         )
 
     def _handle_result(self) -> None:

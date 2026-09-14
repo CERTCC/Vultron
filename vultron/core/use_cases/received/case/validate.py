@@ -4,9 +4,12 @@ import logging
 
 from py_trees.common import Status
 
+from vultron.core.behaviors.bridge import BTBridge
+from vultron.core.behaviors.case.nodes.participant.status import (
+    CreateParticipantStatusNode,
+)
 from vultron.core.ports.case_persistence import CasePersistence
 from vultron.core.states.rm import RM
-from vultron.core.use_cases._helpers import update_participant_rm_state
 
 logger = logging.getLogger(__name__)
 
@@ -15,7 +18,9 @@ class InvalidateCaseUseCase:
     """Transition the actor's RM state to INVALID within the given case.
 
     Called by ``InvalidateReportReceivedUseCase`` after dereferencing
-    report_id to case_id (CM-12-005).
+    report_id to case_id (CM-12-005).  Uses the canonical
+    :class:`~vultron.core.behaviors.case.nodes.participant.status\
+.CreateParticipantStatusNode` writer via BTBridge (ADR-0089, AC-7).
     """
 
     def __init__(
@@ -26,10 +31,20 @@ class InvalidateCaseUseCase:
         self._actor_id = actor_id
 
     def execute(self) -> None:
-        success = update_participant_rm_state(
-            self._case_id, self._actor_id, RM.INVALID, self._dl
+        node = CreateParticipantStatusNode(
+            actor_id=self._actor_id,
+            rm_state=RM.INVALID,
+            vf_state=None,
+            d_state=None,
+            pxa_state=None,
+            name="InvalidateCaseRMTransition",
         )
-        if success:
+        result = BTBridge(datalayer=self._dl).execute_with_setup(
+            tree=node,
+            actor_id=self._actor_id,
+            case_id=self._case_id,
+        )
+        if result.status == Status.SUCCESS:
             logger.info(
                 "RM → INVALID for actor '%s' in case '%s'",
                 self._actor_id,
@@ -47,7 +62,9 @@ class CloseCaseUseCase:
     """Transition the actor's RM state to CLOSED within the given case.
 
     Called by ``CloseReportReceivedUseCase`` after dereferencing
-    report_id to case_id (CM-12-005).
+    report_id to case_id (CM-12-005).  Uses the canonical
+    :class:`~vultron.core.behaviors.case.nodes.participant.status\
+.CreateParticipantStatusNode` writer via BTBridge (ADR-0089, AC-7).
     """
 
     def __init__(
@@ -58,10 +75,20 @@ class CloseCaseUseCase:
         self._actor_id = actor_id
 
     def execute(self) -> None:
-        success = update_participant_rm_state(
-            self._case_id, self._actor_id, RM.CLOSED, self._dl
+        node = CreateParticipantStatusNode(
+            actor_id=self._actor_id,
+            rm_state=RM.CLOSED,
+            vf_state=None,
+            d_state=None,
+            pxa_state=None,
+            name="CloseCaseRMTransition",
         )
-        if success:
+        result = BTBridge(datalayer=self._dl).execute_with_setup(
+            tree=node,
+            actor_id=self._actor_id,
+            case_id=self._case_id,
+        )
+        if result.status == Status.SUCCESS:
             logger.info(
                 "RM → CLOSED for actor '%s' in case '%s'",
                 self._actor_id,

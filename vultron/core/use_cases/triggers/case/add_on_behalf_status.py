@@ -96,6 +96,9 @@ class SvcAddOnBehalfStatusUseCase(SvcBTTriggerBase):
             activity_builder=_build_activities,
         )
 
+    def _extra_execute_kwargs(self) -> dict[str, Any]:
+        return {"case_id": self._case_id}
+
     def _handle_result(self) -> None:
         logger.info(
             "Actor '%s' asserted on-behalf status for '%s' in case '%s'",

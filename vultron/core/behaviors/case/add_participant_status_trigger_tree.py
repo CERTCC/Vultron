@@ -131,7 +131,6 @@ def add_participant_status_trigger_bt(
                 result_out=result_out,
             ),
             CreateParticipantStatusNode(
-                case_id=case_id,
                 actor_id=actor_id,
                 rm_state=rm_state,
                 vf_state=vf_state,
