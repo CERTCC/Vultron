@@ -2,10 +2,10 @@
 
 {% include-markdown "../includes/not_normative.md" %}
 
-Here we collect some guidance for potential implementations of Vultron.
+This section collects guidance for potential implementations of Vultron.
 
-While a complete protocol implementation specification remains a work in progress, we do have a few additional
-suggestions for potential implementers.
+A complete protocol implementation specification remains a work in progress; a few additional
+suggestions for potential implementers follow.
 
 <!-- hr to force spacing -->
 <br/>
@@ -20,9 +20,9 @@ suggestions for potential implementers.
     - basic familiarity with the Vultron Protocol
     - familiarity with the CVD process in general
 
-    If you are unfamiliar with the Vultron Protocol, we recommend that you start with [Explanation](../topics/index.md).
+    If you are unfamiliar with the Vultron Protocol, start with [Explanation](../topics/index.md).
     For technical reference, see [Reference](../reference/index.md).
-    If you're just trying to understand the CVD process, we recommend that you start with the [CERT Guide to Coordinated Vulnerability Disclosure](https://certcc.github.io/CERT-Guide-to-CVD){:target="_blank"}.
+    If you're just trying to understand the CVD process, start with the [CERT Guide to Coordinated Vulnerability Disclosure](https://certcc.github.io/CERT-Guide-to-CVD){:target="_blank"}.
 
 In this section, you will find:
 
@@ -37,7 +37,7 @@ other processes
 
 </div>
 
-Over time, we plan to expand this section of the documentation to include:
+This section will expand over time to include:
 
 - Basic data model examples
 - Behavior logic implementation examples

@@ -143,7 +143,7 @@ the other Participants.
 (A1c) Likewise, a message indicating attacks underway
 triggers the **A** transition.
 
-Again, we note that any of the **P**, **X**, or
+Any of the **P**, **X**, or
 **A** transitions in the CS model imply that no new embargo should be
 entered, and any existing embargo should be terminated. Hence, the
 sequence described in the previous paragraph leads to the [embargo

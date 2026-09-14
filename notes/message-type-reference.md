@@ -256,7 +256,7 @@ Two patterns are easy to confuse. `docs/reference/specs/protocol.md` is the
 exemplar for the **mapping tables** — a thin `markdown_exec` shell over
 `vultron.metadata.specs.docs_render.render_for_kind`. It does *not* render wire
 examples. For the **examples** themselves, follow the `_*.md` partials under
-`docs/howto/activitypub/activities/` and `docs/howto/activitypub/objects.md`,
+`docs/howto/activitypub/activities/` and `docs/reference/activitypub/objects.md`,
 which are the pages that actually call `vocab_examples`.
 
 Two prerequisites:

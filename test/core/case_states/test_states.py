@@ -43,19 +43,6 @@ class MyTestCase(unittest.TestCase):
             self.assertEqual(getattr(states.ExploitPublication, s2), x)
             self.assertEqual(getattr(states.AttackObservation, s3), a)
 
-    def test_cs_vfd(self):
-        for vfd in ("vfd", "Vfd", "VFd", "VFD"):
-            attrib = getattr(states.CS_vfd, vfd)
-            self.assertEqual(vfd, attrib.name)
-
-            s1, s2, s3 = vfd
-            v, f, d = attrib.value
-
-            # check that the values are correct
-            self.assertEqual(getattr(states.VendorAwareness, s1), v)
-            self.assertEqual(getattr(states.FixReadiness, s2), f)
-            self.assertEqual(getattr(states.FixDeployment, s3), d)
-
 
 if __name__ == "__main__":
     unittest.main()

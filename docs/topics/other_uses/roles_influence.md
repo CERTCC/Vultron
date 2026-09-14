@@ -28,7 +28,7 @@ to cover the **A** transition.
 Different stakeholders might want different things, although most
 benevolent parties will likely seek some subset of $\mathbb{D}$. Because
 $\mathcal{H}$ is the same for all stakeholders, the expected frequencies
-shown in [Event Order Frequency](../../reference/measuring_cvd/reasoning_over_histories.md)
+shown in [Event Order Frequency](../measuring_cvd/reasoning_over_histories.md)
 will be consistent across any such variations in desiderata.
 
 A discussion of some stakeholder preferences is given below, while a
@@ -77,7 +77,7 @@ summary can be found in the following table.
     5. System owners might be indifferent to **F** $\prec$ **P**
     and **D** $\prec$ **X** depending on their risk tolerance.
 
-In [Desirable Histories](../../reference/measuring_cvd/desirable_histories.md),
+In [Desirable Histories](../measuring_cvd/desirable_histories.md),
 we defined a preference ordering between
 every possible pairing of events, therefore $\mathbb{D}$ is the largest
 possible set of desiderata. We thus expect the desiderata of benevolent
@@ -126,7 +126,7 @@ limited.
 
 !!! tip "Silent Patches"
 
-    "Silent patches" can obviously occur when vendors fix a
+    "Silent patches" can occur when vendors fix a
     vulnerability but do not make that fact known. In principle, silent
     patches could achieve $\mathbf{D} \prec \mathbf{P}$ even in
     traditional COTS or OSS distribution models. However, in practice
@@ -225,7 +225,7 @@ early as possible prior to public disclosure
 
     $$vfdpxa \xrightarrow{\mathbf{V}} Vfdpxa \implies \mathbf{V} \prec \mathbf{P} \textrm{, } \mathbf{V} \prec \mathbf{X} \textrm{ and } \mathbf{V} \prec \mathbf{A}$$
 
-    Also note that many of the other desiderata are impossible to achieve
+    Many of the other desiderata are also impossible to achieve
     without **V**. For example, **F** $\prec$ **P** is impossible 
     without **V** $\prec$ **P** because the vendor cannot create a fix for a 
     vulnerability it does not know about. The same applies to **F** $\prec$ **X**
@@ -273,7 +273,7 @@ set of desiderata ($\mathbb{D}_c = \mathbb{D}$).
     potentially reduce $|\mathcal{H}|$ to 329 by only including positions in
     $\mathcal{H}$ that precede the **D** event. This is still too
     large and unwieldy for meaningful analysis within our scope; instead, we
-    simply provide the following comment.
+    provide the following comment.
     
     The goal of coordination is this: regardless of which stage a
     coordinator becomes involved in a case, the objective is to choose
@@ -299,4 +299,4 @@ desiderata from the lower left triangle of the ordered pairs table (reproduced b
 While defining such adversarial desiderata ($\mathbb{D}_a$) is out of scope for our purposes, we leave the
 topic with our expectation that $\mathbb{D}_a \not\subseteq \mathbb{D}$.
 
-{% include-markdown "../../reference/measuring_cvd/_ordered_pairs_events.md" %}
+{% include-markdown "../measuring_cvd/_ordered_pairs_events.md" %}

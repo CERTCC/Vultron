@@ -336,7 +336,7 @@ is a human-oriented scheduling process, our experience suggests that we
 should expect there to be a natural limit on CVD Participants' tolerance for churn during
 embargo negotiations. Hence, we expect most paths through the
 EM DFA to be on the short end of this list in practice. We offer some thoughts on a
-potential reward function over EM DFA strings in [Reward Functions](../../../reference/measuring_cvd/reward_functions.md).
+potential reward function over EM DFA strings in [Reward Functions](../../measuring_cvd/reward_functions.md).
 
 For example, it is often preferable for a Vendor to accept whatever embargo the Reporter initially proposes followed
 closely by proposing a revision to their preferred timeline than it is for the Vendor and Reporter to ping-pong
@@ -345,7 +345,7 @@ In the worst case (i.e., where the Reporter declines to extend their embargo), a
 none at all.
 This implies a preference for strings starting with *par* over strings starting with *ppa* or *prpa*, among others.
 We will come back to this idea in [Default Embargoes](./defaults.md) and in the
-[worked protocol example](../../../howto/worked_example.md#vendor-accepts-then-proposes-revision).
+[worked protocol example](../../../tutorials/worked_example.md#vendor-accepts-then-proposes-revision).
 
 ### EM DFA Fully Defined
 

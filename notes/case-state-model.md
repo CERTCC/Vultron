@@ -46,8 +46,8 @@ RM/EM/CS state machine triad.
 
 **Implementation**: `vultron/core/states/cs.py` — enums `VendorAwareness`,
 `FixReadiness`, `FixDeployment`, `PublicAwareness`, `ExploitPublication`,
-`AttackObservation`, plus the `VfdState` / `PxaState` named tuples and the
-`CS_vfd` (4 members), `CS_pxa` (8) and `CS` (32) enums. The 32-member `CS` enum
+`AttackObservation`, plus the `PxaState` named tuple and the
+`CS_vf` (3 members), `CS_d` (2 members), `CS_pxa` (8) and `CS` (32) enums. The 32-member `CS` enum
 is where the two impossible-combination rules live: they are unrepresentable
 rather than rejected at runtime.
 
@@ -136,7 +136,7 @@ Two re-expression choices worth knowing:
 
 - **Transitions delegate to the dimension machines** rather than re-deriving
   monotonicity, so compound-level validity cannot drift from what
-  `VfdDimension` / `PxaDimension` enforce. Only the two ephemeral rules are new
+  `VfDimension` / `DDimension` / `PxaDimension` enforce. Only the two ephemeral rules are new
   logic at the compound level.
 - **History validity is causal replay, not index comparison.** Replaying the
   event sequence from `CS.vfdpxa` is provably equivalent to the legacy ordering
@@ -405,7 +405,7 @@ consulted when implementing state-related handlers or BT nodes:
 
 - `docs/topics/process_models/model_interactions/index.md` — canonical
   explanation of the participant-agnostic vs. participant-specific split
-- `docs/howto/activitypub/objects.md` — how objects are structured in the
+- `docs/reference/activitypub/objects.md` — how objects are structured in the
   ActivityStreams vocabulary
 - `docs/howto/case_object.md` — case object design (note: predates
   ActivityStreams; see "Documentation vs. Implementation Gap" section above)
@@ -761,7 +761,7 @@ touchpoints.
 **Decision (CONCERN-2099, planning group G06 / #2834):** The case-state
 representation stays as it is. The top-level `CS` enum in
 `vultron/core/states/cs.py` is already composed from the two sub-machine enums —
-it is `CompoundState(CS_vfd, CS_pxa)` yielding the 32 reachable states — which is
+it is `CompoundState(CS_vf, CS_d, CS_pxa)` yielding the 32 reachable states — which is
 exactly the decomposition the long-standing `# TODO consider replacing this with
 a combination of VfdState and PxaState / either directly or just creating
 CaseState(BaseModel)` comment contemplated. That TODO is now **resolved by the
@@ -772,8 +772,8 @@ Epic #2684).
 Why not a `CaseState(BaseModel)` structured model:
 
 - New `vultron/core/` protocol code already consumes the **split** sub-machine
-  enums directly (`CS_vfd` / `CS_pxa`, and the ADR-0075 per-participant `CS_vf` /
-  `CS_d`). It does not reach for the monolithic `CS`.
+  enums directly (`CS_vf` / `CS_d` / `CS_pxa`, per ADR-0075). It does not reach
+  for the monolithic `CS`.
 - The monolithic 32-member `CS` enum is retained mainly for the legacy
   `vultron/bt/` simulator, which indexes states as compound labels. Replacing it
   with a Pydantic model would churn the legacy simulator for no core benefit.

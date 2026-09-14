@@ -63,7 +63,7 @@ It consists of a sequence that begins with (A,B) a check for embargo viability a
 [Negotiating Embargoes](../process_models/em/negotiating.md).
 
 Once the checks succeed, it proceeds to (C) selecting embargo terms to propose.
-Implementations of this task might simply draw from a default policy, as in
+Implementations of this task might draw from a default policy, as in
 [Default Embargoes](../process_models/em/defaults.md), or it might be a case-specific decision made by a Participant.
 
 (D) Embargo terms can be proposed from any of the non-*eXited* states ($q^{em} \in \{N,P,A,R\}$).

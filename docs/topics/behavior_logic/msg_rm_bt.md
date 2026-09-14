@@ -97,7 +97,7 @@ A fallback node covers three major cases:
 
 - (C) Finally, recall that the RM process is unique to each
     CVD
-    Participant, so most of the remaining RM messages are simply informational
+    Participant, so most of the remaining RM messages are informational
     messages about other Participants' statuses that do not directly
     affect the receiver's status. Therefore, if there is already an
     associated case ($q^{rm} \not\in S$), the recipient might update

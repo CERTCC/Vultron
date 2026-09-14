@@ -1,5 +1,5 @@
 ---
-status: accepted-provisional
+status: accepted
 date: 2026-08-26
 deciders: Allen D. Householder
 consulted: []

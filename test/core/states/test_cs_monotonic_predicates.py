@@ -13,16 +13,17 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-"""Exhaustive tests for the vfd/pxa monotone-forward predicates.
+"""Exhaustive tests for the vf/d/pxa monotone-forward predicates.
 
-:func:`~vultron.core.states.cs.is_monotonic_vfd_forward` and
+:func:`~vultron.core.states.cs.is_monotonic_vf_forward`,
+:func:`~vultron.core.states.cs.is_monotonic_d_forward`, and
 :func:`~vultron.core.states.cs.is_monotonic_pxa_forward` are the weaker
 companions to the adjacency checks: a peer may report a state several steps
-ahead of the one the receiver holds (a vendor that became aware, readied and
-deployed a fix between two status updates reports ``vfd → VFD`` in one
-message), and that is monotone but not an adjacent transition.
+ahead of the one the receiver holds (a vendor that became aware and readied a
+fix between two status updates reports ``vf → VF`` in one message), and that
+is monotone but not an adjacent transition.
 
-They are the acceptance rule for the ``vfd`` and ``pxa`` dimensions of a
+They are the acceptance rule for the ``vf``, ``d``, and ``pxa`` dimensions of a
 received ``ParticipantStatus`` (RSH-05), so every ordered pair of states is
 covered here rather than the handful the adjudication tests happen to exercise.
 
@@ -38,10 +39,12 @@ import itertools
 import pytest
 
 from vultron.core.states.cs import (
+    CS_d,
     CS_pxa,
-    CS_vfd,
+    CS_vf,
+    is_monotonic_d_forward,
     is_monotonic_pxa_forward,
-    is_monotonic_vfd_forward,
+    is_monotonic_vf_forward,
 )
 
 # ---------------------------------------------------------------------------
@@ -49,13 +52,13 @@ from vultron.core.states.cs import (
 # ---------------------------------------------------------------------------
 
 
-def _latch_bits(member: CS_vfd | CS_pxa) -> int:
+def _latch_bits(member: CS_vf | CS_d | CS_pxa) -> int:
     """Encode a state's set components as a bitmask.
 
-    Each component of a ``VfdState``/``PxaState`` is a two-valued ``StrEnum``
-    whose "set" value is spelled with an uppercase letter (``V``, ``F``, ``D``;
-    ``P``, ``X``, ``A``).  The member *name* carries exactly that information,
-    so the mask is read off the name rather than the ``NamedTuple``.
+    Each component of a ``VfState``/``DState``/``PxaState`` is a two-valued
+    ``StrEnum`` whose "set" value is spelled with an uppercase letter.  The
+    member *name* carries exactly that information, so the mask is read off the
+    name rather than the ``NamedTuple``.
     """
     return sum(
         1 << index
@@ -65,7 +68,7 @@ def _latch_bits(member: CS_vfd | CS_pxa) -> int:
 
 
 def _expected_monotonic_forward(
-    source: CS_vfd | CS_pxa, dest: CS_vfd | CS_pxa
+    source: CS_vf | CS_d | CS_pxa, dest: CS_vf | CS_d | CS_pxa
 ) -> bool:
     """``dest`` is a strict superset of ``source``'s set components."""
     source_bits, dest_bits = _latch_bits(source), _latch_bits(dest)
@@ -73,79 +76,112 @@ def _expected_monotonic_forward(
 
 
 # ---------------------------------------------------------------------------
-# vfd
+# vf
 # ---------------------------------------------------------------------------
 
 
-class TestIsMonotonicVfdForward:
-    ALL = list(CS_vfd)
+class TestIsMonotonicVfForward:
+    ALL = list(CS_vf)
 
     @pytest.mark.parametrize(
         "source,dest",
-        list(itertools.product(list(CS_vfd), repeat=2)),
+        list(itertools.product(list(CS_vf), repeat=2)),
         ids=lambda m: m.name,
     )
     def test_every_ordered_pair(self, source, dest):
-        assert is_monotonic_vfd_forward(
+        assert is_monotonic_vf_forward(
             source, dest
         ) is _expected_monotonic_forward(source, dest)
 
     @pytest.mark.parametrize("state", ALL, ids=lambda m: m.name)
     def test_equality_is_not_forward(self, state):
         """A status confirmation advances nothing; callers test equality."""
-        assert is_monotonic_vfd_forward(state, state) is False
+        assert is_monotonic_vf_forward(state, state) is False
 
     @pytest.mark.parametrize(
         "source,dest",
         [
-            (CS_vfd.vfd, CS_vfd.Vfd),
-            (CS_vfd.Vfd, CS_vfd.VFd),
-            (CS_vfd.VFd, CS_vfd.VFD),
+            (CS_vf.vf, CS_vf.Vf),
+            (CS_vf.Vf, CS_vf.VF),
         ],
-        ids=["vfd->Vfd", "Vfd->VFd", "VFd->VFD"],
+        ids=["vf->Vf", "Vf->VF"],
     )
     def test_adjacent_steps_are_forward(self, source, dest):
-        assert is_monotonic_vfd_forward(source, dest) is True
+        assert is_monotonic_vf_forward(source, dest) is True
 
-    @pytest.mark.parametrize(
-        "source,dest",
-        [
-            (CS_vfd.vfd, CS_vfd.VFd),
-            (CS_vfd.vfd, CS_vfd.VFD),
-            (CS_vfd.Vfd, CS_vfd.VFD),
-        ],
-        ids=["vfd->VFd", "vfd->VFD", "Vfd->VFD"],
-    )
-    def test_multi_step_jumps_are_forward(self, source, dest):
+    def test_multi_step_jump_is_forward(self):
         """The whole point: adjacency is too strict for a peer's snapshot."""
-        assert is_monotonic_vfd_forward(source, dest) is True
+        assert is_monotonic_vf_forward(CS_vf.vf, CS_vf.VF) is True
 
     @pytest.mark.parametrize(
         "source,dest",
         [
-            (CS_vfd.VFD, CS_vfd.VFd),
-            (CS_vfd.VFd, CS_vfd.Vfd),
-            (CS_vfd.Vfd, CS_vfd.vfd),
-            (CS_vfd.VFD, CS_vfd.vfd),
+            (CS_vf.VF, CS_vf.Vf),
+            (CS_vf.Vf, CS_vf.vf),
+            (CS_vf.VF, CS_vf.vf),
         ],
-        ids=["VFD->VFd", "VFd->Vfd", "Vfd->vfd", "VFD->vfd"],
+        ids=["VF->Vf", "Vf->vf", "VF->vf"],
     )
     def test_regressions_are_refused(self, source, dest):
-        assert is_monotonic_vfd_forward(source, dest) is False
+        assert is_monotonic_vf_forward(source, dest) is False
 
     def test_forward_pair_count(self):
-        """4 states on a single chain → 6 strictly-forward ordered pairs."""
+        """3 states on a single chain → 3 strictly-forward ordered pairs."""
         forward = [
             (s, d)
             for s, d in itertools.product(self.ALL, repeat=2)
-            if is_monotonic_vfd_forward(s, d)
+            if is_monotonic_vf_forward(s, d)
         ]
-        assert len(forward) == 6
+        assert len(forward) == 3
 
     def test_relation_is_antisymmetric(self):
         for s, d in itertools.product(self.ALL, repeat=2):
-            if is_monotonic_vfd_forward(s, d):
-                assert not is_monotonic_vfd_forward(d, s)
+            if is_monotonic_vf_forward(s, d):
+                assert not is_monotonic_vf_forward(d, s)
+
+
+# ---------------------------------------------------------------------------
+# d
+# ---------------------------------------------------------------------------
+
+
+class TestIsMonotonicDForward:
+    ALL = list(CS_d)
+
+    @pytest.mark.parametrize(
+        "source,dest",
+        list(itertools.product(list(CS_d), repeat=2)),
+        ids=lambda m: m.name,
+    )
+    def test_every_ordered_pair(self, source, dest):
+        assert is_monotonic_d_forward(
+            source, dest
+        ) is _expected_monotonic_forward(source, dest)
+
+    @pytest.mark.parametrize("state", ALL, ids=lambda m: m.name)
+    def test_equality_is_not_forward(self, state):
+        """A status confirmation advances nothing; callers test equality."""
+        assert is_monotonic_d_forward(state, state) is False
+
+    def test_adjacent_step_is_forward(self):
+        assert is_monotonic_d_forward(CS_d.d, CS_d.D) is True
+
+    def test_regression_is_refused(self):
+        assert is_monotonic_d_forward(CS_d.D, CS_d.d) is False
+
+    def test_forward_pair_count(self):
+        """2 states → exactly 1 strictly-forward ordered pair."""
+        forward = [
+            (s, d)
+            for s, d in itertools.product(self.ALL, repeat=2)
+            if is_monotonic_d_forward(s, d)
+        ]
+        assert len(forward) == 1
+
+    def test_relation_is_antisymmetric(self):
+        for s, d in itertools.product(self.ALL, repeat=2):
+            if is_monotonic_d_forward(s, d):
+                assert not is_monotonic_d_forward(d, s)
 
 
 # ---------------------------------------------------------------------------

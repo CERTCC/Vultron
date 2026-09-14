@@ -3,17 +3,20 @@
 {% include-markdown "../includes/not_normative.md" %}
 
 Here we give a brief worked example showing a few usage scenarios of the [protocol](../reference/formal_protocol/index.md).
-We use UML Sequence Diagrams to show the interaction between Participant roles.
+We use Unified Modeling Language (UML) Sequence Diagrams to show the interaction between Participant roles.
 
 ## A Finder Becomes a Reporter
 
 As mentioned in
 [RM Interactions](../topics/process_models/rm/rm_interactions.md#the-secret-lives-of-finders), Finders have a few hidden state
-transitions before the CVD process really begins. An example of this
+transitions before the Coordinated Vulnerability Disclosure (CVD) process really begins. An example of this
 is shown in the figure below. The Finder must discover, validate, and
 prioritize their finding before initiating the CVD process.
 
 ```mermaid
+---
+title: Finder Pre-Report Steps
+---
 sequenceDiagram
     actor Finder
     Finder ->> Finder: Discover
@@ -33,6 +36,9 @@ proposal (*EP*) but does not constitute acceptance of the proposal. We
 will discuss that in the next subsection.
 
 ```mermaid
+---
+title: Finder Submits Report and Embargo Proposal
+---
 sequenceDiagram
     actor Finder
     actor Vendor
@@ -54,6 +60,9 @@ First is a basic accept sequence in which the Vendor accepts the proposed embarg
 Reporter this through an *EA* message. The Reporter acknowledges this with an *EK* in response.
 
 ```mermaid
+---
+title: Vendor Accepts Embargo Proposal
+---
 sequenceDiagram
     actor Reporter
     actor Vendor
@@ -76,6 +85,9 @@ Next we show a rejected proposal. As above, this is a simple sequence where the 
 proposal with an *ER* message, and the Reporter acknowledges this with an *EK* message.
 
 ```mermaid
+---
+title: Vendor Rejects Embargo Proposal
+---
 sequenceDiagram
     actor Reporter
     actor Vendor
@@ -99,6 +111,9 @@ active embargo until the Reporter accepts it. This method of
 counterproposal might delay the establishment of an embargo.
 
 ```mermaid
+---
+title: Vendor Counterproposal
+---
 sequenceDiagram
     actor Reporter
     actor Vendor
@@ -135,6 +150,9 @@ strategies](../topics/process_models/em/defaults.md).
 One might think of this as the "Yes-And" rule for embargo negotiations.
 
 ```mermaid
+---
+title: Vendor Accepts then Proposes Revision
+---
 sequenceDiagram
     actor Reporter
     actor Vendor
@@ -166,6 +184,9 @@ Here we show two responses from a Vendor in the course of prioritizing a report.
 This figure shows a Vendor accepting the report for further work (presumably to develop a patch) with an *RA* message.
 
 ```mermaid
+---
+title: Vendor Accepts Report
+---
 sequenceDiagram
     actor Reporter
     actor Vendor
@@ -182,6 +203,9 @@ On the contrary, this figure shows the Vendor deferring the report with an *RD* 
 In both cases, the Reporter acknowledges the Vendor's messages with an *RK* message.
 
 ```mermaid
+---
+title: Vendor Defers Report
+---
 sequenceDiagram
     actor Reporter
     actor Vendor
@@ -201,6 +225,9 @@ After evaluating the proposed embargo, the Coordinator accepts it with an *EA* m
 The Coordinator proceeds to validate and prioritize the report, emitting an *RV* and *RA* along the way.
 
 ```mermaid
+---
+title: Reporter Engages Coordinator
+---
 sequenceDiagram
     actor Reporter
     actor Coordinator
@@ -240,6 +267,9 @@ When complete, the Vendor conveys their readiness to the Coordinator, who in tur
 to the Reporter through the *CF* message.
 
 ```mermaid
+---
+title: Coordinator Notifies Vendor
+---
 sequenceDiagram
     actor Reporter
     actor Coordinator
@@ -295,6 +325,9 @@ Recipients of the *ET* message acknowledge receipt and update their EM state acc
     Vendor exiting an embargo early because they had their fix ready sooner than expected.
 
 ```mermaid
+---
+title: Coordinator Initiates Embargo Teardown
+---
 sequenceDiagram
     actor Reporter
     actor Coordinator
@@ -313,7 +346,7 @@ sequenceDiagram
     Once the embargo has been exited, *any* Participant may publish at any time.
     Participants might choose to coordinate publication schedules more closely, but there is nothing in the protocol to require it.
     With the recognition that more concise publication scheduling might be needed in some situations, we revisit this 
-    concern in [Process Implementation Notes](process_implementation.md).
+    concern in [Process Implementation Notes](../howto/process_implementation.md).
 
 ### Publishing After Embargo Teardown
 
@@ -325,6 +358,9 @@ The Coordinator relays this information to the Reporter.
 Both the Reporter and the Coordinator publish their own reports shortly thereafter.
 
 ```mermaid
+---
+title: Publishing After Embargo Teardown
+---
 sequenceDiagram
     actor Reporter
     actor Coordinator
@@ -362,6 +398,9 @@ This prompts the Coordinator to review their outstanding tasks and decide to ini
 In turn, the Coordinator relays this to the Vendor, who also closes their report.
 
 ```mermaid
+---
+title: Participants Close Their Reports
+---
 sequenceDiagram
     actor Reporter
     actor Coordinator

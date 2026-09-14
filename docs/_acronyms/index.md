@@ -217,6 +217,7 @@ sense the docs actually use.
 *[TVs]: Televisions
 
 *[UK]: United Kingdom
+*[UML]: Unified Modeling Language
 *[URI]: Uniform Resource Identifier
 *[URIs]: Uniform Resource Identifiers
 *[URL]: Uniform Resource Locator

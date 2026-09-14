@@ -825,7 +825,7 @@ Now we can touch on the lower bounds of the state space of an MPCVD case.
 Generically, we would expect the state space for $N$ Participants to
 take the form given at right.
 
-The upper bound on the MPCVD state space is simply $352^N \approx 10^{2.55N}$.
+The upper bound on the MPCVD state space is $352^N \approx 10^{2.55N}$.
 However, because of the Role-specific limits just described, we already know that this overcounts the possible states
 significantly.
 We can do better still.

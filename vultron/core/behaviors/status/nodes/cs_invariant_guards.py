@@ -42,7 +42,8 @@ from vultron.core.behaviors.status.nodes.cs_dimension_filter import (
     _CsStatusGuardBase,
 )
 from vultron.core.states.cs import (
-    CS_vfd,
+    CS_d,
+    CS_vf,
     is_monotonic_pxa_forward,
     is_pxa_public_aware,
 )
@@ -66,9 +67,9 @@ class CheckCsEphemeralStateNode(_CsStatusGuardBase):
     aborting the Sequence before any ledger write (CLP-10-009).
 
     The VFD dimension is not present in :class:`~vultron.core.models.case_status.CaseStatus`.
-    A ``CS_vfd.VFD``-complete baseline is used when constructing the compound
-    state, which suppresses false vP positives (vendor-unaware + public-aware)
-    while preserving the pX check that depends only on PXA.
+    A VFD-complete baseline (``CS_vf.VF + CS_d.D``) is used when constructing
+    the compound state, which suppresses false vP positives (vendor-unaware +
+    public-aware) while preserving the pX check that depends only on PXA.
 
     Returns SUCCESS when:
 
@@ -111,7 +112,7 @@ class CheckCsEphemeralStateNode(_CsStatusGuardBase):
         current_pxa = current.pxa.state
         # VFD-complete baseline avoids false vP positives; only pX is detectable
         # from PXA-only data (CSB-17-012).
-        current_cs = cs_from_dimensions(CS_vfd.VFD, current_pxa)
+        current_cs = cs_from_dimensions(CS_vf.VF, CS_d.D, current_pxa)
         required = required_next_cs_events(current_cs)
         if not required:
             return Status.SUCCESS  # not ephemeral
@@ -144,9 +145,9 @@ class CheckCsHistoryPrefixNode(_CsStatusGuardBase):
     (:class:`FilterCsPxaDimensionNode`) handles partial-accept for those
     (RSH-05, CSB-16-002).
 
-    The VFD dimension is not present in CaseStatus; a ``CS_vfd.VFD``-complete
-    baseline is used to avoid vP false positives (same rationale as
-    :class:`CheckCsEphemeralStateNode`).
+    The VFD dimension is not present in CaseStatus; a VFD-complete baseline
+    (``CS_vf.VF + CS_d.D``) is used to avoid vP false positives (same
+    rationale as :class:`CheckCsEphemeralStateNode`).
 
     Returns FAILURE when the single proposed event would produce an invalid CS
     history prefix (e.g. A from pXa violates CSB-17-012).
@@ -184,8 +185,8 @@ class CheckCsHistoryPrefixNode(_CsStatusGuardBase):
             return Status.SUCCESS
 
         # VFD-complete baseline: only PXA bits can change between these two states.
-        current_cs = cs_from_dimensions(CS_vfd.VFD, current_pxa)
-        asserted_cs = cs_from_dimensions(CS_vfd.VFD, asserted_pxa)
+        current_cs = cs_from_dimensions(CS_vf.VF, CS_d.D, current_pxa)
+        asserted_cs = cs_from_dimensions(CS_vf.VF, CS_d.D, asserted_pxa)
 
         event = cs_transition_event(current_cs, asserted_cs)
         if event is None:

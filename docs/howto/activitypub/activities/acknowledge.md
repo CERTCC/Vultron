@@ -7,12 +7,11 @@ indicate that a message or object has been read or acknowledged. These include:
 - `as:View`
 - `as:Listen`
 
-Since most CVD cases are text-centric, we expect that the `as:Read` activity
-will be the most commonly used. However, we also expect that the `as:View` and
-`as:Listen` activities could be used in some cases, such as when a case
+Since most CVD cases are text-centric, `as:Read` is the most commonly used activity.
+`as:View` and `as:Listen` activities may be used in some cases, such as when a case
 participant views a video or listens to an audio recording.
 
-We specifically defined `RmReadReport` as a subclass of `as:Read` to indicate
+`RmReadReport` is defined as a subclass of `as:Read` to indicate
 that a report has been read. This allows the receiver of a report to
 acknowledge receipt without indicating anything more than that the report has
 been read. That leaves `RmValidateReport` and `RmInvalidateReport` to indicate
@@ -63,8 +62,8 @@ flowchart LR
 
     The ActivityStreams vocabulary also includes actions that indicate an opinion 
     about a message or object, such as `as:Like`, `as:Dislike`, and `as:Flag`.
-    While these may be relevant to implementations of the Vultron protocol, we
-    do not have specific use cases for them at this time.
+    While these may be relevant to implementations of the Vultron protocol,
+    no specific use cases for them are defined at this time.
 
 ## Demo
 

@@ -129,7 +129,7 @@ There is deliberately **no** `log_bt_failure()` helper — see the BT-failure no
 above and the closing `NOTE` in `narrative_log.py`.
 
 `cs_event_label()` derives the event name (`fix ready`, `publicly known`, …) by
-diffing the `CS_vfd`/`CS_pxa` sub-dimensions, so a multi-step transition names
+diffing the `CS_vf`/`CS_d`/`CS_pxa` sub-dimensions, so a multi-step transition names
 every dimension that advanced.
 
 **No-op writes emit nothing.** `log_cs_transition()` and `log_em_transition()`
