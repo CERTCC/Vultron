@@ -12,8 +12,8 @@ from vultron.core.models.events.status import (
     CreateParticipantStatusReceivedEvent,
 )
 from vultron.core.ports.case_persistence import (
-    CasePersistence,
     CaseOutboxPersistence,
+    CasePersistence,
 )
 from vultron.core.use_cases._helpers import (
     _idempotent_create,
@@ -28,6 +28,29 @@ if TYPE_CHECKING:
     from vultron.core.ports.trigger_activity import TriggerActivityPort
 
 logger = logging.getLogger(__name__)
+
+
+def _filter_node_wholly_refused(tree: object) -> bool:
+    """Return True if FilterParticipantStatusDimensionsNode returned FAILURE.
+
+    Used by AddParticipantStatusToParticipantReceivedUseCase to distinguish a
+    wholly-refused dimension-filter from other BT failure causes (ISSUE-3199,
+    AC-2).  Only the filter's total-refusal path warrants a ``rejected``
+    InboxOutcome; sender-not-a-participant or authorization failures are
+    different failure modes that do not indicate the assertion was wholly refused.
+    """
+    from vultron.core.behaviors.status.nodes.dimension_filter import (
+        FilterParticipantStatusDimensionsNode,
+    )
+
+    root = getattr(tree, "root", tree)
+    iterate = getattr(root, "iterate", None)
+    if iterate is None:
+        return False
+    for node in iterate():
+        if isinstance(node, FilterParticipantStatusDimensionsNode):
+            return node.status == Status.FAILURE
+    return False
 
 
 class CreateCaseStatusReceivedUseCase:
@@ -247,6 +270,13 @@ class AddParticipantStatusToParticipantReceivedUseCase:
                     failure_class=VULTRON_FAILURE_STATUS_ASSERTION_REFUSED,
                     to=[request.actor_id],
                     case_id=case_id,
+                )
+            if _filter_node_wholly_refused(tree):
+                from vultron.errors import VultronStatusAssertionRefusedError
+
+                raise VultronStatusAssertionRefusedError(
+                    f"ParticipantStatus assertion wholly refused for activity"
+                    f" '{request.activity_id}': {reason_str}"
                 )
 
     def _resolve_case_id_for_log_cascade(self) -> str | None:

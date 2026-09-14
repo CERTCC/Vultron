@@ -117,8 +117,14 @@ class AttackObservation(StrEnum):
     A = ATTACKS_OBSERVED
 
 
-# a named tuple of the enums above
-# todo consider replacing this with a combination of VfdState and PxaState
+# a named tuple of the enums above.
+# NOTE (CONCERN-2099, planning group G06 / #2834): the earlier TODO here
+# contemplated replacing this with a combination of VfdState and PxaState, or
+# introducing a CaseState(BaseModel). The verdict is to KEEP the compound
+# representation: the split sub-machine enums (CS_vf / CS_d / CS_pxa) already
+# give structured decomposition (ADR-0075), and the monolithic CS is retained
+# for the legacy vultron/bt/ simulator. No CaseState(BaseModel) is introduced.
+# See notes/case-state-model.md § "CS Representation: Keep the Compound Enum".
 class State(NamedTuple):
     """Represents the state of a case."""
 

@@ -26,6 +26,7 @@ from vultron.core.behaviors.embargo.nodes.conditions import (
     HasActiveEmbargoNode,
     HasCaseStatusesNode,
     IsActiveEmbargoNode,
+    IsCloseBlockedByActiveEmbargoNode,
     IsProposedEmbargoNode,
     LookupParticipantNode,
     OptionalLookupParticipantNode,
@@ -65,6 +66,7 @@ __all__ = [
     # Conditions
     "ValidateCaseExistsNode",
     "IsActiveEmbargoNode",
+    "IsCloseBlockedByActiveEmbargoNode",
     "IsProposedEmbargoNode",
     "HasActiveEmbargoNode",
     "HasCaseStatusesNode",

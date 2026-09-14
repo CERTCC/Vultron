@@ -53,6 +53,7 @@ from vultron.wire.as2.vocab.activities.case import (
     _RmDeferCaseActivity,
     _RmEngageCaseActivity,
     _RmInviteToCaseActivity,
+    _RmRejectCloseCaseActivity,
     _RmRejectInviteToCaseActivity,
     _UpdateCaseActivity,
 )
@@ -759,6 +760,42 @@ def rm_reject_invite_to_case_activity(
         )
         raise VultronActivityConstructionError(
             "rm_reject_invite_to_case_activity: invalid arguments"
+        ) from exc
+
+
+def reject_close_case_activity(
+    leave: as_Leave,
+    **kwargs,
+) -> as_Reject:
+    """Build a Reject(_RmCloseCaseActivity) — declines an owner close (CM-23-011).
+
+    Per ActivityStreams convention the Case Actor rejects the
+    ``Leave(VulnerabilityCase)`` activity itself.  The ``leave`` MUST be the
+    value returned by :func:`rm_close_case_activity`; a plain ``as_Leave``
+    will fail validation.
+
+    Args:
+        leave: The ``_RmCloseCaseActivity`` (the Leave) being declined.
+        **kwargs: Optional AS2 fields forwarded to the constructor
+            (e.g. ``actor``, ``to``, ``in_reply_to``).
+
+    Returns:
+        An ``as_Reject`` whose ``object_`` is the leave.
+
+    Raises:
+        VultronActivityConstructionError: If Pydantic validation fails.
+    """
+    try:
+        return _RmRejectCloseCaseActivity(
+            object_=cast(_RmCloseCaseActivity, leave),
+            **kwargs,
+        )
+    except ValidationError as exc:
+        logger.warning(
+            "reject_close_case_activity: invalid arguments: %s", exc
+        )
+        raise VultronActivityConstructionError(
+            "reject_close_case_activity: invalid arguments"
         ) from exc
 
 

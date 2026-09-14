@@ -317,14 +317,83 @@ class TestStatusUseCases:
         mock_trigger = MagicMock()
         mock_trigger.emit_processing_fault.return_value = "urn:uuid:fault-2"
 
-        AddParticipantStatusToParticipantReceivedUseCase(
-            dl, event, trigger_activity=mock_trigger
-        ).execute()
+        import pytest
+
+        from vultron.errors import VultronStatusAssertionRefusedError
+
+        with pytest.raises(VultronStatusAssertionRefusedError):
+            AddParticipantStatusToParticipantReceivedUseCase(
+                dl, event, trigger_activity=mock_trigger
+            ).execute()
 
         mock_trigger.emit_processing_fault.assert_called_once()
         call_kwargs = mock_trigger.emit_processing_fault.call_args
         to_arg = call_kwargs.kwargs.get("to") or call_kwargs.args[3]
         assert sender_id in to_arg
+
+    def test_wholly_refused_participant_status_raises_assertion_refused(
+        self, make_payload
+    ):
+        """Wholly-refused BT raises VultronStatusAssertionRefusedError (AC-2, ISSUE-3199).
+
+        When FilterParticipantStatusDimensionsNode refuses every dimension (the
+        filtered status is indistinguishable from the current state), execute()
+        must raise VultronStatusAssertionRefusedError so that the inbox
+        DispatchNode can write "rejected" to KEY_OUTCOME_STATUS and surface a
+        rejected InboxOutcome rather than a silent 202 Accepted / processed.
+        """
+        import pytest
+
+        from vultron.errors import VultronStatusAssertionRefusedError
+
+        receiver_id = "https://example.org/users/vendor-ps-ac2"
+        sender_id = "https://example.org/users/vendor-ps-ac2"
+        dl = SqliteDataLayer("sqlite:///:memory:", actor_id=receiver_id)
+
+        case_id = "https://example.org/cases/case_ps_ac2"
+        participant = as_CaseParticipant(
+            id_=f"{case_id}/participants/p",
+            context=case_id,
+            attributed_to=sender_id,
+        )
+        # Seed participant with RM.CLOSED so any forwarded assertion is refused
+        pstatus = as_ParticipantStatus(
+            id_=f"{case_id}/participants/p/statuses/s1",
+            context=case_id,
+            rm_state=RM.CLOSED,
+        )
+        participant.participant_statuses.append(pstatus)
+        dl.create(participant)
+        dl.create(pstatus)
+
+        case = as_VulnerabilityCase(
+            id_=case_id,
+            name="AC-2 Rejection Test Case",
+        )
+        case.case_participants.append(participant.id_)
+        case.actor_participant_index[sender_id] = participant.id_
+        dl.create(case)
+
+        # Duplicate CLOSED status — filter will refuse it in full
+        dup_status = as_ParticipantStatus(
+            id_=f"{case_id}/participants/p/statuses/s_dup",
+            context=case_id,
+            rm_state=RM.CLOSED,
+        )
+        dl.create(dup_status)
+
+        activity = add_status_to_participant_activity(
+            dup_status,
+            target=participant,
+            actor=sender_id,
+            context=case,
+        )
+        event = make_payload(activity, receiving_actor_id=receiver_id)
+
+        with pytest.raises(VultronStatusAssertionRefusedError):
+            AddParticipantStatusToParticipantReceivedUseCase(
+                dl, event
+            ).execute()
 
     def test_add_case_status_allows_valid_em_transition(
         self, monkeypatch, make_payload
@@ -753,9 +822,14 @@ class TestParticipantStatusLogEntryCascade:
         sync_port = SyncActivityAdapter(dl)
 
         before_count = len(participant.participant_statuses)
-        AddParticipantStatusToParticipantReceivedUseCase(
-            dl, event, sync_port=sync_port
-        ).execute()
+        import pytest
+
+        from vultron.errors import VultronStatusAssertionRefusedError
+
+        with pytest.raises(VultronStatusAssertionRefusedError):
+            AddParticipantStatusToParticipantReceivedUseCase(
+                dl, event, sync_port=sync_port
+            ).execute()
 
         entries = [
             obj

@@ -298,6 +298,11 @@ class CreateParticipantStatusNode(DataLayerActionWithPorts):
             consent=consent_dim,
             cvd_role=status_roles,
             case_status=case_status,
+            previous_rm_state=(
+                context.current_rm
+                if self._rm_state is not None and not self._force_rm_state
+                else None
+            ),
         )
 
     def update(self) -> Status:

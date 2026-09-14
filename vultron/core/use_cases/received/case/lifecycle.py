@@ -22,6 +22,7 @@ from vultron.core.use_cases._helpers import resolve_receiving_actor_id
 
 if TYPE_CHECKING:
     from vultron.core.ports.sync_activity import SyncActivityPort
+    from vultron.core.ports.trigger_activity import TriggerActivityPort
 
 logger = logging.getLogger(__name__)
 
@@ -66,10 +67,14 @@ class CloseCaseReceivedUseCase:
         dl: CaseOutboxPersistence,
         request: CloseCaseReceivedEvent,
         sync_port: "SyncActivityPort | None" = None,
+        trigger_activity: "TriggerActivityPort | None" = None,
     ) -> None:
         self._dl = dl
         self._request: CloseCaseReceivedEvent = request
         self._sync_port = sync_port
+        # trigger_activity lets the received-close tree emit an as:Reject when
+        # it must decline an owner close during a live embargo (CM-23-011).
+        self._trigger_activity = trigger_activity
 
     def execute(self) -> None:
         request = self._request
@@ -95,7 +100,10 @@ class CloseCaseReceivedUseCase:
             sender_actor_id=request.actor_id,
             receiving_actor_id=receiving_actor_id,
         )
-        result = BTBridge(datalayer=self._dl).execute_with_setup(
+        result = BTBridge(
+            datalayer=self._dl,
+            trigger_activity=self._trigger_activity,
+        ).execute_with_setup(
             tree=tree,
             actor_id=receiving_actor_id,
             activity=request,
