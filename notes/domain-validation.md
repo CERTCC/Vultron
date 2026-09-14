@@ -564,10 +564,10 @@ The import cycle CONCERN-3111 predicted is real —
 the model no longer validates anything. It is also breakable, in two steps: the
 `CaseParticipant` import in `predicates/participants.py` is annotation-only and
 belongs under the `TYPE_CHECKING` block already present in that file — but that
-module has no `from __future__ import annotations`, and its one use is an
-*unquoted* function annotation, which Python evaluates when the `def` runs. Move
-the import and quote the annotation (or add the future import); moving it alone
-raises `NameError` at import time.
+module has no `from __future__ import annotations`, and its uses are *unquoted*
+function annotations, which Python evaluates when the `def` runs. Move the import
+and quote those annotations (or add the future import); moving it alone raises
+`NameError` at import time.
 
 ### Pitfall: an RM-only append resets the vendor and deployer paths
 
