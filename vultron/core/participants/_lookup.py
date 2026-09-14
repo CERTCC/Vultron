@@ -35,20 +35,26 @@ def iter_case_participants(
     also appears in the index is not yielded twice.
     """
     indexed_ids = set(case.actor_participant_index.values())
+    # Track IDs actually yielded by the fast path so the fallback knows which
+    # indexed participants the DataLayer could not supply yet (e.g. during
+    # bootstrap before ledger sync completes). Using `indexed_ids` alone for
+    # dedup would drop an inline participant whose DataLayer read returned None.
+    yielded_ids: set[str] = set()
 
     for p_id in indexed_ids:
         p = dl.read(p_id)
         if isinstance(p, CaseParticipant):
+            yielded_ids.add(p.id_)
             yield p
 
     for p_ref in case.case_participants:
         if not isinstance(p_ref, str):
             if (
                 isinstance(p_ref, CaseParticipant)
-                and p_ref.id_ not in indexed_ids
+                and p_ref.id_ not in yielded_ids
             ):
                 yield p_ref
-        elif p_ref not in indexed_ids:
+        elif p_ref not in yielded_ids:
             p = dl.read(p_ref)
             if isinstance(p, CaseParticipant):
                 yield p

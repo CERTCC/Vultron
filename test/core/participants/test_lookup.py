@@ -135,6 +135,31 @@ class TestIterCaseParticipants:
         result = list(iter_case_participants(case, dl))
         assert {p.id_ for p in result} == {_P_A, _P_B}
 
+    def test_yields_inline_participant_when_dl_read_fails(
+        self,
+        dl: SqliteDataLayer,
+        participant_a: CaseParticipant,
+    ) -> None:
+        """Inline participant is yielded even when its DL read returns None.
+
+        Regression for the bootstrap-timing race: a case replica received via
+        Announce(VulnerabilityCase) has the participant in both
+        actor_participant_index AND case_participants, but the separate
+        CaseParticipant object has not yet arrived via ledger sync.  The fast
+        path (dl.read) returns None; the slow path must still yield the inline
+        object so resolve_case_manager_id can find the CASE_MANAGER.
+        """
+        # participant_a is NOT saved to the DataLayer — simulates unsynced DL
+        case = VulnerabilityCase(id_=_CASE_ID)
+        case.actor_participant_index[_ACTOR_A] = _P_A
+        # Inline object in case_participants (as received from Announce wire)
+        case.case_participants.append(participant_a)  # type: ignore[arg-type]
+
+        result = list(iter_case_participants(case, dl))
+        assert len(result) == 1
+        assert result[0].id_ == _P_A
+        assert CVDRole.CASE_MANAGER in result[0].roles
+
     def test_empty_case_yields_nothing(self, dl: SqliteDataLayer) -> None:
         """A case with no participants yields nothing."""
         case = VulnerabilityCase(id_=_CASE_ID)
