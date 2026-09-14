@@ -336,7 +336,7 @@ class TestRejectCaseParticipantRole:
         _make_role_case(dl)
         from vultron.enums.roles import CVDRole
 
-        activity_id = adapter.reject_case_participant_role(
+        activity_id, activity_json = adapter.reject_case_participant_role(
             offer_id=_OFFER_ID,
             case_id=_CASE_ID,
             role=CVDRole.CASE_MANAGER,
@@ -347,12 +347,13 @@ class TestRejectCaseParticipantRole:
         )
 
         assert activity_id
+        assert activity_json
 
     def test_persists_reject_activity(self, adapter, dl):
         _make_role_case(dl)
         from vultron.enums.roles import CVDRole
 
-        activity_id = adapter.reject_case_participant_role(
+        activity_id, _ = adapter.reject_case_participant_role(
             offer_id=_OFFER_ID,
             case_id=_CASE_ID,
             role=CVDRole.CASE_MANAGER,

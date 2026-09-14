@@ -117,9 +117,9 @@ ordering concern (CONCERN-2546).
 The following gaps remain outstanding; the `TriggerActivityAdapter` dict-return
 gap was resolved by #2652/#2653.
 
-- `EmitInviteActorToCaseNode._emit()` derives `payload_snapshot` via
+- `EmitInviteActorToCaseNode._call_factory()` derives `payload_snapshot` via
   `_drop_bare_inline_refs(activity_dict)` — the snapshot is not the exact
-  emitted form.
+  emitted form. (Method renamed from `_emit()` by #2881.)
 - Three mutation sites in `outbox_delivery.py` (lines 166, 236, 257) overwrite
   `outbound_activity.object_` after the ledger entry has been written.
 
