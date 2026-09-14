@@ -19,6 +19,8 @@ Verifies that CheckSomeVendorAtVFNode is included in the tree when d_state is
 non-None and excluded when d_state is None.
 """
 
+import py_trees.behaviour
+
 from vultron.core.behaviors.case.add_on_behalf_status_trigger_tree import (
     add_on_behalf_status_trigger_bt,
 )
@@ -36,7 +38,7 @@ TARGET_ACTOR_ID = "https://example.org/actors/deployer"
 def _make_tree(
     d_state: CS_d | None = None,
     vf_state: CS_vf | None = None,
-) -> object:
+) -> py_trees.behaviour.Behaviour:
     return add_on_behalf_status_trigger_bt(
         case_id=CASE_ID,
         asserting_actor_id=ASSERTING_ACTOR_ID,
@@ -49,7 +51,7 @@ def _make_tree(
     )
 
 
-def _child_type_names(tree: object) -> list[str]:
+def _child_type_names(tree: py_trees.behaviour.Behaviour) -> list[str]:
     return [type(c).__name__ for c in tree.children]
 
 
