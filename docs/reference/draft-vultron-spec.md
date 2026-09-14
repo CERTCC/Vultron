@@ -1520,7 +1520,7 @@ implementation. Other implementations are not required to use this structure.
 
 ### Annex A — Worked Example: Single-Vendor CVD [I]
 
-- *Source: `docs/howto/worked_example.md`*
+- *Source: `docs/tutorials/worked_example.md`*
 
 ### Annex B — Worked Example: Multi-Party CVD [I]
 

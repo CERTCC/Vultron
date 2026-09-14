@@ -313,7 +313,7 @@ sequenceDiagram
     Once the embargo has been exited, *any* Participant may publish at any time.
     Participants might choose to coordinate publication schedules more closely, but there is nothing in the protocol to require it.
     With the recognition that more concise publication scheduling might be needed in some situations, we revisit this 
-    concern in [Process Implementation Notes](process_implementation.md).
+    concern in [Process Implementation Notes](../howto/process_implementation.md).
 
 ### Publishing After Embargo Teardown
 
