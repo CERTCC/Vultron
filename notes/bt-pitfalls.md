@@ -516,6 +516,51 @@ the Harness Can Produce Its Named Reason".
 
 ---
 
+## Inner BTBridge Inherits `is_leader` From the Outer Execution's Blackboard
+
+(CLP-08-005, ISSUE-2856, 2026-09-14)
+
+A `BTBridge` constructed without an explicit `is_leader` argument — the common
+pattern inside node `update()` methods — does **not** permanently default to
+`always-True`. It inherits the leadership guard from the outer execution's
+blackboard.
+
+**Mechanism:**
+
+- `BTBridge.__init__` records whether `is_leader` was explicitly provided:
+  `_is_leader_explicit = (is_leader is not _default_is_leader)`.
+- `setup_tree()` writes `is_leader` to the blackboard **only** when
+  `_is_leader_explicit` is `True`. Default bridges do not write the key, so an
+  outer explicit bridge's value remains visible to inner bridges.
+- `execute_with_setup()` reads `Blackboard.storage["/is_leader"]` when
+  `_is_leader_explicit` is `False`. If the value is callable, it becomes the
+  effective guard. If absent or non-callable, the bridge falls back to its own
+  `self.is_leader` (`_default_is_leader` in single-node deployments).
+- `is_leader` is in `execute_with_setup`'s `managed_keys`, so it is restored to
+  its pre-execution value in the `finally` block on every outcome.
+
+**Practical rules for new inner-bridge sites:**
+
+1. `BTBridge(datalayer=...)` — no explicit `is_leader` — **inherits** whatever
+   the enclosing `execute_with_setup` wrote to `/is_leader`. In a single-node
+   system (no outer bridge) it falls back to `_default_is_leader` (always True),
+   preserving existing behaviour.
+
+2. `BTBridge(datalayer=..., is_leader=fn)` — explicit guard — **overrides** the
+   blackboard. Use this when the inner bridge intentionally enforces a different
+   policy than the outer execution.
+
+3. Do not write `is_leader` directly to the blackboard from a node. The outer
+   `BTBridge.setup_tree()` owns that write when `_is_leader_explicit` is True.
+
+**Why this matters:** Before this change, inner bridges always used
+`_default_is_leader`, so a non-leader actor reaching `EmitCaseStatusUpdateNode`
+could still mint a `CaseLedgerEntry` because the inner `BTBridge` ignored the
+outer guard. The inheritance mechanism fixes this class of bug for all current
+and future nested-bridge sites. (CLP-08-005, SYNC-09-003)
+
+---
+
 ## Guard Name Must Match the State-Machine Transition Precondition
 
 (ISSUE-1825, 2026-07-30)

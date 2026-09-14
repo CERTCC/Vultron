@@ -17,6 +17,7 @@
 from __future__ import annotations
 
 import logging
+from datetime import datetime
 from typing import Any, Literal, cast
 
 from py_trees.common import Status
@@ -25,6 +26,7 @@ from vultron.core.behaviors.helpers import (
     DataLayerActionWithPorts,
     PortInformation,
 )
+from vultron.config.app import get_config
 from vultron.core.behaviors.sync.nodes.canonical_entry import (
     _validate_canonical_entry,
 )
@@ -34,7 +36,9 @@ from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.case_ledger_entry import VultronCaseLedgerEntry
 from vultron.core.models.replication_state import VultronReplicationState
 from vultron.core.sync_helpers import _find_equivalent_recorded_entry
+from vultron.core.sync_helpers import _find_prev_actor_published
 from vultron.core.sync_helpers import _reconstruct_tail_hash
+from vultron.core.sync_helpers import recorded_entries_for_case
 from vultron.errors import VultronError
 from vultron.errors import VultronValidationError
 
@@ -299,6 +303,40 @@ class CreateLogEntryNode(DataLayerActionWithPorts):
         from vultron.core.use_cases._helpers import _find_case_actor_id
 
         case_actor_id = _find_case_actor_id(self.datalayer, self.case_id)
+
+        # One scan of this case's recorded entries, shared by the
+        # claimed-timestamp guard's predecessor lookup and the idempotency
+        # check below.  ``list_objects`` takes no case filter, so each scan
+        # walks the whole store (CS-22-001).
+        recorded = recorded_entries_for_case(
+            case_id=self.case_id, dl=self.datalayer
+        )
+
+        # Temporal context for the CLP-14/CLP-15 claimed-timestamp guard.  The
+        # guard used to be gated on ``case_published`` being supplied and this
+        # call site never supplied it, so it never ran (ISSUE-2824).
+        #
+        # Resolved only for recorded entries: ``_validate_canonical_entry``
+        # returns immediately for any other disposition, so a
+        # ``disposition="rejected"`` correlation marker must not pay for the
+        # ``read_case`` or the predecessor lookup.
+        case_published: datetime | None = None
+        prev_actor_published: datetime | None = None
+        if self.disposition == "recorded":
+            # ``read_case`` returning ``None`` is expected, not an error: the
+            # genesis ``create_case`` entry is committed alongside case
+            # creation, so the case may not be readable yet.  The guard skips
+            # CLP-14-006 in that case and still applies every other check.
+            case = self.datalayer.read_case(self.case_id)
+            case_published = case.published if case is not None else None
+            prev_actor_published = _find_prev_actor_published(
+                case_id=self.case_id,
+                payload_snapshot=self.payload_snapshot,
+                dl=self.datalayer,
+                entries=recorded,
+            )
+
+        ledger_cfg = get_config().ledger
         _validate_canonical_entry(
             case_id=self.case_id,
             actor_id=self.actor_id,
@@ -306,6 +344,11 @@ class CreateLogEntryNode(DataLayerActionWithPorts):
             disposition=self.disposition,
             payload_snapshot=self.payload_snapshot,
             event_type=self.event_type,
+            case_published=case_published,
+            prev_actor_published=prev_actor_published,
+            future_tolerance=ledger_cfg.future_tolerance,
+            staleness_window=ledger_cfg.staleness_window,
+            skew_tolerance=ledger_cfg.clock_skew_tolerance,
         )
 
         existing = _find_equivalent_recorded_entry(
@@ -314,6 +357,7 @@ class CreateLogEntryNode(DataLayerActionWithPorts):
             event_type=self.event_type,
             payload_snapshot=self.payload_snapshot,
             dl=self.datalayer,
+            entries=recorded,
         )
         if existing is not None:
             if isinstance(existing, VultronCaseLedgerEntry):

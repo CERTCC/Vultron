@@ -157,6 +157,12 @@ nav:
       - Messages: 'reference/formal_protocol/messages.md'
       - Transitions: 'reference/formal_protocol/transitions.md'
       - Protocol Summary: 'reference/formal_protocol/conclusion.md'
+    - Messages:
+      - 'reference/messages/index.md'
+      - Report Management (RM): 'reference/messages/rm.md'
+      - Embargo Management (EM): 'reference/messages/em.md'
+      - Case State (CS): 'reference/messages/cs.md'
+      - General (GI): 'reference/messages/general.md'
     - Specifications:
       - 'reference/specs/index.md'
       - Protocol: 'reference/specs/protocol.md'

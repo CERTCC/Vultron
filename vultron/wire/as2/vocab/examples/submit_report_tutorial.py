@@ -44,7 +44,6 @@ from vultron.wire.as2.factories import rm_create_report_activity
 from vultron.wire.as2.vocab.base.objects.activities.transitive import as_Create
 from vultron.wire.as2.vocab.examples._base import (
     _strip_published_udpated,
-    json2md,
 )
 from vultron.wire.as2.vocab.objects.vulnerability_report import (
     as_VulnerabilityReport,
@@ -178,14 +177,22 @@ def create_report_activity_body() -> dict[str, Any]:
     """Return the ``Create(VulnerabilityReport)`` as a JSON-ready dict.
 
     The activity's own ``published``/``updated`` default to build time, so they
-    are stripped (exactly as :func:`json2md` does for the displayed payload).
-    This keeps the posted body deterministic across docs builds and identical to
-    what :func:`render_payload` shows the reader; the server assigns its own
-    receipt timestamps regardless.  The report's fixed timestamps, being nested,
-    are preserved.
+    are stripped (exactly as :func:`json2md` does for the displayed payload) and
+    ``published`` is then re-set to the same fixed timestamp the nested report
+    uses.  This keeps the posted body deterministic across docs builds and
+    identical to what :func:`render_payload` shows the reader.  The report's
+    fixed timestamps, being nested, are preserved.
+
+    ``published`` cannot simply be dropped: the inbox refuses an activity that
+    carries none, because a defaulted ``published`` is the *receiver's* clock
+    posing as the sender's claim (:class:`VultronParseMissingPublishedError`).
+    A pinned value rather than build time is safe here — this flow stores a
+    report and creates no case, so it never reaches the ledger's staleness
+    check (CLP-14-008).
     """
     activity = _strip_published_udpated(create_report_activity())
     body: dict[str, Any] = json.loads(activity.to_json())
+    body["published"] = _FIXED_TS.isoformat()
     return body
 
 
@@ -231,8 +238,16 @@ def render_submit_report() -> str:
 
 
 def render_payload() -> str:
-    """Render the ``Create(VulnerabilityReport)`` payload as JSON."""
-    return json2md(create_report_activity())
+    """Render the ``Create(VulnerabilityReport)`` payload as JSON.
+
+    Rendered from :func:`create_report_activity_body` — the same dict the
+    tutorial's ``curl`` command posts — so the block the reader copies and the
+    body the reader sends cannot drift apart.  It deliberately does not go
+    through :func:`json2md`, which strips ``published`` from every example it
+    renders; the inbox refuses an activity without one.
+    """
+    body = json.dumps(create_report_activity_body(), indent=2)
+    return f"```json\n{body}\n```"
 
 
 def render_verify() -> str:
