@@ -371,17 +371,22 @@ A DEPLOYER-only participant (holds `CVDRole.DEPLOYER`, `vf=None`) may advance
 in the same case has `vf.state=CS_vf.VF` (fix-ready). This causal gate prevents
 a deployer from recording fix deployment before any vendor has produced a fix.
 
-**Planned implementation** (CSB-15-004, pending #3109):
+Implemented in PR #3197 (closes #3109):
 
 - **Predicate**: `some_vendor_at_vf(participants: list[CaseParticipant]) -> bool`
   in `vultron/core/predicates/participants.py`. Pure function; no I/O.
 - **BT node**: `CheckSomeVendorAtVFNode` in
   `vultron/core/behaviors/case/nodes/vfd_role_guards.py`. Reads all case
-  participants from the DataLayer and delegates to the predicate.
-- **BT wiring**: in `add_participant_status_trigger_tree.py`, when `d_state`
-  is non-None the sequence is `CheckDeployerRoleNode` (role check) →
+  participants from the DataLayer via `_collect_all_participants` (indexed fast
+  path then `case_participants` fallback) and delegates to the predicate.
+- **BT wiring (direct path)**: in `add_participant_status_trigger_tree.py`, when
+  `d_state` is non-None the sequence is `CheckDeployerRoleNode` (role check) →
   `CheckSomeVendorAtVFNode` (causal precondition) → `ValidateTriggerTransitionsNode`
   → `CreateParticipantStatusNode` → emit.
+- **BT wiring (on-behalf path)**: in `add_on_behalf_status_trigger_tree.py`, when
+  `d_state` is non-None `CheckSomeVendorAtVFNode` is inserted after
+  `EnsureOnBehalfParticipantExistsNode`, applying the same causal gate when a
+  CASE_MANAGER asserts d→D on behalf of a DEPLOYER participant.
 
 The gate is generic — "some vendor at VF" — because per-deployer/per-vendor
 dependency tracking is intentionally out of scope (Concern #2665).

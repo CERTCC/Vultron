@@ -40,15 +40,15 @@ sends activities.
 
 !!! note "Scope of Vultron's ActivityPub Implementation"
 
-    However, in our Vultron prototype, we are not implementing a full
-    ActivityPub server. Instead, we're initially focusing on the core functionality
+    However, the Vultron prototype does not implement a full
+    ActivityPub server. Instead, it initially focuses on the core functionality
     of actors sending activities directly to each other's inboxes. This simplifies
-    the implementation while still allowing us to demonstrate the core concepts of
+    the implementation while still demonstrating the core concepts of
     ActivityPub interactions.
 
 ## Inbox Handler Architecture
 
-Our initial architecture is as follows: An actor has an inbox implemented as a
+The initial architecture is as follows: An actor has an inbox implemented as a
 FastAPI endpoint that accepts POST requests containing activity messages.
 When a message is received, the inbox handler processes the activity and routes it
 to an appropriate handler based on the activity's semantics.
@@ -61,7 +61,7 @@ to an appropriate handler based on the activity's semantics.
 
 ### Out of scope
 
-We are deferring authentication, authorization, and server-to-server federation for
+Authentication, authorization, and server-to-server federation are deferred to
 future implementation.
 
 This design also does not describe what happens inside each handler function; that is
@@ -87,12 +87,12 @@ The inbox handler process consists of the following steps:
 Routing semantics are identified by `ActivityPattern` objects, which define patterns
 for matching activity messages to specific enumerated semantic meanings. This
 decouples the raw activity message structure from the higher-level semantics
-of the Vultron protocol, allowing us to translate raw messages into meaningful
+of the Vultron protocol, allowing raw messages to be translated into meaningful
 semantics that drive application logic.
 
 !!! example "Defining Activity Patterns"
 
-    We might define an activity pattern for submitting a vulnerability report
+    An activity pattern for submitting a vulnerability report might be defined
     as an `Offer` activity with an object of type `VulnerabilityReport`. 
     Responses to that offer follow their own patterns:
     
@@ -117,7 +117,7 @@ semantics that drive application logic.
 
 !!! example "Mapping Activity Patterns to Semantics"
 
-    We define the mapping from raw activity message patterns to higher-level semantics:
+    The mapping from raw activity message patterns to higher-level semantics is defined as follows:
     
     ```python
     SEMANTICS_ACTIVITY_PATTERNS: dict[MessageSemantics, ActivityPattern] = {
@@ -180,33 +180,33 @@ object as an argument.
     functions, while a more complex implementation could involve message queues 
     or other routing mechanisms.
 
-    This modularity allows us to easily extend dispatching logic by defining new 
+    This modularity allows dispatching logic to be extended easily by defining new 
     `ActivityPattern`s with corresponding `MessageSemantics`, then adding new 
-    handler functions to the dispatch mapping. By decoupling routing logic from 
-    handling logic, we maintain clean separation of concerns and facilitate 
+    handler functions to the dispatch mapping. Decoupling routing logic from 
+    handling logic maintains clean separation of concerns and facilitates 
     future protocol extensions.
 
 ## Direct Dispatch Implementation
 
-Our first dispatch function implementation uses a simple direct dispatch approach
+The first dispatch function implementation uses a simple direct dispatch approach
 with a dictionary mapping from `MessageSemantics` to handler functions.
 The dispatch function looks up the `semantic_type` from the `DispatchEvent`
 object in the mapping and invokes the corresponding handler function with the
 `DispatchEvent` as an argument.
 
-This direct dispatch implementation is straightforward and allows us to quickly
-begin handling activities based on their semantics.
+This direct dispatch implementation is straightforward and allows activities to be
+handled quickly based on their semantics.
 
 !!! question "Into the Unknown?"
 
   What happens if an activity is received that does not match any known `ActivityPattern`?
   In this case, the semantic match function can return a special
   `MessageSemantics.UNKNOWN` value, which the dispatch function can handle by
-  logging an error or ignoring the activity. This allows us to gracefully handle
-  unexpected or malformed activities without crashing the system. In fact, if we
-  implement this early, we will be able to detect and log any activities that
-  don't match our defined patterns, which will be useful to identify any issues
-  with our pattern definitions, omitted patterns, or unexpected activity messages
+  logging an error or ignoring the activity. This gracefully handles
+  unexpected or malformed activities without crashing the system. Implementing this
+  early also allows any activities that do not match the defined patterns to be
+  detected and logged, which is useful for identifying issues
+  with the pattern definitions, omitted patterns, or unexpected activity messages
   during testing and development.
 
 ## Handler Functions

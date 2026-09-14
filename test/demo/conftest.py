@@ -27,6 +27,7 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 import vultron.demo.utils as demo_utils
+from vultron.adapters.driven.http_delivery import DeliveryError
 from vultron.adapters.driving.fastapi.deps import get_actor_dl
 from vultron.adapters.driven.datalayer_sqlite import (
     SqliteDataLayer,
@@ -115,10 +116,22 @@ class _TestClientRouter:
 
     def __init__(self) -> None:
         self._clients: dict[str, "TestClient"] = {}
+        self._failing_hosts: set[str] = set()
 
     def register(self, base_url: str, client: "TestClient") -> None:
         """Register *client* as the delivery target for *base_url*."""
         self._clients[base_url.rstrip("/")] = client
+
+    def inject_failure(self, base_url: str) -> None:
+        """Cause all subsequent emits to *base_url* to raise ``DeliveryError``.
+
+        The failure persists until the caller removes *base_url* from
+        ``_failing_hosts`` directly.  Use this to simulate a temporarily
+        unreachable host: inject the failure before a drain pass, assert the
+        activity was requeued, then clear the set and drain again to verify
+        the retry path.
+        """
+        self._failing_hosts.add(base_url.rstrip("/"))
 
     async def emit(
         self, activity: VultronActivity, recipients: list[str]
@@ -135,6 +148,10 @@ class _TestClientRouter:
         for recipient_id in recipients:
             parsed = urlparse(recipient_id.rstrip("/") + "/inbox/")
             base = f"{parsed.scheme}://{parsed.netloc}"
+            if base in self._failing_hosts:
+                raise DeliveryError(
+                    [recipient_id], getattr(activity, "id_", None)
+                )
             client = self._clients.get(base)
             if client is None:
                 host = parsed.hostname or ""
