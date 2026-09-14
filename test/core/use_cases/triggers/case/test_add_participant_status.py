@@ -1965,8 +1965,9 @@ class TestCrossMachineEntailments:
         # Move VF to Vf (vendor aware, fix NOT ready).
         self._execute(vf_state=CS_vf.Vf)
         # Now try to assert d=D without vf=VF — must be refused.
+        # CSB-15-004 causal gate fires before the cross-machine check.
         before = self._status_count()
-        with pytest.raises(VultronValidationError, match="Cross-machine"):
+        with pytest.raises(VultronValidationError, match=r"CSB-15-004"):
             self._execute(d_state=CS_d.D)
         assert (
             self._status_count() == before
