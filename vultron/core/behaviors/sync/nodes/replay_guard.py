@@ -48,7 +48,7 @@ import logging
 from datetime import timedelta
 from typing import cast
 
-from vultron.core.models._helpers import _now_utc
+from vultron.core.models._helpers import now_utc
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.replication_state import VultronReplicationState
 from vultron.core.ports.case_persistence import CasePersistence
@@ -153,7 +153,7 @@ def should_replay(
         if from_hash == ""
         else REPLAY_COOLDOWN_SECONDS
     )
-    if _now_utc() - state.last_replayed_at >= timedelta(seconds=cooldown):
+    if now_utc() - state.last_replayed_at >= timedelta(seconds=cooldown):
         return True
     if log is not None:
         log.info(
@@ -187,7 +187,7 @@ def record_replay(
 
     Spec: SYNC-15-003.
     """
-    now = _now_utc()
+    now = now_utc()
     state = _read_state(datalayer, case_id=case_id, peer_id=peer_id)
     if state is None:
         datalayer.save(

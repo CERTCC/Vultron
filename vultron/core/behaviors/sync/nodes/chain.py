@@ -30,7 +30,7 @@ from vultron.config.app import get_config
 from vultron.core.behaviors.sync.nodes.canonical_entry import (
     _validate_canonical_entry,
 )
-from vultron.core.models._helpers import _now_utc
+from vultron.core.models._helpers import now_utc
 from vultron.core.models.case_ledger import HashChainLedgerRecord
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.case_ledger_entry import VultronCaseLedgerEntry
@@ -232,7 +232,7 @@ class UpdateReplicationStateNode(DataLayerActionWithPorts):
         if existing is not None:
             existing_state = cast(VultronReplicationState, existing)
             existing_state.last_acknowledged_hash = activity.last_accepted_hash
-            existing_state.updated_at = _now_utc()
+            existing_state.updated_at = now_utc()
             self.datalayer.save(existing_state)
         else:
             self.datalayer.save(state)

@@ -24,7 +24,7 @@ from typing import Any, Literal, Optional
 
 from pydantic import Field, model_validator
 
-from vultron.core.models._helpers import _now_utc
+from vultron.core.models._helpers import now_utc
 from vultron.core.models.base import VultronObject
 
 
@@ -58,7 +58,7 @@ class VultronReplicationState(VultronObject):
         serialization_alias="lastAcknowledgedHash",
     )
     updated_at: datetime = Field(
-        default_factory=_now_utc,
+        default_factory=now_utc,
         validation_alias="updatedAt",
         serialization_alias="updatedAt",
     )

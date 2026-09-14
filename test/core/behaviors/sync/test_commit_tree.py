@@ -6,7 +6,7 @@ from unittest.mock import MagicMock
 import py_trees
 import pytest
 
-from vultron.core.models._helpers import _now_utc
+from vultron.core.models._helpers import now_utc
 from py_trees.common import Status
 
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
@@ -35,7 +35,7 @@ def _canonical_note_snapshot(actor_id: str, note_id: str) -> dict[str, object]:
         "type": "Add",
         "actor": actor_id,
         # CLP-07-011: recorded snapshots carry the asserter's claimed timestamp.
-        "published": _now_utc().isoformat(),
+        "published": now_utc().isoformat(),
         "object": {
             "type": "Note",
             "id": note_id,

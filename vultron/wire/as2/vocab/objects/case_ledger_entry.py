@@ -46,7 +46,7 @@ from typing import Any, Literal, Optional
 
 from pydantic import Field
 
-from vultron.core.models._helpers import _now_utc
+from vultron.core.models._helpers import now_utc
 from vultron.core.models.case_ledger_entry import (
     CaseLedgerEntry as CoreCaseLedgerEntry,
     VultronCaseLedgerEntry,
@@ -122,7 +122,7 @@ class as_CaseLedgerEntry(VultronAS2Object):
         serialization_alias="entryHash",
     )
     received_at: datetime = Field(
-        default_factory=_now_utc,
+        default_factory=now_utc,
         description="Server-generated TZ-aware UTC receipt timestamp",
         validation_alias="receivedAt",
         serialization_alias="receivedAt",

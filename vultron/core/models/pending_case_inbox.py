@@ -22,7 +22,7 @@ from typing import Any, Literal
 
 from pydantic import Field, model_validator
 
-from vultron.core.models._helpers import _now_utc
+from vultron.core.models._helpers import now_utc
 from vultron.core.models.base import UriString, VultronObject
 
 
@@ -44,7 +44,7 @@ class VultronPendingCaseInbox(VultronObject):
         description="Deferred inbox activity IDs awaiting the case replica",
     )
     queued_at: datetime = Field(
-        default_factory=_now_utc,
+        default_factory=now_utc,
         description="UTC timestamp when the first activity was queued for this case",
     )
     case_actor_id: UriString | None = Field(
