@@ -30,9 +30,13 @@ from test.core.behaviors.bt_harness import BTTestScenario
 from vultron.core.behaviors.case.nodes.vfd_role_guards import (
     CheckDeployerRoleNode,
     CheckNotSoleObserverVfdNode,
+    CheckSomeVendorAtVFNode,
     CheckVendorRoleNode,
 )
+from vultron.core.models.dimensions import VfDimension
+from vultron.core.models.participant_status import ParticipantStatus
 from vultron.core.models.vultron_types import VultronCase, VultronParticipant
+from vultron.core.states.cs import CS_vf
 from vultron.enums.roles import CVDRole
 
 CASE_ID = "https://example.org/cases/case-001"
@@ -410,40 +414,99 @@ def test_not_sole_observer_failure_when_case_missing(
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "CSB-15-004: CheckDeployerRoleNode does not yet enforce the VFd causal gate. "
-        "A DEPLOYER-only actor MUST be blocked (FAILURE) when no VENDOR participant "
-        "in the case has reached VFd. Tracked by #2593."
-    ),
-)
 @pytest.mark.spec("CSB-15-004")
 @pytest.mark.executes_as(DEPLOYER_ACTOR_ID)
 def test_deployer_only_blocked_when_no_vendor_at_vfd(
     bt_scenario: BTTestScenario,
     case_with_vendor_and_deployer: VultronCase,
 ) -> None:
-    """DEPLOYER-only d→D MUST be FAILURE when no VENDOR has reached VFd (CSB-15-004).
+    """FAILURE when no VENDOR participant has vf.state=VF (CSB-15-004).
 
-    The fixture seeds a VENDOR participant at default vfd state (not VFd).
-    The causal gate MUST return FAILURE. Currently xfails: CheckDeployerRoleNode
-    returns SUCCESS for any DEPLOYER without checking the VENDOR's VFd state.
+    The fixture seeds a VENDOR participant at the default vf state (not VF).
+    CheckSomeVendorAtVFNode MUST return FAILURE — no vendor has produced a fix.
 
-    `executes_as` matters here even though the assertion is on FAILURE: without
-    it the scenario store belongs to the default actor, the deployer's own store
-    holds no case (ADR-0073), and the node returns FAILURE for "case not found"
-    — which would satisfy a strict xfail for entirely the wrong reason and hide
-    #2593 the moment someone read the result as green.
+    ``executes_as`` is required so the deployer's store is used; without it
+    the case would not be found (ADR-0073), producing FAILURE for the wrong
+    reason.
     """
     result = bt_scenario.run(
-        CheckDeployerRoleNode(
+        CheckSomeVendorAtVFNode(
             case_id=case_with_vendor_and_deployer.id_,
             actor_id=DEPLOYER_ACTOR_ID,
         ),
         actor_id=DEPLOYER_ACTOR_ID,
     )
     assert result.status == Status.FAILURE
+
+
+@pytest.fixture
+def vendor_at_vf_participant() -> VultronParticipant:
+    return VultronParticipant(
+        id_="https://example.org/participants/vendor-at-vf-cp-001",
+        attributed_to=VENDOR_ACTOR_ID,
+        context=CASE_ID,
+        case_roles=[CVDRole.VENDOR],
+        participant_statuses=[
+            ParticipantStatus(
+                id_="https://example.org/statuses/vendor-vf-status-001",
+                context=CASE_ID,
+                attributed_to=VENDOR_ACTOR_ID,
+                vf=VfDimension(state=CS_vf.VF),
+            )
+        ],
+    )
+
+
+@pytest.fixture
+def case_with_vendor_at_vf_and_deployer(
+    bt_scenario: BTTestScenario,
+    vendor_at_vf_participant: VultronParticipant,
+    deployer_participant: VultronParticipant,
+    coordinator_participant: VultronParticipant,
+) -> VultronCase:
+    case = VultronCase(
+        id_=CASE_ID,
+        name="Test Case",
+        case_participants=[
+            vendor_at_vf_participant.id_,
+            deployer_participant.id_,
+            coordinator_participant.id_,
+        ],
+        actor_participant_index={
+            VENDOR_ACTOR_ID: vendor_at_vf_participant.id_,
+            DEPLOYER_ACTOR_ID: deployer_participant.id_,
+            COORDINATOR_ACTOR_ID: coordinator_participant.id_,
+        },
+    )
+    bt_scenario.seed(
+        vendor_at_vf_participant,
+        deployer_participant,
+        coordinator_participant,
+        case,
+    )
+    return case
+
+
+@pytest.mark.spec("CSB-15-004")
+@pytest.mark.executes_as(DEPLOYER_ACTOR_ID)
+def test_deployer_allowed_when_some_vendor_at_vf(
+    bt_scenario: BTTestScenario,
+    case_with_vendor_at_vf_and_deployer: VultronCase,
+) -> None:
+    """SUCCESS when at least one VENDOR participant has vf.state=VF (CSB-15-004).
+
+    The fixture seeds a VENDOR participant at vf.state=VF (fix-ready).
+    CheckSomeVendorAtVFNode MUST return SUCCESS — the causal precondition is
+    satisfied and the deployer may advance d→D.
+    """
+    result = bt_scenario.run(
+        CheckSomeVendorAtVFNode(
+            case_id=case_with_vendor_at_vf_and_deployer.id_,
+            actor_id=DEPLOYER_ACTOR_ID,
+        ),
+        actor_id=DEPLOYER_ACTOR_ID,
+    )
+    assert result.status == Status.SUCCESS
 
 
 def test_not_sole_observer_failure_when_actor_not_in_case(
