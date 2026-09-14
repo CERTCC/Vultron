@@ -64,20 +64,6 @@ def resolve_participant_actor_by_role(
     return None
 
 
-def resolve_case_manager_id(
-    case: VulnerabilityCase,
-    dl: CasePersistence,
-) -> str | None:
-    """Return the actor ID of the CASE_MANAGER participant, or None.
-
-    Behaviors-layer twin of
-    ``vultron.core.use_cases._helpers._resolve_case_manager_id``; kept here so
-    BT nodes (e.g. ``EmitCFActivity``, ``EmitCDActivity``) resolve the Case
-    Actor without a behaviors→use_cases import (BTND-04-003).
-    """
-    return resolve_participant_actor_by_role(case, dl, CVDRole.CASE_MANAGER)
-
-
 def resolve_case_owner_id(
     case: VulnerabilityCase,
     dl: CasePersistence,
