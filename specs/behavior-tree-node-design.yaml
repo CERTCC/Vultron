@@ -756,7 +756,9 @@ groups:
       (`CaseParticipant.append_rm_state`). Binding the writer rather than the
       validator closes both gaps, and the ratchet keys on constructing a dimension
       rather than on naming a predicate — so validating less no longer confers
-      invisibility.
+      invisibility. A dimension-construction gate does not by itself reach the wire
+      projection (`as_CaseParticipant.append_rm_state`), which builds
+      `as_ParticipantStatus` from flat fields; that shape needs its own trigger.
     relationships:
     - rel_type: refines
       spec_id: BTND-10-001
@@ -768,6 +770,7 @@ groups:
       note: Reporting every violation at a ParticipantStatus write boundary
     adr:
     - ADR-0086
+    - ADR-0089
     verification: >-
       An architecture ratchet asserts that no node validating a ParticipantStatus
       write calls the individual transition or entailment predicates directly. A unit
@@ -806,14 +809,17 @@ groups:
       that node's `update()` directly.
     rationale: >-
       Five sites did exactly that (`develop_fix.py`, `deploy_fix.py`,
-      `close_case_effect.py` and twice in `leave.py`). A nested `update()` call skips
-      `setup()` and the tick cycle, so declared ports are never resolved and the
-      enclosing composite cannot observe the child's status; `deploy_fix.py`
-      additionally wrapped the call in `try/except`, which is the failure-swallowing
-      shape notes/bt-integration.md documents. Six further nodes bypassed the write
-      node entirely, giving three distinct ways to perform one write. One way is the
-      point: two mechanisms for one purpose must both be maintained and tested, and
-      they drift (CS-22-001).
+      `close_case_effect.py` and twice in `leave.py`), producing six nested
+      `update()` calls because `develop_fix.py` ticks one shared helper-built node
+      from two places. A nested `update()` call skips `setup()` and the tick cycle,
+      so declared ports are never resolved and the enclosing composite cannot
+      observe the child's status; `deploy_fix.py` and `develop_fix.py` additionally
+      wrapped the call in `try/except`, which is the failure-swallowing shape
+      notes/bt-pitfalls.md documents under "Always Check
+      BTBridge.execute_with_setup Return Value". Six further nodes bypassed the
+      write node entirely, giving three distinct ways to perform one write. One way
+      is the point: two mechanisms for one purpose must both be maintained and
+      tested, and they drift (CS-22-001).
     relationships:
     - rel_type: depends_on
       spec_id: BTND-10-002

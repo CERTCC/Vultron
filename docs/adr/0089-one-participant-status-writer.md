@@ -15,24 +15,42 @@ evaluator, `participant_transition_violations()`, and required every validating
 node to call it (BTND-10-002). CONCERN-3111 recorded that two writers stayed
 outside it and asked whether to consolidate them.
 
-Scoping the concern found seven writers, not two — and three of them are
+Scoping the concern found seven writers, not two — and four of them are
 invisible to the ratchet that was built to discover the population:
 
 | Writer | Validates | Discovered by the ratchet? |
 |---|---|---|
 | `CreateParticipantStatusNode` | the whole rule set | yes |
 | `CaseParticipant.append_rm_state()` | RM adjacency only | yes, declared |
-| `as_CaseParticipant.append_rm_state()` | RM adjacency only | yes, declared |
 | `_ReportPhaseRMTransition._write_latch()` | RM adjacency only | yes, declared |
+| `as_CaseParticipant.append_rm_state()` | RM adjacency only | **no** — undeclared *and* undetected |
 | `common.py::_get_or_create_accepted_status()` | **nothing** | **no** |
 | `owner.py::_build_owner_initial_status()` | **nothing** | **no** |
 | `case_proposal_received_tree.py::_build_bootstrap_statuses()` | **nothing** | **no** |
+
+"Writer" here means a site that appends a ladder rung or writes the marker
+record. The census deliberately excludes three other kinds of
+`ParticipantStatus` construction, none of which advances a participant:
+`CaseParticipant._init_participant_status_if_empty` and the two copies of
+`_set_accepted_status` (on `ReporterParticipant` and `FinderReporterParticipant`)
+are constructor-seeding validators; `demo/helpers/seeding.py` is test-fixture
+seeding; `wire/as2/extractor/_builders.py` is the wire→core projection. The two
+`_set_accepted_status` copies are byte-identical, which is its own
+ARCH-15-004 / CS-22-001 problem that the work below de-duplicates.
 
 `test_no_undeclared_participant_status_validator` flags a module only when it
 *both* names a member predicate *and* constructs a dimension object. A writer
 that validates nothing names no predicate, so it is never flagged. The detector
 therefore catches partially-validating writers and misses wholly-unvalidated
 ones — the worse of the two.
+
+The wire twin fails the gate from the other direction, and is the harder case: it
+*does* name `is_valid_rm_transition`, but it builds `as_ParticipantStatus` from
+flat fields rather than a dimension object, so the construction half never
+matches. It is also in neither declaration list — the ratchet does not reference
+`vultron/wire/` at all. Widening the gate to construction alone (below) does not
+reach it either; the wire projection's construction shape must be added to the
+trigger set explicitly.
 
 Two further findings shaped the decision.
 
@@ -120,12 +138,15 @@ always has a case, because state written when there is no case is no longer a
 tree, never constructed and ticked inside another node's `update()`.
 
 Five sites do the nested thing today (`deploy_fix.py`, `develop_fix.py`,
-`close_case_effect.py`, and twice in `leave.py`). A nested `update()` call skips
-`setup()` and the tick cycle, and `deploy_fix.py` wraps it in `try/except` —
-the failure-swallowing shape `notes/bt-integration.md` warns about. Six further
-nodes bypass the writer entirely and call `update_participant_rm_state()`
-instead; five of those six do nothing else and are deleted rather than
-converted.
+`close_case_effect.py`, and twice in `leave.py`), producing six nested `update()`
+calls — `develop_fix.py` builds the node once in a shared `_make_status_node()`
+helper and ticks it from two places. A nested `update()` call skips `setup()` and
+the tick cycle, and two of the five sites wrap it in `try/except` — `deploy_fix.py`
+and `develop_fix.py`, the latter on both of its calls — which is the
+failure-swallowing shape `notes/bt-pitfalls.md` § "Always Check
+`BTBridge.execute_with_setup` Return Value" warns about. Six further nodes bypass
+the writer entirely and call `update_participant_rm_state()` instead; five of
+those six do nothing else and are deleted rather than converted.
 
 ### One way to supply each input
 
@@ -147,12 +168,28 @@ One mechanism per input, so there is no second path to test.
 ### The ratchet fires on construction, not on validation
 
 The detector's gate changes from "names a member predicate **and** builds a
-dimension" to "**builds a participant dimension**". Validating less no longer
-buys invisibility. The widened detector lands first, with every
-then-remaining writer declared, so the exclusion list can only shrink as the
-work proceeds. It ends holding two entries, both deliberate: the receive path
-(`_adjudication.py`, ADR-0061) and the replica-apply path
-(`participant_status_effect.py`, RSH-05-021).
+dimension" to "**builds a participant dimension**", plus an explicit trigger for
+the wire projection's flat-field construction, which no dimension-based gate can
+see. Validating less no longer buys invisibility.
+
+The widened detector lands first, with every then-remaining writer declared. Note
+that this makes the exclusion list *grow* before it shrinks: the construction-only
+gate matches 15 modules under `vultron/`, so the list goes from four entries today
+to roughly thirteen at landing. The gate over-catches read-side and projection
+code that never writes a participant status —
+`report/nodes/develop_fix_conditions.py`, `status/nodes/case_status.py`,
+`status/nodes/cs_dimension_filter.py`, `demo/helpers/seeding.py`,
+`wire/as2/extractor/_builders.py`, `wire/as2/vocab/objects/case_status.py`. Those
+declarations are the price of a gate that cannot be escaped by validating less;
+they are permanent, and each needs a reason recorded.
+
+From there the list is driven down as the work proceeds, ending at two *writer*
+exclusions, both deliberate: the receive path (`_adjudication.py`, ADR-0061) and
+the replica-apply path (`participant_status_effect.py`, RSH-05-021). If the
+over-catch proves too noisy to live with, the alternative is a narrower gate that
+keys on assignment into `participant_statuses` — but that reintroduces a
+structural property a writer can dodge, which is the failure mode this section
+exists to remove.
 
 ### Blast radius: measured, and zero on legal data
 
@@ -160,17 +197,28 @@ CONCERN-3111 feared that applying the whole rule set to an RM-only write would
 newly enforce the cross-machine entailments, with unknown cost. Enumerating
 `composite_state_violations()` over every `(RM, vf, d)` triple settles it.
 
-The entailments fire only when the F bit or the D bit is set *and* RM is not in
-`{ACCEPTED, DEFERRED, CLOSED}`. Three of the converted sites write `ACCEPTED`,
-`DEFERRED` or `CLOSED`, so they cannot fire. The other two write `VALID` and
-`INVALID`; `VALID` is reachable only from `RECEIVED` or `INVALID`, `INVALID`
-only from `RECEIVED`, and `RECEIVED` only from `START`. Reaching a fix-ready
-`vf` requires having passed `ACCEPTED`, and RM never walks back to `RECEIVED`.
-So no legal state can present a fix-ready or deployed value at those targets.
+Only two of the three entailments are RM-coupled. RM↔VF and RM↔D (CSB-18-001)
+fire when the F bit or the D bit is set *and* RM is not in
+`{ACCEPTED, DEFERRED, CLOSED}`. VF↔D (CSB-17-001) is RM-independent —
+`violation_vf_d_entailment()` takes only `(vf, d)` and
+`composite_state_violations()` calls it unconditionally — so no RM value confers
+immunity from it.
 
-The only combinations that remain refusable are `(vf, D)` and `(Vf, D)` —
-deployed before ready. Those states are already corrupt; refusing them is a fix,
-and repairing them is the receive path's job (RSH-05-020).
+For the RM-coupled pair, reachability closes the question. Three of the converted
+sites write `ACCEPTED`, `DEFERRED` or `CLOSED`, which is outside those two rules'
+firing range. The other two write `VALID` and `INVALID`; `VALID` is reachable only
+from `RECEIVED` or `INVALID`, `INVALID` only from `RECEIVED`, and `RECEIVED` only
+from `START`. Reaching a fix-ready `vf` requires having passed `ACCEPTED`, and RM
+never walks back to `RECEIVED`. So no legal state can present a fix-ready or
+deployed value at those targets.
+
+That leaves VF↔D, which can fire at any RM state. The only combinations it
+refuses are `(vf, D)` and `(Vf, D)` — deployed before ready. Note that the D
+machine alone does not forbid these: `is_valid_d_transition()` permits `d → D`
+without consulting `vf`, so the VF↔D entailment is the *only* thing that rules
+them out. That is the point of enforcing it on this path too. Such states are
+already corrupt; refusing them is a fix rather than a cost, and repairing them is
+the receive path's job (RSH-05-020).
 
 ### Consequences
 
@@ -263,6 +311,5 @@ dispositions), ADR-0041 (CaseActor-authoritative initialization, superseding
 ADR-0015), ADR-0075 (role-owned dimensions), ADR-0033 (lifecycle-staged types).
 
 Generated spec requirements: `specs/behavior-tree-node-design.yaml` BTND-10-002
-(amended) and BTND-10-004 through BTND-10-006; `specs/report-management.yaml`
-RM-pre-case entry for `ReportCaseLink`. Design notes:
-`notes/domain-validation.md`.
+(amended) and BTND-10-004 through BTND-10-006 — BTND-10-006 carries the
+`ReportCaseLink` relocation. Design notes: `notes/domain-validation.md`.

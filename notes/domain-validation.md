@@ -437,20 +437,30 @@ validators structurally rather than from a list — which is how it found the tw
 writers below. Its `_DECLARED_EXCLUSIONS` records the sites that legitimately sit
 outside the evaluator, each with a reason.
 
-### There were seven writers, and three were invisible (#3111, ADR-0089)
+### There were seven writers, and four were invisible (#3111, ADR-0089)
 
-CONCERN-3111 recorded two writers outside the evaluator. Scoping it found seven.
-The three the ratchet could not see are the important part:
+CONCERN-3111 recorded two writers outside the evaluator. Scoping it found seven
+that append a ladder rung or write the marker record. The four the ratchet could
+not see are the important part:
 
 | Writer | Validates | Ratchet sees it? |
 |---|---|---|
 | `CreateParticipantStatusNode` | the whole rule set | yes |
 | `CaseParticipant.append_rm_state()` | RM adjacency only | declared |
-| `as_CaseParticipant.append_rm_state()` | RM adjacency only | declared |
 | `_ReportPhaseRMTransition._write_latch()` | RM adjacency only | declared |
+| `as_CaseParticipant.append_rm_state()` | RM adjacency only | **no** — wire twin, see below |
 | `common.py::_get_or_create_accepted_status()` | **nothing** | **no** |
 | `owner.py::_build_owner_initial_status()` | **nothing** | **no** |
 | `case_proposal_received_tree.py::_build_bootstrap_statuses()` | **nothing** | **no** |
+
+Count the writers, not the `ParticipantStatus(...)` calls: the seven above
+exclude the constructor-seeding validators
+(`CaseParticipant._init_participant_status_if_empty`, and
+`_set_accepted_status` on `ReporterParticipant` and `FinderReporterParticipant`
+— see the seeding-validator pitfall below), the demo seeder in
+`demo/helpers/seeding.py`, and the wire→core extractor in
+`wire/as2/extractor/_builders.py`. Those construct a status but do not advance a
+participant's ladder.
 
 **The detector's gate was the hole.**
 `test_no_undeclared_participant_status_validator` flagged a module only when it
@@ -459,6 +469,16 @@ that validates nothing names no predicate, so it was never flagged — the
 detector caught partial validators and missed wholly-unvalidated ones. Under
 ADR-0089 the gate is construction alone: **any** module that builds a participant
 dimension is in the population. Validating less no longer buys invisibility.
+
+**The wire twin escapes both gates, and needs its own trigger.**
+`as_CaseParticipant.append_rm_state()` is in neither `_VALIDATING_NODE_MODULES`
+nor `_DECLARED_EXCLUSIONS` — the ratchet has no reference to `vultron/wire/` at
+all. It names `is_valid_rm_transition`, so the *old* gate's predicate half
+matches, but it builds `as_ParticipantStatus` from flat fields (`rm_state=`)
+rather than a dimension object, so the construction half never fires. Widening
+the gate to construction alone does not reach it either, for the same reason. The
+wire projection's construction shape has to be added to the trigger set
+explicitly, or "every writer is visible" stays false for the wire layer.
 
 The general lesson: when a structural ratchet keys on evidence of *doing the
 right thing badly*, the code that does nothing at all is outside its reach. Key
@@ -493,10 +513,13 @@ has a case — so no fourth ADR-0087 disposition is needed.
 
 **Do not reach for the writer from inside another node.** Five sites used to
 build `CreateParticipantStatusNode` inside their own `update()` and call
-`node.update()` directly. That skips `setup()` and the tick cycle, and one site
-wrapped it in `try/except`, which is the swallowing shape
-[bt-integration.md](bt-integration.md) warns about. The node is always a real
-tree child.
+`node.update()` directly — six such calls, because `develop_fix.py` builds it
+once in a shared `_make_status_node()` helper and ticks it from two places. That
+skips `setup()` and the tick cycle, and two of the sites (`deploy_fix.py`, and
+`develop_fix.py` on both of its calls) wrapped it in `try/except`, which is the
+swallowing shape [bt-pitfalls.md](bt-pitfalls.md) § "Always Check
+`BTBridge.execute_with_setup` Return Value" warns about. The node is always a
+real tree child.
 
 **One mechanism per input.** `case_id` is always the blackboard port
 (`CaseIdInputPortMixin`) — the only mechanism that works in received trees,
@@ -514,25 +537,37 @@ read the *effective* `vf`/`d` for the first time. Enumerating
 `composite_state_violations()` over every `(RM, vf, d)` triple settles it, and
 the answer is zero on legal data.
 
-The entailments fire only when the F bit or D bit is set **and** RM is not in
-`{ACCEPTED, DEFERRED, CLOSED}`. `VALID` is reachable only from `RECEIVED` or
-`INVALID`; `INVALID` only from `RECEIVED`; `RECEIVED` only from `START`. Holding
-a fix-ready `vf` requires having passed `ACCEPTED`, and RM never walks back to
-`RECEIVED`. So no legal state presents a fix-ready or deployed value at the
-targets where the rules could bite.
+Be precise about which rule carries the RM guard. The two **RM-coupled**
+entailments — RM↔VF and RM↔D (CSB-18-001) — fire only when the F bit or D bit is
+set **and** RM is not in `{ACCEPTED, DEFERRED, CLOSED}`. The **VF↔D** entailment
+(CSB-17-001) is RM-independent: `violation_vf_d_entailment()` takes only
+`(vf, d)`, and `composite_state_violations()` calls it unconditionally. So "RM is
+`ACCEPTED`" buys immunity from two of the three rules, not from all three.
 
-What remains refusable is `(vf, D)` and `(Vf, D)` — deployed before ready.
-Those states are already corrupt; refusing them is a fix, and repairing them is
-the receive path's job (RSH-05-020). Note the shape of this argument: the blast
-radius was bounded by *reachability*, not by running the suite. Prefer that
-where the rule set is a pure function over enums.
+For the RM-coupled pair, reachability closes it: `VALID` is reachable only from
+`RECEIVED` or `INVALID`; `INVALID` only from `RECEIVED`; `RECEIVED` only from
+`START`. Holding a fix-ready `vf` requires having passed `ACCEPTED`, and RM never
+walks back to `RECEIVED`. So no legal state presents a fix-ready or deployed
+value at the targets where those two rules could bite.
+
+What remains refusable — at **any** RM state, since this is the RM-independent
+rule — is `(vf, D)` and `(Vf, D)`: deployed before ready. Those states are
+already corrupt; refusing them is a fix, and repairing them is the receive path's
+job (RSH-05-020). Note the shape of this argument: the blast radius was bounded
+by *reachability*, not by running the suite. Prefer that where the rule set is a
+pure function over enums — but scope the bound to the rules that actually read
+the dimension you are bounding on.
 
 The import cycle CONCERN-3111 predicted is real —
 `models/case_participant.py` → `states/participant_transitions.py` →
 `predicates/participants.py` → back — but it is **moot** under ADR-0089, because
-the model no longer validates anything. It is also trivially breakable: the
+the model no longer validates anything. It is also breakable, in two steps: the
 `CaseParticipant` import in `predicates/participants.py` is annotation-only and
-belongs under the `TYPE_CHECKING` block already present in that file.
+belongs under the `TYPE_CHECKING` block already present in that file — but that
+module has no `from __future__ import annotations`, and its one use is an
+*unquoted* function annotation, which Python evaluates when the `def` runs. Move
+the import and quote the annotation (or add the future import); moving it alone
+raises `NameError` at import time.
 
 ### Pitfall: an RM-only append resets the vendor and deployer paths
 

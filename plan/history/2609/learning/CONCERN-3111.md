@@ -20,9 +20,12 @@ through BTND-10-006. Notes: `notes/domain-validation.md`.
 
 **The population was seven, not two.** The concern named
 `CaseParticipant.append_rm_state()` and `_ReportPhaseRMTransition._guard_transition()`.
-Scoping found seven writers, three of which the ratchet built to discover the
+Scoping found seven writers, four of which the ratchet built to discover the
 population could not see: `_get_or_create_accepted_status()`,
-`_build_owner_initial_status()` and `_build_bootstrap_statuses()`.
+`_build_owner_initial_status()`, `_build_bootstrap_statuses()` — and the wire twin
+`as_CaseParticipant.append_rm_state()`, which escapes for the opposite reason
+(it names a predicate but builds `as_ParticipantStatus` from flat fields, so the
+gate's construction half never matches, and it is in no declaration list).
 
 **The ratchet's gate inverted the incentive.**
 `test_no_undeclared_participant_status_validator` flagged a module only when it
@@ -49,9 +52,9 @@ investigation:
 
 | Objection | Finding |
 |---|---|
-| "Unmeasured blast radius" on cross-machine entailments | **Zero on legal data**, and bounded by *reachability* rather than by running the suite. The entailments fire only when the F or D bit is set and RM ∉ {ACCEPTED, DEFERRED, CLOSED}. `VALID` is reachable only from `RECEIVED`/`INVALID`, `INVALID` only from `RECEIVED`, and a fix-ready `vf` requires having passed `ACCEPTED`, which RM never walks back from. Only `(vf, D)` and `(Vf, D)` remain refusable, and those states are already corrupt. |
+| "Unmeasured blast radius" on cross-machine entailments | **Zero on legal data** for the two RM-coupled rules, bounded by *reachability* rather than by running the suite. RM↔VF and RM↔D fire only when the F or D bit is set and RM ∉ {ACCEPTED, DEFERRED, CLOSED}; `VALID` is reachable only from `RECEIVED`/`INVALID`, `INVALID` only from `RECEIVED`, and a fix-ready `vf` requires having passed `ACCEPTED`, which RM never walks back from. VF↔D is RM-independent, so no RM value bounds it: it refuses `(vf, D)` and `(Vf, D)` at any RM state, which the D machine alone permits and which are corrupt regardless. Scope a reachability bound to the rules that actually read the dimension you bound on. |
 | "The model cannot resolve the PXA baseline" | Only partly true. `resolve_participant_pxa_state()` treats the participant's *own* snapshots as authoritative and reads the case only as a fallback (#2264). Moot in the end: on an RM-only write `requested_pxa` is `None`, so the PXA rule is empty and the compound rule short-circuits on `current_vf is None`. |
-| "Probable import cycle" | **Real and confirmed empirically** — `models/case_participant.py` → `states/participant_transitions.py` → `predicates/participants.py` → back. Also trivially breakable: the `CaseParticipant` import in `predicates/participants.py` is annotation-only and belongs under the `TYPE_CHECKING` block already in that file. Moot under ADR-0089, because the model stops validating. |
+| "Probable import cycle" | **Real and confirmed empirically** — `models/case_participant.py` → `states/participant_transitions.py` → `predicates/participants.py` → back. Breakable in two steps: the `CaseParticipant` import in `predicates/participants.py` is annotation-only and belongs under the `TYPE_CHECKING` block already in that file, but the module lacks `from __future__ import annotations` and its one use is an unquoted function annotation, so the import must move *and* the annotation be quoted. Moot under ADR-0089, because the model stops validating. |
 
 The general shape: an objection recorded as a reason not to act deserves
 re-testing when it is finally acted on. Two of these three had decayed, and the
@@ -89,9 +92,9 @@ holds the answer to a question that looks new.
 - **Three ways to do one thing, not two.** `CreateParticipantStatusNode` was
   reached as a tree child at 2 sites and constructed-and-ticked inside another
   node's `update()` at 5, while 6 further nodes bypassed it entirely. The nested
-  form skips `setup()` and the tick cycle, and one site wrapped it in
-  `try/except`. A "two writers" concern can hide a third mechanism that is the
-  majority pattern.
+  form skips `setup()` and the tick cycle, and two of those sites (`deploy_fix.py`,
+  `develop_fix.py`) wrapped it in `try/except`. A "two writers" concern can hide a
+  third mechanism that is the majority pattern.
 - **`_set_accepted_status` exists twice**, byte-identical, on `ReporterParticipant`
   and `FinderReporterParticipant` (ARCH-15-004, CS-22-001).
 - **`docs/adr/archived/README.md` claimed the archive was empty** while ADR-0015
