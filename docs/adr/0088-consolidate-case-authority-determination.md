@@ -74,8 +74,9 @@ Role membership is stable from replica-seed onward and has no such window.
 
 ### Authority is not the same question as "which store may append"
 
-`DeclineForeignLedgerCommitNode` / `store_for_actor` (`store_scope.py`) look like
-a third authority check but are not one. They are a downstream **anti-fork**
+`DeclineForeignLedgerCommitNode` (`sync/nodes/ledger_authority.py`) /
+`store_for_actor` (`store_scope.py`) look like a third authority check but are
+not one. They are a downstream **anti-fork**
 guard: once role-authority says "you may commit," they stop a delegated-emit
 fall-through from minting a canonical index in a store that is not the log's
 home (which would fork the hash chain, #2626). Authority (role) and "where the
