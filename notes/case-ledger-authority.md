@@ -600,8 +600,8 @@ correct implementation.
 
 ## `invite_actor_to_case` Uses `disposition="recorded"` (Issue #1689)
 
-`EmitInviteActorToCaseNode._emit()` (in
-`vultron/core/behaviors/case/nodes/actor.py`) was changed from
+`EmitInviteActorToCaseNode._call_factory()` (in
+`vultron/core/behaviors/case/nodes/actor.py`, renamed from `_emit()` by #2881) was changed from
 `disposition="rejected"` to `disposition="recorded"` in PR #1746.
 
 **Why this matters**: `disposition="rejected"` bypasses
