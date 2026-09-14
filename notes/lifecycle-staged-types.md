@@ -76,7 +76,7 @@ The embargo milestone is monotonic: the EM machine
 
 ### ParticipantStatus — per-participant RM/vf/d (no types)
 
-`rm_state` and `vf_state`/`d_state` (split per ADR-0075) are always-present enum fields. The RM.VALID ratchet
+`rm_state` is always-present. `vf_state`/`d_state` (split per ADR-0075) are nullable: auto-seeded for VENDOR/DEPLOYER participants respectively, `None` for participants that hold neither role. The RM.VALID ratchet
 is real (once VALID you cannot return to RECEIVED/INVALID; CLOSED only via
 ACCEPTED/DEFERRED) and the vfd path is monotonic (`v→V→F` on VF, `d→D` on D), but neither adds a
 field. Per LST-01-001 they earn **no subtype**. They become state-group tuples

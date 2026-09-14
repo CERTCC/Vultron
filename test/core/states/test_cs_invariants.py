@@ -212,6 +212,21 @@ def test_cs_from_dimensions_covers_the_full_cross_product():
     assert states == set(CS)
 
 
+@pytest.mark.spec("CSB-17-001")
+@pytest.mark.parametrize(
+    "vf_state,d_state",
+    [
+        (CS_vf.vf, CS_d.D),
+        (CS_vf.Vf, CS_d.D),
+    ],
+)
+def test_cs_from_dimensions_raises_for_impossible_vfd_combos(
+    vf_state, d_state
+):
+    with pytest.raises(KeyError):
+        cs_from_dimensions(vf_state, d_state, CS_pxa.pxa)
+
+
 # --- ephemeral states -----------------------------------------------------
 
 
