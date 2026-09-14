@@ -16,7 +16,7 @@ based on a vulnerable design.
 
 ## State Tracking in MPCVD
 
-Applying our [state-based model](../../topics/process_models/cs/index.md)
+Applying our [state-based model](../process_models/cs/index.md)
 to MPCVD requires a forking approach to the state tracking.
 
 !!! example "MPCVD Case State Tracking"
@@ -60,10 +60,10 @@ The above example implies a need to expand our notation.
     and/or product. For example, $\{ {Vfdpxa}_1, {vfdpxa}_2 \}$ would
     represent the state in which vendor 1 has been notified but vendor 2 has
     not. 
-    We have more to say about this in [Model Interactions](../../topics/process_models/model_interactions/index.md),
+    We have more to say about this in [Model Interactions](../process_models/model_interactions/index.md),
     but we'll borrow the diagram from there to illustrate the concept here.
   
-    {% include-markdown "../../topics/process_models/model_interactions/_cs_global_local.md" %}
+    {% include-markdown "../process_models/model_interactions/_cs_global_local.md" %}
 
 State transitions across vendors need not be simultaneous. Very often,
 vendor notification occurs as new products and vendors are identified as
@@ -90,7 +90,7 @@ behaving independently of all the others. Therefore:
 
     where $N_{vprod}$ represents the number of vendor-product pairs.
 
-This is of course undesirable, as it would result in a wide distribution
+This is undesirable, as it would result in a wide distribution
 of realized histories that more closely resemble the randomness
 assumptions outlined above than a skillful, coordinated effort. Further
 discussion of measuring MPCVD skill can be found below.
@@ -129,7 +129,7 @@ $\mathbf{D}$ as well.
 
 As a result of the dimensionality problem, coordinators and other
 parties to an MPCVD case need to decide how to apply
-[disclosure policy rules](../../topics/process_models/em/principles.md) in cases where different products or vendors
+[disclosure policy rules](../process_models/em/principles.md) in cases where different products or vendors
 occupy different case states with potentially contradictory recommended
 actions. For example, when four out of five vendors involved in a case
 have reached $VFdpxa$ and are ready to publish, but the fifth is still
@@ -140,7 +140,7 @@ set of recommended actions derived from those states.
 One possible function would be to apply a simple voting heuristic such
 as waiting for a simple majority of vendors to reach a state before
 taking action as that state recommends. In our 4/5 $VFdpxa$ example, the
-coordinating parties would simply behave as if the case were in that
+coordinating parties would behave as if the case were in that
 state for all.
 
 Another function could be to weight vendors and products by some
@@ -206,7 +206,7 @@ users of other affected products to unnecessary risks.
     $$
 
     Where $m = |\mathcal{M}| \geq 1$. The edge case when $|\mathcal{M}| = 1$
-    is simply the regular (non-multiparty) case.
+    is the regular (non-multiparty) case.
 
     We can then set desired criteria for the set $\mathcal{M}$, as in the
     benchmarks described in [Benchmarking](./benchmarking.md). In the MPCVD case, we propose to generalize the

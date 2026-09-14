@@ -103,9 +103,21 @@ def test_submit_command_body_matches_payload_and_is_deterministic():
     The activity's own ``published``/``updated`` default to build time; if they
     leaked into the posted body the docs would churn on every build and the
     command would disagree with the payload block above it.
+
+    ``published`` is the exception: the inbox refuses an activity without one,
+    so it is present but pinned to the same fixed timestamp the nested report
+    uses. Asserting the *value* rather than its absence keeps the
+    determinism guarantee intact while matching what the reader must actually
+    send.
+
+    The payload block and the posted body now share one source
+    (``create_report_activity_body``), so their agreement is structural and the
+    equality below is a guard against that wiring being undone rather than a
+    behavioural claim. What it still tests substantively: the block is valid
+    JSON, it carries the pinned timestamp, and no build-time date leaks in.
     """
     body = t.create_report_activity_body()
-    assert "published" not in body
+    assert body["published"] == t._FIXED_TS.isoformat()
     assert "updated" not in body
 
     # The command shows the same message the payload block shows.

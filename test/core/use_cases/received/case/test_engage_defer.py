@@ -476,3 +476,57 @@ class TestDeferCaseLedgerCommit:
         assert isinstance(updated, VultronParticipant)
         latest_status = updated.participant_statuses[-1]
         assert latest_status.rm.state == RM.DEFERRED
+
+
+class TestRegistrySuppliesTheTriggeringActivity:
+    """The registry must populate ``event.activity`` for engage *and* defer.
+
+    ``DEFER_CASE`` lacked ``include_activity=True`` while its ``ENGAGE_CASE``
+    sibling had it, so a received ``Ignore(VulnerabilityCase)`` produced an event
+    with no activity. The ledger snapshot was then dumped from the
+    ``VultronEvent`` itself — which has neither ``type`` nor ``published`` — and
+    the commit aborted at the canonical-signature check, taking the RM→DEFERRED
+    transition with it when the receiving actor held CASE_MANAGER.
+
+    The other tests in this file construct ``activity=VultronActivity(...)`` by
+    hand, so they passed either way: they supplied exactly the thing the registry
+    was failing to supply. These go through ``extract_event`` instead, which is
+    the path production uses.
+    """
+
+    _CASE_ID = "https://example.org/cases/registry-activity-1"
+    _SENDER_ID = "https://example.org/actors/vendor"
+
+    def _wire_case(self):
+        from vultron.wire.as2.vocab.objects.vulnerability_case import (
+            as_VulnerabilityCase,
+        )
+
+        return as_VulnerabilityCase(id_=self._CASE_ID)
+
+    @pytest.mark.parametrize(
+        ("factory_name", "expected_semantics"),
+        [
+            ("rm_defer_case_activity", MessageSemantics.DEFER_CASE),
+            ("rm_engage_case_activity", MessageSemantics.ENGAGE_CASE),
+        ],
+    )
+    def test_extract_event_populates_activity(
+        self, factory_name, expected_semantics
+    ):
+        from vultron.semantic_registry import extract_event
+        from vultron.wire.as2 import factories
+
+        activity = getattr(factories, factory_name)(
+            self._wire_case(), actor=self._SENDER_ID
+        )
+        event = extract_event(activity)
+
+        assert event.semantic_type == expected_semantics
+        assert (
+            event.activity is not None
+        ), f"{factory_name}: registry did not carry the triggering activity"
+        # The snapshot built from it needs both of these; the event itself has
+        # neither, which is why the missing activity aborted the commit.
+        assert event.activity.type_
+        assert event.activity.published is not None

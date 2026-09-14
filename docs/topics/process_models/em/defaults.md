@@ -9,7 +9,7 @@ stalemate of unaccepted proposals, we offer the following guidance.
 
 ## Declaring Defaults
 
-First, we note that all CVD Participants (including Reporters) are
+All CVD Participants (including Reporters) are
 free to establish their own default embargo period in a published
 vulnerability disclosure policy. In particular, we recommend that
 CVD report
@@ -312,7 +312,7 @@ to lengthen it.
         \end{split}$$
     
     From this, we can see that the scalar sum of the agreement vector---and
-    therefore the longest embargo acceptable to both parties---is simply the
+    therefore the longest embargo acceptable to both parties---is the
     lesser of _n_ and _m_:
     
     $$\Sigma ( \mathbf{z} ) = min(n,m)$$
@@ -329,7 +329,7 @@ As an example:
     Vendor to extend the embargo. Even if those continued negotiations fail,
     both parties get at least the 30-day embargo period they agreed on in
     the first place. This should be preferable to both parties versus the
-    alternative of no embargo at all were they to simply reject the shorter
+    alternative of no embargo at all were they to reject the shorter
     proposal.
 
     ```mermaid

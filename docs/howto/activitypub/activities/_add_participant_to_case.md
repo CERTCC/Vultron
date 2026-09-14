@@ -1,6 +1,6 @@
 # Add Participant to Case
 
-Here we provide two examples of adding a participant to a case.
+The following two examples demonstrate adding a participant to a case.
 
 ## Vendor adds self to case
 
@@ -18,7 +18,7 @@ print(json2md(add_vendor_participant_to_case()))
 
 In the second example, the vendor actor adds the finder to the case in the finder and reporter roles.
 Again, this might not be done as a separate step, and could be done as part of the
-case creation step. But we include it here to show how to add multiple participants to a case.
+case creation step. This example shows how to add multiple participants to a case.
 
 For example, if a finder reported a vulnerability that was already known to the vendor, the vendor
 might add the finder to the case in the reporter role, but not in the finder role.

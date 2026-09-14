@@ -46,6 +46,59 @@ def _as_utc(value: datetime | None) -> datetime | None:
     return value
 
 
+def parse_published(value: Any) -> datetime | None:
+    """Return *value* as a timezone-aware UTC datetime, or ``None``.
+
+    Accepts a ``datetime`` or an ISO 8601 string; anything else — including a
+    string that is not valid ISO 8601 — yields ``None`` so callers can tell
+    "absent" from "unparseable" by checking the raw value themselves.  Naive
+    inputs are assumed UTC, consistent with :func:`_as_utc`.
+
+    Unlike :func:`_as_utc`, which only *attaches* UTC to a naive value, an
+    aware input in another offset is converted, so the return value is always
+    in UTC.  Comparisons work either way — Python compares aware datetimes
+    across offsets correctly — but the value is rendered into
+    spec-citing violation messages, and a mixed-offset message reads as though
+    the guard compared unlike quantities.
+
+    Shared by the case-ledger commit-boundary guard and the per-actor
+    predecessor lookup that feeds it, so both read a claimed
+    ``payloadSnapshot.published`` the same way (CS-22-001).
+    """
+    if isinstance(value, datetime):
+        parsed: datetime | None = value
+    elif isinstance(value, str):
+        try:
+            parsed = datetime.fromisoformat(value)
+        except ValueError:
+            return None
+    else:
+        return None
+    aware = _as_utc(parsed)
+    return None if aware is None else aware.astimezone(timezone.utc)
+
+
+def claimed_published_iso(activity_obj: Any) -> str:
+    """Return *activity_obj*'s claimed ``published`` as an ISO 8601 string.
+
+    For use by the hand-built ``payloadSnapshot`` dicts that the CaseActor
+    commits on behalf of a participant.  Such a snapshot is attributed to that
+    participant, so its ``published`` must be the participant's own claimed
+    event time — taken from the activity that triggered it — and not the
+    CaseActor's clock.  Mixing two clocks inside one actor's claimed stream is
+    what the CLP-15-003 check reads as a timestamp regression, and it also
+    leaves CLP-14-007/008 comparing the receiver's clock against itself on that
+    path (ISSUE-3149).
+
+    Falls back to the local clock when *activity_obj* is ``None`` or carries no
+    parseable timestamp.  Anything that arrived off the wire has one —
+    ``parse_activity`` refuses an inbound activity without it — so the fallback
+    covers synthesised and legacy callers only.
+    """
+    claimed = parse_published(getattr(activity_obj, "published", None))
+    return (claimed or _now_utc()).isoformat()
+
+
 def status_recency_key(
     updated: datetime | None, published: datetime | None
 ) -> datetime:

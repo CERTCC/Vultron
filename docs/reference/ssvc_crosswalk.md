@@ -232,7 +232,7 @@ This mapping is formalized below and in the figure that follows.
 ---
 title: "RM States and SSVC Supplier Engagement"
 ---
-graph LR
+flowchart LR
     subgraph ssvc_se[SSVC Supplier Engagement]
         Active
         Unresponsive
@@ -290,7 +290,7 @@ The Vendor RM states map onto these values as formalized below and shown in the 
 ---
 title: "RM States and SSVC Supplier Involvement"
 ---
-graph LR
+flowchart LR
     subgraph rm_states[RM States]
         S[Start]
         R[Received]

@@ -1221,10 +1221,15 @@ groups:
   - id: CLP-14-002
     priority: MUST
     kind: protocol
-    statement: The published timestamp on a CaseLedgerEntry MUST be non-null. The
-      CaseActor MUST stamp each entry with its own authoritative clock at commit time.
-    rationale: A null entry timestamp makes invariant checks on ordering impossible
-      and breaks any consumer that tries to order entries by time.
+    statement: The `published` timestamp on the `CaseLedgerEntry` envelope — the
+      CaseActor's commit stamp, as distinct from the claimed `payloadSnapshot.published`
+      — MUST be non-null. The CaseActor MUST stamp each entry with its own authoritative
+      clock at commit time.
+    rationale: 'A null entry timestamp makes invariant checks on ordering impossible
+      and breaks any consumer that tries to order entries by time. Naming the field
+      is load-bearing: an entry carries two timestamps, and applying an envelope
+      requirement to the claimed timestamp (or the reverse) yields a check that is
+      either vacuous or falsely rejecting (ISSUE-2824).'
     adr:
     - ADR-0079
     lint_suppress:
@@ -1232,13 +1237,23 @@ groups:
   - id: CLP-14-003
     priority: MUST
     kind: protocol
-    statement: The published timestamps on consecutive recorded entries MUST be monotonically
-      non-decreasing in log_index order. An entry with a higher log_index MUST NOT
-      carry a published timestamp earlier than the entry with the immediately preceding
-      log_index.
+    statement: The envelope `published` timestamps (the CaseActor's commit stamps) on
+      consecutive recorded entries MUST be monotonically non-decreasing in log_index
+      order. An entry with a higher log_index MUST NOT carry an envelope `published`
+      timestamp earlier than the entry with the immediately preceding log_index. This
+      requirement does NOT apply to the claimed `payloadSnapshot.published`, whose
+      cross-entry ordering is constrained only per participant by CLP-15-003.
     rationale: 'A timestamp inversion would contradict the causal-order claim: if
       entry N has a later log_index than entry N-1 but an earlier timestamp, observers
-      cannot use timestamps as corroborating evidence of the order the CaseActor recorded.'
+      cannot use timestamps as corroborating evidence of the order the CaseActor recorded.
+      Scoped to the envelope stamp because a single writer stamps every entry from one
+      clock, which makes the property hold by construction. Applied instead to the
+      claimed timestamps it would compare two participants'' unsynchronised clocks —
+      the wall-clock ordering ADR-0079 rejected as option C — and would refuse a
+      well-formed assertion whenever two clocks disagreed (ISSUE-2824).'
+    verification: '`check_clp14_timestamp_invariants` in `test/ci/invariants/common.py`,
+      run by every scenario through `universal_harness.py`, compares consecutive
+      recorded entries in log_index order.'
     adr:
     - ADR-0079
     relationships:
@@ -1276,12 +1291,25 @@ groups:
   - id: CLP-14-006
     priority: MUST
     kind: protocol
-    statement: Every CaseLedgerEntry's published timestamp MUST be on or after the
-      parent VulnerabilityCase's own published timestamp. A ledger entry MUST NOT
-      be stamped with a time that precedes the case's creation.
-    rationale: The CaseActor is the single writer and creates the case before committing
+    statement: Every CaseLedgerEntry's envelope `published` timestamp MUST be on or
+      after the parent VulnerabilityCase's own published timestamp. A ledger entry
+      MUST NOT be stamped with a time that precedes the case's creation. The CaseActor
+      MUST additionally reject a recorded assertion whose claimed
+      `payloadSnapshot.published` precedes the parent case's published timestamp by
+      more than the configured clock-skew tolerance (CLP-14-009).
+    rationale: 'The CaseActor is the single writer and creates the case before committing
       any entries. An entry predating the case indicates a clock error or commit-path
       bug; treating it as a protocol violation catches the defect at the boundary.
+      The envelope half holds by construction and is verified by the conformance
+      harness. The claimed half needs a tolerance because the participant''s clock is
+      not the CaseActor''s — a zero-tolerance comparison across two clocks would refuse
+      well-formed assertions from any participant whose clock lags, which is the
+      wall-clock coupling ADR-0079 rejected as option C.'
+    verification: Envelope half — `check_clp14_timestamp_invariants` in
+      `test/ci/invariants/common.py`. Claimed half — `_validate_entry_timestamps` in
+      `vultron/core/behaviors/sync/nodes/canonical_entry.py`, exercised through
+      `CreateLogEntryNode` in
+      `test/core/behaviors/sync/nodes/test_chain_timestamp_guard.py`.
     adr:
     - ADR-0079
     lint_suppress:
@@ -1322,9 +1350,18 @@ groups:
   - id: CLP-14-009
     priority: MAY
     kind: protocol
-    statement: Implementations MAY expose the clock-skew tolerance (CLP-14-007) and
-      the staleness window (CLP-14-008) as configurable parameters so that deployments
-      with known clock conditions can tune the thresholds.
+    statement: Implementations MAY expose the future tolerance (CLP-14-007), the
+      staleness window (CLP-14-008) and the clock-skew tolerance applied to the
+      claimed-timestamp checks (CLP-14-006, CLP-15-003) as configurable parameters
+      so that deployments with known clock conditions can tune the thresholds.
+    rationale: Every threshold that compares a participant's clock against the
+      CaseActor's needs the same escape hatch, because how far apart those clocks run
+      is a deployment fact the protocol cannot know. Enumerating only two of the three
+      left the third — the CLP-14-006 skew tolerance — implemented with no normative
+      basis (ISSUE-2824).
+    verification: '`test/core/models/test_clp_14_15_invariants.py` pins the defaults;
+      `test/core/behaviors/sync/nodes/test_chain_timestamp_guard.py` asserts a
+      `VULTRON_LEDGER__*` override actually binds and changes the outcome.'
     adr:
     - ADR-0079
 - id: CLP-15
@@ -1344,6 +1381,16 @@ groups:
       a participant emits B before A despite A causing B, the CaseActor's ledger will
       record the wrong causal order. The participant is responsible for correct ordering;
       the CaseActor cannot reconstruct causality it did not observe.
+    note: This binds the participant only. It is NOT per-assertion enforceable by the
+      CaseActor, and a CaseActor MUST NOT attempt to enforce it as one — CLP-15-005
+      forbids reconstructing participant-internal causal order, and a stateless
+      commit-boundary check cannot distinguish a causal violation from ordinary
+      transport reordering (ADR-0037). Four `xfail(strict=True)` stubs were written
+      against the enforcement reading and could never have passed (ISSUE-2824).
+    verification: '`check_causal_edges` (DEMOMA-22-005) compares declared causal edges
+      against observed ledger order across a whole scenario — the only vantage point
+      from which an emission-order obligation is observable. Covered by
+      `test/core/models/test_clp_14_15_invariants.py::test_clp_15_001_002_out_of_order_emission_detected_at_ledger_order`.'
     adr:
     - ADR-0079
     lint_suppress:
@@ -1358,6 +1405,9 @@ groups:
     rationale: Batched out-of-order submission produces a malformed ledger from the
       CaseActor's perspective. This is a protocol violation on the participant's part,
       not a CaseActor failure.
+    note: Binds the participant only; not per-assertion enforceable by the CaseActor.
+      See CLP-15-001 notes and CLP-15-005.
+    verification: '`check_causal_edges` (DEMOMA-22-005), as for CLP-15-001.'
     adr:
     - ADR-0079
     relationships:
@@ -1375,6 +1425,19 @@ groups:
       a payloadSnapshot whose timestamp order contradicts the submission order. Even
       if the CaseActor's own entry timestamps are correct, the snapshot timestamps
       become evidence against the order recorded in the ledger.
+    note: 'The obligation is the participant''s. A CaseActor MAY report an observed
+      regression in a participant''s claimed timestamps, and SHOULD do so at a severity
+      that distinguishes a regression within the configured clock-skew tolerance
+      (CLP-14-009) from one beyond it. It MUST NOT refuse the assertion on this signal
+      alone: the CaseActor observes arrival order, not causal order, so it cannot tell
+      a genuine CLP-15-003 violation from transport reordering (ADR-0037) of two
+      assertions that are not causally related. Refusing would also discard the
+      assertion entirely, because the guarded commit precedes the effect nodes
+      (CLP-10-006) — an outcome CLP-15-005 rules out.'
+    verification: '`_validate_entry_timestamps` in
+      `vultron/core/behaviors/sync/nodes/canonical_entry.py` reports the two bands;
+      `test/core/behaviors/sync/nodes/test_chain_timestamp_guard.py` asserts the entry
+      is still recorded and that the report level tracks the tolerance.'
     adr:
     - ADR-0079
     relationships:
@@ -1394,6 +1457,33 @@ groups:
       replays (CLP-14-008).
     adr:
     - ADR-0079
+  - id: CLP-15-006
+    priority: MUST
+    kind: protocol
+    statement: A participant MUST include a `published` timestamp on every protocol
+      activity it emits. A receiver MUST treat an inbound activity that carries no
+      `published` as malformed and reject it at message validation, and MUST NOT
+      substitute its own clock for the missing value.
+    rationale: 'ActivityStreams makes `published` optional, so a receiver that defaults
+      the field cannot afterwards distinguish a time the sender claimed from one the
+      receiver invented. Every downstream check that reads the claimed timestamp then
+      compares the receiver''s clock against itself and can never fire: this is exactly
+      how CLP-14-007 and CLP-14-008 were left vacuous (ISSUE-3149). Rejecting at the
+      threshold keeps the distinction, and keeps a fabricated value from entering a
+      participant''s claimed stream where CLP-15-003 would read it as a regression.
+      A receiver''s own outbound authoring is unaffected — stamping the local clock on
+      an activity you are creating is correct.'
+    verification: '`parse_activity` in `vultron/wire/as2/parser.py` raises
+      `VultronParseMissingPublishedError`, which the FastAPI inbox adapter maps to
+      HTTP 422. Covered by `test/wire/as2/test_parser.py`, including a non-vacuity
+      test that pins the sender''s value against the receiver''s clock.'
+    adr:
+    - ADR-0079
+    relationships:
+    - rel_type: refines
+      spec_id: CLP-15-004
+    lint_suppress:
+    - missing_story_reference
   - id: CLP-15-005
     priority: MUST
     kind: protocol

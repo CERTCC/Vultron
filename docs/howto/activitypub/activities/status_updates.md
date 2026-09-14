@@ -2,7 +2,7 @@
 
 {% include-markdown "../../../includes/not_normative.md" %}
 
-Here we have a number of activities that are used to update the status of a
+This section covers activities used to update the status of a
 case, or to add a comment to a case.
 
 ```mermaid
@@ -45,14 +45,14 @@ response to a status update or a comment:
 !!! tip "A Note on `as:Notes`"
 
     The ActivityStreams vocabulary includes an [`as:Note`](../../../reference/activitypub/objects.md) object, which is
-    used to represent a comment or short post. We use this object to represent 
+    used to represent a comment or short post. This object represents
     comments on a case.
 
 !!! tip "Create *then* Add vs Create with a Target"
 
-    In this documentation, we use the `as:Create` activity to represent the 
-    creation of a new object, such as a new note or a new status. We use the 
-    `as:Add` activity to represent the addition of an existing object to another 
+    In this documentation, `as:Create` represents the 
+    creation of a new object, such as a new note or a new status. `as:Add` 
+    represents the addition of an existing object to another 
     object, such as adding a status to a case.
 
     However, it is likely acceptable within an ActivityPub implementation to
