@@ -56,6 +56,7 @@ from vultron.core.behaviors.sync.nodes import (
     PersistLogEntryNode,
     ReconstructChainTailNode,
 )
+from vultron.core.models._helpers import claimed_published_iso
 
 logger = logging.getLogger(__name__)
 
@@ -155,6 +156,16 @@ def create_close_case_received_tree(
                 payload_snapshot={
                     "type": "Leave",
                     "actor": sender_actor_id,
+                    # The snapshot is attributed to the *sender*, so its
+                    # ``published`` must be the sender's claimed time, taken
+                    # from the inbound Leave. Stamping the CaseActor's own clock
+                    # here would put a foreign clock into the sender's claimed
+                    # stream, which CLP-15-003 then reads as a regression, and
+                    # would leave CLP-14-007/008 comparing the receiver's clock
+                    # against itself on this path (ISSUE-3149). The inbound
+                    # activity always carries one — the parser refuses it
+                    # otherwise — so the fallback is defence in depth only.
+                    "published": claimed_published_iso(activity_obj),
                     "object_": {"type": "VulnerabilityCase", "id_": case_id},
                     "context": case_id,
                 },

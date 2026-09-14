@@ -226,6 +226,37 @@ def test_extract_intent_activity_origin_field():
     assert event.activity.origin == "https://example.org/cases/original"
 
 
+@pytest.mark.spec("CLP-15-004")
+def test_extract_intent_preserves_sender_published_timestamp():
+    """The sender's claimed ``published`` survives the wire→core boundary.
+
+    ``_build_activity_snapshot`` used to omit ``published``, so
+    ``VultronActivity.published`` fell back to ``default_factory=now_utc`` — the
+    *receiver's* clock.  That silently destroyed the only evidence of when the
+    sender says the event happened, and left the CLP-14-007/008
+    commit-boundary guards comparing the receiver's clock against itself, so
+    neither could ever fire (ISSUE-3149).
+    """
+    from vultron.wire.as2.vocab.base.objects.activities.transitive import (
+        as_Create,
+    )
+    from vultron.wire.as2.vocab.objects.vulnerability_report import (
+        as_VulnerabilityReport,
+    )
+
+    claimed = datetime(2026, 3, 4, 5, 6, 7, tzinfo=timezone.utc)
+    report = as_VulnerabilityReport(name="VR-001", content="test")
+    activity = as_Create(
+        actor="https://example.org/alice",
+        object_=report,
+        published=claimed,
+    )
+    event = extract_event(activity)
+
+    assert event.activity is not None
+    assert event.activity.published == claimed
+
+
 @pytest.mark.spec("VAM-06-001")
 def test_extract_intent_participant_case_roles():
     """VultronParticipant.case_roles is populated from the wire as_CaseParticipant."""
