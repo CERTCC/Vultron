@@ -157,11 +157,11 @@ General information about architectural decision records is available at <https:
 - [ADR-0085 Owner-Close Is a Hard Write Boundary; RM.CLOSED Is Terminal and Rejoin Is Unsupported](0085-case-lifecycle-boundaries.md)
 - [ADR-0086 Report Every Violation, Reject the Batch — and the Emit/Receive Dispositions Are Postel's Maxim](0086-report-every-violation-reject-the-batch.md)
 - [ADR-0087 Case-Resolution Disposition for BT Nodes Is Chosen by Role, Not Re-Decided Per Call Site](0087-case-resolution-disposition-policy.md)
+- [ADR-0088 Authority Is the CASE_MANAGER Role; "Case Actor" Is Role-Enactment Shorthand, Not an Identity](0088-consolidate-case-authority-determination.md)
 
 ## Proposed ADRs
 
 - [ADR-0020 Move Inbox Orchestration into a Core BT Module with a Typed `process_payload` Seam](0020-inbox-bt-orchestration.md)
-- [ADR-0088 Authority Is the CASE_MANAGER Role; "Case Actor" Is Role-Enactment Shorthand, Not an Identity](0088-consolidate-case-authority-determination.md)
 
 ## Rejected ADRs
 

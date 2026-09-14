@@ -1,5 +1,5 @@
 ---
-status: proposed
+status: accepted
 date: 2026-09-14
 deciders: Allen D. Householder
 consulted:
@@ -240,9 +240,15 @@ A companion glossary change redefines "Case Actor" as shorthand for
 `CASE_MANAGER`-role enactment (typically an automated software actor), with
 authority defined by the role, not by name or identity.
 
-On acceptance this generates recurring testable requirements — the
-single-resolver / single-predicate invariants, the no-name-branching ratchet, and
-the bootstrap-window regression — to be authored in `specs/architecture.yaml` and
-`specs/case-management.yaml` (IDs assigned at authoring time per
-`notes/spec-authoring-rules.md`). Re-visit if per-actor storage authority
-(ADR-0073) or the `CASE_MANAGER` role model changes.
+This decision generates recurring testable requirements, authored alongside it:
+the single-resolver / single-predicate invariants and the no-name-branching
+ratchet in `specs/architecture.yaml` (**ARCH-24-001 through ARCH-24-005**), and
+the role-is-authority / bootstrap-window / name-is-cosmetic requirements in
+`specs/case-management.yaml` (**CM-02-011 through CM-02-013**). The `verification:`
+field on each names the ratchet or regression test that enforces it; those tests
+land with the implementation. Implementation is tracked under Epic #2685
+(Authority model & conservative gate defaults). Re-visit if per-actor storage
+authority (ADR-0073) or the `CASE_MANAGER` role model changes.
+
+Generated spec requirements: `architecture.yaml` ARCH-24-001 through
+ARCH-24-005; `case-management.yaml` CM-02-011 through CM-02-013.
