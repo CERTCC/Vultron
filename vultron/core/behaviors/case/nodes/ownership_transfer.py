@@ -37,7 +37,7 @@ BTND-07-003.
 """
 
 import logging
-from typing import Any, cast
+from typing import Any
 
 from py_trees.common import Status
 
@@ -48,7 +48,6 @@ from vultron.core.behaviors.helpers import (
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models._helpers import _as_id
-from vultron.core.ports.case_persistence import CaseOutboxPersistence
 from vultron.core.use_cases._helpers import _resolve_case_manager_id
 from vultron.enums.roles import CVDRole
 
@@ -196,9 +195,7 @@ class ForwardOfferToTransfereeNode(_EmitSingleActivityBase):
             return Status.FAILURE
         try:
             activity_id, activity_blob = self._call_factory()
-            cast(CaseOutboxPersistence, self.datalayer).outbox_append(
-                activity_id
-            )
+            self._emit_through_seam(activity_id, activity_blob)
         except Exception as e:
             self.feedback_message = f"ForwardOfferToTransfereeNode failed: {e}"
             self.logger.error(self.feedback_message)

@@ -113,16 +113,16 @@ CaseActor inbox receives Accept
 
 ### EmitOfferCaseOwnershipTransferNode
 
-- `_emit()` MUST use `actor=self.actor_id` (the CaseActor's ID) and pass
-  `attributed_to=self.attributed_to` to the factory call.
+- `_call_factory()` MUST use `actor=self.actor_id` (the CaseActor's ID) and pass
+  `attributed_to=self.attributed_to` to the factory call. (Renamed from `_emit()` by #2881.)
 - `to` MUST be `[case_actor_id]` — the Offer routes through the CaseActor
   (CM-21-005); the CaseActor processes it and forwards to the transferee.
 - The `target` field of the Offer carries `transferee_id` (as before).
 
 ### EmitAcceptCaseOwnershipTransferNode
 
-- `_emit()` MUST resolve `case_actor_id` from the DataLayer (using
-  `_resolve_case_manager_id()` or equivalent) and set `to=[case_actor_id]`.
+- `_call_factory()` MUST resolve `case_actor_id` from the DataLayer (using
+  `_resolve_case_manager_id()` or equivalent) and set `to=[case_actor_id]`. (Renamed from `_emit()` by #2881.)
 - Do not address the Accept to the offerer's actor ID.
 
 ### OfferCaseOwnershipTransferReceivedUseCase

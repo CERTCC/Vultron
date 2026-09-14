@@ -2,7 +2,7 @@
 
 {% include-markdown "../../includes/normative.md" %}
 
-In [States](states.md), we identified four main roles in the
+The [States](states.md) page identified four main roles in the
 MPCVD process:
 
 - Finder/Reporter
@@ -10,7 +10,7 @@ MPCVD process:
 - Coordinator
 - Deployer
 
-Here we will examine the messages passed between them.
+This page examines the messages passed between them.
 Revisiting the definitions from the [Formal Protocol Introduction](index.md):
 
 !!! note "Formalism"
@@ -37,7 +37,7 @@ The message types in the Vultron Protocol arise primarily from the following pri
     cooperation and increases the likelihood that future vulnerabilities
     will also be addressed and remedied.
 
-Now we condense that principle into the following protocol
+That principle condenses into the following protocol
 recommendation:
 
 !!! note ""
@@ -56,17 +56,17 @@ If you are looking for a one-sentence summary of the entire Vultron Protocol, th
 
 As a reminder, those transitions are shown at right.
 
-We will address the specific circumstances when each message should be emitted in
-[Transitions](transitions.md), but first we need to
-introduce the message types this recommendation implies.
-We cover messages associated with each state model, in turn, below, concluding the section with a few message types not
+The specific circumstances when each message should be emitted are addressed in
+[Transitions](transitions.md); but first, the message types this recommendation implies
+are introduced here.
+The messages associated with each state model are covered in turn below, concluding with a few message types not
 directly connected to any particular state model.
 
 ## RM Message Types
 
 !!! tip inline end "Finders have hidden states"
 
-    As we discuss in [RM Interactions](../../topics/process_models/rm/rm_interactions.md#the-secret-lives-of-finders),
+    As discussed in [RM Interactions](../../topics/process_models/rm/rm_interactions.md#the-secret-lives-of-finders),
     the Finder's states $q^{rm} \in \{R,I,V\}$ are not observable to the CVD process because Finders start 
     coordination only when they have already reached $q^{rm} = A$.
 
@@ -96,7 +96,7 @@ A summary of the RM message types is shown below.
     $$M^{rm} = \{RS,RI,RV,RD,RA,RC,RK,RE\}$$
 
 All state changes are from the Participant's (sender's) perspective, not the recipient's perspective.
-We will see in [Transitions](transitions.md) that the receipt of a *Report Submission* is the
+As [Transitions](transitions.md) shows, the receipt of a *Report Submission* is the
 only message whose *receipt* directly triggers an RM state change in the receiver.
 All other RM messages are used to convey the sender's status.
 
@@ -125,7 +125,7 @@ this protocol intentionally does not specify any other recipient RM state change
 ## EM Message Types
 
 Whereas the RM process is unique to each Participant, the EM process is global to the case.
-Therefore, we begin with the list of message types a Participant SHOULD emit when their EM state changes.
+Therefore, the message types below are those a Participant SHOULD emit when their EM state changes.
 
 | Message Type | Name | Description                                                                                                                                                                             |
 |:------------:| --- |-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
@@ -207,7 +207,7 @@ A summary of the General message types is shown below.
 
 Thus, the complete set of possible messages between processes is
 $M_{i,j} = M^{rm} \cup M^{em} \cup M^{cs} \cup M^{*}$.
-For convenience, we collected these into the table below.
+For convenience, these are collected into the table below.
 
 | Process Model | $M_{i,j}$ | Message Type | Emit When |
 | :---: | :---: | --- |  |

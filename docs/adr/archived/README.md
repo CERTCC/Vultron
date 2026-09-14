@@ -16,5 +16,9 @@ Each archived ADR:
   forward link to its replacement.
 
 See ADR-0043 and `notes/specs-vs-adrs.md` for the status vocabulary and the
-`decision-audit` skill for how retirement decisions are made. This directory is
-currently empty apart from this README — no ADR has yet been retired.
+`decision-audit` skill for how retirement decisions are made.
+
+Do not restate the contents of this directory here — a count or a "currently
+empty" claim goes stale the moment an ADR is retired (MS-16-001). The directory
+listing is the record. `docs/adr/index.md` § **Superseded / Archived ADRs** is
+the index.
