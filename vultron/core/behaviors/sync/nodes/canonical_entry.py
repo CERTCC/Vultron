@@ -32,7 +32,7 @@ import logging
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
-from vultron.core.models._helpers import _as_utc, parse_published
+from vultron.core.models._helpers import as_utc, parse_published
 from vultron.errors import VultronCanonicalEntryError
 
 logger = logging.getLogger(__name__)
@@ -219,8 +219,8 @@ def _validate_entry_timestamps(
     Raises:
         VultronCanonicalEntryError: On any claimed-timestamp violation.
     """
-    case_published = _as_utc(case_published)
-    prev_actor_published = _as_utc(prev_actor_published)
+    case_published = as_utc(case_published)
+    prev_actor_published = as_utc(prev_actor_published)
 
     raw_published = payload_snapshot.get("published")
     if raw_published is None:  # CLP-07-011

@@ -3244,26 +3244,31 @@ groups:
     statement: >-
       An inbound `Invite.end_time` MUST be normalised to UTC before any
       comparison against the current time, per CS-13-001. A naive (non
-      timezone-aware) `Invite.end_time` MUST be rejected as malformed rather
-      than assumed to be UTC.
+      timezone-aware) `Invite.end_time` MUST be normalised to UTC at the wire
+      edge per ADR-0032, so that downstream comparisons are always against
+      timezone-aware values.
     note: >-
       CS-13-001 governs datetimes the application *produces*; an inbound
       `end_time` is produced by a remote peer and may legitimately carry a
       non-UTC offset (e.g. `+05:00`). Normalising on receipt keeps deadline
-      comparison correct without requiring peers to send `Z`.
+      comparison correct without requiring peers to send `Z`. ADR-0032
+      (`validate_datetime` on `as_Object`) ensures all datetime fields —
+      including `end_time` — are UTC-aware before leaving the wire layer, so
+      naive values are never forwarded to the extractor or core.
     rationale: >-
       A deadline compared in the wrong timezone lapses at the wrong instant,
-      breaking the bilateral determinism CM-28-002 exists to provide. Silently
-      assuming UTC for a naive value would produce an off-by-hours lapse with no
-      diagnostic. See CS-13-001 through CS-13-005 and ADR-0065.
-    verification: A unit test confirms that an inbound `Invite.end_time` with a non-UTC timezone
-      offset is normalised to UTC before deadline comparison, and that a naive
-      (timezone-unaware) value is rejected as malformed.
+      breaking the bilateral determinism CM-28-002 exists to provide. ADR-0032's
+      edge normalisation (naive → UTC) prevents this without per-field guarding
+      in the extractor. See CS-13-001 through CS-13-005 and ADR-0065.
+    verification: A unit test confirms that a naive `Invite.end_time` is normalised to UTC
+      by `validate_datetime` at the wire edge and produces a valid
+      `rsvp_deadline` (not rejected or dropped).
     relationships:
     - rel_type: refines
       spec_id: CS-13-001
     adr:
     - ADR-0065
+    - ADR-0032
     lint_suppress:
     - missing_story_reference
   - id: CM-28-007

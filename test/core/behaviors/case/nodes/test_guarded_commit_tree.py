@@ -20,7 +20,7 @@ from unittest.mock import patch
 
 import pytest
 
-from vultron.core.models._helpers import _now_utc
+from vultron.core.models._helpers import now_utc
 from py_trees.common import Status
 
 from vultron.core.behaviors.case.nodes.lifecycle import (
@@ -122,7 +122,7 @@ class _FakeActivity:
                     "actor": MANAGER_ACTOR_ID,
                     # CLP-07-011: the commit boundary requires a claimed
                     # timestamp on every recorded snapshot.
-                    "published": _now_utc().isoformat(),
+                    "published": now_utc().isoformat(),
                     "object": {
                         "id": CASE_ID,
                         "type": "VulnerabilityCase",
