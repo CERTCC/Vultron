@@ -64,7 +64,7 @@ event types it exercises. Event types are those recorded as `event_type` in
   rejects rather than accepts, `accept_invite_actor_to_case` does NOT appear in
   this scenario. No other current scenario exercises this ledger entry.
   **Invariant 15 note**: because the Vendor never participates, no actor advances
-  the VFD state machine and `vfd_state == 'VFd'` is structurally unreachable.
+  the VFD state machine and the `VFd` CS state (vf_state=VF, d_state=d) is structurally unreachable.
   However, `check_cs_state_transitions_observed()` in
   `test/ci/invariants/common.py` no longer accepts a `check_fix_ready` parameter
   — the VFd assertion is unconditional as of PR #2152. `test_invariant_15` in

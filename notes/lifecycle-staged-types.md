@@ -74,11 +74,11 @@ sides are present at that moment).
 The embargo milestone is monotonic: the EM machine
 (`vultron/core/states/em.py`) never returns to `NONE`/`PROPOSED` once `ACTIVE`.
 
-### ParticipantStatus — per-participant RM/vfd (no types)
+### ParticipantStatus — per-participant RM/vf/d (no types)
 
-`rm_state` and `vfd_state` are always-present enum fields. The RM.VALID ratchet
+`rm_state` and `vf_state`/`d_state` (split per ADR-0075) are always-present enum fields. The RM.VALID ratchet
 is real (once VALID you cannot return to RECEIVED/INVALID; CLOSED only via
-ACCEPTED/DEFERRED) and the vfd path is monotonic (`v→V→F→D`), but neither adds a
+ACCEPTED/DEFERRED) and the vfd path is monotonic (`v→V→F` on VF, `d→D` on D), but neither adds a
 field. Per LST-01-001 they earn **no subtype**. They become state-group tuples
 and predicates — e.g. `RM_VALIDATED`, `is_rm_validated()` — alongside the
 existing `RM_ACTIVE`, `RM_CLOSABLE`, `EM_NEGOTIATING`, and `is_rm_at_least()`
@@ -160,7 +160,7 @@ persisted stage discriminator.
 A natural next layer — **not** part of ADR-0033 — is decomposing
 `CaseStatus`/`ParticipantStatus` into per-machine dimension objects (each state
 machine its own small object with its own `transition()`/guard method), e.g.
-`ParticipantStatus` → `{report: RmState, fix: VfdState, consent: PecState}`.
+`ParticipantStatus` → `{report: RmState, vf: VfState, d: DState, consent: PecState}`.
 
 Where it helps: it gives the scattered EM/RM transition logic (see
 `notes/embargo-lifecycle.md`, #538) one home, models the genuinely independent
