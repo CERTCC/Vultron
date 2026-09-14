@@ -744,3 +744,92 @@ class TestBTBridgeLeadershipGuard:
         from py_trees.common import Status
 
         assert result.status == Status.SUCCESS
+
+    def test_inner_bridge_inherits_is_leader_false_from_blackboard(self):
+        """Inner BTBridge inherits is_leader=False from outer blackboard (CLP-08-005).
+
+        An outer execution with is_leader=False writes that guard to the
+        blackboard via setup_tree().  A second BTBridge constructed inside
+        the execution without an explicit is_leader must read and respect
+        the inherited guard rather than defaulting to always-True.
+        """
+        import py_trees
+        from py_trees.common import Status
+        from vultron.core.behaviors.bridge import BTBridge
+
+        # Manually write is_leader=False to the blackboard, simulating
+        # what an outer BTBridge.setup_tree() does before a node runs.
+        bb = py_trees.blackboard.Client(name="test-outer-setup")
+        bb.register_key(key="is_leader", access=py_trees.common.Access.WRITE)
+        bb.is_leader = lambda: False
+
+        try:
+            dl = MagicMock()
+            # Inner bridge constructed without explicit is_leader — must inherit.
+            inner_bridge = BTBridge(datalayer=dl)
+            dummy_tree = py_trees.behaviours.Success(name="noop")
+            result = inner_bridge.execute_with_setup(
+                tree=dummy_tree,
+                actor_id="urn:uuid:actor1",
+            )
+            assert result.status == Status.FAILURE
+            assert "not the replication leader" in result.feedback_message
+        finally:
+            py_trees.blackboard.Blackboard.storage.pop("/is_leader", None)
+            py_trees.blackboard.Blackboard.storage.pop("is_leader", None)
+
+    def test_inner_bridge_inherits_is_leader_true_from_blackboard(self):
+        """Inner BTBridge inherits is_leader=True from outer blackboard (CLP-08-005).
+
+        When the outer execution's is_leader is True, the inner bridge
+        must execute normally (not block on leadership).
+        """
+        import py_trees
+        from py_trees.common import Status
+        from vultron.core.behaviors.bridge import BTBridge
+
+        bb = py_trees.blackboard.Client(name="test-outer-setup-true")
+        bb.register_key(key="is_leader", access=py_trees.common.Access.WRITE)
+        bb.is_leader = lambda: True
+
+        try:
+            dl = MagicMock()
+            inner_bridge = BTBridge(datalayer=dl)
+            dummy_tree = py_trees.behaviours.Success(name="noop")
+            result = inner_bridge.execute_with_setup(
+                tree=dummy_tree,
+                actor_id="urn:uuid:actor1",
+            )
+            assert result.status == Status.SUCCESS
+        finally:
+            py_trees.blackboard.Blackboard.storage.pop("/is_leader", None)
+            py_trees.blackboard.Blackboard.storage.pop("is_leader", None)
+
+    def test_explicit_is_leader_overrides_blackboard(self):
+        """Explicit is_leader on inner bridge overrides any blackboard value.
+
+        A bridge constructed with an explicit guard must use that guard,
+        not the inherited blackboard value.
+        """
+        import py_trees
+        from py_trees.common import Status
+        from vultron.core.behaviors.bridge import BTBridge
+
+        # Blackboard says False — but the bridge was given explicit True.
+        bb = py_trees.blackboard.Client(name="test-explicit-override")
+        bb.register_key(key="is_leader", access=py_trees.common.Access.WRITE)
+        bb.is_leader = lambda: False
+
+        try:
+            dl = MagicMock()
+            # Explicitly constructed with is_leader=True — must win.
+            inner_bridge = BTBridge(datalayer=dl, is_leader=lambda: True)
+            dummy_tree = py_trees.behaviours.Success(name="noop")
+            result = inner_bridge.execute_with_setup(
+                tree=dummy_tree,
+                actor_id="urn:uuid:actor1",
+            )
+            assert result.status == Status.SUCCESS
+        finally:
+            py_trees.blackboard.Blackboard.storage.pop("/is_leader", None)
+            py_trees.blackboard.Blackboard.storage.pop("is_leader", None)

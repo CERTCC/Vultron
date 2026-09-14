@@ -20,12 +20,10 @@ Validates that combinations of RM, VFD, and EM states are mutually consistent.
 Both RM and the vendor/deployer paths are per-actor attributes, so a
 contradictory combination is an error at the source.  The RM↔fix rule is stated
 per dimension — :func:`violation_rm_vf_entailment` and
-:func:`violation_rm_d_entailment` — since ADR-0075 split the compound ``CS_vfd``
-into independent ``CS_vf`` and ``CS_d`` dimensions.  A compound
-``violation_rm_vfd_entailment`` existed alongside them until ISSUE-3016; it was a
-second implementation of the same F-bit rule (ARCH-15-004) with no callers, and
-callers holding a ``CS_vfd`` should split it via
-:func:`~vultron.core.states.cs_invariants.cs_dimensions` and use the pair.
+:func:`violation_rm_d_entailment` — one for each of the ``CS_vf`` and ``CS_d``
+dimensions (ADR-0075).  A compound ``violation_rm_vfd_entailment`` existed
+alongside them until ISSUE-3016; it was a second implementation of the same
+F-bit rule (ARCH-15-004) with no callers and was removed with CS_vfd.
 
 :func:`violation_pxa_em_entailment` expresses the PXA→EM consistency rules
 but is NOT enforced on the emit path: asserting P CAUSES the embargo to

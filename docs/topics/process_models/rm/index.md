@@ -646,8 +646,8 @@ extensions.
 
 !!! tip "See also"
 
-    Further discussion of a [reward function](../../../reference/measuring_cvd/reward_functions.md) to evaluate RM DFA strings is discussed as future work in
-    [Reward Functions](../../../reference/measuring_cvd/reward_functions.md).
+    Further discussion of a [reward function](../../measuring_cvd/reward_functions.md) to evaluate RM DFA strings is discussed as future work in
+    [Reward Functions](../../measuring_cvd/reward_functions.md).
 
 ## RM DFA Fully Defined
 

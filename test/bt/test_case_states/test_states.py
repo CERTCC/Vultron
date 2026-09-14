@@ -32,8 +32,9 @@ class MyTestCase(unittest.TestCase):
     @pytest.mark.spec("CSB-17-001")
     def test_state_string_to_enums(self):
         for state_string in self.states:
-            vfd, pxa = s.state_string_to_enums(state_string)
-            self.assertEqual(state_string[:3], vfd.name)
+            vf, d, pxa = s.state_string_to_enums(state_string)
+            self.assertEqual(state_string[:2], vf.name)
+            self.assertEqual(state_string[2:3], d.name)
             self.assertEqual(state_string[3:], pxa.name)
 
     @pytest.mark.spec("CSB-17-001")
@@ -47,16 +48,22 @@ class MyTestCase(unittest.TestCase):
     @pytest.mark.spec("CSB-17-001")
     def test_CS_vfdpxa(self):
         for state_string in self.states:
-            vfd_str = state_string[:3]
+            vf_str = state_string[:2]
+            d_str = state_string[2:3]
             pxa_str = state_string[3:]
 
             cs = getattr(s.CS, state_string)
             self.assertEqual(state_string, cs.name)
 
-            vfd = getattr(s.CS_vfd, vfd_str)
-            self.assertEqual(vfd_str, vfd.name)
-            self.assertEqual(vfd, cs.value.vfd_state)
-            self.assertEqual(vfd_str, cs.value.vfd_state.name)
+            vf = getattr(s.CS_vf, vf_str)
+            self.assertEqual(vf_str, vf.name)
+            self.assertEqual(vf, cs.value.vf_state)
+            self.assertEqual(vf_str, cs.value.vf_state.name)
+
+            d = getattr(s.CS_d, d_str)
+            self.assertEqual(d_str, d.name)
+            self.assertEqual(d, cs.value.d_state)
+            self.assertEqual(d_str, cs.value.d_state.name)
 
             pxa = getattr(s.CS_pxa, pxa_str)
             self.assertEqual(pxa_str, pxa.name)

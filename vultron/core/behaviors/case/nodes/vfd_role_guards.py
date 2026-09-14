@@ -20,7 +20,7 @@ Nodes enforce CVD protocol correctness for received-side status authorization
 
 - :class:`CheckVendorRoleNode` — gates vf→VF (vf_state=Vf): actor MUST hold
   ``CVDRole.VENDOR`` (CSB-15-001)
-- :class:`CheckDeployerRoleNode` — gates d→D (vfd_state=VFD): actor MUST hold
+- :class:`CheckDeployerRoleNode` — gates d→D (d_state=D): actor MUST hold
   ``CVDRole.DEPLOYER`` (CSB-15-002; causal-gate enforcement pending #2593)
 - :class:`CheckNotSoleObserverVfdNode` — gates v→V (vf_state=Vf): actor
   MUST NOT hold ``CVDRole.OBSERVER`` as their only role (CM-25-005)

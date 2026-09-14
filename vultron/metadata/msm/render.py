@@ -193,16 +193,20 @@ def _render_table(rows: tuple[RowSpec, ...]) -> str:
 # ---------------------------------------------------------------------------
 
 
-def render_page(slug: str) -> str:
+def render_page(slug: str, heading: bool = True) -> str:
     """Render the mapping table for *slug* as MkDocs Material markdown.
 
     Args:
         slug: Page slug from :data:`~vultron.metadata.msm._mapping.PAGE_SLUGS`
             (e.g. ``"rm"``, ``"em"``, ``"cs"``).
+        heading: When ``True`` (default), prepend a ``## <title>`` heading. Pass
+            ``False`` to render the table alone — used by pages that already
+            carry the model name in their own heading and would otherwise
+            duplicate it.
 
     Returns:
-        A markdown string containing a heading and a mapping table, ready for
-        embedding via ``markdown-exec``.
+        A markdown string containing the mapping table, optionally preceded by a
+        heading, ready for embedding via ``markdown-exec``.
 
     Raises:
         ValueError: When *slug* is not a known page.
@@ -211,10 +215,13 @@ def render_page(slug: str) -> str:
         valid = ", ".join(PAGE_SLUGS)
         raise ValueError(f"Unknown page slug {slug!r}. Valid slugs: {valid}")
 
-    title = _PAGE_TITLES.get(slug, slug.replace("_", " ").title())
     rows = PAGE_ROWS[slug]
     table = _render_table(rows)
 
+    if not heading:
+        return table
+
+    title = _PAGE_TITLES.get(slug, slug.replace("_", " ").title())
     lines = [
         f"## {title}",
         "",

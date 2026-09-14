@@ -16,8 +16,8 @@
 
 This module expresses the Case State (CS) validity rules of the MPCVD
 state-based model against the current enum models in
-`vultron.core.states.cs` — `CS`, `CS_vfd`, `CS_pxa`, and the per-dimension
-transition tables that back `VfdDimension` / `PxaDimension`.
+`vultron.core.states.cs` — `CS`, `CS_vf`, `CS_d`, `CS_pxa`, and the
+per-dimension transition tables.
 
 Three rule families live here:
 
@@ -25,9 +25,10 @@ Compound state validity
     The 32 members of `CS` *are* the valid compound states.  The two
     impossible-combination rules of the formal model (`vF` — a fix ready
     while the vendor is unaware; `fD` — a fix deployed that was never ready)
-    are enforced structurally by `CS_vfd` having only four members, so no
-    runtime predicate is needed.  `test_cs_invariants.py` ratchets the enum
-    against an independent derivation of the rule.
+    are enforced structurally by `CompoundState` only containing the 32
+    valid combinations, so no runtime predicate is needed.
+    `test_cs_invariants.py` ratchets the enum against an independent
+    derivation of the rule.
 
 Transition validity (`is_valid_cs_transition`)
     A CS transition changes exactly one of the six dimensions, always from
@@ -70,15 +71,16 @@ from enum import StrEnum
 
 from vultron.core.states.cs import (
     CS,
+    CS_d,
     CS_pxa,
-    CS_vfd,
+    CS_vf,
     PXA_Trigger,
-    VFD_Trigger,
     is_pxa_exploit_public,
     is_pxa_public_aware,
+    is_valid_d_transition,
     is_valid_pxa_transition,
-    is_valid_vfd_transition,
-    is_vfd_vendor_aware,
+    is_valid_vf_transition,
+    is_vf_vendor_aware,
 )
 from vultron.errors import (
     VultronInvalidStateTransitionError,
@@ -117,53 +119,39 @@ VFD_EVENTS: frozenset[CSEvent] = frozenset({CSEvent.V, CSEvent.F, CSEvent.D})
 PXA_EVENTS: frozenset[CSEvent] = frozenset({CSEvent.P, CSEvent.X, CSEvent.A})
 """The CS events belonging to the public/exploit/attack (PXA) dimension."""
 
-CS_EVENT_TO_VFD_TRIGGER: dict[CSEvent, VFD_Trigger] = {
-    CSEvent.V: VFD_Trigger.V,
-    CSEvent.F: VFD_Trigger.F,
-    CSEvent.D: VFD_Trigger.D,
-}
-"""Maps a VFD-dimension CS event to the `VfdDimension.transition()` trigger.
-
-Exported for callers that drive the dimension machines directly rather than
-going through `apply_cs_event` — e.g. emit-time guards that already hold a
-`VfdDimension` and need the trigger for a CS event.
-"""
-
 CS_EVENT_TO_PXA_TRIGGER: dict[CSEvent, PXA_Trigger] = {
     CSEvent.P: PXA_Trigger.P,
     CSEvent.X: PXA_Trigger.X,
     CSEvent.A: PXA_Trigger.A,
 }
-"""Maps a PXA-dimension CS event to the `PxaDimension.transition()` trigger.
-
-The PXA counterpart of `CS_EVENT_TO_VFD_TRIGGER`; see that map for the
-rationale.
-"""
+"""Maps each PXA-dimension CS event to the `PxaDimension.transition()` trigger."""
 
 
-def cs_dimensions(state: CS) -> tuple[CS_vfd, CS_pxa]:
-    """Return the (VFD, PXA) dimension states of a compound CS state.
+def cs_dimensions(state: CS) -> tuple[CS_vf, CS_d, CS_pxa]:
+    """Return the (VF, D, PXA) dimension states of a compound CS state.
 
     Examples::
 
-        cs_dimensions(CS.vfdpxa)  # (CS_vfd.vfd, CS_pxa.pxa)
-        cs_dimensions(CS.VFdPXa)  # (CS_vfd.VFd, CS_pxa.PXa)
+        cs_dimensions(CS.vfdpxa)  # (CS_vf.vf, CS_d.d, CS_pxa.pxa)
+        cs_dimensions(CS.VFdPXa)  # (CS_vf.VF, CS_d.d, CS_pxa.PXa)
     """
     compound = state.value
-    return compound.vfd_state, compound.pxa_state
+    return compound.vf_state, compound.d_state, compound.pxa_state
 
 
-def cs_from_dimensions(vfd_state: CS_vfd, pxa_state: CS_pxa) -> CS:
-    """Return the compound `CS` member for a (VFD, PXA) dimension pair.
+def cs_from_dimensions(
+    vf_state: CS_vf, d_state: CS_d, pxa_state: CS_pxa
+) -> CS:
+    """Return the compound `CS` member for a (VF, D, PXA) dimension triple.
 
-    Every one of the 4 x 8 combinations is a valid compound state, so this
-    never fails for well-typed inputs.
+    Every one of the 3 x 2 x 8 = 48 combinations is not necessarily valid;
+    only the 32 structurally possible members of `CS` can be returned.
 
     Examples::
 
-        cs_from_dimensions(CS_vfd.VFd, CS_pxa.Pxa)  # CS.VFdPxa
+        cs_from_dimensions(CS_vf.VF, CS_d.d, CS_pxa.Pxa)  # CS.VFdPxa
     """
-    return CS[f"{vfd_state.name}{pxa_state.name}"]
+    return CS[f"{vf_state.name}{d_state.name}{pxa_state.name}"]
 
 
 def is_ephemeral_cs_state(state: CS) -> bool:
@@ -196,10 +184,10 @@ def required_next_cs_events(state: CS) -> frozenset[CSEvent]:
         required_next_cs_events(CS.vfdpXa)  # frozenset({CSEvent.P})
         required_next_cs_events(CS.VfdPxa)  # frozenset()
     """
-    vfd_state, pxa_state = cs_dimensions(state)
+    vf_state, _d_state, pxa_state = cs_dimensions(state)
 
     # vP: the public is aware but the vendor is not -> V must fire next.
-    if is_pxa_public_aware(pxa_state) and not is_vfd_vendor_aware(vfd_state):
+    if is_pxa_public_aware(pxa_state) and not is_vf_vendor_aware(vf_state):
         return frozenset({CSEvent.V})
 
     # pX: an exploit is public but the public is not aware -> P must fire next.
@@ -231,6 +219,22 @@ def cs_transition_event(src: CS, dst: CS) -> CSEvent | None:
     return changed[0]
 
 
+def _is_valid_vfd_step(
+    event: CSEvent,
+    src_vf: CS_vf,
+    dst_vf: CS_vf,
+    src_d: CS_d,
+    dst_d: CS_d,
+    src_pxa: CS_pxa,
+    dst_pxa: CS_pxa,
+) -> bool:
+    if src_pxa is not dst_pxa:
+        return False
+    if event == CSEvent.D:
+        return src_vf is dst_vf and is_valid_d_transition(src_d, dst_d)
+    return src_d is dst_d and is_valid_vf_transition(src_vf, dst_vf)
+
+
 def is_valid_cs_transition(
     src: CS, dst: CS, *, allow_null: bool = False
 ) -> bool:
@@ -242,7 +246,7 @@ def is_valid_cs_transition(
     2. The change is monotone — from the not-yet-happened to the happened
        value; CS events are irreversible.
     3. The changed dimension's per-machine transition table permits it
-       (`is_valid_vfd_transition` / `is_valid_pxa_transition`).
+       (`is_valid_vf_transition` / `is_valid_d_transition` / `is_valid_pxa_transition`).
     4. If *src* is ephemeral, *dst* must be reached by its required event.
 
     Args:
@@ -266,25 +270,22 @@ def is_valid_cs_transition(
     if event is None:
         return False
 
-    src_vfd, src_pxa = cs_dimensions(src)
-    dst_vfd, dst_pxa = cs_dimensions(dst)
+    src_vf, src_d, src_pxa = cs_dimensions(src)
+    dst_vf, dst_d, dst_pxa = cs_dimensions(dst)
 
     if event in VFD_EVENTS:
-        if src_pxa is not dst_pxa:
+        if not _is_valid_vfd_step(
+            event, src_vf, dst_vf, src_d, dst_d, src_pxa, dst_pxa
+        ):
             return False
-        if not is_valid_vfd_transition(src_vfd, dst_vfd):
-            return False
-    else:
-        if src_vfd is not dst_vfd:
+    else:  # P, X, or A
+        if src_vf is not dst_vf or src_d is not dst_d:
             return False
         if not is_valid_pxa_transition(src_pxa, dst_pxa):
             return False
 
     required = required_next_cs_events(src)
-    if required and event not in required:
-        return False
-
-    return True
+    return not (required and event not in required)
 
 
 def ensure_valid_cs_transition(

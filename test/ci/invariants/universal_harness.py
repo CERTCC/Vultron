@@ -27,6 +27,7 @@ import pytest
 
 from test.ci.invariants.common import (
     check_causal_edges,
+    check_clp14_timestamp_invariants,
     check_cross_actor_hash_agreement,
     check_cross_actor_payload_actor_agreement,
     check_cs_state_transitions_observed,
@@ -272,6 +273,31 @@ def make_universal_invariant_tests(  # noqa: C901
         )
 
     @pytest.mark.case_ledger_invariants
+    @pytest.mark.spec("CLP-14-002")
+    @pytest.mark.spec("CLP-14-003")
+    @pytest.mark.spec("CLP-14-005")
+    @pytest.mark.spec("CLP-14-006")
+    def test_invariant_clp14_timestamp_invariants(
+        request: pytest.FixtureRequest,
+    ) -> None:
+        """Commit timestamps are non-null, unique-indexed, and non-decreasing.
+
+        The commit-timestamp half of ADR-0079 § "Validation".  These are the
+        invariants on ``CaseLedgerEntry.published`` — the CaseActor's own stamp
+        — as distinct from the claimed-timestamp checks the commit boundary
+        applies to ``payloadSnapshot.published``
+        (``_validate_entry_timestamps``).  ADR-0079 asserted these ran in
+        ``test/ci/invariants/common.py``; the check existed but no scenario ever
+        invoked it (ISSUE-2824).
+        """
+        replicas = request.getfixturevalue(replicas_fixture)
+        violations = check_clp14_timestamp_invariants(replicas)
+        assert not violations, (
+            f"{len(violations)} CLP-14 timestamp invariant violation(s):\n"
+            + "\n".join(violations[:20])
+        )
+
+    @pytest.mark.case_ledger_invariants
     @pytest.mark.xfail(
         strict=False,
         reason="pre-existing bug #2505: FV demo CaseActor never reaches RM.CLOSED",
@@ -305,6 +331,7 @@ def make_universal_invariant_tests(  # noqa: C901
         "test_invariant_14_no_gaps_in_log_indices": test_invariant_14_no_gaps_in_log_indices,
         "test_invariant_15_cs_state_transitions_observed": test_invariant_15_cs_state_transitions_observed,
         "test_invariant_clp13_no_rejected_invite_entries": test_invariant_clp13_no_rejected_invite_entries,
+        "test_invariant_clp14_timestamp_invariants": test_invariant_clp14_timestamp_invariants,
         "test_invariant_per_actor_replica_divergence": test_invariant_per_actor_replica_divergence,
     }
 

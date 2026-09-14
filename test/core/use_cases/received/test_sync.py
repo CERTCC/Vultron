@@ -195,6 +195,9 @@ class TestAnnounceLedgerEntryReceivedUseCase:
             "type": "Announce",
             "id": "urn:uuid:test-announce-rt",
             "actor": ACTOR_URI,
+            # Required on every inbound activity: the parser refuses one
+            # without a sender-supplied claimed time (ISSUE-3149).
+            "published": "2026-03-04T05:06:07+00:00",
             "object": first_entry.model_dump(mode="json", by_alias=True),
         }
         parsed = parse_activity(body)

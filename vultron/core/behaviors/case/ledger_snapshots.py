@@ -20,9 +20,17 @@ initialization tree,
 :mod:`vultron.core.behaviors.case.case_proposal_received_tree`.  Each builder
 returns a plain ``dict`` shaped for
 :func:`~vultron.core.behaviors.sync.nodes.canonical_entry._validate_canonical_entry`:
-an AS2 ``type``/``actor``/``object`` triple with ``context`` set to the case
-URI and every nested object embedded inline rather than as a bare ID string
-(DEMOMA-08-005, CLP-07).
+an AS2 ``type``/``actor``/``object``/``published`` quadruple with ``context``
+set to the case URI and every nested object embedded inline rather than as a
+bare ID string (DEMOMA-08-005, CLP-07).
+
+``published`` is the CaseActor's own clock at snapshot-build time, not a
+timestamp lifted off the object being described.  These are CaseActor-authored
+assertions, so the CaseActor's clock *is* the claimed event time (CLP-14-002,
+ADR-0079 § "CaseActor Timestamp Obligation").  Omitting it made every
+native-initialization entry fail CLP-07-011 once the commit-boundary timestamp
+guard was wired (ISSUE-2824), because a snapshot with no ``published`` is not
+the verbatim AS2 activity that requirement demands.
 
 These helpers were previously private to the now-deleted
 ``nodes/prologue.py`` (``WritePrologueLedgerEntriesNode``, Issue #1688).
@@ -33,6 +41,7 @@ those entries natively (CM-22-003).
 
 from typing import TYPE_CHECKING, Any
 
+from vultron.core.models._helpers import _now_utc
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.case_status import CaseStatus
@@ -55,6 +64,7 @@ def build_create_case_snapshot(
     return {
         "type": "Create",
         "actor": actor_id,
+        "published": _now_utc().isoformat(),
         "object": case_dict,
         "context": case_id,
     }
@@ -82,6 +92,7 @@ def build_add_report_to_case_snapshot(
     snapshot: dict[str, Any] = {
         "type": "Add",
         "actor": actor_id,
+        "published": _now_utc().isoformat(),
         "object": report_dict,
         "target": case_dict,
         "context": case_id,
@@ -108,6 +119,7 @@ def build_add_participant_status_snapshot(
     return {
         "type": "Add",
         "actor": actor_id,
+        "published": _now_utc().isoformat(),
         "object": status_dict,
         "target": participant_dict,
         "context": case_id,
@@ -129,6 +141,7 @@ def build_add_case_status_snapshot(
     return {
         "type": "Add",
         "actor": actor_id,
+        "published": _now_utc().isoformat(),
         "object": status_dict,
         "target": case_dict,
         "context": case_id,

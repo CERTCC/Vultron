@@ -23,11 +23,10 @@ from vultron.bt.states import ActorState
 from vultron.core.states.cs import (
     AttackObservation,
     CS,
+    CS_d,
+    CS_vf,
     ExploitPublication,
-    FixDeployment,
-    FixReadiness,
     PublicAwareness,
-    VendorAwareness,
 )
 
 
@@ -103,16 +102,16 @@ class MyTestCase(unittest.TestCase):
     @pytest.mark.spec("CSB-17-002")
     def test_q_cs_to_V(self):
         self.cls2test = cst.q_cs_to_V
-        self.expected_value = VendorAwareness.VENDOR_AWARE
-        self.attrib2check = "vfd_state.value.vendor_awareness"
+        self.expected_value = CS_vf.Vf
+        self.attrib2check = "vf_state"
 
         self._test_q_cs_to_something()
 
     @pytest.mark.spec("CSB-17-002")
     def test__q_cs_to_F(self):
         self.cls2test = cst._q_cs_to_F
-        self.expected_value = FixReadiness.FIX_READY
-        self.attrib2check = "vfd_state.value.fix_readiness"
+        self.expected_value = CS_vf.VF
+        self.attrib2check = "vf_state"
 
         self._test_q_cs_to_something()
 
@@ -139,8 +138,8 @@ class MyTestCase(unittest.TestCase):
     @pytest.mark.spec("CSB-16-001")
     def test_q_cs_to_F(self):
         self.cls2test = cst.q_cs_to_F
-        self.expected_value = FixReadiness.FIX_READY
-        self.attrib2check = "vfd_state.value.fix_readiness"
+        self.expected_value = CS_vf.VF
+        self.attrib2check = "vf_state"
         self.expect_fail_when = "v"
 
         self._test_q_cs_to_something_with_precondition()
@@ -148,16 +147,16 @@ class MyTestCase(unittest.TestCase):
     @pytest.mark.spec("CSB-17-002")
     def test__q_cs_to_D(self):
         self.cls2test = cst._q_cs_to_D
-        self.expected_value = FixDeployment.FIX_DEPLOYED
-        self.attrib2check = "vfd_state.value.fix_deployment"
+        self.expected_value = CS_d.D
+        self.attrib2check = "d_state"
 
         self._test_q_cs_to_something()
 
     @pytest.mark.spec("CSB-16-001")
     def test_q_cs_to_D(self):
         self.cls2test = cst.q_cs_to_D
-        self.expected_value = FixDeployment.FIX_DEPLOYED
-        self.attrib2check = "vfd_state.value.fix_deployment"
+        self.expected_value = CS_d.D
+        self.attrib2check = "d_state"
         self.expect_fail_when = "f"
 
         self._test_q_cs_to_something_with_precondition()

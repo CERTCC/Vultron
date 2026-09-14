@@ -27,6 +27,22 @@ from vultron.errors import VultronError
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.wire.as2.vocab.base.objects.object_types import as_Note
 
+
+@pytest.fixture(autouse=True)
+def clear_blackboard():
+    """Reset the process-global blackboard before every test.
+
+    setup_tree() writes /is_leader (and other keys) to Blackboard.storage.
+    Tests that call setup_tree() directly — without going through
+    execute_with_setup()'s managed_keys cleanup — would otherwise leave
+    /is_leader permanently on the blackboard, contaminating later tests.
+    """
+    py_trees.blackboard.Blackboard.enable_activity_stream()
+    py_trees.blackboard.Blackboard.storage.clear()
+    yield
+    py_trees.blackboard.Blackboard.storage.clear()
+
+
 # Test behavior nodes for verifying bridge functionality
 
 

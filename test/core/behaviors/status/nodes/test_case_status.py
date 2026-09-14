@@ -317,3 +317,44 @@ class TestEmitCaseStatusUpdateNode:
             "absent" in node.feedback_message.lower()
             or "case_id" in node.feedback_message.lower()
         )
+
+    @pytest.mark.spec("CLP-08-005")
+    def test_inner_btbridge_inherits_is_leader_false_from_blackboard(
+        self, populated_dl
+    ):
+        """Inner BTBridge must inherit is_leader=False from the blackboard.
+
+        When an outer BTBridge.setup_tree() wrote is_leader=False (future
+        multi-node cluster: this actor is a follower), the inner
+        BTBridge(datalayer=...) created inside update() must inherit that
+        guard and refuse to mint a ledger entry rather than defaulting to
+        always-True (CLP-08-005).
+
+        The node is invoked directly (bypassing the outer bridge's own guard)
+        to isolate the inner-bridge behaviour.
+        """
+        bb = py_trees.blackboard.Client(name="test-outer-emit-leader")
+        bb.register_key(key="datalayer", access=py_trees.common.Access.WRITE)
+        bb.register_key(key="actor_id", access=py_trees.common.Access.WRITE)
+        bb.register_key(key="is_leader", access=py_trees.common.Access.WRITE)
+        bb.datalayer = populated_dl
+        bb.actor_id = ACTOR_ID
+        bb.is_leader = lambda: False
+
+        try:
+            node = EmitCaseStatusUpdateNode(case_id=CASE_ID)
+            node.setup()
+            node.initialise()
+            result = node.update()
+            assert result == Status.FAILURE
+        finally:
+            storage = py_trees.blackboard.Blackboard.storage
+            for key in [
+                "is_leader",
+                "/is_leader",
+                "datalayer",
+                "/datalayer",
+                "actor_id",
+                "/actor_id",
+            ]:
+                storage.pop(key, None)
