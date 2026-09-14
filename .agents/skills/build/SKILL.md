@@ -1,11 +1,12 @@
 ---
 name: build
 description: >
-  Completes the highest-priority pending implementation task: loads project
-  context, selects the next task from GitHub Issues, implements it, validates,
-  opens a PR, and updates plan history. Use when the user asks to continue
-  planned implementation work or turn the next prioritized item into a
-  completed changeset.
+  Completes the highest-priority pending implementation bundle: loads project
+  context, selects the top-priority Now-Epic and proposes a bundle of its
+  unblocked leaf issues, confirms with the user, implements them together,
+  validates, opens one PR that closes all bundled issues, and updates plan
+  history. Use when the user asks to continue planned implementation work or
+  turn the next prioritized set of items into a completed changeset.
 ---
 
 # Skill: Build
@@ -42,12 +43,15 @@ Invoke the `orient-agent` skill.
 
 0. Determine the target issue mode:
 
-   - If the user passed multiple issue numbers (for example `build 123 456`),
-     ask whether to start with the first issue only (recommended). This skill
-     executes one issue per run.
-   - If the user passed one explicit issue number, use that issue.
-   - If no explicit issue was passed, auto-select from the top-priority
-     unblocked Now-Epic flow below.
+   - If the user passed explicit issue numbers (for example `build 123 456`),
+     validate that all supplied issues belong to the same Epic. If they do,
+     treat them as the confirmed bundle and skip steps 1–3b. If they span
+     multiple Epics, ask the user to pick one Epic and proceed with that
+     Epic's issues only.
+   - If the user passed one explicit issue number, use that issue as a
+     single-issue bundle.
+   - If no explicit issue was passed, auto-select via the Now-Epic bundle
+     flow in steps 1–3b below.
 
 1. List open Now-Epics:
 
@@ -67,9 +71,31 @@ Invoke the `orient-agent` skill.
    A candidate issue must: `state=OPEN`, no assignees, no `stale-claim`
    label, all `blockedBy` entries `CLOSED`, `subIssues.totalCount==0`.
 
-3. Pick the highest-priority candidate.
+3. **Propose a bundle and confirm with the user.**
 
-4. **Empty-Epic gate** — applies to both auto-selected and explicit issues:
+   a. From the candidate list, select up to **5** issues by priority order.
+      Do not exceed 5 — leave the rest for the next build run on this Epic.
+
+   b. Present the proposed bundle to the user as a numbered list:
+
+      ```text
+      Proposed bundle for Epic #<EPIC_NUMBER> — <Epic title>:
+        1. #<N1> <title>
+        2. #<N2> <title>
+        ...
+      Proceed with this bundle, or tell me which to drop/add.
+      ```
+
+      Wait for explicit confirmation or adjustment before continuing.
+      The user may drop issues (reduce the bundle) or swap in other issues
+      from the same Epic's candidate list. Accept the adjusted list as the
+      confirmed bundle.
+
+   The confirmed bundle is the set of issue numbers used in all subsequent
+   steps. Steps that previously referred to "the selected issue" now apply
+   to each issue in the bundle.
+
+4. **Empty-Epic gate** — applies to both auto-selected and explicit bundles:
 
    Query the selected issue's type and sub-issue count:
 
@@ -96,14 +122,16 @@ Invoke the `orient-agent` skill.
    3. Tell the user: "Epic #N has no sub-issues and cannot be built yet. Run `/plan-issue N` to decompose it into Tasks first."
    4. **Stop.** Do not claim, branch, or proceed.
 
-5. Fail-fast blocker gate on the selected issue (auto-selected or explicit):
+5. **Fail-fast blocker gate** — run for each issue in the confirmed bundle:
 
-   - Query `blockedBy` for the issue and filter to `state=OPEN`.
-   - If any OPEN blockers exist, print blocker numbers/titles and stop.
-   - Do not claim, branch, or deepen context when blocked.
+   - Query `blockedBy` for each issue and filter to `state=OPEN`.
+   - If any issue has OPEN blockers, print that issue's blocker numbers/titles,
+     remove it from the bundle, and continue with the remaining issues.
+   - If the bundle is empty after removing blocked issues, stop.
 
-6. **Pre-claim AC verification gate** — fetch the issue body and verify
-   each acceptance criterion against `origin/main` HEAD before claiming:
+6. **Pre-claim AC verification gate** — for each issue in the bundle, fetch
+   the issue body and verify each acceptance criterion against `origin/main`
+   HEAD before claiming:
 
    For each `- [ ] AC-N: <text>` item in the issue body, grep or graphify
    `origin/main` for concrete evidence the AC is already satisfied (e.g.,
@@ -111,9 +139,9 @@ Invoke the `orient-agent` skill.
    or class is present, the referenced behavior is implemented).
 
    If **no** `- [ ] AC-N:` items are found in the issue body (prose-format
-   or free-form ACs), skip this gate and proceed directly to step 7.
+   or free-form ACs), skip this gate for that issue and proceed.
 
-   If **all** ACs are confirmed satisfied on `origin/main`:
+   If **all** ACs for an issue are confirmed satisfied on `origin/main`:
 
    1. Post a reference comment on the issue citing the PR(s) that
       delivered the work:
@@ -132,21 +160,24 @@ Invoke the `orient-agent` skill.
       gh issue close <N> --repo CERTCC/Vultron
       ```
 
-   3. **Stop.** Do not claim, branch, or deepen context.
+   3. Remove it from the bundle.
 
-   If any AC is unconfirmed, proceed to step 7 and claim normally.
+   If the bundle is empty after this gate, stop.
 
-7. **Claim the Issue**:
+7. **Claim all remaining bundle issues**. Use the first issue's slug as the
+   branch name base:
 
    ```bash
-   bash .agents/skills/shared/claim-issue.sh <N> task <slug>
+   bash .agents/skills/shared/claim-issue.sh <N1> task <slug-of-N1>
+   # For remaining issues, assign only (no new branch):
+   gh issue edit <N2> --repo CERTCC/Vultron --add-assignee @me
+   # ... repeat for each remaining issue
    ```
 
-   Abort immediately if this exits non-zero.
+   Abort immediately if the claim for N1 exits non-zero.
 
-8. Fetch the issue body and comments (including any comments not yet
-   loaded in step 6). Use the full content as implementation context
-   throughout Phases 3–5.
+8. Fetch the issue body and comments for **each bundle issue**. Combine
+   their ACs and context as the implementation scope for Phases 3–5.
 
 ### Phase 3 — Deepen Context
 
@@ -321,20 +352,24 @@ draft commit and use `git diff main...HEAD` normally.
 ### Phase 8 — Open PR and Finalize
 
 1. Compute diff size: ≤50 lines → `size:S`; 51–300 → `size:M`; 301+ → `size:L`.
-   Update the `size:` label on the Issue.
+   Update the `size:` label on **each bundle issue**.
 
 2. Invoke the `create-pr` skill to push and open the PR:
 
    ```text
    type:         implementation
-   title:        <short title>
-   body:         <composed per pr-body-guide.md implementation template>
+   title:        <short title covering the bundle's shared theme>
+   body:         <composed per pr-body-guide.md implementation template,
+                  with a "Closes #N1, #N2, #N3" line for all bundle issues>
    labels:       size:<X>
-   issue_number: <N>
+   issue_number: <N1>   (primary issue; remaining closes are in the body)
    ```
 
+   The PR body must include a `Closes #N` line for **every** issue in the
+   bundle so GitHub auto-closes all of them on merge.
+
    `create-pr` performs the rebase on `origin/main`, validates, pushes, and
-   returns the PR URL. Use the returned URL in the `archive-history` call
+   returns the PR URL. Use the returned URL in the `archive-history` calls
    below.
 
 3. Invoke `check-docs-sync` while CI runs in the cloud. Apply any small docs
@@ -346,7 +381,7 @@ draft commit and use `git diff main...HEAD` normally.
 
 4. Post `[ADVISORY]` findings as a PR comment (if any).
 
-5. Invoke `archive-history`:
+5. Invoke `archive-history` once per bundle issue:
 
    ```text
    TYPE    = implementation
@@ -354,6 +389,9 @@ draft commit and use `git diff main...HEAD` normally.
    SOURCE  = ISSUE-<N>
    BODY    = "## Issue #<N> — <title>\n\n<completion summary, PR link>"
    ```
+
+   Call `archive-history` in a loop — one call per issue. Each call records
+   that specific issue's closure against the shared PR URL.
 
 6. Run the **upward-reflection checklist** per
    `.agents/skills/shared/upward-reflection.md` and **route** each triggered
@@ -366,8 +404,11 @@ draft commit and use `git diff main...HEAD` normally.
 
 ## Constraints
 
-- One issue is executed per run.
-- Multi-issue input may be accepted for user guidance, but this skill should
-  ask how to proceed and then continue with one issue only.
+- One **Epic bundle** is executed per run. A bundle contains 1–5 issues from
+  the same Epic, confirmed by the user before any claiming begins.
+- All bundle issues must belong to the same Epic. Cross-Epic bundles are not
+  allowed; ask the user to pick one Epic.
+- The bundle cap is 5 issues. If the user requests more, explain the cap and
+  ask which 5 to prioritize; the rest stay in the Epic queue for the next run.
 - Do not skip validation or the pre-PR code review.
 - Do not commit directly to `main`. All work goes through a PR.
