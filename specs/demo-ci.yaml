@@ -467,12 +467,17 @@ groups:
           The invariant-harness job MUST declare a `needs:` dependency on the
           demo job for the same scenario matrix entry, and MUST use
           `if: always()` so it runs regardless of whether the demo job passed
-          or failed.
+          or failed. This applies to the demo pass and fail outcomes only; a
+          *cancelled* demo job is a distinct third outcome for which the
+          harness MUST be skipped (DEMOCI-04-007).
         rationale: >-
           The purpose of the separate invariant job is to provide a signal even
           when the demo itself fails. Using `if: always()` and `needs:` on the
           demo job ensures the invariant job runs after artifacts are uploaded
-          and never skips due to a demo failure.
+          and never skips due to a demo failure. A cancelled demo job uploads
+          no artifact, so running the harness against it would only produce a
+          misleading `download-artifact` failure (DEMOCI-04-007, #3249) — hence
+          the explicit cancellation carve-out.
         relationships:
           - rel_type: refines
             spec_id: DEMOCI-04-001
@@ -557,12 +562,41 @@ groups:
         statement: >-
           Because the Dependabot exclusion is applied once on the upstream
           `scenarios` job (DEMOCI-06-004), the invariant-harness `if:` MUST
-          pair `always()` with a check that the scenarios job succeeded, e.g.
-          `always() && needs.scenarios.result == 'success'`.
+          pair `always()` with a check that the scenarios job succeeded AND a
+          check that the demo job was not cancelled, i.e.
+          `always() && needs.scenarios.result == 'success' &&
+          needs.demo.result != 'cancelled'`.
         rationale: >-
           Pairing `always()` with the upstream result check ensures the
           invariant-harness job runs after artifacts are uploaded and never
           runs spuriously when the scenarios job was skipped.
+
+          The `needs.demo.result != 'cancelled'` clause closes a distinct
+          spurious-failure path (#3249). When a push-to-main run is cancelled
+          by the concurrency group (DEMOCI-02-013), the demo job is cancelled
+          before it uploads any case-log artifact, so the invariant-harness
+          `download-artifact` step (DEMOCI-04-003) hard-fails with "Artifact
+          not found". That turns a *cancellation* into a job *failure*, which
+          the `notify` step (CISEC-05-001) then files as a spurious
+          `ci:main-failure` issue. Skipping the harness on a cancelled demo
+          job keeps the run free of a `failure` result, so `notify` correctly
+          defers to the superseding run. On the pure-cancellation path
+          `needs.demo.result` is `cancelled`, so the harness is skipped; the
+          success and genuine-failure paths (DEMOCI-04-002) are unaffected. In
+          the rare mixed case — a demo leg genuinely fails and a newer push then
+          cancels the remaining `fail-fast: false` legs — GitHub's aggregate
+          `needs.demo.result` precedence between `failure` and `cancelled` is
+          undocumented; should it resolve to `failure`, the harness runs and
+          `notify` files, which is correct because a real failure did occur.
+        verification: >-
+          The test `test_invariant_harness_skipped_when_demo_cancelled` in
+          `test/ci/test_workflow_failure_notification.py` asserts the
+          invariant-harness `if:` contains `needs.demo.result != 'cancelled'`.
+        relationships:
+          - rel_type: refines
+            spec_id: DEMOCI-04-002
+          - rel_type: refines
+            spec_id: DEMOCI-02-013
 
   - id: DEMOCI-05
     title: Post-Merge Validation on the Default Branch
