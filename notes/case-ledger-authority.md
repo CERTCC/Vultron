@@ -381,6 +381,22 @@ Five traps, all found the hard way:
    body (CLP-15-006), which is why nothing downstream needs an
    "absent claimed time" branch. Note this is *not* CLP-07-011 — that requires
    the snapshot be the verbatim activity, and says nothing about `published`.
+
+   **"Missing" means the value, not the key** (MV-03-002, ADR-0090). A
+   present-but-blank `published` — empty or whitespace-only — carries no claimed
+   time either and is refused identically. Testing only `is None` asked whether
+   the key was absent, so `published: ""` slipped past and was reported as a
+   schema fault, which told the sender their timestamp was malformed rather than
+   absent. The boundary against that widening: a value that is present and
+   non-blank but unreadable (`"not-a-date"`, `0`, `[]`) stays a schema fault —
+   reporting corrupt data as missing data tells a sender to resend what they
+   already sent.
+
+   This holds only at the **top level**. Nested objects legitimately omit
+   `published`, so the guard does not apply to them — and there the `now_utc`
+   default still applies, which means a nested object with no claimed time
+   carries the receiver's clock. Do not read a nested `published` as the
+   sender's claim without checking it was supplied — tracked by #3257.
 5. **Never gate a whole guard on one optional argument.** The CLP-14 guard sat
    behind `if case_published is not None:` and the sole production call site
    never passed it, so nothing was checked for the guard's entire life while

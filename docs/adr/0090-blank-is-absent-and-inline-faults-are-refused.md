@@ -56,9 +56,13 @@ Source: ISSUE-3217.
 - Silent degradation is the worst available failure. A 422 tells the sender what
   to fix; a 202 for a misrouted message tells nobody anything.
 - ADR-0032: validate at the edge rather than compensating downstream.
-- Nested expansion inside a wire tree is wire-to-wire (ARCH-22-001). A core
-  instance in a wire tree cannot satisfy the wire parent's field type, so it is
-  a layering fault, not an input problem.
+- Resolving an inline `type` string through the core map is never the right way
+  to populate a wire field. `as_ObjectRef`/`as_ObjectRequiredRef` do admit
+  `CoreObject`, so wire trees are not purely wire — but a hit in `CORE_TYPE_MAP`
+  is a coincidence of naming rather than a wire counterpart (ARCH-23-002), and
+  the parent field is the declared authority on what belongs in that position.
+  Treating a name collision as a resolution is a layering fault, not an input
+  problem (ARCH-22-001).
 
 ## Considered Options
 
@@ -112,6 +116,24 @@ expansion, so a snapshot's contents are never validated here (SYNC-13-004).
   of an invisible wrong answer.
 - Neutral on `published` status codes: both spellings already returned 422; only
   the diagnosis improves.
+- Consequence for stub objects, which forced a spec correction. MV-10-001 read
+  as though any type could be sent as a partial inline object carrying only
+  `id`/`type`(+`summary`). Refusing malformed inline objects refuses exactly
+  that shape, so the two requirements collided for every type except
+  `VulnerabilityCase`, whose stub has a dedicated class and an explicit
+  key-set check. The collision resolves in favour of this decision: the
+  `VulnerabilityCase` stub is a real protocol affordance — an invitee must
+  evaluate a case before accepting, and cannot be given the case until they do
+  (MV-10-005) — whereas partial inline objects of other types were never
+  designed. They existed only because the fallback removed here silently
+  accepted them. MV-10-001/MV-10-002 are narrowed to `VulnerabilityCase`
+  accordingly. Bare URI references and `Link` objects are unaffected, so the
+  AS2-idiomatic way to reference an object you are not inlining still works.
+- Bad, because that narrowing exposes rather than fixes the underlying gap:
+  Vultron cannot dereference a URI in another actor's message into the resolved
+  object. Senders inlined partial objects because referencing was not usable.
+  The capability is tracked by #3258; until it exists, a sender must inline the
+  full object or accept an opaque reference.
 
 ## Validation
 
@@ -120,9 +142,16 @@ non-blank-garbage boundary, subtype survival across a blank nested timestamp,
 refusal of a malformed nested object, and inline-actor subtype preservation with
 core-only collection types. `test/wire/as2/vocab/base/test_base_timestamps.py`
 covers the shared timestamp validator across all four fields.
-`test/adapters/.../actors/test_inbox.py` pins blank `type` to HTTP 400. The full
-suite (9867 tests) passes unchanged, which is the evidence that refusing
-malformed inline objects broke nothing the fallback was protecting.
+`test/adapters/.../actors/test_inbox.py` pins blank `type` to HTTP 400 and a
+non-string `type` to HTTP 422.
+
+The full suite passes unchanged. Note what that does and does not establish: it
+shows the fallback was protecting nothing in the traffic **Vultron itself
+emits**, which is what the 52 instrumented hits measured. It cannot speak to
+shapes only an external sender would produce, because the suite contains no such
+sender — the MV-10 stub collision recorded above is exactly a case the green
+suite could not have surfaced. The instrumented measurement, not the passing
+suite, is the load-bearing evidence for the ordering of the two changes.
 
 ## Pros and Cons of the Options
 

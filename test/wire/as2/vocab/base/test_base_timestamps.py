@@ -30,8 +30,10 @@ def test_blank_timestamp_is_read_as_absent(field: str, blank: str):
     Rejecting it outright is not an option for a *nested* object: a nested
     validation failure is refused by the parser, which would turn a cosmetic
     blank into a rejected message.  Reading it as absent keeps the object's
-    own type intact and lets the field default apply, exactly as it does when
-    the key is left out altogether.
+    own type intact.
+
+    Absence here means ``None``, **not** the field default — see
+    ``test_blank_timestamp_is_not_the_same_as_an_omitted_key``.
     """
     obj = as_Object.model_validate({"type": "Object", **{field: blank}})
 
@@ -61,3 +63,31 @@ def test_supplied_timestamp_survives_verbatim(field: str):
     assert getattr(obj, field) == datetime(
         2026, 3, 4, 5, 6, 7, tzinfo=timezone.utc
     )
+
+
+@pytest.mark.spec("CS-08-001")
+@pytest.mark.spec("CLP-15-006")
+def test_blank_timestamp_is_not_the_same_as_an_omitted_key():
+    """Blank reads as an explicit ``null``, not as omission — the two differ.
+
+    ``published`` and ``updated`` carry ``default_factory=now_utc``, so an
+    omitted key yields the *receiver's* clock while a blank yields ``None``.
+    Pinning the difference matters because ``None`` is the honest answer: it
+    records that the sender supplied no time, where the default fabricates one
+    and presents it as the sender's claim.  ``start_time`` and ``end_time``
+    default to ``None``, so for those two the spellings do coincide.
+    """
+    omitted = as_Object.model_validate({"type": "Object"})
+    blank = as_Object.model_validate(
+        {"type": "Object", "published": "", "updated": ""}
+    )
+
+    # Defaulted fields: omission fabricates, blank does not.
+    assert isinstance(omitted.published, datetime)
+    assert isinstance(omitted.updated, datetime)
+    assert blank.published is None
+    assert blank.updated is None
+
+    # None-defaulted fields: the two spellings genuinely coincide.
+    assert omitted.start_time is None
+    assert omitted.end_time is None

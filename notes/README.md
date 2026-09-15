@@ -303,13 +303,18 @@ checklist for adding a new `ActivityPattern`.
 wrong-handler dispatch, or reasoning about pattern ordering.
 
 **`stub-objects.md`**
-Design notes for the AS2 minimalist object pattern (stub/stub-object): using
-minimal `{"id": "...", "type": "..."}` references to reduce wire verbosity,
-address privacy concerns (avoid leaking content to intermediaries), and support
-future redaction. Covers the redaction concept and its relationship to
-full inline objects.
-**Load when**: designing outbound message payloads, evaluating object verbosity
-trade-offs, or scoping privacy/redaction features.
+Design notes for the AS2 minimalist object pattern (stub/stub-object). Records
+that the stub form is permitted for **`VulnerabilityCase` only** (MV-10-001 as
+narrowed by ADR-0090), why that one type earns the exception (a transient
+placeholder so an invitee can evaluate a case before accepting, MV-10-005), and
+why partial inline objects of other types were never designed — they survived
+only on a parser fallback that MV-04-003 removes. Also records the gap the
+narrowing exposes: Vultron cannot dereference a URI in another actor's message,
+which is why senders inlined partial objects rather than referencing them the AS2
+way. Covers the still-unimplemented redaction concept.
+**Load when**: designing outbound message payloads, deciding whether an object
+may be sent as a stub or must be inlined or referenced by URI, or scoping
+privacy/redaction features.
 
 **`bt-integration.md`**
 Core BT design decisions: when to use BTs vs procedural code, py_trees

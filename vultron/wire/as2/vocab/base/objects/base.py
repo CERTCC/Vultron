@@ -23,6 +23,7 @@ from pydantic import ConfigDict, field_serializer, field_validator, Field
 from vultron.core.models._helpers import as_utc, now_utc
 from vultron.core.models.base import CoreObject, VultronObject
 from vultron.wire.as2.vocab.base.base import as_Base
+from vultron.wire.as2.vocab.base.utils import is_blank
 from vultron.wire.as2.vocab.base.links import (
     ActivityStreamRef,
     ActivityStreamRequiredRef,
@@ -122,15 +123,26 @@ class as_Object(as_Base, VultronObject):
 
         One validator covers all four timestamp fields, so the "if present,
         then non-empty" invariant (CS-08-001) is expressed here once rather
-        than as four per-field stubs (CS-08-002).
+        than as four per-field stubs (CS-08-002).  The blank test comes from
+        ``vocab.base.utils.is_blank``, the wire layer's single definition of
+        blank, shared with ``parser.parse_activity``'s required-field guards
+        (CS-22-001).
 
         A blank string is *absence*, not a malformed value: it carries no time,
         and the alternative — raising — is not available to a nested object.
         ``parser._expand_inline_value`` refuses an inline object that fails its
         own class's validation, so treating a cosmetic blank as a fault would
         reject the whole message over a field the nested object is allowed to
-        omit outright.  Whitespace-only counts as blank, matching the project's
-        canonical predicate (``core.models.base._non_empty``).
+        omit outright.
+
+        Absence here means ``None``, **not** the field default.  ``published``
+        and ``updated`` carry ``default_factory=now_utc``, so omitting the key
+        yields the receiver's clock while a blank yields ``None`` — blank is
+        therefore equivalent to an explicit ``null``, not to omission.  That is
+        the more honest of the two: ``None`` records that the sender supplied
+        no time, where the default would fabricate one and present it as the
+        sender's claim.  ``start_time`` and ``end_time`` default to ``None``
+        already, so for them the two spellings do coincide.
 
         A non-blank string that is not a timestamp stays an error: blank means
         "not provided", and reporting corrupt data as missing data would tell
@@ -141,7 +153,7 @@ class as_Object(as_Base, VultronObject):
         if isinstance(value, datetime):
             return as_utc(value)
         if isinstance(value, str):
-            if not value.strip():
+            if is_blank(value):
                 return None
             return as_utc(datetime.fromisoformat(value))
         raise TypeError(f"Unsupported datetime value: {value!r}")

@@ -633,3 +633,17 @@ class TestNamesAnIndividualActor:
         object.__setattr__(activity, "to", _OTHER_ACTOR_URI)
         object.__setattr__(activity, "cc", "https://example.org/actors/carol")
         assert _activity_addressed_to(activity, _ACTOR_URI) is False
+
+
+@pytest.mark.parametrize("bad_type", [0, 123, [], {}, ["Create"]])
+def test_parse_activity_raises_422_when_type_is_not_a_string(bad_type: object):
+    """A non-string ``type`` gets a 422, not an unhandled 500.
+
+    An unhashable ``type`` such as ``[]`` raised ``TypeError`` out of
+    ``find_in_vocabulary``'s dict lookup.  Neither the parser's ``except
+    KeyError`` nor this adapter maps that, so FastAPI answered 500 — the
+    unhandled-exception symptom ISSUE-3217 was filed about (ISSUE-3217).
+    """
+    with pytest.raises(HTTPException) as exc_info:
+        parse_activity({"type": bad_type, "actor": _ACTOR_URI})
+    assert exc_info.value.status_code == 422

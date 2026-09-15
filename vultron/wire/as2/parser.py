@@ -17,6 +17,7 @@ from vultron.wire.as2.vocab.objects.vulnerability_case import (
     VulnerabilityCaseStub,
 )
 from vultron.wire.as2.vocab.base.base import as_Base
+from vultron.wire.as2.vocab.base.utils import is_blank
 from vultron.wire.as2.errors import (
     VultronParseError,
     VultronParseMissingPublishedError,
@@ -42,22 +43,6 @@ _VULNERABILITY_CASE_STUB_KEYS = frozenset(
 _OPAQUE_PAYLOAD_KEYS = frozenset({"payloadSnapshot", "payload_snapshot"})
 
 
-def _is_blank(value: object) -> bool:
-    """Return True when *value* carries no content: absent, null, or blank.
-
-    A required field that is present but empty carries nothing, so it is
-    absence rather than a malformed value — CS-08-001's "if present, then
-    non-empty".  Whitespace-only counts as blank, matching the project's
-    canonical predicate (``core.models.base._non_empty``).
-
-    Deliberately narrower than a bare falsy test: ``0``, ``[]`` and ``{}`` are
-    *malformed* values for the fields this guards, not omitted ones, and
-    reporting them as missing would tell the sender to supply a field they
-    already sent (ISSUE-3217).
-    """
-    return value is None or (isinstance(value, str) and not value.strip())
-
-
 def _inline_vocab_class(value: dict[str, Any]) -> type[BaseModel] | None:
     """Return the most specific *wire* vocabulary class for an inline dict.
 
@@ -69,9 +54,17 @@ def _inline_vocab_class(value: dict[str, Any]) -> type[BaseModel] | None:
     wire tree is rejected by the wire parent's field type: ``OrderedCollection``
     is registered only in the core map, so an inline actor's ``inbox`` expanded
     to a ``CoreActorCollection`` that ``as_VultronOrganization.inbox`` refused,
-    degrading the whole actor to a bare ``as_Link``.  Nested expansion inside a
-    wire tree is wire-to-wire (ARCH-22-001), so the mismatch cannot arise
-    (ISSUE-3217).
+    degrading the whole actor to a bare ``as_Link`` (ISSUE-3217).
+
+    Scope of that claim: the fields this function feeds are declared
+    ``as_ObjectRef``/``as_ObjectRequiredRef``, whose unions *do* admit
+    ``CoreObject``, so "wire trees contain only wire objects" is not true in
+    general.  What is true, and is all this restriction needs, is that resolving
+    an inline ``type`` string through the core map is never the *right* way to
+    populate them: the core map is keyed for core-layer callers, so a hit there
+    is a coincidence of naming rather than a wire counterpart (ARCH-23-002).
+    Returning ``None`` leaves the dict for the parent field, which is the
+    declared authority on whether a core instance belongs in that position.
     """
     obj_type = value.get("type")
     if not isinstance(obj_type, str):
@@ -91,7 +84,7 @@ def _inline_vocab_class(value: dict[str, Any]) -> type[BaseModel] | None:
     return cls if issubclass(cls, as_Base) else None
 
 
-def _expand_inline_value(value: object) -> object:
+def _expand_inline_value(value: object, path: str = "") -> object:
     """Recursively pre-expand inline AS2 dicts to typed vocabulary instances.
 
     Generic field annotations such as ``as_Object`` or ``as_ObjectRef`` can
@@ -99,15 +92,27 @@ def _expand_inline_value(value: object) -> object:
     dicts. Recursively coercing any typed dict to its vocabulary class preserves
     the actor/activity/case subtype information needed for semantic matching of
     nested invite/accept/reject flows.
+
+    Args:
+        value: The inline value to expand.
+        path: Dotted field path of *value* within the activity body, used only
+            to locate a refusal for the sender. Recursion appends each field
+            name and list index, so a nested fault reports e.g.
+            ``object.target[0]`` rather than naming only its own type.
     """
     if isinstance(value, list):
-        return [_expand_inline_value(item) for item in value]
+        return [
+            _expand_inline_value(item, f"{path}[{index}]")
+            for index, item in enumerate(value)
+        ]
     if not isinstance(value, dict):
         return value
 
     expanded = {
         key: (
-            item if key in _OPAQUE_PAYLOAD_KEYS else _expand_inline_value(item)
+            item
+            if key in _OPAQUE_PAYLOAD_KEYS
+            else _expand_inline_value(item, f"{path}.{key}" if path else key)
         )
         for key, item in value.items()
     }
@@ -125,14 +130,17 @@ def _expand_inline_value(value: object) -> object:
     try:
         return inline_cls.model_validate(expanded)
     except Exception as exc:
+        where = f" at {path!r}" if path else ""
         raise VultronParseValidationError(
-            f"Inline {inline_cls.__name__} object is malformed: {exc}"
+            f"Inline {inline_cls.__name__} object{where} is malformed: {exc}"
         ) from exc
 
 
 def _expand_inline_object(body: dict[str, Any]) -> dict[str, Any]:
     """Recursively expand nested inline dicts while leaving the outer body raw."""
-    return {key: _expand_inline_value(value) for key, value in body.items()}
+    return {
+        key: _expand_inline_value(value, key) for key, value in body.items()
+    }
 
 
 def parse_activity(body: dict[str, Any]) -> as_Activity:
@@ -168,17 +176,22 @@ def parse_activity(body: dict[str, Any]) -> as_Activity:
     # answered two spellings of the same omission with two status codes
     # (ISSUE-3217).
     type_ = body.get("type")
-    if _is_blank(type_):
+    if is_blank(type_):
         raise VultronParseMissingTypeError(
             "Missing 'type' field in activity body."
         )
 
-    # ``_is_blank`` rules out ``None``, but a boolean-returning helper cannot
-    # narrow the type for the checkers the way an inline ``is None`` did.  A
-    # non-string ``type`` is deliberately *not* rejected here: the sender did
-    # name a type, it is just not one we can look up, so it belongs in the
-    # ``UnknownType`` 422 below rather than the ``MissingType`` 400 above.
-    type_ = cast(str, type_)
+    # A non-string ``type`` is deliberately not a ``MissingType`` 400: the
+    # sender did name a type, it is just not one we can look up, so it belongs
+    # in the ``UnknownType`` 422.  It must be rejected *here* rather than left
+    # to the lookup below, because ``find_in_vocabulary`` tests dict membership
+    # and an unhashable value (``[]``, ``{}``) raises ``TypeError`` — not the
+    # ``KeyError`` that except clause catches — which escaped ``parse_activity``
+    # entirely and drew a 500 from the inbox adapter (ISSUE-3217).
+    if not isinstance(type_, str):
+        raise VultronParseUnknownTypeError(
+            f"Unrecognized activity type: {type_!r}."
+        )
 
     try:
         cls = find_in_vocabulary(type_)
@@ -210,7 +223,7 @@ def parse_activity(body: dict[str, Any]) -> as_Activity:
     # the same way.  Asking only whether the *key* was absent let ``""`` reach
     # ``model_validate``, which reported it as a schema fault and replaced this
     # explanation with a Pydantic isoformat dump (ISSUE-3217).
-    if _is_blank(body.get("published")):
+    if is_blank(body.get("published")):
         raise VultronParseMissingPublishedError(
             f"Missing 'published' field on {type_!r} activity. An activity "
             "must carry the time its sender claims the event occurred; "

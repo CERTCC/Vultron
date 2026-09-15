@@ -352,3 +352,90 @@ def test_parsing_activity_line_is_debug_not_info(caplog):
     ]
     assert parsing, "Expected the 'Parsing activity from body' log entry"
     assert all(r.levelno == logging.DEBUG for r in parsing)
+
+
+#: ``type`` values that are present and name *something*, but not a string we
+#: can look up.  ``[]`` and ``{}`` are the load-bearing pair: they are
+#: unhashable, so a dict membership test on them raises ``TypeError`` rather
+#: than ``KeyError``.
+NON_STRING_TYPES = (0, 123, True, [], {}, ["Create"], {"type": "Create"})
+
+
+@pytest.mark.spec("MV-04-001")
+@pytest.mark.spec("MV-03-002")
+@pytest.mark.parametrize("bad_type", NON_STRING_TYPES)
+def test_parse_activity_reports_non_string_type_as_unknown(bad_type: object):
+    """A non-string ``type`` is an unknown type, never an escaping exception.
+
+    ``find_in_vocabulary`` resolves by dict membership, so an unhashable
+    ``type`` such as ``[]`` or ``{}`` raised ``TypeError`` — which the local
+    ``except KeyError`` did not catch and which the inbox adapter does not map,
+    so it escaped ``parse_activity`` and drew a 500.  That is the very
+    unhandled-exception symptom ISSUE-3217 was filed about, in a sibling
+    spelling of the same field.
+    """
+    with pytest.raises(VultronParseUnknownTypeError):
+        parse_activity(
+            {
+                "type": bad_type,
+                "actor": "https://example.org/alice",
+                "published": PUBLISHED,
+                "object": "https://example.org/notes/1",
+            }
+        )
+
+
+@pytest.mark.spec("MV-04-003")
+def test_refusal_of_malformed_inline_object_names_the_field_path():
+    """A refusal must say *where* the fault is, not only which type failed.
+
+    ``_expand_inline_value`` recurses before it raises, so naming just the
+    innermost class left the sender unable to tell which of two same-typed
+    objects was corrupt (MV-04-003 is only actionable if the sender can locate
+    the fault).
+    """
+    with pytest.raises(VultronParseValidationError) as exc_info:
+        parse_activity(
+            {
+                "type": "Accept",
+                "actor": "https://example.org/alice",
+                "published": PUBLISHED,
+                "object": {
+                    "type": "Invite",
+                    "id": "https://example.org/invites/1",
+                    "published": "not-a-date",
+                },
+            }
+        )
+
+    message = str(exc_info.value)
+    assert "as_Invite" in message
+    assert "'object'" in message
+
+
+@pytest.mark.spec("MV-04-003")
+@pytest.mark.spec("ARCH-22-001")
+def test_core_only_inline_type_is_left_for_the_parent_field():
+    """A ``CORE_TYPE_MAP``-only ``type`` must not resolve to a core class here.
+
+    ``find_in_vocabulary`` falls back to the core map (ARCH-12-003), where
+    ``OrderedCollection`` alone is registered.  Resolving it would place a core
+    instance in a wire tree; the wire parent then rejected it and the whole
+    object degraded to a bare ``as_Link``.  Leaving the dict unexpanded hands
+    the decision to the parent field, which is its declared authority.
+    """
+    result = parse_activity(
+        {
+            "type": "Create",
+            "actor": "https://example.org/alice",
+            "published": PUBLISHED,
+            "object": {
+                "type": "OrderedCollection",
+                "id": "https://example.org/collections/1",
+                "items": [],
+            },
+        }
+    )
+
+    assert type(result.object_).__name__ == "as_Object"
+    assert type(result.object_).__name__ != "CoreActorCollection"
