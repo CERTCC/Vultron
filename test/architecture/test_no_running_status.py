@@ -28,18 +28,25 @@ catches any in-repo node authored to return ``RUNNING``.
 The detector uses ``ast`` to find ``return`` statements whose value references
 the py_trees ``Status.RUNNING`` enum member anywhere in the returned expression
 — catching ``return Status.RUNNING``, ``return py_trees.common.Status.RUNNING``,
-and less-obvious forms such as ``return random.choice((Status.SUCCESS,
-Status.RUNNING))``.
+``return random.choice((Status.SUCCESS, Status.RUNNING))``, and — because it
+resolves per-file ``import ... as`` aliases of ``Status`` — a
+``from py_trees.common import Status as S`` followed by ``return S.RUNNING``.
 
 Two deliberate exclusions:
 
 - The legacy simulator (``vultron/bt/``) uses a *different* enum,
   ``NodeStatus.RUNNING``, with its own continuous-tick engine where RUNNING is
-  legitimate. The detector keys on the enum name ``Status``, so
-  ``NodeStatus.RUNNING`` is not flagged.
+  legitimate. The detector keys on the enum name ``Status`` (and its py_trees
+  ``import ... as`` aliases only), so ``NodeStatus.RUNNING`` is not flagged.
 - A *comparison* such as ``if status == Status.RUNNING`` is not a return of
   RUNNING and is not flagged — only RUNNING appearing inside a ``return`` value
   is.
+
+Known limitation: a value laundered through a local variable
+(``x = Status.RUNNING; return x``) is not traced — that would need local
+dataflow analysis. This static scan is the in-repo half of the enforcement; the
+runtime :class:`~vultron.core.behaviors.call_out.guard.SynchronousCallOut`
+guard is the backstop for any form the scan cannot see.
 
 Spec: BT-18-011 (``specs/behavior-tree-integration.yaml``).
 ADR: ADR-0080.
@@ -65,26 +72,54 @@ def _enum_name(value: ast.expr) -> str | None:
     return None
 
 
-def _references_status_running(node: ast.AST) -> bool:
-    """True if *node* is ``<...>.Status.RUNNING`` (py_trees, not NodeStatus)."""
+def _status_alias_names(tree: ast.AST) -> frozenset[str]:
+    """Local names bound to the py_trees ``Status`` enum in *tree*.
+
+    Always includes the bare ``"Status"``. Also picks up an aliased import such
+    as ``from py_trees.common import Status as S`` (adds ``"S"``), so a
+    ``return S.RUNNING`` is not missed. Only ``py_trees`` imports are consulted,
+    so the legacy simulator's ``NodeStatus`` is never treated as an alias.
+    """
+    aliases = {"Status"}
+    for node in ast.walk(tree):
+        if isinstance(node, ast.ImportFrom) and "py_trees" in (
+            node.module or ""
+        ):
+            for alias in node.names:
+                if alias.name == "Status" and alias.asname:
+                    aliases.add(alias.asname)
+    return frozenset(aliases)
+
+
+def _references_status_running(
+    node: ast.AST, alias_names: frozenset[str]
+) -> bool:
+    """True if *node* is ``<...>.RUNNING`` on the py_trees ``Status`` enum.
+
+    *alias_names* is the set of local names bound to ``Status`` in the file
+    under scan (see :func:`_status_alias_names`), so an aliased import matches
+    too. ``NodeStatus.RUNNING`` (a different enum) is never in that set.
+    """
     return (
         isinstance(node, ast.Attribute)
         and node.attr == "RUNNING"
-        and _enum_name(node.value) == "Status"
+        and _enum_name(node.value) in alias_names
     )
 
 
-def _returns_running(node: ast.AST) -> bool:
+def _returns_running(node: ast.AST, alias_names: frozenset[str]) -> bool:
     """True if *node* is a ``return`` whose value references ``Status.RUNNING``."""
     if not isinstance(node, ast.Return) or node.value is None:
         return False
     return any(
-        _references_status_running(inner) for inner in ast.walk(node.value)
+        _references_status_running(inner, alias_names)
+        for inner in ast.walk(node.value)
     )
 
 
 def _tree_returns_running(tree: ast.AST) -> bool:
-    return any(_returns_running(node) for node in ast.walk(tree))
+    alias_names = _status_alias_names(tree)
+    return any(_returns_running(node, alias_names) for node in ast.walk(tree))
 
 
 def _file_returns_running(source_path: Path) -> bool:
@@ -207,6 +242,19 @@ def test_detector_catches_running_inside_return_expression(
         "class FakeNode:\n"
         "    def update(self):\n"
         "        return random.choice((Status.SUCCESS, Status.RUNNING))\n",
+        encoding="utf-8",
+    )
+    assert _file_returns_running(f)
+
+
+def test_detector_catches_aliased_status_running(tmp_path: Path) -> None:
+    """An aliased py_trees ``Status`` import (``Status as S``) is resolved."""
+    f = tmp_path / "synthetic_running_alias.py"
+    f.write_text(
+        "from py_trees.common import Status as S\n"
+        "class FakeNode:\n"
+        "    def update(self):\n"
+        "        return S.RUNNING\n",
         encoding="utf-8",
     )
     assert _file_returns_running(f)
