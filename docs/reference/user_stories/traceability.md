@@ -695,7 +695,7 @@ Source specifications: `specs/*.yaml`
 <td rowspan="2" markdown="span">[story_2022_046](story_2022_046.md)</td>
 <td rowspan="2" markdown="span">As a Participant, want the case to have a leader</td>
 <td markdown="span">[CM-02-004](../specs/protocol.md#cm-02)</td>
-<td markdown="span">CaseActor MUST know the case owner — leadership/ownership model.</td>
+<td markdown="span">CASE_MANAGER MUST know the case owner — leadership/ownership model.</td>
 </tr>
 <tr markdown="1">
 <td markdown="span">[VP-08-003](../specs/protocol.md#vp-08)</td>
@@ -705,7 +705,7 @@ Source specifications: `specs/*.yaml`
 <td rowspan="3" markdown="span">[story_2022_047](story_2022_047.md)</td>
 <td rowspan="3" markdown="span">As a Participant, propose a case leader, possibly myself</td>
 <td markdown="span">[CM-02-004](../specs/protocol.md#cm-02)</td>
-<td markdown="span">CaseActor MUST know the case owner — ownership field populated by leader proposal.</td>
+<td markdown="span">CASE_MANAGER MUST know the case owner — ownership field populated by leader proposal.</td>
 </tr>
 <tr markdown="1">
 <td markdown="span">[VP-08-012](../specs/protocol.md#vp-08)</td>
@@ -727,7 +727,7 @@ Source specifications: `specs/*.yaml`
 </tr>
 <tr markdown="1">
 <td markdown="span">[CM-02-005](../specs/protocol.md#cm-02)</td>
-<td markdown="span">CaseActor MUST restrict certain activities to the case owner (`PROD_ONLY`) — ownership enforcement.</td>
+<td markdown="span">CASE_MANAGER MUST restrict certain activities to the case owner (`PROD_ONLY`) — ownership enforcement.</td>
 </tr>
 <tr markdown="1">
 <td rowspan="2" markdown="span">[story_2022_049](story_2022_049.md)</td>
@@ -743,11 +743,11 @@ Source specifications: `specs/*.yaml`
 <td rowspan="3" markdown="span">[story_2022_050](story_2022_050.md)</td>
 <td rowspan="3" markdown="span">As a Participant, transfer case leadership to another</td>
 <td markdown="span">[CM-02-004](../specs/protocol.md#cm-02)</td>
-<td markdown="span">CaseActor MUST know the case owner — ownership transfer.</td>
+<td markdown="span">CASE_MANAGER MUST know the case owner — ownership transfer.</td>
 </tr>
 <tr markdown="1">
 <td markdown="span">[CM-02-005](../specs/protocol.md#cm-02)</td>
-<td markdown="span">CaseActor MUST restrict certain activities to the case owner (`PROD_ONLY`) — ownership change restriction.</td>
+<td markdown="span">CASE_MANAGER MUST restrict certain activities to the case owner (`PROD_ONLY`) — ownership change restriction.</td>
 </tr>
 <tr markdown="1">
 <td markdown="span">[RF-02-001](../specs/protocol.md#rf-02)</td>
@@ -757,7 +757,7 @@ Source specifications: `specs/*.yaml`
 <td rowspan="3" markdown="span">[story_2022_051](story_2022_051.md)</td>
 <td rowspan="3" markdown="span">As a Participant, depose or step down as case leader</td>
 <td markdown="span">[CM-02-004](../specs/protocol.md#cm-02)</td>
-<td markdown="span">CaseActor MUST know the case owner — leader identity tracked.</td>
+<td markdown="span">CASE_MANAGER MUST know the case owner — leader identity tracked.</td>
 </tr>
 <tr markdown="1">
 <td markdown="span">[VP-08-011](../specs/protocol.md#vp-08)</td>
@@ -1062,7 +1062,7 @@ Source specifications: `specs/*.yaml`
 </tr>
 <tr markdown="1">
 <td markdown="span">[CM-02-006](../specs/protocol.md#cm-02)</td>
-<td markdown="span">CaseActor MUST enforce case-level authorization for all activities (`PROD_ONLY`) — authz enforcement.</td>
+<td markdown="span">CASE_MANAGER MUST enforce case-level authorization for all activities (`PROD_ONLY`) — authz enforcement.</td>
 </tr>
 <tr markdown="1">
 <td rowspan="4" markdown="span">[story_2022_089](story_2022_089.md)</td>
@@ -1134,11 +1134,11 @@ Source specifications: `specs/*.yaml`
 </tr>
 <tr markdown="1">
 <td markdown="span">[PCR-02-002](../specs/protocol.md#pcr-02)</td>
-<td markdown="span">When a new participant is added to a case, the CaseActor MUST send `Announce(VulnerabilityCase)` to that participant — replica bootstrap for membership awareness.</td>
+<td markdown="span">When a new participant is added to a case, the CASE_MANAGER MUST send `Announce(VulnerabilityCase)` to that participant — replica bootstrap for membership awareness.</td>
 </tr>
 <tr markdown="1">
 <td markdown="span">[PCR-04-002](../specs/protocol.md#pcr-04)</td>
-<td markdown="span">All case-scoped protocol activities sent by the CaseActor MUST carry `context` set to the case ID — routing the membership replica.</td>
+<td markdown="span">All case-scoped protocol activities sent by the CASE_MANAGER MUST carry `context` set to the case ID — routing the membership replica.</td>
 </tr>
 <tr markdown="1">
 <td rowspan="3" markdown="span">[story_2022_093](story_2022_093.md)</td>
@@ -1305,7 +1305,7 @@ Source specifications: `specs/*.yaml`
 <td rowspan="2" markdown="span">[story_2022_043](story_2022_043.md)</td>
 <td rowspan="2" markdown="span">As a Participant, communicate in a common case channel</td>
 <td markdown="span">[CM-06-001](../specs/protocol.md#cm-06)</td>
-<td markdown="span">When the CaseActor updates canonical case state, it MUST broadcast to all Participants.</td>
+<td markdown="span">When the CASE_MANAGER updates canonical case state, it MUST broadcast to all Participants.</td>
 </tr>
 <tr markdown="1">
 <td markdown="span">[OX-03-001](../specs/protocol.md#ox-03)</td>
@@ -1421,7 +1421,7 @@ Source specifications: `specs/*.yaml`
 </tr>
 <tr markdown="1">
 <td markdown="span">[CM-06-001](../specs/protocol.md#cm-06)</td>
-<td markdown="span">When CaseActor updates state, MUST broadcast to all Participants — case-level broadcast.</td>
+<td markdown="span">When CASE_MANAGER updates state, MUST broadcast to all Participants — case-level broadcast.</td>
 </tr>
 <tr markdown="1">
 <td markdown="span">[OX-03-001](../specs/protocol.md#ox-03)</td>

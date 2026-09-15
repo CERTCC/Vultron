@@ -25,7 +25,7 @@ relevant_packages:
 > partially superseded by `specs/case-bootstrap-trust.yaml` and
 > `notes/case-bootstrap-trust.md`. For the original report-submission path,
 > trust now starts with creator-signed `Create(VulnerabilityCase)`, not with
-> `Announce(VulnerabilityCase)` from the CaseActor.
+> `Announce(VulnerabilityCase)` from the CASE_MANAGER.
 
 ---
 
@@ -33,12 +33,12 @@ relevant_packages:
 
 | Question | Decision | Rationale |
 |---|---|---|
-| Does each participant need a stub CaseActor clone? | No — one Actor, one inbox; routing is an internal concern. | Separate per-participant-per-case actors would explode the actor registry and add wire-protocol complexity with no protocol benefit. |
-| What is the bootstrap mechanism for delivering a full case snapshot? | Split by path: creator-signed `Create(VulnerabilityCase)` for the original report path; `Announce(VulnerabilityCase)` from the CaseActor after trust is established; invite-based bootstrap for late joiners. | Original report submitters already trust the report receiver, so that actor should introduce the CaseActor. Late joiners need trust establishment through invitation rather than report history. |
-| Who triggers initial sync for the original participants? | The case creator sends one-time `Create(VulnerabilityCase)` to the original report submitter. | This establishes trust in the CaseActor before later updates arrive from a different identity. |
-| Who triggers initial sync for late-joining participants? | The case creator establishes trust through `InviteActorToCase`, then the CaseActor sends `Announce(VulnerabilityCase)` after acceptance. | Keeps late-joiner trust establishment tied to the invite flow while preserving CaseActor-authoritative replication afterward. |
-| Who may update a participant's local case replica? | Only the CaseActor. Reject and log at WARNING for any other sender. | Enforces the single-writer invariant (CM-02-002). Matches the idea's explicit requirement. |
-| Does the case owner follow the same replica rules? | Yes. Even the case owner routes through the CaseActor and never writes directly to its local copy. | Reinforces CM-02-010 (distinct CaseActor and owner actor identities). |
+| Does each participant need a stub CASE_MANAGER clone? | No — one Actor, one inbox; routing is an internal concern. | Separate per-participant-per-case actors would explode the actor registry and add wire-protocol complexity with no protocol benefit. |
+| What is the bootstrap mechanism for delivering a full case snapshot? | Split by path: creator-signed `Create(VulnerabilityCase)` for the original report path; `Announce(VulnerabilityCase)` from the CASE_MANAGER after trust is established; invite-based bootstrap for late joiners. | Original report submitters already trust the report receiver, so that actor should introduce the CASE_MANAGER. Late joiners need trust establishment through invitation rather than report history. |
+| Who triggers initial sync for the original participants? | The case creator sends one-time `Create(VulnerabilityCase)` to the original report submitter. | This establishes trust in the CASE_MANAGER before later updates arrive from a different identity. |
+| Who triggers initial sync for late-joining participants? | The case creator establishes trust through `InviteActorToCase`, then the CASE_MANAGER sends `Announce(VulnerabilityCase)` after acceptance. | Keeps late-joiner trust establishment tied to the invite flow while preserving CASE_MANAGER-authoritative replication afterward. |
+| Who may update a participant's local case replica? | Only the CASE_MANAGER. Reject and log at WARNING for any other sender. | Enforces the single-writer invariant (CM-02-002). Matches the idea's explicit requirement. |
+| Does the case owner follow the same replica rules? | Yes. Even the case owner routes through the CASE_MANAGER and never writes directly to its local copy. | Reinforces CM-02-010 (distinct CASE_MANAGER and owner actor identities). |
 | Which field routes a case-scoped message to the right local handler? | `context` field, set to the case ID. | Already the established pattern in all demos. Consistent with AS2 semantics. |
 | What happens when an activity arrives with an unknown case context? | Queue, warn, request resync. Drop if no snapshot arrives within timeout. | Handles out-of-order delivery (snapshot and follow-up arrive in wrong order) without silently dropping or corrupting state. |
 | Should an actor maintain a report-to-case mapping? | Yes. Allows reporter actors to recognize that bootstrap `Create(Case)` and later `Announce(Case)` traffic belong to their prior `Offer(Report)`. | Enables the "reporter checks their open submissions" flow described in the idea. |
@@ -56,11 +56,11 @@ Participant Actor (single inbox)
 
 There is one externally-addressable Actor. Case-scoped routing is fully
 internal. The only entity that may update participant replicas is whoever holds
-`CVDRole.CASE_MANAGER` for the case — the "CaseActor". That is a role a container
-wears, one per container, **not** one per case (CP-08-002/003, #1872): its
-identity is the stable `{case_actor_service_url}/actors/case-actor`. Code MUST
-gate on the role rather than compare `actor_id` against a computed
-`case_actor_id` (CM-24-004).
+`CVDRole.CASE_MANAGER` for the case (in the prototype, the "CaseActor"). That is
+a role a container wears, one per container, **not** one per case
+(CP-08-002/003, #1872): the enacting actor's identity is the stable
+`{case_actor_service_url}/actors/case-actor`. Code MUST gate on the role rather
+than compare `actor_id` against a computed `case_actor_id` (CM-24-004).
 
 ```text
 Case Lifecycle:
@@ -80,17 +80,17 @@ Case Lifecycle:
 
 ## Bootstrap Split by Participant Origin
 
-`Announce(VulnerabilityCase)` is still the right vehicle for CaseActor-led
+`Announce(VulnerabilityCase)` is still the right vehicle for CASE_MANAGER-led
 ongoing synchronization, but it is no longer the universal first-bootstrap
 message for non-owner participants.
 
 - **Original report path**: the case creator sends one-time
   `Create(VulnerabilityCase)` to the original report submitter to introduce the
-  case and the CaseActor.
-- **Post-bootstrap updates**: the trusted CaseActor sends
+  case and the CASE_MANAGER.
+- **Post-bootstrap updates**: the trusted CASE_MANAGER sends
   `Announce(VulnerabilityCase)` for ongoing synchronization.
 - **Late joiners**: `InviteActorToCase` establishes trust first, then the
-  CaseActor may send `Announce(VulnerabilityCase)`.
+  CASE_MANAGER may send `Announce(VulnerabilityCase)`.
 
 ### Trust Guard: Seeding Requires Prior Trust
 
@@ -101,21 +101,21 @@ case through one of two paths:
 
 1. **Report-submission path**: the receiver has already processed a
    `Create(VulnerabilityCase)` from the case creator, which establishes the
-   local CaseActor identity before any `Announce` arrives.
+   local CASE_MANAGER identity before any `Announce` arrives.
 2. **Invite/Accept path**: the receiver has completed an
    `InviteActorToCase`/`AcceptInviteToCase` exchange that leaves a
-   pending-expectation record associating the CaseActor identity with the
+   pending-expectation record associating the CASE_MANAGER identity with the
    incoming case ID.
 
 **Implementation note**: the `_find_case_actor_id` helper returns `None`
-only when NO local CaseActor record exists *and* there is no pending-expectation
+only when NO local CASE_MANAGER record exists *and* there is no pending-expectation
 record for that case. When `case_actor_id is None`, the handler should check for
 a pending trust record before creating the replica — not accept blindly.
 
 **Spec reference**: `PCR-03-004`.
 
 The receiver therefore also needs bootstrap-state awareness before treating a
-CaseActor-originated snapshot as authoritative:
+CASE_MANAGER-originated snapshot as authoritative:
 
 ```python
 class AnnounceVulnerabilityCaseReceivedUseCase:
@@ -137,11 +137,11 @@ class AnnounceVulnerabilityCaseReceivedUseCase:
             )
             return
 
-        # PCR-03-001: only accept updates from the CaseActor for this case
+        # PCR-03-001: only accept updates from the CASE_MANAGER for this case
         case_actor_id = _resolve_case_actor(case.id_, self._dl)
         if case_actor_id is not None and actor_id != case_actor_id:
             logger.warning(
-                "announce_case: actor '%s' is not the CaseActor for case '%s'"
+                "announce_case: actor '%s' is not the CASE_MANAGER for case '%s'"
                 " — update rejected (PCR-03-001)",
                 actor_id,
                 case.id_,
@@ -192,7 +192,7 @@ inbox via the outbox.
 All case-scoped activities MUST carry `context` set to the case ID. This
 applies to both directions:
 
-**CaseActor → Participant:**
+**CASE_MANAGER → Participant:**
 
 ```python
 activity = AnnounceVulnerabilityCaseActivity(
@@ -203,7 +203,7 @@ activity = AnnounceVulnerabilityCaseActivity(
 )
 ```
 
-**Participant → CaseActor:**
+**Participant → CASE_MANAGER:**
 
 ```python
 activity = AddNoteToCase(
@@ -298,8 +298,8 @@ against a different actor's case replica, producing incorrect state.
 
 - `AnnounceVulnerabilityCaseReceivedUseCase` lives in
   `vultron/core/use_cases/received/case.py`.
-- The CaseActor authority check (`_resolve_case_actor`) looks up the
-  CaseActor via `dl.by_type("Service")` filtered to `context == case_id`.
+- The CASE_MANAGER authority check (`_resolve_case_actor`) looks up the
+  CASE_MANAGER via `dl.by_type("Service")` filtered to `context == case_id`.
   This lookup is idempotent and safe to call multiple times.
 - The late-joiner bootstrap node belongs in
   `vultron/core/behaviors/case/` as part of the invite-acceptance BT,
@@ -325,7 +325,7 @@ def test_announce_creates_replica(dl, case_actor, new_case):
     assert dl.read(new_case.id_) is not None
 
 
-# PCR-07-003: Announce from non-CaseActor is rejected
+# PCR-07-003: Announce from non-CASE_MANAGER is rejected
 def test_announce_from_non_case_actor_rejected(dl, imposter_actor, new_case,
                                                caplog):
     activity = AnnounceVulnerabilityCaseActivity(
@@ -338,7 +338,7 @@ def test_announce_from_non_case_actor_rejected(dl, imposter_actor, new_case,
     with caplog.at_level(logging.WARNING):
         AnnounceVulnerabilityCaseReceivedUseCase(dl, event).execute()
     assert dl.read(new_case.id_) is None
-    assert "not the CaseActor" in caplog.text
+    assert "not the CASE_MANAGER" in caplog.text
 
 
 # PCR-07-005: Activity with unknown context is queued, not applied

@@ -6,7 +6,7 @@ consulted:
 informed:
 ---
 
-# Authority Is the CASE_MANAGER Role; "Case Actor" Is Role-Enactment Shorthand, Not an Identity
+# Authority Is the CASE_MANAGER Role; "Case Actor" Names the Prototype Actor That Enacts It, Not the Authority
 
 ## Context and Problem Statement
 
@@ -161,10 +161,14 @@ Concretely:
    `Node` / `store_for_actor` stay exactly as they are, relabeled as
    store-consistency / anti-fork — explicitly not authority. There is no
    role/store "coincidence" to assert: authority is purely the role.
-7. **"Case Actor" name/URL becomes cosmetic.** A spawned software actor may still
-   be provisioned at a stable inbox URL (ADR-0041's fix for the unhostable
-   per-case slug stands) — but the string `case-actor` carries no protocol
-   meaning and no code may branch on it.
+7. **"Case Actor" is the prototype identity, not the authority.** A spawned
+   software actor may still be provisioned at a stable inbox URL via a **case
+   actor service** (ADR-0041's fix for the unhostable per-case slug stands) —
+   but the string `case-actor` carries no protocol meaning and no code may
+   branch on it. "CaseActor" names *that concrete prototype/demo actor*; it is
+   **not** shorthand for the authority. Protocol-normative prose names the
+   authority **the CASE_MANAGER** (the role holder), reserving "CaseActor" for
+   the prototype actor and "case actor service" for the provisioning endpoint.
 
 ### Consequences
 
@@ -240,9 +244,14 @@ pattern to a *different* question (a BT node's disposition when a case is
 when the case is present. Related notes: `notes/case-communication-model.md`,
 `notes/case-ledger-authority.md`.
 
-A companion glossary change redefines "Case Actor" as shorthand for
-`CASE_MANAGER`-role enactment (typically an automated software actor), with
-authority defined by the role, not by name or identity.
+A companion glossary change **discriminates the three referents** that
+"CaseActor" had been conflating: the **CASE_MANAGER** role (the authority,
+defined by the role and nothing else), the **Case Actor** (the concrete
+prototype/demo actor that enacts it — a cosmetic identity, never matched on),
+and the **case actor service** (the provisioning endpoint that spawns
+`case-actor` identities). Authority is defined by the role, not by name or
+identity; "CaseActor" is **not** treated as shorthand for the authority —
+protocol-normative prose names the authority the CASE_MANAGER.
 
 This decision generates recurring testable requirements, authored alongside it:
 the single-resolver / single-predicate invariants and the no-name-branching

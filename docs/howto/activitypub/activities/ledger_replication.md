@@ -2,11 +2,11 @@
 
 {% include-markdown "../../../includes/not_normative.md" %}
 
-These activities implement the CaseActor's canonical log replication pipeline.
-After each new log entry is committed to the case ledger, the CaseActor fans out
+These activities implement the CASE_MANAGER's canonical log replication pipeline.
+After each new log entry is committed to the case ledger, the CASE_MANAGER fans out
 `Announce(CaseLedgerEntry)` to every participant. Participants buffer out-of-order
 entries and drain them once their hash-chain predecessor arrives (ADR-0037).
-When a new participant joins for the first time, the CaseActor seeds their replica
+When a new participant joins for the first time, the CASE_MANAGER seeds their replica
 with `Announce(VulnerabilityCase)` (ADR-0059).
 
 See also:
@@ -23,7 +23,7 @@ See also:
 
 ## Announce(CaseLedgerEntry) — Log Replication
 
-The CaseActor is the single-writer authority for the canonical case ledger. After
+The CASE_MANAGER is the single-writer authority for the canonical case ledger. After
 committing each `CaseLedgerEntry`, it broadcasts the entry to all case participants
 via `Announce(CaseLedgerEntry)`.
 
@@ -61,8 +61,8 @@ activity = announce_log_entry_activity(
 When a participant receives an `Announce(CaseLedgerEntry)` whose `prev_log_hash`
 does not match its local tail hash (and the entry cannot be resolved as a
 forward-gap via buffering), it sends `Reject(CaseLedgerEntry)` back to the
-CaseActor. The `context` field carries the participant's last accepted entry hash
-so the CaseActor can replay the missing prefix.
+CASE_MANAGER. The `context` field carries the participant's last accepted entry hash
+so the CASE_MANAGER can replay the missing prefix.
 
 !!! info "Buffering takes priority (ADR-0037)"
 
@@ -91,7 +91,7 @@ activity = reject_log_entry_activity(
 
 When a participant's replica is being initialized for the first time (e.g., after
 they accept an `Invite` or after a `Create(CaseProposal)` is accepted), the
-CaseActor sends `Announce(VulnerabilityCase)` to seed the replica. This is the
+CASE_MANAGER sends `Announce(VulnerabilityCase)` to seed the replica. This is the
 participant's authoritative copy of the case, including all current participants
 and status.
 

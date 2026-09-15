@@ -23,24 +23,24 @@ relevant_packages:
 
 ## Architecture Overview
 
-Vultron is a **log-centric architecture** in which the CaseActor is the
+Vultron is a **log-centric architecture** in which the CASE_MANAGER is the
 authoritative single writer of an append-only, hash-chained **canonical
 recorded log**, and all externally visible replicated state is a deterministic
 projection of that recorded log.
 
 Key properties:
 
-- **Single-writer regime**: The CaseActor (acting as de facto replication
+- **Single-writer regime**: The CASE_MANAGER (acting as de facto replication
   leader) is the only node that appends to the authoritative log. This
   simplifies consistency guarantees and avoids concurrent-write conflicts.
 - **Eventual consistency**: Participants synchronize by receiving replicated
-  log entries; their local state converges to the CaseActor's state as
+  log entries; their local state converges to the CASE_MANAGER's state as
   entries are delivered.
-- **Audit vs replication split**: The CaseActor MAY keep a broader local case
+- **Audit vs replication split**: The CASE_MANAGER MAY keep a broader local case
   audit trail including rejected assertion outcomes, but only the recorded
   canonical projection participates in replication and hash chaining.
 - **Single-node Raft framing**: The AppendOnlyLedger through PeerLedgerSync phases effectively
-  implement a single-node Raft cluster. The CaseActor is permanently the
+  implement a single-node Raft cluster. The CASE_MANAGER is permanently the
   leader (no election needed), and every append is an immediate commit. A
   single-node configuration MUST always be supported as the degenerate case
   of the general distributed model.
@@ -68,7 +68,7 @@ references the hash of the immediate predecessor, forming a
 **forward-linked Merkle chain**.
 
 - Synchronization state is communicated via hashes rather than indices.
-  Both sides have access to the same hashes, so the CaseActor can replay
+  Both sides have access to the same hashes, so the CASE_MANAGER can replay
   all entries following the last hash a participant reports having received,
   without needing to track numeric indices.
 - The first entry uses a well-known sentinel predecessor hash (e.g.,
@@ -121,9 +121,9 @@ when the chain is reorganised into a tree structure. See `SYNC-01-005`.
 
 ## Log Position in Activity Context
 
-When a Participant Actor sends **any** message to the CaseActor, it
+When a Participant Actor sends **any** message to the CASE_MANAGER, it
 SHOULD include the hash of its last accepted log entry as a parameter
-in the activity's `context` field. This allows the CaseActor to
+in the activity's `context` field. This allows the CASE_MANAGER to
 proactively detect that a participant is behind and immediately replay
 missing entries without waiting for an explicit sync request.
 
@@ -137,7 +137,7 @@ a slightly-behind participant.
 | Phase  | Description                                               |
 |--------|-----------------------------------------------------------|
 | AppendOnlyLedger | Local append-only log with hash-chain indexing            |
-| LedgerFanout | One-way replication from CaseActor to Participant Actors  |
+| LedgerFanout | One-way replication from the CASE_MANAGER to Participant Actors  |
 | LedgerReconciliation | Full sync loop with retry/backoff                         |
 | PeerLedgerSync | Multi-peer synchronization (completes single-node CaseActor participant replication) |
 
@@ -174,7 +174,7 @@ Adapter responsibilities:
 
 ### LedgerFanout Scope
 
-One-way replication from CaseActor to each Participant Actor:
+One-way replication from the CASE_MANAGER to each Participant Actor:
 
 - Strict conflict handling: reject mismatched `prev_log_hash`, respond
   with last-accepted hash
@@ -238,7 +238,7 @@ invariants under normal operation and partial failure:
    composite state violates the RM↔VF, RM↔D, or VF↔D entailments
    (`composite_state_violations()`), the replica MUST NOT apply the status
    and MUST emit `Create(ProcessingFault)` with failure class
-   `StatusAssertionRefused/ImpossibleState` to the CaseActor (RSH-05-021,
+   `StatusAssertionRefused/ImpossibleState` to the CASE_MANAGER (RSH-05-021,
    guaranteed by tree structure via `Selector(ApplyOrFault)` in
    `announce_tree.py`). For the ARCH-15-001 sub-case (unreadable local
    participant record), the emitted class is
@@ -373,7 +373,7 @@ entry's domain effects were already applied — so it skips the whole
 `ProcessAndStore` subtree on repeat delivery. That inference is only sound if
 the *only* writer of a `CaseLedgerEntry` is the core write path that also
 applies the effects (`PersistReceivedLogEntry` for a participant replica; the
-CaseActor's authoritative append for the primary case).
+CASE_MANAGER's authoritative append for the primary case).
 
 The FastAPI ingress adapter previously violated that: `_store_nested_inbox_object`
 pre-stored the inline `CaseLedgerEntry` during parse so that `rehydrate()` —
@@ -483,7 +483,7 @@ node's derived state (e.g., participant list, EM state) remains stale.
 **Resolution: Accept.** No repair path is implemented. The pre-SYNC-13 code was a
 bug in pre-production code with no extant deployed nodes or cases. The correct recovery
 for any node in this state is to wipe its local DataLayer for the affected case and
-re-sync from the CaseActor. Re-sync replays all `Announce(CaseLedgerEntry)` entries
+re-sync from the CASE_MANAGER. Re-sync replays all `Announce(CaseLedgerEntry)` entries
 from the beginning; each entry passes the `CheckLedgerEntryAlreadyStoredNode` gate
 (FAILURE — not yet stored), so `ProcessAndStore` runs and effects are applied correctly.
 
@@ -498,7 +498,7 @@ per-case genesis hash (CLP-08-005) and returns FAILURE.
 
 **Before the fix (issue #1873)**: FAILURE from `ReconstructChainTailNode` exited
 the `ProcessAndStore` Sequence without reaching `CheckHashOrRejectOnMismatchNode`,
-so no `Reject(CaseLedgerEntry)` was sent. The CaseActor never learned about the
+so no `Reject(CaseLedgerEntry)` was sent. The CASE_MANAGER never learned about the
 failure and never replayed the entry → permanent data loss on the replica.
 
 **After the fix**: `ReconstructChainTailNode` writes sentinel values
@@ -506,7 +506,7 @@ failure and never replayed the entry → permanent data loss on the replica.
 wraps the node in a Selector whose fallback is `SendRejectLogEntryNode`, so the
 Reject fires even when chain reconstruction fails. The Reject carries
 `last_accepted_hash=""` (meaning "I have no entries; replay from genesis") so
-the CaseActor re-announces all entries once the case is delivered.
+the CASE_MANAGER re-announces all entries once the case is delivered.
 
 **Implementation**: `vultron/core/behaviors/sync/nodes/chain.py`
 (`ReconstructChainTailNode.update`) and
@@ -517,7 +517,7 @@ Selector). Spec: SYNC-15-001, SYNC-15-002. Regression test:
 
 ### Pre-Genesis Buffering and Drain on Case Seed (SYNC-15-004/005)
 
-The Reject backstop above is *loss* recovery — it depends on the CaseActor
+The Reject backstop above is *loss* recovery — it depends on the CASE_MANAGER
 re-announcing entries once the case lands, over the same unordered transport,
 so each pre-genesis entry Rejects again and amplifies CLP-08-005 churn (#2169).
 Worse, in the `fcvcv` V1 demo the dropped `add_report_to_case` entry meant no
@@ -658,4 +658,4 @@ Do NOT inject via `post_actor_inbox` — `CheckLogEntryAlreadyStored` can
 short-circuit before hash validation. Instead:
 
 1. call `handle_inbox_item(dl, activity)` directly, then
-2. drive outbox-based replay from the CaseActor.
+2. drive outbox-based replay from the CASE_MANAGER.
