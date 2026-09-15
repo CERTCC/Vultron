@@ -21,7 +21,7 @@ the local trigger path):
     treats "we published" as "it's deployed" produces an unauthorized VFD
     advance.
 
-{% include-markdown "../_oq-v-drive-authority.md" %}
+{% include-markdown "../_oq-v-to-V.md" %}
 
 #### 12.4.2 Participant-Agnostic CS Transitions (PXA)
 

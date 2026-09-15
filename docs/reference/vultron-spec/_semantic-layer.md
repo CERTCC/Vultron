@@ -149,7 +149,9 @@ Consequences for implementers:
   as dispatchable protocol messages.
 - Unprocessable inbound messages are currently dead-lettered with no sender
   notification. Whether the protocol should define a negative-acknowledgement
-  facet is an open question. See Open Question 15.
+  facet is an open question.
+
+{% include-markdown "./_oq-negative-ack.md" %}
 
 ### 4.7 Shorthand → Wire Form Mapping
 
