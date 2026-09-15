@@ -43,6 +43,7 @@ from vultron.core.behaviors.sync.nodes.chain import (
 from vultron.core.behaviors.sync.nodes.conditions import (
     CheckLedgerEntryAlreadyStoredNode,
     CheckLedgerFreshnessNode,
+    VerifySenderIsCaseActorNode,
     VerifySenderIsOwnIdNode,
     _require_log_entry,  # noqa: F401
 )
@@ -108,6 +109,7 @@ from vultron.core.behaviors.sync.nodes.replay import (
 
 __all__ = [
     # conditions
+    "VerifySenderIsCaseActorNode",
     "VerifySenderIsOwnIdNode",
     "CheckLedgerEntryAlreadyStoredNode",
     "CheckLedgerFreshnessNode",
