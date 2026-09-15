@@ -156,7 +156,7 @@ groups:
     priority: SHOULD
     kind: protocol
     statement: >-
-      Before proposing an embargo or inviting an actor to join an existing embargo, the CaseActor
+      Before proposing an embargo or inviting an actor to join an existing embargo, the CASE_MANAGER
       SHOULD retrieve and evaluate the target actor's embargo policy for compatibility with
       the proposed embargo terms
     scope:
@@ -265,7 +265,7 @@ groups:
     kind: protocol
     statement: >-
       When an embargo transitions from `ACTIVE` to `REVISE` (counter-revision proposed),
-      the CaseActor MUST call `_cascade_pec_revise()` to reset each `SIGNATORY`
+      the CASE_MANAGER MUST call `_cascade_pec_revise()` to reset each `SIGNATORY`
       participant's PEC state to `INVITED` so they can re-consent to the revised terms.
     rationale: >-
       Without the PEC cascade, a participant who signed for embargo terms `T1` would
@@ -286,7 +286,7 @@ groups:
     kind: protocol
     statement: >-
       When the embargo is already in `REVISE` state and a further revision proposal
-      arrives (`REVISE → REVISE`), the CaseActor MUST NOT call `_cascade_pec_revise()`
+      arrives (`REVISE → REVISE`), the CASE_MANAGER MUST NOT call `_cascade_pec_revise()`
       again. The PEC states were already reset by the initial `ACTIVE → REVISE` transition;
       a double cascade would incorrectly re-invite participants who may have already
       re-consented.

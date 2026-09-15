@@ -569,7 +569,7 @@ groups:
     kind: protocol
     statement: 'Acknowledgement of replicated case-ledger state MUST be cumulative and implicit via hash-chain continuity. A
       receiver whose `prev_log_hash` matches its local tail MUST NOT emit an acknowledgement, and MUST emit
-      `Reject(CaseLedgerEntry)` on a mismatch, whereupon the CaseActor replays all entries after the last accepted hash.'
+      `Reject(CaseLedgerEntry)` on a mismatch, whereupon the CASE_MANAGER replays all entries after the last accepted hash.'
     rationale: A matching `prev_log_hash` already proves receipt of every prior entry, so per-message positive
       acknowledgement would be redundant. This is negative acknowledgement with gap-fill replay, structurally closer to a
       cumulative ACK or SACK scheme than to the formal per-message EK, CK and GK design. `RK` remains a real wire activity
@@ -586,7 +586,7 @@ groups:
   - id: MSM-05-005
     priority: MUST
     kind: protocol
-    statement: All protocol-significant activities MUST be committed to the canonical case ledger by the CaseActor
+    statement: All protocol-significant activities MUST be committed to the canonical case ledger by the CASE_MANAGER
       before fan-out to participant actors. No protocol-significant activity bypasses the ledger replication path.
     rationale: >-
       The hash-chain acknowledgement model (MSM-05-002) is only complete if every activity a participant needs to
@@ -594,7 +594,7 @@ groups:
       acknowledgement mechanism. Report submission (RS) is the only activity not carried by the ledger; it uses RK
       (MSM-01-008) instead, which is the intended exception rather than a gap.
     verification: >-
-      Inspection of the CaseActor receive paths confirms that every inbound protocol
+      Inspection of the CASE_MANAGER receive paths confirms that every inbound protocol
       activity results in at least one CaseLedgerEntry committed before Announce fan-out,
       except for Offer(VulnerabilityReport) which uses the RK path.
     lint_suppress:
@@ -612,7 +612,7 @@ groups:
       Between deliveries, silence and unreachability are observationally equivalent. Documenting this as a
       deliberate MAY-level property (rather than a defect) closes the liveness question raised by CONCERN-3006
       without foreclosing a future heartbeat mechanism (CaseActorHeartbeat is already sketched in
-      notes/sync-ledger-replication.md for the multi-node CaseActor cluster design).
+      notes/sync-ledger-replication.md for the multi-node CASE_MANAGER cluster design).
     verification: >-
       No normative heartbeat requirement exists in specs/sync-ledger-replication.yaml;
       this entry records the absence as intentional.
@@ -710,7 +710,7 @@ groups:
     shorthands in the 28-shorthand set. PEC state answers the question: "has this
     participant explicitly accepted or rejected the *current* active embargo?" Unlike
     RM state (self-reported by the participant) and VF/D state (self-reported by
-    vendor/deployer), PEC state is set by the CaseActor (CM-28-003) based on observed
+    vendor/deployer), PEC state is set by the CASE_MANAGER (CM-28-003) based on observed
     participant behavior — incoming Accept/Reject wire activities, timer-enforced lapses,
     and cascades from shared EM state changes. The five states are NO_EMBARGO (no embargo
     in scope), INVITED (awaiting response), SIGNATORY (accepted current terms), LAPSED
@@ -889,7 +889,7 @@ groups:
       The timer-based pocket-veto transitions — INVITED to DECLINED and LAPSED
       to DECLINED after the invitation deadline passes — MUST be enforced lazily
       with no outbound wire message emitted for the PEC state change itself.
-      The CaseActor MUST author a case-ledger entry recording the lapse (CM-28-005)
+      The CASE_MANAGER MUST author a case-ledger entry recording the lapse (CM-28-005)
       so the consent change is visible in the canonical ledger, but no additional
       protocol wire activity is required.
     rationale: >-
@@ -902,7 +902,7 @@ groups:
     verification: >-
       Inspection of vultron/core/services/embargo_lifecycle.py confirms
       detect_and_apply_lapse() applies PEC_Trigger.DECLINE without emitting
-      an outbound wire activity, and that a CaseActor-authored ledger entry
+      an outbound wire activity, and that a CASE_MANAGER-authored ledger entry
       is written per CM-28-005.
     relationships:
     - rel_type: derives_from

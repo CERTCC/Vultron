@@ -278,7 +278,7 @@ See [ActivityPub Activities](../../howto/activitypub/activities/index.md) for de
     state. Acknowledgement is instead **cumulative and implicit** via hash-chain
     continuity: a receiver whose `prev_log_hash` matches its local ledger tail says
     nothing — the match *is* the acknowledgement. On a mismatch the receiver emits
-    `Reject(CaseLedgerEntry)`, whereupon the CaseActor replays all entries after the
+    `Reject(CaseLedgerEntry)`, whereupon the CASE_MANAGER replays all entries after the
     last accepted hash (negative acknowledgement with gap-fill replay).
 
     $RK$ remains a real wire activity (`Read(Offer(VulnerabilityReport))`) because

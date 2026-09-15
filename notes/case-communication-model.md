@@ -184,7 +184,7 @@ the recipient when building outbound participant activities.
 
 Adding a new participant to an active case uses `RmInviteToCaseActivity` /
 `RmAcceptInviteToCaseActivity`. Because the invitee is not yet a participant,
-the standard CaseActor → broadcast model cannot be used to deliver the invite.
+the standard CASE_MANAGER → broadcast model cannot be used to deliver the invite.
 However, the Case Actor MUST still be the authoritative actor in the exchange.
 
 ### Correct Flow
@@ -223,7 +223,7 @@ on the executing actor holding `CVDRole.CASE_MANAGER` for the case
 (`create_case_manager_gated_tree`). Code MUST NOT instead resolve a
 `case_actor_id` and compare it against `actor_id`: the authority is a *role* held
 in the case, its holder may be any Actor type, and ungated the same helper is
-identity spoofing — any actor reaching it could emit as the CaseActor.
+identity spoofing — any actor reaching it could emit as the CASE_MANAGER.
 
 Once the emit is role-gated the executing actor *is* the case manager, so
 `dl` already belongs to it and the activity and its outbox entry land in one store
@@ -255,8 +255,8 @@ not exist: the Activity is sent directly by the requesting participant, with
 ## Delegated-Message Pattern
 
 Some case-scoped Activities are logically initiated by a participant but MUST
-be sent under the CaseActor's identity — because the protocol requires the
-CaseActor to be the recognised sender.  This is the **delegated-message
+be sent under the CASE_MANAGER's identity — because the protocol requires the
+CASE_MANAGER to be the recognised sender.  This is the **delegated-message
 pattern** (CM-24-001 through CM-24-005):
 
 ```text
@@ -331,10 +331,10 @@ records that decision as a direct RM state update, without emitting a proxy
 
 ---
 
-## Antipattern: Received-Side Guarded Commit with Foreign CaseActor ID
+## Antipattern: Received-Side Guarded Commit with Foreign CASE_MANAGER ID
 
 A subtler form of identity spoofing appears when a received-side use case
-resolves the CaseActor's ID from the DataLayer and then executes the
+resolves the CASE_MANAGER's ID from the DataLayer and then executes the
 guarded-commit BT under that foreign ID — even though the active DataLayer
 belongs to a different actor (e.g., the vendor actor). This was the pattern
 in `note.py` and `embargo.py` before ADR-0021 was established.
@@ -351,12 +351,12 @@ BTBridge(datalayer=self._dl).execute_with_setup(         # vendor's DL
 
 The problem: `self._dl` is the **vendor actor's** DataLayer (since the use case
 is running in the vendor's inbox), but `actor_id=case_actor_id` causes the BT
-to emit `Announce(CaseLedgerEntry)` as if authored by the CaseActor. The
-outbox entry is queued under the wrong actor, and the CaseActor's canonical
+to emit `Announce(CaseLedgerEntry)` as if authored by the CASE_MANAGER. The
+outbox entry is queued under the wrong actor, and the CASE_MANAGER's canonical
 ledger never receives it.
 
 The correct pattern (from `status.py`'s `_commit_log_cascade_bt`) is a strict
-pre-flight guard that only proceeds when the receiving actor IS the CaseActor:
+pre-flight guard that only proceeds when the receiving actor IS the CASE_MANAGER:
 
 ```python
 # ✅ CORRECT — pre-flight guard; only commits when receiving actor IS CaseActor
@@ -364,7 +364,7 @@ receiving_actor_id = request.receiving_actor_id
 case_actor_id = _find_case_actor_id(self._dl, case_id)
 
 if receiving_actor_id != case_actor_id:
-    return   # not the CaseActor — skip commit entirely
+    return   # not the CASE_MANAGER — skip commit entirely
 
 # Now safe: receiving_actor_id == case_actor_id, so DL matches identity
 BTBridge(datalayer=self._dl).execute_with_setup(
@@ -374,15 +374,15 @@ BTBridge(datalayer=self._dl).execute_with_setup(
 )
 ```
 
-The pre-flight guard is what makes the identity correct. When a non-CaseActor
+The pre-flight guard is what makes the identity correct. When a non-CASE_MANAGER
 receives the same activity (relay copy to finder, vendor's own inbox), the
-guard fires and the commit is skipped. The CaseActor's own inbox delivery —
+guard fires and the commit is skipped. The CASE_MANAGER's own inbox delivery —
 which arrives because the trigger tree emitted to `case_manager_id`
 (CLP-10-001) — is the only path to a canonical write.
 
 ### Why the `Announce(CaseLedgerEntry)` envelope is not a payload
 
-`Announce(CaseLedgerEntry)` is the replication wire envelope the CaseActor
+`Announce(CaseLedgerEntry)` is the replication wire envelope the CASE_MANAGER
 uses to broadcast canonical entries to participants (SYNC-02-002). It cannot
 appear as the `payloadSnapshot` of a canonical entry because the snapshot
 captures the protocol activity that *triggered* the entry, not the transport

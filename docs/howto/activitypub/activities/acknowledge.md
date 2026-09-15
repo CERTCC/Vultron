@@ -76,7 +76,7 @@ implicit** via hash-chain continuity. There is no per-message `EK`, `CK`, or
 A participant receiving `Announce(CaseLedgerEntry)` whose `prev_log_hash`
 matches its local ledger tail says nothing: the match itself is the
 acknowledgement. On a mismatch, the participant emits
-`Reject(CaseLedgerEntry)` and the CaseActor replays all missing entries.
+`Reject(CaseLedgerEntry)` and the CASE_MANAGER replays all missing entries.
 
 For the full reference on both fault reporting and the acknowledgement
 evolution, see
