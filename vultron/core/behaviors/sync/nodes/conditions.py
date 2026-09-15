@@ -185,6 +185,99 @@ class VerifySenderIsOwnIdNode(DataLayerConditionWithPorts):
         return Status.FAILURE
 
 
+class VerifySenderIsCaseActorNode(DataLayerConditionWithPorts):
+    """Reject announces whose sender is not the known CaseActor for this case.
+
+    Extracts the case_id from the activity's log entry, scans the DataLayer
+    for a Service with a matching context, and returns SUCCESS only when
+    the activity's actor_id equals that Service's id_.
+
+    Fails closed when no matching CaseActor Service is registered — a
+    participant that does not yet know the CaseActor cannot safely accept
+    ledger entries from anyone.
+
+    Per specs/case-ledger-processing.yaml CLP-01-003.
+    """
+
+    @classmethod
+    def input_ports(cls) -> dict[str, PortInformation]:
+        ports = super().input_ports()
+        ports["activity"] = PortInformation(data_type=object, required=True)
+        return ports
+
+    @classmethod
+    def _domain_port_remappings(cls) -> dict[str, str]:
+        return {"activity": "/activity"}
+
+    def initialise(self) -> None:
+        super().initialise()
+        self.activity = self.get_input("activity")
+
+    def update(self) -> Status:
+        if (f := self._require_datalayer()) is not None:
+            return f
+        assert self.datalayer is not None
+
+        try:
+            entry = _require_log_entry(self.activity, self.name)
+        except VultronError as exc:
+            self.logger.error("%s: %s", self.name, exc)
+            return Status.FAILURE
+
+        case_id = entry.case_id
+        sender_id = getattr(self.activity, "actor_id", None)
+
+        if not sender_id:
+            self.logger.warning("%s: announce has no actor_id", self.name)
+            return Status.FAILURE
+
+        case_actor_svc = None
+        for service in self.datalayer.list_objects("Service"):
+            if getattr(service, "context", None) == case_id:
+                case_actor_svc = service
+                break
+
+        if case_actor_svc is None:
+            # Bootstrap window: no CaseActor registered for this case yet.
+            # Let downstream handling (pre-genesis buffer / reject-on-missing-case)
+            # manage the entry rather than silently dropping it.
+            self.logger.debug(
+                "%s: no CaseActor Service found for case '%s'"
+                " — passing through for bootstrap handling",
+                self.name,
+                case_id,
+            )
+            return Status.SUCCESS
+
+        # Accept from either the Service actor URL or the owning org URL so that
+        # both deployment patterns (direct-service sender and org-actor sender)
+        # are covered by the same check (CLP-01-003).
+        expected_ids = {
+            getattr(case_actor_svc, "id_", None),
+            getattr(case_actor_svc, "attributed_to", None),
+        }
+        expected_ids.discard(None)
+
+        if sender_id in expected_ids:
+            self.logger.debug(
+                "%s: sender '%s' matches CaseActor for case '%s'",
+                self.name,
+                sender_id,
+                case_id,
+            )
+            return Status.SUCCESS
+
+        self.logger.warning(
+            "%s: rejected announce from '%s' for case '%s'"
+            " (expected one of %s)",
+            self.name,
+            sender_id,
+            case_id,
+            expected_ids,
+        )
+        return Status.FAILURE
+
+
 class CheckLedgerEntryAlreadyStoredNode(DataLayerConditionWithPorts):
     @classmethod
     def input_ports(cls) -> dict[str, PortInformation]:

@@ -45,6 +45,7 @@ from vultron.core.behaviors.sync.nodes.conditions import (
     CheckIsOwnCaseActorNode,
     CheckLedgerEntryAlreadyStoredNode,
     CheckLedgerFreshnessNode,
+    VerifySenderIsCaseActorNode,
     VerifySenderIsOwnIdNode,
     _find_case_actor,  # noqa: F401
     _require_case_actor_id,  # noqa: F401
@@ -114,6 +115,7 @@ __all__ = [
     # conditions
     "CheckIsOwnCaseActorNode",
     "CheckIsNotOwnCaseActorNode",
+    "VerifySenderIsCaseActorNode",
     "VerifySenderIsOwnIdNode",
     "CheckLedgerEntryAlreadyStoredNode",
     "CheckLedgerFreshnessNode",

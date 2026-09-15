@@ -32,6 +32,7 @@ from vultron.core.behaviors.sync.nodes import (
     PersistReceivedLogEntryNode,
     ReconstructChainTailNode,
     SendRejectLogEntryNode,
+    VerifySenderIsCaseActorNode,
     VerifySenderIsOwnIdNode,
 )
 
@@ -315,6 +316,7 @@ def create_announce_log_entry_tree() -> py_trees.behaviour.Behaviour:
         memory=False,
         children=[
             CheckIsNotOwnCaseActorNode(name="CheckIsNotOwnCaseActor"),
+            VerifySenderIsCaseActorNode(name="VerifySenderIsCaseActor"),
             entry_processing,
         ],
     )
