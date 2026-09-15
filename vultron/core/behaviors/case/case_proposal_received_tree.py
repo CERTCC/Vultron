@@ -72,11 +72,12 @@ from vultron.core.behaviors.case.nodes.case_lookup import (
 )
 from vultron.core.behaviors.case.nodes.participant.common import (
     _create_and_attach_participant,
-    _get_or_create_accepted_status,
 )
 from vultron.core.behaviors.case.nodes.participant.owner import (
-    _build_owner_initial_status,
     _effective_case_roles,
+)
+from vultron.core.behaviors.case.nodes.participant.status import (
+    CreateParticipantStatusNode,
 )
 from vultron.core.behaviors.case.ledger_snapshots import (
     build_add_case_status_snapshot,
@@ -101,7 +102,6 @@ from vultron.core.models.activity import (
 from vultron.core.models.case import VulnerabilityCase, VultronCase
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.case_status import CaseStatus
-from vultron.core.models.dimensions import PecDimension, RmDimension
 from vultron.core.models.participant_status import ParticipantStatus
 from vultron.core.models.pending_create_case_activity import (
     PendingCreateCaseActivity,
@@ -370,6 +370,28 @@ class _AddCaseActorParticipantNode(DataLayerActionWithPorts):
 
     def __init__(self, name: str | None = None) -> None:
         super().__init__(name=name or self.__class__.__name__)
+        # Pre-build bootstrap status nodes (BTND-10-004, ADR-0089)
+        self._received_node = CreateParticipantStatusNode(
+            actor_id="",
+            rm_state=RM.RECEIVED,
+            vf_state=None,
+            d_state=None,
+            pxa_state=None,
+        )
+        self._valid_node = CreateParticipantStatusNode(
+            actor_id="",
+            rm_state=RM.VALID,
+            vf_state=None,
+            d_state=None,
+            pxa_state=None,
+        )
+        self._accepted_node = CreateParticipantStatusNode(
+            actor_id="",
+            rm_state=RM.ACCEPTED,
+            vf_state=None,
+            d_state=None,
+            pxa_state=None,
+        )
 
     @classmethod
     def input_ports(cls) -> dict[str, PortInformation]:
@@ -389,58 +411,17 @@ class _AddCaseActorParticipantNode(DataLayerActionWithPorts):
         except (NoDataAvailable, NotImplementedError):
             pass
 
-    def _build_bootstrap_statuses(
-        self, case_id: str
-    ) -> list[ParticipantStatus]:
-        """Return the three bootstrap ParticipantStatus records (CM-23-005/006)."""
-        assert self.actor_id is not None
-        return [
-            ParticipantStatus(
-                context=case_id,
-                rm=RmDimension(state=RM.RECEIVED),
-                attributed_to=self.actor_id,
-                cvd_role=[CVDRole.COORDINATOR, CVDRole.CASE_MANAGER],
-                consent=PecDimension(state=PEC.NO_EMBARGO),
-            ),
-            ParticipantStatus(
-                context=case_id,
-                rm=RmDimension(state=RM.VALID),
-                attributed_to=self.actor_id,
-                cvd_role=[CVDRole.COORDINATOR, CVDRole.CASE_MANAGER],
-                consent=PecDimension(state=PEC.NO_EMBARGO),
-            ),
-            ParticipantStatus(
-                context=case_id,
-                rm=RmDimension(state=RM.ACCEPTED),
-                attributed_to=self.actor_id,
-                cvd_role=[CVDRole.COORDINATOR, CVDRole.CASE_MANAGER],
-                consent=PecDimension(state=PEC.NO_EMBARGO),
-            ),
-        ]
-
     def _register_participant(self, case_id: str) -> Status:
-        """Create the participant with bootstrap statuses and attach to case."""
+        """Create the participant and apply bootstrap statuses via the writer."""
         assert self.datalayer is not None
         assert self.actor_id is not None
-
-        bootstrap_statuses = self._build_bootstrap_statuses(case_id)
-        for status in bootstrap_statuses:
-            try:
-                self.datalayer.create(status)
-            except ValueError as e:
-                logger.debug(
-                    "_register_participant: create status idempotent or"
-                    " error for actor '%s': %s",
-                    self.actor_id,
-                    e,
-                )
 
         participant = VultronParticipant(
             attributed_to=self.actor_id,
             context=case_id,
             name=f"CaseActor for {case_id}",
             case_roles=[CVDRole.COORDINATOR, CVDRole.CASE_MANAGER],
-            participant_statuses=bootstrap_statuses,
+            participant_statuses=[],
         )
 
         updated_case = _create_and_attach_participant(
@@ -455,6 +436,27 @@ class _AddCaseActorParticipantNode(DataLayerActionWithPorts):
             return Status.FAILURE
 
         self.datalayer.save(updated_case)
+
+        # Apply RECEIVED → VALID → ACCEPTED via the composed writer (ADR-0089)
+        from vultron.core.behaviors.bridge import BTBridge
+
+        bridge = BTBridge(datalayer=self.datalayer)
+        for node in (
+            self._received_node,
+            self._valid_node,
+            self._accepted_node,
+        ):
+            result = bridge.execute_with_setup(
+                node,
+                actor_id=self.actor_id,
+                case_id=case_id,
+            )
+            if result.status != Status.SUCCESS:
+                self.feedback_message = (
+                    f"Bootstrap status write failed for '{case_id}'"
+                )
+                return Status.FAILURE
+
         logger.info(
             "%s: Registered CaseActor '%s' as CASE_MANAGER for case '%s'"
             " with bootstrap RM lifecycle (RM.RECEIVED → RM.VALID →"
@@ -516,6 +518,16 @@ class _AddVendorOwnerParticipantNode(DataLayerActionWithPorts):
         self._vendor_uri = vendor_uri
         self._report_id = report_id
         self._actor_config = actor_config
+        # Pre-build the initial status node (BTND-10-004, ADR-0089).
+        # actor_id is set here so execute_with_setup can use actor_id=self.actor_id
+        # (the CaseActor's store) without BTBridge cloning an empty vendor store.
+        self._status_node = CreateParticipantStatusNode(
+            actor_id=vendor_uri,
+            rm_state=RM.RECEIVED,
+            vf_state=None,
+            d_state=None,
+            pxa_state=None,
+        )
 
     @classmethod
     def input_ports(cls) -> dict[str, PortInformation]:
@@ -540,6 +552,10 @@ class _AddVendorOwnerParticipantNode(DataLayerActionWithPorts):
             return f
         assert self.datalayer is not None
 
+        if not self.actor_id:
+            self.feedback_message = "actor_id not set"
+            return Status.FAILURE
+
         case_id = self._case_id_bb
         if not isinstance(case_id, str):
             self.feedback_message = "case_id not found in blackboard"
@@ -561,14 +577,6 @@ class _AddVendorOwnerParticipantNode(DataLayerActionWithPorts):
                 )
                 return Status.SUCCESS
 
-        initial_status = _build_owner_initial_status(
-            self.datalayer,
-            self._vendor_uri,
-            case_id,
-            self._report_id,
-            RM.RECEIVED,
-        )
-
         # Roles come from the local ActorConfig (CFG-07-002, CFG-07-004) so
         # role guards (e.g. CheckVendorRoleNode) work for vendors without
         # mislabelling coordinators as vendors.  A future spec amendment
@@ -578,7 +586,7 @@ class _AddVendorOwnerParticipantNode(DataLayerActionWithPorts):
             attributed_to=self._vendor_uri,
             context=case_id,
             case_roles=_effective_case_roles(self._actor_config),
-            participant_statuses=[initial_status],
+            participant_statuses=[],
         )
 
         updated_case = _create_and_attach_participant(
@@ -593,6 +601,18 @@ class _AddVendorOwnerParticipantNode(DataLayerActionWithPorts):
             return Status.FAILURE
 
         self.datalayer.save(updated_case)
+
+        from vultron.core.behaviors.bridge import BTBridge
+
+        result = BTBridge(datalayer=self.datalayer).execute_with_setup(
+            self._status_node,
+            actor_id=self.actor_id,
+            case_id=case_id,
+        )
+        if result.status != Status.SUCCESS:
+            self.feedback_message = f"Initial RM.RECEIVED write failed for vendor '{self._vendor_uri}'"
+            return Status.FAILURE
+
         logger.info(
             "%s: Added report receiver '%s' with roles %s at RM.RECEIVED"
             " in case '%s' (ADR-0041 AC-1)",
@@ -637,6 +657,18 @@ class _AddReporterParticipantNode(DataLayerActionWithPorts):
     ) -> None:
         super().__init__(name=name or self.__class__.__name__)
         self._report_id = report_id
+        from vultron.core.behaviors.case.nodes.participant.status import (
+            CreateParticipantStatusNode,
+        )
+
+        self._reporter_status_node = CreateParticipantStatusNode(
+            actor_id="",
+            rm_state=RM.ACCEPTED,
+            vf_state=None,
+            d_state=None,
+            pxa_state=None,
+            force_rm_state=True,
+        )
 
     @classmethod
     def input_ports(cls) -> dict[str, PortInformation]:
@@ -705,6 +737,10 @@ class _AddReporterParticipantNode(DataLayerActionWithPorts):
             return f
         assert self.datalayer is not None
 
+        if not self.actor_id:
+            self.feedback_message = "actor_id not set"
+            return Status.FAILURE
+
         if self._report_id is None:
             logger.debug(
                 "%s: no report_id — skipping reporter participant", self.name
@@ -723,23 +759,11 @@ class _AddReporterParticipantNode(DataLayerActionWithPorts):
         if self._already_has_participant(case_id, reporter_uri):
             return Status.SUCCESS
 
-        accepted_status = _get_or_create_accepted_status(
-            self.datalayer,
-            reporter_uri,
-            self._report_id,
-            self.name,
-            self.logger,
-            cvd_role=[CVDRole.REPORTER],
-            em_consent_state=PEC.NO_EMBARGO,
-        )
-
         participant = VultronParticipant(
             attributed_to=reporter_uri,
             context=case_id,
             case_roles=[CVDRole.REPORTER],
-            participant_statuses=(
-                [accepted_status] if accepted_status is not None else []
-            ),
+            participant_statuses=[],
         )
 
         updated_case = _create_and_attach_participant(
@@ -754,6 +778,21 @@ class _AddReporterParticipantNode(DataLayerActionWithPorts):
             return Status.FAILURE
 
         self.datalayer.save(updated_case)
+
+        from vultron.core.behaviors.bridge import BTBridge
+
+        # Pre-set the actor_id so execute_with_setup can use actor_id=self.actor_id
+        # (the CaseActor's store) without polluting the outer BT's blackboard.
+        self._reporter_status_node._actor_id = reporter_uri
+        result = BTBridge(datalayer=self.datalayer).execute_with_setup(
+            self._reporter_status_node,
+            actor_id=self.actor_id,
+            case_id=case_id,
+        )
+        if result.status != Status.SUCCESS:
+            self.feedback_message = f"Initial RM.ACCEPTED write failed for reporter '{reporter_uri}'"
+            return Status.FAILURE
+
         logger.info(
             "%s: Added reporter '%s' as REPORTER at RM.ACCEPTED"
             " in case '%s' (ADR-0041 AC-2)",

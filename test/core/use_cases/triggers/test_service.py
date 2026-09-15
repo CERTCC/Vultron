@@ -41,9 +41,6 @@ except ImportError:
     from pydantic_core import ValidationError as PydanticValidationError
 from vultron.core.models.offer_record import VultronOfferRecord
 from vultron.core.models.report_case_link import VultronReportCaseLink
-from vultron.core.models.dimensions import RmDimension
-from vultron.core.models.participant_status import ParticipantStatus
-from vultron.core.models._helpers import _report_phase_status_id
 from vultron.core.states.em import EM
 from vultron.core.states.rm import RM
 from vultron.enums.roles import CVDRole
@@ -195,6 +192,9 @@ def received_report(dl, actor, report):
     dl.create(case_obj)
     _add_case_manager(case_obj, dl)
     _add_self_participant(case_obj, dl, actor.id_, RM.RECEIVED)
+    dl.create(
+        VultronReportCaseLink(report_id=report.id_, rm_state=RM.RECEIVED)
+    )
     return report
 
 
@@ -214,13 +214,9 @@ def accepted_report(dl, report, actor):
     dl.create(owner_p)
     _add_case_manager(case_obj, dl)
     # Pre-seed RM.ACCEPTED so ACCEPTED→CLOSED is a valid transition (BTND-10-001).
-    accepted_status = ParticipantStatus(
-        id_=_report_phase_status_id(actor.id_, report.id_, RM.ACCEPTED.value),
-        context=report.id_,
-        attributed_to=actor.id_,
-        rm=RmDimension(state=RM.ACCEPTED),
+    dl.create(
+        VultronReportCaseLink(report_id=report.id_, rm_state=RM.ACCEPTED)
     )
-    dl.create(accepted_status)
     return report
 
 
@@ -237,13 +233,7 @@ def rejected_report(dl, report, actor):
     )
     dl.create(case_obj)
     _add_case_manager(case_obj, dl)
-    invalid_status = ParticipantStatus(
-        id_=_report_phase_status_id(actor.id_, report.id_, RM.INVALID.value),
-        context=report.id_,
-        attributed_to=actor.id_,
-        rm=RmDimension(state=RM.INVALID),
-    )
-    dl.create(invalid_status)
+    dl.create(VultronReportCaseLink(report_id=report.id_, rm_state=RM.INVALID))
     return report
 
 
@@ -263,13 +253,7 @@ def closed_report(dl, report, actor):
     dl.create(owner_p)
     _add_case_manager(case_obj, dl)
 
-    status = ParticipantStatus(
-        id_=_report_phase_status_id(actor.id_, report.id_, RM.CLOSED.value),
-        context=report.id_,
-        attributed_to=actor.id_,
-        rm=RmDimension(state=RM.CLOSED),
-    )
-    dl.create(status)
+    dl.create(VultronReportCaseLink(report_id=report.id_, rm_state=RM.CLOSED))
     return report
 
 
@@ -407,13 +391,10 @@ def test_validate_report_trigger_transitions_rm_to_valid(
         dl, trigger_activity=TriggerActivityAdapter(dl)
     ).validate_report(actor.id_, offer.id_, None)
 
-    valid_status_id = _report_phase_status_id(
-        actor.id_, offer.object_, RM.VALID.value
-    )
-    valid_record = dl.get("ParticipantStatus", valid_status_id)
+    link = dl.read(VultronReportCaseLink.build_id(offer.object_))
     assert (
-        valid_record is not None
-    ), "Expected a RM.VALID ParticipantStatus after validate_report_trigger"
+        isinstance(link, VultronReportCaseLink) and link.rm_state == RM.VALID
+    ), "Expected RM.VALID on ReportCaseLink after validate_report_trigger"
 
 
 def test_validate_report_trigger_non_report_offer_raises_404(

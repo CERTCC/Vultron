@@ -38,10 +38,8 @@ from vultron.adapters.driven.trigger_activity_adapter import (
 )
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
-from vultron.core.models.dimensions import RmDimension
 from vultron.core.models.offer_record import VultronOfferRecord
-from vultron.core.models.participant_status import ParticipantStatus
-from vultron.core.models._helpers import _report_phase_status_id
+from vultron.core.models.report_case_link import VultronReportCaseLink
 from vultron.core.use_cases.triggers.report import (
     SvcCloseCaseUseCase,
     SvcCloseReportUseCase,
@@ -168,15 +166,11 @@ class TestSvcCloseCaseUseCase:
 
     def _seed_accepted(self):
         """Pre-seed RM.ACCEPTED so ACCEPTED→CLOSED is a valid transition (BTND-10-001)."""
-        status = ParticipantStatus(
-            id_=_report_phase_status_id(
-                self.vendor.id_, self.report.id_, RM.ACCEPTED.value
-            ),
-            context=self.report.id_,
-            attributed_to=self.vendor.id_,
-            rm=RmDimension(state=RM.ACCEPTED),
+        self.dl.create(
+            VultronReportCaseLink(
+                report_id=self.report.id_, rm_state=RM.ACCEPTED
+            )
         )
-        self.dl.create(status)
 
     @pytest.mark.spec("TRIG-07-001")
     def test_close_case_returns_activity_dict(self):

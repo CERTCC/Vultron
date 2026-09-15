@@ -36,11 +36,9 @@ from vultron.core.models.activity import VultronOffer
 from vultron.core.models.case_actor import VultronCaseActor
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.offer_record import VultronOfferRecord
-from vultron.core.models.dimensions import RmDimension
-from vultron.core.models.participant_status import ParticipantStatus
 from vultron.core.models.report import VultronReport
+from vultron.core.models.report_case_link import VultronReportCaseLink
 from vultron.core.states.rm import RM
-from vultron.core.models._helpers import _report_phase_status_id
 from vultron.enums.roles import CVDRole
 from vultron.errors import VultronInvalidStateTransitionError
 from vultron.wire.as2.vocab.objects.vulnerability_case import (  # noqa: F401
@@ -100,46 +98,41 @@ def offer(
 @pytest.fixture
 def closed_status(
     scenario: BTTestScenario, report: VultronReport
-) -> ParticipantStatus:
+) -> VultronReportCaseLink:
     """Pre-seed RM.CLOSED so the duplicate-close guard fires."""
-    status = ParticipantStatus(
-        id_=_report_phase_status_id(ACTOR_ID, report.id_, RM.CLOSED.value),
-        context=report.id_,
-        attributed_to=ACTOR_ID,
-        rm=RmDimension(state=RM.CLOSED),
-    )
-    scenario.dl.create(status)
-    return status
+    link = VultronReportCaseLink(report_id=report.id_, rm_state=RM.CLOSED)
+    scenario.dl.create(link)
+    return link
 
 
 @pytest.fixture
 def invalid_status(
     scenario: BTTestScenario, report: VultronReport
-) -> ParticipantStatus:
+) -> VultronReportCaseLink:
     """Pre-seed RM.INVALID — valid predecessor for INVALID→CLOSED."""
-    status = ParticipantStatus(
-        id_=_report_phase_status_id(ACTOR_ID, report.id_, RM.INVALID.value),
-        context=report.id_,
-        attributed_to=ACTOR_ID,
-        rm=RmDimension(state=RM.INVALID),
-    )
-    scenario.dl.create(status)
-    return status
+    link = VultronReportCaseLink(report_id=report.id_, rm_state=RM.INVALID)
+    scenario.dl.create(link)
+    return link
 
 
 @pytest.fixture
 def accepted_status(
     scenario: BTTestScenario, report: VultronReport
-) -> ParticipantStatus:
+) -> VultronReportCaseLink:
     """Pre-seed RM.ACCEPTED — valid predecessor for ACCEPTED→CLOSED."""
-    status = ParticipantStatus(
-        id_=_report_phase_status_id(ACTOR_ID, report.id_, RM.ACCEPTED.value),
-        context=report.id_,
-        attributed_to=ACTOR_ID,
-        rm=RmDimension(state=RM.ACCEPTED),
-    )
-    scenario.dl.create(status)
-    return status
+    link = VultronReportCaseLink(report_id=report.id_, rm_state=RM.ACCEPTED)
+    scenario.dl.create(link)
+    return link
+
+
+@pytest.fixture
+def report_case_link(
+    scenario: BTTestScenario, report: VultronReport
+) -> VultronReportCaseLink:
+    """Pre-seed RM.RECEIVED so transition nodes can find the ReportCaseLink."""
+    link = VultronReportCaseLink(report_id=report.id_, rm_state=RM.RECEIVED)
+    scenario.dl.create(link)
+    return link
 
 
 @pytest.fixture
@@ -202,7 +195,12 @@ class TestInvalidateReportTriggerTree:
     @pytest.mark.spec("BT-15-002")
     @pytest.mark.spec("BT-03-004")
     def test_success_emits_activity_and_sets_rm_invalid(
-        self, scenario: BTTestScenario, actor, report, offer
+        self,
+        scenario: BTTestScenario,
+        actor,
+        report,
+        offer,
+        report_case_link: VultronReportCaseLink,
     ):
         """SUCCESS: emits activity and persists RM.INVALID ParticipantStatus."""
         tree = create_invalidate_report_trigger_tree(
@@ -214,7 +212,12 @@ class TestInvalidateReportTriggerTree:
 
     @pytest.mark.spec("RMB-11-001")
     def test_success_adds_to_outbox(
-        self, scenario: BTTestScenario, actor, report, offer
+        self,
+        scenario: BTTestScenario,
+        actor,
+        report,
+        offer,
+        report_case_link: VultronReportCaseLink,
     ):
         """SUCCESS: activity is added to the actor's outbox."""
         before = set(scenario.dl.outbox_list())
@@ -245,7 +248,12 @@ class TestInvalidateReportTriggerTree:
 
     @pytest.mark.spec("BT-09-001")
     def test_idempotent_second_run(
-        self, scenario: BTTestScenario, actor, report, offer
+        self,
+        scenario: BTTestScenario,
+        actor,
+        report,
+        offer,
+        report_case_link: VultronReportCaseLink,
     ):
         """Running the tree twice must not raise — idempotent create guard."""
         for _ in range(2):
@@ -274,7 +282,7 @@ class TestRejectReportTriggerTree:
         actor,
         report,
         offer,
-        invalid_status: ParticipantStatus,
+        invalid_status: VultronReportCaseLink,
     ):
         """SUCCESS: emits activity and persists RM.CLOSED ParticipantStatus.
 
@@ -295,7 +303,7 @@ class TestRejectReportTriggerTree:
         actor,
         report,
         offer,
-        invalid_status: ParticipantStatus,
+        invalid_status: VultronReportCaseLink,
     ):
         """SUCCESS: activity is added to the actor's outbox."""
         before = set(scenario.dl.outbox_list())
@@ -313,7 +321,7 @@ class TestRejectReportTriggerTree:
         actor,
         report,
         offer,
-        closed_status: ParticipantStatus,
+        closed_status: VultronReportCaseLink,
     ):
         """Reject does NOT guard against already-closed — hard-close always allowed."""
         tree = create_reject_report_trigger_tree(
@@ -357,7 +365,7 @@ class TestCloseCaseTriggerTree:
         report,
         offer,
         case_with_owner: VulnerabilityCase,
-        accepted_status: ParticipantStatus,
+        accepted_status: VultronReportCaseLink,
     ):
         """SUCCESS: emits activity and persists RM.CLOSED ParticipantStatus.
 
@@ -385,7 +393,7 @@ class TestCloseCaseTriggerTree:
         report,
         offer,
         case_with_owner: VulnerabilityCase,
-        accepted_status: ParticipantStatus,
+        accepted_status: VultronReportCaseLink,
     ):
         """SUCCESS: activity is added to the actor's outbox."""
         before = set(scenario.dl.outbox_list())
@@ -431,7 +439,7 @@ class TestCloseCaseTriggerTree:
         report,
         offer,
         case_with_owner: VulnerabilityCase,
-        closed_status: ParticipantStatus,
+        closed_status: VultronReportCaseLink,
     ):
         """FAILURE: already-closed report writes VultronInvalidStateTransitionError."""
         result_out: dict = {}
@@ -457,7 +465,7 @@ class TestCloseCaseTriggerTree:
         report,
         offer,
         case_with_owner: VulnerabilityCase,
-        closed_status: ParticipantStatus,
+        closed_status: VultronReportCaseLink,
     ):
         """The error message references the report ID."""
         result_out: dict = {}
@@ -509,7 +517,7 @@ class TestCloseCaseTriggerTree:
         report,
         offer,
         case_with_owner: VulnerabilityCase,
-        accepted_status: ParticipantStatus,
+        accepted_status: VultronReportCaseLink,
     ):
         """SUCCESS: a custom call_out bundle's pre_close_action_factory is invoked."""
         from vultron.core.behaviors.call_out.bundles.close_report import (

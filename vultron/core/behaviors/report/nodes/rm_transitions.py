@@ -19,24 +19,20 @@ Two shapes of RM transition live here, and the difference between them is the
 whole point of the module layout:
 
 **Report-phase transitions** (:class:`TransitionRMtoValid`,
-:class:`TransitionRMtoInvalid`, :class:`TransitionRMtoClosed`) write a
-deterministic ``ParticipantStatus`` record keyed on
-``(actor, report, rm_state)``.  That record is also the idempotency *latch* read
-by ``CheckRMStateValid`` / ``CheckRMStateReceivedOrInvalid``, so writing it
-asserts "this transition has happened" to every later tick.
+:class:`TransitionRMtoInvalid`, :class:`TransitionRMtoClosed`) record the
+current RM state on the report's ``VultronReportCaseLink`` record
+(BTND-10-006, ADR-0089).  That field is the idempotency source read by
+``CheckRMStateValid`` / ``CheckRMStateReceivedOrInvalid``.
 
-**Case-scoped transitions** (:class:`TransitionCaseParticipantRMtoClosed`,
-:class:`TransitionCaseParticipantRMtoInvalid`) advance the actor's RM state on
+**Case-scoped transitions** advance the actor's RM state on
 its ``CaseParticipant`` inside a ``VulnerabilityCase``.
 
 ``RM.VALID`` is *both*: DUR-07-004 requires an established embargo, which only
 exists on a case, and engage-case reads the participant's case-scoped state.  So
 ``TransitionRMtoValid`` requires the case and performs the case-scoped half
-*before* writing the latch (ID-04-005).  ``RM.INVALID`` and ``RM.CLOSED`` in
-report phase do not: a receiver may declare a bare report invalid or closed
-without ever promoting it to a case, so those nodes are deliberately
-case-optional and select their ``context`` via
-:func:`~vultron.core.models._helpers.report_phase_context`.
+*before* updating the ReportCaseLink field (ID-04-005).  ``RM.INVALID`` and
+``RM.CLOSED`` in report phase do not: a receiver may declare a bare report
+invalid or closed without ever promoting it to a case.
 
 Every node that *requires* the case reads ``/case_id`` from the blackboard
 rather than looking the case up itself; the single lookup site is
@@ -49,72 +45,27 @@ from py_trees.common import Status
 from vultron.core.behaviors.helpers import (
     DataLayerActionWithPorts,
 )
-from vultron.core.models.dimensions import PecDimension, RmDimension
-from vultron.core.models.participant_status import ParticipantStatus
-from vultron.core.states.participant_embargo_consent import PEC
+from vultron.core.models.report_case_link import VultronReportCaseLink
 from vultron.core.states.rm import RM, is_valid_rm_transition
-from vultron.enums.roles import CVDRole
-from vultron.core.models._helpers import (
-    _report_phase_status_id,
-    report_phase_context,
-)
 import py_trees
 
 from vultron.core.behaviors.case.nodes.participant.status import (
     CreateParticipantStatusNode,
 )
-from vultron.core.use_cases._helpers import _idempotent_create
-
-
-def _current_report_phase_rm_state(dl, actor_id: str, report_id: str) -> RM:
-    """Return the current report-phase RM state for actor/report.
-
-    Checks the DataLayer for existing report-phase ParticipantStatus records in
-    descending-progress order (CLOSED first) and returns the highest-progress
-    state found.  Returns ``RM.RECEIVED`` as the implicit default when no
-    records exist — consistent with ``CheckRMStateReceivedOrInvalid`` semantics
-    (absence of a status record means the report was received but not yet
-    processed).
-
-    Per BTND-10-001: callers use this to establish the *current_state* side of
-    the (current_state → target_state) validity check before writing a new
-    report-phase ParticipantStatus.
-    """
-    for rm_state in (
-        RM.CLOSED,
-        RM.ACCEPTED,
-        RM.DEFERRED,
-        RM.VALID,
-        RM.INVALID,
-        RM.RECEIVED,
-    ):
-        status_id = _report_phase_status_id(
-            actor_id, report_id, rm_state.value
-        )
-        if dl.read(status_id) is not None:
-            return rm_state
-    return RM.RECEIVED
 
 
 class _ReportPhaseRMTransition(DataLayerActionWithPorts):
-    """Write the report-phase ``ParticipantStatus`` latch for one RM state.
+    """Write the report-phase RM state for one RM state on ReportCaseLink.
 
-    Subclasses set :attr:`_target_rm`.  This is the only place a report-phase RM
-    record is constructed (ARCH-15-004); the three concrete nodes differ solely
-    in their target state and in whether they require a case.
+    Subclasses set :attr:`_target_rm`.  The RM state is stored on the
+    ``VultronReportCaseLink`` record rather than as a deterministic
+    ``ParticipantStatus`` latch (BTND-10-006, ADR-0089).
 
     **Deliberately outside the composed ParticipantStatus evaluator.**
-    BTND-10-002 routes case-participant writes through
-    :func:`~vultron.core.states.participant_transitions\
-    .participant_transition_violations`, and this node does not use it because it
-    is a different lifecycle, not an oversight: it operates on a *report* before
-    a case exists, so there is no case participant, no VF/D/PXA dimension and no
-    role to gate on, and its current state comes from
-    :func:`_current_report_phase_rm_state` (report-scoped) rather than
-    ``resolve_participant_state_from_dl`` (case-scoped).  RM adjacency is
-    therefore the whole rule set that applies here.  Recorded as a declared
-    exclusion in ``test/architecture/test_participant_status_validation.py``;
-    whether the two lifecycles should share one evaluator is ISSUE-3111.
+    This node operates on a *report* before a case exists; there is no
+    case participant, no VF/D/PXA dimension and no role gate for the
+    shared evaluator to apply.  RM adjacency on ``ReportCaseLink.rm_state``
+    is the whole rule set that applies here.
     """
 
     #: Target RM state; set by each concrete subclass.
@@ -132,10 +83,8 @@ class _ReportPhaseRMTransition(DataLayerActionWithPorts):
         Args:
             report_id: ID of the VulnerabilityReport whose RM state advances.
             offer_id: ID of the Offer activity that carried the report.
-            sender_actor_id: Explicit actor ID to use instead of the blackboard
-                ``actor_id``.  Thread this in when the tree runs under
-                ``receiving_actor_id`` but the RM transition must target the
-                message sender (ADR-0022 single-BT pattern).
+            sender_actor_id: Retained for API compatibility; no longer used
+                for state reads or writes (ADR-0089).
             name: Optional custom node name (defaults to the class name).
         """
         super().__init__(name=name or self.__class__.__name__)
@@ -143,18 +92,36 @@ class _ReportPhaseRMTransition(DataLayerActionWithPorts):
         self.offer_id = offer_id
         self.sender_actor_id = sender_actor_id
 
-    def _acting_actor_id(self) -> str | None:
-        return self.sender_actor_id
+    def _get_link(self) -> VultronReportCaseLink | None:
+        """Read the ReportCaseLink for this report from the DataLayer."""
+        assert self.datalayer is not None
+        link_id = VultronReportCaseLink.build_id(self.report_id)
+        link = self.datalayer.read(link_id)
+        if not isinstance(link, VultronReportCaseLink):
+            return None
+        return link
 
-    def _guard_transition(self, actor_id: str) -> Status | None:
-        """Return FAILURE when current → target is not a legal RM move.
+    def update(self) -> Status:
+        """Guard the transition, then update ReportCaseLink.rm_state.
 
-        A repeat of the target state is allowed through so the node stays
-        idempotent (ID-04-004).
+        Returns:
+            SUCCESS once the field is written; FAILURE when the DataLayer
+            is unavailable, the ReportCaseLink is missing, the transition
+            is illegal, or the write raises.
         """
-        current_rm = _current_report_phase_rm_state(
-            self.datalayer, actor_id, self.report_id
-        )
+        if (f := self._require_datalayer()) is not None:
+            return f
+        assert self.datalayer is not None
+
+        link = self._get_link()
+        if link is None:
+            self.feedback_message = (
+                f"ReportCaseLink not found for report '{self.report_id}'"
+            )
+            self.logger.error("%s: %s", self.name, self.feedback_message)
+            return Status.FAILURE
+
+        current_rm = link.rm_state
         if current_rm != self._target_rm and not is_valid_rm_transition(
             current_rm, self._target_rm
         ):
@@ -163,62 +130,14 @@ class _ReportPhaseRMTransition(DataLayerActionWithPorts):
             )
             self.logger.info("%s: %s", self.name, self.feedback_message)
             return Status.FAILURE
-        return None
-
-    def _write_latch(self, actor_id: str, context: str) -> None:
-        """Persist the deterministic report-phase ``ParticipantStatus`` record.
-
-        Writing this record is what makes the transition observable to later
-        ticks, so callers MUST only reach it once every other half of the
-        transition has succeeded (ID-04-005).
-        """
-        assert self.datalayer is not None
-        status = ParticipantStatus(
-            id_=_report_phase_status_id(
-                actor_id, self.report_id, self._target_rm.value
-            ),
-            context=context,
-            attributed_to=actor_id,
-            rm=RmDimension(state=self._target_rm),
-            consent=PecDimension(state=PEC.NO_EMBARGO),
-            cvd_role=[CVDRole.REPORTER],
-        )
-        _idempotent_create(
-            self.datalayer,
-            "ParticipantStatus",
-            status.id_,
-            status,
-            f"ParticipantStatus (report-phase {self._target_rm.name})",
-        )
-        self.logger.info(
-            "RM → %s for report '%s' (actor '%s')",
-            self._target_rm.name,
-            self.report_id,
-            actor_id,
-        )
-
-    def update(self) -> Status:
-        """Guard the transition, then write the report-phase latch.
-
-        Returns:
-            SUCCESS once the latch is written; FAILURE when the DataLayer or
-            actor is unavailable, the transition is illegal, or the write
-            raises.
-        """
-        if (f := self._require_datalayer()) is not None:
-            return f
-        assert self.datalayer is not None
-        actor_id = self._acting_actor_id()
-        if actor_id is None:
-            self.feedback_message = "actor_id not available"
-            self.logger.error("%s: %s", self.name, self.feedback_message)
-            return Status.FAILURE
 
         try:
-            if (f := self._guard_transition(actor_id)) is not None:
-                return f
-            self._write_latch(
-                actor_id, report_phase_context(self.datalayer, self.report_id)
+            link.rm_state = self._target_rm
+            self.datalayer.save(link)
+            self.logger.info(
+                "RM → %s for report '%s'",
+                self._target_rm.name,
+                self.report_id,
             )
             return Status.SUCCESS
         except Exception as e:
@@ -232,7 +151,7 @@ class _ReportPhaseRMTransition(DataLayerActionWithPorts):
 
 
 class _ValidRMLatchNode(_ReportPhaseRMTransition):
-    """Write the report-phase RM.VALID latch after the case-scoped write.
+    """Update ReportCaseLink.rm_state to RM.VALID after the case-scoped write.
 
     This is the second child of the ``TransitionRMtoValid`` Sequence.  It runs
     only after :class:`CreateParticipantStatusNode` has already advanced the
@@ -258,21 +177,21 @@ def TransitionRMtoValid(
     record is advanced *first* via :class:`CreateParticipantStatusNode` (which
     reads ``/case_id`` from the blackboard seeded by
     :class:`~vultron.core.behaviors.case.nodes.case_lookup.RequireCaseForReport`),
-    and the report-phase latch is written only after that succeeds.
+    and the ReportCaseLink field is updated only after that succeeds.
 
     Args:
         report_id: ID of the VulnerabilityReport whose RM state advances.
         offer_id: ID of the Offer activity that carried the report.
-        sender_actor_id: Explicit subject actor.  Must be provided; the
-            blackboard ``actor_id`` (executing actor) is not used as a fallback
-            (BTND-10-005, ADR-0089).
+        sender_actor_id: Subject actor for the case-scoped RM write.
+            When ``None``, the executing actor's ``actor_id`` from the BT
+            blackboard is used as a fallback (BTND-10-005, ADR-0089).
         name: Optional name for the root Sequence node.
 
     Returns:
         A ``Sequence`` whose children are:
 
         1. :class:`CreateParticipantStatusNode` — case-scoped RM write.
-        2. :class:`_ValidRMLatchNode` — report-phase idempotency latch.
+        2. :class:`_ValidRMLatchNode` — ReportCaseLink rm_state update.
     """
     return py_trees.composites.Sequence(
         name=name or "TransitionRMtoValid",
@@ -298,14 +217,12 @@ def TransitionRMtoValid(
 class TransitionRMtoInvalid(_ReportPhaseRMTransition):
     """Transition the report to RM.INVALID in report phase.
 
-    Persists a report-phase ``ParticipantStatus`` record with ``RM.INVALID``
-    for the actor and report.  Deliberately case-**optional**: a receiver may
-    declare a bare report invalid before any case exists, so the ``context``
-    falls back to the report URI until the report→case promotion has happened
-    (CLP-07-007, via :func:`report_phase_context`).
+    Updates ``ReportCaseLink.rm_state`` to ``RM.INVALID``.
+    Deliberately case-**optional**: a receiver may declare a bare report
+    invalid before any case exists.
 
-    The matching case-scoped move, when a case does exist, is
-    :class:`TransitionCaseParticipantRMtoInvalid`.
+    The matching case-scoped move, when a case does exist, is handled
+    via ``CreateParticipantStatusNode``.
     """
 
     _target_rm = RM.INVALID
@@ -314,14 +231,14 @@ class TransitionRMtoInvalid(_ReportPhaseRMTransition):
 class TransitionRMtoClosed(_ReportPhaseRMTransition):
     """Transition the report to RM.CLOSED in report phase.
 
-    Persists a report-phase ``ParticipantStatus`` record with ``RM.CLOSED`` for
-    the actor and report.  Used by both the reject-report and close-report
-    trigger workflows.  Case-**optional** for the same reason as
+    Updates ``ReportCaseLink.rm_state`` to ``RM.CLOSED``.
+    Used by both the reject-report and close-report trigger workflows.
+    Case-**optional** for the same reason as
     :class:`TransitionRMtoInvalid`: a report can be closed without ever having
     been promoted to a case.
 
-    The matching case-scoped move, when a case does exist, is
-    :class:`TransitionCaseParticipantRMtoClosed`.
+    The matching case-scoped move, when a case does exist, is handled
+    via ``CreateParticipantStatusNode``.
     """
 
     _target_rm = RM.CLOSED

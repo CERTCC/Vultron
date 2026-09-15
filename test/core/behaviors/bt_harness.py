@@ -44,8 +44,8 @@ from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
 )
 from vultron.core.behaviors.bridge import BTBridge, BTExecutionResult
+from vultron.core.models.report_case_link import VultronReportCaseLink
 from vultron.core.states.rm import RM
-from vultron.core.models._helpers import _report_phase_status_id
 
 
 class BTTestScenario:
@@ -291,24 +291,22 @@ class BTTestScenario:
         expected_rm: RM,
         actor_id: str | None = None,
     ) -> None:
-        """Assert that a RM-state record exists for the given actor and report.
-
-        Uses ``_report_phase_status_id`` to derive the deterministic record
-        ID, then verifies the record is present in the DataLayer.
+        """Assert that VultronReportCaseLink.rm_state matches expected_rm.
 
         Args:
             report_id: Report ID.
             expected_rm: Expected RM enum value (e.g., ``RM.VALID``).
-            actor_id: Actor ID; defaults to ``self.actor_id``.
+            actor_id: Unused; kept for backward-compatible call sites.
         """
-        actor = actor_id if actor_id is not None else self.actor_id
-        status_id = _report_phase_status_id(
-            actor, report_id, expected_rm.value
+        link_id = VultronReportCaseLink.build_id(report_id)
+        link = self.dl.read(link_id)
+        assert isinstance(link, VultronReportCaseLink), (
+            f"Expected VultronReportCaseLink for report {report_id!r}"
+            f" not found in DataLayer (id={link_id!r})"
         )
-        obj = self.dl.read(status_id)
-        assert obj is not None, (
-            f"Expected RM state {expected_rm!r} for report {report_id!r} "
-            f"actor {actor!r} not found in DataLayer (looked up id={status_id!r})"
+        assert link.rm_state == expected_rm, (
+            f"Expected rm_state={expected_rm!r} for report {report_id!r},"
+            f" got {link.rm_state!r}"
         )
 
     def assert_case_count(self, expected: int) -> None:

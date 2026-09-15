@@ -20,11 +20,7 @@ from vultron.wire.as2.vocab.objects.vulnerability_case import (  # noqa: F401
 
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.behaviors.bridge import BTBridge
-from vultron.core.models.dimensions import RmDimension
-from vultron.core.models.participant_status import ParticipantStatus
 from vultron.core.models.vultron_types import VultronCaseActor
-from vultron.core.states.rm import RM
-from vultron.core.models._helpers import _report_phase_status_id
 from vultron.wire.as2.factories import rm_submit_report_activity
 from vultron.wire.as2.vocab.objects.vulnerability_report import (
     as_VulnerabilityReport,
@@ -82,41 +78,6 @@ def report(datalayer):
     )
     datalayer.create(obj)
     return obj
-
-
-@pytest.fixture
-def reporter_accepted_status(datalayer, reporter_actor_id, report):
-    """Pre-create the reporter's RM.ACCEPTED report-phase status record.
-
-    SubmitReportReceivedUseCase creates this record before the tree runs.
-    """
-    status = ParticipantStatus(
-        id_=_report_phase_status_id(
-            reporter_actor_id, report.id_, RM.ACCEPTED.value
-        ),
-        context=report.id_,
-        attributed_to=reporter_actor_id,
-        rm=RmDimension(state=RM.ACCEPTED),
-    )
-    datalayer.create(status)
-    return status
-
-
-@pytest.fixture
-def vendor_received_status(datalayer, actor_id, report):
-    """Pre-create the vendor's RM.RECEIVED report-phase status record.
-
-    CreateReportReceivedUseCase or AckReportReceivedUseCase creates this
-    record before the tree runs.
-    """
-    status = ParticipantStatus(
-        id_=_report_phase_status_id(actor_id, report.id_, RM.RECEIVED.value),
-        context=report.id_,
-        attributed_to=actor_id,
-        rm=RmDimension(state=RM.RECEIVED),
-    )
-    datalayer.create(status)
-    return status
 
 
 @pytest.fixture
