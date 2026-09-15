@@ -21,17 +21,18 @@ Verifies:
 - terminate_embargo_bt delegation: final child is the existing mechanism.
 """
 
-import pytest
 import py_trees
+import pytest
 
-from vultron.core.behaviors.embargo.terminate_active_embargo_tree import (
-    create_terminate_active_embargo_tree,
-)
-from vultron.core.behaviors.embargo.nodes import HasActiveEmbargoNode
-from vultron.core.behaviors.call_out.nodes import AlwaysFail, AlwaysSucceed
+from vultron.core.behaviors.call_out import unwrap_call_out
 from vultron.core.behaviors.call_out.bundles.embargo import (
     EMBARGO_DETERMINISTIC,
     EmbargoCallOutBundle,
+)
+from vultron.core.behaviors.call_out.nodes import AlwaysFail, AlwaysSucceed
+from vultron.core.behaviors.embargo.nodes import HasActiveEmbargoNode
+from vultron.core.behaviors.embargo.terminate_active_embargo_tree import (
+    create_terminate_active_embargo_tree,
 )
 from vultron.demo.fuzzer.bundles.embargo import EMBARGO_STOCHASTIC
 from vultron.demo.fuzzer.embargo import (
@@ -161,7 +162,7 @@ def test_reason_selector_deterministic_defaults(index, cls):
     tree = create_terminate_active_embargo_tree(
         case_id=CASE_ID, result_out=_make_result_out()
     )
-    assert isinstance(tree.children[1].children[index], cls)
+    assert isinstance(unwrap_call_out(tree.children[1].children[index]), cls)
 
 
 @pytest.mark.spec("EMB-14-001")
@@ -179,7 +180,7 @@ def test_reason_selector_stochastic_classes(index, cls):
         result_out=_make_result_out(),
         call_out=EMBARGO_STOCHASTIC,
     )
-    assert isinstance(tree.children[1].children[index], cls)
+    assert isinstance(unwrap_call_out(tree.children[1].children[index]), cls)
 
 
 # ---------------------------------------------------------------------------
@@ -212,7 +213,9 @@ def test_authorize_first_child_deterministic_is_always_succeed():
     tree = create_terminate_active_embargo_tree(
         case_id=CASE_ID, result_out=_make_result_out()
     )
-    assert isinstance(tree.children[2].children[0], AlwaysSucceed)
+    assert isinstance(
+        unwrap_call_out(tree.children[2].children[0]), AlwaysSucceed
+    )
 
 
 @pytest.mark.spec("EMB-14-003")
@@ -221,7 +224,9 @@ def test_authorize_second_child_deterministic_is_always_fail():
     tree = create_terminate_active_embargo_tree(
         case_id=CASE_ID, result_out=_make_result_out()
     )
-    assert isinstance(tree.children[2].children[1], AlwaysFail)
+    assert isinstance(
+        unwrap_call_out(tree.children[2].children[1]), AlwaysFail
+    )
 
 
 @pytest.mark.spec("EMB-14-002")
@@ -231,7 +236,9 @@ def test_authorize_first_child_stochastic_is_policy_guard():
         result_out=_make_result_out(),
         call_out=EMBARGO_STOCHASTIC,
     )
-    assert isinstance(tree.children[2].children[0], EmbargoExitPolicyGuard)
+    assert isinstance(
+        unwrap_call_out(tree.children[2].children[0]), EmbargoExitPolicyGuard
+    )
 
 
 @pytest.mark.spec("EMB-14-003")
@@ -241,7 +248,9 @@ def test_authorize_second_child_stochastic_is_override():
         result_out=_make_result_out(),
         call_out=EMBARGO_STOCHASTIC,
     )
-    assert isinstance(tree.children[2].children[1], EmbargoExitOverride)
+    assert isinstance(
+        unwrap_call_out(tree.children[2].children[1]), EmbargoExitOverride
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -254,7 +263,7 @@ def test_child_3_on_embargo_exit_deterministic_is_always_succeed():
     tree = create_terminate_active_embargo_tree(
         case_id=CASE_ID, result_out=_make_result_out()
     )
-    assert isinstance(tree.children[3], AlwaysSucceed)
+    assert isinstance(unwrap_call_out(tree.children[3]), AlwaysSucceed)
 
 
 def test_child_3_on_embargo_exit_stochastic_class():
@@ -263,7 +272,7 @@ def test_child_3_on_embargo_exit_stochastic_class():
         result_out=_make_result_out(),
         call_out=EMBARGO_STOCHASTIC,
     )
-    assert isinstance(tree.children[3], OnEmbargoExit)
+    assert isinstance(unwrap_call_out(tree.children[3]), OnEmbargoExit)
 
 
 # ---------------------------------------------------------------------------
@@ -321,10 +330,12 @@ def test_factory_field_is_wired(field, parent_idx, child_idx):
 
     if parent_idx is None:
         # on_embargo_exit is child 3 directly
-        assert getattr(tree.children[3], "IS_CUSTOM_MARKER", False)
+        assert getattr(
+            unwrap_call_out(tree.children[3]), "IS_CUSTOM_MARKER", False
+        )
     else:
         node = tree.children[parent_idx].children[child_idx]
-        assert getattr(node, "IS_CUSTOM_MARKER", False)
+        assert getattr(unwrap_call_out(node), "IS_CUSTOM_MARKER", False)
 
 
 # ---------------------------------------------------------------------------

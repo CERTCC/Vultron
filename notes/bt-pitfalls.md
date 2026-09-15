@@ -17,6 +17,7 @@ related_notes:
   - notes/embargo-lifecycle.md
   - notes/received-status-authorization.md
   - notes/testing-pitfalls.md
+  - notes/protocol-asks.md
 relevant_packages:
   - py_trees
   - vultron/core/behaviors
@@ -934,3 +935,35 @@ comes from the **parent** doing the rendering:
 subtree**, never on the leaf nodes whose names you want changed.
 
 Source: ISSUE-2109
+
+## Call-Out Bundle Factories Hand Out Guard-Wrapped Nodes (BT-18-011)
+
+Every `<Domain>CallOutBundle` factory field now yields a node wrapped in
+`SynchronousCallOut` — the no-`RUNNING` guard applied once in
+`CallOutBundle.__post_init__` (`call_out/bundles/base.py`). So
+`bundle.some_factory("Name")` returns the *guard*, not the backend directly,
+for DETERMINISTIC, STOCHASTIC, and implementer-injected bundles alike. The
+wrapper is name- and status-transparent, so building and ticking a tree is
+unaffected — but a test that asserts on the concrete backend **type or a
+backend-specific attribute** must look through the guard:
+
+```python
+from vultron.core.behaviors.call_out import unwrap_call_out
+
+assert isinstance(unwrap_call_out(node), AlwaysFail)   # not isinstance(node, ...)
+assert unwrap_call_out(node).success_rate == 0.9       # attrs live on the child
+```
+
+`isinstance(node, py_trees.behaviour.Behaviour)` still holds (the guard *is* a
+Behaviour), so only concrete-subclass and attribute checks need unwrapping.
+
+A caller that ticks a factory product **procedurally** (outside a `BTBridge`
+tree) must use `tick_once()` / `setup_with_descendants()`, never a bare
+`update()` / `setup()`: the guard's `update()` reads its child's status, which
+is only set after the child has been ticked, and its `setup()` propagates to the
+child only via the descendant walk. See `_record_named_peer`
+(`use_cases/triggers/actor.py`) and `stochastic_demo.py` for the two procedural
+call sites. Design rationale: [protocol-asks.md](protocol-asks.md) § "The
+invariant is enforced, not just observed".
+
+Source: ISSUE-3194 (BT-18-011, ADR-0080)

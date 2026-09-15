@@ -30,6 +30,7 @@ from dataclasses import dataclass, field
 
 import py_trees
 
+from vultron.core.behaviors.call_out.bundles.base import CallOutBundle
 from vultron.core.behaviors.call_out.nodes import AlwaysSucceed
 from vultron.core.behaviors.call_out.protocol import CallOutBackendFactory
 
@@ -39,7 +40,7 @@ def _always_succeed(name: str) -> py_trees.behaviour.Behaviour:
 
 
 @dataclass(frozen=True)
-class DeploymentMonitoringBundle:
+class DeploymentMonitoringBundle(CallOutBundle):
     """Shared call-out fields for deployment-monitoring domains (BT-23-002).
 
     Base for :class:`~vultron.core.behaviors.call_out.bundles.deploy_fix.DeployFixCallOutBundle`

@@ -18,13 +18,14 @@ DETERMINISTIC default uses AlwaysSucceed/AlwaysFail per ceiling/floor rule;
 STOCHASTIC bundle produces the correct fuzzer classes.
 """
 
-import pytest
 import py_trees
+import pytest
 
+from vultron.core.behaviors.call_out import unwrap_call_out
+from vultron.core.behaviors.call_out.nodes import AlwaysFail, AlwaysSucceed
 from vultron.core.behaviors.embargo.manage_embargo_tree import (
     create_manage_embargo_tree,
 )
-from vultron.core.behaviors.call_out.nodes import AlwaysFail, AlwaysSucceed
 from vultron.demo.fuzzer.bundles.embargo import (
     EMBARGO_DETERMINISTIC,
     EMBARGO_STOCHASTIC,
@@ -120,7 +121,7 @@ def test_default_children_count():
 def test_default_child_is_deterministic(index, cls):
     """DETERMINISTIC: ceiling/floor of each node's stochastic p (BT-23-002)."""
     tree = create_manage_embargo_tree(case_id=CASE_ID)
-    assert isinstance(tree.children[index], cls)
+    assert isinstance(unwrap_call_out(tree.children[index]), cls)
 
 
 @pytest.mark.parametrize("index,cls", list(enumerate(_EXPECTED_STOCHASTIC)))
@@ -129,7 +130,7 @@ def test_stochastic_child_is_correct_fuzzer_node(index, cls):
     tree = create_manage_embargo_tree(
         case_id=CASE_ID, call_out=EMBARGO_STOCHASTIC
     )
-    assert isinstance(tree.children[index], cls)
+    assert isinstance(unwrap_call_out(tree.children[index]), cls)
 
 
 @pytest.mark.parametrize("field,index", list(zip(_FACTORY_FIELDS, range(10))))
@@ -178,19 +179,19 @@ def test_actuator_factories_accepted():
 def test_on_embargo_exit_stochastic_factory_produces_correct_node():
     """STOCHASTIC bundle on_embargo_exit_factory produces an OnEmbargoExit node."""
     node = EMBARGO_STOCHASTIC.on_embargo_exit_factory("OnEmbargoExit")
-    assert isinstance(node, OnEmbargoExit)
+    assert isinstance(unwrap_call_out(node), OnEmbargoExit)
 
 
 def test_on_embargo_accept_stochastic_factory_produces_correct_node():
     """STOCHASTIC bundle on_embargo_accept_factory produces an OnEmbargoAccept node."""
     node = EMBARGO_STOCHASTIC.on_embargo_accept_factory("OnEmbargoAccept")
-    assert isinstance(node, OnEmbargoAccept)
+    assert isinstance(unwrap_call_out(node), OnEmbargoAccept)
 
 
 def test_on_embargo_reject_stochastic_factory_produces_correct_node():
     """STOCHASTIC bundle on_embargo_reject_factory produces an OnEmbargoReject node."""
     node = EMBARGO_STOCHASTIC.on_embargo_reject_factory("OnEmbargoReject")
-    assert isinstance(node, OnEmbargoReject)
+    assert isinstance(unwrap_call_out(node), OnEmbargoReject)
 
 
 def test_actuator_custom_factories_accepted():
