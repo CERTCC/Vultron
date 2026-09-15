@@ -165,7 +165,7 @@ class CaseParticipant(CoreObject):
         """Seed ``participant_statuses`` with a default entry when empty."""
         if not isinstance(data, dict):
             return data
-        if data.get("participant_statuses"):
+        if "participant_statuses" in data:
             return data
         data = dict(data)
         if not data.get("id") and not data.get("id_"):

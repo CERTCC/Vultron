@@ -17,7 +17,7 @@
 
 import uuid
 from datetime import datetime, timedelta, timezone
-from typing import Any, cast
+from typing import Any
 
 # Frozen reference to the real datetime type used for isinstance guards.
 # `now_utc` looks up `datetime` by name at call time so that tests can
@@ -148,47 +148,3 @@ def _as_id(obj: Any) -> str | None:
     if isinstance(id_, str):
         return id_
     return str(obj)
-
-
-def _report_phase_status_id(
-    actor_id: str, report_id: str, rm_state: str
-) -> str:
-    """Return a deterministic URN for a report-phase participant status record.
-
-    Uses UUID v5 (name-based) so the same (actor, report, rm_state) triple
-    always produces the same ID, enabling idempotent DataLayer creation.
-    """
-    name = f"{actor_id}|{report_id}|{rm_state}"
-    return f"urn:uuid:{uuid.uuid5(uuid.NAMESPACE_URL, name)}"
-
-
-def report_phase_context(dl: Any, report_id: str) -> str:
-    """Return the ``context`` URI for a report-phase ``ParticipantStatus``.
-
-    CLP-07-007 requires the case URI once a case exists for the report; the
-    report URI is the correct context only *before* the report→case promotion
-    has happened in this actor's own store.
-
-    This is the single canonical copy of that selection (ARCH-15-004).  It
-    exists for the RM states that a participant can legitimately reach with no
-    case at all — ``RM.INVALID`` and ``RM.CLOSED``, which a receiver may declare
-    on a bare report it never promoted.  States that are *case-scoped* must not
-    use it: they require the case to be present in this actor's store and should
-    resolve it once via
-    :class:`~vultron.core.behaviors.case.nodes.case_lookup.RequireCaseForReport`,
-    which publishes ``/case_id`` and fails when the case is absent.
-
-    Args:
-        dl: Any object exposing ``find_case_by_report_id`` (the
-            ``CasePersistence`` port).  Duck-typed so this helper stays at the
-            ``models/`` layer.
-        report_id: URI of the ``VulnerabilityReport``.
-
-    Returns:
-        The case URI when a case for *report_id* is in this store, else
-        *report_id*.
-    """
-    case = dl.find_case_by_report_id(report_id)
-    if case is not None:
-        return cast(str, case.id_)
-    return report_id
