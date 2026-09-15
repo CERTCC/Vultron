@@ -15,6 +15,7 @@ from vultron.core.behaviors.sync.commit_tree import (
     create_commit_log_entry_tree,
 )
 from vultron.core.behaviors.sync.nodes import (
+    CheckLedgerFreshnessNode,
     CreateLogEntryNode,
     DeclineForeignLedgerCommitNode,
 )
@@ -105,7 +106,9 @@ def test_create_commit_log_entry_tree_guards_the_mint():
     guard, mint = tree.children
     assert isinstance(guard, DeclineForeignLedgerCommitNode)
     assert mint.name == "MintAndFanOutLogEntry"
-    assert len(mint.children) == 4
+    freshness_node = mint.children[0]
+    assert isinstance(freshness_node, CheckLedgerFreshnessNode)
+    assert len(mint.children) == 5
 
 
 @pytest.mark.spec("CLP-02-001")
@@ -289,3 +292,41 @@ def test_decline_foreign_ledger_commit_only_declines_foreign(
     )
 
     assert result.status == expected
+
+
+@pytest.mark.spec("SYNC-10-001")
+@pytest.mark.spec("SYNC-10-002")
+def test_commit_tree_blocked_when_ledger_has_gap(bridge, datalayer, case_obj):
+    """CommitLogEntryBT MUST NOT mint a new entry when the committed prefix has a gap.
+
+    Simulates a post-restart scenario where the DataLayer contains entries
+    0 and 2 but is missing entry 1, leaving a gap in the hash-chain prefix.
+    CheckLedgerFreshnessNode returns FAILURE and no new entry is persisted.
+    """
+    entry0 = _make_entry(0, case_obj.genesis_hash)
+    datalayer.save(entry0)
+    # Skip index 1 — create a gap by writing entry 2 with a fabricated prev hash.
+    entry2 = _make_entry(2, _ZERO_HASH)
+    datalayer.save(entry2)
+
+    sync_port = MagicMock(spec=SyncActivityPort)
+    tree = create_commit_log_entry_tree(
+        case_id=CASE_ID,
+        object_id="https://example.org/activities/act-gap",
+        event_type="case_updated",
+    )
+
+    result = bridge.execute_with_setup(
+        tree=tree,
+        actor_id=OWNER_ACTOR_ID,
+        sync_port=sync_port,
+    )
+
+    assert result.status == Status.FAILURE
+    # No new entry was appended; still just entries 0 and 2.
+    entries = sorted(
+        datalayer.list_objects("CaseLedgerEntry"),
+        key=lambda e: e.log_index,
+    )
+    assert len(entries) == 2
+    sync_port.send_announce_log_entry.assert_not_called()
