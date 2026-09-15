@@ -45,9 +45,7 @@ if TYPE_CHECKING:
 from py_trees.common import Status
 
 from vultron.core.behaviors.helpers import DataLayerActionWithPorts
-from vultron.core.behaviors.case.nodes.participant.roles import (
-    resolve_case_manager_id,
-)
+from vultron.core.participants.authority import resolve_case_manager_id
 from vultron.core.behaviors.case.nodes.participant.common import (
     resolve_participant_state_from_dl,
 )

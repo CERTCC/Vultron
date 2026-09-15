@@ -32,10 +32,10 @@ from vultron.core.services.embargo_lifecycle import (
 )
 from vultron.core.states.em import EM
 from vultron.core.models.case import case_addressees
+from vultron.core.participants.authority import resolve_case_manager_id
 from vultron.core.use_cases._helpers import (
     _as_id,
     reset_case_participant_embargo_consent,
-    _resolve_case_manager_id,
 )
 from vultron.errors import VultronNotFoundError
 
@@ -309,7 +309,7 @@ class SendAnnounceEmbargoEventNode(_SendEmbargoActivityBase):
         if failure is not None:
             return failure  # Regime 1 (ADR-0087)
 
-        case_manager_id = _resolve_case_manager_id(case, self.datalayer)
+        case_manager_id = resolve_case_manager_id(case, self.datalayer)
         if case_manager_id is None:
             self.feedback_message = (
                 f"No Case Manager found for case '{self._case_id}'"
