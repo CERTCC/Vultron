@@ -9,7 +9,7 @@ description: >
 related_notes:
   - notes/documentation-strategy.md
   - notes/spec-authoring-rules.md
-  - notes/rfc-spec-authoring.md
+  - notes/case-state-model.md
 related_specs:
   - specs/diataxis-requirements.yaml
 ---
@@ -235,4 +235,4 @@ Write them as normative content, not as flagged open questions.
 | `embargo_adherence` derived vs. stored (OQ #14) | Confirmed `@computed_field` at `vultron/core/models/participant_status.py:119`; §9.6 accurate as written |
 | Sentinel as specified role (OQ #16) | Not a protocol role; one informative sentence in §12.4.2 |
 
-OQ #15 (negative acknowledgement) is resolved by the §4.6 rewrite above.
+OQ #15 (negative acknowledgement) will be resolved when the §4.6 rewrite is complete (tracked in issue #3255).

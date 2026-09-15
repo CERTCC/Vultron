@@ -381,13 +381,14 @@ the report to the vendor, or who invited the vendor to the case, MAY assert `v�
 on the vendor's behalf. The reasoning: delivering a report constitutes providing the
 vendor with an opportunity to see the information. Awareness is defined as having
 received the information, not as having acknowledged or agreed with it. The sending
-party knows when they told the vendor, and that moment is the awareness event.
+party has direct knowledge of when they delivered the information — this is the
+basis for their authority to assert the transition.
 
 This design was established during planning for issue #3255 and is the basis for
 the normative text in §12.4.1 of the protocol specification. The edge cases (vendor
 disputing third-party assertion of awareness; whether transport-level delivery
-success suffices when no acknowledgement is received) remain open and are tracked
-as open question OQ-13 in `docs/reference/vultron-spec/_oq-v-to-V.md`.
+success alone suffices to constitute receipt) remain open and are tracked as
+open question OQ-13 in `docs/reference/draft-vultron-spec.md` (§12.4.1).
 
 **Contrast with `f→F` and `d→D`**: Fix-readiness (`f→F`) is a vendor
 self-declaration that they have produced a fix; no third party can assert this on
