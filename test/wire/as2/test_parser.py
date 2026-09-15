@@ -378,7 +378,15 @@ def test_parsing_activity_line_is_debug_not_info(caplog):
 #: can look up.  ``[]`` and ``{}`` are the load-bearing pair: they are
 #: unhashable, so a dict membership test on them raises ``TypeError`` rather
 #: than ``KeyError``.
-NON_STRING_TYPES = (0, 123, True, [], {}, ["Create"], {"type": "Create"})
+NON_STRING_TYPES: tuple[object, ...] = (
+    0,
+    123,
+    True,
+    [],
+    {},
+    ["Create"],
+    {"type": "Create"},
+)
 
 
 @pytest.mark.spec("MV-04-001")
@@ -457,5 +465,6 @@ def test_core_only_inline_type_is_left_for_the_parent_field():
         }
     )
 
-    assert type(result.object_).__name__ == "as_Object"
-    assert type(result.object_).__name__ != "CoreActorCollection"
+    inline = getattr(result, "object_", None)
+    assert type(inline).__name__ == "as_Object"
+    assert type(inline).__name__ != "CoreActorCollection"
