@@ -433,7 +433,9 @@ entry as a *separate* `Announce`, which can reorder again and hit the same drop
 - `LedgerGapBuffer` (`vultron/core/models/ledger_gap_buffer.py`) is an
   actor-local, per-case, in-memory store of forward-gap entries, mirroring
   `PendingAssertionStore`: per-actor module-level registry, ephemeral (lost on
-  restart; the SYNC-10 catch-up gate re-syncs), **not** a DataLayer entity. This
+  restart; dropped forward-gap entries re-enter via the ordinary
+  diverge/reject/replay path — SYNC-14-002, SYNC-08-005), **not** a DataLayer
+  entity. This
   is the "clearly separate, non-ledger holding area" sanctioned by SYNC-13-003 —
   presence of a `CaseLedgerEntry` in the DataLayer still means "effects applied
   and entry committed" (SYNC-13-001).
