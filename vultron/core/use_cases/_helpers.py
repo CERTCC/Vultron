@@ -27,7 +27,7 @@ from vultron.core.states.participant_embargo_consent import (
     PEC_Trigger,
 )
 from vultron.core.states.rm import RM
-from vultron.core.predicates.roles import has_case_manager_role
+from vultron.core.participants.authority import resolve_case_manager_id
 from vultron.errors import VultronNotFoundError, VultronValidationError
 
 logger = logging.getLogger(__name__)
@@ -224,7 +224,7 @@ def _case_actor_by_role(dl: CasePersistence, case_id: str) -> str | None:
     case_obj = dl.read_case(case_id)
     if case_obj is None:
         return None
-    manager_id = _resolve_case_manager_id(case_obj, dl)
+    manager_id = resolve_case_manager_id(case_obj, dl)
     return manager_id if is_case_actor_identity(manager_id) else None
 
 
@@ -283,7 +283,7 @@ def _find_case_actor_id(dl: CasePersistence, case_id: str) -> str | None:
     if pending_creator_ids:
         case = dl.read_case(case_id)
         if case is not None:
-            manager_id = _resolve_case_manager_id(case, dl)
+            manager_id = resolve_case_manager_id(case, dl)
             if manager_id is not None and manager_id in pending_creator_ids:
                 return manager_id
 
@@ -429,58 +429,6 @@ def current_participant_rm_state(
     # and ``participant`` is an already-validated core CaseParticipant here, so
     # its latest status always carries a usable ``rm`` dimension (issue #2232).
     return participant_status_rm_state(statuses[-1])
-
-
-def _resolve_case_manager_id(
-    case: VulnerabilityCase, dl: CasePersistence
-) -> str | None:
-    """Return the actor ID of the Case Manager (CVDRole.CASE_MANAGER).
-
-    Checks two participant sources in order:
-
-    1. ``actor_participant_index`` — the fast lookup used after bootstrap
-       (this is the primary path for trigger use cases).
-    2. ``case_participants`` — the canonical list used during bootstrap,
-       where inline participant objects may not yet be indexed.  This path
-       also handles ID-only references that are absent from the index.
-
-    Returns the ``attributed_to`` actor ID of the first participant holding
-    ``CVDRole.CASE_MANAGER``, or ``None`` when none is found.
-
-    This is the correct recipient for all participant-originated outbound
-    activities after case creation (PCR-08-001, PCR-08-002).
-    """
-    # Primary path: fast index lookup (normal post-bootstrap operation).
-    for p_id in case.actor_participant_index.values():
-        p = dl.read(p_id)
-        if not isinstance(p, CaseParticipant):
-            continue
-        if has_case_manager_role(p.roles):
-            manager_actor_id = getattr(p, "attributed_to", None)
-            return _as_id(manager_actor_id)
-
-    # Fallback: iterate case_participants for inline objects or IDs not yet
-    # in the index (bootstrap path, CBT-01-003).
-    indexed_participant_ids = set(case.actor_participant_index.values())
-    for participant_ref in case.case_participants:
-        if not isinstance(participant_ref, str):
-            # Inline participant object — no DataLayer read needed.
-            if isinstance(
-                participant_ref, CaseParticipant
-            ) and has_case_manager_role(participant_ref.roles):
-                attributed = getattr(participant_ref, "attributed_to", None)
-                return _as_id(attributed)
-            continue
-        if participant_ref in indexed_participant_ids:
-            # Already checked via the index; skip to avoid duplicates.
-            continue
-        p = dl.read(participant_ref)
-        if not isinstance(p, CaseParticipant):
-            continue
-        if has_case_manager_role(p.roles):
-            manager_actor_id = getattr(p, "attributed_to", None)
-            return _as_id(manager_actor_id)
-    return None
 
 
 def resolve_case_participant_id_for_actor(

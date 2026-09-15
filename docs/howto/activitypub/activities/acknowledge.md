@@ -1,4 +1,4 @@
-# Acknowledging Other Messages
+# Acknowledging a Report
 
 The ActivityStreams vocabulary includes several activities that can be used to
 indicate that a message or object has been read or acknowledged. These include:
@@ -64,6 +64,23 @@ flowchart LR
     about a message or object, such as `as:Like`, `as:Dislike`, and `as:Flag`.
     While these may be relevant to implementations of the Vultron protocol,
     no specific use cases for them are defined at this time.
+
+## Acknowledgement for ledger-replicated state
+
+The `RK` pattern above applies to report submission, which is not
+ledger-replicated. For all other protocol-significant state — embargo events,
+case-state changes, participant status — acknowledgement is **cumulative and
+implicit** via hash-chain continuity. There is no per-message `EK`, `CK`, or
+`GK` wire activity.
+
+A participant receiving `Announce(CaseLedgerEntry)` whose `prev_log_hash`
+matches its local ledger tail says nothing: the match itself is the
+acknowledgement. On a mismatch, the participant emits
+`Reject(CaseLedgerEntry)` and the CaseActor replays all missing entries.
+
+For the full reference on both fault reporting and the acknowledgement
+evolution, see
+[Faults and Acknowledgements](../../../reference/messages/faults_and_acknowledgements.md).
 
 ## Demo
 

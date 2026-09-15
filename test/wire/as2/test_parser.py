@@ -68,6 +68,26 @@ def test_parse_activity_rejects_explicit_null_published():
 
 
 @pytest.mark.spec("CLP-15-004")
+def test_parse_activity_raises_missing_published_for_empty_string():
+    """``"published": ""`` is absence-by-empty-value and refused the same way.
+
+    ``body.get("published") is None`` evaluates to False for ``""``, so an
+    is-None guard silently passes an empty string on to ``model_validate``
+    which then raises a Pydantic ``ValidationError`` instead of the
+    protocol-level ``VultronParseMissingPublishedError`` callers expect.
+    """
+    with pytest.raises(VultronParseMissingPublishedError):
+        parse_activity(
+            {
+                "type": "Create",
+                "actor": "https://example.org/alice",
+                "published": "",
+                "object": "https://example.org/notes/1",
+            }
+        )
+
+
+@pytest.mark.spec("CLP-15-004")
 def test_parse_activity_preserves_the_senders_published_verbatim():
     """The guard is non-vacuous only if the sender's value survives parsing.
 
