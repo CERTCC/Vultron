@@ -12,6 +12,7 @@ related_specs:
   - specs/received-status-handling.yaml
 related_notes:
   - notes/bt-integration.md
+  - notes/bt-pitfalls.md
   - notes/event-driven-control-flow.md
   - notes/received-status-authorization.md
   - notes/case-communication-model.md
@@ -43,13 +44,37 @@ the evidence is unambiguous:
   logs `ERROR` and returns `FAILURE`.
 - `finally: bt.shutdown()` discards the tree at the end of every invocation, so
   there is no instance to resume.
-- `grep -r "return Status.RUNNING" vultron/` returns **nothing**. EDF-04-002
+- No py_trees node in `vultron/` returns `Status.RUNNING`. EDF-04-002
   used to require `RUNNING` while awaiting input; it had zero implementations,
   and any node that had complied would have busy-looped and then failed.
 
 So the design that looked blocked on a missing framework feature was never on
 that path. Dividing the work at the question — asking is one behavior, acting on
 the answer is another — needs no suspension at all.
+
+### The invariant is enforced, not just observed (BT-18-011)
+
+The "nothing returns `RUNNING`" claim above is now a ratcheted invariant, not a
+lucky grep result — the original `grep -r "return Status.RUNNING"` missed a form
+like `return random.choice((Status.SUCCESS, Status.RUNNING))`, which two demo
+call-out nodes used until #3194 made them synchronous. Two complementary
+mechanisms hold the line (BT-18-011):
+
+- **Runtime guard at the call-out seam.** A call-out backend is injected from
+  *outside* the repo (`CallOutBackendFactory`, BT-23-004), so a static scan
+  cannot see it. `SynchronousCallOut`
+  (`vultron/core/behaviors/call_out/guard.py`) is a name-transparent py_trees
+  decorator that ticks its child and, on a `RUNNING` return, raises
+  `CallOutContractError` — a plain `RuntimeError`, **not** a `VultronError`, so
+  `BTBridge` classifies it as `internal_error=True` (a wiring bug) rather than a
+  protocol `FAILURE`. It is applied uniformly in `CallOutBundle.__post_init__`
+  (`bundles/base.py`), so every factory a bundle hands out is guarded with no
+  change at the ~15 tree-builder call sites. Unwrap with `unwrap_call_out()`.
+- **Static ratchet for in-repo nodes.** `test/architecture/test_no_running_status.py`
+  fails if any node under `vultron/` returns the py_trees `Status.RUNNING`. It
+  keys on the enum name `Status`, so the legacy simulator's `NodeStatus.RUNNING`
+  (`vultron/bt/`, a different engine with a continuous-tick model where RUNNING
+  is legitimate) is correctly out of scope.
 
 ## Conversation-state routing
 

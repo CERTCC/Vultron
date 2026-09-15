@@ -26,11 +26,13 @@ Covers all acceptance criteria from issue #1825:
   early-exit short-circuit
 """
 
+from test.core.behaviors.bt_harness import BTTestScenario
+
 import py_trees
 import pytest
 from py_trees.common import Status
 
-from test.core.behaviors.bt_harness import BTTestScenario
+from vultron.core.behaviors.call_out import unwrap_call_out
 from vultron.core.behaviors.call_out.bundles.deploy_fix import (
     DEPLOY_FIX_DETERMINISTIC,
     DeployFixCallOutBundle,
@@ -42,6 +44,9 @@ from vultron.core.behaviors.case.nodes.vfd_role_guards import (
 from vultron.core.behaviors.report.deploy_fix_tree import (
     create_deploy_fix_tree,
 )
+from vultron.core.behaviors.report.nodes.conditions import (
+    CheckRMStateAccepted,
+)
 from vultron.core.behaviors.report.nodes.deploy_fix import (
     NEW_DEPLOYMENT_INFO_KEY,
     CheckCSFixNotYetDeployed,
@@ -50,9 +55,6 @@ from vultron.core.behaviors.report.nodes.deploy_fix import (
     EmitCDActivity,
     RMinStateDeferred,
     TransitionCStoFixDeployed,
-)
-from vultron.core.behaviors.report.nodes.conditions import (
-    CheckRMStateAccepted,
 )
 from vultron.core.behaviors.report.nodes.develop_fix import (
     _EmitParticipantStatusActivityBase,
@@ -271,13 +273,13 @@ def test_default_call_out_children_are_deterministic():
     deploy_arm = tree.children[2]
     monitor_arm = tree.children[3]
     # PrioritizeDeployment p=0.90 → AlwaysSucceed
-    assert isinstance(deploy_arm.children[3], AlwaysSucceed)
+    assert isinstance(unwrap_call_out(deploy_arm.children[3]), AlwaysSucceed)
     # DeployFix p=0.10 → AlwaysFail
-    assert isinstance(deploy_arm.children[4], AlwaysFail)
+    assert isinstance(unwrap_call_out(deploy_arm.children[4]), AlwaysFail)
     # MonitoringRequirement p=0.70 → AlwaysSucceed
-    assert isinstance(monitor_arm.children[0], AlwaysSucceed)
+    assert isinstance(unwrap_call_out(monitor_arm.children[0]), AlwaysSucceed)
     # MonitorDeployment p=1.0 → AlwaysSucceed
-    assert isinstance(monitor_arm.children[1], AlwaysSucceed)
+    assert isinstance(unwrap_call_out(monitor_arm.children[1]), AlwaysSucceed)
 
 
 def test_bundle_parameter_accepted():
@@ -372,10 +374,16 @@ def test_stochastic_bundle_children_are_fuzzer_nodes():
     )
     deploy_arm = tree.children[2]
     monitor_arm = tree.children[3]
-    assert isinstance(deploy_arm.children[3], PrioritizeDeployment)
-    assert isinstance(deploy_arm.children[4], DeployFix)
-    assert isinstance(monitor_arm.children[0], MonitoringRequirement)
-    assert isinstance(monitor_arm.children[1], MonitorDeployment)
+    assert isinstance(
+        unwrap_call_out(deploy_arm.children[3]), PrioritizeDeployment
+    )
+    assert isinstance(unwrap_call_out(deploy_arm.children[4]), DeployFix)
+    assert isinstance(
+        unwrap_call_out(monitor_arm.children[0]), MonitoringRequirement
+    )
+    assert isinstance(
+        unwrap_call_out(monitor_arm.children[1]), MonitorDeployment
+    )
 
 
 # ---------------------------------------------------------------------------

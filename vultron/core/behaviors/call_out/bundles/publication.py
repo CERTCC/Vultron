@@ -43,6 +43,7 @@ from typing import Any
 import py_trees
 from py_trees.common import Access, Status
 
+from vultron.core.behaviors.call_out.bundles.base import CallOutBundle
 from vultron.core.behaviors.call_out.nodes import AlwaysSucceed
 from vultron.core.behaviors.call_out.protocol import CallOutBackendFactory
 from vultron.core.behaviors.report.publication_tree import (
@@ -102,7 +103,7 @@ def _deterministic_prioritize_intents(
 
 
 @dataclass(frozen=True)
-class PublicationCallOutBundle:
+class PublicationCallOutBundle(CallOutBundle):
     """Call-out backend bundle for the publication pipeline domain (BT-23-003).
 
     Fields map to the corresponding factory parameters on

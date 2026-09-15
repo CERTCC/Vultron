@@ -23,11 +23,12 @@ IdAssignable subtree structure; factory injection for all 14 call-out points.
 import py_trees
 import pytest
 
-from vultron.core.behaviors.call_out.nodes import AlwaysFail, AlwaysSucceed
+from vultron.core.behaviors.call_out import unwrap_call_out
 from vultron.core.behaviors.call_out.bundles.assign_cve_id import (
     ASSIGN_CVE_ID_DETERMINISTIC,
     AssignCveIdCallOutBundle,
 )
+from vultron.core.behaviors.call_out.nodes import AlwaysFail, AlwaysSucceed
 from vultron.core.behaviors.report.assign_cve_id_tree import (
     _IsIDAssignmentAuthorityNode,
     _IsOrWillBePubliclyDisclosedNode,
@@ -187,14 +188,14 @@ def test_protocol_internal_nodes_are_inline():
 def test_default_id_assigned_is_always_fail():
     """DETERMINISTIC default: IdAssigned is AlwaysFail (p=0.25, BT-23-002)."""
     tree = create_assign_cve_id_tree(case_id=CASE_ID)
-    assert isinstance(tree.children[0], AlwaysFail)
+    assert isinstance(unwrap_call_out(tree.children[0]), AlwaysFail)
 
 
 def test_default_in_scope_is_always_succeed():
     """DETERMINISTIC default: InScope is AlwaysSucceed."""
     tree = create_assign_cve_id_tree(case_id=CASE_ID)
     in_scope = tree.children[1].children[0]
-    assert isinstance(in_scope, AlwaysSucceed)
+    assert isinstance(unwrap_call_out(in_scope), AlwaysSucceed)
 
 
 def test_default_assign_id_is_always_succeed():
@@ -202,7 +203,7 @@ def test_default_assign_id_is_always_succeed():
     tree = create_assign_cve_id_tree(case_id=CASE_ID)
     assign_if_possible = tree.children[1].children[1].children[0]
     assign_id = assign_if_possible.children[4]
-    assert isinstance(assign_id, AlwaysSucceed)
+    assert isinstance(unwrap_call_out(assign_id), AlwaysSucceed)
 
 
 def test_default_request_id_is_always_succeed():
@@ -210,7 +211,7 @@ def test_default_request_id_is_always_succeed():
     tree = create_assign_cve_id_tree(case_id=CASE_ID)
     assign_or_request = tree.children[1].children[1]
     request_id = assign_or_request.children[1]
-    assert isinstance(request_id, AlwaysSucceed)
+    assert isinstance(unwrap_call_out(request_id), AlwaysSucceed)
 
 
 def test_deterministic_singleton_accepted():
@@ -239,20 +240,20 @@ def test_stochastic_bundle_produces_fuzzer_nodes():
         ASSIGN_CVE_ID_STOCHASTIC,
     )
     from vultron.demo.fuzzer.report_management.assign_vul_id import (
+        AssignId,
         IdAssigned,
         InScope,
-        AssignId,
-        RequestId,
-        ProductInCNAScope,
         IsMostAppropriateCNA,
-        IsNotMaliciousCode,
+        IsNotDeliberatelyEducational,
         IsNotDependencyUpdate,
         IsNotEOLStatusAlone,
-        IsNotDeliberatelyEducational,
+        IsNotMaliciousCode,
         IsPubliclyAvailableProduct,
-        NoDuplicateCVE,
-        MeetsEvidenceBar,
         IsRealVulnerability,
+        MeetsEvidenceBar,
+        NoDuplicateCVE,
+        ProductInCNAScope,
+        RequestId,
     )
 
     tree = create_assign_cve_id_tree(
@@ -260,34 +261,59 @@ def test_stochastic_bundle_produces_fuzzer_nodes():
     )
 
     # IdAssigned (root child 0)
-    assert isinstance(tree.children[0], IdAssigned)
+    assert isinstance(unwrap_call_out(tree.children[0]), IdAssigned)
 
     assign_if_in_scope = tree.children[1]
     # InScope (first child of _AssignIdIfInScope)
-    assert isinstance(assign_if_in_scope.children[0], InScope)
+    assert isinstance(unwrap_call_out(assign_if_in_scope.children[0]), InScope)
 
     assign_or_request = assign_if_in_scope.children[1]
     assign_if_possible = assign_or_request.children[0]
 
     # ProductInCNAScope, IsMostAppropriateCNA
-    assert isinstance(assign_if_possible.children[1], ProductInCNAScope)
-    assert isinstance(assign_if_possible.children[2], IsMostAppropriateCNA)
+    assert isinstance(
+        unwrap_call_out(assign_if_possible.children[1]), ProductInCNAScope
+    )
+    assert isinstance(
+        unwrap_call_out(assign_if_possible.children[2]), IsMostAppropriateCNA
+    )
 
     id_assignable = assign_if_possible.children[3]
     # 9 IdAssignable children
-    assert isinstance(id_assignable.children[0], IsNotMaliciousCode)
-    assert isinstance(id_assignable.children[1], IsNotDependencyUpdate)
-    assert isinstance(id_assignable.children[2], IsNotEOLStatusAlone)
-    assert isinstance(id_assignable.children[3], IsNotDeliberatelyEducational)
+    assert isinstance(
+        unwrap_call_out(id_assignable.children[0]), IsNotMaliciousCode
+    )
+    assert isinstance(
+        unwrap_call_out(id_assignable.children[1]), IsNotDependencyUpdate
+    )
+    assert isinstance(
+        unwrap_call_out(id_assignable.children[2]), IsNotEOLStatusAlone
+    )
+    assert isinstance(
+        unwrap_call_out(id_assignable.children[3]),
+        IsNotDeliberatelyEducational,
+    )
     # child[4] is ProtocolInternal (inline) — not a fuzzer node
-    assert isinstance(id_assignable.children[5], IsPubliclyAvailableProduct)
-    assert isinstance(id_assignable.children[6], NoDuplicateCVE)
-    assert isinstance(id_assignable.children[7], MeetsEvidenceBar)
-    assert isinstance(id_assignable.children[8], IsRealVulnerability)
+    assert isinstance(
+        unwrap_call_out(id_assignable.children[5]), IsPubliclyAvailableProduct
+    )
+    assert isinstance(
+        unwrap_call_out(id_assignable.children[6]), NoDuplicateCVE
+    )
+    assert isinstance(
+        unwrap_call_out(id_assignable.children[7]), MeetsEvidenceBar
+    )
+    assert isinstance(
+        unwrap_call_out(id_assignable.children[8]), IsRealVulnerability
+    )
 
     # AssignId (last child of _AssignIdIfPossible), RequestId
-    assert isinstance(assign_if_possible.children[4], AssignId)
-    assert isinstance(assign_or_request.children[1], RequestId)
+    assert isinstance(
+        unwrap_call_out(assign_if_possible.children[4]), AssignId
+    )
+    assert isinstance(
+        unwrap_call_out(assign_or_request.children[1]), RequestId
+    )
 
 
 # ---------------------------------------------------------------------------

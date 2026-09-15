@@ -36,10 +36,11 @@ See `notes/protocol-asks.md` and ADR-0080.
 """
 
 import importlib
+from test.architecture import _corpus
 
 import pytest
 
-from test.architecture import _corpus
+from vultron.core.behaviors.call_out import unwrap_call_out
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -129,7 +130,9 @@ def test_status_adoption_default_requests_authorization() -> None:
     node = STATUS_AUTHORIZATION_DETERMINISTIC.status_adoption_gate_factory(
         "CaseOwnerApprovesStatusUpdate"
     )
-    assert not isinstance(node, RequireCaseOwnerApprovalNode), (
+    assert not isinstance(
+        unwrap_call_out(node), RequireCaseOwnerApprovalNode
+    ), (
         "The conservative default is an unconditional-FAILURE stub; it must be "
         "a backend that emits Offer(Proposal) and terminates (ASK-01-002)."
     )
@@ -234,7 +237,7 @@ def test_gate_records_a_defined_not_yet_state_before_asking() -> None:
         "gate"
     )
     assert not isinstance(
-        node, RequireCaseOwnerApprovalNode
+        unwrap_call_out(node), RequireCaseOwnerApprovalNode
     ), "An unconditional-FAILURE backend records no not-yet state."
 
 
@@ -735,9 +738,9 @@ def test_no_status_gate_default_is_an_unconditional_failure_node() -> None:
         ),
     ]
     offenders = [
-        type(node).__name__
+        type(unwrap_call_out(node)).__name__
         for node in nodes
-        if isinstance(node, RequireCaseOwnerApprovalNode)
+        if isinstance(unwrap_call_out(node), RequireCaseOwnerApprovalNode)
     ]
     assert (
         not offenders
@@ -767,16 +770,16 @@ def test_production_status_authorization_default_is_conservative() -> None:
         "embargo_teardown_authorization_gate_factory",
     ):
         node = getattr(default_bundle, name)(name)
-        assert not isinstance(node, AlwaysSucceed), (
+        assert not isinstance(unwrap_call_out(node), AlwaysSucceed), (
             f"{name} defaults to a permissive backend; the conservative default "
             "must require explicit Case Owner authorization."
         )
         deterministic = getattr(STATUS_AUTHORIZATION_DETERMINISTIC, name)(name)
         assert not isinstance(
-            deterministic, AlwaysSucceed
+            unwrap_call_out(deterministic), AlwaysSucceed
         ), f"STATUS_AUTHORIZATION_DETERMINISTIC.{name} is permissive."
         permissive = getattr(STATUS_AUTHORIZATION_PERMISSIVE, name)(name)
-        assert isinstance(permissive, AlwaysSucceed), (
+        assert isinstance(unwrap_call_out(permissive), AlwaysSucceed), (
             f"STATUS_AUTHORIZATION_PERMISSIVE.{name} is not permissive; the "
             "opt-in bundle must be the only permissive one."
         )

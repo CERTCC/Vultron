@@ -30,6 +30,7 @@ import py_trees
 import pytest
 from py_trees.common import Status
 
+from vultron.core.behaviors.call_out import unwrap_call_out
 from vultron.core.behaviors.call_out.bundles.status_authorization import (
     STATUS_AUTHORIZATION_DETERMINISTIC,
     STATUS_AUTHORIZATION_PERMISSIVE,
@@ -84,7 +85,7 @@ def test_deterministic_both_seams_require_case_owner_approval():
     for f in dataclasses.fields(STATUS_AUTHORIZATION_DETERMINISTIC):
         factory = getattr(STATUS_AUTHORIZATION_DETERMINISTIC, f.name)
         node = factory("probe")
-        assert isinstance(node, RequireCaseOwnerApprovalNode)
+        assert isinstance(unwrap_call_out(node), RequireCaseOwnerApprovalNode)
         node.tick_once()
         assert node.status == Status.FAILURE
 
@@ -164,8 +165,9 @@ def test_stochastic_seams_use_probabilistic_backend():
     for f in dataclasses.fields(STATUS_AUTHORIZATION_STOCHASTIC):
         factory = getattr(STATUS_AUTHORIZATION_STOCHASTIC, f.name)
         node = factory("probe")
-        assert isinstance(node, AlmostAlwaysSucceed)
-        assert node.success_rate == 9.0 / 10.0
+        inner = unwrap_call_out(node)
+        assert isinstance(inner, AlmostAlwaysSucceed)
+        assert inner.success_rate == 9.0 / 10.0
 
 
 # ---------------------------------------------------------------------------

@@ -454,6 +454,29 @@ Every qualifying workflow MUST declare `issues: write` permission (CISEC-02-002,
 CISEC-05-001, CISEC-05-002). Workflows with a root-level `permissions: contents: read` block MUST
 expand it to a map that explicitly includes `issues: write`.
 
+### Cancellation Safety (CISEC-05-006)
+
+A push-to-`main` run cancelled by the concurrency group (superseded by a newer
+merge) is **not** a CI failure — a newer run is authoritative — so the `notify`
+step MUST NOT file a `ci:main-failure` issue on cancellation.
+
+- A step keyed on the GitHub Actions **`failure()` status function** is already
+  safe: `failure()` is false on cancellation. The idealized two-step interface
+  above uses this and needs no extra guard.
+- A step keyed on the **`needs.*.result` aggregate** is not safe on its own. It
+  MUST pair the failure check with an explicit cancellation exclusion:
+  `contains(needs.*.result, 'failure') && !contains(needs.*.result, 'cancelled')`.
+  Never file on cancellation directly (`|| contains(needs.*.result, 'cancelled')`).
+
+The aggregate needs the guard because a *cancelled upstream job* can launder a
+cancellation into a `failure` result downstream: when the `demo` job is cancelled
+mid-run it uploads no case-log artifact, so the `invariant-harness` job (which
+runs under `if: always()`) hard-fails at `download-artifact`, and that `failure`
+lands in `needs.*.result`. The fix is two layers: skip the harness on a cancelled
+demo job (`needs.demo.result != 'cancelled'`, DEMOCI-04-007) to remove the
+laundered failure at its source, plus the `!contains(..., 'cancelled')` guard on
+`notify` as defense-in-depth. See #3249 and CISEC-05-006.
+
 ### Qualifying Workflows and Their Labels
 
 | Workflow file                 | Trigger            | Workflow-specific label              |

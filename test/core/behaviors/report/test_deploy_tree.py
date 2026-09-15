@@ -23,11 +23,13 @@ Covers all acceptance criteria:
 - AC-3: Unit tests covering tree structure and factory delegation.
 """
 
+from test.core.behaviors.bt_harness import BTTestScenario
+
 import py_trees
 import pytest
 from py_trees.common import Status
 
-from test.core.behaviors.bt_harness import BTTestScenario
+from vultron.core.behaviors.call_out import unwrap_call_out
 from vultron.core.behaviors.call_out.bundles.deploy_fix import (
     DEPLOY_FIX_DETERMINISTIC,
     DeployFixCallOutBundle,
@@ -184,11 +186,11 @@ def test_default_bundles_are_deterministic_singletons():
     deploy_fix_node = next(
         c for c in deploy_if_ready.children if c.name == "DeployFix"
     )
-    assert isinstance(deploy_fix_node, AlwaysFail)
+    assert isinstance(unwrap_call_out(deploy_fix_node), AlwaysFail)
 
     # Mitigation arm: MitigationDeployed is arm's first child (direct Fallback child)
     assert mit_arm.children[0].name == "MitigationDeployed"
-    assert isinstance(mit_arm.children[0], AlwaysFail)
+    assert isinstance(unwrap_call_out(mit_arm.children[0]), AlwaysFail)
 
 
 def test_explicit_deterministic_bundles_accepted():

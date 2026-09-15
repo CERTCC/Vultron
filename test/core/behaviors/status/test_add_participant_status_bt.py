@@ -42,6 +42,7 @@ from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
 )
 from vultron.core.behaviors.bridge import BTBridge
+from vultron.core.behaviors.call_out import unwrap_call_out
 from vultron.core.behaviors.call_out.bundles.status_authorization import (
     STATUS_AUTHORIZATION_DETERMINISTIC,
     StatusAuthorizationCallOutBundle,
@@ -52,9 +53,6 @@ from vultron.core.behaviors.case.nodes.vfd_role_guards import (
 )
 from vultron.core.behaviors.status.add_participant_status_tree import (
     add_participant_status_tree,
-)
-from vultron.core.behaviors.status.nodes.threat_termination import (
-    ThreatTerminationBranchNode,
 )
 from vultron.core.behaviors.status.append_participant_status_tree import (
     append_participant_status_tree,
@@ -74,6 +72,9 @@ from vultron.core.behaviors.status.nodes import (
     VerifySenderIsParticipantNode,
 )
 from vultron.core.behaviors.status.nodes.dimension_filter import BB_RM_ANOMALY
+from vultron.core.behaviors.status.nodes.threat_termination import (
+    ThreatTerminationBranchNode,
+)
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.states.rm import RM
@@ -1458,7 +1459,7 @@ class TestStatusAuthorizationCallOutBundle:
         node = STATUS_AUTHORIZATION_DETERMINISTIC.status_adoption_gate_factory(
             "CaseOwnerApprovesStatusUpdate"
         )
-        assert isinstance(node, RequireCaseOwnerApprovalNode)
+        assert isinstance(unwrap_call_out(node), RequireCaseOwnerApprovalNode)
         result = populated_bridge.execute_with_setup(
             tree=node, actor_id=CASE_MANAGER_ID
         )
