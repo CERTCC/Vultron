@@ -100,6 +100,38 @@ groups:
       valid AS2 payload.
     lint_suppress:
     - missing_story_reference
+  - id: MV-03-002
+    priority: MUST
+    kind: protocol
+    statement: >-
+      A receiver MUST treat a required field that is present but blank as absent,
+      and MUST report it with the same error as an omitted field. A blank value is
+      an empty string or one containing only whitespace. A value that is present
+      and non-blank but unparseable MUST be reported as a schema fault instead,
+      not as a missing field.
+    rationale: >-
+      These guards enforce requirements about values, not keys: CLP-15-006 refuses
+      an activity that "carries no `published`", and a field present but empty
+      carries none — CS-08-001's "if present, then non-empty". Testing the key let
+      `published: ""` reach schema validation, replacing that explanation with a
+      Pydantic dump, and `type: ""` reach the vocabulary lookup, so two spellings
+      of one omission drew two status codes. Unparseable values stay on the schema
+      path.
+    verification: >-
+      Unit tests in `test/wire/as2/test_parser.py` confirm that every blank
+      spelling of `type` and `published` — empty, spaces, tabs, newlines — raises
+      the same missing-field error as omitting the field, that
+      `test/adapters/driving/fastapi/routers/actors/test_inbox.py` maps a blank
+      `type` to HTTP 400 as an omitted `type` already was, and that non-blank
+      unparseable values such as `"not-a-date"`, `0` and `[]` still raise the
+      validation error.
+    relationships:
+    - rel_type: refines
+      spec_id: MV-03-001
+    adr:
+    - ADR-0090
+    lint_suppress:
+    - missing_story_reference
 - id: MV-04
   title: Object Type Validation
   specs:
@@ -119,6 +151,37 @@ groups:
       For Create-style activities that create sub-objects (e.g., `CreateParticipant`), the
       activity `name` field SHOULD be a descriptive human-readable string identifying the
       actor, created object ID, and context (case ID)
+  - id: MV-04-003
+    priority: MUST_NOT
+    kind: protocol
+    statement: >-
+      When an inline object's `type` resolves to a known wire vocabulary class, a
+      receiver MUST NOT substitute a less specific type for it if validation
+      against that class fails. The receiver MUST reject the enclosing activity as
+      malformed instead. Resolution of an inline object's type MUST consider only
+      wire-branch classes; an unresolved type leaves the object for its parent
+      field to validate.
+    rationale: >-
+      Substituting a weaker type is silent data loss: a nested object handed back
+      as a raw dict is accepted by its parent as a bare `as_Link`, so an
+      `Accept(Invite(...))` with one corrupt inner field parsed clean, extracted as
+      `UNKNOWN`, and drew a 202. Wire-only resolution makes refusal safe:
+      `find_in_vocabulary` falls back to `CORE_TYPE_MAP` (ARCH-12-003), where
+      `OrderedCollection` alone is registered, so an inline actor's `inbox` became
+      a core instance its wire parent rejects (ARCH-22-001).
+    verification: >-
+      Unit tests in `test/wire/as2/test_parser.py` confirm that an
+      `Accept(Invite(...))` whose inner object carries an unparseable timestamp is
+      rejected rather than parsed as an `as_Link`, and that an inline actor whose
+      `inbox` and `outbox` use the core-only `OrderedCollection` type keeps its
+      `as_VultronOrganization` subtype.
+    relationships:
+    - rel_type: refines
+      spec_id: MV-04-001
+    adr:
+    - ADR-0090
+    lint_suppress:
+    - missing_story_reference
 - id: MV-05
   title: URI Validation
   specs:
@@ -195,18 +258,44 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      Stub objects MUST carry at minimum an `id` field (full URI) and a `type` field; they
-      MAY carry a `summary` field for human-readable context
+      A stub object MUST carry at minimum an `id` field (full URI) and a `type` field; it
+      MAY carry a `summary` field for human-readable context. The stub form is permitted
+      ONLY for `VulnerabilityCase`. For every other object type, a sender that does not
+      inline the full object MUST reference it by URI (or by an ActivityStreams `Link`),
+      not by a partial inline object.
+    rationale: >-
+      The stub form is a narrow affordance, not a substitute for a full object. It serves
+      one need: an invitee must evaluate a case before accepting, and the case cannot be
+      shared until they accept (MV-10-005), so the stub is a transient placeholder that
+      rehydrates once they are admitted. No other type has that need or is implemented.
+    note: >-
+      Partial inline objects of other types were never designed — a parser fallback
+      swallowed their validation failures and handed the parent a raw dict, which
+      MV-04-003 now refuses. Reading MV-10-001 as a general licence for partial inline
+      objects would entrench a workaround for a capability Vultron lacks: dereferencing a
+      URI in another actor's message into the resolved object. Design discussion:
+      `notes/stub-objects.md`.
     verification: >-
-      A unit test confirms that the stub-object validator rejects objects missing either
-      `id` or `type`, and accepts objects containing only those two required fields plus
-      an optional `summary`.
+      A unit test confirms that a `VulnerabilityCase` inline object carrying only
+      `id`/`type`(+`summary`) resolves to `VulnerabilityCaseStub`, and that a partial
+      inline object of any other recognised wire type is refused under MV-04-003 rather
+      than degraded. Bare URI references and `Link` objects remain accepted in all four
+      positions named by MV-10-002.
+    relationships:
+    - rel_type: constrains
+      spec_id: MV-04-003
+    adr:
+    - ADR-0090
     stories:
     - story_2022_039
   - id: MV-10-002
     priority: MUST
     kind: protocol
-    statement: 'Stub objects are ONLY permitted in the following field positions of an ActivityStreams activity: `actor`, `object`, `target`, and `origin`.'
+    statement: 'A `VulnerabilityCase` stub object is ONLY permitted in the following field positions of an ActivityStreams activity: `actor`, `object`, `target`, and `origin`.'
+    rationale: >-
+      Scopes the position rule to the one permitted stub type (MV-10-001). A reference in
+      any of these positions may also be a bare URI or a `Link`; those forms are always
+      acceptable and are unaffected by MV-04-003's refusal of malformed inline objects.
     verification: >-
       Inspection of the inbound message validator confirms that stub detection runs only
       on `actor`, `object`, `target`, and `origin` fields; stubs in other field positions

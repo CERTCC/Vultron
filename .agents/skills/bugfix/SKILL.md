@@ -228,20 +228,9 @@ Once the plan is confirmed:
    all relevant tests pass. Apply branch-ownership and pre-existing-failure
    rules from `completeness-doctrine.md`.
 
-5. **Finalize**:
-   - Invoke `archive-history`:
-
-     ```text
-     TYPE    = implementation
-     SOURCE  = ISSUE-<N>
-     TITLE   = <short bug title>
-     BODY    = issue number, symptoms, root cause, fix summary, PR link
-     ```
-
-   - Run the **upward-reflection checklist** per
-     `.agents/skills/shared/upward-reflection.md` and **route** each triggered
-     item to the destination that file specifies (BW-07-004). Most route to a
-     GitHub issue or an in-session fix, not to a learning file.
+5. **Finalize** — in this order. `archive-history` comes *after* `create-pr`
+   because its entry body carries the PR URL, which does not exist until the PR
+   is open (see that skill's "Always invoke AFTER the PR is opened").
    - Compute diff size: ≤50 → `size:S`; 51–300 → `size:M`; 301+ → `size:L`.
      Update the `size:` label.
    - Invoke `create-pr`:
@@ -258,6 +247,19 @@ Once the plan is confirmed:
      `docs/` updates required by the fix (PD-03-007). Apply small updates
      inline and commit them; file a `type:Concern` issue for large updates.
      Do not block the PR on large updates.
+   - Invoke `archive-history`:
+
+     ```text
+     TYPE    = implementation
+     SOURCE  = ISSUE-<N>
+     TITLE   = <short bug title>
+     BODY    = issue number, symptoms, root cause, fix summary, PR link
+     ```
+
+   - Run the **upward-reflection checklist** per
+     `.agents/skills/shared/upward-reflection.md` and **route** each triggered
+     item to the destination that file specifies (BW-07-004). Most route to a
+     GitHub issue or an in-session fix, not to a learning file.
    - Invoke `commit` if any learning files were created in
      `plan/incoming/learnings/` outside the PR branch.
 

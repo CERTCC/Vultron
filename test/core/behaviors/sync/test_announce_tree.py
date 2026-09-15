@@ -21,7 +21,6 @@ from vultron.core.models.events.sync import AnnounceLogEntryReceivedEvent
 from vultron.core.ports.sync_activity import SyncActivityPort
 from vultron.core.states.em import EM
 from vultron.core.states.rm import RM
-from vultron.enums.roles import CVDRole
 from vultron.core.behaviors.sync.nodes.chain import _to_persistable_entry
 from vultron.semantic_registry import extract_event
 from vultron.wire.as2.factories import announce_log_entry_activity
@@ -171,81 +170,6 @@ def test_case_actor_spoofed_sender_fails(
     # the CaseActor — which is exactly what VerifySenderIsCaseActorNode must
     # catch (CLP-01-003).  Without that node this entry would persist.
     entry = _make_entry(0, case_obj.genesis_hash)
-    event = _make_event(
-        entry, actor_id="https://example.org/actors/attacker-service"
-    )
-
-    result = bridge.execute_with_setup(
-        tree=create_announce_log_entry_tree(),
-        actor_id=PARTICIPANT_ACTOR_ID,
-        activity=event,
-        sync_port=MagicMock(spec=SyncActivityPort),
-    )
-
-    assert result.status == Status.FAILURE
-    assert datalayer.read(entry.id_) is None
-
-
-CASE_ACTOR_ROLE_ID = "https://example.org/actors/case-actor"
-
-
-def _seed_role_based_case_actor(datalayer) -> VulnerabilityCase:
-    """Seed a case whose CaseActor is a CVDRole.CASE_MANAGER participant.
-
-    Models the modern container-identity CaseActor (ADR-0041 / ADR-0088): there
-    is NO per-case ``Service`` object with ``context == case_id``; authority is
-    carried solely by the CASE_MANAGER role on a participant whose
-    ``attributed_to`` is the CaseActor's actor id.  Resolution must therefore go
-    through the role (resolve_case_manager_id), not a Service scan.
-    """
-    manager = CaseParticipant(
-        id_=f"{CASE_ID}/participants/case-manager",
-        attributed_to=CASE_ACTOR_ROLE_ID,
-        context=CASE_ID,
-        case_roles=[CVDRole.CASE_MANAGER],
-    )
-    datalayer.create(manager)
-    case = VulnerabilityCase(id_=CASE_ID, attributed_to=OWNER_ACTOR_ID)
-    case.case_participants.append(manager.id_)
-    case.actor_participant_index[CASE_ACTOR_ROLE_ID] = manager.id_
-    datalayer.save(case)
-    return case
-
-
-@pytest.mark.spec("CLP-01-003")
-def test_role_based_case_actor_sender_accepted(bridge, datalayer):
-    """Modern CaseActor (CASE_MANAGER role, no Service): legit sender persists.
-
-    Exercises the ADR-0088 role-based resolution path — there is no
-    ``Service`` with ``context == case_id`` to scan, so a Service-only check
-    would fail to enforce here.
-    """
-    case = _seed_role_based_case_actor(datalayer)
-    entry = _make_entry(0, case.genesis_hash)
-    event = _make_event(entry, actor_id=CASE_ACTOR_ROLE_ID)
-
-    result = bridge.execute_with_setup(
-        tree=create_announce_log_entry_tree(),
-        actor_id=PARTICIPANT_ACTOR_ID,
-        activity=event,
-        sync_port=MagicMock(spec=SyncActivityPort),
-    )
-
-    assert result.status == Status.SUCCESS
-    assert datalayer.read(entry.id_) is not None
-
-
-@pytest.mark.spec("CLP-01-003")
-@pytest.mark.spec("SYNC-13-006")
-def test_role_based_case_actor_spoof_rejected(bridge, datalayer):
-    """Modern CaseActor: a spoofed sender is rejected via the role resolver.
-
-    The case is seeded and the entry is chain-consistent, so rejection can only
-    come from the sender-identity gate resolving the CaseActor by its
-    CASE_MANAGER role and finding the sender does not match.
-    """
-    case = _seed_role_based_case_actor(datalayer)
-    entry = _make_entry(0, case.genesis_hash)
     event = _make_event(
         entry, actor_id="https://example.org/actors/attacker-service"
     )

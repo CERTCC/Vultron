@@ -341,6 +341,7 @@ nav:
       - 'Case-Resolution Disposition for BT Nodes Is Chosen by Role, Not Re-Decided Per Call Site': 'adr/0087-case-resolution-disposition-policy.md'
       - 'Authority Is the CASE_MANAGER Role; Case Actor Is Role-Enactment Shorthand': 'adr/0088-consolidate-case-authority-determination.md'
       - 'One ParticipantStatus Writer, and Pre-Case RM State Belongs to ReportCaseLink': 'adr/0089-one-participant-status-writer.md'
+      - 'A Blank Required Field Is Absence, and a Recognised Inline Object That Fails Validation Is Refused': 'adr/0090-blank-is-absent-and-inline-faults-are-refused.md'
   - About:
     - What's New: 'about/whats_new.md'
     - Contributing: 'about/contributing.md'
