@@ -580,9 +580,14 @@ groups:
           the `notify` step (CISEC-05-001) then files as a spurious
           `ci:main-failure` issue. Skipping the harness on a cancelled demo
           job keeps the run free of a `failure` result, so `notify` correctly
-          defers to the superseding run. `needs.demo.result` is only ever
-          `cancelled` on a superseded run; the success and genuine-failure
-          paths (DEMOCI-04-002) are unaffected.
+          defers to the superseding run. On the pure-cancellation path
+          `needs.demo.result` is `cancelled`, so the harness is skipped; the
+          success and genuine-failure paths (DEMOCI-04-002) are unaffected. In
+          the rare mixed case — a demo leg genuinely fails and a newer push then
+          cancels the remaining `fail-fast: false` legs — GitHub's aggregate
+          `needs.demo.result` precedence between `failure` and `cancelled` is
+          undocumented; should it resolve to `failure`, the harness runs and
+          `notify` files, which is correct because a real failure did occur.
         verification: >-
           The test `test_invariant_harness_skipped_when_demo_cancelled` in
           `test/ci/test_workflow_failure_notification.py` asserts the

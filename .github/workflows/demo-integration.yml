@@ -261,8 +261,12 @@ jobs:
     # uploads no case-log artifact, so the download-artifact step below would
     # hard-fail — turning a cancellation into a spurious `failure` that the
     # `notify` job files as a real CI failure. Skipping here leaves `notify` to
-    # correctly defer to the superseding run. `needs.demo.result` is only ever
-    # `cancelled` on a superseded run; success/failure paths are unaffected.
+    # correctly defer to the superseding run. On the pure-cancellation path
+    # `needs.demo.result` is `cancelled` and the harness is skipped; the
+    # success/failure paths are unaffected. In the rare mixed case (a leg
+    # genuinely fails, then a newer push cancels the remaining fail-fast:false
+    # legs) the aggregate may resolve to `failure`, in which case the harness
+    # runs and `notify` files — correctly, because a real failure occurred.
     needs: [scenarios, demo]
     if: >-
       always() &&
