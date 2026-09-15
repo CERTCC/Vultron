@@ -28,29 +28,11 @@ from vultron.core.behaviors.helpers import (
 )
 from vultron.core.models.case_ledger_entry import VultronCaseLedgerEntry
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
-from vultron.core.ports.case_persistence import CasePersistence
+from vultron.core.participants.authority import resolve_case_manager_id
 from vultron.core.sync_helpers import is_ledger_fresh_for_case
 from vultron.errors import VultronError
 
 logger = logging.getLogger(__name__)
-
-
-def _find_case_actor(
-    dl: CasePersistence, case_id: str, owner_actor_id: str | None = None
-) -> object | None:
-    fallback: object | None = None
-    for service in dl.list_objects("Service"):
-        if fallback is None:
-            fallback = service
-        if getattr(service, "context", None) != case_id:
-            continue
-        if owner_actor_id is None:
-            return service
-        if getattr(service, "attributed_to", None) == owner_actor_id:
-            return service
-    if owner_actor_id is None:
-        return fallback
-    return None
 
 
 def _require_log_entry(
@@ -68,89 +50,6 @@ def _require_log_entry(
     raise VultronError(
         f"{node_name}: activity did not carry a VultronCaseLedgerEntry"
     )
-
-
-def _require_case_actor_id(case_actor: object, node_name: str) -> str:
-    case_actor_id = getattr(case_actor, "id_", None)
-    if isinstance(case_actor_id, str):
-        return case_actor_id
-    raise VultronError(f"{node_name}: resolved CaseActor had no id_")
-
-
-class CheckIsOwnCaseActorNode(DataLayerConditionWithPorts):
-    @classmethod
-    def input_ports(cls) -> dict[str, PortInformation]:
-        ports = super().input_ports()
-        ports["activity"] = PortInformation(data_type=object, required=True)
-        return ports
-
-    @classmethod
-    def output_ports(cls) -> dict[str, PortInformation]:
-        return {"case_actor_id": PortInformation(data_type=str, required=True)}
-
-    @classmethod
-    def _domain_port_remappings(cls) -> dict[str, str]:
-        return {
-            "activity": "/activity",
-            "case_actor_id": "/case_actor_id",
-        }
-
-    def initialise(self) -> None:
-        super().initialise()
-        self.activity = self.get_input("activity")
-
-    def update(self) -> Status:
-        if (f := self._require_datalayer_and_actor()) is not None:
-            return f
-        assert self.datalayer is not None
-        assert self.actor_id is not None
-        entry = _require_log_entry(self.activity, self.name)
-        case_actor = _find_case_actor(
-            self.datalayer, entry.case_id, self.actor_id
-        )
-        if case_actor is None:
-            return Status.FAILURE
-
-        case_actor_id = _require_case_actor_id(case_actor, self.name)
-        self._set_output("case_actor_id", case_actor_id)
-        self.logger.debug(
-            "%s: actor '%s' owns CaseActor '%s' for case '%s'",
-            self.name,
-            self.actor_id,
-            case_actor_id,
-            entry.case_id,
-        )
-        return Status.SUCCESS
-
-
-class CheckIsNotOwnCaseActorNode(DataLayerConditionWithPorts):
-    @classmethod
-    def input_ports(cls) -> dict[str, PortInformation]:
-        ports = super().input_ports()
-        ports["activity"] = PortInformation(data_type=object, required=True)
-        return ports
-
-    @classmethod
-    def _domain_port_remappings(cls) -> dict[str, str]:
-        return {"activity": "/activity"}
-
-    def initialise(self) -> None:
-        super().initialise()
-        self.activity = self.get_input("activity")
-
-    def update(self) -> Status:
-        if (f := self._require_datalayer_and_actor()) is not None:
-            return f
-        assert self.datalayer is not None
-        assert self.actor_id is not None
-
-        entry = _require_log_entry(self.activity, self.name)
-        case_actor = _find_case_actor(
-            self.datalayer, entry.case_id, self.actor_id
-        )
-        if case_actor is None:
-            return Status.SUCCESS
-        return Status.FAILURE
 
 
 class VerifySenderIsOwnIdNode(DataLayerConditionWithPorts):
@@ -186,25 +85,20 @@ class VerifySenderIsOwnIdNode(DataLayerConditionWithPorts):
 
 
 class VerifySenderIsCaseActorNode(DataLayerConditionWithPorts):
-    """Reject announces whose sender is not the CaseActor for this case.
+    """Reject announces whose sender is not the case's CaseActor (CASE_MANAGER).
 
-    Extracts the case_id from the activity's log entry, scans the DataLayer for
-    a ``Service`` with a matching ``context``, and returns SUCCESS only when the
-    activity's ``actor_id`` equals that Service's ``id_`` or its
-    ``attributed_to`` — the latter covers the deployment in which the CaseActor
-    announces from its hosting/owning actor id rather than the service id.
+    Resolves the case's authoritative CaseActor by the ``CVDRole.CASE_MANAGER``
+    role (ADR-0088, via :func:`resolve_case_manager_id`) — the same neutral
+    resolver the tree's routing node :class:`CheckIsCaseManagerNode` uses, never
+    a URL shape or a per-case ``Service`` object — and returns SUCCESS only when
+    the announce ``actor_id`` equals that resolved CaseActor id.
 
-    Passes through (SUCCESS) when no matching CaseActor ``Service`` is
-    registered yet — the bootstrap window — so downstream handling (pre-genesis
-    buffer / reject-on-missing-case, SYNC-15-001) manages the entry rather than
-    this gate dropping it before those paths run.
-
-    NOTE: this ``Service``-``context`` resolution matches the sibling authority
-    nodes in this tree but does not reflect the ADR-0088 role-based authority
-    model (the modern container-identity CaseActor carries no per-case
-    ``Service`` ``context``, and ``attributed_to`` is not uniformly the
-    authoritative sender). Migrating this and the sibling nodes to the neutral
-    ``resolve_case_manager_id`` resolver is tracked tree-wide in #3261.
+    Passes through (SUCCESS) during the bootstrap window — the case replica is
+    not seeded yet, or no CASE_MANAGER is known for it yet — so downstream
+    reject-on-missing-case / pre-genesis buffering (SYNC-15-001, SYNC-15-004)
+    handles the entry rather than this gate dropping it before those paths run.
+    Once the replica embeds the CASE_MANAGER participant (CP-09-004) the sender
+    is enforced.
 
     Per specs/case-ledger-processing.yaml CLP-01-003; SYNC-13-006.
     """
@@ -241,32 +135,27 @@ class VerifySenderIsCaseActorNode(DataLayerConditionWithPorts):
             self.logger.warning("%s: announce has no actor_id", self.name)
             return Status.FAILURE
 
-        case_actor_svc = None
-        for service in self.datalayer.list_objects("Service"):
-            if getattr(service, "context", None) == case_id:
-                case_actor_svc = service
-                break
+        # Lenient read: an unseeded replica is the bootstrap window, not an
+        # error here (unlike the Regime 1 _require_case used by routing nodes),
+        # so a missing case must pass through rather than FAIL and starve the
+        # downstream buffer/reject paths.
+        case = self.datalayer.read_case(case_id)
+        case_actor_id = (
+            resolve_case_manager_id(case, self.datalayer)
+            if case is not None
+            else None
+        )
 
-        if case_actor_svc is None:
-            # Bootstrap window: no CaseActor Service registered for this case
-            # yet. Let downstream handling (pre-genesis buffer /
-            # reject-on-missing-case) manage the entry rather than dropping it
-            # before those paths run.
+        if case_actor_id is None:
             self.logger.debug(
-                "%s: no CaseActor Service found for case '%s'"
+                "%s: no CaseActor known for case '%s'"
                 " — passing through for bootstrap handling",
                 self.name,
                 case_id,
             )
             return Status.SUCCESS
 
-        expected_ids = {
-            getattr(case_actor_svc, "id_", None),
-            getattr(case_actor_svc, "attributed_to", None),
-        }
-        expected_ids.discard(None)
-
-        if sender_id in expected_ids:
+        if sender_id == case_actor_id:
             self.logger.debug(
                 "%s: sender '%s' matches CaseActor for case '%s'",
                 self.name,
@@ -276,11 +165,11 @@ class VerifySenderIsCaseActorNode(DataLayerConditionWithPorts):
             return Status.SUCCESS
 
         self.logger.warning(
-            "%s: rejected announce from '%s' for case '%s' (expected one of %s)",
+            "%s: rejected announce from '%s' for case '%s' (expected '%s')",
             self.name,
             sender_id,
             case_id,
-            expected_ids,
+            case_actor_id,
         )
         return Status.FAILURE
 

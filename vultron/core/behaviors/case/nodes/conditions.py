@@ -213,6 +213,15 @@ class CheckIsCaseManagerNode(DataLayerConditionWithPorts):
     case's CASE_MANAGER participant via ``resolve_case_manager_id``, and
     returns ``SUCCESS`` only when ``actor_id`` matches that participant's
     ``attributed_to`` actor ID.
+
+    On SUCCESS, writes the resolved manager ID to the ``case_actor_id``
+    output port so downstream nodes (e.g. ``VerifySenderIsOwnIdNode``) can
+    verify the sender without a separate Service lookup.
+
+    ``case_id`` resolution priority:
+    1. Constructor arg ``case_id``.
+    2. Blackboard key ``/case_id``.
+    3. ``activity.log_entry.case_id`` (or ``activity.object_.case_id``).
     """
 
     def __init__(
@@ -225,17 +234,31 @@ class CheckIsCaseManagerNode(DataLayerConditionWithPorts):
     def input_ports(cls) -> dict[str, PortInformation]:
         ports = super().input_ports()
         ports["case_id"] = PortInformation(data_type=str, required=False)
+        ports["activity"] = PortInformation(data_type=object, required=False)
         return ports
 
     @classmethod
+    def output_ports(cls) -> dict[str, PortInformation]:
+        return {"case_actor_id": PortInformation(data_type=str, required=True)}
+
+    @classmethod
     def _domain_port_remappings(cls) -> dict[str, str]:
-        return {"case_id": "/case_id"}
+        return {
+            "case_id": "/case_id",
+            "activity": "/activity",
+            "case_actor_id": "/case_actor_id",
+        }
 
     def initialise(self) -> None:
         super().initialise()
         self._case_id_bb = None
+        self._activity = None
         try:
             self._case_id_bb = self.get_input("case_id")
+        except (NoDataAvailable, NotImplementedError):
+            pass
+        try:
+            self._activity = self.get_input("activity")
         except (NoDataAvailable, NotImplementedError):
             pass
 
@@ -246,6 +269,12 @@ class CheckIsCaseManagerNode(DataLayerConditionWithPorts):
         assert self.actor_id is not None
 
         case_id = self._case_id or self._case_id_bb
+        if not case_id and self._activity is not None:
+            entry = getattr(self._activity, "log_entry", None)
+            if entry is None:
+                entry = getattr(self._activity, "object_", None)
+            raw = getattr(entry, "case_id", None)
+            case_id = raw if isinstance(raw, str) else None
 
         if not case_id:
             self.logger.debug(
@@ -266,6 +295,7 @@ class CheckIsCaseManagerNode(DataLayerConditionWithPorts):
             return Status.FAILURE
 
         if manager_id == self.actor_id:
+            self._set_output("case_actor_id", manager_id)
             self.logger.debug(
                 f"{self.name}: actor '{self.actor_id}' is CASE_MANAGER for"
                 f" case '{case_id}'"
