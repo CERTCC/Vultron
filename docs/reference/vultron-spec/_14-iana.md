@@ -8,7 +8,7 @@ See ADR-0069.
 
 **JSON-LD context document.** The normative JSON-LD context is at
 `https://certcc.github.io/Vultron/ns/context.jsonld`. Implementations MUST
-use this URI as the `@context` value for all outbound Vultron messages (§5.5).
+use this URI as the `@context` value for all outbound Vultron messages ([§5.5](index.md#55-serialization)).
 
 **AS2 extension type naming conventions.** Vultron type names follow PascalCase
 without an `as_` prefix in wire output (for example, `"type": "VulnerabilityCase"`

@@ -88,7 +88,7 @@ Neither `LAPSED` nor `DECLINED` is terminal — both can be re-invited.
   participants. A participant cannot be re-invited to revised terms it never
   learns about.
 - Only case **content** (report details, fix status, sensitive notes) is gated on
-  `SIGNATORY` status (§9.7).
+  `SIGNATORY` status ([§9.7](index.md#97-gating-full-case-delivery)).
 
 ### 9.6 Relationship to `embargo_adherence`
 
@@ -118,7 +118,7 @@ recipient:
     It is tempting to read condition 1 as `RM.ACCEPTED`. That reading is wrong
     and self-defeating: an invitee is recorded at `RM.RECEIVED` on
     `Accept(Invite)`, and reaches `ACCEPTED` only *after* receiving the full case
-    and running its triage cycle (§6.3). Requiring `ACCEPTED` before delivery
+    and running its triage cycle ([§6.3](index.md#63-per-participant-rm-tracking)). Requiring `ACCEPTED` before delivery
     would mean a participant could never obtain the case it needs in order to
     reach the state that gates it.
 
@@ -126,7 +126,7 @@ recipient:
     content.** The ordering is: admit the participant at `RM.RECEIVED`, resolve
     embargo consent, then deliver the full case.
 
-Note the consequence for §10's cascade ordering: `Accept(Invite)` implies consent
+Note the consequence for [§10](index.md#10-model-interactions-and-cascade-rules-n)'s cascade ordering: `Accept(Invite)` implies consent
 to any active embargo, which is what allows delivery to proceed immediately rather
 than waiting on a separate consent round-trip.
 

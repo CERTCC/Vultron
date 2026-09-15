@@ -23,26 +23,26 @@ chain is the minimal trust model; cryptographic ledger integrity (hash-chaining)
 provides tamper detection.
 
 !!! info "See also"
-    - §4.5 (trust and bootstrap semantics)
-    - §5.4 (addressing and channels)
+    - [§4.5](index.md#45-trust-and-bootstrap-semantics) (trust and bootstrap semantics)
+    - [§5.4](index.md#54-addressing-and-channels) (addressing and channels)
     - `specs/case-bootstrap-trust.yaml` CBT-01 through CBT-05
 
 ### 13.2 Embargo Integrity
 
 **Protocol adherence.** An active embargo is an agreement, not a technical
 enforcement. The protocol provides the signalling infrastructure — PEC state
-tracks which participants have consented, §9.5 ensures all participants receive
+tracks which participants have consented, [§9.5](index.md#95-embargo-meta-protocol-delivery-to-non-signatories) ensures all participants receive
 meta-protocol messages — but it cannot prevent a participant from disclosing
 outside the protocol.
 
 **Defection.** If a participant discloses publicly while an embargo is `ACTIVE`,
 the `CP` (public awareness) message will trigger the embargo teardown cascade
-(§10.1). The teardown is a state machine consequence, not a penalty mechanism.
+([§10.1](index.md#101-status-adoption-the-two-seam-model)). The teardown is a state machine consequence, not a penalty mechanism.
 The protocol has no built-in penalty for defection; enforcement is an
 out-of-band organizational matter.
 
 **Confidentiality gate.** Sensitive case content is gated on embargo consent
-(§9.7). A participant that has not achieved `PEC.SIGNATORY` does not receive
+([§9.7](index.md#97-gating-full-case-delivery)). A participant that has not achieved `PEC.SIGNATORY` does not receive
 full case details. This is the primary technical lever the protocol provides
 against inadvertent over-disclosure to non-consenting parties.
 

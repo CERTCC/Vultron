@@ -36,14 +36,14 @@ independently of anything a case participant does or causes.
 
 Reporting is not adoption. A reported observation is a claim; whether it becomes
 canonical case state, and whether it triggers embargo teardown, is decided by the
-two-seam model in **§10.1**. The role rule here — *who may report* — is
+two-seam model in [**§10.1**](../index.md#101-status-adoption-the-two-seam-model). The role rule here — *who may report* — is
 deliberately separate from the authorization rules there — *what the Case Actor
 does with a report*.
 
 !!! note "Informative: the Sentinel capability shape"
     A participant that monitors external sources (threat feeds, public
     disclosures, vulnerability databases) and reports what it finds into a case is
-    an instance of the **Sentinel** capability shape (§12.6).
+    an instance of the **Sentinel** capability shape ([§12.6](../index.md#126-capability-shapes-i)).
 
     The Sentinel shape is defined as an optional, pluggable capability — not a
     mandatory protocol role. No spec group yet defines a Sentinel's trust
@@ -51,7 +51,7 @@ does with a report*.
     Sentinel's observations from any other participant's report.
     Given that StatusAdoptionGate's default policy is to auto-adopt non-owner
     reports, an unspecified external reporter is a trust-model question, not
-    merely a naming one. See §12.6 and Open Question 16. Treat this note
+    merely a naming one. See [§12.6](../index.md#126-capability-shapes-i) and Open Question 16. Treat this note
     as informative.
 
 #### 12.4.3 CVE ID Assignment

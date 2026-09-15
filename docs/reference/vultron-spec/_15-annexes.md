@@ -25,7 +25,7 @@
 ### Annex D — Possible Case Histories [I]
 
 Ordering constraints on CS state transitions are not yet normatively specified
-(see §8.3 and Open Question 12). The possible-histories material is informative.
+(see [§8.3](index.md#83-case-state-as-a-compound-tuple) and Open Question 12). The possible-histories material is informative.
 
 !!! info "See also"
     - [Possible Histories](../../topics/measuring_cvd/possible_histories.md)
@@ -40,7 +40,7 @@ follows ActivityPub conventions and where it diverges.
 
 !!! info "See also"
     - [ActivityPub Activities](../../howto/activitypub/activities/index.md)
-    - §5.1 (informative note on the ActivityPub roadmap, issue #2068)
+    - [§5.1](index.md#51-base-vocabulary) (informative note on the ActivityPub roadmap, issue #2068)
 
 ### Annex F — Behavior Tree Reference Implementation [I]
 

@@ -1,12 +1,12 @@
 ## 4. Semantic Layer — Message Meanings [N]
 
 Protocol messages are referred to by two-letter shorthands throughout this
-specification. The shorthand names a *protocol meaning*; §4.7 maps each
+specification. The shorthand names a *protocol meaning*; [§4.7](index.md#47-shorthand-wire-form-mapping) maps each
 shorthand to its AS2 wire form.
 
 !!! note "Error and acknowledgement messages: read §4.6 first"
     Several messages below are part of the formal protocol definition but have
-    **no wire representation** in the current semantic registry. §4.6 states
+    **no wire representation** in the current semantic registry. [§4.6](index.md#46-error-and-acknowledgement-messages) states
     which, and why. Implementers should read that subsection before treating any
     `*E` or `*K` shorthand as dispatchable.
 
@@ -23,7 +23,7 @@ $M^{rm} = \{RS, RI, RV, RD, RA, RC, RK, RE\}$
 | `RA` | Report Accepted | Sender has accepted the report for further action |
 | `RC` | Report Closed | Sender has closed the report |
 | `RK` | Report Acknowledgement | Acknowledges receipt of any RM message above |
-| `RE` | Report Error | Sender received an unexpected RM message (see §4.6) |
+| `RE` | Report Error | Sender received an unexpected RM message (see [§4.6](index.md#46-error-and-acknowledgement-messages)) |
 
 All RM state changes are reported from the **sender's** perspective, not the
 recipient's. `RS` is the only RM message whose *receipt* directly drives an RM
@@ -49,8 +49,8 @@ Nine messages, in three related groups. Note that the *initial-proposal* and
 | `EJ` | Embargo **Revision** Rejection | Sender rejected a proposed revision |
 | `EC` | Embargo **Revision** Acceptance | Sender accepted a proposed revision |
 | `ET` | Embargo Termination | Sender terminated the embargo; immediate effect |
-| `EK` | Embargo Acknowledgement | Acknowledges any EM message above (see §4.6) |
-| `EE` | Embargo Error | Sender received an unexpected EM message (see §4.6) |
+| `EK` | Embargo Acknowledgement | Acknowledges any EM message above (see [§4.6](index.md#46-error-and-acknowledgement-messages)) |
+| `EE` | Embargo Error | Sender received an unexpected EM message (see [§4.6](index.md#46-error-and-acknowledgement-messages)) |
 
 !!! warning "`EV`/`EJ`/`EC` are wire-identical to `EP`/`ER`/`EA`"
     The revision shorthands share their AS2 wire forms with their
@@ -69,7 +69,7 @@ If early termination is desired but the termination time is in the future, that
 SHOULD be expressed as an `EV` (revision proposal) rather than an `ET`, since
 `ET` takes immediate effect.
 
-Tacit acceptance semantics are specified in §7.2.
+Tacit acceptance semantics are specified in [§7.2](index.md#72-transitions-and-guards).
 
 ### 4.3 Case State Messages
 
@@ -83,8 +83,8 @@ $M^{cs} = \{CV, CF, CD, CP, CX, CA, CK, CE\}$
 | `CP` | Public Awareness | PXA (`p→P`) | The vulnerability is publicly known |
 | `CX` | Exploit Public | PXA (`x→X`) | An exploit has been published |
 | `CA` | Attacks Observed | PXA (`a→A`) | Attacks exploiting the vulnerability are observed |
-| `CK` | CS Acknowledgement | — | Acknowledges any CS message above (see §4.6) |
-| `CE` | CS Error | — | Sender received an unexpected CS message (see §4.6) |
+| `CK` | CS Acknowledgement | — | Acknowledges any CS message above (see [§4.6](index.md#46-error-and-acknowledgement-messages)) |
+| `CE` | CS Error | — | Sender received an unexpected CS message (see [§4.6](index.md#46-error-and-acknowledgement-messages)) |
 
 All six status shorthands (`CV`–`CA`) share a single wire form and semantic:
 `Add(CaseStatus)[target=VulnerabilityCase]` →
@@ -93,7 +93,7 @@ in the object payload, not in the activity type.** An implementation dispatching
 on activity type alone cannot distinguish `CF` from `CA`.
 
 Receiving a CS message updates the receiver's model of the **sender's** CS state;
-it does not change the receiver's own CS state. See §8.4.
+it does not change the receiver's own CS state. See [§8.4](index.md#84-receiving-cs-messages-own-state-vs-model-of-others).
 
 ### 4.4 Case Coordination Messages
 
@@ -101,7 +101,7 @@ it does not change the receiver's own CS state. See §8.4.
 - `Invite[target=VulnerabilityCase]` / `Accept(Invite)` / `Reject(Invite)` —
   invitation lifecycle (Case Actor invites on the Case Owner's behalf)
 - `Offer(CaseParticipant)` / `Accept(Offer(...))` / `Reject(Offer(...))` —
-  suggest-actor lifecycle (a participant proposes an actor; see §5.3)
+  suggest-actor lifecycle (a participant proposes an actor; see [§5.3](index.md#53-activity-types-and-canonical-message-forms))
 - `Announce(CaseLedgerEntry)` — canonical state replication and broadcast
 - `Announce(VulnerabilityCase)` — full case snapshot delivery to a participant
 - `Update(VulnerabilityCase)` — case metadata change
@@ -171,11 +171,11 @@ local state or object payload as noted.
 | `ER`, `EJ` | `REJECT_INVITE_TO_EMBARGO_ON_CASE` | `Reject(Invite(Event)[context=VulnerabilityCase])` |
 | `ET` | `REMOVE_EMBARGO_EVENT_FROM_CASE` | `Remove(Event)` |
 | `CV`–`CA` | `ADD_CASE_STATUS_TO_CASE` | `Add(CaseStatus)[target=VulnerabilityCase]` |
-| `RE`, `EE`, `CE`, `EK`, `CK` | *(none — see §4.6)* | *(none)* |
+| `RE`, `EE`, `CE`, `EK`, `CK` | *(none — see [§4.6](index.md#46-error-and-acknowledgement-messages))* | *(none)* |
 
 Note the two collision classes: embargo revision shorthands collide with their
-initial-proposal counterparts (resolve via local EM state, §4.2), and all six CS
-status shorthands collide (resolve via `CaseStatus` payload, §4.3).
+initial-proposal counterparts (resolve via local EM state, [§4.2](index.md#42-embargo-management-messages)), and all six CS
+status shorthands collide (resolve via `CaseStatus` payload, [§4.3](index.md#43-case-state-messages)).
 
 ### 4.8 Knowledge Model and Actor Isolation
 

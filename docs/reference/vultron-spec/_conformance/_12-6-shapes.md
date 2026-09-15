@@ -2,7 +2,7 @@
 
 Capability shapes define optional, pluggable capabilities that connect to
 call-out points in the behavior engine. They are orthogonal to the capability
-sets of §12.2: an Observer implementation may have zero capability shapes
+sets of [§12.2](../index.md#122-capability-sets): an Observer implementation may have zero capability shapes
 implemented, and a capability that fits a given shape does not require anything
 beyond what the host behavior engine provides.
 

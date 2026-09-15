@@ -14,14 +14,14 @@ Examples: `Observer / Reporter`, `Observer / Vendor`, `Observer / Vendor + Deplo
 The Observer capability set is required for all participation.
 Role obligations are additive and orthogonal: no role subsumes another.
 
-Capability set names and role names come from §12.2 and §12.3 respectively.
+Capability set names and role names come from [§12.2](../index.md#122-capability-sets) and [§12.3](../index.md#123-role-taxonomy) respectively.
 
 **Roles and capability expectations.** The relationship between roles and
 capabilities is bidirectional. An implementation must have the capability
-prerequisites for a role before it can be assigned that role (§12.3.1).
+prerequisites for a role before it can be assigned that role ([§12.3.1](../index.md#1231-process-roles)).
 Conversely, holding a role in a case creates an expectation that the
 implementation has those capabilities — other participants act on that
-assumption. See §11.1 for the role assignment gatekeeping rules.
+assumption. See [§11.1](../index.md#111-role-assignment-n) for the role assignment gatekeeping rules.
 
 !!! warning "Capability sets are not the same as conformance test layers"
     This project uses two distinct schemes, and they must not be conflated:

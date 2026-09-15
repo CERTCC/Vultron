@@ -36,10 +36,10 @@
   - `ParticipantStatus` is a *claim* — one participant's assertion about its
     own (or another participant's) state. Any participant may write one.
   - `CaseStatus` is *canonical* — the Case Actor's authoritative record of
-    shared case state. Only the Case Actor may write it (§5.4).
+    shared case state. Only the Case Actor may write it ([§5.4](index.md#54-addressing-and-channels)).
 
   The transition from claim to canonical is an explicit authorization step,
-  not an implementation detail; see §10.1.
+  not an implementation detail; see [§10.1](index.md#101-status-adoption-the-two-seam-model).
 
 ### 5.3 Activity Types and Canonical Message Forms
 
@@ -64,7 +64,7 @@
   `vultron/core/models/events/base.py` (`MessageSemantics` enum); this is the
   authoritative source for which AS2 patterns correspond to which protocol
   operations. The protocol-shorthand → semantic → wire-form mapping table is
-  given in §4.7, after the shorthands themselves have been introduced.
+  given in [§4.7](index.md#47-shorthand-wire-form-mapping), after the shorthands themselves have been introduced.
 
 ### 5.4 Addressing and Channels
 
@@ -109,7 +109,7 @@ occurring before the Case Actor is available as an intermediary:
    directly to the Vendor. No case, and therefore no Case Actor, exists yet.
 2. **Case creation handshake** — the receiving party sends
    `Create(VulnerabilityCase)` to the Reporter to introduce the Case Actor. This
-   is the trust-bootstrap exchange (§4.5).
+   is the trust-bootstrap exchange ([§4.5](index.md#45-trust-and-bootstrap-semantics)).
 
 After case creation, no direct participant-to-participant messaging is
 permitted.
@@ -148,7 +148,7 @@ permitted.
 ### 5.6 Transport Layer [N/I]
 
 The transport layer defines how vultron-wire messages move between participants.
-The message schema (§5.1–§5.5) is transport-agnostic: the same JSON payload is
+The message schema ([§5.1](index.md#51-base-vocabulary)–[§5.5](index.md#55-serialization)) is transport-agnostic: the same JSON payload is
 deliverable over any conformant transport.
 
 This specification recognizes two transport profiles.
@@ -157,13 +157,13 @@ This specification recognizes two transport profiles.
 
 - Each actor exposes an inbox endpoint for receiving inbound Activities.
 - Outbound Activities are delivered by HTTP POST to the recipient's inbox.
-- Authentication and authorization requirements are described in §13.
+- Authentication and authorization requirements are described in [§13](index.md#13-security-considerations-ni).
 
 #### ActivityPub federation profile [I]
 
 Full ActivityPub conformance — inbox/outbox HTTP delivery, HTTP Signatures,
 WebFinger discovery — is not currently required by this specification.
-See the informative note in §5.1 and Annex E for the ActivityPub roadmap.
+See the informative note in [§5.1](index.md#51-base-vocabulary) and [Annex E](index.md#annex-e-relationship-to-activitypub-i) for the ActivityPub roadmap.
 
 #### Participant discovery [I]
 
@@ -173,7 +173,7 @@ alongside ActivityPub in federated systems such as Mastodon.
 A participant discovery specification is not yet included in this document.
 
 !!! note "Transport vs. routing topology"
-    The routing topology rule in §5.4.2 — all case-scoped messages MUST route
+    The routing topology rule in [§5.4.2](index.md#542-routing-topology) — all case-scoped messages MUST route
     through the Case Actor — is a vultron-core protocol rule. It applies
     regardless of which transport carries the messages. The transport layer is
     responsible for delivery. The protocol layer is responsible for routing

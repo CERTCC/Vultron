@@ -19,7 +19,7 @@ do not.
 Vultron addresses that gap. It provides a formal protocol that lets any number
 of organizations coordinate vulnerability disclosure without a central
 authority. Each participant maintains its own state and communicates through
-structured messages. No single party owns the case; the Case Actor holds
+structured messages. No single party owns the case; the Case Actor (see [§5.4.1](index.md#541-single-writer-authority)) holds
 coordination authority for a specific case, and that authority is transferable.
 
 The protocol models coordination state across four dimensions: report lifecycle
