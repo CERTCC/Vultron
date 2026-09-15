@@ -256,10 +256,18 @@ jobs:
     # the `scenarios` job; `always()` must not resurrect this job when that job
     # was skipped or failed, so the condition tests the scenarios job directly
     # rather than using a bare always().
+    # DEMOCI-04-007, #3249: also skip when the demo job was *cancelled* (a newer
+    # push superseded this run via the concurrency group). A cancelled demo job
+    # uploads no case-log artifact, so the download-artifact step below would
+    # hard-fail — turning a cancellation into a spurious `failure` that the
+    # `notify` job files as a real CI failure. Skipping here leaves `notify` to
+    # correctly defer to the superseding run. `needs.demo.result` is only ever
+    # `cancelled` on a superseded run; success/failure paths are unaffected.
     needs: [scenarios, demo]
     if: >-
       always() &&
-      needs.scenarios.result == 'success'
+      needs.scenarios.result == 'success' &&
+      needs.demo.result != 'cancelled'
     strategy:
       fail-fast: false
       # Intentionally identical to the `demo` job matrix: both jobs must fan

@@ -24,6 +24,12 @@ import yaml
 REPO_ROOT = Path(__file__).resolve().parents[2]
 WORKFLOWS_DIR = REPO_ROOT / ".github" / "workflows"
 NOTIFY_FAILURE_USES = "./.github/actions/notify-failure"
+DEMO_WORKFLOW = WORKFLOWS_DIR / "demo-integration.yml"
+
+
+def _normalize_expr(expr: str) -> str:
+    """Collapse whitespace/newlines in a GHA ``if:`` expression for matching."""
+    return " ".join(expr.split())
 
 
 def _load_workflow(path: Path) -> dict[str, Any]:
@@ -136,3 +142,32 @@ def test_qualifying_workflow_notify_step_has_workflow_label(wf: Path) -> None:
             f"{wf.name}: a ./.github/actions/notify-failure step is missing "
             f"the workflow-label input (CISEC-05-003)."
         )
+
+
+def test_invariant_harness_skipped_when_demo_cancelled() -> None:
+    """Regression (#3249): a concurrency-cancelled demo job must not cascade
+    into a spurious ``ci:main-failure`` issue.
+
+    When the ``demo`` job is cancelled by the concurrency group (a newer push
+    supersedes the run), no case-log artifact is uploaded, so the
+    ``invariant-harness`` job's ``download-artifact`` step hard-errors —
+    turning a *cancellation* into a job *failure* that the ``notify`` job then
+    reports as a real CI failure. The harness ``if:`` must therefore exclude
+    cancelled demo runs so it is *skipped* (not failed) in that case, leaving
+    the ``notify`` job to correctly defer to the superseding run.
+
+    See DEMOCI-04-007 and ``notes/ci-workflow-authoring.md``.
+    """
+    data = _load_workflow(DEMO_WORKFLOW)
+    job = data.get("jobs", {}).get("invariant-harness")
+    assert job is not None, (
+        "demo-integration.yml has no invariant-harness job — the job key may "
+        "have been renamed; update this regression test (#3249)."
+    )
+    guard = _normalize_expr(str(job.get("if", "")))
+    assert "needs.demo.result != 'cancelled'" in guard, (
+        "The invariant-harness `if:` must exclude cancelled demo runs "
+        "(needs.demo.result != 'cancelled'), so a concurrency-cancelled "
+        "push-to-main run does not cascade into a spurious ci:main-failure "
+        f"issue (DEMOCI-04-007, #3249). Current guard: {guard!r}"
+    )
