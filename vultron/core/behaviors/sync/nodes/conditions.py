@@ -28,6 +28,7 @@ from vultron.core.behaviors.helpers import (
 )
 from vultron.core.models.case_ledger_entry import VultronCaseLedgerEntry
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
+from vultron.core.participants.authority import resolve_case_manager_id
 from vultron.core.ports.case_persistence import CasePersistence
 from vultron.core.sync_helpers import is_ledger_fresh_for_case
 from vultron.errors import VultronError
@@ -75,6 +76,38 @@ def _require_case_actor_id(case_actor: object, node_name: str) -> str:
     if isinstance(case_actor_id, str):
         return case_actor_id
     raise VultronError(f"{node_name}: resolved CaseActor had no id_")
+
+
+def _verified_case_actor_id(dl: CasePersistence, case_id: str) -> str | None:
+    """Return the authoritative CaseActor actor id for *case_id*, or ``None``.
+
+    Authority is the ``CVDRole.CASE_MANAGER`` role, resolved via the neutral
+    :func:`resolve_case_manager_id` (ADR-0088, ARCH-24-001) — never a URL shape
+    or a per-case ``Service`` object.  Under the modern container-identity
+    CaseActor model there is no per-case ``Service`` (the actor is created with
+    no ``context``, ADR-0041/#1872), so a ``Service``-context scan alone
+    resolves nothing; the role is the only reliable signal.
+
+    A legacy ``Service`` whose ``context == case_id`` is consulted as a fallback
+    for cases created before the role model existed (mirroring path 4 of
+    ``use_cases/_helpers._find_case_actor_id``).
+
+    Returns ``None`` when no CaseActor is known yet — the bootstrap window,
+    where the caller passes through so downstream reject-on-missing-case /
+    pre-genesis buffering handles the entry.
+    """
+    case = dl.read_case(case_id)
+    if case is not None:
+        manager_id = resolve_case_manager_id(case, dl)
+        if manager_id is not None:
+            return manager_id
+
+    for service in dl.list_objects("Service"):
+        if getattr(service, "context", None) == case_id:
+            service_id = getattr(service, "id_", None)
+            if isinstance(service_id, str) and service_id:
+                return service_id
+    return None
 
 
 class CheckIsOwnCaseActorNode(DataLayerConditionWithPorts):
@@ -186,17 +219,24 @@ class VerifySenderIsOwnIdNode(DataLayerConditionWithPorts):
 
 
 class VerifySenderIsCaseActorNode(DataLayerConditionWithPorts):
-    """Reject announces whose sender is not the known CaseActor for this case.
+    """Reject announces whose sender is not the CaseActor for this case.
 
-    Extracts the case_id from the activity's log entry, scans the DataLayer
-    for a Service with a matching context, and returns SUCCESS only when
-    the activity's actor_id equals that Service's id_.
+    Resolves the case's authoritative CaseActor by the ``CVDRole.CASE_MANAGER``
+    role (ADR-0088, via :func:`resolve_case_manager_id`), with a legacy
+    ``Service``-context fallback, then returns SUCCESS only when the activity's
+    ``actor_id`` equals that CaseActor id.  Authority is the *role*, not a URL
+    shape or a per-case ``Service`` object — matching the sibling
+    :class:`VerifySenderIsOwnIdNode`, which compares only against the resolved
+    ``case_actor_id``.
 
-    Fails closed when no matching CaseActor Service is registered — a
-    participant that does not yet know the CaseActor cannot safely accept
-    ledger entries from anyone.
+    Passes through (SUCCESS) during the bootstrap window — when no CaseActor is
+    known for the case yet — so downstream reject-on-missing-case / pre-genesis
+    buffering (SYNC-15-001, SYNC-15-004) handles the entry rather than this gate
+    dropping it before those paths run.  Once the replica embeds the
+    CASE_MANAGER participant (CP-09-004) the sender is enforced.
 
-    Per specs/case-ledger-processing.yaml CLP-01-003.
+    Per specs/case-ledger-processing.yaml CLP-01-003; specs/sync.yaml
+    SYNC-13-006.
     """
 
     @classmethod
@@ -231,34 +271,21 @@ class VerifySenderIsCaseActorNode(DataLayerConditionWithPorts):
             self.logger.warning("%s: announce has no actor_id", self.name)
             return Status.FAILURE
 
-        case_actor_svc = None
-        for service in self.datalayer.list_objects("Service"):
-            if getattr(service, "context", None) == case_id:
-                case_actor_svc = service
-                break
+        case_actor_id = _verified_case_actor_id(self.datalayer, case_id)
 
-        if case_actor_svc is None:
-            # Bootstrap window: no CaseActor registered for this case yet.
-            # Let downstream handling (pre-genesis buffer / reject-on-missing-case)
-            # manage the entry rather than silently dropping it.
+        if case_actor_id is None:
+            # Bootstrap window: no CaseActor known for this case yet. Let
+            # downstream handling (pre-genesis buffer / reject-on-missing-case)
+            # manage the entry rather than dropping it before those paths run.
             self.logger.debug(
-                "%s: no CaseActor Service found for case '%s'"
+                "%s: no CaseActor known for case '%s'"
                 " — passing through for bootstrap handling",
                 self.name,
                 case_id,
             )
             return Status.SUCCESS
 
-        # Accept from either the Service actor URL or the owning org URL so that
-        # both deployment patterns (direct-service sender and org-actor sender)
-        # are covered by the same check (CLP-01-003).
-        expected_ids = {
-            getattr(case_actor_svc, "id_", None),
-            getattr(case_actor_svc, "attributed_to", None),
-        }
-        expected_ids.discard(None)
-
-        if sender_id in expected_ids:
+        if sender_id == case_actor_id:
             self.logger.debug(
                 "%s: sender '%s' matches CaseActor for case '%s'",
                 self.name,
@@ -268,12 +295,11 @@ class VerifySenderIsCaseActorNode(DataLayerConditionWithPorts):
             return Status.SUCCESS
 
         self.logger.warning(
-            "%s: rejected announce from '%s' for case '%s'"
-            " (expected one of %s)",
+            "%s: rejected announce from '%s' for case '%s' (expected '%s')",
             self.name,
             sender_id,
             case_id,
-            expected_ids,
+            case_actor_id,
         )
         return Status.FAILURE
 
