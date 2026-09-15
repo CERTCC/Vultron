@@ -267,19 +267,20 @@ class TestAdr0089EntailmentEnumeration:
     @pytest.mark.parametrize(
         "rm", [RM.START, RM.RECEIVED, RM.VALID, RM.INVALID]
     )
-    @pytest.mark.parametrize("vf", [CS_vf.Vf, CS_vf.VF])
     def test_rm_vf_entailment_fires_for_early_rm_with_fix_ready(
-        self, rm, vf
+        self, rm
     ) -> None:
-        """RM ∉ safe set + vf ∈ {Vf, VF}: RM↔VF entailment fires (CSB-18-001).
+        """RM ∉ safe set + vf=VF: RM↔VF entailment fires (CSB-18-001).
 
-        These are corrupt states — fix-ready is unreachable without passing
-        through ACCEPTED. The rule correctly refuses them.
+        VF_FIX_READY = (CS_vf.VF,): only fix-ready triggers the rule.
+        vf=Vf (vendor-aware, not ready) does not — it is reachable before
+        ACCEPTED. These are corrupt states — fix-ready is unreachable without
+        passing through ACCEPTED. The rule correctly refuses them.
         """
-        violations = self._violations(rm, vf, None)
+        violations = self._violations(rm, CS_vf.VF, None)
         assert any(
             v.dimension == "vf" for v in violations
-        ), f"Expected RM↔VF violation for ({rm!r}, {vf!r}, None); got {violations}"
+        ), f"Expected RM↔VF violation for ({rm!r}, VF, None); got {violations}"
 
     @pytest.mark.parametrize(
         "rm", [RM.START, RM.RECEIVED, RM.VALID, RM.INVALID]
