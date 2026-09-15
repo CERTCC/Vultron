@@ -397,3 +397,104 @@ def test_rm_force_quarantine_only_shrinks() -> None:
             )
         )
     assert not messages, "\n\n".join(messages)
+
+
+def test_create_participant_status_node_never_constructed_in_update() -> None:
+    """CreateParticipantStatusNode is never instantiated inside a Behaviour's update().
+
+    AC-9 (issue #3204) / BTND-10-004.  The five sites that previously did this
+    now pre-build the node in ``__init__`` and delegate via
+    ``BTBridge.execute_with_setup``; nothing should reintroduce the pattern.
+    """
+    behaviors_root = _corpus.REPO_ROOT / "vultron" / "core" / "behaviors"
+    violations: list[str] = []
+    for path, tree in _corpus.all_trees(behaviors_root):
+        for cls_node in ast.walk(tree):
+            if not isinstance(cls_node, ast.ClassDef):
+                continue
+            for method in ast.walk(cls_node):
+                if not isinstance(
+                    method, (ast.FunctionDef, ast.AsyncFunctionDef)
+                ):
+                    continue
+                if method.name != "update":
+                    continue
+                for node in ast.walk(method):
+                    if not isinstance(node, ast.Call):
+                        continue
+                    func = node.func
+                    name = (
+                        func.id
+                        if isinstance(func, ast.Name)
+                        else (
+                            func.attr
+                            if isinstance(func, ast.Attribute)
+                            else None
+                        )
+                    )
+                    if name == "CreateParticipantStatusNode":
+                        rel = str(path.relative_to(_corpus.REPO_ROOT)).replace(
+                            "\\", "/"
+                        )
+                        violations.append(
+                            f"{rel}:{node.lineno}"
+                            f" in {cls_node.name}.update()"
+                        )
+
+    assert not violations, (
+        "CreateParticipantStatusNode MUST NOT be constructed inside an"
+        " update() method — pre-build in __init__ and delegate via"
+        " BTBridge.execute_with_setup() (BTND-10-004, ADR-0089):\n"
+        + "\n".join(f"  {v}" for v in violations)
+    )
+
+
+def test_create_participant_status_node_has_no_case_id_constructor() -> None:
+    """CreateParticipantStatusNode.__init__ exposes no case_id parameter.
+
+    AC-9 (issue #3204) / BTND-10-005.  ``case_id`` must come from the
+    declared ``CaseIdInputPortMixin`` port, not the constructor — a port
+    works for both build-time-known and tick-time-discovered cases; a
+    constructor argument does not.
+    """
+    _, tree = _module(
+        "vultron/core/behaviors/case/nodes/participant/status.py"
+    )
+    for cls_node in ast.walk(tree):
+        if not isinstance(cls_node, ast.ClassDef):
+            continue
+        if cls_node.name != "CreateParticipantStatusNode":
+            continue
+        for method in ast.walk(cls_node):
+            if not isinstance(method, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                continue
+            if method.name != "__init__":
+                continue
+            arg_names = [arg.arg for arg in method.args.args]
+            assert "case_id" not in arg_names, (
+                "CreateParticipantStatusNode.__init__ must not accept"
+                " case_id as a constructor argument — use the"
+                " CaseIdInputPortMixin port instead (BTND-10-005, ADR-0089)"
+            )
+            return
+    assert (
+        False
+    ), "CreateParticipantStatusNode class or __init__ not found in status.py"
+
+
+def test_report_phase_rm_transition_has_no_blackboard_actor_fallback() -> None:
+    """_ReportPhaseRMTransition._acting_actor_id() must not fall back to blackboard actor_id.
+
+    AC-9 (issue #3204) / BTND-10-005.  The pre-ADR-0089 shape was
+    ``return self.sender_actor_id or self.actor_id`` which silently used the
+    executing actor when no sender was supplied.  That was bug #2300; the
+    post-ADR-0089 shape is a plain ``return self.sender_actor_id``.
+    """
+    source = _module_source(
+        "vultron/core/behaviors/report/nodes/rm_transitions.py"
+    )
+    assert "sender_actor_id or self.actor_id" not in source, (
+        "_acting_actor_id() must not fall back to self.actor_id when"
+        " sender_actor_id is absent — exactly one actor path to trace"
+        " (BTND-10-005, ADR-0089)"
+    )
