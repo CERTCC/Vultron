@@ -41,13 +41,9 @@ from vultron.core.behaviors.sync.nodes.chain import (
     UpdateReplicationStateNode,
 )
 from vultron.core.behaviors.sync.nodes.conditions import (
-    CheckIsNotOwnCaseActorNode,
-    CheckIsOwnCaseActorNode,
     CheckLedgerEntryAlreadyStoredNode,
     CheckLedgerFreshnessNode,
     VerifySenderIsOwnIdNode,
-    _find_case_actor,  # noqa: F401
-    _require_case_actor_id,  # noqa: F401
     _require_log_entry,  # noqa: F401
 )
 from vultron.core.behaviors.sync.nodes.event_conditions import (
@@ -112,8 +108,6 @@ from vultron.core.behaviors.sync.nodes.replay import (
 
 __all__ = [
     # conditions
-    "CheckIsOwnCaseActorNode",
-    "CheckIsNotOwnCaseActorNode",
     "VerifySenderIsOwnIdNode",
     "CheckLedgerEntryAlreadyStoredNode",
     "CheckLedgerFreshnessNode",
@@ -163,8 +157,6 @@ __all__ = [
     "SendLogEntryToEachNode",
     "FanOutLogEntryNode",
     "FanOutLogEntryExcludingClosedNode",
-    # re-exported helper functions (backward compat)
-    "_find_case_actor",
-    "_require_case_actor_id",
+    # re-exported helper function (backward compat)
     "_require_log_entry",
 ]

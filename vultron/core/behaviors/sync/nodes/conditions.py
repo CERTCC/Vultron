@@ -28,29 +28,10 @@ from vultron.core.behaviors.helpers import (
 )
 from vultron.core.models.case_ledger_entry import VultronCaseLedgerEntry
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
-from vultron.core.ports.case_persistence import CasePersistence
 from vultron.core.sync_helpers import is_ledger_fresh_for_case
 from vultron.errors import VultronError
 
 logger = logging.getLogger(__name__)
-
-
-def _find_case_actor(
-    dl: CasePersistence, case_id: str, owner_actor_id: str | None = None
-) -> object | None:
-    fallback: object | None = None
-    for service in dl.list_objects("Service"):
-        if fallback is None:
-            fallback = service
-        if getattr(service, "context", None) != case_id:
-            continue
-        if owner_actor_id is None:
-            return service
-        if getattr(service, "attributed_to", None) == owner_actor_id:
-            return service
-    if owner_actor_id is None:
-        return fallback
-    return None
 
 
 def _require_log_entry(
@@ -68,89 +49,6 @@ def _require_log_entry(
     raise VultronError(
         f"{node_name}: activity did not carry a VultronCaseLedgerEntry"
     )
-
-
-def _require_case_actor_id(case_actor: object, node_name: str) -> str:
-    case_actor_id = getattr(case_actor, "id_", None)
-    if isinstance(case_actor_id, str):
-        return case_actor_id
-    raise VultronError(f"{node_name}: resolved CaseActor had no id_")
-
-
-class CheckIsOwnCaseActorNode(DataLayerConditionWithPorts):
-    @classmethod
-    def input_ports(cls) -> dict[str, PortInformation]:
-        ports = super().input_ports()
-        ports["activity"] = PortInformation(data_type=object, required=True)
-        return ports
-
-    @classmethod
-    def output_ports(cls) -> dict[str, PortInformation]:
-        return {"case_actor_id": PortInformation(data_type=str, required=True)}
-
-    @classmethod
-    def _domain_port_remappings(cls) -> dict[str, str]:
-        return {
-            "activity": "/activity",
-            "case_actor_id": "/case_actor_id",
-        }
-
-    def initialise(self) -> None:
-        super().initialise()
-        self.activity = self.get_input("activity")
-
-    def update(self) -> Status:
-        if (f := self._require_datalayer_and_actor()) is not None:
-            return f
-        assert self.datalayer is not None
-        assert self.actor_id is not None
-        entry = _require_log_entry(self.activity, self.name)
-        case_actor = _find_case_actor(
-            self.datalayer, entry.case_id, self.actor_id
-        )
-        if case_actor is None:
-            return Status.FAILURE
-
-        case_actor_id = _require_case_actor_id(case_actor, self.name)
-        self._set_output("case_actor_id", case_actor_id)
-        self.logger.debug(
-            "%s: actor '%s' owns CaseActor '%s' for case '%s'",
-            self.name,
-            self.actor_id,
-            case_actor_id,
-            entry.case_id,
-        )
-        return Status.SUCCESS
-
-
-class CheckIsNotOwnCaseActorNode(DataLayerConditionWithPorts):
-    @classmethod
-    def input_ports(cls) -> dict[str, PortInformation]:
-        ports = super().input_ports()
-        ports["activity"] = PortInformation(data_type=object, required=True)
-        return ports
-
-    @classmethod
-    def _domain_port_remappings(cls) -> dict[str, str]:
-        return {"activity": "/activity"}
-
-    def initialise(self) -> None:
-        super().initialise()
-        self.activity = self.get_input("activity")
-
-    def update(self) -> Status:
-        if (f := self._require_datalayer_and_actor()) is not None:
-            return f
-        assert self.datalayer is not None
-        assert self.actor_id is not None
-
-        entry = _require_log_entry(self.activity, self.name)
-        case_actor = _find_case_actor(
-            self.datalayer, entry.case_id, self.actor_id
-        )
-        if case_actor is None:
-            return Status.SUCCESS
-        return Status.FAILURE
 
 
 class VerifySenderIsOwnIdNode(DataLayerConditionWithPorts):

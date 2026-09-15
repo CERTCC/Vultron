@@ -22,6 +22,7 @@ from vultron.core.ports.sync_activity import SyncActivityPort
 from vultron.core.states.em import EM
 from vultron.core.states.rm import RM
 from vultron.core.behaviors.sync.nodes.chain import _to_persistable_entry
+from vultron.enums.roles import CVDRole
 from vultron.semantic_registry import extract_event
 from vultron.wire.as2.factories import announce_log_entry_activity
 from vultron.wire.as2.vocab.objects.case_ledger_entry import (
@@ -112,6 +113,51 @@ def test_create_announce_log_entry_tree_returns_selector():
     tree = create_announce_log_entry_tree()
     assert tree.name == "AnnounceLogEntryReceivedBT"
     assert len(tree.children) == 2
+
+
+@pytest.fixture
+def owner_bridge():
+    """A BTBridge backed by a DataLayer scoped to OWNER_ACTOR_ID.
+
+    Used by the bootstrap window test so that execute_with_setup(actor_id=
+    OWNER_ACTOR_ID) doesn't clone an empty store for a foreign actor.
+    """
+    dl = SqliteDataLayer("sqlite:///:memory:", actor_id=OWNER_ACTOR_ID)
+    participant = CaseParticipant(
+        attributed_to=OWNER_ACTOR_ID,
+        context=CASE_ID,
+        case_roles=[CVDRole.CASE_MANAGER],
+    )
+    dl.create(participant)
+    case = VulnerabilityCase(id_=CASE_ID, attributed_to=OWNER_ACTOR_ID)
+    case.case_participants.append(participant)
+    dl.save(case)
+    return BTBridge(datalayer=dl)
+
+
+@pytest.mark.spec("ARCH-24-003")
+def test_case_manager_role_takes_authority_arm_without_service_object(
+    owner_bridge,
+):
+    """ARCH-24-003 bootstrap window: role-based check is stable before any Service carries context.
+
+    CheckIsCaseManagerNode must succeed for the CASE_MANAGER actor even when
+    no VultronCaseActor Service object with context=CASE_ID exists — the
+    failure mode of the removed CheckIsOwnCaseActorNode (ADR-0088).
+    """
+    entry = _make_entry(0)
+    event = _make_event(entry, actor_id=OWNER_ACTOR_ID)
+
+    result = owner_bridge.execute_with_setup(
+        tree=create_announce_log_entry_tree(),
+        actor_id=OWNER_ACTOR_ID,
+        activity=event,
+    )
+
+    assert result.status == Status.SUCCESS
+    # Verify no VultronCaseActor Service was involved
+    services = list(owner_bridge.datalayer.list_objects("Service"))
+    assert not any(getattr(s, "context", None) == CASE_ID for s in services)
 
 
 @pytest.mark.spec("SYNC-02-001")
