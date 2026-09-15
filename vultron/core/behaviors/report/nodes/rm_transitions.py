@@ -46,9 +46,6 @@ rather than looking the case up itself; the single lookup site is
 
 from py_trees.common import Status
 
-from vultron.core.behaviors.case.nodes.case_lookup import (
-    CaseIdInputPortMixin,
-)
 from vultron.core.behaviors.helpers import (
     DataLayerActionWithPorts,
 )
@@ -61,10 +58,12 @@ from vultron.core.models._helpers import (
     _report_phase_status_id,
     report_phase_context,
 )
-from vultron.core.use_cases._helpers import (
-    _idempotent_create,
-    update_participant_rm_state,
+import py_trees
+
+from vultron.core.behaviors.case.nodes.participant.status import (
+    CreateParticipantStatusNode,
 )
+from vultron.core.use_cases._helpers import _idempotent_create
 
 
 def _current_report_phase_rm_state(dl, actor_id: str, report_id: str) -> RM:
@@ -145,7 +144,7 @@ class _ReportPhaseRMTransition(DataLayerActionWithPorts):
         self.sender_actor_id = sender_actor_id
 
     def _acting_actor_id(self) -> str | None:
-        return self.sender_actor_id or self.actor_id
+        return self.sender_actor_id
 
     def _guard_transition(self, actor_id: str) -> Status | None:
         """Return FAILURE when current → target is not a legal RM move.
@@ -232,80 +231,68 @@ class _ReportPhaseRMTransition(DataLayerActionWithPorts):
             return Status.FAILURE
 
 
-class TransitionRMtoValid(CaseIdInputPortMixin, _ReportPhaseRMTransition):
-    """Transition the actor to RM.VALID, in the case *and* in report phase.
+class _ValidRMLatchNode(_ReportPhaseRMTransition):
+    """Write the report-phase RM.VALID latch after the case-scoped write.
 
-    ``RM.VALID`` is a case-scoped transition, so this node requires the case for
-    the report to be present in this actor's own store — supplied as ``case_id``
-    on the blackboard by
-    :class:`~vultron.core.behaviors.case.nodes.case_lookup.RequireCaseForReport`.
-    When it is absent, the case replica has not been delivered yet (ADR-0073,
-    PCR-01-003) and the node returns FAILURE (ARCH-15-001).
+    This is the second child of the ``TransitionRMtoValid`` Sequence.  It runs
+    only after :class:`CreateParticipantStatusNode` has already advanced the
+    actor's case-participant RM state to ``RM.VALID``, so the order guarantee
+    (ID-04-005) is structural — the Sequence won't reach this node on failure.
 
-    Order matters (ID-04-005).  The case-scoped ``CaseParticipant`` RM state is
-    advanced *first*; the report-phase latch is written only after that
-    succeeds.  Writing the latch first — the ISSUE-2548 defect — published
-    "this actor reached RM.VALID" while the participant record stayed at
-    ``RECEIVED``, and because ``CheckRMStateValid`` reads that same latch, every
-    later ``validate-report`` short-circuited to SUCCESS and the two halves
-    could never reconverge.
-
-    Input ports (inherited + declared):
-        datalayer (object, required): CasePersistence, remapped to /datalayer.
-        actor_id (str, required): Executing actor ID, remapped to /actor_id.
-        case_id (str, optional): remapped to /case_id; required in practice.
-        trigger_activity_factory (object, optional): remapped to
-            /trigger_activity_factory.
-
-    Per BTND-03-009: typed port declarations replace register_key().
+    It is a private helper; callers use :func:`TransitionRMtoValid` to build
+    the full Sequence.
     """
 
     _target_rm = RM.VALID
 
-    def update(self) -> Status:
-        """Advance the case participant to RM.VALID, then latch report phase.
 
-        Returns:
-            SUCCESS when both halves are done; FAILURE when the case is not in
-            this store, the participant RM update is blocked, the transition is
-            illegal, or the write raises.
-        """
-        if (f := self._require_datalayer()) is not None:
-            return f
-        assert self.datalayer is not None
-        actor_id = self._acting_actor_id()
-        if actor_id is None:
-            self.feedback_message = "actor_id not available"
-            self.logger.error("%s: %s", self.name, self.feedback_message)
-            return Status.FAILURE
+def TransitionRMtoValid(
+    report_id: str,
+    offer_id: str,
+    sender_actor_id: str | None = None,
+    name: str | None = None,
+) -> py_trees.composites.Sequence:
+    """Return a Sequence that advances the actor to RM.VALID in case and report phase.
 
-        case_id = self._resolve_case_id()
-        if case_id is None:
-            return Status.FAILURE
+    ``RM.VALID`` is a case-scoped transition (ID-04-005): the case-participant
+    record is advanced *first* via :class:`CreateParticipantStatusNode` (which
+    reads ``/case_id`` from the blackboard seeded by
+    :class:`~vultron.core.behaviors.case.nodes.case_lookup.RequireCaseForReport`),
+    and the report-phase latch is written only after that succeeds.
 
-        try:
-            if (f := self._guard_transition(actor_id)) is not None:
-                return f
+    Args:
+        report_id: ID of the VulnerabilityReport whose RM state advances.
+        offer_id: ID of the Offer activity that carried the report.
+        sender_actor_id: Explicit subject actor.  Must be provided; the
+            blackboard ``actor_id`` (executing actor) is not used as a fallback
+            (BTND-10-005, ADR-0089).
+        name: Optional name for the root Sequence node.
 
-            if not update_participant_rm_state(
-                case_id, actor_id, RM.VALID, self.datalayer
-            ):
-                self.feedback_message = (
-                    f"case-participant RM transition to {RM.VALID!r} blocked"
-                    f" for actor '{actor_id}' in case '{case_id}'"
-                )
-                self.logger.warning("%s: %s", self.name, self.feedback_message)
-                return Status.FAILURE
+    Returns:
+        A ``Sequence`` whose children are:
 
-            # CLP-07-007: the case exists, so the case URI is the context.
-            self._write_latch(actor_id, case_id)
-            return Status.SUCCESS
-
-        except Exception as e:
-            self.logger.error(
-                "%s: Error transitioning to VALID: %s", self.name, e
-            )
-            return Status.FAILURE
+        1. :class:`CreateParticipantStatusNode` — case-scoped RM write.
+        2. :class:`_ValidRMLatchNode` — report-phase idempotency latch.
+    """
+    return py_trees.composites.Sequence(
+        name=name or "TransitionRMtoValid",
+        memory=True,
+        children=[
+            CreateParticipantStatusNode(
+                actor_id=sender_actor_id or "",
+                rm_state=RM.VALID,
+                vf_state=None,
+                d_state=None,
+                pxa_state=None,
+                name="CreateRMValidStatus",
+            ),
+            _ValidRMLatchNode(
+                report_id=report_id,
+                offer_id=offer_id,
+                sender_actor_id=sender_actor_id,
+            ),
+        ],
+    )
 
 
 class TransitionRMtoInvalid(_ReportPhaseRMTransition):
@@ -338,96 +325,3 @@ class TransitionRMtoClosed(_ReportPhaseRMTransition):
     """
 
     _target_rm = RM.CLOSED
-
-
-class _CaseParticipantRMTransition(
-    CaseIdInputPortMixin, DataLayerActionWithPorts
-):
-    """Advance the actor's RM state on its ``CaseParticipant`` in a case.
-
-    Subclasses set :attr:`_target_rm`.  The case is read from the ``/case_id``
-    blackboard key published by
-    :class:`~vultron.core.behaviors.case.nodes.case_lookup.RequireCaseForReport`;
-    this node does not look it up, so the tree has one case-resolution site
-    (ARCH-15-004).
-
-    Absent case or blocked transition both return FAILURE.  These used to
-    soft-pass with SUCCESS "matching the log-and-continue behavior of the
-    original procedural handlers", which is the same class of defect as
-    ISSUE-2548: a Sequence told the effect happened when it had not
-    (ARCH-15-001).
-    """
-
-    #: Target RM state; set by each concrete subclass.
-    _target_rm: RM
-
-    def __init__(self, report_id: str | None, name: str | None = None) -> None:
-        """Initialize a case-participant RM transition node.
-
-        Args:
-            report_id: ID of the VulnerabilityReport this transition follows
-                from.  Carried for logging only — the case comes from
-                ``/case_id``.
-            name: Optional custom node name (defaults to the class name).
-        """
-        super().__init__(name=name or self.__class__.__name__)
-        self.report_id = report_id
-
-    def update(self) -> Status:
-        """Advance the participant's case-scoped RM state to the target.
-
-        Returns:
-            SUCCESS when the participant reached the target state (including an
-            idempotent no-op); FAILURE when the DataLayer or actor is
-            unavailable, the case is not in this store, or the transition is
-            blocked.
-        """
-        if (f := self._require_datalayer_and_actor()) is not None:
-            return f
-        assert self.datalayer is not None
-        assert self.actor_id is not None
-
-        case_id = self._resolve_case_id()
-        if case_id is None:
-            return Status.FAILURE
-
-        if not update_participant_rm_state(
-            case_id, self.actor_id, self._target_rm, self.datalayer
-        ):
-            self.feedback_message = (
-                f"RM transition to {self._target_rm!r} blocked for actor"
-                f" '{self.actor_id}' in case '{case_id}'"
-            )
-            self.logger.warning("%s: %s", self.name, self.feedback_message)
-            return Status.FAILURE
-
-        self.logger.info(
-            "%s: participant RM → %s for actor '%s' in case '%s'"
-            " (report '%s')",
-            self.name,
-            self._target_rm.name,
-            self.actor_id,
-            case_id,
-            self.report_id,
-        )
-        return Status.SUCCESS
-
-
-class TransitionCaseParticipantRMtoClosed(_CaseParticipantRMTransition):
-    """Transition the actor's RM state to CLOSED in the case for a report.
-
-    Requires ``/case_id`` on the blackboard; returns FAILURE when the case is
-    not in this actor's store.
-    """
-
-    _target_rm = RM.CLOSED
-
-
-class TransitionCaseParticipantRMtoInvalid(_CaseParticipantRMTransition):
-    """Transition the actor's RM state to INVALID in the case for a report.
-
-    Requires ``/case_id`` on the blackboard; returns FAILURE when the case is
-    not in this actor's store.
-    """
-
-    _target_rm = RM.INVALID

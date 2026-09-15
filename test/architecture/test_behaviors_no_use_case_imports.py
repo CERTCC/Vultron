@@ -93,12 +93,10 @@ KNOWN_VIOLATIONS: frozenset[str] = frozenset(
         # migration.
         "vultron/core/behaviors/case/nodes/announce.py",
         "vultron/core/behaviors/case/nodes/lifecycle.py",
-        "vultron/core/behaviors/case/nodes/participant/owner.py",
         "vultron/core/behaviors/embargo/nodes/emit.py",
         "vultron/core/behaviors/embargo/nodes/proposal.py",
         "vultron/core/behaviors/embargo/nodes/teardown.py",
         "vultron/core/behaviors/report/nodes/emit.py",
-        "vultron/core/behaviors/report/nodes/participant.py",
         "vultron/core/behaviors/report/nodes/rm_transitions.py",
         "vultron/core/behaviors/report/nodes/storage.py",
         "vultron/core/behaviors/sender/nodes/actions.py",
