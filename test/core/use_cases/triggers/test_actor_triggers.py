@@ -1453,7 +1453,7 @@ class TestSvcAcceptCaseOwnershipTransferUseCase:
         """Accept activity must be addressed to the CaseActor (CM-21-006 / ADR-0053).
 
         ``EmitAcceptCaseOwnershipTransferNode._call_factory()`` calls
-        ``_resolve_case_manager_id`` and sets ``to=[case_actor_id]``.
+        ``resolve_case_manager_id`` and sets ``to=[case_actor_id]``.
         This test seeds a case with a CASE_MANAGER participant and verifies
         the emitted ``to`` field carries the case actor URI.
         """
@@ -1462,7 +1462,7 @@ class TestSvcAcceptCaseOwnershipTransferUseCase:
         # actor's own store (ADR-0073).  Holding the owner's store instead left
         # the tree looking for the case in an empty one, and `to` fell back to an
         # actor that is not the case manager — the assertion below failed on a
-        # value that had nothing to do with `_resolve_case_manager_id`.
+        # value that had nothing to do with `resolve_case_manager_id`.
         transferee, dl = _make_actor_dl("Coordinator")
 
         owner, _ = _make_actor_dl("Vendor")
@@ -1472,7 +1472,7 @@ class TestSvcAcceptCaseOwnershipTransferUseCase:
         dl.create(case_actor)
 
         # _make_case_with_case_manager seeds CASE_MANAGER participant so
-        # _resolve_case_manager_id can find case_actor.id_ from the case.
+        # resolve_case_manager_id can find case_actor.id_ from the case.
         case = _make_case_with_case_manager(dl, owner.id_, case_actor.id_)
         offer = self._make_ownership_offer(dl, owner.id_, transferee.id_, case)
 

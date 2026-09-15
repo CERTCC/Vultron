@@ -145,7 +145,7 @@ def parse_activity(body: dict[str, Any]) -> as_Activity:
     #
     # Scoped to the top-level activity: nested objects legitimately omit
     # ``published`` and may be bare ID strings.
-    if body.get("published") is None:
+    if not body.get("published"):
         raise VultronParseMissingPublishedError(
             f"Missing 'published' field on {type_!r} activity. An activity "
             "must carry the time its sender claims the event occurred; "

@@ -587,25 +587,6 @@ specifically), not the weaker absence predicate. Catching this requires reading
 
 ---
 
-## `_resolve_case_manager_id` Is Duplicated in `develop_fix.py` — Do Not Canonicalise Yet
-
-(ISSUE-1812, 2026-07-29; tracked for unification in #1428)
-
-`vultron/core/behaviors/report/nodes/develop_fix.py` contains a local copy of
-`_resolve_case_manager_id` that mirrors the canonical version in
-`vultron.core.use_cases._helpers`. This duplication was deliberate: BT nodes
-in `vultron/core/behaviors/` cannot import from `vultron/core/use_cases/`
-(BTND-04-003), and no shared `core.behaviors` helper location exists yet.
-
-**Do not unify or move these helpers until #1428 is addressed.** Adding a
-shared helper module under `vultron/core/behaviors/` is a design decision
-requiring an ADR or spec entry. Until then, keep the inlined copy — it is not
-tech debt to fix in the same PR.
-
-<!-- Source: ISSUE-1812 -->
-
----
-
 ## `NoDataAvailable` Surfaces in `initialise()`, Not `setup_ports()`
 
 (ADR-0044 / BTND-03-011, 2026-07-29)
