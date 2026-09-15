@@ -310,8 +310,12 @@ jobs:
       issues: write
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+      # CISEC-05-006, #3249: file only on a genuine failure, never on a
+      # cancelled run. The invariant-harness skip above already keeps a
+      # superseded run free of a `failure` result; this guard is defense in
+      # depth against any future job that could hard-fail on a cancelled run.
       - name: Notify CI failure
-        if: contains(needs.*.result, 'failure')
+        if: contains(needs.*.result, 'failure') && !contains(needs.*.result, 'cancelled')
         uses: ./.github/actions/notify-failure
         with:
           mode: notify

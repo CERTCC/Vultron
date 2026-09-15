@@ -144,6 +144,48 @@ def test_qualifying_workflow_notify_step_has_workflow_label(wf: Path) -> None:
         )
 
 
+@pytest.mark.parametrize(
+    "wf", _qualifying_workflow_files(), ids=lambda p: p.name
+)
+def test_notify_step_does_not_file_on_cancellation(wf: Path) -> None:
+    """CISEC-05-006 (#3249): the failure-notify step must not file a
+    ci:main-failure issue on a cancelled (concurrency-superseded) run.
+
+    A push-to-main run cancelled by the concurrency group is not an actual
+    failure — a newer run is authoritative. The notify step's ``if:`` guard
+    must therefore require a genuine failure AND exclude cancellation, and must
+    not use the ``|| contains(needs.*.result, 'cancelled')`` pattern that files
+    on cancellation directly.
+    """
+    data = _load_workflow(wf)
+    notify_steps = [
+        s
+        for s in _notify_failure_steps(data)
+        if s.get("with", {}).get("mode") == "notify"
+    ]
+    for step in notify_steps:
+        guard = _normalize_expr(str(step.get("if", "")))
+        # Never file on cancellation directly.
+        assert "|| contains(needs.*.result, 'cancelled')" not in guard, (
+            f"{wf.name}: the notify (file) step must NOT file on cancellation "
+            f"via `|| contains(needs.*.result, 'cancelled')` (CISEC-05-006, "
+            f"#3249). Current guard: {guard!r}"
+        )
+        # The `needs.*.result` aggregate idiom can observe a `failure` laundered
+        # from a cancelled run (a cancelled upstream job leaving a downstream job
+        # to hard-fail on a missing artifact, #3249), so it MUST pair the failure
+        # check with an explicit cancellation exclusion. The `failure()` status
+        # function excludes cancellation inherently and needs no extra guard.
+        if "contains(needs.*.result, 'failure')" in guard:
+            assert "!contains(needs.*.result, 'cancelled')" in guard, (
+                f"{wf.name}: a notify (file) step that keys on "
+                f"`contains(needs.*.result, 'failure')` must also exclude "
+                f"cancelled runs via `!contains(needs.*.result, 'cancelled')` "
+                f"so a superseded run does not file a spurious ci:main-failure "
+                f"issue (CISEC-05-006, #3249). Current guard: {guard!r}"
+            )
+
+
 def test_invariant_harness_skipped_when_demo_cancelled() -> None:
     """Regression (#3249): a concurrency-cancelled demo job must not cascade
     into a spurious ``ci:main-failure`` issue.
