@@ -364,6 +364,41 @@ Getting this wrong — e.g., updating `CaseStatus.em_state` with a
 participant-specific value, or forgetting to scope RM updates to the correct
 participant — would produce incorrect case state representations.
 
+### `v→V` Transition: Two Authorized Drive Paths
+
+The `v→V` transition (vendor becomes aware of a vulnerability) has two authorized
+drive paths. This is different from `f→F` and `d→D`, which are strictly
+self-reports by the role that performed the action.
+
+**Path 1 — Vendor self-report**: An actor holding the Vendor role MAY assert their
+own `v→V` transition. A vendor who is posting to a case is by definition already
+aware of the issue, so asserting `v` (unaware) for themselves would be logically
+contradictory. They would therefore only ever emit this transition, never the
+starting state.
+
+**Path 2 — Third-party assertion by the reporting party**: The actor who submitted
+the report to the vendor, or who invited the vendor to the case, MAY assert `v→V`
+on the vendor's behalf. The reasoning: delivering a report constitutes providing the
+vendor with an opportunity to see the information. Awareness is defined as having
+received the information, not as having acknowledged or agreed with it. The sending
+party knows when they told the vendor, and that moment is the awareness event.
+
+This design was established during planning for issue #3255 and is the basis for
+the normative text in §12.4.1 of the protocol specification. The edge cases (vendor
+disputing third-party assertion of awareness; whether transport-level delivery
+success suffices when no acknowledgement is received) remain open and are tracked
+as open question OQ-13 in `docs/reference/vultron-spec/_oq-v-to-V.md`.
+
+**Contrast with `f→F` and `d→D`**: Fix-readiness (`f→F`) is a vendor
+self-declaration that they have produced a fix; no third party can assert this on
+their behalf. Fix-deployment (`d→D`) is similarly deployer-only. Vendor awareness
+(`v→V`) differs because awareness of a delivered report is an external, observable
+fact from the sender's perspective.
+
+**Implementation note**: `v→V` has no trigger-side specification or BT node in the
+current implementation. The drive-path design above is settled; the implementation
+work is unstarted. See issue #3255 AC notes.
+
 ### CSB-15-004 Causal Gate: DEPLOYER-only d→D
 
 A DEPLOYER-only participant (holds `CVDRole.DEPLOYER`, `vf=None`) may advance

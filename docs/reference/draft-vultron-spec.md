@@ -304,6 +304,15 @@ it does not change the receiver's own CS state. See §8.4.
 
 ### 4.6 Error and Acknowledgement Messages
 
+!!! warning "This section needs a rewrite — the fault-partition model is not yet reflected here"
+    The implementation has a three-way fault partition that this section does not
+    yet describe: `Create(ProcessingFault)` for parse/format failures;
+    `as:Reject` for messages understood but invalid given current case state;
+    and `Create(Note)` for general problem escalation. Sources: ADR-0080,
+    ADR-0083, `specs/protocol-asks.yaml`, `docs/reference/messages/`.
+    The normative text below covers `RK` correctly but the error-type discussion
+    is outdated. See issue #3255.
+
 The formal protocol definition includes acknowledgement (`RK`, `EK`, `CK`) and
 error (`RE`, `EE`, `CE`) message types for each state model. Their status in this
 specification is **not uniform**, and implementers must not assume symmetry.
@@ -1314,14 +1323,25 @@ the local trigger path):
     treats "we published" as "it's deployed" produces an unauthorized VFD
     advance.
 
-!!! note "`v→V` (vendor awareness) has no specified drive path"
-    The gating above covers `f→F` and `d→D` only. The first VFD transition —
-    `v→V`, vendor becomes aware — has **no trigger-side specification and no
-    implementation**, and its design intent differs from the others: `CV` was
-    conceived as a *third-party assertion* ("I delivered a report to this
-    Vendor"), not a vendor self-report. Who may assert it, whether the vendor may
-    dispute it, and whether transport-level delivery success suffices are all
-    open. Tracked as a Concern; do not infer a rule from this document's silence.
+!!! note "`v→V` (vendor awareness): two authorized drive paths"
+    Two actors may drive the `v→V` transition:
+
+    1. **Vendor self-report** — an actor holding the Vendor role MAY assert
+       their own `v→V` transition. A vendor who posts to a case is by definition
+       already aware; asserting `v` (unaware) for themselves would be logically
+       contradictory.
+    2. **Third-party assertion by the reporting party** — the actor who submitted
+       the report to the vendor, or who invited the vendor to the case, MAY assert
+       `v→V` on the vendor's behalf. Delivering a report constitutes providing
+       the vendor with an opportunity to see the information. Awareness is defined
+       as receipt, not acknowledgement.
+
+    Edge cases — vendor disputing a third-party assertion, whether transport-level
+    delivery success suffices absent any acknowledgement — remain open (see Open
+    Question 13). The two-path rule itself is settled.
+
+    Implementation of the drive path is not yet present; the design decision
+    predates it.
 
 - *Source: `specs/cs-behavior.yaml` CSB-15-001, CSB-15-002, CSB-15-003;
   receive-side counterparts CSB-01 through CSB-04 (§8.4)*
@@ -1613,22 +1633,27 @@ implementation. Other implementations are not required to use this structure.
     not exist: there is no such `MessageSemantics` value, and
     `Announce(CaseLedgerEntry)` is the only mechanism by which participants learn
     of accepted case-state changes. All references have been corrected.
-12. **CS ordering constraints are unspecified** — §8.3. Ordering rules
-    (including the `pX→PX` invariant and `CP`-before-`ET`) exist only in a code
-    docstring, a measurement-oriented reference document, and a design note — no
-    spec group. Conformance claims cannot cover CS ordering until this is closed.
-13. **`v→V` drive authority** — §12.4.1. The first VFD transition has no
-    trigger-side specification and no implementation. Design intent is a
-    third-party assertion ("I notified this Vendor"), which raises questions about
-    who may assert, whether the subject may dispute, and whether transport-level
-    delivery success suffices. Filed as a Concern.
-14. **`embargo_adherence` derived vs. stored** — §9.6. Resolved by ADR-0056:
-    `embargo_adherence` is a computed property derived from PEC state.
-    Implementation issue tracked separately.
-15. **Negative acknowledgement** — §4.6. Error message types are deliberately
-    unmodelled (ADR-0049), and unprocessable inbound messages are dead-lettered
-    with no sender notification. Whether the protocol needs an error-reply facet
-    is open.
-16. **Sentinel as a specified role** — §12.4.2. Currently a design pattern with no
-    spec group defining its trust relationship to a case. Given StatusAdoptionGate's
-    auto-adopt default, this is a trust-model question.
+12. **CS ordering constraints are unspecified** — §8.3. The `pX→PX` invariant
+    and other ordering rules are documented in
+    `docs/topics/process_models/cs/transitions.md` but have not been promoted to
+    normative spec language. The content exists and is ready to promote; this is
+    a drafting task, not an unresolved design question. Tracked in issue #3255.
+13. **`v→V` drive authority edge cases** — §12.4.1. The two-path design is
+    settled (vendor self-report and third-party assertion by the reporting party;
+    see `notes/case-state-model.md`). Remaining open: whether the vendor may
+    dispute a third-party assertion, and whether transport-level delivery success
+    suffices absent any acknowledgement. Implementation of the drive path is not
+    yet present.
+14. ~~**`embargo_adherence` derived vs. stored**~~ — Fully resolved. Confirmed
+    as `@computed_field` at `vultron/core/models/participant_status.py:119`.
+    §9.6 is accurate as written. No remaining action.
+15. **§4.6 needs a rewrite** — The three-way fault partition
+    (`Create(ProcessingFault)` / `as:Reject` / `Create(Note)`) implemented in
+    ADR-0080 and ADR-0083 is not yet described in this section. The existing text
+    describes an older "dead-letter with no notification" model that the
+    implementation has superseded. Rewrite tracked in issue #3255.
+16. ~~**Sentinel as a specified role**~~ — Resolved as not a spec concern.
+    The Sentinel is an implementation pattern (Observer-role actor that reports
+    PXA observations). From the protocol's perspective it is an Actor participant
+    with role Observer. A brief informative note in §12.4.2 suffices; no normative
+    treatment needed.
