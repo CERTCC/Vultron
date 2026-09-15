@@ -78,6 +78,31 @@ Three MUST-level requirements made zero impossible:
 - **ARCH-12-010** — `find_in_vocabulary()` MUST consult the core
   `CORE_TYPE_MAP`.
 
+### ARCH-12-010 is a trap for wire-side callers
+
+`find_in_vocabulary()` must consult `CORE_TYPE_MAP`, but a **wire** caller that
+resolves an inline `type` string through it gets a core class placed inside a wire
+tree, which the wire parent's field type then rejects. The measured case: an
+inbound activity with an inline actor, whose `inbox` is typed `OrderedCollection`
+— registered *only* in the core map — expanded to a core `CoreActorCollection`
+that `as_VultronOrganization.inbox` refused, degrading **every inline actor** on
+the inbound path to a bare `as_Link`. One instrumented suite run showed 52 hits,
+all from this single cause, with no malformed input involved (ISSUE-3217).
+
+The rule, now normative as **MV-04-003**: resolving an inline object's type
+inside a wire tree MUST consider wire-branch classes only
+(`issubclass(cls, as_Base)`); an unresolved type is left for the parent field to
+validate. A hit in the core map is a **coincidence of naming**, not a wire
+counterpart — the same disjointness ARCH-23-002 records for `VOCABULARY` and
+`WIRE_TYPE_MAP`. Note this does not mean wire trees hold only wire objects:
+`as_ObjectRef`/`as_ObjectRequiredRef` do admit `CoreObject`. It means the
+*name lookup* is the wrong way to put one there; the parent field is the
+declared authority.
+
+Implementation: `vultron/wire/as2/parser.py::_inline_vocab_class`. ADR-0090.
+The registry gap that makes the core map reachable at all — the AS2 collection
+types are registered in neither wire registry — is tracked by #3242.
+
 An implementer working the easy files would reach the base classes and have to
 choose which MUST to break. ADR-0082 removes the first two structural causes —
 the shared base moves to a branch-neutral layer, and projection moves to the

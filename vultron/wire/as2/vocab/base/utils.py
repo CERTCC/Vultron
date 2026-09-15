@@ -53,6 +53,34 @@ def name_of(obj: Any) -> str:
     return str(obj)
 
 
+def is_blank(value: Any) -> bool:
+    """Return True when *value* carries no content: absent, null, or blank.
+
+    A required field that is present but empty carries nothing, so it is
+    absence rather than a malformed value — CS-08-001's "if present, then
+    non-empty".  Whitespace-only counts as blank, matching the project's
+    canonical predicate (``core.models.base._non_empty``), which the wire layer
+    cannot import directly (ARCH-22-001).
+
+    Deliberately narrower than a bare falsy test: ``0``, ``[]`` and ``{}`` are
+    *malformed* values for the fields this guards, not omitted ones, and
+    reporting them as missing would tell the sender to supply a field they
+    already sent (ISSUE-3217).
+
+    This is the single definition of "blank" for the wire layer.  Both
+    ``parser.parse_activity``'s required-field guards and the shared timestamp
+    validator in ``vocab.base.objects.base`` read it from here, so the two
+    cannot drift apart (CS-22-001).
+
+    Args:
+        value: The value to check
+
+    Returns:
+        True if the value is absent, None, or a whitespace-only string
+    """
+    return value is None or (isinstance(value, str) and not value.strip())
+
+
 def exclude_if_none(value: Any) -> bool:
     """Exclude a field if it is None
 

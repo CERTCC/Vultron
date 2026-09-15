@@ -140,6 +140,17 @@ The fix:
    This means callers (deserialization, discriminated-union construction) can
    look up core types by name without those types polluting the wire registry.
 
+   **Wire-side callers must not take this fallback** (MV-04-003, ADR-0090). A
+   core class placed inside a wire tree is rejected by the wire parent's field
+   type, so the fallback silently degraded the parent instead of resolving the
+   child — it flattened every inline actor on the inbound path to an `as_Link`,
+   because `OrderedCollection` is registered only in the core map. A hit there is
+   a coincidence of naming, not a wire counterpart (ARCH-23-002). Inline type
+   resolution in `parser._inline_vocab_class` therefore filters on
+   `issubclass(cls, as_Base)`. Full write-up:
+   [wire-core-boundary](wire-core-boundary.md) § "ARCH-12-010 is a trap for
+   wire-side callers".
+
 3. **Wire re-export modules** (`offer_record.py`, etc.) no longer write to
    `VOCABULARY`. They import and re-export the core class unchanged.
 

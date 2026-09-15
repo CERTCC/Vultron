@@ -228,6 +228,15 @@ comparing the Case Actor's clock against itself. A message without a claimed tim
 is therefore rejected at the door
 ([CLP-15-006](../reference/specs/protocol.md#clp-15)).
 
+A field that is present but empty carries no claimed time either. A blank
+`published` — an empty string, or one holding only whitespace — is refused the
+same way as an omitted one, and reports the same reason
+([MV-03-002](../reference/specs/protocol.md#mv-03)).
+
+A value that is present and not blank but unreadable as a timestamp is a
+different fault. The Case Actor reports it as malformed data, not as a missing
+field, so a sender is never told to supply something it already sent.
+
 ---
 
 ## When entries arrive out of order
