@@ -916,7 +916,7 @@ _OT_CASE_ID = "https://example.org/cases/ot-emit-test-01"
 
 
 def _make_ot_case(dl: SqliteDataLayer) -> None:
-    """Seed a case with a CASE_MANAGER participant so _resolve_case_manager_id
+    """Seed a case with a CASE_MANAGER participant so resolve_case_manager_id
     returns _OT_CASE_ACTOR_ID from _OT_CASE_ID."""
     from vultron.core.models.case_participant import CaseParticipant
     from vultron.enums.roles import CVDRole as _CVDRole
@@ -1005,7 +1005,7 @@ class TestEmitOwnershipTransferNodes:
 
         Uses a mock TriggerActivityAdapter to capture the ``to`` kwarg that
         the node passes to ``accept_case_ownership_transfer()``.  The node
-        resolves the CaseActor via ``_resolve_case_manager_id`` *before*
+        resolves the CaseActor via ``resolve_case_manager_id`` *before*
         calling the factory, so the mock's call_args faithfully records the
         routing decision (ADR-0053 / CM-21-006).
         """

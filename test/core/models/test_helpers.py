@@ -323,3 +323,50 @@ def test_has_case_statuses_false_when_default():
 
     case = VulnerabilityCase(id_="https://example.org/cases/x3")
     assert has_case_statuses(case) is False
+
+
+# --- parse_published -------------------------------------------------------
+
+
+def test_parse_published_returns_utc_datetime_for_valid_datetime_input():
+    """parse_published(datetime) must return a UTC datetime, never None.
+
+    The dead ``None if aware is None else`` branch at line 78 caused type
+    checkers to infer that parse_published can return None for a datetime
+    input, prompting unnecessary None-guards in callers.  This test pins the
+    non-None contract for the datetime path (Bug #3221).
+    """
+    from datetime import datetime, timezone
+
+    from vultron.core.models._helpers import parse_published
+
+    dt = datetime(2026, 1, 15, 12, 0, 0, tzinfo=timezone.utc)
+    result = parse_published(dt)
+    assert result is not None
+    assert result.tzinfo == timezone.utc
+    assert result == dt
+
+
+def test_parse_published_returns_utc_datetime_for_valid_iso_string():
+    """parse_published(str) must return a UTC datetime for a valid ISO string."""
+    from datetime import datetime, timezone
+
+    from vultron.core.models._helpers import parse_published
+
+    result = parse_published("2026-01-15T12:00:00+05:30")
+    assert result is not None
+    assert result.tzinfo == timezone.utc
+    assert result == datetime(2026, 1, 15, 6, 30, 0, tzinfo=timezone.utc)
+
+
+def test_parse_published_returns_none_for_invalid_string():
+    from vultron.core.models._helpers import parse_published
+
+    assert parse_published("not-a-date") is None
+
+
+def test_parse_published_returns_none_for_non_datetime_type():
+    from vultron.core.models._helpers import parse_published
+
+    assert parse_published(42) is None
+    assert parse_published(None) is None

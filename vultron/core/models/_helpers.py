@@ -87,7 +87,9 @@ def parse_published(value: Any) -> datetime | None:
     else:
         return None
     aware = as_utc(parsed)
-    assert aware is not None  # as_utc only returns None for None input
+    assert (
+        aware is not None
+    )  # parsed is a datetime here; as_utc only returns None for None input
     return aware.astimezone(timezone.utc)
 
 

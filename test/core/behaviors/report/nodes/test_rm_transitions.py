@@ -63,7 +63,11 @@ def test_transition_rm_to_valid(
     store and ``/case_id`` must be published for it (ISSUE-2548).
     """
     result = bt_scenario.run(
-        TransitionRMtoValid(report_id=report.id_, offer_id=offer.id_),
+        TransitionRMtoValid(
+            report_id=report.id_,
+            offer_id=offer.id_,
+            sender_actor_id=actor.id_,
+        ),
         actor_id=actor.id_,
         case_id=case_with_participant.id_,
     )
@@ -81,7 +85,11 @@ def test_transition_rm_to_invalid(
 ) -> None:
     """TransitionRMtoInvalid updates report status to INVALID."""
     result = bt_scenario.run(
-        TransitionRMtoInvalid(report_id=report.id_, offer_id=offer.id_),
+        TransitionRMtoInvalid(
+            report_id=report.id_,
+            offer_id=offer.id_,
+            sender_actor_id=actor.id_,
+        ),
         actor_id=actor.id_,
     )
     bt_scenario.assert_success(result)
@@ -128,7 +136,11 @@ def test_full_validation_workflow(
 
     bt_scenario.assert_success(
         bt_scenario.run(
-            TransitionRMtoValid(report_id=report.id_, offer_id=offer.id_),
+            TransitionRMtoValid(
+                report_id=report.id_,
+                offer_id=offer.id_,
+                sender_actor_id=actor.id_,
+            ),
             actor_id=actor.id_,
             case_id=case_with_participant.id_,
         )
@@ -183,7 +195,11 @@ def test_transition_rm_to_valid_context_is_case_uri(
     """TransitionRMtoValid sets ParticipantStatus.context to the case URI."""
     case = case_with_participant
     result = bt_scenario.run(
-        TransitionRMtoValid(report_id=report.id_, offer_id=offer.id_),
+        TransitionRMtoValid(
+            report_id=report.id_,
+            offer_id=offer.id_,
+            sender_actor_id=actor.id_,
+        ),
         actor_id=actor.id_,
         case_id=case.id_,
     )
@@ -210,7 +226,11 @@ def test_transition_rm_to_invalid_context_is_case_uri(
 ) -> None:
     """TransitionRMtoInvalid sets ParticipantStatus.context to the case URI."""
     result = bt_scenario.run(
-        TransitionRMtoInvalid(report_id=report.id_, offer_id=offer.id_),
+        TransitionRMtoInvalid(
+            report_id=report.id_,
+            offer_id=offer.id_,
+            sender_actor_id=actor.id_,
+        ),
         actor_id=actor.id_,
     )
     bt_scenario.assert_success(result)
@@ -245,7 +265,11 @@ def test_transition_rm_to_closed_context_is_case_uri(
         )
     )
     result = bt_scenario.run(
-        TransitionRMtoClosed(report_id=report.id_, offer_id=offer.id_),
+        TransitionRMtoClosed(
+            report_id=report.id_,
+            offer_id=offer.id_,
+            sender_actor_id=actor.id_,
+        ),
         actor_id=actor.id_,
     )
     bt_scenario.assert_success(result)
@@ -273,15 +297,26 @@ def test_transition_rm_to_closed_is_subclass_of_base() -> None:
     assert issubclass(TransitionRMtoClosed, _ReportPhaseRMTransition)
 
 
-def test_transition_rm_to_valid_is_subclass_of_base() -> None:
-    """TransitionRMtoValid inherits _ReportPhaseRMTransition too.
+def test_transition_rm_to_valid_returns_sequence() -> None:
+    """TransitionRMtoValid is a factory that returns a Sequence (ADR-0089 AC-5).
 
-    The base started out covering only the Invalid/Closed pair. ISSUE-2548
-    widened it to carry the shared latch write, so `TransitionRMtoValid` — the
-    one transition that also writes case-scoped state — must sit under the same
-    base rather than reimplementing the report-phase half.
+    After the sole-writer refactoring, TransitionRMtoValid produces a
+    Sequence([CreateParticipantStatusNode, _ValidRMLatchNode]) so the
+    case-scoped participant write is handled by the canonical writer.
     """
-    assert issubclass(TransitionRMtoValid, _ReportPhaseRMTransition)
+    import py_trees
+    from vultron.core.behaviors.case.nodes.participant.status import (
+        CreateParticipantStatusNode,
+    )
+
+    tree = TransitionRMtoValid(
+        report_id="https://example.org/reports/r-001",
+        offer_id="https://example.org/offers/o-001",
+        sender_actor_id="https://example.org/actors/vendor-001",
+    )
+    assert isinstance(tree, py_trees.composites.Sequence)
+    assert isinstance(tree.children[0], CreateParticipantStatusNode)
+    assert isinstance(tree.children[1], _ReportPhaseRMTransition)
 
 
 def test_transition_rm_to_invalid_target_rm() -> None:

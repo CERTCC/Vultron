@@ -316,6 +316,30 @@ def test_clp14_006_skipped_when_case_published_is_none():
     )
 
 
+@pytest.mark.spec("CLP-14-006")
+def test_clp14_006_message_renders_case_published_in_utc():
+    """The violation message renders case_published in UTC (ISSUE-3222).
+
+    An aware non-UTC ``case_published`` (the parent case chose its own offset)
+    passed through ``as_utc`` kept that offset, so the message compared a
+    ``+00:00`` entry against a ``+05:30`` case and read as though the guard
+    compared unlike quantities. ``parse_published`` converts it to UTC first.
+    """
+    tz_530 = timezone(timedelta(hours=5, minutes=30))
+    case_published = datetime(2026, 1, 1, 12, 0, 0, tzinfo=tz_530)  # 06:30 UTC
+    entry_before = datetime(2026, 1, 1, 6, 0, 0, tzinfo=timezone.utc)
+    with pytest.raises(
+        VultronCanonicalEntryError, match="CLP-14-006"
+    ) as excinfo:
+        _call_with_ts(
+            _ts_snapshot(published=entry_before),
+            case_published=case_published,
+        )
+    message = str(excinfo.value)
+    assert "+05:30" not in message
+    assert "06:30:00+00:00" in message
+
+
 @pytest.mark.spec("CLP-15-003")
 @pytest.mark.spec("CLP-15-005")
 def test_clp15_003_reports_timestamp_regression_without_refusing(caplog):

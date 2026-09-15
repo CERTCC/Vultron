@@ -42,7 +42,7 @@ from vultron.core.behaviors.helpers import (
 )
 from vultron.config.actor import ActorConfig
 from vultron.core.models.report_case_link import VultronReportCaseLink
-from vultron.core.use_cases._helpers import _resolve_case_manager_id
+from vultron.core.participants.authority import resolve_case_manager_id
 
 
 class CheckAutoCaseCreationEnabledNode(py_trees.behaviour.Behaviour):
@@ -210,7 +210,7 @@ class CheckIsCaseManagerNode(DataLayerConditionWithPorts):
     """Check whether the executing actor is the case's CASE_MANAGER.
 
     Reads ``case_id`` and ``actor_id`` from the blackboard, resolves the
-    case's CASE_MANAGER participant via ``_resolve_case_manager_id``, and
+    case's CASE_MANAGER participant via ``resolve_case_manager_id``, and
     returns ``SUCCESS`` only when ``actor_id`` matches that participant's
     ``attributed_to`` actor ID.
     """
@@ -258,7 +258,7 @@ class CheckIsCaseManagerNode(DataLayerConditionWithPorts):
         if failure is not None:
             return failure  # Regime 1: case must exist (ADR-0087)
 
-        manager_id = _resolve_case_manager_id(case, self.datalayer)
+        manager_id = resolve_case_manager_id(case, self.datalayer)
         if manager_id is None:
             self.logger.debug(
                 f"{self.name}: no CASE_MANAGER found for case '{case_id}'"

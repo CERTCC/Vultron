@@ -300,6 +300,7 @@ def test_tree_execution_success_new_report(
         report_id=report.id_,
         offer_id=offer.id_,
         call_out=_ALWAYS_SUCCEED_BUNDLE,
+        sender_actor_id=actor_id,
     )
 
     # Act: Execute tree
@@ -333,6 +334,7 @@ def test_tree_execution_does_not_create_case(
         report_id=report.id_,
         offer_id=offer.id_,
         call_out=_ALWAYS_SUCCEED_BUNDLE,
+        sender_actor_id=actor_id,
     )
     result = bridge.execute_with_setup(
         tree=tree,
@@ -359,6 +361,7 @@ def test_tree_execution_transitions_vendor_to_valid(
         report_id=report.id_,
         offer_id=offer.id_,
         call_out=_ALWAYS_SUCCEED_BUNDLE,
+        sender_actor_id=actor_id,
     )
 
     result = bridge.execute_with_setup(
@@ -424,6 +427,7 @@ def test_tree_execution_invalid_state_transitions_to_valid(
         report_id=report.id_,
         offer_id=offer.id_,
         call_out=_ALWAYS_SUCCEED_BUNDLE,
+        sender_actor_id=actor_id,
     )
 
     # Act: Execute tree
@@ -454,6 +458,7 @@ def test_tree_execution_no_prior_status_succeeds(
         report_id=report.id_,
         offer_id=offer.id_,
         call_out=_ALWAYS_SUCCEED_BUNDLE,
+        sender_actor_id=actor_id,
     )
 
     # Act: Execute tree
@@ -480,6 +485,7 @@ def test_tree_execution_policy_stubs_always_accept(
         report_id=report.id_,
         offer_id=offer.id_,
         call_out=_ALWAYS_SUCCEED_BUNDLE,
+        sender_actor_id=actor_id,
     )
 
     # Act: Execute tree
@@ -587,12 +593,14 @@ def test_tree_execution_idempotency(
         report_id=report.id_,
         offer_id=offer.id_,
         call_out=_ALWAYS_SUCCEED_BUNDLE,
+        sender_actor_id=actor_id,
     )
 
     tree2 = create_validate_report_tree(
         report_id=report.id_,
         offer_id=offer.id_,
         call_out=_ALWAYS_SUCCEED_BUNDLE,
+        sender_actor_id=actor_id,
     )
 
     # Act: Execute tree twice
@@ -637,6 +645,7 @@ def test_tree_execution_actor_isolation(
         report_id=report.id_,
         offer_id=offer.id_,
         call_out=_ALWAYS_SUCCEED_BUNDLE,
+        sender_actor_id=actor_a,
     )
     result_a = bridge.execute_with_setup(
         tree=tree_a,
@@ -649,6 +658,7 @@ def test_tree_execution_actor_isolation(
         report_id=report.id_,
         offer_id=offer.id_,
         call_out=_ALWAYS_SUCCEED_BUNDLE,
+        sender_actor_id=actor_b,
     )
     result_b = bridge.execute_with_setup(
         tree=tree_b,

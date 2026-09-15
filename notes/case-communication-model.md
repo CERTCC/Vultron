@@ -124,21 +124,11 @@ The Case Actor is the participant with `CVDRole.CASE_MANAGER`. To resolve
 its actor ID from a known case:
 
 ```python
-from vultron.enums.roles import CVDRole
-
-def _resolve_case_manager_id(case, dl) -> str | None:
-    for p_id in case.actor_participant_index.values():
-        p = dl.read(p_id)
-        roles = getattr(p, "case_roles", [])
-        if CVDRole.CASE_MANAGER in roles:
-            manager_actor_id = getattr(p, "attributed_to", None)
-            return str(manager_actor_id) if manager_actor_id else None
-    return None
+from vultron.core.participants.authority import resolve_case_manager_id
 ```
 
-This pattern already exists in `SvcAddParticipantStatusUseCase` (which
-correctly routes to the Case Actor only) and should be extracted as a
-shared helper used by all sender-side trigger use cases.
+This extraction landed in PR #3219 under ADR-0088. `resolve_case_manager_id`
+is the canonical implementation used by all sender-side trigger use cases.
 
 ---
 

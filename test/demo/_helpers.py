@@ -93,7 +93,7 @@ def seed_case_replica_for_actor(
     observably completing with 202s.  The seeding here compensates for the
     *sender* never queueing the message, not for the transport dropping it.
 
-    Copies the participant rows as well as the case.  ``_resolve_case_manager_id``
+    Copies the participant rows as well as the case.  ``resolve_case_manager_id``
     walks ``actor_participant_index`` and does ``dl.read(participant_id)`` on each,
     so a replica holding only the case object resolves no CASE_MANAGER and any
     participant-originated outbound activity fails with "No CASE_MANAGER

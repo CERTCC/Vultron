@@ -104,7 +104,6 @@ def add_on_behalf_status_trigger_bt(
     children.extend(
         [
             CreateParticipantStatusNode(
-                case_id=case_id,
                 actor_id=target_actor_id,
                 rm_state=None,
                 vf_state=vf_state,

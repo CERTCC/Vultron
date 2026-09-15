@@ -348,22 +348,12 @@ class TestEnsureEmbargoExistsPorts:
 # ---------------------------------------------------------------------------
 
 
-class TestTransitionRMtoValidPorts:
-    def test_input_ports_declared(self) -> None:
-        ports = TransitionRMtoValid.input_ports()
-        assert "datalayer" in ports
-        assert "actor_id" in ports
-        assert "trigger_activity_factory" in ports
+class TestTransitionRMtoValid:
+    """TransitionRMtoValid is now a factory function (ADR-0089 AC-5).
 
-    def test_output_ports_empty(self) -> None:
-        assert TransitionRMtoValid.output_ports() == {}
-
-    def test_missing_datalayer_raises_no_data_available(self) -> None:
-        py_trees.blackboard.Blackboard.storage.clear()
-        node = TransitionRMtoValid(report_id=REPORT_ID, offer_id=OFFER_ID)
-        node.setup_ports()
-        with pytest.raises(NoDataAvailable):
-            node.get_input("datalayer")
+    Returns a Sequence([CreateParticipantStatusNode, _ValidRMLatchNode])
+    so the case-scoped participant write uses the canonical writer.
+    """
 
     def test_creates_rm_valid_status_record(
         self, bt_scenario: BTTestScenario
@@ -394,27 +384,16 @@ class TestTransitionRMtoValidPorts:
         case.add_participant(participant)
         bt_scenario.seed(actor, report, offer, participant, case)
         result = bt_scenario.run(
-            TransitionRMtoValid(report_id=REPORT_ID, offer_id=OFFER_ID),
+            TransitionRMtoValid(
+                report_id=REPORT_ID,
+                offer_id=OFFER_ID,
+                sender_actor_id=ACTOR_ID,
+            ),
             actor_id=ACTOR_ID,
             case_id=case.id_,
         )
         bt_scenario.assert_success(result)
         bt_scenario.assert_rm_state(REPORT_ID, RM.VALID, actor_id=ACTOR_ID)
-
-    def test_failure_when_datalayer_not_available(self) -> None:
-        """_require_datalayer() guard returns FAILURE when datalayer is None."""
-        py_trees.blackboard.Blackboard.storage.clear()
-        node = TransitionRMtoValid(report_id=REPORT_ID, offer_id=OFFER_ID)
-        # setup_ports() with no remappings → ports namespace keys; blackboard empty
-        node.setup_ports()
-        # initialise() would raise NoDataAvailable; set datalayer=None manually
-        # to test the _require_datalayer() guard path directly.
-        node.datalayer = None
-        node.actor_id = ACTOR_ID
-        from py_trees.common import Status
-
-        result = node.update()
-        assert result == Status.FAILURE
 
 
 # ---------------------------------------------------------------------------

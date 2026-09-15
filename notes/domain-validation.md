@@ -521,23 +521,28 @@ for exactly that window, and the marker plus `_report_phase_status_id()`,
 `ParticipantStatus` is then ladder-only with one writer, and the writer always
 has a case — so no fourth ADR-0087 disposition is needed.
 
-**Do not reach for the writer from inside another node.** Five sites used to
-build `CreateParticipantStatusNode` inside their own `update()` and call
-`node.update()` directly — six such calls, because `develop_fix.py` builds it
-once in a shared `_make_status_node()` helper and ticks it from two places. That
-skips `setup()` and the tick cycle, and two of the sites (`deploy_fix.py`, and
-`develop_fix.py` on both of its calls) wrapped it in `try/except`, which is the
-swallowing shape [bt-pitfalls.md](bt-pitfalls.md) § "Always Check
+**Do not reach for the writer from inside another node (BTND-10-004).** Five
+sites used to build `CreateParticipantStatusNode` inside their own `update()`
+and call `node.update()` directly — six such calls, because `develop_fix.py`
+builds it once in a shared `_make_status_node()` helper and ticks it from two
+places. That skips `setup()` and the tick cycle, and two of the sites
+(`deploy_fix.py`, and `develop_fix.py` on both of its calls) wrapped it in
+`try/except`, which is the swallowing shape
+[bt-pitfalls.md](bt-pitfalls.md) § "Always Check
 `BTBridge.execute_with_setup` Return Value" warns about. The node is always a
-real tree child.
+real tree child. The architecture ratchet
+`test/architecture/test_participant_status_validation.py` (AC-9) fails any
+`update()` body that re-introduces this construction.
 
-**One mechanism per input.** `case_id` is always the blackboard port
-(`CaseIdInputPortMixin`) — the only mechanism that works in received trees,
+**One mechanism per input (BTND-10-005).** `case_id` is always the blackboard
+port (`CaseIdInputPortMixin`) — the only mechanism that works in received trees,
 where the case is found at tick time by dereferencing the report; trees that
 know it at build time seed `/case_id` through
 `BTBridge.execute_with_setup(**context_data)`. The *subject* actor is always an
 explicit argument, never a fallback to the blackboard `actor_id`, because the
 blackboard actor is the *executing* actor and conflating the two was #2300.
+`CreateParticipantStatusNode.__init__` deliberately has no `case_id` parameter;
+the ratchet (AC-9) fails any constructor signature that adds one.
 
 ### The entailments cannot fire on an RM-only advance (measured)
 

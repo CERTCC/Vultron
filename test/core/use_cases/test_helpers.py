@@ -46,9 +46,9 @@ from vultron.core.models.case_actor import VultronCaseActor
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.report_case_link import VultronReportCaseLink
 from vultron.enums.roles import CVDRole
+from vultron.core.participants.authority import resolve_case_manager_id
 from vultron.core.use_cases._helpers import (
     _find_case_actor_id,
-    _resolve_case_manager_id,
     resolve_case_participant_id_for_actor,
     resolve_receiving_actor_id,
 )
@@ -232,7 +232,7 @@ class TestResolveCaseParticipantIdForActor:
 
 
 # ---------------------------------------------------------------------------
-# Tests for _resolve_case_manager_id (consolidated canonical function)
+# Tests for resolve_case_manager_id (consolidated canonical function)
 # ---------------------------------------------------------------------------
 
 _CM_ACTOR_ID = "https://example.org/actors/case-manager-001"
@@ -271,7 +271,7 @@ def vendor_participant() -> CaseParticipant:
 
 
 class TestResolveCaseManagerId:
-    """Contract tests for _resolve_case_manager_id (consolidated helper).
+    """Contract tests for resolve_case_manager_id (consolidated helper).
 
     Verifies that the canonical implementation handles:
     - ID-only participants stored in the DataLayer
@@ -292,7 +292,7 @@ class TestResolveCaseManagerId:
         cm_dl.create(case)
         stored = cm_dl.read(_CM_CASE_ID)
         assert isinstance(stored, VulnerabilityCase)
-        result = _resolve_case_manager_id(stored, cm_dl)
+        result = resolve_case_manager_id(stored, cm_dl)
         assert result == _CM_ACTOR_ID
 
     def test_inline_participant_returns_actor_id(
@@ -303,7 +303,7 @@ class TestResolveCaseManagerId:
         """Inline participant object (bootstrap path): returns attributed_to."""
         case = VulnerabilityCase(id_=_CM_CASE_ID, name="CM Inline Test")
         case.case_participants.append(cm_participant)  # type: ignore[arg-type]
-        result = _resolve_case_manager_id(cast(VulnerabilityCase, case), cm_dl)
+        result = resolve_case_manager_id(cast(VulnerabilityCase, case), cm_dl)
         assert result == _CM_ACTOR_ID
 
     def test_no_case_manager_returns_none(
@@ -318,7 +318,7 @@ class TestResolveCaseManagerId:
         cm_dl.create(case)
         stored = cm_dl.read(_CM_CASE_ID)
         assert isinstance(stored, VulnerabilityCase)
-        result = _resolve_case_manager_id(stored, cm_dl)
+        result = resolve_case_manager_id(stored, cm_dl)
         assert result is None
 
     def test_empty_case_participants_returns_none(
@@ -330,7 +330,7 @@ class TestResolveCaseManagerId:
         cm_dl.create(case)
         stored = cm_dl.read(_CM_CASE_ID)
         assert isinstance(stored, VulnerabilityCase)
-        result = _resolve_case_manager_id(stored, cm_dl)
+        result = resolve_case_manager_id(stored, cm_dl)
         assert result is None
 
     def test_skips_non_manager_returns_manager(
@@ -348,7 +348,7 @@ class TestResolveCaseManagerId:
         cm_dl.create(case)
         stored = cm_dl.read(_CM_CASE_ID)
         assert isinstance(stored, VulnerabilityCase)
-        result = _resolve_case_manager_id(stored, cm_dl)
+        result = resolve_case_manager_id(stored, cm_dl)
         assert result == _CM_ACTOR_ID
 
     def test_missing_dl_record_skipped(
@@ -361,7 +361,7 @@ class TestResolveCaseManagerId:
         cm_dl.create(case)
         stored = cm_dl.read(_CM_CASE_ID)
         assert isinstance(stored, VulnerabilityCase)
-        result = _resolve_case_manager_id(stored, cm_dl)
+        result = resolve_case_manager_id(stored, cm_dl)
         assert result is None
 
     def test_primary_index_path_returns_actor_id(
@@ -377,7 +377,7 @@ class TestResolveCaseManagerId:
         cm_dl.create(case)
         stored = cm_dl.read(_CM_CASE_ID)
         assert isinstance(stored, VulnerabilityCase)
-        result = _resolve_case_manager_id(stored, cm_dl)
+        result = resolve_case_manager_id(stored, cm_dl)
         assert result == _CM_ACTOR_ID
 
 

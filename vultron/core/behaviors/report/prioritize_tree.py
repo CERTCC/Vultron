@@ -62,11 +62,17 @@ from vultron.core.behaviors.case.nodes.update import (
     BroadcastCaseUpdateNode,
     CaptureCaseUpdateBroadcastExclusionsNode,
 )
+from vultron.core.behaviors.case.nodes.participant.status import (
+    CreateParticipantStatusNode,
+)
 from vultron.core.behaviors.report.nodes import (
     CheckParticipantExists,
-    TransitionParticipantRMtoAccepted,
-    TransitionParticipantRMtoDeferred,
 )
+from vultron.core.behaviors.report.nodes.conditions import (
+    CheckRMStateAccepted,
+    CheckRMStateDeferred,
+)
+from vultron.core.states.rm import RM
 
 if TYPE_CHECKING:
     from vultron.core.ports.trigger_activity import TriggerActivityPort
@@ -106,8 +112,20 @@ def create_engage_case_tree(
             CheckParticipantExists(case_id=case_id, actor_id=actor_id),
         ],
         effect_nodes=[
-            TransitionParticipantRMtoAccepted(
-                case_id=case_id, actor_id=actor_id
+            py_trees.composites.Selector(
+                name="IdempotentTransitionRMtoAccepted",
+                memory=False,
+                children=[
+                    CheckRMStateAccepted(case_id=case_id, actor_id=actor_id),
+                    CreateParticipantStatusNode(
+                        actor_id=actor_id,
+                        rm_state=RM.ACCEPTED,
+                        vf_state=None,
+                        d_state=None,
+                        pxa_state=None,
+                        name="TransitionRMtoAccepted",
+                    ),
+                ],
             ),
             CaptureCaseUpdateBroadcastExclusionsNode(case_id=case_id),
             BroadcastCaseUpdateNode(case_id=case_id),
@@ -143,8 +161,20 @@ def create_defer_case_tree(
             CheckParticipantExists(case_id=case_id, actor_id=actor_id),
         ],
         effect_nodes=[
-            TransitionParticipantRMtoDeferred(
-                case_id=case_id, actor_id=actor_id
+            py_trees.composites.Selector(
+                name="IdempotentTransitionRMtoDeferred",
+                memory=False,
+                children=[
+                    CheckRMStateDeferred(case_id=case_id, actor_id=actor_id),
+                    CreateParticipantStatusNode(
+                        actor_id=actor_id,
+                        rm_state=RM.DEFERRED,
+                        vf_state=None,
+                        d_state=None,
+                        pxa_state=None,
+                        name="TransitionRMtoDeferred",
+                    ),
+                ],
             ),
         ],
     )

@@ -172,3 +172,143 @@ class TestViolationVfDEntailment:
     def test_both_none_is_valid(self):
         """Both None — no constraint to check."""
         assert self._check(None, None) is None
+
+
+class TestAdr0089EntailmentEnumeration:
+    """ADR-0089 blast-radius claim: zero violations on legal data (AC-10, #3204).
+
+    ADR-0089 converts five call sites that previously bypassed the shared
+    evaluator.  The claim is that adding the full entailment check to those
+    sites produces *no new violations* for legal state data — i.e. the
+    entailments only fire for state combinations that were already corrupt.
+
+    This class enumerates composite_state_violations() to pin that claim so it
+    cannot silently stop being true as the state machine evolves.
+    """
+
+    @staticmethod
+    def _violations(rm, vf, d):
+        from vultron.core.states.composite_state_invariants import (
+            composite_state_violations,
+        )
+
+        return composite_state_violations(rm, vf, d)
+
+    # Sites 1–3: ACCEPTED, DEFERRED, CLOSED writers.
+    # RM ∈ RM_STATES_CONSISTENT_WITH_FIX ⟹ RM-coupled rules never fire.
+    @pytest.mark.parametrize("rm", [RM.ACCEPTED, RM.DEFERRED, RM.CLOSED])
+    @pytest.mark.parametrize(
+        "vf,d",
+        [
+            (None, None),
+            (CS_vf.vf, None),
+            (CS_vf.Vf, None),
+            (CS_vf.VF, None),
+            (CS_vf.VF, CS_d.D),
+            (None, CS_d.d),
+            (None, CS_d.D),
+        ],
+    )
+    def test_safe_rm_states_produce_no_rm_coupled_violations(
+        self, rm, vf, d
+    ) -> None:
+        """RM ∈ {ACCEPTED, DEFERRED, CLOSED}: RM-coupled entailments are silent.
+
+        CSB-18-001 fires only when rm ∉ RM_STATES_CONSISTENT_WITH_FIX.  The
+        three converted sites that write these RM values are therefore zero-cost
+        from RM-coupled rules, regardless of the participant's vf/d state.
+        """
+        from vultron.core.states.composite_state_invariants import (
+            RM_STATES_CONSISTENT_WITH_FIX,
+        )
+
+        assert rm in RM_STATES_CONSISTENT_WITH_FIX
+        # RM-coupled violations have dimension "vf" or "d" and reference the
+        # safe set in their message.  Rather than pattern-match message text
+        # (brittle), we compare the full list against what the vf↔d check alone
+        # could produce — if the count agrees, no RM-coupled rule fired.
+        from vultron.core.states.composite_state_invariants import (
+            violation_vf_d_entailment,
+        )
+
+        vf_d_only = (
+            [violation_vf_d_entailment(vf, d)]
+            if violation_vf_d_entailment(vf, d) is not None
+            else []
+        )
+        assert (
+            self._violations(rm, vf, d) == vf_d_only
+        ), f"Unexpected RM-coupled violation for ({rm!r}, {vf!r}, {d!r})"
+
+    # Site 4–5: vf=Vf / vf=VF writers (develop_fix.py).
+    # They assert vf only; rm_state=None so current RM is used.
+    # At fix-development time the actor's RM must be in the safe set.
+    # Entailment check for (safe_rm, Vf/VF, None) must be zero.
+    @pytest.mark.parametrize("rm", [RM.ACCEPTED, RM.DEFERRED, RM.CLOSED])
+    @pytest.mark.parametrize("vf", [CS_vf.Vf, CS_vf.VF])
+    def test_fix_development_sites_have_zero_violations(self, rm, vf) -> None:
+        """develop_fix.py writes vf=Vf or vf=VF with d=None and safe RM."""
+        assert (
+            self._violations(rm, vf, None) == []
+        ), f"Expected zero violations for develop_fix site ({rm!r}, {vf!r}, None)"
+
+    # Site 6: d=D writer (deploy_fix.py).
+    # At deployment time the fix is ready, so vf=VF.
+    # Entailment check for (safe_rm, VF, D) must be zero.
+    @pytest.mark.parametrize("rm", [RM.ACCEPTED, RM.DEFERRED, RM.CLOSED])
+    def test_fix_deployment_site_has_zero_violations(self, rm) -> None:
+        """deploy_fix.py writes d=D with vf=VF (fix ready) and safe RM."""
+        assert (
+            self._violations(rm, CS_vf.VF, CS_d.D) == []
+        ), f"Expected zero violations for deploy_fix site ({rm!r}, VF, D)"
+
+    # Confirm the rules DO fire for corrupt state, so the pass above is not
+    # vacuous.
+    @pytest.mark.parametrize(
+        "rm", [RM.START, RM.RECEIVED, RM.VALID, RM.INVALID]
+    )
+    def test_rm_vf_entailment_fires_for_early_rm_with_fix_ready(
+        self, rm
+    ) -> None:
+        """RM ∉ safe set + vf=VF: RM↔VF entailment fires (CSB-18-001).
+
+        VF_FIX_READY = (CS_vf.VF,): only fix-ready triggers the rule.
+        vf=Vf (vendor-aware, not ready) does not — it is reachable before
+        ACCEPTED. These are corrupt states — fix-ready is unreachable without
+        passing through ACCEPTED. The rule correctly refuses them.
+        """
+        violations = self._violations(rm, CS_vf.VF, None)
+        assert any(
+            v.dimension == "vf" for v in violations
+        ), f"Expected RM↔VF violation for ({rm!r}, VF, None); got {violations}"
+
+    @pytest.mark.parametrize(
+        "rm", [RM.START, RM.RECEIVED, RM.VALID, RM.INVALID]
+    )
+    def test_rm_d_entailment_fires_for_early_rm_with_deployed(
+        self, rm
+    ) -> None:
+        """RM ∉ safe set + d=D: RM↔D entailment fires (CSB-18-001).
+
+        Deployed without having accepted is a corrupt state. The rule
+        correctly refuses it.
+        """
+        violations = self._violations(rm, CS_vf.VF, CS_d.D)
+        assert any(
+            v.dimension == "d" for v in violations
+        ), f"Expected RM↔D violation for ({rm!r}, VF, D); got {violations}"
+
+    @pytest.mark.parametrize("vf", [CS_vf.vf, CS_vf.Vf])
+    def test_vf_d_entailment_fires_for_deployed_without_fix_ready(
+        self, vf
+    ) -> None:
+        """(vf ∉ {VF}, d=D) is a VF↔D violation regardless of RM (CSB-17-001).
+
+        Deployed without fix-ready is structurally impossible. The rule is
+        RM-independent: it fires at every RM state.
+        """
+        for rm in RM:
+            violations = self._violations(rm, vf, CS_d.D)
+            assert any(
+                v.dimension == "d" for v in violations
+            ), f"Expected VF↔D violation for ({rm!r}, {vf!r}, D); got {violations}"
