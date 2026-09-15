@@ -119,6 +119,43 @@ class _CasesMixin:
             )
         return activity.id_, activity.model_dump_json(**_DUMP_KWARGS)
 
+    def reject_close_case(
+        self,
+        case_id: str,
+        actor: str,
+        close_sender: str,
+        in_reply_to: str | None = None,
+    ) -> tuple[str, str]:
+        """Create and persist a ``Reject(Leave(VulnerabilityCase))`` activity.
+
+        Declines an owner's close while an embargo is active (CM-23-011).
+        The declined Leave is reconstructed from the case attributed to the
+        ``close_sender`` (the Case Owner), then wrapped in an ``as:Reject``
+        sent by ``actor`` (the Case Actor) back to the owner.  The inbound
+        Leave is not yet persisted when this runs (``StoreActivityNode`` runs
+        later in the tree), so the decline is threaded to it via
+        ``in_reply_to`` rather than read back from the DataLayer.
+        """
+        from vultron.wire.as2.factories import (
+            reject_close_case_activity,
+            rm_close_case_activity,
+        )
+
+        case = _case_for_wire(self._dl, case_id)
+        leave = rm_close_case_activity(case=case, actor=close_sender)
+        kwargs: dict[str, Any] = {"actor": actor, "to": [close_sender]}
+        if in_reply_to is not None:
+            kwargs["in_reply_to"] = in_reply_to
+        activity = reject_close_case_activity(leave=leave, **kwargs)
+        try:
+            self._dl.create(activity)
+        except ValueError:
+            logger.warning(
+                "reject_close_case: activity '%s' already exists — skipping",
+                activity.id_,
+            )
+        return activity.id_, activity.model_dump_json(**_DUMP_KWARGS)
+
     def add_object_to_case(
         self,
         actor: str,

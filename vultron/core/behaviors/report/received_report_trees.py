@@ -45,10 +45,10 @@ from vultron.core.behaviors.case.nodes.lifecycle import (
     create_receive_activity_tree,
 )
 from vultron.core.behaviors.report.nodes.emit import EmitAckReportActivity
-from vultron.core.behaviors.report.nodes.rm_transitions import (
-    TransitionCaseParticipantRMtoClosed,
-    TransitionCaseParticipantRMtoInvalid,
+from vultron.core.behaviors.case.nodes.participant.status import (
+    CreateParticipantStatusNode,
 )
+from vultron.core.states.rm import RM
 from vultron.core.behaviors.report.nodes.storage import (
     StoreActivityNode,
     StoreReportNode,
@@ -256,6 +256,7 @@ def create_ack_report_received_tree(
 
 def create_close_report_received_tree(
     request: CloseReportReceivedEvent,
+    actor_id: str,
 ) -> py_trees.behaviour.Behaviour:
     """Create the BT for the CloseReportReceived workflow.
 
@@ -263,8 +264,11 @@ def create_close_report_received_tree(
 
     Steps (Sequence):
     1. Store CloseReport activity idempotently.
-    2. Resolve this actor's case for the report (``RequireCaseForReport``).
-    3. Transition actor's RM state → CLOSED in that case.
+    2. Resolve this actor's case for the report (``RequireCaseForReport``,
+       which also publishes ``/case_id`` for downstream nodes).
+    3. Transition actor's RM state → CLOSED in that case via the canonical
+       :class:`~vultron.core.behaviors.case.nodes.participant.status\
+.CreateParticipantStatusNode` writer (ADR-0089).
 
     Steps 2–3 return FAILURE when the case is not in this actor's store.  They
     used to soft-pass with SUCCESS, which reported a state transition that never
@@ -273,6 +277,9 @@ def create_close_report_received_tree(
 
     Args:
         request: The parsed inbound domain event.
+        actor_id: The receiving actor whose RM state transitions to CLOSED.
+            Passed explicitly so the subject actor is never inferred from the
+            blackboard (BTND-10-005, ADR-0089).
 
     Returns:
         Root node of the ``CloseReportReceivedBT`` Sequence.
@@ -289,8 +296,13 @@ def create_close_report_received_tree(
                 label="CloseReport",
             ),
             RequireCaseForReport(report_id=request.report_id),
-            TransitionCaseParticipantRMtoClosed(
-                report_id=request.report_id,
+            CreateParticipantStatusNode(
+                actor_id=actor_id,
+                rm_state=RM.CLOSED,
+                vf_state=None,
+                d_state=None,
+                pxa_state=None,
+                name="TransitionRMtoClosed",
             ),
         ],
     )
@@ -304,6 +316,7 @@ def create_close_report_received_tree(
 
 def create_invalidate_report_received_tree(
     request: InvalidateReportReceivedEvent,
+    actor_id: str,
 ) -> py_trees.behaviour.Behaviour:
     """Create the BT for the InvalidateReportReceived workflow.
 
@@ -312,8 +325,11 @@ def create_invalidate_report_received_tree(
 
     Steps (Sequence):
     1. Store InvalidateReport activity idempotently.
-    2. Resolve this actor's case for the report (``RequireCaseForReport``).
-    3. Transition actor's RM state → INVALID in that case.
+    2. Resolve this actor's case for the report (``RequireCaseForReport``,
+       which also publishes ``/case_id`` for downstream nodes).
+    3. Transition actor's RM state → INVALID in that case via the canonical
+       :class:`~vultron.core.behaviors.case.nodes.participant.status\
+.CreateParticipantStatusNode` writer (ADR-0089).
 
     Steps 2–3 return FAILURE when the case is not in this actor's store, for the
     same reason as ``create_close_report_received_tree`` (ARCH-15-001,
@@ -321,6 +337,9 @@ def create_invalidate_report_received_tree(
 
     Args:
         request: The parsed inbound domain event.
+        actor_id: The receiving actor whose RM state transitions to INVALID.
+            Passed explicitly so the subject actor is never inferred from the
+            blackboard (BTND-10-005, ADR-0089).
 
     Returns:
         Root node of the ``InvalidateReportReceivedBT`` Sequence.
@@ -337,8 +356,13 @@ def create_invalidate_report_received_tree(
                 label="InvalidateReport",
             ),
             RequireCaseForReport(report_id=request.report_id),
-            TransitionCaseParticipantRMtoInvalid(
-                report_id=request.report_id,
+            CreateParticipantStatusNode(
+                actor_id=actor_id,
+                rm_state=RM.INVALID,
+                vf_state=None,
+                d_state=None,
+                pxa_state=None,
+                name="TransitionRMtoInvalid",
             ),
         ],
     )

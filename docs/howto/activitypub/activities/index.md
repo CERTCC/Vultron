@@ -4,9 +4,9 @@
 
 Activities are the core of the ActivityPub protocol. They are used to
 represent actions that are performed by actors. The ActivityStreams
-vocabulary defines a number of activities, and we extend these with specific
-activities that are used in the Vultron AS vocabulary. So far, we have found the
-ActivityStreams vocabulary to be sufficient for our needs, so our extensions
+vocabulary defines a number of activities, extended with specific
+activities used in the Vultron AS vocabulary. The ActivityStreams
+vocabulary is sufficient for Vultron's needs, so extensions
 are limited to specifying the types of activities, actors, and objects that
 are used in the Vultron protocol.
 
@@ -15,14 +15,14 @@ A full mapping of Vultron to ActivityStreams is available in the
 
 !!! note "Design Goals"
 
-    Our goal in each of these activity definitions is to
+    The goal of each activity definition is to
 
     - Avoid creating new activity types when an existing activity type can be used.
     - Avoid creating defined activity types with the same objects and targets to avoid
     confusion. Each activity type / object / target combination should have a
     single meaning within the protocol.
 
-For documentation purposes, we have divided the Vultron AS activities by user flow.
+The Vultron AS activities are organized by user flow.
 Each of these user flows shows the activities that are used to perform a specific
 task. The user flows are:
 

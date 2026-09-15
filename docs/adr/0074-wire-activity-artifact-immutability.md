@@ -99,7 +99,7 @@ compensates for an incomplete factory and creates a ledger/delivery gap.
   no change to the wire branch's lenient field-type policy is required.
 - Bad, because any code that currently mutates wire Activity objects in place
   must be refactored — three known mutation sites in `outbox_delivery.py` and
-  one in `EmitInviteActorToCaseNode._emit()`.
+  one in `EmitInviteActorToCaseNode._call_factory()` (renamed from `_emit()` by #2881).
 - Bad, because `TriggerActivityPort` methods must change their return type
   from `dict[str, Any]` to a frozen wire object, requiring callers to be
   updated.

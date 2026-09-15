@@ -196,6 +196,20 @@ class CheckRMStateAccepted(_CheckParticipantRMStateBase):
     _target_rm = RM.ACCEPTED
 
 
+class CheckRMStateDeferred(_CheckParticipantRMStateBase):
+    """Guard: actor RM state is already DEFERRED.
+
+    Returns ``SUCCESS`` when the actor's latest RM state is ``RM.DEFERRED``.
+    Returns ``FAILURE`` otherwise.
+
+    Used as an idempotency guard in ``create_defer_case_tree`` so that
+    receiving a second ``Ignore(VulnerabilityCase)`` from an already-deferred
+    actor does not append a duplicate ParticipantStatus record.
+    """
+
+    _target_rm = RM.DEFERRED
+
+
 class EnsureEmbargoExists(CaseIdInputPortMixin, DataLayerConditionWithPorts):
     """Check that the case for this report has an active embargo.
 

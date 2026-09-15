@@ -21,16 +21,10 @@ owner-side response node; ``emit`` retains the CaseActor-side forwarding and
 notification nodes.
 """
 
-import json
-from typing import cast
-
-from py_trees.common import Status
-
-from vultron.core.behaviors.helpers import DataLayerActionWithPorts
-from vultron.core.ports.case_persistence import CaseOutboxPersistence
+from vultron.core.behaviors.helpers import _EmitSingleActivityBase
 
 
-class EmitAcceptCaseParticipantOfferNode(DataLayerActionWithPorts):
+class EmitAcceptCaseParticipantOfferNode(_EmitSingleActivityBase):
     """Case Owner sends Accept(Offer(CaseParticipant)) back to the CaseActor.
 
     Triggered by the Case Owner after reviewing the Offer(CaseParticipant)
@@ -46,12 +40,11 @@ class EmitAcceptCaseParticipantOfferNode(DataLayerActionWithPorts):
         captured: dict | None = None,
         name: str | None = None,
     ) -> None:
-        super().__init__(name=name or self.__class__.__name__)
+        super().__init__(captured=captured, name=name)
         self.cp_offer_id = cp_offer_id
         self.case_actor_id = case_actor_id
-        self._captured = captured
 
-    def _emit(self) -> tuple[str, str]:
+    def _call_factory(self) -> tuple[str, str]:
         assert self.trigger_activity_factory is not None
         assert self.actor_id is not None
         return self.trigger_activity_factory.accept_case_participant_offer(
@@ -60,35 +53,13 @@ class EmitAcceptCaseParticipantOfferNode(DataLayerActionWithPorts):
             to=[self.case_actor_id],
         )
 
-    def update(self) -> Status:
-        fail = self._require_datalayer_and_actor()
-        if fail is not None:
-            return fail
-        fail = self._require_factory()
-        if fail is not None:
-            self.logger.error(self.feedback_message)
-            return fail
-
-        try:
-            activity_id, activity_dict = self._emit()
-            cast(CaseOutboxPersistence, self.datalayer).outbox_append(
-                activity_id
-            )
-            if self._captured is not None:
-                self._captured["activity"] = json.loads(activity_dict)
-            self.logger.info(
-                "Actor '%s' accepted Offer(CaseParticipant) '%s' → CaseActor '%s'",
-                self.actor_id,
-                self.cp_offer_id,
-                self.case_actor_id,
-            )
-            return Status.SUCCESS
-        except Exception as e:
-            self.feedback_message = (
-                f"EmitAcceptCaseParticipantOffer failed: {e}"
-            )
-            self.logger.error(self.feedback_message)
-            return Status.FAILURE
+    def _on_success(self, activity_id: str, activity_blob: str) -> None:
+        self.logger.info(
+            "Actor '%s' accepted Offer(CaseParticipant) '%s' → CaseActor '%s'",
+            self.actor_id,
+            self.cp_offer_id,
+            self.case_actor_id,
+        )
 
 
 __all__ = [

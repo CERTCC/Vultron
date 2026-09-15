@@ -98,7 +98,7 @@ down to the following:
 
 In this model, attacks observed when a vulnerability is unknown to the
 public ($\cdot\cdot\cdot p \cdot A$) need not immediately cause public awareness
-($\cdot\cdot\cdot P \cdot A$), although, obviously, that can and does happen.
+($\cdot\cdot\cdot P \cdot A$), although that can and does happen.
 Our reasoning for allowing states in $\cdot\cdot\cdot p \cdot A$ to persist is
 twofold:
 

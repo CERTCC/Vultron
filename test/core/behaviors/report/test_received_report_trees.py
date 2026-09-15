@@ -35,10 +35,6 @@ from py_trees.common import Status
 
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.behaviors.bridge import BTBridge
-from vultron.core.behaviors.report.nodes.rm_transitions import (
-    TransitionCaseParticipantRMtoClosed,
-    TransitionCaseParticipantRMtoInvalid,
-)
 from vultron.core.behaviors.report.nodes.storage import (
     StoreActivityNode,
     StoreReportNode,
@@ -268,18 +264,29 @@ class TestStoreActivityNode:
 
 
 # ---------------------------------------------------------------------------
-# TransitionCaseParticipantRMtoClosed
+# CreateParticipantStatusNode — RM.CLOSED / RM.INVALID via canonical writer
 # ---------------------------------------------------------------------------
 
 
-class TestTransitionCaseParticipantRMtoClosed:
+class TestCreateParticipantStatusNodeClosed:
+    """CreateParticipantStatusNode(rm_state=RM.CLOSED) replaces the deleted
+    TransitionCaseParticipantRMtoClosed bypass node (ADR-0089 AC-4)."""
+
     def test_transitions_rm_to_closed(self, dl, bridge):
         """Participant RM → CLOSED when case found for report."""
-        case, _ = _setup_case_with_participant(
-            dl, REPORT_ID, ACTOR_ID, RM.INVALID
+        from vultron.core.behaviors.case.nodes.participant.status import (
+            CreateParticipantStatusNode,
         )
 
-        node = TransitionCaseParticipantRMtoClosed(report_id=REPORT_ID)
+        _setup_case_with_participant(dl, REPORT_ID, ACTOR_ID, RM.INVALID)
+
+        node = CreateParticipantStatusNode(
+            actor_id=ACTOR_ID,
+            rm_state=RM.CLOSED,
+            vf_state=None,
+            d_state=None,
+            pxa_state=None,
+        )
         result = bridge.execute_with_setup(
             tree=node, actor_id=ACTOR_ID, case_id=CASE_ID
         )
@@ -291,19 +298,21 @@ class TestTransitionCaseParticipantRMtoClosed:
         assert participant.participant_statuses[-1].rm.state == RM.CLOSED
 
     def test_no_case_id_fails(self, dl, bridge, caplog):
-        """No ``/case_id`` on the blackboard → WARNING logged, FAILURE returned.
+        """No ``/case_id`` on the blackboard → WARNING logged, FAILURE returned."""
+        from vultron.core.behaviors.case.nodes.participant.status import (
+            CreateParticipantStatusNode,
+        )
 
-        This used to soft-pass with SUCCESS "matching the log-and-continue
-        behavior of the original procedural handlers".  A Sequence cannot tell
-        that apart from a real transition, so the RM state silently stayed put
-        while the tree reported success (ARCH-15-001, ISSUE-2548).  The case
-        replica simply has not arrived in this actor's store yet (ADR-0073,
-        PCR-01-003) — a retry is the correct response, not a fake success.
-        """
         report = CoreReport(id_=REPORT_ID)
         dl.save(report)
 
-        node = TransitionCaseParticipantRMtoClosed(report_id=REPORT_ID)
+        node = CreateParticipantStatusNode(
+            actor_id=ACTOR_ID,
+            rm_state=RM.CLOSED,
+            vf_state=None,
+            d_state=None,
+            pxa_state=None,
+        )
         with caplog.at_level(logging.WARNING):
             result = bridge.execute_with_setup(tree=node, actor_id=ACTOR_ID)
 
@@ -314,37 +323,49 @@ class TestTransitionCaseParticipantRMtoClosed:
         assert any("no case_id" in m.lower() for m in warn_msgs)
 
     def test_participant_absent_from_case_fails(self, dl, bridge):
-        """Case present but actor not a participant → FAILURE, not a soft pass.
+        """Case present but actor not a participant → FAILURE."""
+        from vultron.core.behaviors.case.nodes.participant.status import (
+            CreateParticipantStatusNode,
+        )
 
-        A dehydrated case replica (no ``actor_participant_index`` entry) blocks
-        ``update_participant_rm_state``; the node must report that (ISSUE-2548).
-        """
         case = as_VulnerabilityCase(
             id_=CASE_ID, vulnerability_reports=[REPORT_ID]
         )
         dl.save(case)
         dl.save(CoreReport(id_=REPORT_ID))
 
-        node = TransitionCaseParticipantRMtoClosed(report_id=REPORT_ID)
+        node = CreateParticipantStatusNode(
+            actor_id=ACTOR_ID,
+            rm_state=RM.CLOSED,
+            vf_state=None,
+            d_state=None,
+            pxa_state=None,
+        )
         result = bridge.execute_with_setup(
             tree=node, actor_id=ACTOR_ID, case_id=CASE_ID
         )
         assert result.status == Status.FAILURE
 
 
-# ---------------------------------------------------------------------------
-# TransitionCaseParticipantRMtoInvalid
-# ---------------------------------------------------------------------------
+class TestCreateParticipantStatusNodeInvalid:
+    """CreateParticipantStatusNode(rm_state=RM.INVALID) replaces the deleted
+    TransitionCaseParticipantRMtoInvalid bypass node (ADR-0089 AC-4)."""
 
-
-class TestTransitionCaseParticipantRMtoInvalid:
     def test_transitions_rm_to_invalid(self, dl, bridge):
         """Participant RM → INVALID when case found for report."""
-        case, _ = _setup_case_with_participant(
-            dl, REPORT_ID, ACTOR_ID, RM.RECEIVED
+        from vultron.core.behaviors.case.nodes.participant.status import (
+            CreateParticipantStatusNode,
         )
 
-        node = TransitionCaseParticipantRMtoInvalid(report_id=REPORT_ID)
+        _setup_case_with_participant(dl, REPORT_ID, ACTOR_ID, RM.RECEIVED)
+
+        node = CreateParticipantStatusNode(
+            actor_id=ACTOR_ID,
+            rm_state=RM.INVALID,
+            vf_state=None,
+            d_state=None,
+            pxa_state=None,
+        )
         result = bridge.execute_with_setup(
             tree=node, actor_id=ACTOR_ID, case_id=CASE_ID
         )
@@ -356,19 +377,21 @@ class TestTransitionCaseParticipantRMtoInvalid:
         assert participant.participant_statuses[-1].rm.state == RM.INVALID
 
     def test_no_case_id_fails(self, dl, bridge, caplog):
-        """No ``/case_id`` on the blackboard → WARNING logged, FAILURE returned.
+        """No ``/case_id`` on the blackboard → WARNING logged, FAILURE returned."""
+        from vultron.core.behaviors.case.nodes.participant.status import (
+            CreateParticipantStatusNode,
+        )
 
-        This used to soft-pass with SUCCESS "matching the log-and-continue
-        behavior of the original procedural handlers".  A Sequence cannot tell
-        that apart from a real transition, so the RM state silently stayed put
-        while the tree reported success (ARCH-15-001, ISSUE-2548).  The case
-        replica simply has not arrived in this actor's store yet (ADR-0073,
-        PCR-01-003) — a retry is the correct response, not a fake success.
-        """
         report = CoreReport(id_=REPORT_ID)
         dl.save(report)
 
-        node = TransitionCaseParticipantRMtoInvalid(report_id=REPORT_ID)
+        node = CreateParticipantStatusNode(
+            actor_id=ACTOR_ID,
+            rm_state=RM.INVALID,
+            vf_state=None,
+            d_state=None,
+            pxa_state=None,
+        )
         with caplog.at_level(logging.WARNING):
             result = bridge.execute_with_setup(tree=node, actor_id=ACTOR_ID)
 
@@ -379,18 +402,24 @@ class TestTransitionCaseParticipantRMtoInvalid:
         assert any("no case_id" in m.lower() for m in warn_msgs)
 
     def test_participant_absent_from_case_fails(self, dl, bridge):
-        """Case present but actor not a participant → FAILURE, not a soft pass.
+        """Case present but actor not a participant → FAILURE."""
+        from vultron.core.behaviors.case.nodes.participant.status import (
+            CreateParticipantStatusNode,
+        )
 
-        A dehydrated case replica (no ``actor_participant_index`` entry) blocks
-        ``update_participant_rm_state``; the node must report that (ISSUE-2548).
-        """
         case = as_VulnerabilityCase(
             id_=CASE_ID, vulnerability_reports=[REPORT_ID]
         )
         dl.save(case)
         dl.save(CoreReport(id_=REPORT_ID))
 
-        node = TransitionCaseParticipantRMtoInvalid(report_id=REPORT_ID)
+        node = CreateParticipantStatusNode(
+            actor_id=ACTOR_ID,
+            rm_state=RM.INVALID,
+            vf_state=None,
+            d_state=None,
+            pxa_state=None,
+        )
         result = bridge.execute_with_setup(
             tree=node, actor_id=ACTOR_ID, case_id=CASE_ID
         )
@@ -585,7 +614,7 @@ class TestCloseReportReceivedTree:
         """Full BT stores activity and transitions participant RM → CLOSED."""
         _setup_case_with_participant(dl, REPORT_ID, ACTOR_ID, RM.INVALID)
         event = _make_close_report_event()
-        tree = create_close_report_received_tree(event)
+        tree = create_close_report_received_tree(event, actor_id=ACTOR_ID)
         bridge = BTBridge(datalayer=dl)
         result = bridge.execute_with_setup(
             tree=tree, actor_id=ACTOR_ID, activity=event
@@ -608,7 +637,7 @@ class TestCloseReportReceivedTree:
         activity from step 1 is what makes a later retry possible.
         """
         event = _make_close_report_event()
-        tree = create_close_report_received_tree(event)
+        tree = create_close_report_received_tree(event, actor_id=ACTOR_ID)
         bridge = BTBridge(datalayer=dl)
 
         with caplog.at_level(logging.INFO):
@@ -630,7 +659,7 @@ class TestCloseReportReceivedTree:
         bridge = BTBridge(datalayer=dl)
 
         for _ in range(2):
-            tree = create_close_report_received_tree(event)
+            tree = create_close_report_received_tree(event, actor_id=ACTOR_ID)
             result = bridge.execute_with_setup(
                 tree=tree, actor_id=ACTOR_ID, activity=event
             )
@@ -687,7 +716,7 @@ class TestInvalidateReportReceivedTree:
         """Full BT stores activity and transitions participant RM → INVALID."""
         _setup_case_with_participant(dl, REPORT_ID, ACTOR_ID, RM.RECEIVED)
         event = _make_invalidate_report_event()
-        tree = create_invalidate_report_received_tree(event)
+        tree = create_invalidate_report_received_tree(event, actor_id=ACTOR_ID)
         bridge = BTBridge(datalayer=dl)
         result = bridge.execute_with_setup(
             tree=tree, actor_id=ACTOR_ID, activity=event
@@ -710,7 +739,7 @@ class TestInvalidateReportReceivedTree:
         activity from step 1 is what makes a later retry possible.
         """
         event = _make_invalidate_report_event()
-        tree = create_invalidate_report_received_tree(event)
+        tree = create_invalidate_report_received_tree(event, actor_id=ACTOR_ID)
         bridge = BTBridge(datalayer=dl)
 
         with caplog.at_level(logging.INFO):
@@ -732,7 +761,9 @@ class TestInvalidateReportReceivedTree:
         bridge = BTBridge(datalayer=dl)
 
         for _ in range(2):
-            tree = create_invalidate_report_received_tree(event)
+            tree = create_invalidate_report_received_tree(
+                event, actor_id=ACTOR_ID
+            )
             result = bridge.execute_with_setup(
                 tree=tree, actor_id=ACTOR_ID, activity=event
             )

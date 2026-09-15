@@ -3,6 +3,7 @@ title: Configuration Management — Implementation Notes
 status: active
 description: Design decisions for YAML-backed Pydantic configuration loading in Vultron.
 related_specs:
+  - specs/case-ledger-processing.yaml
   - specs/configuration.yaml
 relevant_packages:
   - fastapi
@@ -12,6 +13,7 @@ relevant_packages:
   - vultron/adapters
   - vultron/core
 related_notes:
+  - notes/case-ledger-authority.md
   - notes/testing-pitfalls.md
 ---
 
@@ -179,7 +181,31 @@ actor:
   auto_create_case: true
   default_case_roles: []
   case_actor_service_url: "http://case-actor:7999/api/v2"
+
+ledger:
+  clock_skew_tolerance_seconds: 300
+  future_tolerance_seconds: 300
+  staleness_window_days: 7
 ```
+
+The `ledger:` section maps to `AppConfig.ledger` (`LedgerConfig`,
+`vultron/config/ledger.py`). It exposes the timestamp tolerances the CaseActor
+applies to a *claimed* `payloadSnapshot.published` at its commit boundary
+(CLP-14-009). Thresholds are stored as plain integers because they are set from
+the environment; the `timedelta` properties (`clock_skew_tolerance`,
+`future_tolerance`, `staleness_window`) are what the guard consumes.
+
+- `clock_skew_tolerance_seconds`: slack on the CLP-14-006 check that an
+  assertion is not stamped before its parent case was created. Non-zero because
+  participant and CaseActor clocks are not synchronised — ADR-0079 rejected
+  wall-clock ordering for that reason.
+- `future_tolerance_seconds`: CLP-14-007 ceiling on how far ahead of the
+  CaseActor's clock a claimed timestamp may be.
+- `staleness_window_days`: CLP-14-008 window on how far behind it may be.
+
+Which timestamp each threshold governs is the load-bearing detail — see
+[notes/case-ledger-authority.md](case-ledger-authority.md) § "An Entry Has Two
+Timestamps, and They Belong to Different Layers".
 
 The `actor:` section maps to `AppConfig.actor` (`ActorConfig`). It controls
 actor-policy defaults used by BT nodes and the production adapter:
@@ -212,6 +238,9 @@ actor-policy defaults used by BT nodes and the production adapter:
 | `VULTRON_ACTOR__AUTO_CREATE_CASE` | `actor.auto_create_case` | `true` |
 | `VULTRON_ACTOR__DEFAULT_CASE_ROLES` | `actor.default_case_roles` | `[]` |
 | `VULTRON_ACTOR__CASE_ACTOR_SERVICE_URL` | `actor.case_actor_service_url` | `None` |
+| `VULTRON_LEDGER__CLOCK_SKEW_TOLERANCE_SECONDS` | `ledger.clock_skew_tolerance_seconds` | `300` |
+| `VULTRON_LEDGER__FUTURE_TOLERANCE_SECONDS` | `ledger.future_tolerance_seconds` | `300` |
+| `VULTRON_LEDGER__STALENESS_WINDOW_DAYS` | `ledger.staleness_window_days` | `7` |
 
 ### Legacy env var migration
 

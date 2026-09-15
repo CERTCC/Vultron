@@ -117,7 +117,7 @@ no further obligations.
     incentives for Participants to be declarative and negotiate in good faith.
     Were a rejected embargo proposal to carry _any_ implied obligation to refrain from publication, 
     Participants might be motivated to use delayed or ambiguous responses to impose that obligation on others.
-    Our goal is to avoid situations where a Participant is incentivized to simply ignore an embargo proposal
+    Our goal is to avoid situations where a Participant is incentivized to ignore an embargo proposal
     while proceeding with an expectation that the other Participants are still bound by the proposed-but-inactive embargo terms.
     Therefore we have attempted to be very clear that _only_ active embargoes impose obligations on Participants.
 

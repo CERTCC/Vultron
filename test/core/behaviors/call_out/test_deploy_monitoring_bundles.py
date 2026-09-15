@@ -29,7 +29,11 @@ import py_trees
 import pytest
 from py_trees.common import Status
 
-from vultron.core.behaviors.call_out import AlwaysFail, AlwaysSucceed
+from vultron.core.behaviors.call_out import (
+    AlwaysFail,
+    AlwaysSucceed,
+    unwrap_call_out,
+)
 from vultron.core.behaviors.call_out.bundles.deploy_fix import (
     DEPLOY_FIX_DETERMINISTIC,
     DeployFixCallOutBundle,
@@ -67,17 +71,17 @@ class TestDeploymentMonitoringBundle:
     def test_prioritize_deployment_defaults_to_always_succeed(self):
         b = DeploymentMonitoringBundle()
         node = b.prioritize_deployment_factory("probe")
-        assert isinstance(node, AlwaysSucceed)
+        assert isinstance(unwrap_call_out(node), AlwaysSucceed)
 
     def test_monitoring_requirement_defaults_to_always_succeed(self):
         b = DeploymentMonitoringBundle()
         node = b.monitoring_requirement_factory("probe")
-        assert isinstance(node, AlwaysSucceed)
+        assert isinstance(unwrap_call_out(node), AlwaysSucceed)
 
     def test_monitor_deployment_defaults_to_always_succeed(self):
         b = DeploymentMonitoringBundle()
         node = b.monitor_deployment_factory("probe")
-        assert isinstance(node, AlwaysSucceed)
+        assert isinstance(unwrap_call_out(node), AlwaysSucceed)
 
     def test_all_default_nodes_tick_to_success(self):
         b = DeploymentMonitoringBundle()
@@ -123,7 +127,7 @@ class TestDeployFixCallOutBundleInheritance:
 
     def test_deploy_fix_defaults_to_always_fail(self):
         node = DEPLOY_FIX_DETERMINISTIC.deploy_fix_factory("probe")
-        assert isinstance(node, AlwaysFail)
+        assert isinstance(unwrap_call_out(node), AlwaysFail)
         node.tick_once()
         assert node.status == Status.FAILURE
 
@@ -172,7 +176,7 @@ class TestDeployMitigationCallOutBundle:
         node = DEPLOY_MITIGATION_DETERMINISTIC.mitigation_deployed_factory(
             "probe"
         )
-        assert isinstance(node, AlwaysFail)
+        assert isinstance(unwrap_call_out(node), AlwaysFail)
         node.tick_once()
         assert node.status == Status.FAILURE
 
@@ -180,7 +184,7 @@ class TestDeployMitigationCallOutBundle:
         node = DEPLOY_MITIGATION_DETERMINISTIC.mitigation_available_factory(
             "probe"
         )
-        assert isinstance(node, AlwaysSucceed)
+        assert isinstance(unwrap_call_out(node), AlwaysSucceed)
         node.tick_once()
         assert node.status == Status.SUCCESS
 
@@ -188,7 +192,7 @@ class TestDeployMitigationCallOutBundle:
         node = DEPLOY_MITIGATION_DETERMINISTIC.deploy_mitigation_factory(
             "probe"
         )
-        assert isinstance(node, AlwaysSucceed)
+        assert isinstance(unwrap_call_out(node), AlwaysSucceed)
         node.tick_once()
         assert node.status == Status.SUCCESS
 
@@ -199,7 +203,7 @@ class TestDeployMitigationCallOutBundle:
             DEPLOY_MITIGATION_DETERMINISTIC.monitor_deployment_factory,
         ]:
             node = factory("probe")
-            assert isinstance(node, AlwaysSucceed)
+            assert isinstance(unwrap_call_out(node), AlwaysSucceed)
 
     def test_deterministic_singleton_is_instance_of_bundle(self):
         assert isinstance(
@@ -239,7 +243,7 @@ class TestDeployMitigationStochasticBundle:
         )
 
         node = stochastic.mitigation_deployed_factory("probe")
-        assert isinstance(node, MitigationDeployed)
+        assert isinstance(unwrap_call_out(node), MitigationDeployed)
 
     def test_mitigation_available_is_fuzzer_node(self, stochastic):
         from vultron.demo.fuzzer.report_management.deploy_fix import (
@@ -247,7 +251,7 @@ class TestDeployMitigationStochasticBundle:
         )
 
         node = stochastic.mitigation_available_factory("probe")
-        assert isinstance(node, MitigationAvailable)
+        assert isinstance(unwrap_call_out(node), MitigationAvailable)
 
     def test_deploy_mitigation_is_fuzzer_node(self, stochastic):
         from vultron.demo.fuzzer.report_management.deploy_fix import (
@@ -255,7 +259,7 @@ class TestDeployMitigationStochasticBundle:
         )
 
         node = stochastic.deploy_mitigation_factory("probe")
-        assert isinstance(node, DeployMitigation)
+        assert isinstance(unwrap_call_out(node), DeployMitigation)
 
     def test_prioritize_deployment_is_fuzzer_node(self, stochastic):
         from vultron.demo.fuzzer.report_management.deploy_fix import (
@@ -263,7 +267,7 @@ class TestDeployMitigationStochasticBundle:
         )
 
         node = stochastic.prioritize_deployment_factory("probe")
-        assert isinstance(node, PrioritizeDeployment)
+        assert isinstance(unwrap_call_out(node), PrioritizeDeployment)
 
     def test_monitoring_requirement_is_fuzzer_node(self, stochastic):
         from vultron.demo.fuzzer.report_management.deploy_fix import (
@@ -271,7 +275,7 @@ class TestDeployMitigationStochasticBundle:
         )
 
         node = stochastic.monitoring_requirement_factory("probe")
-        assert isinstance(node, MonitoringRequirement)
+        assert isinstance(unwrap_call_out(node), MonitoringRequirement)
 
     def test_monitor_deployment_is_fuzzer_node(self, stochastic):
         from vultron.demo.fuzzer.report_management.deploy_fix import (
@@ -279,7 +283,7 @@ class TestDeployMitigationStochasticBundle:
         )
 
         node = stochastic.monitor_deployment_factory("probe")
-        assert isinstance(node, MonitorDeployment)
+        assert isinstance(unwrap_call_out(node), MonitorDeployment)
 
     def test_stochastic_is_frozen(self, stochastic):
         with pytest.raises((dataclasses.FrozenInstanceError, AttributeError)):

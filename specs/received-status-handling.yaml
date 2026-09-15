@@ -840,6 +840,42 @@ groups:
       spec_id: RSH-05-007
     lint_suppress:
     - missing_story_reference
+  - id: RSH-05-022
+    priority: MUST
+    kind: protocol
+    statement: >
+      When `FilterParticipantStatusDimensionsNode` returns `FAILURE` for an
+      `Add(ParticipantStatus, CaseParticipant)` (i.e. the assertion is wholly
+      refused because the filtered status is indistinguishable from the
+      participant's current state), the inbox processing pipeline MUST surface
+      this as a `rejected` `InboxOutcome` rather than `202 Accepted / processed`.
+      Senders MUST be able to distinguish total refusal (`rejected`) from
+      partial accept (`processed`).
+    rationale: >
+      Before ISSUE-3199, a wholly-refused status assertion silently returned
+      `202 Accepted / processed` because `AddParticipantStatusToParticipantReceivedUseCase.execute()`
+      did not raise on BT FAILURE, so the inbox `DispatchNode` saw no exception
+      and wrote `"processed"` to `KEY_OUTCOME_STATUS`. Senders had no way to
+      distinguish a fully-refused assertion from one that was partially accepted.
+      This is the sender-feedback diagnostic gap identified in ISSUE-2255.
+    verification: >
+      Unit tests confirm that `AddParticipantStatusToParticipantReceivedUseCase.execute()`
+      raises `VultronStatusAssertionRefusedError` when `FilterParticipantStatusDimensionsNode`
+      returns FAILURE, and that this exception is caught by `DispatchNode` to
+      produce a `rejected` `InboxOutcome`.
+    note: >
+      Only `FilterParticipantStatusDimensionsNode`'s total-refusal FAILURE path
+      triggers this diagnostic; other BT failure modes (sender not a participant,
+      authorization failures at `StatusAdoptionGate`) do NOT produce `rejected`
+      because they are not strictly "refusals of the assertion content." This
+      distinction is enforced by `_filter_node_wholly_refused()` in
+      `vultron/core/use_cases/received/status.py`, which walks the tree to check
+      the filter node's status after execution.
+    relationships:
+    - rel_type: extends
+      spec_id: RSH-05-005
+    lint_suppress:
+    - missing_story_reference
 
 - id: RSH-06
   title: RM Anomaly Notification Policy (non-adjacent jumps and backward regressions)

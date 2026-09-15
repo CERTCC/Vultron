@@ -18,10 +18,6 @@
 
 ## Utilities
 
-::: vultron.wire.as2.vocab.base.dt_utils
-    options:
-        heading_level: 3
-
 ::: vultron.wire.as2.vocab.base.utils
     options:
         heading_level: 3

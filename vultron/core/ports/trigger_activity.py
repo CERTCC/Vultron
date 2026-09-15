@@ -330,6 +330,25 @@ class TriggerActivityPort(Protocol):
         """
         ...
 
+    def reject_close_case(
+        self,
+        case_id: str,
+        actor: str,
+        close_sender: str,
+        in_reply_to: str | None = None,
+    ) -> tuple[str, str]:
+        """Create and persist a ``Reject(Leave(VulnerabilityCase))`` activity.
+
+        Emitted by the Case Actor to decline an owner's
+        ``Leave(VulnerabilityCase)`` while an embargo is still active
+        (CM-23-011).  ``actor`` is the Case Actor sending the decline;
+        ``close_sender`` is the Case Owner who sent the Leave and is used as the
+        sole ``to`` recipient so the decline is routable back to them.
+        ``in_reply_to`` threads the decline to the received Leave activity.
+        Returns ``(activity_id, activity_dict)``.
+        """
+        ...
+
     def accept_case_participant_offer(
         self,
         cp_offer_id: str,
@@ -518,14 +537,14 @@ class TriggerActivityPort(Protocol):
         vendor_id: str,
         actor: str,
         to: list[str] | None = None,
-    ) -> str:
+    ) -> tuple[str, str]:
         """Create and persist a ``Reject(_OfferCaseParticipantRoleActivity)`` (ADR-0039).
 
         Ephemerally reconstructs the original Offer before building the
         Reject so that ``Reject.object_`` is a typed
         ``_OfferCaseParticipantRoleActivity``, not a bare string IRI.
 
-        Returns the activity ID.
+        Returns ``(activity_id, activity_json)``.
         """
         ...
 

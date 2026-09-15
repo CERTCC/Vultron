@@ -36,6 +36,22 @@ from vultron.metadata.specs.schema import (
 )
 
 
+def _behavioral_fields(spec: BehavioralSpec) -> dict[str, Any]:
+    """Return the fields only a :class:`BehavioralSpec` carries.
+
+    Split out of :func:`_spec_record` so that function stays within the
+    complexity gate as optional fields are added to the export.
+    """
+    rec: dict[str, Any] = {}
+    if spec.preconditions:
+        rec["preconditions"] = [p.description for p in spec.preconditions]
+    if spec.steps:
+        rec["steps"] = [_step_record(s) for s in spec.steps]
+    if spec.postconditions:
+        rec["postconditions"] = [p.description for p in spec.postconditions]
+    return rec
+
+
 def _spec_record(
     spec: Spec,
     group: SpecGroup,
@@ -63,6 +79,15 @@ def _spec_record(
     if spec.rationale is not None:
         rec["rationale"] = spec.rationale
 
+    # ``note`` carries the caveats that keep a requirement from being read the
+    # wrong way — which side an obligation binds, what a receiver must *not* do
+    # about it.  Dropping it made that guidance unreachable for any agent
+    # following AGENTS.md, which says to load specs through this exporter and
+    # never to read raw ``specs/*.yaml``.  ``_rel_record`` already exports a
+    # relationship's ``note``; omitting the spec-level one was an oversight.
+    if spec.note is not None:
+        rec["note"] = spec.note
+
     if not spec.testable:
         rec["testable"] = False
 
@@ -75,14 +100,7 @@ def _spec_record(
     rec["verification"] = spec.verification
 
     if isinstance(spec, BehavioralSpec):
-        if spec.preconditions:
-            rec["preconditions"] = [p.description for p in spec.preconditions]
-        if spec.steps:
-            rec["steps"] = [_step_record(s) for s in spec.steps]
-        if spec.postconditions:
-            rec["postconditions"] = [
-                p.description for p in spec.postconditions
-            ]
+        rec.update(_behavioral_fields(spec))
 
     return rec
 

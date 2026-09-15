@@ -310,6 +310,39 @@ def test_ledger_hash_mismatch_rejects_and_replays_from_last_accepted():
     assert nak.object_ == "CaseLedgerEntry"
 
 
+@pytest.mark.spec("MSM-05-005")
+def test_report_submission_is_the_only_non_ledger_wire_activity():
+    """RK / ACK_REPORT is the only ack semantic because RS is not ledger-replicated.
+
+    Every other protocol-significant activity reaches participants via
+    Announce(CaseLedgerEntry) — there is no second category of activities that
+    bypasses the ledger and would need its own ack mechanism.
+    """
+    registered = _registered()
+
+    # The ledger fan-out semantic exists ...
+    assert MessageSemantics.ANNOUNCE_CASE_LEDGER_ENTRY in registered
+    # ... and the only explicit ack is the one for report submission.
+    assert _members_matching(_ACK_TOKENS) == _SANCTIONED_ACK_SEMANTICS
+
+
+@pytest.mark.spec("MSM-05-006")
+def test_no_heartbeat_semantic_exists_in_registry():
+    """Liveness inference relies solely on Announce deliveries; no heartbeat is mandated.
+
+    MSM-05-006 records that implementations MAY rely on Announce(CaseLedgerEntry)
+    for liveness without emitting a dedicated heartbeat. The absence of a
+    HEARTBEAT-named semantic in the current registry is the observable correlate.
+    """
+    heartbeat_members = frozenset(
+        s.name for s in MessageSemantics if "HEARTBEAT" in s.name
+    )
+    assert not heartbeat_members, (
+        f"A HEARTBEAT semantic was registered ({heartbeat_members}); "
+        "update MSM-05-006 before making heartbeat mandatory."
+    )
+
+
 @pytest.mark.spec("MSM-05-003")
 def test_as_reject_is_overloaded_across_error_and_ordinary_refusal():
     """A receiver cannot infer "error" from the `as:Reject` verb alone."""

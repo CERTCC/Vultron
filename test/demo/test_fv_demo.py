@@ -1087,6 +1087,14 @@ class TestWaitForAllParticipantsRmClosed:
         finder_client, vendor_client, finder, vendor, case = (
             _setup_case_with_3_participants(base)
         )
+        # CM-23-011: the Case Actor declines an owner close while an embargo is
+        # live. The setup leaves an active embargo (validate-report needs one),
+        # so the owner (vendor) reports publication first, which drives embargo
+        # teardown; otherwise the close is correctly refused and the vendor
+        # never reaches RM.CLOSED.
+        demo.actor_notifies_published(
+            client=vendor_client, actor=vendor, case_id=case.id_
+        )
         demo.actor_closes_case(
             client=vendor_client, actor=vendor, case_id=case.id_
         )

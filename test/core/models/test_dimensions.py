@@ -8,9 +8,8 @@ from vultron.core.models.dimensions import (
     PecDimension,
     PxaDimension,
     RmDimension,
-    VfdDimension,
 )
-from vultron.core.states.cs import CS_pxa, CS_vfd
+from vultron.core.states.cs import CS_pxa
 from vultron.core.states.em import EM, EM_Trigger
 from vultron.core.states.participant_embargo_consent import PEC, PEC_Trigger
 from vultron.core.states.rm import RM, RM_Trigger
@@ -141,28 +140,6 @@ class TestRmDimension:
         d = RmDimension(state=RM.ACCEPTED)
         d2 = RmDimension.model_validate_json(d.model_dump_json())
         assert d2.state == RM.ACCEPTED
-
-
-class TestVfdDimension:
-    def test_default_state(self):
-        d = VfdDimension()
-        assert d.state == CS_vfd.vfd
-
-    def test_construct_from_string(self):
-        d = VfdDimension.model_validate({"state": "Vfd"})
-        assert d.state == CS_vfd.Vfd
-
-    def test_is_vendor_aware(self):
-        assert VfdDimension(state=CS_vfd.Vfd).is_vendor_aware()
-        assert not VfdDimension(state=CS_vfd.vfd).is_vendor_aware()
-
-    def test_is_fix_ready(self):
-        assert VfdDimension(state=CS_vfd.VFd).is_fix_ready()
-        assert not VfdDimension(state=CS_vfd.vfd).is_fix_ready()
-
-    def test_is_fix_deployed(self):
-        assert VfdDimension(state=CS_vfd.VFD).is_fix_deployed()
-        assert not VfdDimension(state=CS_vfd.vfd).is_fix_deployed()
 
 
 class TestPecDimension:

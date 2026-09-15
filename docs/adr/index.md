@@ -144,7 +144,7 @@ General information about architectural decision records is available at <https:
 - [ADR-0072 Use a Dedicated `stories:` Field for Spec-to-Story Traceability (Not `relationships:`)](0072-stories-field-for-spec-to-story-traceability.md)
 - [ADR-0073 Give Each Actor Its Own Store; Delete the Unscoped DataLayer](0073-per-actor-storage-isolation.md)
 - [ADR-0074 Treat Wire Activities as Immutable Artifacts; Freeze at Receipt and at Factory Seal](0074-wire-activity-artifact-immutability.md)
-- [ADR-0075 Split Per-Participant VFD Tracking into Separate Vendor-Path and Deployer-Path Sub-Machines](0075-split-vfd-state-machine.md) *(provisional)*
+- [ADR-0075 Split Per-Participant VFD Tracking into Separate Vendor-Path and Deployer-Path Sub-Machines](0075-split-vfd-state-machine.md)
 - [ADR-0076 Security-Significant Call-Out Gates Default to `RequireCaseOwnerApproval`](0076-security-significant-gates-default-require-case-owner-approval.md)
 - [ADR-0077 Scope Ledger Replication Mechanics to a Companion Spec; Single-Hub Fan-Out Is Normative](0077-ledger-replication-companion-spec.md)
 - [ADR-0078 Retire `CVDRole.FINDER` — Reporter Is the Protocol-Salient Role](0078-retire-finder-role.md)
@@ -157,6 +157,8 @@ General information about architectural decision records is available at <https:
 - [ADR-0085 Owner-Close Is a Hard Write Boundary; RM.CLOSED Is Terminal and Rejoin Is Unsupported](0085-case-lifecycle-boundaries.md)
 - [ADR-0086 Report Every Violation, Reject the Batch — and the Emit/Receive Dispositions Are Postel's Maxim](0086-report-every-violation-reject-the-batch.md)
 - [ADR-0087 Case-Resolution Disposition for BT Nodes Is Chosen by Role, Not Re-Decided Per Call Site](0087-case-resolution-disposition-policy.md)
+- [ADR-0088 Authority Is the CASE_MANAGER Role; "Case Actor" Is Role-Enactment Shorthand, Not an Identity](0088-consolidate-case-authority-determination.md)
+- [ADR-0089 One `ParticipantStatus` Writer, and Pre-Case RM State Belongs to `ReportCaseLink`](0089-one-participant-status-writer.md)
 
 ## Proposed ADRs
 

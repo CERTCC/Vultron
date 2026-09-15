@@ -44,6 +44,7 @@ from dataclasses import dataclass, field
 
 import py_trees
 
+from vultron.core.behaviors.call_out.bundles.base import CallOutBundle
 from vultron.core.behaviors.call_out.nodes import AlwaysFail, AlwaysSucceed
 from vultron.core.behaviors.call_out.protocol import CallOutBackendFactory
 
@@ -57,7 +58,7 @@ def _always_fail(name: str) -> py_trees.behaviour.Behaviour:
 
 
 @dataclass(frozen=True)
-class AssignCveIdCallOutBundle:
+class AssignCveIdCallOutBundle(CallOutBundle):
     """Call-out backend bundle for the CVE ID assignment domain (BT-23-003).
 
     14 factory fields, one per call-out point (excluding the two ProtocolInternal

@@ -117,8 +117,14 @@ class AttackObservation(StrEnum):
     A = ATTACKS_OBSERVED
 
 
-# a named tuple of the enums above
-# todo consider replacing this with a combination of VfdState and PxaState
+# a named tuple of the enums above.
+# NOTE (CONCERN-2099, planning group G06 / #2834): the earlier TODO here
+# contemplated replacing this with a combination of VfdState and PxaState, or
+# introducing a CaseState(BaseModel). The verdict is to KEEP the compound
+# representation: the split sub-machine enums (CS_vf / CS_d / CS_pxa) already
+# give structured decomposition (ADR-0075), and the monolithic CS is retained
+# for the legacy vultron/bt/ simulator. No CaseState(BaseModel) is introduced.
+# See notes/case-state-model.md § "CS Representation: Keep the Compound Enum".
 class State(NamedTuple):
     """Represents the state of a case."""
 
@@ -128,14 +134,6 @@ class State(NamedTuple):
     public_awareness: PublicAwareness
     exploit_publication: ExploitPublication
     attack_observation: AttackObservation
-
-
-class VfdState(NamedTuple):
-    """Represents the vendor fix path state of a case."""
-
-    vendor_awareness: VendorAwareness
-    fix_readiness: FixReadiness
-    fix_deployment: FixDeployment
 
 
 class VfState(NamedTuple):
@@ -157,37 +155,6 @@ class PxaState(NamedTuple):
     public_awareness: PublicAwareness
     exploit_publication: ExploitPublication
     attack_observation: AttackObservation
-
-
-class CS_vfd(Enum):
-    """Represents the vendor fix path state of a case.
-
-    - `vfd` indicates the vendor is unaware, no fix is ready and no fix is deployed.
-    - `Vfd` indicates the vendor is aware, no fix is ready and no fix is deployed.
-    - `VFd` indicates the vendor is aware, a fix is ready and no fix is deployed.
-    - `VFD` indicates the vendor is aware, a fix is ready and a fix is deployed.
-    """
-
-    vfd = VfdState(
-        VendorAwareness.VENDOR_UNAWARE,
-        FixReadiness.FIX_NOT_READY,
-        FixDeployment.FIX_NOT_DEPLOYED,
-    )
-    Vfd = VfdState(
-        VendorAwareness.VENDOR_AWARE,
-        FixReadiness.FIX_NOT_READY,
-        FixDeployment.FIX_NOT_DEPLOYED,
-    )
-    VFd = VfdState(
-        VendorAwareness.VENDOR_AWARE,
-        FixReadiness.FIX_READY,
-        FixDeployment.FIX_NOT_DEPLOYED,
-    )
-    VFD = VfdState(
-        VendorAwareness.VENDOR_AWARE,
-        FixReadiness.FIX_READY,
-        FixDeployment.FIX_DEPLOYED,
-    )
 
 
 class CS_pxa(Enum):
@@ -278,80 +245,51 @@ class CS_d(StrEnum):
 
 
 class CompoundState(NamedTuple):
-    vfd_state: CS_vfd
+    vf_state: CS_vf
+    d_state: CS_d
     pxa_state: CS_pxa
 
 
-# TODO consider replacing this with a combination of VfdState and PxaState
-# either directly or just creating CaseState(BaseModel) class
 class CS(Enum):
-    # vfd pxa
-    vfdpxa = CompoundState(CS_vfd.vfd, CS_pxa.pxa)
-    # vfd Pxa
-    vfdPxa = CompoundState(CS_vfd.vfd, CS_pxa.Pxa)
-    # vfd pXa
-    vfdpXa = CompoundState(CS_vfd.vfd, CS_pxa.pXa)
-    # vfd pxA
-    vfdpxA = CompoundState(CS_vfd.vfd, CS_pxa.pxA)
-    # vfd PXa
-    vfdPXa = CompoundState(CS_vfd.vfd, CS_pxa.PXa)
-    # vfd pXA
-    vfdpXA = CompoundState(CS_vfd.vfd, CS_pxa.pXA)
-    # vfd PxA
-    vfdPxA = CompoundState(CS_vfd.vfd, CS_pxa.PxA)
-    # vfd PXA
-    vfdPXA = CompoundState(CS_vfd.vfd, CS_pxa.PXA)
+    # vf=vf, d=d
+    vfdpxa = CompoundState(CS_vf.vf, CS_d.d, CS_pxa.pxa)
+    vfdPxa = CompoundState(CS_vf.vf, CS_d.d, CS_pxa.Pxa)
+    vfdpXa = CompoundState(CS_vf.vf, CS_d.d, CS_pxa.pXa)
+    vfdpxA = CompoundState(CS_vf.vf, CS_d.d, CS_pxa.pxA)
+    vfdPXa = CompoundState(CS_vf.vf, CS_d.d, CS_pxa.PXa)
+    vfdpXA = CompoundState(CS_vf.vf, CS_d.d, CS_pxa.pXA)
+    vfdPxA = CompoundState(CS_vf.vf, CS_d.d, CS_pxa.PxA)
+    vfdPXA = CompoundState(CS_vf.vf, CS_d.d, CS_pxa.PXA)
 
-    # Vfd pxa
-    Vfdpxa = CompoundState(CS_vfd.Vfd, CS_pxa.pxa)
-    # vfd Pxa
-    VfdPxa = CompoundState(CS_vfd.Vfd, CS_pxa.Pxa)
-    # Vfd pXa
-    VfdpXa = CompoundState(CS_vfd.Vfd, CS_pxa.pXa)
-    # Vfd pxA
-    VfdpxA = CompoundState(CS_vfd.Vfd, CS_pxa.pxA)
-    # Vfd PXa
-    VfdPXa = CompoundState(CS_vfd.Vfd, CS_pxa.PXa)
-    # Vfd pXA
-    VfdpXA = CompoundState(CS_vfd.Vfd, CS_pxa.pXA)
-    # Vfd PxA
-    VfdPxA = CompoundState(CS_vfd.Vfd, CS_pxa.PxA)
-    # Vfd PXA
-    VfdPXA = CompoundState(CS_vfd.Vfd, CS_pxa.PXA)
+    # vf=Vf, d=d
+    Vfdpxa = CompoundState(CS_vf.Vf, CS_d.d, CS_pxa.pxa)
+    VfdPxa = CompoundState(CS_vf.Vf, CS_d.d, CS_pxa.Pxa)
+    VfdpXa = CompoundState(CS_vf.Vf, CS_d.d, CS_pxa.pXa)
+    VfdpxA = CompoundState(CS_vf.Vf, CS_d.d, CS_pxa.pxA)
+    VfdPXa = CompoundState(CS_vf.Vf, CS_d.d, CS_pxa.PXa)
+    VfdpXA = CompoundState(CS_vf.Vf, CS_d.d, CS_pxa.pXA)
+    VfdPxA = CompoundState(CS_vf.Vf, CS_d.d, CS_pxa.PxA)
+    VfdPXA = CompoundState(CS_vf.Vf, CS_d.d, CS_pxa.PXA)
 
-    # VFd pxa
-    VFdpxa = CompoundState(CS_vfd.VFd, CS_pxa.pxa)
-    # vfd Pxa
-    VFdPxa = CompoundState(CS_vfd.VFd, CS_pxa.Pxa)
-    # VFd pXa
-    VFdpXa = CompoundState(CS_vfd.VFd, CS_pxa.pXa)
-    # VFd pxA
-    VFdpxA = CompoundState(CS_vfd.VFd, CS_pxa.pxA)
-    # VFd PXa
-    VFdPXa = CompoundState(CS_vfd.VFd, CS_pxa.PXa)
-    # VFd pXA
-    VFdpXA = CompoundState(CS_vfd.VFd, CS_pxa.pXA)
-    # VFd PxA
-    VFdPxA = CompoundState(CS_vfd.VFd, CS_pxa.PxA)
-    # VFd PXA
-    VFdPXA = CompoundState(CS_vfd.VFd, CS_pxa.PXA)
+    # vf=VF, d=d
+    VFdpxa = CompoundState(CS_vf.VF, CS_d.d, CS_pxa.pxa)
+    VFdPxa = CompoundState(CS_vf.VF, CS_d.d, CS_pxa.Pxa)
+    VFdpXa = CompoundState(CS_vf.VF, CS_d.d, CS_pxa.pXa)
+    VFdpxA = CompoundState(CS_vf.VF, CS_d.d, CS_pxa.pxA)
+    VFdPXa = CompoundState(CS_vf.VF, CS_d.d, CS_pxa.PXa)
+    VFdpXA = CompoundState(CS_vf.VF, CS_d.d, CS_pxa.pXA)
+    VFdPxA = CompoundState(CS_vf.VF, CS_d.d, CS_pxa.PxA)
+    VFdPXA = CompoundState(CS_vf.VF, CS_d.d, CS_pxa.PXA)
 
-    # VFD pxa
-    VFDpxa = CompoundState(CS_vfd.VFD, CS_pxa.pxa)
-    # vfd Pxa
-    VFDPxa = CompoundState(CS_vfd.VFD, CS_pxa.Pxa)
-    # VFD pXa
-    VFDpXa = CompoundState(CS_vfd.VFD, CS_pxa.pXa)
-    # VFD pxA
-    VFDpxA = CompoundState(CS_vfd.VFD, CS_pxa.pxA)
-    # VFD PXa
-    VFDPXa = CompoundState(CS_vfd.VFD, CS_pxa.PXa)
-    # VFD pXA
-    VFDpXA = CompoundState(CS_vfd.VFD, CS_pxa.pXA)
-    # VFD PxA
-    VFDPxA = CompoundState(CS_vfd.VFD, CS_pxa.PxA)
-    # VFD PXA
-    VFDPXA = CompoundState(CS_vfd.VFD, CS_pxa.PXA)
+    # vf=VF, d=D
+    VFDpxa = CompoundState(CS_vf.VF, CS_d.D, CS_pxa.pxa)
+    VFDPxa = CompoundState(CS_vf.VF, CS_d.D, CS_pxa.Pxa)
+    VFDpXa = CompoundState(CS_vf.VF, CS_d.D, CS_pxa.pXa)
+    VFDpxA = CompoundState(CS_vf.VF, CS_d.D, CS_pxa.pxA)
+    VFDPXa = CompoundState(CS_vf.VF, CS_d.D, CS_pxa.PXa)
+    VFDpXA = CompoundState(CS_vf.VF, CS_d.D, CS_pxa.pXA)
+    VFDPxA = CompoundState(CS_vf.VF, CS_d.D, CS_pxa.PxA)
+    VFDPXA = CompoundState(CS_vf.VF, CS_d.D, CS_pxa.PXA)
 
 
 def _last3(s):
@@ -364,22 +302,21 @@ def _first3(s):
 
 @ensure_valid_state
 def vfd(state):
-    vfd, pxa = state_string_to_enums(state)
-    value = vfd.value
-    return value
+    vf, d, pxa = state_string_to_enums(state)
+    return (vf, d)
 
 
 @ensure_valid_state
 def pxa(state):
-    vfd, pxa = state_string_to_enums(state)
+    vf, d, pxa = state_string_to_enums(state)
     value = pxa.value
     return value
 
 
 @ensure_valid_state
-def state_string_to_enums(s: str) -> Tuple[CS_vfd, CS_pxa]:
+def state_string_to_enums(s: str) -> Tuple[CS_vf, CS_d, CS_pxa]:
     """
-    Convert a state string to a tuple of enums that define the state `(CS_vfd, CS_pxa)`
+    Convert a state string to a tuple of enums that define the state `(CS_vf, CS_d, CS_pxa)`
 
     Args:
         s: the state string
@@ -388,10 +325,11 @@ def state_string_to_enums(s: str) -> Tuple[CS_vfd, CS_pxa]:
         a tuple of enums
 
     """
-    s1, s2 = (s[:3], s[3:])
-    vfd = CS_vfd[s1]
-    pxa = CS_pxa[s2]
-    return (vfd, pxa)
+    s1, s2, s3 = s[:2], s[2:3], s[3:]
+    vf = CS_vf[s1]
+    d = CS_d[s2]
+    pxa = CS_pxa[s3]
+    return (vf, d, pxa)
 
 
 @ensure_valid_state
@@ -438,56 +376,6 @@ def state_string_to_enum2(
 
 
 all_states = list(CS)
-
-# --- vfd milestone groups and predicates (LST-04-001) ---
-
-# Vendor is aware of the vulnerability (V bit set).
-VFD_VENDOR_AWARE = (CS_vfd.Vfd, CS_vfd.VFd, CS_vfd.VFD)
-
-# Fix has been developed and is ready (F bit set); implies vendor awareness.
-VFD_FIX_READY = (CS_vfd.VFd, CS_vfd.VFD)
-
-# Fix has been deployed (D bit set); implies fix readiness and vendor awareness.
-VFD_FIX_DEPLOYED = (CS_vfd.VFD,)
-
-
-def is_vfd_vendor_aware(state: CS_vfd) -> bool:
-    """Return True if the vendor is aware of the vulnerability (V bit set).
-
-    Examples::
-
-        is_vfd_vendor_aware(CS_vfd.Vfd)  # True
-        is_vfd_vendor_aware(CS_vfd.VFd)  # True
-        is_vfd_vendor_aware(CS_vfd.VFD)  # True
-        is_vfd_vendor_aware(CS_vfd.vfd)  # False
-    """
-    return state in VFD_VENDOR_AWARE
-
-
-def is_vfd_fix_ready(state: CS_vfd) -> bool:
-    """Return True if the fix is ready (F bit set; implies vendor awareness).
-
-    Examples::
-
-        is_vfd_fix_ready(CS_vfd.VFd)  # True
-        is_vfd_fix_ready(CS_vfd.VFD)  # True
-        is_vfd_fix_ready(CS_vfd.Vfd)  # False
-        is_vfd_fix_ready(CS_vfd.vfd)  # False
-    """
-    return state in VFD_FIX_READY
-
-
-def is_vfd_fix_deployed(state: CS_vfd) -> bool:
-    """Return True if the fix is deployed (D bit set).
-
-    Examples::
-
-        is_vfd_fix_deployed(CS_vfd.VFD)  # True
-        is_vfd_fix_deployed(CS_vfd.VFd)  # False
-        is_vfd_fix_deployed(CS_vfd.vfd)  # False
-    """
-    return state in VFD_FIX_DEPLOYED
-
 
 # --- CS_vf milestone groups and predicates ---
 
@@ -608,12 +496,6 @@ def is_pxa_attacks_observed(state: CS_pxa) -> bool:
     return state in PXA_ATTACKS_OBSERVED
 
 
-class VFD_Trigger(StrEnum):
-    V = "vendor_becomes_aware"
-    F = "fix_is_ready"
-    D = "fix_is_deployed"
-
-
 class VF_Trigger(StrEnum):
     V = "vendor_becomes_aware"
     F = "fix_is_ready"
@@ -627,12 +509,6 @@ class PXA_Trigger(StrEnum):
     P = "public_becomes_aware"
     X = "exploit_made_public"
     A = "attacks_are_observed"
-
-
-class VfdTransition(TransitionBase):
-    trigger: VFD_Trigger
-    source: CS_vfd
-    dest: CS_vfd
 
 
 class VfTransition(TransitionBase):
@@ -653,17 +529,6 @@ class PxaTransition(TransitionBase):
     dest: CS_pxa
 
 
-_vfd_transitions = [
-    VfdTransition(
-        trigger=VFD_Trigger.V, source=CS_vfd.vfd, dest=CS_vfd.Vfd
-    ).model_dump(),
-    VfdTransition(
-        trigger=VFD_Trigger.F, source=CS_vfd.Vfd, dest=CS_vfd.VFd
-    ).model_dump(),
-    VfdTransition(
-        trigger=VFD_Trigger.D, source=CS_vfd.VFd, dest=CS_vfd.VFD
-    ).model_dump(),
-]
 _vf_transitions = [
     VfTransition(
         trigger=VF_Trigger.V, source=CS_vf.vf, dest=CS_vf.Vf
@@ -715,13 +580,6 @@ _pxa_transitions = [
 ]
 
 
-def is_valid_vfd_transition(source: CS_vfd, dest: CS_vfd) -> bool:
-    """Return True if (source → dest) is a valid VFD state transition."""
-    return any(
-        t["source"] == source and t["dest"] == dest for t in _vfd_transitions
-    )
-
-
 def is_valid_vf_transition(source: CS_vf, dest: CS_vf) -> bool:
     """Return True if (source → dest) is a valid VF state transition."""
     return any(
@@ -760,14 +618,14 @@ def _is_component_regression(
 
 
 def _is_monotonic_forward(
-    source: VfdState | PxaState | str,
-    dest: VfdState | PxaState | str,
+    source: VfState | DState | PxaState | str,
+    dest: VfState | DState | PxaState | str,
 ) -> bool:
     """Return True if *dest* strictly advances *source* with no component
     regressing.
 
-    ``source`` and ``dest`` are the ``NamedTuple`` values of a ``CS_vfd`` or
-    ``CS_pxa`` member; their components are compared position-wise.
+    ``source`` and ``dest`` are the ``NamedTuple`` values of a ``CS_vf``,
+    ``CS_d``, or ``CS_pxa`` member; their components are compared position-wise.
     """
     if source == dest:
         return False
@@ -800,29 +658,6 @@ def is_monotonic_d_forward(source: CS_d, dest: CS_d) -> bool:
     return _is_monotonic_forward(source.value, dest.value)
 
 
-def is_monotonic_vfd_forward(source: CS_vfd, dest: CS_vfd) -> bool:
-    """Return True if (source → dest) advances VFD without regressing.
-
-    ``is_valid_vfd_transition`` only recognises the three *adjacent*
-    single-component steps of the VFD machine (``vfd → Vfd → VFd → VFD``).
-    A peer may legitimately report a state several steps ahead — e.g. a vendor
-    that became aware, readied and deployed a fix between two status updates
-    reports ``vfd → VFD`` in one message.  That is monotone but not adjacent,
-    so it needs this weaker check.
-
-    Equality returns ``False`` (nothing advanced); callers that treat a status
-    confirmation as acceptable must test equality separately.  Mirrors
-    :func:`vultron.core.states.rm.is_monotonic_rm_forward`.
-
-    Examples::
-
-        is_monotonic_vfd_forward(CS_vfd.vfd, CS_vfd.VFD)  # True
-        is_monotonic_vfd_forward(CS_vfd.Vfd, CS_vfd.Vfd)  # False (no change)
-        is_monotonic_vfd_forward(CS_vfd.VFd, CS_vfd.Vfd)  # False (F un-set)
-    """
-    return _is_monotonic_forward(source.value, dest.value)
-
-
 def is_monotonic_pxa_forward(source: CS_pxa, dest: CS_pxa) -> bool:
     """Return True if (source → dest) advances PXA without regressing.
 
@@ -841,22 +676,6 @@ def is_monotonic_pxa_forward(source: CS_pxa, dest: CS_pxa) -> bool:
         is_monotonic_pxa_forward(CS_pxa.PxA, CS_pxa.PXa)  # False (A un-set)
     """
     return _is_monotonic_forward(source.value, dest.value)
-
-
-def create_vfd_machine() -> Machine:
-    """
-    Generates a new Case State Vendor Fix Deploy Machine object
-
-    Returns:
-        Machine: New Machine object
-    """
-    return Machine(
-        states=CS_vfd,
-        transitions=_vfd_transitions,
-        initial=CS_vfd.vfd,
-        auto_transitions=False,
-        name="CS VFD State Machine",
-    )
 
 
 def create_pxa_machine() -> Machine:
@@ -878,10 +697,6 @@ def create_pxa_machine() -> Machine:
 def main():
     print("Case State Enumerations")
     print()
-    print("Vendor Fix Path States")
-    for state in CS_vfd:
-        print(state, state.name, state.value)
-    print()
     print("Public Case States")
     for state in CS_pxa:
         print(state, state.name, state.value)
@@ -895,7 +710,6 @@ def main():
         print(state, state.name, state.value)
 
     print("Mermaid Diagrams of State machines")
-    print(mermaid_machine(create_vfd_machine()))
     print(mermaid_machine(create_pxa_machine()))
 
 

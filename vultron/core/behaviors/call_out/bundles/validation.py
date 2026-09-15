@@ -31,6 +31,7 @@ from dataclasses import dataclass, field
 
 import py_trees
 
+from vultron.core.behaviors.call_out.bundles.base import CallOutBundle
 from vultron.core.behaviors.call_out.nodes import AlwaysSucceed
 from vultron.core.behaviors.call_out.protocol import CallOutBackendFactory
 
@@ -40,7 +41,7 @@ def _always_succeed(name: str) -> py_trees.behaviour.Behaviour:
 
 
 @dataclass(frozen=True)
-class ValidationCallOutBundle:
+class ValidationCallOutBundle(CallOutBundle):
     """Call-out backend bundle for the report validation domain (BT-23-003).
 
     Fields map to the corresponding factory parameters on

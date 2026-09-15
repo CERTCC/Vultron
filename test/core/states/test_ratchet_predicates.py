@@ -1,28 +1,29 @@
 """
-Unit tests for RM/vfd/EM/pxa ratchet predicates and state-group tuples.
+Unit tests for RM/vf/d/EM/pxa ratchet predicates and state-group tuples.
 
 Spec coverage:
-- LST-04-001: RM and vfd ratchets and EM and pxa ratchets are modeled as
+- LST-04-001: RM and vf/d ratchets and EM and pxa ratchets are modeled as
   state-group tuples and is_*() predicates, extending the existing helpers.
 """
 
 import pytest
 
 from vultron.core.states.cs import (
+    CS_d,
     CS_pxa,
-    CS_vfd,
+    CS_vf,
+    D_FIX_DEPLOYED,
     PXA_ATTACKS_OBSERVED,
     PXA_EXPLOIT_PUBLIC,
     PXA_PUBLIC_AWARE,
-    VFD_FIX_DEPLOYED,
-    VFD_FIX_READY,
-    VFD_VENDOR_AWARE,
+    VF_FIX_READY,
+    VF_VENDOR_AWARE,
+    is_d_fix_deployed,
     is_pxa_attacks_observed,
     is_pxa_exploit_public,
     is_pxa_public_aware,
-    is_vfd_fix_deployed,
-    is_vfd_fix_ready,
-    is_vfd_vendor_aware,
+    is_vf_fix_ready,
+    is_vf_vendor_aware,
 )
 from vultron.core.states.em import (
     EM,
@@ -61,60 +62,54 @@ class TestRmValidated:
 
 
 # ---------------------------------------------------------------------------
-# vfd milestone groups and predicates
+# vf milestone groups and predicates
 # ---------------------------------------------------------------------------
 
 
-class TestVfdVendorAware:
+class TestVfVendorAware:
     def test_tuple_contents(self):
-        assert isinstance(VFD_VENDOR_AWARE, tuple)
-        assert set(VFD_VENDOR_AWARE) == {CS_vfd.Vfd, CS_vfd.VFd, CS_vfd.VFD}
+        assert isinstance(VF_VENDOR_AWARE, tuple)
+        assert set(VF_VENDOR_AWARE) == {CS_vf.Vf, CS_vf.VF}
 
-    @pytest.mark.parametrize("state", [CS_vfd.Vfd, CS_vfd.VFd, CS_vfd.VFD])
+    @pytest.mark.parametrize("state", [CS_vf.Vf, CS_vf.VF])
     def test_true(self, state):
-        assert is_vfd_vendor_aware(state) is True
+        assert is_vf_vendor_aware(state) is True
 
-    def test_false_vfd(self):
-        assert is_vfd_vendor_aware(CS_vfd.vfd) is False
+    def test_false_vf(self):
+        assert is_vf_vendor_aware(CS_vf.vf) is False
 
 
-class TestVfdFixReady:
+class TestVfFixReady:
     def test_tuple_contents(self):
-        assert isinstance(VFD_FIX_READY, tuple)
-        assert set(VFD_FIX_READY) == {CS_vfd.VFd, CS_vfd.VFD}
-
-    @pytest.mark.parametrize("state", [CS_vfd.VFd, CS_vfd.VFD])
-    def test_true(self, state):
-        assert is_vfd_fix_ready(state) is True
-
-    @pytest.mark.parametrize("state", [CS_vfd.vfd, CS_vfd.Vfd])
-    def test_false(self, state):
-        assert is_vfd_fix_ready(state) is False
-
-
-class TestVfdFixDeployed:
-    def test_tuple_contents(self):
-        assert isinstance(VFD_FIX_DEPLOYED, tuple)
-        assert set(VFD_FIX_DEPLOYED) == {CS_vfd.VFD}
+        assert isinstance(VF_FIX_READY, tuple)
+        assert set(VF_FIX_READY) == {CS_vf.VF}
 
     def test_true(self):
-        assert is_vfd_fix_deployed(CS_vfd.VFD) is True
+        assert is_vf_fix_ready(CS_vf.VF) is True
 
-    @pytest.mark.parametrize("state", [CS_vfd.vfd, CS_vfd.Vfd, CS_vfd.VFd])
+    @pytest.mark.parametrize("state", [CS_vf.vf, CS_vf.Vf])
     def test_false(self, state):
-        assert is_vfd_fix_deployed(state) is False
+        assert is_vf_fix_ready(state) is False
 
 
-class TestVfdMilestoneImplication:
-    """Fix deployed implies fix ready implies vendor aware."""
+class TestDFixDeployed:
+    def test_tuple_contents(self):
+        assert isinstance(D_FIX_DEPLOYED, tuple)
+        assert set(D_FIX_DEPLOYED) == {CS_d.D}
 
-    def test_deployed_implies_ready(self):
-        for s in VFD_FIX_DEPLOYED:
-            assert is_vfd_fix_ready(s)
+    def test_true(self):
+        assert is_d_fix_deployed(CS_d.D) is True
+
+    def test_false(self):
+        assert is_d_fix_deployed(CS_d.d) is False
+
+
+class TestVfMilestoneImplication:
+    """Fix ready implies vendor aware (VF dimension)."""
 
     def test_ready_implies_vendor_aware(self):
-        for s in VFD_FIX_READY:
-            assert is_vfd_vendor_aware(s)
+        for s in VF_FIX_READY:
+            assert is_vf_vendor_aware(s)
 
 
 # ---------------------------------------------------------------------------

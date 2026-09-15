@@ -222,9 +222,13 @@ rule requires.
   approval-recorded check ahead of the action
 - Neutral: pending decisions become visible to all case participants. This is
   intended, but it constrains what an ask may carry
-- Bad: the emit path must be consolidated first. `outbox_append` is called from
-  roughly twenty modules and at least four private `_emit` helpers exist, so
-  there is no single place in which registration can be made structural
+- Bad (partially resolved): the emit path required consolidation before
+  registration could be made structural. `_EmitSingleActivityBase._emit_through_seam()`
+  now provides the single insertion point (ASK-04-008 / #2881); four private
+  `_emit` helpers were migrated and an architecture ratchet guards the seam.
+  Sixteen legacy nodes still call `outbox_append` directly in their `update()`
+  methods and are enumerated in the ratchet's `KNOWN_VIOLATIONS` set for
+  follow-on migration
 - Bad: expiry is not prompt until a Sentinel is wired; until then an expired ask
   is noticed only when something next enters the tree or the reap trigger is
   called

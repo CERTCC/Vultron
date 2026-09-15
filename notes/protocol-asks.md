@@ -12,6 +12,7 @@ related_specs:
   - specs/received-status-handling.yaml
 related_notes:
   - notes/bt-integration.md
+  - notes/bt-pitfalls.md
   - notes/event-driven-control-flow.md
   - notes/received-status-authorization.md
   - notes/case-communication-model.md
@@ -43,13 +44,37 @@ the evidence is unambiguous:
   logs `ERROR` and returns `FAILURE`.
 - `finally: bt.shutdown()` discards the tree at the end of every invocation, so
   there is no instance to resume.
-- `grep -r "return Status.RUNNING" vultron/` returns **nothing**. EDF-04-002
+- No py_trees node in `vultron/` returns `Status.RUNNING`. EDF-04-002
   used to require `RUNNING` while awaiting input; it had zero implementations,
   and any node that had complied would have busy-looped and then failed.
 
 So the design that looked blocked on a missing framework feature was never on
 that path. Dividing the work at the question — asking is one behavior, acting on
 the answer is another — needs no suspension at all.
+
+### The invariant is enforced, not just observed (BT-18-011)
+
+The "nothing returns `RUNNING`" claim above is now a ratcheted invariant, not a
+lucky grep result — the original `grep -r "return Status.RUNNING"` missed a form
+like `return random.choice((Status.SUCCESS, Status.RUNNING))`, which two demo
+call-out nodes used until #3194 made them synchronous. Two complementary
+mechanisms hold the line (BT-18-011):
+
+- **Runtime guard at the call-out seam.** A call-out backend is injected from
+  *outside* the repo (`CallOutBackendFactory`, BT-23-004), so a static scan
+  cannot see it. `SynchronousCallOut`
+  (`vultron/core/behaviors/call_out/guard.py`) is a name-transparent py_trees
+  decorator that ticks its child and, on a `RUNNING` return, raises
+  `CallOutContractError` — a plain `RuntimeError`, **not** a `VultronError`, so
+  `BTBridge` classifies it as `internal_error=True` (a wiring bug) rather than a
+  protocol `FAILURE`. It is applied uniformly in `CallOutBundle.__post_init__`
+  (`bundles/base.py`), so every factory a bundle hands out is guarded with no
+  change at the ~15 tree-builder call sites. Unwrap with `unwrap_call_out()`.
+- **Static ratchet for in-repo nodes.** `test/architecture/test_no_running_status.py`
+  fails if any node under `vultron/` returns the py_trees `Status.RUNNING`. It
+  keys on the enum name `Status`, so the legacy simulator's `NodeStatus.RUNNING`
+  (`vultron/bt/`, a different engine with a continuous-tick model where RUNNING
+  is legitimate) is correctly out of scope.
 
 ## Conversation-state routing
 
@@ -254,26 +279,29 @@ fault is protocol history; the *diagnosis* is not.
 
 ## Pitfalls
 
-**There is no general shared emit path yet.** `outbox_append` is called from
-roughly twenty modules, and at least four private emit helpers exist
-independently:
+**A single shared emit seam now exists.** `_EmitSingleActivityBase._emit_through_seam()`
+(in `behaviors/helpers.py`) is the one place all BT node outbox writes go through
+(implemented by #2881). The four previously independent private helpers have been
+replaced by `_call_factory()` / `_on_success()` overrides on `_EmitSingleActivityBase`
+subclasses:
 
 ```text
-case/nodes/actor.py:142                        _emit()
-case/nodes/accept_invite.py:141                _emit_activity()
-case/nodes/delegation.py:213                   _emit()
-case/nodes/suggest_actor/accept_offer.py:53    _emit()
+case/nodes/actor.py                        EmitInviteActorToCaseNode._call_factory()
+case/nodes/accept_invite.py                EmitAddCaseParticipantNode._call_factory()
+case/nodes/delegation.py                   EmitRejectCaseParticipantRoleNode._call_factory()
+case/nodes/suggest_actor/accept_offer.py   EmitAcceptCaseParticipantOfferNode._call_factory()
 ```
 
 `_FaultMixin.emit_processing_fault()` (added in #2989) covers the
-`Create(ProcessingFault)` NACK path specifically, but the general problem —
-consolidating all activity emissions through a single point — remains open.
-Registration that each call site must remember to perform will be forgotten
-(ASK-04-008), so a general shared path is still a prerequisite for the
-CONCERN-2657 correlation work. It **cannot** live in the AS2 factory:
-factories are wire-layer, have no DataLayer, and wire must not import core. It
-belongs on the core side, alongside the shared BT node base classes in
-`behaviors/helpers.py`.
+`Create(ProcessingFault)` NACK path specifically; it does NOT go through
+`_emit_through_seam()` (it uses a separate outbox path).
+
+The shared seam is the prerequisite for ASK-04-008 (correlation hook) and
+OX-14-001 (dead-letter link) from CONCERN-2657. Those hooks belong in
+`_emit_through_seam()` — the seam is the single place to add them.
+
+Architecture ratchet `test/architecture/test_no_direct_outbox_append_in_bt_node_update.py`
+prevents future direct `outbox_append` in BT node `update()` methods.
 
 **Delivery receipt is not agreement.** "Your message arrived" and "I agree to
 what your message said" are different layers and must not be conflated.

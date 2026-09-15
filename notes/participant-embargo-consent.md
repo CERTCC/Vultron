@@ -360,10 +360,11 @@ guarantees safety, not identical arithmetic.
 
 CS-13-001 through CS-13-005 already govern all datetime handling (tz-aware,
 UTC, `now_utc()`, `days_from_now_utc(n)`, RFC 3339 with explicit offset on the
-wire). CS-13-001 covers datetimes the application *produces*; an inbound
-`Invite.end_time` comes from a remote peer and may carry a non-UTC offset, so
-CM-28-006 requires normalising it to UTC before comparison and rejecting a naive
-value rather than assuming UTC.
+wire). CS-13-001 covers
+datetimes the application *produces*; an inbound `Invite.end_time` comes from a
+remote peer and may carry a non-UTC offset, so CM-28-006 requires normalising it
+to UTC before comparison. ADR-0032's `validate_datetime` normalises naive values
+to UTC at the wire edge (rather than rejecting them in the extractor).
 
 ---
 

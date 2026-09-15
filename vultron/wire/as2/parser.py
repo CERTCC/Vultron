@@ -17,6 +17,7 @@ from vultron.wire.as2.vocab.objects.vulnerability_case import (
     VulnerabilityCaseStub,
 )
 from vultron.wire.as2.errors import (
+    VultronParseMissingPublishedError,
     VultronParseMissingTypeError,
     VultronParseUnknownTypeError,
     VultronParseValidationError,
@@ -107,6 +108,7 @@ def parse_activity(body: dict[str, Any]) -> as_Activity:
 
     Raises:
         VultronParseMissingTypeError: If the `type` field is absent.
+        VultronParseMissingPublishedError: If the `published` field is absent.
         VultronParseUnknownTypeError: If the `type` value is not in the vocabulary.
         VultronParseValidationError: If Pydantic validation fails.
     """
@@ -128,6 +130,27 @@ def parse_activity(body: dict[str, Any]) -> as_Activity:
     if not issubclass(cls, as_Activity):
         raise VultronParseUnknownTypeError(
             f"Type {type_!r} is not an activity type."
+        )
+
+    # Ordered after type resolution — "is this a type we recognise" is a
+    # routing question and answering it first keeps the existing error
+    # precedence — but before ``model_validate``, because ``as_Base`` declares
+    # ``published`` with ``default_factory=now_utc``.  Once validation runs, an
+    # absent timestamp is indistinguishable from a sender-supplied one, and the
+    # value is the *receiver's* clock.  Downstream that fabricated value is read
+    # as the sender's claim, which is what made CLP-14-007 and CLP-14-008
+    # compare the receiver's clock against itself (ISSUE-3149).  Absence is a
+    # message-validity failure, not something to correct downstream
+    # (ADR-0032: validate at the edge).
+    #
+    # Scoped to the top-level activity: nested objects legitimately omit
+    # ``published`` and may be bare ID strings.
+    if not body.get("published"):
+        raise VultronParseMissingPublishedError(
+            f"Missing 'published' field on {type_!r} activity. An activity "
+            "must carry the time its sender claims the event occurred; "
+            "without it the receiver cannot tell a claimed time from its own "
+            "clock (CLP-15-004)."
         )
 
     try:

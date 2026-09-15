@@ -153,7 +153,7 @@ KNOWN_ALLOWLIST: frozenset[tuple[str, str]] = frozenset(
         (_CPR, "_SeedVendorOwnerSignatoryNode.update"),
         (_CPR, "_SeedReporterSignatoryNode._resolve_participant"),
         # R3 — optional addressing / stub enrichment; factory tolerates None.
-        (f"{_NODES}/actor.py", "EmitInviteActorToCaseNode._emit"),
+        (f"{_NODES}/actor.py", "EmitInviteActorToCaseNode._call_factory"),
         (
             f"{_NODES}/communication.py",
             "CollectCaseAddresseesNode.update",
@@ -165,6 +165,16 @@ KNOWN_ALLOWLIST: frozenset[tuple[str, str]] = frozenset(
         (
             f"{_NODES}/ownership_transfer.py",
             "EmitAcceptCaseOwnershipTransferNode._call_factory",
+        ),
+        # R3 — the genesis ``create_case`` entry is committed alongside case
+        # creation, so the case is not readable yet on that one commit. Absence
+        # is expected and MUST NOT fail: it only means the CLP-14-006
+        # claimed-timestamp check has no parent timestamp to compare against and
+        # is skipped, while every other check still applies. ``_require_case``
+        # would turn the genesis commit into a FAILURE (ISSUE-2824).
+        (
+            "vultron/core/behaviors/sync/nodes/chain.py",
+            "CreateLogEntryNode.update",
         ),
         # R3 — condition testing "already a participant"; absent => FAILURE.
         (

@@ -59,6 +59,7 @@ from dataclasses import dataclass, field
 
 import py_trees
 
+from vultron.core.behaviors.call_out.bundles.base import CallOutBundle
 from vultron.core.behaviors.call_out.nodes import (
     AlwaysSucceed,
     RequireCaseOwnerApprovalNode,
@@ -75,7 +76,7 @@ def _require_case_owner_approval(name: str) -> py_trees.behaviour.Behaviour:
 
 
 @dataclass(frozen=True)
-class StatusAuthorizationCallOutBundle:
+class StatusAuthorizationCallOutBundle(CallOutBundle):
     """Call-out backend bundle for the received-side status authorization domain.
 
     Fields map to the two authorization gates of ADR-0046:

@@ -263,6 +263,27 @@ class BtNodePreconditionError(VultronError):
     """
 
 
+class VultronStatusAssertionRefusedError(VultronError):
+    """Raised when a receive-path BT wholly refuses a status assertion.
+
+    Raised by :class:`~vultron.core.use_cases.received.status\
+.AddParticipantStatusToParticipantReceivedUseCase` when
+    ``AddParticipantStatusBT`` returns ``FAILURE`` (i.e.
+    ``FilterParticipantStatusDimensionsNode`` refused every dimension and
+    produced a filtered status indistinguishable from the participant's current
+    state).  The inbox ``DispatchNode`` catches this exception and writes
+    ``"rejected"`` to ``KEY_OUTCOME_STATUS``, surfacing the total refusal as a
+    ``rejected`` ``InboxOutcome`` rather than the silent ``202 Accepted /
+    processed`` response that previously made total refusals invisible to
+    senders.  Extends ISSUE-2255 (sender-feedback diagnostics).
+
+    Callers that need to distinguish total-refusal from a partial-accept (where
+    the BT succeeds with some dimensions filtered) can inspect the
+    ``InboxOutcome.status`` field: ``"rejected"`` means wholly refused,
+    ``"processed"`` means at least one dimension was accepted.
+    """
+
+
 class DemoFailureError(VultronError):
     """Raised when a demo scenario completes with one or more step failures.
 

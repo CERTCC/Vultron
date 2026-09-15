@@ -6,7 +6,7 @@ Transfer if case ownership was not part of the original Vultron protocol, but it
 reasonable extension that could be useful in some cases, such as transferring a
 case
 
-- from a researcher to a vendor
+- from a Reporter to a vendor
 - from a vendor to an upstream vendor
 - from a vendor to a coordinator
 - from a coordinator to a vendor

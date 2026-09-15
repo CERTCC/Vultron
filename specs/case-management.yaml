@@ -3,7 +3,7 @@ title: Case Management
 description: Requirements for VulnerabilityCase lifecycle management, CaseActor responsibilities, and the RM/EM/CS/VFD state
   model. Covers actor isolation at the protocol level, the distinction between participant-specific and participant-agnostic
   state, case initialization sequencing, embargo acceptance ownership, and the invitation acceptance lifecycle.
-version: 1.3.0
+version: 1.4.0
 scope:
 - prototype
 - production
@@ -61,7 +61,9 @@ groups:
       actor itself participates in many cases and its existence is not scoped to any one of them.
       Flagged rather than rewritten: this whole group predates the role model and several entries read
       as obligations on a distinct component, which is the assumption that produced the phantom
-      per-case CaseActor identity. Worth a `decision-audit` pass over CM-02 as a group.
+      per-case CaseActor identity. ADR-0088 settles this: authority is the `CVDRole.CASE_MANAGER`
+      role, and "CaseActor" is role-enactment shorthand, not an identity (see CM-02-011 through
+      CM-02-013).
     verification: >-
       Inspection of `vultron/core/` confirms nothing revokes `CVDRole.CASE_MANAGER` from the holding
       participant before the case closes. Read per the note: what must persist is the role assignment
@@ -157,6 +159,70 @@ groups:
       spec_id: CM-01-001
     - rel_type: depends_on
       spec_id: CM-02-001
+    lint_suppress:
+    - missing_story_reference
+  - id: CM-02-011
+    priority: MUST
+    kind: architecture
+    statement: >-
+      An actor is the single-writer authority for a case if and only if it enacts
+      `CVDRole.CASE_MANAGER` in that case's participant roster (`CaseParticipant.case_roles`).
+      Authority MUST be determined from the role, never from hosting location or from the
+      actor's name or URL shape.
+    rationale: >-
+      Authority was determined several ways, some keyed off where an actor was hosted or the
+      shape of its URL rather than the role. The role is the only protocol-salient signal;
+      the `case-actor` name is a demo convenience.
+    verification: >-
+      Inspection of `vultron/core/` confirms every authority determination reads
+      `CaseParticipant.case_roles` via the single role-authority resolver (ARCH-24-001).
+    relationships:
+    - rel_type: refines
+      spec_id: CM-02-002
+    adr:
+    - ADR-0088
+    lint_suppress:
+    - missing_story_reference
+  - id: CM-02-012
+    priority: MUST
+    kind: architecture
+    statement: >-
+      The actor enacting `CVDRole.CASE_MANAGER` MUST recognize its own canonical ledger
+      entries as authoritative from replica-seed onward, including during the bootstrap window
+      before any co-located `Service` object carries the case `context`.
+    rationale: >-
+      The hosting-based check had a bootstrap window in which the real CaseActor failed its own
+      hosting test and would take the participant arm on its own ledger. Role membership is
+      stable from replica-seed onward and has no such window.
+    verification: >-
+      A regression test confirms the actor enacting `CVDRole.CASE_MANAGER` takes the authority
+      arm on its own ledger entry even before any `Service` object carries `context`.
+    relationships:
+    - rel_type: depends_on
+      spec_id: CM-02-011
+    adr:
+    - ADR-0088
+    lint_suppress:
+    - missing_story_reference
+  - id: CM-02-013
+    priority: MUST_NOT
+    kind: architecture
+    statement: >-
+      The `case-actor` name and any `.../actors/case-actor` URL MUST NOT be treated by any
+      protocol logic as evidence of authority, recognition, or routing; they are provisioning
+      conveniences with no protocol meaning.
+    rationale: >-
+      ADR-0041 gave the enacting actor a stable inbox URL, which stands as a provisioning fix.
+      ADR-0088 narrows that identity narrative: the stable URL is a convenience, and no protocol
+      logic may treat the `case-actor` name or URL shape as evidence of authority.
+    verification: >-
+      Ratchet ARCH-24-004 asserts no protocol-logic module branches on `is_case_actor_identity`
+      or the `case-actor` URL substring.
+    relationships:
+    - rel_type: refines
+      spec_id: CM-02-011
+    adr:
+    - ADR-0088
     lint_suppress:
     - missing_story_reference
 - id: CM-03
@@ -3244,26 +3310,31 @@ groups:
     statement: >-
       An inbound `Invite.end_time` MUST be normalised to UTC before any
       comparison against the current time, per CS-13-001. A naive (non
-      timezone-aware) `Invite.end_time` MUST be rejected as malformed rather
-      than assumed to be UTC.
+      timezone-aware) `Invite.end_time` MUST be normalised to UTC at the wire
+      edge per ADR-0032, so that downstream comparisons are always against
+      timezone-aware values.
     note: >-
       CS-13-001 governs datetimes the application *produces*; an inbound
       `end_time` is produced by a remote peer and may legitimately carry a
       non-UTC offset (e.g. `+05:00`). Normalising on receipt keeps deadline
-      comparison correct without requiring peers to send `Z`.
+      comparison correct without requiring peers to send `Z`. ADR-0032
+      (`validate_datetime` on `as_Object`) ensures all datetime fields —
+      including `end_time` — are UTC-aware before leaving the wire layer, so
+      naive values are never forwarded to the extractor or core.
     rationale: >-
       A deadline compared in the wrong timezone lapses at the wrong instant,
-      breaking the bilateral determinism CM-28-002 exists to provide. Silently
-      assuming UTC for a naive value would produce an off-by-hours lapse with no
-      diagnostic. See CS-13-001 through CS-13-005 and ADR-0065.
-    verification: A unit test confirms that an inbound `Invite.end_time` with a non-UTC timezone
-      offset is normalised to UTC before deadline comparison, and that a naive
-      (timezone-unaware) value is rejected as malformed.
+      breaking the bilateral determinism CM-28-002 exists to provide. ADR-0032's
+      edge normalisation (naive → UTC) prevents this without per-field guarding
+      in the extractor. See CS-13-001 through CS-13-005 and ADR-0065.
+    verification: A unit test confirms that a naive `Invite.end_time` is normalised to UTC
+      by `validate_datetime` at the wire edge and produces a valid
+      `rsvp_deadline` (not rejected or dropped).
     relationships:
     - rel_type: refines
       spec_id: CS-13-001
     adr:
     - ADR-0065
+    - ADR-0032
     lint_suppress:
     - missing_story_reference
   - id: CM-28-007

@@ -37,7 +37,10 @@ from py_trees.common import Status
 from vultron.core.behaviors.case.nodes.participant.status import (
     CreateParticipantStatusNode,
 )
-from vultron.core.behaviors.helpers import DataLayerActionWithPorts
+from vultron.core.behaviors.helpers import (
+    DataLayerActionWithPorts,
+    _EmitSingleActivityBase,
+)
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.participant_status import (
     participant_status_rm_state,
@@ -69,9 +72,21 @@ class AdvanceParticipantToRMClosedNode(DataLayerActionWithPorts):
         case_id: str,
         name: str | None = None,
     ) -> None:
-        super().__init__(name=name or self.__class__.__name__)
+        _name = name or self.__class__.__name__
+        super().__init__(name=_name)
         self._leaving_actor_id = leaving_actor_id
         self._case_id = case_id
+        # Pre-build status node (BTND-10-004: no construction in update()).
+        # Sanctioned override (CM-23-012, resolving #3106): force_rm_state=True.
+        self._status_node = CreateParticipantStatusNode(
+            actor_id=leaving_actor_id,
+            rm_state=RM.CLOSED,
+            vf_state=None,
+            d_state=None,
+            pxa_state=None,
+            name=f"{_name}.CreateParticipantStatus",
+            force_rm_state=True,
+        )
 
     def update(self) -> Status:
         if (f := self._require_datalayer()) is not None:
@@ -114,27 +129,17 @@ class AdvanceParticipantToRMClosedNode(DataLayerActionWithPorts):
                 )
                 return Status.SUCCESS
 
-        result_out: dict = {}
-        node = CreateParticipantStatusNode(
+        from vultron.core.behaviors.bridge import BTBridge
+
+        # Use the DataLayer's own actor_id so BTBridge doesn't clone an empty
+        # store for _leaving_actor_id. The write is attributed to the leaving
+        # actor via _status_node._actor_id set in __init__ (ADR-0089).
+        bt_result = BTBridge(datalayer=self.datalayer).execute_with_setup(
+            tree=self._status_node,
+            actor_id=self.datalayer.actor_id,
             case_id=self._case_id,
-            actor_id=self._leaving_actor_id,
-            rm_state=RM.CLOSED,
-            vf_state=None,
-            d_state=None,
-            pxa_state=None,
-            result_out=result_out,
-            name=f"{self.name}.CreateParticipantStatus",
-            # Sanctioned override (CM-23-012, resolving #3106): a Leave is the
-            # leaving actor's own self-declaratory closure act (ADR-0084), so
-            # advancing *that actor* to RM.CLOSED regardless of its current rung
-            # is legitimate self-declaration; the RM adjacency rule is
-            # suppressed only for this single-actor write.  See `force_rm_state`.
-            force_rm_state=True,
         )
-        node.datalayer = self.datalayer
-        node.actor_id = self._leaving_actor_id
-        result = node.update()
-        if result != Status.SUCCESS:
+        if bt_result.status != Status.SUCCESS:
             self.logger.warning(
                 "%s: failed to create RM.CLOSED ParticipantStatus for"
                 " actor '%s' in case '%s'",
@@ -174,9 +179,21 @@ class AdvanceCaseActorToRMClosedNode(DataLayerActionWithPorts):
         case_id: str,
         name: str | None = None,
     ) -> None:
-        super().__init__(name=name or self.__class__.__name__)
+        _name = name or self.__class__.__name__
+        super().__init__(name=_name)
         self._case_actor_id = case_actor_id
         self._case_id = case_id
+        # Pre-build status node (BTND-10-004: no construction in update()).
+        # Sanctioned override (CM-23-012, resolving #3106): force_rm_state=True.
+        self._status_node = CreateParticipantStatusNode(
+            actor_id=case_actor_id,
+            rm_state=RM.CLOSED,
+            vf_state=None,
+            d_state=None,
+            pxa_state=None,
+            name=f"{_name}.CreateParticipantStatus",
+            force_rm_state=True,
+        )
 
     def update(self) -> Status:
         if (f := self._require_datalayer()) is not None:
@@ -217,28 +234,17 @@ class AdvanceCaseActorToRMClosedNode(DataLayerActionWithPorts):
                 )
                 return Status.SUCCESS
 
-        result_out: dict = {}
-        node = CreateParticipantStatusNode(
+        from vultron.core.behaviors.bridge import BTBridge
+
+        # Use the DataLayer's own actor_id so BTBridge doesn't clone an empty
+        # store for _case_actor_id. The write is attributed to the case actor
+        # via _status_node._actor_id set in __init__ (ADR-0089).
+        bt_result = BTBridge(datalayer=self.datalayer).execute_with_setup(
+            tree=self._status_node,
+            actor_id=self.datalayer.actor_id,
             case_id=self._case_id,
-            actor_id=self._case_actor_id,
-            rm_state=RM.CLOSED,
-            vf_state=None,
-            d_state=None,
-            pxa_state=None,
-            result_out=result_out,
-            name=f"{self.name}.CreateParticipantStatus",
-            # Sanctioned override (CM-23-012, resolving #3106): on owner Leave
-            # the *case actor* closes its own RM lifecycle (ADR-0051) as the
-            # penultimate step before case_fully_closed.  Advancing this single
-            # actor to RM.CLOSED regardless of rung is legitimate; the RM
-            # adjacency rule is suppressed only for this write.  Bystander
-            # participants are never advanced here.  See `force_rm_state`.
-            force_rm_state=True,
         )
-        node.datalayer = self.datalayer
-        node.actor_id = self._case_actor_id
-        result = node.update()
-        if result != Status.SUCCESS:
+        if bt_result.status != Status.SUCCESS:
             self.logger.warning(
                 "%s: failed to create RM.CLOSED ParticipantStatus for"
                 " case actor '%s' in case '%s'",
@@ -256,3 +262,49 @@ class AdvanceCaseActorToRMClosedNode(DataLayerActionWithPorts):
             self._case_id,
         )
         return Status.SUCCESS
+
+
+class EmitRejectCloseCaseNode(_EmitSingleActivityBase):
+    """Emit a ``Reject(Leave(VulnerabilityCase))`` declining an owner close.
+
+    Per CM-23-011, when the Case Owner sends ``Leave(VulnerabilityCase)`` while
+    the case still holds an active embargo, the Case Actor declines the closure
+    with an ``as:Reject`` ("received and understood but declined", MSM-05-001)
+    instead of running the CM-23-002 closure sequence.  The decline is sent
+    back to the owner (``close_sender_id``) and threaded to the received Leave
+    via ``in_reply_to``.
+
+    Subclasses :class:`_EmitSingleActivityBase`; only ``_call_factory`` is
+    overridden (BTND-07-005, BTND-07-009).
+    """
+
+    def __init__(
+        self,
+        case_id: str,
+        close_sender_id: str,
+        close_activity_id: str | None = None,
+        captured: dict | None = None,
+        name: str | None = None,
+    ) -> None:
+        super().__init__(captured=captured, name=name)
+        self._case_id = case_id
+        self._close_sender_id = close_sender_id
+        self._close_activity_id = close_activity_id
+
+    def _call_factory(self) -> tuple[str, str]:
+        assert self.trigger_activity_factory is not None
+        assert self.actor_id is not None
+        return self.trigger_activity_factory.reject_close_case(
+            case_id=self._case_id,
+            actor=self.actor_id,
+            close_sender=self._close_sender_id,
+            in_reply_to=self._close_activity_id,
+        )
+
+    def _on_success(self, activity_id: str, activity_blob: str) -> None:
+        self.logger.info(
+            "Case actor '%s' declined owner close of case '%s' via as:Reject"
+            " — active embargo (CM-23-011)",
+            self.actor_id,
+            self._case_id,
+        )

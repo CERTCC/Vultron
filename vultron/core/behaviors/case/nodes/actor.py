@@ -44,7 +44,10 @@ from py_trees.common import Status
 from py_trees.ports import BehaviourWithPorts, NoDataAvailable, PortInformation
 
 from vultron.core.behaviors.bridge import BTBridge
-from vultron.core.behaviors.helpers import DataLayerActionWithPorts
+from vultron.core.behaviors.helpers import (
+    DataLayerActionWithPorts,
+    _EmitSingleActivityBase,
+)
 from vultron.core.behaviors.case.nodes.invite_response import (  # noqa: F401
     EmitAcceptCaseInviteNode,
     EmitRejectCaseInviteNode,
@@ -60,7 +63,7 @@ from vultron.core.ports.case_persistence import CaseOutboxPersistence
 from vultron.enums.roles import CVDRole, serialize_roles
 
 
-class EmitInviteActorToCaseNode(DataLayerActionWithPorts):
+class EmitInviteActorToCaseNode(_EmitSingleActivityBase):
     """Create Invite(Actor, Case) and queue in the Case Actor's outbox.
 
     Uses ``trigger_activity_factory.invite_actor_to_case()`` with
@@ -100,12 +103,11 @@ class EmitInviteActorToCaseNode(DataLayerActionWithPorts):
         roles: list[str] | None = None,
         name: str | None = None,
     ) -> None:
-        super().__init__(name=name or self.__class__.__name__)
+        super().__init__(captured=captured, name=name)
         self.invitee_id = invitee_id
         self.case_id = case_id
         self.case_actor_id = case_actor_id
         self.attributed_to = attributed_to
-        self._captured = captured
         self._injected_roles = roles
         self._suggested_roles_bb = None
 
@@ -139,8 +141,8 @@ class EmitInviteActorToCaseNode(DataLayerActionWithPorts):
             return serialize_roles(roles)
         return None
 
-    def _emit(self, factory: Any) -> tuple[str, dict[str, Any]]:
-        """Build the Invite activity and commit the ledger correlation marker."""
+    def _call_factory(self) -> tuple[str, str]:
+        """Build Invite(Actor, Case) activity and commit the ledger correlation marker."""
         cc = [self.case_actor_id] if self.case_actor_id else None
         roles = self._read_suggested_roles()
         if roles is not None and not roles:
@@ -151,6 +153,7 @@ class EmitInviteActorToCaseNode(DataLayerActionWithPorts):
         # CM-17-002: pass the full case object so the adapter+factory can
         # project it to an enriched stub (with end_time) when em_state==ACTIVE.
         assert self.datalayer is not None and self.actor_id is not None
+        assert self.trigger_activity_factory is not None
         # Regime 3 (ADR-0087): the case is *optional enrichment* here, not
         # coordination state — the Invite is fully specified by invitee/case_id/
         # actor/roles, and the factory tolerates target=None (CM-17-002 only
@@ -158,15 +161,17 @@ class EmitInviteActorToCaseNode(DataLayerActionWithPorts):
         # missing local case therefore emits a bare stub rather than failing;
         # this read is deliberately unguarded (conformance allowlist).
         case = self.datalayer.read_case(self.case_id)
-        activity_id, activity_blob = factory.invite_actor_to_case(
-            invitee_id=self.invitee_id,
-            case_id=self.case_id,
-            actor=self.actor_id,
-            to=[self.invitee_id],
-            cc=cc,
-            attributed_to=self.attributed_to,
-            roles=roles,
-            target=case,
+        activity_id, activity_blob = (
+            self.trigger_activity_factory.invite_actor_to_case(
+                invitee_id=self.invitee_id,
+                case_id=self.case_id,
+                actor=self.actor_id,
+                to=[self.invitee_id],
+                cc=cc,
+                attributed_to=self.attributed_to,
+                roles=roles,
+                target=case,
+            )
         )
         activity_dict: dict = (
             json.loads(activity_blob) if activity_blob else {}
@@ -191,35 +196,15 @@ class EmitInviteActorToCaseNode(DataLayerActionWithPorts):
                 f"ledger commit failed for"
                 f" invite_actor_to_case/{self.invitee_id}"
             )
-        return activity_id, activity_dict
+        return activity_id, activity_blob
 
-    def update(self) -> Status:
-        if (f := self._require_datalayer_and_actor()) is not None:
-            return f
-        if (f := self._require_factory()) is not None:
-            self.logger.error(self.feedback_message)
-            return f
-
-        try:
-            activity_id, activity_dict = self._emit(
-                self.trigger_activity_factory
-            )
-            cast(CaseOutboxPersistence, self.datalayer).outbox_append(
-                activity_id
-            )
-            if self._captured is not None:
-                self._captured["activity"] = activity_dict
-            self.logger.info(
-                "Actor '%s' emitted Invite(Actor, Case) to '%s' for case '%s'",
-                self.actor_id,
-                self.invitee_id,
-                self.case_id,
-            )
-            return Status.SUCCESS
-        except Exception as e:
-            self.feedback_message = f"EmitInviteActorToCase failed: {e}"
-            self.logger.error(self.feedback_message)
-            return Status.FAILURE
+    def _on_success(self, activity_id: str, activity_blob: str) -> None:
+        self.logger.info(
+            "Actor '%s' emitted Invite(Actor, Case) to '%s' for case '%s'",
+            self.actor_id,
+            self.invitee_id,
+            self.case_id,
+        )
 
 
 class ProposeCaseToActorNode(DataLayerActionWithPorts):

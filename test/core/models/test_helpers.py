@@ -157,6 +157,138 @@ def test_status_recency_key_normalises_naive_to_utc():
     assert key > status_recency_key(None, None)
 
 
+# --- as_utc ---------------------------------------------------------------
+
+
+def test_as_utc_with_none_returns_none():
+    from vultron.core.models._helpers import as_utc
+
+    assert as_utc(None) is None
+
+
+def test_as_utc_with_naive_datetime_returns_utc_aware():
+    from datetime import datetime, timezone
+
+    from vultron.core.models._helpers import as_utc
+
+    naive = datetime(2026, 1, 1, 12, 0, 0)
+    result = as_utc(naive)
+    assert result is not None
+    assert result.tzinfo is timezone.utc
+
+
+def test_as_utc_with_aware_datetime_returns_same():
+    from datetime import datetime, timezone
+
+    from vultron.core.models._helpers import as_utc
+
+    aware = datetime(2026, 1, 1, 12, 0, 0, tzinfo=timezone.utc)
+    result = as_utc(aware)
+    assert result is not None
+    assert result == aware
+
+
+def test_as_utc_with_datetime_never_returns_none():
+    """as_utc(datetime) MUST NOT return None — parse_published relies on this invariant."""
+    from datetime import datetime, timezone
+
+    from vultron.core.models._helpers import as_utc
+
+    naive = datetime(2026, 6, 15)
+    aware = datetime(2026, 6, 15, tzinfo=timezone.utc)
+    assert as_utc(naive) is not None
+    assert as_utc(aware) is not None
+
+
+# --- parse_published -------------------------------------------------------
+
+
+def test_parse_published_with_none_returns_none():
+    from vultron.core.models._helpers import parse_published
+
+    assert parse_published(None) is None
+
+
+def test_parse_published_with_invalid_string_returns_none():
+    from vultron.core.models._helpers import parse_published
+
+    assert parse_published("not-a-date") is None
+
+
+def test_parse_published_with_non_string_non_datetime_returns_none():
+    from vultron.core.models._helpers import parse_published
+
+    assert parse_published(12345) is None
+    assert parse_published(3.14) is None
+    assert parse_published([]) is None
+
+
+def test_parse_published_with_datetime_never_returns_none():
+    """Regression for #3221: datetime input must not return None.
+
+    The dead ``None if aware is None else`` guard misled mypy into inferring
+    that ``parse_published`` could return ``None`` from a ``datetime`` input,
+    causing callers to over-guard.
+    """
+    from datetime import datetime, timezone
+
+    from vultron.core.models._helpers import parse_published
+
+    naive = datetime(2026, 6, 15, 12, 0, 0)
+    aware_utc = datetime(2026, 6, 15, 12, 0, 0, tzinfo=timezone.utc)
+    assert parse_published(naive) is not None
+    assert parse_published(aware_utc) is not None
+
+
+def test_parse_published_with_naive_datetime_returns_utc():
+    from datetime import datetime, timezone
+
+    from vultron.core.models._helpers import parse_published
+
+    naive = datetime(2026, 6, 15, 12, 0, 0)
+    result = parse_published(naive)
+    assert result is not None
+    assert result.tzinfo is timezone.utc
+    assert result.year == 2026
+    assert result.month == 6
+    assert result.day == 15
+
+
+def test_parse_published_with_aware_non_utc_converts_to_utc():
+    from datetime import datetime, timezone, timedelta
+
+    from vultron.core.models._helpers import parse_published
+
+    plus5 = timezone(timedelta(hours=5))
+    aware_plus5 = datetime(2026, 6, 15, 17, 0, 0, tzinfo=plus5)
+    result = parse_published(aware_plus5)
+    assert result is not None
+    assert result.tzinfo is timezone.utc
+    assert result.hour == 12  # 17:00+05:00 → 12:00 UTC
+
+
+def test_parse_published_with_valid_iso_string_returns_datetime():
+    from datetime import datetime, timezone
+
+    from vultron.core.models._helpers import parse_published
+
+    result = parse_published("2026-06-15T12:00:00+00:00")
+    assert result is not None
+    assert isinstance(result, datetime)
+    assert result.tzinfo is timezone.utc
+
+
+def test_parse_published_with_naive_iso_string_returns_utc():
+    from datetime import datetime, timezone
+
+    from vultron.core.models._helpers import parse_published
+
+    result = parse_published("2026-06-15T12:00:00")
+    assert result is not None
+    assert isinstance(result, datetime)
+    assert result.tzinfo is timezone.utc
+
+
 # --- has_case_statuses ----------------------------------------------------
 
 
@@ -191,3 +323,50 @@ def test_has_case_statuses_false_when_default():
 
     case = VulnerabilityCase(id_="https://example.org/cases/x3")
     assert has_case_statuses(case) is False
+
+
+# --- parse_published -------------------------------------------------------
+
+
+def test_parse_published_returns_utc_datetime_for_valid_datetime_input():
+    """parse_published(datetime) must return a UTC datetime, never None.
+
+    The dead ``None if aware is None else`` branch at line 78 caused type
+    checkers to infer that parse_published can return None for a datetime
+    input, prompting unnecessary None-guards in callers.  This test pins the
+    non-None contract for the datetime path (Bug #3221).
+    """
+    from datetime import datetime, timezone
+
+    from vultron.core.models._helpers import parse_published
+
+    dt = datetime(2026, 1, 15, 12, 0, 0, tzinfo=timezone.utc)
+    result = parse_published(dt)
+    assert result is not None
+    assert result.tzinfo == timezone.utc
+    assert result == dt
+
+
+def test_parse_published_returns_utc_datetime_for_valid_iso_string():
+    """parse_published(str) must return a UTC datetime for a valid ISO string."""
+    from datetime import datetime, timezone
+
+    from vultron.core.models._helpers import parse_published
+
+    result = parse_published("2026-01-15T12:00:00+05:30")
+    assert result is not None
+    assert result.tzinfo == timezone.utc
+    assert result == datetime(2026, 1, 15, 6, 30, 0, tzinfo=timezone.utc)
+
+
+def test_parse_published_returns_none_for_invalid_string():
+    from vultron.core.models._helpers import parse_published
+
+    assert parse_published("not-a-date") is None
+
+
+def test_parse_published_returns_none_for_non_datetime_type():
+    from vultron.core.models._helpers import parse_published
+
+    assert parse_published(42) is None
+    assert parse_published(None) is None

@@ -20,11 +20,9 @@ from typing import Any, ClassVar, TypeAlias, cast
 import isodate  # type: ignore[import-untyped]
 from pydantic import ConfigDict, field_serializer, field_validator, Field
 
+from vultron.core.models._helpers import as_utc, now_utc
 from vultron.core.models.base import CoreObject, VultronObject
 from vultron.wire.as2.vocab.base.base import as_Base
-from vultron.wire.as2.vocab.base.dt_utils import (
-    now_utc,
-)
 from vultron.wire.as2.vocab.base.links import (
     ActivityStreamRef,
     ActivityStreamRequiredRef,
@@ -123,9 +121,9 @@ class as_Object(as_Base, VultronObject):
         if value is None:
             return value
         if isinstance(value, datetime):
-            return value
+            return as_utc(value)
         if isinstance(value, str):
-            return datetime.fromisoformat(value)
+            return as_utc(datetime.fromisoformat(value))
         raise TypeError(f"Unsupported datetime value: {value!r}")
 
 

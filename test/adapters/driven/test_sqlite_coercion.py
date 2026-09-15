@@ -208,6 +208,8 @@ class TestCoerceToSemanticClass:
                     "type": "Accept",
                     "id": "urn:uuid:accept-invite-roundtrip-1",
                     "actor": "https://example.org/actors/coordinator",
+                    # Required on every inbound activity (ISSUE-3149).
+                    "published": "2026-03-04T05:06:07+00:00",
                     "inReplyTo": "urn:uuid:invite-roundtrip-1",
                     "object": {
                         "type": "Invite",

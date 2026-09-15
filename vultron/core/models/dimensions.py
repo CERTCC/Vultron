@@ -31,7 +31,6 @@ from vultron.core.states.cs import (
     CS_d,
     CS_pxa,
     CS_vf,
-    CS_vfd,
     D_FIX_DEPLOYED,
     D_Trigger,
     PXA_ATTACKS_OBSERVED,
@@ -41,16 +40,10 @@ from vultron.core.states.cs import (
     VF_FIX_READY,
     VF_Trigger,
     VF_VENDOR_AWARE,
-    VFD_FIX_DEPLOYED,
-    VFD_FIX_READY,
-    VFD_VENDOR_AWARE,
-    VfdState,
     PXA_Trigger,
-    VFD_Trigger,
     _d_transitions,
     _pxa_transitions,
     _vf_transitions,
-    _vfd_transitions,
 )
 from vultron.core.states.em import (
     EM,
@@ -103,19 +96,6 @@ def _coerce_pxa(v: object) -> CS_pxa:
     if isinstance(v, (list, tuple)) and len(v) == 3:
         return CS_pxa(PxaState(*v))
     raise ValueError(f"Cannot coerce {v!r} to CS_pxa")
-
-
-def _coerce_vfd(v: object) -> CS_vfd:
-    if isinstance(v, CS_vfd):
-        return v
-    if isinstance(v, str):
-        try:
-            return CS_vfd[v]
-        except KeyError:
-            raise ValueError(f"Unknown CS_vfd value: {v!r}") from None
-    if isinstance(v, (list, tuple)) and len(v) == 3:
-        return CS_vfd(VfdState(*v))
-    raise ValueError(f"Cannot coerce {v!r} to CS_vfd")
 
 
 def _coerce_vf(v: object) -> CS_vf:
@@ -288,51 +268,11 @@ class RmDimension(ValidatedAssignmentMixin, BaseModel):
         return self.state == RM.CLOSED
 
 
-class VfdDimension(ValidatedAssignmentMixin, BaseModel):
-    """VFD (vendor/fix/deploy) vendor fix path dimension object.
-
-    Holds the per-participant vendor fix path state and owns immutable
-    transition validation.  Replaces ParticipantStatus.vfd_state
-    (SDO-01-001, SDO-03-002).
-    """
-
-    state: CS_vfd = CS_vfd.vfd
-
-    @field_validator("state", mode="before")
-    @classmethod
-    def validate_state(cls, v: object) -> CS_vfd:
-        return _coerce_vfd(v)
-
-    @field_serializer("state")
-    def serialize_state(self, v: CS_vfd) -> str:
-        return v.name
-
-    def transition(self, trigger: VFD_Trigger) -> "VfdDimension":
-        """Return a new VfdDimension with the state after applying *trigger*.
-
-        Raises VultronInvalidStateTransitionError on invalid trigger.
-        """
-        new_state = _apply_transition(
-            self.state, trigger, _vfd_transitions, "VfdDimension"
-        )
-        return self.model_copy(update={"state": CS_vfd(new_state)})
-
-    def is_vendor_aware(self) -> bool:
-        return self.state in VFD_VENDOR_AWARE
-
-    def is_fix_ready(self) -> bool:
-        return self.state in VFD_FIX_READY
-
-    def is_fix_deployed(self) -> bool:
-        return self.state in VFD_FIX_DEPLOYED
-
-
 class VfDimension(ValidatedAssignmentMixin, BaseModel):
     """Vendor-path (V+F) dimension object for per-participant ParticipantStatus.
 
     Holds vendor awareness + fix readiness in a 3-state monotone ladder
-    (vf → Vf → VF).  Replaces the V and F components of VfdDimension for
-    participants with VENDOR role (ADR-0075, SDO-01-003).
+    (vf → Vf → VF).  Introduced by ADR-0075 (SDO-01-003).
     """
 
     state: CS_vf = CS_vf.vf
@@ -367,7 +307,7 @@ class DDimension(ValidatedAssignmentMixin, BaseModel):
     """Deployer-path (D) dimension object for per-participant ParticipantStatus.
 
     Holds fix deployment state in a 2-state monotone ladder (d → D).
-    Replaces the D component of VfdDimension for participants with DEPLOYER
+    Represents the D component for participants with DEPLOYER
     role (ADR-0075, SDO-01-003).
     """
 

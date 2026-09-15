@@ -30,7 +30,7 @@ machines, and design notes.
 | **Participant** | Any Actor engaged in a Case, holding one or more CVD Roles | Stakeholder, party |
 | **Actor** | Any URI-identified federated peer (person or organization) in the protocol | Agent, endpoint |
 | **Case Owner** | The Actor who creates and administers a Case (typically the party seeking vulnerability coordination) | Case creator |
-| **Case Actor** | An auto-generated federated peer (ActivityStreams Service actor) created during case initialization; operates as the single-writer authority for the canonical case ledger and coordinates state across participants | Case service actor, case coordinator |
+| **Case Actor** | Shorthand for the entity *enacting* the `CVDRole.CASE_MANAGER` role on a case — typically an automated software actor spawned to hold that role and automate its duties (emitting activities, maintaining the canonical ledger). It is a **category (role enactment), not an identity anyone adopts**: authority, recognition, and routing derive from the **role**, never from the actor's name or URL. The label `case-actor` and any `.../actors/case-actor` URL are cosmetic demo/provisioning conveniences with no protocol meaning (ADR-0088, refining ADR-0041). | Case service actor, case coordinator, "the CaseActor identity" |
 | **Case Manager** | A `CVDRole.CASE_MANAGER` role that designates a **Participant** authorized to delegate case management responsibilities and co-manage embargo negotiations; often assigned via **Offer** → **Accept** handoff during case creation | Admin role, management role |
 | **CVE Numbering Authority (CNA)** | An organization authorized to directly assign CVE IDs; modeled as `CVDRole.CVE_NUMBERING_AUTHORITY`. A **Participant** holding this role may assign IDs directly rather than delegating to an external CNA service. | CVE authority |
 
@@ -501,9 +501,9 @@ fix not ready) are structurally impossible, per SM-09-002 and CSB-17-001.
 
 13. **"Case Owner" vs. "Case Actor" vs. "Case Manager" (role)**:
      - A **Case Owner** is a human **Participant** (e.g., Reporter) with a **CVDRole.CASE_OWNER** value; the decision-maker and administrator of the **Case**.
-     - A **Case Actor** is the auto-generated ActivityStreams Service actor created during case initialization; maintains the **canonical recorded log** and coordinates state across participants.
-     - **Case Manager** is a **CVDRole** value (not a role delegation; rather a role assignment) held by the service actor that manages case replica synchronization on behalf of the **Case Owner**; always held alongside **COORDINATOR**.
-     - **Recommendation**: Use "Case Owner" for the human decision-maker; "Case Actor" or "Case Manager actor" for the service peer; "CASE_MANAGER role" when discussing the role value. Avoid "case manager" as standalone unless context is clear.
+     - **Case Manager** (`CVDRole.CASE_MANAGER`) is the **role** that carries single-writer authority over the canonical case ledger. It is the *only* protocol-salient signal of authority: an actor is the authority for a case **iff** it enacts this role in the case roster.
+     - A **Case Actor** is *shorthand for whatever entity enacts `CASE_MANAGER`* on a case (typically a spawned software actor that automates the role's duties). It is a category, **not a distinct identity**. Its name/URL (`case-actor`) are cosmetic — never determine authority, recognition, or routing from them (ADR-0088).
+     - **Recommendation**: Use "Case Owner" for the human decision-maker; "the `CASE_MANAGER` role" for the authority; "Case Actor" only as informal shorthand for "the actor enacting `CASE_MANAGER`". Never treat "Case Actor" as an identity to match on, and never key logic on the `case-actor` name or URL shape.
 
 14. **"Participant Case Replica" vs. "Case State"**:
      - A **Participant Case Replica** is a local copy of case state on a participant's node; must be seeded via **Trust Bootstrap** and maintain **Eventual Consistency** with the **CaseActor**'s authoritative state.
@@ -669,7 +669,7 @@ fix not ready) are structurally impossible, per SM-09-002 and CSB-17-001.
 ## Metadata
 
 - **Source:** Vultron codebase, CERT/CC CVD research publications, architecture audit, formal protocol specification
-- **Last Updated:** 2026-08-27
+- **Last Updated:** 2026-09-14
 - **Domains:** Formal MPCVD protocol, CVD process models (RM/EM/CS), communicating state machines, hexagonal architecture, activity pattern matching, persistence abstraction, behavior tree orchestration, case actor federation, participant case replicas, trust bootstrap and delegation
 - **Related References:**
   - [A State-Based Model for Multi-Party Coordinated Vulnerability Disclosure](https://resources.sei.cmu.edu/library/asset-view.cfm?assetid=735513) (CMU/SEI-2021-SR-021)

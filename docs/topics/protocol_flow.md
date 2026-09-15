@@ -21,10 +21,18 @@ Each actor in Vultron has an **inbox** and an **outbox**.
 
 The actor takes one message from its inbox. It processes that message. If the result is that other actors must be told something, the actor puts new messages in its outbox. Delivery then moves each outbox message to the inbox of the actor it is addressed to.
 
-```text
-   ┌────────── Actor A ──────────┐          ┌────────── Actor B ──────────┐
-   │  inbox → process → outbox   │  ──────► │  inbox → process → outbox   │
-   └─────────────────────────────┘          └─────────────────────────────┘
+```mermaid
+---
+title: Two actors exchanging messages
+---
+flowchart LR
+    subgraph A["Actor A"]
+        a_in([inbox]) --> a_proc[process] --> a_out([outbox])
+    end
+    subgraph B["Actor B"]
+        b_in([inbox]) --> b_proc[process] --> b_out([outbox])
+    end
+    a_out -->|delivery| b_in
 ```
 
 This model has one important consequence. **An actor never reaches into another actor's state.** It can only send a message. The other actor decides what that message means and what to do about it. Every rule in the protocol follows from this limit.
@@ -53,12 +61,15 @@ A **cascade** is everything that follows automatically from a primary event. The
 
 For example, one primary event — a finder submits a report — causes this chain:
 
-```text
-finder submits report
-   └── vendor records the report
-         └── vendor opens a case
-               └── vendor adds the finder as a participant
-                     └── vendor tells the finder the case exists
+```mermaid
+---
+title: Cascade from a single primary event
+---
+flowchart TD
+    A[finder submits report] --> B[vendor records the report]
+    B --> C[vendor opens a case]
+    C --> D[vendor adds the finder as a participant]
+    D --> E[vendor tells the finder the case exists]
 ```
 
 Nobody instructs the vendor to open a case. The vendor does it because it received a report. This is the central design rule: **supply the primary event only, and let the protocol produce the consequences.**
@@ -82,10 +93,12 @@ The difference is not a matter of style. Delivery and processing take time, and 
 
 A single step between two actors is really a chain of smaller events:
 
-```text
-A addresses → A sends → arrives at B → B processes → B records → B replies
-                                                          ▲
-                                                   the only proof
+```mermaid
+---
+title: Steps in a single message delivery
+---
+flowchart LR
+    addr["A addresses"] --> send["A sends"] --> arr["arrives at B"] --> proc["B processes"] --> rec["B records"] --> rep["B replies"]
 ```
 
 Only the last links prove anything. That a message was *sent* proves only that the sender tried. That it *arrived* proves only that the network worked. That the receiver **recorded** it proves the receiver accepted it and acted.
@@ -100,13 +113,11 @@ Some steps in a cascade cannot be automatic, because the actor is not allowed to
 
 Here Vultron does something that surprises people. The actor **asks, and then it stops.**
 
-```text
-1. Actor needs permission.
-2. Actor sends the case owner a request that carries a deadline.
-3. Actor finishes.  Its work succeeded, because asking was the work.
+1. The actor needs permission.
+2. The actor sends the case owner a request that carries a deadline.
+3. The actor finishes. Its work succeeded, because asking was the work.
 4. Later, the case owner replies: agreed, or refused.
 5. That reply is a new message. It arrives in an inbox, and it starts new work.
-```
 
 Step 3 is the part worth understanding. **Success means "I asked", not "I was told yes."** Nothing is left waiting or held open. The work is divided at the question rather than paused there. Asking is one complete piece of work; acting on the answer is another piece of work, and the answer's arrival is what starts it.
 

@@ -3,8 +3,8 @@
 {% include-markdown "../../includes/normative.md" %}
 
 The MPCVD process can be described as a Communicating Hierarchical State Machine.
-In this section, we begin by laying out the requirements for a formal protocol
-definition followed by a step-by-step walkthrough of each of those requirements
+This section begins by laying out the requirements for a formal protocol
+definition, followed by a step-by-step walkthrough of each of those requirements
 as they relate to the [RM](../../topics/process_models/rm/index.md), [EM](../../topics/process_models/em/index.md), and [CS](../../topics/process_models/cs/index.md)
 models described elsewhere.
 
@@ -63,7 +63,7 @@ a protocol as follows.
     from process $i$ to $j$. (Note that $c_{i,j}$ is empty when $i = j$
     since processes are presumed to not communicate with themselves.)
 
-We detail each of these below or in subsequent pages:
+Each of these is detailed below or in subsequent pages:
 
 - $N$ [below](#number-of-processes)
 - ${ \langle S_i \rangle}^N_{i=1}$, and ${ \langle o_i \rangle }^N_{i=1}$ in [States](states.md),
@@ -72,13 +72,13 @@ We detail each of these below or in subsequent pages:
 
 ## Number of Processes
 
-The processes we are concerned with represent the different Participants
+The processes in an MPCVD case represent the different Participants
 in their roles (Reporter, Vendor, Coordinator, Deployer, and Observer). Each
 Participant has their own process, but Participants might take on
 multiple roles in a given case.
 
 !!! note "*Number of Processes*"
 
-    The total number of processes $N$ is simply the count of unique Participants.
+    The total number of processes $N$ is the count of unique Participants.
 
     $$N = |Participants| = | Reporters \cup Vendors \cup Coordinators \cup Deployers \cup Others |$$

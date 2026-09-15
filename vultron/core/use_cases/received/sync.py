@@ -178,9 +178,9 @@ def _update_replication_state(
     if existing is not None:
         existing_state = cast(VultronReplicationState, existing)
         existing_state.last_acknowledged_hash = last_acknowledged_hash
-        from vultron.core.models._helpers import _now_utc
+        from vultron.core.models._helpers import now_utc
 
-        existing_state.updated_at = _now_utc()
+        existing_state.updated_at = now_utc()
         dl.save(existing_state)
         logger.debug(
             "sync: updated ReplicationState for peer '%s' in case '%s' "

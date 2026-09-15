@@ -869,6 +869,30 @@ groups:
       spec_id: BT-18-002
       note: BT-18-002 states that SUCCESS MUST accompany all declared output writes; BT-18-007 is the complementary
         rule — FAILURE is the correct signal when the Evaluator's decision is to block, regardless of output field values.
+  - id: BT-18-011
+    priority: MUST
+    kind: project
+    statement: A call-out point backend MUST answer synchronously — its update() MUST return Status.SUCCESS or Status.FAILURE
+      and MUST NOT return Status.RUNNING. This is the general case of the codebase-wide invariant that no Vultron BT node
+      returns RUNNING (ADR-0080). A runtime guard at the call-out seam MUST reject a RUNNING return by raising an error
+      (not a VultronError, so the bridge classifies it as an internal error rather than a protocol outcome), and a static
+      architecture check MUST fail if any node under vultron/ returns Status.RUNNING.
+    rationale: >
+      Vultron's execution model has nowhere to suspend a tree — the bridge busy-loops on a root RUNNING until it exhausts
+      max_iterations, then fails opaquely without naming the offending node. ADR-0080 establishes that a node asks and
+      terminates rather than suspending. A call-out backend is injected from outside the repository, so a static scan
+      cannot see it — only a runtime guard at the seam can. Raising a non-VultronError surfaces a mis-wired backend as an
+      internal error. Source: CONCERN-3104.
+    adr:
+    - ADR-0080
+    verification: A test injects a call-out backend whose update() returns Status.RUNNING and asserts the guard raises a
+      non-VultronError (surfaced by the bridge as internal_error); a test/architecture check asserts no node under vultron/
+      returns Status.RUNNING.
+    relationships:
+    - rel_type: refines
+      spec_id: BT-18-002
+      note: BT-18-002 requires SUCCESS to accompany all declared output writes and BT-18-007 requires FAILURE to block;
+        BT-18-011 closes the trichotomy by forbidding the third py_trees status, RUNNING, at the call-out seam.
 - id: BT-19
   title: Routing-Gated State Mutation in Lifecycle BT Sequences
   specs:

@@ -23,7 +23,7 @@ from vultron.core.behaviors.helpers import (
     DataLayerActionWithPorts,
     PortInformation,
 )
-from vultron.core.use_cases._helpers import _resolve_case_manager_id
+from vultron.core.participants.authority import resolve_case_manager_id
 from vultron.core.use_cases._helpers import add_activity_to_outbox
 
 
@@ -61,7 +61,7 @@ class ResolveCaseManagerNode(DataLayerActionWithPorts):
             self._set_output("case_manager_id", None)  # BT-17-003
             return failure
 
-        case_manager_id = _resolve_case_manager_id(case, self.datalayer)
+        case_manager_id = resolve_case_manager_id(case, self.datalayer)
         if case_manager_id is None:
             self.feedback_message = (
                 f"No CASE_MANAGER participant found in case '{self.case_id}'"

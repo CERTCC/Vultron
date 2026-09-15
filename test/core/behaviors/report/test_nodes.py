@@ -121,7 +121,11 @@ def test_transition_rm_to_valid_same_state(
     bt_scenario.seed(valid_status)
 
     result = bt_scenario.run(
-        TransitionRMtoValid(report_id=report.id_, offer_id=offer.id_),
+        TransitionRMtoValid(
+            report_id=report.id_,
+            offer_id=offer.id_,
+            sender_actor_id=actor.id_,
+        ),
         actor_id=actor.id_,
         case_id=case_with_participant.id_,
     )
@@ -133,6 +137,7 @@ def test_transition_rm_to_valid_invalid_jump(
     actor: VultronCaseActor,
     report: VultronReport,
     offer: VultronOffer,
+    case_with_participant: VulnerabilityCase,
 ) -> None:
     """TransitionRMtoValid returns FAILURE for an illegal RM jump (AC-2)."""
     closed_status = ParticipantStatus(
@@ -144,8 +149,13 @@ def test_transition_rm_to_valid_invalid_jump(
     bt_scenario.seed(closed_status)
 
     result = bt_scenario.run(
-        TransitionRMtoValid(report_id=report.id_, offer_id=offer.id_),
+        TransitionRMtoValid(
+            report_id=report.id_,
+            offer_id=offer.id_,
+            sender_actor_id=actor.id_,
+        ),
         actor_id=actor.id_,
+        case_id=case_with_participant.id_,
     )
     bt_scenario.assert_failure(result)
 
@@ -166,7 +176,11 @@ def test_transition_rm_to_invalid_same_state(
     bt_scenario.seed(invalid_status)
 
     result = bt_scenario.run(
-        TransitionRMtoInvalid(report_id=report.id_, offer_id=offer.id_),
+        TransitionRMtoInvalid(
+            report_id=report.id_,
+            offer_id=offer.id_,
+            sender_actor_id=actor.id_,
+        ),
         actor_id=actor.id_,
     )
     bt_scenario.assert_success(result)
@@ -188,7 +202,11 @@ def test_transition_rm_to_invalid_invalid_jump(
     bt_scenario.seed(closed_status)
 
     result = bt_scenario.run(
-        TransitionRMtoInvalid(report_id=report.id_, offer_id=offer.id_),
+        TransitionRMtoInvalid(
+            report_id=report.id_,
+            offer_id=offer.id_,
+            sender_actor_id=actor.id_,
+        ),
         actor_id=actor.id_,
     )
     bt_scenario.assert_failure(result)
@@ -211,7 +229,11 @@ def test_transition_rm_to_valid_from_invalid(
     bt_scenario.seed(invalid_status)
 
     result = bt_scenario.run(
-        TransitionRMtoValid(report_id=report.id_, offer_id=offer.id_),
+        TransitionRMtoValid(
+            report_id=report.id_,
+            offer_id=offer.id_,
+            sender_actor_id=actor.id_,
+        ),
         actor_id=actor.id_,
         case_id=case_with_participant.id_,
     )
@@ -235,7 +257,11 @@ def test_transition_rm_to_closed_valid_from_invalid(
     bt_scenario.seed(invalid_status)
 
     result = bt_scenario.run(
-        TransitionRMtoClosed(report_id=report.id_, offer_id=offer.id_),
+        TransitionRMtoClosed(
+            report_id=report.id_,
+            offer_id=offer.id_,
+            sender_actor_id=actor.id_,
+        ),
         actor_id=actor.id_,
     )
     bt_scenario.assert_success(result)
@@ -258,7 +284,11 @@ def test_transition_rm_to_closed_same_state(
     bt_scenario.seed(closed_status)
 
     result = bt_scenario.run(
-        TransitionRMtoClosed(report_id=report.id_, offer_id=offer.id_),
+        TransitionRMtoClosed(
+            report_id=report.id_,
+            offer_id=offer.id_,
+            sender_actor_id=actor.id_,
+        ),
         actor_id=actor.id_,
     )
     bt_scenario.assert_success(result)
@@ -280,7 +310,11 @@ def test_transition_rm_to_closed_valid_from_accepted(
     bt_scenario.seed(accepted_status)
 
     result = bt_scenario.run(
-        TransitionRMtoClosed(report_id=report.id_, offer_id=offer.id_),
+        TransitionRMtoClosed(
+            report_id=report.id_,
+            offer_id=offer.id_,
+            sender_actor_id=actor.id_,
+        ),
         actor_id=actor.id_,
     )
     bt_scenario.assert_success(result)
@@ -303,7 +337,11 @@ def test_transition_rm_to_closed_valid_from_deferred(
     bt_scenario.seed(deferred_status)
 
     result = bt_scenario.run(
-        TransitionRMtoClosed(report_id=report.id_, offer_id=offer.id_),
+        TransitionRMtoClosed(
+            report_id=report.id_,
+            offer_id=offer.id_,
+            sender_actor_id=actor.id_,
+        ),
         actor_id=actor.id_,
     )
     bt_scenario.assert_success(result)

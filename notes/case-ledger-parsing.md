@@ -19,9 +19,9 @@ relevant_packages:
 
 # Case Ledger JSONL Parsing — State Extraction and Tolerant Parsing Patterns
 
-## Three Nesting Shapes for RM/EM/VFD/PXA State
+## Three Nesting Shapes for RM/EM/VF/D/PXA State
 
-When distilling `RM`, `EM`, `VFD`, or `PXA` state from a case-ledger entry's
+When distilling `RM`, `EM`, `VF`, `D`, or `PXA` state from a case-ledger entry's
 `payloadSnapshot`, the state value may appear in any of three shapes that all
 occur in real devlogs:
 
@@ -30,7 +30,7 @@ occur in real devlogs:
 Status fields are nested objects on `ParticipantStatus` or `CaseStatus`:
 
 ```json
-{"rm": {"state": "ACCEPTED"}, "vfd": {"state": "VFd"}}
+{"rm": {"state": "ACCEPTED"}, "vf": {"state": "VF"}, "d": {"state": "d"}}
 {"em": {"state": "ACTIVE"}, "pxa": {"state": "Pxa"}}
 ```
 
@@ -39,12 +39,13 @@ Status fields are nested objects on `ParticipantStatus` or `CaseStatus`:
 Older log files use flat camelCase or snake_case state fields:
 
 ```json
-{"rmState": "CLOSED", "vfdState": "VFD"}
-{"rm_state": "ACCEPTED", "vfd_state": "VFd"}
+{"rmState": "CLOSED", "vfState": "VF", "dState": "D"}
+{"rm_state": "ACCEPTED", "vf_state": "VF", "d_state": "d"}
 ```
 
-The status models' `_migrate_flat_fields` validators accept these, so historical
-logs contain them.
+The status models' `_migrate_flat_fields` validators accept these (using the
+split `vf_state`/`d_state` keys from ADR-0075; earlier logs using `vfd_state`
+pre-date the split and are not migrated automatically).
 
 ### Shape 3 — Nested Under an `Add` Activity
 
@@ -87,11 +88,12 @@ def _candidate_dicts(snap: dict) -> list[dict]:
     return candidates
 
 def _extract_dimension(candidates: list[dict], dim: str) -> str | None:
-    """Extract state for dim (e.g. 'rm', 'em', 'vfd', 'pxa') from any shape."""
+    """Extract state for dim (e.g. 'rm', 'em', 'vf', 'd', 'pxa') from any shape."""
     flat_aliases = {
         "rm": ("rmState", "rm_state"),
         "em": ("emState", "em_state"),
-        "vfd": ("vfdState", "vfd_state"),
+        "vf": ("vfState", "vf_state"),
+        "d": ("dState", "d_state"),
         "pxa": ("pxaState", "pxa_state"),
     }
     for d in candidates:

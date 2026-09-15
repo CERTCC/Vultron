@@ -28,10 +28,14 @@ Spec: CLP-07, CLP-12.
 
 from __future__ import annotations
 
+import logging
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
+from vultron.core.models._helpers import as_utc, parse_published
 from vultron.errors import VultronCanonicalEntryError
+
+logger = logging.getLogger(__name__)
 
 # Every ``(activity_type, object_type)`` pair that may appear as a canonical
 # ledger ``payloadSnapshot``.  Audited against the CaseActor-authoritative
@@ -104,18 +108,6 @@ _INLINE_OBJECT_KEYS: frozenset[str] = frozenset(
 )
 
 
-def _parse_published(value: Any) -> datetime | None:
-    if isinstance(value, datetime):
-        return value if value.tzinfo else value.replace(tzinfo=timezone.utc)
-    if isinstance(value, str):
-        try:
-            dt = datetime.fromisoformat(value)
-            return dt if dt.tzinfo else dt.replace(tzinfo=timezone.utc)
-        except ValueError:
-            return None
-    return None
-
-
 def _snapshot_type(snapshot: dict[str, Any]) -> str | None:
     activity_type = snapshot.get("type") or snapshot.get("type_")
     return (
@@ -172,48 +164,126 @@ def _validate_entry_timestamps(
     *,
     event_type: str,
     payload_snapshot: dict[str, Any],
-    case_published: datetime,
-    prev_entry_published: datetime | None,
+    case_published: datetime | None,
+    prev_actor_published: datetime | None,
     future_tolerance: timedelta | None,
     staleness_window: timedelta | None,
+    skew_tolerance: timedelta,
 ) -> None:
-    """Enforce CLP-14 timestamp invariants at commit time.
+    """Enforce the claimed-timestamp invariants at the commit boundary.
 
-    Checks ``payloadSnapshot.published`` — the AS2 activity's *claimed*
-    timestamp, not the ``CaseLedgerEntry.published`` commit timestamp.
-    The conformance harness (``check_clp14_timestamp_invariants``) is
-    authoritative over the commit timestamp; this guard fires earlier,
-    at the boundary between wire receipt and ledger commit.
+    Checks ``payloadSnapshot.published`` — the *asserting actor's* claimed
+    event time, carried across the wire→core boundary by
+    ``_build_activity_snapshot`` (ISSUE-3149) for received activities and
+    stamped with the CaseActor's own clock for CaseActor-authored ones.
+
+    This is deliberately a different field from ``CaseLedgerEntry.published``,
+    the CaseActor's commit stamp.  The two invariant families do not belong at
+    the same layer:
+
+    * The **commit**-timestamp invariants — CLP-14-002 (non-null), CLP-14-003
+      (non-decreasing across *all* entries by ``log_index``) and CLP-14-006
+      evaluated against the entry envelope — hold by construction, because a
+      single writer stamps every entry from one clock.  The conformance harness
+      (``check_clp14_timestamp_invariants``) is authoritative over them.
+    * The **claimed**-timestamp invariants checked here cannot hold by
+      construction, because they concern a value an external participant chose.
+
+    Critically, CLP-14-003's cross-entry monotonicity is *not* applied to the
+    claimed timestamp.  Comparing claimed timestamps across different actors is
+    exactly the wall-clock ordering ADR-0079 rejected as option C: two
+    participants' clocks are not comparable, so a later-committed assertion
+    from actor B legitimately carries an earlier claimed time than one from
+    actor A.  The per-stream obligation CLP-15-003 states — non-decreasing
+    *within the same participant's* event stream — is what is enforceable, and
+    ``prev_actor_published`` is scoped to the snapshot actor for that reason.
+
+    Each check is gated independently on the context it needs.  An earlier
+    version gated the whole block on ``case_published is not None`` and was
+    never reached, because the only production call site omitted that argument
+    (ISSUE-2824).
+
+    Args:
+        event_type: Ledger event type, used to prefix violation messages.
+        payload_snapshot: The candidate ``payloadSnapshot``.
+        case_published: The parent case's own ``published``, or ``None`` when
+            the case is not yet readable (the genesis entry is committed
+            alongside case creation), which skips CLP-14-006.
+        prev_actor_published: Claimed ``published`` of the most recent recorded
+            entry asserted by *this same actor* for this case, or ``None`` when
+            this is that actor's first assertion, which skips CLP-15-003.
+        future_tolerance: CLP-14-007 ceiling; ``None`` disables the check.
+        staleness_window: CLP-14-008 window; ``None`` disables the check.
+        skew_tolerance: Slack allowed on CLP-14-006 for unsynchronised clocks.
+
+    Raises:
+        VultronCanonicalEntryError: On any claimed-timestamp violation.
     """
-    if not case_published.tzinfo:
-        case_published = case_published.replace(tzinfo=timezone.utc)
-    if prev_entry_published is not None and not prev_entry_published.tzinfo:
-        prev_entry_published = prev_entry_published.replace(
-            tzinfo=timezone.utc
-        )
+    # parse_published (not as_utc) so an aware non-UTC case_published — the
+    # parent case chose its own offset — is *converted* to UTC, not merely
+    # tagged.  entry_published is always UTC (below), so this keeps the
+    # CLP-14-006 violation message from rendering the two sides in different
+    # offsets, which reads as though the guard compared unlike quantities.
+    # prev_actor_published already arrives UTC from _find_prev_actor_published,
+    # so as_utc is sufficient there.
+    case_published = parse_published(case_published)
+    prev_actor_published = as_utc(prev_actor_published)
+
     raw_published = payload_snapshot.get("published")
-    if raw_published is None:  # CLP-14-002
+    if raw_published is None:  # CLP-07-011
         raise VultronCanonicalEntryError(
-            f"{event_type}: CLP-14-002 — payloadSnapshot.published is required"
+            f"{event_type}: CLP-07-011 — payloadSnapshot.published is "
+            "required; a snapshot without it is not the verbatim AS2 activity"
         )
-    entry_published = _parse_published(raw_published)
-    if entry_published is None:  # CLP-14-002 (malformed)
+    entry_published = parse_published(raw_published)
+    if entry_published is None:  # CLP-07-011 (malformed)
         raise VultronCanonicalEntryError(
-            f"{event_type}: CLP-14-002 — payloadSnapshot.published is not a "
+            f"{event_type}: CLP-07-011 — payloadSnapshot.published is not a "
             "valid ISO 8601 timestamp"
         )
-    if entry_published < case_published:  # CLP-14-006
-        raise VultronCanonicalEntryError(
-            f"{event_type}: CLP-14-006 — entry published {entry_published} "
-            f"predates case created {case_published}"
-        )
-    if (  # CLP-14-003
-        prev_entry_published is not None
-        and entry_published < prev_entry_published
+    if (  # CLP-14-006
+        case_published is not None
+        and entry_published < case_published - skew_tolerance
     ):
         raise VultronCanonicalEntryError(
-            f"{event_type}: CLP-14-003 — entry published {entry_published} "
-            f"regresses before previous entry {prev_entry_published}"
+            f"{event_type}: CLP-14-006 — entry published {entry_published} "
+            f"predates case created {case_published} by more than the "
+            f"{skew_tolerance} clock-skew tolerance"
+        )
+    # CLP-15-003 is reported, never refused.  It places its obligation on the
+    # *participant*, and CLP-15-005 forbids the CaseActor from reconstructing
+    # participant-internal causal order it cannot verify.  Arrival order is not
+    # causal order: the transport offers no ordering guarantee (ADR-0037), so
+    # two assertions from one actor can legitimately be committed in the
+    # reverse of the order they were emitted, and CLP-15-003 constrains only
+    # assertions that are actually causally related.  Refusing on this signal
+    # aborted the whole receive sequence — the guarded commit is ordered before
+    # the effect nodes (CLP-10-006) — and dropped the activity with no ledger
+    # record and no retry.  Recording it and reporting it keeps the signal
+    # without losing the assertion.
+    if (
+        prev_actor_published is not None
+        and entry_published < prev_actor_published
+    ):
+        regression = prev_actor_published - entry_published
+        # Two bands: within the clock-skew budget this is the expected
+        # consequence of unsynchronised clocks and reordered delivery; beyond it
+        # the participant is more likely misbehaving (CLP-15-001/002) and a
+        # human should see it.  Neither is an error — the CaseActor did its job.
+        log = logger.info if regression <= skew_tolerance else logger.warning
+        log(
+            "%s: CLP-15-003 — claimed timestamp %s from actor %s regresses %s "
+            "behind that actor's previous assertion %s (%s tolerance %s). "
+            "Recorded as observed; emission order is the participant's "
+            "obligation and is verified across the scenario, not per "
+            "assertion (CLP-15-005).",
+            event_type,
+            entry_published,
+            payload_snapshot.get("actor"),
+            regression,
+            prev_actor_published,
+            "within" if regression <= skew_tolerance else "outside",
+            skew_tolerance,
         )
     now = datetime.now(tz=timezone.utc)
     if (
@@ -243,9 +313,10 @@ def _validate_canonical_entry(
     payload_snapshot: dict[str, Any],
     event_type: str,
     case_published: datetime | None = None,
-    prev_entry_published: datetime | None = None,
+    prev_actor_published: datetime | None = None,
     future_tolerance: timedelta | None = timedelta(minutes=5),
     staleness_window: timedelta | None = timedelta(days=7),
+    skew_tolerance: timedelta = timedelta(minutes=5),
 ) -> None:
     # Runs before idempotency check so malformed entries never reach the
     # equivalence lookup (CLP-07). Relaxed for non-recorded dispositions.
@@ -299,14 +370,15 @@ def _validate_canonical_entry(
             f"{event_type}: payloadSnapshot.context must equal the case URI"
         )
 
-    # CLP-14 timestamp invariants: gated on caller providing case_published so
-    # callers without temporal context can opt out by omitting the argument.
-    if case_published is not None:
-        _validate_entry_timestamps(
-            event_type=event_type,
-            payload_snapshot=payload_snapshot,
-            case_published=case_published,
-            prev_entry_published=prev_entry_published,
-            future_tolerance=future_tolerance,
-            staleness_window=staleness_window,
-        )
+    # Claimed-timestamp invariants.  Unconditional for recorded entries: each
+    # individual check gates itself on the context it needs.  Gating the whole
+    # block on an optional argument is what left it dead (ISSUE-2824).
+    _validate_entry_timestamps(
+        event_type=event_type,
+        payload_snapshot=payload_snapshot,
+        case_published=case_published,
+        prev_actor_published=prev_actor_published,
+        future_tolerance=future_tolerance,
+        staleness_window=staleness_window,
+        skew_tolerance=skew_tolerance,
+    )

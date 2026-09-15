@@ -206,7 +206,7 @@ class TestInvalidateReportTriggerTree:
     ):
         """SUCCESS: emits activity and persists RM.INVALID ParticipantStatus."""
         tree = create_invalidate_report_trigger_tree(
-            offer_id=offer.id_, report_id=report.id_
+            offer_id=offer.id_, report_id=report.id_, sender_actor_id=ACTOR_ID
         )
         result = scenario.run(tree)
         scenario.assert_success(result)
@@ -282,7 +282,7 @@ class TestRejectReportTriggerTree:
         RECEIVED→CLOSED; the shortest valid path is RECEIVED→INVALID→CLOSED.
         """
         tree = create_reject_report_trigger_tree(
-            offer_id=offer.id_, report_id=report.id_
+            offer_id=offer.id_, report_id=report.id_, sender_actor_id=ACTOR_ID
         )
         result = scenario.run(tree)
         scenario.assert_success(result)
@@ -317,7 +317,7 @@ class TestRejectReportTriggerTree:
     ):
         """Reject does NOT guard against already-closed — hard-close always allowed."""
         tree = create_reject_report_trigger_tree(
-            offer_id=offer.id_, report_id=report.id_
+            offer_id=offer.id_, report_id=report.id_, sender_actor_id=ACTOR_ID
         )
         result = scenario.run(tree)
         # Should still succeed (idempotent create) — no guard node in this tree

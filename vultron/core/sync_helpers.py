@@ -1,8 +1,10 @@
 """Shared helpers for SYNC log-replication workflows."""
 
 import logging
+from datetime import datetime
 from typing import Any
 
+from vultron.core.models._helpers import parse_published
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.ports.case_persistence import CasePersistence
 from vultron.errors import VultronValidationError
@@ -170,14 +172,24 @@ def _reconstruct_tail_hash(
     return last.entry_hash, last.log_index
 
 
-#: Wire fields that are stamped when a snapshot is *built* rather than carried
-#: from the object it describes.  ``as_Base`` declares ``published`` and
+#: Wire fields that may be stamped when a snapshot is *built* rather than
+#: carried from the object it describes.  ``as_Base`` declares ``published`` and
 #: ``updated`` with ``default_factory=now_utc``, and core status objects hold no
 #: timestamp of their own to supply, so re-rendering one stored object twice
 #: yields two different values.  They are therefore not part of what an entry
 #: asserts, and treating them as such makes idempotency a race against the
 #: clock — ``now_utc`` truncates to whole seconds, so a retry that lands in the
 #: next second appends a duplicate while one in the same second does not.
+#:
+#: This holds for every CaseActor-authored snapshot, which is what makes the
+#: exclusion necessary.  It is *not* true of the top-level ``published`` on a
+#: received activity: that is the sender's claimed event time, carried across
+#: the wire→core boundary (ISSUE-3149) and load-bearing for CLP-14-006/007/008
+#: and CLP-15-003.  Excluding it from the *equivalence* comparison is still
+#: correct — two deliveries of one assertion are the same assertion whatever
+#: their timestamps — but do not read this set as a claim that
+#: ``payloadSnapshot.published`` is meaningless.  See
+#: :func:`_find_prev_actor_published`, which depends on it being real.
 _VOLATILE_SNAPSHOT_KEYS = frozenset({"published", "updated"})
 
 
@@ -205,6 +217,29 @@ def _semantic_payload(value: Any) -> Any:
     return value
 
 
+def recorded_entries_for_case(
+    *, case_id: str, dl: CasePersistence
+) -> list[CaseLedgerEntry]:
+    """Return *case_id*'s recorded entries, oldest first, in one store scan.
+
+    :meth:`CasePersistence.list_objects` takes no case filter, so it walks every
+    ledger entry in the store regardless of case.  The commit boundary needs
+    this list twice — once for the CLP-15-003 predecessor lookup and once for the
+    idempotency equivalence check — and scanning twice doubles an already O(N)
+    step on every commit (CS-22-001).  Callers that need both pass the result to
+    each helper's ``entries`` argument.
+    """
+    entries = [
+        obj
+        for obj in dl.list_objects("CaseLedgerEntry")
+        if isinstance(obj, CaseLedgerEntry)
+        and obj.case_id == case_id
+        and obj.disposition == "recorded"
+    ]
+    entries.sort(key=lambda entry: entry.log_index)
+    return entries
+
+
 def _find_equivalent_recorded_entry(
     *,
     case_id: str,
@@ -212,6 +247,7 @@ def _find_equivalent_recorded_entry(
     event_type: str,
     payload_snapshot: dict[str, Any],
     dl: CasePersistence,
+    entries: list[CaseLedgerEntry] | None = None,
 ) -> CaseLedgerEntry | None:
     """Return an already-recorded canonical entry with equivalent semantics.
 
@@ -224,19 +260,100 @@ def _find_equivalent_recorded_entry(
     ``published``/``updated`` field it embeds.  Comparing those would make the
     dedup — and with it ADR-0041's ledger-index stability — depend on whether
     the two deliveries happened to land in the same clock second.
+
+    Args:
+        case_id: URI of the parent case.
+        object_id: Candidate entry's ``log_object_id``.
+        event_type: Candidate entry's ``event_type``.
+        payload_snapshot: The candidate ``payloadSnapshot``.
+        dl: DataLayer to query when *entries* is not supplied.
+        entries: Pre-fetched recorded entries for this case, from
+            :func:`recorded_entries_for_case`.  Supplying it avoids a second
+            full store scan when the caller already holds the list.
     """
+    pool = (
+        entries
+        if entries is not None
+        else recorded_entries_for_case(case_id=case_id, dl=dl)
+    )
     wanted = _semantic_payload(payload_snapshot)
     matches: list[CaseLedgerEntry] = [
         obj
-        for obj in dl.list_objects("CaseLedgerEntry")
-        if isinstance(obj, CaseLedgerEntry)
-        and obj.case_id == case_id
-        and obj.disposition == "recorded"
-        and obj.log_object_id == object_id
+        for obj in pool
+        if obj.log_object_id == object_id
         and obj.event_type == event_type
         and _semantic_payload(obj.payload_snapshot) == wanted
     ]
     if not matches:
         return None
-    matches.sort(key=lambda entry: entry.log_index)
+    # pool is log_index-ascending (recorded_entries_for_case sorts it) and the
+    # loop above preserves that order, so matches[-1] is the highest log_index
+    # without a re-sort.
     return matches[-1]
+
+
+def _find_prev_actor_published(
+    *,
+    case_id: str,
+    payload_snapshot: dict[str, Any],
+    dl: CasePersistence,
+    entries: list[CaseLedgerEntry] | None = None,
+) -> datetime | None:
+    """Return the claimed ``published`` this assertion must not regress behind.
+
+    Scans the recorded entries for *case_id*, keeps the ones asserted by the
+    same actor as *payload_snapshot*, and returns the claimed ``published`` of
+    the highest ``log_index`` among them.  That value is the predecessor
+    CLP-15-003 compares the next assertion against.
+
+    Scoped to one actor on purpose.  CLP-15-003 places its obligation on
+    timestamps "within the same participant's event stream"; ADR-0079 rejected
+    comparing wall-clock times across actors (option C) because their clocks
+    are not synchronised.  A cross-actor comparison here would reject
+    well-formed assertions whenever two participants' clocks disagreed.
+
+    Returns ``None`` when this exact assertion is *already* recorded, because a
+    redelivery is not a new event in the stream and CLP-15-003 has nothing to
+    say about it.  Without that carve-out the ordering report and the idempotency
+    path (:func:`_find_equivalent_recorded_entry`) contradict each other: a
+    retry of assertion A that arrives after the actor's later assertion B would
+    be reported as a regression instead of being recognised as the duplicate it
+    is.  Out-of-order and retried delivery is a designed-for condition
+    (ADR-0037), so it must not be reported as a participant fault.
+
+    Args:
+        case_id: URI of the parent case.
+        payload_snapshot: The candidate ``payloadSnapshot``.  An empty or
+            actor-less snapshot has no stream to compare against.
+        dl: DataLayer to query when *entries* is not supplied.
+        entries: Pre-fetched recorded entries for this case, from
+            :func:`recorded_entries_for_case`.  Supplying it avoids a second
+            full store scan when the caller already holds the list.
+
+    Returns:
+        The predecessor's claimed ``published``; ``None`` when this actor has no
+        prior recorded assertion on this case, when this assertion is itself
+        already recorded, or when the predecessor's claim was unparseable.
+    """
+    snapshot_actor = payload_snapshot.get("actor")
+    if not snapshot_actor:
+        return None
+    pool = (
+        entries
+        if entries is not None
+        else recorded_entries_for_case(case_id=case_id, dl=dl)
+    )
+    wanted = _semantic_payload(payload_snapshot)
+    matches: list[CaseLedgerEntry] = []
+    for obj in pool:
+        if obj.payload_snapshot.get("actor") != snapshot_actor:
+            continue
+        if _semantic_payload(obj.payload_snapshot) == wanted:
+            return None  # redelivery, not a new event in this actor's stream
+        matches.append(obj)
+    if not matches:
+        return None
+    # pool is log_index-ascending (recorded_entries_for_case sorts it) and the
+    # loop above preserves that order, so matches[-1] is this actor's highest
+    # log_index without a re-sort.
+    return parse_published(matches[-1].payload_snapshot.get("published"))

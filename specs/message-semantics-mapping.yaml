@@ -578,6 +578,44 @@ groups:
       Inspection of `RejectLedgerEntryReceivedUseCase` in
       `vultron/core/use_cases/received/sync.py` confirms the mismatch-and-replay
       behaviour, and the registry contains no per-message `EK`, `CK`, or `GK` entry.
+    relationships:
+    - rel_type: refines
+      spec_id: SYNC-15-003
+    lint_suppress:
+    - missing_story_reference
+  - id: MSM-05-005
+    priority: MUST
+    kind: protocol
+    statement: All protocol-significant activities MUST be committed to the canonical case ledger by the CaseActor
+      before fan-out to participant actors. No protocol-significant activity bypasses the ledger replication path.
+    rationale: >-
+      The hash-chain acknowledgement model (MSM-05-002) is only complete if every activity a participant needs to
+      acknowledge reaches them via an Announce(CaseLedgerEntry). Activities that bypassed the ledger would have no
+      acknowledgement mechanism. Report submission (RS) is the only activity not carried by the ledger; it uses RK
+      (MSM-01-008) instead, which is the intended exception rather than a gap.
+    verification: >-
+      Inspection of the CaseActor receive paths confirms that every inbound protocol
+      activity results in at least one CaseLedgerEntry committed before Announce fan-out,
+      except for Offer(VulnerabilityReport) which uses the RK path.
+    lint_suppress:
+    - missing_story_reference
+  - id: MSM-05-006
+    priority: MAY
+    kind: protocol
+    statement: >-
+      A conformant implementation MAY rely solely on Announce(CaseLedgerEntry) deliveries for liveness inference,
+      without emitting a dedicated periodic heartbeat. Silence between Announce deliveries is therefore an
+      accepted protocol property: a participant that is online but has received all entries is indistinguishable
+      from one that is unreachable. This does not preclude a future revision adding a normative heartbeat requirement.
+    rationale: >-
+      The hash-chain NAK model (MSM-05-002) provides implicit acknowledgement only when new entries arrive.
+      Between deliveries, silence and unreachability are observationally equivalent. Documenting this as a
+      deliberate MAY-level property (rather than a defect) closes the liveness question raised by CONCERN-3006
+      without foreclosing a future heartbeat mechanism (CaseActorHeartbeat is already sketched in
+      notes/sync-ledger-replication.md for the multi-node CaseActor cluster design).
+    verification: >-
+      No normative heartbeat requirement exists in specs/sync-ledger-replication.yaml;
+      this entry records the absence as intentional.
     lint_suppress:
     - missing_story_reference
   - id: MSM-05-003
@@ -597,16 +635,15 @@ groups:
     priority: MUST_NOT
     kind: process
     statement: Documentation MUST NOT describe the wire fault taxonomy as `RmError`, `EmError`, `CsError`, or `GmError`
-      discriminated by `as:inReplyTo`; those types exist in no ontology file and no code, and `ActivityPattern.in_reply_to_`
-      is used by no registered pattern.
-    rationale: '`docs/howto/activitypub/activities/error.md` depicts this taxonomy, and it has never been built. Citing it
-      leads implementers to a wire format that does not exist. Note also the name collision: `VultronError` in
-      `vultron/errors.py` is a Python exception base class, unrelated to the wire type of the same name in that diagram.'
+      discriminated by `as:inReplyTo`; those types exist in no ontology file and no code.
+    rationale: '`docs/howto/activitypub/activities/error.md` previously depicted this taxonomy, and it was never built.
+      Citing it leads implementers to a wire format that does not exist. Note also the name note: `VultronError` in
+      `vultron/errors.py` is a Python exception base class, unrelated to protocol wire-level error messages.'
     verification: >-
       A grep for `RmError`, `EmError`, `CsError`, and `GmError` across `vultron/`
       and the whole of `docs/` returns no definitions and no documentation
-      references, and no registered `ActivityPattern` sets `in_reply_to_`. The grep
-      MUST cover `docs/howto/` — that is where the taxonomy is currently depicted.
+      references. `ActivityPattern.in_reply_to_` has been removed from the
+      codebase; the pattern matcher cannot match on a field that does not exist.
     lint_suppress:
     - missing_story_reference
 - id: MSM-06

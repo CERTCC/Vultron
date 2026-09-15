@@ -53,6 +53,29 @@ def vendor_vf_invariant_ok(
     return vf_state != CS_vf.vf
 
 
+def some_vendor_at_vf(participants: list[CaseParticipant]) -> bool:
+    """Return ``True`` iff any participant holds ``CVDRole.VENDOR`` with ``vf.state=VF``.
+
+    Pure function; no I/O.  Used as the causal-gate predicate for the
+    DEPLOYER-only d→D transition (CSB-15-004): a deployer may only advance
+    fix-deployed when at least one vendor has produced a fix.
+
+    A participant with no status record, or whose ``vf`` dimension is ``None``,
+    does not satisfy the gate.
+    """
+    from vultron.core.states.cs import CS_vf  # avoid circular at module level
+
+    for participant in participants:
+        if CVDRole.VENDOR not in (participant.case_roles or []):
+            continue
+        status = participant.participant_status
+        if status is None:
+            continue
+        if status.vf is not None and status.vf.state == CS_vf.VF:
+            return True
+    return False
+
+
 def all_participants_rm_closed(
     participants: list[CaseParticipant],
 ) -> bool:

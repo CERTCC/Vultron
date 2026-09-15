@@ -82,7 +82,10 @@ class EngageCaseReceivedUseCase:
         )
         tree = create_engage_case_tree(case_id=case_id, actor_id=actor_id)
         result = bridge.execute_with_setup(
-            tree=tree, actor_id=receiving_actor_id, activity=request
+            tree=tree,
+            actor_id=receiving_actor_id,
+            activity=request,
+            case_id=case_id,
         )
 
         if result.status != Status.SUCCESS:
@@ -142,7 +145,10 @@ class DeferCaseReceivedUseCase:
         )
         tree = create_defer_case_tree(case_id=case_id, actor_id=actor_id)
         result = bridge.execute_with_setup(
-            tree=tree, actor_id=receiving_actor_id, activity=request
+            tree=tree,
+            actor_id=receiving_actor_id,
+            activity=request,
+            case_id=case_id,
         )
 
         if result.status != Status.SUCCESS:

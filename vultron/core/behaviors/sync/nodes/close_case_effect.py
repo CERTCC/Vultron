@@ -25,12 +25,16 @@ import logging
 
 from py_trees.common import Status
 
+from vultron.core.behaviors.case.nodes.participant.status import (
+    CreateParticipantStatusNode,
+)
 from vultron.core.behaviors.sync.nodes._helpers import (
     _LedgerEffectNode,
     _extract_id_from_field,
 )
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.participant_status import participant_status_rm_state
+from vultron.core.states.rm import RM
 
 logger = logging.getLogger(__name__)
 
@@ -56,15 +60,29 @@ class ApplyCloseCaseFromLedgerNode(_LedgerEffectNode):
     specs/sync-ledger-replication.yaml SYNC-02-002.
     """
 
+    def __init__(self, name: str | None = None) -> None:
+        _name = name or self.__class__.__name__
+        super().__init__(name=_name)
+        # Pre-build the status node (BTND-10-004: no construction in update()).
+        # actor_id is set to "" as placeholder; update() overwrites _actor_id
+        # with the runtime departing actor before delegating via BTBridge.
+        # Sanctioned override (CM-23-012, resolving #3106): force_rm_state=True
+        # replicates the departing actor's self-declaratory Leave regardless of
+        # rung (ADR-0084, ADR-0089).
+        self._status_node = CreateParticipantStatusNode(
+            actor_id="",
+            rm_state=RM.CLOSED,
+            vf_state=None,
+            d_state=None,
+            pxa_state=None,
+            name=f"{_name}.CreateParticipantStatus",
+            force_rm_state=True,
+        )
+
     def update(self) -> Status:
         if (f := self._require_datalayer()) is not None:
             return f
         assert self.datalayer is not None
-
-        from vultron.core.behaviors.case.nodes.participant.status import (
-            CreateParticipantStatusNode,
-        )
-        from vultron.core.states.rm import RM
 
         entry = self._get_entry()
         snapshot = entry.payload_snapshot
@@ -106,29 +124,21 @@ class ApplyCloseCaseFromLedgerNode(_LedgerEffectNode):
                     )
                     return Status.SUCCESS
 
-        # Advance the departing actor to RM.CLOSED using CreateParticipantStatusNode
-        # logic directly (avoids re-entering the BT machinery).
-        result_out: dict = {}
-        node = CreateParticipantStatusNode(
+        # Advance the departing actor to RM.CLOSED via the canonical writer.
+        # Set runtime actor_id on the pre-built node; BTBridge seeds case_id
+        # on the blackboard so CaseIdInputPortMixin can read it (ADR-0089).
+        self._status_node._actor_id = departing_actor_id
+        from vultron.core.behaviors.bridge import BTBridge
+
+        # Use the DataLayer's own actor_id so BTBridge doesn't clone an empty
+        # store for departing_actor_id. The write is still attributed to the
+        # departing actor via _status_node._actor_id set above (ADR-0089).
+        bt_result = BTBridge(datalayer=self.datalayer).execute_with_setup(
+            tree=self._status_node,
+            actor_id=self.datalayer.actor_id,
             case_id=case_id,
-            actor_id=departing_actor_id,
-            rm_state=RM.CLOSED,
-            vf_state=None,
-            d_state=None,
-            pxa_state=None,
-            result_out=result_out,
-            name=f"{self.name}.CreateParticipantStatus",
-            # Sanctioned override (CM-23-012, resolving #3106): this replica is
-            # replicating the *departing actor's* own self-declaratory Leave
-            # (ADR-0084) named in the ledger entry, advancing only that single
-            # actor to RM.CLOSED regardless of rung.  It never touches any other
-            # (bystander) participant on this replica.  See `force_rm_state`.
-            force_rm_state=True,
         )
-        node.datalayer = self.datalayer
-        node.actor_id = departing_actor_id
-        result = node.update()
-        if result != Status.SUCCESS:
+        if bt_result.status != Status.SUCCESS:
             self.logger.warning(
                 "%s: failed to advance departing actor '%s' to RM.CLOSED"
                 " in case '%s'",

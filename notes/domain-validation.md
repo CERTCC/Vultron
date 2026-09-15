@@ -11,13 +11,14 @@ related_specs:
   - specs/case-management.yaml (CM-23-012, CM-27-001 through CM-27-003)
   - specs/participant-role-management.yaml (PRM-03-003)
   - specs/error-handling.yaml (EH-05-002, EH-07-001 through EH-07-003)
-  - specs/behavior-tree-node-design.yaml (BTND-10-001 through BTND-10-003)
-  - specs/received-status-handling.yaml (RSH-05-001, RSH-05-002)
+  - specs/behavior-tree-node-design.yaml (BTND-10-001 through BTND-10-006)
+  - specs/received-status-handling.yaml (RSH-05-001, RSH-05-002, RSH-05-020, RSH-05-022)
 related_notes:
   - notes/architecture-hexagonal.md
   - notes/bt-integration.md
   - notes/wire-core-boundary.md
   - notes/bt-pitfalls.md
+  - notes/case-state-model.md
 ---
 
 # Domain Object Validation — Strict vs. Loose Boundaries
@@ -168,18 +169,19 @@ restriction (it is below use-cases, above models, and can import from either).
 ## Shape Guards: One Canonical Reader per Dimension (#2232)
 
 `ParticipantStatus` exists in two incompatible shapes: core nests
-`rm: RmDimension` / `vfd: VfdDimension` (SDO-03-002, ADR-0036), while the wire
-projection carries flat `rm_state` / `vfd_state`. Reading a dimension off the
+`rm: RmDimension` / `vf: VfDimension` / `d: DDimension` (SDO-03-002, ADR-0036, ADR-0075), while the wire
+projection carries flat `rm_state` / `vf_state` / `d_state`. Reading a dimension off the
 wrong shape yields `None` — which every reader then quietly substituted an
 initial state for, resetting the participant's ladder (#2264).
 
-**Read a dimension only through its canonical reader.** Both live in
+**Read a dimension only through its canonical reader.** All live in
 `vultron/core/models/participant_status.py`:
 
 | Reader | Returns | Raises |
 |---|---|---|
 | `participant_status_rm_state(status)` | the `RM` state | `VultronValidationError` on a non-core shape |
-| `participant_status_vfd_state(status)` | the `CS_vfd` state | `VultronValidationError` on a non-core shape |
+| `participant_status_vf_state(status)` | the `CS_vf` state or `None` | `VultronValidationError` on a non-core shape |
+| `participant_status_d_state(status)` | the `CS_d` state or `None` | `VultronValidationError` on a non-core shape |
 
 ```python
 # Wrong — a wire-shaped status degrades to the initial state, silently.
@@ -360,11 +362,40 @@ Both halves come from the liberal-accept epic (ISSUE-2229). Do **not** "fix"
 one to match the other. If you think one is wrong, the question is which half
 of the maxim applies at that boundary, not which path is inconsistent.
 
-Whether the receive path *should* also be all-or-nothing is a genuinely open
-question, tracked separately. ADR-0061's standing argument against it: a
-refusal in one dimension carries no information about the others, and the
-pre-existing all-or-nothing behaviour silently destroyed accepted state and
-killed embargo teardown.
+**The receive path stays liberal — this question is settled (CONCERN-3040).**
+The arguments for all-or-nothing were examined and rejected on two grounds:
+
+1. *RM is self-declaratory* (ADR-0084): the CaseActor has no independent
+   knowledge of a participant's RM state. If a sender asserts `rm=VALID` while
+   the ledger records `ACCEPTED`, the ledger is merely stale — the participant
+   knows their own state. The CaseActor cannot correct a self-report.
+
+2. *PXA dimensions are external observational facts, not self-declared process
+   state.* A threat sentinel may correctly observe `exploit=public` while
+   carrying a stale RM value. Refusing the whole message means the embargo
+   continues past the point of public exploit code. That is a protocol safety
+   failure.
+
+Impossible dimension combinations (RM↔VF, RM↔D, VF↔D) are already refused
+outright by the cross-machine entailment check (RSH-05-020); partial-accept
+does not let them through.
+
+Both gaps are now closed (ISSUE-3199):
+
+- *Sender-feedback*: a wholly-refused receive BT now raises
+  `VultronStatusAssertionRefusedError`, which the inbox `DispatchNode` catches
+  and writes as a `rejected` `InboxOutcome`.  Senders can distinguish
+  partial-accept (`"processed"`) from total refusal (`"rejected"`).
+- *Emit-side object-level validation*: `ParticipantStatus` carries optional
+  `previous_rm_state` / `force_rm_state` constructor fields; when
+  `previous_rm_state` is supplied the model's `mode="after"` validator refuses
+  backward RM steps at construction time, with `force_rm_state=True` as the
+  sanctioned override (same semantics as
+  `CreateParticipantStatusNode.force_rm_state`).  `CreateParticipantStatusNode`
+  now passes `previous_rm_state=context.current_rm` (when not force-closing) to
+  get construction-time double-checking on top of the existing BT validation.
+
+This closes ISSUE-2255 (sender-feedback diagnostics).
 
 ### Root vs. derived violations
 
@@ -414,7 +445,144 @@ The composed evaluator is `participant_transition_violations()` in
 that names an individual predicate instead, and discovers the population of
 validators structurally rather than from a list — which is how it found the two
 writers below. Its `_DECLARED_EXCLUSIONS` records the sites that legitimately sit
-outside the evaluator, each with a reason; the unresolved consolidation is #3111.
+outside the evaluator, each with a reason.
+
+### There were seven writers, and four were invisible (#3111, ADR-0089)
+
+CONCERN-3111 recorded two writers outside the evaluator. Scoping it found seven
+that append a ladder rung or write the marker record. The four the ratchet could
+not see are the important part:
+
+| Writer | Validates | Ratchet sees it? |
+|---|---|---|
+| `CreateParticipantStatusNode` | the whole rule set | yes |
+| `CaseParticipant.append_rm_state()` | RM adjacency only | declared |
+| `_ReportPhaseRMTransition._write_latch()` | RM adjacency only | declared |
+| `as_CaseParticipant.append_rm_state()` | RM adjacency only | **no** — wire twin, see below |
+| `common.py::_get_or_create_accepted_status()` | **nothing** | **no** |
+| `owner.py::_build_owner_initial_status()` | **nothing** | **no** |
+| `case_proposal_received_tree.py::_build_bootstrap_statuses()` | **nothing** | **no** |
+
+Count the writers, not the `ParticipantStatus(...)` calls: the seven above
+exclude the constructor-seeding validators
+(`CaseParticipant._init_participant_status_if_empty`, and
+`_set_accepted_status` on `ReporterParticipant` and `FinderReporterParticipant`
+— see the seeding-validator pitfall below), the demo seeder in
+`demo/helpers/seeding.py`, and the wire→core extractor in
+`wire/as2/extractor/_builders.py`. Those construct a status but do not advance a
+participant's ladder.
+
+**The detector's gate was the hole.**
+`test_no_undeclared_participant_status_validator` flagged a module only when it
+*both* named a member predicate *and* constructed a dimension object. A writer
+that validates nothing names no predicate, so it was never flagged — the
+detector caught partial validators and missed wholly-unvalidated ones. Under
+ADR-0089 the gate is construction alone: **any** module that builds a participant
+dimension is in the population. Validating less no longer buys invisibility.
+
+**The wire twin escapes both gates, and needs its own trigger.**
+`as_CaseParticipant.append_rm_state()` is in neither `_VALIDATING_NODE_MODULES`
+nor `_DECLARED_EXCLUSIONS` — the ratchet has no reference to `vultron/wire/` at
+all. It names `is_valid_rm_transition`, so the *old* gate's predicate half
+matches, but it builds `as_ParticipantStatus` from flat fields (`rm_state=`)
+rather than a dimension object, so the construction half never fires. Widening
+the gate to construction alone does not reach it either, for the same reason. The
+wire projection's construction shape has to be added to the trigger set
+explicitly, or "every writer is visible" stays false for the wire layer.
+
+The general lesson: when a structural ratchet keys on evidence of *doing the
+right thing badly*, the code that does nothing at all is outside its reach. Key
+on the write, not on the check.
+
+### `ParticipantStatus` had two jobs; the earlier one moves out
+
+Most `ParticipantStatus` records are rungs on a participant's ladder, in
+`CaseParticipant.participant_statuses`. `_ReportPhaseRMTransition` wrote a
+*standalone* record under a deterministic id from `(actor, report, rm_state)`,
+and callers asked "does that id exist?" to mean "has this step happened?" It
+existed because RM state starts at report receipt and the case may not exist
+yet — or ever: a receiver may declare a bare report `INVALID` or `CLOSED` and
+never propose a case.
+
+The two jobs were already entangled, which is why "separate lifecycle" was the
+wrong reading:
+
+- `_build_owner_initial_status()` reused the marker's **id** for the
+  participant's first ladder rung, so marker and rung became one record.
+- `_get_or_create_accepted_status()` assigned directly to the stored record
+  (`existing.cvd_role = …`, `existing.consent = …`, `existing.context = …`) and
+  saved it — the post-construction mutation door documented above — and created
+  the record outright when absent.
+
+ADR-0089 resolves it by relocation rather than by adding a rule: the pre-case RM
+state becomes a field on `VultronReportCaseLink`, which ADR-0041 already created
+for exactly that window, and the marker plus `_report_phase_status_id()`,
+`report_phase_context()` and `_current_report_phase_rm_state()` are deleted.
+`ParticipantStatus` is then ladder-only with one writer, and the writer always
+has a case — so no fourth ADR-0087 disposition is needed.
+
+**Do not reach for the writer from inside another node (BTND-10-004).** Five
+sites used to build `CreateParticipantStatusNode` inside their own `update()`
+and call `node.update()` directly — six such calls, because `develop_fix.py`
+builds it once in a shared `_make_status_node()` helper and ticks it from two
+places. That skips `setup()` and the tick cycle, and two of the sites
+(`deploy_fix.py`, and `develop_fix.py` on both of its calls) wrapped it in
+`try/except`, which is the swallowing shape
+[bt-pitfalls.md](bt-pitfalls.md) § "Always Check
+`BTBridge.execute_with_setup` Return Value" warns about. The node is always a
+real tree child. The architecture ratchet
+`test/architecture/test_participant_status_validation.py` (AC-9) fails any
+`update()` body that re-introduces this construction.
+
+**One mechanism per input (BTND-10-005).** `case_id` is always the blackboard
+port (`CaseIdInputPortMixin`) — the only mechanism that works in received trees,
+where the case is found at tick time by dereferencing the report; trees that
+know it at build time seed `/case_id` through
+`BTBridge.execute_with_setup(**context_data)`. The *subject* actor is always an
+explicit argument, never a fallback to the blackboard `actor_id`, because the
+blackboard actor is the *executing* actor and conflating the two was #2300.
+`CreateParticipantStatusNode.__init__` deliberately has no `case_id` parameter;
+the ratchet (AC-9) fails any constructor signature that adds one.
+
+### The entailments cannot fire on an RM-only advance (measured)
+
+CONCERN-3111 declined to act partly on an "unmeasured blast radius": routing an
+RM-only write through the whole rule set makes the cross-machine entailments
+read the *effective* `vf`/`d` for the first time. Enumerating
+`composite_state_violations()` over every `(RM, vf, d)` triple settles it, and
+the answer is zero on legal data.
+
+Be precise about which rule carries the RM guard. The two **RM-coupled**
+entailments — RM↔VF and RM↔D (CSB-18-001) — fire only when the F bit or D bit is
+set **and** RM is not in `{ACCEPTED, DEFERRED, CLOSED}`. The **VF↔D** entailment
+(CSB-17-001) is RM-independent: `violation_vf_d_entailment()` takes only
+`(vf, d)`, and `composite_state_violations()` calls it unconditionally. So "RM is
+`ACCEPTED`" buys immunity from two of the three rules, not from all three.
+
+For the RM-coupled pair, reachability closes it: `VALID` is reachable only from
+`RECEIVED` or `INVALID`; `INVALID` only from `RECEIVED`; `RECEIVED` only from
+`START`. Holding a fix-ready `vf` requires having passed `ACCEPTED`, and RM never
+walks back to `RECEIVED`. So no legal state presents a fix-ready or deployed
+value at the targets where those two rules could bite.
+
+What remains refusable — at **any** RM state, since this is the RM-independent
+rule — is `(vf, D)` and `(Vf, D)`: deployed before ready. Those states are
+already corrupt; refusing them is a fix, and repairing them is the receive path's
+job (RSH-05-020). Note the shape of this argument: the blast radius was bounded
+by *reachability*, not by running the suite. Prefer that where the rule set is a
+pure function over enums — but scope the bound to the rules that actually read
+the dimension you are bounding on.
+
+The import cycle CONCERN-3111 predicted is real —
+`models/case_participant.py` → `states/participant_transitions.py` →
+`predicates/participants.py` → back — but it is **moot** under ADR-0089, because
+the model no longer validates anything. It is also breakable, in two steps: the
+`CaseParticipant` import in `predicates/participants.py` is annotation-only and
+belongs under the `TYPE_CHECKING` block already present in that file — but that
+module has no `from __future__ import annotations`, and its uses are *unquoted*
+function annotations, which Python evaluates when the `def` runs. Move the import
+and quote those annotations (or add the future import); moving it alone raises
+`NameError` at import time.
 
 ### Pitfall: an RM-only append resets the vendor and deployer paths
 
@@ -450,6 +618,16 @@ The general shape: **a model that auto-seeds a field on construction turns
 "omit it" into "reset it"; one that does not turns it into "drop it".** Neither is
 "leave it alone." Check every constructor call for a type with `mode="before"`
 seeding validators.
+
+ADR-0089 removes both `append_rm_state()` mutators, so the two named
+counter-examples are gone — but the rule is about *constructor calls*, not about
+those methods, and it still binds every `ParticipantStatus(...)` site.
+`_init_participant_status_if_empty` (core, seeds `RM.START`) and
+`_set_accepted_status` (on `ReporterParticipant` and
+`FinderReporterParticipant`, seeds `RM.ACCEPTED`) are still live seeding
+validators. The two copies of `_set_accepted_status` are byte-identical — a
+straight copy-paste duplicate and an ARCH-15-004 / CS-22-001 violation in its own
+right; ADR-0089's work de-duplicates them.
 
 ### Pitfall: a forced promotion runs after validation
 

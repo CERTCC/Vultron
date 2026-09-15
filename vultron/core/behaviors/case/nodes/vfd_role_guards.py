@@ -20,8 +20,11 @@ Nodes enforce CVD protocol correctness for received-side status authorization
 
 - :class:`CheckVendorRoleNode` — gates vf→VF (vf_state=Vf): actor MUST hold
   ``CVDRole.VENDOR`` (CSB-15-001)
-- :class:`CheckDeployerRoleNode` — gates d→D (vfd_state=VFD): actor MUST hold
-  ``CVDRole.DEPLOYER`` (CSB-15-002; causal-gate enforcement pending #2593)
+- :class:`CheckDeployerRoleNode` — gates d→D (d_state=D): actor MUST hold
+  ``CVDRole.DEPLOYER`` (CSB-15-002)
+- :class:`CheckSomeVendorAtVFNode` — causal gate for DEPLOYER-only d→D: at
+  least one ``CVDRole.VENDOR`` participant in the case MUST have
+  ``vf.state=VF`` (fix-ready) before a deployer may advance d→D (CSB-15-004)
 - :class:`CheckNotSoleObserverVfdNode` — gates v→V (vf_state=Vf): actor
   MUST NOT hold ``CVDRole.OBSERVER`` as their only role (CM-25-005)
 - :class:`CheckIsCaseOwnerNode` — hard bypass in ``StatusAdoptionGate``:
@@ -36,11 +39,14 @@ import logging
 from py_trees.common import Status
 from py_trees.ports import NoDataAvailable, PortInformation
 
+from vultron.core.participants._lookup import iter_case_participants
 from vultron.core.behaviors.helpers import (
     DataLayerConditionWithPorts,
 )
+from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.ports.case_persistence import CasePersistence
+from vultron.core.predicates.participants import some_vendor_at_vf
 from vultron.core.predicates.roles import (
     has_case_owner_role,
     has_deployer_role,
@@ -89,6 +95,18 @@ def _resolve_actor_roles(
         return None
 
     return list(participant.roles) if participant.roles else []
+
+
+def _collect_all_participants(
+    case: VulnerabilityCase,
+    datalayer: CasePersistence,
+) -> list[CaseParticipant]:
+    """Return all CaseParticipants reachable from *case*, deduped.
+
+    Delegates to :func:`~vultron.core.participants._lookup.iter_case_participants`
+    for the canonical two-phase scan (issue #3218/#3220).
+    """
+    return list(iter_case_participants(case, datalayer))
 
 
 class CheckVendorRoleNode(DataLayerConditionWithPorts):
@@ -197,6 +215,60 @@ class CheckDeployerRoleNode(DataLayerConditionWithPorts):
             "%s: actor '%s' holds CVDRole.DEPLOYER — d→D guard passed",
             self.name,
             self._actor_id,
+        )
+        return Status.SUCCESS
+
+
+class CheckSomeVendorAtVFNode(DataLayerConditionWithPorts):
+    """Causal gate for DEPLOYER-only d→D: at least one VENDOR must be at VF.
+
+    Returns ``SUCCESS`` when at least one ``CVDRole.VENDOR`` participant in the
+    case has ``vf.state=CS_vf.VF`` (fix-ready).  Returns ``FAILURE`` when no
+    vendor has produced a fix, blocking the deployer from recording fix
+    deployment before a fix exists.
+
+    Delegates to the pure predicate
+    :func:`~vultron.core.predicates.participants.some_vendor_at_vf` after
+    reading all case participants from the DataLayer.
+
+    Per CSB-15-004 (specs/cs-behavior.yaml).
+    """
+
+    def __init__(
+        self,
+        case_id: str,
+        actor_id: str,
+        name: str | None = None,
+    ) -> None:
+        super().__init__(name=name or self.__class__.__name__)
+        self._case_id = case_id
+        self._actor_id = actor_id
+
+    def update(self) -> Status:
+        if (f := self._require_datalayer()) is not None:
+            return f
+        assert self.datalayer is not None
+
+        case, failure = self._require_case(
+            self._case_id
+        )  # Regime 1: causal gate requires the case (ADR-0087)
+        if failure is not None:
+            return failure
+
+        participants = _collect_all_participants(case, self.datalayer)
+        if not some_vendor_at_vf(participants):
+            self.feedback_message = (
+                f"No VENDOR participant in case '{self._case_id}' has"
+                f" vf.state=VF — d→D causal gate blocked (CSB-15-004)"
+                f" for actor '{self._actor_id}'"
+            )
+            self.logger.warning("%s: %s", self.name, self.feedback_message)
+            return Status.FAILURE
+
+        self.logger.debug(
+            "%s: causal gate passed — some VENDOR is at VF in case '%s'",
+            self.name,
+            self._case_id,
         )
         return Status.SUCCESS
 

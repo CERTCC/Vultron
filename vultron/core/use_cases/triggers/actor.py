@@ -31,6 +31,7 @@ from vultron.core.behaviors.call_out.bundles.actor_discovery import (
     ACTOR_DISCOVERY_DETERMINISTIC,
     ActorDiscoveryCallOutBundle,
 )
+from vultron.core.behaviors.call_out.guard import CallOutContractError
 from vultron.core.behaviors.case.actor_trigger_trees import (
     accept_actor_recommendation_trigger_bt,
     accept_case_invite_trigger_bt,
@@ -222,12 +223,28 @@ def _record_named_peer(
         return
     _require_deliverable_actor_uri(actor_id, field)
     backend = call_out.resolve_actor_factory("ResolveActorDetails")
-    status = backend.update()
+    # Tick the node rather than calling update() directly: the bundle now hands
+    # out a SynchronousCallOut guard wrapper (BT-18-011), whose update() reads
+    # its child's status and so requires the child to have been ticked first.
+    #
+    # A backend that returns RUNNING violates the synchronous-answer contract and
+    # the guard rejects it by raising (BT-18-011). This is a procedural, single-
+    # tick call with no tree to busy-loop, and the function's contract is to
+    # record a minimal peer whenever details cannot be resolved — so a contract
+    # violation degrades the same as any other non-SUCCESS rather than crashing
+    # the request. The offending backend is still surfaced, via the WARNING.
+    try:
+        backend.tick_once()
+        status = backend.status
+        reason = status.name
+    except CallOutContractError:
+        status = Status.INVALID
+        reason = "a non-synchronous (RUNNING) backend — BT-18-011 violation"
     if status != Status.SUCCESS:
         logger.warning(
             "actor discovery returned %s for %s '%s' — recording minimal peer"
             " (only URI known, not details)",
-            status.name,
+            reason,
             field,
             actor_id,
         )

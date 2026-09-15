@@ -1,5 +1,5 @@
 ```mermaid
-graph TD
+flowchart TD
   MaybeEatPills_1["&rarr; MaybeEatPills"]
   MaybeChaseOrAvoidGhost_2["? MaybeChaseOrAvoidGhost"]
   MaybeEatPills_1 --> MaybeChaseOrAvoidGhost_2

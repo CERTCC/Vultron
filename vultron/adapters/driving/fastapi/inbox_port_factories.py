@@ -146,7 +146,6 @@ _SYNC_PORT_SEMANTICS = frozenset(
         # (SYNC-15-005, #2186, #2180).
         MessageSemantics.ANNOUNCE_VULNERABILITY_CASE,
         MessageSemantics.ADD_NOTE_TO_CASE,
-        MessageSemantics.CLOSE_CASE,
         MessageSemantics.INVITE_ACTOR_TO_CASE,
         MessageSemantics.REJECT_INVITE_TO_EMBARGO_ON_CASE,
         MessageSemantics.REMOVE_EMBARGO_EVENT_FROM_CASE,
@@ -178,6 +177,10 @@ _SYNC_AND_TRIGGER_PORT_SEMANTICS = frozenset(
         MessageSemantics.ACCEPT_INVITE_TO_EMBARGO_ON_CASE,
         MessageSemantics.ACCEPT_CASE_OWNERSHIP_TRANSFER,
         MessageSemantics.ACCEPT_INVITE_ACTOR_TO_CASE,
+        # CLOSE_CASE fans out case_fully_closed via sync_port (CM-23-002) AND
+        # needs trigger_activity to emit an as:Reject when it must decline an
+        # owner close during a live embargo (CM-23-011).
+        MessageSemantics.CLOSE_CASE,
         MessageSemantics.DEFER_CASE,
         MessageSemantics.ENGAGE_CASE,
         MessageSemantics.INVITE_TO_EMBARGO_ON_CASE,

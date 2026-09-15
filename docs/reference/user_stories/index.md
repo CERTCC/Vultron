@@ -7,7 +7,7 @@ The following user stories are intended to capture the requirements of these use
 While the protocol is designed to support these use cases, it is not required that all use cases be supported by the
 protocol.
 
-Where appropriate, we intend to provide a reference implementation for each applicable user story.
+Where appropriate, a reference implementation will be provided for each applicable user story.
 
 <br/>
 
@@ -35,9 +35,8 @@ by the originally published Vultron Protocol (version 0.4.0):
 - *Unsupported* - Stories in this category are not supported by the Vultron Protocol v0.4.0.
 - *Out-of-scope* - Stories in this category are out of scope for the Vultron Protocol v0.4.0.
 
-In the future, we expect these categories will change toward simply *Supported*, *Unsupported* and *Out-of-scope*.
-We also anticipate that as we learn more about ActivityPub and make progress on the protocol development, some of
-the stories in the *Unsupported* category could move to *Supported*.
+These categories are expected to change toward *Supported*, *Unsupported* and *Out-of-scope* as the protocol matures.
+Some stories in the *Unsupported* category may move to *Supported* as ActivityPub support and protocol development progresses.
 
 ## User Stories Table
 
