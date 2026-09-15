@@ -354,7 +354,10 @@ def test_engage_tree_node_names(case_with_participant, actor_id):
     assert tree.children[0].name == "CheckParticipantExists"
     # Commit runs before effects (CLP-10-006)
     assert tree.children[1].name == "GuardedCommitCaseLedgerEntryBT"
-    assert tree.children[2].name == "TransitionParticipantRMtoAccepted"
+    # Idempotency Selector: skip write when already ACCEPTED
+    assert tree.children[2].name == "IdempotentTransitionRMtoAccepted"
+    assert tree.children[2].children[0].name == "CheckRMStateAccepted"
+    assert tree.children[2].children[1].name == "TransitionRMtoAccepted"
 
 
 def test_defer_tree_node_names(case_with_participant, actor_id):
@@ -364,7 +367,10 @@ def test_defer_tree_node_names(case_with_participant, actor_id):
     assert tree.children[0].name == "CheckParticipantExists"
     # Commit runs before effects (CLP-10-006)
     assert tree.children[1].name == "GuardedCommitCaseLedgerEntryBT"
-    assert tree.children[2].name == "TransitionParticipantRMtoDeferred"
+    # Idempotency Selector: skip write when already DEFERRED
+    assert tree.children[2].name == "IdempotentTransitionRMtoDeferred"
+    assert tree.children[2].children[0].name == "CheckRMStateDeferred"
+    assert tree.children[2].children[1].name == "TransitionRMtoDeferred"
 
 
 # ============================================================================
@@ -384,7 +390,10 @@ def test_engage_case_tree_success(
         case_id=case_with_participant.id_, actor_id=actor_id
     )
     result = bridge.execute_with_setup(
-        tree=tree, actor_id=actor_id, activity=request
+        tree=tree,
+        actor_id=actor_id,
+        activity=request,
+        case_id=case_with_participant.id_,
     )
 
     assert result.status == Status.SUCCESS
@@ -448,7 +457,10 @@ def test_defer_case_tree_success(
         case_id=case_with_participant.id_, actor_id=actor_id
     )
     result = bridge.execute_with_setup(
-        tree=tree, actor_id=actor_id, activity=request
+        tree=tree,
+        actor_id=actor_id,
+        activity=request,
+        case_id=case_with_participant.id_,
     )
 
     assert result.status == Status.SUCCESS
@@ -539,7 +551,7 @@ def test_engage_only_affects_target_actor(bridge, datalayer, actor_id, report):
     request = _make_engage_request(case, actor_a)
     tree = create_engage_case_tree(case_id=case.id_, actor_id=actor_a)
     result = bridge.execute_with_setup(
-        tree=tree, actor_id=actor_a, activity=request
+        tree=tree, actor_id=actor_a, activity=request, case_id=case.id_
     )
     assert result.status == Status.SUCCESS
 
@@ -565,7 +577,10 @@ def test_engage_case_tree_idempotent(
         case_id=case_with_participant.id_, actor_id=actor_id
     )
     result1 = bridge.execute_with_setup(
-        tree=tree1, actor_id=actor_id, activity=request
+        tree=tree1,
+        actor_id=actor_id,
+        activity=request,
+        case_id=case_with_participant.id_,
     )
     assert result1.status == Status.SUCCESS
 
@@ -573,7 +588,10 @@ def test_engage_case_tree_idempotent(
         case_id=case_with_participant.id_, actor_id=actor_id
     )
     result2 = bridge.execute_with_setup(
-        tree=tree2, actor_id=actor_id, activity=request
+        tree=tree2,
+        actor_id=actor_id,
+        activity=request,
+        case_id=case_with_participant.id_,
     )
     assert result2.status == Status.SUCCESS
 
@@ -600,7 +618,10 @@ def test_defer_case_tree_idempotent(
         case_id=case_with_participant.id_, actor_id=actor_id
     )
     result1 = bridge.execute_with_setup(
-        tree=tree1, actor_id=actor_id, activity=request
+        tree=tree1,
+        actor_id=actor_id,
+        activity=request,
+        case_id=case_with_participant.id_,
     )
     assert result1.status == Status.SUCCESS
 
@@ -608,7 +629,10 @@ def test_defer_case_tree_idempotent(
         case_id=case_with_participant.id_, actor_id=actor_id
     )
     result2 = bridge.execute_with_setup(
-        tree=tree2, actor_id=actor_id, activity=request
+        tree=tree2,
+        actor_id=actor_id,
+        activity=request,
+        case_id=case_with_participant.id_,
     )
     assert result2.status == Status.SUCCESS
 
@@ -637,7 +661,7 @@ def test_engage_case_tree_targets_constructor_actor_when_blackboard_differs(
     case_manager_actor_id,
     case_with_manager_in_cm_store,
 ):
-    """TransitionParticipantRMtoAccepted uses the constructor actor_id, not the blackboard.
+    """TransitionRMtoAccepted uses the constructor actor_id, not the blackboard.
 
     After the #2300 fix, received-side BTs run under the CaseManager's identity
     (blackboard actor_id = CaseManager) while the RM transition must still target
@@ -657,6 +681,7 @@ def test_engage_case_tree_targets_constructor_actor_when_blackboard_differs(
         tree=tree,
         actor_id=case_manager_actor_id,
         activity=request,
+        case_id=case_with_manager.id_,
     )
     assert result.status == Status.SUCCESS
 
@@ -708,10 +733,7 @@ def test_create_prioritize_subtree_returns_selector(
     engage_trigger_bt = engage_path.children[1]
     assert engage_trigger_bt.name == "EngageCaseTriggerBT"
     assert len(engage_trigger_bt.children) == 2
-    assert (
-        engage_trigger_bt.children[0].name
-        == "TransitionParticipantRMtoAccepted"
-    )
+    assert engage_trigger_bt.children[0].name == "TransitionRMtoAccepted"
     engage_sender = engage_trigger_bt.children[1]
     assert engage_sender.name == "SenderSideBT"
     assert len(engage_sender.children) == 3
@@ -727,10 +749,7 @@ def test_create_prioritize_subtree_returns_selector(
     defer_trigger_bt = defer_path.children[0]
     assert defer_trigger_bt.name == "DeferCaseTriggerBT"
     assert len(defer_trigger_bt.children) == 2
-    assert (
-        defer_trigger_bt.children[0].name
-        == "TransitionParticipantRMtoDeferred"
-    )
+    assert defer_trigger_bt.children[0].name == "TransitionRMtoDeferred"
     defer_sender = defer_trigger_bt.children[1]
     assert defer_sender.name == "SenderSideBT"
     assert len(defer_sender.children) == 3
@@ -760,7 +779,9 @@ def test_prioritize_subtree_engages_by_default(
         actor_id=actor_id,
         trigger_activity=trigger_activity,
     )
-    result = bridge.execute_with_setup(tree=tree, actor_id=actor_id)
+    result = bridge.execute_with_setup(
+        tree=tree, actor_id=actor_id, case_id=case_with_manager.id_
+    )
 
     assert result.status == Status.SUCCESS
 
@@ -871,7 +892,9 @@ def test_prioritize_subtree_defers_when_engage_path_fails(
         trigger_activity=trigger_activity,
         call_out=bundle,
     )
-    result = bridge.execute_with_setup(tree=tree, actor_id=actor_id)
+    result = bridge.execute_with_setup(
+        tree=tree, actor_id=actor_id, case_id=case_with_manager.id_
+    )
 
     assert result.status == Status.SUCCESS
 

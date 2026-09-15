@@ -20,10 +20,11 @@ produces the correct fuzzer classes.
 
 import py_trees
 
+from vultron.core.behaviors.call_out import unwrap_call_out
+from vultron.core.behaviors.call_out.nodes import AlwaysSucceed
 from vultron.core.behaviors.report.assign_vul_id_tree import (
     create_assign_vul_id_tree,
 )
-from vultron.core.behaviors.call_out.nodes import AlwaysSucceed
 from vultron.demo.fuzzer.bundles.assign_vul_id import (
     ASSIGN_VUL_ID_DETERMINISTIC,
     ASSIGN_VUL_ID_STOCHASTIC,
@@ -62,8 +63,8 @@ def test_default_children_are_deterministic():
     """Default (no bundle) produces DETERMINISTIC AlwaysSucceed nodes (BT-23-002)."""
     tree = create_assign_vul_id_tree(case_id=CASE_ID)
     assert len(tree.children) == 2
-    assert isinstance(tree.children[0], AlwaysSucceed)
-    assert isinstance(tree.children[1], AlwaysSucceed)
+    assert isinstance(unwrap_call_out(tree.children[0]), AlwaysSucceed)
+    assert isinstance(unwrap_call_out(tree.children[1]), AlwaysSucceed)
 
 
 def test_stochastic_bundle_children_are_fuzzer_nodes():
@@ -72,8 +73,8 @@ def test_stochastic_bundle_children_are_fuzzer_nodes():
         case_id=CASE_ID, call_out=ASSIGN_VUL_ID_STOCHASTIC
     )
     assert len(tree.children) == 2
-    assert isinstance(tree.children[0], InScope)
-    assert isinstance(tree.children[1], IdAssignable)
+    assert isinstance(unwrap_call_out(tree.children[0]), InScope)
+    assert isinstance(unwrap_call_out(tree.children[1]), IdAssignable)
 
 
 def test_id_assignable_factory_used():

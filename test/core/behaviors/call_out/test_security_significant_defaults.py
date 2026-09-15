@@ -58,6 +58,7 @@ import pytest
 from py_trees.common import Status
 
 from vultron.core.behaviors.call_out import bundles as core_bundles
+from vultron.core.behaviors.call_out import unwrap_call_out
 from vultron.core.behaviors.call_out.bundles.embargo import (
     EMBARGO_DETERMINISTIC,
 )
@@ -139,7 +140,7 @@ def test_conservative_default_set_is_exactly_the_two_status_gates():
     for singleton_name, singleton in _core_deterministic_singletons().items():
         for f in dataclasses.fields(singleton):
             node = getattr(singleton, f.name)(f.name)
-            if isinstance(node, RequireCaseOwnerApprovalNode):
+            if isinstance(unwrap_call_out(node), RequireCaseOwnerApprovalNode):
                 found.add((singleton_name, f.name))
     assert found == EXPECTED_CONSERVATIVE_GATES
 

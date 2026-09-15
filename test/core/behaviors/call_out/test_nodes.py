@@ -38,8 +38,8 @@ from vultron.core.behaviors.call_out import (
     AlwaysFail,
     AlwaysSucceed,
     CallOutBackendFactory,
+    unwrap_call_out,
 )
-from vultron.core.behaviors.call_out.nodes import RequireCaseOwnerApprovalNode
 from vultron.core.behaviors.call_out.bundles import (
     ACQUIRE_EXPLOIT_DETERMINISTIC,
     ASSIGN_CVE_ID_DETERMINISTIC,
@@ -53,6 +53,7 @@ from vultron.core.behaviors.call_out.bundles import (
     STATUS_AUTHORIZATION_DETERMINISTIC,
     VALIDATION_DETERMINISTIC,
 )
+from vultron.core.behaviors.call_out.nodes import RequireCaseOwnerApprovalNode
 
 # All pre-built core DETERMINISTIC bundle singletons.
 _DETERMINISTIC_BUNDLES = [
@@ -218,7 +219,9 @@ def test_bundle_factories_build_core_deterministic_nodes(bundle):
     for factory in fields:
         assert isinstance(factory, CallOutBackendFactory)
         node = factory("probe")
-        assert isinstance(node, _CORE_DETERMINISTIC_NODE_TYPES)
+        assert isinstance(
+            unwrap_call_out(node), _CORE_DETERMINISTIC_NODE_TYPES
+        )
         assert node.name == "probe"
 
 

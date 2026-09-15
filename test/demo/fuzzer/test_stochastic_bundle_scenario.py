@@ -25,8 +25,11 @@ Each test exercises a different domain to show the pattern is universal.
 """
 
 import logging
+
 import py_trees
 import pytest
+
+from vultron.core.behaviors.call_out import unwrap_call_out
 
 logger = logging.getLogger(__name__)
 
@@ -65,8 +68,12 @@ def test_validation_stochastic_bundle_end_to_end():
     # under the root Selector's second child).  The duplicated
     # EmitAndValidate → ValidationOrShortcut wrapper was removed in ISSUE-2548.
     validation_flow = tree.children[1]
-    assert isinstance(validation_flow.children[1], EvaluateReportCredibility)
-    assert isinstance(validation_flow.children[2], EvaluateReportValidity)
+    assert isinstance(
+        unwrap_call_out(validation_flow.children[1]), EvaluateReportCredibility
+    )
+    assert isinstance(
+        unwrap_call_out(validation_flow.children[2]), EvaluateReportValidity
+    )
 
     logger.info(
         "STOCHASTIC validation tree:\n%s", py_trees.display.ascii_tree(tree)
@@ -96,9 +103,15 @@ def test_embargo_stochastic_bundle_end_to_end():
     )
     assert isinstance(tree, py_trees.behaviour.Behaviour)
     assert len(tree.children) == 10
-    assert isinstance(tree.children[0], ExitEmbargoWhenDeployed)
-    assert isinstance(tree.children[1], ExitEmbargoWhenFixReady)
-    assert isinstance(tree.children[4], SelectEmbargoOfferTerms)
+    assert isinstance(
+        unwrap_call_out(tree.children[0]), ExitEmbargoWhenDeployed
+    )
+    assert isinstance(
+        unwrap_call_out(tree.children[1]), ExitEmbargoWhenFixReady
+    )
+    assert isinstance(
+        unwrap_call_out(tree.children[4]), SelectEmbargoOfferTerms
+    )
 
     logger.info(
         "STOCHASTIC embargo tree:\n%s", py_trees.display.ascii_tree(tree)
@@ -127,8 +140,8 @@ def test_assign_vul_id_stochastic_bundle_end_to_end():
     tree = create_assign_vul_id_tree(
         case_id=case_id, call_out=ASSIGN_VUL_ID_STOCHASTIC
     )
-    assert isinstance(tree.children[0], InScope)
-    assert isinstance(tree.children[1], IdAssignable)
+    assert isinstance(unwrap_call_out(tree.children[0]), InScope)
+    assert isinstance(unwrap_call_out(tree.children[1]), IdAssignable)
 
     logger.info(
         "STOCHASTIC assign-VUL-ID tree:\n%s", py_trees.display.ascii_tree(tree)
@@ -158,9 +171,9 @@ def test_assign_cve_id_stochastic_bundle_end_to_end():
         case_id=case_id, call_out=ASSIGN_CVE_ID_STOCHASTIC
     )
     # Root Fallback: first child is IdAssigned (Retriever early-exit)
-    assert isinstance(tree.children[0], IdAssigned)
+    assert isinstance(unwrap_call_out(tree.children[0]), IdAssigned)
     # Second child is _AssignIdIfInScope Sequence; its first child is InScope
-    assert isinstance(tree.children[1].children[0], InScope)
+    assert isinstance(unwrap_call_out(tree.children[1].children[0]), InScope)
 
     logger.info(
         "STOCHASTIC assign-CVE-ID tree:\n%s", py_trees.display.ascii_tree(tree)
@@ -196,20 +209,20 @@ def test_three_mode_comparison():
     # DETERMINISTIC mode (ceiling/floor defaults)
     det_tree = create_deploy_fix_tree(case_id=case_id, actor_id=actor_id)
     assert isinstance(
-        _deploy_fix_node(det_tree), AlwaysFail
+        unwrap_call_out(_deploy_fix_node(det_tree)), AlwaysFail
     )  # DeployFix p=0.10
 
     # Explicit DETERMINISTIC singleton — same result
     det_tree2 = create_deploy_fix_tree(
         case_id=case_id, actor_id=actor_id, call_out=DEPLOY_FIX_DETERMINISTIC
     )
-    assert isinstance(_deploy_fix_node(det_tree2), AlwaysFail)
+    assert isinstance(unwrap_call_out(_deploy_fix_node(det_tree2)), AlwaysFail)
 
     # STOCHASTIC mode — probabilistic fuzzer nodes
     sto_tree = create_deploy_fix_tree(
         case_id=case_id, actor_id=actor_id, call_out=DEPLOY_FIX_STOCHASTIC
     )
-    assert isinstance(_deploy_fix_node(sto_tree), DeployFix)
+    assert isinstance(unwrap_call_out(_deploy_fix_node(sto_tree)), DeployFix)
 
     # CUSTOM mode — per-field override
     def _custom_deploy_fix(name):

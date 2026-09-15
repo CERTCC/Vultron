@@ -17,6 +17,7 @@ related_notes:
   - notes/embargo-lifecycle.md
   - notes/received-status-authorization.md
   - notes/testing-pitfalls.md
+  - notes/protocol-asks.md
 relevant_packages:
   - py_trees
   - vultron/core/behaviors
@@ -586,25 +587,6 @@ specifically), not the weaker absence predicate. Catching this requires reading
 
 ---
 
-## `_resolve_case_manager_id` Is Duplicated in `develop_fix.py` — Do Not Canonicalise Yet
-
-(ISSUE-1812, 2026-07-29; tracked for unification in #1428)
-
-`vultron/core/behaviors/report/nodes/develop_fix.py` contains a local copy of
-`_resolve_case_manager_id` that mirrors the canonical version in
-`vultron.core.use_cases._helpers`. This duplication was deliberate: BT nodes
-in `vultron/core/behaviors/` cannot import from `vultron/core/use_cases/`
-(BTND-04-003), and no shared `core.behaviors` helper location exists yet.
-
-**Do not unify or move these helpers until #1428 is addressed.** Adding a
-shared helper module under `vultron/core/behaviors/` is a design decision
-requiring an ADR or spec entry. Until then, keep the inlined copy — it is not
-tech debt to fix in the same PR.
-
-<!-- Source: ISSUE-1812 -->
-
----
-
 ## `NoDataAvailable` Surfaces in `initialise()`, Not `setup_ports()`
 
 (ADR-0044 / BTND-03-011, 2026-07-29)
@@ -872,6 +854,52 @@ validation there is.
 
 Sources: CONCERN-2412, ISSUE-3050 (ADR-0086)
 
+## Never Construct `CreateParticipantStatusNode` Inside Another Node's `update()`
+
+**Pitfall (BTND-10-004):** Instantiating `CreateParticipantStatusNode` (or any
+significant sub-node) directly inside an enclosing `Behaviour.update()` skips the
+normal tick lifecycle. `setup()` never runs, which means the DataLayer and
+blackboard context that `setup()` binds are absent — the node silently behaves as
+if initialised with empty wiring. Additionally, constructing a node inside `update()`
+while wrapping the call in `try/except` is the swallowing anti-pattern from
+§ "Always Check `BTBridge.execute_with_setup` Return Value" — the write either
+succeeds silently or is eaten.
+
+**The fix is always the same**: pre-build the sub-node in `__init__` and delegate
+to it via `BTBridge.execute_with_setup(self._status_node, **context)` in `update()`.
+The sub-node is then a real tree participant — `setup()` runs, the tick cycle
+applies, and return values are visible.
+
+The architecture ratchet `test/architecture/test_participant_status_validation.py`
+(AC-9) catches any `update()` method that re-introduces this construction.
+
+Sources: BTND-10-004, ADR-0089, ISSUE-3204
+
+## `CreateParticipantStatusNode` Accepts No `case_id` Constructor Argument
+
+**Pitfall (BTND-10-005):** Passing `case_id` to the constructor is a dead end for
+received trees: the case_id is resolved at tick time by dereferencing the incoming
+report, not at build time. Constructor injection forces build-time knowledge the
+caller may not have; it also couples the constructed node to a single case, making
+it unresachable via any path that supplies the id through the blackboard.
+
+The sole correct mechanism is the `CaseIdInputPortMixin` port. Trees that know the
+id at build time seed it via `BTBridge.execute_with_setup(node, case_id=case_id)`;
+received trees leave the port unsupplied and let the node read `/case_id` at tick
+time.
+
+Similarly, the *subject* actor — the participant whose status is being written —
+must be an **explicit constructor argument**, never a fallback to the blackboard
+`actor_id`. The blackboard actor is the *executing* actor, not the subject; the
+two differ in every received-message flow, and conflating them was the root cause
+of bug #2300.
+
+The architecture ratchet (AC-9) fails if `__init__` gains a `case_id` parameter,
+and fails if `_ReportPhaseRMTransition._acting_actor_id()` re-introduces the
+`or self.actor_id` fallback.
+
+Sources: BTND-10-005, ADR-0089, ISSUE-3204, BUG-2300
+
 ## BT Nodes Must Not Clear Blackboard Keys They Do Not Own
 
 A node's `_clear()` or tick-start zero-write MUST only target keys that node is
@@ -907,3 +935,35 @@ comes from the **parent** doing the rendering:
 subtree**, never on the leaf nodes whose names you want changed.
 
 Source: ISSUE-2109
+
+## Call-Out Bundle Factories Hand Out Guard-Wrapped Nodes (BT-18-011)
+
+Every `<Domain>CallOutBundle` factory field now yields a node wrapped in
+`SynchronousCallOut` — the no-`RUNNING` guard applied once in
+`CallOutBundle.__post_init__` (`call_out/bundles/base.py`). So
+`bundle.some_factory("Name")` returns the *guard*, not the backend directly,
+for DETERMINISTIC, STOCHASTIC, and implementer-injected bundles alike. The
+wrapper is name- and status-transparent, so building and ticking a tree is
+unaffected — but a test that asserts on the concrete backend **type or a
+backend-specific attribute** must look through the guard:
+
+```python
+from vultron.core.behaviors.call_out import unwrap_call_out
+
+assert isinstance(unwrap_call_out(node), AlwaysFail)   # not isinstance(node, ...)
+assert unwrap_call_out(node).success_rate == 0.9       # attrs live on the child
+```
+
+`isinstance(node, py_trees.behaviour.Behaviour)` still holds (the guard *is* a
+Behaviour), so only concrete-subclass and attribute checks need unwrapping.
+
+A caller that ticks a factory product **procedurally** (outside a `BTBridge`
+tree) must use `tick_once()` / `setup_with_descendants()`, never a bare
+`update()` / `setup()`: the guard's `update()` reads its child's status, which
+is only set after the child has been ticked, and its `setup()` propagates to the
+child only via the descendant walk. See `_record_named_peer`
+(`use_cases/triggers/actor.py`) and `stochastic_demo.py` for the two procedural
+call sites. Design rationale: [protocol-asks.md](protocol-asks.md) § "The
+invariant is enforced, not just observed".
+
+Source: ISSUE-3194 (BT-18-011, ADR-0080)

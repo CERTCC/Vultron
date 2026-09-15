@@ -61,6 +61,9 @@ class SvcDeferCaseUseCase(SvcBTTriggerBase):
             activity_builder=_build_activities,
         )
 
+    def _extra_execute_kwargs(self) -> dict:
+        return {"case_id": self._case_id}
+
     def _handle_result(self) -> None:
         logger.info(
             "Actor '%s' deferred case '%s' (RM → DEFERRED)",

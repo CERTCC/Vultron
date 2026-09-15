@@ -236,6 +236,7 @@ def test_bt_execution_performance_single_run(mock_datalayer, sample_activity):
         report_id="test-report-123",
         offer_id="test-offer-456",
         call_out=_make_always_succeed_bundle(),
+        sender_actor_id="https://example.org/vendor",
     )
 
     start = time.perf_counter()
@@ -275,6 +276,7 @@ def test_bt_execution_performance_percentiles(mock_datalayer, sample_activity):
             report_id="test-report-123",
             offer_id="test-offer-456",
             call_out=_make_always_succeed_bundle(),
+            sender_actor_id="https://example.org/vendor",
         )
 
         start = time.perf_counter()

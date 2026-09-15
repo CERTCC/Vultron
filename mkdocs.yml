@@ -164,6 +164,7 @@ nav:
       - Embargo Management (EM): 'reference/messages/em.md'
       - Case State (CS): 'reference/messages/cs.md'
       - General (GI): 'reference/messages/general.md'
+      - Faults and Acknowledgements: 'reference/messages/faults_and_acknowledgements.md'
     - Specifications:
       - 'reference/specs/index.md'
       - Protocol: 'reference/specs/protocol.md'

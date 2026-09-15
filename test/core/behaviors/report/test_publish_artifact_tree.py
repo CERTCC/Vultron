@@ -20,10 +20,11 @@ Verifies ADR-0030 / BT-20-004:
 - AC-5: All four pipeline stages are independently injectable.
 """
 
-import pytest
 import py_trees
+import pytest
 from py_trees.common import Access, Status
 
+from vultron.core.behaviors.call_out import unwrap_call_out
 from vultron.core.behaviors.report.publish_artifact_tree import (
     DRAFT_ARTIFACT_KEY,
     REVIEW_DECISION_KEY,
@@ -170,14 +171,14 @@ def test_draft_is_first_child():
     tree = create_publish_artifact_tree(
         case_id=CASE_ID, call_out=PUBLICATION_STOCHASTIC
     )
-    assert isinstance(tree.children[0], DraftAdvisoryArtifact)
+    assert isinstance(unwrap_call_out(tree.children[0]), DraftAdvisoryArtifact)
 
 
 def test_review_is_second_child():
     tree = create_publish_artifact_tree(
         case_id=CASE_ID, call_out=PUBLICATION_STOCHASTIC
     )
-    assert isinstance(tree.children[1], ReviewAdvisoryDraft)
+    assert isinstance(unwrap_call_out(tree.children[1]), ReviewAdvisoryDraft)
 
 
 def test_revision_arm_is_third_child():
@@ -194,7 +195,9 @@ def test_revision_arm_is_third_child():
     assert isinstance(do_revise, py_trees.composites.Sequence)
     assert len(do_revise.children) == 2
     assert isinstance(do_revise.children[0], _NeedsRevisionGate)
-    assert isinstance(do_revise.children[1], ReviseAdvisoryDraft)
+    assert isinstance(
+        unwrap_call_out(do_revise.children[1]), ReviseAdvisoryDraft
+    )
     # Second: Inverter(NeedsRevisionGate) skip guard
     skip_guard = revision_arm.children[1]
     assert isinstance(skip_guard, py_trees.decorators.Inverter)
@@ -205,7 +208,9 @@ def test_submit_is_fourth_child():
     tree = create_publish_artifact_tree(
         case_id=CASE_ID, call_out=PUBLICATION_STOCHASTIC
     )
-    assert isinstance(tree.children[3], SubmitAdvisoryArtifact)
+    assert isinstance(
+        unwrap_call_out(tree.children[3]), SubmitAdvisoryArtifact
+    )
 
 
 def test_artifact_label_applied_to_all_node_names():

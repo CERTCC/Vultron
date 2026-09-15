@@ -20,10 +20,11 @@ STOCHASTIC bundle produces the correct fuzzer class.
 
 import py_trees
 
+from vultron.core.behaviors.call_out import unwrap_call_out
+from vultron.core.behaviors.call_out.nodes import AlwaysFail
 from vultron.core.behaviors.report.close_report_tree import (
     create_close_report_tree,
 )
-from vultron.core.behaviors.call_out.nodes import AlwaysFail
 from vultron.demo.fuzzer.bundles.close_report import (
     CLOSE_REPORT_DETERMINISTIC,
     CLOSE_REPORT_STOCHASTIC,
@@ -45,7 +46,7 @@ def test_create_close_report_tree_returns_behaviour():
 def test_default_is_always_fail():
     """DETERMINISTIC default: OtherCloseCriteriaMet (p=0.25) → AlwaysFail (BT-23-002)."""
     tree = create_close_report_tree(case_id=CASE_ID)
-    assert isinstance(tree, AlwaysFail)
+    assert isinstance(unwrap_call_out(tree), AlwaysFail)
 
 
 def test_default_node_name():
@@ -57,7 +58,7 @@ def test_stochastic_bundle_produces_fuzzer_node():
     tree = create_close_report_tree(
         case_id=CASE_ID, call_out=CLOSE_REPORT_STOCHASTIC
     )
-    assert isinstance(tree, OtherCloseCriteriaMet)
+    assert isinstance(unwrap_call_out(tree), OtherCloseCriteriaMet)
 
 
 def test_custom_factory_used():
@@ -90,7 +91,7 @@ def test_pre_close_action_factory_accepted():
 def test_pre_close_action_bundle_field_produces_correct_node():
     """STOCHASTIC bundle pre_close_action_factory produces a PreCloseAction node."""
     node = CLOSE_REPORT_STOCHASTIC.pre_close_action_factory("PreCloseAction")
-    assert isinstance(node, PreCloseAction)
+    assert isinstance(unwrap_call_out(node), PreCloseAction)
 
 
 def test_pre_close_action_custom_factory_accepted():

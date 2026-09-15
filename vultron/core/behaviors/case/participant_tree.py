@@ -41,13 +41,11 @@ specs/behavior-tree-node-design.yaml BTND-07-003.
 import py_trees
 
 from vultron.core.behaviors.case.nodes.participant.owner import (
-    AdvanceOwnerRmToAcceptedNode,
     AttachOwnerParticipantToCaseNode,
     CreateOwnerParticipantNode,
     PersistOwnerCaseNode,
     RecordOwnerJoinedEventNode,
     ResolveOwnerInitialStatusNode,
-    ShouldAdvanceOwnerToAcceptedNode,
 )
 from vultron.core.behaviors.case.nodes.participant.participant_add import (
     AttachParticipantToCaseNode,
@@ -108,7 +106,6 @@ class CreateCaseOwnerParticipant(py_trees.composites.Sequence):
         actor_config: ActorConfig | None = None,
         report_id: str | None = None,
         case_obj: VultronCase | None = None,
-        advance_to_accepted: bool = False,
         initial_rm_state: RM = RM.VALID,
         name: str | None = None,
     ):
@@ -127,25 +124,6 @@ class CreateCaseOwnerParticipant(py_trees.composites.Sequence):
                 AttachOwnerParticipantToCaseNode(report_id=report_id),
                 PersistOwnerCaseNode(report_id=report_id),
                 RecordOwnerJoinedEventNode(report_id=report_id),
-                py_trees.composites.Selector(
-                    name="AdvanceOwnerRmIfConfigured",
-                    memory=False,
-                    children=[
-                        py_trees.composites.Sequence(
-                            name="AdvanceOwnerRmBranch",
-                            memory=False,
-                            children=[
-                                ShouldAdvanceOwnerToAcceptedNode(
-                                    advance_to_accepted=advance_to_accepted
-                                ),
-                                AdvanceOwnerRmToAcceptedNode(
-                                    report_id=report_id
-                                ),
-                            ],
-                        ),
-                        py_trees.behaviours.Success(name="SkipAdvanceOwnerRm"),
-                    ],
-                ),
             ],
         )
 

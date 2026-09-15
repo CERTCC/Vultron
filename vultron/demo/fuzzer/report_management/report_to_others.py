@@ -46,7 +46,6 @@ from vultron.demo.fuzzer.base import (
     AlmostCertainlyFail,
     AlwaysSucceed,
     ProbablySucceed,
-    SuccessOrRunning,
     UniformSucceedFail,
     UsuallyFail,
     UsuallySucceed,
@@ -101,14 +100,15 @@ class AllPartiesKnown(EvaluatorCallOutPoint, UniformSucceedFail):
     output_keys = {"all_parties_known_verdict": str}
 
 
-class IdentifyVendors(RetrieverCallOutPoint, SuccessOrRunning):
+class IdentifyVendors(RetrieverCallOutPoint, AlwaysSucceed):
     """Identify the software vendors responsible for the affected product(s).
 
     Semantic function:
         Action — identify the software vendors responsible for the
-        affected product(s) so they can be notified.  Uses
-        ``SuccessOrRunning`` to model that vendor identification may be
-        an ongoing (multi-tick) process; never hard-fails.
+        affected product(s) so they can be notified.  A call-out point MUST
+        answer synchronously (BT-18-011, ADR-0080), so it is modeled with
+        ``AlwaysSucceed``: identification resolves in one tick and never
+        hard-fails.
 
     Blackboard contract (BT-18-001):
       Input keys:  (none — queries CPE/product databases and SBOM data)
@@ -116,8 +116,7 @@ class IdentifyVendors(RetrieverCallOutPoint, SuccessOrRunning):
 
     Input category: Human decision / System integration.
 
-    Success probability: 0.50 (``SuccessOrRunning``; never returns
-    FAILURE).
+    Success probability: 1.00 (``AlwaysSucceed``; never returns FAILURE).
 
     Automation potential: **Medium** — CPE/product database lookups,
     SBOM analysis, and NVD product data queries are automatable for known
@@ -128,14 +127,15 @@ class IdentifyVendors(RetrieverCallOutPoint, SuccessOrRunning):
     output_keys = {"identified_vendors": list}
 
 
-class IdentifyCoordinators(RetrieverCallOutPoint, SuccessOrRunning):
+class IdentifyCoordinators(RetrieverCallOutPoint, AlwaysSucceed):
     """Identify coordinator organizations that should be involved.
 
     Semantic function:
         Action — identify any coordinator organizations (e.g., CERT/CC,
-        national CSIRTs) that should be involved in the disclosure.  Uses
-        ``SuccessOrRunning`` to model an ongoing identification process;
-        never hard-fails.
+        national CSIRTs) that should be involved in the disclosure.  A
+        call-out point MUST answer synchronously (BT-18-011, ADR-0080), so it
+        is modeled with ``AlwaysSucceed``: identification resolves in one tick
+        and never hard-fails.
 
     Blackboard contract (BT-18-001):
       Input keys:  (none — queries FIRST member directory and CSIRT registries)
@@ -143,8 +143,7 @@ class IdentifyCoordinators(RetrieverCallOutPoint, SuccessOrRunning):
 
     Input category: Human decision / System integration.
 
-    Success probability: 0.50 (``SuccessOrRunning``; never returns
-    FAILURE).
+    Success probability: 1.00 (``AlwaysSucceed``; never returns FAILURE).
 
     Automation potential: **Medium** — FIRST member directory and national
     CSIRT registry lookups are automatable; routing policy (when to involve

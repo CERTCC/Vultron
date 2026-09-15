@@ -13,14 +13,18 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-"""Unit tests for report participant transition nodes."""
+"""Unit tests for participant RM transition behavior via CreateParticipantStatusNode.
+
+Per ADR-0089 AC-4: TransitionParticipantRMtoAccepted and
+TransitionParticipantRMtoDeferred bypass nodes were deleted; their behavior is
+now provided directly by CreateParticipantStatusNode.
+"""
 
 import pytest
 from typing import Any, cast
 
-from vultron.core.behaviors.report.nodes.participant import (
-    TransitionParticipantRMtoAccepted,
-    TransitionParticipantRMtoDeferred,
+from vultron.core.behaviors.case.nodes.participant.status import (
+    CreateParticipantStatusNode,
 )
 from vultron.core.models.case import VultronCase
 from vultron.core.models.case_actor import VultronCaseActor
@@ -91,13 +95,18 @@ def test_transition_participant_rm_to_accepted(
     actor: VultronCaseActor,
     case_with_participant: tuple[VultronCase, VultronParticipant],
 ) -> None:
-    """TransitionParticipantRMtoAccepted appends RM.ACCEPTED."""
+    """CreateParticipantStatusNode(rm_state=ACCEPTED) appends RM.ACCEPTED."""
     case, participant = case_with_participant
     result = bt_scenario.run(
-        TransitionParticipantRMtoAccepted(
-            case_id=case.id_, actor_id=actor.id_
+        CreateParticipantStatusNode(
+            actor_id=actor.id_,
+            rm_state=RM.ACCEPTED,
+            vf_state=None,
+            d_state=None,
+            pxa_state=None,
         ),
         actor_id=actor.id_,
+        case_id=case.id_,
     )
     bt_scenario.assert_success(result)
 
@@ -106,30 +115,45 @@ def test_transition_participant_rm_to_accepted(
     assert updated_participant.participant_statuses[-1].rm.state == RM.ACCEPTED
 
 
-def test_transition_participant_rm_to_accepted_is_idempotent(
+def test_transition_participant_rm_to_accepted_same_state_persists_confirmation(
     bt_scenario: BTTestScenario,
     actor: VultronCaseActor,
     case_with_participant: tuple[VultronCase, VultronParticipant],
 ) -> None:
-    """TransitionParticipantRMtoAccepted does not append duplicates."""
+    """CreateParticipantStatusNode(rm_state=ACCEPTED) called twice appends two records.
+
+    AC-4 (issue #3204): same-state writes are valid confirmation records and
+    MUST be persisted.  ``CreateParticipantStatusNode`` is the sole writer; it
+    does not suppress duplicate writes — callers that need idempotency must add
+    their own guard (e.g. the ``IdempotentTransitionRMtoAccepted`` Selector in
+    ``create_engage_case_tree``).
+    """
     case, participant = case_with_participant
 
     bt_scenario.assert_success(
         bt_scenario.run(
-            TransitionParticipantRMtoAccepted(
-                case_id=case.id_,
+            CreateParticipantStatusNode(
                 actor_id=actor.id_,
+                rm_state=RM.ACCEPTED,
+                vf_state=None,
+                d_state=None,
+                pxa_state=None,
             ),
             actor_id=actor.id_,
+            case_id=case.id_,
         )
     )
     bt_scenario.assert_success(
         bt_scenario.run(
-            TransitionParticipantRMtoAccepted(
-                case_id=case.id_,
+            CreateParticipantStatusNode(
                 actor_id=actor.id_,
+                rm_state=RM.ACCEPTED,
+                vf_state=None,
+                d_state=None,
+                pxa_state=None,
             ),
             actor_id=actor.id_,
+            case_id=case.id_,
         )
     )
 
@@ -140,7 +164,8 @@ def test_transition_participant_rm_to_accepted_is_idempotent(
         for status in updated_participant.participant_statuses
         if status.rm.state == RM.ACCEPTED
     ]
-    assert len(accepted_entries) == 1
+    # Both writes persisted: first is the transition, second is an AC-4 confirmation.
+    assert len(accepted_entries) == 2
 
 
 def test_transition_participant_rm_to_accepted_fails_without_participant(
@@ -148,13 +173,17 @@ def test_transition_participant_rm_to_accepted_fails_without_participant(
     actor: VultronCaseActor,
     case_without_participant: VultronCase,
 ) -> None:
-    """TransitionParticipantRMtoAccepted fails when actor has no participant."""
+    """CreateParticipantStatusNode(rm_state=ACCEPTED) fails when actor has no participant."""
     result = bt_scenario.run(
-        TransitionParticipantRMtoAccepted(
-            case_id=case_without_participant.id_,
+        CreateParticipantStatusNode(
             actor_id=actor.id_,
+            rm_state=RM.ACCEPTED,
+            vf_state=None,
+            d_state=None,
+            pxa_state=None,
         ),
         actor_id=actor.id_,
+        case_id=case_without_participant.id_,
     )
     bt_scenario.assert_failure(result)
 
@@ -164,13 +193,18 @@ def test_transition_participant_rm_to_deferred(
     actor: VultronCaseActor,
     case_with_participant: tuple[VultronCase, VultronParticipant],
 ) -> None:
-    """TransitionParticipantRMtoDeferred appends RM.DEFERRED."""
+    """CreateParticipantStatusNode(rm_state=DEFERRED) appends RM.DEFERRED."""
     case, participant = case_with_participant
     result = bt_scenario.run(
-        TransitionParticipantRMtoDeferred(
-            case_id=case.id_, actor_id=actor.id_
+        CreateParticipantStatusNode(
+            actor_id=actor.id_,
+            rm_state=RM.DEFERRED,
+            vf_state=None,
+            d_state=None,
+            pxa_state=None,
         ),
         actor_id=actor.id_,
+        case_id=case.id_,
     )
     bt_scenario.assert_success(result)
 
@@ -179,30 +213,45 @@ def test_transition_participant_rm_to_deferred(
     assert updated_participant.participant_statuses[-1].rm.state == RM.DEFERRED
 
 
-def test_transition_participant_rm_to_deferred_is_idempotent(
+def test_transition_participant_rm_to_deferred_same_state_persists_confirmation(
     bt_scenario: BTTestScenario,
     actor: VultronCaseActor,
     case_with_participant: tuple[VultronCase, VultronParticipant],
 ) -> None:
-    """TransitionParticipantRMtoDeferred does not append duplicates."""
+    """CreateParticipantStatusNode(rm_state=DEFERRED) called twice appends two records.
+
+    AC-4 (issue #3204): same-state writes are valid confirmation records and
+    MUST be persisted.  ``CreateParticipantStatusNode`` is the sole writer; it
+    does not suppress duplicate writes — callers that need idempotency must add
+    their own guard (e.g. the ``IdempotentTransitionRMtoDeferred`` Selector in
+    ``create_defer_case_tree``).
+    """
     case, participant = case_with_participant
 
     bt_scenario.assert_success(
         bt_scenario.run(
-            TransitionParticipantRMtoDeferred(
-                case_id=case.id_,
+            CreateParticipantStatusNode(
                 actor_id=actor.id_,
+                rm_state=RM.DEFERRED,
+                vf_state=None,
+                d_state=None,
+                pxa_state=None,
             ),
             actor_id=actor.id_,
+            case_id=case.id_,
         )
     )
     bt_scenario.assert_success(
         bt_scenario.run(
-            TransitionParticipantRMtoDeferred(
-                case_id=case.id_,
+            CreateParticipantStatusNode(
                 actor_id=actor.id_,
+                rm_state=RM.DEFERRED,
+                vf_state=None,
+                d_state=None,
+                pxa_state=None,
             ),
             actor_id=actor.id_,
+            case_id=case.id_,
         )
     )
 
@@ -213,7 +262,8 @@ def test_transition_participant_rm_to_deferred_is_idempotent(
         for status in updated_participant.participant_statuses
         if status.rm.state == RM.DEFERRED
     ]
-    assert len(deferred_entries) == 1
+    # Both writes persisted: first is the transition, second is an AC-4 confirmation.
+    assert len(deferred_entries) == 2
 
 
 def test_transition_participant_rm_to_deferred_fails_without_participant(
@@ -221,12 +271,16 @@ def test_transition_participant_rm_to_deferred_fails_without_participant(
     actor: VultronCaseActor,
     case_without_participant: VultronCase,
 ) -> None:
-    """TransitionParticipantRMtoDeferred fails when actor has no participant."""
+    """CreateParticipantStatusNode(rm_state=DEFERRED) fails when actor has no participant."""
     result = bt_scenario.run(
-        TransitionParticipantRMtoDeferred(
-            case_id=case_without_participant.id_,
+        CreateParticipantStatusNode(
             actor_id=actor.id_,
+            rm_state=RM.DEFERRED,
+            vf_state=None,
+            d_state=None,
+            pxa_state=None,
         ),
         actor_id=actor.id_,
+        case_id=case_without_participant.id_,
     )
     bt_scenario.assert_failure(result)

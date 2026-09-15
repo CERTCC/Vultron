@@ -223,6 +223,13 @@ def parse_activity(body: dict[str, Any]) -> as_Activity:
     # the same way.  Asking only whether the *key* was absent let ``""`` reach
     # ``model_validate``, which reported it as a schema fault and replaced this
     # explanation with a Pydantic isoformat dump (ISSUE-3217).
+    #
+    # Deliberately narrower than ``not body.get("published")``, which is what
+    # ``723ff08eb`` on main used and what this resolution supersedes.  A falsy
+    # test also absorbs ``0``, ``[]``, ``{}`` and ``false``; those are malformed
+    # values, not omitted ones, and reporting them as a missing field tells the
+    # sender to resend a field they already sent (ADR-0090 rejects that as
+    # option 1; MV-03-002).
     if is_blank(body.get("published")):
         raise VultronParseMissingPublishedError(
             f"Missing 'published' field on {type_!r} activity. An activity "

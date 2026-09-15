@@ -15,9 +15,8 @@
 
 """Owner-participant creation leaf nodes (BTND-07-003)."""
 
-from typing import Any, cast
+from typing import cast
 
-import py_trees
 from py_trees.common import Status
 from py_trees.ports import PortInformation
 
@@ -37,14 +36,6 @@ from vultron.core.states.participant_embargo_consent import PEC
 from vultron.core.states.rm import RM
 from vultron.enums.roles import CVDRole
 from vultron.core.models._helpers import _as_id, _report_phase_status_id
-from vultron.core.use_cases._helpers import update_participant_rm_state
-
-
-def _resolve_case_id(
-    blackboard: Any, case_obj: VultronCase | None = None
-) -> str | None:
-    case_id = case_obj.id_ if case_obj is not None else None
-    return case_id or blackboard.get("case_id")
 
 
 def _build_owner_initial_status(
@@ -348,90 +339,6 @@ class PersistOwnerCaseNode(DataLayerActionWithPorts):
             )
             return Status.FAILURE
         self.datalayer.save(cast(VulnerabilityCase, stored_case))
-        return Status.SUCCESS
-
-
-class ShouldAdvanceOwnerToAcceptedNode(py_trees.behaviour.Behaviour):
-    """Condition leaf for owner RM advancement branch selection."""
-
-    def __init__(
-        self, advance_to_accepted: bool, name: str | None = None
-    ) -> None:
-        super().__init__(name=name or self.__class__.__name__)
-        self._advance_to_accepted = advance_to_accepted
-
-    def update(self) -> Status:
-        return Status.SUCCESS if self._advance_to_accepted else Status.FAILURE
-
-
-class AdvanceOwnerRmToAcceptedNode(DataLayerActionWithPorts):
-    """Advance owner RM to ACCEPTED when case creation means engagement."""
-
-    def __init__(
-        self, report_id: str | None = None, name: str | None = None
-    ) -> None:
-        super().__init__(name=name or self.__class__.__name__)
-        _seg = report_id.split("/")[-1] if report_id else "default"
-        self._participant_case_key = f"participant_case_{_seg}"
-
-    @classmethod
-    def input_ports(cls) -> dict[str, PortInformation]:
-        ports = super().input_ports()
-        ports["case_id"] = PortInformation(data_type=str, required=False)
-        ports["participant_case"] = PortInformation(
-            data_type=VulnerabilityCase, required=True
-        )
-        return ports
-
-    def _instance_port_remappings(self) -> dict[str, str]:
-        return {
-            "case_id": "/case_id",
-            "participant_case": f"/{self._participant_case_key}",
-        }
-
-    def initialise(self) -> None:
-        super().initialise()
-        raw = self._try_get_input("case_id")
-        self._case_id: str | None = raw if isinstance(raw, str) else None
-        self._stored_case = self._try_get_input("participant_case")
-
-    def update(self) -> Status:
-        if (f := self._require_datalayer_and_actor()) is not None:
-            return f
-        assert self.datalayer is not None
-        assert self.actor_id is not None
-        case_id = self._case_id
-        if case_id is None:
-            case_id = (
-                cast(VulnerabilityCase, self._stored_case).id_
-                if self._stored_case is not None
-                else None
-            )
-        if case_id is None:
-            self.logger.error("%s: case_id not available", self.name)
-            return Status.FAILURE
-
-        advanced = update_participant_rm_state(
-            case_id,
-            self.actor_id,
-            RM.ACCEPTED,
-            self.datalayer,
-        )
-        if advanced:
-            self.logger.info(
-                "Owner RM: VALID → ACCEPTED for actor '%s' in case '%s' "
-                "(case creation = case engagement)",
-                self.actor_id,
-                case_id,
-            )
-        else:
-            self.logger.warning(
-                "%s: Could not advance owner RM to ACCEPTED for actor '%s'"
-                " in case '%s'",
-                self.name,
-                self.actor_id,
-                case_id,
-            )
         return Status.SUCCESS
 
 

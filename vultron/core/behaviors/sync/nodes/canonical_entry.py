@@ -219,7 +219,14 @@ def _validate_entry_timestamps(
     Raises:
         VultronCanonicalEntryError: On any claimed-timestamp violation.
     """
-    case_published = as_utc(case_published)
+    # parse_published (not as_utc) so an aware non-UTC case_published — the
+    # parent case chose its own offset — is *converted* to UTC, not merely
+    # tagged.  entry_published is always UTC (below), so this keeps the
+    # CLP-14-006 violation message from rendering the two sides in different
+    # offsets, which reads as though the guard compared unlike quantities.
+    # prev_actor_published already arrives UTC from _find_prev_actor_published,
+    # so as_utc is sufficient there.
+    case_published = parse_published(case_published)
     prev_actor_published = as_utc(prev_actor_published)
 
     raw_published = payload_snapshot.get("published")

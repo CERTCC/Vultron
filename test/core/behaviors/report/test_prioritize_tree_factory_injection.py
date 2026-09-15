@@ -21,6 +21,7 @@ gather_info_factory) are accepted via bundle without error.
 
 import py_trees
 
+from vultron.core.behaviors.call_out import unwrap_call_out
 from vultron.core.behaviors.report.prioritize_tree import (
     create_prioritize_subtree,
 )
@@ -70,7 +71,7 @@ def test_evaluate_priority_factory_default_is_always_succeed():
     engage_path = tree.children[0]
     node = engage_path.children[0]
     assert node.name == "EvaluateCasePriority"
-    assert isinstance(node, AlwaysSucceed)
+    assert isinstance(unwrap_call_out(node), AlwaysSucceed)
 
 
 def test_enough_info_factory_accepted():

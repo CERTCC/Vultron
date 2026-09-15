@@ -47,6 +47,7 @@
 |----------|-------------------|------------------------|
 | `vultron/core/` | Domain models, ports (Protocol classes), use cases, states, behaviors, predicates | FastAPI, wire-format (AS2), adapter imports |
 | `vultron/core/predicates/` | Pure predicate functions over domain values (role checks, embargo eligibility, state invariants) | I/O, DataLayer, `behaviors/`, `services/`, `ports/` imports |
+| `vultron/core/participants/` | Neutral participant-layer helpers below both `behaviors/` and `use_cases/`; resolves role-based authority (ADR-0088) | `behaviors/`, `use_cases/`, adapter imports |
 | `vultron/wire/as2/` | AS2 vocabulary (Pydantic models), parser, semantic extractor, factories | Core domain import of AS2 types; FastAPI |
 | `vultron/adapters/` | HTTP handlers, SQLite data layer, outbound delivery, CLI, MCP, connectors | Core domain logic (no business rules) |
 | `vultron/config/` | Configuration models and loading only | Imports from `vultron.adapters` or `vultron.core` |
@@ -65,10 +66,11 @@ Enforced by: `test/architecture/test_core_no_adapter_imports.py`, `test/architec
 - **Directory organization**: by architectural layer (`core/`, `wire/`, `adapters/`) then by CVD domain area within layers
 - **Import conventions**: absolute imports; no circular dependencies; core must not import from adapters or wire; `__init__.py` re-exports for backward compatibility
 
-### 5) Notable New Modules (2026-08)
+### 5) Notable New Modules (2026-09)
 
 | Module | Purpose |
 |--------|---------|
+| `vultron/core/participants/authority.py` | Single canonical `resolve_case_manager_id()` — neutral layer below both `behaviors/` and `use_cases/`; depends only on models/ports/enums (ADR-0088, ARCH-24-001) |
 | `vultron/core/ports/wire_render.py` | `WireRenderPort` driven-port Protocol for wire-shaped JSON rendering |
 | `vultron/adapters/driven/wire_render/as2.py` | AS2 adapter implementing `WireRenderPort` via `VOCABULARY` registry |
 | `vultron/core/behaviors/embargo/nodes/terminate.py` | Embargo termination BT nodes |

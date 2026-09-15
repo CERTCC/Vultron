@@ -39,6 +39,7 @@ import logging
 from py_trees.common import Status
 from py_trees.ports import NoDataAvailable, PortInformation
 
+from vultron.core.participants._lookup import iter_case_participants
 from vultron.core.behaviors.helpers import (
     DataLayerConditionWithPorts,
 )
@@ -100,31 +101,12 @@ def _collect_all_participants(
     case: VulnerabilityCase,
     datalayer: CasePersistence,
 ) -> list[CaseParticipant]:
-    """Return all CaseParticipants in case, indexed first then fallback.
+    """Return all CaseParticipants reachable from *case*, deduped.
 
-    Checks ``actor_participant_index`` (fast path) then falls back to
-    ``case_participants`` for bootstrap-phase inline objects or non-indexed
-    entries — matches the two-phase pattern in participant/roles.py.
+    Delegates to :func:`~vultron.core.participants._lookup.iter_case_participants`
+    for the canonical two-phase scan (issue #3218/#3220).
     """
-    participant_ids = set(case.actor_participant_index.values())
-    participants: list[CaseParticipant] = []
-    for pid in participant_ids:
-        p = datalayer.read(pid)
-        if isinstance(p, CaseParticipant):
-            participants.append(p)
-    for p_ref in case.case_participants:
-        if not isinstance(p_ref, str):
-            if (
-                isinstance(p_ref, CaseParticipant)
-                and p_ref.id_ not in participant_ids
-            ):
-                participants.append(p_ref)
-            continue
-        if p_ref not in participant_ids:
-            p = datalayer.read(p_ref)
-            if isinstance(p, CaseParticipant):
-                participants.append(p)
-    return participants
+    return list(iter_case_participants(case, datalayer))
 
 
 class CheckVendorRoleNode(DataLayerConditionWithPorts):

@@ -534,13 +534,12 @@ class TestCreateParticipantStatusNode:
 
         result_out: dict = {}
         node = CreateParticipantStatusNode(
-            case_id=self.case.id_,
             actor_id=self.actor.id_,
             result_out=result_out,
             **kwargs,
         )
         bt_result = self.bridge.execute_with_setup(
-            node, actor_id=self.actor.id_
+            node, actor_id=self.actor.id_, case_id=self.case.id_
         )
         return bt_result, result_out
 
@@ -651,7 +650,6 @@ class TestCreateParticipantStatusNode:
 
         result_out: dict = {}
         node = CreateParticipantStatusNode(
-            case_id=self.case.id_,
             actor_id="https://example.org/unknown-actor",
             rm_state=None,
             vf_state=None,
@@ -660,7 +658,7 @@ class TestCreateParticipantStatusNode:
             result_out=result_out,
         )
         bt_result = self.bridge.execute_with_setup(
-            node, actor_id=self.actor.id_
+            node, actor_id=self.actor.id_, case_id=self.case.id_
         )
 
         assert bt_result.status == Status.FAILURE
@@ -1191,7 +1189,6 @@ class TestCreateParticipantStatusNode:
 
         result_out: dict = {}
         node = CreateParticipantStatusNode(
-            case_id=self.case.id_,
             actor_id=self.actor.id_,
             rm_state=RM.CLOSED,  # START → CLOSED, illegal but exempted
             vf_state=None,
@@ -1201,7 +1198,7 @@ class TestCreateParticipantStatusNode:
             force_rm_state=True,
         )
         bt_result = self.bridge.execute_with_setup(
-            node, actor_id=self.actor.id_
+            node, actor_id=self.actor.id_, case_id=self.case.id_
         )
 
         assert bt_result.status == Status.FAILURE
@@ -1220,7 +1217,6 @@ class TestCreateParticipantStatusNode:
 
         result_out: dict = {}
         node = CreateParticipantStatusNode(
-            case_id=self.case.id_,
             actor_id=self.actor.id_,
             rm_state=RM.CLOSED,
             vf_state=None,
@@ -1230,7 +1226,7 @@ class TestCreateParticipantStatusNode:
             force_rm_state=True,
         )
         bt_result = self.bridge.execute_with_setup(
-            node, actor_id=self.actor.id_
+            node, actor_id=self.actor.id_, case_id=self.case.id_
         )
 
         assert bt_result.status == Status.SUCCESS, bt_result.feedback_message
@@ -2128,13 +2124,12 @@ class TestCreateParticipantStatusNodeCrossMachineOnBypassPath:
 
         result_out: dict = {}
         node = CreateParticipantStatusNode(
-            case_id=self.case.id_,
             actor_id=self.actor.id_,
             result_out=result_out,
             **kwargs,
         )
         bt_result = self.bridge.execute_with_setup(
-            node, actor_id=self.actor.id_
+            node, actor_id=self.actor.id_, case_id=self.case.id_
         )
         return bt_result, result_out
 
