@@ -13,6 +13,10 @@ The behavioral requirements for this tree are specified in the
 - [CSB-06](../../reference/specs/protocol.md#csb-06) — Receive CA (Attacks Observed)
 - [CSB-07](../../reference/specs/protocol.md#csb-07) — Receive CE (CS Error)
 - [CSB-08](../../reference/specs/protocol.md#csb-08) — Receive CK (CS Acknowledgment)
+- [CSB-16](../../reference/specs/protocol.md#csb-16) — CS Write-Boundary Transition Validation
+- [CSB-17](../../reference/specs/protocol.md#csb-17) — CS Compound State and History Validity
+- [CSB-18](../../reference/specs/protocol.md#csb-18) — Cross-Machine State Entailments
+- [CSB-19](../../reference/specs/protocol.md#csb-19) — CS Ordering Invariants Under Out-of-Order Ledger Delivery
 
 !!! note "Implementation approach"
 

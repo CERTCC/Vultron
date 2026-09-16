@@ -11,6 +11,7 @@ The behavioral requirements for this tree are specified in the
 - [RMB-12](../../reference/specs/protocol.md#rmb-12) — Enter RM Deferred
 - [RMB-13](../../reference/specs/protocol.md#rmb-13) — Enter RM Accepted
 - [RMB-14](../../reference/specs/protocol.md#rmb-14) — Enter RM Closed
+- [RMB-15](../../reference/specs/protocol.md#rmb-15) — RM Write-Boundary Transition Validation
 
 !!! note "Implementation approach"
 

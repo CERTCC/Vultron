@@ -7,6 +7,7 @@ The behavioral requirements for this tree are specified in the
 
 - [CSB-09](../../reference/specs/protocol.md#csb-09) — Enter CS V (Vendor Aware)
 - [CSB-10](../../reference/specs/protocol.md#csb-10) — Enter CS F (Fix Ready)
+- [CSB-15](../../reference/specs/protocol.md#csb-15) — Trigger-Side VFD Role Preconditions
 
 !!! note "Implementation approach"
 

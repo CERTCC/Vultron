@@ -3,12 +3,15 @@
 ## Requirements
 
 The behavioral requirements for this tree are specified in the
-[Protocol Specifications](../../reference/specs/protocol.md):
+[Protocol Specifications](../../reference/specs/protocol.md) and
+[Architecture Specifications](../../reference/specs/architecture.md):
 
 - [EMB-10](../../reference/specs/protocol.md#emb-10) — Enter EM Proposed
 - [EMB-11](../../reference/specs/protocol.md#emb-11) — Enter EM Active
 - [EMB-12](../../reference/specs/protocol.md#emb-12) — Enter EM Revise
 - [EMB-13](../../reference/specs/protocol.md#emb-13) — Enter EM Exited
+- [EMB-16](../../reference/specs/protocol.md#emb-16) — CS Public/Exploit/Attacks Detected While EM Proposed
+- [EMB-18](../../reference/specs/architecture.md#emb-18) — EM Write-Boundary Consolidation
 
 !!! note "Implementation approach"
 
