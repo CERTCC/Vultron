@@ -220,6 +220,14 @@ KNOWN_ALLOWLIST: frozenset[tuple[str, str]] = frozenset(
         (f"{_NODES}/participant/common.py", "_create_and_attach_participant"),
         (f"{_NODES}/suggest_actor/emit.py", "_resolve_owner_recipient"),
         (f"{_NODES}/vfd_role_guards.py", "_resolve_actor_roles"),
+        # lenient — sender-verification gate: a missing/unseeded case is the
+        # bootstrap window and MUST pass through (SUCCESS) rather than FAIL, so
+        # it reads leniently instead of via Regime 1 _require_case. Authority is
+        # still resolved role-based via resolve_case_manager_id (ADR-0088).
+        (
+            "vultron/core/behaviors/sync/nodes/conditions.py",
+            "VerifySenderIsCaseActorNode.update",
+        ),
     }
 )
 
