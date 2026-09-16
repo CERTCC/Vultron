@@ -204,10 +204,41 @@ def test_case_actor_round_trip_logs_delivery_without_repersisting(
     assert len(entries) == 1
 
 
+CASE_ACTOR_ACTOR_ID = "https://example.org/actors/case-actor"
+
+
+def _seed_case_manager(datalayer, case_obj) -> None:
+    """Register the case's CaseActor as a CVDRole.CASE_MANAGER participant.
+
+    Authority is the role (ADR-0088), resolved by resolve_case_manager_id, not a
+    Service object — so VerifySenderIsCaseActorNode resolves the CaseActor from
+    the participant's ``attributed_to`` (``CASE_ACTOR_ACTOR_ID``), the id the
+    legitimate announces are sent from.
+    """
+    manager = CaseParticipant(
+        id_=f"{CASE_ID}/participants/case-manager",
+        attributed_to=CASE_ACTOR_ACTOR_ID,
+        context=CASE_ID,
+        case_roles=[CVDRole.CASE_MANAGER],
+    )
+    datalayer.create(manager)
+    case_obj.actor_participant_index[CASE_ACTOR_ACTOR_ID] = manager.id_
+    case_obj.case_participants.append(manager.id_)
+    datalayer.save(case_obj)
+
+
 @pytest.mark.spec("CLP-01-003")
 @pytest.mark.spec("SYNC-13-006")
-def test_case_actor_spoofed_sender_fails(bridge, datalayer, case_actor):
-    entry = _make_entry(0)
+def test_case_actor_spoofed_sender_fails(bridge, datalayer, case_obj):
+    # Discriminating spoof test: the case IS seeded with its CASE_MANAGER
+    # (so the CaseActor resolves) and the entry is chain-consistent
+    # (prev_log_hash == genesis), so both the missing-case path and the
+    # hash-chain check would otherwise ACCEPT and persist this entry. The only
+    # reason to reject is that the sender is not the CaseActor — exactly what
+    # VerifySenderIsCaseActorNode must catch (CLP-01-003). Verified elsewhere:
+    # with that node removed this entry persists.
+    _seed_case_manager(datalayer, case_obj)
+    entry = _make_entry(0, case_obj.genesis_hash)
     event = _make_event(
         entry, actor_id="https://example.org/actors/attacker-service"
     )
@@ -216,10 +247,29 @@ def test_case_actor_spoofed_sender_fails(bridge, datalayer, case_actor):
         tree=create_announce_log_entry_tree(),
         actor_id=PARTICIPANT_ACTOR_ID,
         activity=event,
+        sync_port=MagicMock(spec=SyncActivityPort),
     )
 
     assert result.status == Status.FAILURE
     assert datalayer.read(entry.id_) is None
+
+
+@pytest.mark.spec("CLP-01-003")
+def test_case_actor_legit_sender_accepted(bridge, datalayer, case_obj):
+    """The CASE_MANAGER's own announce passes the participant sender gate."""
+    _seed_case_manager(datalayer, case_obj)
+    entry = _make_entry(0, case_obj.genesis_hash)
+    event = _make_event(entry, actor_id=CASE_ACTOR_ACTOR_ID)
+
+    result = bridge.execute_with_setup(
+        tree=create_announce_log_entry_tree(),
+        actor_id=PARTICIPANT_ACTOR_ID,
+        activity=event,
+        sync_port=MagicMock(spec=SyncActivityPort),
+    )
+
+    assert result.status == Status.SUCCESS
+    assert datalayer.read(entry.id_) is not None
 
 
 @pytest.mark.spec("SYNC-03-001")
