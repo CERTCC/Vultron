@@ -14,6 +14,7 @@
 from vultron.wire.as2.vocab.base.objects.activities.transitive import (
     as_Accept,
     as_Add,
+    as_Announce,
     as_Create,
     as_Ignore,
     as_Join,
@@ -196,7 +197,7 @@ def update_case() -> as_Update:
     return _activity
 
 
-def announce_case():
+def announce_case() -> as_Announce:
     """Build ``Announce(VulnerabilityCase)`` — sent by the case owner to a new participant.
 
     The full case object is delivered inline so the recipient can seed their
