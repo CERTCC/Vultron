@@ -50,10 +50,14 @@ NO_PAGES_MESSAGE = "_No pages added in the last 90 days._"
 
 # Draft pages that MkDocs excludes from the production build (``draft_docs`` in
 # mkdocs.yml) have no built page, so linking to one 404s. Keep this in sync with
-# mkdocs.yml draft_docs, which lists ``draft-*.md`` (with a single un-drafted
-# exception) and the ``developer/`` tree (maintainer pages, DOCBW-03-004). Pages
-# in ``not_in_nav`` are still built and reachable by URL, so they are NOT excluded.
-_DRAFT_EXCEPTIONS = frozenset({"reference/draft-vultron-spec.md"})
+# mkdocs.yml draft_docs, which lists ``draft-*.md`` and the ``developer/`` tree
+# (maintainer pages, DOCBW-03-004). Pages in ``not_in_nav`` are still built and
+# reachable by URL, so they are NOT excluded.
+#
+# The sole former exception, ``reference/draft-vultron-spec.md``, was removed when
+# that file was replaced by ``reference/vultron-spec/`` (#3255). The set is kept
+# rather than deleted so a future un-drafted page has an obvious place to go.
+_DRAFT_EXCEPTIONS: frozenset[str] = frozenset()
 _DRAFT_DIRS = ("developer/",)
 
 

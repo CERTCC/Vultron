@@ -94,14 +94,23 @@ It is separable from the Authority capability set.
   canonical-write-before-side-effects ordering
 - MUST deliver full case content only when the [§9.7](../index.md#97-gating-full-case-delivery) gate is satisfied
 
-!!! note "Ledger replication scope"
-    The detailed replication mechanics (hash-chaining, gap detection, ordering
-    guarantees) are specified in a companion document,
-    `docs/reference/draft-vultron-replication-spec.md`, not in this specification. See ADR-0077. The single-hub / single-writer + fan-out model is the normative
-    replication architecture: one CASE_MANAGER holds exclusive write authority and
-    replicates entries to participant actors via `Announce(CaseLedgerEntry)`.
-    Distributed consensus (a multi-node case manager cluster) is a future extension
-    out of scope for this specification.
+!!! note "Ledger replication mechanics are specified separately"
+    This specification states the obligation: an implementation holding the
+    Hosting capability set MUST maintain the canonical ledger and replicate it via
+    `Announce(CaseLedgerEntry)`. The single-writer-plus-fan-out model is normative:
+    one CASE_MANAGER holds exclusive write authority and sends each entry to every
+    participant actor.
+
+    The mechanics of that replication — hash-chaining, gap detection and ordering
+    guarantees — are specified in a companion Vultron Ledger Replication
+    Specification, which is still in draft and is not yet published alongside this
+    document. An implementation cannot demonstrate conformance to the replication
+    mechanics from this document alone. The reasoning for splitting them is
+    recorded in
+    [ADR-0077](../../adr/0077-ledger-replication-companion-spec.md).
+
+    Distributed consensus among several case managers is a possible future
+    extension and is out of scope here.
 
 #### Named configurations
 

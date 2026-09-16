@@ -275,8 +275,8 @@ admonitions.
 
 Check when roles, object types, or message patterns are added or redefined.
 
-- `[J]` Every role defined in §2 (`Reporter`, `Finder`, `Vendor`,
-  `Coordinator`, `Deployer`, `Observer`, `CNA`, `Bug Bounty Operator`) has
+- `[J]` Every role defined in §2 (`Reporter`, `Vendor`, `Coordinator`,
+  `Deployer`, `Observer`, `CNA`) has
   substantive coverage in at least one state machine section or lifecycle
   section (§11), beyond the terminology definition and conformance listing. If
   a role has no direct state machine obligations, that fact is stated
@@ -294,6 +294,44 @@ Check when roles, object types, or message patterns are added or redefined.
 
 ---
 
+## 11. Round-2 Finding Classes
+
+Added after the second review round. Each is a class the earlier sections would
+not have caught.
+
+- `[J]` No stated default for a security-significant decision contradicts the
+  spec corpus. Check every "the default is …" sentence against the requirement
+  that sets it. The draft asserted an auto-adopt default where RSH-07-001/002 and
+  ADR-0076 require defaulting to Case Owner authorization — an inversion that
+  also silently invalidated an open question built on top of it.
+- `[J]` A wire-form mapping that holds only for one role is stated as though it
+  held for all senders. `Add(CaseStatus)` is the CASE_MANAGER's activity;
+  participants send `Add(ParticipantStatus)` (RSH-04-001). A mapping table with no
+  sender column will get this wrong.
+- `[J]` Every normative MUST / MUST NOT traces to a spec ID or ADR. The draft
+  asserted "an actor MUST NOT self-assign a role", which no spec group or ADR
+  states. Invented normative content is harder to spot than a wrong citation,
+  because there is nothing to check it against.
+- `[M]` State machine transition tables match the implementation FSM
+  transition-by-transition, in both directions: every table row exists in code,
+  and every code transition appears in the table. The draft's RM table had one
+  transition that does not exist, one over-permissive row, and one omission.
+- `[M]` Every enum symbol cited in prose resolves against the codebase. The draft
+  used `CS.P`/`CS.X`/`CS.A`, which are not members of the `CS` enum.
+- `[J]` A section that delegates its mechanics to another document says whether
+  that document is published, and states that conformance to the delegated part
+  cannot be shown from this document alone.
+- `[J]` Repeated reference content (state tables, orienting notes) is a single
+  include, not a retyped copy. Two copies of a state table will diverge.
+- `[J]` Where the review asks for a rename sweep, confirm the target names map
+  one-to-one onto the actual states before sweeping. This round's requested EM
+  names (*Non-Proposed, Active, Revised, Exited*) do not map cleanly onto the five
+  implemented states, so a blind sweep would have introduced errors.
+- `[M]` Region markers used by `include-markdown` `start`/`end` still exist in the
+  source page. A renamed or deleted marker silently includes the wrong span.
+
+---
+
 ## Mechanized (Covered by CI or Pre-commit)
 
 Items moved here are no longer checked manually; the mechanism is noted.
@@ -302,6 +340,14 @@ Items moved here are no longer checked manually; the mechanism is noted.
 |------|-----------|-------|
 | Markdown lint (heading format, list style) | `markdownlint-cli2` pre-commit hook | pre-existing |
 | MkDocs build with zero warnings | `mkdocs-build-strict.sh` CI step | pre-existing |
+| Broken `§N.M` heading anchors | `mkdocs.yml` `validation.links.anchors: warn` + strict build | pre-existing |
+
+!!! warning "`lint-docs` does not cover this document"
+    `lint-docs` drops files matching `not_in_nav`'s generated patterns, which
+    includes `_*.md`. Every fragment of this specification is therefore outside
+    the linter's default target set, and the style-guide rules in §1–§2 above are
+    checked by review only. Point `lint-docs` at
+    `docs/reference/vultron-spec/` explicitly, or treat those items as `[J]`.
 
 ---
 
@@ -311,3 +357,4 @@ Items moved here are no longer checked manually; the mechanism is noted.
 |------|--------|--------|
 | 2026-09-16 | Initial rubric created from review of PR #3265 | Review of draft RFC commit d4572cee7 |
 | 2026-09-16 | Added §8 Readability and Concept Flow, §9 Content Modularity, §10 Concept Lifecycle Coverage; extended §2 (Observer dual-use, track/drive definition), §4 (OQ fragment consistency), §5 (nav-note accuracy) — 24 additional gap items from top-to-bottom sequential audit of assembled spec | PR #3265 review comment |
+| 2026-09-16 | Added §11 Round-2 Finding Classes (9 items) and two Mechanized entries; noted that `lint-docs` skips this document's fragments. Corrected §10: "Bug Bounty Operator" is not a role anywhere in the glossary, specs, notes or code — only the *Bug Bounty Platform* named configuration exists | Second review round of PR #3265 |
