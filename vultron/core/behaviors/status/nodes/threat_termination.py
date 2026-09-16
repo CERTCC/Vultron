@@ -51,7 +51,10 @@ def resolve_pxa_threat_state(case_status: object) -> CS_pxa | None:
     if case_status is None:
         return None
     if hasattr(case_status, "pxa"):
-        pxa_state = getattr(case_status, "pxa").state
+        _pxa = getattr(case_status, "pxa")
+        if _pxa is None:
+            return None
+        pxa_state = _pxa.state
     elif hasattr(case_status, "pxa_state"):
         pxa_state = getattr(case_status, "pxa_state")
     else:

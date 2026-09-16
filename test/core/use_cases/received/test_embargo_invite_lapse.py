@@ -880,6 +880,49 @@ class TestLateAcceptHandling:
         assert isinstance(participant, CaseParticipant)
         assert participant.embargo_consent_state == PEC.NO_EMBARGO
 
+    def test_late_accept_honored_when_em_revise_with_matching_embargo(
+        self, make_payload
+    ):
+        """Late Accept with matching embargo in EM.REVISE → PEC SIGNATORY (EMB-17-001/issue #2875).
+
+        When the active embargo ID matches and EM is REVISE (renegotiation in
+        progress), the late Accept must be honored (consent recorded, actor
+        transitions to SIGNATORY) — not wrongly rerouted as a stale-embargo.
+        """
+        dl = _make_dl(actor_id=_COORD)
+        case_id = "https://example.org/cases/ea-revise"
+        embargo_id = "https://example.org/cases/ea-revise/embargos/e1"
+
+        case, embargo, _ = _make_active_embargo_case(
+            dl,
+            case_id,
+            embargo_id,
+            invitee_pec=PEC.INVITED,
+            invitee_deadline=_PAST,
+        )
+        # Transition EM to REVISE while keeping the same active embargo
+        case.append_case_status(em_state=EM.REVISE)
+        dl.save(case)
+
+        proposal = em_propose_embargo_activity(
+            embargo=embargo,
+            context=case.id_,
+            actor=_COORD,
+            to=[_INVITEE],
+            id_=f"{case_id}/proposals/p1",
+        )
+        dl.create(proposal)
+
+        event = _make_accept_event(proposal, case, _INVITEE, make_payload)
+        AcceptInviteToEmbargoOnCaseReceivedUseCase(dl, event).execute()
+
+        fresh_case = dl.read(case_id)
+        assert isinstance(fresh_case, CoreCase)
+        p_id = fresh_case.actor_participant_index[_INVITEE]
+        participant = dl.read(p_id)
+        assert isinstance(participant, CaseParticipant)
+        assert participant.embargo_consent_state == PEC.SIGNATORY
+
     def test_accept_within_deadline_uses_normal_path(self, make_payload):
         """Accept before deadline → normal BT path, PEC SIGNATORY without lapse."""
         dl = _make_dl(actor_id=_COORD)

@@ -233,6 +233,31 @@ class TestPublicDisclosureSkipConditionNode:
         result = bridge.execute_with_setup(tree=node, actor_id=ACTOR_ID)
         assert result.status == Status.SUCCESS
 
+    def test_public_aware_returns_success_when_pxa_attr_is_none(
+        self, populated_bridge
+    ):
+        """_public_aware() returns False (SUCCESS) when case_status.pxa is None (issue #2877 sibling).
+
+        A status_obj whose case_status.pxa is None must not raise AttributeError.
+        The node must return SUCCESS (skip — no public awareness detected).
+        """
+
+        class _PxaNone:
+            pxa = None
+
+        status_obj_mock = MagicMock()
+        status_obj_mock.case_status = _PxaNone()
+
+        node = _PublicDisclosureSkipConditionNode(
+            status_obj=status_obj_mock,
+            sender_actor_id=ACTOR_ID,
+            case_id=CASE_ID,
+        )
+        result = populated_bridge.execute_with_setup(
+            tree=node, actor_id=ACTOR_ID
+        )
+        assert result.status == Status.SUCCESS
+
     # AC-4 case 4: non-public-aware status → SUCCESS (skip regardless of EM)
     def test_non_public_aware_status_always_returns_success(
         self, status_obj, populated_bridge
