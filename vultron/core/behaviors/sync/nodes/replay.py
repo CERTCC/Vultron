@@ -46,6 +46,7 @@ from vultron.core.ports.case_persistence import (
     CaseOutboxPersistence,
     CasePersistence,
 )
+from vultron.core.participants.authority import resolve_case_manager_id
 from vultron.core.ports.sync_activity import SyncActivityPort
 from vultron.core.ports.trigger_activity import TriggerActivityPort
 from vultron.errors import VultronError
@@ -87,31 +88,21 @@ def _require_rejected_entry(
     )
 
 
-def _find_case_actor(
-    dl: Any, case_id: str, owner_actor_id: str | None = None
-) -> object | None:
-    fallback: object | None = None
-    for service in dl.list_objects("Service"):
-        if fallback is None:
-            fallback = cast(object, service)
-        if getattr(service, "context", None) != case_id:
-            continue
-        if owner_actor_id is None:
-            return cast(object, service)
-        if getattr(service, "attributed_to", None) == owner_actor_id:
-            return cast(object, service)
-    return fallback
-
-
-def _require_case_actor_id(case_actor: object, node_name: str) -> str:
-    case_actor_id = getattr(case_actor, "id_", None)
-    if isinstance(case_actor_id, str):
-        return case_actor_id
-    raise VultronError(f"{node_name}: resolved CaseActor had no id_")
-
-
 class FindCaseActorNode(DataLayerActionWithPorts):
-    """Resolve the case's CaseActor, and publish the case id for later gates.
+    """Resolve the authority's address, and publish the case id for later gates.
+
+    The address is the ``CVDRole.CASE_MANAGER`` role-holder's, resolved through
+    the single neutral resolver (ADR-0088, ARCH-24-001). It used to come from a
+    module-local ``_find_case_actor`` that scanned for a ``Service`` whose
+    ``context`` was the case id — a hosting-location signal ARCH-24-004 forbids,
+    and one that answered ``None`` during the bootstrap window before any
+    ``Service`` carries ``context`` (CM-02-012). Worse, that helper fell back to
+    *the first arbitrary* ``Service`` in the store when nothing matched, so a
+    miss produced a plausible-looking wrong address rather than a failure.
+
+    This node resolves an *address*; it does not decide authority. The genesis
+    pre-seed's authority gate is the separate ``CheckIsCaseManagerNode`` in
+    ``create_reject_log_entry_tree`` (ARCH-24-005).
 
     ``case_id`` is an output because ``CheckIsCaseManagerNode`` reads it from the
     blackboard (CLP-09). Without it the role gate on the genesis pre-seed could
@@ -153,18 +144,23 @@ class FindCaseActorNode(DataLayerActionWithPorts):
         assert self.datalayer is not None
         entry = _require_rejected_entry(self.activity, self.name)
         self._set_output("case_id", entry.case_id)
-        case_actor = _find_case_actor(self.datalayer, entry.case_id)
-        if case_actor is None:
+
+        # Regime 1 (ADR-0087): a peer is asking us to replay this case's log,
+        # so the case must be here — its absence is an anomaly, not a branch.
+        case, failure = self._require_case(entry.case_id)
+        if failure is not None:
+            return failure
+
+        case_actor_id = resolve_case_manager_id(case, self.datalayer)
+        if case_actor_id is None:
             self.logger.warning(
-                "%s: no CaseActor found for case '%s'",
+                "%s: no CASE_MANAGER participant for case '%s'",
                 self.name,
                 entry.case_id,
             )
             return Status.FAILURE
 
-        self._set_output(
-            "case_actor_id", _require_case_actor_id(case_actor, self.name)
-        )
+        self._set_output("case_actor_id", case_actor_id)
         return Status.SUCCESS
 
 

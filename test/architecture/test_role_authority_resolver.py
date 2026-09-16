@@ -12,7 +12,7 @@
 #  ("Third Party Software"). See LICENSE.md for more details.
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
-"""Architecture ratchet: single neutral role-authority resolver (ARCH-24-001/002/003).
+"""Architecture ratchet: single neutral role-authority resolver (ARCH-24-001..004).
 
 Verifies the ADR-0088 invariant that ``resolve_case_manager_id`` is defined in
 exactly one module (``vultron.core.participants.authority``), that neither
@@ -20,7 +20,12 @@ exactly one module (``vultron.core.participants.authority``), that neither
 definition, and that exactly one authority condition node
 (``CheckIsCaseManagerNode``) exists — with the old Service-based nodes removed.
 
-Spec: ARCH-24-001, ARCH-24-002, ARCH-24-003.
+Also ratchets the *negative* half of the ADR: no protocol-logic module may
+branch on the ``case-actor`` name/URL shape (the retired
+``is_case_actor_identity`` predicate or the URL substring) to determine
+authority, recognition, or routing.
+
+Spec: ARCH-24-001, ARCH-24-002, ARCH-24-003, ARCH-24-004, CM-02-013.
 """
 
 import ast
@@ -35,6 +40,29 @@ _VULTRON_ROOT = _corpus.REPO_ROOT / "vultron"
 
 _AUTHORITY_NODE_NAME = "CheckIsCaseManagerNode"
 _REMOVED_NODE_NAMES = ["CheckIsOwnCaseActorNode", "CheckIsNotOwnCaseActorNode"]
+
+#: The retired URL-shape predicate.  Deleted by ADR-0088; must not come back.
+_SHAPE_PREDICATE = "is_case_actor_identity"
+
+#: The URL substring that carries no protocol meaning (CM-02-013).
+_COSMETIC_SUBSTRING = "case-actor"
+
+#: Protocol logic, for ARCH-24-004's purposes.  ``vultron/demo/`` and
+#: ``vultron/config/`` are excluded on purpose: provisioning a container at a
+#: readable ``case-actor`` URL is exactly the cosmetic convenience ADR-0088 §7
+#: preserves.  ``case_actor_identity.py`` builds that provisioned identity and
+#: legitimately owns the segment constant.
+_PROTOCOL_ROOTS = [
+    _corpus.REPO_ROOT / "vultron" / "core",
+    _corpus.REPO_ROOT / "vultron" / "wire",
+    _corpus.REPO_ROOT / "vultron" / "adapters",
+]
+_PROVISIONING_EXEMPT = {
+    "vultron/core/behaviors/case/case_actor_identity.py",
+}
+
+#: String methods that turn a literal into a branch on identity shape.
+_SHAPE_TEST_METHODS = {"startswith", "endswith", "find", "index", "count"}
 
 
 def _defines_function(tree: ast.AST, name: str) -> bool:
@@ -155,3 +183,183 @@ def test_exactly_one_authority_condition_node():
         f"Expected exactly one definition of '{_AUTHORITY_NODE_NAME}'.\n"
         f"Actual: {sorted(defining)}"
     )
+
+
+# ---------------------------------------------------------------------------
+# ARCH-24-004 / CM-02-013 — the name and URL shape carry no protocol meaning
+# ---------------------------------------------------------------------------
+
+
+def test_shape_predicate_is_not_defined_anywhere():
+    """ARCH-24-004: ``is_case_actor_identity`` must not exist.
+
+    ADR-0088 deleted it.  Authority derives from the ``CVDRole.CASE_MANAGER``
+    role alone, so a predicate whose whole job is testing a URL suffix has no
+    correct caller.
+
+    Spec: ARCH-24-004, CM-02-013
+    """
+    violations: list[str] = []
+    for py_file, tree in _corpus.files_mentioning(
+        _SHAPE_PREDICATE, under=_VULTRON_ROOT
+    ):
+        if _defines_function(tree, _SHAPE_PREDICATE):
+            violations.append(
+                py_file.relative_to(_corpus.REPO_ROOT).as_posix()
+            )
+    assert not violations, (
+        f"'{_SHAPE_PREDICATE}' was retired by ADR-0088 and must not be"
+        f" redefined; found in: {violations}"
+    )
+
+
+def _references_name(tree: ast.AST, name: str) -> bool:
+    """Return True if *tree* imports or references *name* in executable code."""
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Name) and node.id == name:
+            return True
+        if isinstance(node, ast.Attribute) and node.attr == name:
+            return True
+        if isinstance(node, ast.ImportFrom):
+            if any(alias.name == name for alias in node.names):
+                return True
+    return False
+
+
+def test_shape_predicate_has_no_callers():
+    """ARCH-24-004: nothing under ``vultron/`` may import or call the shape predicate.
+
+    Catches a re-introduction that lands the definition outside ``vultron/``
+    (a test helper, say) and imports it into protocol logic.
+
+    Spec: ARCH-24-004, CM-02-013
+    """
+    violations: list[str] = []
+    for py_file, tree in _corpus.files_mentioning(
+        _SHAPE_PREDICATE, under=_VULTRON_ROOT
+    ):
+        if _references_name(tree, _SHAPE_PREDICATE):
+            violations.append(
+                py_file.relative_to(_corpus.REPO_ROOT).as_posix()
+            )
+    assert not violations, (
+        f"'{_SHAPE_PREDICATE}' must have no callers; referenced in:"
+        f" {violations}"
+    )
+
+
+def _docstring_nodes(tree: ast.AST) -> set[int]:
+    """Return ``id()`` of every docstring Constant node in *tree*.
+
+    Docstrings *describing* the retired signal are wanted — several modules
+    explain why it is gone.  Only executable code is a branch.
+    """
+    ids: set[int] = set()
+    for node in ast.walk(tree):
+        if not isinstance(
+            node,
+            (ast.Module, ast.ClassDef, ast.FunctionDef, ast.AsyncFunctionDef),
+        ):
+            continue
+        body = getattr(node, "body", [])
+        if not body or not isinstance(body[0], ast.Expr):
+            continue
+        first = body[0].value
+        if isinstance(first, ast.Constant) and isinstance(first.value, str):
+            ids.add(id(first))
+    return ids
+
+
+def _cosmetic_literals(node: ast.AST, skip: set[int]) -> bool:
+    """Return True if *node*'s subtree holds a non-docstring ``case-actor`` literal."""
+    for sub in ast.walk(node):
+        if not isinstance(sub, ast.Constant):
+            continue
+        if id(sub) in skip:
+            continue
+        if (
+            isinstance(sub.value, str)
+            and _COSMETIC_SUBSTRING in sub.value.lower()
+        ):
+            return True
+    return False
+
+
+def _shape_branches(tree: ast.AST) -> list[str]:
+    """Return descriptions of branches taken on a ``case-actor`` literal."""
+    skip = _docstring_nodes(tree)
+    found: list[str] = []
+    for node in ast.walk(tree):
+        # `x == "...case-actor"`, `"case-actor" in x`, etc.
+        if isinstance(node, ast.Compare) and _cosmetic_literals(node, skip):
+            found.append(
+                f"line {node.lineno}: comparison on a case-actor literal"
+            )
+        # `x.endswith("...case-actor")` and friends.
+        elif (
+            isinstance(node, ast.Call)
+            and isinstance(node.func, ast.Attribute)
+            and node.func.attr in _SHAPE_TEST_METHODS
+            and any(_cosmetic_literals(arg, skip) for arg in node.args)
+        ):
+            found.append(
+                f"line {node.lineno}: .{node.func.attr}() on a case-actor literal"
+            )
+    return found
+
+
+def test_no_protocol_logic_branches_on_the_case_actor_url():
+    """ARCH-24-004: no protocol-logic module may branch on the ``case-actor`` URL.
+
+    The string is a provisioning convenience with no protocol meaning
+    (CM-02-013).  Holding a literal is fine — example URIs and the provisioned
+    identity segment both do — but *testing* one to decide authority,
+    recognition, or routing is the violation, so this ratchet flags comparisons
+    and shape-test calls rather than mere occurrences.
+
+    Spec: ARCH-24-004, CM-02-013
+    """
+    violations: list[str] = []
+    for root in _PROTOCOL_ROOTS:
+        for py_file, tree in _corpus.files_mentioning(
+            _COSMETIC_SUBSTRING, under=root
+        ):
+            rel = py_file.relative_to(_corpus.REPO_ROOT).as_posix()
+            if rel in _PROVISIONING_EXEMPT:
+                continue
+            violations.extend(f"{rel}:{hit}" for hit in _shape_branches(tree))
+    assert not violations, (
+        "Protocol logic must not branch on the cosmetic 'case-actor' URL"
+        " (ARCH-24-004); authority is the CVDRole.CASE_MANAGER role:\n"
+        + "\n".join(violations)
+    )
+
+
+def test_ratchet_detects_a_shape_branch():
+    """The ARCH-24-004 scanner must actually fire on a violating pattern.
+
+    Without this, a scanner bug would read as a clean repo.  Spec: ARCH-24-004
+    """
+    offending = _corpus.parse_inline(
+        "def f(actor_id):\n"
+        '    """Docstring naming /actors/case-actor must not count."""\n'
+        '    return actor_id.endswith("/actors/case-actor")\n'
+    )
+    assert _shape_branches(offending), "scanner missed an endswith() branch"
+
+    compare = _corpus.parse_inline(
+        'x = a == "https://e.org/actors/case-actor"\n'
+    )
+    assert _shape_branches(compare), "scanner missed a comparison branch"
+
+    benign = _corpus.parse_inline(
+        'CASE_ACTOR_URI = "https://example.org/actors/case-actor"\n'
+    )
+    assert not _shape_branches(benign), "scanner flagged a plain literal"
+
+    docstring_only = _corpus.parse_inline(
+        '"""Explains why .../actors/case-actor is cosmetic."""\n'
+    )
+    assert not _shape_branches(
+        docstring_only
+    ), "scanner flagged a docstring mention"

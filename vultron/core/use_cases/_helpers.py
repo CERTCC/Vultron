@@ -171,130 +171,70 @@ def build_activity_payload_snapshot(
     return inlined if isinstance(inlined, dict) else {}
 
 
-def _scan_report_case_links(
+def _established_link_actor_id(
     dl: CasePersistence, case_id: str
-) -> tuple[str | None, set[str]]:
-    """Split one pass over the links into the two answers callers need.
+) -> str | None:
+    """Return the ``trusted_case_actor_id`` recorded for *case_id*, if any.
 
-    Returns ``(established, pending_creator_ids)``: the completed link's
-    ``trusted_case_actor_id`` for *case_id* when there is one, and the set of
-    ``trusted_case_creator_id`` values from links that are still pending.
-
-    One pass rather than two because the links are read from storage; the tuple
-    keeps :func:`_find_case_actor_id` at a reviewable size without paying for a
-    second scan.
+    A completed ``VultronReportCaseLink`` records the address the authority was
+    reached at during bootstrap (CBT-01-006).  That recorded address answers
+    before the local replica has a participant roster to read, which is the one
+    window :func:`resolve_case_manager_id` cannot cover.
     """
-    established: str | None = None
-    pending_creator_ids: set[str] = set()
     for link in dl.list_objects("ReportCaseLink"):
         if not isinstance(link, VultronReportCaseLink):
             continue
-        if (
-            established is None
-            and link.case_id == case_id
-            and link.trusted_case_actor_id
-        ):
-            established = str(link.trusted_case_actor_id)
-        if link.case_id is None and link.trusted_case_creator_id:
-            pending_creator_ids.add(str(link.trusted_case_creator_id))
-    return established, pending_creator_ids
-
-
-def _case_actor_by_role(dl: CasePersistence, case_id: str) -> str | None:
-    """Return the case's CASE_MANAGER when it is a CaseActor container identity.
-
-    The evidence that an actor is a CaseActor is the role plus the shape of its
-    identity, not the existence of a per-case ``Service`` object (#1872 AC-4).
-    Both halves are needed:
-
-    - The **role** alone is not enough. A case whose manager is an ordinary
-      participant has no CaseActor and must resolve ``None`` (ADR-0021).
-    - The **shape** alone is not enough either; an actor at a CaseActor identity
-      that does not hold the role for *this* case is not this case's manager.
-
-    A ``case-actor-<slug>`` id is rejected: that form is unhostable by
-    construction, so returning one hands the caller an address whose delivery
-    404s — strictly worse than ``None``, which every caller already handles.
-    """
-    # Local import: `use_cases` does not import `behaviors` at module scope.
-    from vultron.core.behaviors.case.case_actor_identity import (
-        is_case_actor_identity,
-    )
-
-    case_obj = dl.read_case(case_id)
-    if case_obj is None:
-        return None
-    manager_id = resolve_case_manager_id(case_obj, dl)
-    return manager_id if is_case_actor_identity(manager_id) else None
+        if link.case_id == case_id and link.trusted_case_actor_id:
+            return str(link.trusted_case_actor_id)
+    return None
 
 
 def _find_case_actor_id(dl: CasePersistence, case_id: str) -> str | None:
-    """Return the CaseActor Service ID for *case_id*, if present in the DataLayer.
+    """Return the delivery address of *case_id*'s authority, if resolvable.
+
+    **This is address resolution, not authority determination.**  The two are
+    different questions and ADR-0088 keeps them apart: "am I the authority?" is
+    answered by the role, via
+    :func:`~vultron.core.participants.authority.resolve_case_manager_id`, and
+    this function only answers "what address do I route to?".  Because
+    authority *is* the ``CVDRole.CASE_MANAGER`` role, the authority's address is
+    simply the role-holder's address (ARCH-24-005, CM-02-011).
 
     Resolution order:
 
-    1. A ``VultronReportCaseLink`` whose ``trusted_case_actor_id`` was
-       established during bootstrap (CBT-01-006).
-    2. A *pending* ``VultronReportCaseLink`` whose ``trusted_case_creator_id``
-       matches the ``CVDRole.CASE_MANAGER`` participant of the case replica
-       (CBT-01-003), i.e. the proposal target has confirmed itself as case
-       manager but the link has not been completed yet.
-    3. The case's ``CVDRole.CASE_MANAGER`` participant, when its actor id is a
-       CaseActor *container* identity (``.../actors/case-actor``). The CaseActor
-       is a participant wearing that hat, so the role plus the identity shape is
-       the evidence — no per-case ``Service`` object is required (#1872 AC-4).
-    4. A legacy scan for a ``Service`` object whose ``context`` is *case_id*,
-       retained for cases created before path 3 existed.
+    1. The ``trusted_case_actor_id`` recorded on a completed
+       ``VultronReportCaseLink`` (CBT-01-006).
+    2. The actor enacting ``CVDRole.CASE_MANAGER`` on the case replica.
 
-    Path 2 exists because paths 1 and 3 both have a window in which they
-    cannot answer.  The link only carries ``case_id``/``trusted_case_actor_id``
-    once ``Create(VulnerabilityCase)`` has been *fully processed*, and under
-    ADR-0041 the CaseActor ``Service`` object the receiver writes ahead of
-    ``Create(as_CaseProposal)`` has no ``context`` (the case does not exist
-    yet).  A participant-triggered action taken between replica seeding and
-    link completion — e.g. ``invite-actor-to-case`` immediately after
-    ``engage-case`` — would otherwise resolve ``None``, sending the Invite from
-    the owner's identity with no ``cc:`` to the CaseActor.  The invitee's
-    ``Accept`` then returns to a non-CASE_MANAGER, so no canonical
-    ``accept_invite_actor_to_case`` entry is ever committed.  The case replica
-    embeds the CASE_MANAGER participant from the moment it is seeded
-    (CP-09-004), so path 2 closes the window.
+    Path 1 comes first because it is the only answer available before the local
+    replica has a roster to read: the link records the address the authority was
+    reached at during bootstrap, whereas path 2 needs
+    ``Create(VulnerabilityCase)`` to have seeded a replica.  Path 2 then covers
+    everything afterwards, and covers it without a window — the replica embeds
+    the CASE_MANAGER participant from the moment it is seeded (CP-09-004).
 
-    Path 2 is deliberately narrow: it requires *both* an outstanding proposal
-    to a known CaseActor *and* the case replica naming that same actor as
-    CASE_MANAGER.  Path 3 is narrow for the same reason, by a different test: a
-    CASE_MANAGER participant alone is not sufficient evidence of a CaseActor —
-    cases whose manager is an ordinary participant have no CaseActor and MUST
-    still resolve ``None`` (ADR-0021).  What distinguishes the two is the
-    *identity*, which is why path 3 tests its shape rather than merely the role.
+    Neither path consults a URL shape or a ``Service`` object's hosting
+    location.  Both were removed by ADR-0088: they are not evidence of anything
+    protocol-salient (ARCH-24-004, CM-02-013), and the ``Service``-``context``
+    scan they relied on had a bootstrap window in which the real authority
+    failed its own hosting test (CM-02-012).
 
-    A ``case-actor-<slug>`` id does not qualify.  That form is unhostable by
-    construction (#1872), so returning one would hand callers an address whose
-    delivery 404s — worse than ``None``, which callers handle.
-
-    Returns ``None`` when no CaseActor Service can be found for *case_id*.
-    This is the authoritative resolver for PCR-08-007 (invite sender) and
+    Returns ``None`` when the case has no resolvable authority address — a case
+    with no CASE_MANAGER participant and no recorded link.  Every caller
+    handles ``None``.  Note that an ordinary participant enacting CASE_MANAGER
+    *is* the authority and *does* resolve here: under ADR-0088 there is no
+    separate "CaseActor entity" that could be absent while the role is held.
+    This is the authoritative address lookup for PCR-08-007 (invite sender) and
     PCR-08-008 (accept recipient).
     """
-    established, pending_creator_ids = _scan_report_case_links(dl, case_id)
+    established = _established_link_actor_id(dl, case_id)
     if established is not None:
         return established
 
-    if pending_creator_ids:
-        case = dl.read_case(case_id)
-        if case is not None:
-            manager_id = resolve_case_manager_id(case, dl)
-            if manager_id is not None and manager_id in pending_creator_ids:
-                return manager_id
-
-    role_holder = _case_actor_by_role(dl, case_id)
-    if role_holder is not None:
-        return role_holder
-
-    for service in dl.list_objects("Service"):
-        if getattr(service, "context", None) == case_id:
-            return service.id_
-    return None
+    case = dl.read_case(case_id)
+    if case is None:
+        return None
+    return resolve_case_manager_id(case, dl)
 
 
 def resolve_receiving_actor_id(

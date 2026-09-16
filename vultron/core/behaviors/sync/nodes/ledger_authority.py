@@ -26,6 +26,16 @@ from vultron.core.behaviors.store_scope import store_for_actor
 class DeclineForeignLedgerCommitNode(DataLayerActionWithPorts):
     """SUCCESS when this store is not the one whose ledger is being appended to.
 
+    **This is a store-consistency / anti-fork guard, not an authority check**
+    (ARCH-24-005). Despite the module name, it never asks "is this actor the
+    case authority" — that question has exactly one answer, the
+    ``CVDRole.CASE_MANAGER`` role via ``CheckIsCaseManagerNode`` (ADR-0088,
+    ARCH-24-003), and it has already been answered by the guarded-commit
+    composition upstream of here. This node asks the strictly downstream
+    question: *given* that role-authority said "you may commit", is the store in
+    hand the one that actually holds the log? Conflating the two would make the
+    role look like a property of a store, which it is not.
+
     ``CommitLogEntryBT`` mints a canonical index and fans the entry out to the
     case's participants.  Only the store that *holds* that canonical log may do
     either: an index is a claim on a position in one hash chain, and two stores
@@ -63,7 +73,8 @@ class DeclineForeignLedgerCommitNode(DataLayerActionWithPorts):
     that reports no ``actor_id`` — a test double — is never foreign, and such
     callers commit exactly as they did before per-actor storage.
 
-    Spec: BT-05-006, CLP-08-005, CLP-10-001, DL-07-009.  Per ADR-0073.
+    Spec: BT-05-006, CLP-08-005, CLP-10-001, DL-07-009, ARCH-24-005.
+    Per ADR-0073, reclassified by ADR-0088.
     """
 
     def update(self) -> Status:

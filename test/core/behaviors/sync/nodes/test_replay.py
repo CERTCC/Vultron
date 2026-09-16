@@ -20,12 +20,16 @@ from vultron.core.behaviors.sync.nodes import (
     CollectAndSortCaseLedgerEntriesNode,
     CollectLogEntryRecipientsNode,
     FanOutLogEntryNode,
+    FindCaseActorNode,
     FindDivergenceIndexNode,
     ReplayMissingEntriesNode,
     SendLogEntryToEachNode,
     SendMissingEntriesNode,
 )
-from vultron.core.models.case import VultronCase
+from vultron.core.models.case import VulnerabilityCase, VultronCase
+from vultron.core.models.case_actor import VultronCaseActor
+from vultron.core.models.case_participant import CaseParticipant
+from vultron.enums.roles import CVDRole
 from vultron.core.models.events.sync import RejectLogEntryReceivedEvent
 from vultron.core.ports.sync_activity import SyncActivityPort
 from vultron.semantic_registry import extract_event
@@ -98,6 +102,122 @@ def test_send_missing_entries_node_replays_entries_after_divergence(
     assert kwargs["entry"].id_ == second_entry.id_
     assert kwargs["actor_id"] == case_actor.id_
     assert kwargs["to"] == [PARTICIPANT_ACTOR_ID]
+
+
+def _seed_case_with_manager(datalayer, manager_actor_id: str) -> None:
+    """Seed a case whose CASE_MANAGER is *manager_actor_id*."""
+    participant = CaseParticipant(
+        id_=f"{CASE_ID}/participants/manager",
+        attributed_to=manager_actor_id,
+        context=CASE_ID,
+        case_roles=[CVDRole.CASE_MANAGER],
+    )
+    datalayer.create(participant)
+    case = VulnerabilityCase(id_=CASE_ID, attributed_to=OWNER_ACTOR_ID)
+    case.add_participant(participant)
+    datalayer.save(case)
+
+
+class TestFindCaseActorNode:
+    """``FindCaseActorNode`` resolves an *address* from the role (ADR-0088).
+
+    It publishes ``case_actor_id`` for the downstream announce/replay nodes and
+    ``case_id`` for the role gate in ``create_reject_log_entry_tree``.  It does
+    not decide authority — that is the separate ``CheckIsCaseManagerNode`` in
+    that tree (ARCH-24-005).
+    """
+
+    @pytest.mark.spec("ARCH-24-001")
+    @pytest.mark.spec("CM-02-011")
+    def test_resolves_the_case_manager_and_publishes_both_outputs(
+        self, bridge, datalayer
+    ):
+        _seed_case_with_manager(datalayer, OWNER_ACTOR_ID)
+        event = _make_reject_event(tail_hash="")
+
+        result = bridge.execute_with_setup(
+            tree=FindCaseActorNode(name="FindCaseActor"),
+            actor_id=OWNER_ACTOR_ID,
+            activity=event,
+        )
+
+        assert result.status == Status.SUCCESS
+        storage = py_trees.blackboard.Blackboard.storage
+        assert storage.get("/case_actor_id") == OWNER_ACTOR_ID
+        # The role gate downstream reads this; without it the guard's selector
+        # silently took its skip branch and the announce never fired.
+        assert storage.get("/case_id") == CASE_ID
+
+    @pytest.mark.spec("CM-02-012")
+    def test_resolves_without_any_service_object_carrying_context(
+        self, bridge, datalayer
+    ):
+        """The bootstrap window the retired ``Service`` scan could not answer in.
+
+        ADR-0041 writes the CaseActor ``Service`` with no ``context``, so a
+        ``context == case_id`` scan found nothing here and the node failed.
+        """
+        _seed_case_with_manager(datalayer, OWNER_ACTOR_ID)
+        datalayer.create(
+            VultronCaseActor(id_=OWNER_ACTOR_ID, name="CaseActor")
+        )
+        event = _make_reject_event(tail_hash="")
+
+        result = bridge.execute_with_setup(
+            tree=FindCaseActorNode(name="FindCaseActor"),
+            actor_id=OWNER_ACTOR_ID,
+            activity=event,
+        )
+
+        assert result.status == Status.SUCCESS
+        assert (
+            py_trees.blackboard.Blackboard.storage.get("/case_actor_id")
+            == OWNER_ACTOR_ID
+        )
+
+    @pytest.mark.spec("ARCH-24-004")
+    def test_an_unrelated_service_object_is_not_borrowed_as_the_address(
+        self, bridge, datalayer
+    ):
+        """The retired helper returned *the first arbitrary Service* on a miss.
+
+        That fallback made a failed lookup indistinguishable from a successful
+        one: the node reported SUCCESS and published a plausible-looking address
+        belonging to some other case entirely.  With no CASE_MANAGER on the
+        roster the honest answer is FAILURE.
+        """
+        datalayer.create(
+            VultronCaseActor(
+                id_="https://example.org/actors/some-other-case-actor",
+                name="Unrelated CaseActor",
+                context="https://example.org/cases/a-different-case",
+            )
+        )
+        datalayer.save(
+            VulnerabilityCase(id_=CASE_ID, attributed_to=OWNER_ACTOR_ID)
+        )
+        event = _make_reject_event(tail_hash="")
+
+        result = bridge.execute_with_setup(
+            tree=FindCaseActorNode(name="FindCaseActor"),
+            actor_id=OWNER_ACTOR_ID,
+            activity=event,
+        )
+
+        assert result.status == Status.FAILURE
+
+    def test_fails_when_the_case_is_absent_from_this_store(
+        self, bridge, datalayer
+    ):
+        event = _make_reject_event(tail_hash="")
+
+        result = bridge.execute_with_setup(
+            tree=FindCaseActorNode(name="FindCaseActor"),
+            actor_id=OWNER_ACTOR_ID,
+            activity=event,
+        )
+
+        assert result.status == Status.FAILURE
 
 
 @pytest.mark.spec("SYNC-03-002")

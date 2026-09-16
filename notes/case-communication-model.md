@@ -130,6 +130,28 @@ from vultron.core.participants.authority import resolve_case_manager_id
 This extraction landed in PR #3219 under ADR-0088. `resolve_case_manager_id`
 is the canonical implementation used by all sender-side trigger use cases.
 
+**Which of the two resolvers to reach for.** They answer different questions,
+and picking the wrong one is how hosting signals crept back in before
+(ARCH-24-005; the full three-way split is in
+[case-ledger-authority](case-ledger-authority.md) § "Three Questions That Look
+Like One"):
+
+- **`resolve_case_manager_id(case, dl)`** — "am I / who is the authority?"
+  Needs a `VulnerabilityCase` in hand. Use it for every gate and every
+  authority decision. It lives in the neutral layer, so `behaviors/` may import
+  it directly (no `behaviors → use_cases` hop, BTND-04-003).
+- **`_find_case_actor_id(dl, case_id)`** — "what address do I route to?" Takes a
+  case *id* and adds one bootstrap path: the `trusted_case_actor_id` recorded on
+  a completed `ReportCaseLink`, which answers before the local replica has a
+  roster to read. Use it for addressing (`to:` / `cc:`) — PCR-08-007,
+  PCR-08-008.
+
+Neither consults a URL shape or a `Service` object's hosting location. ADR-0088
+removed both, along with the `is_case_actor_identity` predicate: an ordinary
+participant enacting `CASE_MANAGER` *is* the authority and *is* the address, and
+a `.../actors/case-actor` URL is a provisioning convenience with no protocol
+meaning (CM-02-013, ARCH-24-004).
+
 ---
 
 ## Automatic CaseLedgerEntry + Broadcast Cascade

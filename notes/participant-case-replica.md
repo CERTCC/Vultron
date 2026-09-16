@@ -298,9 +298,13 @@ against a different actor's case replica, producing incorrect state.
 
 - `AnnounceVulnerabilityCaseReceivedUseCase` lives in
   `vultron/core/use_cases/received/case.py`.
-- The CASE_MANAGER authority check (`_resolve_case_actor`) looks up the
-  CASE_MANAGER via `dl.by_type("Service")` filtered to `context == case_id`.
-  This lookup is idempotent and safe to call multiple times.
+- The CASE_MANAGER authority check reads the case's participant roster via
+  `resolve_case_manager_id` (`vultron/core/participants/authority.py`) — the
+  single neutral resolver (ADR-0088, ARCH-24-001). It does **not** scan for a
+  `Service` object whose `context` is the case id; that hosting signal was
+  retired by ARCH-24-004, and it answered `None` during the bootstrap window
+  before any `Service` carries `context` (CM-02-012). The lookup is idempotent
+  and safe to call multiple times.
 - The late-joiner bootstrap node belongs in
   `vultron/core/behaviors/case/` as part of the invite-acceptance BT,
   not in the use-case `execute()` body.
