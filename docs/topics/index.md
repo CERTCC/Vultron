@@ -17,8 +17,7 @@ This section provides an overview of the Vultron Protocol, including:
 <div class="grid cards" markdown>
 
 - :material-information-outline: [Background](background/index.md)
-- :material-file-tree-outline: [The Case Model](case_model.md)
-- :material-sync: [Case Ledger Synchronization](case_ledger_sync.md)
+- :material-layers-outline: [Case Lifecycle](case_lifecycle/index.md)
 - :material-message-text-outline: [Message Semantics](message_semantics.md)
 - :material-shape-outline: [Process Models](process_models/index.md)
 - :material-cube-unfolded: [Formal Protocol overview](../reference/formal_protocol/index.md) — in [Reference](../reference/index.md)

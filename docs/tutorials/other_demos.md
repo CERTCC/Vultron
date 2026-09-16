@@ -212,8 +212,8 @@ sequenceDiagram
 ```
 
 See
-[Transfer Case Ownership](../howto/activitypub/activities/transfer_ownership.md)
-for the corresponding activity descriptions.
+[Ownership Transfer](../topics/case_lifecycle/ownership_transfer.md)
+for the routing model and wire format.
 
 ---
 

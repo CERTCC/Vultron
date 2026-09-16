@@ -184,5 +184,5 @@ into a single null value.
 ## Further reading
 
 - [Protocol Event Flow](protocol_flow.md) — how messages cause chains of consequences
-- [The Case Model](case_model.md) — the shared record that messages coordinate around
+- [The Case Model](case_lifecycle/case_model.md) — the shared record that messages coordinate around
 - [Capability Model](capability_model/index.md) — external services that supply judgements actors cannot make alone
