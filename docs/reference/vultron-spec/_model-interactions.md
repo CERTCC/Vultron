@@ -17,6 +17,26 @@ When an actor accepts an invitation, the CASE_MANAGER admits it to the case and
 delivers the case content. The steps are ordered because each one supplies a
 precondition for the next.
 
+```mermaid
+---
+title: Admitting a participant
+---
+sequenceDiagram
+    autonumber
+    participant I as Invited actor
+    participant CM as CASE_MANAGER
+    participant P as Existing participants
+
+    I->>CM: Accept(Invite)
+    CM->>CM: Commit ledger entry for the acceptance
+    CM->>P: Announce(CaseLedgerEntry)
+    CM->>I: Announce(CaseLedgerEntry)
+    CM->>CM: Create CaseParticipant, RM state Received
+    CM->>CM: Record embargo consent, if an embargo is in force
+    CM->>I: Announce(VulnerabilityCase) — full case content
+    CM->>I: Prior ledger entries, oldest first
+```
+
 On receiving `Accept(Invite)`, the CASE_MANAGER MUST perform these five steps in
 this order:
 
