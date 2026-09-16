@@ -1,28 +1,34 @@
 {
-  "@context": "https://www.w3.org/ns/activitystreams",
+  "id": "urn:uuid:0d4a16ce-9ce4-44c2-a73f-81961d7f3fa5/participants/finndervul",
   "type": "CaseParticipant",
-  "id": "https://vultron.example/cases/VDR-20991514/participants/finn",
   "name": "Finn der Vul",
-  "context": "https://vultron.example/cases/VDR-20991514",
-  "actor": "https://vultron.example/users/finn",
+  "context": "urn:uuid:0d4a16ce-9ce4-44c2-a73f-81961d7f3fa5",
+  "attributedTo": "https://vultron.example/users/finndervul",
+  "@context": "https://certcc.github.io/Vultron/ns/context.jsonld",
   "caseRoles": [
-    "FINDER",
-    "REPORTER"
+    "finder",
+    "reporter"
   ],
-  "participantStatus": [
+  "participantStatuses": [
     {
-      "@context": "https://www.w3.org/ns/activitystreams",
+      "id": "urn:uuid:3efe1f50-4ac1-4157-84bf-14edc75b2b70",
       "type": "ParticipantStatus",
-      "id": "https://for.example/cffebd9b-f9ad-4e33-9d52-392eead68dc6",
-      "name": "REPORT_MANAGEMENT_ACCEPTED vfd",
-      "context": "https://vultron.example/cases/VDR-20991514",
-      "published": "2024-01-22T20:29:47+00:00",
-      "updated": "2024-01-22T20:29:47+00:00",
-      "actor": "https://vultron.example/users/finn",
-      "rmState": "REPORT_MANAGEMENT_ACCEPTED",
-      "vfdState": "vfd",
+      "name": "START",
+      "context": "urn:uuid:0d4a16ce-9ce4-44c2-a73f-81961d7f3fa5",
+      "published": "2026-09-16T18:38:48+00:00",
+      "updated": "2026-09-16T18:38:48+00:00",
+      "attributedTo": "https://vultron.example/users/finndervul",
+      "@context": "https://certcc.github.io/Vultron/ns/context.jsonld",
+      "rmState": "START",
       "caseEngagement": true,
-      "embargoAdherence": true
+      "embargoAdherence": false,
+      "emConsentState": "NO_EMBARGO",
+      "cvdRole": [
+        "FINDER",
+        "REPORTER"
+      ]
     }
-  ]
+  ],
+  "acceptedEmbargoIds": [],
+  "embargoConsentState": "NO_EMBARGO"
 }

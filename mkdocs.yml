@@ -165,6 +165,9 @@ nav:
       - Case State (CS): 'reference/messages/cs.md'
       - General (GI): 'reference/messages/general.md'
       - Faults and Acknowledgements: 'reference/messages/faults_and_acknowledgements.md'
+      - Case Management: 'reference/messages/case_management.md'
+      - Case Proposal: 'reference/messages/case_proposal.md'
+      - Ledger Replication: 'reference/messages/ledger_replication.md'
     - Specifications:
       - 'reference/specs/index.md'
       - Protocol: 'reference/specs/protocol.md'

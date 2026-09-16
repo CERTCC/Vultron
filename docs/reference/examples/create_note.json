@@ -1,9 +1,9 @@
 {
-  "id": "urn:uuid:25366b0a-9cf2-476a-b818-00cbc515154f",
-  "type": "Add",
-  "name": "https://vultron.example/users/finndervul Add Note to urn:uuid:0d4a16ce-9ce4-44c2-a73f-81961d7f3fa5",
+  "id": "urn:uuid:f6505680-8ec7-46e1-92e6-d5fe8c57c728",
+  "type": "Create",
+  "name": "https://vultron.example/organizations/vendorco Create Note to urn:uuid:0d4a16ce-9ce4-44c2-a73f-81961d7f3fa5",
   "@context": "https://www.w3.org/ns/activitystreams",
-  "actor": "https://vultron.example/users/finndervul",
+  "actor": "https://vultron.example/organizations/vendorco",
   "target": "urn:uuid:0d4a16ce-9ce4-44c2-a73f-81961d7f3fa5",
   "object": {
     "id": "https://vultron.example/notes/1",
