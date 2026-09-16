@@ -1,6 +1,6 @@
 id: CM
 title: Case Management
-description: Requirements for VulnerabilityCase lifecycle management, CaseActor responsibilities, and the RM/EM/CS/VFD state
+description: Requirements for VulnerabilityCase lifecycle management, CASE_MANAGER responsibilities, and the RM/EM/CS/VFD state
   model. Covers actor isolation at the protocol level, the distinction between participant-specific and participant-agnostic
   state, case initialization sequencing, embargo acceptance ownership, and the invitation acceptance lifecycle.
 version: 1.4.0
@@ -31,39 +31,39 @@ groups:
     stories:
     - story_2022_088
 - id: CM-02
-  title: CaseActor Lifecycle
+  title: CASE_MANAGER Lifecycle
   specs:
   - id: CM-02-001
     priority: MUST
     kind: protocol
-    statement: Each VulnerabilityCase MUST have exactly one associated CaseActor
+    statement: Each VulnerabilityCase MUST have exactly one associated CASE_MANAGER
     verification: Inspection of `vultron/core/` confirms that each `VulnerabilityCase` is
-      associated with exactly one `CaseActor` instance.
+      associated with exactly one participant holding `CVDRole.CASE_MANAGER`.
     stories:
     - story_2022_029
     - story_2022_031
   - id: CM-02-002
     priority: MUST
     kind: protocol
-    statement: CaseActor MUST be the authoritative source of truth for case state
+    statement: CASE_MANAGER MUST be the authoritative source of truth for case state
     verification: Integration tests in `test/demo/` confirm that participants fetch canonical
-      state from the CaseActor rather than from each other.
+      state from the CASE_MANAGER rather than from each other.
     stories:
     - story_2022_088
     - story_2022_045
   - id: CM-02-003
     priority: MUST
     kind: protocol
-    statement: CaseActor MUST persist until the associated VulnerabilityCase is closed
+    statement: CASE_MANAGER MUST persist until the associated VulnerabilityCase is closed
     note: >-
-      Read this as the *role assignment* persisting, not an object's lifetime. "CaseActor" names
+      Read this as the *role assignment* persisting, not an object's lifetime. The CASE_MANAGER is
       whichever participant holds `CVDRole.CASE_MANAGER` (BT-10-002, as revised for ISSUE-1872); the
       actor itself participates in many cases and its existence is not scoped to any one of them.
-      Flagged rather than rewritten: this whole group predates the role model and several entries read
-      as obligations on a distinct component, which is the assumption that produced the phantom
+      This group's statements are now phrased in terms of the CASE_MANAGER role directly, rather than
+      an obligation on a distinct "CaseActor" component — the earlier framing produced the phantom
       per-case CaseActor identity. ADR-0088 settles this: authority is the `CVDRole.CASE_MANAGER`
-      role, and "CaseActor" is role-enactment shorthand, not an identity (see CM-02-011 through
-      CM-02-013).
+      role, and "CaseActor" names only the concrete prototype/demo actor that enacts it — never the
+      authority, and never an identity to match on (see CM-02-011 through CM-02-013).
     verification: >-
       Inspection of `vultron/core/` confirms nothing revokes `CVDRole.CASE_MANAGER` from the holding
       participant before the case closes. Read per the note: what must persist is the role assignment
@@ -73,9 +73,9 @@ groups:
   - id: CM-02-004
     priority: MUST
     kind: protocol
-    statement: CaseActor MUST know the case owner
+    statement: CASE_MANAGER MUST know the case owner
     verification: Inspection of `vultron/core/models/case.py` confirms that
-      `VulnerabilityCase.attributed_to` records the case owner and is readable by the CaseActor.
+      `VulnerabilityCase.attributed_to` records the case owner and is readable by the CASE_MANAGER.
     stories:
     - story_2022_046
     - story_2022_047
@@ -85,7 +85,7 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      CaseActor MUST restrict the following activities to the case owner: case closure,
+      CASE_MANAGER MUST restrict the following activities to the case owner: case closure,
       approving an embargo proposal to become active on the case and terminating an active embargo,
       approving or rejecting participant invitations, and case ownership transfer
       (see CM-02-006 for the authorisation mechanism).
@@ -100,7 +100,7 @@ groups:
   - id: CM-02-006
     priority: MUST
     kind: protocol
-    statement: CaseActor MUST enforce case-level authorization for all case mutations
+    statement: CASE_MANAGER MUST enforce case-level authorization for all case mutations
     verification: Inspection of `vultron/core/` confirms that every case mutation path checks
       actor authorization before applying the mutation.
     scope:
@@ -130,12 +130,12 @@ groups:
   - id: CM-02-009
     priority: MUST
     kind: protocol
-    statement: The CaseActor MUST apply its own trusted timestamp to every state-changing event it receives, regardless of
+    statement: The CASE_MANAGER MUST apply its own trusted timestamp to every state-changing event it receives, regardless of
       any timestamp supplied by the sending participant
-    rationale: The CaseActor's clock is the only trusted source of time for event ordering within a case; using participant-supplied
+    rationale: The CASE_MANAGER's clock is the only trusted source of time for event ordering within a case; using participant-supplied
       timestamps would allow different copies of a case (held by different actors) to disagree on event order, undermining
       auditability and the single-source-of-truth guarantee
-    verification: Integration tests in `test/demo/` confirm that the CaseActor timestamps every
+    verification: Integration tests in `test/demo/` confirm that the CASE_MANAGER timestamps every
       state-changing event with its own clock, discarding any timestamp supplied by the sender.
     relationships:
     - rel_type: depends_on
@@ -146,12 +146,12 @@ groups:
   - id: CM-02-010
     priority: MUST
     kind: protocol
-    statement: The CaseActor and the case owner (named actor) MUST have distinct actor identities — each with their own actor
+    statement: The actor enacting CASE_MANAGER and the case owner (named actor) MUST have distinct actor identities — each with their own actor
       ID — even when co-located on the same server
     rationale: Enforcing distinct identities ensures that all case-state transitions pass through the wire protocol regardless
       of deployment topology, preserving audit integrity and enabling future separation onto independent containers without
       protocol changes
-    verification: Inspection of `vultron/core/` confirms that the CaseActor service actor and
+    verification: Inspection of `vultron/core/` confirms that the actor enacting CASE_MANAGER and
       the case owner named actor each hold distinct actor IDs, even in single-server
       deployments.
     relationships:
@@ -191,7 +191,7 @@ groups:
       entries as authoritative from replica-seed onward, including during the bootstrap window
       before any co-located `Service` object carries the case `context`.
     rationale: >-
-      The hosting-based check had a bootstrap window in which the real CaseActor failed its own
+      The hosting-based check had a bootstrap window in which the real CASE_MANAGER failed its own
       hosting test and would take the participant arm on its own ledger. Role membership is
       stable from replica-seed onward and has no such window.
     verification: >-
@@ -571,8 +571,8 @@ groups:
   - id: CM-06-001
     priority: MUST
     kind: protocol
-    statement: When the CaseActor updates canonical case state, it MUST notify all current case participants
-    verification: Integration tests in `test/demo/` confirm that after the CaseActor updates
+    statement: When the CASE_MANAGER updates canonical case state, it MUST notify all current case participants
+    verification: Integration tests in `test/demo/` confirm that after the CASE_MANAGER updates
       canonical case state it fans out `Announce(CaseLedgerEntry)` to all current case
       participants.
     relationships:
@@ -589,9 +589,9 @@ groups:
     priority: MUST
     kind: protocol
     statement: Participants receiving a case update notification MUST treat the update as authoritative only when it originates
-      from the CaseActor
+      from the CASE_MANAGER
     verification: Integration tests in `test/demo/` confirm that a state update message from a
-      non-CaseActor participant is not treated as authoritative case state.
+      non-CASE_MANAGER participant is not treated as authoritative case state.
     relationships:
     - rel_type: depends_on
       spec_id: CM-02-002
@@ -601,10 +601,10 @@ groups:
   - id: CM-06-003
     priority: MUST
     kind: protocol
-    statement: Case update notifications MUST include the updated CaseActor URL so participants can fetch the current case
+    statement: Case update notifications MUST include the updated CASE_MANAGER's actor URL so participants can fetch the current case
       state if needed
     verification: Inspection of `vultron/core/` confirms that case update notification payloads
-      include the CaseActor URL so recipients can fetch current state.
+      include the CASE_MANAGER's actor URL so recipients can fetch current state.
     scope:
     - production
     stories:
@@ -615,7 +615,7 @@ groups:
     kind: protocol
     statement: Participants MUST authenticate case update notifications before accepting them as authoritative
     verification: Inspection of `vultron/core/` confirms that the case update notification
-      handler verifies the sender's identity against the known CaseActor before processing the
+      handler verifies the sender's identity against the known CASE_MANAGER before processing the
       update.
     scope:
     - production
@@ -625,10 +625,10 @@ groups:
   - id: CM-06-005
     priority: MUST
     kind: protocol
-    statement: When a note is added to a case, the CaseActor MUST broadcast the note to all case participants (excluding the
+    statement: When a note is added to a case, the CASE_MANAGER MUST broadcast the note to all case participants (excluding the
       note author)
     verification: Integration tests in `test/demo/` confirm that adding a note to a case causes
-      the CaseActor to broadcast the note to all case participants except the note author.
+      the CASE_MANAGER to broadcast the note to all case participants except the note author.
     relationships:
     - rel_type: depends_on
       spec_id: OX-03-001
@@ -751,10 +751,10 @@ groups:
   - id: CM-10-002
     priority: MUST
     kind: protocol
-    statement: Embargo acceptances MUST be timestamped by the CaseActor at the time of receipt, not using the participant's
+    statement: Embargo acceptances MUST be timestamped by the CASE_MANAGER at the time of receipt, not using the participant's
       claimed timestamp
-    rationale: The CaseActor applies the only trusted timestamp; the participant's reported time cannot be verified
-    verification: Integration tests in `test/demo/` confirm that the CaseActor's own clock
+    rationale: The CASE_MANAGER applies the only trusted timestamp; the participant's reported time cannot be verified
+    verification: Integration tests in `test/demo/` confirm that the CASE_MANAGER's own clock
       timestamp is stored on embargo acceptance records, not the participant's claimed
       timestamp.
     relationships:
@@ -786,7 +786,7 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      When an actor accepts a case invitation, the CaseActor MUST record the accepting actor's
+      When an actor accepts a case invitation, the CASE_MANAGER MUST record the accepting actor's
       RM state as RM.RECEIVED — not RM.ACCEPTED. `Accept(Invite)` signals willingness to join
       the case and, when an active embargo is in scope, consent to the embargo. It does NOT
       constitute validation of the vulnerability report. The accepting actor has received only
@@ -809,7 +809,7 @@ groups:
       invitee has run their triage cycle (RECEIVED → VALID or INVALID → ACCEPTED or DEFERRED)
       should their RM state advance past RECEIVED.
     verification: Integration tests in `test/demo/` confirm that `Accept(Invite)` causes the
-      CaseActor to record the accepting actor's RM state as `RM.RECEIVED`, not `RM.ACCEPTED`.
+      CASE_MANAGER to record the accepting actor's RM state as `RM.RECEIVED`, not `RM.ACCEPTED`.
     relationships:
     - rel_type: implements
       spec_id: VP-03-012
@@ -825,8 +825,8 @@ groups:
       After accepting a case invitation and receiving the full case replica, the accepting
       actor SHOULD run the standard RM triage cycle: validating the reported vulnerability
       (RM.VALID or RM.INVALID), then deciding to engage or defer (RM.ACCEPTED or RM.DEFERRED).
-      Each transition SHOULD be communicated to the CaseActor via the appropriate RM status
-      message so the CaseActor can update its representation of the invitee's RM state.
+      Each transition SHOULD be communicated to the CASE_MANAGER via the appropriate RM status
+      message so the CASE_MANAGER can update its representation of the invitee's RM state.
     note: Prior text read "After auto-engagement (CM-11-001), the accepting actor SHOULD emit an RmEngageCaseActivity
       to notify the case owner." That text assumed CM-11-001 advanced the state to ACCEPTED;
       under the corrected CM-11-001 the engagement notification is part of the triage cycle
@@ -840,14 +840,14 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      The CaseActor MUST NOT treat an invited participant as having committed to the case
+      The CASE_MANAGER MUST NOT treat an invited participant as having committed to the case
       (RM.ACCEPTED) until it receives the corresponding RM status message from the invitee
       confirming that state transition.
     rationale: >-
       Only the invitee can confirm they have validated the vulnerability and chosen to
-      engage. The CaseActor cannot infer acceptance from the `Accept(Invite)` alone
+      engage. The CASE_MANAGER cannot infer acceptance from the `Accept(Invite)` alone
       because at that point the invitee has not yet received the full case content.
-    verification: Integration tests in `test/demo/` confirm that the CaseActor does not set an
+    verification: Integration tests in `test/demo/` confirm that the CASE_MANAGER does not set an
       invited participant's RM state to `RM.ACCEPTED` until it receives the corresponding RM
       status message from the invitee.
     relationships:
@@ -885,7 +885,7 @@ groups:
     statement: >-
       An invited actor MUST obtain its `VultronOfferRecord` for the case's vulnerability
       report by processing the `add_report_to_case` `CaseLedgerEntry` backfilled from the
-      CaseActor — not by any form of synthetic injection or out-of-band seeding. The
+      CASE_MANAGER — not by any form of synthetic injection or out-of-band seeding. The
       `add_report_to_case` ledger entry embeds the full `VulnerabilityReport` and the
       original offer metadata; processing it creates both the `VulnerabilityReport` replica
       and the `VultronOfferRecord` in the invited actor's DataLayer, enabling the standard
@@ -927,8 +927,8 @@ groups:
     note: >-
       Superseded by CM-22-001 (ADR-0041): the vendor actor MUST NOT create the
       `VulnerabilityCase` directly.  The vendor stores the report and waits for
-      `Create(VulnerabilityCase)` from the CaseActor.  CM-12-001 applies only in
-      single-actor deployments where the vendor IS the CaseActor.
+      `Create(VulnerabilityCase)` from the CASE_MANAGER.  CM-12-001 applies only in
+      single-actor deployments where the vendor IS the CASE_MANAGER.
     relationships:
     - rel_type: supersedes
       spec_id: CM-22-001
@@ -1112,10 +1112,10 @@ groups:
       is skipped or reordered.
     note: >-
       Superseded by CM-22 (ADR-0041) for multi-actor deployments: in the
-      CaseActor-authoritative model the `VulnerabilityCase` is created by the
-      CaseActor (not the receiving vendor), so `attributed_to` is the CaseActor's
+      CASE_MANAGER-authoritative model the `VulnerabilityCase` is created by the
+      CASE_MANAGER (not the receiving vendor), so `attributed_to` is the CASE_MANAGER's
       actor ID, not the receiving actor's.  CM-14-001 applies only in single-actor
-      deployments where the vendor IS the CaseActor.
+      deployments where the vendor IS the CASE_MANAGER.
     relationships:
     - rel_type: depends_on
       spec_id: CM-12-001
@@ -1388,11 +1388,11 @@ groups:
     priority: MUST
     kind: protocol
     statement: A participant wishing to suggest that another actor be invited to the case MUST send `Offer(object=Actor, target=Case)`
-      to the CaseActor's inbox, not directly to the Case Owner's inbox.
-    rationale: All case-scoped protocol messages MUST route through the CaseActor so the event can be recorded in the canonical
+      to the CASE_MANAGER's inbox, not directly to the Case Owner's inbox.
+    rationale: All case-scoped protocol messages MUST route through the CASE_MANAGER so the event can be recorded in the canonical
       case ledger before any downstream action is taken (ADR-0021, PCR-08-001).
     verification: Integration tests in `test/demo/` confirm that an actor-suggestion
-      `Offer(object=Actor, target=Case)` is sent to the CaseActor's inbox, not directly to the
+      `Offer(object=Actor, target=Case)` is sent to the CASE_MANAGER's inbox, not directly to the
       Case Owner.
     relationships:
     - rel_type: implements
@@ -1405,11 +1405,11 @@ groups:
   - id: CM-16-002
     priority: MUST
     kind: protocol
-    statement: When the CaseActor receives `Offer(object=Actor, target=Case)`, it MUST commit a `CaseLedgerEntry` for the
+    statement: When the CASE_MANAGER receives `Offer(object=Actor, target=Case)`, it MUST commit a `CaseLedgerEntry` for the
       received Offer and fan out the entry to all participants BEFORE taking any downstream action.
     rationale: Ledger entries record events that have already occurred; pre-committing a decision before communicating it
       is not permitted (CLP-10-006 commit ordering).
-    verification: Integration tests in `test/demo/` confirm that the CaseActor commits a
+    verification: Integration tests in `test/demo/` confirm that the CASE_MANAGER commits a
       `CaseLedgerEntry` and fans it out to participants before taking any downstream action on a
       received `Offer(Actor)`.
     relationships:
@@ -1422,7 +1422,7 @@ groups:
     priority: MUST
     kind: project
     statement: >-
-      After recording the received `Offer(Actor)`, the CaseActor MUST assign a non-empty
+      After recording the received `Offer(Actor)`, the CASE_MANAGER MUST assign a non-empty
       default role list for the suggested actor via an Evaluator BT node (ADR-0024 shape:
       Evaluator).
     verification: Inspection of `vultron/core/` confirms that an Evaluator BT node assigns a
@@ -1456,12 +1456,12 @@ groups:
   - id: CM-16-004
     priority: MUST
     kind: protocol
-    statement: The CaseActor MUST transform the received `Offer(Actor)` into `Offer(object=CaseParticipant{attributed_to=actor,
+    statement: The CASE_MANAGER MUST transform the received `Offer(Actor)` into `Offer(object=CaseParticipant{attributed_to=actor,
       case_roles=roles}, target=Case)` and send it to the Case Owner's inbox, with `origin` set to the ID of the original
       recommender's Offer activity.
     rationale: The Case Owner makes a membership decision about a CaseParticipant (actor + roles), not about a bare Actor
       identity. The `origin` field preserves the causal chain without a side-channel data store.
-    verification: Integration tests in `test/demo/` confirm that the CaseActor sends a
+    verification: Integration tests in `test/demo/` confirm that the CASE_MANAGER sends a
       transformed `Offer(object=CaseParticipant, target=Case)` to the Case Owner with `origin`
       set to the recommender's Offer ID.
     stories:
@@ -1471,17 +1471,17 @@ groups:
     priority: MAY
     kind: protocol
     statement: The recommender's `Offer(Actor)` MAY include a `content` or `summary` field explaining why the actor is being
-      suggested. The CaseActor SHOULD forward this text as the `content` of the transformed `Offer(CaseParticipant)` it sends
+      suggested. The CASE_MANAGER SHOULD forward this text as the `content` of the transformed `Offer(CaseParticipant)` it sends
       to the Case Owner.
   - id: CM-16-006
     priority: MUST
     kind: protocol
-    statement: After receiving `Accept(Offer(CaseParticipant))` from the Case Owner, the CaseActor MUST (1) commit a ledger
+    statement: After receiving `Accept(Offer(CaseParticipant))` from the Case Owner, the CASE_MANAGER MUST (1) commit a ledger
       entry for the Accept, (2) fan out the ledger entry, (3) send `AcceptActorRecommendation` to the original recommender
       with `in_reply_to` set to the ID of the original recommender's `Offer` activity, and (4) send `Invite(CaseStub[+embargo])`
       to the suggested actor per CM-17.
     verification: Integration tests in `test/demo/` confirm that after the Case Owner accepts a
-      participant recommendation, the CaseActor commits a ledger entry, fans it out, sends
+      participant recommendation, the CASE_MANAGER commits a ledger entry, fans it out, sends
       `AcceptActorRecommendation`, and sends `Invite` to the suggested actor.
     relationships:
     - rel_type: implements
@@ -1492,11 +1492,11 @@ groups:
   - id: CM-16-007
     priority: MUST
     kind: protocol
-    statement: After receiving `Reject(Offer(CaseParticipant))` from the Case Owner, the CaseActor MUST (1) commit a ledger
+    statement: After receiving `Reject(Offer(CaseParticipant))` from the Case Owner, the CASE_MANAGER MUST (1) commit a ledger
       entry for the Reject, (2) fan out the ledger entry, and (3) send `RejectActorRecommendation` to the original recommender
       with `in_reply_to` set to the ID of the original recommender's `Offer` activity.
     verification: Integration tests in `test/demo/` confirm that after the Case Owner rejects a
-      participant recommendation, the CaseActor commits a ledger entry, fans it out, and sends
+      participant recommendation, the CASE_MANAGER commits a ledger entry, fans it out, and sends
       `RejectActorRecommendation` to the recommender.
     stories:
     - story_2022_054
@@ -1505,7 +1505,7 @@ groups:
     kind: protocol
     statement: >-
       When a second `Offer(Actor X, Case)` arrives while a pending decision for Actor X is
-      still outstanding (no Accept or Reject yet received from the Case Owner), the CaseActor
+      still outstanding (no Accept or Reject yet received from the Case Owner), the CASE_MANAGER
       MUST record the duplicate recommendation in the ledger.
     verification: Integration tests in `test/demo/` confirm that a duplicate `Offer(Actor X,
       Case)` arriving while a prior decision is pending is recorded in the case ledger.
@@ -1516,9 +1516,9 @@ groups:
     priority: MUST
     kind: protocol
     statement: When a second `Offer(Actor X, Case)` arrives after an Invite has already been sent to Actor X (i.e., the invite
-      is in-flight or the actor is already a participant), the CaseActor MUST record the recommendation in the ledger, fan
+      is in-flight or the actor is already a participant), the CASE_MANAGER MUST record the recommendation in the ledger, fan
       out the entry, and auto-send `AcceptActorRecommendation` (with `in_reply_to` = original recommender's Offer ID) back
-      to the second recommender. The CaseActor MUST NOT send a duplicate Invite to Actor X.
+      to the second recommender. The CASE_MANAGER MUST NOT send a duplicate Invite to Actor X.
     verification: Integration tests in `test/demo/` confirm that when Actor X is already invited
       or a participant, a second `Offer(Actor X)` is recorded, `AcceptActorRecommendation` is
       sent to the second recommender, and no duplicate Invite is sent.
@@ -1528,7 +1528,7 @@ groups:
   - id: CM-16-010
     priority: MUST
     kind: protocol
-    statement: In every step of the actor suggestion flow, the CaseActor MUST commit the ledger entry for a protocol event
+    statement: In every step of the actor suggestion flow, the CASE_MANAGER MUST commit the ledger entry for a protocol event
       AFTER the corresponding message has been sent or received, never before.
     rationale: Pre-announcing a decision in the ledger before communicating the decision creates a window where the ledger
       shows an effect without its cause.
@@ -1560,13 +1560,13 @@ groups:
     kind: protocol
     statement: >-
       When a second `Offer(Actor X, Case)` arrives while a pending decision for Actor X is
-      still outstanding, the CaseActor MUST send a `Note` to the Case Owner's inbox
+      still outstanding, the CASE_MANAGER MUST send a `Note` to the Case Owner's inbox
       indicating that a reinforcing suggestion was received, including the second
       recommender's identity and any `content` from the Offer.
     rationale: Notifying the Case Owner of reinforcing suggestions provides additional
       context for the pending decision without creating a duplicate offer workflow.
     verification: Integration tests in `test/demo/` confirm that a duplicate `Offer(Actor X,
-      Case)` with a pending decision causes the CaseActor to send a `Note` to the Case Owner
+      Case)` with a pending decision causes the CASE_MANAGER to send a `Note` to the Case Owner
       naming the second recommender.
     stories:
     - story_2022_053
@@ -1576,7 +1576,7 @@ groups:
     kind: protocol
     statement: >-
       When a second `Offer(Actor X, Case)` arrives while a pending decision for Actor X is
-      still outstanding, the CaseActor MUST NOT send a second transformed
+      still outstanding, the CASE_MANAGER MUST NOT send a second transformed
       `Offer(CaseParticipant)` to the Case Owner.
     rationale: Sending a duplicate transformed Offer would create a second pending decision
       for the same actor, leading to conflicting state if the Case Owner responds to both.
@@ -1584,15 +1584,15 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      When the CaseActor processes `Accept(Offer(CaseParticipant))` from the Case
+      When the CASE_MANAGER processes `Accept(Offer(CaseParticipant))` from the Case
       Owner, the roles assigned to the new participant MUST be read from the stored
-      outgoing `Offer(CaseParticipant)` that the CaseActor constructed and sent —
+      outgoing `Offer(CaseParticipant)` that the CASE_MANAGER constructed and sent —
       not from the embedded `CaseParticipant` object inside the received `Accept`.
     rationale: >-
       The received `Accept` is untrusted: the accepting actor may have modified or
       omitted roles, or sent only a bare ID reference. Reading roles from the
       received `Accept` would allow a malicious or minimally-conformant acceptor to
-      substitute unauthorized roles. The stored `Offer` is the CaseActor's own
+      substitute unauthorized roles. The stored `Offer` is the CASE_MANAGER's own
       record of the intended participant roles and is the authoritative source of
       truth.
     verification: >-
@@ -1614,10 +1614,10 @@ groups:
   - id: CM-17-001
     priority: MUST
     kind: protocol
-    statement: The `Invite` activity sent by the CaseActor to a new actor MUST include a case stub as the `object`, with the
+    statement: The `Invite` activity sent by the CASE_MANAGER to a new actor MUST include a case stub as the `object`, with the
       case stub containing at minimum the case ID and type. This requirement is extended by CM-17-002 and CM-17-003.
     verification: Integration tests in `test/demo/` confirm that the `Invite` activity emitted
-      by the CaseActor contains a case stub object with at minimum the case ID and type.
+      by the CASE_MANAGER contains a case stub object with at minimum the case ID and type.
     stories:
     - story_2022_053
     - story_2022_054
@@ -1652,16 +1652,16 @@ groups:
   - id: CM-17-004
     priority: MUST
     kind: protocol
-    statement: When the CaseActor receives `Accept(Invite)` from the invitee, it MUST (1) commit a ledger entry for the Accept,
+    statement: When the CASE_MANAGER receives `Accept(Invite)` from the invitee, it MUST (1) commit a ledger entry for the Accept,
       (2) fan out the ledger entry to ALL existing participants, (3) create a `CaseParticipant` record for the invitee at
       `RM.RECEIVED` with the roles from the Invite, (4) sign embargo consent if `em_state == EM.ACTIVE` (CM-10-001), (5) send
       `Announce(VulnerabilityCase)` with the current full case snapshot to the invitee, and (6) backfill all prior `CaseLedgerEntry`
       records to the invitee in log-index order.
     verification: 'Integration tests in `test/demo/` confirm that `Accept(Invite)` triggers the
-      CaseActor''s 6-step sequence: ledger commit, fan-out, participant creation at
+      CASE_MANAGER''s 6-step sequence: ledger commit, fan-out, participant creation at
       `RM.RECEIVED`, embargo consent, full case snapshot delivery, and ledger backfill.'
     note: >-
-      Step (3) previously read `RM.ACCEPTED`. That contradicted CM-11-001, which requires the CaseActor to record
+      Step (3) previously read `RM.ACCEPTED`. That contradicted CM-11-001, which requires the CASE_MANAGER to record
       `RM.RECEIVED` on `Accept(Invite)` — `Accept(Invite)` signals willingness to join, not validation of the report.
       The implementation follows CM-11-001 (`CreateInviteeParticipantAtReceivedNode` in
       `vultron/core/behaviors/case/accept_invite_tree.py`); this text was not updated when CM-11-001 was corrected.
@@ -1684,16 +1684,16 @@ groups:
     priority: MUST_NOT
     kind: protocol
     statement: The invitee MUST NOT appear in the case participant list until their `Accept(Invite)` has been received and
-      processed by the CaseActor. A pending invitation (Invite sent, no response yet) is tracked only as a ledger entry, not
+      processed by the CASE_MANAGER. A pending invitation (Invite sent, no response yet) is tracked only as a ledger entry, not
       as a participant record.
     rationale: A participant record implies an active RM state (`RM.RECEIVED` per CM-17-004) and the associated permissions.
       Creating one before the invitee has consented would grant protocol access prematurely.
   - id: CM-17-006
     priority: MUST
     kind: protocol
-    statement: The CaseActor MUST commit a `CaseLedgerEntry` for the emitted `Invite` activity (recording the fact of its
+    statement: The CASE_MANAGER MUST commit a `CaseLedgerEntry` for the emitted `Invite` activity (recording the fact of its
       emission) AFTER the Invite has been queued for delivery to the invitee. The commit MUST NOT precede the emission.
-    verification: Integration tests in `test/demo/` confirm that the CaseActor commits the
+    verification: Integration tests in `test/demo/` confirm that the CASE_MANAGER commits the
       `CaseLedgerEntry` for an emitted `Invite` only after the Invite has been queued for
       delivery.
     relationships:
@@ -1720,11 +1720,11 @@ groups:
     priority: MUST
     kind: project
     statement: >-
-      In the suggest-actor received path (the CaseActor receives
+      In the suggest-actor received path (the CASE_MANAGER receives
       `Accept(Offer(CaseParticipant))`), the invitee's `CaseParticipant.case_roles` MUST
       be populated on `Accept(Invite)` by reading roles from the persisted `Invite` wire
       object (CM-17-004), with roles originating from the Case Owner's Accept response
-      (CM-16-006) or the CaseActor's default role assignment (CM-16-003).
+      (CM-16-006) or the CASE_MANAGER's default role assignment (CM-16-003).
     rationale: >-
       In this path `AcceptOfferCaseParticipantReceivedUseCase` does not write
       `suggested_roles`; the Invite is emitted with `roles=None`. The persisted wire object
@@ -2068,7 +2068,7 @@ groups:
       A Coordinator invited to a case as a regular participant MUST hold
       `CVDRole.COORDINATOR` in their `case_roles` list.
     rationale: '`CASE_OWNER` is the role that confers case administration authority (CM-02-001, CM-02-004, CM-02-005). `CASE_MANAGER`
-      is a distinct role reserved exclusively for the CaseActor service; it grants write authority to the canonical ledger
+      is a distinct role reserved exclusively for the Case Actor (the automated actor that enacts it); it grants write authority to the canonical ledger
       (CLP-09) and MUST NOT be held by any participant actor regardless of their organizational role. These two constraints
       are independent: a Coordinator participant lacks both `CASE_OWNER` (they are not the case administrator) and `CASE_MANAGER`
       (they are not the case management service).'
@@ -2105,14 +2105,14 @@ groups:
     priority: MUST
     kind: protocol
     statement: When a Coordinator participant (holding `CVDRole.COORDINATOR` without `CVDRole.CASE_MANAGER`) suggests that
-      another actor be added to the case via `Offer(Actor, Case)`, the suggestion MUST route through the CaseActor inbox per
+      another actor be added to the case via `Offer(Actor, Case)`, the suggestion MUST route through the CASE_MANAGER inbox per
       ADR-0026 (CM-16-001). The Case Owner — not the Coordinator — MUST remain the sole decision-maker for approving or rejecting
       the invitation (CM-02-001).
     rationale: 'A Coordinator-as-participant should be able to exercise their facilitation role (suggesting additional vendors)
-      without requiring ownership transfer. The CaseActor-routed suggest flow (ADR-0026) already provides this: the Coordinator
-      sends `Offer(Actor, Case)` to the CaseActor, which records and forwards it to the Case Owner for approval.'
+      without requiring ownership transfer. The CASE_MANAGER-routed suggest flow (ADR-0026) already provides this: the Coordinator
+      sends `Offer(Actor, Case)` to the CASE_MANAGER, which records and forwards it to the Case Owner for approval.'
     verification: Integration tests in `test/demo/` confirm that a Coordinator participant's
-      actor-suggestion message routes through the CaseActor and the Case Owner must approve or
+      actor-suggestion message routes through the CASE_MANAGER and the Case Owner must approve or
       reject the invitation.
     relationships:
     - rel_type: refines
@@ -2130,7 +2130,7 @@ groups:
     statement: >-
       A Coordinator invited to a case as a regular participant MUST NOT hold
       `CVDRole.CASE_MANAGER` in their `case_roles` list.
-    rationale: '`CVDRole.CASE_MANAGER` is reserved exclusively for the CaseActor service (CBT-01-003); it grants write authority
+    rationale: '`CVDRole.CASE_MANAGER` is reserved exclusively for the Case Actor (the automated actor that enacts it; CBT-01-003); it grants write authority
       to the canonical ledger and MUST NOT be held by any organizational or human participant.'
     relationships:
     - rel_type: refines
@@ -2140,10 +2140,10 @@ groups:
     kind: protocol
     statement: >-
       `CVDRole.CASE_MANAGER` MUST NOT be assigned to any organizational or human participant
-      joining a case as a facilitation actor rather than as the CaseActor service
+      joining a case as a facilitation actor rather than as the Case Actor that enacts it
       (CBT-01-003).
     rationale: '`CVDRole.CASE_MANAGER` grants write authority to the canonical ledger (CLP-09). Assigning it to a human or
-      organizational participant would allow them to author ledger entries that the CaseActor is the sole authorized author of.'
+      organizational participant would allow them to author ledger entries that the CASE_MANAGER is the sole authorized author of.'
     relationships:
     - rel_type: refines
       spec_id: CM-20-004
@@ -2264,18 +2264,18 @@ groups:
     kind: protocol
     statement: >-
       An actor emitting `Offer(VulnerabilityCase)` (ownership-transfer variant)
-      MUST address the activity to the CaseActor's inbox (`to: [case_actor_id]`)
-      rather than directly to the transferee.  The CaseActor MUST forward the
+      MUST address the activity to the CASE_MANAGER's inbox (`to: [case_actor_id]`)
+      rather than directly to the transferee.  The CASE_MANAGER MUST forward the
       Offer to the transferee's inbox after recording it.
     rationale: >-
-      Routing the Offer through the CaseActor enables it to commit a
+      Routing the Offer through the CASE_MANAGER enables it to commit a
       `CaseLedgerEntry` for the offer-in-flight and broadcast
       `Announce(CaseLedgerEntry)` to all participants (including those not
       involved in the transfer, such as a Finder or second Vendor).  Direct
       actor-to-actor delivery bypasses the canonical log and leaves non-involved
       participants unaware that a transfer is being negotiated.
     verification: Integration tests in `test/demo/` confirm that an ownership-transfer
-      `Offer(VulnerabilityCase)` is addressed to the CaseActor's inbox, which then forwards it
+      `Offer(VulnerabilityCase)` is addressed to the CASE_MANAGER's inbox, which then forwards it
       to the transferee.
     relationships:
     - rel_type: refines
@@ -2289,17 +2289,17 @@ groups:
     kind: protocol
     statement: >-
       An actor emitting `Accept(Offer(VulnerabilityCase))` (ownership-transfer
-      variant) MUST address the activity to the CaseActor's inbox
+      variant) MUST address the activity to the CASE_MANAGER's inbox
       (`to: [case_actor_id]`) rather than directly to the offerer.
     rationale: >-
-      Routing the Accept through the CaseActor is required for the
+      Routing the Accept through the CASE_MANAGER is required for the
       `AcceptCaseOwnershipTransferReceivedUseCase` to run on the authoritative
-      CaseActor and trigger the post-transfer CaseLedgerEntry cascade
+      CASE_MANAGER and trigger the post-transfer CaseLedgerEntry cascade
       (CM-21-007).  Addressing the Accept to the offerer's inbox means the use
-      case only runs there; the CaseActor never learns of the completed transfer
+      case only runs there; the CASE_MANAGER never learns of the completed transfer
       and cannot broadcast it.
     verification: Integration tests in `test/demo/` confirm that an ownership-transfer
-      `Accept(Offer(VulnerabilityCase))` is addressed to the CaseActor's inbox.
+      `Accept(Offer(VulnerabilityCase))` is addressed to the CASE_MANAGER's inbox.
     relationships:
     - rel_type: refines
       spec_id: CM-21-001
@@ -2315,7 +2315,7 @@ groups:
     statement: >-
       After `AcceptCaseOwnershipTransferReceivedUseCase` successfully applies
       the ownership-role changes (CM-21-002, CM-21-003, CM-21-004), the
-      CaseActor MUST commit a `CaseLedgerEntry` recording the completed transfer
+      CASE_MANAGER MUST commit a `CaseLedgerEntry` recording the completed transfer
       and MUST broadcast `Announce(CaseLedgerEntry)` to all case participants.
     rationale: >-
       The CaseLedgerEntry broadcast is the only mechanism by which participants
@@ -2326,7 +2326,7 @@ groups:
       breakdown.  This requirement closes the surface-level symptom described
       in CONCERN-1755.
     verification: Integration tests in `test/demo/` confirm that after an ownership transfer is
-      applied, the CaseActor commits a `CaseLedgerEntry` and broadcasts
+      applied, the CASE_MANAGER commits a `CaseLedgerEntry` and broadcasts
       `Announce(CaseLedgerEntry)` to all case participants.
     relationships:
     - rel_type: refines
@@ -2382,15 +2382,15 @@ groups:
     kind: protocol
     statement: >-
       An actor emitting `Reject(Offer(VulnerabilityCase))` (ownership-transfer
-      variant) MUST address the activity to the CaseActor's inbox
+      variant) MUST address the activity to the CASE_MANAGER's inbox
       (`to: [case_actor_id]`) rather than directly to the offerer.
     rationale: >-
       Rejection routing must be symmetric with the Accept path (CM-21-006): the
-      Offer was addressed to the CaseActor (CM-21-005), so its rejection must be
-      too.  If the transferee's Reject goes only to the offerer, the CaseActor —
+      Offer was addressed to the CASE_MANAGER (CM-21-005), so its rejection must be
+      too.  If the transferee's Reject goes only to the offerer, the CASE_MANAGER —
       the authoritative record of ownership — never learns the transfer was
       declined and its view of who owns the case can silently diverge from
-      reality.  What the CaseActor does on receiving a rejection (whether it
+      reality.  What the CASE_MANAGER does on receiving a rejection (whether it
       ledgers the declined transfer, whether the offerer is notified, and
       whether the case may be re-offered) is a separate open question tracked in
       `notes/ownership-transfer.md`.
@@ -2400,7 +2400,7 @@ groups:
       scope here — see the Open Question in `notes/ownership-transfer.md`.
     verification: >-
       Inspection of `vultron/demo/exchange/transfer_ownership_demo.py` confirms that an
-      ownership-transfer `Reject(Offer(VulnerabilityCase))` is addressed to the CaseActor's inbox
+      ownership-transfer `Reject(Offer(VulnerabilityCase))` is addressed to the CASE_MANAGER's inbox
       (`to: [case_actor_id]`), symmetric with the Accept path.
     relationships:
     - rel_type: refines
@@ -2412,27 +2412,27 @@ groups:
     lint_suppress:
     - missing_story_reference
 - id: CM-22
-  title: CaseActor-Authoritative Case Creation
+  title: CASE_MANAGER-Authoritative Case Creation
   description: >-
-    Requirements on the CaseActor's obligations when accepting a CaseProposal,
+    Requirements on the CASE_MANAGER's obligations when accepting a CaseProposal,
     per ADR-0041.  These replace the vendor-authored case-creation described in
-    ADR-0015 and govern how the CaseActor initializes CaseStatus, participants,
+    ADR-0015 and govern how the CASE_MANAGER initializes CaseStatus, participants,
     and embargo in its DataLayer before emitting `Create(VulnerabilityCase)`.
   specs:
   - id: CM-22-001
     priority: MUST
     kind: protocol
     statement: >-
-      The CaseActor MUST create the `VulnerabilityCase` object in its own
-      DataLayer with `attributed_to` equal to the CaseActor's own actor ID when
+      The CASE_MANAGER MUST create the `VulnerabilityCase` object in its own
+      DataLayer with `attributed_to` equal to the CASE_MANAGER's own actor ID when
       accepting a `Create(as_CaseProposal)`.
     rationale: >-
       ADR-0041 supersedes ADR-0015.  `attributed_to` names the authoritative
-      creator of the case; only the CaseActor is the authoritative creator
+      creator of the case; only the CASE_MANAGER is the authoritative creator
       (ADR-0023).  Assigning `attributed_to` to the vendor violates AS2
       semantics and the chain-of-custody model in `chain.py`.
     verification: Integration tests in `test/demo/` confirm that the `VulnerabilityCase` created
-      by the CaseActor has `attributed_to` equal to the CaseActor's own actor ID.
+      by the CASE_MANAGER has `attributed_to` equal to the CASE_MANAGER's own actor ID.
     relationships:
     - rel_type: implements
       spec_id: CP-09-001
@@ -2448,7 +2448,7 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      After creating the `VulnerabilityCase`, the CaseActor MUST create
+      After creating the `VulnerabilityCase`, the CASE_MANAGER MUST create
       `CaseParticipant` records for at minimum: (a) the receiver (vendor) with
       `CVDRole.CASE_OWNER` and `RM.RECEIVED`, and (b) the reporter with
       `RM.ACCEPTED`.  These records MUST be written before `Create(VulnerabilityCase)`
@@ -2459,7 +2459,7 @@ groups:
       its local replica.  Absent participant records at emission time produce an
       empty replica and break role-guard checks (CP-09-002, CP-09-004).
     verification: Integration tests in `test/demo/` confirm that `Create(VulnerabilityCase)` is
-      emitted by the CaseActor only after `CaseParticipant` records for the vendor and reporter
+      emitted by the CASE_MANAGER only after `CaseParticipant` records for the vendor and reporter
       are written to its DataLayer.
     relationships:
     - rel_type: refines
@@ -2473,7 +2473,7 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      The CaseActor MUST commit all canonical ledger entries for case
+      The CASE_MANAGER MUST commit all canonical ledger entries for case
       initialization (`create_case`, `add_report_to_case`, participant-status
       entries, `add_case_status_to_case`) natively in its own DataLayer.  These
       entries MUST NOT be authored by the vendor and back-filled via
@@ -2483,10 +2483,10 @@ groups:
       entries where the
       `actor_id` does not match `_CASE_AUTHORED_SIGNATURES`.  Vendor-authored
       entries fail this check (the root cause of Issue #1767).  Native
-      CaseActor authorship is the only compliant path.
+      CASE_MANAGER authorship is the only compliant path.
     verification: Inspection of `vultron/core/` confirms that the canonical initialization
       ledger entries (`create_case`, `add_report_to_case`, participant-status entries,
-      `add_case_status_to_case`) are authored by the CaseActor, not the vendor.
+      `add_case_status_to_case`) are authored by the CASE_MANAGER, not the vendor.
     relationships:
     - rel_type: refines
       spec_id: CM-22-001
@@ -2496,15 +2496,15 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      The CaseActor MUST initialize the default embargo for the new case before
+      The CASE_MANAGER MUST initialize the default embargo for the new case before
       emitting `Create(VulnerabilityCase)` to the vendor.
     rationale: >-
       Embargo state is protocol-significant.  Deferring initialization to the
       vendor or to a later message would produce a window in which
       embargo-gated operations are undefined (ADR-0041, CP-09-003).  The
-      CaseActor holds the default embargo policy and is the only actor that
+      CASE_MANAGER holds the default embargo policy and is the only actor that
       can initialize it authoritatively at case creation.
-    verification: Integration tests in `test/demo/` confirm that the CaseActor initializes the
+    verification: Integration tests in `test/demo/` confirm that the CASE_MANAGER initializes the
       default embargo before emitting `Create(VulnerabilityCase)` to the vendor.
     relationships:
     - rel_type: refines
@@ -2524,24 +2524,24 @@ groups:
     is the sole mechanism for advancing a participant's RM state to CLOSED.
     Add(ParticipantStatus, rm_state=RM.CLOSED) is not a valid closure trigger.
     See ADR-0050 (Leave is canonical for RM closure) and ADR-0051
-    (CaseActor RM lifecycle).
+    (CASE_MANAGER RM lifecycle).
   specs:
   - id: CM-23-001
     priority: MUST
     kind: protocol
     statement: >-
-      RM case closure MUST flow through Leave(VulnerabilityCase) → Case Actor
+      RM case closure MUST flow through Leave(VulnerabilityCase) → CASE_MANAGER
       ledger commit → broadcast → each replica advances the leaving participant's
       RM state to RM.CLOSED on receipt of the Announce(CaseLedgerEntry).
       Add(ParticipantStatus, rm_state=RM.CLOSED) MUST NOT be used as a closure
       trigger.
     rationale: >-
-      The Leave round-trip makes the Case Actor the authority for closure and
+      The Leave round-trip makes the CASE_MANAGER the authority for closure and
       prevents ghost-departures from lost messages: a participant cannot
-      silently reach RM.CLOSED on peers without the Case Actor having committed
+      silently reach RM.CLOSED on peers without the CASE_MANAGER having committed
       and broadcast a ledger entry.  See ADR-0050.
     verification: Integration tests in `test/demo/` confirm that RM closure flows through
-      `Leave(VulnerabilityCase)` -> CaseActor ledger commit -> broadcast, and that
+      `Leave(VulnerabilityCase)` -> CASE_MANAGER ledger commit -> broadcast, and that
       `Add(ParticipantStatus, rm_state=RM.CLOSED)` is not used as a closure trigger.
     adr:
     - ADR-0050
@@ -2552,21 +2552,21 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      When the Case Actor receives Leave(VulnerabilityCase) from the Case Owner,
+      When the CASE_MANAGER receives Leave(VulnerabilityCase) from the Case Owner,
       it MUST execute the following sequence:
       (1) advance the Case Owner participant to RM.CLOSED,
-      (2) advance the Case Actor's own CaseParticipant to RM.CLOSED,
+      (2) advance the CASE_MANAGER's own CaseParticipant to RM.CLOSED,
       (3) emit a final case_fully_closed CaseLedgerEntry as the last ledger entry
           for the case,
       (4) fan-out the final entry to all participants not already at RM.CLOSED.
     rationale: >-
       The Case Owner's departure is the authoritative termination event for a
-      case.  Making the Case Actor's own RM.CLOSED the penultimate step and
+      case.  Making the CASE_MANAGER's own RM.CLOSED the penultimate step and
       case_fully_closed the final entry gives all replicas an unambiguous
       terminal anchor in the ledger chain.  See ADR-0050, ADR-0051.
     verification: 'Integration tests in `test/demo/` confirm that a Case Owner''s
       `Leave(VulnerabilityCase)` triggers the 4-step closure sequence: advance Case Owner to
-      RM.CLOSED, advance CaseActor to RM.CLOSED, emit `case_fully_closed` entry, fan out to
+      RM.CLOSED, advance CASE_MANAGER to RM.CLOSED, emit `case_fully_closed` entry, fan out to
       remaining participants.'
     relationships:
     - rel_type: refines
@@ -2581,7 +2581,7 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      When the Case Actor receives Leave(VulnerabilityCase) from a non-owner
+      When the CASE_MANAGER receives Leave(VulnerabilityCase) from a non-owner
       participant, it MUST advance only that participant's RM state to RM.CLOSED
       and commit a CaseLedgerEntry recording the departure.  The case MUST remain
       open for the remaining participants.
@@ -2605,7 +2605,7 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      Case Actor fan-out of CaseLedgerEntry MUST NOT send entries to participants
+      CASE_MANAGER fan-out of CaseLedgerEntry MUST NOT send entries to participants
       whose latest ParticipantStatus has rm_state=RM.CLOSED.
     rationale: >-
       Once a participant reaches RM.CLOSED they have departed the case and no
@@ -2623,7 +2623,7 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      The Case Actor MUST track its own RM lifecycle via a CaseParticipant
+      The CASE_MANAGER MUST track its own RM lifecycle via a CaseParticipant
       record with ParticipantStatus entries that advance through
       RM.RECEIVED, RM.VALID, and RM.ACCEPTED during case initialization,
       and RM.CLOSED on case termination (owner Leave).  Each transition
@@ -2631,8 +2631,8 @@ groups:
     rationale: >-
       Uniform RM lifecycle tracking across all participants (including the
       coordinator) enables case-level RM state to be read consistently from
-      the ledger without special-casing the Case Actor.  See ADR-0051.
-    verification: Inspection of `vultron/core/` confirms that the CaseActor holds its own
+      the ledger without special-casing the CASE_MANAGER.  See ADR-0051.
+    verification: Inspection of `vultron/core/` confirms that the CASE_MANAGER holds its own
       `CaseParticipant` record that advances through RM states with a ledger entry for each
       transition.
     relationships:
@@ -2647,13 +2647,13 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      For the Case Actor's CaseParticipant, `RM.RECEIVED` MUST denote that a CaseProposal
+      For the CASE_MANAGER's CaseParticipant, `RM.RECEIVED` MUST denote that a CaseProposal
       has been received and is being evaluated.
     rationale: >-
       The RM state machine models a lifecycle that applies to any actor processing a case,
       but its transition labels map to case-level events for the coordinator rather than to
       report-validation events as for other participants.  See ADR-0051.
-    verification: Inspection of `vultron/core/` confirms that `RM.RECEIVED` on the CaseActor's
+    verification: Inspection of `vultron/core/` confirms that `RM.RECEIVED` on the CASE_MANAGER's
       own `CaseParticipant` denotes receipt of a `CaseProposal` under evaluation.
     relationships:
     - rel_type: refines
@@ -2668,17 +2668,17 @@ groups:
     statement: >-
       During case initialization (after accepting a CaseProposal), the Case
       Actor MUST emit CaseLedgerEntry records for each of its own RM transitions:
-      (a) CaseActor→RM.RECEIVED when the CaseProposal arrives,
-      (b) CaseActor→RM.VALID when the proposal is validated and case creation
+      (a) CASE_MANAGER→RM.RECEIVED when the CaseProposal arrives,
+      (b) CASE_MANAGER→RM.VALID when the proposal is validated and case creation
           begins,
-      (c) CaseActor→RM.ACCEPTED when the VulnerabilityCase is successfully
+      (c) CASE_MANAGER→RM.ACCEPTED when the VulnerabilityCase is successfully
           created and initialized.
     rationale: >-
-      Ledger entries for the Case Actor's own RM transitions create a traceable,
+      Ledger entries for the CASE_MANAGER's own RM transitions create a traceable,
       timestamped protocol-significant history of case initialization, consistent
-      with CM-02-009 (CaseActor applies its own timestamp to every state-changing
+      with CM-02-009 (CASE_MANAGER applies its own timestamp to every state-changing
       event).  See ADR-0051.
-    verification: Integration tests in `test/demo/` confirm that the CaseActor emits
+    verification: Integration tests in `test/demo/` confirm that the CASE_MANAGER emits
       `CaseLedgerEntry` records for its own `RM.RECEIVED`, `RM.VALID`, and `RM.ACCEPTED`
       transitions during case initialization.
     relationships:
@@ -2695,14 +2695,14 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      For the Case Actor's CaseParticipant, `RM.VALID` MUST denote that the CaseProposal
-      is correctly formatted and actionable by this Case Actor, and that case creation has
+      For the CASE_MANAGER's CaseParticipant, `RM.VALID` MUST denote that the CaseProposal
+      is correctly formatted and actionable by this CASE_MANAGER, and that case creation has
       begun.
     rationale: >-
-      `RM.VALID` is the Case Actor's signal that the proposal passed structural validation
+      `RM.VALID` is the CASE_MANAGER's signal that the proposal passed structural validation
       and that initialization is in progress; it distinguishes a validated-but-incomplete
       case from one still under evaluation.  See ADR-0051.
-    verification: Inspection of `vultron/core/` confirms that `RM.VALID` on the CaseActor's
+    verification: Inspection of `vultron/core/` confirms that `RM.VALID` on the CASE_MANAGER's
       `CaseParticipant` denotes that the `CaseProposal` passed structural validation and case
       creation has begun.
     relationships:
@@ -2716,13 +2716,13 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      For the Case Actor's CaseParticipant, `RM.ACCEPTED` MUST denote that the case has
+      For the CASE_MANAGER's CaseParticipant, `RM.ACCEPTED` MUST denote that the case has
       been successfully created and is being coordinated.
     rationale: >-
       `RM.ACCEPTED` marks the end of the initialization phase and the start of active
-      coordination; it is the Case Actor's counterpart to a reporter's or vendor's
+      coordination; it is the CASE_MANAGER's counterpart to a reporter's or vendor's
       RM.ACCEPTED (engagement decision).  See ADR-0051.
-    verification: Inspection of `vultron/core/` confirms that `RM.ACCEPTED` on the CaseActor's
+    verification: Inspection of `vultron/core/` confirms that `RM.ACCEPTED` on the CASE_MANAGER's
       `CaseParticipant` denotes that the `VulnerabilityCase` has been successfully created and
       is being coordinated.
     relationships:
@@ -2736,12 +2736,12 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      For the Case Actor's CaseParticipant, `RM.CLOSED` MUST denote that the Case Owner
+      For the CASE_MANAGER's CaseParticipant, `RM.CLOSED` MUST denote that the Case Owner
       has left the case and the case is fully closed.
     rationale: >-
-      `RM.CLOSED` on the Case Actor's own participant record is the terminal state; it
+      `RM.CLOSED` on the CASE_MANAGER's own participant record is the terminal state; it
       signals that no further ledger entries will be authored for this case.  See ADR-0051.
-    verification: Inspection of `vultron/core/` confirms that `RM.CLOSED` on the CaseActor's
+    verification: Inspection of `vultron/core/` confirms that `RM.CLOSED` on the CASE_MANAGER's
       `CaseParticipant` denotes that the Case Owner has left the case and the case is fully
       closed.
     relationships:
@@ -2757,7 +2757,7 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      When the Case Actor receives `Leave(VulnerabilityCase)` from the Case Owner
+      When the CASE_MANAGER receives `Leave(VulnerabilityCase)` from the Case Owner
       while the case still holds an active embargo (`active_embargo` is non-None
       and the current EM state is `EM.ACTIVE` or `EM.REVISE`), it MUST decline the
       closure with an `as:Reject` response ("received and understood but declined",
@@ -2772,7 +2772,7 @@ groups:
       auto-terminate the embargo): owner-close ends the case for everyone, so the
       soft participant-level guidance is raised to a hard case-actor refusal.
     rationale: >-
-      Owner-close is a hard, terminal write boundary (ADR-0085): the Case Actor
+      Owner-close is a hard, terminal write boundary (ADR-0085): the CASE_MANAGER
       then accepts no further external ledger writes. VP-13-009 keeps an embargo
       alive across a participant close only while others remain engaged;
       owner-close leaves none and no authority to lift it, so an embargo left
@@ -2802,10 +2802,10 @@ groups:
       RM.CLOSED, regardless of which RM rung that actor currently holds (START,
       RECEIVED, VALID, ACCEPTED, DEFERRED, or INVALID). Case closure MUST NOT
       advance any non-leaving ("bystander") participant's RM state: on owner
-      Leave, only the Case Owner and the Case Actor advance to RM.CLOSED
+      Leave, only the Case Owner and the CASE_MANAGER advance to RM.CLOSED
       (CM-23-002); every other participant MUST retain its last RM state. The
       characterization of owner-close as ending "the case for everyone"
-      (CM-23-011) refers to the case-level write boundary — the Case Actor
+      (CM-23-011) refers to the case-level write boundary — the CASE_MANAGER
       accepts no further external ledger entries (ADR-0085) — and MUST NOT be
       read as a directive to force each remaining participant's RM dimension to
       RM.CLOSED.
@@ -2826,7 +2826,7 @@ groups:
       them there.
     verification: >-
       A test confirms that an owner Leave(VulnerabilityCase) advances only the
-      Case Owner and Case Actor to RM.CLOSED and leaves a bystander participant
+      Case Owner and CASE_MANAGER to RM.CLOSED and leaves a bystander participant
       that was at RM.RECEIVED or RM.VALID at its prior RM state; and that the
       leaving actor is advanced to RM.CLOSED even from a non-adjacent starting
       rung (e.g. RM.RECEIVED).
@@ -2842,10 +2842,10 @@ groups:
     stories:
     - story_2022_066
 - id: CM-24
-  title: CaseActor-Delegated Activity Authorship Contract
+  title: CASE_MANAGER-Delegated Activity Authorship Contract
   description: >-
     Requirements for how trigger use cases assign `actor` and `attributed_to`
-    when the CaseActor emits an Activity on behalf of a requesting participant
+    when the CASE_MANAGER emits an Activity on behalf of a requesting participant
     (delegated message).  The reference implementation is
     SvcInviteActorToCaseUseCase._prepare().  Codified from CONCERN-2170.
   specs:
@@ -2853,19 +2853,19 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      When a trigger use case causes the CaseActor to emit a protocol Activity
+      When a trigger use case causes the CASE_MANAGER to emit a protocol Activity
       on behalf of a requesting participant (delegated message), the `actor`
-      field of the emitted Activity MUST be set to the CaseActor's actor ID,
+      field of the emitted Activity MUST be set to the CASE_MANAGER's actor ID,
       not the requesting participant's actor ID.
     rationale: >-
       Receiving actors authenticate messages by matching the `actor` field
       against known case participants.  An Activity whose `actor` names a
-      non-CaseActor participant is not recognised as a CaseActor-authorised
+      non-CASE_MANAGER participant is not recognised as a CASE_MANAGER-authorised
       delegation and may be rejected or misrouted.  Bug ISSUE-2142
       (ownership-transfer offer delivery timeout) is direct evidence:
       the Coordinator rejected an Offer whose `actor` named the Finder.
     verification: Integration tests in `test/demo/` confirm that a delegated Activity emitted by
-      the CaseActor on behalf of a participant carries the CaseActor's actor ID in the `actor`
+      the CASE_MANAGER on behalf of a participant carries the CASE_MANAGER's actor ID in the `actor`
       field.
     relationships:
     - rel_type: refines
@@ -2877,7 +2877,7 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      When a delegated Activity is emitted by the CaseActor, the
+      When a delegated Activity is emitted by the CASE_MANAGER, the
       `attributed_to` field MUST be set to the requesting participant's actor
       ID so that receivers can recover the originating identity.
     rationale: >-
@@ -2896,16 +2896,16 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      When no dedicated CaseActor exists for a case (no participant with
+      When no dedicated CASE_MANAGER exists for a case (no participant with
       CVDRole.CASE_MANAGER in the actor_participant_index), the Activity is sent
       directly by the requesting participant.  In this case `actor` MUST be the
       requesting participant's actor ID and `attributed_to` MUST be None.
     rationale: >-
-      Without a CaseActor the delegation channel does not exist.  Forcing
-      `actor=None` or a fallback CaseActor ID would produce an invalid wire
+      Without a CASE_MANAGER the delegation channel does not exist.  Forcing
+      `actor=None` or a fallback CASE_MANAGER ID would produce an invalid wire
       message.  The SvcInviteActorToCaseUseCase reference implementation
       demonstrates this fallback at actor.py:160-166.
-    verification: Integration tests in `test/demo/` confirm that when no dedicated CaseActor is
+    verification: Integration tests in `test/demo/` confirm that when no dedicated CASE_MANAGER is
       found, the Activity is sent with `actor` set to the requesting participant's actor ID and
       `attributed_to` set to `None`.
     relationships:
@@ -2918,14 +2918,14 @@ groups:
     kind: architecture
     statement: >-
       Trigger use cases that emit delegated Activities MUST queue the
-      constructed Activity in the CaseActor's outbox, not in the requesting
+      constructed Activity in the CASE_MANAGER's outbox, not in the requesting
       participant's outbox.  The emit MUST sit inside a composite gated on the
       executing actor holding `CVDRole.CASE_MANAGER` for the case; code MUST NOT
       instead compare `actor_id` against a computed `case_actor_id`.
     rationale: >-
-      The CaseActor's outbox is the delivery path to other participants.
+      The CASE_MANAGER's outbox is the delivery path to other participants.
       Queuing a delegated Activity in the requesting actor's outbox bypasses
-      the CaseActor as the authoritative intermediary and breaks the
+      the CASE_MANAGER as the authoritative intermediary and breaks the
       CaseLedgerEntry audit trail.
 
       The mechanism changed in ADR-0073. This entry previously required setting
@@ -2939,10 +2939,10 @@ groups:
       the case manager, so both the activity and its outbox entry land in one
       store by construction (BT-05-006). Ungated, the helper is identity
       spoofing: any actor reaching it could emit an `Announce` authored as the
-      CaseActor to every participant.
+      CASE_MANAGER to every participant.
     verification: >-
       `test/core/behaviors/test_store_scope.py::TestStoreForActorScoping` asserts a delegated emit
-      reaches the co-hosted CaseActor's store, so the Activity and the outbox entry naming it land
+      reaches the co-hosted CASE_MANAGER's store, so the Activity and the outbox entry naming it land
       together; `test/core/behaviors/case/nodes/test_role_gates.py::TestCaseManagerGate` asserts the
       gate admits only the `CVDRole.CASE_MANAGER` holder. Verified this way rather than by inspecting
       for `self._actor_id = case_actor_id`, which ADR-0073 removed.
@@ -3102,7 +3102,7 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      The `Invite` activity sent by the CaseActor for an Observer MUST embed
+      The `Invite` activity sent by the CASE_MANAGER for an Observer MUST embed
       `case_roles=[CVDRole.OBSERVER]`.
     rationale: >-
       The participant record created on `Accept(Invite)` reads roles from the persisted
@@ -3126,7 +3126,7 @@ groups:
       indistinguishable from the `caseRoles=[]` admission defect (issue #1288) and
       violates the CM-16-003 non-empty invariant.
     rationale: >-
-      `[]` provides no role information to the CaseActor's participant-creation path on
+      `[]` provides no role information to the CASE_MANAGER's participant-creation path on
       `Accept(Invite)`, producing a participant record that violates the non-empty role
       invariant enforced by CM-16-003.
     relationships:
@@ -3243,17 +3243,17 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      The CaseActor holding `CVDRole.CASE_MANAGER` MUST be the enforcement authority for
+      The actor holding `CVDRole.CASE_MANAGER` MUST be the enforcement authority for
       embargo invite expiry.
     note: >-
       The `EmbargoTimerExpired` Sentinel (#1893) is an OPTIONAL proactive
       accelerator that narrows the gap between the deadline and the recorded
       lapse. It MUST NOT be a prerequisite for CM-28 conformance.
     rationale: >-
-      Centralising enforcement at the CaseActor matches the case-communication model
-      (PCR-08) and the CaseActor's role as canonical ledger author (ADR-0019, ADR-0021).
+      Centralising enforcement at the CASE_MANAGER matches the case-communication model
+      (PCR-08) and the CASE_MANAGER's role as canonical ledger author (ADR-0019, ADR-0021).
       See ADR-0065.
-    verification: Inspection of `vultron/core/` confirms that the CaseActor holding
+    verification: Inspection of `vultron/core/` confirms that the CASE_MANAGER holding
       `CVDRole.CASE_MANAGER` is the entity that records a PEC `DECLINED` transition when an
       embargo invitation lapses.
     adr:
@@ -3376,7 +3376,7 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      The CaseActor MUST author a distinct ledger entry to record a lapsed invitation,
+      The CASE_MANAGER MUST author a distinct ledger entry to record a lapsed invitation,
       different from the `Reject(Invite(EmbargoEvent))` entry used to record an explicit
       refusal.
     rationale: >-

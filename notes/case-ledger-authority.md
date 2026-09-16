@@ -29,7 +29,7 @@ relevant_packages:
 ## Overview
 
 This note refines the rough "intent vs event" idea into a model that better
-fits Vultron's existing ActivityStreams semantics and single-writer CaseActor
+fits Vultron's existing ActivityStreams semantics and single-writer CASE_MANAGER
 architecture.
 
 The key distinction is **not** request vs fact. Participant-originated
@@ -38,12 +38,12 @@ sender's side. The important distinction is instead:
 
 - **participant assertion**: an inbound case- or proto-case-scoped activity
   that claims a protocol-relevant change occurred
-- **canonical case ledger entry**: a CaseActor-authored record that says the
+- **canonical case ledger entry**: a CASE_MANAGER-authored record that says the
   assertion was processed and either accepted into canonical history or
   rejected at the case layer
 
 This keeps Vultron aligned with the existing rule that Activities are
-state-change notifications, not commands, while still preserving the CaseActor
+state-change notifications, not commands, while still preserving the CASE_MANAGER
 as the sole authority for replicated case history.
 
 ---
@@ -64,7 +64,7 @@ Examples:
 Because nearly all relevant inbound work messages already have this shape,
 adding a separate `vultron:mode = asserted` field to every ordinary activity
 adds noise without much extra meaning. The sender role and processing path
-already imply that these are participant assertions awaiting CaseActor
+already imply that these are participant assertions awaiting CASE_MANAGER
 recording.
 
 This is especially true since reports are treated as **proto-cases** under
@@ -76,13 +76,13 @@ has not yet occurred.
 
 ---
 
-## The CaseActor Writes Canonical History
+## The CASE_MANAGER Writes Canonical History
 
-The CaseActor remains the **single writer** of authoritative shared history.
+The CASE_MANAGER remains the **single writer** of authoritative shared history.
 Participants may send assertions, but participant replicas must not update
 shared case state directly from peer messages.
 
-Instead, the CaseActor:
+Instead, the CASE_MANAGER:
 
 1. receives a participant assertion
 2. validates that it is authentic, case-resolvable, and acceptable at the case
@@ -90,7 +90,7 @@ Instead, the CaseActor:
 3. appends a canonical log entry describing the outcome
 4. replicates only the canonical recorded history to participant replicas
 
-This means the CaseActor is not "re-performing" the asserted action. It is
+This means the CASE_MANAGER is not "re-performing" the asserted action. It is
 publishing the canonical statement:
 
 > I received and processed this asserted activity, and I recorded it as part of
@@ -107,13 +107,13 @@ Why a neutral object type:
 
 - it must represent both accepted and rejected outcomes
 - it separates canonical log content from transport concerns
-- it gives the CaseActor a stable object to hash, replicate, replay, and audit
+- it gives the CASE_MANAGER a stable object to hash, replicate, replay, and audit
 
 A `CaseLedgerEntry` should carry at least:
 
 - the asserted activity payload, or a normalized immutable snapshot sufficient
   for deterministic replay
-- the CaseActor's own recording metadata
+- the CASE_MANAGER's own recording metadata
 - a disposition such as `recorded` or `rejected`
 - for rejections, a small machine-readable reason code plus optional
   human-readable detail
@@ -168,7 +168,7 @@ Not every inbound failure belongs in the case audit ledger.
 - If a message cannot be tied to a report/case (including proto-cases in
   RM.RECEIVED/INVALID stages), it belongs in transport- or actor-level
   diagnostics, not the case ledger.
-- If the CaseActor can resolve the message to a case context but rejects it
+- If the CASE_MANAGER can resolve the message to a case context but rejects it
   during case-layer validation, the rejection belongs in the local case audit
   log.
 
@@ -182,17 +182,17 @@ canonical recorded history, not the full stream of invalid assertion attempts.
 
 This model sharpens the replication boundary:
 
-- participant assertions are **inputs** to CaseActor processing
+- participant assertions are **inputs** to CASE_MANAGER processing
 - `CaseLedgerEntry(recorded)` objects are the **canonical replicated facts**
 - participant replicas derive state only from the canonical recorded entries
 
 To support replay and stale-position detection, participant assertions should
 carry the sender's last accepted canonical log hash or position in `context`
-when available. That gives the CaseActor a concrete basis for deciding whether
+when available. That gives the CASE_MANAGER a concrete basis for deciding whether
 to accept the assertion, reject it as stale, or replay missing canonical
 entries first.
 
-The hash chain should therefore be computed over **CaseActor-authored canonical
+The hash chain should therefore be computed over **CASE_MANAGER-authored canonical
 recorded entries**, each of which includes the asserted payload snapshot needed
 by recipients. Replicating only pointers to prior assertions is insufficient,
 because replicas need the actual asserted content to reconstruct state.
@@ -207,7 +207,7 @@ project converged on canonical `CaseLedgerEntry` history.
 
 Follow-on plan (Epic #788, all completed):
 
-- #789 migrated remaining `record_event()`-only write paths to CaseActor
+- #789 migrated remaining `record_event()`-only write paths to CASE_MANAGER
   canonical log commits.
 - #790 introduced actor-local `pending_assertions` to suppress duplicate emits
   during canonical round-trip windows.
@@ -236,7 +236,7 @@ This framing has several practical consequences:
 
 - The old "intent vs event" terminology should be retired for this topic.
   `asserted` vs `recorded` is more accurate, with `rejected` as an additional
-  CaseActor disposition.
+  CASE_MANAGER disposition.
 - The `CaseEvent` / `record_event()` path was a useful foundation, but
   the long-term canonical content model needs to grow into a richer
   `CaseLedgerEntry`.
@@ -253,7 +253,7 @@ requirements belong in `specs/case-ledger-processing.yaml`.
 ## Canonical Entry Criteria: What Belongs in the Log
 
 The canonical case ledger is a **protocol ledger**, not a process log. It records
-exactly one entry per CaseActor-accepted protocol-significant assertion. Each
+exactly one entry per CASE_MANAGER-accepted protocol-significant assertion. Each
 entry's `payloadSnapshot` is the verbatim AS2 activity that was asserted (or a
 deterministic canonical normalization of it).
 
@@ -267,7 +267,7 @@ Concretely:
 - `Offer(EmbargoEvent)`, `Accept(EmbargoEvent)`, `Reject(EmbargoEvent)` —
   embargo proposal/response
 - `Invite(VulnerabilityCase)`, `Accept(Invite)`, `Reject(Invite)` — case
-  membership handshake (note: routed through the CaseActor per PCR-08)
+  membership handshake (note: routed through the CASE_MANAGER per PCR-08)
 - `Announce(VulnerabilityCase)` — case bootstrap broadcast
 - Any other protocol-significant AS2 activity that mutates protocol-visible
   state
@@ -289,7 +289,7 @@ not in the canonical case ledger.
 
 The canonical case ledger is replicated to every participant and contributes
 to the hash chain that participants use to verify their replicas agree
-with the CaseActor's authoritative copy. If diagnostic or synthetic
+with the CASE_MANAGER's authoritative copy. If diagnostic or synthetic
 content enters the chain:
 
 - Participants cannot deterministically reconstruct case state from the
@@ -319,16 +319,16 @@ CaseActor broadcasts: Announce(
 ) → all participants
 ```
 
-The `Announce` envelope's `actor` field is always the CaseActor. The
+The `Announce` envelope's `actor` field is always the CASE_MANAGER. The
 `payloadSnapshot.actor` inside the `CaseLedgerEntry` preserves the original
 asserter (`vendor` in the example). Replicas receiving the broadcast
 update their state based on the snapshot's asserter, not the envelope's
-actor. Rewriting `payloadSnapshot.actor` to the CaseActor would erase
+actor. Rewriting `payloadSnapshot.actor` to the CASE_MANAGER would erase
 the assertion's provenance and is forbidden by CLP-07-003.
 
 ### Commit-Boundary Enforcement
 
-CLP-07-005 recommends a runtime guard at the CaseActor commit boundary
+CLP-07-005 recommends a runtime guard at the CASE_MANAGER commit boundary
 that rejects entries violating CLP-07-001 through CLP-07-004 *before*
 they enter the hash chain. Failing fast at commit time keeps the
 canonical chain clean and surfaces bugs immediately, rather than allowing
@@ -338,7 +338,7 @@ silent pollution that's discovered only when replicas diverge.
 
 *Spec: CLP-14, CLP-15; ADR-0079 § "Validation". Issue #2824.*
 
-`CaseLedgerEntry.published` is the CaseActor's **commit** stamp.
+`CaseLedgerEntry.published` is the CASE_MANAGER's **commit** stamp.
 `payloadSnapshot.published` is the asserting actor's **claimed** event time.
 Deciding which one an invariant is about is not a detail — get it wrong and the
 check is either vacuous or falsely rejecting:
@@ -359,19 +359,19 @@ Five traps, all found the hard way:
    Comparing claimed times across actors is exactly the wall-clock ordering
    ADR-0079 rejected as option C. CLP-15-003 says "within the same
    participant's event stream" for this reason.
-2. **CLP-15-003 is reported, never refused.** The CaseActor sees *arrival*
+2. **CLP-15-003 is reported, never refused.** The CASE_MANAGER sees *arrival*
    order, not causal order, and the transport promises no ordering (ADR-0037).
    Refusing a regression is the reconstruction CLP-15-005 forbids, and it loses
    the assertion completely — the guarded commit precedes the effect nodes
    (CLP-10-006), so a raise aborts the whole receive sequence with no ledger
    record and no retry. Two report bands: `INFO` within the configured
    clock-skew tolerance, `WARNING` beyond it.
-3. **A snapshot the CaseActor builds on a participant's behalf carries that
+3. **A snapshot the CASE_MANAGER builds on a participant's behalf carries that
    participant's claimed time**, from the triggering activity — use
    `claimed_published_iso()`. Stamping `now_utc()` under a participant's actor
    URI puts a foreign clock in that actor's claimed stream, which trap 2 then
    reports as a regression, and leaves CLP-14-007/008 comparing the receiver's
-   clock against itself. A snapshot the CaseActor genuinely authors (its own
+   clock against itself. A snapshot the CASE_MANAGER genuinely authors (its own
    actor URI) does use its own clock.
 4. **A missing inbound `published` is a validity failure, not something to
    fill in.** `as_Base` defaults the field to `now_utc` so the same classes can
@@ -405,7 +405,7 @@ Five traps, all found the hard way:
    private validator.
 
 CLP-15-001 and CLP-15-002 bind the *participant*, and CLP-15-005 forbids the
-CaseActor from reconstructing participant-internal causal order. Their
+CASE_MANAGER from reconstructing participant-internal causal order. Their
 verification is `check_causal_edges` (DEMOMA-22-005), not a per-assertion
 check.
 
@@ -414,7 +414,7 @@ check.
 ## Commit Authorization and Coverage (CLP-09, Epic #788 retrospective)
 
 Two gaps surfaced late in Epic #788 that CLP-09 now makes explicit, because
-the prior framing (BT-10-004's single line, "CaseActor MUST enforce
+the prior framing (BT-10-004's single line, "CASE_MANAGER MUST enforce
 case-level authorization") was not specific enough to prevent them from
 accumulating call site by call site.
 
@@ -479,14 +479,14 @@ itself or from a prior invocation having been authorized.
 *Spec: `specs/case-management.yaml` CM-22-003; `specs/case-ledger-processing.yaml`
 CLP-12.*
 
-The CaseActor commits every case-initialization ledger entry **natively**, in
+The CASE_MANAGER commits every case-initialization ledger entry **natively**, in
 `_CommitNativeLedgerEntriesNode` inside
 `vultron/core/behaviors/case/case_proposal_received_tree.py`, while handling the
 inbound `Create(as_CaseProposal)`.  Causal order:
 
-1. `create_case` — `Create(VulnerabilityCase)`, `actor` = CaseActor
-2. `add_report_to_case` — `Add(VulnerabilityReport)`, `actor` = CaseActor
-3. `add_participant_status_to_participant` × N — `actor` = CaseActor
+1. `create_case` — `Create(VulnerabilityCase)`, `actor` = CASE_MANAGER
+2. `add_report_to_case` — `Add(VulnerabilityReport)`, `actor` = CASE_MANAGER
+3. `add_participant_status_to_participant` × N — `actor` = CASE_MANAGER
 4. `add_case_status_to_case` — `Add(CaseStatus)`, `actor` = **vendor URI**
 
 The `payloadSnapshot` shapes come from
@@ -503,7 +503,7 @@ VFD replication timing, and it would break the "`log_index` order *is* causal
 order" property below.
 
 **Fail-fast on genesis, best-effort after.** Step 1 is the root of the
-CaseActor's hash chain; if it fails the node returns FAILURE so the enclosing
+CASE_MANAGER's hash chain; if it fails the node returns FAILURE so the enclosing
 Sequence aborts before `Accept`/`Create` are emitted, rather than telling the
 vendor a case exists with no canonical ledger.  Steps 2–4 log a warning and
 continue.
@@ -511,9 +511,9 @@ continue.
 **Why step 4 uses the vendor URI.** The vendor is who set the genesis case
 status, so the snapshot names the vendor as `actor`.  That is a provenance
 statement, not a workaround: `("Add", "CaseStatus")` *is* in
-`_CASE_AUTHORED_SIGNATURES` (CLP-12-001), so a CaseActor-authored
+`_CASE_AUTHORED_SIGNATURES` (CLP-12-001), so a CASE_MANAGER-authored
 `add_case_status_to_case` also validates — which is what makes single-actor
-deployments (vendor IS the CaseActor) work.
+deployments (vendor IS the CASE_MANAGER) work.
 
 History worth not re-litigating: adding `("Add", "CaseStatus")` to
 `_CASE_AUTHORED_SIGNATURES` on its own (commit `256ef3e1`) was rejected and
@@ -524,7 +524,7 @@ done.
 
 > **Historical:** Issue #1688 introduced `WritePrologueLedgerEntriesNode`
 > (`vultron/core/behaviors/case/nodes/prologue.py`), which back-filled these
-> entries best-effort when the CaseActor accepted an `Offer(CaseManagerRole)`.
+> entries best-effort when the CASE_MANAGER accepted an `Offer(CaseManagerRole)`.
 > ADR-0041 removed the two-init-path architecture that made the back-fill
 > necessary, and Issue #1777 deleted the node.  Its known
 > assignment-time-vs-causal-time `log_index` skew disappeared with it: the
@@ -569,7 +569,7 @@ hash becomes computable by anyone with that knowledge. This means:
 ### Future Improvement: Secret Nonce
 
 Adding a secret nonce to the genesis hash input — a random value generated
-by the CaseActor at case creation and never transmitted on the wire — would
+by the CASE_MANAGER at case creation and never transmitted on the wire — would
 close the targeted DoS vector even when case metadata leaks:
 
 ```python
@@ -579,16 +579,16 @@ genesis_hash = sha256(
 )
 ```
 
-The nonce would need to be stored securely in the CaseActor's DataLayer and
+The nonce would need to be stored securely in the CASE_MANAGER's DataLayer and
 shared only with legitimate participants through an authenticated channel.
 This adds key-management complexity that is out of scope for the prototype
 tier but is the natural next step for production deployments.
 
-### Future Improvement: CaseActor Keypairs
+### Future Improvement: CASE_MANAGER Keypairs
 
 The more durable long-term solution is **cryptographic identity for
 CaseActors**. When CaseActors generate a new keypair at actor creation time
-(planned), the genesis hash can incorporate the CaseActor's public key or a
+(planned), the genesis hash can incorporate the CASE_MANAGER's public key or a
 key-signed commitment over case creation data:
 
 ```python
@@ -601,14 +601,14 @@ genesis_hash = sha256(
 This would:
 
 - **Eliminate DataLayer trust for genesis authenticity**: any party with the
-  CaseActor's public key can independently verify the ledger's origin without
+  CASE_MANAGER's public key can independently verify the ledger's origin without
   trusting the DataLayer's `case_id` field.
 - **Close the targeted DoS vector**: the nonce is effectively the private key,
   which is never observable on the wire.
 - **Enable third-party auditing**: auditors can verify ledger provenance from
   the public key alone, without needing out-of-band case metadata.
 
-The keypair-per-CaseActor design is tracked as a planned capability. Until
+The keypair-per-CASE_MANAGER design is tracked as a planned capability. Until
 it lands, the domain-bound UUID genesis hash defined in CLP-08-002 is the
 correct implementation.
 

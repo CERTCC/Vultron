@@ -526,7 +526,7 @@ groups:
     kind: protocol
     statement: >-
       After actor process restart or recovery, an actor with case state in scope MUST re-establish
-      case-ledger freshness with the CaseActor before taking new protocol-significant case actions
+      case-ledger freshness with the CASE_MANAGER before taking new protocol-significant case actions
     verification: >-
       `test/core/behaviors/sync/test_commit_tree.py::test_commit_tree_blocked_when_ledger_has_gap`
       confirms that the gate blocks when the committed prefix has a gap (simulating
@@ -593,7 +593,7 @@ groups:
     priority: SHOULD
     kind: protocol
     statement: >-
-      After a participant successfully enqueues an assertion activity toward the CaseActor,
+      After a participant successfully enqueues an assertion activity toward the CASE_MANAGER,
       the participant SHOULD record the (case_id, event_type, activity_id) triple in its
       pending-assertion store so that duplicate near-term re-emits of the same assertion are
       suppressed while the round-trip is pending
@@ -680,13 +680,13 @@ groups:
     kind: protocol
     statement: >-
       A CaseLedgerEntry record is written to an actor's DataLayer ONLY by that actor's core
-      ledger write path — the CaseActor's authoritative append (SYNC-01-004) for its own
+      ledger write path — the CASE_MANAGER's authoritative append (SYNC-01-004) for its own
       case, or a participant's PersistReceivedLogEntry step (SYNC-12-001) for a replica.
       Presence of a CaseLedgerEntry in the DataLayer is defined to mean "this actor's core
       has committed the entry and applied its effects."
     verification: >-
       Integration tests in `test/demo/` confirm that no code path other than the
-      CaseActor's authoritative append or the participant's PersistReceivedLogEntry step
+      CASE_MANAGER's authoritative append or the participant's PersistReceivedLogEntry step
       writes a CaseLedgerEntry to the DataLayer.
     relationships:
     - rel_type: depends_on
@@ -704,13 +704,13 @@ groups:
   - id: SYNC-13-005
     priority: MUST
     kind: protocol
-    statement: Only the CaseActor MUST author `CaseLedgerEntry` records for the primary case; no other code path may
+    statement: Only the CASE_MANAGER MUST author `CaseLedgerEntry` records for the primary case; no other code path may
       write authoritative case ledger entries.
-    rationale: The CaseActor's single authoritative write path is the enforcement mechanism for the ledger's
+    rationale: The CASE_MANAGER's single authoritative write path is the enforcement mechanism for the ledger's
       append-only integrity and the write-ownership guarantee required by SYNC-12.
     verification: >-
       Integration tests in `test/demo/` confirm that CaseLedgerEntry creation for the
-      primary case is confined to the CaseActor's authoritative write path and no other
+      primary case is confined to the CASE_MANAGER's authoritative write path and no other
       component creates such records.
     stories:
     - story_2022_045
@@ -866,12 +866,12 @@ groups:
 - id: SYNC-15
   title: Genesis-Unavailable Buffer-and-Reject
   description: >-
-    A participant replica receives Announce(CaseLedgerEntry) activities from the CaseActor
-    over an unordered transport.  If the CaseActor delivers a ledger entry before the
+    A participant replica receives Announce(CaseLedgerEntry) activities from the CASE_MANAGER
+    over an unordered transport.  If the CASE_MANAGER delivers a ledger entry before the
     Create/Announce(VulnerabilityCase) activity has been processed by the participant (a
     delivery race under HTTP BackgroundTasks), the replica cannot reconstruct the per-case
     genesis hash (CLP-08-005) and must not silently drop the entry.  Silently dropping causes
-    the entry to be permanently lost because the CaseActor never learns that delivery failed
+    the entry to be permanently lost because the CASE_MANAGER never learns that delivery failed
     and never replays.  A pre-genesis entry is therefore held in the same non-ledger holding
     area used for forward gaps (SYNC-14) and drained once the case seed anchors the genesis
     hash, making convergence independent of whether the case or its ledger entries arrive
@@ -894,7 +894,7 @@ groups:
       CASE_MANAGER replays all entries from the beginning once the case is delivered.
     rationale: >-
       last_accepted_hash="" is the conventional signal for "I have no entries; replay from
-      genesis."  The CaseActor's replay path (SYNC-03-002) replays all entries after the
+      genesis."  The CASE_MANAGER's replay path (SYNC-03-002) replays all entries after the
       supplied hash; an empty string matches no recorded entry, so it replays the full log.
       Without the Reject the participant is permanently stuck (issue #1873).
     verification: >-
@@ -1067,7 +1067,7 @@ groups:
       the current tail.
     rationale: >-
       The genesis hash is derivable from the case object alone (deterministic from case_id,
-      created_at, and the CaseActor id per CLP-08), so seeding the case is sufficient to anchor
+      created_at, and the CASE_MANAGER id per CLP-08), so seeding the case is sufficient to anchor
       the chain — the participant need not wait for the genesis ledger entry to be re-delivered.
       Draining on seed is what turns the pre-genesis hold (SYNC-15-004) into convergence.
     verification: >-

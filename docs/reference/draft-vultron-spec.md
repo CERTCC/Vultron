@@ -287,7 +287,7 @@ it does not change the receiver's own CS state. See §8.4.
 
 - `Create(VulnerabilityCase)` — case initiation
 - `Invite[target=VulnerabilityCase]` / `Accept(Invite)` / `Reject(Invite)` —
-  invitation lifecycle (Case Actor invites on the Case Owner's behalf)
+  invitation lifecycle (CASE_MANAGER invites on the Case Owner's behalf)
 - `Offer(CaseParticipant)` / `Accept(Offer(...))` / `Reject(Offer(...))` —
   suggest-actor lifecycle (a participant proposes an actor; see §5.3)
 - `Announce(CaseLedgerEntry)` — canonical state replication and broadcast
@@ -418,14 +418,14 @@ status shorthands collide (resolve via `CaseStatus` payload, §4.3).
   This is an AS2 `Event` subtype; embargo activities therefore appear on the
   wire as `Invite(Event)`, not as a distinct embargo verb
 - `CaseLedgerEntry` — an entry in the authoritative canonical case ledger; the
-  unit of state replication from the Case Actor to participants
+  unit of state replication from the CASE_MANAGER to participants
 - `CaseProposal` — a proposed case, prior to case creation
 - `CaseStatus` / `ParticipantStatus` — status records. **These are not
   interchangeable, and the distinction is load-bearing:**
   - `ParticipantStatus` is a *claim* — one participant's assertion about its
     own (or another participant's) state. Any participant may write one.
-  - `CaseStatus` is *canonical* — the Case Actor's authoritative record of
-    shared case state. Only the Case Actor may write it (§5.4).
+  - `CaseStatus` is *canonical* — the CASE_MANAGER's authoritative record of
+    shared case state. Only the CASE_MANAGER may write it (§5.4).
 
   The transition from claim to canonical is an explicit authorization step,
   not an implementation detail; see §10.1.
@@ -442,7 +442,7 @@ status shorthands collide (resolve via `CaseStatus` payload, §4.3).
   `Accept(Invite(Event)[context=VulnerabilityCase])` for embargo acceptance
 - Two distinct activities govern bringing an actor into a case, and they are
   **not** the same message:
-  - `Invite[target=VulnerabilityCase]` — the Case Actor invites an actor to
+  - `Invite[target=VulnerabilityCase]` — the CASE_MANAGER invites an actor to
     join, on the Case Owner's behalf. Answered with `Accept(Invite)` or
     `Reject(Invite)`.
   - `Offer(CaseParticipant)` — the *suggest-actor* path: a participant
@@ -468,10 +468,10 @@ status shorthands collide (resolve via `CaseStatus` payload, §4.3).
 
 #### 5.4.1 Single-Writer Authority
 
-The Case Actor is the **only** entity authorized to mutate shared case state —
+The CASE_MANAGER is the **only** entity authorized to mutate shared case state —
 the CS `PXA` axis, the EM state, the embargo record, and the case ledger. No
 participant and no use-case handler may write shared case state directly; all
-such mutations MUST route through the Case Actor.
+such mutations MUST route through the CASE_MANAGER.
 
 The participant-specific axes (`RM`, `VFD`) are owned by each participant's own
 `CaseParticipant` record and are explicitly **not** subject to this restriction —
@@ -479,7 +479,7 @@ a participant is the authority on its own RM and VFD state.
 
 This single-writer rule is the axiom from which the routing topology below
 follows. It exists to prevent concurrent-write races and to ensure every shared
-state change passes through the Case Actor's consistency checks.
+state change passes through the CASE_MANAGER's consistency checks.
 
 - *Source: `specs/vultron-protocol-spec.yaml` VP-17-001*
 
@@ -488,23 +488,23 @@ state change passes through the Case Actor's consistency checks.
 Once a case exists, all case-scoped participant messages MUST follow this path:
 
 ```text
-Participant → Case Actor → CaseLedgerEntry → Announce(CaseLedgerEntry) → all Participants
+Participant → CASE_MANAGER → CaseLedgerEntry → Announce(CaseLedgerEntry) → all Participants
 ```
 
-- A participant MUST address case-scoped activities to the Case Actor only.
+- A participant MUST address case-scoped activities to the CASE_MANAGER only.
 - A participant **MUST NOT** deliver a case-scoped message directly to another
-  participant's inbox. Delivery MUST be mediated by the Case Actor and recorded
+  participant's inbox. Delivery MUST be mediated by the CASE_MANAGER and recorded
   in the case ledger before fan-out.
 - `Announce(CaseLedgerEntry)` is the **only** mechanism by which participants
   learn of accepted case-state changes.
 
 There are exactly **two** exceptions, both confined to case bootstrap, both
-occurring before the Case Actor is available as an intermediary:
+occurring before the CASE_MANAGER is available as an intermediary:
 
 1. **Pre-case report submission** — the Reporter sends `Offer(VulnerabilityReport)`
-   directly to the Vendor. No case, and therefore no Case Actor, exists yet.
+   directly to the Vendor. No case, and therefore no CASE_MANAGER, exists yet.
 2. **Case creation handshake** — the receiving party sends
-   `Create(VulnerabilityCase)` to the Reporter to introduce the Case Actor. This
+   `Create(VulnerabilityCase)` to the Reporter to introduce the CASE_MANAGER. This
    is the trust-bootstrap exchange (§4.5).
 
 After case creation, no direct participant-to-participant messaging is
@@ -513,7 +513,7 @@ permitted.
 !!! note "Informative: why centralize"
     Routing through a single writer avoids the complexity of a distributed
     ledger while preserving actor-local state: each participant still maintains
-    its own replica and its own view. The cost is that the Case Actor is a
+    its own replica and its own view. The cost is that the CASE_MANAGER is a
     single point of coordination authority, and its availability bounds case
     progress. This is a deliberate trade-off, not an incidental property of the
     current implementation — but the *requirements* above are
@@ -578,7 +578,7 @@ A participant discovery specification is not yet included in this document.
 
 !!! note "Transport vs. routing topology"
     The routing topology rule in §5.4.2 — all case-scoped messages MUST route
-    through the Case Actor — is a vultron-core protocol rule. It applies
+    through the CASE_MANAGER — is a vultron-core protocol rule. It applies
     regardless of which transport carries the messages. The transport layer is
     responsible for delivery. The protocol layer is responsible for routing
     authority.
@@ -643,7 +643,7 @@ replica has been delivered to it.
 !!! note "`Accept(Invite)` does not mean `RM.ACCEPTED`"
     Two different protocol acts are easily conflated: *joining a case* and
     *accepting a report for action*. `Accept(Invite)` is the former. A
-    participant cannot accept what it has not seen, and the Case Actor MUST NOT
+    participant cannot accept what it has not seen, and the CASE_MANAGER MUST NOT
     treat a participant as having committed to the case until it receives an RM
     status message from that participant confirming the transition.
 
@@ -880,7 +880,7 @@ Neither `LAPSED` nor `DECLINED` is terminal — both can be re-invited.
   `Invite.object_.end_time` (embargo expiry) — the same invitation carries both
 - A minimum RSVP window (default 72h) MUST be enforced; a receiver getting a
   sub-minimum deadline MUST clamp it up rather than reject the invitation
-- Enforcement authority is the CaseActor (`CVDRole.CASE_MANAGER`), evaluated
+- Enforcement authority is the CASE_MANAGER (`CVDRole.CASE_MANAGER`), evaluated
   lazily from `(end_time, now)`; no scheduler is required
 - A lapse records `DECLINED` — the same state as an explicit refusal. The
   distinction is provenance, carried by the canonical ledger, not by a
@@ -917,7 +917,7 @@ transition path (ADR-0048, ADR-0056).
 
 ### 9.7 Gating Full Case Delivery
 
-Before the Case Actor delivers full case content
+Before the CASE_MANAGER delivers full case content
 (`Announce(VulnerabilityCase)` carrying report details, vulnerability
 description, and sensitive notes), **both** conditions MUST hold for the
 recipient:
@@ -952,14 +952,14 @@ than waiting on a separate consent round-trip.
 ## 10. Model Interactions and Cascade Rules [N]
 
 State transitions in one dimension trigger obligations in others. Cascades are
-event-driven: a state change produces a domain event, which the Case Actor
+event-driven: a state change produces a domain event, which the CASE_MANAGER
 handles. Each cascade step is independently authorizable, and ordering between
 steps is normative where noted.
 
 Key cascades:
 
 - **Invitation accepted → admit, resolve consent, deliver**: on `Accept(Invite)`
-  the Case Actor MUST, in order, (a) commit a ledger entry and fan it out,
+  the CASE_MANAGER MUST, in order, (a) commit a ledger entry and fan it out,
   (b) create the participant record at `RM.RECEIVED`, (c) sign embargo consent if
   an embargo is active, (d) send `Announce(VulnerabilityCase)` with the full
   snapshot, and (e) backfill prior ledger entries in log-index order. The
@@ -982,18 +982,18 @@ claimed" and "act on that claim as truth" are separate decisions with separate
 authority.
 
 **StatusAdoptionGate — Adoption.** A participant reports an observation via
-`Add(ParticipantStatus)`. The receiving Case Actor records the claim, then
+`Add(ParticipantStatus)`. The receiving CASE_MANAGER records the claim, then
 decides whether to treat it as canonical:
 
 - A Case Owner's report MUST be adopted without requiring approval — requiring
   the Case Owner to approve its own report would be circular (§12.4.4).
 - All other senders pass through a configurable approval gate. The default
   policy is to auto-adopt.
-- On adoption, the Case Actor emits a self-addressed `Add(CaseStatus)` to itself
+- On adoption, the CASE_MANAGER emits a self-addressed `Add(CaseStatus)` to itself
   acting as Case Manager, which performs the canonical write.
 - The tree that records the claim MUST NOT execute side-effects directly.
 
-**EmbargoTeardownAuthorizationGate — Side-effects.** After the canonical write, the Case Actor evaluates
+**EmbargoTeardownAuthorizationGate — Side-effects.** After the canonical write, the CASE_MANAGER evaluates
 side-effects:
 
 - It MUST check whether the canonical status carries `CS.P`, `CS.X`, or `CS.A`.
@@ -1041,7 +1041,7 @@ for a role (§12.3.1) before completing a role assignment.
 
 ### 11.2 Invitation and Acceptance [N]
 
-- An actor joins a case via `Invite(CaseStub)` from the Case Actor, answered with
+- An actor joins a case via `Invite(CaseStub)` from the CASE_MANAGER, answered with
   `Accept(Invite)` or `Reject(Invite)`.
 - `Accept(Invite)` places the actor at `RM.RECEIVED` and, where an embargo is
   active, implies consent to that embargo (§9.7).
@@ -1051,7 +1051,7 @@ for a role (§12.3.1) before completing a role assignment.
 ### 11.3 Case Ownership Transfer [N]
 
 The Case Owner MAY transfer ownership to another actor via
-`Offer(VulnerabilityCase)` / `Accept` handshake routed through the Case Actor
+`Offer(VulnerabilityCase)` / `Accept` handshake routed through the CASE_MANAGER
 (ADR-0053). On acceptance, the receiving actor acquires Case Owner authority and
 the associated protocol responsibilities.
 
@@ -1140,7 +1140,7 @@ state and notify others of its own transitions.
   transitions
 - MUST participate in embargo negotiation: responding to `Invite(Event)`, and
   recording consent or refusal via PEC
-- MUST route all case-scoped messages through the Case Actor (§5.4.2)
+- MUST route all case-scoped messages through the CASE_MANAGER (§5.4.2)
 - MAY report PXA observations; no VFD drive obligations unless a role extension
   set adds them
 
@@ -1195,7 +1195,7 @@ It is separable from the Authority capability set.
     The detailed replication mechanics (hash-chaining, gap detection, ordering
     guarantees) are specified in a companion document,
     `docs/reference/draft-vultron-replication-spec.md`, not in this RFC. See ADR-0077. The single-hub / single-writer + fan-out model is the normative
-    replication architecture: one Case Actor holds exclusive write authority and
+    replication architecture: one CASE_MANAGER holds exclusive write authority and
     replicates entries to participant actors via `Announce(CaseLedgerEntry)`.
     Distributed consensus (multi-node CaseActor cluster) is a future extension
     out of scope for this RFC.
@@ -1266,7 +1266,7 @@ lifecycle. For example, a Reporter who initially creates a case may delegate
 coordination to a Coordinator (reporter → coordinator hand-off), or a primary
 Vendor may bring in additional Vendors as the case grows. When a Case Owner
 transfers ownership (via `Offer(VulnerabilityCase)` / `Accept` handshake routed
-through the Case Actor), the receiving actor acquires Case Owner authority and
+through the CASE_MANAGER), the receiving actor acquires Case Owner authority and
 the associated protocol responsibilities.
 
 !!! note "Open architectural question: Case Actor identity during ownership transfer"
@@ -1360,7 +1360,7 @@ independently of anything a case participant does or causes.
 Reporting is not adoption. A reported observation is a claim; whether it becomes
 canonical case state, and whether it triggers embargo teardown, is decided by the
 two-seam model in **§10.1**. The role rule here — *who may report* — is
-deliberately separate from the authorization rules there — *what the Case Actor
+deliberately separate from the authorization rules there — *what the CASE_MANAGER
 does with a report*.
 
 !!! note "Informative: the Sentinel capability shape"

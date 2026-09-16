@@ -27,7 +27,7 @@ relevant_packages:
 Normative requirements: `specs/case-proposal.yaml` (CP-01 through CP-09).
 ADR: `docs/adr/0023-case-proposal-protocol.md`.
 Refined by: `docs/adr/0041-caseactor-authoritative-case-initialization.md`
-(supersedes ADR-0015; CaseActor creates case natively on proposal accept).
+(supersedes ADR-0015; the CASE_MANAGER creates the case natively on proposal accept).
 
 ---
 
@@ -50,9 +50,9 @@ actual creation.
 
 ## Protocol Flow
 
-**Note**: The flow below reflects the corrected CaseActor-authoritative model
+**Note**: The flow below reflects the corrected CASE_MANAGER-authoritative model
 (ADR-0041). The vendor does NOT create a `VulnerabilityCase` locally before
-the CaseActor responds. The vendor stores the report, writes a pending
+the CASE_MANAGER responds. The vendor stores the report, writes a pending
 `VultronReportCaseLink`, and waits.
 
 ```text
@@ -164,7 +164,7 @@ more-general patterns that share the same outer Activity type (SE-03-002).
 
 ## CaseActor Native Initialization (ADR-0041)
 
-When the CaseActor accepts a proposal, `case_proposal_received_tree.py` MUST
+When the CASE_MANAGER accepts a proposal, `case_proposal_received_tree.py` MUST
 perform the following natively — no back-fill, no prologue:
 
 1. Create `VulnerabilityCase` with `attributed_to=CaseActor` (already implemented)

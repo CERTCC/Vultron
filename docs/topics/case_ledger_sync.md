@@ -19,21 +19,23 @@ Every participant in a case keeps a local copy of the case, called a
 Knowledge travels only in messages — see the
 [Actor Knowledge Model](actor-knowledge-model.md).
 
-One peer is different. The **Case Actor** is the service peer that holds the
-`CASE_MANAGER` role for the case. It keeps the **case ledger**: the
-append-only history that is authoritative for the case. The Case Actor is the
-only peer that appends to that history
-([CLP-01-003](../reference/specs/protocol.md#clp-01)).
+One peer is different. Whichever participant holds the `CASE_MANAGER` role is
+the case's **single-writer authority** — the **CASE_MANAGER**. It keeps the
+**case ledger**: the append-only history that is authoritative for the case,
+and it is the only peer that appends to that history
+([CLP-01-003](../reference/specs/protocol.md#clp-01)). In the prototype this
+authority is enacted by a dedicated service actor (the **Case Actor**), but the
+authority derives from the role, never from that actor's name or URL (ADR-0088).
 
 The flow of a change is always the same:
 
-1. A participant sends the Case Actor an assertion — *I accept the embargo*,
+1. A participant sends the CASE_MANAGER an assertion — *I accept the embargo*,
    *my report is now validated*, *here is a note*.
-2. The Case Actor judges the assertion and appends one entry recording the
+2. The CASE_MANAGER judges the assertion and appends one entry recording the
    outcome. An entry's `disposition` says whether the assertion was
    `recorded` (accepted) or `rejected`, so a refusal leaves a trace rather
    than a silence.
-3. The Case Actor sends the new entry to every participant as
+3. The CASE_MANAGER sends the new entry to every participant as
    `Announce(CaseLedgerEntry)`.
 4. Each participant records the entry, and applies its effects to its own
    replica if the entry was `recorded`.
@@ -44,7 +46,7 @@ participant's replica is a projection of that history, not an independent
 record.
 
 The same rule applies in reverse: a participant accepts a case update only
-from the Case Actor for that case, and rejects an update from any other sender
+from the CASE_MANAGER for that case, and rejects an update from any other sender
 ([PCR-03-001](../reference/specs/protocol.md#pcr-03)). Nobody else can write
 to a replica, and the replica's owner does not edit it directly either — even
 when that owner is the organization that opened the case.
@@ -53,7 +55,7 @@ when that owner is the organization that opened the case.
 
 The ledger can be read two ways, and most of this page is about the second one.
 
-- The **audit log** is every entry the Case Actor appended, in the order it
+- The **audit log** is every entry the CASE_MANAGER appended, in the order it
   appended them — rejections included.
 - The **recorded projection** is the subset whose `disposition` is `recorded`.
   That projection is the authoritative history of the case
@@ -67,7 +69,7 @@ computed over that projection too
 advance the chain: the next recorded entry names the previous *recorded* entry
 as its predecessor, not a rejection appended in between.
 
-A rejection is therefore evidence — *the Case Actor saw this assertion and
+A rejection is therefore evidence — *the CASE_MANAGER saw this assertion and
 refused it* — rather than a fact about the case. Where the rest of this page
 says "the chain" or "the history", it means the recorded projection.
 
@@ -82,7 +84,7 @@ ordering and integrity guarantees this page is about.
 |---|---|
 | `case_id` | The case this entry belongs to |
 | `log_index` | Position in the case history; starts at 0 and counts up |
-| `published` | When the Case Actor stamped the entry, by its own clock |
+| `published` | When the CASE_MANAGER stamped the entry, by its own clock |
 | `prevLogHash` | Hash of the previous `recorded` entry |
 | `entryHash` | Hash of this entry's own content |
 | `payloadSnapshot` | A copy of the assertion the entry records |
@@ -98,7 +100,7 @@ so the chain is anchored to the case it describes.
 
 ## Log index is the causal order
 
-The `log_index` sequence *is* the causal order of the case. If the Case Actor
+The `log_index` sequence *is* the causal order of the case. If the CASE_MANAGER
 observed event A before event B, then A has the lower `log_index`
 ([CLP-14-001](../reference/specs/protocol.md#clp-14), ADR-0079). Anything
 that needs to know what happened first compares log indexes. It does not
@@ -115,23 +117,23 @@ the order.
 
 ### What the ledger claims, and what it does not
 
-The ledger is authoritative **from the Case Actor's point of view**. It is a
+The ledger is authoritative **from the CASE_MANAGER's point of view**. It is a
 postmark, not a forensic reconstruction. It records the sequence in which the
-Case Actor observed and processed events, and it makes no claim about when
+CASE_MANAGER observed and processed events, and it makes no claim about when
 those events happened inside another organization
 ([CLP-15-005](../reference/specs/protocol.md#clp-15)).
 
-- For events the Case Actor generates itself, causal order is known by
+- For events the CASE_MANAGER generates itself, causal order is known by
   construction: the entries are written one after another on a single path.
-- For events reported by participants, the Case Actor's own receive-and-commit
-  order is the order. The Case Actor cannot verify a causal claim about
+- For events reported by participants, the CASE_MANAGER's own receive-and-commit
+  order is the order. The CASE_MANAGER cannot verify a causal claim about
   something it did not see.
 
-The Case Actor never reorders entries to match timestamps supplied by someone
-else. Doing so would let external data override the one thing the Case Actor
+The CASE_MANAGER never reorders entries to match timestamps supplied by someone
+else. Doing so would let external data override the one thing the CASE_MANAGER
 knows first-hand.
 
-### Rules the Case Actor follows
+### Rules the CASE_MANAGER follows
 
 | Rule | Requirement |
 |---|---|
@@ -153,7 +155,7 @@ ADR-0079 states the rule both ways in different sections; the contradiction is
 tracked in [#2752](https://github.com/CERTCC/Vultron/issues/2752) and is not
 resolved here.
 
-The Case Actor should also refuse an assertion whose own timestamp is far in
+The CASE_MANAGER should also refuse an assertion whose own timestamp is far in
 the future or far in the past compared to its clock — by default, more than
 five minutes ahead or more than seven days old
 ([CLP-14-007](../reference/specs/protocol.md#clp-14),
@@ -170,15 +172,15 @@ same one:
 
 | Timestamp | Written by | Rules it answers to |
 |---|---|---|
-| `published` on the entry | the Case Actor, at commit time | CLP-14-002, CLP-14-003, CLP-14-006 read across the whole ledger |
+| `published` on the entry | the CASE_MANAGER, at commit time | CLP-14-002, CLP-14-003, CLP-14-006 read across the whole ledger |
 | `published` inside `payloadSnapshot` | the asserting participant | CLP-14-006 at the commit boundary, CLP-14-007, CLP-14-008, CLP-15-003, CLP-15-006 |
 
 The distinction matters most for the "never move backwards" rule. Across the
-Case Actor's own commit timestamps it holds because one writer stamps every
+CASE_MANAGER's own commit timestamps it holds because one writer stamps every
 entry from one clock. Applied to *participants'* timestamps it would be wrong:
 two participants' clocks are not synchronized, so an assertion recorded later by
 one of them can legitimately claim an earlier time than an assertion recorded
-earlier by the other. The Case Actor therefore compares a participant's claimed
+earlier by the other. The CASE_MANAGER therefore compares a participant's claimed
 timestamp only against that same participant's previous assertion, and allows a
 small tolerance when comparing it against the case's creation time.
 
@@ -186,7 +188,7 @@ small tolerance when comparing it against the case's creation time.
 
 ## What participants must do
 
-The Case Actor can only record the order it sees. That places an obligation on
+The CASE_MANAGER can only record the order it sees. That places an obligation on
 each participant: send events in the order they happened.
 
 - If A caused B, send A first
@@ -200,31 +202,31 @@ each participant: send events in the order they happened.
   ([CLP-15-004](../reference/specs/protocol.md#clp-15)).
 
 A participant that breaks these rules produces a malformed assertion. That is
-a fault on the sending side, not a Case Actor failure.
+a fault on the sending side, not a CASE_MANAGER failure.
 
-The Case Actor cannot police these at the moment an assertion arrives, and it
+The CASE_MANAGER cannot police these at the moment an assertion arrives, and it
 must not try: it may not reconstruct an order it did not observe
 ([CLP-15-005](../reference/specs/protocol.md#clp-15)). It sees the order messages
 *arrived* in, which is not the order they were *sent* in — the transport makes no
 such promise.
 
 So when an assertion's claimed time falls behind the same participant's previous
-assertion, the Case Actor records it and says so, rather than refusing it. A small
+assertion, the CASE_MANAGER records it and says so, rather than refusing it. A small
 regression is reported quietly; one beyond the configured tolerance is reported as
 a warning. Refusing would throw the message away — the ledger commit happens
 before any of the receiving work, so a refusal loses the whole thing — and the
-Case Actor cannot tell a participant that really did misorder its events from two
+CASE_MANAGER cannot tell a participant that really did misorder its events from two
 messages that simply arrived out of order.
 
 The two ordering rules are visible only across a whole case, by comparing the
 causal links a scenario declares against the order the ledger recorded; the
 conformance suite checks them there.
 
-One thing the Case Actor does refuse outright: an activity that arrives with no
+One thing the CASE_MANAGER does refuse outright: an activity that arrives with no
 `published` time at all. Because the field is optional in ActivityStreams, a
 receiver that filled in the blank with its own clock could no longer tell what
 the sender claimed from what it invented — and every check above would then be
-comparing the Case Actor's clock against itself. A message without a claimed time
+comparing the CASE_MANAGER's clock against itself. A message without a claimed time
 is therefore rejected at the door
 ([CLP-15-006](../reference/specs/protocol.md#clp-15)).
 
@@ -234,7 +236,7 @@ same way as an omitted one, and reports the same reason
 ([MV-03-002](../reference/specs/protocol.md#mv-03)).
 
 A value that is present and not blank but unreadable as a timestamp is a
-different fault. The Case Actor reports it as malformed data, not as a missing
+different fault. The CASE_MANAGER reports it as malformed data, not as a missing
 field, so a sender is never told to supply something it already sent.
 
 ---
@@ -246,7 +248,7 @@ guarantee. Vultron may also not be the only implementation on the wire. So a
 replica can receive entry 7 before entry 6.
 
 The naive response is to reject entry 7, on the grounds that it does not extend
-the chain, and wait for the Case Actor to send it again. That does not work.
+the chain, and wait for the CASE_MANAGER to send it again. That does not work.
 The replay travels the same unordered transport and can arrive out of order
 again, so under repeated reordering an entry can be lost indefinitely. In an
 earlier version of this implementation, that is what stalled a late-joining
@@ -280,10 +282,10 @@ Even when it does hold an entry, the replica still sends
 `Reject(CaseLedgerEntry)` naming the last entry it accepted
 ([SYNC-14-002](../reference/specs/protocol.md#sync-14)). Holding solves
 reordering; it cannot solve loss. If the missing entry was never delivered at
-all, the reject is what prompts the Case Actor to send it again.
+all, the reject is what prompts the CASE_MANAGER to send it again.
 
-The Case Actor does not replay on demand without limit. If a peer keeps
-rejecting from the same position, the Case Actor waits out a short cooldown
+The CASE_MANAGER does not replay on demand without limit. If a peer keeps
+rejecting from the same position, the CASE_MANAGER waits out a short cooldown
 before replaying to it again
 ([SYNC-15-003](../reference/specs/protocol.md#sync-15)). Without that bound, a
 peer that cannot anchor its chain rejects every entry it is sent, each reject
@@ -385,7 +387,7 @@ would be a false alarm, and rejecting it would prevent the replica from ever
 converging.
 
 The public-awareness-before-embargo-termination ordering survives reordering
-for free ([CSB-19-003](../reference/specs/protocol.md#csb-19)). The Case Actor
+for free ([CSB-19-003](../reference/specs/protocol.md#csb-19)). The CASE_MANAGER
 commits the public-awareness entry first, so it holds the lower `log_index`.
 The drain works in `log_index` order, so it can never present the termination
 entry first. No receiver-side re-check of the timing is needed; the order in
@@ -408,14 +410,14 @@ these properties:
 | Order-independent convergence | Delivery order does not affect the final state |
 
 The result is eventual consistency with a strong bound: given the same
-entries, every replica reaches the same state as the Case Actor, no matter what
+entries, every replica reaches the same state as the CASE_MANAGER, no matter what
 order those entries arrived in.
 
 The holding area itself is in memory only, and is lost on restart. That is
 deliberate: nothing in it is committed, so a restart cannot cost the replica
 anything it had already accepted. The dropped entries themselves come back the
 same way an evicted one does — the next entry that does not match the replica's
-tail produces a `Reject`, and the Case Actor replays from the position that
+tail produces a `Reject`, and the CASE_MANAGER replays from the position that
 reject names.
 
 ---
@@ -423,7 +425,7 @@ reject names.
 ## Further reading
 
 - [The Case Model](case_model.md) — the case, its participants, and the
-  Case Actor's role
+  CASE_MANAGER role
 - [Actor Knowledge Model](actor-knowledge-model.md) — why nothing can be
   learned except by receiving a message
 - [CS Process Model](process_models/cs/index.md) — the case-state rules the
@@ -433,7 +435,7 @@ reject names.
   CSB-19, PCR-03, SYNC-10, and SYNC-12 through SYNC-15
 - [Glossary](../reference/glossary.md) — definitions for case ledger, replica,
   genesis hash, and the replication phases
-- [ADR-0079](../adr/0079-case-ledger-causal-ordering.md) — Case Actor
+- [ADR-0079](../adr/0079-case-ledger-causal-ordering.md) — CASE_MANAGER
   observation order is the canonical causal order
 - [ADR-0037](../adr/0037-buffer-out-of-order-ledger-entries.md) — hold
   out-of-order entries instead of discarding them
