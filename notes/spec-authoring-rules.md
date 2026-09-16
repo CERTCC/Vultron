@@ -211,20 +211,27 @@ task.
 
 Source: ISSUE-2393
 
-### "CaseActor MUST …" Is Often a Specification Error — CaseActor Is a Role, Not a Component
+### Name the Authority "CASE_MANAGER", Not "CaseActor" (CaseActor Is the Prototype Identity)
 
-`CaseActor` names a *role* (the participant holding `CVDRole.CASE_MANAGER`), not
-a dedicated component. Anything per-case in a CaseActor's *identity* (e.g., a
-per-case service URL derived from the case slug) is a category error: no
-container has registered that identity, so any call to it answers 404. When a
-spec says "CaseActor MUST create X" or "CaseActor MUST send Y", verify the
-requirement is using CaseActor as a role (whichever actor holds CASE_MANAGER for
-this case) rather than as a singleton object. A spec that mints an object to
-satisfy a role requirement will be faithfully implemented and faithfully wrong.
-Grep the spec corpus for MUST requirements whose subject is a role name to catch
-these before they hide defects.
+The authority for a case is a **role** — the participant holding
+`CVDRole.CASE_MANAGER` — not a dedicated component and not a fixed identity.
+Protocol-normative prose MUST name that authority **the CASE_MANAGER** (the role
+holder). Reserve **"CaseActor"** for the concrete prototype/demo actor that
+enacts the role, and **"case actor service"** for the provisioning endpoint that
+spawns `case-actor` identities (glossary; ADR-0088). Anything per-case in a
+CaseActor's *identity* (e.g., a per-case service URL derived from the case slug)
+is a category error: no container has registered that identity, so any call to
+it answers 404.
 
-Source: ISSUE-1872
+When a spec says "CaseActor MUST create X" or "CaseActor MUST send Y", rewrite it
+to "the CASE_MANAGER MUST …" unless the requirement is genuinely about the
+prototype actor (a demo/scenario spec such as `multi-actor-demo.yaml`). A spec
+that mints an object to satisfy a role requirement — or that invites a reader to
+compare `actor_id` against a computed `case_actor_id` — will be faithfully
+implemented and faithfully wrong. Grep the spec corpus for MUST requirements
+whose subject is `CaseActor` to catch these before they hide defects.
+
+Source: ISSUE-1872, ISSUE-3260
 
 ### Never Restate Counts in Cross-References
 

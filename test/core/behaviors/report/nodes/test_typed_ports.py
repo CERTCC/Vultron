@@ -42,11 +42,9 @@ from vultron.core.behaviors.report.nodes.rm_transitions import (
 )
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_actor import VultronCaseActor
-from vultron.core.models.dimensions import RmDimension
-from vultron.core.models.participant_status import ParticipantStatus
 from vultron.core.models.report import VultronReport
+from vultron.core.models.report_case_link import VultronReportCaseLink
 from vultron.core.states.rm import RM
-from vultron.core.models._helpers import _report_phase_status_id
 from test.core.behaviors.bt_harness import BTTestScenario
 
 # ---------------------------------------------------------------------------
@@ -172,13 +170,8 @@ class TestCheckRMStateValidPorts:
     ) -> None:
         actor = VultronCaseActor(id_=ACTOR_ID, name="Vendor")
         report = VultronReport(id_=REPORT_ID, name="R1", content="c")
-        status = ParticipantStatus(
-            id_=_report_phase_status_id(ACTOR_ID, REPORT_ID, RM.VALID.value),
-            context=REPORT_ID,
-            attributed_to=ACTOR_ID,
-            rm=RmDimension(state=RM.VALID),
-        )
-        bt_scenario.seed(actor, report, status)
+        link = VultronReportCaseLink(report_id=REPORT_ID, rm_state=RM.VALID)
+        bt_scenario.seed(actor, report, link)
         result = bt_scenario.run(
             CheckRMStateValid(report_id=REPORT_ID), actor_id=ACTOR_ID
         )
@@ -203,14 +196,8 @@ class TestCheckRMStateValidPorts:
         actor = VultronCaseActor(id_=ACTOR_ID, name="Vendor")
         sender = VultronCaseActor(id_=SENDER_ID, name="Reporter")
         report = VultronReport(id_=REPORT_ID, name="R1", content="c")
-        # Only the sender has a VALID status record, not the blackboard actor.
-        status = ParticipantStatus(
-            id_=_report_phase_status_id(SENDER_ID, REPORT_ID, RM.VALID.value),
-            context=REPORT_ID,
-            attributed_to=SENDER_ID,
-            rm=RmDimension(state=RM.VALID),
-        )
-        bt_scenario.seed(actor, sender, report, status)
+        link = VultronReportCaseLink(report_id=REPORT_ID, rm_state=RM.VALID)
+        bt_scenario.seed(actor, sender, report, link)
         # Tree runs under ACTOR_ID (blackboard actor_id = ACTOR_ID);
         # node must check SENDER_ID's RM state and return SUCCESS.
         result = bt_scenario.run(
@@ -255,13 +242,8 @@ class TestCheckRMStateReceivedOrInvalidPorts:
     ) -> None:
         actor = VultronCaseActor(id_=ACTOR_ID, name="Vendor")
         report = VultronReport(id_=REPORT_ID, name="R1", content="c")
-        status = ParticipantStatus(
-            id_=_report_phase_status_id(ACTOR_ID, REPORT_ID, RM.VALID.value),
-            context=REPORT_ID,
-            attributed_to=ACTOR_ID,
-            rm=RmDimension(state=RM.VALID),
-        )
-        bt_scenario.seed(actor, report, status)
+        link = VultronReportCaseLink(report_id=REPORT_ID, rm_state=RM.VALID)
+        bt_scenario.seed(actor, report, link)
         result = bt_scenario.run(
             CheckRMStateReceivedOrInvalid(report_id=REPORT_ID),
             actor_id=ACTOR_ID,
@@ -382,7 +364,8 @@ class TestTransitionRMtoValid:
         )
         participant.append_rm_state(RM.RECEIVED, ACTOR_ID, case.id_)
         case.add_participant(participant)
-        bt_scenario.seed(actor, report, offer, participant, case)
+        link = VultronReportCaseLink(report_id=REPORT_ID, rm_state=RM.RECEIVED)
+        bt_scenario.seed(actor, report, offer, participant, case, link)
         result = bt_scenario.run(
             TransitionRMtoValid(
                 report_id=REPORT_ID,

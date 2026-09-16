@@ -72,7 +72,7 @@ Neither `LAPSED` nor `DECLINED` is terminal — both can be re-invited.
   `Invite.object_.end_time` (embargo expiry) — the same invitation carries both
 - A minimum RSVP window (default 72h) MUST be enforced; a receiver getting a
   sub-minimum deadline MUST clamp it up rather than reject the invitation
-- Enforcement authority is the CaseActor (`CVDRole.CASE_MANAGER`), evaluated
+- The CASE_MANAGER enforces the deadline, evaluated
   lazily from `(end_time, now)`; no scheduler is required
 - A lapse records `DECLINED` — the same state as an explicit refusal. The
   distinction is provenance, carried by the canonical ledger, not by a
@@ -103,7 +103,7 @@ transition path (ADR-0048, ADR-0056).
 
 ### 9.7 Gating Full Case Delivery
 
-Before the Case Actor delivers full case content
+Before the CASE_MANAGER delivers full case content
 (`Announce(VulnerabilityCase)` carrying report details, vulnerability
 description, and sensitive notes), **both** conditions MUST hold for the
 recipient:

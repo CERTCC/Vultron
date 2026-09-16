@@ -1691,12 +1691,12 @@ groups:
     stories:
     - story_2022_030
 - id: VP-17
-  title: CaseActor Write Authority
+  title: CASE_MANAGER Write Authority
   specs:
   - id: VP-17-001
     priority: MUST
     kind: protocol
-    statement: All direct mutations to the canonical case state MUST route through the CaseActor; no participant or use-case
+    statement: All direct mutations to the canonical case state MUST route through the CASE_MANAGER; no participant or use-case
       handler MAY write to canonical case state directly.
     rationale: >-
       This single-writer axiom prevents concurrent-write races and ensures that all shared
@@ -1722,7 +1722,7 @@ groups:
       Ledger replay is the intended propagation mechanism for keeping participant replicas
       consistent with canonical case state. Direct mutation from inbound messages (e.g.,
       Add(Note, Case)) would bypass the ledger ordering guarantees and create divergence.
-      This path is distinct from VP-17-001 and is not a bypass of the CaseActor write constraint.
+      This path is distinct from VP-17-001 and is not a bypass of the CASE_MANAGER write constraint.
     relationships:
     - rel_type: refines
       spec_id: VP-17-001
@@ -1736,7 +1736,7 @@ groups:
     kind: protocol
     statement: >-
       Outbound messages from a participant MUST follow the routing path:
-      `participant → CaseActor → CaseLedgerEntry → broadcast → participants`.
+      `participant → CASE_MANAGER → CaseLedgerEntry → broadcast → participants`.
     rationale: >-
       The ledger record provides the audit trail and ordering guarantees for all case
       activity. Direct peer-to-peer delivery bypasses the ledger and the broadcast
@@ -1768,14 +1768,14 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      Delivery of outbound participant messages MUST be mediated by the `CaseActor`
+      Delivery of outbound participant messages MUST be mediated by the CASE_MANAGER
       and recorded in the case ledger before being fanned out to participants.
     rationale: >-
-      Mediation through the CaseActor ensures all case activity is ledger-ordered
+      Mediation through the CASE_MANAGER ensures all case activity is ledger-ordered
       and consistently broadcast to all participants.
     verification: >-
       Integration tests in `test/demo/test_sync_ledger_replication.py` confirm
-      that no participant receives a case-state update before the CaseActor has
+      that no participant receives a case-state update before the CASE_MANAGER has
       committed the corresponding CaseLedgerEntry.
     relationships:
     - rel_type: refines

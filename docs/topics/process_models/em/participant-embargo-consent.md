@@ -64,13 +64,13 @@ stateDiagram-v2
 ```
 
 > **`ET` reset cascade (not shown above for clarity):** When EM enters
-> `EXITED` via an `ET` activity, the CaseActor resets every participant's
+> `EXITED` via an `ET` activity, the CASE_MANAGER resets every participant's
 > PEC state to `NO_EMBARGO` regardless of their current state. See the
 > [full transition table](#full-transition-table) below.
 
 ---
 
-## CaseActor Sets PEC — Participants Do Not Self-Report
+## CASE_MANAGER Sets PEC — Participants Do Not Self-Report
 
 This is the key distinction between PEC and the other per-participant
 state machines:
@@ -79,12 +79,12 @@ state machines:
 |---|---|
 | RM state | Self-reported by the participant |
 | VF/D state | Self-reported by the vendor or deployer |
-| **PEC state** | **Set by the CaseActor, based on observed behaviour** |
+| **PEC state** | **Set by the CASE_MANAGER, based on observed behaviour** |
 
 The participant never declares "I am now `SIGNATORY`." Instead, the
-CaseActor observes an inbound `Accept(Invite(EmbargoEvent))` activity
+CASE_MANAGER observes an inbound `Accept(Invite(EmbargoEvent))` activity
 and records `SIGNATORY` for the sending actor. A `Reject(...)` produces
-`DECLINED`. A deadline lapse produces `DECLINED` with a CaseActor-authored
+`DECLINED`. A deadline lapse produces `DECLINED` with a CASE_MANAGER-authored
 ledger entry that distinguishes it from an explicit refusal.
 
 !!! note "No dedicated PEC wire messages (MSM-07-001)"
@@ -104,7 +104,7 @@ An `EP` message (`Invite(EmbargoEvent)[context=VulnerabilityCase]`)
 invites one or more participants to accept an embargo.
 
 !!! note ""
-    On receiving an `EP`, the CaseActor MUST apply the `INVITE` PEC trigger
+    On receiving an `EP`, the CASE_MANAGER MUST apply the `INVITE` PEC trigger
     to each named participant, advancing their consent state from
     `NO_EMBARGO`, `DECLINED`, or `LAPSED` to `INVITED`. (MSM-07-002)
 
@@ -119,7 +119,7 @@ MUST both be applied:
     1. **Case-owner path**: if the accepting actor is the case owner,
        the shared EM state advances from `PROPOSED` to `ACTIVE` (or
        from `REVISE` to `ACTIVE` for a revision accept).
-    2. **All accepting actors**: the CaseActor MUST apply the `ACCEPT`
+    2. **All accepting actors**: the CASE_MANAGER MUST apply the `ACCEPT`
        PEC trigger, advancing the actor's consent state from `INVITED`,
        `NO_EMBARGO`, or `LAPSED` to `SIGNATORY`. (MSM-07-003)
 
@@ -134,7 +134,7 @@ An `ER` message (`Reject(Invite(EmbargoEvent))`) also has two effects:
 !!! note ""
     1. **Case-owner path**: if the rejecting actor is the case owner,
        the shared EM state advances from `PROPOSED` to `NONE`.
-    2. **All rejecting actors**: the CaseActor MUST apply the `DECLINE`
+    2. **All rejecting actors**: the CASE_MANAGER MUST apply the `DECLINE`
        PEC trigger, advancing the actor's consent state from `INVITED`,
        `NO_EMBARGO`, or `LAPSED` to `DECLINED`. (MSM-07-004)
 
@@ -144,7 +144,7 @@ An `EV` message signals that the current active embargo is under
 revision, transitioning shared EM from `ACTIVE` to `REVISE`.
 
 !!! note ""
-    When EM enters `REVISE`, the CaseActor MUST automatically apply the
+    When EM enters `REVISE`, the CASE_MANAGER MUST automatically apply the
     `REVISE` PEC trigger to every participant currently in `SIGNATORY`,
     advancing them to `LAPSED`. No separate wire message is emitted for
     these PEC transitions; the cascade is an internal side-effect of the
@@ -166,7 +166,7 @@ An `ET` message terminates the active embargo, advancing shared EM to
 `EXITED`.
 
 !!! note ""
-    When EM enters `EXITED`, the CaseActor MUST automatically apply the
+    When EM enters `EXITED`, the CASE_MANAGER MUST automatically apply the
     `RESET` PEC trigger to every participant, advancing all consent
     states to `NO_EMBARGO`. No separate wire message is emitted; the
     cascade is an internal side-effect of embargo termination. (MSM-07-006)
@@ -180,8 +180,8 @@ inaction is recorded as rejection.
 
 !!! note ""
     The `INVITED → DECLINED` and `LAPSED → DECLINED` transitions MUST be
-    enforced lazily by the CaseActor with no outbound wire message emitted
-    for the PEC state change itself. The CaseActor MUST author a
+    enforced lazily by the CASE_MANAGER with no outbound wire message emitted
+    for the PEC state change itself. The CASE_MANAGER MUST author a
     case-ledger entry recording the lapse so the transition is visible in
     the canonical ledger. (MSM-07-007)
 
@@ -190,7 +190,7 @@ The invitation window has two forms:
 | Form | Source | Precedence |
 |---|---|---|
 | **Explicit** | `Invite.end_time` on the invitation activity | Higher — overrides the policy default |
-| **Implicit** | Configurable CaseActor policy (default 7 days; minimum floor 72 hours) | Lower — applies when no explicit deadline is present |
+| **Implicit** | Configurable CASE_MANAGER policy (default 7 days; minimum floor 72 hours) | Lower — applies when no explicit deadline is present |
 
 When `Invite.end_time` is present it is authoritative; the policy default
 applies only for invitations that omit it.
@@ -210,9 +210,9 @@ coordinate. A missed deadline MUST NOT result in their acceptance being
 refused.
 
 !!! note ""
-    If a late `Accept` matches the current active embargo, the CaseActor
+    If a late `Accept` matches the current active embargo, the CASE_MANAGER
     MUST honour it and advance PEC to `SIGNATORY`. If the accepted embargo
-    is stale (terms have since been revised), the CaseActor MUST send a
+    is stale (terms have since been revised), the CASE_MANAGER MUST send a
     fresh invitation carrying the current embargo terms instead.
     (EMB-17-002, EMB-17-003)
 
@@ -224,9 +224,9 @@ Each PEC transition is driven by one of three sources:
 
 | Source | Description | Examples |
 |---|---|---|
-| **Wire** | An inbound EM wire activity observed by the CaseActor | EP → `INVITED`; EA → `SIGNATORY`; ER → `DECLINED` |
+| **Wire** | An inbound EM wire activity observed by the CASE_MANAGER | EP → `INVITED`; EA → `SIGNATORY`; ER → `DECLINED` |
 | **Cascade** | Automatic side-effect of a shared EM state change | EV → `LAPSED` for all signatories; ET → `NO_EMBARGO` for all |
-| **Timer** | Pocket-veto deadline enforced lazily by the CaseActor | `INVITED → DECLINED`; `LAPSED → DECLINED` after deadline |
+| **Timer** | Pocket-veto deadline enforced lazily by the CASE_MANAGER | `INVITED → DECLINED`; `LAPSED → DECLINED` after deadline |
 
 Wire transitions correspond to explicit participant choices. Cascade
 transitions are automatic and require no participant action. Timer

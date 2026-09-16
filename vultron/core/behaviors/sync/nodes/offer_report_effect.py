@@ -186,6 +186,7 @@ class ApplyOfferReportFromLedgerNode(DataLayerActionWithPorts):
     ) -> Status:
         assert self.datalayer is not None
         from vultron.core.models.offer_record import VultronOfferRecord
+        from vultron.core.models.report_case_link import VultronReportCaseLink
 
         try:
             record = VultronOfferRecord(
@@ -211,4 +212,28 @@ class ApplyOfferReportFromLedgerNode(DataLayerActionWithPorts):
             offer_record_id,
             offer_id,
         )
+
+        # Seed VultronReportCaseLink(rm_state=RM.RECEIVED) for invited replicas
+        # (BTND-10-006, ADR-0089): _ValidRMLatchNode requires the link to exist
+        # before it can advance rm_state to RM.VALID.  Invited participants never
+        # receive Offer(VulnerabilityReport) directly, so this is their only
+        # creation point.  Idempotent: skip if the link is already present.
+        link_id = VultronReportCaseLink.build_id(report_id)
+        if self.datalayer.read(link_id) is None:
+            try:
+                self.datalayer.save(VultronReportCaseLink(report_id=report_id))
+                self.logger.info(
+                    "%s: seeded VultronReportCaseLink for invited replica"
+                    " report '%s' (BTND-10-006)",
+                    self.name,
+                    report_id,
+                )
+            except Exception as exc:
+                self.logger.warning(
+                    "%s: failed to seed VultronReportCaseLink for report '%s': %s",
+                    self.name,
+                    report_id,
+                    exc,
+                )
+
         return Status.SUCCESS

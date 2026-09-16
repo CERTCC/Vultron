@@ -22,14 +22,12 @@ from py_trees.ports import PortInformation
 
 from vultron.core.behaviors.case.nodes.participant.common import (
     _create_and_attach_participant,
-    _get_or_create_accepted_status,
     _queue_participant_add_notification,
 )
 from vultron.core.behaviors.helpers import DataLayerActionWithPorts
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.participant_status import (
     ParticipantStatus,
-    coerce_cvd_roles,
 )
 from vultron.core.models.vultron_types import VultronParticipant
 from vultron.core.states.participant_embargo_consent import PEC, PEC_Trigger
@@ -37,53 +35,76 @@ from vultron.enums.roles import CVDRole
 from vultron.core.models._helpers import _as_id
 
 
-class ResolveParticipantAcceptedStatusNode(DataLayerActionWithPorts):
-    """Resolve or create report-phase RM.ACCEPTED status for the participant."""
+class CreateParticipantInitialStatusNode(DataLayerActionWithPorts):
+    """Apply the participant's initial RM.ACCEPTED status via the writer node.
+
+    Pre-builds a :class:`CreateParticipantStatusNode` in ``__init__`` and
+    executes it via ``BTBridge.execute_with_setup`` so the write is routed
+    through the composed evaluator (BTND-10-004, ADR-0089).
+
+    Must run AFTER the participant has been attached to the case, since
+    :class:`CreateParticipantStatusNode` resolves the participant via
+    ``case.actor_participant_index``.
+    """
 
     def __init__(
         self,
         participant_actor_id: str,
-        roles: list[CVDRole],
         report_id: str | None = None,
         name: str | None = None,
     ) -> None:
         super().__init__(name=name or self.__class__.__name__)
         self.participant_actor_id = participant_actor_id
-        self.roles = roles
-        self.report_id = report_id
-        _seg = report_id.split("/")[-1] if report_id else "default"
-        self._participant_accepted_status_key = (
-            f"participant_accepted_status_{_seg}"
+        from vultron.core.behaviors.case.nodes.participant.status import (
+            CreateParticipantStatusNode,
+        )
+        from vultron.core.states.rm import RM as _RM
+
+        self._status_node = CreateParticipantStatusNode(
+            actor_id=participant_actor_id,
+            rm_state=_RM.ACCEPTED,
+            vf_state=None,
+            d_state=None,
+            pxa_state=None,
+            force_rm_state=True,
         )
 
     @classmethod
-    def output_ports(cls) -> dict[str, PortInformation]:
-        return {
-            "participant_accepted_status": PortInformation(
-                data_type=object, required=True
-            )
-        }
+    def input_ports(cls) -> dict[str, PortInformation]:
+        ports = super().input_ports()
+        ports["case_id"] = PortInformation(data_type=str, required=True)
+        return ports
 
-    def _instance_port_remappings(self) -> dict[str, str]:
-        return {
-            "participant_accepted_status": f"/{self._participant_accepted_status_key}"
-        }
+    @classmethod
+    def _domain_port_remappings(cls) -> dict[str, str]:
+        return {"case_id": "/case_id"}
+
+    def initialise(self) -> None:
+        super().initialise()
+        self._case_id_bb = self._try_get_input("case_id")
 
     def update(self) -> Status:
         if (f := self._require_datalayer()) is not None:
             return f
         assert self.datalayer is not None
-        result = _get_or_create_accepted_status(
-            self.datalayer,
-            self.participant_actor_id,
-            self.report_id,
-            self.name,
-            self.logger,
-            cvd_role=coerce_cvd_roles(self.roles),
-            em_consent_state=PEC.NO_EMBARGO,
+
+        case_id = self._case_id_bb
+        if not isinstance(case_id, str):
+            self.feedback_message = "case_id not found in blackboard"
+            return Status.FAILURE
+
+        if not self.actor_id:
+            self.feedback_message = "actor_id not set"
+            return Status.FAILURE
+
+        from vultron.core.behaviors.bridge import BTBridge
+
+        result = BTBridge(datalayer=self.datalayer).execute_with_setup(
+            self._status_node,
+            actor_id=self.actor_id,
+            case_id=case_id,
         )
-        self._set_output("participant_accepted_status", result)
-        return Status.SUCCESS
+        return result.status
 
 
 class CreateParticipantNode(DataLayerActionWithPorts):
@@ -249,6 +270,7 @@ class AttachParticipantToCaseNode(DataLayerActionWithPorts):
             )
             return Status.FAILURE
 
+        self.datalayer.save(stored_case)
         self._set_output("participant_case", stored_case)
         return Status.SUCCESS
 

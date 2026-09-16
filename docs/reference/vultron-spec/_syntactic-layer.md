@@ -29,14 +29,14 @@
   This is an AS2 `Event` subtype; embargo activities therefore appear on the
   wire as `Invite(Event)`, not as a distinct embargo verb
 - `CaseLedgerEntry` — an entry in the authoritative canonical case ledger; the
-  unit of state replication from the Case Actor to participants
+  unit of state replication from the CASE_MANAGER to participants
 - `CaseProposal` — a proposed case, prior to case creation
 - `CaseStatus` / `ParticipantStatus` — status records. **These are not
   interchangeable, and the distinction is load-bearing:**
   - `ParticipantStatus` is a *claim* — one participant's assertion about its
     own (or another participant's) state. Any participant may write one.
-  - `CaseStatus` is *canonical* — the Case Actor's authoritative record of
-    shared case state. Only the Case Actor may write it ([§5.4](index.md#54-addressing-and-channels)).
+  - `CaseStatus` is *canonical* — the CASE_MANAGER's authoritative record of
+    shared case state. Only the CASE_MANAGER may write it ([§5.4](index.md#54-addressing-and-channels)).
 
   The transition from claim to canonical is an explicit authorization step,
   not an implementation detail; see [§10.1](index.md#101-status-adoption-the-two-seam-model).
@@ -50,7 +50,7 @@
   `Accept(Invite(Event)[context=VulnerabilityCase])` for embargo acceptance
 - Two distinct activities govern bringing an actor into a case, and they are
   **not** the same message:
-  - `Invite[target=VulnerabilityCase]` — the Case Actor invites an actor to
+  - `Invite[target=VulnerabilityCase]` — the CASE_MANAGER invites an actor to
     join, on the Case Owner's behalf. Answered with `Accept(Invite)` or
     `Reject(Invite)`.
   - `Offer(CaseParticipant)` — the *suggest-actor* path: a participant
@@ -74,10 +74,10 @@
 
 #### 5.4.1 Single-Writer Authority
 
-The Case Actor is the **only** entity authorized to mutate shared case state —
+The CASE_MANAGER is the **only** entity authorized to mutate shared case state —
 the CS `PXA` axis, the EM state, the embargo record, and the case ledger. No
 participant and no use-case handler may write shared case state directly; all
-such mutations MUST route through the Case Actor.
+such mutations MUST route through the CASE_MANAGER.
 
 The participant-specific axes (`RM`, `VFD`) are owned by each participant's own
 `CaseParticipant` record and are explicitly **not** subject to this restriction —
@@ -85,30 +85,30 @@ a participant is the authority on its own RM and VFD state.
 
 This single-writer rule is the axiom from which the routing topology below
 follows. It exists to prevent concurrent-write races and to ensure every shared
-state change passes through the Case Actor's consistency checks.
+state change passes through the CASE_MANAGER's consistency checks.
 
 #### 5.4.2 Routing Topology
 
 Once a case exists, all case-scoped participant messages MUST follow this path:
 
 ```text
-Participant → Case Actor → CaseLedgerEntry → Announce(CaseLedgerEntry) → all Participants
+Participant → CASE_MANAGER → CaseLedgerEntry → Announce(CaseLedgerEntry) → all Participants
 ```
 
-- A participant MUST address case-scoped activities to the Case Actor only.
+- A participant MUST address case-scoped activities to the CASE_MANAGER only.
 - A participant **MUST NOT** deliver a case-scoped message directly to another
-  participant's inbox. Delivery MUST be mediated by the Case Actor and recorded
+  participant's inbox. Delivery MUST be mediated by the CASE_MANAGER and recorded
   in the case ledger before fan-out.
 - `Announce(CaseLedgerEntry)` is the **only** mechanism by which participants
   learn of accepted case-state changes.
 
 There are exactly **two** exceptions, both confined to case bootstrap, both
-occurring before the Case Actor is available as an intermediary:
+occurring before the CASE_MANAGER is available as an intermediary:
 
 1. **Pre-case report submission** — the Reporter sends `Offer(VulnerabilityReport)`
-   directly to the Vendor. No case, and therefore no Case Actor, exists yet.
+   directly to the Vendor. No case, and therefore no case actor service, exists yet.
 2. **Case creation handshake** — the receiving party sends
-   `Create(VulnerabilityCase)` to the Reporter to introduce the Case Actor. This
+   `Create(VulnerabilityCase)` to the Reporter to introduce the CASE_MANAGER. This
    is the trust-bootstrap exchange ([§4.5](index.md#45-trust-and-bootstrap-semantics)).
 
 After case creation, no direct participant-to-participant messaging is
@@ -117,7 +117,7 @@ permitted.
 !!! note "Informative: why centralize"
     Routing through a single writer avoids the complexity of a distributed
     ledger while preserving actor-local state: each participant still maintains
-    its own replica and its own view. The cost is that the Case Actor is a
+    its own replica and its own view. The cost is that the CASE_MANAGER is a
     single point of coordination authority, and its availability bounds case
     progress. This is a deliberate trade-off, not an incidental property of the
     current implementation — but the *requirements* above are
@@ -174,7 +174,7 @@ A participant discovery specification is not yet included in this document.
 
 !!! note "Transport vs. routing topology"
     The routing topology rule in [§5.4.2](index.md#542-routing-topology) — all case-scoped messages MUST route
-    through the Case Actor — is a vultron-core protocol rule. It applies
+    through the CASE_MANAGER — is a vultron-core protocol rule. It applies
     regardless of which transport carries the messages. The transport layer is
     responsible for delivery. The protocol layer is responsible for routing
     authority.

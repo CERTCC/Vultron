@@ -37,7 +37,7 @@ independently of anything a case participant does or causes.
 Reporting is not adoption. A reported observation is a claim; whether it becomes
 canonical case state, and whether it triggers embargo teardown, is decided by the
 two-seam model in [**§10.1**](../index.md#101-status-adoption-the-two-seam-model). The role rule here — *who may report* — is
-deliberately separate from the authorization rules there — *what the Case Actor
+deliberately separate from the authorization rules there — *what the CASE_MANAGER
 does with a report*.
 
 !!! note "Informative: the Sentinel capability shape"

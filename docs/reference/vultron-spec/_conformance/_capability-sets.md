@@ -30,7 +30,7 @@ state and notify others of its own transitions.
   transitions
 - MUST participate in embargo negotiation: responding to `Invite(Event)`, and
   recording consent or refusal via PEC
-- MUST route all case-scoped messages through the Case Actor ([§5.4.2](../index.md#542-routing-topology))
+- MUST route all case-scoped messages through the CASE_MANAGER ([§5.4.2](../index.md#542-routing-topology))
 - MAY report PXA observations; no VFD drive obligations unless a role extension
   set adds them
 
@@ -68,7 +68,7 @@ The Hosting capability set defines Case Manager infrastructure capabilities.
 It is separable from the Authority capability set.
 
 - Observer capability set, plus:
-- MUST act as or host a **Case Actor**, and therefore MUST implement the
+- MUST hold the **CASE_MANAGER** role for each case it hosts, and therefore MUST implement the
   single-writer authority rules of [§5.4.1](../index.md#541-single-writer-authority)
 - MUST maintain the authoritative canonical case ledger and replicate it to
   participants via `Announce(CaseLedgerEntry)`
@@ -82,9 +82,9 @@ It is separable from the Authority capability set.
     The detailed replication mechanics (hash-chaining, gap detection, ordering
     guarantees) are specified in a companion document,
     `docs/reference/draft-vultron-replication-spec.md`, not in this RFC. See ADR-0077. The single-hub / single-writer + fan-out model is the normative
-    replication architecture: one Case Actor holds exclusive write authority and
+    replication architecture: one CASE_MANAGER holds exclusive write authority and
     replicates entries to participant actors via `Announce(CaseLedgerEntry)`.
-    Distributed consensus (multi-node CaseActor cluster) is a future extension
+    Distributed consensus (a multi-node case manager cluster) is a future extension
     out of scope for this RFC.
 
 #### Named configurations

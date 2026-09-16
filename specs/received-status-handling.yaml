@@ -1,7 +1,7 @@
 id: RSH
 title: Received-Side Status Authorization
 description: >
-  Requirements for the two-gate authorization model governing how a CaseActor
+  Requirements for the two-gate authorization model governing how a CASE_MANAGER
   adopts an inbound participant's reported CaseStatus as canonical (StatusAdoptionGate)
   and whether to execute embargo teardown side-effects (EmbargoTeardownAuthorizationGate).
   Derived from ADR-0046 and IDEA-1836 planning session.
@@ -18,7 +18,7 @@ groups:
   title: StatusAdoptionGate
   description: >
     Controls whether a participant's reported CaseStatus is adopted as
-    canonical by the CaseActor.
+    canonical by the CASE_MANAGER.
   specs:
   - id: RSH-01-001
     priority: MUST
@@ -56,7 +56,7 @@ groups:
     statement: >
       When StatusAdoptionGate passes, `add_participant_status_tree` MUST emit
       a self-addressed `Add(CaseStatus, VulnerabilityCase)` activity to the
-      CaseActor acting as CASE_MANAGER.
+      CASE_MANAGER.
     rationale: >
       The self-addressed Add(CaseStatus) threads the two gates together without
       coupling the trees directly. See ADR-0046 §"Self-addressed pattern".
@@ -163,7 +163,7 @@ groups:
       by the time this node runs, the canonical write is already authorized.
     rationale: >
       Duplicating a CASE_OWNER gate here would prevent teardown when the
-      self-addressed `Add(CaseStatus)` arrives from the CaseActor itself
+      self-addressed `Add(CaseStatus)` arrives from the CASE_MANAGER itself
       (sender = CASE_MANAGER, not CASE_OWNER).
   - id: RSH-03-003
     priority: MUST
@@ -185,7 +185,7 @@ groups:
   title: CaseStatus Emission Authority and Outbound Emit Invariant
   description: >
     Specifies which actors may emit Add(CaseStatus) directly and mandates that
-    every CaseActor-side EM or PXA state mutation is followed by a canonical
+    every CASE_MANAGER-side EM or PXA state mutation is followed by a canonical
     CaseStatus ledger write. CaseStatus is the only protocol channel for
     communicating EM and PXA state changes across actors; omitting the emit
     leaves all participant replicas stale until the next round-trip.
@@ -194,13 +194,13 @@ groups:
     priority: MUST
     kind: protocol
     statement: >
-      Only the CaseActor (acting as CASE_MANAGER) MUST emit `Add(CaseStatus)`
+      Only the CASE_MANAGER MUST emit `Add(CaseStatus)`
       directly. All other participants MUST embed a suggested `CaseStatus`
       inside `Add(ParticipantStatus)` rather than sending `Add(CaseStatus)`
       independently.
     rationale: >
-      CaseStatus encodes shared EM and PXA state for the entire case. Only the
-      CaseActor holds the CASE_MANAGER role and is the authoritative writer of
+      CaseStatus encodes shared EM and PXA state for the entire case. The
+      CASE_MANAGER is the authoritative writer of
       canonical case state (ADR-0046, CLP-09). Allowing participants to emit
       Add(CaseStatus) directly would bypass the two-seam authorization model.
     verification: Inspection of `vultron/core/behaviors/status/` confirms only the CASE_MANAGER emits `Add(CaseStatus)`
@@ -251,11 +251,11 @@ groups:
       writes the new `CaseStatus` directly to `case.case_statuses` and commits
       a canonical `CaseLedgerEntry`, then emits `Announce(CaseLedgerEntry)` for
       participant replica sync. It MUST NOT route through the inbox
-      authorization seam (`add_case_status_tree`) — the CaseActor is always the
+      authorization seam (`add_case_status_tree`) — the CASE_MANAGER is always the
       authority for its own outbound state changes.
     rationale: >
       The inbox gate (StatusAdoptionGate → EmbargoTeardownAuthorizationGate) exists for evaluating external
-      participant suggestions. The CaseActor writing its own EM/PXA transition
+      participant suggestions. The CASE_MANAGER writing its own EM/PXA transition
       is not a suggestion — it is an authoritative state change. Routing through
       the inbox loopback (as `EmitAddCaseStatusToSelfNode` does) inverts
       causality: the ledger write should precede the announce, not be triggered
@@ -290,7 +290,7 @@ groups:
     priority: MUST
     kind: protocol
     statement: >
-      A CaseActor receiving an `Add(ParticipantStatus, CaseParticipant)` MUST
+      A CASE_MANAGER receiving an `Add(ParticipantStatus, CaseParticipant)` MUST
       adjudicate each state dimension of the reported status independently. An
       unacceptable value in one dimension MUST NOT cause the values reported in
       the other dimensions to be discarded.
@@ -556,7 +556,7 @@ groups:
     priority: MUST
     kind: protocol
     statement: >
-      A CaseActor receiving an `Add(CaseStatus, Case)` MUST adjudicate the EM
+      A CASE_MANAGER receiving an `Add(CaseStatus, Case)` MUST adjudicate the EM
       and PXA dimensions of the reported case status independently. An
       unacceptable value in one dimension MUST NOT cause the value reported in
       the other dimension to be discarded.
@@ -794,19 +794,19 @@ groups:
       VF↔D per CSB-17-001) against the effective participant state from the
       entry. If any entailment is violated the tree MUST NOT apply the status
       update, and MUST guarantee emission of `Create(ProcessingFault)` with
-      failure class `StatusAssertionRefused/ImpossibleState` to the CaseActor
+      failure class `StatusAssertionRefused/ImpossibleState` to the CASE_MANAGER
       as a guaranteed side-effect of the failure path (tree-structural guarantee,
       not node-level side effect).
     rationale: >
-      A CaseActor that is buggy or hostile can commit an entry whose participant
+      A CASE_MANAGER that is buggy or hostile can commit an entry whose participant
       state violates `composite_state_violations()` — the same entailment set
       the emit and receive paths already enforce. Without this check, every
       replica silently adopts an impossible combination: the same actor would
-      have refused to *emit* the value, yet accepts it when the CaseActor
+      have refused to *emit* the value, yet accepts it when the CASE_MANAGER
       broadcasts it. Silence is the specific problem: the contradiction is
       only discoverable by reading devlogs.
       Using `Create(ProcessingFault)` rather than `Reject(CaseLedgerEntry)`
-      avoids triggering a CaseActor replay loop — the committed entry cannot
+      avoids triggering a CASE_MANAGER replay loop — the committed entry cannot
       be uncommitted, so replaying it would produce the same refusal
       indefinitely. `ProcessingFault` is the right signal for semantic
       invalidity (ASK-07-001). The failure class
@@ -893,7 +893,7 @@ groups:
     priority: MUST
     kind: protocol
     statement: >
-      A CaseActor receiving an `Add(ParticipantStatus, CaseParticipant)` that
+      A CASE_MANAGER receiving an `Add(ParticipantStatus, CaseParticipant)` that
       carries a non-adjacent forward RM jump (i.e. `is_monotonic_rm_forward` is
       True but `is_valid_rm_transition` is False) MUST accept the reported `rm`
       state.
@@ -915,7 +915,7 @@ groups:
     priority: MUST
     kind: protocol
     statement: >
-      A CaseActor receiving an `Add(ParticipantStatus, CaseParticipant)` that
+      A CASE_MANAGER receiving an `Add(ParticipantStatus, CaseParticipant)` that
       carries a backward RM regression (i.e. the reported `rm` state is earlier
       on the RM progress scale than the receiver's current value) MUST refuse
       the `rm` dimension and carry the current value forward (RSH-05-002).

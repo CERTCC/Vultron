@@ -4,7 +4,7 @@
 
 **Actor identity.** The protocol uses actor URIs as process identifiers. An
 actor URI is the identity anchor for all messages sent by that actor, and for
-the canonical case ledger if the actor holds the Case Actor role. Implementations
+the canonical case ledger if the actor holds the CASE_MANAGER role. Implementations
 MUST treat actor URI equality as identity equality: two messages with the same
 `actor` URI are from the same actor.
 
@@ -17,8 +17,8 @@ Signatures at the transport layer.
 **Case bootstrap as the trust establishment mechanism.** The
 `Create(VulnerabilityCase)` message signed by the originating actor is the
 trust root for a case. Late joiners receive a case snapshot and prior ledger
-entries from the Case Actor. A late joiner trusts the Case Actor's delivery
-because it trusts the `Create` message that introduced the Case Actor. This
+entries from the CASE_MANAGER. A late joiner trusts the CASE_MANAGER's delivery
+because it trusts the `Create` message that introduced the CASE_MANAGER. This
 chain is the minimal trust model; cryptographic ledger integrity (hash-chaining)
 provides tamper detection.
 
@@ -64,10 +64,10 @@ in-transit encryption mechanism. TLS is the expected transport protection for
 HTTP delivery. A future version of this specification is expected to require TLS.
 
 **At-rest and end-to-end confidentiality.** Content-level encryption — protecting
-case details from the Case Actor itself, or supporting future multi-party
+case details from the CASE_MANAGER itself, or supporting future multi-party
 computation — is deferred in the current prototype. The encryption architecture
 is tracked in `specs/encryption.yaml`. Implementations SHOULD treat any
-unencrypted case content as potentially accessible to the Case Actor operator.
+unencrypted case content as potentially accessible to the CASE_MANAGER operator.
 
 **Scope.** This section covers security requirements for the protocol as
 specified. Operational security measures (key management, access control,

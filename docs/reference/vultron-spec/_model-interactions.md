@@ -1,14 +1,14 @@
 ## 10. Model Interactions and Cascade Rules [N]
 
 State transitions in one dimension trigger obligations in others. Cascades are
-event-driven: a state change produces a domain event, which the Case Actor
+event-driven: a state change produces a domain event, which the CASE_MANAGER
 handles. Each cascade step is independently authorizable, and ordering between
 steps is normative where noted.
 
 Key cascades:
 
 - **Invitation accepted → admit, resolve consent, deliver**: on `Accept(Invite)`
-  the Case Actor MUST, in order, (a) commit a ledger entry and fan it out,
+  the CASE_MANAGER MUST, in order, (a) commit a ledger entry and fan it out,
   (b) create the participant record at `RM.RECEIVED`, (c) sign embargo consent if
   an embargo is active, (d) send `Announce(VulnerabilityCase)` with the full
   snapshot, and (e) backfill prior ledger entries in log-index order. The
@@ -31,19 +31,19 @@ claimed" and "act on that claim as truth" are separate decisions with separate
 authority.
 
 **StatusAdoptionGate — Adoption.** A participant reports an observation via
-`Add(ParticipantStatus)`. The receiving Case Actor records the claim, then
+`Add(ParticipantStatus)`. The receiving CASE_MANAGER records the claim, then
 decides whether to treat it as canonical:
 
 - A Case Owner's report MUST be adopted without requiring approval — requiring
   the Case Owner to approve its own report would be circular ([§12.4.4](index.md#1244-case-owner-authority)).
 - All other senders pass through a configurable approval gate. The default
   policy is to auto-adopt.
-- On adoption, the Case Actor emits a self-addressed `Add(CaseStatus)` to itself
+- On adoption, the CASE_MANAGER emits a self-addressed `Add(CaseStatus)` to itself
   acting as Case Manager, which performs the canonical write.
 - The tree that records the claim MUST NOT execute side-effects directly.
 
 **EmbargoTeardownAuthorizationGate — Side-effects.** After the canonical write,
-the Case Actor evaluates side-effects:
+the CASE_MANAGER evaluates side-effects:
 
 - It MUST check whether the canonical status carries `CS.P`, `CS.X`, or `CS.A`.
 - If any is present, it MUST initiate embargo teardown.

@@ -1480,7 +1480,7 @@ groups:
       case_proposal_received_tree pattern: the CASE_OWNER is the human
       decision-maker whose choice is gospel, while other actors need an
       adjudication seam that a UI or LLM agent can later fulfil. The distinction
-      matters because a CaseActor may process an overture routed to it without
+      matters because a CASE_MANAGER may process an overture routed to it without
       being the party whose consent is being recorded.
     verification: >-
       Inspection of `vultron/core/` confirms that the inbound embargo-response
@@ -1530,7 +1530,7 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      Non-owner actors (e.g., a CaseActor processing an overture on the owner's
+      Non-owner actors (e.g., a CASE_MANAGER processing an overture on the owner's
       behalf) MUST route through the `CaseOwnerApprovesEmbargoResponse` call-out
       point, which defaults to SUCCESS under the DETERMINISTIC bundle.
     rationale: >-
@@ -1728,7 +1728,7 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      A CaseActor receiving an `Accept(Invite(EmbargoEvent))` after the
+      A CASE_MANAGER receiving an `Accept(Invite(EmbargoEvent))` after the
       invitation's effective RSVP deadline MUST NOT reject it solely because the
       deadline has passed. It MUST evaluate whether the accepted embargo is still
       compatible with the case's current embargo and then apply EMB-17-002,
@@ -1762,7 +1762,7 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      When the accepted embargo is the case's current embargo, the CaseActor MUST
+      When the accepted embargo is the case's current embargo, the CASE_MANAGER MUST
       honour the late Accept and record the participant's PEC transition to
       SIGNATORY, exactly as it would for an on-time Accept.
     rationale: >-
@@ -1801,7 +1801,7 @@ groups:
     statement: >-
       When the accepted embargo is NOT the case's current embargo (for example
       the embargo was revised or replaced after the invitation was sent), the
-      CaseActor MUST issue a fresh `Invite(EmbargoEvent)` to the accepting actor
+      CASE_MANAGER MUST issue a fresh `Invite(EmbargoEvent)` to the accepting actor
       carrying the case's current embargo.
     rationale: >-
       Recording the stale Accept as consent would make the participant a
@@ -1843,7 +1843,7 @@ groups:
     priority: MUST_NOT
     kind: protocol
     statement: >-
-      When the accepted embargo is not the case's current embargo, the CaseActor
+      When the accepted embargo is not the case's current embargo, the CASE_MANAGER
       MUST NOT record the stale Accept as consent to the current terms.
     rationale: >-
       Recording the stale Accept as consent would make the participant a signatory
@@ -1857,7 +1857,7 @@ groups:
     priority: MUST_NOT
     kind: protocol
     statement: >-
-      When the accepted embargo is not the case's current embargo, the CaseActor
+      When the accepted embargo is not the case's current embargo, the CASE_MANAGER
       MUST NOT reject the accepting actor.
     rationale: >-
       Rejecting a willing participant discards coordination capacity; re-inviting
@@ -1872,7 +1872,7 @@ groups:
     kind: protocol
     statement: >-
       When the case has no current embargo (EM state is EXITED or NONE),
-      the CaseActor MUST acknowledge the late Accept as a no-op on embargo state,
+      the CASE_MANAGER MUST acknowledge the late Accept as a no-op on embargo state,
       leaving the participant's PEC state at NONE.
     note: >-
       EMB-13-002 independently forbids seeking or accepting new embargoes for a
@@ -1923,7 +1923,7 @@ groups:
     kind: protocol
     statement: >-
       When the case has no current embargo (EM state is EXITED or NONE), the
-      CaseActor MUST NOT issue a fresh embargo invitation to the accepting actor.
+      CASE_MANAGER MUST NOT issue a fresh embargo invitation to the accepting actor.
     rationale: >-
       There is no active embargo to invite the actor to; a fresh invitation would
       manufacture a negotiation nobody requested. See ADR-0065.
@@ -1937,7 +1937,7 @@ groups:
     kind: protocol
     statement: >-
       When the case has no current embargo (EM state is EXITED or NONE), the
-      CaseActor MUST NOT remove the accepting actor from the case.
+      CASE_MANAGER MUST NOT remove the accepting actor from the case.
     rationale: >-
       Case participation is independent of embargo consent; the actor's
       willingness to coordinate must not result in their removal. See ADR-0065.
@@ -2021,7 +2021,7 @@ groups:
       nobody. Nothing in this corpus governed the recipients, which is why only one half of the pair was
       updated when the gate was added — the gap is the reason this entry exists.
     note: >-
-      This does not conflict with CLP-10-001's self-`cc:` rule. That rule exists so the CaseActor's
+      This does not conflict with CLP-10-001's self-`cc:` rule. That rule exists so the CASE_MANAGER's
       *inbox* receives an activity it would otherwise never see, and so the canonical ledger entry gets
       authored by the loopback delivery (OX-12-004). Here the entry is authored by the emitting tree
       itself: `remove_embargo_from_case_tree` wraps the announce in `create_receive_activity_tree` with

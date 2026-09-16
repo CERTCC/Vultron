@@ -19,7 +19,7 @@ for a role ([§12.3.1](index.md#1231-process-roles)) before completing a role as
 
 ### 11.2 Invitation and Acceptance [N]
 
-- An actor joins a case via `Invite(CaseStub)` from the Case Actor, answered with
+- An actor joins a case via `Invite(CaseStub)` from the CASE_MANAGER, answered with
   `Accept(Invite)` or `Reject(Invite)`.
 - `Accept(Invite)` places the actor at `RM.RECEIVED` and, where an embargo is
   active, implies consent to that embargo ([§9.7](index.md#97-gating-full-case-delivery)).
@@ -29,14 +29,20 @@ for a role ([§12.3.1](index.md#1231-process-roles)) before completing a role as
 ### 11.3 Case Ownership Transfer [N]
 
 The Case Owner MAY transfer ownership to another actor via
-`Offer(VulnerabilityCase)` / `Accept` handshake routed through the Case Actor
+`Offer(VulnerabilityCase)` / `Accept` handshake routed through the CASE_MANAGER
 (ADR-0053). On acceptance, the receiving actor acquires Case Owner authority and
 the associated protocol responsibilities.
 
-!!! note "Open: Case Actor identity during ownership transfer"
-    Because the Case Actor URI is the identity anchor for the canonical ledger,
-    ownership transfer raises a re-keying question for future cryptographic
-    identity designs. See [§12.3.2](index.md#1232-protocol-coordination-roles-protocol-authority) and Open Questions.
+!!! note "Open: cryptographic identity across a change of case manager"
+    Authority over the canonical ledger follows the `CASE_MANAGER` role, not any
+    actor's name or URI. Transferring case ownership, or moving the
+    `CASE_MANAGER` role to a different actor, therefore does not by itself
+    re-key the ledger.
+
+    What remains open is key handover. A future case-encryption design must
+    define how the keys protecting existing case content pass to the new role
+    holder, and what a participant does with ledger entries it can no longer
+    decrypt. This specification states no rule for either.
 
 ### 11.4 Participant Removal [I]
 

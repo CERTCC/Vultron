@@ -99,7 +99,7 @@ it does not change the receiver's own CS state. See [§8.4](index.md#84-receivin
 
 - `Create(VulnerabilityCase)` — case initiation
 - `Invite[target=VulnerabilityCase]` / `Accept(Invite)` / `Reject(Invite)` —
-  invitation lifecycle (Case Actor invites on the Case Owner's behalf)
+  invitation lifecycle (the CASE_MANAGER invites on the Case Owner's behalf)
 - `Offer(CaseParticipant)` / `Accept(Offer(...))` / `Reject(Offer(...))` —
   suggest-actor lifecycle (a participant proposes an actor; see [§5.3](index.md#53-activity-types-and-canonical-message-forms))
 - `Announce(CaseLedgerEntry)` — canonical state replication and broadcast
@@ -195,7 +195,7 @@ views of case state at the same moment — because a message is in transit, or
 because a participant has not yet reported a state change. The protocol does
 not require instantaneous global consistency; it requires that each actor
 converge on the canonical state as it receives `Announce(CaseLedgerEntry)`
-messages from the Case Actor.
+messages from the CASE_MANAGER.
 
 **Actor isolation as a conformance requirement.** An implementation MUST NOT
 read or write another actor's state directly. All knowledge of another actor's

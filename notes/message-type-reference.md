@@ -309,8 +309,8 @@ Cause: MSM-03 predates the VF/D split (ADR-0075) and the dimension-object
 decomposition (ADR-0036), and its group description generalized "All CS
 shorthands (CV through CA) share the `ADD_CASE_STATUS_TO_CASE` semantic" onto
 entries that should have diverged. An implementer following it faithfully would
-have dropped the vendor identity — see AGENTS.md § "'CaseActor MUST …' Is Often a
-Specification Error" for the same failure mode.
+have dropped the vendor identity — see `notes/spec-authoring-rules.md` §
+"Name the Authority 'CASE_MANAGER', Not 'CaseActor'" for the same failure mode.
 
 **Guidance:** when a spec group description asserts a property of "all" its
 members, check each member against the code before relying on the

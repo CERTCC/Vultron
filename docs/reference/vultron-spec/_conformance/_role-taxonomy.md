@@ -45,15 +45,13 @@ lifecycle. For example, a Reporter who initially creates a case may delegate
 coordination to a Coordinator (reporter → coordinator hand-off), or a primary
 Vendor may bring in additional Vendors as the case grows. When a Case Owner
 transfers ownership (via `Offer(VulnerabilityCase)` / `Accept` handshake routed
-through the Case Actor), the receiving actor acquires Case Owner authority and
+through the CASE_MANAGER), the receiving actor acquires Case Owner authority and
 the associated protocol responsibilities.
 
-!!! note "Open architectural question: Case Actor identity during ownership transfer"
-    Because the Case Actor's URI is the identity anchor for the canonical ledger,
-    transferring Case Actor ownership raises a re-keying question: future
-    cryptographic identity and case encryption designs make re-keying undesirable.
-    The design for ownership transfer across cryptographic boundaries requires
-    further work before this aspect can be normative.
+!!! note "Open architectural question: key handover"
+    Moving the `CASE_MANAGER` role to a different actor raises an unresolved
+    key-handover question for future case-encryption designs. The question is
+    stated once, at [§11.3](../index.md#113-case-ownership-transfer-n).
 
 #### 12.3.3 Roles and Capability Sets Are Independent
 
@@ -66,9 +64,8 @@ Mixing them produces contradictions, so the relationship is stated explicitly:
 - A parse-only actor is not a case Participant: it holds no role and no case owes
   it delivery.
 - An implementation holding the Hosting capability set additionally hosts the
-  Case Actor. Hosting is commonly co-held with the Coordinator and Case Manager
-  roles, but it is the Hosting capability set that obliges ledger authority, not
-  the role name.
+  CASE_MANAGER role. Hosting is commonly co-held with the Coordinator role, but it
+  is the Hosting capability set that obliges ledger authority, not the role name.
 
 !!! note "Observer is a participant role, not a passive state"
     An Observer role holder that is *in a case* implements the full Observer

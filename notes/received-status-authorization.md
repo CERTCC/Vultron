@@ -3,7 +3,7 @@ title: "Received-Side Status Authorization: Two-Gate Design"
 status: active
 description: >
   Design notes for the two-gate authorization model that governs how a
-  CaseActor adopts an inbound participant's reported CaseStatus as canonical
+  CASE_MANAGER adopts an inbound participant's reported CaseStatus as canonical
   (StatusAdoptionGate) and whether to execute embargo teardown side-effects (EmbargoTeardownAuthorizationGate).
   Derived from the IDEA-1836 planning session.
 related_specs:
@@ -23,12 +23,12 @@ relevant_packages:
 
 ## Background
 
-When a CaseActor receives an `Add(ParticipantStatus)` activity it faces two
+When a CASE_MANAGER receives an `Add(ParticipantStatus)` activity it faces two
 separate questions:
 
-1. **Adoption**: should the CaseActor treat the participant's claimed CaseStatus
+1. **Adoption**: should the CASE_MANAGER treat the participant's claimed CaseStatus
    as canonical for the whole case?
-2. **Side-effects**: if the status is canonical, should the CaseActor execute
+2. **Side-effects**: if the status is canonical, should the CASE_MANAGER execute
    embargo teardown (or other side-effects)?
 
 These are independent authorization decisions. The original
@@ -44,17 +44,17 @@ In production, threat monitoring is **event-driven**, not polling:
 
 1. A **sentinel actor** (or any informed participant) monitors threat feeds and
    detects a signal (exploit published, attack observed, public disclosure).
-2. The sentinel posts `Add(ParticipantStatus, CaseParticipant)` to the CaseActor,
+2. The sentinel posts `Add(ParticipantStatus, CaseParticipant)` to the CASE_MANAGER,
    carrying the appropriate PXA state change (e.g., X=True for exploit, A=True
    for attacks).
-3. The CaseActor's received-side BT processes the activity and decides whether
+3. The CASE_MANAGER's received-side BT processes the activity and decides whether
    to adopt the claim and act on it.
 
 The simulation `MonitorThreats` polling BT (FUZZ-D / issue #1250) is superseded
 by this pattern for production. The four simulation nodes
 (`MonitorAttacks`, `MonitorExploits`, `MonitorPublicReports`, `NoThreatsFound`)
 remain valid as fuzzer stubs for the sentinel actor's internal logic — they are
-not wired into the CaseActor's received-side pipeline.
+not wired into the CASE_MANAGER's received-side pipeline.
 
 ---
 
@@ -251,7 +251,7 @@ stale entry would refuse a second dimension for a contradiction that no longer
 exists.
 
 The replica-apply path (`ApplyParticipantStatusFromLedgerNode`) is deliberately
-out of scope. It applies CaseActor-authored canonical entries the CaseActor
+out of scope. It applies CASE_MANAGER-authored canonical entries the CASE_MANAGER
 already adjudicated, and is governed by the RM ratchet in RSH-05-007. That is
 also the only way an impossible incumbent state is reachable today (#3009).
 
@@ -299,7 +299,7 @@ When `StatusAdoptionGate` passes, `EmitCaseStatusUpdateNode` writes the
 post-adoption `CaseStatus` snapshot directly to the case ledger via an inner
 `BTBridge` call to `create_commit_log_entry_tree` (RSH-04-002, RSH-04-003,
 RSH-04-004).  The node MUST NOT route through the inbox seam: no
-`Add(CaseStatus)` activity is emitted to the CaseActor itself.
+`Add(CaseStatus)` activity is emitted to the CASE_MANAGER itself.
 
 Embargo teardown side-effects (previously a downstream result of the inbox
 path flowing into `add_case_status_tree`) are now handled inline immediately
@@ -418,9 +418,9 @@ conversation-state routing subtree, and `RequireCaseOwnerApprovalNode` is
 deleted rather than completed. See the amendment note under **StatusAdoptionGate**
 above and [protocol-asks.md](protocol-asks.md); tracked by #2885.
 
-Note: the self-addressed `Add(CaseStatus)` path arrives with the CaseActor as
+Note: the self-addressed `Add(CaseStatus)` path arrives with the CASE_MANAGER as
 sender (CASE_MANAGER role). This means even when `EmbargoTeardownAuthorizationGate` requires
-CASE_OWNER approval, the CaseActor has already obtained that approval via
+CASE_OWNER approval, the CASE_MANAGER has already obtained that approval via
 StatusAdoptionGate before emitting the self-message. The two gates compose correctly.
 
 ### ThreatTerminationBranchNode
@@ -499,12 +499,12 @@ Placed in `vultron/core/behaviors/call_out/bundles/status_authorization.py`
 CaseStatus is the **only protocol channel** for communicating EM and PXA
 state changes to participant replicas. This means:
 
-1. **Only the CaseActor (CASE_MANAGER) emits `Add(CaseStatus)` directly.**
+1. **Only the CASE_MANAGER emits `Add(CaseStatus)` directly.**
    All other participants embed a suggested `CaseStatus` inside
    `Add(ParticipantStatus)` and let the two-seam model decide whether to
    adopt it (RSH-04-001).
 
-2. **Every CaseActor-side EM or PXA state mutation MUST be followed by a
+2. **Every CASE_MANAGER-side EM or PXA state mutation MUST be followed by a
    canonical `CaseStatus` ledger write** (RSH-04-002, RSH-04-003). Without
    it, all participant replicas remain stale until the next round-trip.
 
@@ -540,7 +540,7 @@ currently uses:
 ```
 
 The inbox gate (StatusAdoptionGate → EmbargoTeardownAuthorizationGate) exists for evaluating **external participant
-suggestions**, not for the CaseActor recording its own authoritative state
+suggestions**, not for the CASE_MANAGER recording its own authoritative state
 changes. `EmitAddCaseStatusToSelfNode` is a recognized kludge; a follow-on
 issue will refactor the inbound path to use direct ledger writes as well
 (blocked by the `EmitCaseStatusUpdateNode` impl issue).

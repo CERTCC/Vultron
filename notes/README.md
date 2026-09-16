@@ -262,7 +262,7 @@ vocabulary examples, and re-engagement patterns.
 semantic extraction, or writing new ActivityStreams vocabulary classes.
 
 **`activitystreams-state-update.md`**
-Advanced ActivityStreams design notes: Case State update path, `CaseActor`
+Advanced ActivityStreams design notes: Case State update path, `CASE_MANAGER`
 authoritativeness, DR-series named bugs (DR-02, DR-05, DR-07, DR-08–DR-14),
 transitive activity patterns, base-typed serialization, invite response
 parsing, bootstrap embedded-object contract, semantic registry patterns,
@@ -559,10 +559,10 @@ embargo status transitions, or debugging action rule filtering.
 
 **`case-communication-model.md`**
 Canonical communication model for post-case-creation participant messaging:
-all messages route through the Case Actor only
-(`participant → CaseActor → CaseLedgerEntry → broadcast → participants`). Covers
+all messages route through the CASE_MANAGER only
+(`participant → CASE_MANAGER → CaseLedgerEntry → broadcast → participants`). Covers
 the routing rule, its rationale, the `case_addressees()` antipattern, how to
-resolve the Case Actor ID, and the automatic `CaseLedgerEntry + broadcast`
+resolve the CASE_MANAGER ID, and the automatic `CaseLedgerEntry + broadcast`
 cascade. Normative requirements: `specs/participant-case-replica.yaml` PCR-08.
 **Load when**: implementing any trigger use case or BT that causes a
 participant to send a case-scoped message, debugging out-of-band note or
@@ -570,10 +570,10 @@ embargo delivery, or auditing outbound activity addressing.
 
 **`case-ledger-authority.md`**
 Assertion recording model for report / proto-case / case flows: implicit
-participant assertions, `CaseActor`-authored `CaseLedgerEntry`, local audit log
+participant assertions, `CASE_MANAGER`-authored `CaseLedgerEntry`, local audit log
 vs replicated canonical chain, and rejection handling.
 **Load when**: implementing case event logging, designing trust boundaries for
-multi-actor case state synchronization, or evaluating the CaseActor assertion
+multi-actor case state synchronization, or evaluating the CASE_MANAGER assertion
 model.
 
 **`case-ledger-parsing.md`**
@@ -597,7 +597,7 @@ invariants.
 
 **`participant-case-replica.md`**
 Design notes for participant case replicas: per-actor case copies, the
-synchronisation model between `CaseActor` and participant actors, and the
+synchronisation model between the `CASE_MANAGER` and participant actors, and the
 relationship to AppendOnlyLedger/LedgerFanout implementation phases.
 **Load when**: implementing participant-side case replica handling, working on
 `specs/participant-case-replica.yaml` (PCR) requirements, or designing the
@@ -840,13 +840,13 @@ the development loop, or deciding which skill to run next.
 
 **`ownership-transfer.md`**
 Implementation guidance for the ownership-transfer routing model (ADR-0053):
-Offer and Accept MUST route through the CaseActor; correct flow for
+Offer and Accept MUST route through the CASE_MANAGER; correct flow for
 `EmitOfferCaseOwnershipTransferNode`, `EmitAcceptCaseOwnershipTransferNode`,
 `OfferCaseOwnershipTransferReceivedUseCase`, and the cascade wiring in
 `ownership_transfer_tree.py`. Includes the demo workaround removal checklist.
 **Load when**: implementing ownership-transfer routing fixes (CM-21-005,
 CM-21-006, CM-21-007), auditing transfer routing in demos, or understanding
-why the CaseActor must be the intermediary for ownership transfers.
+why the CASE_MANAGER must be the intermediary for ownership transfers.
 
 **`coordination-agents.md`**
 Design guidance for capability shapes — the five abstract interface contracts

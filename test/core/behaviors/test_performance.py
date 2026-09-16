@@ -36,6 +36,7 @@ from vultron.core.behaviors.report.validate_tree import (
 )
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
+from vultron.core.models.report_case_link import VultronReportCaseLink
 from vultron.core.models.vultron_types import (
     VultronAccept,
     VultronCaseActor,
@@ -180,6 +181,12 @@ def _seed_mock_case(storage: dict) -> VulnerabilityCase:
     case.add_participant(participant)
     storage[case.id_] = case
     storage[participant.id_] = participant
+    link = VultronReportCaseLink.model_construct(
+        id_=VultronReportCaseLink.build_id("test-report-123"),
+        report_id="test-report-123",
+        rm_state=RM.RECEIVED,
+    )
+    storage[link.id_] = link
     return case
 
 

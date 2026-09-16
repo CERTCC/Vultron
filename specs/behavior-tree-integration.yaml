@@ -305,7 +305,7 @@ groups:
     kind: project
     statement: Actor blackboards MUST NOT share state
 - id: BT-10
-  title: CaseActor Management
+  title: Case Manager Role Management
   specs:
   - id: BT-10-001
     priority: MUST
@@ -327,10 +327,10 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      Case creation MUST establish a CaseActor for the case by recording a participant that holds
+      Case creation MUST establish the case's CASE_MANAGER by recording a participant that holds
       `CVDRole.CASE_MANAGER`. It MUST NOT require a per-case `Service` object, and MUST NOT mint a
-      per-case actor identity: the CaseActor's identity is its container's, and the case a message
-      concerns is carried by `activity.context`.
+      per-case actor identity: the actor enacting the role (the "CaseActor") has its container's
+      identity, and the case a message concerns is carried by `activity.context`.
     rationale: >-
       The prior text — "Case creation MUST create corresponding CaseActor (Service)" — treated the
       CaseActor as a distinct per-case *object*, and implementations followed it by deriving
@@ -340,7 +340,7 @@ groups:
       could not rescue it either, because the slug is not computable until a report exists, by which
       point the proposal has already been delivered.
 
-      An actor participates in many cases; the CaseActor is whichever participant the case owner
+      An actor participates in many cases; the CASE_MANAGER is whichever participant the case owner
       delegated `CVDRole.CASE_MANAGER` to. That is the role, not an entity, which is why the role is
       the marker and a `Service` record is redundant with it. This also subsumes the eventual
       one-process-per-case direction: such a process gets its own first-class actor identity rather
@@ -362,8 +362,9 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      The actor holding `CVDRole.CASE_MANAGER` for a case MUST process that case's messages. "CaseActor"
-      names that role holder, not a separate component.
+      The actor holding `CVDRole.CASE_MANAGER` for a case MUST process that case's messages. The
+      authority is that role; "CaseActor" names only the concrete prototype/demo actor that enacts
+      it, not the role itself.
     rationale: >-
       Reworded with BT-10-002 to remove the entity-vs-role assumption: the prior "CaseActor MUST manage
       case-related message processing" reads as an obligation on a distinct object, which is what led
@@ -661,7 +662,7 @@ groups:
       not overwrite.
     rationale: >-
       In received-side use cases, `request.actor_id` is the sender of the
-      inbound activity; `request.receiving_actor_id` is the CaseActor that owns
+      inbound activity; `request.receiving_actor_id` is the CASE_MANAGER that owns
       the ledger and whose role must be verified by `CheckIsCaseManagerNode`.
       Passing the sender ID as `actor_id` causes the role check to fail:
       the guarded commit never fires, and the ledger entry is silently skipped.
@@ -1012,7 +1013,7 @@ groups:
     kind: project
     statement: The production report-to-others workflow SHOULD be driven by a Sentinel capability that proactively
       queries the case for actors who are not yet participants but should be (party discovery), then fires `suggest-actor-to-case`
-      for each candidate. The `suggest-actor-to-case` protocol (Offer → CaseActor → CaseOwner → Invite → Accept → Record
+      for each candidate. The `suggest-actor-to-case` protocol (Offer → CASE_MANAGER → CaseOwner → Invite → Accept → Record
       cascade) handles the downstream flow; no inline tick-driven BT loop is needed at the outer level. If an inline subtree
       is required (e.g. for a single-pass trigger-driven invocation), it SHOULD consist of a Retriever call-out that returns
       candidate (actor_id, role) pairs and an Actuator per pair that fires `suggest-actor-to-case` with the explicit

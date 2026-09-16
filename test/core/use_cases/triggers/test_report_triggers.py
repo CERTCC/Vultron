@@ -37,9 +37,9 @@ from vultron.core.models.report import (
 from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
 )
+from vultron.core.models.report_case_link import VultronReportCaseLink
 from vultron.core.states.rm import RM
 from vultron.enums.roles import CVDRole
-from vultron.core.models._helpers import _report_phase_status_id
 from vultron.core.use_cases.triggers.report import (
     SvcInvalidateReportUseCase,
     SvcRejectReportUseCase,
@@ -53,7 +53,6 @@ from vultron.core.use_cases.triggers.requests import (
     ValidateReportTriggerRequest,
 )
 from vultron.core.models.offer_record import VultronOfferRecord
-from vultron.core.models.report_case_link import VultronReportCaseLink
 from vultron.errors import VultronNotFoundError
 from vultron.wire.as2.factories import rm_submit_report_activity
 from vultron.wire.as2.vocab.base.objects.activities.transitive import as_Offer
@@ -200,6 +199,11 @@ class TestSvcValidateReportUseCase:
             self.case_actor.id_,
             self.report.id_,
         )
+        self.dl.create(
+            VultronReportCaseLink(
+                report_id=self.report.id_, rm_state=RM.RECEIVED
+            )
+        )
         yield
         self.dl.clear_all()
         self.dl.close()
@@ -226,11 +230,11 @@ class TestSvcValidateReportUseCase:
             trigger_activity=TriggerActivityAdapter(self.dl),
         ).execute()
 
-        valid_id = _report_phase_status_id(
-            self.vendor.id_, self.report.id_, RM.VALID.value
+        link = self.dl.read(VultronReportCaseLink.build_id(self.report.id_))
+        assert (
+            isinstance(link, VultronReportCaseLink)
+            and link.rm_state == RM.VALID
         )
-        status_record = self.dl.read(valid_id)
-        assert status_record is not None
 
     @pytest.mark.spec("TRIG-02-001")
     def test_validate_report_updates_case_participant_rm_state(self):
@@ -454,6 +458,11 @@ class _ReportTriggerBase:
             self.case_actor.id_,
             self.report.id_,
         )
+        self.dl.create(
+            VultronReportCaseLink(
+                report_id=self.report.id_, rm_state=RM.RECEIVED
+            )
+        )
         yield
         self.dl.clear_all()
         self.dl.close()
@@ -509,18 +518,11 @@ class TestSvcRejectReportUseCase(_ReportTriggerBase):
 
     def _seed_invalid(self):
         """Pre-seed RM.INVALID so INVALID→CLOSED is a valid transition (BTND-10-001)."""
-        from vultron.core.models.dimensions import RmDimension
-        from vultron.core.models.participant_status import ParticipantStatus
-
-        status = ParticipantStatus(
-            id_=_report_phase_status_id(
-                self.vendor.id_, self.report.id_, RM.INVALID.value
-            ),
-            context=self.report.id_,
-            attributed_to=self.vendor.id_,
-            rm=RmDimension(state=RM.INVALID),
+        self.dl.save(
+            VultronReportCaseLink(
+                report_id=self.report.id_, rm_state=RM.INVALID
+            )
         )
-        self.dl.create(status)
 
     @pytest.mark.spec("TRIG-02-001")
     @pytest.mark.spec("TRIG-07-001")

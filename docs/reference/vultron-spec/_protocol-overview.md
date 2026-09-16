@@ -10,7 +10,7 @@ the tuple of all individual process states and $C$ is the set of messages
 currently in transit.
 
 No central process owns the global state. Each Participant holds a replica of
-the case and advances its own state machines independently. The Case Actor
+the case and advances its own state machines independently. The CASE_MANAGER
 enforces single-writer authority over shared state ([§5.4.1](index.md#541-single-writer-authority)) and replicates
 canonical changes to all Participants via `Announce(CaseLedgerEntry)`.
 
@@ -51,7 +51,7 @@ The four dimensions are not independent. State transitions in one dimension
 can trigger obligations or cascades in others.
 
 **RM drives case progression.** A Participant's RM state governs what it is
-obligated to do and what the Case Actor may deliver to it. Case content is
+obligated to do and what the CASE_MANAGER may deliver to it. Case content is
 not delivered until a Participant has been admitted at `RM.RECEIVED` and
 satisfied the embargo consent gate ([§9.7](index.md#97-gating-full-case-delivery)).
 

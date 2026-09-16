@@ -77,7 +77,7 @@ replica has been delivered to it.
 !!! note "`Accept(Invite)` does not mean `RM.ACCEPTED`"
     Two different protocol acts are easily conflated: *joining a case* and
     *accepting a report for action*. `Accept(Invite)` is the former. A
-    participant cannot accept what it has not seen, and the Case Actor MUST NOT
+    participant cannot accept what it has not seen, and the CASE_MANAGER MUST NOT
     treat a participant as having committed to the case until it receives an RM
     status message from that participant confirming the transition.
 
