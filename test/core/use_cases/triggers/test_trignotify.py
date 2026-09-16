@@ -28,10 +28,8 @@ from vultron.adapters.driven.datalayer_sqlite import (
     SqliteDataLayer,
     reset_datalayer,
 )
-from vultron.core.models.dimensions import RmDimension
 from vultron.core.models.offer_record import VultronOfferRecord
-from vultron.core.models.participant_status import ParticipantStatus
-from vultron.core.models._helpers import _report_phase_status_id
+from vultron.core.models.report_case_link import VultronReportCaseLink
 from vultron.core.states.em import EM
 from vultron.core.states.rm import RM
 from vultron.enums.roles import CVDRole
@@ -611,6 +609,11 @@ class TestReportTriggerToField:
 
     def test_invalidate_report_to_field_falls_back_to_offer_actor(self):
         """SvcInvalidateReportUseCase uses offer actor as to when no case exists."""
+        self.dl.create(
+            VultronReportCaseLink(
+                report_id=self.report.id_, rm_state=RM.RECEIVED
+            )
+        )
         request = InvalidateReportTriggerRequest(
             actor_id=self.vendor.id_,
             offer_id=self.offer.id_,
@@ -630,13 +633,8 @@ class TestReportTriggerToField:
         """SvcRejectReportUseCase uses offer actor as to when no case exists."""
         # Pre-seed RM.INVALID so INVALID→CLOSED is a valid transition (BTND-10-001).
         self.dl.create(
-            ParticipantStatus(
-                id_=_report_phase_status_id(
-                    self.vendor.id_, self.report.id_, RM.INVALID.value
-                ),
-                context=self.report.id_,
-                attributed_to=self.vendor.id_,
-                rm=RmDimension(state=RM.INVALID),
+            VultronReportCaseLink(
+                report_id=self.report.id_, rm_state=RM.INVALID
             )
         )
         request = RejectReportTriggerRequest(
@@ -671,13 +669,8 @@ class TestReportTriggerToField:
         self.dl.save(case)
         # Pre-seed RM.ACCEPTED so ACCEPTED→CLOSED is a valid transition (BTND-10-001).
         self.dl.create(
-            ParticipantStatus(
-                id_=_report_phase_status_id(
-                    self.vendor.id_, self.report.id_, RM.ACCEPTED.value
-                ),
-                context=self.report.id_,
-                attributed_to=self.vendor.id_,
-                rm=RmDimension(state=RM.ACCEPTED),
+            VultronReportCaseLink(
+                report_id=self.report.id_, rm_state=RM.ACCEPTED
             )
         )
 
@@ -708,6 +701,11 @@ class TestReportTriggerToField:
         )
         case.vulnerability_reports.append(self.report.id_)
         self.dl.save(case)
+        self.dl.create(
+            VultronReportCaseLink(
+                report_id=self.report.id_, rm_state=RM.RECEIVED
+            )
+        )
 
         request = InvalidateReportTriggerRequest(
             actor_id=self.vendor.id_,
@@ -737,13 +735,8 @@ class TestReportTriggerToField:
         self.dl.save(case)
         # Pre-seed RM.INVALID so INVALID→CLOSED is a valid transition (BTND-10-001).
         self.dl.create(
-            ParticipantStatus(
-                id_=_report_phase_status_id(
-                    self.vendor.id_, self.report.id_, RM.INVALID.value
-                ),
-                context=self.report.id_,
-                attributed_to=self.vendor.id_,
-                rm=RmDimension(state=RM.INVALID),
+            VultronReportCaseLink(
+                report_id=self.report.id_, rm_state=RM.INVALID
             )
         )
 

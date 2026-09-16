@@ -13,12 +13,12 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-"""Regression tests for core/models/_helpers.py — _as_id and
-_report_phase_status_id must live in the models layer, not use_cases.
+"""Regression tests for core/models/_helpers.py — _as_id must live in the
+models layer, not use_cases.
 
-Issue #1428: BT import-direction violation — behaviors/ imported _as_id and
-_report_phase_status_id from use_cases/_helpers, violating the rule that
-behaviors/ must not import from use_cases/.
+Issue #1428: BT import-direction violation — behaviors/ imported _as_id from
+use_cases/_helpers, violating the rule that behaviors/ must not import from
+use_cases/.
 """
 
 import ast
@@ -42,8 +42,7 @@ def _imports_from_use_cases(path: str) -> list[str]:
 
 
 def test_common_py_no_use_cases_import():
-    """common.py must not import _as_id / _report_phase_status_id from
-    use_cases._helpers (BT-IDM-02 violation)."""
+    """common.py must not import _as_id from use_cases._helpers (BT-IDM-02 violation)."""
     path = "vultron/core/behaviors/case/nodes/participant/common.py"
     violations = _imports_from_use_cases(path)
     assert (
@@ -83,29 +82,6 @@ def test_as_id_object_without_id_():
             return "fallback"
 
     assert _as_id(Obj()) == "fallback"
-
-
-def test_report_phase_status_id_deterministic():
-    from vultron.core.models._helpers import _report_phase_status_id
-
-    a = _report_phase_status_id("actor1", "report1", "RECEIVED")
-    b = _report_phase_status_id("actor1", "report1", "RECEIVED")
-    assert a == b
-
-
-def test_report_phase_status_id_urn_format():
-    from vultron.core.models._helpers import _report_phase_status_id
-
-    result = _report_phase_status_id("actor1", "report1", "RECEIVED")
-    assert result.startswith("urn:uuid:")
-
-
-def test_report_phase_status_id_different_states():
-    from vultron.core.models._helpers import _report_phase_status_id
-
-    id_received = _report_phase_status_id("actor1", "report1", "RECEIVED")
-    id_valid = _report_phase_status_id("actor1", "report1", "VALID")
-    assert id_received != id_valid
 
 
 # --- status_recency_key (CM-29-001) ---------------------------------------

@@ -42,19 +42,19 @@ import py_trees
 
 from vultron.core.behaviors.case.nodes.participant.owner import (
     AttachOwnerParticipantToCaseNode,
+    CreateOwnerInitialStatusNode,
     CreateOwnerParticipantNode,
     PersistOwnerCaseNode,
     RecordOwnerJoinedEventNode,
-    ResolveOwnerInitialStatusNode,
 )
 from vultron.core.behaviors.case.nodes.participant.participant_add import (
     AttachParticipantToCaseNode,
     CaseHasActiveEmbargoNode,
     CaseHasNoActiveEmbargoNode,
+    CreateParticipantInitialStatusNode,
     CreateParticipantNode,
     QueueAddParticipantNotificationNode,
     RecordParticipantAddedEventNode,
-    ResolveParticipantAcceptedStatusNode,
     SeedParticipantAsSignatoryNode,
 )
 from vultron.config.actor import ActorConfig
@@ -113,16 +113,15 @@ class CreateCaseOwnerParticipant(py_trees.composites.Sequence):
             name=name or self.__class__.__name__,
             memory=False,
             children=[
-                ResolveOwnerInitialStatusNode(
-                    report_id=report_id,
-                    case_obj=case_obj,
-                    initial_rm_state=initial_rm_state,
-                ),
                 CreateOwnerParticipantNode(
                     actor_config=actor_config, report_id=report_id
                 ),
                 AttachOwnerParticipantToCaseNode(report_id=report_id),
                 PersistOwnerCaseNode(report_id=report_id),
+                CreateOwnerInitialStatusNode(
+                    initial_rm_state=initial_rm_state,
+                    report_id=report_id,
+                ),
                 RecordOwnerJoinedEventNode(report_id=report_id),
             ],
         )
@@ -147,11 +146,6 @@ class CreateCaseParticipantNode(py_trees.composites.Sequence):
             name=name or self.__class__.__name__,
             memory=False,
             children=[
-                ResolveParticipantAcceptedStatusNode(
-                    participant_actor_id=actor_id,
-                    roles=roles,
-                    report_id=report_id,
-                ),
                 CreateParticipantNode(
                     participant_actor_id=actor_id,
                     roles=roles,
@@ -159,6 +153,10 @@ class CreateCaseParticipantNode(py_trees.composites.Sequence):
                 ),
                 AttachParticipantToCaseNode(
                     participant_actor_id=actor_id, report_id=report_id
+                ),
+                CreateParticipantInitialStatusNode(
+                    participant_actor_id=actor_id,
+                    report_id=report_id,
                 ),
                 RecordParticipantAddedEventNode(report_id=report_id),
                 SeedParticipantAsSignatoryIfEmbargoActiveNode(

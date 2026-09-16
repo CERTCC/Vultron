@@ -23,10 +23,10 @@ import pytest
 from vultron.core.behaviors.case.nodes import CreateCaseOwnerParticipant
 from vultron.core.behaviors.case.nodes.participant import (
     AttachOwnerParticipantToCaseNode,
+    CreateOwnerInitialStatusNode,
     CreateOwnerParticipantNode,
     PersistOwnerCaseNode,
     RecordOwnerJoinedEventNode,
-    ResolveOwnerInitialStatusNode,
 )
 from vultron.config.actor import ActorConfig
 from vultron.core.models.vultron_types import VultronCase, VultronCaseActor
@@ -155,10 +155,10 @@ class TestCreateCaseOwnerParticipant:
         node = CreateCaseOwnerParticipant()
         assert isinstance(node, py_trees.composites.Sequence)
         assert [type(child) for child in node.children] == [
-            ResolveOwnerInitialStatusNode,
             CreateOwnerParticipantNode,
             AttachOwnerParticipantToCaseNode,
             PersistOwnerCaseNode,
+            CreateOwnerInitialStatusNode,
             RecordOwnerJoinedEventNode,
         ]
 

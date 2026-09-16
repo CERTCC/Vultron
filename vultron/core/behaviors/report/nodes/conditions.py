@@ -28,7 +28,7 @@ from vultron.core.behaviors.case.nodes.participant.common import (
     resolve_participant_state_from_dl,
 )
 from vultron.core.states.rm import RM
-from vultron.core.models._helpers import _report_phase_status_id
+from vultron.core.models.report_case_link import VultronReportCaseLink
 from vultron.errors import VultronInvalidStateTransitionError
 
 
@@ -57,17 +57,14 @@ class _CheckReportPhaseRMStateBase(DataLayerConditionWithPorts):
         if (f := self._require_datalayer()) is not None:
             return f
         assert self.datalayer is not None
-        actor_id = (
-            self.sender_actor_id if self.sender_actor_id else self.actor_id
-        )
-        if actor_id is None:
-            self.logger.error(f"{self.name}: actor_id not available")
-            return Status.FAILURE
 
-        valid_id = _report_phase_status_id(
-            actor_id, self.report_id, RM.VALID.value
-        )
-        is_valid = self.datalayer.read(valid_id) is not None
+        link_id = VultronReportCaseLink.build_id(self.report_id)
+        link = self.datalayer.read(link_id)
+        if isinstance(link, VultronReportCaseLink):
+            is_valid = link.rm_state == RM.VALID
+        else:
+            # No link yet → implicit RM.RECEIVED (not yet VALID)
+            is_valid = False
 
         if is_valid:
             if self._success_when_valid:
@@ -446,19 +443,19 @@ class CheckReportNotClosed(DataLayerConditionWithPorts):
         Returns:
             SUCCESS when not yet closed;
             FAILURE (+ ``result_out["error"]``) when already closed or
-            the DataLayer/actor_id is unavailable.
+            the DataLayer is unavailable.
         """
         if (f := self._require_datalayer()) is not None:
             return f
         assert self.datalayer is not None
-        if self.actor_id is None:
-            self.logger.error("%s: actor_id not available", self.name)
-            return Status.FAILURE
 
-        closed_id = _report_phase_status_id(
-            self.actor_id, self.report_id, RM.CLOSED.value
+        link_id = VultronReportCaseLink.build_id(self.report_id)
+        link = self.datalayer.read(link_id)
+        is_closed = (
+            isinstance(link, VultronReportCaseLink)
+            and link.rm_state == RM.CLOSED
         )
-        if self.datalayer.read(closed_id) is not None:
+        if is_closed:
             error = VultronInvalidStateTransitionError(
                 f"Report '{self.report_id}' is already CLOSED."
             )

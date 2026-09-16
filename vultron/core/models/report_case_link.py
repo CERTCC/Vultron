@@ -22,6 +22,7 @@ from typing import Any, Literal
 from pydantic import Field, model_validator
 
 from vultron.core.models.base import NonEmptyString, UriString, VultronObject
+from vultron.core.states.rm import RM
 
 
 class VultronReportCaseLink(VultronObject):
@@ -67,6 +68,14 @@ class VultronReportCaseLink(VultronObject):
             "Human-readable reason provided by the case-actor service when "
             "rejecting the CaseProposal (CP-06-004).  None when not provided "
             "or when the proposal was accepted."
+        ),
+    )
+    rm_state: RM = Field(
+        default=RM.RECEIVED,
+        description=(
+            "RM state for this report before a case is established. "
+            "Replaces the report-phase ParticipantStatus latch pattern "
+            "(BTND-10-006, ADR-0089)."
         ),
     )
 

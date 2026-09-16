@@ -54,16 +54,6 @@ _VALIDATING_NODE_MODULES: tuple[str, ...] = (
 #
 # The divergence these exclusions record is tracked as type:Concern #3111.
 _DECLARED_EXCLUSIONS: dict[str, str] = {
-    # Report-phase RM latch: operates on a *report*, before a case exists, so
-    # there is no case participant, no VF/D/PXA dimension and no role gate for
-    # the shared evaluator to apply.  Its current state comes from
-    # `_current_report_phase_rm_state` (report-scoped), not from
-    # `resolve_participant_state_from_dl` (case-scoped).  Folding the two
-    # lifecycles into one evaluator is a separate design question.
-    "vultron/core/behaviors/report/nodes/rm_transitions.py": (
-        "report-phase RM latch — pre-case lifecycle, RM only, report-scoped"
-        " current state"
-    ),
     # Receive path, not emit path.  It MUST NOT use the emit evaluator: it
     # adjudicates each dimension independently and carries the participant's
     # current value forward for refused ones (ADR-0061, RSH-05-001), which is
@@ -97,25 +87,6 @@ _DECLARED_EXCLUSIONS: dict[str, str] = {
     "vultron/core/behaviors/case/nodes/participant/common.py": (
         "evaluator infrastructure — reads current state into dimension objects"
         " for carry-forward; not a write site (ADR-0086)"
-    ),
-    # BOOTSTRAP write: seeds initial RM state for a brand-new case owner
-    # participant.  No prior state exists so the transition adjacency rule
-    # (BTND-10-001) has nothing to check; using the emit evaluator here would
-    # falsely flag RM.RECEIVED as an invalid transition from a non-existent
-    # previous state (ADR-0087).
-    "vultron/core/behaviors/case/nodes/participant/owner.py": (
-        "bootstrap write — seeds initial RmDimension(RM.RECEIVED) for a new"
-        " owner participant; no prior state so transition validation is moot"
-        " (ADR-0087)"
-    ),
-    # BOOTSTRAP write: seeds initial participant state (RECEIVED, VALID, or
-    # ACCEPTED) during case-proposal receipt, before the case actor has any
-    # prior RM history.  Same reasoning as owner.py: no prior state to compare
-    # against, so the adjacency rule cannot apply.
-    "vultron/core/behaviors/case/case_proposal_received_tree.py": (
-        "bootstrap write — seeds initial RmDimension for new participants"
-        " during case-proposal receipt; no prior state so transition rule"
-        " is moot (ADR-0087)"
     ),
     # PREDICATE use only: constructs DDimension(state).is_fix_deployed() for
     # a guard condition.  The dimension object is never stored; this is not a
@@ -190,6 +161,12 @@ _SHARED_EVALUATOR = "participant_transition_violations"
 _RM_FORCE_QUARANTINE: dict[str, int] = {
     "vultron/core/behaviors/sync/nodes/close_case_effect.py": 1,
     "vultron/core/behaviors/case/nodes/leave.py": 2,
+    # Bootstrap writes: initial participant status at non-adjacent states
+    # (issue #3206 — routed through CreateParticipantStatusNode, bypassing
+    # the adjacency rule for the first write as allowed by BTND-10-001).
+    "vultron/core/behaviors/case/case_proposal_received_tree.py": 1,
+    "vultron/core/behaviors/case/nodes/participant/owner.py": 1,
+    "vultron/core/behaviors/case/nodes/participant/participant_add.py": 1,
 }
 
 
