@@ -9,17 +9,35 @@ This section is the authoritative source for the terms it defines, including the
 role enumeration in [§2.2](index.md#22-roles). An implementation derives its
 vocabulary from this specification.
 
+Where a term already has a settled definition in the wider coordinated
+vulnerability disclosure literature, this specification adopts that definition
+rather than coining its own, and says where it came from. *Vulnerability* is such a
+term.
+
 ### 2.1 Actors, Participants and Cases
 
 These four terms are ordered deliberately: each builds on the one before it.
 
 | Term | Definition |
 |---|---|
-| **Vulnerability** | A weakness in an information system that could be exploited to cause harm. Vulnerabilities are the subject of every Vultron case. |
+| **Vulnerability** | A set of conditions or behaviors that allows the violation of an explicit or implicit security policy. Vulnerabilities are the subject of every Vultron case. |
 | **Report** | A document describing a specific vulnerability, submitted to initiate coordination. |
 | **Case** | The coordination context around a specific vulnerability: the participants, the shared state, the messages exchanged, and any embargo agreement. The case is the unit of Vultron protocol activity. |
 | **Actor** | An identity in the protocol, named by a URI. An actor may be an organization, a person, or a service. Actors exist independently of any case. |
 | **Participant** | An actor that has joined a specific case. The case holds a `CaseParticipant` record for each participant, associating that actor with the roles it holds and the state it owns. An actor is a participant *in a case*; the same actor may participate in many. |
+
+!!! info "Source of the vulnerability definition"
+    The definition of *vulnerability* above is taken unchanged from the
+    [CERT Guide to Coordinated Vulnerability Disclosure](https://certcc.github.io/CERT-Guide-to-CVD/tutorials/terms/vulnerability/).
+    It is also consistent with ISO/IEC 29147:2018 §5.4, which defines the term in
+    the same policy-violation terms
+    ([ISO crosswalks](../iso_crosswalks/iso_29147_2018.md)).
+
+    Note what the definition does *not* require: it says nothing about whether the
+    vulnerability is known, reported, fixed or public. Those are properties a
+    Vultron case tracks about a vulnerability
+    ([§8](index.md#8-case-state-cs-dimensions-n)), not part of what makes something
+    one.
 
 ### 2.2 Roles
 
