@@ -6,6 +6,8 @@ The behavioral requirements for this tree are specified in the
 [Protocol Specifications](../../reference/specs/protocol.md):
 
 - [EMB-13](../../reference/specs/protocol.md#emb-13) — Enter EM Exited
+- [EMB-14](../../reference/specs/protocol.md#emb-14) — Actor-Voluntary Embargo Termination (Trigger Side)
+- [EMB-19](../../reference/specs/protocol.md#emb-19) — Embargo Teardown Announcement
 
 !!! note "Implementation approach"
 
