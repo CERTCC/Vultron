@@ -6,6 +6,7 @@ from typing import Any, Literal
 import py_trees
 
 from vultron.core.behaviors.sync.nodes import (
+    CheckLedgerFreshnessNode,
     CreateLogEntryNode,
     DeclineForeignLedgerCommitNode,
     FanOutLogEntryNode,
@@ -40,6 +41,9 @@ def create_commit_log_entry_tree(
                 name="MintAndFanOutLogEntry",
                 memory=False,
                 children=[
+                    CheckLedgerFreshnessNode(
+                        case_id=case_id, name="CheckLedgerFreshness"
+                    ),
                     ReconstructChainTailNode(
                         case_id=case_id, name="ReconstructChainTail"
                     ),

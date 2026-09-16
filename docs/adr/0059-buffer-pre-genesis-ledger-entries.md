@@ -103,8 +103,11 @@ end-to-end (per the "protocol fix only" decision on #2180).
   re-delivered; the deterministic genesis hash anchors from the case object.
 - Good: the genesis `Reject` remains as the loss backstop (SYNC-15-001), so a
   genuinely lost entry still triggers replay.
-- Neutral: buffered state is in-memory and lost on restart; the SYNC-10 catch-up
-  gate re-syncs any gap after restart, so no durability is required.
+- Neutral: buffered state is in-memory and lost on restart; no durability is
+  required because the committed prefix survives the restart intact, and any
+  dropped forward-gap entries re-enter via the ordinary diverge/reject/replay
+  path (SYNC-14-002, SYNC-08-005) when the next `Announce` does not match the
+  committed tail.
 - Bad: the pre-genesis hold has no forward-gap bound to distinguish "far-future"
   from "just early", so it leans entirely on the `LedgerGapBuffer` size cap +
   farthest-ahead eviction (recoverable via the Reject backstop).

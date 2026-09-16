@@ -72,8 +72,11 @@ differently-scoped DataLayer.
   implementations and lossy/reordering transports.
 - Good: the buffer is a non-ledger holding area (SYNC-13-003), so the
   "DataLayer presence ⇒ committed + effects applied" invariant is preserved.
-- Neutral: buffered state is in-memory and lost on restart; the SYNC-10 catch-up
-  gate re-syncs any gap after restart, so no durability is required.
+- Neutral: buffered state is in-memory and lost on restart; no durability is
+  required because the committed prefix survives the restart intact, and any
+  dropped forward-gap entries re-enter via the ordinary diverge/reject/replay
+  path (SYNC-14-002, SYNC-08-005) when the next `Announce` does not match the
+  committed tail.
 - Bad: adds a per-actor in-memory structure and a drain step on the receive
   path; bounded by a size cap with farthest-ahead eviction (recoverable via the
   Reject backstop).

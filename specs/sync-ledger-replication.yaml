@@ -528,9 +528,10 @@ groups:
       After actor process restart or recovery, an actor with case state in scope MUST re-establish
       case-ledger freshness with the CaseActor before taking new protocol-significant case actions
     verification: >-
-      Integration tests in `test/demo/` confirm that after actor restart the actor
-      re-establishes case-ledger freshness before proceeding with protocol-significant
-      case actions.
+      `test/core/behaviors/sync/test_commit_tree.py::test_commit_tree_blocked_when_ledger_has_gap`
+      confirms that the gate blocks when the committed prefix has a gap (simulating
+      post-restart state where the DataLayer has entries 0 and 2 but is missing
+      entry 1). The behavior tree returns FAILURE and no new entry is persisted.
     stories:
     - story_2022_045
     - story_2022_088
@@ -542,9 +543,11 @@ groups:
       protocol-significant case actions and surface an explicit stale-or-catching-up
       condition
     verification: >-
-      Integration tests in `test/demo/` confirm that a catching-up actor blocks
-      protocol-significant case actions and surfaces a stale-or-catching-up condition
-      until freshness is re-established.
+      `test/core/behaviors/sync/test_commit_tree.py::test_commit_tree_blocked_when_ledger_has_gap`
+      confirms that `CheckLedgerFreshnessNode` returns FAILURE (blocking the mint
+      sequence) when the ledger has a gap, and that the WARNING emitted by
+      `CheckLedgerFreshnessNode` surfaces the stale-or-catching-up condition
+      (SYNC-10-002).
     stories:
     - story_2022_088
   - id: SYNC-10-003
