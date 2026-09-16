@@ -6,12 +6,15 @@ in `vultron/core/behaviors/case/` and `vultron/core/behaviors/sync/`.
 ## Requirements
 
 The behavioral requirements for these trees are specified in the
-[Protocol Specifications](../specs/protocol.md):
+[Architecture Specifications](../specs/architecture.md):
 
-- [CSB-01](../specs/protocol.md#csb-01) — Receive CP (Case Proposal)
-- [CSB-02](../specs/protocol.md#csb-02) — Receive CA (Case Acceptance)
-- [CSB-03](../specs/protocol.md#csb-03) — Receive CR (Case Rejection)
-- [CSB-15](../specs/protocol.md#csb-15) — Trigger-Side VFD Role Preconditions
+- **CM** — Case Management: governs case proposal, accept/reject, invite, and participant lifecycle
+- **CLP** — Case Ledger Processing: governs commit and announce log entry semantics
+
+!!! note
+
+    These behaviors are not directly governed by the protocol-level RMB, EMB, or CSB spec groups.
+    They implement case management and ledger replication semantics defined in the architecture specs.
 
 ## Accept Case Proposal Tree
 

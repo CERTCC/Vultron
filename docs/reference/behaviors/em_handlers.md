@@ -8,13 +8,11 @@ in `vultron/core/behaviors/embargo/`.
 The behavioral requirements for these trees are specified in the
 [Protocol Specifications](../specs/protocol.md):
 
-- [EMB-01](../specs/protocol.md#emb-01) — Receive EP (Embargo Proposal)
-- [EMB-02](../specs/protocol.md#emb-02) — Receive EA (Embargo Acceptance)
-- [EMB-03](../specs/protocol.md#emb-03) — Receive EJ (Embargo Rejection)
-- [EMB-04](../specs/protocol.md#emb-04) — Receive EV (Embargo Revision)
-- [EMB-05](../specs/protocol.md#emb-05) — Receive EC (Embargo Counter-proposal)
-- [EMB-06](../specs/protocol.md#emb-06) — Receive ET (Embargo Teardown)
-- [EMB-14](../specs/protocol.md#emb-14) — EM Write-Boundary Transition Validation
+- [EMB-10](../specs/protocol.md#emb-10) — Enter EM Proposed
+- [EMB-11](../specs/protocol.md#emb-11) — Enter EM Active
+- [EMB-12](../specs/protocol.md#emb-12) — Enter EM Revise
+- [EMB-13](../specs/protocol.md#emb-13) — Enter EM Exited
+- [EMB-14](../specs/protocol.md#emb-14) — Actor-Voluntary Embargo Termination (Trigger Side)
 
 ## Manage Embargo Tree
 
