@@ -320,9 +320,18 @@ bridge.execute_with_setup(tree, actor_id=invitee_id)   # spoofed actor
 ```
 
 ```python
-# ✅ CORRECT — inline transition; no BT, no spoofed emit
-participant.append_rm_state(RM.ACCEPTED, actor=invitee_id, context=case_id)
-dl.save(participant)
+# ✅ CORRECT — the Case Actor advances the invitee's RM state through the sole
+# writer, in its own DataLayer, attributing the write to the invitee — no proxy
+# activity and no spoofed invitee BT (ADR-0089):
+BTBridge(datalayer=dl).execute_with_setup(
+    CreateParticipantStatusNode(
+        actor_id=invitee_id,        # subject of the write
+        rm_state=RM.ACCEPTED,
+        vf_state=None, d_state=None, pxa_state=None,
+    ),
+    actor_id=case_actor_id,         # the executing actor (owner of this store)
+    case_id=case_id,
+)
 ```
 
 The `Accept(Invite)` message is the invitee's engage decision. The Case Actor

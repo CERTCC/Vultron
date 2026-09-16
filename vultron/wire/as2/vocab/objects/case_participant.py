@@ -40,11 +40,6 @@ from vultron.core.models.participant_status import (
     coerce_cvd_roles,
     coerce_em_consent_state,
 )
-from vultron.core.predicates.roles import (
-    has_deployer_role,
-    has_vendor_role,
-)
-from vultron.core.states.rm import RM, is_valid_rm_transition
 from vultron.enums.roles import CVDRole, serialize_roles, validate_roles
 from vultron.core.models.base import NonEmptyString
 from vultron.core.models.enums import VultronObjectType as VO_type
@@ -196,59 +191,6 @@ class as_CaseParticipant(VultronAS2Object):
         if not self.participant_statuses:
             return None
         return self.participant_statuses[-1]
-
-    def append_rm_state(self, rm_state: RM, actor: str, context: str) -> bool:
-        """Append a new as_ParticipantStatus with the given RM state.
-
-        Skips the append (with a WARNING) if the transition from the current
-        RM state to rm_state is not valid according to the RM state machine.
-
-        Returns True when the status was appended, False when blocked.
-        """
-        latest = (
-            self.participant_statuses[-1]
-            if self.participant_statuses
-            else None
-        )
-        current = latest.rm_state if latest is not None else RM.START
-        if not is_valid_rm_transition(current, rm_state):
-            logger.warning(
-                "Invalid RM transition %s → %s for participant %s; skipping",
-                current,
-                rm_state,
-                self.id_,
-            )
-            return False
-        roles = coerce_cvd_roles(self.case_roles)
-        # Carry the vendor and deployer paths forward, mirroring the core
-        # mutator.  On the wire branch omission *drops* the dimension rather
-        # than rewinding it (`as_ParticipantStatus` has no role-seeding
-        # validator), which is strictly more lossy than the core bug #3134
-        # names.  Carry a path only while its role is still held: `cvd_role` is
-        # recomputed from the current roles, and ADR-0075 says a non-VENDOR has
-        # no vendor path and a non-DEPLOYER no deployer path.
-        self.participant_statuses.append(
-            as_ParticipantStatus(
-                attributed_to=actor,
-                context=context,
-                rm_state=rm_state,
-                vf_state=(
-                    latest.vf_state
-                    if latest is not None and has_vendor_role(roles)
-                    else None
-                ),
-                d_state=(
-                    latest.d_state
-                    if latest is not None and has_deployer_role(roles)
-                    else None
-                ),
-                em_consent_state=coerce_em_consent_state(
-                    self.embargo_consent_state
-                ),
-                cvd_role=roles,
-            )
-        )
-        return True
 
     def has_role(self, role: CVDRole) -> bool:
         """Return True when the participant holds the given role."""

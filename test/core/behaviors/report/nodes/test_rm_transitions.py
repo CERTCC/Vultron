@@ -251,26 +251,28 @@ def test_transition_rm_to_closed_is_subclass_of_base() -> None:
     assert issubclass(TransitionRMtoClosed, _ReportPhaseRMTransition)
 
 
-def test_transition_rm_to_valid_returns_sequence() -> None:
-    """TransitionRMtoValid is a factory that returns a Sequence (ADR-0089 AC-5).
+def test_transition_rm_to_valid_is_single_atomic_node() -> None:
+    """TransitionRMtoValid is one node, not a Sequence (issue #3267).
 
-    After the sole-writer refactoring, TransitionRMtoValid produces a
-    Sequence([CreateParticipantStatusNode, _ValidRMLatchNode]) so the
-    case-scoped participant write is handled by the canonical writer.
+    It performs the case-scoped participant write (through the sole writer,
+    CreateParticipantStatusNode) and the ReportCaseLink latch in a single
+    execution, so a partial failure cannot leave the two records disagreeing.
+    The writer is pre-built in __init__ (BTND-10-004), never constructed inside
+    update().
     """
     import py_trees
     from vultron.core.behaviors.case.nodes.participant.status import (
         CreateParticipantStatusNode,
     )
 
-    tree = TransitionRMtoValid(
+    node = TransitionRMtoValid(
         report_id="https://example.org/reports/r-001",
         offer_id="https://example.org/offers/o-001",
         sender_actor_id="https://example.org/actors/vendor-001",
     )
-    assert isinstance(tree, py_trees.composites.Sequence)
-    assert isinstance(tree.children[0], CreateParticipantStatusNode)
-    assert isinstance(tree.children[1], _ReportPhaseRMTransition)
+    assert not isinstance(node, py_trees.composites.Sequence)
+    assert isinstance(node, py_trees.behaviour.Behaviour)
+    assert isinstance(node._status_node, CreateParticipantStatusNode)
 
 
 def test_transition_rm_to_invalid_target_rm() -> None:
@@ -298,9 +300,9 @@ def test_transition_rm_to_valid_without_case_fails_without_updating_link(
     """No case in this actor's store ⇒ FAILURE, ReportCaseLink not updated.
 
     ISSUE-2548.  RM.VALID is case-scoped: when the case replica has not arrived
-    yet, CreateParticipantStatusNode fails and the Sequence stops before
-    _ValidRMLatchNode runs — so VultronReportCaseLink.rm_state must stay at
-    RM.RECEIVED (ID-04-005, ARCH-15-001).
+    yet, the node fails at the case-scoped write and never reaches the link
+    latch — so VultronReportCaseLink.rm_state must stay at RM.RECEIVED
+    (ID-04-005, ARCH-15-001).
     """
     result = bt_scenario.run(
         TransitionRMtoValid(report_id=report.id_, offer_id=offer.id_),
@@ -327,10 +329,9 @@ def test_transition_rm_to_valid_without_participant_fails_without_updating_link(
 ) -> None:
     """Case present but actor not a participant ⇒ FAILURE, link not updated.
 
-    ISSUE-2548, second half.  CreateParticipantStatusNode fails when the actor
-    is absent from case.actor_participant_index; the Sequence stops and
-    _ValidRMLatchNode never runs — ReportCaseLink.rm_state must stay at
-    RM.RECEIVED.
+    ISSUE-2548, second half.  The case-scoped write fails when the actor is
+    absent from case.actor_participant_index; the node never reaches the link
+    latch — ReportCaseLink.rm_state must stay at RM.RECEIVED.
     """
     result = bt_scenario.run(
         TransitionRMtoValid(report_id=report.id_, offer_id=offer.id_),

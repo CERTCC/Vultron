@@ -41,17 +41,30 @@ rather than looking the case up itself; the single lookup site is
 """
 
 from py_trees.common import Status
+from py_trees.ports import PortInformation
 
 from vultron.core.behaviors.helpers import (
     DataLayerActionWithPorts,
 )
 from vultron.core.models.report_case_link import VultronReportCaseLink
 from vultron.core.states.rm import RM, is_valid_rm_transition
-import py_trees
 
 from vultron.core.behaviors.case.nodes.participant.status import (
     CreateParticipantStatusNode,
 )
+from vultron.core.ports.case_persistence import CasePersistence
+
+
+def _read_report_case_link(
+    datalayer: CasePersistence, report_id: str
+) -> VultronReportCaseLink | None:
+    """Read the ReportCaseLink for *report_id*, or None if absent or mistyped.
+
+    Shared by the report-phase transition nodes and :class:`TransitionRMtoValid`
+    so the id derivation and type guard live in one place (CS-22-001).
+    """
+    link = datalayer.read(VultronReportCaseLink.build_id(report_id))
+    return link if isinstance(link, VultronReportCaseLink) else None
 
 
 class _ReportPhaseRMTransition(DataLayerActionWithPorts):
@@ -95,11 +108,7 @@ class _ReportPhaseRMTransition(DataLayerActionWithPorts):
     def _get_link(self) -> VultronReportCaseLink | None:
         """Read the ReportCaseLink for this report from the DataLayer."""
         assert self.datalayer is not None
-        link_id = VultronReportCaseLink.build_id(self.report_id)
-        link = self.datalayer.read(link_id)
-        if not isinstance(link, VultronReportCaseLink):
-            return None
-        return link
+        return _read_report_case_link(self.datalayer, self.report_id)
 
     def update(self) -> Status:
         """Guard the transition, then update ReportCaseLink.rm_state.
@@ -150,68 +159,165 @@ class _ReportPhaseRMTransition(DataLayerActionWithPorts):
             return Status.FAILURE
 
 
-class _ValidRMLatchNode(_ReportPhaseRMTransition):
-    """Update ReportCaseLink.rm_state to RM.VALID after the case-scoped write.
+class TransitionRMtoValid(DataLayerActionWithPorts):
+    """Advance RM to VALID on the case participant and the report link, in one node.
 
-    This is the second child of the ``TransitionRMtoValid`` Sequence.  It runs
-    only after :class:`CreateParticipantStatusNode` has already advanced the
-    actor's case-participant RM state to ``RM.VALID``, so the order guarantee
-    (ID-04-005) is structural — the Sequence won't reach this node on failure.
+    ``RM.VALID`` is *both* case-scoped and report-phase (ID-04-005): it advances
+    the actor's RM state on the ``CaseParticipant`` *and* records ``RM.VALID``
+    on the report's ``VultronReportCaseLink`` — the field ``CheckRMStateValid``
+    reads.
 
-    It is a private helper; callers use :func:`TransitionRMtoValid` to build
-    the full Sequence.
+    Issue #3267: when these were the two children of a ``Sequence``, a partial
+    failure (participant advanced, link write failed) left the two records
+    disagreeing.  ``CheckRMStateValid`` — reading only the link — then reported
+    the report as not-valid forever.  This node is not a database transaction:
+    it performs both writes in one execution and *orders* them so a failure
+    cannot permanently strand the records:
+
+    1. It first *reads and validates* the link (present, and ``current →
+       RM.VALID`` legal, or already ``VALID``).  A missing link or an illegal
+       source state fails here, **before** the participant is touched, so the
+       participant is never advanced when the link cannot follow.
+    2. It then advances the case participant through
+       :class:`CreateParticipantStatusNode` — the sole ``ParticipantStatus``
+       writer (ADR-0089) — reading ``/case_id`` from the blackboard seeded by
+       :class:`~vultron.core.behaviors.case.nodes.case_lookup.RequireCaseForReport`.
+    3. Only then does it save ``RM.VALID`` on the link (ID-04-005: the
+       case-scoped write precedes the link latch).
+
+    The one remaining window — a transient DataLayer error on the final save —
+    leaves the participant at ``VALID`` and the link one step behind, but the
+    next tick re-runs and the two records reconverge rather than diverging
+    permanently: a same-state ``VALID → VALID`` participant write passes
+    validation and the link save retries.  That re-run appends a redundant
+    ``RM.VALID`` ``ParticipantStatus`` rung (state converges, history does not
+    dedupe); in normal operation ``CheckRMStateValid`` short-circuits the whole
+    validate tree once the link is ``VALID``, so this node is not re-entered for
+    an already-valid report except on the rare save-retry path.
     """
 
-    _target_rm = RM.VALID
+    def __init__(
+        self,
+        report_id: str,
+        offer_id: str,
+        sender_actor_id: str | None = None,
+        name: str | None = None,
+    ) -> None:
+        """Initialize the combined RM.VALID transition node.
 
+        Args:
+            report_id: ID of the VulnerabilityReport whose RM state advances.
+            offer_id: Retained for call-site API compatibility with the other
+                report-phase transitions; not read by this node.
+            sender_actor_id: Subject actor for the case-scoped RM write.
+                When ``None``, the executing actor's blackboard ``actor_id`` is
+                used as a fallback (BTND-10-005, ADR-0089).
+            name: Optional custom node name (defaults to ``"TransitionRMtoValid"``).
+        """
+        super().__init__(name=name or "TransitionRMtoValid")
+        self.report_id = report_id
+        self.offer_id = offer_id  # unused; kept for call-site compatibility
+        self.sender_actor_id = sender_actor_id
+        # Pre-built once and executed via BTBridge.execute_with_setup, never
+        # constructed inside update() (BTND-10-004, ADR-0089).  Its own stop()
+        # resets the latched actor id after each tick (issue #3268).
+        self._status_node = CreateParticipantStatusNode(
+            actor_id=sender_actor_id or "",
+            rm_state=RM.VALID,
+            vf_state=None,
+            d_state=None,
+            pxa_state=None,
+            name="CreateRMValidStatus",
+        )
 
-def TransitionRMtoValid(
-    report_id: str,
-    offer_id: str,
-    sender_actor_id: str | None = None,
-    name: str | None = None,
-) -> py_trees.composites.Sequence:
-    """Return a Sequence that advances the actor to RM.VALID in case and report phase.
+    @classmethod
+    def input_ports(cls) -> dict[str, PortInformation]:
+        ports = super().input_ports()
+        ports["case_id"] = PortInformation(data_type=str, required=False)
+        return ports
 
-    ``RM.VALID`` is a case-scoped transition (ID-04-005): the case-participant
-    record is advanced *first* via :class:`CreateParticipantStatusNode` (which
-    reads ``/case_id`` from the blackboard seeded by
-    :class:`~vultron.core.behaviors.case.nodes.case_lookup.RequireCaseForReport`),
-    and the ReportCaseLink field is updated only after that succeeds.
+    @classmethod
+    def _domain_port_remappings(cls) -> dict[str, str]:
+        return {"case_id": "/case_id"}
 
-    Args:
-        report_id: ID of the VulnerabilityReport whose RM state advances.
-        offer_id: ID of the Offer activity that carried the report.
-        sender_actor_id: Subject actor for the case-scoped RM write.
-            When ``None``, the executing actor's ``actor_id`` from the BT
-            blackboard is used as a fallback (BTND-10-005, ADR-0089).
-        name: Optional name for the root Sequence node.
+    def initialise(self) -> None:
+        super().initialise()
+        self._case_id_bb = self._try_get_input("case_id")
 
-    Returns:
-        A ``Sequence`` whose children are:
+    def _read_link(self) -> VultronReportCaseLink | None:
+        assert self.datalayer is not None
+        return _read_report_case_link(self.datalayer, self.report_id)
 
-        1. :class:`CreateParticipantStatusNode` — case-scoped RM write.
-        2. :class:`_ValidRMLatchNode` — ReportCaseLink rm_state update.
-    """
-    return py_trees.composites.Sequence(
-        name=name or "TransitionRMtoValid",
-        memory=True,
-        children=[
-            CreateParticipantStatusNode(
-                actor_id=sender_actor_id or "",
-                rm_state=RM.VALID,
-                vf_state=None,
-                d_state=None,
-                pxa_state=None,
-                name="CreateRMValidStatus",
-            ),
-            _ValidRMLatchNode(
-                report_id=report_id,
-                offer_id=offer_id,
-                sender_actor_id=sender_actor_id,
-            ),
-        ],
-    )
+    def update(self) -> Status:
+        """Validate the link, advance the participant, then latch the link.
+
+        Returns:
+            SUCCESS once both records read ``RM.VALID``; FAILURE when the
+            DataLayer is unavailable, the ReportCaseLink is missing, the
+            report-phase transition is illegal, the case-scoped write does not
+            succeed, or the final link save raises.
+        """
+        if (f := self._require_datalayer()) is not None:
+            return f
+        assert self.datalayer is not None
+
+        # 1. Validate the link BEFORE advancing the participant, so a missing
+        #    link or an illegal source state cannot strand the participant at
+        #    VALID while the link — the record CheckRMStateValid reads — stays
+        #    behind (issue #3267).
+        link = self._read_link()
+        if link is None:
+            self.feedback_message = (
+                f"ReportCaseLink not found for report '{self.report_id}'"
+            )
+            self.logger.error("%s: %s", self.name, self.feedback_message)
+            return Status.FAILURE
+        current_rm = link.rm_state
+        if current_rm != RM.VALID and not is_valid_rm_transition(
+            current_rm, RM.VALID
+        ):
+            self.feedback_message = (
+                f"Invalid RM transition {current_rm!r} → {RM.VALID!r}"
+            )
+            self.logger.info("%s: %s", self.name, self.feedback_message)
+            return Status.FAILURE
+
+        # 2. Case-scoped write FIRST (ID-04-005), through the sole
+        #    ParticipantStatus writer.
+        case_id = self._case_id_bb
+        if not isinstance(case_id, str):
+            self.feedback_message = "case_id not found in blackboard"
+            self.logger.error("%s: %s", self.name, self.feedback_message)
+            return Status.FAILURE
+
+        from vultron.core.behaviors.bridge import BTBridge
+
+        result = BTBridge(datalayer=self.datalayer).execute_with_setup(
+            self._status_node,
+            actor_id=self.actor_id or "",
+            case_id=case_id,
+        )
+        if result.status != Status.SUCCESS:
+            self.feedback_message = (
+                "case-scoped RM.VALID write did not succeed"
+                f" ({result.status.name})"
+            )
+            self.logger.error("%s: %s", self.name, self.feedback_message)
+            return Status.FAILURE
+
+        # 3. Latch RM.VALID on the link only after the participant advanced.
+        try:
+            link.rm_state = RM.VALID
+            self.datalayer.save(link)
+            self.logger.info("RM → VALID for report '%s'", self.report_id)
+            return Status.SUCCESS
+        except Exception as e:  # noqa: BLE001 — transient save failure retries
+            self.logger.error(
+                "%s: Error latching RM.VALID on the report link: %s",
+                self.name,
+                e,
+            )
+            return Status.FAILURE
 
 
 class TransitionRMtoInvalid(_ReportPhaseRMTransition):

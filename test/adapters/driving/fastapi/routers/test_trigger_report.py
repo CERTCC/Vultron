@@ -42,7 +42,10 @@ from vultron.adapters.driven.trigger_activity_adapter import (
 from vultron.core.models.offer_record import VultronOfferRecord
 from vultron.wire.as2.vocab.base.objects.activities.transitive import as_Offer
 from vultron.wire.as2.vocab.base.objects.actors import as_Service
-from vultron.wire.as2.vocab.objects.case_participant import as_CaseParticipant
+from vultron.wire.as2.vocab.objects.case_participant import (
+    as_CaseParticipant,
+    as_ParticipantStatus,
+)
 from vultron.wire.as2.vocab.objects.vulnerability_report import (
     as_VulnerabilityReport,
 )
@@ -167,8 +170,14 @@ def received_report(dl, actor, report):
         attributed_to=actor.id_,
         context=case_obj.id_,
         case_roles=[CVDRole.VENDOR],
+        participant_statuses=[
+            as_ParticipantStatus(
+                attributed_to=actor.id_,
+                context=case_obj.id_,
+                rm_state=RM.RECEIVED,
+            )
+        ],
     )
-    self_participant.append_rm_state(RM.RECEIVED, actor.id_, case_obj.id_)
     dl.create(self_participant)
     case_obj.actor_participant_index[actor.id_] = self_participant.id_
     case_obj.case_participants.append(self_participant.id_)
