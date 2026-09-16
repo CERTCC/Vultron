@@ -3,6 +3,7 @@
 
 import py_trees
 
+from vultron.core.behaviors.case.nodes.conditions import CheckIsCaseManagerNode
 from vultron.core.behaviors.embargo.nodes import ApplyEmbargoTeardownNode
 from vultron.core.behaviors.sync.nodes.participant_status_effect import (
     EmitImpossibleStateFaultNode,
@@ -17,8 +18,6 @@ from vultron.core.behaviors.sync.nodes import (
     ApplyParticipantStatusFromLedgerNode,
     BufferPreGenesisEntryNode,
     CheckHashOrRejectOnMismatchNode,
-    CheckIsOwnCaseActorNode,
-    CheckIsNotOwnCaseActorNode,
     CheckLedgerEntryAlreadyStoredNode,
     IsAddNoteEventNode,
     IsCloseCaseEventNode,
@@ -32,6 +31,7 @@ from vultron.core.behaviors.sync.nodes import (
     PersistReceivedLogEntryNode,
     ReconstructChainTailNode,
     SendRejectLogEntryNode,
+    VerifySenderIsCaseActorNode,
     VerifySenderIsOwnIdNode,
 )
 
@@ -41,7 +41,7 @@ def create_announce_log_entry_tree() -> py_trees.behaviour.Behaviour:
         name="CaseActorSubtree",
         memory=False,
         children=[
-            CheckIsOwnCaseActorNode(name="CheckIsOwnCaseActor"),
+            CheckIsCaseManagerNode(name="CheckIsCaseManager"),
             VerifySenderIsOwnIdNode(name="VerifySenderIsOwnId"),
             LogDeliveryConfirmationNode(name="LogDeliveryConfirmation"),
         ],
@@ -314,7 +314,11 @@ def create_announce_log_entry_tree() -> py_trees.behaviour.Behaviour:
         name="ParticipantGate",
         memory=False,
         children=[
-            CheckIsNotOwnCaseActorNode(name="CheckIsNotOwnCaseActor"),
+            py_trees.decorators.Inverter(
+                name="CheckIsNotCaseManager",
+                child=CheckIsCaseManagerNode(name="CheckIsCaseManagerInverse"),
+            ),
+            VerifySenderIsCaseActorNode(name="VerifySenderIsCaseActor"),
             entry_processing,
         ],
     )

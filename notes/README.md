@@ -918,6 +918,15 @@ passes required when retiring a name or splitting a compound requirement.
 spec-lint / `spec-dump` failure. Pair with `specs-vs-adrs.md` for *whether* the
 requirement belongs in a spec at all.
 
+**`rfc-spec-authoring.md`**
+Structural and editorial decisions for building `docs/reference/vultron-spec/`
+from the existing `draft-vultron-spec.md` outline. Covers file layout and naming
+conventions (`_` prefix, semantic slugs), DAG-first authoring workflow, source
+treatment rules, annex → source page mapping, §4.6 rewrite sources, and the
+resolved open questions table for issue #3255.
+**Load when**: working on issue #3255 (write full Vultron Protocol Specification),
+planning the modular document structure, or authoring new spec sections.
+
 **`notes-frontmatter.md`**
 Design decisions for YAML frontmatter schema in `notes/*.md` files: required
 fields (`title`, `status`), valid `status` values, `superseded_by` rule, schema

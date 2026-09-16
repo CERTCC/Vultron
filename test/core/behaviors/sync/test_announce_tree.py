@@ -22,6 +22,7 @@ from vultron.core.ports.sync_activity import SyncActivityPort
 from vultron.core.states.em import EM
 from vultron.core.states.rm import RM
 from vultron.core.behaviors.sync.nodes.chain import _to_persistable_entry
+from vultron.enums.roles import CVDRole
 from vultron.semantic_registry import extract_event
 from vultron.wire.as2.factories import announce_log_entry_activity
 from vultron.wire.as2.vocab.objects.case_ledger_entry import (
@@ -114,6 +115,51 @@ def test_create_announce_log_entry_tree_returns_selector():
     assert len(tree.children) == 2
 
 
+@pytest.fixture
+def owner_bridge():
+    """A BTBridge backed by a DataLayer scoped to OWNER_ACTOR_ID.
+
+    Used by the bootstrap window test so that execute_with_setup(actor_id=
+    OWNER_ACTOR_ID) doesn't clone an empty store for a foreign actor.
+    """
+    dl = SqliteDataLayer("sqlite:///:memory:", actor_id=OWNER_ACTOR_ID)
+    participant = CaseParticipant(
+        attributed_to=OWNER_ACTOR_ID,
+        context=CASE_ID,
+        case_roles=[CVDRole.CASE_MANAGER],
+    )
+    dl.create(participant)
+    case = VulnerabilityCase(id_=CASE_ID, attributed_to=OWNER_ACTOR_ID)
+    case.case_participants.append(participant)
+    dl.save(case)
+    return BTBridge(datalayer=dl)
+
+
+@pytest.mark.spec("ARCH-24-003")
+def test_case_manager_role_takes_authority_arm_without_service_object(
+    owner_bridge,
+):
+    """ARCH-24-003 bootstrap window: role-based check is stable before any Service carries context.
+
+    CheckIsCaseManagerNode must succeed for the CASE_MANAGER actor even when
+    no VultronCaseActor Service object with context=CASE_ID exists — the
+    failure mode of the removed CheckIsOwnCaseActorNode (ADR-0088).
+    """
+    entry = _make_entry(0)
+    event = _make_event(entry, actor_id=OWNER_ACTOR_ID)
+
+    result = owner_bridge.execute_with_setup(
+        tree=create_announce_log_entry_tree(),
+        actor_id=OWNER_ACTOR_ID,
+        activity=event,
+    )
+
+    assert result.status == Status.SUCCESS
+    # Verify no VultronCaseActor Service was involved
+    services = list(owner_bridge.datalayer.list_objects("Service"))
+    assert not any(getattr(s, "context", None) == CASE_ID for s in services)
+
+
 @pytest.mark.spec("SYNC-02-001")
 @pytest.mark.spec("SYNC-12-002")
 def test_participant_persists_valid_entry(
@@ -158,10 +204,41 @@ def test_case_actor_round_trip_logs_delivery_without_repersisting(
     assert len(entries) == 1
 
 
+CASE_ACTOR_ACTOR_ID = "https://example.org/actors/case-actor"
+
+
+def _seed_case_manager(datalayer, case_obj) -> None:
+    """Register the case's CaseActor as a CVDRole.CASE_MANAGER participant.
+
+    Authority is the role (ADR-0088), resolved by resolve_case_manager_id, not a
+    Service object — so VerifySenderIsCaseActorNode resolves the CaseActor from
+    the participant's ``attributed_to`` (``CASE_ACTOR_ACTOR_ID``), the id the
+    legitimate announces are sent from.
+    """
+    manager = CaseParticipant(
+        id_=f"{CASE_ID}/participants/case-manager",
+        attributed_to=CASE_ACTOR_ACTOR_ID,
+        context=CASE_ID,
+        case_roles=[CVDRole.CASE_MANAGER],
+    )
+    datalayer.create(manager)
+    case_obj.actor_participant_index[CASE_ACTOR_ACTOR_ID] = manager.id_
+    case_obj.case_participants.append(manager.id_)
+    datalayer.save(case_obj)
+
+
 @pytest.mark.spec("CLP-01-003")
 @pytest.mark.spec("SYNC-13-006")
-def test_case_actor_spoofed_sender_fails(bridge, datalayer, case_actor):
-    entry = _make_entry(0)
+def test_case_actor_spoofed_sender_fails(bridge, datalayer, case_obj):
+    # Discriminating spoof test: the case IS seeded with its CASE_MANAGER
+    # (so the CaseActor resolves) and the entry is chain-consistent
+    # (prev_log_hash == genesis), so both the missing-case path and the
+    # hash-chain check would otherwise ACCEPT and persist this entry. The only
+    # reason to reject is that the sender is not the CaseActor — exactly what
+    # VerifySenderIsCaseActorNode must catch (CLP-01-003). Verified elsewhere:
+    # with that node removed this entry persists.
+    _seed_case_manager(datalayer, case_obj)
+    entry = _make_entry(0, case_obj.genesis_hash)
     event = _make_event(
         entry, actor_id="https://example.org/actors/attacker-service"
     )
@@ -170,10 +247,29 @@ def test_case_actor_spoofed_sender_fails(bridge, datalayer, case_actor):
         tree=create_announce_log_entry_tree(),
         actor_id=PARTICIPANT_ACTOR_ID,
         activity=event,
+        sync_port=MagicMock(spec=SyncActivityPort),
     )
 
     assert result.status == Status.FAILURE
     assert datalayer.read(entry.id_) is None
+
+
+@pytest.mark.spec("CLP-01-003")
+def test_case_actor_legit_sender_accepted(bridge, datalayer, case_obj):
+    """The CASE_MANAGER's own announce passes the participant sender gate."""
+    _seed_case_manager(datalayer, case_obj)
+    entry = _make_entry(0, case_obj.genesis_hash)
+    event = _make_event(entry, actor_id=CASE_ACTOR_ACTOR_ID)
+
+    result = bridge.execute_with_setup(
+        tree=create_announce_log_entry_tree(),
+        actor_id=PARTICIPANT_ACTOR_ID,
+        activity=event,
+        sync_port=MagicMock(spec=SyncActivityPort),
+    )
+
+    assert result.status == Status.SUCCESS
+    assert datalayer.read(entry.id_) is not None
 
 
 @pytest.mark.spec("SYNC-03-001")
