@@ -13,6 +13,13 @@
     The behavior tree diagrams illustrate one conformant implementation; implementations are not
     required to use behavior trees.
 
+!!! note "Legacy design diagram"
+
+    The diagrams in this section reflect the simulator-era design from `vultron/bt/` and may not
+    match the current implementation in `vultron/core/behaviors/`.
+    See the [Behaviors Reference](../../reference/behaviors/index.md) for
+    auto-generated documentation from the current implementation.
+
 With the formal definition of the Vultron Protocol behind us, we now turn our
 attention to reflect on one of many possible paths toward
 implementation. We find that Behavior Trees have a number of desirable
