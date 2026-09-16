@@ -30,7 +30,7 @@ provides tamper detection.
 
 **Protocol adherence.** An active embargo is an agreement, not a technical
 enforcement. The protocol provides the signaling infrastructure — PEC state
-tracks which participants have consented, [§9.5](index.md#95-embargo-meta-protocol-delivery-to-non-signatories) ensures all participants receive
+tracks which participants have consented, [§9.5](index.md#95-embargo-traffic-reaches-non-signatories) ensures all participants receive
 meta-protocol messages — but it cannot prevent a participant from disclosing
 outside the protocol.
 
