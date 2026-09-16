@@ -270,40 +270,78 @@ def _docstring_nodes(tree: ast.AST) -> set[int]:
     return ids
 
 
-def _cosmetic_literals(node: ast.AST, skip: set[int]) -> bool:
-    """Return True if *node*'s subtree holds a non-docstring ``case-actor`` literal."""
+#: Names that stand in for the literal.  A module that imports
+#: ``CASE_ACTOR_SEGMENT`` (or binds its own constant) and then tests a suffix
+#: built from it never contains the string `case-actor`, so matching only on the
+#: literal would miss verbatim the body of the deleted ``is_case_actor_identity``.
+_SEGMENT_ALIASES = frozenset({"CASE_ACTOR_SEGMENT", "CASE_ACTOR_SLUG"})
+
+
+def _binds_the_segment(tree: ast.AST) -> set[str]:
+    """Return local names bound to a ``case-actor`` literal or a known alias.
+
+    Catches the indirection that defeats a literal-only scan::
+
+        SUFFIX = "/actors/case-actor"      # or: from ... import CASE_ACTOR_SEGMENT
+        if actor_id.endswith(SUFFIX):      # no `case-actor` literal in sight
+    """
+    names = set(_SEGMENT_ALIASES)
+    for node in ast.walk(tree):
+        if isinstance(node, ast.ImportFrom):
+            for alias in node.names:
+                if alias.name in _SEGMENT_ALIASES:
+                    names.add(alias.asname or alias.name)
+        elif isinstance(node, ast.Assign):
+            if not _mentions_segment(node.value, set(), names):
+                continue
+            for target in node.targets:
+                if isinstance(target, ast.Name):
+                    names.add(target.id)
+    return names
+
+
+def _mentions_segment(
+    node: ast.AST, skip: set[int], names: frozenset[str] | set[str]
+) -> bool:
+    """True if *node*'s subtree holds a ``case-actor`` literal or a bound alias."""
     for sub in ast.walk(node):
-        if not isinstance(sub, ast.Constant):
-            continue
-        if id(sub) in skip:
-            continue
-        if (
-            isinstance(sub.value, str)
-            and _COSMETIC_SUBSTRING in sub.value.lower()
-        ):
+        if isinstance(sub, ast.Constant):
+            if id(sub) in skip:
+                continue
+            if (
+                isinstance(sub.value, str)
+                and _COSMETIC_SUBSTRING in sub.value.lower()
+            ):
+                return True
+        elif isinstance(sub, ast.Name) and sub.id in names:
+            return True
+        elif isinstance(sub, ast.Attribute) and sub.attr in names:
             return True
     return False
 
 
 def _shape_branches(tree: ast.AST) -> list[str]:
-    """Return descriptions of branches taken on a ``case-actor`` literal."""
+    """Return descriptions of branches taken on the ``case-actor`` identity shape."""
     skip = _docstring_nodes(tree)
+    names = _binds_the_segment(tree)
     found: list[str] = []
     for node in ast.walk(tree):
-        # `x == "...case-actor"`, `"case-actor" in x`, etc.
-        if isinstance(node, ast.Compare) and _cosmetic_literals(node, skip):
+        # `x == "...case-actor"`, `"case-actor" in x`, `x == SUFFIX`, etc.
+        if isinstance(node, ast.Compare) and _mentions_segment(
+            node, skip, names
+        ):
             found.append(
-                f"line {node.lineno}: comparison on a case-actor literal"
+                f"line {node.lineno}: comparison on the case-actor shape"
             )
-        # `x.endswith("...case-actor")` and friends.
+        # `x.endswith("...case-actor")` / `x.endswith(SUFFIX)` and friends.
         elif (
             isinstance(node, ast.Call)
             and isinstance(node.func, ast.Attribute)
             and node.func.attr in _SHAPE_TEST_METHODS
-            and any(_cosmetic_literals(arg, skip) for arg in node.args)
+            and any(_mentions_segment(arg, skip, names) for arg in node.args)
         ):
             found.append(
-                f"line {node.lineno}: .{node.func.attr}() on a case-actor literal"
+                f"line {node.lineno}: .{node.func.attr}() on the case-actor shape"
             )
     return found
 
@@ -321,8 +359,11 @@ def test_no_protocol_logic_branches_on_the_case_actor_url():
     """
     violations: list[str] = []
     for root in _PROTOCOL_ROOTS:
+        # The alias fragments matter as much as the literal: a module that
+        # imports `CASE_ACTOR_SEGMENT` and builds the suffix from it holds no
+        # `case-actor` string, so a literal-only prefilter would never open it.
         for py_file, tree in _corpus.files_mentioning(
-            _COSMETIC_SUBSTRING, under=root
+            _COSMETIC_SUBSTRING, *_SEGMENT_ALIASES, under=root
         ):
             rel = py_file.relative_to(_corpus.REPO_ROOT).as_posix()
             if rel in _PROVISIONING_EXEMPT:
@@ -363,3 +404,42 @@ def test_ratchet_detects_a_shape_branch():
     assert not _shape_branches(
         docstring_only
     ), "scanner flagged a docstring mention"
+
+
+def test_ratchet_is_not_evaded_by_binding_the_literal_to_a_name():
+    """Indirection must not launder the branch. Spec: ARCH-24-004
+
+    A literal-only matcher is defeated two ways, and both reconstruct the body
+    of the deleted ``is_case_actor_identity`` without ever writing
+    ``case-actor``: import the segment constant, or bind a local one.
+    """
+    via_import = _corpus.parse_inline(
+        "from vultron.core.behaviors.case.case_actor_identity import (\n"
+        "    CASE_ACTOR_SEGMENT,\n"
+        ")\n"
+        "def f(actor_id):\n"
+        '    return actor_id.rstrip("/").endswith(\n'
+        '        f"/actors/{CASE_ACTOR_SEGMENT}"\n'
+        "    )\n"
+    )
+    assert _shape_branches(
+        via_import
+    ), "scanner missed a branch built from the imported segment constant"
+
+    via_local_constant = _corpus.parse_inline(
+        'SUFFIX = "/actors/case-actor"\n'
+        "def f(actor_id):\n"
+        "    return actor_id.endswith(SUFFIX)\n"
+    )
+    assert _shape_branches(
+        via_local_constant
+    ), "scanner missed a branch built from a locally bound constant"
+
+    aliased_import = _corpus.parse_inline(
+        "from x import CASE_ACTOR_SEGMENT as SEG\n"
+        "def f(a):\n"
+        "    return a == SEG\n"
+    )
+    assert _shape_branches(
+        aliased_import
+    ), "scanner missed a branch on an as-renamed segment import"

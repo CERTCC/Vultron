@@ -558,12 +558,6 @@ class TestFindCaseActorId:
 
         assert _find_case_actor_id(cm_dl, _CM_CASE_ID) is None
 
-    def test_returns_none_for_an_unknown_case(
-        self, cm_dl: SqliteDataLayer
-    ) -> None:
-        """A case absent from this store has no address to resolve."""
-        assert _find_case_actor_id(cm_dl, _CM_CASE_ID) is None
-
     def test_returns_none_when_case_absent(
         self, cm_dl: SqliteDataLayer
     ) -> None:

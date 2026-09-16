@@ -140,27 +140,6 @@ def _snapshot_object_type(snapshot: dict[str, Any]) -> str | None:
     return object_type
 
 
-def _snapshot_attributed_to(snapshot: dict[str, Any]) -> str | None:
-    """Return the snapshot's ``attributedTo`` actor URI, or ``None``.
-
-    Reads both wire and core spellings, and accepts the value as a bare URI, an
-    inline object carrying an id, or a list of either (AS2 permits several
-    attributions; the first is the asserter the delegated-emit pattern records).
-    """
-    raw = snapshot.get("attributedTo")
-    if raw is None:
-        raw = snapshot.get("attributed_to")
-    if isinstance(raw, list):
-        raw = raw[0] if raw else None
-    if isinstance(raw, str):
-        return raw or None
-    if isinstance(raw, dict):
-        value = raw.get("id") or raw.get("id_")
-        return value if isinstance(value, str) and value else None
-    value = getattr(raw, "id_", None)
-    return value if isinstance(value, str) and value else None
-
-
 def _bare_inline_object_path(
     value: Any, path: str = "payloadSnapshot"
 ) -> str | None:
@@ -372,34 +351,17 @@ def _validate_canonical_entry(
             "is not canonical"
         )
 
-    # CLP-07-003: the snapshot must preserve the *original asserter*; the
-    # authority's identity must never stand in as a substitute for it.
-    #
-    # This used to be a bare `snapshot_actor == case_actor_id` comparison, which
-    # assumed "the CaseActor" and "a participant" were disjoint sets.  ADR-0088
-    # abolished that: authority is the `CVDRole.CASE_MANAGER` role, and its
-    # holder *is* a participant who legitimately asserts on its own behalf — a
-    # coordinator accepting an embargo invite on a case it manages, say.  Under
-    # the old comparison those entries were rejected outright.
-    #
-    # What CLP-07-003 actually forbids is *substitution*, and substitution is
-    # visible: the delegated-emit pattern sets `actor` to the authority and
-    # `attributedTo` to the requester it acts for (CM-24-001, PCR-08-007), so a
-    # snapshot naming the authority as actor while `attributedTo` names someone
-    # else has overwritten that someone else. Absent (or self-)`attributedTo`
-    # means the authority really was the asserter, which is not substitution.
-    attributed_to = _snapshot_attributed_to(payload_snapshot)
+    # CLP-07-003: only CaseActor-authored activities may have the CaseActor as
+    # snapshot actor; all participant-originated activities must have a
+    # participant (non-CaseActor) actor.
     if (
         case_actor_id
         and snapshot_actor == case_actor_id
         and signature not in _CASE_AUTHORED_SIGNATURES
-        and attributed_to is not None
-        and attributed_to != snapshot_actor
     ):
         raise VultronCanonicalEntryError(
-            f"{event_type}: payloadSnapshot.actor is the case authority but"
-            f" attributedTo names '{attributed_to}' — the asserter's identity"
-            f" must be preserved, not substituted (signature={signature!r})"
+            f"{event_type}: payloadSnapshot.actor must not be the CaseActor"
+            f" for non-case-authored entries (signature={signature!r})"
         )
 
     context = payload_snapshot.get("context")

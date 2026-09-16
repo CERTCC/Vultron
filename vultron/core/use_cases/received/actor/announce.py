@@ -69,6 +69,56 @@ def _announced_case_manager_id(case_obj: Any) -> str | None:
     return None
 
 
+def _reject_reason(
+    dl: CasePersistence, case_id: str, case_obj: Any, sender_id: str | None
+) -> str | None:
+    """Return why *sender_id* may not seed or update *case_id*, or ``None`` to allow.
+
+    PCR-07-003 / PCR-03-001: only the case's authority may seed or update a
+    replica. Whose account of "the authority" is trusted turns on whether we
+    already hold the case, and the two accounts must not be mixed — the sender
+    supplies the announced roster, so letting it speak about a case we already
+    have would let an imposter name itself the authority and overwrite the stored
+    record (``SeedAnnouncedCaseNode`` *saves* on the existing-case path).
+
+    The branch is on the **presence of the case**, deliberately not on whether the
+    local lookup happened to answer. A seeded case can resolve ``None`` too — its
+    roster may name no CASE_MANAGER yet, or that participant may carry no
+    ``attributed_to`` — and treating that as "no local opinion" is what reopens
+    the overwrite.
+    """
+    if dl.read_case(case_id) is not None:
+        # Already seeded: fail closed. A seeded replica names its CASE_MANAGER
+        # from the moment it is seeded (CP-09-004), so an authority we cannot
+        # establish locally is an anomalous state, not a routine one, and an
+        # update we cannot attribute is refused rather than applied.
+        resolved = _find_case_actor_id(dl, case_id)
+        if resolved == sender_id:
+            return None
+        return (
+            f"actor '{sender_id}' is not the resolved CASE_MANAGER"
+            f" ('{resolved}') for already-seeded case '{case_id}' — update"
+            " rejected (PCR-03-001, PCR-07-003)"
+        )
+
+    # First seeding. Prefer the locally recorded anchor: a completed
+    # `ReportCaseLink` carries the address this receiver itself reached the
+    # authority at during bootstrap (CBT-05-004), which the sender cannot forge.
+    # Only with no local record at all does the announced roster get a say — see
+    # `_announced_case_manager_id` for what that can and cannot catch. Both
+    # absent stays permissive, because accepting is the point of first seeding.
+    expected = _find_case_actor_id(dl, case_id) or _announced_case_manager_id(
+        case_obj
+    )
+    if expected is None or expected == sender_id:
+        return None
+    return (
+        f"actor '{sender_id}' is not the expected authority ('{expected}')"
+        f" for case '{case_id}' — seeding rejected"
+        " (CBT-05-004, PCR-07-003)"
+    )
+
+
 def _link_report_case_links(dl: CasePersistence, case) -> None:
     """Attach any matching ``ReportCaseLink`` records to the announced case."""
     for report_ref in case.vulnerability_reports:
@@ -148,23 +198,11 @@ class AnnounceVulnerabilityCaseReceivedUseCase:
             )
             return
 
-        # PCR-07-003 / PCR-03-001: only the case's authority may seed or update
-        # a replica.  The local roster is authoritative when the case is already
-        # seeded — it is locally derived, whereas the announced payload is the
-        # sender's own account of who holds the role.  Only when there is no
-        # local case yet (first seeding) does the payload's roster get a say; see
-        # `_announced_case_manager_id` for what that check can and cannot catch.
-        case_actor_id = _find_case_actor_id(self._dl, case_id)
-        if case_actor_id is None:
-            case_actor_id = _announced_case_manager_id(case_obj)
-        if case_actor_id is not None and case_actor_id != request.actor_id:
-            logger.warning(
-                "AnnounceVulnerabilityCase: actor '%s' does not hold"
-                " CVDRole.CASE_MANAGER for case '%s' — update rejected"
-                " (PCR-03-001, PCR-07-003)",
-                request.actor_id,
-                case_id,
-            )
+        rejection = _reject_reason(
+            self._dl, case_id, case_obj, request.actor_id
+        )
+        if rejection is not None:
+            logger.warning("AnnounceVulnerabilityCase: %s", rejection)
             return
 
         tree = create_announce_vulnerability_case_received_tree(

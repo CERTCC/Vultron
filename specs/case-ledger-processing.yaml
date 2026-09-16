@@ -391,16 +391,10 @@ groups:
       MUST preserve the original asserting actor's identity; the CASE_MANAGER's own identity
       appears only on the `Announce(CaseLedgerEntry)` transport envelope and in CaseLedgerEntry
       recording metadata, never as a substitute for the asserter
-    verification: >-
-      Integration tests in `test/demo/` confirm that the `actor` field of every
-      recorded `CaseLedgerEntry.payloadSnapshot` identifies the original asserting
-      participant even when the CASE_MANAGER is the one appending the entry. The
-      test is for *substitution*, not for mere identity difference. The
-      CASE_MANAGER is itself a participant (CM-02-011) and legitimately appears as
-      the asserter of its own assertions, so a violation is a snapshot naming the
-      CASE_MANAGER as `actor` while `attributedTo` names the actor it acted for.
-    adr:
-    - ADR-0088
+    verification: Integration tests in `test/demo/` confirm that the `actor` field
+      of every recorded `CaseLedgerEntry.payloadSnapshot` identifies the original
+      asserting participant, not the CASE_MANAGER, even when the CASE_MANAGER is the one
+      appending the entry.
     stories:
     - story_2022_045
     - story_2022_089

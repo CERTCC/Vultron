@@ -299,6 +299,54 @@ class TestAnnounceVulnerabilityCaseReceivedUseCase:
         result = cast(Any, dl.read(_CASE_ID))
         assert result.name == "Seeded"
 
+    @pytest.mark.spec("PCR-07-003")
+    def test_seeded_case_with_no_resolvable_manager_still_rejects_an_imposter(
+        self, dl, case, make_payload
+    ):
+        """A seeded case must not fall back to the sender's own roster.
+
+        The trust decision keys on whether the case is present, not on whether
+        the local lookup answered. A seeded case can resolve ``None`` — its
+        roster may name no CASE_MANAGER yet, or that participant may carry no
+        ``attributed_to``. Consulting the announced roster there would let an
+        imposter name itself the authority and overwrite the stored record,
+        since the existing-case path in ``SeedAnnouncedCaseNode`` saves.
+        """
+        # Seeded, but with a roster that resolves no CASE_MANAGER.
+        bystander = as_CaseParticipant(
+            id_=f"{_CASE_ID}/participants/vendor",
+            context=_CASE_ID,
+            attributed_to=_VENDOR_ID,
+        )
+        dl.create(bystander)
+        seeded = as_VulnerabilityCase(id_=_CASE_ID, name="Seeded")
+        seeded.case_participants.append(bystander.id_)
+        seeded.actor_participant_index[_VENDOR_ID] = bystander.id_
+        dl.create(seeded)
+
+        # Built fresh rather than mutating the fixture: wire artifacts are frozen
+        # (VM-08-002), so the payload's name is set at construction.
+        hostile = as_VulnerabilityCase(id_=_CASE_ID, name="PWNED")
+        hostile.case_participants.append(
+            as_CaseParticipant(
+                id_=f"{_CASE_ID}/participants/imposter",
+                context=_CASE_ID,
+                attributed_to=_IMPOSTER_ID,
+                case_roles=[CVDRole.CASE_MANAGER],
+            )
+        )
+        announce = announce_vulnerability_case_activity(
+            hostile,
+            actor=_IMPOSTER_ID,
+            context=hostile.id_,
+        )
+        event = make_payload(announce)
+
+        AnnounceVulnerabilityCaseReceivedUseCase(dl, event).execute()
+
+        result = cast(Any, dl.read(_CASE_ID))
+        assert result.name == "Seeded"
+
 
 # ---------------------------------------------------------------------------
 # #2186 / #2180: pre-genesis Announce(CaseLedgerEntry) drains on case seed

@@ -109,7 +109,18 @@ class FindCaseActorNode(DataLayerActionWithPorts):
     not resolve a case, returned FAILURE, and the guard's selector silently took
     its skip branch — so the announce never fired for *anyone*, case manager or
     not. This node already derives the value from the rejected entry, so it is
-    the right place to publish it.
+    the right place to publish it. It also means this node cannot be moved after
+    the pre-seed arm: that arm does not read ``case_actor_id``, but it does need
+    the ``case_id`` published here.
+
+    Failing is deliberate, and is not the regression it resembles. A FAILURE here
+    stops the sequence, so neither the pre-seed nor the replay runs. The retired
+    fallback did let both proceed — but as *the wrong actor*, since it answered
+    with an arbitrary ``Service``, and a replay emitted under a foreign identity
+    is worse than one that did not happen. Both remaining failure modes mean the
+    executing actor cannot legitimately answer for this log: it does not hold the
+    case, or the case names no CASE_MANAGER. Neither is routine for an actor
+    fielding a ``Reject`` about a log it owns.
     """
 
     @classmethod
