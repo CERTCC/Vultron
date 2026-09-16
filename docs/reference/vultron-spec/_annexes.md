@@ -77,7 +77,7 @@ Where Vultron adds constraints ActivityPub does not impose:
   role rather than directly between participants
   ([§5.4.2](index.md#542-routing-topology)).
 - An activity MUST carry its object inline rather than by reference
-  ([§4.8](index.md#48-knowledge-model-and-actor-isolation)), because a
+  ([§4.8](index.md#47-knowledge-model-and-actor-isolation)), because a
   participant's knowledge must not depend on another participant being reachable.
 - The Vultron vocabulary extends the ActivityStreams vocabulary with the object
   types of [§5.2](index.md#52-object-types).

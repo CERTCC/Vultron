@@ -35,6 +35,10 @@ the local trigger path):
 
 #### 12.4.2 Participant-Agnostic CS Transitions (PXA)
 
+PXA records the state of the world rather than the state of any participant, so
+these transitions are not scoped to a role. Anyone may notice that a vulnerability
+has become public.
+
 !!! note "Recall: public/exploit/attacks axes"
     {% include-markdown "../includes/_pxa-states-table.md" %}
 

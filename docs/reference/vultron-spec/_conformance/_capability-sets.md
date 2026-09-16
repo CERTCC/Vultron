@@ -1,5 +1,12 @@
 ### 12.2 Capability Sets
 
+A capability set is a group of obligations an implementation takes on. Three are
+defined: Observer, which every participant must provide, and Authority and Hosting,
+which add the obligations of deciding for a case and of running one.
+
+Most of what a capability set requires is expressed as maintaining a state machine,
+so that phrase needs pinning down first.
+
 !!! note "What 'implement a state machine' means"
     Implementing a state machine has two components:
 
@@ -107,7 +114,7 @@ It is separable from the Authority capability set.
     document. An implementation cannot demonstrate conformance to the replication
     mechanics from this document alone. The reasoning for splitting them is
     recorded in
-    [ADR-0077](../../adr/0077-ledger-replication-companion-spec.md).
+    [ADR-0077](../../../adr/0077-ledger-replication-companion-spec.md).
 
     Distributed consensus among several case managers is a possible future
     extension and is out of scope here.

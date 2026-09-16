@@ -41,7 +41,7 @@ The protocol tracks coordination state across four dimensions: the report
 lifecycle (RM), the embargo (EM), what is known about the vulnerability (CS), and
 each participant's agreement to the embargo (PEC). Because CS is a compound of two
 independent axes, an implementation runs five state machines
-([§3.2](index.md#32-tracking-dimensions)). Messages are ActivityStreams 2.0
+([§3.3](index.md#33-tracking-dimensions)). Messages are ActivityStreams 2.0
 Activities delivered over HTTP. Delivery is asynchronous: no exchange requires both
 parties to be available at the same moment.
 
@@ -99,7 +99,7 @@ others from making progress.
 
 **Extensible role model.** Roles are not exclusive: a participant may hold
 Reporter, Vendor and Coordinator at the same time
-([§3.4](index.md#34-participants-and-roles)). Roles that confer protocol authority
+([§3.5](index.md#35-participants-and-roles)). Roles that confer protocol authority
 are kept separate from roles that describe what an actor does in the world, so the
 two can vary independently.
 

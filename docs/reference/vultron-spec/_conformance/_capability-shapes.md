@@ -16,6 +16,10 @@ Vultron-compatible capability of that shape.
 
 #### G.1 The Five Capability Shapes
 
+Five shapes cover the ways an external capability can be consulted. They differ in
+what they are given, what they return, and whether they change anything outside the
+case.
+
 | Shape | Contract: accepts | Contract: returns | Notes |
 |---|---|---|---|
 | **Sentinel** | A condition to monitor | SUCCESS/FAILURE, no side effects | Operates on the call-in surface; has no call-out point node. Used as a precondition guard. |

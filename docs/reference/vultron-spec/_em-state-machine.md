@@ -19,20 +19,13 @@ participant's.
 
 {% include-markdown "./includes/_em-states-table.md" %}
 
-!!! note "\"No embargo\" names a state in two machines"
-    *None* — the embargo state above — means no embargo is in effect for the case.
-    The embargo consent machine has a separate state, *No Embargo*, meaning no
-    embargo is in scope **for one particular participant**
-    ([§9.1](index.md#91-states)).
+Note that *None* here means no embargo is in effect **for the case**. The embargo
+consent machine has a separate state, *No Embargo*, meaning no embargo is in scope
+**for one particular participant** ([§9.1](index.md#91-states)). The two can
+legitimately disagree: a case at Active may hold a participant at No Embargo, if
+that participant joined after the terms were agreed or declined them.
 
-    The two are different states in different machines and can legitimately
-    disagree: a case at Active may hold a participant at No Embargo, if that
-    participant joined after the terms were agreed or declined them. Where the
-    distinction matters this specification names the machine.
-
-    The reference implementation's embargo enumeration carries `NO_EMBARGO` as an
-    alias for its `NONE` value. Reading it as the consent state is a known source
-    of error.
+{% include-markdown "./_oq-no-embargo-naming.md" %}
 
 ### 7.2 Transitions and Guards
 

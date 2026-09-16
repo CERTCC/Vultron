@@ -25,6 +25,9 @@ case, alongside the participant's other case state.
 
 ### 9.1 States
 
+Each participant has one consent state, recording its position on the case's current
+embargo terms.
+
 {% include-markdown "./includes/_pec-states-table.md" %}
 
 {% include-markdown "../../topics/process_models/em/pec_state_machine_diagram.md" %}

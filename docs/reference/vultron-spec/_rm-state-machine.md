@@ -1,5 +1,10 @@
 ## 6. Report Management (RM) State Machine [N]
 
+Report Management is the first of the five state machines, and the one every case
+starts with: before there is an embargo to negotiate or a fix to track, someone has
+received a report and has to decide what to do with it. This section specifies the
+states that decision moves through and the transitions between them.
+
 !!! note "Behavioral Layer — §6 through §11"
     [§6](index.md#6-report-management-rm-state-machine-n)–[§11](index.md#11-participant-lifecycle-within-a-case-n) together specify the five state machines of the Vultron protocol:
     **RM** ([§6](index.md#6-report-management-rm-state-machine-n)), **EM** ([§7](index.md#7-embargo-management-em-state-machine-n)), **VFD and PXA** ([§8](index.md#8-case-state-cs-dimensions-n), together the CS dimension),

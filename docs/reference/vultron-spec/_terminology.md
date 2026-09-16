@@ -79,12 +79,15 @@ itself:
 
 ### 2.3 Protocol Objects and Messages
 
+These terms name the things a case is made of and the messages that move between
+participants.
+
 | Term | Definition |
 |---|---|
 | **Activity** | The wire form of a Vultron message: an ActivityStreams 2.0 Activity. Every message this specification describes is carried as an Activity ([§5](index.md#5-syntactic-layer-wire-format-n)). |
 | **Message** | A protocol operation sent from one actor to another. A message states that something has happened; it is not an instruction to the recipient. |
 | **Message type** | One of the operations the protocol defines, each named by a protocol shorthand. `RS` (Report Submission) and `EP` (Embargo Proposal) are message types ([§4](index.md#4-semantic-layer-message-meanings-n)). |
-| **Protocol shorthand** | The two-letter code naming a message type by its meaning rather than its wire form — `RS`, `EP`, `CV`, and so on. Introduced in [§4](index.md#4-semantic-layer-message-meanings-n) and mapped to wire forms in [§4.7](index.md#47-shorthand-wire-form-mapping). A reader meeting a shorthand before [§4](index.md#4-semantic-layer-message-meanings-n) may treat it as an opaque label. |
+| **Protocol shorthand** | The two-letter code naming a message type by its meaning rather than its wire form — `RS`, `EP`, `CV`, and so on. Introduced in [§4](index.md#4-semantic-layer-message-meanings-n) and mapped to wire forms in [§5.7](index.md#57-shorthand-to-wire-form-mapping). A reader meeting a shorthand before [§4](index.md#4-semantic-layer-message-meanings-n) may treat it as an opaque label. |
 | **Case stub** | A minimal description of a case, carrying enough for an invited actor to decide whether to join and no vulnerability detail. Sent with an invitation, before the invitee has been admitted ([§11.2](index.md#112-invitation-and-acceptance-n)). |
 | **Case ledger** | The case's authoritative, append-only history. The CASE_MANAGER is its only writer, and every participant holds a replica built from what the CASE_MANAGER sends. |
 | **`CaseLedgerEntry`** | One entry in the case ledger. Each entry records one accepted change, carries a timestamp assigned by the CASE_MANAGER, and is hash-chained to its predecessor so a participant can tell whether it holds the entries in order and without gaps. |
@@ -93,6 +96,9 @@ itself:
 | **Channel** | The path a message travels. In Vultron the delivery path is inbox to inbox, and case-scoped messages route through the CASE_MANAGER ([§5.4.2](index.md#542-routing-topology)). |
 
 ### 2.4 State, Embargo and Disclosure
+
+These terms concern what a case knows and what its participants have agreed to. The
+last two are the pair most often conflated.
 
 | Term | Definition |
 |---|---|

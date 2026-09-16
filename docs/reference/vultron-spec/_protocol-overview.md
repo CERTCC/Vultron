@@ -33,6 +33,49 @@ does not write shared case state, and reporting an observation is not the same a
 that observation becoming canonical
 ([§10.3](index.md#103-status-adoption-the-two-seam-model)).
 
+### 3.2 What a Deployment Looks Like
+
+The protocol is abstract, but a deployment is concrete, and the shape is worth
+stating plainly before the state machines begin.
+
+Each participating organization runs one Vultron service, which exposes an inbox at
+a URI. For each case, one participant additionally holds the `CASE_MANAGER` role
+for that case, and every case-scoped message passes through it: a participant
+addresses the message to the CASE_MANAGER, which records it in the case ledger and
+then sends the resulting entry to every participant, including the sender.
+
+```mermaid
+---
+title: Message flow within one case
+---
+flowchart LR
+    R["Reporter<br/>(own inbox)"]
+    V1["Vendor A<br/>(own inbox)"]
+    V2["Vendor B<br/>(own inbox)"]
+    CM["Participant holding<br/>CASE_MANAGER for this case<br/>(own inbox + case ledger)"]
+
+    R -- "case-scoped message" --> CM
+    V1 -- "case-scoped message" --> CM
+    V2 -- "case-scoped message" --> CM
+    CM -- "Announce(CaseLedgerEntry)" --> R
+    CM -- "Announce(CaseLedgerEntry)" --> V1
+    CM -- "Announce(CaseLedgerEntry)" --> V2
+```
+
+Two things this is **not**:
+
+- It is not a central clearinghouse. The role is held per case. A different case
+  may route through a different organization entirely, and there is no service that
+  sees every case.
+- It is not a registry. Nothing looks up authority in a directory; authority
+  follows the role recorded on the case
+  ([§5.4.1](index.md#541-single-writer-authority)).
+
+Participants also talk to each other outside the protocol — by mail, by phone, in a
+shared channel. That is normal and out of scope. What routes through the
+CASE_MANAGER is the case's *protocol* traffic, because that is what changes case
+state ([§5.4.2](index.md#542-routing-topology)).
+
 !!! note "Messages describe what has happened"
     A Vultron message states that something has already occurred. It is not an
     instruction to the recipient. An `RV` message means "I received this report
@@ -49,7 +92,7 @@ that observation becoming canonical
     - [Formal Protocol Definition](../formal_protocol/index.md) — the formal
       treatment, including the process count and message-set notation
 
-### 3.2 Tracking Dimensions
+### 3.3 Tracking Dimensions
 
 The protocol tracks coordination state across four dimensions. Each is a state
 machine, or a pair of them, with its own states and transitions. The lists below
@@ -76,7 +119,7 @@ RM, EM and CS were present in the original protocol design. PEC emerged during
 implementation and is fully normative; its provenance is recorded at
 [§9](index.md#9-participant-embargo-consent-pec-state-machine-n).
 
-### 3.3 How the Dimensions Interact
+### 3.4 How the Dimensions Interact
 
 The four dimensions are coupled. A transition in one creates obligations in
 others. This subsection summarizes the couplings;
@@ -109,7 +152,7 @@ participant joined after the embargo was agreed or declined the terms. Cascade
 rules keep them consistent
 ([§10.2](index.md#102-embargo-revision-and-termination-cascades)).
 
-### 3.4 Participants and Roles
+### 3.5 Participants and Roles
 
 An **actor** is an identity in the protocol — an organization, a person, or a
 service, named by a URI. An actor that joins a case becomes a **participant** in
