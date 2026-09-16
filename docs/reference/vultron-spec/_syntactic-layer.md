@@ -10,12 +10,10 @@
   full ActivityPub server semantics (inbox/outbox HTTP delivery, WebFinger
   discovery, HTTP Signatures) are not currently required by this specification
 
-!!! note "Informative: ActivityPub roadmap"
-    A future version of this specification is expected to raise the conformance
-    floor to ActivityPub for all participants. Implementations built against the
-    current AS2-only baseline should anticipate that re-evaluation against a
-    future ActivityPub-baseline version will be required. The AS2-only profile
-    may become a compatibility profile at that point. (See issue #2068.)
+!!! note "Informative: ActivityPub conformance is not required by this version"
+    This version requires the ActivityStreams 2.0 vocabulary but not full
+    ActivityPub server behavior. A future version is expected to raise that floor;
+    [§1.3](index.md#13-relationship-to-existing-standards) states the roadmap.
 
 ### 5.2 Object Types
 
@@ -157,13 +155,14 @@ This specification recognizes two transport profiles.
 
 - Each actor exposes an inbox endpoint for receiving inbound Activities.
 - Outbound Activities are delivered by HTTP POST to the recipient's inbox.
-- Authentication and authorization requirements are described in [§13](index.md#13-security-considerations-ni).
+- Authentication and authorization requirements are described in [§14](index.md#14-security-considerations-ni).
 
 #### ActivityPub federation profile [I]
 
-Full ActivityPub conformance — inbox/outbox HTTP delivery, HTTP Signatures,
-WebFinger discovery — is not currently required by this specification.
-See the informative note in [§5.1](index.md#51-base-vocabulary) and [Annex E](index.md#annex-e-relationship-to-activitypub-i) for the ActivityPub roadmap.
+Full ActivityPub conformance — inbox and outbox HTTP delivery, HTTP Signatures,
+WebFinger discovery — is not required by this version. The roadmap is stated at
+[§1.3](index.md#13-relationship-to-existing-standards); [Annex E](index.md#annex-e-relationship-to-activitypub-i) describes where
+Vultron follows ActivityPub conventions and where it diverges.
 
 #### Participant discovery [I]
 

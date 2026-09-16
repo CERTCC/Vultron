@@ -32,3 +32,14 @@ canonical-write-before-side-effects rule of [§10.3](../index.md#103-status-adop
 !!! info "See also"
     - [Process Models](../../../topics/process_models/index.md) — the behavioral
       material the L2 and L3 layers test against
+
+### 12.6 Capability Shapes
+
+Capability shapes describe optional, pluggable capabilities an implementation may
+connect to its own decision points. They are not part of the Observer, Authority
+or Hosting capability sets, and a conformance claim does not state which shapes an
+implementation provides.
+
+Where an implementation does provide a capability shape, it MUST satisfy that
+shape's contract. The shapes and their contracts are described in
+[Annex G](../index.md#annex-g-capability-shapes-i).

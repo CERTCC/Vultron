@@ -1,4 +1,4 @@
-## 14. IANA / Namespace Considerations [I]
+## 13. IANA and Namespace Considerations [I]
 
 **Vultron vocabulary namespace.** The Vultron AS2 vocabulary namespace is
 `https://certcc.github.io/Vultron/ns`. This is the initial, provisional URI,

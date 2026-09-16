@@ -1,10 +1,9 @@
-### 12.6 Capability Shapes [I]
+### Annex G — Capability Shapes [I]
 
 Capability shapes define optional, pluggable capabilities that connect to
-call-out points in the behavior engine. They are orthogonal to the capability
-sets of [§12.2](../index.md#122-capability-sets): an Observer implementation may have zero capability shapes
-implemented, and a capability that fits a given shape does not require anything
-beyond what the host behavior engine provides.
+call-out points in the behavior engine. Capability shapes and capability sets
+([§12.2](../index.md#122-capability-sets)) are independent: an implementation may
+provide the Observer capability set and no capability shapes at all.
 
 A capability shape defines a **contract** — what the call-out point accepts and
 what it returns. A concrete implementation that satisfies the contract is a
@@ -15,7 +14,7 @@ Vultron-compatible capability of that shape.
     mechanism that satisfies the contract fits the shape: a human following a
     procedure, a script, a model, or a service.
 
-#### 12.6.1 The Five Capability Shapes
+#### G.1 The Five Capability Shapes
 
 | Shape | Contract: accepts | Contract: returns | Notes |
 |---|---|---|---|
@@ -30,18 +29,18 @@ Vultron-compatible capability of that shape.
     artifact is written to the blackboard. If the only output is a SUCCESS/FAILURE
     confirming an external side effect, the shape is **Actuator**, not Composer.
 
-#### 12.6.2 Relationship to Conformance
+#### G.2 Relationship to Conformance
 
-Capability shapes are not part of the Observer, Authority, or Hosting
-capability set requirements. An implementation at any capability set level
-may implement any number of capability shapes. A conformance claim need not
-state which shapes are implemented.
+Capability shapes are not part of the Observer, Authority or Hosting capability
+set requirements. An implementation at any capability set level may provide any
+number of shapes, and a conformance claim does not state which
+([§12.6](../index.md#126-capability-shapes)).
 
 Where a capability shape is implemented, it MUST satisfy the contract defined
 above. The technology used to fulfill the contract is not specified: a shape
 may be fulfilled by a human, an automated script, an LLM, or any other mechanism.
 
-#### 12.6.3 Relationship to the Reference Implementation
+#### G.3 Relationship to the Reference Implementation
 
 In the Python reference implementation, a capability shape maps to a Port
 (abstract Protocol interface) and a concrete capability maps to an Adapter.

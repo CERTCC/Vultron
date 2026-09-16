@@ -38,12 +38,14 @@ title: Vultron Protocol Specification
 
 {% include-markdown "./_conformance/_conformance-testing.md" %}
 
-{% include-markdown "./_conformance/_capability-shapes.md" %}
+{% include-markdown "./_iana.md" %}
 
 {% include-markdown "./_security.md" %}
 
-{% include-markdown "./_iana.md" %}
+{% include-markdown "./_references.md" %}
 
 {% include-markdown "./_annexes.md" %}
+
+{% include-markdown "./_conformance/_capability-shapes.md" %}
 
 {% include-markdown "./_open-questions.md" %}

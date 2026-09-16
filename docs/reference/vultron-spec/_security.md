@@ -1,6 +1,6 @@
-## 13. Security Considerations [N/I]
+## 14. Security Considerations [N/I]
 
-### 13.1 Trust Model
+### 14.1 Trust Model
 
 **Actor identity.** The protocol uses actor URIs as process identifiers. An
 actor URI is the identity anchor for all messages sent by that actor, and for
@@ -26,7 +26,7 @@ provides tamper detection.
     - [§4.5](index.md#45-trust-and-bootstrap-semantics) (trust and bootstrap semantics)
     - [§5.4](index.md#54-addressing-and-channels) (addressing and channels)
 
-### 13.2 Embargo Integrity
+### 14.2 Embargo Integrity
 
 **Protocol adherence.** An active embargo is an agreement, not a technical
 enforcement. The protocol provides the signaling infrastructure — PEC state
@@ -45,7 +45,7 @@ out-of-band organizational matter.
 full case details. This is the primary technical lever the protocol provides
 against inadvertent over-disclosure to non-consenting parties.
 
-### 13.3 Replay and Idempotency
+### 14.3 Replay and Idempotency
 
 **Message deduplication.** Each ActivityStreams Activity carries a unique `id`.
 Implementations MUST deduplicate inbound messages by `id` before processing
@@ -56,7 +56,7 @@ hash-chained. A re-delivered `Announce(CaseLedgerEntry)` with a known entry
 hash MUST be treated as a no-op. The ledger NAK path (`Reject(CaseLedgerEntry)`)
 and gap-fill replay provide recovery from missed entries.
 
-### 13.4 Confidentiality
+### 14.4 Confidentiality
 
 **In-transit protection.** The protocol does not currently mandate a specific
 in-transit encryption mechanism. TLS is the expected transport protection for
