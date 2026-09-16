@@ -1,30 +1,24 @@
 {
-  "@context": "https://www.w3.org/ns/activitystreams",
+  "id": "https://vultron.example/organizations/vendorco",
   "type": "Organization",
-  "id": "https://vultron.example/organizations/vendor",
   "name": "VendorCo",
+  "@context": "https://www.w3.org/ns/activitystreams",
   "inbox": {
-    "@context": "https://www.w3.org/ns/activitystreams",
+    "id": "urn:uuid:c1f4bf09-67a3-49e9-8c56-33cd43654777",
     "type": "OrderedCollection",
-    "id": "https://for.example/b926cb0d-e417-4852-b0be-a3ce8dc8895d",
-    "published": "2024-01-22T20:29:47+00:00",
-    "updated": "2024-01-22T20:29:47+00:00",
+    "published": "2026-09-16T18:38:47+00:00",
+    "updated": "2026-09-16T18:38:47+00:00",
+    "@context": "https://www.w3.org/ns/activitystreams",
     "items": [],
     "current": 0
   },
   "outbox": {
-    "@context": "https://www.w3.org/ns/activitystreams",
+    "id": "urn:uuid:3461dc02-6e39-4e04-8fab-afb8e47ab197",
     "type": "OrderedCollection",
-    "id": "https://for.example/088ac76a-3335-46a1-96dc-1bfad97265c8",
-    "published": "2024-01-22T20:29:47+00:00",
-    "updated": "2024-01-22T20:29:47+00:00",
+    "published": "2026-09-16T18:38:47+00:00",
+    "updated": "2026-09-16T18:38:47+00:00",
+    "@context": "https://www.w3.org/ns/activitystreams",
     "items": [],
     "current": 0
-  },
-  "following": null,
-  "followers": null,
-  "liked": null,
-  "streams": null,
-  "preferredUsername": null,
-  "endpoints": null
+  }
 }

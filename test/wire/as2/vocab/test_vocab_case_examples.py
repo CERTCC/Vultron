@@ -18,6 +18,7 @@ from vultron.wire.as2.vocab.base.objects.activities.base import as_Activity
 from vultron.wire.as2.vocab.base.objects.activities.transitive import (
     as_Accept,
     as_Add,
+    as_Announce,
     as_Create,
     as_Ignore,
     as_Join,
@@ -307,6 +308,16 @@ class TestVocabCaseOwnershipExamples(unittest.TestCase):
 
         self.assertEqual(activity.actor, coordinator.id_)
         self.assertIsInstance(activity.object_, as_Offer)
+
+    def test_announce_case(self):
+        activity = examples.announce_case()
+        self.assertIsInstance(activity, as_Activity)
+        vendor = examples.vendor()
+
+        self.assertIsInstance(activity, as_Announce)
+        self.assertEqual(activity.type_, "Announce")
+        self.assertEqual(activity.actor, vendor.id_)
+        self.assertIsInstance(activity.object_, as_VulnerabilityCase)
 
 
 class TestVocabCaseStatusExamples(unittest.TestCase):

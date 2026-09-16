@@ -210,11 +210,11 @@ coordinate. A missed deadline MUST NOT result in their acceptance being
 refused.
 
 !!! note ""
-    If a late `Accept` matches the current active embargo, the CASE_MANAGER
-    MUST honour it and advance PEC to `SIGNATORY`. If the accepted embargo
-    is stale (terms have since been revised), the CASE_MANAGER MUST send a
-    fresh invitation carrying the current embargo terms instead.
-    (EMB-17-002, EMB-17-003)
+    If a late `Accept` matches the current active embargo (whether `EM` is
+    `ACTIVE` or `REVISE`), the CASE_MANAGER MUST honor it and advance PEC
+    to `SIGNATORY` (EMB-17-001). If the accepted embargo is stale (terms
+    have since been revised), the CASE_MANAGER MUST send a fresh invitation
+    carrying the current embargo terms instead (EMB-17-002, EMB-17-003).
 
 ---
 

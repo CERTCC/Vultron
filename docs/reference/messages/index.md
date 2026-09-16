@@ -30,6 +30,10 @@ that conveys it, any discriminating payload field, and a rendered example.
 | [Embargo Management (EM)](em.md) | `EP ER EA EV EJ EC ET EK EE` |
 | [Case State (CS)](cs.md) | `CV CF CD CP CX CA CK CE` |
 | [General (GI)](general.md) | `GI GK GE` |
+| [Faults and Acknowledgements](faults_and_acknowledgements.md) | fault trichotomy; cumulative hash-chain ACK |
+| [Case Management](case_management.md) | case lifecycle, participant roster, ownership transfer |
+| [Case Proposal](case_proposal.md) | pre-case bootstrap (ADR-0023) |
+| [Ledger Replication](ledger_replication.md) | SYNC substrate (ADR-0077) |
 
 ## How to read the mapping tables
 

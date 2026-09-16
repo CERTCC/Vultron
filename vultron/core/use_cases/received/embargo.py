@@ -527,7 +527,10 @@ class AcceptInviteToEmbargoOnCaseReceivedUseCase:
             else None
         )
 
-        if em_state == EM.ACTIVE and active_embargo_id == embargo_id:
+        if (
+            em_state in (EM.ACTIVE, EM.REVISE)
+            and active_embargo_id == embargo_id
+        ):
             # AC-2 of #2213: current embargo still matches — honor.
             service.record_participant_consent(
                 case_id=case_id,
@@ -587,12 +590,20 @@ class AcceptInviteToEmbargoOnCaseReceivedUseCase:
                     active_embargo_id,
                 )
             else:
-                logger.warning(
-                    "accept_invite_to_embargo_on_case: late Accept for"
-                    " stale embargo on case '%s' — trigger_activity"
-                    " unavailable, re-invite not emitted",
-                    case_id,
-                )
+                if not active_embargo_id:
+                    logger.warning(
+                        "accept_invite_to_embargo_on_case: late Accept for"
+                        " case '%s' in EM.%s — no active embargo to re-invite to",
+                        case_id,
+                        em_state.name,
+                    )
+                else:
+                    logger.warning(
+                        "accept_invite_to_embargo_on_case: late Accept for"
+                        " stale embargo on case '%s' — trigger_activity"
+                        " unavailable, re-invite not emitted",
+                        case_id,
+                    )
 
         else:
             # AC-4 of #2213: EM EXITED or NONE — ack no-op.

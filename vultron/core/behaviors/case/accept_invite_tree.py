@@ -793,16 +793,16 @@ class AdvanceInviteeToReceivedNode(DataLayerActionWithPorts):
     def _current_participant_rm(self) -> RM | None:
         """Return the persisted invitee participant's current RM state.
 
-        None when the case, the participant mapping, or the participant record
-        cannot be read, or the participant has no status yet.
+        None when the participant record cannot be read or has no status yet.
+        The participant id is derived the same way steps 1–2 build it
+        (:class:`CreateInviteeParticipantNode`), so this reads the participant
+        directly rather than resolving the case (ADR-0087: no direct
+        ``read_case`` here).
         """
         assert self.datalayer is not None
-        case = self.datalayer.read_case(self.case_id)
-        if not isinstance(case, VulnerabilityCase):
-            return None
-        participant_id = case.actor_participant_index.get(self.invitee_id)
-        if participant_id is None:
-            return None
+        participant_id = (
+            f"{self.case_id}/participants/" f"{self.invitee_id.split('/')[-1]}"
+        )
         participant = self.datalayer.read(participant_id)
         if not isinstance(participant, CaseParticipant):
             return None

@@ -259,16 +259,12 @@ examples. For the **examples** themselves, follow the `_*.md` partials under
 `docs/howto/activitypub/activities/` and `docs/reference/activitypub/objects.md`,
 which are the pages that actually call `vocab_examples`.
 
-Two prerequisites:
-
-- **#2904 blocks this.** Every `markdown_exec` example block currently fails from
-  a single root cause (frozen-model assignment in `_strip_published_udpated`). Any
-  page rendering examples this way inherits the failure until that lands.
-- `docs/reference/examples/*.json` are retained as downloadable artifacts, but
-  the generator's hardcoded relative output path
-  (`../../docs/reference/examples` in `vocab_examples.main()`) must be fixed and
-  a regeneration check added, or they will silently diverge from the rendered
-  examples again.
+The generator's output path is now resolved from the file's own location
+(`Path(__file__).parents[5]`), so it works regardless of the caller's working
+directory. A drift check in `test/architecture/test_vocab_examples_current.py`
+fails when the committed JSON file list diverges from what the generator produces
+(#3004). The `markdown_exec` frozen-model bug that blocked all example blocks was
+fixed in #2904.
 
 ## MSM-03 defect: `CV`/`CF`/`CD` were mapped to the wrong object
 

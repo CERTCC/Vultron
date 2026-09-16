@@ -357,7 +357,10 @@ class SetEmbargoActiveNode(DataLayerActionWithPorts):
             return failure  # Regime 1 (ADR-0087)
 
         current_embargo_id = _as_id(case.active_embargo)
-        if current_embargo_id == self.embargo_id:
+        if (
+            current_embargo_id == self.embargo_id
+            and case.current_status.em.state == EM.ACTIVE
+        ):
             self.feedback_message = (
                 f"Case '{self.case_id}' already has embargo"
                 f" '{self.embargo_id}' active — idempotent no-op"

@@ -6,6 +6,7 @@ The behavioral requirements for this tree are specified in the
 [Protocol Specifications](../../reference/specs/protocol.md):
 
 - [CSB-11](../../reference/specs/protocol.md#csb-11) — Enter CS D (Fix Deployed)
+- [CSB-15](../../reference/specs/protocol.md#csb-15) — Trigger-Side VFD Role Preconditions
 
 !!! note "Implementation approach"
 
