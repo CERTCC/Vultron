@@ -195,7 +195,7 @@ holding an unbroken hash chain. A per-message acknowledgement would restate what
 the chain already shows. `RK` survives because report submission happens before the
 case exists, so there is no ledger to carry it.
 
-**`RE`, `EE` and `CE` are deliberately unmodelled, not merely unimplemented.** The
+**`RE`, `EE` and `CE` are deliberately unmodeled, not merely unimplemented.** The
 protocol does not model inbound error messages typed by the state machine that
 produced them, because that grouping tells a receiver nothing it can act on:
 knowing *which* machine was confused does not indicate what to do about it. Errors
