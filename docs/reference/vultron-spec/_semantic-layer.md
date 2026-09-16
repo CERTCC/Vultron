@@ -37,8 +37,7 @@ it maps to `MessageSemantics.ACK_REPORT` with wire form
 
 $M^{em} = \{EP, ER, EA, EV, EJ, EC, ET, EK, EE\}$
 
-Nine messages, in three related groups. Note that the *initial-proposal* and
-*revision* groups are distinct shorthands:
+Nine messages, in three related groups. The initial-proposal shorthands and the revision shorthands are distinct:
 
 | Shorthand | Name | Meaning |
 |---|---|---|
@@ -124,9 +123,9 @@ specification is **not uniform**, and implementers must not assume symmetry.
 | `EK`, `CK` | No | No `MessageSemantics` value; no entry in `SEMANTIC_REGISTRY` |
 | `RE`, `EE`, `CE` | No | No `MessageSemantics` value; no wire representation |
 
-**Error message types are deliberately unmodelled, not merely unimplemented.**
+**Error message types are deliberately unmodeled, not merely unimplemented.**
 The decision (ADR-0049) is that the protocol core does not model inbound error
-message types at all. Error signalling is instead handled through a three-way
+message types at all. Error signaling is instead handled through a three-way
 fault partition (ADR-0083):
 
 | Fault kind | Wire form | When to use |
@@ -175,7 +174,7 @@ local state or object payload as noted.
 | `CV`–`CA` | `ADD_CASE_STATUS_TO_CASE` | `Add(CaseStatus)[target=VulnerabilityCase]` |
 | `RE`, `EE`, `CE`, `EK`, `CK` | *(none — see [§4.6](index.md#46-error-and-acknowledgement-messages))* | *(none)* |
 
-Note the two collision classes: embargo revision shorthands collide with their
+Two collision classes exist: embargo revision shorthands collide with their
 initial-proposal counterparts (resolve via local EM state, [§4.2](index.md#42-embargo-management-messages)), and all six CS
 status shorthands collide (resolve via `CaseStatus` payload, [§4.3](index.md#43-case-state-messages)).
 
@@ -203,7 +202,7 @@ state MUST be inferred from messages received from that actor or from the
 canonical ledger.
 
 !!! info "See also"
-    - `specs/actor-knowledge-model.yaml` AKM-01 through AKM-04
-    - [Hexagonal Architecture](../../adr/0009-hexagonal-architecture.md)
+    - [Actor Knowledge Model](../../topics/actor-knowledge-model.md)
+    - [ADR-0012: Per-Actor Data Layer Isolation](../../adr/0012-per-actor-datalayer-isolation.md)
 
 ---

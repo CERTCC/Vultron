@@ -10,12 +10,10 @@ A capability shape defines a **contract** — what the call-out point accepts an
 what it returns. A concrete implementation that satisfies the contract is a
 Vultron-compatible capability of that shape.
 
-!!! note "Name change"
-    This concept was previously named "agent shape" or "coordination agent
-    taxonomy." The name was changed to "capability shape" because "agent" has
-    acquired strong connotations of LLM-based autonomous systems. The intent was
-    always to describe capability contracts, not autonomous agents specifically.
-    See ADR-0024 (original decision) and `docs/reference/vultron-taxonomy.md`.
+!!! note "Informative: why \"shape\""
+    A shape is a contract, not a component and not an autonomous system. Any
+    mechanism that satisfies the contract fits the shape: a human following a
+    procedure, a script, a model, or a service.
 
 #### 12.6.1 The Five Capability Shapes
 

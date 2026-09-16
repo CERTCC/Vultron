@@ -25,19 +25,18 @@ provides tamper detection.
 !!! info "See also"
     - [§4.5](index.md#45-trust-and-bootstrap-semantics) (trust and bootstrap semantics)
     - [§5.4](index.md#54-addressing-and-channels) (addressing and channels)
-    - `specs/case-bootstrap-trust.yaml` CBT-01 through CBT-05
 
 ### 13.2 Embargo Integrity
 
 **Protocol adherence.** An active embargo is an agreement, not a technical
-enforcement. The protocol provides the signalling infrastructure — PEC state
+enforcement. The protocol provides the signaling infrastructure — PEC state
 tracks which participants have consented, [§9.5](index.md#95-embargo-meta-protocol-delivery-to-non-signatories) ensures all participants receive
 meta-protocol messages — but it cannot prevent a participant from disclosing
 outside the protocol.
 
 **Defection.** If a participant discloses publicly while an embargo is `ACTIVE`,
 the `CP` (public awareness) message will trigger the embargo teardown cascade
-([§10.1](index.md#101-status-adoption-the-two-seam-model)). The teardown is a state machine consequence, not a penalty mechanism.
+([§10.3](index.md#103-status-adoption-the-two-seam-model)). The teardown is a state machine consequence, not a penalty mechanism.
 The protocol has no built-in penalty for defection; enforcement is an
 out-of-band organizational matter.
 
@@ -65,9 +64,8 @@ HTTP delivery. A future version of this specification is expected to require TLS
 
 **At-rest and end-to-end confidentiality.** Content-level encryption — protecting
 case details from the CASE_MANAGER itself, or supporting future multi-party
-computation — is deferred in the current prototype. The encryption architecture
-is tracked in `specs/encryption.yaml`. Implementations SHOULD treat any
-unencrypted case content as potentially accessible to the CASE_MANAGER operator.
+computation — is not specified by this version. Implementations SHOULD treat any
+unencrypted case content as accessible to whoever operates the CASE_MANAGER.
 
 **Scope.** This section covers security requirements for the protocol as
 specified. Operational security measures (key management, access control,

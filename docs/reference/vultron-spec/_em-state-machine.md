@@ -2,13 +2,7 @@
 
 ### 7.1 States
 
-| State | Meaning |
-|---|---|
-| `NONE` | No embargo is in effect for this case |
-| `PROPOSED` | An embargo has been proposed; no agreement yet |
-| `ACTIVE` | An embargo agreement is in effect |
-| `REVISE` | An active embargo is under revision |
-| `EXITED` | The embargo has terminated |
+{% include-markdown "./includes/_em-states-table.md" %}
 
 This is the **case-level** collective embargo state, distinct from
 per-participant consent (see [§9](index.md#9-participant-embargo-consent-pec-state-machine-n)).
@@ -41,7 +35,7 @@ Triggers are `PROPOSE`, `ACCEPT`, `REJECT`, `TERMINATE`:
 | `ACTIVE` | `TERMINATE` | `EXITED` |
 | `REVISE` | `TERMINATE` | `EXITED` |
 
-Note that `REJECT` from `REVISE` returns to `ACTIVE`, not to `NONE` — rejecting a
+`REJECT` from `REVISE` returns to `ACTIVE`, not to `NONE` — rejecting a
 *revision* does not end the embargo, it leaves the existing terms in force. This
 differs from `REJECT` at `PROPOSED`, which returns to `NONE` because no terms
 were ever in force.

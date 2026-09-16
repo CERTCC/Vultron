@@ -33,5 +33,5 @@ assumption. See [§11.1](../index.md#111-role-assignment-n) for the role assignm
       and internal process structure. These are orthogonal: an Observer
       implementation is tested at layers L1 through L3.
 
-    Earlier drafts of this document used `T0`/`T1`/`T2` for capability tiers and
-    `L0`/`L1`/`L2` before that. Both sets of labels are superseded.
+    A conformance claim names capability sets; a test result names a layer. The
+    two are answering different questions and are not interchangeable.

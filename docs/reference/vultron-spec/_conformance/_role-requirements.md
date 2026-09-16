@@ -2,8 +2,13 @@
 
 #### 12.4.1 Participant-Specific CS Transitions (VFD)
 
-VFD records what a specific participant has done, so drive authority is scoped to
-the participant that did it.
+VFD records what a specific participant has done, so authority to cause a VFD
+transition is scoped to the participant that did it.
+
+!!! note "Recall: vendor/fix/deploy states"
+    {% include-markdown "../includes/_vfd-states-table.md" %}
+
+    Full definitions are in [§8.1](../index.md#81-vfd-vendor-aware-fix-ready-fix-deployed).
 
 For **self-reported** VFD transitions (a participant advancing its own state via
 the local trigger path):
@@ -14,16 +19,26 @@ the local trigger path):
   MUST fail when Deployer is absent
 - A Vendor-only actor MUST NOT advance past `VFd` without also holding Deployer
 
-!!! warning "Do not conflate `P` (public aware) with `D` (fix deployed)"
-    A publication notification MUST set only the PXA public-awareness state. It
-    MUST NOT imply fix deployment. `P` is participant-agnostic world state; `D` is
-    a participant-specific act requiring the Deployer role. An implementation that
-    treats "we published" as "it's deployed" produces an unauthorized VFD
-    advance.
+!!! warning "Publishing a fix is not deploying it"
+    A vendor that publishes a patch has made the patch available. It has not
+    deployed it: deployment happens in the systems that run the product, and it
+    is a Deployer's act. Fix Ready and Fix Deployed are therefore distinct
+    protocol facts, and one MUST NOT be inferred from the other.
+
+    The same separation applies to public awareness. A notification that
+    information is public sets Public Aware, which is world state. It MUST NOT
+    set Fix Deployed, which is participant state requiring the Deployer role. An
+    implementation that treats publication as deployment produces an
+    unauthorized VFD advance.
 
 {% include-markdown "../_oq-v-to-V.md" %}
 
 #### 12.4.2 Participant-Agnostic CS Transitions (PXA)
+
+!!! note "Recall: public/exploit/attacks axes"
+    {% include-markdown "../includes/_pxa-states-table.md" %}
+
+    Full definitions are in [§8.2](../index.md#82-pxa-public-aware-exploit-public-attacks-observed).
 
 PXA records the state of the world rather than of any participant, so **any**
 participant MAY report a PXA observation. These transitions are role-ungated:
@@ -34,33 +49,34 @@ independently of anything a case participant does or causes.
 - `x→X` (exploit public): any participant may report
 - `a→A` (attacks observed): any participant may report
 
-Reporting is not adoption. A reported observation is a claim; whether it becomes
+Reporting is not adoption. A reported observation is a claim. Whether it becomes
 canonical case state, and whether it triggers embargo teardown, is decided by the
-two-seam model in [**§10.1**](../index.md#101-status-adoption-the-two-seam-model). The role rule here — *who may report* — is
+**CASE_MANAGER**, following the two-seam model of
+[§10.3](../index.md#103-status-adoption-the-two-seam-model) and subject to Case
+Owner authorization by default. The role rule here — *who may report* — is
 deliberately separate from the authorization rules there — *what the CASE_MANAGER
 does with a report*.
 
-!!! note "Informative: the Sentinel capability shape"
-    A participant that monitors external sources (threat feeds, public
-    disclosures, vulnerability databases) and reports what it finds into a case is
-    an instance of the **Sentinel** capability shape ([§12.6](../index.md#126-capability-shapes-i)).
-
-    The Sentinel shape is defined as an optional, pluggable capability — not a
-    mandatory protocol role. No spec group yet defines a Sentinel's trust
-    relationship to a case, and nothing in the current protocol distinguishes a
-    Sentinel's observations from any other participant's report.
-    Given that StatusAdoptionGate's default policy is to auto-adopt non-owner
-    reports, an unspecified external reporter is a trust-model question, not
-    merely a naming one. See [§12.6](../index.md#126-capability-shapes-i) and Open Question 16. Treat this note
-    as informative.
+!!! note "Informative: automated observers"
+    An actor may be an automated service that monitors external sources — threat
+    feeds, public disclosures, vulnerability databases — and reports what it finds
+    into a case. Such a service is not a distinct protocol role: it reports PXA
+    observations on the same terms as any other participant, and its reports are
+    adopted through the same authorization as theirs
+    ([§10.3](../index.md#103-status-adoption-the-two-seam-model)).
 
 #### 12.4.3 CVE ID Assignment
 
-An actor holding CNA MUST have the capability to assign CVE IDs, which
-requires evaluating vulnerability eligibility criteria before assignment. An
-actor not holding CNA MUST delegate ID assignment to an external CNA service.
+An actor holding the CVE Numbering Authority (CNA) role MUST be able to assign
+CVE IDs, which requires evaluating a vulnerability against the eligibility
+criteria before assignment.
 
-**Eligibility criteria posture (resolves Open Question 9):** The RFC does not
+An actor that does not hold the CNA role MUST delegate ID assignment. It MAY
+delegate to an external CNA service, or to another participant in the same case
+that holds the CNA role — a coordinator or vendor acting as a CNA can perform the
+assignment without the case leaving the protocol.
+
+**Eligibility criteria posture.** This specification does not
 normatively cite a specific edition of the CNA Operational Rules, nor does it
 treat eligibility checks as fully implementation-defined. Instead, the
 reference implementation follows CNA Operational Rules v4.1.0 as the
@@ -69,17 +85,19 @@ the implementing call-out. This avoids coupling the RFC to an
 independently-versioned external document's release cycle while remaining
 transparent about which edition the reference implementation follows.
 
-**Architectural note:** CVE eligibility checking is a single logical
-capability — the full set of criteria applied as a unit against a specific
-rules edition. The correct BT design is one `EvaluateCveEligibility` Evaluator
-call-out point, not separate call-out points for each individual criterion
-(BTND-05-007). This refactoring is tracked as a separate implementation task.
+Eligibility checking is a single logical capability: the full set of criteria
+applied as a unit against one rules edition. The protocol treats it as one
+decision with one outcome, and does not specify how an implementation reaches
+that decision.
 
 #### 12.4.4 Case Owner Authority
 
-A Case Owner's status updates MUST be accepted without requiring approval from
-a case management policy engine. Requiring a Case Owner to approve their own
-updates would be circular.
+Adopting a reported status as canonical case state requires the **Case Owner's**
+authorization. The Case Owner is the party whose disclosure decision the case
+exists to serve, so it is the party entitled to decide what the case asserts.
+The CASE_MANAGER MUST obtain that authorization by default before adopting a
+participant's reported status ([§10.3](../index.md#103-status-adoption-the-two-seam-model)).
 
-For all other senders, implementations MAY require approval via a configurable
-policy gate before adopting a reported status update.
+One case is exempt. Where the Case Owner is itself the sender, the CASE_MANAGER
+MUST adopt the status without seeking approval: asking the Case Owner to approve
+its own report would be circular.

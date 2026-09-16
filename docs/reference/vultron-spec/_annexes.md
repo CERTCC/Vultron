@@ -8,14 +8,13 @@
 ### Annex B — Worked Example: Multi-Party CVD [I]
 
 !!! info "See also"
-    The following demo scripts in the reference implementation illustrate
-    multi-party CVD scenarios. The implementation is authoritative at this
-    stage; use these scripts rather than older design documents.
+    The reference implementation ships runnable multi-party scenarios. They
+    exercise the flows this annex describes end to end.
 
-    - `vultron/demo/scenario/fv_demo.py` — Reporter → Vendor (two-party)
-    - `vultron/demo/scenario/fcv_demo.py` — Reporter → Coordinator → Vendor
-    - `vultron/demo/scenario/fvcv_handoff_demo.py` — Coordinator hand-off
-    - `vultron/demo/scenario/README.md` — full scenario inventory
+    - [`fv_demo.py`](https://github.com/CERTCC/Vultron/blob/main/vultron/demo/scenario/fv_demo.py) — Reporter → Vendor (two-party)
+    - [`fcv_demo.py`](https://github.com/CERTCC/Vultron/blob/main/vultron/demo/scenario/fcv_demo.py) — Reporter → Coordinator → Vendor
+    - [`fvcv_handoff_demo.py`](https://github.com/CERTCC/Vultron/blob/main/vultron/demo/scenario/fvcv_handoff_demo.py) — Coordinator hand-off
+    - [scenario inventory](https://github.com/CERTCC/Vultron/blob/main/vultron/demo/scenario/README.md) — the full list
 
 ### Annex C — Notation Reference [I]
 
@@ -25,7 +24,7 @@
 ### Annex D — Possible Case Histories [I]
 
 Ordering constraints on CS state transitions are not yet normatively specified
-(see [§8.3](index.md#83-case-state-as-a-compound-tuple) and Open Question 12). The possible-histories material is informative.
+(see [§8.3](index.md#83-case-state-as-a-compound-tuple)). The possible-histories material is informative.
 
 !!! info "See also"
     - [Possible Histories](../../topics/measuring_cvd/possible_histories.md)
@@ -48,13 +47,12 @@ The reference implementation uses behavior trees (py_trees) to implement
 protocol logic. Behavior trees are one valid implementation pattern, not a
 normative requirement — this specification does not require a BT implementation.
 
-At this stage, `vultron/core/behaviors/` is the ground truth for BT structure.
-Documentation in `docs/topics/behavior_logic/` provides narrative context but
-should be verified against the implementation before treating it as normative
-for the spec.
+The reference implementation's behavior trees are the ground truth for its own
+tree structure: [`vultron/core/behaviors/`](https://github.com/CERTCC/Vultron/blob/main/vultron/core/behaviors/). The
+narrative description under [Behavior Logic](../../topics/behavior_logic/index.md)
+explains the approach but is not normative for this specification.
 
 !!! info "See also"
-    - `vultron/core/behaviors/` (authoritative)
-    - [Behavior Logic](../../topics/behavior_logic/index.md) (narrative reference)
+    - [Behavior Logic](../../topics/behavior_logic/index.md)
 
 ---

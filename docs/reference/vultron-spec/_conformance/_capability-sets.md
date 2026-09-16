@@ -3,15 +3,19 @@
 !!! note "What 'implement a state machine' means"
     Implementing a state machine has two components:
 
-    1. **Track**: maintain a local instance of the machine and update it when
-       relevant protocol messages are received from other participants.
-    2. **Drive**: send the appropriate protocol messages when *this participant's
-       own* state transitions occur (per the "Avoid Surprise" principle).
+    1. **Track**: maintain a local value for the machine, and update it as
+       incoming messages report transitions.
+    2. **Drive**: cause a transition that the participant's roles authorize, and
+       announce it so the other participants learn of it.
 
-    Every participant must both track and drive the machines relevant to their
-    role. Tracking without driving means other participants are surprised by your
-    state changes. Driving without tracking means you are unaware of the case
-    state you are acting on.
+    The two are separate obligations. A participant that tracks but does not
+    drive leaves the others to discover its state changes some other way. A
+    participant that drives but does not track acts on case state it does not
+    know. Which transitions a participant may drive depends on its roles
+    ([§12.4](../index.md#124-role-specific-normative-requirements)); every
+    participant tracks.
+
+{% include-markdown "../includes/_dimensions-vs-machines.md" %}
 
 #### Observer capability set
 
@@ -22,8 +26,13 @@ There is no sub-Observer participation level. An actor that accepts a case
 invitation has committed to Observer behavior from that point. It must track
 state and notify others of its own transitions.
 
-- MUST implement all five state machines: **RM, EM, PEC, VFD, PXA**
-  (track and drive, per the definition above)
+- MUST maintain all five state machines — **RM, EM, PEC, VFD, PXA** — for
+  itself: it MUST hold a current value for each, and MUST drive the transitions
+  its roles authorize
+- SHOULD also track the states of the other participants in the case, to inform
+  its own decisions. This is a SHOULD rather than a MUST because correct
+  operation of the protocol MUST NOT depend on any participant holding perfect
+  information about the others
 - MUST send the messages appropriate to its claimed roles when its own state
   transitions occur
 - MUST receive and update local state when notified of other participants'
@@ -35,12 +44,19 @@ state and notify others of its own transitions.
   set adds them
 
 !!! note "Why there is no sub-Observer level"
-    A monitoring-only actor might seem to need only message parsing, with no
-    state tracking required. But an actor that cannot track PEC cannot know what
-    it is permitted to display. An actor that cannot track RM has no basis for
-    evaluating case status. Meaningful use of Vultron data requires the full
-    Observer set. A parse-only tool is not a case Participant: it holds no
-    `CaseParticipant` record and no case is obliged to deliver anything to it.
+    A monitoring-only actor might seem to need message parsing and nothing else.
+    Two things rule that out. An actor that does not track its own PEC state
+    cannot take part in embargo negotiation, and the CASE_MANAGER decides what to
+    send it on the basis of that state — so an untracked participant cannot be
+    reliably served. An actor that does not track RM has no basis for evaluating
+    case status. Meaningful use of Vultron data requires the full Observer set.
+
+    The protocol governs what the CASE_MANAGER **sends**, not what a recipient
+    does with information it already holds. Vultron gates dissemination; it
+    cannot constrain display.
+
+    A parse-only tool is not a case Participant: it holds no `CaseParticipant`
+    record and no case is obliged to deliver anything to it.
 
 !!! note "Role-specific drive obligations"
     All Observer participants **track** all five machines. Which transitions a
@@ -74,18 +90,18 @@ It is separable from the Authority capability set.
   participants via `Announce(CaseLedgerEntry)`
 - MUST implement multi-party case management: participant invitation,
   acceptance, role assignment, and case ownership operations
-- MUST implement the two-seam status adoption model ([§10.1](../index.md#101-status-adoption-the-two-seam-model)), including the
+- MUST implement the two-seam status adoption model ([§10.3](../index.md#103-status-adoption-the-two-seam-model)), including the
   canonical-write-before-side-effects ordering
 - MUST deliver full case content only when the [§9.7](../index.md#97-gating-full-case-delivery) gate is satisfied
 
 !!! note "Ledger replication scope"
     The detailed replication mechanics (hash-chaining, gap detection, ordering
     guarantees) are specified in a companion document,
-    `docs/reference/draft-vultron-replication-spec.md`, not in this RFC. See ADR-0077. The single-hub / single-writer + fan-out model is the normative
+    `docs/reference/draft-vultron-replication-spec.md`, not in this specification. See ADR-0077. The single-hub / single-writer + fan-out model is the normative
     replication architecture: one CASE_MANAGER holds exclusive write authority and
     replicates entries to participant actors via `Announce(CaseLedgerEntry)`.
     Distributed consensus (a multi-node case manager cluster) is a future extension
-    out of scope for this RFC.
+    out of scope for this specification.
 
 #### Named configurations
 

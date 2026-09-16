@@ -9,17 +9,10 @@
 
 ### 9.1 States
 
-| State | Meaning |
-|---|---|
-| `NO_EMBARGO` | No embargo in scope for this participant (initial state; also reset destination when embargo terminates) |
-| `INVITED` | Participant has received an embargo invitation; response pending |
-| `SIGNATORY` | Participant has accepted current embargo terms |
-| `LAPSED` | Was signatory; case embargo entered `REVISE`; not yet re-accepted |
-| `DECLINED` | Explicitly declined, or timed out without responding (pocket veto) |
+{% include-markdown "./includes/_pec-states-table.md" %}
 
 !!! info "See also"
-    - `vultron/core/states/participant_embargo_consent.py`
-    - `notes/participant-embargo-consent.md`
+    - [Participant Embargo Consent](../../topics/process_models/em/participant-embargo-consent.md)
 
 ### 9.2 Transitions and Guards
 
@@ -68,8 +61,8 @@ Neither `LAPSED` nor `DECLINED` is terminal — both can be re-invited.
   explicit RSVP-by deadline. When present it is authoritative; when absent the
   configurable policy window applies (default 7 days). The pocket veto is the
   implicit form of the same mechanism, not a second one
-- `Invite.end_time` (RSVP-by) MUST NOT be confused with
-  `Invite.object_.end_time` (embargo expiry) — the same invitation carries both
+- the invitation's `endTime` (RSVP-by) MUST NOT be confused with
+  the embargo event's own `endTime` (embargo expiry) — the same invitation carries both
 - A minimum RSVP window (default 72h) MUST be enforced; a receiver getting a
   sub-minimum deadline MUST clamp it up rather than reject the invitation
 - The CASE_MANAGER enforces the deadline, evaluated
@@ -77,7 +70,7 @@ Neither `LAPSED` nor `DECLINED` is terminal — both can be re-invited.
 - A lapse records `DECLINED` — the same state as an explicit refusal. The
   distinction is provenance, carried by the canonical ledger, not by a
   dedicated PEC state
-- A late `Accept` MUST NOT be refused on deadline grounds: honour it if the
+- A late `Accept` MUST NOT be refused on deadline grounds: honor it if the
   terms are current, re-invite with current terms if they are stale, or
   acknowledge as a no-op (retaining case participation) if no embargo remains
 
@@ -108,11 +101,16 @@ Before the CASE_MANAGER delivers full case content
 description, and sensitive notes), **both** conditions MUST hold for the
 recipient:
 
-1. The participant is **admitted to the case** — RM state is at least
-   `RM.RECEIVED`.
+1. The participant is **admitted to the case** — its RM state is at least
+   Received.
 2. The participant is a **signatory to the active embargo**
    (`embargo_adherence = True`), **OR** there is no active embargo
    (`EM.NONE`).
+
+!!! note "Recall: report management states"
+    {% include-markdown "./includes/_rm-states-table.md" %}
+
+    Full definitions are in [§6.1](index.md#61-states).
 
 !!! warning "The gate is admission plus consent — not completed triage"
     It is tempting to read condition 1 as `RM.ACCEPTED`. That reading is wrong
@@ -126,7 +124,7 @@ recipient:
     content.** The ordering is: admit the participant at `RM.RECEIVED`, resolve
     embargo consent, then deliver the full case.
 
-Note the consequence for [§10](index.md#10-model-interactions-and-cascade-rules-n)'s cascade ordering: `Accept(Invite)` implies consent
+This matters to [§10](index.md#10-model-interactions-and-cascade-rules-n)'s cascade ordering: `Accept(Invite)` implies consent
 to any active embargo, which is what allows delivery to proceed immediately rather
 than waiting on a separate consent round-trip.
 

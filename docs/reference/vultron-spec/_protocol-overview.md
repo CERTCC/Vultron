@@ -1,100 +1,156 @@
 ## 3. Protocol Overview [I]
 
-### 3.1 The Protocol as a Communicating Hierarchical State Machine
+This section describes the shape of the protocol before the normative sections
+specify it. It covers how the protocol is modeled, what state it tracks, how that
+state is divided between individual participants and the case as a whole, and
+what roles participants hold. Nothing here is normative; each subsection points
+to the section that carries the requirements.
 
-The Vultron protocol is a Communicating Hierarchical State Machine (CHSM). It
-has $N$ independent processes — one per Participant. Each process maintains a
-disjoint set of states and a message set for communicating with the others. The
-global state of the protocol at any moment is the pair $(S, C)$, where $S$ is
-the tuple of all individual process states and $C$ is the set of messages
-currently in transit.
+### 3.1 Coordination Model
 
-No central process owns the global state. Each Participant holds a replica of
-the case and advances its own state machines independently. The CASE_MANAGER
-enforces single-writer authority over shared state ([§5.4.1](index.md#541-single-writer-authority)) and replicates
-canonical changes to all Participants via `Announce(CaseLedgerEntry)`.
+Vultron models a case as a set of communicating state machines — one set per
+participant — that coordinate only by exchanging messages. No participant reads
+another's state directly. Each learns about the others from the messages it
+receives.
+
+A participant's own view is therefore always a **replica**: its local copy of
+what it believes the case state to be, assembled from the messages that have
+reached it. Two participants can hold different views at the same moment,
+because a message is still in transit or because a participant has not yet
+reported something.
+
+State divides into two kinds, and the distinction runs through the whole
+specification. **Participant-specific state** belongs to one participant, which
+is the authority on its own value. **Shared case state** has one value for the
+entire case, and only the participant holding the `CASE_MANAGER` role writes it
+([§5.4.1](index.md#541-single-writer-authority)); it replicates each accepted
+change to every participant as `Announce(CaseLedgerEntry)`.
+
+{% include-markdown "./includes/_state-ownership-table.md" %}
+
+A participant reports its own state and reports observations about the world. It
+does not write shared case state, and reporting an observation is not the same as
+that observation becoming canonical
+([§10.3](index.md#103-status-adoption-the-two-seam-model)).
+
+!!! note "Messages describe what has happened"
+    A Vultron message states that something has already occurred. It is not an
+    instruction to the recipient. An `RV` message means "I received this report
+    and determined it was valid" — it does not ask the recipient to treat the
+    report as valid. This holds throughout
+    [§4](index.md#4-semantic-layer-message-meanings-n)–[§10](index.md#10-model-interactions-and-cascade-rules-n)
+    and governs how every message description in those sections should be read.
+
+    One construct is deliberately request-shaped: a proposal such as an embargo
+    invitation asks for a decision. Even there, the reply reports a decision that
+    has been made; it does not command a transition.
 
 !!! info "See also"
-    - [Formal Protocol Definition](../formal_protocol/index.md)
+    - [Formal Protocol Definition](../formal_protocol/index.md) — the formal
+      treatment, including the process count and message-set notation
 
 ### 3.2 Tracking Dimensions
 
-The protocol tracks coordination state across four dimensions:
+The protocol tracks coordination state across four dimensions. Each is a state
+machine, or a pair of them, with its own states and transitions. The lists below
+name the states so the rest of this overview can refer to them; the defining
+sections carry the full definitions.
 
-- **Report Management (RM)** — lifecycle of a report from receipt to closure,
-  tracked independently by each Participant. Seven states: `START`, `RECEIVED`,
-  `INVALID`, `VALID`, `DEFERRED`, `ACCEPTED`, `CLOSED`.
-- **Embargo Management (EM)** — negotiated disclosure timing at the case
-  level. Five states: `NONE`, `PROPOSED`, `ACTIVE`, `REVISE`, `EXITED`.
-- **Case State (CS)** — multi-dimensional public knowledge state, tracking
-  what the world knows. CS is the pair `(VFD, PXA)`.
-- **Participant Embargo Consent (PEC)** — per-participant embargo consent
-  posture. Five states: `NO_EMBARGO`, `INVITED`, `SIGNATORY`, `LAPSED`,
-  `DECLINED`.
+- **Report Management (RM)** — the lifecycle of a report inside one participant,
+  from receipt to closure. Participant-specific. Seven states: Start, Received,
+  Invalid, Valid, Deferred, Accepted, Closed
+  ([§6](index.md#6-report-management-rm-state-machine-n)).
+- **Embargo Management (EM)** — the negotiated disclosure timing agreed for the
+  case. Shared case state. Five states: None, Proposed, Active, Revised, Exited
+  ([§7](index.md#7-embargo-management-em-state-machine-n)).
+- **Case State (CS)** — what is known about the vulnerability. CS is the pair
+  `(VFD, PXA)` ([§8](index.md#8-case-state-cs-dimensions-n)).
+- **Participant Embargo Consent (PEC)** — whether each participant has agreed to
+  the case's current embargo terms. Per-participant, written by the
+  CASE_MANAGER. Five states: No Embargo, Invited, Signatory, Lapsed, Declined
+  ([§9](index.md#9-participant-embargo-consent-pec-state-machine-n)).
 
-!!! note "Four dimensions, five state machines"
-    These four dimensions are realized as **five** state machines, because CS is
-    a compound of two independent axes: `VFD` (participant-specific — vendor
-    aware, fix ready, fix deployed) and `PXA` (participant-agnostic — public
-    aware, exploit public, attacks observed). CS is the pair `(VFD, PXA)`.
+{% include-markdown "./includes/_dimensions-vs-machines.md" %}
 
-    This document says "four dimensions" when discussing what is tracked, and
-    "five state machines" when discussing what must be implemented ([§6](index.md#6-report-management-rm-state-machine-n)–[§11](index.md#11-participant-lifecycle-within-a-case-n),
-    [§12.2](index.md#122-capability-sets)). Both counts are correct; they count different things.
-
-RM, EM, and CS were present in the original protocol design. PEC emerged
-during implementation (see [§9](index.md#9-participant-embargo-consent-pec-state-machine-n)) and is fully normative.
+RM, EM and CS were present in the original protocol design. PEC emerged during
+implementation and is fully normative; its provenance is recorded at
+[§9](index.md#9-participant-embargo-consent-pec-state-machine-n).
 
 ### 3.3 How the Dimensions Interact
 
-The four dimensions are not independent. State transitions in one dimension
-can trigger obligations or cascades in others.
+The four dimensions are coupled. A transition in one creates obligations in
+others. This subsection summarizes the couplings;
+[§10](index.md#10-model-interactions-and-cascade-rules-n) specifies them.
 
-**RM drives case progression.** A Participant's RM state governs what it is
-obligated to do and what the CASE_MANAGER may deliver to it. Case content is
-not delivered until a Participant has been admitted at `RM.RECEIVED` and
-satisfied the embargo consent gate ([§9.7](index.md#97-gating-full-case-delivery)).
+**RM governs what a participant receives.** A participant's RM state determines
+what it is obliged to do and what the CASE_MANAGER may send it. Full case
+content is withheld until the participant has been **admitted** — recorded in
+the case's participant roster with RM state Received — and its embargo consent
+has been resolved ([§9.7](index.md#97-gating-full-case-delivery)).
 
-**EM gates publication.** An active embargo holds all Participants to deferred
-disclosure. Any Participant transitioning EM to `EXITED` — or the arrival of
-a triggering PXA observation — starts the teardown process ([§10.1](index.md#101-status-adoption-the-two-seam-model)).
+**EM gates disclosure.** While an embargo is in force, participants defer
+publication. An embargo ends by **teardown**: the CASE_MANAGER terminates it and
+records the termination. A participant may report that it intends to exit, or
+propose a shorter embargo or an earlier end date, but a participant does not end
+the case's embargo by itself — EM is shared case state
+([§7.2](index.md#72-transitions-and-guards),
+[§10.2](index.md#102-embargo-revision-and-termination-cascades)).
 
-**CS reflects observable reality.** CS transitions are not decisions; they
-are observations. Any Participant may report a PXA observation. VFD
-transitions are facts about what a specific Participant has done.
+**CS records observation, not decision.** A VFD transition is a fact about what
+one participant has done. A PXA transition is a fact about the world. Any
+participant may report a PXA observation; whether that report becomes canonical
+case state is decided separately
+([§10.3](index.md#103-status-adoption-the-two-seam-model)).
 
-**PEC and EM are orthogonal.** EM says whether a case has an embargo; PEC
-says whether a given Participant has consented to it. A case at `EM.ACTIVE`
-may hold a Participant at `PEC.NO_EMBARGO` (one that joined after embargo
-was set, or one that declined). Cascade rules keep the two in sync ([§10](index.md#10-model-interactions-and-cascade-rules-n)).
+**EM and PEC answer different questions.** EM says whether the case has an
+embargo. PEC says whether a given participant has agreed to it. The two can
+disagree: a case at EM Active may hold a participant at PEC No Embargo, if that
+participant joined after the embargo was agreed or declined the terms. Cascade
+rules keep them consistent
+([§10.2](index.md#102-embargo-revision-and-termination-cascades)).
 
 ### 3.4 Participants and Roles
 
-Participants take on **roles** that define their protocol obligations and drive
-authority.
+An **actor** is an identity in the protocol — an organization, a person, or a
+service, named by a URI. An actor that joins a case becomes a **participant** in
+that case, and the case's record of that participant associates it with a set of
+roles. Roles determine what a participant is obliged to do and which transitions
+it is authorized to cause.
 
-**Roles are not exclusive.** A Participant may hold Reporter, Vendor, and
-Coordinator simultaneously. For example, a Vendor who discovers their own
-product's vulnerability is both Reporter and Vendor.
+**Roles are not exclusive.** A participant may hold Reporter, Vendor and
+Coordinator at once. A vendor that discovers a vulnerability in its own product
+is both Reporter and Vendor.
 
-**$N$ is Participant count, not role count.** The state machine population is
-the set of Participants in the case. Each Participant runs all five state
-machines regardless of its roles; roles govern which transitions it may drive.
+**Participant count is not role count.** Every participant runs all five state
+machines regardless of which roles it holds. Roles govern which transitions it
+may cause, not which machines it maintains.
 
-**Two distinct role categories apply** (see [§12.3](index.md#123-role-taxonomy) for the full taxonomy):
+Two categories of role apply. [§12.3](index.md#123-role-taxonomy) gives the full
+taxonomy.
 
 - **Process roles** — what an actor *does* in a case: Reporter, Vendor,
-  Coordinator, Deployer, CNA, Observer. These determine which protocol
-  transitions an actor may drive.
+  Coordinator, Deployer, CVE Numbering Authority (CNA), Observer.
 - **Protocol authority roles** — what an actor *controls* in the protocol
-  machinery: Case Owner, Case Manager. These confer specific write authority
-  independent of domain activity.
+  itself: Case Owner and Case Manager. These confer specific rights within a
+  case, independent of what other actors do.
 
-Roles are assigned by the Case Owner through a defined authority chain
-([§11.1](index.md#111-role-assignment-n)). An actor MUST NOT self-assign a role to a case it did not initiate.
+The distinction between the two authority roles matters throughout:
+
+- The **Case Owner** is the party whose disclosure decision the case exists to
+  serve. It decides who is admitted, which roles they hold, and whether embargo
+  terms are accepted or torn down. Case ownership is never delegated, though it
+  may be transferred ([§11.3](index.md#113-case-ownership-transfer-n)).
+- The **Case Manager** is the participant holding the `CASE_MANAGER` role. It
+  writes the canonical case ledger, relays case-scoped messages, and acts on the
+  Case Owner's behalf. The Case Owner may delegate this role
+  ([§11.1](index.md#111-role-assignment-n)).
+
+Roles are assigned through the case's authority chain, not claimed. An actor does
+not acquire a case role by asserting that it holds one
+([§11.1](index.md#111-role-assignment-n)).
 
 !!! info "See also"
-    - [Formal Protocol: Number of Processes](../formal_protocol/index.md)
-    - [Role Taxonomy](../../topics/background/index.md)
+    - [Formal Protocol Definition](../formal_protocol/index.md)
+    - [CVD as a Coordination Problem](../../topics/background/index.md)
 
 ---

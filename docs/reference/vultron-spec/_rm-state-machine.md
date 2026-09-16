@@ -23,18 +23,9 @@
 
 ### 6.1 States
 
-| State | Meaning |
-|---|---|
-| `START` | Initial state; no report has been received |
-| `RECEIVED` | A report has been received; triage not yet complete |
-| `INVALID` | Sender has assessed the report as invalid |
-| `VALID` | Sender has assessed the report as valid |
-| `DEFERRED` | Sender is deferring further action |
-| `ACCEPTED` | Sender has accepted the report for active work |
-| `CLOSED` | Sender has closed the report |
+{% include-markdown "./includes/_rm-states-table.md" %}
 
 !!! info "See also"
-    - `vultron/core/states/rm.py`
     - [Report Management Process Model](../../topics/process_models/rm/index.md)
 
 ### 6.2 Transitions and Guards

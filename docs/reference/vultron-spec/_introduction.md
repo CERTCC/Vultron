@@ -85,7 +85,17 @@ Sections marked `[N]` are normative. Sections marked `[I]` are informative.
 Sections marked `[N/I]` contain a mix; normative requirements are explicitly
 flagged.
 
-State diagrams and transition tables use the notation defined in the
-[Notation Reference](../notation.md).
+**State names.** This specification writes state names in full, in prose form:
+*Received*, *Active*, *Signatory*, *Fix Ready*. Where the name of a specific
+enumerated value matters — for example when citing an implementation's
+enumeration — the value is written in code font with its machine as a prefix, as
+in `RM.RECEIVED` or `PEC.SIGNATORY`. The two forms name the same state.
+
+**Case-state notation.** The Case State axes use one letter per condition. A
+lowercase letter means the condition is not met; an uppercase letter means it is.
+`Vfd` therefore means the vendor is aware, the fix is not ready, and the fix is
+not deployed. An arrow names the transition that flips one letter, so `f→F` is
+the change from "fix not ready" to "fix ready". An asterisk is a wildcard: `pX*`
+matches any state in which `p` is lowercase and `X` is uppercase.
 
 ---

@@ -1,29 +1,30 @@
 ## 8. Case State (CS) Dimensions [N]
 
-### 8.1 VFD — Participant-Specific Axis (Vendor/Fix/Deploy)
+### 8.1 VFD — Vendor Aware, Fix Ready, Fix Deployed
 
 VFD tracks what a **specific participant** has done. It is monotonic and
 strictly ordered: exactly four states, since a fix cannot be deployed before it
 is ready, nor ready before the vendor is aware.
 
-| State | Vendor aware | Fix ready | Fix deployed |
-|---|---|---|---|
-| `vfd` | no | no | no |
-| `Vfd` | yes | no | no |
-| `VFd` | yes | yes | no |
-| `VFD` | yes | yes | yes |
+{% include-markdown "./includes/_vfd-states-table.md" %}
 
 Transition drive authority is governed by [§12.4.1](index.md#1241-participant-specific-cs-transitions-vfd).
 
 !!! info "See also"
-    - `vultron/core/states/cs.py` (`CS_vf`, `CS_d`)
     - [CS Process Model](../../topics/process_models/cs/index.md)
+    - [CS States](../../topics/process_models/cs/cs_model.md)
 
-### 8.2 PXA — Participant-Agnostic Axis (Public/eXploit/Attacks)
+### 8.2 PXA — Public Aware, Exploit Public, Attacks Observed
 
-PXA tracks the state of the world, not of any participant. Unlike VFD, the three
-axes are independent, giving **eight** states: `pxa`, `Pxa`, `pXa`, `pxA`, `PXa`,
-`PxA`, `pXA`, `PXA`.
+PXA tracks the state of the world, not the state of any participant. It has
+three axes, and unlike VFD they are independent of one another: any combination
+can occur.
+
+{% include-markdown "./includes/_pxa-states-table.md" %}
+
+Because the three axes are independent, PXA has **eight** states — every
+combination of the three, written by setting each letter to upper or lower case:
+`pxa`, `Pxa`, `pXa`, `pxA`, `PXa`, `PxA`, `pXA`, `PXA`.
 
 Any participant MAY report PXA observations ([§12.4.2](index.md#1242-participant-agnostic-cs-transitions-pxa)).
 
@@ -59,11 +60,10 @@ them is a common implementation error:
 - Driving one's *own* VFD transition happens through the local trigger path and
   is subject to the role gating in [§12.4.1](index.md#1241-participant-specific-cs-transitions-vfd).
 - PXA is shared world-state rather than participant-specific, so an adopted PXA
-  observation updates the canonical case status ([§10.1](index.md#101-status-adoption-the-two-seam-model)), not a per-participant
+  observation updates the canonical case status ([§10.3](index.md#103-status-adoption-the-two-seam-model)), not a per-participant
   model.
 
 !!! info "See also"
-    - `specs/cs-behavior.yaml` CSB-01 through CSB-04
     - [CS Global vs. Local State](../../topics/process_models/model_interactions/_cs_global_local.md)
 
 ---

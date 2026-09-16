@@ -11,16 +11,18 @@ transitions it is authorized to drive. An actor may hold multiple process roles.
 | Vendor | Drives its own VFD transition `f→F` (fix ready, `CF`) |
 | Deployer | Drives its own VFD transition `d→D` (fix deployed, `CD`) |
 | Coordinator | Drives case participant management; coordinates multi-party disclosure |
-| CNA | May directly assign CVE IDs; a non-CNA delegates to an external CNA service. Orthogonal to other roles — typically co-held with Coordinator or Vendor |
+| CVE Numbering Authority (CNA) | May assign CVE IDs directly; a participant without the role delegates assignment. Orthogonal to the other roles, and typically co-held with Coordinator or Vendor |
 | Observer | Holds no drive obligations for VFD; may report PXA observations ([§12.4.2](../index.md#1242-participant-agnostic-cs-transitions-pxa)) |
 
 **Capability prerequisites.** Every case Participant — whatever its roles — MUST
 implement the Observer capability set ([§12.2](../index.md#122-capability-sets), [§12.3.3](../index.md#1233-roles-and-capability-sets-are-independent)). Role extension sets add
 obligations on top of that floor; they do not substitute for it. An implementation
 SHOULD verify that an actor has the capability prerequisites for a role before
-completing a role assignment ([§11.1](../index.md#111-role-assignment-n)). The full capability prerequisites per
-role are under active specification; see `docs/reference/vultron-taxonomy.md`
-§"Open Ideas."
+completing a role assignment ([§11.1](../index.md#111-role-assignment-n)).
+
+This specification states the per-role obligations in
+[§12.4](../index.md#124-role-specific-normative-requirements). It does not yet
+state a complete capability prerequisite for every role.
 
 !!! note "Note on Reporter"
     Reporters are most often also the discoverer of the vulnerability, but

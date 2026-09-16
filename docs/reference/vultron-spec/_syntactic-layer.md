@@ -39,7 +39,7 @@
     shared case state. Only the CASE_MANAGER may write it ([§5.4](index.md#54-addressing-and-channels)).
 
   The transition from claim to canonical is an explicit authorization step,
-  not an implementation detail; see [§10.1](index.md#101-status-adoption-the-two-seam-model).
+  not an implementation detail; see [§10.3](index.md#103-status-adoption-the-two-seam-model).
 
 ### 5.3 Activity Types and Canonical Message Forms
 
@@ -60,11 +60,11 @@
   Both paths converge on `Accept(Invite)`, but they originate differently and
   carry roles differently. Conflating them erases the suggest-actor round-trip.
 
-- Implementation semantic mappings are defined in
-  `vultron/core/models/events/base.py` (`MessageSemantics` enum); this is the
-  authoritative source for which AS2 patterns correspond to which protocol
-  operations. The protocol-shorthand → semantic → wire-form mapping table is
-  given in [§4.7](index.md#47-shorthand-wire-form-mapping), after the shorthands themselves have been introduced.
+- Each protocol operation corresponds to exactly one AS2 pattern. This
+  specification defines that correspondence; an implementation derives its own
+  dispatch table from it, not the other way around. The mapping is given in
+  [§4.7](index.md#47-shorthand-wire-form-mapping), after the shorthands it maps
+  from have been introduced.
 
 ### 5.4 Addressing and Channels
 
