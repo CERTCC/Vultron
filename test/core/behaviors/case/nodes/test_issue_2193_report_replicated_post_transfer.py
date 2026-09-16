@@ -36,6 +36,7 @@ from vultron.core.models.case_ledger import (
 )
 from vultron.core.models.offer_record import VultronOfferRecord
 from vultron.core.models.report import VulnerabilityReport
+from vultron.core.models.report_case_link import VultronReportCaseLink
 
 _FIXED_CREATED_AT = datetime(2024, 6, 1, 0, 0, 0, tzinfo=timezone.utc)
 
@@ -206,6 +207,54 @@ class TestReportReplicatedToPostTransferParticipant:
         assert offer_record.report_id == REPORT_ID
         assert offer_record.offer_actor_id == REPORTER_ACTOR_ID
 
+    def test_report_case_link_seeded_for_invited_replica(
+        self, bridge, dl, new_owner_case_actor
+    ) -> None:
+        """VultronReportCaseLink is seeded so _ValidRMLatchNode can advance rm_state.
+
+        Regression for phase11-demo-ci-invited-participant-validate-0:
+        _ValidRMLatchNode.update() returns FAILURE when no VultronReportCaseLink
+        exists for the report, blocking validate-report for invited participants
+        who never received Offer(VulnerabilityReport) directly (BTND-10-006,
+        ADR-0089).  ApplyOfferReportFromLedgerNode must seed the link so that
+        TransitionRMtoValid can complete.
+        """
+        from vultron.core.behaviors.sync.nodes.offer_report_effect import (
+            ApplyOfferReportFromLedgerNode,
+        )
+        from vultron.core.states.rm import RM
+
+        link_id = VultronReportCaseLink.build_id(REPORT_ID)
+        assert (
+            dl.read(link_id) is None
+        ), "pre-condition: no link before ledger replay"
+
+        entry = _make_add_report_ledger_entry()
+        event = _make_event(entry, actor_id=new_owner_case_actor.id_)
+
+        result = bridge.execute_with_setup(
+            tree=ApplyOfferReportFromLedgerNode(
+                name="ApplyOfferReportFromLedger"
+            ),
+            actor_id=NEW_OWNER_ACTOR_ID,
+            activity=event,
+        )
+
+        assert result.status == Status.SUCCESS
+
+        link = dl.read(link_id)
+        assert link is not None, (
+            "VultronReportCaseLink MUST be seeded by ApplyOfferReportFromLedgerNode "
+            "so that _ValidRMLatchNode can advance rm_state to RM.VALID when an "
+            "invited participant calls validate-report (BTND-10-006, ADR-0089, "
+            "phase11-demo-ci-invited-participant-validate-0)"
+        )
+        assert isinstance(link, VultronReportCaseLink)
+        assert link.report_id == REPORT_ID
+        assert (
+            link.rm_state == RM.RECEIVED
+        ), "Seeded link must start at RM.RECEIVED; ValidateBT advances it to RM.VALID"
+
     def test_idempotent_on_repeated_ledger_replay(
         self, bridge, dl, new_owner_case_actor
     ) -> None:
@@ -229,3 +278,4 @@ class TestReportReplicatedToPostTransferParticipant:
 
         assert dl.read(REPORT_ID) is not None
         assert dl.read(VultronOfferRecord.build_id(OFFER_ID)) is not None
+        assert dl.read(VultronReportCaseLink.build_id(REPORT_ID)) is not None
