@@ -1,31 +1,31 @@
 {
+  "id": "urn:uuid:9295aeb5-3d21-4df7-9d3d-a54fed97d98d",
+  "type": "Offer",
+  "name": "https://vultron.example/organizations/vendorco Offer VendorCo Case #63674360 to https://vultron.example/organizations/coordinator",
+  "content": "We're offering to transfer ownership of case VendorCo Case #63674360 to you.",
   "@context": "https://www.w3.org/ns/activitystreams",
-  "asType": "Offer",
-  "id": "https://for.example/cf3a6cab-f2a6-45d9-8446-2cb20b14f652",
-  "name": "https://vultron.example/organizations/vendor Offer VENDOR Case #20991514 to https://vultron.example/organizations/coordinator",
-  "content": "We're offering to transfer ownership of case VENDOR Case #20991514 to you.",
-  "actor": "https://vultron.example/organizations/vendor",
+  "actor": "https://vultron.example/organizations/vendorco",
   "target": "https://vultron.example/organizations/coordinator",
   "object": {
-    "@context": "https://www.w3.org/ns/activitystreams",
+    "id": "urn:uuid:0d4a16ce-9ce4-44c2-a73f-81961d7f3fa5",
     "type": "VulnerabilityCase",
-    "id": "https://vultron.example/cases/VDR-20991514",
-    "name": "VENDOR Case #20991514",
-    "published": "2024-01-22T20:29:47+00:00",
-    "updated": "2024-01-22T20:29:47+00:00",
-    "caseStatus": [
-      {
-        "@context": "https://www.w3.org/ns/activitystreams",
-        "type": "CaseStatus",
-        "id": "https://for.example/92e7cb80-29d5-4739-a18c-cf139e8a00ba",
-        "name": "EMBARGO_MANAGEMENT_NONE pxa",
-        "context": "https://vultron.example/cases/VDR-20991514",
-        "published": "2024-01-22T20:29:47+00:00",
-        "updated": "2024-01-22T20:29:47+00:00",
-        "emState": "EMBARGO_MANAGEMENT_NONE",
-        "pxaState": "pxa"
-      }
-    ],
-    "activeEmbargo": null
+    "name": "VendorCo Case #63674360",
+    "published": "2026-09-16T18:38:47+00:00",
+    "updated": "2026-09-16T18:38:47+00:00",
+    "attributedTo": "https://vultron.example/organizations/vendorco",
+    "@context": "https://certcc.github.io/Vultron/ns/context.jsonld",
+    "caseParticipants": [],
+    "actorParticipantIndex": {},
+    "vulnerabilityReports": [],
+    "caseStatuses": [],
+    "notes": [],
+    "genesisHash": "b32a18414fd12346df39aa09c0eae6496de3ca425dfff9a9378dc43385775efc",
+    "proposedEmbargoes": [],
+    "pendingEmbargoProposalIndex": {},
+    "recommendationRecommenderIndex": {},
+    "caseActivity": [],
+    "parentCases": [],
+    "childCases": [],
+    "siblingCases": []
   }
 }

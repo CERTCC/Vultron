@@ -1,30 +1,24 @@
 {
-  "@context": "https://www.w3.org/ns/activitystreams",
+  "id": "https://vultron.example/users/finndervul",
   "type": "Person",
-  "id": "https://vultron.example/users/finn",
   "name": "Finn der Vul",
+  "@context": "https://www.w3.org/ns/activitystreams",
   "inbox": {
-    "@context": "https://www.w3.org/ns/activitystreams",
+    "id": "urn:uuid:b4f98a06-3d24-4da0-9ffb-c9958c3c7196",
     "type": "OrderedCollection",
-    "id": "https://for.example/cbceb444-3787-4f74-9103-ce912876b57d",
-    "published": "2024-01-22T20:29:47+00:00",
-    "updated": "2024-01-22T20:29:47+00:00",
+    "published": "2026-09-16T18:38:47+00:00",
+    "updated": "2026-09-16T18:38:47+00:00",
+    "@context": "https://www.w3.org/ns/activitystreams",
     "items": [],
     "current": 0
   },
   "outbox": {
-    "@context": "https://www.w3.org/ns/activitystreams",
+    "id": "urn:uuid:0e66d25e-a5a9-4e98-a60d-c8036785153d",
     "type": "OrderedCollection",
-    "id": "https://for.example/1f93fd47-b38a-41a2-95d0-544fc9090131",
-    "published": "2024-01-22T20:29:47+00:00",
-    "updated": "2024-01-22T20:29:47+00:00",
+    "published": "2026-09-16T18:38:47+00:00",
+    "updated": "2026-09-16T18:38:47+00:00",
+    "@context": "https://www.w3.org/ns/activitystreams",
     "items": [],
     "current": 0
-  },
-  "following": null,
-  "followers": null,
-  "liked": null,
-  "streams": null,
-  "preferredUsername": null,
-  "endpoints": null
+  }
 }

@@ -1,0 +1,19 @@
+{
+  "id": "urn:uuid:1a09a6e7-84e2-4bb3-a02d-271dd6bdcd65",
+  "type": "Accept",
+  "name": "https://example.org/case-actors/alpha Accept urn:uuid:9c2db7c2-dde4-4280-99b1-242a9852da0e",
+  "to": [
+    "https://vultron.example/organizations/vendorco"
+  ],
+  "@context": "https://www.w3.org/ns/activitystreams",
+  "actor": "https://example.org/case-actors/alpha",
+  "object": {
+    "id": "urn:uuid:9c2db7c2-dde4-4280-99b1-242a9852da0e",
+    "type": "CaseProposal",
+    "published": "2026-09-16T18:38:48+00:00",
+    "updated": "2026-09-16T18:38:48+00:00",
+    "summary": "Request case initialization for a new vulnerability.",
+    "attributedTo": "https://vultron.example/organizations/vendorco",
+    "@context": "https://certcc.github.io/Vultron/ns/context.jsonld"
+  }
+}

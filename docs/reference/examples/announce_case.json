@@ -1,0 +1,116 @@
+{
+  "id": "urn:uuid:4b3cc3da-9253-471a-ba72-2f779fa182bf",
+  "type": "Announce",
+  "name": "https://vultron.example/organizations/vendorco Announce VendorCo Case #63674360",
+  "@context": "https://www.w3.org/ns/activitystreams",
+  "actor": "https://vultron.example/organizations/vendorco",
+  "object": {
+    "id": "urn:uuid:0d4a16ce-9ce4-44c2-a73f-81961d7f3fa5",
+    "type": "VulnerabilityCase",
+    "name": "VendorCo Case #63674360",
+    "published": "2026-09-16T18:38:48+00:00",
+    "updated": "2026-09-16T18:38:48+00:00",
+    "attributedTo": "https://vultron.example/organizations/vendorco",
+    "@context": "https://certcc.github.io/Vultron/ns/context.jsonld",
+    "caseParticipants": [
+      {
+        "id": "urn:uuid:0d4a16ce-9ce4-44c2-a73f-81961d7f3fa5/participants/finndervul",
+        "type": "CaseParticipant",
+        "name": "Finn der Vul",
+        "context": "urn:uuid:0d4a16ce-9ce4-44c2-a73f-81961d7f3fa5",
+        "published": "2026-09-16T18:38:48+00:00",
+        "updated": "2026-09-16T18:38:48+00:00",
+        "attributedTo": "https://vultron.example/users/finndervul",
+        "@context": "https://certcc.github.io/Vultron/ns/context.jsonld",
+        "caseRoles": [
+          "finder",
+          "reporter"
+        ],
+        "participantStatuses": [
+          {
+            "id": "urn:uuid:396b874c-90b5-472f-a431-40c07c436737",
+            "type": "ParticipantStatus",
+            "name": "START",
+            "context": "urn:uuid:0d4a16ce-9ce4-44c2-a73f-81961d7f3fa5",
+            "published": "2026-09-16T18:38:48+00:00",
+            "updated": "2026-09-16T18:38:48+00:00",
+            "attributedTo": "https://vultron.example/users/finndervul",
+            "@context": "https://certcc.github.io/Vultron/ns/context.jsonld",
+            "rmState": "START",
+            "caseEngagement": true,
+            "embargoAdherence": false,
+            "emConsentState": "NO_EMBARGO",
+            "cvdRole": [
+              "FINDER",
+              "REPORTER"
+            ]
+          }
+        ],
+        "acceptedEmbargoIds": [],
+        "embargoConsentState": "NO_EMBARGO"
+      },
+      {
+        "id": "urn:uuid:0d4a16ce-9ce4-44c2-a73f-81961d7f3fa5/participants/vendorco",
+        "type": "CaseParticipant",
+        "name": "VendorCo",
+        "context": "urn:uuid:0d4a16ce-9ce4-44c2-a73f-81961d7f3fa5",
+        "published": "2026-09-16T18:38:48+00:00",
+        "updated": "2026-09-16T18:38:48+00:00",
+        "attributedTo": "https://vultron.example/organizations/vendorco",
+        "@context": "https://certcc.github.io/Vultron/ns/context.jsonld",
+        "caseRoles": [
+          "vendor"
+        ],
+        "participantStatuses": [
+          {
+            "id": "urn:uuid:66b9aa83-1edd-44d5-acb6-e32c23551c3b",
+            "type": "ParticipantStatus",
+            "name": "RECEIVED Vf",
+            "context": "urn:uuid:0d4a16ce-9ce4-44c2-a73f-81961d7f3fa5",
+            "published": "2026-09-16T18:38:48+00:00",
+            "updated": "2026-09-16T18:38:48+00:00",
+            "attributedTo": "https://vultron.example/organizations/vendorco",
+            "@context": "https://certcc.github.io/Vultron/ns/context.jsonld",
+            "rmState": "RECEIVED",
+            "vfState": "Vf",
+            "caseEngagement": true,
+            "embargoAdherence": false,
+            "cvdRole": [
+              "OBSERVER"
+            ]
+          }
+        ],
+        "acceptedEmbargoIds": [],
+        "embargoConsentState": "NO_EMBARGO"
+      }
+    ],
+    "actorParticipantIndex": {
+      "https://vultron.example/users/finndervul": "urn:uuid:0d4a16ce-9ce4-44c2-a73f-81961d7f3fa5/participants/finndervul",
+      "https://vultron.example/organizations/vendorco": "urn:uuid:0d4a16ce-9ce4-44c2-a73f-81961d7f3fa5/participants/vendorco"
+    },
+    "vulnerabilityReports": [
+      {
+        "id": "https://demo.vultron.local/VulnerabilityReport/6bc3a1dc-558f-48ba-99d8-bf9dd1b50beb",
+        "type": "VulnerabilityReport",
+        "name": "FDR-8675309",
+        "published": "2026-09-16T18:38:47+00:00",
+        "updated": "2026-09-16T18:38:47+00:00",
+        "content": "I found a vulnerability!",
+        "attributedTo": [
+          "https://vultron.example/users/finndervul"
+        ],
+        "@context": "https://certcc.github.io/Vultron/ns/context.jsonld"
+      }
+    ],
+    "caseStatuses": [],
+    "notes": [],
+    "genesisHash": "69c4d45daca45295b8bd6b2d954e763fc3ae4845d1f9323547f5ef84377c9dcc",
+    "proposedEmbargoes": [],
+    "pendingEmbargoProposalIndex": {},
+    "recommendationRecommenderIndex": {},
+    "caseActivity": [],
+    "parentCases": [],
+    "childCases": [],
+    "siblingCases": []
+  }
+}

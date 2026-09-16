@@ -1,20 +1,20 @@
 {
+  "id": "urn:uuid:2561dcfa-da1e-45fe-84bf-b0ea476dc1d1",
+  "type": "Remove",
+  "name": "https://vultron.example/organizations/vendorco Remove Embargo for urn:uuid:0d4a16ce-9ce4-44c2-a73f-81961d7f3fa5 start: 2026-09-16T18:38:00+00:00 end: 2026-12-15T00:00:00+00:00 from urn:uuid:0d4a16ce-9ce4-44c2-a73f-81961d7f3fa5",
   "@context": "https://www.w3.org/ns/activitystreams",
-  "asType": "Remove",
-  "id": "https://for.example/7b0e014f-b132-4ff6-a57f-026c2c27c77a",
-  "name": "https://vultron.example/organizations/vendor Remove Embargo for https://vultron.example/cases/VDR-20991514 start: 2024-01-22T15:29:00-05:00 end: 2024-04-21T01:00:00-04:00 from https://vultron.example/cases/VDR-20991514",
-  "actor": "https://vultron.example/organizations/vendor",
-  "origin": "https://vultron.example/cases/VDR-20991514",
+  "actor": "https://vultron.example/organizations/vendorco",
+  "origin": "urn:uuid:0d4a16ce-9ce4-44c2-a73f-81961d7f3fa5",
   "object": {
-    "@context": "https://www.w3.org/ns/activitystreams",
+    "id": "urn:uuid:0d4a16ce-9ce4-44c2-a73f-81961d7f3fa5/embargo_events/2026-12-15T00:00:00+00:00",
     "type": "EmbargoEvent",
-    "id": "https://vultron.example/cases/VDR-20991514/embargo_events/2024-04-21T01:00:00-04:00",
-    "name": "Embargo for https://vultron.example/cases/VDR-20991514 start: 2024-01-22T15:29:00-05:00 end: 2024-04-21T01:00:00-04:00",
-    "context": "https://vultron.example/cases/VDR-20991514",
-    "startTime": "2024-01-22T15:29:00-05:00",
-    "endTime": "2024-04-21T01:00:00-04:00",
-    "published": "2024-01-22T20:29:47+00:00",
-    "updated": "2024-01-22T20:29:47+00:00",
-    "content": "We propose to embargo VENDOR Case #20991514 for 90 days."
+    "name": "Embargo for urn:uuid:0d4a16ce-9ce4-44c2-a73f-81961d7f3fa5 start: 2026-09-16T18:38:00+00:00 end: 2026-12-15T00:00:00+00:00",
+    "context": "urn:uuid:0d4a16ce-9ce4-44c2-a73f-81961d7f3fa5",
+    "startTime": "2026-09-16T18:38:00+00:00",
+    "endTime": "2026-12-15T00:00:00+00:00",
+    "published": "2026-09-16T18:38:48+00:00",
+    "updated": "2026-09-16T18:38:48+00:00",
+    "content": "We propose to embargo VendorCo Case #63674360 for 90 days.",
+    "@context": "https://certcc.github.io/Vultron/ns/context.jsonld"
   }
 }

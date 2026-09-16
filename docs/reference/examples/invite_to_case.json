@@ -1,11 +1,36 @@
 {
-  "@context": "https://www.w3.org/ns/activitystreams",
-  "asType": "Invite",
-  "id": "https://vultron.example/cases/VDR-20991514/invitation/1",
-  "name": "https://vultron.example/organizations/vendor Invite https://vultron.example/organizations/coordinator to https://vultron.example/cases/VDR-20991514",
-  "content": "We're inviting you to participate in case VENDOR Case #20991514.",
+  "id": "urn:uuid:0d4a16ce-9ce4-44c2-a73f-81961d7f3fa5/invitation/1",
+  "type": "Invite",
+  "name": "https://vultron.example/organizations/vendorco Invite Coordinator LLC to urn:uuid:0d4a16ce-9ce4-44c2-a73f-81961d7f3fa5",
+  "content": "We're inviting you to participate in case VendorCo Case #63674360.",
   "to": "https://vultron.example/organizations/coordinator",
-  "actor": "https://vultron.example/organizations/vendor",
-  "target": "https://vultron.example/cases/VDR-20991514",
-  "object": "https://vultron.example/organizations/coordinator"
+  "@context": "https://www.w3.org/ns/activitystreams",
+  "actor": "https://vultron.example/organizations/vendorco",
+  "target": "urn:uuid:0d4a16ce-9ce4-44c2-a73f-81961d7f3fa5",
+  "object": {
+    "id": "https://vultron.example/organizations/coordinator",
+    "type": "Organization",
+    "name": "Coordinator LLC",
+    "published": "2026-09-16T18:38:47+00:00",
+    "updated": "2026-09-16T18:38:47+00:00",
+    "@context": "https://www.w3.org/ns/activitystreams",
+    "inbox": {
+      "id": "urn:uuid:ff472d6b-0c35-40bf-9ed1-5035292867fe",
+      "type": "OrderedCollection",
+      "published": "2026-09-16T18:38:47+00:00",
+      "updated": "2026-09-16T18:38:47+00:00",
+      "@context": "https://www.w3.org/ns/activitystreams",
+      "items": [],
+      "current": 0
+    },
+    "outbox": {
+      "id": "urn:uuid:913746d7-5dc1-4755-a553-5415ebae6f44",
+      "type": "OrderedCollection",
+      "published": "2026-09-16T18:38:47+00:00",
+      "updated": "2026-09-16T18:38:47+00:00",
+      "@context": "https://www.w3.org/ns/activitystreams",
+      "items": [],
+      "current": 0
+    }
+  }
 }
