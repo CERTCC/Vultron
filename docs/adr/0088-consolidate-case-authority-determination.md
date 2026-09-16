@@ -115,8 +115,8 @@ are already served by the sanctioned `create_case_manager_gated_tree`
 ## Considered Options
 
 1. **Status quo** — twin role resolvers, hosting/shape checks, ratchet tests.
-2. **Role is the sole authority signal; "Case Actor" is role-enactment
-   shorthand** — one neutral role resolver, one role-based predicate, retire the
+2. **Role is the sole authority signal; "Case Actor" names the prototype actor
+   that enacts it, not the authority** — one neutral role resolver, one role-based predicate, retire the
    hosting and URL-shape signals from all protocol logic, fold address resolution
    into "the role-holder's address", fix the one two-arm site in place.
    *(chosen)*
@@ -126,8 +126,8 @@ are already served by the sanctioned `create_case_manager_gated_tree`
 
 ## Decision Outcome
 
-Chosen: **"Role is the sole authority signal; 'Case Actor' is role-enactment
-shorthand."** It removes the duplication *and* the wrong/fragile signals, keeps
+Chosen: **"Role is the sole authority signal; 'Case Actor' names the prototype
+actor that enacts it, not the authority."** It removes the duplication *and* the wrong/fragile signals, keeps
 the pieces composable, and matches the actual protocol meaning: authority is
 whoever enacts `CASE_MANAGER`.
 

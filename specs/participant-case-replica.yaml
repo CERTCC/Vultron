@@ -13,7 +13,7 @@ tags:
 - state-machine
 groups:
 - id: PCR-01
-  title: Replica Identity (No Stub CaseActor)
+  title: Replica Identity (No Stub CASE_MANAGER)
   specs:
   - id: PCR-01-001
     priority: MUST
@@ -36,10 +36,10 @@ groups:
   - id: PCR-01-002
     priority: MUST
     kind: protocol
-    statement: There is exactly one CaseActor per case, operated by the case creator/owner.
+    statement: There is exactly one CASE_MANAGER per case, operated by the case creator/owner.
     verification: >-
       Integration tests in `test/demo/test_initialize_case_demo.py` confirm
-      that case creation instantiates exactly one CaseActor and associates it
+      that case creation instantiates exactly one CASE_MANAGER and associates it
       with the case creator.
     relationships:
     - rel_type: refines
@@ -54,15 +54,15 @@ groups:
       Whether every Actor runs on one host or on many, Actors MUST exchange information only
       through protocol messages. An Actor MUST NOT read, write, or otherwise reach into another
       Actor's store, and MUST NOT rely on out-of-band communication with a co-located Actor.
-      In particular, an Actor that has asked a CaseActor to create a case MUST treat the case as
-      absent from its own knowledge until the CaseActor's `Create(VulnerabilityCase)` replica has
+      In particular, an Actor that has asked a CASE_MANAGER to create a case MUST treat the case as
+      absent from its own knowledge until the CASE_MANAGER's `Create(VulnerabilityCase)` replica has
       been delivered to it, and MUST NOT assume co-location makes the case visible sooner.
     rationale: >-
       Co-location is a deployment convenience; a back-end cheat that only works when two Actors
       happen to share a host encodes that convenience into the protocol and stops being a protocol
       at all. Per-actor stores (ADR-0073) make the cheat impossible for reads and writes, but they
       do not stop code from *expecting* it. Issue #2548 is the worked example: a co-located
-      CaseActor created the case in its own store, and the report receiver's behavior tree
+      CASE_MANAGER created the case in its own store, and the report receiver's behavior tree
       proceeded as though the case were already its own. It was not — under ADR-0041 the receiver
       never creates the case — so the case-scoped half of the RM.VALID transition had nothing to
       act on. Stating the indifference as a MUST makes "wait for the message" the only correct
@@ -103,13 +103,13 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      When a new participant is added to a case (whether at case creation or later), the CaseActor
+      When a new participant is added to a case (whether at case creation or later), the CASE_MANAGER
       MUST send `Announce(VulnerabilityCase)` to that participant to deliver their initial
       case copy.
     verification: >-
       Integration tests in `test/demo/test_pcr_bootstrap.py` confirm that
       adding a participant triggers `Announce(VulnerabilityCase)` from the
-      CaseActor to that participant as the first message in the bootstrap
+      CASE_MANAGER to that participant as the first message in the bootstrap
       sequence.
     relationships:
     - rel_type: implements
@@ -157,10 +157,10 @@ groups:
     kind: protocol
     statement: >-
       A participant actor's local case replica MUST only accept case-state updates that originate
-      from the CaseActor for that case.
+      from the CASE_MANAGER for that case.
     verification: >-
       A unit test confirms that `Announce(VulnerabilityCase)` sent by any
-      actor other than the designated CaseActor is rejected and a WARNING is
+      actor other than the designated CASE_MANAGER is rejected and a WARNING is
       logged.
     relationships:
     - rel_type: implements
@@ -183,7 +183,7 @@ groups:
       accepting them as authoritative updates to its local replica.
     verification: >-
       Inspection of `vultron/core/` confirms that the replica update handler
-      verifies the sender's identity against the registered CaseActor ID
+      verifies the sender's identity against the registered CASE_MANAGER ID
       before applying any case-state update.
     scope:
     - production
@@ -197,7 +197,7 @@ groups:
       A participant actor MUST NOT create a local case replica from an `Announce(VulnerabilityCase)`
       message unless prior trust for that case has been established: either (a) the actor has
       already processed a `Create(VulnerabilityCase)` from the case creator that introduced the
-      CaseActor identity, or (b) the actor has completed an `InviteActorToCase`/`AcceptInviteToCase`
+      CASE_MANAGER identity, or (b) the actor has completed an `InviteActorToCase`/`AcceptInviteToCase`
       exchange that records a pending-expectation for that case. Accepting any `Announce(VulnerabilityCase)`
       from an unauthenticated or unexpected sender as a bootstrap signal is not permitted.
     relationships:
@@ -211,7 +211,7 @@ groups:
     statement: The case owner actor MUST follow the same replica rules as all other participants.
     rationale: >-
       Exempting the case owner from replica rules would create an inconsistent
-      update path that bypasses the CaseActor consistency checks.
+      update path that bypasses the CASE_MANAGER consistency checks.
     verification: >-
       Integration tests in `test/demo/test_pcr_bootstrap.py` confirm that
       the case owner receives and applies `Announce(VulnerabilityCase)` through
@@ -225,14 +225,14 @@ groups:
   - id: PCR-03-006
     priority: MUST
     kind: protocol
-    statement: The case owner actor MUST route all case-state changes through the CaseActor.
+    statement: The case owner actor MUST route all case-state changes through the CASE_MANAGER.
     rationale: >-
-      Routing through the CaseActor ensures all case-state mutations go through the
+      Routing through the CASE_MANAGER ensures all case-state mutations go through the
       single-writer authority and are recorded in the case ledger.
     verification: >-
       Integration tests in `test/demo/test_pcr_bootstrap.py` confirm that
       the case owner's outbound case-state activities are addressed to the
-      CaseActor, not applied directly to its own replica.
+      CASE_MANAGER, not applied directly to its own replica.
     relationships:
     - rel_type: refines
       spec_id: PCR-03-002
@@ -263,11 +263,11 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      All case-scoped protocol activities sent by the CaseActor to participants MUST carry
+      All case-scoped protocol activities sent by the CASE_MANAGER to participants MUST carry
       `context` set to the case ID.
     verification: >-
       A unit test confirms that `Announce(CaseLedgerEntry)` and
-      `Announce(VulnerabilityCase)` emitted by the CaseActor each carry
+      `Announce(VulnerabilityCase)` emitted by the CASE_MANAGER each carry
       `context` equal to the case's ID.
     stories:
     - story_2022_092
@@ -322,7 +322,7 @@ groups:
     kind: protocol
     statement: >-
       When an activity with an unknown case context arrives, the actor SHOULD queue the activity
-      briefly and request a case snapshot from the CaseActor.
+      briefly and request a case snapshot from the CASE_MANAGER.
   - id: PCR-06-003
     priority: MUST_NOT
     kind: protocol
@@ -353,14 +353,14 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      After a case is created and the Case Actor is introduced, a participant actor MUST address
+      After a case is created and the CASE_MANAGER is introduced, a participant actor MUST address
       all case-scoped outbound messages (notes, status updates, embargo proposals, RM transitions,
-      and any other protocol messages targeting the case) exclusively to the Case Actor for that
+      and any other protocol messages targeting the case) exclusively to the CASE_MANAGER for that
       case. A participant actor MUST NOT send these messages directly to other participants.
     verification: >-
       Integration tests in `test/demo/test_pcr_engage_case.py` confirm that
       every outbound participant activity carries `to` set solely to the
-      CaseActor's ID, with no direct peer-to-peer addressing.
+      CASE_MANAGER's ID, with no direct peer-to-peer addressing.
     stories:
     - story_2022_045
     - story_2022_088
@@ -369,14 +369,14 @@ groups:
     kind: protocol
     statement: >-
       A participant actor MUST NOT assume that other participants will receive its case-scoped
-      messages through any channel other than the Case Actor's `Announce(CaseLedgerEntry)` broadcast.
-      Sending to `case_addressees()` or any multi-recipient list that includes non-CaseActor actors
+      messages through any channel other than the CASE_MANAGER's `Announce(CaseLedgerEntry)` broadcast.
+      Sending to `case_addressees()` or any multi-recipient list that includes non-CASE_MANAGER actors
       is a violation of this rule.
   - id: PCR-08-003
     priority: MUST
     kind: protocol
     statement: >-
-      The Case Actor MUST, for every participant message it receives and accepts, commit a
+      The CASE_MANAGER MUST, for every participant message it receives and accepts, commit a
       `CaseLedgerEntry` recording the outcome and broadcast `Announce(CaseLedgerEntry)` to all case
       participants as the standard cascade. This cascade is the only mechanism by which participants
       learn of accepted case-state changes.
@@ -402,12 +402,12 @@ groups:
     kind: protocol
     statement: >-
       The `CaseLedgerEntry + broadcast` cascade MUST fire automatically as a consequence
-      of the Case Actor processing any accepted participant message, not only via explicit
+      of the CASE_MANAGER processing any accepted participant message, not only via explicit
       demo endpoint invocation.
     verification: >-
       Integration tests in `test/demo/test_sync_ledger_replication.py` confirm
       the cascade fires without any explicit demo-endpoint invocation whenever
-      the Case Actor processes an accepted participant message.
+      the CASE_MANAGER processes an accepted participant message.
     relationships:
     - rel_type: refines
       spec_id: PCR-08-003
@@ -419,7 +419,7 @@ groups:
     kind: protocol
     statement: >-
       Trigger use cases and their supporting BTs that cause a participant to send a case-scoped
-      message MUST resolve the Case Actor's actor ID from the case's participant list (the
+      message MUST resolve the CASE_MANAGER's actor ID from the case's participant list (the
       participant with `CVDRole.CASE_MANAGER`) and use that ID as the sole `to:` recipient.
       Any helper that returns all participants (e.g. `case_addressees()`) MUST NOT be used as
       the sole source of recipients for outbound participant activities.
@@ -436,24 +436,24 @@ groups:
     kind: protocol
     statement: >-
       Unit and integration tests MUST verify that a participant's outbound activity is addressed
-      only to the Case Actor, and that no direct peer-to-peer delivery is attempted.
+      only to the CASE_MANAGER, and that no direct peer-to-peer delivery is attempted.
     verification: >-
       Integration tests in `test/demo/test_pcr_engage_case.py` assert that
       every outbound participant activity has exactly one entry in `to` and
-      that recipient is the CaseActor's ID.
+      that recipient is the CASE_MANAGER's ID.
     lint_suppress:
     - missing_story_reference
   - id: PCR-08-007
     priority: MUST
     kind: protocol
     statement: >-
-      `RmInviteToCaseActivity` MUST be sent with `actor` set to the Case Actor's ID, not
-      the case owner's ID. The case owner triggers the invite action, but the Case Actor
+      `RmInviteToCaseActivity` MUST be sent with `actor` set to the CASE_MANAGER's ID, not
+      the case owner's ID. The case owner triggers the invite action, but the CASE_MANAGER
       MUST be the ActivityStreams actor performing the send. Optionally, `attributedTo` on
       the activity MAY carry the case owner's ID to record who initiated the invitation.
     verification: >-
       Integration tests in `test/demo/test_invite_actor_demo.py` confirm that
-      `RmInviteToCaseActivity` carries `actor` equal to the CaseActor's ID,
+      `RmInviteToCaseActivity` carries `actor` equal to the CASE_MANAGER's ID,
       not the case owner's ID.
     relationships:
     - rel_type: refines
@@ -465,12 +465,12 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      The invitee's `RmAcceptInviteToCaseActivity` MUST be addressed to the Case Actor
-      (not the case owner). The Case Actor is the authoritative recipient and processor of
+      The invitee's `RmAcceptInviteToCaseActivity` MUST be addressed to the CASE_MANAGER
+      (not the case owner). The CASE_MANAGER is the authoritative recipient and processor of
       all case-management handshake messages after case creation.
     verification: >-
       Integration tests in `test/demo/test_invite_actor_demo.py` confirm that
-      the invitee's accept-invite response is addressed `to` the CaseActor
+      the invitee's accept-invite response is addressed `to` the CASE_MANAGER
       rather than the case owner.
     relationships:
     - rel_type: refines
@@ -482,11 +482,11 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      The Case Actor MUST process `RmAcceptInviteToCaseActivity` and record the invitee's
+      The CASE_MANAGER MUST process `RmAcceptInviteToCaseActivity` and record the invitee's
       RM state transition (VALID → ACCEPTED) in its own DataLayer.
     verification: >-
       Integration tests in `test/demo/test_invite_actor_demo.py` confirm that
-      after the invitee sends `RmAcceptInviteToCaseActivity`, the CaseActor's
+      after the invitee sends `RmAcceptInviteToCaseActivity`, the CASE_MANAGER's
       DataLayer records the invitee's RM state as ACCEPTED.
     relationships:
     - rel_type: refines
@@ -527,26 +527,26 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      An emit node in a case-scoped trigger BT MUST resolve the CaseActor
+      An emit node in a case-scoped trigger BT MUST resolve the CASE_MANAGER
       recipient before enqueueing the activity.
     rationale: >-
       When case-scoped trigger routing was changed from `case_addressees()` to
-      CaseActor-only routing, emit nodes that returned without setting `to`
+      CASE_MANAGER-only routing, emit nodes that returned without setting `to`
       caused `VultronOutboxToFieldMissingError` to be raised deep in the outbox
-      handler, far from the originating node. The true defect — missing CaseActor
+      handler, far from the originating node. The true defect — missing CASE_MANAGER
       routing in the trigger path — was masked. Failing fast at the emit node
       surfaces the routing gap immediately and produces a diagnostic error in the
       correct layer (issue #927).
     verification: >-
       Inspection of `vultron/core/behaviors/` confirms that case-scoped emit
-      nodes invoke a CaseActor-resolution step before setting `to`, and a
-      unit test confirms the node returns FAILURE when no CaseActor can be
+      nodes invoke a CASE_MANAGER-resolution step before setting `to`, and a
+      unit test confirms the node returns FAILURE when no CASE_MANAGER can be
       resolved.
     relationships:
     - rel_type: refines
       spec_id: PCR-08-001
-      note: Participant outbound activities route through the CaseActor only;
-        failure to resolve the CaseActor is a trigger-side error
+      note: Participant outbound activities route through the CASE_MANAGER only;
+        failure to resolve the CASE_MANAGER is a trigger-side error
     - rel_type: refines
       spec_id: PCR-08-002
       note: Using case_addressees() or None as the recipient in a trigger BT is
@@ -558,7 +558,7 @@ groups:
     kind: protocol
     statement: >-
       An emit node in a case-scoped trigger BT MUST fail fast (return FAILURE or raise
-      immediately) when no routable CaseActor can be found.
+      immediately) when no routable CASE_MANAGER can be found.
     verification: >-
       A unit test confirms that a case-scoped emit node returns FAILURE or
       raises immediately when the participant list contains no actor with
@@ -582,18 +582,18 @@ groups:
     kind: protocol
     statement: >-
       The invitee's `Accept(Invite)` activity IS the invitee's RM engagement decision.
-      The Case Actor MUST derive the `RmAcceptInviteToCaseActivity` domain event from
+      The CASE_MANAGER MUST derive the `RmAcceptInviteToCaseActivity` domain event from
       this message upon receipt, recording the invitee's RM transition (VALID → ACCEPTED)
       in its own DataLayer without requiring a separate explicit RM state-change message
       from the invitee.
     rationale: >-
       PCR-08-009 prohibits the case owner from emitting RM state-change activities on
       behalf of the invitee but did not state who IS responsible. The invitee's
-      `Accept(Invite)` is the authoritative signal; the Case Actor is the sole party
+      `Accept(Invite)` is the authoritative signal; the CASE_MANAGER is the sole party
       authorized to record the resulting RM transition.
     verification: >-
       Integration tests in `test/demo/test_invite_actor_demo.py` confirm that
-      the CaseActor records the VALID→ACCEPTED RM transition solely from the
+      the CASE_MANAGER records the VALID→ACCEPTED RM transition solely from the
       invitee's `Accept(Invite)` message, with no additional explicit RM
       state-change message required.
     relationships:
@@ -609,11 +609,11 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      Unit tests MUST verify that `Announce(VulnerabilityCase)` from the CaseActor creates
+      Unit tests MUST verify that `Announce(VulnerabilityCase)` from the CASE_MANAGER creates
       a local replica when none exists.
     verification: >-
       Inspection of `test/demo/test_pcr_bootstrap.py` confirms a test case
-      asserts that `Announce(VulnerabilityCase)` from the CaseActor creates a
+      asserts that `Announce(VulnerabilityCase)` from the CASE_MANAGER creates a
       new local replica when no prior replica exists for that case ID.
     lint_suppress:
     - missing_story_reference
@@ -621,11 +621,11 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      Unit tests MUST verify that `Announce(VulnerabilityCase)` from the CaseActor updates
+      Unit tests MUST verify that `Announce(VulnerabilityCase)` from the CASE_MANAGER updates
       the local replica when one exists.
     verification: >-
       Inspection of `test/demo/test_pcr_bootstrap.py` confirms a test case
-      asserts that `Announce(VulnerabilityCase)` from the CaseActor replaces
+      asserts that `Announce(VulnerabilityCase)` from the CASE_MANAGER replaces
       the existing local replica with the received state.
     lint_suppress:
     - missing_story_reference
@@ -634,10 +634,10 @@ groups:
     kind: protocol
     statement: >-
       Unit tests MUST verify that `Announce(VulnerabilityCase)` from an actor that is NOT
-      the CaseActor is rejected and logged at WARNING.
+      the CASE_MANAGER is rejected and logged at WARNING.
     verification: >-
       Inspection of `test/demo/test_pcr_bootstrap.py` confirms a test case
-      asserts that `Announce(VulnerabilityCase)` from a non-CaseActor sender
+      asserts that `Announce(VulnerabilityCase)` from a non-CASE_MANAGER sender
       is rejected and produces a WARNING-level log entry.
     lint_suppress:
     - missing_story_reference
@@ -670,12 +670,12 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      Integration tests MUST verify the full bootstrap sequence: case creation → CaseActor
+      Integration tests MUST verify the full bootstrap sequence: case creation → CASE_MANAGER
       sends `Announce(VulnerabilityCase)` → participant creates local replica → subsequent
       case-scoped activities are routed correctly.
     verification: >-
       Inspection of `test/demo/test_pcr_bootstrap.py` confirms a test case
-      walks the complete bootstrap sequence: case creation, CaseActor sending
+      walks the complete bootstrap sequence: case creation, CASE_MANAGER sending
       `Announce(VulnerabilityCase)`, participant replica creation, and correct
       routing of subsequent case-scoped activities.
     lint_suppress:
@@ -684,12 +684,12 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      Integration tests MUST verify the late-joiner sequence: `Invite` → `Accept` → CaseActor
+      Integration tests MUST verify the late-joiner sequence: `Invite` → `Accept` → CASE_MANAGER
       sends `Announce(VulnerabilityCase)` to new participant → new participant creates local
       replica.
     verification: >-
       Inspection of `test/demo/test_pcr_late_joiner.py` confirms a test case
-      walks the complete late-joiner sequence: Invite → Accept → CaseActor
+      walks the complete late-joiner sequence: Invite → Accept → CASE_MANAGER
       sending `Announce(VulnerabilityCase)` → new participant creating its
       local replica.
     lint_suppress:
@@ -699,13 +699,13 @@ groups:
     kind: protocol
     statement: >-
       Integration tests MUST verify that `RmInviteToCaseActivity` carries `actor` set to
-      the Case Actor's ID, and that the invitee's `RmAcceptInviteToCaseActivity` is
-      processed by the Case Actor (not the case owner).
+      the CASE_MANAGER's ID, and that the invitee's `RmAcceptInviteToCaseActivity` is
+      processed by the CASE_MANAGER (not the case owner).
     verification: >-
       Inspection of `test/demo/test_invite_actor_demo.py` confirms a test case
-      asserts `RmInviteToCaseActivity` carries `actor` equal to the CaseActor's
+      asserts `RmInviteToCaseActivity` carries `actor` equal to the CASE_MANAGER's
       ID and that the invitee's `RmAcceptInviteToCaseActivity` is handled by
-      the CaseActor.
+      the CASE_MANAGER.
     relationships:
     - rel_type: verifies
       spec_id: PCR-08-007

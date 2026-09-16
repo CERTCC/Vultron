@@ -17,12 +17,12 @@ title: Invite Actor to Case
 ---
 sequenceDiagram
     actor O as Case Owner
-    participant CA as Case Actor
+    participant CA as CASE_MANAGER
     actor A as Actor
     activate O
     O ->> CA: [trigger invite]
     activate CA
-    CA ->>+ A: Invite(actor=CaseActor, object=Actor, target=Case, attributedTo=CaseOwner)
+    CA ->>+ A: Invite(actor=CASE_MANAGER, object=Actor, target=Case, attributedTo=CaseOwner)
     note over A: Consider invitation
     alt Accept Invitation
         A -->> CA: Accept(object=Invite)
@@ -37,15 +37,15 @@ sequenceDiagram
     deactivate O
 ```
 
-!!! info "CaseActor routing (PCR-08-007, PCR-08-008)"
+!!! info "CASE_MANAGER routing (PCR-08-007, PCR-08-008)"
 
-    The `Invite` activity is sent by the **Case Actor**, not the Case Owner.
-    The Case Owner triggers the invite, but the Case Actor MUST be the
+    The `Invite` activity is sent by the **CASE_MANAGER**, not the Case Owner.
+    The Case Owner triggers the invite, but the CASE_MANAGER MUST be the
     ActivityStreams `actor` on the outbound `Invite`. The `attributedTo` field
     on the activity MAY carry the Case Owner's ID to record who initiated it.
 
-    The invitee MUST address their `Accept` or `Reject` reply to the **Case Actor**,
-    not directly back to the Case Owner. The Case Actor is the authoritative
+    The invitee MUST address their `Accept` or `Reject` reply to the **CASE_MANAGER**,
+    not directly back to the Case Owner. The CASE_MANAGER is the authoritative
     recipient of all case-management handshake messages after case creation.
 
 !!! question "Invite vs Add?"

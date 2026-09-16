@@ -38,7 +38,7 @@ groups:
     kind: protocol
     statement: Each VulnerabilityCase MUST have exactly one associated CASE_MANAGER
     verification: Inspection of `vultron/core/` confirms that each `VulnerabilityCase` is
-      associated with exactly one `CaseActor` instance.
+      associated with exactly one participant holding `CVDRole.CASE_MANAGER`.
     stories:
     - story_2022_029
     - story_2022_031
@@ -146,12 +146,12 @@ groups:
   - id: CM-02-010
     priority: MUST
     kind: protocol
-    statement: The CASE_MANAGER and the case owner (named actor) MUST have distinct actor identities — each with their own actor
+    statement: The actor enacting CASE_MANAGER and the case owner (named actor) MUST have distinct actor identities — each with their own actor
       ID — even when co-located on the same server
     rationale: Enforcing distinct identities ensures that all case-state transitions pass through the wire protocol regardless
       of deployment topology, preserving audit integrity and enabling future separation onto independent containers without
       protocol changes
-    verification: Inspection of `vultron/core/` confirms that the CASE_MANAGER service actor and
+    verification: Inspection of `vultron/core/` confirms that the actor enacting CASE_MANAGER and
       the case owner named actor each hold distinct actor IDs, even in single-server
       deployments.
     relationships:
@@ -601,10 +601,10 @@ groups:
   - id: CM-06-003
     priority: MUST
     kind: protocol
-    statement: Case update notifications MUST include the updated CASE_MANAGER URL so participants can fetch the current case
+    statement: Case update notifications MUST include the updated CASE_MANAGER's actor URL so participants can fetch the current case
       state if needed
     verification: Inspection of `vultron/core/` confirms that case update notification payloads
-      include the CASE_MANAGER URL so recipients can fetch current state.
+      include the CASE_MANAGER's actor URL so recipients can fetch current state.
     scope:
     - production
     stories:
@@ -2068,7 +2068,7 @@ groups:
       A Coordinator invited to a case as a regular participant MUST hold
       `CVDRole.COORDINATOR` in their `case_roles` list.
     rationale: '`CASE_OWNER` is the role that confers case administration authority (CM-02-001, CM-02-004, CM-02-005). `CASE_MANAGER`
-      is a distinct role reserved exclusively for the CASE_MANAGER service; it grants write authority to the canonical ledger
+      is a distinct role reserved exclusively for the Case Actor (the automated actor that enacts it); it grants write authority to the canonical ledger
       (CLP-09) and MUST NOT be held by any participant actor regardless of their organizational role. These two constraints
       are independent: a Coordinator participant lacks both `CASE_OWNER` (they are not the case administrator) and `CASE_MANAGER`
       (they are not the case management service).'
@@ -2130,7 +2130,7 @@ groups:
     statement: >-
       A Coordinator invited to a case as a regular participant MUST NOT hold
       `CVDRole.CASE_MANAGER` in their `case_roles` list.
-    rationale: '`CVDRole.CASE_MANAGER` is reserved exclusively for the CASE_MANAGER service (CBT-01-003); it grants write authority
+    rationale: '`CVDRole.CASE_MANAGER` is reserved exclusively for the Case Actor (the automated actor that enacts it; CBT-01-003); it grants write authority
       to the canonical ledger and MUST NOT be held by any organizational or human participant.'
     relationships:
     - rel_type: refines
@@ -2140,7 +2140,7 @@ groups:
     kind: protocol
     statement: >-
       `CVDRole.CASE_MANAGER` MUST NOT be assigned to any organizational or human participant
-      joining a case as a facilitation actor rather than as the CASE_MANAGER service
+      joining a case as a facilitation actor rather than as the Case Actor that enacts it
       (CBT-01-003).
     rationale: '`CVDRole.CASE_MANAGER` grants write authority to the canonical ledger (CLP-09). Assigning it to a human or
       organizational participant would allow them to author ledger entries that the CASE_MANAGER is the sole authorized author of.'

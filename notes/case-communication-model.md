@@ -185,7 +185,7 @@ the recipient when building outbound participant activities.
 Adding a new participant to an active case uses `RmInviteToCaseActivity` /
 `RmAcceptInviteToCaseActivity`. Because the invitee is not yet a participant,
 the standard CASE_MANAGER → broadcast model cannot be used to deliver the invite.
-However, the Case Actor MUST still be the authoritative actor in the exchange.
+However, the CASE_MANAGER MUST still be the authoritative actor in the exchange.
 
 ### Correct Flow
 
