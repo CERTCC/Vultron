@@ -1,7 +1,7 @@
 """Use cases for case actor/participant invitation and suggestion activities."""
 
 import logging
-from typing import cast
+from typing import Any, cast
 
 from py_trees.common import Status
 
@@ -23,6 +23,7 @@ from vultron.core.ports.case_persistence import (
 )
 from vultron.core.ports.sync_activity import SyncActivityPort
 from vultron.core.models._helpers import _as_id
+from vultron.core.predicates.roles import has_case_manager_role
 from vultron.core.use_cases._helpers import (
     _find_case_actor_id,
     resolve_receiving_actor_id,
@@ -30,6 +31,42 @@ from vultron.core.use_cases._helpers import (
 from vultron.core.use_cases.received.sync import drain_gap_buffer
 
 logger = logging.getLogger(__name__)
+
+
+def _announced_case_manager_id(case_obj: Any) -> str | None:
+    """Return the CASE_MANAGER named by the *announced payload's* own roster.
+
+    The trust anchor of last resort for PCR-07-003.  At first replica seeding
+    the case is not in the local store yet, so there is no local roster to read
+    — and ADR-0088 removed the ``Service``-hosting scan that used to stand in
+    for one, because hosting location is not evidence of authority
+    (ARCH-24-004).  What remains is the announced case's own participant list,
+    which carries the CASE_MANAGER inline from the moment a replica is seeded
+    (CP-09-004).
+
+    **This is a weak check, deliberately kept rather than dropped.** The roster
+    is supplied by the sender, so a wholly fabricated case naming the sender as
+    its own CASE_MANAGER still passes; nothing available at first contact can
+    refute it. What it does catch is the realistic case the local check used to
+    catch — an actor replaying or forwarding a *legitimate* case whose roster
+    names somebody else as the authority. Callers MUST prefer the local roster
+    when the case is already seeded, since that one is locally derived and this
+    one is not.
+
+    Bare ID strings in the roster are skipped, not dereferenced: Vultron cannot
+    resolve a URI in another actor's message (see ``notes/stub-objects.md``), and
+    fetching one on the sender's say-so would hand it the choice of what we read.
+    """
+    participants = getattr(case_obj, "case_participants", None) or []
+    for participant in participants:
+        if isinstance(participant, str):
+            continue
+        roles = getattr(participant, "case_roles", None) or []
+        if has_case_manager_role(list(roles)):
+            actor_id = _as_id(getattr(participant, "attributed_to", None))
+            if actor_id:
+                return actor_id
+    return None
 
 
 def _link_report_case_links(dl: CasePersistence, case) -> None:
@@ -111,11 +148,20 @@ class AnnounceVulnerabilityCaseReceivedUseCase:
             )
             return
 
+        # PCR-07-003 / PCR-03-001: only the case's authority may seed or update
+        # a replica.  The local roster is authoritative when the case is already
+        # seeded — it is locally derived, whereas the announced payload is the
+        # sender's own account of who holds the role.  Only when there is no
+        # local case yet (first seeding) does the payload's roster get a say; see
+        # `_announced_case_manager_id` for what that check can and cannot catch.
         case_actor_id = _find_case_actor_id(self._dl, case_id)
+        if case_actor_id is None:
+            case_actor_id = _announced_case_manager_id(case_obj)
         if case_actor_id is not None and case_actor_id != request.actor_id:
             logger.warning(
-                "AnnounceVulnerabilityCase: actor '%s' is not the CaseActor"
-                " for case '%s' — update rejected (PCR-03-001)",
+                "AnnounceVulnerabilityCase: actor '%s' does not hold"
+                " CVDRole.CASE_MANAGER for case '%s' — update rejected"
+                " (PCR-03-001, PCR-07-003)",
                 request.actor_id,
                 case_id,
             )

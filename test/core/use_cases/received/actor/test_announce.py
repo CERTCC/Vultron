@@ -192,16 +192,28 @@ class TestAnnounceVulnerabilityCaseReceivedUseCase:
 
         assert dl.read(_CASE_ID2) is None
 
-    def test_rejects_announce_from_non_case_actor(
+    @pytest.mark.spec("PCR-07-003")
+    @pytest.mark.spec("CM-02-011")
+    def test_rejects_announce_from_an_actor_without_the_case_manager_role(
         self, dl, case, make_payload
     ):
-        """PCR-07-003: non-as_CaseActor senders cannot seed a case replica."""
-        dl.create(
-            as_CaseActor(
-                id_=_CASE_ACTOR_ID,
-                attributed_to=_OWNER_ID,
+        """PCR-07-003: only the case's CASE_MANAGER may seed a replica.
+
+        At first seeding there is no local case to read a roster from, so the
+        evidence is the announced case's own roster (CP-09-004). This is the
+        realistic imposter: it forwards a legitimate case whose roster names the
+        real authority, and is not that authority.
+
+        This used to be caught by a local ``as_CaseActor`` whose ``context`` was
+        the case id. ADR-0088 retired hosting location as an authority signal
+        (ARCH-24-004), so the roster carries the check instead.
+        """
+        case.case_participants.append(
+            as_CaseParticipant(
+                id_=_CASE_ACTOR_PARTICIPANT_ID,
                 context=_CASE_ID,
-                name="CaseActor",
+                attributed_to=_CASE_ACTOR_ID,
+                case_roles=[CVDRole.CASE_MANAGER],
             )
         )
         announce = announce_vulnerability_case_activity(
@@ -214,6 +226,78 @@ class TestAnnounceVulnerabilityCaseReceivedUseCase:
         AnnounceVulnerabilityCaseReceivedUseCase(dl, event).execute()
 
         assert dl.read(_CASE_ID) is None
+
+    @pytest.mark.spec("PCR-07-003")
+    def test_accepts_announce_from_the_role_holder_at_first_seeding(
+        self, dl, case, make_payload
+    ):
+        """The mirror of the rejection: the roster's CASE_MANAGER is admitted.
+
+        Pins that the roster check gates on *who holds the role* rather than
+        rejecting every announce that carries a roster.
+        """
+        case.case_participants.append(
+            as_CaseParticipant(
+                id_=_CASE_ACTOR_PARTICIPANT_ID,
+                context=_CASE_ID,
+                attributed_to=_CASE_ACTOR_ID,
+                case_roles=[CVDRole.CASE_MANAGER],
+            )
+        )
+        announce = announce_vulnerability_case_activity(
+            case,
+            actor=_CASE_ACTOR_ID,
+            context=case.id_,
+        )
+        event = make_payload(announce)
+
+        AnnounceVulnerabilityCaseReceivedUseCase(dl, event).execute()
+
+        assert dl.read(_CASE_ID) is not None
+
+    @pytest.mark.spec("PCR-07-003")
+    def test_local_roster_outranks_the_announced_one(
+        self, dl, case, make_payload
+    ):
+        """A re-announce cannot rewrite who the authority is.
+
+        Once the case is seeded, the local roster decides. The announced payload
+        is the sender's own account, so an imposter that names *itself* as
+        CASE_MANAGER must not be able to talk its way past a locally known
+        authority.
+        """
+        real_manager = as_CaseParticipant(
+            id_=_CASE_ACTOR_PARTICIPANT_ID,
+            context=_CASE_ID,
+            attributed_to=_CASE_ACTOR_ID,
+            case_roles=[CVDRole.CASE_MANAGER],
+        )
+        dl.create(real_manager)
+        seeded = as_VulnerabilityCase(id_=_CASE_ID, name="Seeded")
+        seeded.case_participants.append(real_manager.id_)
+        seeded.actor_participant_index[_CASE_ACTOR_ID] = real_manager.id_
+        dl.create(seeded)
+
+        # The imposter's payload claims the role for itself.
+        case.case_participants.append(
+            as_CaseParticipant(
+                id_=f"{_CASE_ID}/participants/imposter",
+                context=_CASE_ID,
+                attributed_to=_IMPOSTER_ID,
+                case_roles=[CVDRole.CASE_MANAGER],
+            )
+        )
+        announce = announce_vulnerability_case_activity(
+            case,
+            actor=_IMPOSTER_ID,
+            context=case.id_,
+        )
+        event = make_payload(announce)
+
+        AnnounceVulnerabilityCaseReceivedUseCase(dl, event).execute()
+
+        result = cast(Any, dl.read(_CASE_ID))
+        assert result.name == "Seeded"
 
 
 # ---------------------------------------------------------------------------

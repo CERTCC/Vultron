@@ -299,9 +299,14 @@ class TestSvcInviteActorToCaseUseCase:
         assert result["activity"]["actor"] == _HTTP_ACTOR_ID
 
     def test_invite_uses_case_actor_when_present(self):
-        """PCR-08-007: when a Case Actor Service exists the invite actor must
-        be the Case Actor ID, not the case-owner actor ID.  The case owner's
+        """PCR-08-007: when the authority is a separate actor the invite actor
+        must be that actor's ID, not the case-owner actor ID.  The case owner's
         ID is carried in ``attributedTo`` instead.
+
+        The delegated-emit shape is unchanged by ADR-0088; only *how* the
+        authority is resolved changed.  A ``Service`` whose ``context`` was the
+        case id used to identify it; now the case's roster names it as
+        ``CVDRole.CASE_MANAGER`` (ARCH-24-004).
         """
         from vultron.wire.as2.vocab.base.objects.actors import as_Service
 
@@ -311,18 +316,26 @@ class TestSvcInviteActorToCaseUseCase:
         case = as_VulnerabilityCase(
             attributed_to=actor.id_, name="PCR Test Case", content="Content"
         )
-        dl.create(case)
 
-        # Register a Case Actor Service with context = case.id_
+        # A distinct actor enacting CASE_MANAGER — the delegated-emit case.
         case_actor = as_Service(
             id_=f"{actor.id_}/case-actor",
-            context=case.id_,
             name="CaseActorService",
         )
         dl.create(case_actor)
+        manager = as_CaseParticipant(
+            id_=f"{case.id_}/participants/case-manager",
+            context=case.id_,
+            attributed_to=case_actor.id_,
+            case_roles=[CVDRole.CASE_MANAGER],
+        )
+        dl.create(manager)
+        case.case_participants.append(manager.id_)
+        case.actor_participant_index[case_actor.id_] = manager.id_
+        dl.create(case)
         # The Invite is authored as the CaseActor and committed to its ledger, so
         # the tree runs in the CaseActor's store and that store needs the case.
-        seed_case_actor_replica(dl, case_actor.id_, case, invitee)
+        seed_case_actor_replica(dl, case_actor.id_, case, invitee, manager)
 
         request = InviteActorToCaseTriggerRequest(
             actor_id=actor.id_,
@@ -1172,8 +1185,8 @@ class TestSvcOfferCaseOwnershipTransferUseCase:
             ).execute()
 
     def test_offer_uses_case_actor_as_sender_when_present(self):
-        """CM-24-001/002: when a CaseActor Service exists, the Offer actor
-        MUST be the CaseActor ID and attributedTo MUST be the offering actor ID.
+        """CM-24-001/002: when the authority is a separate actor, the Offer actor
+        MUST be that actor's ID and attributedTo MUST be the offering actor ID.
         """
         owner, dl = _make_actor_dl("Vendor")
         transferee, _ = _make_actor_dl("Coordinator")
@@ -1181,15 +1194,25 @@ class TestSvcOfferCaseOwnershipTransferUseCase:
         case = as_VulnerabilityCase(
             attributed_to=owner.id_, name="Test Case", content="Content"
         )
-        dl.create(case)
 
-        # Register a CaseActor Service via the legacy path used by _find_case_actor_id
+        # The authority is resolved from the case's roster, not from a Service
+        # whose `context` is the case id — ADR-0088 retired that signal
+        # (ARCH-24-004).
         case_actor = as_Service(
             id_=f"{owner.id_}/case-actor",
-            context=case.id_,
             name="CaseActorService",
         )
         dl.create(case_actor)
+        manager = as_CaseParticipant(
+            id_=f"{case.id_}/participants/case-manager",
+            context=case.id_,
+            attributed_to=case_actor.id_,
+            case_roles=[CVDRole.CASE_MANAGER],
+        )
+        dl.create(manager)
+        case.case_participants.append(manager.id_)
+        case.actor_participant_index[case_actor.id_] = manager.id_
+        dl.create(case)
 
         # The delegated-emit contract makes the CaseActor the actor this BT
         # executes as (CM-24-001), and a BT reads and writes its executing
@@ -1201,7 +1224,7 @@ class TestSvcOfferCaseOwnershipTransferUseCase:
         # an empty store.
         case_actor_dl = dl.clone_for_actor(case_actor.id_)
         _CREATED_DLS.append(case_actor_dl)
-        for obj in (owner, transferee, case, case_actor):
+        for obj in (owner, transferee, case, case_actor, manager):
             case_actor_dl.create(obj)
 
         from vultron.core.use_cases.triggers.actor import (

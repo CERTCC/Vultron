@@ -74,17 +74,82 @@ def test_validate_canonical_entry_rejects_empty_snapshot():
 
 
 @pytest.mark.spec("CLP-07-003")
-def test_validate_canonical_entry_rejects_case_actor_as_snapshot_actor_for_non_case_authored():
-    """CLP-07-003: non-CaseActor-authored signatures must not have case_actor as actor."""
+def test_validate_canonical_entry_rejects_authority_substituted_for_the_asserter():
+    """CLP-07-003: the authority must not stand in for a different asserter.
+
+    ``attributedTo`` names the actor whose assertion this is (CM-24-001), so a
+    snapshot whose ``actor`` is the authority while ``attributedTo`` names
+    somebody else has overwritten that somebody else — the substitution the
+    requirement forbids.
+    """
+    snapshot = _note_snapshot_with_actor(CASE_ACTOR_ID)
+    snapshot["attributedTo"] = PARTICIPANT_ACTOR_ID
     with pytest.raises(
-        VultronCanonicalEntryError, match="must not be the CaseActor"
+        VultronCanonicalEntryError, match="must be preserved, not substituted"
     ):
         _validate_canonical_entry(
             case_id=CASE_ID,
             actor_id=CASE_ACTOR_ID,
             case_actor_id=CASE_ACTOR_ID,
             disposition="recorded",
-            payload_snapshot=_note_snapshot_with_actor(CASE_ACTOR_ID),
+            payload_snapshot=snapshot,
+            event_type="note_added",
+        )
+
+
+@pytest.mark.spec("CLP-07-003")
+@pytest.mark.spec("CM-02-011")
+def test_validate_canonical_entry_allows_the_authority_asserting_as_itself():
+    """ADR-0088: the authority is a participant and may assert on its own behalf.
+
+    A coordinator holding ``CVDRole.CASE_MANAGER`` that adds a note to a case it
+    manages is the asserter, not a substitute for one.  This check used to be a
+    bare ``snapshot_actor == case_actor_id`` comparison, which assumed the
+    authority and the participants were disjoint sets and rejected these entries
+    outright — the assumption ADR-0088 abolished (CM-02-011).
+    """
+    _validate_canonical_entry(
+        case_id=CASE_ID,
+        actor_id=CASE_ACTOR_ID,
+        case_actor_id=CASE_ACTOR_ID,
+        disposition="recorded",
+        payload_snapshot=_note_snapshot_with_actor(CASE_ACTOR_ID),
+        event_type="note_added",
+    )
+
+
+@pytest.mark.spec("CLP-07-003")
+def test_validate_canonical_entry_allows_self_attributed_authority_assertion():
+    """A self-referential ``attributedTo`` is not a substitution either."""
+    snapshot = _note_snapshot_with_actor(CASE_ACTOR_ID)
+    snapshot["attributedTo"] = CASE_ACTOR_ID
+    _validate_canonical_entry(
+        case_id=CASE_ID,
+        actor_id=CASE_ACTOR_ID,
+        case_actor_id=CASE_ACTOR_ID,
+        disposition="recorded",
+        payload_snapshot=snapshot,
+        event_type="note_added",
+    )
+
+
+@pytest.mark.spec("CLP-07-003")
+def test_validate_canonical_entry_reads_an_inline_attributed_to_object():
+    """``attributedTo`` may arrive as an inline object rather than a bare URI."""
+    snapshot = _note_snapshot_with_actor(CASE_ACTOR_ID)
+    snapshot["attributedTo"] = {
+        "type": "Organization",
+        "id": PARTICIPANT_ACTOR_ID,
+    }
+    with pytest.raises(
+        VultronCanonicalEntryError, match="must be preserved, not substituted"
+    ):
+        _validate_canonical_entry(
+            case_id=CASE_ID,
+            actor_id=CASE_ACTOR_ID,
+            case_actor_id=CASE_ACTOR_ID,
+            disposition="recorded",
+            payload_snapshot=snapshot,
             event_type="note_added",
         )
 

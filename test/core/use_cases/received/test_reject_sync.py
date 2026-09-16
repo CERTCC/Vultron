@@ -339,20 +339,40 @@ class TestRejectLedgerEntryReceivedUseCase:
         uc.execute()  # should not raise
 
     @pytest.mark.spec("SYNC-03-002")
-    def test_replay_triggered_when_case_actor_found(self, dl, entry0, entry1):
-        """When a as_CaseActor (Service) exists for the case, missing entries are replayed."""
-        from vultron.wire.as2.vocab.objects.case_actor import as_CaseActor
+    @pytest.mark.spec("CM-02-011")
+    def test_replay_triggered_when_the_case_manager_is_resolvable(
+        self, dl, entry0, entry1
+    ):
+        """Missing entries are replayed once the case's CASE_MANAGER resolves.
+
+        The sender address comes from the role (ADR-0088, ARCH-24-004). This
+        used to be satisfied by an ``as_CaseActor`` whose ``context`` was the
+        case id — a hosting signal that no longer answers.
+        """
+        from vultron.enums.roles import CVDRole
+        from vultron.wire.as2.vocab.objects.case_participant import (
+            as_CaseParticipant,
+        )
+        from vultron.wire.as2.vocab.objects.vulnerability_case import (
+            as_VulnerabilityCase,
+        )
 
         # Save both entries
         dl.save(entry0)
         dl.save(entry1)
 
-        # Register a as_CaseActor associated with the case
-        case_actor = as_CaseActor(
-            id_=CASE_ACTOR_URI,
+        # The case names CASE_ACTOR_URI as its CASE_MANAGER.
+        manager = as_CaseParticipant(
+            id_=f"{CASE_URI}/participants/case-manager",
             context=CASE_URI,
+            attributed_to=CASE_ACTOR_URI,
+            case_roles=[CVDRole.CASE_MANAGER],
         )
-        dl.save(case_actor)
+        dl.create(manager)
+        case = as_VulnerabilityCase(id_=CASE_URI, name="Reject Sync Case")
+        case.case_participants.append(manager.id_)
+        case.actor_participant_index[CASE_ACTOR_URI] = manager.id_
+        dl.create(case)
 
         # Participant says they only have up to entry0
         event = self._make_event(entry1, entry0.entry_hash)
