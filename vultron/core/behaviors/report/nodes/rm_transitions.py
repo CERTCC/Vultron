@@ -174,10 +174,15 @@ class TransitionRMtoValid(DataLayerActionWithPorts):
     it performs both writes in one execution and *orders* them so a failure
     cannot permanently strand the records:
 
-    1. It first *reads and validates* the link (present, and ``current →
-       RM.VALID`` legal, or already ``VALID``).  A missing link or an illegal
-       source state fails here, **before** the participant is touched, so the
-       participant is never advanced when the link cannot follow.
+    1. It first *reads and validates* the link.  When the link is **absent**
+       it is seeded fresh at ``RM.RECEIVED`` (issue #3283) rather than failing:
+       some stores legitimately reach this transition without a prior
+       link-seeding node — e.g. the CaseActor advancing a participant it tracks
+       — and the pre-#3267 design advanced the participant regardless of link
+       presence, so fail-fast-on-absence regressed those paths.  An **illegal**
+       source state (``current → RM.VALID`` not legal, and not already
+       ``VALID``) still fails here, **before** the participant is touched, so
+       the participant is never advanced when the link cannot follow.
     2. It then advances the case participant through
        :class:`CreateParticipantStatusNode` — the sole ``ParticipantStatus``
        writer (ADR-0089) — reading ``/case_id`` from the blackboard seeded by
@@ -253,25 +258,33 @@ class TransitionRMtoValid(DataLayerActionWithPorts):
 
         Returns:
             SUCCESS once both records read ``RM.VALID``; FAILURE when the
-            DataLayer is unavailable, the ReportCaseLink is missing, the
-            report-phase transition is illegal, the case-scoped write does not
-            succeed, or the final link save raises.
+            DataLayer is unavailable, the report-phase transition is illegal,
+            the case-scoped write does not succeed, or the final link save
+            raises.  An absent link is seeded (not a failure — issue #3283).
         """
         if (f := self._require_datalayer()) is not None:
             return f
         assert self.datalayer is not None
 
-        # 1. Validate the link BEFORE advancing the participant, so a missing
-        #    link or an illegal source state cannot strand the participant at
-        #    VALID while the link — the record CheckRMStateValid reads — stays
-        #    behind (issue #3267).
+        # 1. Validate the link BEFORE advancing the participant, so an illegal
+        #    source state cannot strand the participant at VALID while the link
+        #    — the record CheckRMStateValid reads — stays behind (issue #3267).
         link = self._read_link()
         if link is None:
-            self.feedback_message = (
-                f"ReportCaseLink not found for report '{self.report_id}'"
+            # A store can reach the VALID transition with no link (issue #3283):
+            # the pre-#3267 design advanced the participant regardless, so
+            # fail-fast-on-absence regressed those paths.  Seed the link fresh
+            # at RM.RECEIVED (its default) and continue — advancing then
+            # latching it to VALID in this one execution keeps the two records
+            # from diverging (the #3267 invariant) without stranding the
+            # participant merely because the link is absent.
+            link = VultronReportCaseLink(report_id=self.report_id)
+            self.logger.info(
+                "%s: no ReportCaseLink for report '%s'; seeding at RM.RECEIVED"
+                " before advancing (issue #3283)",
+                self.name,
+                self.report_id,
             )
-            self.logger.error("%s: %s", self.name, self.feedback_message)
-            return Status.FAILURE
         current_rm = link.rm_state
         if current_rm != RM.VALID and not is_valid_rm_transition(
             current_rm, RM.VALID

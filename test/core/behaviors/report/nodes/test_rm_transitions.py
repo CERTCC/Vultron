@@ -347,3 +347,46 @@ def test_transition_rm_to_valid_without_participant_fails_without_updating_link(
             "TransitionRMtoValid updated ReportCaseLink.rm_state to RM.VALID even"
             " though the case-participant RM update was blocked (ISSUE-2548)"
         )
+
+
+@pytest.mark.spec("BT-03-004")
+def test_transition_rm_to_valid_seeds_absent_link_and_advances(
+    bt_scenario: BTTestScenario,
+    actor: VultronCaseActor,
+    report: VultronReport,
+    offer: VultronOffer,
+    case_with_participant: VulnerabilityCase,
+) -> None:
+    """Absent ReportCaseLink is seeded, not fatal — participant still reaches VALID.
+
+    Issue #3283.  The #3267 rewrite gated the participant advance behind a
+    successful link read, so a store that reached the VALID transition without a
+    prior link-seeding node (e.g. the CaseActor advancing a participant it
+    tracks) was stranded at RM.RECEIVED — the fcvcv/fvcv-handoff demo
+    regression.  The pre-#3267 design advanced the participant regardless.  This
+    fixture deliberately omits the ``report_case_link`` fixture: no link exists
+    in the store, but the case + participant do.  The node must seed the link at
+    RM.RECEIVED, advance the participant, and latch the link to RM.VALID.
+    """
+    # Precondition: no link in the store.
+    link_id = VultronReportCaseLink.build_id(report.id_)
+    assert not isinstance(
+        bt_scenario.dl.read(link_id), VultronReportCaseLink
+    ), "test setup error: a ReportCaseLink was seeded despite omitting the fixture"
+
+    result = bt_scenario.run(
+        TransitionRMtoValid(
+            report_id=report.id_,
+            offer_id=offer.id_,
+            sender_actor_id=actor.id_,
+        ),
+        actor_id=actor.id_,
+        case_id=case_with_participant.id_,
+    )
+    bt_scenario.assert_success(result)
+    bt_scenario.assert_rm_state(report.id_, RM.VALID, actor_id=actor.id_)
+
+    # The link was seeded and latched to VALID in the same execution.
+    link = bt_scenario.dl.read(link_id)
+    assert isinstance(link, VultronReportCaseLink)
+    assert link.rm_state is RM.VALID

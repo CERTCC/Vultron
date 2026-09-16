@@ -737,10 +737,17 @@ class AdvanceInviteeToReceivedNode(DataLayerActionWithPorts):
     attributed to the invitee (the subject), while the tree executes as the
     CaseActor (the store owner); the two actors are kept distinct (#2300).
 
-    Skipped on the backfill-resume path
-    (``invitee_already_participant`` is true), where the existing participant
-    keeps whatever RM state it already reached — forcing it back to
-    ``RM.RECEIVED`` would be an illegal backward transition.
+    On the backfill-resume path (``invitee_already_participant`` is true) the
+    advance is *forward-only on the participant's actual RM state*, not a blanket
+    skip: an existing participant already at ``RM.RECEIVED`` or beyond keeps its
+    state (forcing it back would be an illegal backward transition), but one
+    still at ``RM.START`` is advanced.  Birth now commits in three separate
+    steps (construct → persist → advance), so a prior run that persisted the
+    participant at ``RM.START`` and then failed the advance leaves it durably at
+    ``RM.START``; a blanket skip on retry would strand it there permanently, and
+    ``RM.START → RM.VALID`` is illegal, so the invitee could never validate
+    (issue #3283 — the #2548 family AC-4 guards).  ``RM.START → RM.RECEIVED`` is
+    a legal forward move, so the retry completes the interrupted birth.
     """
 
     def __init__(
@@ -783,6 +790,25 @@ class AdvanceInviteeToReceivedNode(DataLayerActionWithPorts):
             "invitee_already_participant"
         )
 
+    def _current_participant_rm(self) -> RM | None:
+        """Return the persisted invitee participant's current RM state.
+
+        None when the case, the participant mapping, or the participant record
+        cannot be read, or the participant has no status yet.
+        """
+        assert self.datalayer is not None
+        case = self.datalayer.read_case(self.case_id)
+        if not isinstance(case, VulnerabilityCase):
+            return None
+        participant_id = case.actor_participant_index.get(self.invitee_id)
+        if participant_id is None:
+            return None
+        participant = self.datalayer.read(participant_id)
+        if not isinstance(participant, CaseParticipant):
+            return None
+        status = participant.participant_status
+        return status.rm.state if status is not None else None
+
     def update(self) -> Status:
         if (f := self._require_datalayer_and_actor()) is not None:
             return f
@@ -790,9 +816,14 @@ class AdvanceInviteeToReceivedNode(DataLayerActionWithPorts):
         assert self.actor_id is not None
 
         if self.invitee_already_participant:
-            # Backfill resume: the participant already exists with its own RM
-            # progress; do not force it back to RM.RECEIVED.
-            return Status.SUCCESS
+            # Backfill resume: forward-only on the participant's actual RM
+            # state.  Skip only when it already reached RM.RECEIVED or beyond
+            # (forcing it back would be illegal).  A participant still at
+            # RM.START — a prior run persisted it but failed the advance —
+            # must be advanced, or it is stranded permanently (issue #3283).
+            current_rm = self._current_participant_rm()
+            if current_rm is not None and current_rm != RM.START:
+                return Status.SUCCESS
 
         from vultron.core.behaviors.bridge import BTBridge
 
