@@ -70,6 +70,16 @@ sources.
     canonical case ledger.
   - *Case actor*: the specific software actor currently implementing the case
     manager role (implementation detail, not a core protocol concept).
+- `[J]` `Observer` is used with two distinct meanings: (1) a process role in
+  §2 (a participant with no VFD drive obligations), and (2) the name of the
+  minimum conformance capability set in §12. The §2 definition acknowledges
+  this dual use and directs the reader to §12 for the capability-set meaning.
+- `[J]` The `track`/`drive` distinction is defined before or alongside its
+  first use. *Track* = obligation to maintain a local copy of a state machine
+  from incoming transitions; *drive* = authority to initiate a transition
+  that advances the shared canonical state. The term "drive obligations"
+  appears in §2 (Observer definition); if the full definition appears later
+  (currently §12.2), §2 must carry an inline gloss or forward pointer.
 
 ---
 
@@ -126,6 +136,12 @@ Keep protocol text free of implementation accidents and drafting artifacts.
   the normative text.
 - `[J]` Sections that contain no normative requirements (currently §12.6 is a
   candidate) are evaluated for relocation to an informative annex.
+- `[M]` Every open question that belongs at a point-of-use location in the
+  document exists as a standalone `_oq-*.md` fragment file, included both at
+  point-of-use and in `_open-questions.md`. No open question is written as
+  inline prose directly into `_open-questions.md` if it has a natural
+  point-of-use location (i.e., the section that first implies or requires the
+  missing definition).
 
 ---
 
@@ -142,6 +158,11 @@ Keep protocol text free of implementation accidents and drafting artifacts.
   reordering.
 - `[J]` Every callout or sidebar that says "see worked example" or "see case
   history" contains actual content, not a placeholder.
+- `[J]` No section opening note or admonition instructs the reader to read a
+  later subsection first when that subsection follows in document order.
+  Either reorder content so the prerequisite precedes the dependent material,
+  or rewrite the note as a forward pointer explaining what the later
+  subsection contributes.
 
 ---
 
@@ -181,6 +202,98 @@ source of imprecise language.
 
 ---
 
+## 8. Readability and Concept Flow
+
+Check after any structural reorganization or addition of new sections.
+
+- `[J]` Every structural concept used in normative prose in §3 (Protocol
+  Overview) or §4 (Semantic Layer) is either defined in §2 or accompanied by
+  a one-sentence gloss at first use. A bare forward reference `(§N.M)` is not
+  sufficient for foundational concepts (`Case Actor`, `CaseLedgerEntry`, PEC
+  state names, RM state names at point of gating use).
+- `[J]` When a state machine's state names are used normatively in a section
+  more than one major section after the defining section, a compact reminder
+  (a small table or admonition listing the state names with one-word glosses)
+  appears at or near the point of reuse. Minimum required coverage:
+  - RM states: reminder in §9.7, §10, and §11
+  - PEC states: reminder in §10 and §11
+  - EM states: reminder in §10
+  - VFD states: reminder in §12.4.1
+- `[J]` The "four dimensions / five state machines" disambiguation (CS
+  comprises two independent machines, VFD and PXA) is re-stated or explicitly
+  cited wherever the five-machine count is normatively load-bearing —
+  currently required at §12.2 Observer capability set requirements.
+- `[J]` When a transition is implied by a state machine's compound-state table
+  but its drive authority is unresolved, an open-question admonition (or
+  `!!! warning` citing the relevant OQ) is placed in the defining section at
+  first introduction, not only in the conformance section where the gap is
+  first enforced. Currently required for the `v→V` VFD transition in §8.1.
+- `[J]` No normative SHALL/MUST/MUST NOT statement is reproduced verbatim or
+  near-verbatim in more than one section. Identify the canonical normative
+  location; all other occurrences are rewritten as cross-references ("as
+  required by §N.M"). Common candidates: role-exclusivity rule, role
+  self-assignment prohibition, single-writer authority, Case Owner transfer
+  mechanics.
+- `[J]` No informative note, provenance box, or roadmap statement is
+  reproduced with near-identical language in more than one section without one
+  occurrence being a cross-reference. Common candidates: PEC provenance note
+  (§6 / §9), ActivityPub conformance roadmap (§1.3 / §5.1 / §5.6).
+- `[J]` No body-text sentence asserting a normative fact (e.g., "some
+  sequences carry normative weight") is immediately followed by an open
+  question or admonition that contradicts or defers exactly that fact. Either
+  the normative content is stated explicitly, or the positive claim is
+  withdrawn and replaced with a placeholder citing the open question.
+
+---
+
+## 9. Content Modularity
+
+Verify before each publication round that recurring reference items are
+available as includable fragments or replicated as compact reminder
+admonitions.
+
+- `[J]` The state machine state tables for RM, EM, VFD, and PEC exist as
+  standalone includable fragment files (e.g., `_rm-states-table.md`). Where
+  the build toolchain supports `include-markdown`, each is re-embedded as a
+  compact reminder admonition in downstream sections that rely on the state
+  names. Where it does not, equivalent inline reminder admonitions are written
+  at each downstream reuse point.
+- `[J]` The "four dimensions / five state machines" orienting note (§3.2) is
+  available as a standalone fragment for re-inclusion wherever the five-machine
+  count is normatively required (currently §12.2).
+- `[J]` The shorthand-to-wire-form mapping table (§4.7) is available as a
+  standalone fragment for re-inclusion in §5 and §12.5 conformance testing
+  context.
+- `[J]` The named-configurations summary table (Hosting Coordinator /
+  Self-coordinating Vendor / Bug Bounty Platform) is either positioned as an
+  orienting preview in §3.4 or §12.1, or is extractable as a fragment for
+  that purpose.
+
+---
+
+## 10. Concept Lifecycle Coverage
+
+Check when roles, object types, or message patterns are added or redefined.
+
+- `[J]` Every role defined in §2 (`Reporter`, `Finder`, `Vendor`,
+  `Coordinator`, `Deployer`, `Observer`, `CNA`, `Bug Bounty Operator`) has
+  substantive coverage in at least one state machine section or lifecycle
+  section (§11), beyond the terminology definition and conformance listing. If
+  a role has no direct state machine obligations, that fact is stated
+  explicitly rather than left implied by absence.
+- `[J]` Every object type defined in §5.2 (`CaseProposal`, `CaseLedgerEntry`,
+  `VulnerabilityCase`, `ParticipantRecord`) has a corresponding lifecycle
+  description — at minimum: when it is created, what state transitions it
+  records or triggers, and when it is retired or superseded. Object types that
+  appear only in §5.2 and one or two incidental references elsewhere are
+  flagged for lifecycle elaboration.
+- `[J]` The term `Observer` is annotated in §2 as carrying two meanings
+  (process role and capability set). Readers are warned at §2's definition;
+  the §12 capability-set usage back-references §2 to confirm intentional
+  overloading rather than a naming error.
+
+---
+
 ## Mechanized (Covered by CI or Pre-commit)
 
 Items moved here are no longer checked manually; the mechanism is noted.
@@ -197,3 +310,4 @@ Items moved here are no longer checked manually; the mechanism is noted.
 | Date | Change | Source |
 |------|--------|--------|
 | 2026-09-16 | Initial rubric created from review of PR #3265 | Review of draft RFC commit d4572cee7 |
+| 2026-09-16 | Added §8 Readability and Concept Flow, §9 Content Modularity, §10 Concept Lifecycle Coverage; extended §2 (Observer dual-use, track/drive definition), §4 (OQ fragment consistency), §5 (nav-note accuracy) — 24 additional gap items from top-to-bottom sequential audit of assembled spec | PR #3265 review comment |
