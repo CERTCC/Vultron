@@ -1,7 +1,7 @@
 """Use cases for case actor/participant invitation and suggestion activities."""
 
 import logging
-from typing import Any, cast
+from typing import Any, NamedTuple, cast
 
 from py_trees.common import Status
 
@@ -69,54 +69,59 @@ def _announced_case_manager_id(case_obj: Any) -> str | None:
     return None
 
 
-def _reject_reason(
-    dl: CasePersistence, case_id: str, case_obj: Any, sender_id: str | None
-) -> str | None:
-    """Return why *sender_id* may not seed or update *case_id*, or ``None`` to allow.
+class _AuthorityVerdict(NamedTuple):
+    """Who this receiver expects to hear from about a case, and on what basis."""
 
-    PCR-07-003 / PCR-03-001: only the case's authority may seed or update a
-    replica. Whose account of "the authority" is trusted turns on whether we
-    already hold the case, and the two accounts must not be mixed — the sender
-    supplies the announced roster, so letting it speak about a case we already
-    have would let an imposter name itself the authority and overwrite the stored
-    record (``SeedAnnouncedCaseNode`` *saves* on the existing-case path).
+    #: The actor this receiver expects, or ``None`` when it has no opinion.
+    expected: str | None
+    #: True when the case is already in the local store.
+    seeded: bool
 
-    The branch is on the **presence of the case**, deliberately not on whether the
-    local lookup happened to answer. A seeded case can resolve ``None`` too — its
-    roster may name no CASE_MANAGER yet, or that participant may carry no
+    def admits(self, sender_id: str | None) -> bool:
+        """Whether *sender_id* may seed or update the case."""
+        if self.seeded:
+            # Fail closed: no expectation means no attribution, and an update we
+            # cannot attribute must not be applied.
+            return self.expected == sender_id
+        # First seeding is permissive when nothing local or announced answers,
+        # because accepting is the point.
+        return self.expected is None or self.expected == sender_id
+
+    @property
+    def basis(self) -> str:
+        return "resolved CASE_MANAGER" if self.seeded else "expected authority"
+
+
+def _authority_verdict(
+    dl: CasePersistence, case_id: str, case_obj: Any
+) -> _AuthorityVerdict:
+    """Resolve who may seed or update *case_id* (PCR-07-003, PCR-03-001).
+
+    Whose account of "the authority" is trusted turns on whether we already hold
+    the case, and the two accounts must not be mixed — the sender supplies the
+    announced roster, so letting it speak about a case we already have would let
+    an imposter name itself the authority and overwrite the stored record
+    (``SeedAnnouncedCaseNode`` *saves* on the existing-case path).
+
+    The branch is on the **presence of the case**, deliberately not on whether a
+    lookup happened to answer. An already-seeded case can resolve ``None`` too —
+    its roster may name no CASE_MANAGER yet, or that participant may carry no
     ``attributed_to`` — and treating that as "no local opinion" is what reopens
-    the overwrite.
+    the overwrite. A seeded replica names its CASE_MANAGER from the moment it is
+    seeded (CP-09-004), so an unresolvable authority there is anomalous.
+
+    For a case we do not hold, the locally recorded anchor comes first: a
+    completed ``ReportCaseLink`` carries the address this receiver itself reached
+    the authority at during bootstrap (CBT-05-004), which the sender cannot
+    forge. Only with no local record at all does the announced roster get a say —
+    see :func:`_announced_case_manager_id` for what that can and cannot catch.
     """
     if dl.read_case(case_id) is not None:
-        # Already seeded: fail closed. A seeded replica names its CASE_MANAGER
-        # from the moment it is seeded (CP-09-004), so an authority we cannot
-        # establish locally is an anomalous state, not a routine one, and an
-        # update we cannot attribute is refused rather than applied.
-        resolved = _find_case_actor_id(dl, case_id)
-        if resolved == sender_id:
-            return None
-        return (
-            f"actor '{sender_id}' is not the resolved CASE_MANAGER"
-            f" ('{resolved}') for already-seeded case '{case_id}' — update"
-            " rejected (PCR-03-001, PCR-07-003)"
-        )
-
-    # First seeding. Prefer the locally recorded anchor: a completed
-    # `ReportCaseLink` carries the address this receiver itself reached the
-    # authority at during bootstrap (CBT-05-004), which the sender cannot forge.
-    # Only with no local record at all does the announced roster get a say — see
-    # `_announced_case_manager_id` for what that can and cannot catch. Both
-    # absent stays permissive, because accepting is the point of first seeding.
+        return _AuthorityVerdict(_find_case_actor_id(dl, case_id), True)
     expected = _find_case_actor_id(dl, case_id) or _announced_case_manager_id(
         case_obj
     )
-    if expected is None or expected == sender_id:
-        return None
-    return (
-        f"actor '{sender_id}' is not the expected authority ('{expected}')"
-        f" for case '{case_id}' — seeding rejected"
-        " (CBT-05-004, PCR-07-003)"
-    )
+    return _AuthorityVerdict(expected, False)
 
 
 def _link_report_case_links(dl: CasePersistence, case) -> None:
@@ -198,11 +203,20 @@ class AnnounceVulnerabilityCaseReceivedUseCase:
             )
             return
 
-        rejection = _reject_reason(
-            self._dl, case_id, case_obj, request.actor_id
-        )
-        if rejection is not None:
-            logger.warning("AnnounceVulnerabilityCase: %s", rejection)
+        verdict = _authority_verdict(self._dl, case_id, case_obj)
+        if not verdict.admits(request.actor_id):
+            # See the note in `vultron/core/behaviors/store_scope.py`: an actor id
+            # is a public delivery address, and CodeQL reads it as a secret only
+            # because `VultronReportCaseLink.trusted_case_actor_id` is one of the
+            # fields `_find_case_actor_id` can reach it from.
+            logger.warning(
+                "AnnounceVulnerabilityCase: actor '%s' is not the %s ('%s') for"
+                " case '%s' — rejected (CBT-05-004, PCR-03-001, PCR-07-003)",
+                request.actor_id,
+                verdict.basis,
+                verdict.expected,  # codeql[py/clear-text-logging-sensitive-data]
+                case_id,
+            )
             return
 
         tree = create_announce_vulnerability_case_received_tree(
