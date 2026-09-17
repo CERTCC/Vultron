@@ -28,3 +28,6 @@ ledger. Worth making explicit in `specs/case-management.yaml`: CM-23-011 (or a
 CLP-10 cross-reference) should state that a declined close records no `close_case`
 receipt entry at all, not merely that it skips the RM.CLOSED advances — because
 the receipt entry is the closure mechanism, not a separate bookkeeping record.
+
+**Promoted**: 2026-09-17 — captured in `specs/case-management.yaml` (CM-23-011).
+Docs PR: <https://github.com/CERTCC/Vultron/pull/3328>

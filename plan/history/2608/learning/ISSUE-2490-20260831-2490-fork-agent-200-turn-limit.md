@@ -18,3 +18,6 @@ pyright errors in `participant_add.py` and `owner.py` that the fork did not addr
 subsystem (e.g., behaviors/ first, then use_cases/, then services/) rather than a
 single 60-file pass. Or use sed/awk scripts for the mechanical replacement before
 running the agent for edge-case handling only.
+
+**Promoted**: 2026-09-17 — captured in `notes/agentic-workflow.md` (§ single-pass mechanical refactor) and `AGENTS.md`.
+Docs PR: <https://github.com/CERTCC/Vultron/pull/3328>
