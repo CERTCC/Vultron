@@ -55,3 +55,6 @@ Related: the same shape as the CLP-14/CLP-15 and MV-01-006 lessons —
 [[20260903-2824-clp14-15-do-not-name-their-timestamp]],
 [[20260914-3217-mv-01-006-unrecognized-type-names-two-registries]] — a
 requirement that constrains one member of a population without naming which.
+
+**Promoted**: 2026-09-17 — captured in `docs/adr/0089-one-participant-status-writer.md` (Validation section) and `notes/spec-authoring-rules.md`.
+Docs PR: <https://github.com/CERTCC/Vultron/pull/3328>

@@ -84,7 +84,7 @@ Load additional files only when the task touches the relevant area. See the
 | Activity factory functions | `activity-factories.yaml` |
 | Response generation / outbox | `response-format.yaml`, `outbox.yaml` |
 | Synchronization | `sync-ledger-replication.yaml` |
-| Sync behavior trees (AnnounceLogEntry, RejectLogEntry, CommitLogEntry BTs) | `sync-behavior-trees.yaml`, `notes/sync-behavior-trees.md` |
+| Sync behavior trees (AnnounceLogEntry, RejectLogEntry, CommitLogEntry BTs) | `sync-behavior-trees.yaml` |
 | Participant case replica lifecycle | `participant-case-replica.yaml` |
 | Participant role management (add/remove/has_role) | `participant-role-management.yaml` |
 | Embargo / duration | `embargo-policy.yaml`, `duration.yaml` |

@@ -24,8 +24,7 @@ relevant_packages:
 
 # Triggerable Behaviors: Design Notes
 
-**Cross-references**: `plan/PRIORITIES.md` PRIORITY 30,
-`specs/behavior-tree-integration.yaml` BT-08,
+**Cross-references**: `specs/behavior-tree-integration.yaml` BT-08,
 `docs/topics/behavior_logic/` (reference behavior tree docs)
 
 ---
@@ -89,12 +88,12 @@ TRIG-07).
 
 ---
 
-## Relationship to Actor Independence (PRIORITY 100)
+## Relationship to Actor Independence
 
 Triggerable behaviors are scoped to a single actor's internal state. The
 trigger endpoint MUST resolve the correct per-actor DataLayer instance from
 `actor_id`. This dependency exists whether or not full actor independence
-(PRIORITY 100) is implemented. Design trigger endpoints to accept a
+is implemented. Design trigger endpoints to accept a
 DataLayer instance via dependency injection so that per-actor isolation
 can be retrofitted later without changing the endpoint contract.
 
@@ -131,43 +130,6 @@ The documentation in `docs/topics/behavior_logic/` uses these node types
 in diagrams (condition nodes use "stadium" shape in Mermaid). However,
 the diagrams were built by hand and may contain inconsistencies; use the
 accompanying text as the authoritative source when diagrams disagree.
-
----
-
-## Three-Way Report Validation
-
-The current `rm_validation_bt.md` documentation describes a binary
-outcome (valid / invalid), but the protocol and implementation support
-three distinct outcomes:
-
-| Outcome | Protocol message | Trigger behavior | Semantics |
-|---------|-----------------|-----------------|-----------|
-| Accept | `Accept(Offer(Report))` | `validate-report` | Report is credible and in scope; case creation follows |
-| Tentative reject | `TentativelyReject(Offer(Report))` | `invalidate-report` | Report cannot be validated yet ("soft close") |
-| Hard reject | `Reject(Offer(Report))` | `reject-report` | Report is definitively out of scope or invalid ("hard close") |
-
-**Documentation gap**: The "D" branch of `rm_validation_bt.md` currently
-only models the soft-close (TentativelyReject) path. It SHOULD be split
-into:
-
-1. A condition: "reject outright?" (is the report clearly out of scope or
-   fraudulent?)
-2. A hard-close branch emitting `Reject(Offer(Report))`
-3. The existing soft-close branch emitting `TentativelyReject(Offer(Report))`
-
-The evaluation nodes in the "C" branch (evaluate credibility / evaluate
-validity) SHOULD produce structured outputs (e.g., `credible: bool`,
-`valid: bool`, plus optional analyst notes) that feed into a policy
-evaluation step determining which of the three outcomes to produce. These
-values need not be strictly binary in a full implementation; intermediate
-confidence levels may be appropriate.
-
-**Design Decision**: The `reject-report` trigger MUST require a `note`
-field (reason is required; resolved — see `specs/triggerable-behaviors.yaml`
-TB-03-004 and `specs/code-style.yaml` CS-08-001).
-The `note` field MUST be present; it SHOULD be non-empty. This decision
-led to a broader schema-validation pattern: optional string fields
-throughout the codebase follow "if present, then non-empty" (CS-08-001).
 
 ---
 
@@ -362,77 +324,3 @@ Key design constraints:
    succeeds (no-op for prototype); log when executed.
 
 ---
-
-## Invitation-Ready Case Object
-
-**Design Decision**: `VulnerabilityCase` SHOULD support a `RedactedVulnerabilityCase`
-subclass for invited-but-not-yet-accepted participants. (resolved — blocks
-resolved; see `specs/case-management.yaml` CM-09-*)
-
-The preferred design is:
-
-- A `RedactedVulnerabilityCase` subclass of `VulnerabilityCase` containing
-  only the fields relevant to an invitee who has not yet accepted.
-- A `redact(invitee_id)` method on `VulnerabilityCase` that returns a
-  `RedactedVulnerabilityCase` with appropriate fields omitted or redacted.
-  Not all redactions are complete omissions — some fields may be
-  partially redacted.
-- Type hints enforce that redacted versions appear only where expected, and
-  that a full `VulnerabilityCase` is never passed where only a redacted
-  view is appropriate.
-- **Opsec ID constraint**: The ID of a `RedactedVulnerabilityCase` MUST be
-  completely unrelated to the full case ID. This prevents attackers who
-  obtain a redacted case ID from inferring the full case ID.
-- **Per-invitee unique IDs**: Each invitee MUST receive a distinct
-  `RedactedVulnerabilityCase` ID so that observing one redacted ID provides
-  no information about the size of the participant list or the identities
-  of other invitees. (Assuming eventual encryption, this makes it very
-  difficult to reconstruct the invite list.)
-
-This is a PRIORITY 300 design item. For the prototype, the `Invite`
-activity MAY reference the case by ID only, leaving the invitee to
-request full details upon acceptance.
-
-**Cross-reference**: `specs/case-management.yaml` CM-09-*,
-`specs/encryption.yaml`
-
----
-
-## Per-Participant Embargo Acceptance Tracking
-
-**Design Decision**: `CaseParticipant` MUST track which embargo(es) a
-participant has explicitly accepted. (resolved — see
-`specs/case-management.yaml` CM-10-*)
-
-Cases can have a series of embargoes over time (one active at a time).
-If embargo terms change, participants who accepted a prior embargo may not
-have accepted the new one. The current `CaseParticipant` model tracks RM
-state per participant but does not explicitly track embargo acceptance.
-
-Key design constraints:
-
-- All participants MUST be on record as having accepted the active embargo
-  at the time they are added to the case. This provides a complete audit
-  trail of which participants were aware of which embargo terms.
-- Embargo acceptances MUST be timestamped. The CASE_MANAGER applies the
-  trusted timestamp (the time the CASE_MANAGER received the acceptance); the
-  participant's own claimed timestamp MUST NOT be trusted for audit
-  purposes.
-- Design option (recommended): Add an `accepted_embargo_ids: list[str]`
-  field to `CaseParticipant` (or `ParticipantStatus`) recording the IDs of
-  `EmbargoEvent` objects the participant has explicitly accepted.
-- An `Accept(Invite(Actor, Case))` is implicitly an acceptance of the
-  current embargo; an `Accept(Offer(Embargo))` is an explicit acceptance.
-
-**Implication for notify-others**: Before sharing case updates with a
-participant, check that they have accepted the current active embargo. If
-not, send a new `Offer(Embargo)` (or equivalent) before continuing. This
-addresses VP-05-* items about participants signaling intent to comply
-with embargoes.
-
-This is a PRIORITY 300 item (related to `notes/do-work-behaviors.md`
-"Reporting Behavior as Central Coordination").
-
----
-
-> See also: [triggerable-behaviors-resolved.md](triggerable-behaviors-resolved.md) for the continuation of these design notes.

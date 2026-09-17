@@ -174,28 +174,6 @@ created the activity and fix it to include the full inline object.
 
 ---
 
-## Fixing the Misleading Docstring in `errors.py`
-
-`VultronOutboxObjectIntegrityError` previously had this docstring:
-
-```python
-# ❌ OLD (misleading)
-"""...so that recipients can determine the semantic type without a round-trip
-to the sender's DataLayer."""
-```
-
-The phrase "without a round-trip" implies DataLayer access is *possible* but
-*avoided for efficiency*. This is incorrect.
-
-The corrected version (see commit):
-
-```python
-# ✅ NEW (accurate)
-"""...because the recipient has no access to the sender's DataLayer."""
-```
-
----
-
 ## Layer and Import Rules
 
 - Activity builders in `vultron/core/use_cases/` and `vultron/core/behaviors/`

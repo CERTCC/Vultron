@@ -34,21 +34,9 @@ the cleanup checkout.*
 
 Sources: ISSUE-1518, ISSUE-1504, ISSUE-1784
 
-## `freshen-branch.sh` Leaves Temp Branch on Conflict When Abort Silently Fails
-
-*Fixed in #1784.* The script now runs cherry-pick with `core.hooksPath=/dev/null`
-(preventing pre-commit hook interference) and guards the cleanup checkout with
-`|| git checkout -` (preventing silent exit when `cherry-pick --abort` leaves
-conflict markers). If both checkout attempts still fail (rare: genuine conflict
-marker blocking every branch switch), manual recovery is required:
-`git branch --show-current` (confirm `temp-freshen-*`), resolve conflict
-markers, `git add <file>`, `git cherry-pick --continue --no-edit`, then
-`git branch -f "$TASK_BRANCH" HEAD && git checkout "$TASK_BRANCH" && git branch -D "$TEMP"`.
-Use `manage_worktree.sh ensure-synced` in preference to the raw script.
-
 ## Pre-commit Hooks Interfere with `git rebase` in Worktrees
 
-Use `manage_worktree.sh ensure-synced`. Manual fix: `git reset --soft origin/main`
+Use `.agents/skills/shared/sync-check.sh` (or the `manage-worktree` skill). Manual fix: `git reset --soft origin/main`
 then `git -c core.hooksPath=/dev/null commit`.
 
 ## Worktree Sync Checks Need Ancestry Verification
@@ -125,7 +113,7 @@ Sources: CONCERN-2137, ISSUE-2030
 
 The script checks that your branch is ancestor-or-equal to `origin/main`. If
 `main` has moved since you last synced, the check fails with a confusing error.
-Run `manage_worktree.sh ensure-synced` or `git fetch origin && git rebase
+Run `.agents/skills/shared/sync-check.sh` or `git fetch origin && git rebase
 origin/main` first. The presence of an existing task branch for the same issue
 may also indicate the issue was started (or completed) via another PR — check
 `git log --oneline origin/main | grep -i "<issue title>"` before assuming

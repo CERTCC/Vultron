@@ -102,63 +102,6 @@ CaseActor  (is a full AS2 "Service" Actor)
   (CP-08-002/003, #1872). A per-case identity was tried and abandoned — it was
   unhostable by construction, so its delivery 404'd.
 
-### 4. Case Ownership
-
-- `attributed_to` on the Case object designates the current owning instance.
-- Ownership is always unambiguous — one instance holds it at any moment.
-- Ownership transfer follows an `Offer` / `Accept` cycle, after which
-  `attributed_to` is updated.
-- The full ownership transfer history is auditable from the activity stream.
-- Any participant instance can `Create` a Case from a Report — the creating
-  instance owns the created case unless/until transferred.
-- **Open question**: ownership transfer mechanics for the CaseActor itself (see
-  below).
-
-### 5. Report → Case Lifecycle
-
-```text
-1. REPORT PHASE
-   Alice (VendorA) POSTs Offer{object: Report} to VendorB's instance inbox.
-   This is the only "cold contact" — no case exists yet.
-
-2. CASE CREATION
-   VendorB accepts → creates Case + CaseActor.
-   VendorB POSTs Accept{object: Offer(object: Report)} to 
-   Alice.
-   VendorB POSTs Create{object: Case} to Alice.
-   Alice creates a local mirror of the Case object.
-   CaseActor POSTs Add{object: Participant(Alice), target: Case} to Alice.
-
-3. STEADY STATE
-   All communication is DMs between participant Actors and CaseActor.
-   CaseActor fans out relevant activities to all participants.
-   Each participant maintains a local mirror, updated by the DM stream.
-
-4. OWNERSHIP TRANSFER
-   CaseActor POSTs Offer{object: Case} to target Actor.
-   Target Accepts.
-   CaseActor migrates to new owning instance.
-```
-
-### 6. DM-Only Communication Model
-
-- After case creation, all case communication is **direct messages** between
-  individual participant Actors and the CaseActor. Nothing is broadcast
-  publicly.
-- CaseActor acts as a **cryptographic hub**: it is the single addressed
-  recipient of participant messages, and the single sender of fan-out to
-  participants.
-- Participants cannot message each other directly within a case — all
-  communication routes through CaseActor.
-- This means:
-  - CaseActor can enforce authorization (Participant role controls what
-      actions are permitted).
-  - CaseActor attests to ordering and delivery.
-  - Participants cannot spoof messages to each other.
-  - CaseActor must relay messages to participants (e.g., by `Announce`ing
-      them to the participant Actors as DMs), which adds a slight delay but
-      ensures consistency.
-
 ### 7. Relay Pattern (Announce Extension)
 
 When CaseActor relays a participant's activity to other participants, it wraps
@@ -195,51 +138,14 @@ and re-signs it as a AS2 `Announce`:
   into the correct position in their local mirror without waiting for a pull
   sync.
 
-### 8. Case Journal vs. Delivery Log
-
-The CaseActor maintains two distinct collections, exposed as AS2 named streams:
-
-**Case Journal** (`/outbox`)
-
-- Append-only, sequenced, hash-chained log of meaningful case events.
-- Contains: `Create`, `Update`, `Offer`, `Accept`, `Add`, `Remove`, `Resolve`,
-  etc.
-- Sequence numbers only increment on Journal entries — Relay activities do not
-  consume sequence positions.
-- This is the sync target for participant mirrors and the authoritative audit
-  record.
-- Hash chain: each Journal entry carries a `prev` field referencing the hash of
-  the prior entry, making the log tamper-evident.
-
-**Delivery Log** (`/streams/delivery`)
-
-- Contains *Relay* (`Announce`) activities — the record of what was sent to
-  whom and when.
-- Useful for debugging, retry tracking, and delivery receipt verification.
-- **Not** part of the sync protocol; not included in on-demand reconciliation.
-- Can be pruned or archived without affecting case integrity.
-- Delivery Log will have a lot of noise compared to the Case Journal,
-  because the delivery log includes every relay to every participant, for
-  example, one
-  `Create(Note)` to 20 participants will be 1 `Create(Note)` Journal entry
-  but 1 `Create(Note)` followed by 20 `Announce(Create(Note))` Delivery Log
-  entries.
-
 ### 9. Mirror Consistency Protocol
 
-- **Push by default**: CaseActor DMs all relevant Journal activities to
-  participants as they occur, with `journalSeq` and `journalPrev` fields
-  enabling immediate local ordering.
-- **Non-repudiation**; Because each Journal entry contains `JournalPrev`
-  (hash of previous entry) and is signed by CaseActor, participants can
-  verify the integrity and authenticity of the Journal stream as it arrives.
-- **Gap detection**: participants track received sequence numbers (provided
-  by `journalSeq`) and detect gaps (e.g., received seq 1,2,3,5 → seq 4 is missing → trigger pull
-  reconciliation).
-- **Pull reconciliation**: participants can fetch the CaseActor's `/outbox` (AS2
-  `OrderedCollection`, paginated) to resync at any time. This is the fallback,
-  not the primary path. CaseActor will need to enforce that only active
-  participants can fetch the Journal.
+Delivered for the single-instance prototype — push/pull ledger replication, gap
+detection, and hash-chain non-repudiation now live in
+`specs/sync-ledger-replication.yaml` and `notes/participant-case-replica.md`.
+Cross-instance mirror-consistency (federation across separate deployments)
+remains future work; the original single-instance design sketch is archived at
+`plan/history/2609/note/NOTES-federation-ideas--mirror-consistency-protocol.md`.
 
 ### 10. Instance Federation Model
 

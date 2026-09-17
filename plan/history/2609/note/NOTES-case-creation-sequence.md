@@ -1,4 +1,17 @@
 ---
+source: NOTES-case-creation-sequence
+timestamp: '2026-09-17T17:13:53.334478+00:00'
+title: Case Creation Sequence (whole note, superseded by ADR-0041)
+type: note
+---
+
+**Archived:** 2026-09-17
+**Reason:** (a,b,e) frontmatter status: superseded; ADR-0041 replaced the vendor-creates-case flow
+**Superseded by:** notes/case-proposal.md; ADR-0041
+
+---
+
+---
 title: Case Creation Sequence
 status: superseded
 superseded_by: notes/case-proposal.md
@@ -7,17 +20,19 @@ description: >
   initialization sequence at Offer(Report) receipt (CM-14, ADR-0015).
   Superseded by ADR-0041 — see notes/case-proposal.md for the corrected flow.
 related_specs:
-  - specs/case-management.yaml
+
+- specs/case-management.yaml
 related_notes:
-  - notes/case-state-model.md
-  - notes/embargo-default-semantics.md
-  - notes/protocol-event-cascades.md
-  - notes/participant-embargo-consent.md
-  - notes/case-proposal.md
+- notes/case-state-model.md
+- notes/embargo-default-semantics.md
+- notes/protocol-event-cascades.md
+- notes/participant-embargo-consent.md
+- notes/case-proposal.md
 relevant_packages:
-  - vultron/core/behaviors/case
-  - vultron/core/behaviors/report
-  - vultron/core/use_cases/received
+- vultron/core/behaviors/case
+- vultron/core/behaviors/report
+- vultron/core/use_cases/received
+
 ---
 
 > **SUPERSEDED by ADR-0041.** The vendor-creates-case sequence documented here

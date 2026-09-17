@@ -59,3 +59,6 @@ already unambiguous where the spec is not.
 Related: [[20260903-2824-clp14-15-do-not-name-their-timestamp]] — the same
 failure shape, a requirement that constrains one of several similar fields
 without naming which.
+
+**Promoted**: 2026-09-17 — captured in `specs/message-validation.yaml` (MV-01-001/005/006/007) and `notes/spec-authoring-rules.md`.
+Docs PR: <https://github.com/CERTCC/Vultron/pull/3328>

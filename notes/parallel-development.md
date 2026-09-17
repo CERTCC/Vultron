@@ -194,18 +194,6 @@ to confirm. Recover the branch mapping from `git worktree list` output captured
 
 ---
 
-## Skill Updates Summary
-
-| Skill | Change |
-|---|---|
-| `build` | Phase 2: select from GitHub Issues; add claiming, pre-PR code review ([BLOCKING]/[ADVISORY]), size labeling, PR creation, auto-rebase |
-| `ingest-idea` | Add: open docs-only PR with `specs-notes` label; create GitHub Issue; add to Project #24 |
-| `review-priorities` | Rewritten: audit Project #24 board tiers; move items via API instead of editing PRIORITIES.md |
-| `study-project-docs` | Task source is GitHub Issues (query Project #24 Now tier) |
-| `update-plan` | Rewrite: create GitHub Issues for gaps; add to Project #24 |
-
----
-
 ## Project Board Conventions (updated June 2026)
 
 `group:<name>` labels and `plan/PRIORITIES.md` were retired in June 2026.

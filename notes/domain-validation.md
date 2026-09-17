@@ -725,21 +725,6 @@ to report on the trigger path, only on the five paths that bypass the guard.
 
 ---
 
-## Summary of Named Silent-Failure Sites (CONCERN-1360)
-
-| Site | Old behavior | New behavior |
-|---|---|---|
-| `_as_id()` in `embargo_lifecycle.py` | Duplicate copy | Removed; moved to `core.models._helpers` (#1428) |
-| `_find_case_manager_*` (3 copies) | 3 independent copies returning `None` | 1 canonical function in `use_cases/_helpers`; others removed |
-| `_extract_case_id()` in dispatcher | Returns `None`; activity silently not indexed | Raises `UnroutableActivityError` |
-| `CommitCaseLedgerEntryNode.update()` | Returns `Status.SUCCESS` on missing `case_id` | Returns `Status.FAILURE` |
-| `_read_case_obj()` in communication.py | Swallows `KeyError`; no diagnostic | Sets `feedback_message`; caller returns `Status.FAILURE` |
-
-See `specs/architecture.yaml` ARCH-15-001 through ARCH-15-004 for
-normative requirements derived from this concern.
-
----
-
 ## Broad `except Exception` Is a Masking Smell (CONCERN-3295, CS-23-001)
 
 A blanket `except Exception` (or a bare `except:`) around domain logic is,
@@ -786,16 +771,22 @@ Other genuine boundaries — the `BTBridge` execution boundary
 catch but are enumerated in the enforcing test's `_DECLARED_EXCLUSIONS`
 allow-list, one reason per entry, and the list can only shrink.
 
-### When you cannot tell whether a broad catch is load-bearing
+### When you cannot tell whether a fallback is load-bearing
 
-Do **not** reason about it from the code and the commit message alone. Use the
-instrument-and-count method from #3217: log the `(class, keys, error)` reaching
-the handler, run the **full** suite, and group the results by cause. A
-**single** cause usually means the catch is masking a bug (fix the root cause,
-delete the tolerance); **many** causes mean it is a genuine compatibility
-surface (narrow it and document what it absorbs). This is one cheap
-instrumented run and it replaces a coin-flip guess. Any masked defect found
-this way is itself a new witness for the pattern.
+This applies to any silent-degradation branch — a broad `except`, an
+`or <default>`, or a `return None`/arbitrary value on a failed lookup — not
+only to broad catches. Do **not** reason about it from the code and the commit
+message alone; that is a coin-flip. Use the instrument-and-count method from
+issue #3217: log the `(class, keys, error)` reaching the branch, run the
+**full** suite, and group the results by cause. A **single** cause usually means the
+tolerance is masking a bug (fix the root cause, delete the tolerance); **many**
+causes mean it is a genuine compatibility surface (narrow it and document what
+it absorbs). The count also reveals the *order* a fix must land in: removing the
+tolerance before fixing its causes turns every currently-absorbed case into a
+hard failure, so the masked bug must be fixed first (in #3217, wire type
+resolution had to be restricted before the `parser.py` fallback could go). This
+is one cheap instrumented run and it replaces a coin-flip guess. Any masked
+defect found this way is itself a new witness for the pattern.
 
 **Enforcement**: CS-23-001 disallows broad `except Exception` in `vultron/`
 outside the `update()` boundary;

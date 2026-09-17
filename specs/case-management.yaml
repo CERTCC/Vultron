@@ -2828,7 +2828,16 @@ groups:
       closure with an `as:Reject` response ("received and understood but declined",
       MSM-05-001) and MUST NOT execute the CM-23-002 closure sequence (no
       participant advances to `RM.CLOSED`; no `case_fully_closed` entry is
-      emitted). The Case Owner MUST terminate the active embargo first, then
+      emitted). The decline MUST suppress the receipt commit itself: a declined
+      owner-close records NO `close_case` `CaseLedgerEntry` at all. Gating the
+      receive-and-commit path behind the decline is required, not optional,
+      because that receipt commit IS the closure mechanism — it is committed
+      before any role-specific effect (CLP-10-006) and then fans out, and each
+      replica's replica-apply advances the departing participant to `RM.CLOSED`
+      (CLP-10-001, CM-23-003). Skipping only the local CM-23-002 steps while still
+      committing the receipt would therefore close the case everywhere via
+      fan-out, contradicting "no participant advances to `RM.CLOSED`" (ISSUE-3137).
+      The Case Owner MUST terminate the active embargo first, then
       re-issue the close. Declining the close does NOT itself terminate the
       embargo — the embargo remains active until terminated through the normal EM
       path. This is the terminal, case-global counterpart to the

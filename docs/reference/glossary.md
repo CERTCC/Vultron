@@ -680,5 +680,5 @@ fix not ready) are structurally impossible, per SM-09-002 and CSB-17-001.
   - `docs/topics/process_models/` — detailed RM, EM, CS models
   - `docs/reference/formal_protocol/` — formal protocol specification
   - `notes/case-bootstrap-trust.md` — trust bootstrap and delegation design
-  - `notes/case-creation-sequence.md` — case creation and participant initialization
+  - `notes/case-proposal.md` — case proposal, creation, and participant initialization
   - `specs/participant-case-replica.yaml` — PCR safety rules and eventual consistency

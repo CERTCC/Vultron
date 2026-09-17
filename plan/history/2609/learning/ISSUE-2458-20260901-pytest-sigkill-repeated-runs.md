@@ -23,3 +23,6 @@ Mitigations already documented:
 
 No new action needed beyond awareness: run pytest once before freshen, confirm
 the suite passes, and trust that result for docstring-only changes.
+
+**Promoted**: 2026-09-17 — captured in `notes/flaky-tests.md` (repeated-run OOM note). Symptom already covered; net-new OOM angle added.
+Docs PR: <https://github.com/CERTCC/Vultron/pull/3328>
