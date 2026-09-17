@@ -1,22 +1,14 @@
 ---
+source: NOTES-py-trees-ports-adoption
+timestamp: '2026-09-17T17:30:41.269052+00:00'
 title: py_trees Ports Adoption — Typed Blackboard Contracts and XML Authoring
-status: archived
-description: >
-  Planning analysis for adopting py_trees 2.5.0 typed Ports in vultron/core/behaviors/:
-  the concrete wins (typed data contracts, early error detection, isolated node
-  testing), the constructor-parameterization vs XML port-remapping impedance
-  mismatch, and the staged issue sequence (pilot -> full migration -> XML spike
-  -> XML-as-spec idea) derived from planning issue #1558.
-related_specs:
-  - specs/behavior-tree-node-design.yaml
-  - specs/behavior-tree-integration.yaml
-related_notes:
-  - notes/bt-integration.md
-  - notes/bt-pitfalls.md
-  - notes/bt-design-patterns.md
-relevant_packages:
-  - py_trees
-  - vultron/core/behaviors
+type: note
+---
+
+**Archived:** 2026-09-17
+**Reason:** (a) delivered — py_trees typed-Ports migration complete; file was already status: archived.
+**Superseded by:** vultron/core/behaviors/ (typed Ports live); docs/adr/0044-py-trees-typed-ports-adoption.md
+
 ---
 
 # py_trees Ports Adoption

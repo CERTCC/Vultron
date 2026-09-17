@@ -382,21 +382,6 @@ notes with sensitive information) is gated on `embargo_adherence=True`.
 
 ---
 
-## Implementation Notes
-
-- The state machine SHOULD be implemented using the `transitions` library,
-  consistent with the RM, EM, and CS state machines elsewhere in the codebase
-- The machine name is `ParticipantEmbargoConsent`
-- Define states and triggers in a new module:
-  `vultron/core/states/participant_embargo_consent.py`
-- `ParticipantStatus.embargo_adherence` is a `@computed_field` (Pydantic v2)
-  that returns `self.consent is not None and self.consent.state == PEC.SIGNATORY`.
-  It MUST NOT be declared as a stored field. Consent writes go through
-  `apply_pec_transition()` on `CaseParticipant`; the computed field reflects the
-  result automatically. Decision: ADR-0056.
-
----
-
 ## Implications for DR-06 (Accept Embargo Handler)
 
 The `AcceptEmbargoReceivedUseCase` MUST:

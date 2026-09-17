@@ -325,17 +325,6 @@ composability, and open architecture questions.
 whether a new use case needs a BT, or implementing a BT-backed use case
 from scratch.
 
-**`py-trees-ports-adoption.md`** *(archived — migration complete)*
-Completed reference for the py_trees 2.5.0 typed-Ports migration
-(`vultron/core/behaviors/`): the eight finalized conventions (Type A–D node
-shapes, execution-scoped keys, read-modify-write dual-alias, `_InboxNodeWithPorts`
-base, `NotImplementedError` on explicit `None`), the composite and
-constructor-parameterized gate exemptions, and the planned XML-as-spec spike.
-**Load when**: writing a new BT node that uses typed Ports and need the
-canonical patterns reference (finalized conventions sections 1–8).
-**Do not load when**: looking for live migration tasks — the migration
-(`#1809` chain, parts 1–5) is complete.
-
 **`bt-canonical-reference.md`**
 Canonical CVD Protocol Behavior Tree structural reference: trunk-removed
 branches model, node symbol legend, top-level structure, subtree map

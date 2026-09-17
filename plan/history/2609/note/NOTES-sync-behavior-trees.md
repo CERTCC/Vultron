@@ -1,26 +1,14 @@
 ---
+source: NOTES-sync-behavior-trees
+timestamp: '2026-09-17T17:30:41.570598+00:00'
 title: Sync Behavior Trees — Design Notes
-status: active
-description: >-
-  Design decisions and implementation guidance for the three sync BTs:
-  AnnounceLogEntryReceivedBT, RejectLogEntryReceivedBT, and CommitLogEntryBT.
-  Covers CASE_MANAGER vs participant branching, port injection pattern, and
-  migration from procedural sync use-case code.
-related_specs:
-  - specs/sync-behavior-trees.yaml
-  - specs/sync-ledger-replication.yaml
-  - specs/behavior-tree-integration.yaml
-  - specs/case-ledger-processing.yaml
-related_notes:
-  - notes/sync-ledger-replication.md
-  - notes/bt-integration.md
-  - notes/case-ledger-authority.md
-  - notes/event-driven-control-flow.md
-relevant_packages:
-  - vultron/core/behaviors
-  - vultron/core/use_cases/received
-  - vultron/core/use_cases/triggers
-  - vultron/core/ports
+type: note
+---
+
+**Archived:** 2026-09-17
+**Reason:** (a) delivered — sync BT package shipped (announce/commit/reject trees + nodes/).
+**Superseded by:** vultron/core/behaviors/sync/{announce_tree,commit_tree,reject_tree}.py + nodes/; specs/sync-behavior-trees.yaml
+
 ---
 
 # Sync Behavior Trees — Design Notes
