@@ -7,36 +7,50 @@ set -euo pipefail
 # Board IDs are resolved live-and-cached via board-id.sh — never hardcoded.
 PROJECT_ID=$(bash "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/board-id.sh" project)
 
-gh api graphql --jq '
-  .data.node.items.nodes[]
-  | select(
-      .content.state == "OPEN" and
-      .content.issueType.name == "Epic" and
-      (
-        .fieldValues.nodes[]
-        | select(.field.name == "Schedule")
-        | .name
-      ) == "Now"
-    )
-  | "#\(.content.number): \(.content.title)"
-' -f query='{
-  node(id: "'"$PROJECT_ID"'") {
-    ... on ProjectV2 {
-      items(first: 100) {
-        nodes {
-          content {
-            ... on Issue {
-              number title state
-              issueType { name }
+# Paginated: Project #24 has ~300 items; the API cap is 100 per page.
+CURSOR=""
+while true; do
+  if [ -n "$CURSOR" ]; then
+    AFTER=', after: "'"$CURSOR"'"'
+  else
+    AFTER=""
+  fi
+  PAGE=$(gh api graphql \
+    --jq '{items:.data.node.items.nodes,more:.data.node.items.pageInfo.hasNextPage,cursor:.data.node.items.pageInfo.endCursor}' \
+    -f query='{
+    node(id: "'"$PROJECT_ID"'") {
+      ... on ProjectV2 {
+        items(first: 100'"$AFTER"') {
+          pageInfo { hasNextPage endCursor }
+          nodes {
+            content {
+              ... on Issue {
+                number title state
+                issueType { name }
+              }
             }
+            fieldValues(first: 10) { nodes {
+              ... on ProjectV2ItemFieldSingleSelectValue {
+                name field { ... on ProjectV2SingleSelectField { name } }
+              }
+            }}
           }
-          fieldValues(first: 10) { nodes {
-            ... on ProjectV2ItemFieldSingleSelectValue {
-              name field { ... on ProjectV2SingleSelectField { name } }
-            }
-          }}
         }
       }
     }
-  }
-}'
+  }')
+  echo "$PAGE" | jq -r '
+    .items[]
+    | select(
+        .content.state == "OPEN" and
+        .content.issueType.name == "Epic" and
+        (
+          .fieldValues.nodes[]
+          | select(.field.name == "Schedule")
+          | .name
+        ) == "Now"
+      )
+    | "#\(.content.number): \(.content.title)"'
+  [ "$(echo "$PAGE" | jq -r '.more')" = "true" ] || break
+  CURSOR=$(echo "$PAGE" | jq -r '.cursor')
+done
