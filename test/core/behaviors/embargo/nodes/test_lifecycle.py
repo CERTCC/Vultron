@@ -200,7 +200,7 @@ class TestTerminateEmbargoBT:
 
     @pytest.mark.spec("EMB-13-001")
     def test_resets_participant_pec_state(self):
-        """Shared BT resets participant embargo_consent_state to NO_EMBARGO."""
+        """Shared BT resets participant embargo_consent_state to UNBOUND."""
         case, _, dl = _make_case_with_manager("teb5", em_state=EM.ACTIVE)
         participant = as_CaseParticipant(
             id_=f"{case.id_}/participants/p1",
@@ -234,7 +234,7 @@ class TestTerminateEmbargoBT:
 
         assert result.status == py_trees.common.Status.SUCCESS
         updated_p = cast(as_CaseParticipant, dl.read(participant.id_))
-        assert updated_p.embargo_consent_state == PEC.NO_EMBARGO.value
+        assert updated_p.embargo_consent_state == PEC.UNBOUND.value
 
     def test_cascade_path_no_builder_returns_failure_when_no_factory(self):
         """Without activity_builder, FAILURE when no trigger_activity_factory set.

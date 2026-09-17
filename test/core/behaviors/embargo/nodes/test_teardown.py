@@ -359,8 +359,8 @@ class TestResetParticipantConsentNode:
     """Tests for ResetParticipantConsentNode."""
 
     @pytest.mark.spec("EMB-13-001")
-    def test_resets_participant_pec_to_no_embargo(self):
-        """Resets all participant PEC states to NO_EMBARGO."""
+    def test_resets_participant_pec_to_unbound(self):
+        """Resets all participant PEC states to UNBOUND."""
         dl = SqliteDataLayer(
             "sqlite:///:memory:",
             actor_id="https://test.example/api/v2/actors/test-actor",
@@ -385,7 +385,7 @@ class TestResetParticipantConsentNode:
 
         assert node.status == py_trees.common.Status.SUCCESS
         updated_p = cast(as_CaseParticipant, dl.read(participant.id_))
-        assert updated_p.embargo_consent_state == PEC.NO_EMBARGO.value
+        assert updated_p.embargo_consent_state == PEC.UNBOUND.value
 
     def test_returns_success_with_no_participants(self):
         """Returns SUCCESS when case has no participants."""
@@ -563,7 +563,7 @@ class TestApplyEmbargoTeardownNode:
 
     @pytest.mark.spec("EMB-13-001")
     def test_resets_participant_embargo_consent(self):
-        """Node resets participant PEC state to NO_EMBARGO."""
+        """Node resets participant PEC state to UNBOUND."""
         dl = SqliteDataLayer(
             "sqlite:///:memory:",
             actor_id="https://test.example/api/v2/actors/test-actor",
@@ -588,7 +588,7 @@ class TestApplyEmbargoTeardownNode:
 
         assert node.status == py_trees.common.Status.SUCCESS
         updated_p = cast(as_CaseParticipant, dl.read(participant.id_))
-        assert updated_p.embargo_consent_state == PEC.NO_EMBARGO.value
+        assert updated_p.embargo_consent_state == PEC.UNBOUND.value
 
     def test_returns_success_when_case_missing(self):
         """Node returns SUCCESS when the case ID is not in the DataLayer.

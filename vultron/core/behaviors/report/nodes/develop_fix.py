@@ -119,18 +119,18 @@ class TransitionCStoFixReady(DataLayerActionWithPorts):
         )
         if current_vf not in (None, CS_vf.vf):
             return Status.SUCCESS
-        try:
-            from vultron.core.behaviors.bridge import BTBridge
+        # BTBridge.execute_with_setup classifies any node error into a FAILURE
+        # result (internal_error) rather than raising, so no broad catch is
+        # needed here — an escaping exception would be a bridge-contract
+        # violation that must surface loudly (CS-23-001).
+        from vultron.core.behaviors.bridge import BTBridge
 
-            result = BTBridge(datalayer=self.datalayer).execute_with_setup(
-                tree=self._vendor_aware_node,
-                actor_id=self._actor_id,
-                case_id=self._case_id,
-            )
-            return result.status
-        except Exception as e:
-            self.logger.error("%s: Error advancing to VF=Vf: %s", self.name, e)
-            return Status.FAILURE
+        result = BTBridge(datalayer=self.datalayer).execute_with_setup(
+            tree=self._vendor_aware_node,
+            actor_id=self._actor_id,
+            case_id=self._case_id,
+        )
+        return result.status
 
     def update(self) -> Status:
         if (f := self._require_datalayer()) is not None:

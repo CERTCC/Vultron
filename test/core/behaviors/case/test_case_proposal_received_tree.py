@@ -1019,8 +1019,8 @@ class TestCM14005ReporterSignatory:
         )
         stored_participant = dl.read(reporter_participant.id_)
         assert isinstance(stored_participant, CaseParticipant)
-        assert stored_participant.embargo_consent_state == PEC.NO_EMBARGO, (
-            "Reporter must remain NO_EMBARGO when no active embargo exists"
+        assert stored_participant.embargo_consent_state == PEC.UNBOUND, (
+            "Reporter must remain UNBOUND when no active embargo exists"
             " (CM-14-005 AC-3)"
         )
 
@@ -1838,7 +1838,7 @@ class TestAllParticipantsRMClosedIncludesCaseActor:
                 rm=RmDimension(state=rm_state),
                 attributed_to=actor_uri,
                 cvd_role=[CVDRole.CASE_OWNER],
-                consent=PecDimension(state=PEC.NO_EMBARGO),
+                consent=PecDimension(state=PEC.UNBOUND),
             )
             dl.save(ps)
             return ps
@@ -1930,7 +1930,7 @@ class TestAllParticipantsRMClosedIncludesCaseActor:
             rm=RmDimension(state=RM.CLOSED),
             attributed_to=_CASE_ACTOR_URI,
             cvd_role=[CVDRole.COORDINATOR, CVDRole.CASE_MANAGER],
-            consent=PecDimension(state=PEC.NO_EMBARGO),
+            consent=PecDimension(state=PEC.UNBOUND),
         )
         dl.save(closed_ps)
         participant.participant_statuses.append(closed_ps)

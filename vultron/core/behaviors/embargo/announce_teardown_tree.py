@@ -30,7 +30,7 @@ activity (protocol ET message).  Sequence:
        │  ├─ IsActiveEmbargoNode          # guard: is this the active embargo?
        │  ├─ HasEmbargoActiveNode         # guard: EM state not already EXITED
        │  ├─ ClearActiveEmbargoNode       # ACTIVE/REVISE→EXITED + clear active_embargo
-       │  ├─ ResetParticipantConsentNode  # reset all participant PEC to NO_EMBARGO
+       │  ├─ ResetParticipantConsentNode  # reset all participant PEC to UNBOUND
        │  └─ SendAnnounceEmbargoEventNode # emit Announce(EmbargoEvent) to CaseActor
        └─ Success                         # embargo was only in proposed — not an error
 

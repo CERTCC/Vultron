@@ -127,11 +127,8 @@ class _InboxNodeWithPorts(BehaviourWithPorts):
     def _reject(self, reason: str) -> Status:
         """Write rejected outcome via typed output ports and return FAILURE."""
         self.feedback_message = reason
-        try:
-            self._set_output(KEY_OUTCOME_STATUS, "rejected")
-            self._set_output(KEY_FAILURE_REASON, reason)
-        except Exception:
-            pass
+        self._set_output(KEY_OUTCOME_STATUS, "rejected")
+        self._set_output(KEY_FAILURE_REASON, reason)
         self.logger.warning("%s: rejected — %s", self.name, reason)
         return Status.FAILURE
 

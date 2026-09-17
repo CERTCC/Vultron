@@ -469,8 +469,6 @@ groups:
   - id: CS-23-001
     priority: MUST_NOT
     kind: project
-    lint_suppress:
-    - phantom_path_ref  # enforcing test is created by the CONCERN-3295 core impl issue
     statement: >-
       A blanket `except Exception` (or a bare `except:`) MUST NOT be used to
       wrap domain logic in `vultron/`. An exception handler MUST catch the

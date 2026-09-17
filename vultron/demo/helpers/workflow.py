@@ -714,9 +714,11 @@ def setup_initialized_case(
 ) -> as_VulnerabilityCase:
     """Create a fully initialised case ready for invitation/suggestion workflows.
 
-    The vendor mints the case itself, so the result has **no** ``CASE_MANAGER``
-    participant.  Use :func:`setup_canonical_case` for any exchange that has to
-    route through the CaseActor — ownership transfer among them — or the routing
+    The vendor mints the case via the ``trigger/create-case`` endpoint, which
+    registers the vendor as a participant with
+    ``[CVDRole.CASE_OWNER, CVDRole.CASE_MANAGER]`` (CM-02-014, CM-02-015).
+    Use :func:`setup_canonical_case` for any exchange that requires a separate
+    CaseActor service identity — ownership transfer among them — or the routing
     silently degrades to the direct peer-to-peer path (CM-24-003).
 
     Performs the standard 7-step setup shared by ``invite_actor_demo``,
@@ -724,7 +726,7 @@ def setup_initialized_case(
 
     1. Finder submits report → vendor inbox
     2. Vendor validates the report
-    3. Vendor creates the case
+    3. Vendor creates the case (via trigger endpoint — registers CASE_OWNER+CASE_MANAGER)
     4. Vendor adds the report to the case
     5. Vendor creates the finder participant record
     6. Vendor adds the finder participant to the case
@@ -757,14 +759,27 @@ def setup_initialized_case(
     )
     post_to_inbox_and_wait(client, vendor.id_, validate_activity)
 
-    case = as_VulnerabilityCase(
-        attributed_to=vendor.id_,
-        name="RCE Case — Web Framework",
-        content="Tracking the RCE vulnerability in the web framework.",
+    trigger_result = post_to_trigger(
+        client,
+        vendor.id_,
+        "create-case",
+        {
+            "name": "RCE Case — Web Framework",
+            "content": "Tracking the RCE vulnerability in the web framework.",
+        },
     )
-    create_case_act = create_case_activity(case, actor=vendor.id_)
-    post_to_inbox_and_wait(client, vendor.id_, create_case_act)
-    verify_object_stored(client, case.id_)
+    case_id = trigger_result.get("case_id")
+    if not case_id:
+        raise ValueError("create-case trigger did not return a case_id")
+    verify_object_stored(client, case_id)
+    case = as_VulnerabilityCase.model_validate(
+        {
+            "id": case_id,
+            "attributed_to": vendor.id_,
+            "name": "RCE Case — Web Framework",
+            "content": "Tracking the RCE vulnerability in the web framework.",
+        }
+    )
 
     add_report_activity = add_report_to_case_activity(
         report, actor=vendor.id_, target=case.id_

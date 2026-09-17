@@ -161,7 +161,7 @@ class ClearActiveEmbargoNode(DataLayerActionWithPorts):
 
 
 class ResetParticipantConsentNode(DataLayerActionWithPorts):
-    """Reset all participant embargo consent states to NO_EMBARGO.
+    """Reset all participant embargo consent states to UNBOUND.
 
     Calls ``reset_case_participant_embargo_consent`` for the given case.
     Returns FAILURE when the case is not found.  Returns SUCCESS when

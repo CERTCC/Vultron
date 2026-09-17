@@ -8,7 +8,7 @@ the embargo lifecycle; PEC describes each individual participant's position.
 
 States
 ------
-NO_EMBARGO  – No embargo is in scope for this participant.
+UNBOUND     – This participant is not bound by any embargo terms.
 INVITED     – Participant has been invited but has not yet responded.
 SIGNATORY   – Participant has accepted the current embargo terms.
 LAPSED      – Embargo terms changed (REVISE); participant's prior consent no
@@ -17,14 +17,14 @@ DECLINED    – Participant explicitly declined (current invite or lapsed terms)
 
 Transitions
 -----------
-INVITE  : NO_EMBARGO | LAPSED | DECLINED → INVITED
-ACCEPT  : NO_EMBARGO | INVITED | LAPSED → SIGNATORY
-DECLINE : NO_EMBARGO | INVITED | LAPSED → DECLINED
+INVITE  : UNBOUND | LAPSED | DECLINED → INVITED
+ACCEPT  : UNBOUND | INVITED | LAPSED → SIGNATORY
+DECLINE : UNBOUND | INVITED | LAPSED → DECLINED
 REVISE  : SIGNATORY → LAPSED
-RESET   : * → NO_EMBARGO  (embargo terminated or removed)
+RESET   : * → UNBOUND  (embargo terminated or removed)
 
-``NO_EMBARGO`` means *no embargo is in scope* (ADR-0048), not *pre-consent*.
-``ACCEPT`` and ``DECLINE`` are therefore valid directly from ``NO_EMBARGO``
+``UNBOUND`` means *not bound by any embargo terms* (ADR-0048, ADR-0091).
+``ACCEPT`` and ``DECLINE`` are therefore valid directly from ``UNBOUND``
 for self-determined embargoes and implicit-consent cases (CM-14-005).
 """
 
@@ -51,7 +51,7 @@ from vultron.core.states.common import TransitionBase, mermaid_machine
 class PEC(StrEnum):
     """Participant Embargo Consent states."""
 
-    NO_EMBARGO = "NO_EMBARGO"
+    UNBOUND = "UNBOUND"
     INVITED = "INVITED"
     SIGNATORY = "SIGNATORY"
     DECLINED = "DECLINED"
@@ -79,7 +79,7 @@ class PECTransition(TransitionBase):
 _transitions: list[dict] = [
     # INVITE transitions
     PECTransition(
-        trigger=PEC_Trigger.INVITE, source=PEC.NO_EMBARGO, dest=PEC.INVITED
+        trigger=PEC_Trigger.INVITE, source=PEC.UNBOUND, dest=PEC.INVITED
     ).model_dump(),
     PECTransition(
         trigger=PEC_Trigger.INVITE, source=PEC.LAPSED, dest=PEC.INVITED
@@ -87,9 +87,9 @@ _transitions: list[dict] = [
     PECTransition(
         trigger=PEC_Trigger.INVITE, source=PEC.DECLINED, dest=PEC.INVITED
     ).model_dump(),
-    # ACCEPT transitions (ADR-0048: NO_EMBARGO is absence-of-embargo, not pre-consent)
+    # ACCEPT transitions (ADR-0048: UNBOUND is absence-of-embargo, not pre-consent)
     PECTransition(
-        trigger=PEC_Trigger.ACCEPT, source=PEC.NO_EMBARGO, dest=PEC.SIGNATORY
+        trigger=PEC_Trigger.ACCEPT, source=PEC.UNBOUND, dest=PEC.SIGNATORY
     ).model_dump(),
     PECTransition(
         trigger=PEC_Trigger.ACCEPT, source=PEC.INVITED, dest=PEC.SIGNATORY
@@ -97,9 +97,9 @@ _transitions: list[dict] = [
     PECTransition(
         trigger=PEC_Trigger.ACCEPT, source=PEC.LAPSED, dest=PEC.SIGNATORY
     ).model_dump(),
-    # DECLINE transitions (ADR-0048: symmetric with ACCEPT from NO_EMBARGO)
+    # DECLINE transitions (ADR-0048: symmetric with ACCEPT from UNBOUND)
     PECTransition(
-        trigger=PEC_Trigger.DECLINE, source=PEC.NO_EMBARGO, dest=PEC.DECLINED
+        trigger=PEC_Trigger.DECLINE, source=PEC.UNBOUND, dest=PEC.DECLINED
     ).model_dump(),
     PECTransition(
         trigger=PEC_Trigger.DECLINE, source=PEC.INVITED, dest=PEC.DECLINED
@@ -111,9 +111,9 @@ _transitions: list[dict] = [
     PECTransition(
         trigger=PEC_Trigger.REVISE, source=PEC.SIGNATORY, dest=PEC.LAPSED
     ).model_dump(),
-    # RESET: embargo terminated or removed — all participants revert to NO_EMBARGO
+    # RESET: embargo terminated or removed — all participants revert to UNBOUND
     PECTransition(
-        trigger=PEC_Trigger.RESET, source="*", dest=PEC.NO_EMBARGO
+        trigger=PEC_Trigger.RESET, source="*", dest=PEC.UNBOUND
     ).model_dump(),
 ]
 
@@ -123,7 +123,7 @@ def create_pec_machine() -> Machine:
     return Machine(
         states=PEC,
         transitions=_transitions,
-        initial=PEC.NO_EMBARGO,
+        initial=PEC.UNBOUND,
         auto_transitions=False,
         name="PEC FSM",
     )

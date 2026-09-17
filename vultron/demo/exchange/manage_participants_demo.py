@@ -256,7 +256,7 @@ def demo_manage_participants_accept(
             context=coordinator_participant.id_,
             rm_state=RM.ACCEPTED,
             attributed_to=coordinator.id_,
-            em_consent_state=PEC.NO_EMBARGO,
+            em_consent_state=PEC.UNBOUND,
             cvd_role=[CVDRole.COORDINATOR],
         )
         create_status = create_status_for_participant_activity(

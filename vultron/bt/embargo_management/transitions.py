@@ -31,11 +31,9 @@ class EmTransition(EnumStateTransition):
 
 
 _to_P = EmTransition(
-    start_states=[EM.NO_EMBARGO, EM.PROPOSED], end_state=EM.PROPOSED
+    start_states=[EM.NONE, EM.PROPOSED], end_state=EM.PROPOSED
 )
-_to_N = EmTransition(
-    start_states=[EM.PROPOSED, EM.NO_EMBARGO], end_state=EM.NO_EMBARGO
-)
+_to_N = EmTransition(start_states=[EM.PROPOSED, EM.NONE], end_state=EM.NONE)
 _to_A = EmTransition(start_states=list(EM_NEGOTIATING), end_state=EM.ACTIVE)
 _to_R = EmTransition(start_states=[EM.ACTIVE, EM.REVISE], end_state=EM.REVISE)
 _R_to_A = EmTransition(start_states=[EM.REVISE], end_state=EM.ACTIVE)

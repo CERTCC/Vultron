@@ -351,7 +351,6 @@ Specifications are organized by topic with minimal overlap. Cross-references lin
 - **`meta-specifications.yaml`** - How to write and maintain specifications:
   file structure, requirement format, ID scheme, writing rules, lifecycle,
   quality criteria, and spec vs. ADR delineation guidelines
-  (MS-01 through MS-11)
 
 ### Documentation Content and Organization
 
