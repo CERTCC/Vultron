@@ -336,7 +336,7 @@ silent pollution that's discovered only when replicas diverge.
 
 ### CLP-07-003 Actor-Identity Check Must Live at the Receive Pipeline, Not the Commit Boundary
 
-*Issue #3282; blocked on PR #3290 (ADR-0088 completion).*
+*Issue #3282; implemented by PR #3313.*
 
 CLP-07-003 requires that `payloadSnapshot.actor` equal the original asserting
 actor's identity. A guard was originally placed at `_validate_canonical_entry`
