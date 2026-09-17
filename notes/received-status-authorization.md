@@ -549,12 +549,12 @@ issue will refactor the inbound path to use direct ledger writes as well
 
 | Node / Tree | EM transition | Covered by `EmitCaseStatusUpdateNode`? |
 |---|---|---|
-| `ProposeEmbargoLifecycleNode` in `propose_embargo_trigger_bt` (initial proposal) | NO_EMBARGO → PROPOSED | Implemented (#2857) |
+| `ProposeEmbargoLifecycleNode` in `propose_embargo_trigger_bt` (initial proposal) | NONE → PROPOSED | Implemented (#2857) |
 | `ProposeEmbargoLifecycleNode` in `propose_embargo_revision_trigger_bt` (revision, with `ValidateEmbargoRevisionStateNode` guard) | ACTIVE → REVISE | Implemented (#2857) |
 | `AcceptEmbargoLifecycleNode` (trigger) | PROPOSED → ACTIVE | Implemented (#2857) |
-| `RejectEmbargoLifecycleNode` (trigger) | PROPOSED → NO_EMBARGO | Implemented (#2857) |
+| `RejectEmbargoLifecycleNode` (trigger) | PROPOSED → NONE | Implemented (#2857) |
 | `TerminateEmbargoLifecycleNode` (trigger) | ACTIVE/REVISE → EXITED | Implemented (#2857) |
-| `RejectProposedEmbargoLifecycleNode` (cascade) | PROPOSED → NO_EMBARGO | Implemented (#2857) |
+| `RejectProposedEmbargoLifecycleNode` (cascade) | PROPOSED → NONE | Implemented (#2857) |
 | `ApplyEmbargoTeardownNode` (sync/announce) | ACTIVE/REVISE → EXITED | Implemented (#2857) |
 
 ---

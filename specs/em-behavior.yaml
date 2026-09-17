@@ -1688,7 +1688,7 @@ groups:
     verification: >-
       Integration tests in `test/demo/` confirm that a P/X/A CS transition detected
       while EM is PROPOSED triggers `reject_embargo_trigger_bt` via
-      `PublicDisclosureBranchNode`, transitioning EM to NO_EMBARGO and queuing ER.
+      `PublicDisclosureBranchNode`, transitioning EM to NONE and queuing ER.
     testable: true
     preconditions:
     - em_state:
@@ -1711,9 +1711,9 @@ groups:
       action: >-
         Transition EM from Proposed to None via reject_embargo_trigger_bt
         (RejectEmbargoLifecycleNode → sender_side_bt)
-      expected: EM state transitions to NO_EMBARGO; ER queued for sender
+      expected: EM state transitions to NONE; ER queued for sender
     postconditions:
-    - description: EM state is NO_EMBARGO; ER emitted; proposed embargo abandoned
+    - description: EM state is NONE; ER emitted; proposed embargo abandoned
     relationships:
     - rel_type: extends
       spec_id: EMB-01-002
@@ -1901,7 +1901,7 @@ groups:
     verification: >-
       Integration tests in `test/demo/` confirm that a late Accept arriving when EM
       is EXITED or NONE is acknowledged without applying any PEC transition, leaving
-      the participant's PEC state at NO_EMBARGO.
+      the participant's PEC state at UNBOUND.
     testable: true
     preconditions:
     - em_state:
@@ -1913,7 +1913,7 @@ groups:
       actor: system
       action: Acknowledge the Accept without applying a PEC transition
       expected: >-
-        Participant PEC state remains NO_EMBARGO; participant remains in the
+        Participant PEC state remains UNBOUND; participant remains in the
         case; no fresh invitation is emitted
     postconditions:
     - description: >-

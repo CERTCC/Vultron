@@ -605,12 +605,13 @@ relationship to AppendOnlyLedger/LedgerFanout implementation phases.
 
 **`participant-embargo-consent.md`**
 Design decisions for per-participant embargo acceptance tracking: a 5-state
-consent machine (`NO_EMBARGO`, `INVITED`, `SIGNATORY`, `LAPSED`, `DECLINED`),
+consent machine (`UNBOUND`, `INVITED`, `SIGNATORY`, `LAPSED`, `DECLINED`),
 embargo meta-protocol delivery to `DECLINED`/`LAPSED` participants, and the
-`Accept(Invite(case))` → implicit consent rule. Records why `NO_EMBARGO` means
-*absence of embargo* rather than pre-consent (ADR-0048), so `ACCEPT`/`DECLINE`
-are valid directly from it, and the direct-assignment pitfall that silently
-desyncs `ParticipantStatus.consent` from the emitted ledger snapshot.
+`Accept(Invite(case))` → implicit consent rule. Records why `UNBOUND` means
+*not bound by any embargo terms* rather than pre-consent (ADR-0048, ADR-0091),
+so `ACCEPT`/`DECLINE` are valid directly from it, and the direct-assignment
+pitfall that silently desyncs `ParticipantStatus.consent` from the emitted
+ledger snapshot.
 **Load when**: implementing per-participant EM state tracking, working on the
 embargo consent state machine in `vultron/core/states/`, writing any PEC state
 change, or debugging `embargo_adherence` / `emConsentState` semantics.

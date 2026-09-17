@@ -51,7 +51,7 @@ pocket vetoes).
 
 | State | Meaning |
 |---|---|
-| `NO_EMBARGO` | No embargo active for this case (initial state) |
+| `UNBOUND` | This participant is not bound by any embargo terms (initial state) |
 | `INVITED` | Received embargo invitation; awaiting response |
 | `SIGNATORY` | Has accepted current embargo terms |
 | `LAPSED` | Was signatory; embargo revised; not yet re-accepted |
@@ -71,9 +71,9 @@ participant's consent state is `SIGNATORY`; `False` for all other states.
 
 | From | Event | To | Trigger source |
 |---|---|---|---|
-| `NO_EMBARGO` | Participant invited to embargo | `INVITED` | Wire: `EP` / `INVITE_TO_EMBARGO_ON_CASE` |
-| `NO_EMBARGO` | Direct / implicit / self-determined consent | `SIGNATORY` | Wire: `EA` / `ACCEPT_INVITE_TO_EMBARGO_ON_CASE` |
-| `NO_EMBARGO` | Refusal without a formal invitation | `DECLINED` | Wire: `ER` / `REJECT_INVITE_TO_EMBARGO_ON_CASE` |
+| `UNBOUND` | Participant invited to embargo | `INVITED` | Wire: `EP` / `INVITE_TO_EMBARGO_ON_CASE` |
+| `UNBOUND` | Direct / implicit / self-determined consent | `SIGNATORY` | Wire: `EA` / `ACCEPT_INVITE_TO_EMBARGO_ON_CASE` |
+| `UNBOUND` | Refusal without a formal invitation | `DECLINED` | Wire: `ER` / `REJECT_INVITE_TO_EMBARGO_ON_CASE` |
 | `INVITED` | `Accept(Invite(Embargo))` received | `SIGNATORY` | Wire: `EA` / `ACCEPT_INVITE_TO_EMBARGO_ON_CASE` |
 | `INVITED` | `Reject(Invite(Embargo))` received | `DECLINED` | Wire: `ER` / `REJECT_INVITE_TO_EMBARGO_ON_CASE` |
 | `INVITED` | Invitation deadline passed (pocket veto) | `DECLINED` | Timer: no wire message; CASE_MANAGER authors ledger entry (CM-28-005) |
@@ -82,7 +82,7 @@ participant's consent state is `SIGNATORY`; `False` for all other states.
 | `LAPSED` | Direct `Accept` of revised terms | `SIGNATORY` | Wire: `EA` / `ACCEPT_INVITE_TO_EMBARGO_ON_CASE` |
 | `LAPSED` | Re-acceptance deadline passed (pocket veto) | `DECLINED` | Timer: no wire message; CASE_MANAGER authors ledger entry (CM-28-005) |
 | `DECLINED` | Case owner re-extends invitation | `INVITED` | Wire: `EP` / `INVITE_TO_EMBARGO_ON_CASE` |
-| Any | Shared EM exits (`EXITED`) | `NO_EMBARGO` | Cascade: `ET` side-effect; no outbound PEC message |
+| Any | Shared EM exits (`EXITED`) | `UNBOUND` | Cascade: `ET` side-effect; no outbound PEC message |
 
 Normative: `specs/case-management.yaml` CM-18-003. Decision: ADR-0048.
 MSM coupling: `specs/message-semantics-mapping.yaml` MSM-07.
@@ -103,7 +103,7 @@ This is the key distinction between PEC and the other per-participant state mach
   - The CASE_MANAGER observes a `Reject(...)` and records `DECLINED`.
   - The CASE_MANAGER enforces the pocket-veto deadline and records `DECLINED` on lapse.
   - The CASE_MANAGER cascades `LAPSED` to all SIGNATORY participants when EM enters
-    `REVISE`, and `NO_EMBARGO` to all when EM exits.
+    `REVISE`, and `UNBOUND` to all when EM exits.
 
 The participant never pushes their own PEC value. There is no "I am now SIGNATORY"
 self-report activity; the participant's intent is inferred from the Accept/Reject
@@ -113,11 +113,11 @@ the signal is already in the EM wire activities.
 
 ---
 
-## `NO_EMBARGO` Is Absence of Embargo, Not Pre-Consent
+## `UNBOUND` Means Not Bound by Any Embargo Terms
 
-*Spec: CM-18-001, CM-18-003. Decision: ADR-0048.*
+*Spec: CM-18-001, CM-18-003. Decisions: ADR-0048, ADR-0091.*
 
-`NO_EMBARGO` means **no embargo is in scope for this participant**. It does
+`UNBOUND` means **this participant is not bound by any embargo terms**. It does
 *not* mean "has not consented yet". Read the second way, it implies every
 consent must be preceded by an invitation — which is false:
 
@@ -129,11 +129,11 @@ consent must be preceded by an invitation — which is false:
 - The reporter's consent is **implicit** in submitting the report (CM-14-005);
   no invitation is ever sent.
 
-So `ACCEPT` and `DECLINE` are valid directly from `NO_EMBARGO`. Requiring a
+So `ACCEPT` and `DECLINE` are valid directly from `UNBOUND`. Requiring a
 synthetic `INVITED` hop for these paths would write an invitation event into the
 canonical ledger that never occurred (contra ADR-0019).
 
-`NO_EMBARGO` keeps two real jobs: it is correct for a participant in a case with
+`UNBOUND` keeps two real jobs: it is correct for a participant in a case with
 `EM.NONE`, and it is the `RESET` destination when an embargo is terminated. That
 `RESET` semantics is itself evidence for the absence reading — `RESET` fires
 when the embargo *goes away*, not when consent is pending.
@@ -165,7 +165,7 @@ then contradicts itself:
 
 ```text
 participant.embargo_consent_state = SIGNATORY
-snapshot: {"embargoAdherence": true, "emConsentState": "NO_EMBARGO"}
+snapshot: {"embargoAdherence": true, "emConsentState": "UNBOUND"}
 ```
 
 Ledger consumers read `emConsentState` to render per-participant consent
@@ -321,7 +321,7 @@ a participant:
 |---|---|
 | Accepted embargo **is** the current embargo (EM `ACTIVE` **or** `REVISE`) | Honour it; PEC → `SIGNATORY` (EMB-17-001/002) |
 | Accepted embargo is **stale** (revised/replaced) | Send a **fresh invite** carrying the current embargo; do not record stale consent (EMB-17-003) |
-| Case has **no** current embargo (EM `EXITED`/`NONE`) | Acknowledge as a no-op; PEC stays `NO_EMBARGO`; **keep** their case participation (EMB-17-004) |
+| Case has **no** current embargo (EM `EXITED`/`NONE`) | Acknowledge as a no-op; PEC stays `UNBOUND`; **keep** their case participation (EMB-17-004) |
 
 The third row follows the EMB-07-003 precedent for post-terminal messages
 (acknowledge without transitioning). EMB-13-002 already forbade accepting new

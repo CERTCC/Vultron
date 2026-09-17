@@ -71,7 +71,7 @@ state, because consent is given to specific terms.
   currently at PEC `SIGNATORY` to `LAPSED`. Consent to the previous terms does
   not carry over to revised terms.
 - **EM enters `Exited`.** The CASE_MANAGER MUST reset every participant's PEC
-  machine to `NO_EMBARGO`. No embargo is in scope, so no consent is either.
+  machine to `UNBOUND`. No embargo is in scope, so no consent is either.
 - **After a teardown.** The CASE_MANAGER SHOULD commit and send a fresh
   `Announce(CaseLedgerEntry)` so every participant learns that the embargo
   ended.

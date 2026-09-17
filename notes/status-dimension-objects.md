@@ -41,7 +41,7 @@ into flat enum fields:
 
 ```python
 # CaseStatus (before)
-em_state: EM = EM.NO_EMBARGO
+em_state: EM = EM.NONE
 pxa_state: CS_pxa = CS_pxa.pxa
 
 # ParticipantStatus (before)

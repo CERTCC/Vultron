@@ -20,12 +20,10 @@ participant's.
 {% include-markdown "./includes/_em-states-table.md" %}
 
 Note that *None* here means no embargo is in effect **for the case**. The embargo
-consent machine has a separate state, *No Embargo*, meaning no embargo is in scope
-**for one particular participant** ([§9.1](index.md#91-states)). The two can
-legitimately disagree: a case at Active may hold a participant at No Embargo, if
-that participant joined after the terms were agreed or declined them.
-
-{% include-markdown "./_oq-no-embargo-naming.md" %}
+consent machine has a separate state, *Unbound*, meaning the participant is not bound
+by any embargo terms ([§9.1](index.md#91-states)). The two can legitimately disagree:
+a case at Active may hold a participant at Unbound, if that participant joined after
+the terms were agreed or declined them.
 
 ### 7.2 Transitions and Guards
 
@@ -97,7 +95,7 @@ than to the idea of an embargo:
 
 - **Entering Revised** lapses consent. Every participant at Signatory moves to
   Lapsed: their agreement covered the previous terms.
-- **Entering Exited** resets consent. Every participant returns to No Embargo:
+- **Entering Exited** resets consent. Every participant returns to Unbound:
   with no embargo in scope, there is nothing to consent to.
 
 [§10.2](index.md#102-embargo-revision-and-termination-cascades) specifies both
