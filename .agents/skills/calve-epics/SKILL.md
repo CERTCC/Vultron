@@ -86,12 +86,13 @@ parent is wrong). Goal: land each on the epic that matches it.
    and, when the match is not obvious, its existing children — you are matching
    against what the epic *is about*, not its title alone.
 
-   **Truncation check (do this before step 3):** A query that returns an empty
-   or very short list is indistinguishable from a query that truncated. Before
-   treating "zero plausible epics" as a calving signal, verify the epic count
-   is plausible: compare the returned count against the known open-epic total
-   (query it with `--limit 1000` if in doubt). A suspiciously short list means
-   the query hit its limit, not that the forest is sparse.
+   **Sanity-check the count before trusting a no-match.** A truncated epic list
+   is indistinguishable from a genuine absence of candidates, and `gh` truncates
+   newest-first — so it hides the oldest epics, which are the long-lived ones you
+   are most likely to be looking for. Compare the epics returned against the
+   repository's open-issue total; if the listing limit is at or below that total,
+   the list is partial and step 3's "zero plausible epics" branch is unsafe.
+   At `--limit 200` on 305 open issues this returned 16 of 34 (#3319).
 
 2. **Match by grain, not by keyword.** Ask which epic's design idea this issue
    advances. A protocol-correctness bug belongs with protocol correctness even

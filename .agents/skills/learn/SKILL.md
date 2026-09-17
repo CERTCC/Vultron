@@ -98,12 +98,17 @@ that the cost of a full scan is justified on every invocation.
      --repo CERTCC/Vultron \
      --state open \
      --limit 1000 \
-     --label concern \
-     --json number,title,body
-   ```text
+     --json number,title,body,issueType \
+     --jq '.[] | select(.issueType.name == "Concern")'
+   ```
+
+   Select on the issue **type**, not a `concern` label — the type is
+   authoritative (see `docs/agents/issue-tracker.md`), and the two do not
+   agree: the label matches 13 open issues where the type matches 53.
+   `reflect-cycle` gates this same queue on the type, so a label query here
+   makes the two skills disagree about whether `learn` has input.
 
 3. Invoke `orient-agent` then `deepen-context` for full context: specs JSON,
-
    plan files, docs/adr/, notes/, AGENTS.md, and a code scan. Because
    Phase 0 has already refreshed the codebase docs, `orient-agent`/`deepen-context`
    will read up-to-date architecture and structure information.

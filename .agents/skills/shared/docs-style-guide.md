@@ -58,10 +58,14 @@ is a defect, not a flourish.
 
 ## 2. Acronyms
 
-**SG-07 — Expand on first use, per page.** Write the expansion followed by the
-acronym in parentheses at first use on each page: "Coordinated Vulnerability
-Disclosure (CVD)". First use resets per page, because readers arrive from search
-and from deep links, not by reading in nav order. Implements DF-09-003.
+**SG-07 — Expand on first use, per rendered page.** Write the expansion followed
+by the acronym in parentheses at first use on each page: "Coordinated
+Vulnerability Disclosure (CVD)". First use resets per page, because readers
+arrive from search and from deep links, not by reading in nav order. "Page" means
+the page as published, not the source file it was authored in — a page assembled
+from `{% include-markdown %}` fragments has one first use, not one per fragment,
+so this rule is evaluated against the assembling page and never against a
+fragment on its own (DF-09-007, ADR-0092). Implements DF-09-003.
 
 **SG-08 — Register in the acronyms snippet.** Every acronym used in `docs/`
 must appear in `docs/_acronyms/index.md`, which `pymdownx.snippets` appends to

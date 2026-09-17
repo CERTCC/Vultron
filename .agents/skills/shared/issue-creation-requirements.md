@@ -18,11 +18,16 @@ Missing any one causes the script to exit non-zero.
 bash .agents/skills/shared/board-id.sh issue-type Task
 
 # Open epics (pick the best-fit parent)
+# The limit MUST exceed the open-issue count — do not lower it. `gh` returns
+# newest-first, so a limit below the open-issue total silently truncates the
+# OLDEST issues, which is where long-lived epics live. At --limit 200 on a
+# 305-open-issue repo this returned 16 of 34 open epics and hid #1190
+# entirely. A truncated list is indistinguishable from a genuine no-match, and
+# `calve-epics` reads no-match as a signal to create a new epic (#3319).
+# Increase if the repo grows past 1000 open issues.
 gh issue list --repo CERTCC/Vultron --state open --limit 1000 \
   --json number,title,issueType \
   --jq '.[] | select(.issueType.name == "Epic") | "#\(.number): \(.title)"'
-# --limit 1000: the repo has 298+ open issues; 200 silently truncates and hides
-# the oldest epics first. Do not reduce this — increase it if the repo grows past 1000.
 
 # Open milestones with numbers
 gh api repos/CERTCC/Vultron/milestones \

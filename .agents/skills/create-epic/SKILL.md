@@ -31,8 +31,12 @@ consistent use of the `Epic` issue type and sub-issue wiring.
 Search for open Epics with similar titles to avoid duplicates:
 
 ```bash
+# `--limit 1000` is required: with no limit `gh` returns only 30 issues, and a
+# truncated list is indistinguishable from a genuine no-match — which this step
+# reads as "no Epic exists" and acts on by creating a duplicate (#3319).
 gh issue list --repo CERTCC/Vultron \
-  --state open --limit 1000 \
+  --state open \
+  --limit 1000 \
   --json number,title,issueType \
   | python3 -c "
 import json, sys
