@@ -260,6 +260,8 @@ class TestSvcCreateCaseUseCase:
             len(to_ids) == 1
         ), f"PCR-08-001: exactly one recipient expected, got {to_ids!r}"
 
+    @pytest.mark.spec("CM-02-014")
+    @pytest.mark.spec("CM-02-015")
     def test_create_case_trigger_registers_owner_and_manager(self):
         """SvcCreateCaseUseCase registers CASE_OWNER+CASE_MANAGER participant (CM-02-014, CM-02-015)."""
         from vultron.core.participants.authority import resolve_case_manager_id
