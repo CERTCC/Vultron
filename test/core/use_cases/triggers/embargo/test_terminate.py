@@ -20,7 +20,7 @@ from vultron.wire.as2.vocab.objects.case_participant import as_CaseParticipant
 
 from .conftest import (
     _build_active_embargo_case,
-    _build_no_embargo_case_with_case_manager,
+    _build_unbound_case_with_case_manager,
     _persist_actor,
 )
 
@@ -56,7 +56,7 @@ def test_terminate_embargo_transitions_case_to_exited_via_bt_path(
     )
     assert updated_case.current_status.em.state == EM.EXITED
     assert updated_case.active_embargo is None
-    assert updated_participant.embargo_consent_state == PEC.NO_EMBARGO.value
+    assert updated_participant.embargo_consent_state == PEC.UNBOUND.value
 
 
 def test_terminate_embargo_no_active_embargo_raises_via_bt_node(
@@ -68,7 +68,7 @@ def test_terminate_embargo_no_active_embargo_raises_via_bt_node(
     node (AC-5 / LST-05): the use-case layer no longer checks case state inline.
     """
     owner, owner_dl = owner_actor_and_dl
-    case = _build_no_embargo_case_with_case_manager(owner_dl, owner.id_)
+    case = _build_unbound_case_with_case_manager(owner_dl, owner.id_)
     request = TerminateEmbargoTriggerRequest(
         actor_id=owner.id_,
         case_id=case.id_,

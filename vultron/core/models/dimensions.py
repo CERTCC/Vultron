@@ -151,7 +151,7 @@ class EmDimension(ValidatedAssignmentMixin, BaseModel):
     Replaces CaseStatus.em_state (SDO-01-001, SDO-03-001).
     """
 
-    state: EM = EM.NO_EMBARGO
+    state: EM = EM.NONE
 
     @field_validator("state", mode="before")
     @classmethod
@@ -344,7 +344,7 @@ class PecDimension(ValidatedAssignmentMixin, BaseModel):
     (SDO-01-001, SDO-03-002).
     """
 
-    state: PEC = PEC.NO_EMBARGO
+    state: PEC = PEC.UNBOUND
 
     @field_validator("state", mode="before")
     @classmethod
@@ -359,7 +359,7 @@ class PecDimension(ValidatedAssignmentMixin, BaseModel):
         """Return a new PecDimension with the state after applying *trigger*.
 
         Raises VultronInvalidStateTransitionError on invalid trigger.
-        Supports the RESET wildcard ("*" → NO_EMBARGO from any state).
+        Supports the RESET wildcard ("*" → UNBOUND from any state).
         """
         new_state = _apply_transition(
             self.state, trigger, _pec_transitions, "PecDimension"

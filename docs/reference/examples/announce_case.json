@@ -39,7 +39,7 @@
             "rmState": "START",
             "caseEngagement": true,
             "embargoAdherence": false,
-            "emConsentState": "NO_EMBARGO",
+            "emConsentState": "UNBOUND",
             "cvdRole": [
               "FINDER",
               "REPORTER"
@@ -47,7 +47,7 @@
           }
         ],
         "acceptedEmbargoIds": [],
-        "embargoConsentState": "NO_EMBARGO"
+        "embargoConsentState": "UNBOUND"
       },
       {
         "id": "urn:uuid:0d4a16ce-9ce4-44c2-a73f-81961d7f3fa5/participants/vendorco",
@@ -81,7 +81,7 @@
           }
         ],
         "acceptedEmbargoIds": [],
-        "embargoConsentState": "NO_EMBARGO"
+        "embargoConsentState": "UNBOUND"
       }
     ],
     "actorParticipantIndex": {

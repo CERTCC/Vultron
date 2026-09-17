@@ -142,7 +142,7 @@ def _build_exited_case(
     return case
 
 
-def _build_no_embargo_case_with_case_manager(
+def _build_unbound_case_with_case_manager(
     dl: SqliteDataLayer, owner_id: str
 ) -> VulnerabilityCase:
     case = VulnerabilityCase(
@@ -152,7 +152,7 @@ def _build_no_embargo_case_with_case_manager(
     owner_participant = VendorParticipant(
         attributed_to=owner_id,
         context=case.id_,
-        embargo_consent_state=PEC.NO_EMBARGO,
+        embargo_consent_state=PEC.UNBOUND,
     )
     owner_participant.add_role(CVDRole.CASE_MANAGER)
     case.case_participants = [owner_participant.id_]

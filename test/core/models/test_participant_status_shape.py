@@ -326,7 +326,7 @@ class TestEmbargoAdherenceComputedField:
 
     @pytest.mark.parametrize(
         "pec_state",
-        [PEC.NO_EMBARGO, PEC.INVITED, PEC.LAPSED, PEC.DECLINED],
+        [PEC.UNBOUND, PEC.INVITED, PEC.LAPSED, PEC.DECLINED],
     )
     def test_false_when_not_signatory(self, pec_state):
         status = ParticipantStatus(

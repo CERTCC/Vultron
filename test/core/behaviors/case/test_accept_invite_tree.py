@@ -75,14 +75,14 @@ class TestSignEmbargoConsentLeafNode:
     def test_invitee_reaches_signatory_from_no_embargo(
         self, bt_scenario: BTTestScenario
     ) -> None:
-        """Regression: invitee starting at NO_EMBARGO must reach SIGNATORY.
+        """Regression: invitee starting at UNBOUND must reach SIGNATORY.
 
         Before the ADR-0048 fix the consent write was fail-open, returning
-        NO_EMBARGO unchanged while the node logged success — CM-10-001
+        UNBOUND unchanged while the node logged success — CM-10-001
         violated.
         """
         status, participant = _run_sign_node(
-            bt_scenario, starting_pec=PEC.NO_EMBARGO
+            bt_scenario, starting_pec=PEC.UNBOUND
         )
         assert status == Status.SUCCESS
         assert participant.embargo_consent_state == PEC.SIGNATORY
@@ -135,9 +135,7 @@ class TestSignEmbargoConsentLeafNode:
         self, bt_scenario: BTTestScenario
     ) -> None:
         """The active embargo ID is appended to accepted_embargo_ids."""
-        _, participant = _run_sign_node(
-            bt_scenario, starting_pec=PEC.NO_EMBARGO
-        )
+        _, participant = _run_sign_node(bt_scenario, starting_pec=PEC.UNBOUND)
         assert _EMBARGO_ID in participant.accepted_embargo_ids
 
     def test_snapshot_em_consent_state_agrees_with_scalar(
@@ -148,9 +146,7 @@ class TestSignEmbargoConsentLeafNode:
         After the sign node runs, participant_status.consent.state MUST equal
         embargo_consent_state — the snapshot must not be stale (CM-18-006).
         """
-        _, participant = _run_sign_node(
-            bt_scenario, starting_pec=PEC.NO_EMBARGO
-        )
+        _, participant = _run_sign_node(bt_scenario, starting_pec=PEC.UNBOUND)
         assert participant.embargo_consent_state == PEC.SIGNATORY
         status = participant.participant_status
         assert status is not None
@@ -176,7 +172,7 @@ class TestSignEmbargoConsentLeafNode:
         participant = CaseParticipant(
             id_=_ACTOR_ID,
             attributed_to=_ACTOR_ID,
-            embargo_consent_state=PEC.NO_EMBARGO,
+            embargo_consent_state=PEC.UNBOUND,
         )
         node = _SignEmbargoConsentLeafNode(invitee_id=_ACTOR_ID)
         result = bt_scenario.run(
