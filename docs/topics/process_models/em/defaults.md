@@ -52,10 +52,10 @@ embargo is *Active* from the moment the case is created.
 
 The *Proposed* state represents an embargo that has been offered but not yet
 agreed — an open question awaiting a decision. On the default path there is no
-open question: the published default supplies the *propose* action and the
-Reporter's silence supplies the *accept* action, so both transitions along
-$N \xrightarrow{p} P \xrightarrow{a} A$ are already satisfied when the case
-begins. The case does not *rest* in *Proposed*, because no decision is
+open question. The published default supplies the *propose* action and the
+Reporter's silence supplies the *accept* action. Both transitions along
+$N \xrightarrow{p} P \xrightarrow{a} A$ are therefore already satisfied when the
+case begins. The case does not *rest* in *Proposed*, because no decision is
 pending.
 
 Leaving a newly created case in *Proposed* would misrepresent a settled
@@ -69,8 +69,8 @@ skipped step.
 
 The party who creates the case is its Case Owner. Because the Case Owner
 established the default embargo, they are a party to it from the moment the
-case exists — it would be incoherent for the Case Owner to bring an active
-embargo into being and then be treated as not yet bound by it. Each
+case exists. The Case Owner brings an active embargo into being, so it would be
+incoherent to then treat them as not yet bound by it. Each
 participant's individual relationship to the embargo is tracked by the
 [Participant Embargo Consent](participant-embargo-consent.md) state machine,
 and the Case Owner begins there as a `SIGNATORY`.
@@ -84,8 +84,8 @@ negotiated path instead — see
 and
 [Sender Proposes an Embargo Shorter than the Receiver Default](#sender-proposes-an-embargo-shorter-than-the-receiver-default)
 below. Even then, the shortest proposal is taken as accepted and the longer one
-as a proposed revision, so the case still reaches an *Active* embargo promptly
-rather than stalling in negotiation.
+as a proposed revision. The case therefore still reaches an *Active* embargo
+promptly, rather than stalling in negotiation.
 
 ## Using Defaults
 
