@@ -16,7 +16,7 @@ related_specs:
   - specs/embargo-default-semantics.yaml
 related_notes:
   - notes/case-bootstrap-trust.md
-  - notes/case-creation-sequence.md
+  - notes/case-proposal.md
   - notes/participant-case-replica.md
   - notes/participant-role-management.md
   - notes/event-driven-control-flow.md

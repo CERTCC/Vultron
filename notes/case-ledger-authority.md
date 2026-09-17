@@ -253,36 +253,20 @@ because replicas need the actual asserted content to reconstruct state.
 
 ---
 
-## Post-#787 Convergence Decisions (Epic #788 — Completed)
+## `pending_assertions`: Local Decision-Suppression Memory (Epic #788)
 
-Issue #787 intentionally kept `CaseEvent` as a lightweight inline value object.
-That merged decision remained valid as a short-term compatibility step while the
-project converged on canonical `CaseLedgerEntry` history.
+Epic #788 (#789–#792, completed) made canonical `CaseLedgerEntry` the sole source
+of protocol-significant history and removed `CaseEvent` / `record_event()`.
+Actor-local `pending_assertions` suppresses duplicate emits during the canonical
+round-trip window — it is temporary local memory, not a second source of truth;
+canonical `CaseLedgerEntry` remains authoritative.
 
-Follow-on plan (Epic #788, all completed):
+Policy (`vultron/core/models/pending_assertion.py`):
 
-- #789 migrated remaining `record_event()`-only write paths to CASE_MANAGER
-  canonical log commits.
-- #790 introduced actor-local `pending_assertions` to suppress duplicate emits
-  during canonical round-trip windows.
-- #791 added a hard catch-up gate so actors must re-establish case-ledger
-  freshness before taking new case actions after restart.
-- #792 removed `CaseEvent` and `VulnerabilityCase.record_event()` — canonical
-  `CaseLedgerEntry` is now the sole source of protocol-significant history.
-
-`pending_assertions` is temporary local memory for decision suppression, not a
-second source of truth. Canonical `CaseLedgerEntry` remains authoritative.
-
-Initial policy decisions for pending assertions:
-
-- default timeout is 180 seconds and configurable
-- timeout marks the assertion as `timed_out` and logs an error
-- timeout does not auto-retry; future behavior may decide to re-emit if still
-  needed
-- entries clear when matching canonical `CaseLedgerEntry(recorded|rejected)`
-  arrives
-
----
+- default timeout is **180 seconds** and configurable
+- timeout marks the assertion `timed_out` and logs an error
+- timeout does not auto-retry
+- entries clear when a matching canonical `CaseLedgerEntry(recorded|rejected)` arrives
 
 ## Consequences for Future Design Work
 
@@ -388,40 +372,19 @@ they enter the hash chain. Failing fast at commit time keeps the
 canonical chain clean and surfaces bugs immediately, rather than allowing
 silent pollution that's discovered only when replicas diverge.
 
-### CLP-07-003 Actor-Identity Check Must Live at the Receive Pipeline, Not the Commit Boundary
+### CLP-07-003 Actor-Identity Check Lives at the Receive Pipeline, Not the Commit Boundary
 
-*Issue #3282; implemented by PR #3313.*
-
-CLP-07-003 requires that `payloadSnapshot.actor` equal the original asserting
-actor's identity. A guard was originally placed at `_validate_canonical_entry`
-(the commit boundary inside `chain.py`), checking whether `snapshot_actor ==
-case_actor_id` for non-CASE_AUTHORED signatures. ADR-0088 made this check
-incorrect by granting authority through role (`CVDRole.CASE_MANAGER`) rather
-than identity: a holder of that role may simultaneously participate as a
-reporter, finder, or coordinator, and may legitimately assert any
-participant-role activity — `Add(Note)`, `Offer(EmbargoEvent)`, etc.
-
-The commit boundary lacks the context to distinguish legitimate
-CASE_MANAGER-participant self-assertion from substitution: `_validate_canonical_entry`
-receives only the already-built snapshot and does not know the original inbound
-`actor_id`. Eleven payload signatures (every signature in
-`_CANONICAL_PAYLOAD_SIGNATURES` that is not in `_CASE_AUTHORED_SIGNATURES`) were
-incorrectly rejected as false positives.
-
-**The correct enforcement point is `lifecycle.CommitCaseLedgerEntryNode`
-(`vultron/core/behaviors/case/nodes/lifecycle.py`)**, where `activity.actor_id`
-(the original sender) is still available alongside the snapshot. The check is:
-`snapshot["actor"] MUST equal activity.actor_id`. A mismatch is a substitution;
-the CASE_MANAGER's own identity in `payloadSnapshot.actor` is never a mismatch
-when they are the sender.
+The check that `payloadSnapshot.actor` equals the asserting actor is enforced at
+`CommitCaseLedgerEntryNode` (`vultron/core/behaviors/case/nodes/lifecycle.py`),
+where the original `activity.actor_id` is still available — **not** at
+`_validate_canonical_entry` in `chain.py`, which sees only the built snapshot.
+ADR-0088 grants authority by role, so a CASE_MANAGER may legitimately self-assert
+participant activities; an identity check at the commit boundary false-rejects
+those (ISSUE-3282, PR #3313).
 
 Pitfall: do not restore the identity comparison to `_validate_canonical_entry`.
 `_CASE_AUTHORED_SIGNATURES` is still needed there for CLP-12-002's native-init
-coverage check — do not delete it, only remove its use in the identity comparison.
-
-Also remove the now-dead `actor_id` and `case_actor_id` parameters from
-`_validate_canonical_entry` and the corresponding `_find_case_actor_id` lookup
-in `chain.py` (confirmed dead after the block removal).
+coverage check — do not delete it, only its use in the identity comparison.
 
 ### An Entry Has Two Timestamps, and They Belong to Different Layers
 

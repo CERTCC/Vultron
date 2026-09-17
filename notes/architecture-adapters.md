@@ -86,11 +86,6 @@ Expected end-state:
 2. BT nodes make branching decisions.
 3. BT leaves call driven ports for outbound actions.
 
-### Remaining ARCH-01-001 violations
-
-Some core->wire imports remain and require additional driven-port extraction.
-Track ongoing violations in the associated ARCH-01-001 issue and spec links.
-
 ### Future delivery stubs
 
 Architectural placeholders exist (tracked in GitHub issue #650):

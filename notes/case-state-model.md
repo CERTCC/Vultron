@@ -509,107 +509,6 @@ disagreements across actor copies.
 
 ---
 
-## CM-03-006 Rename: `case_status` → `case_statuses`
-
-Spec `CM-03-006` requires renaming `VulnerabilityCase.case_status` (a list
-field with a misleading singular name) to `case_statuses`. The same rename
-applies to `CaseParticipant.participant_status` → `participant_statuses`.
-
-**Before starting the rename**, quantify scope:
-
-```bash
-grep -rn "\.case_status" vultron/ test/
-grep -rn "\.participant_status" vultron/ test/
-```
-
-As of the last review, `handlers.py` alone has approximately 20 call sites.
-Total scope across `core/behaviors/` and tests makes this a high-breakage
-change.
-
-**Recommended approach**: Do both renames (`case_statuses` and
-`participant_statuses`) in a single PR to keep the diff localized and avoid
-a partial-rename state that is harder to reason about.
-
-**Cross-reference**: `AGENTS.md` "case_status Field Is a List (Rename
-Pending)"; `specs/case-management.yaml` CM-03-006.
-
----
-
-## CaseEvent Model — Removed in #792
-
-The `CaseEvent` model and `VulnerabilityCase.record_event()` helper have been
-removed. All protocol-significant event history is now recorded exclusively via
-the canonical `CaseLedgerEntry` hash chain (see `notes/case-ledger-authority.md`
-and `specs/case-ledger-processing.yaml`).
-
-**Cross-reference**: `specs/case-management.yaml` CM-02-009, CM-10-002.
-
----
-
-## Actor-to-Participant Index (SC-PRE-2)
-
-Several handlers (including `accept_invite_to_embargo_on_case` and
-`accept_invite_actor_to_case`) need to resolve an **Actor ID → CaseParticipant
-ID** mapping within the context of a specific case. Without a fast lookup,
-handlers must iterate all participants, which is fragile and error-prone.
-
-### Design
-
-Add `actor_participant_index: dict[str, str] = Field(default_factory=dict)`
-to `VulnerabilityCase`:
-
-- Key: `actor_id` string (full URI)
-- Value: `participant_id` string (full URI of the `CaseParticipant` object)
-- This field is a **derived index** — it MUST be excluded from
-  ActivityStreams serialization (use `exclude=True` in the field definition
-  or an equivalent Pydantic v2 pattern) because it is not protocol data
-- `case_participants` is the canonical participant surface; lookup helpers
-  MAY use the index as a shortcut, but they MUST treat any divergence between
-  the two surfaces as an explicit error rather than silently reconciling it
-
-### Participant Management Methods
-
-Add two methods to `VulnerabilityCase`:
-
-- `add_participant(participant: CaseParticipant)`: appends
-  `participant.as_id` to `case_participants`; records
-  `actor_id → participant.as_id` in `actor_participant_index`; raises
-  (or no-ops) if the actor is already registered — choose one behavior
-  and enforce it consistently
-- `remove_participant(participant_id: str)`: removes from
-  `case_participants`; removes the corresponding actor key from
-  `actor_participant_index`
-
-### Handler Updates
-
-All handlers that currently write to `case.case_participants` directly MUST
-be updated to call `case.add_participant()` or `case.remove_participant()`:
-
-- `accept_invite_actor_to_case` (actor handler)
-- `create_case` BT node `CreateInitialVendorParticipant`
-  (`behaviors/case/nodes.py`)
-- `remove_case_participant_from_case` (participant handler)
-- Any other handler that appends or removes participants
-
-**Invariant**: The index MUST always reflect the contents of
-`case_participants`. Out-of-sync states MUST NOT be possible via normal
-code paths.
-
-Read-side participant lookup MUST prefer `case_participants` as the source of
-truth. `actor_participant_index` exists only as a derived lookup aid, so any
-missing or contradictory mapping MUST fail fast and surface a bug in the
-write path or fixture setup.
-
-**Open Question**: (blocks SC-PRE-2) Whether to raise or silently no-op on
-duplicate `add_participant()` calls. Recommend raise for correctness;
-handlers should guard with an existence check before calling
-`add_participant()` to keep idempotency logic explicit.
-
-**Cross-reference**: `specs/case-management.yaml` CM-10-002, CM-10-001;
-`AGENTS.md` "Cases should have participant-to-actor and vice versa indexes".
-
----
-
 ## RM and EM State Machines (Cross-Reference)
 
 Case State (CS) is one of three interacting state machines:
@@ -631,68 +530,23 @@ transition rules.
 
 ---
 
-## Report as Proto-Case: Finder Participant Lifecycle
+## Case Lifecycle Stages: Caterpillar / Butterfly (RM-state framing)
 
-> **Status**: The FINDER-PART-1 approach described in the original version
-> of this section has been **superseded** by ADR-0015 (Create
-> VulnerabilityCase at Report Receipt). The new lifecycle is documented
-> below.
+A durable metaphor for the RM-state progression of a case:
 
-The lifecycle of CVD work begins with a *report*, and the Vultron model
-reflects this by creating a `VulnerabilityCase` immediately when an
-`Offer(Report)` is received. A useful analogy is the caterpillar/butterfly
-metamorphosis:
-
-- **Caterpillar stage** = case object in RM.RECEIVED or RM.INVALID
-  (the case exists but has not yet been validated; participants are
-  active but the vendor has not yet committed to the issue)
-- **Butterfly stage** = case object in RM.VALID, RM.ACCEPTED, or
-  RM.DEFERRED (the case is validated and actionable)
-- **Terminal** = RM.CLOSED (regardless of path)
+- **Caterpillar** = `RM.RECEIVED` or `RM.INVALID` — the case/work exists but has
+  not yet been validated.
+- **Butterfly** = `RM.VALID`, `RM.ACCEPTED`, or `RM.DEFERRED` — validated and
+  actionable.
+- **Terminal** = `RM.CLOSED` (regardless of path).
 
 Work genuinely happens in both stages, and participants exist in both.
 
-### Redefined "Proto-Case"
-
-A **proto-case** is a `VulnerabilityCase` object that is in the caterpillar
-stage — the case object exists (and has been created at report receipt),
-but the receiver has not yet validated the report. RM states RM.RECEIVED
-and RM.INVALID are proto-case stages.
-
-This is a redefinition from the earlier concept where "proto-case" meant
-the state *before* a case object existed. Under ADR-0015, a case object
-always exists from the moment a report is received, so the pre-case-object
-era is eliminated.
-
-### Implemented Lifecycle (per ADR-0015)
-
-1. Reporter submits `Offer(Report)` → `SubmitReportReceivedUseCase`
-   invokes the `receive_report_case_tree` BT, which:
-   - Creates a `VulnerabilityCase` with `vulnerability_reports` linking
-     to the `VulnerabilityReport` ID
-   - Creates a `VultronParticipant` for the reporter with
-     `rm_state=RM.ACCEPTED` (they created and submitted the report)
-   - Creates a `VultronParticipant` for the receiver with
-     `rm_state=RM.RECEIVED`
-   - Initializes a default embargo (SHOULD; MUST before RM.VALID)
-   - Queues a `Create(Case)` activity to notify the reporter
-2. Receiver runs the `ValidateReport` BT:
-   - Evaluates report credibility and validity
-   - Transitions RM to RM.VALID (or RM.INVALID if rejected)
-   - Verifies that an embargo exists (`EnsureEmbargoExists` guard)
-   - Does **not** create a case (the case already exists from step 1)
-3. All subsequent report-centric activities (invalidate, close, validate)
-   dereference the `report_id → case_id` and delegate to case-level use
-   cases.
-
-**No retroactive context migration is needed.** The `VultronParticipant`
-records are created with `context` pointing to the `VulnerabilityCase` ID
-from the start.
-
-**See also**: `docs/adr/0015-create-case-at-report-receipt.md`;
-`specs/case-management.yaml` CM-12; `notes/protocol-event-cascades.md`
-
----
+> Note: the earlier "Implemented Lifecycle (per ADR-0015)" description — which
+> created a `VulnerabilityCase` at report receipt — is superseded by ADR-0041
+> (the receiver holds no interim `VulnerabilityCase`). See
+> [notes/case-proposal.md](case-proposal.md) and
+> [notes/case-bootstrap-trust.md](case-bootstrap-trust.md) § "ADR-0041 Update".
 
 ## Invite-Path Participant RM Entry Point
 
@@ -750,30 +604,6 @@ CM-13), whose RM states are set as part of the case creation sequence.
 
 **Normative requirements**: `specs/case-management.yaml` CM-11-001 through
 CM-11-004.
-
----
-
-## Pre-Case Event Backfill on Case Creation
-
-> **Note**: Under ADR-0015, the case is created at report receipt, so
-> backfill is minimal. The `Offer(Report)` activity IS the case-creation
-> trigger; participant creation happens atomically in the same BT.
-
-When a new case is created via `receive_report_case_tree`, the following
-events are recorded in the case ledger as part of that BT's execution:
-
-- Case creation itself
-- Initial participant creation (reporter and receiver)
-- Default embargo initialization (if applied)
-- `Create(Case)` notification queued to outbox
-
-Events that predate the case object cannot exist in the new model (the
-case is created at the first opportunity). If pre-case events were recorded
-via a separate mechanism (e.g., a flat `ReportStatus`), those MAY be
-backfilled into the case ledger at case creation time.
-
-**See**: `specs/case-management.yaml` CM-12; `notes/activitystreams-semantics.md`
-for the case activity log constraints.
 
 ---
 
