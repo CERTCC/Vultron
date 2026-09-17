@@ -78,6 +78,7 @@ class SvcCreateCaseUseCase(SvcBTTriggerBase):
 
     def _handle_result(self) -> None:
         self._captured["activity"] = self._result_out.get("activity")
+        self._captured["case_id"] = self._result_out.get("case_id")
         activity = self._captured.get("activity")
         logger.info(
             "Actor '%s' created case '%s' (CreateCaseActivity '%s')",
@@ -85,3 +86,8 @@ class SvcCreateCaseUseCase(SvcBTTriggerBase):
             self._result_out.get("case_id"),
             activity.get("id") if isinstance(activity, dict) else None,
         )
+
+    def execute(self) -> dict:
+        result = super().execute()
+        result["case_id"] = self._captured.get("case_id")
+        return result
