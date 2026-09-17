@@ -19,7 +19,7 @@ Transitions
 -----------
 INVITE  : UNBOUND | LAPSED | DECLINED → INVITED
 ACCEPT  : UNBOUND | INVITED | LAPSED → SIGNATORY
-DECLINE : UNBOUND | INVITED | LAPSED → DECLINED
+DECLINE : UNBOUND | INVITED | LAPSED | SIGNATORY → DECLINED
 REVISE  : SIGNATORY → LAPSED
 RESET   : * → UNBOUND  (embargo terminated or removed)
 
@@ -106,6 +106,10 @@ _transitions: list[dict] = [
     ).model_dump(),
     PECTransition(
         trigger=PEC_Trigger.DECLINE, source=PEC.LAPSED, dest=PEC.DECLINED
+    ).model_dump(),
+    # ADR-0093: volitional consent withdrawal — SIGNATORY may explicitly decline
+    PECTransition(
+        trigger=PEC_Trigger.DECLINE, source=PEC.SIGNATORY, dest=PEC.DECLINED
     ).model_dump(),
     # REVISE: an active signatory lapses when embargo terms change
     PECTransition(

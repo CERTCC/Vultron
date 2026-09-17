@@ -50,6 +50,7 @@ embargo enters Revised, and **reset** fires when it enters Exited.
 | Invited | decline | Declined |
 | Invited | deadline passes | Declined |
 | Signatory | revise | Lapsed |
+| Signatory | decline | Declined |
 | Lapsed | invite | Invited |
 | Lapsed | accept | Signatory |
 | Lapsed | decline | Declined |
@@ -58,8 +59,9 @@ embargo enters Revised, and **reset** fires when it enters Exited.
 | any state | reset | Unbound |
 
 Equivalently, by trigger: invite is valid from Unbound, Lapsed and Declined;
-accept and decline are each valid from Unbound, Invited and Lapsed; revise is
-valid only from Signatory; reset is valid from any state.
+accept is valid from Unbound, Invited and Lapsed; decline is valid from
+Unbound, Invited, Lapsed and Signatory; revise is valid only from Signatory;
+reset is valid from any state.
 
 Neither Lapsed nor Declined is terminal. A participant in either can be invited
 again, which is what makes renegotiation possible.
