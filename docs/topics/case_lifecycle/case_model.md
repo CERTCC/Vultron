@@ -152,7 +152,7 @@ Dimension objects are defined in `vultron/core/models/dimensions.py`:
 | `RmDimension` | Report Management (RM) | Start → Received → … → Closed | `ParticipantStatus` |
 | `VfDimension` | Vendor-awareness / Fix-readiness (VF) | vf → Vf → VF | `ParticipantStatus` (VENDOR only) |
 | `DDimension` | Fix-deployment (D) | d → D | `ParticipantStatus` (DEPLOYER only) |
-| `PecDimension` | Participant Embargo Consent (PEC) | NO_EMBARGO / INVITED / SIGNATORY / LAPSED / DECLINED | `ParticipantStatus` |
+| `PecDimension` | Participant Embargo Consent (PEC) | UNBOUND / INVITED / SIGNATORY / LAPSED / DECLINED | `ParticipantStatus` |
 
 ## `CVDRole`
 

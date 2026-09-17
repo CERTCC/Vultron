@@ -712,11 +712,11 @@ groups:
     RM state (self-reported by the participant) and VF/D state (self-reported by
     vendor/deployer), PEC state is set by the CASE_MANAGER (CM-28-003) based on observed
     participant behavior — incoming Accept/Reject wire activities, timer-enforced lapses,
-    and cascades from shared EM state changes. The five states are NO_EMBARGO (no embargo
-    in scope), INVITED (awaiting response), SIGNATORY (accepted current terms), LAPSED
-    (terms changed since last acceptance), and DECLINED (explicitly refused or timed out
-    without responding). Normative authority: specs/case-management.yaml CM-18.
-    Decision: ADR-0048.
+    and cascades from shared EM state changes. The five states are UNBOUND (participant
+    not bound by any embargo terms), INVITED (awaiting response), SIGNATORY (accepted
+    current terms), LAPSED (terms changed since last acceptance), and DECLINED
+    (explicitly refused or timed out without responding). Normative authority:
+    specs/case-management.yaml CM-18. Decisions: ADR-0048, ADR-0091.
   specs:
   - id: MSM-07-001
     priority: MUST
@@ -748,7 +748,7 @@ groups:
     statement: >-
       The wire activity INVITE_TO_EMBARGO_ON_CASE (EP wire form:
       Invite(Event)[context=VulnerabilityCase]) MUST apply the PEC INVITE trigger to
-      the invited participant, advancing their consent state from NO_EMBARGO, DECLINED,
+      the invited participant, advancing their consent state from UNBOUND, DECLINED,
       or LAPSED to INVITED.
     rationale: >-
       An embargo proposal is an invitation to consent; the EP wire activity conveys
@@ -777,14 +777,14 @@ groups:
       (1) when the sending actor is the case owner it MUST advance the shared EM
       state from PROPOSED to ACTIVE (or from REVISE to ACTIVE for EC); (2) for
       any accepting participant it MUST apply the PEC ACCEPT trigger, advancing
-      their consent state from INVITED, NO_EMBARGO, or LAPSED to SIGNATORY.
+      their consent state from INVITED, UNBOUND, or LAPSED to SIGNATORY.
     rationale: >-
       The same wire activity simultaneously drives the case-level EM machine
       (for the case owner) and the participant-level PEC machine (for the accepting
       actor). An implementer handling this activity MUST update both machines, not
-      just the EM state. The PEC ACCEPT trigger is valid directly from NO_EMBARGO
+      just the EM state. The PEC ACCEPT trigger is valid directly from UNBOUND
       because consent can be self-determined without an invitation (ADR-0048,
-      CM-18-003).
+      ADR-0091, CM-18-003).
     verification: >-
       Inspection of vultron/core/use_cases/received/embargo.py confirms
       AcceptInviteToEmbargoOnCaseReceivedUseCase applies EmbargoLifecycle
@@ -806,12 +806,12 @@ groups:
       (1) when the sending actor is the case owner it MUST advance the shared EM
       state from PROPOSED to NONE (for ER) or leave EM in ACTIVE (for EJ); (2)
       for any rejecting participant it MUST apply the PEC DECLINE trigger, advancing
-      their consent state from INVITED, NO_EMBARGO, or LAPSED to DECLINED.
+      their consent state from INVITED, UNBOUND, or LAPSED to DECLINED.
     rationale: >-
       Symmetric with MSM-07-003: the reject wire activity drives both the EM machine
       (case-owner path) and the PEC machine (rejecting participant path). The PEC
-      DECLINE trigger is valid directly from NO_EMBARGO for symmetric reasons to
-      ACCEPT (ADR-0048, CM-18-003).
+      DECLINE trigger is valid directly from UNBOUND for symmetric reasons to
+      ACCEPT (ADR-0048, ADR-0091, CM-18-003).
     verification: >-
       Inspection of vultron/core/use_cases/received/embargo.py confirms
       RejectInviteToEmbargoOnCaseReceivedUseCase applies EmbargoLifecycle
@@ -861,11 +861,11 @@ groups:
       When the shared EM state transitions to EXITED (driven by an ET /
       REMOVE_EMBARGO_EVENT_FROM_CASE wire activity), implementations MUST
       automatically apply the PEC RESET trigger to every participant, advancing
-      all consent states to NO_EMBARGO. No separate outbound wire activity is
+      all consent states to UNBOUND. No separate outbound wire activity is
       emitted for these per-participant PEC transitions; the cascade is an
       internal side-effect of the EM termination.
     rationale: >-
-      NO_EMBARGO is the correct state when no embargo is in scope (ADR-0048).
+      UNBOUND is the correct state when no embargo is in scope (ADR-0048, ADR-0091).
       Terminating the embargo removes it from scope for all participants, so
       their per-participant consent records must reflect that absence. The RESET
       cascade is performed by EmbargoLifecycle._cascade_pec_reset() inside
@@ -873,7 +873,7 @@ groups:
     verification: >-
       Inspection of vultron/core/services/embargo_lifecycle.py confirms that
       terminate_active_embargo() calls _cascade_pec_reset() and that all
-      participants reach NO_EMBARGO. Unit tests in
+      participants reach UNBOUND. Unit tests in
       test/core/services/test_embargo_lifecycle.py assert the cascade.
     relationships:
     - rel_type: derives_from

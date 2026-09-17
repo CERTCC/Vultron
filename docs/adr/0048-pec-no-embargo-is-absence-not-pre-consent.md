@@ -222,3 +222,6 @@ divergent write sites (CS-22-001) — including the seven that already call
   CM-18-007 (CM-18-001 and CM-18-003 amended)
 - Notes: `notes/participant-embargo-consent.md`,
   `notes/case-ledger-authority.md`
+- **Subsequent rename**: ADR-0091 (Issue #3277) renamed `PEC.NO_EMBARGO` to
+  `PEC.UNBOUND` and dropped the `EM.NO_EMBARGO = NONE` alias. The absence
+  semantics established here are unchanged; only the state identifier changed.

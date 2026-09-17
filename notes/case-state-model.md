@@ -278,7 +278,7 @@ The canonical Python implementation is in
 
 **`CaseStatus`** — participant-agnostic, one per case:
 
-- `em_state: EM` — Embargo management state (default `EM.NO_EMBARGO`)
+- `em_state: EM` — Embargo management state (default `EM.NONE`)
 - `pxa_state: CS_pxa` — Public/exploit/attack sub-state (default `CS_pxa.pxa`)
 - `context` — references the `VulnerabilityCase` this status belongs to
 
@@ -618,7 +618,7 @@ Case State (CS) is one of three interacting state machines:
   INVALID → ACCEPTED → DEFERRED → CLOSED` lifecycle. Tracked in
   `CaseParticipant.participant_status[].rm_state`.
 - **EM (Embargo Management)**: Shared across case participants; tracks
-  `NO_EMBARGO → PROPOSED → ACTIVE → REVISE → EXITED`. Tracked in
+  `NONE → PROPOSED → ACTIVE → REVISE → EXITED`. Tracked in
   `CaseStatus`. Note: `Accept` is an **activity type** that triggers the
   `PROPOSED → ACTIVE` (or `REVISE → ACTIVE`) transition — it is not itself a
   state. See `vultron/bt/embargo_management/states.py`.

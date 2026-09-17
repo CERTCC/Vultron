@@ -35,12 +35,12 @@ relevant_packages:
 The embargo lifecycle involves three interacting state machines:
 
 1. **EM** (`vultron/core/states/em.py`) — the case-level embargo state:
-   `NO_EMBARGO → PROPOSED → ACTIVE ↔ REVISE → EXITED`
+   `NONE → PROPOSED → ACTIVE ↔ REVISE → EXITED`
 2. **PEC** (`vultron/core/states/participant_embargo_consent.py`) — the
-   per-participant consent state, over `NO_EMBARGO`, `INVITED`, `SIGNATORY`,
-   `LAPSED`, `DECLINED`. `NO_EMBARGO` means *no embargo is in scope*, so
-   `ACCEPT`/`DECLINE` are valid directly from it — consent is not always
-   mediated by an invitation (ADR-0048, CM-18-003). See
+   per-participant consent state, over `UNBOUND`, `INVITED`, `SIGNATORY`,
+   `LAPSED`, `DECLINED`. `UNBOUND` means *the participant is not bound by any
+   embargo terms*, so `ACCEPT`/`DECLINE` are valid directly from it — consent
+   is not always mediated by an invitation (ADR-0048, ADR-0091, CM-18-003). See
    `notes/participant-embargo-consent.md` for the full transition table and
    the direct-assignment pitfall (CM-18-005).
 3. **`VulnerabilityCase.active_embargo`** — the pointer to the currently
@@ -180,9 +180,9 @@ The node is a Selector with two arms depending on the current EM state:
 - **EM ACTIVE or REVISE** → delegates to `terminate_embargo_bt` (ET + EM →
   EXITED). This is the cascade path for AC-2 of issue #1454.
 - **EM PROPOSED** → delegates to `reject_proposed_embargo_bt` (ER + EM →
-  NO_EMBARGO). EMB-16-001: continuing to negotiate a proposed embargo after
+  NONE). EMB-16-001: continuing to negotiate a proposed embargo after
   P/X/A is set is not viable; the proposal must be abandoned immediately.
-- **EM NO_EMBARGO or EXITED** → skip (nothing to tear down).
+- **EM NONE or EXITED** → skip (nothing to tear down).
 
 Prior to the fix in issue #1892, the skip condition used
 `case.active_embargo is None` to detect "no embargo", which silently bypassed
@@ -232,7 +232,7 @@ When implementing any code that transitions embargo state:
    `terminate_active_embargo()` per EMB-04-002.
 4. **PEC cascade is automatic**: `propose_embargo()` cascades `SIGNATORY →
    LAPSED` on `ACTIVE → REVISE`; `terminate_active_embargo()` resets all PEC
-   to `NO_EMBARGO`. Callers do not need to do this manually.
+   to `UNBOUND`. Callers do not need to do this manually.
 5. **OBSERVED mode** (received-side): pass
    `transition_mode=TransitionMode.OBSERVED` to sync local state with a remote
    assertion. All guards and PEC cascades are bypassed in OBSERVED mode.
@@ -240,7 +240,7 @@ When implementing any code that transitions embargo state:
    is PROPOSED, use `reject_proposed_embargo_bt` (not `terminate_embargo_bt`).
    `terminate_embargo_bt` requires an active embargo (`HasActiveEmbargoNode`
    guard); it fails when EM is PROPOSED. `reject_proposed_embargo_bt` calls
-   `reject_embargo_invite()` which handles PROPOSED → NO_EMBARGO correctly
+   `reject_embargo_invite()` which handles PROPOSED → NONE correctly
    (EMB-16-001).
 
 ---

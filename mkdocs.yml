@@ -353,6 +353,7 @@ nav:
       - 'Authority Is the CASE_MANAGER Role; Case Actor Is Role-Enactment Shorthand': 'adr/0088-consolidate-case-authority-determination.md'
       - 'One ParticipantStatus Writer, and Pre-Case RM State Belongs to ReportCaseLink': 'adr/0089-one-participant-status-writer.md'
       - 'A Blank Required Field Is Absence, and a Recognised Inline Object That Fails Validation Is Refused': 'adr/0090-blank-is-absent-and-inline-faults-are-refused.md'
+      - "Rename PEC NO_EMBARGO to UNBOUND; Drop EM.NO_EMBARGO Alias": 'adr/0091-rename-pec-no-embargo-to-unbound.md'
   - About:
     - What's New: 'about/whats_new.md'
     - Contributing: 'about/contributing.md'

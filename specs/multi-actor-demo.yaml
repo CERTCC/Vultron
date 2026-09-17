@@ -2789,7 +2789,7 @@ groups:
     the normal P-transition and closure sequence. This scenario is the first to
     exercise: (a) embargo proposal initiated after report submission (variation
     b), (b) the full EP→EA→ET arc (propose, activate, terminate without revision),
-    (c) PEC transitions from NO_EMBARGO through INVITED → SIGNATORY for all three
+    (c) PEC transitions from UNBOUND through INVITED → SIGNATORY for all three
     parties.
   specs:
   - id: DEMOMA-20-001

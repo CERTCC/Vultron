@@ -4,10 +4,10 @@ title: Participant Embargo Consent State Machine
 ---
 stateDiagram-v2
     direction LR
-    [*] --> NO_EMBARGO
-    NO_EMBARGO --> INVITED: EP — invite
-    NO_EMBARGO --> SIGNATORY: EA — accept
-    NO_EMBARGO --> DECLINED: ER — decline
+    [*] --> UNBOUND
+    UNBOUND --> INVITED: EP — invite
+    UNBOUND --> SIGNATORY: EA — accept
+    UNBOUND --> DECLINED: ER — decline
     INVITED --> SIGNATORY: EA — accept
     INVITED --> DECLINED: ER — decline
     INVITED --> DECLINED: Timer — pocket veto
