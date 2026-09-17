@@ -54,10 +54,15 @@ class InviteActorToCaseReceivedUseCase:
        ``CVDRole.CASE_MANAGER`` (CLP-10-006).  ``StoreActivityNode`` in the
        BT's effect nodes handles idempotent storage for this path.
 
-    Note: when the trigger had no CaseActor record (``_find_case_actor_id``
-    returned ``None``), the outbound Invite is sent without a ``cc:`` field and
-    no self-delivery occurs.  No ledger entry is committed in that case — this
-    is by design; without a CaseActor there is no canonical ledger (ADR-0021).
+    Note: when the trigger could not resolve the authority's address
+    (``_find_case_actor_id`` returned ``None``), the outbound Invite is sent
+    without a ``cc:`` field and no self-delivery occurs, so no ledger entry is
+    committed.  Under ADR-0088 that ``None`` means only "no resolvable address"
+    — a case with no CASE_MANAGER on its roster and no recorded
+    ``ReportCaseLink``.  It is *not* the older ADR-0021 reading, in which a
+    separate CaseActor entity could be absent while the role was held: there is
+    no such entity, and an ordinary participant enacting ``CVDRole.CASE_MANAGER``
+    is the authority and does resolve here (ARCH-24-004, CM-02-011).
 
     The ``sync_port`` kwarg is injected when ``INVITE_ACTOR_TO_CASE`` is in
     ``_SYNC_PORT_SEMANTICS`` so ``CommitCaseLedgerEntryNode`` can fan out

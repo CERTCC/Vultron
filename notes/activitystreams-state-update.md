@@ -35,9 +35,9 @@ as cached projections, not independent sources of truth.
 The canonical update path when an actor modifies case-related state is:
 
 ```text
-Actor → CaseActor inbox
-  → CaseActor updates canonical case state
-  → CaseActor broadcasts update to all CaseParticipants
+Actor → CASE_MANAGER inbox
+  → CASE_MANAGER updates canonical case state
+  → CASE_MANAGER broadcasts update to all CaseParticipants
   → Each participant updates its local copy
 ```
 

@@ -26,8 +26,8 @@ Scenarios are named by the sequence of actor roles involved:
 |----------|------|-------------|
 | FV | `vultron/demo/scenario/fv_demo.py` | Finder + Vendor; simple coordination |
 | FVV | `vultron/demo/scenario/fvv_demo.py` | Finder → Vendor1 → Vendor2; no coordinator; independent fix paths (implements #1265) |
-| FVCV-extension | `vultron/demo/scenario/fvcv_extension_demo.py` | V1 retains ownership; C is participant; C suggests V2 via ADR-0026 flow; Vendor1 approves; CaseActor invites V2 (implements #1535) |
-| FCCV-extension | `vultron/demo/scenario/fccv_extension_demo.py` | C1 retains ownership; C2 is coordinator participant; C2 suggests V via ADR-0026 flow; C1 approves; CaseActor invites V (implements #1620) |
+| FVCV-extension | `vultron/demo/scenario/fvcv_extension_demo.py` | V1 retains ownership; C is participant; C suggests V2 via ADR-0026 flow; Vendor1 approves; the CASE_MANAGER invites V2 (implements #1535) |
+| FCCV-extension | `vultron/demo/scenario/fccv_extension_demo.py` | C1 retains ownership; C2 is coordinator participant; C2 suggests V via ADR-0026 flow; C1 approves; the CASE_MANAGER invites V (implements #1620) |
 
 ## Deprecated / idea-mine only
 
@@ -156,7 +156,7 @@ The coordinator then invites two more vendors to the case with the
 existing embargo. They accept and become participants. One of the added
 vendors asks for the embargo to be extended, which triggers a discussion
 between the participants, and they agree to extend the embargo in
-principle. The coordinator triggers the case actor to propose a new
+principle. The coordinator triggers the CASE_MANAGER to propose a new
 embargo with the agreed to terms. Participants agree to the new embargo.
 They exchange a few more messages, the coordinator creates a CVE record
 and distributes it for refinement. Coordinator and Finder announce

@@ -152,7 +152,7 @@ implicitly** via hash-chain continuity.
 A participant that receives `Announce(CaseLedgerEntry)` whose `prev_log_hash`
 matches its local tail says nothing — the match *is* the acknowledgement. It
 speaks up only on a mismatch, sending `Reject(CaseLedgerEntry)`, whereupon the
-CaseActor replays all entries after the last accepted hash
+CASE_MANAGER replays all entries after the last accepted hash
 (`RejectLedgerEntryReceivedUseCase`, `vultron/core/use_cases/received/sync.py`).
 
 This is negative acknowledgement with gap-fill replay — structurally closer to

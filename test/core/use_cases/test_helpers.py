@@ -409,7 +409,12 @@ class TestFindCaseActorId:
     def test_link_path_takes_precedence(
         self, cm_dl: SqliteDataLayer, cm_participant: CaseParticipant
     ) -> None:
-        """A link with trusted_case_actor_id wins over the pending-link path."""
+        """A link with trusted_case_actor_id wins over the role path.
+
+        The two resolution paths disagree here on purpose: the link records
+        ``case-actor-from-link`` while the roster names ``cm_participant``, so
+        the assertion pins the ordering rather than just "something resolved".
+        """
         link_actor_id = "https://example.org/actors/case-actor-from-link"
         cm_dl.create(
             VultronReportCaseLink(

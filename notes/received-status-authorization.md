@@ -527,7 +527,7 @@ This node is wired **after** every EM lifecycle node in each BT tree factory
 The correct causal order is:
 
 ```text
-CaseActor mutates EM/PXA state
+CASE_MANAGER mutates EM/PXA state
   → writes CaseStatus to ledger (authoritative)
   → Announce(CaseLedgerEntry) syncs participants
 ```

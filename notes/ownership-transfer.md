@@ -58,16 +58,16 @@ Both activities MUST flow through the CASE_MANAGER.
 ```text
 Offering actor calls trigger: offer-case-ownership-transfer
   → SvcOfferCaseOwnershipTransferUseCase._prepare() sets:
-      self._actor_id      = case_actor_id      ← CaseActor sends (CM-24-001)
+      self._actor_id      = case_actor_id      ← CASE_MANAGER sends (CM-24-001)
       self._attributed_to = offering_actor_id  ← attribution (CM-24-002)
   → EmitOfferCaseOwnershipTransferNode
       constructs: Offer(VulnerabilityCase, target=transferee_id)
       actor:      case_actor_id                ← delegated-message contract
       attributed_to: offering_actor_id
       addressed:  to=[case_actor_id]           ← MUST (CM-21-005)
-      queued in:  CaseActor's outbox           ← CM-24-004
+      queued in:  CASE_MANAGER outbox              ← CM-24-004
 
-CaseActor inbox receives Offer
+CASE_MANAGER inbox receives Offer
   → OfferCaseOwnershipTransferReceivedUseCase:
       1. Records the Offer object (idempotent).
       2. Commits CaseLedgerEntry (offer-recorded).
@@ -90,9 +90,9 @@ Accepting actor calls trigger: accept-case-ownership-transfer
       addressed:  to=[case_actor_id]         ← MUST (CM-21-006)
       queued in:  accepting actor's outbox
 
-CaseActor inbox receives Accept
+CASE_MANAGER inbox receives Accept
   → AcceptCaseOwnershipTransferReceivedUseCase (guarded-commit pattern):
-      guard:  receiving_actor_id == case_actor_id (skip if not CaseActor)
+      guard:  receiving_actor_id == case_actor_id (skip if not the CASE_MANAGER)
       1. AcceptCaseOwnershipTransferNode applies role changes (CM-21-001–004).
       2. Commits CaseLedgerEntry (ownership-transferred).  ← CM-21-007
       3. Announce(CaseLedgerEntry) → all participants.
@@ -141,7 +141,7 @@ inside the BT:
 
 ```text
 Offer(VulnerabilityCase,
-    actor        = case_actor_id,       ← CaseActor is the sender
+    actor        = case_actor_id,       ← the CASE_MANAGER is the sender
     attributed_to = original_actor_id,  ← Vendor1's intent carried forward
     target       = transferee_id,
     to           = [transferee_id],     ← MUST be set (delivery requirement)
@@ -387,7 +387,7 @@ CASE_MANAGER writes the ledger entry:
 
 ```python
 if request.receiving_actor_id != case_actor_id:
-    return  # not CaseActor — skip commit
+    return  # not the CASE_MANAGER — skip commit
 ```
 
 See `notes/case-communication-model.md` § "Antipattern: Received-Side

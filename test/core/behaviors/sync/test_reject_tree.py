@@ -164,6 +164,14 @@ def test_reject_tree_updates_replication_state_and_replays_entries(
     sync_port.send_announce_log_entry.assert_called_once()
     call_kwargs = sync_port.send_announce_log_entry.call_args.kwargs
     assert call_kwargs["entry"].id_ == second_entry.id_
+    # The CASE_MANAGER and the executing actor are necessarily the same id here:
+    # the guarded announce gates on the *executing* actor holding the role, so a
+    # distinct manager would send the tree down its skip branch and there would
+    # be no call to inspect.  This assertion therefore cannot distinguish "the
+    # role was resolved" from "the executing actor was echoed" — that
+    # discrimination lives in the FindCaseActorNode unit tests
+    # (test/core/behaviors/sync/nodes/test_replay.py), where MANAGER_ACTOR_ID is
+    # deliberately neither the store owner nor the executing actor.
     assert call_kwargs["actor_id"] == OWNER_ACTOR_ID
     assert call_kwargs["to"] == [PEER_ID]
 

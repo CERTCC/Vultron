@@ -65,9 +65,9 @@ participant's consent state is `SIGNATORY`; `False` for all other states.
 ## Transition Table
 
 "Trigger source" column classifies each transition by what drives it:
-**Wire** = inbound wire activity (CaseActor observes the message and updates PEC);
+**Wire** = inbound wire activity (CASE_MANAGER observes the message and updates PEC);
 **Cascade** = automatic side-effect of a shared EM state change (no outbound PEC message);
-**Timer** = pocket-veto lapse enforced lazily by the CaseActor (CM-28-003, no wire message).
+**Timer** = pocket-veto lapse enforced lazily by the CASE_MANAGER (CM-28-003, no wire message).
 
 | From | Event | To | Trigger source |
 |---|---|---|---|
@@ -76,11 +76,11 @@ participant's consent state is `SIGNATORY`; `False` for all other states.
 | `NO_EMBARGO` | Refusal without a formal invitation | `DECLINED` | Wire: `ER` / `REJECT_INVITE_TO_EMBARGO_ON_CASE` |
 | `INVITED` | `Accept(Invite(Embargo))` received | `SIGNATORY` | Wire: `EA` / `ACCEPT_INVITE_TO_EMBARGO_ON_CASE` |
 | `INVITED` | `Reject(Invite(Embargo))` received | `DECLINED` | Wire: `ER` / `REJECT_INVITE_TO_EMBARGO_ON_CASE` |
-| `INVITED` | Invitation deadline passed (pocket veto) | `DECLINED` | Timer: no wire message; CaseActor authors ledger entry (CM-28-005) |
+| `INVITED` | Invitation deadline passed (pocket veto) | `DECLINED` | Timer: no wire message; CASE_MANAGER authors ledger entry (CM-28-005) |
 | `SIGNATORY` | Shared EM enters `REVISE` state | `LAPSED` | Cascade: `EV` side-effect; no outbound PEC message |
 | `LAPSED` | Re-invited for revised embargo terms | `INVITED` | Wire: `EP` / `INVITE_TO_EMBARGO_ON_CASE` |
 | `LAPSED` | Direct `Accept` of revised terms | `SIGNATORY` | Wire: `EA` / `ACCEPT_INVITE_TO_EMBARGO_ON_CASE` |
-| `LAPSED` | Re-acceptance deadline passed (pocket veto) | `DECLINED` | Timer: no wire message; CaseActor authors ledger entry (CM-28-005) |
+| `LAPSED` | Re-acceptance deadline passed (pocket veto) | `DECLINED` | Timer: no wire message; CASE_MANAGER authors ledger entry (CM-28-005) |
 | `DECLINED` | Case owner re-extends invitation | `INVITED` | Wire: `EP` / `INVITE_TO_EMBARGO_ON_CASE` |
 | Any | Shared EM exits (`EXITED`) | `NO_EMBARGO` | Cascade: `ET` side-effect; no outbound PEC message |
 
@@ -89,7 +89,7 @@ MSM coupling: `specs/message-semantics-mapping.yaml` MSM-07.
 
 ---
 
-## PEC Is Set by the CaseActor, Not Self-Reported
+## PEC Is Set by the CASE_MANAGER, Not Self-Reported
 
 *Spec: CM-28-003. MSM-07.*
 
@@ -97,18 +97,18 @@ This is the key distinction between PEC and the other per-participant state mach
 
 - **RM state** is self-reported by the participant (e.g., "I accept this report").
 - **VF/D state** is self-reported by the vendor/deployer (e.g., "I built the fix").
-- **PEC state** is set by the **CaseActor** (holding `CVDRole.CASE_MANAGER`) based on
+- **PEC state** is set by the **CASE_MANAGER** (holding `CVDRole.CASE_MANAGER`) based on
   *observed* participant behavior:
-  - The CaseActor observes an inbound `Accept(Invite(EmbargoEvent))` and records
+  - The CASE_MANAGER observes an inbound `Accept(Invite(EmbargoEvent))` and records
     `SIGNATORY` for the sending participant.
-  - The CaseActor observes a `Reject(...)` and records `DECLINED`.
-  - The CaseActor enforces the pocket-veto deadline and records `DECLINED` on lapse.
-  - The CaseActor cascades `LAPSED` to all SIGNATORY participants when EM enters
+  - The CASE_MANAGER observes a `Reject(...)` and records `DECLINED`.
+  - The CASE_MANAGER enforces the pocket-veto deadline and records `DECLINED` on lapse.
+  - The CASE_MANAGER cascades `LAPSED` to all SIGNATORY participants when EM enters
     `REVISE`, and `NO_EMBARGO` to all when EM exits.
 
 The participant never pushes their own PEC value. There is no "I am now SIGNATORY"
 self-report activity; the participant's intent is inferred from the Accept/Reject
-activity they sent, and the CaseActor records the conclusion. This is why PEC
+activity they sent, and the CASE_MANAGER records the conclusion. This is why PEC
 transitions do not require a dedicated wire message partition in the formal set —
 the signal is already in the EM wire activities.
 
@@ -125,7 +125,7 @@ consent must be preceded by an invitation — which is false:
 - A Finder who creates a case for their own finding and sets its default
   embargo has **no inviter**.
 - Participants added during case initialization (ADR-0041) already have an
-  embargo in scope from the moment they exist, because the CaseActor
+  embargo in scope from the moment they exist, because the CASE_MANAGER
   initializes the default embargo in the same BT sequence.
 - The reporter's consent is **implicit** in submitting the report (CM-14-005);
   no invitation is ever sent.
@@ -219,7 +219,7 @@ window is the fallback for invitations that omit it (EP-07-001, default 7 days).
 Do not introduce a second timeout notion — they will drift.
 
 - The timeout is a **configurable policy option** (per-case or global setting)
-- Enforcement authority is the CaseActor holding `CVDRole.CASE_MANAGER`
+- Enforcement authority is the CASE_MANAGER holding `CVDRole.CASE_MANAGER`
   (CM-28-003)
 - The deadline is stored on the **invited participant's** record
   (`CaseParticipant.invite_rsvp_deadline`), and `detect_and_apply_lapse()`
@@ -230,7 +230,7 @@ Do not introduce a second timeout notion — they will drift.
   `(end_time, now)` whenever PEC state is read or an inbound `Accept`/`Reject`
   is processed. No scheduler is required for correctness. The
   `EmbargoTimerExpired` Sentinel (#1893) is an optional proactive accelerator
-- When a lapse is detected, the CaseActor records the `DECLINE` transition and
+- When a lapse is detected, the CASE_MANAGER records the `DECLINE` transition and
   authors a ledger entry distinguishing it from an explicit refusal (CM-28-005)
 
 > **Provenance note**: the header of this file cites
@@ -290,7 +290,7 @@ being checked.
 The failure is silent in both directions, which is why it survived for a
 release: `OptionalLookupParticipantNode` is lenient by design and
 `UpdateParticipantEmbargoPecNode` returns SUCCESS when no participant is on the
-blackboard. CM-28-003 makes the CaseActor the enforcement authority for invite
+blackboard. CM-28-003 makes the CASE_MANAGER the enforcement authority for invite
 expiry, so deriving the invitee from the receiving actor puts the deadline on
 the enforcer's own record and disarms exactly the actor responsible for acting
 on it.
@@ -337,7 +337,7 @@ A lapsed invite records `DECLINED`, the same as an explicit refusal
 (`DECLINED → INVITED`), content gating, and meta-protocol delivery all treat
 them identically. The distinction is *provenance*, and the canonical ledger
 already carries it (CM-28-005): a `Reject(Invite)` entry versus a
-CaseActor-authored lapse entry. A `reason` field on `PecDimension` (which holds
+CASE_MANAGER-authored lapse entry. A `reason` field on `PecDimension` (which holds
 only `state`) would be a second source of truth able to drift from the ledger.
 Encoding it as a sixth state would put path history into the machine and
 re-expand the table ADR-0048 deliberately simplified.
@@ -453,9 +453,9 @@ in post-BT procedural code. See `specs/message-validation.yaml` MV-10-005.
   *Partially resolved*: EMB-17-004 establishes that case participation survives
   an embargo no-op, so removal is not automatic on the late-accept path. The
   general `DECLINED` case is still open.
-- Should the case actor notify the case owner when a participant's consent
+- Should the CASE_MANAGER notify the case owner when a participant's consent
   state transitions to `DECLINED` (via timeout or explicit rejection)?
-  *Partially resolved*: CM-28-005 requires a CaseActor-authored ledger entry for
+  *Partially resolved*: CM-28-005 requires a CASE_MANAGER-authored ledger entry for
   a lapse, which makes it visible to the owner via the ledger. Whether a
   *separate* notification activity is also warranted is still open.
 - ~~What is the default embargo invitation timeout?~~ **Resolved**: EP-07-001

@@ -556,7 +556,7 @@ identification and invitation step belongs in a **Sentinel capability**
    but not yet participants (e.g., via CPE/NVD lookup, SBOM analysis, or an
    LLM-backed evaluator)
 2. Fires `suggest-actor-to-case` for each candidate actor
-3. The downstream Offer → CaseActor → CaseOwner → Invite → Accept → Record
+3. The downstream Offer → CASE_MANAGER → CaseOwner → Invite → Accept → Record
    cascade handles the rest
 
 No inline tick-driven BT loop is required at the outer level. The

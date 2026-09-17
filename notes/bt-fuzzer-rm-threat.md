@@ -20,16 +20,16 @@ relevant_packages:
 
 > **IDEA-1836 (2026-07-30)**: In production, threat monitoring is **event-driven**,
 > not polling. An external **sentinel actor** (or any informed participant) detects
-> a threat signal and posts `Add(ParticipantStatus, CaseParticipant)` to the CaseActor
+> a threat signal and posts `Add(ParticipantStatus, CaseParticipant)` to the CASE_MANAGER
 > with the appropriate PXA state change (X=True for exploit, A=True for attacks,
-> P=True for public disclosure). The CaseActor's received-side BT
+> P=True for public disclosure). The CASE_MANAGER's received-side BT
 > (`add_participant_status_tree` → StatusAdoptionGate → self `Add(CaseStatus)` →
 > `add_case_status_tree` → EmbargoTeardownAuthorizationGate → ThreatTerminationBranchNode) handles
 > state canonicalization and embargo teardown.
 >
 > The four nodes catalogued below are valid fuzzer stubs for the **sentinel actor's
 > internal monitoring logic** — they model what the sentinel watches for. They are
-> not wired into the CaseActor's received-side pipeline.
+> not wired into the CASE_MANAGER's received-side pipeline.
 >
 > See `notes/received-status-authorization.md` and ADR-0046 for the production design.
 
@@ -63,7 +63,7 @@ the sentinel actor runs equivalent logic and posts the result as an
 - **New-arch cross-ref**: `vultron.demo.fuzzer.report_management.monitor_threats.MonitorAttacks`
 - **Call-out point shape**: Retriever — synchronous per-tick query to threat-intelligence feeds or SIEM/IDS telemetry; returns SUCCESS if active attacks are detected, FAILURE otherwise. The BT invokes this node on-demand each tick; it does not run independently or fire a trigger endpoint (see BT-18-006).
 - **Factory-fn placement**: Sentinel actor internal logic — not wired into
-  CaseActor received-side pipeline. Issue #1250 (polling factory) superseded
+  CASE_MANAGER received-side pipeline. Issue #1250 (polling factory) superseded
   by IDEA-1836 (event-driven sentinel pattern). The sentinel runs equivalent
   logic and posts `Add(ParticipantStatus)` with CS.A=True when attacks are
   detected.
@@ -86,7 +86,7 @@ the sentinel actor runs equivalent logic and posts the result as an
 - **New-arch cross-ref**: `vultron.demo.fuzzer.report_management.monitor_threats.MonitorExploits`
 - **Call-out point shape**: Retriever — synchronous per-tick query to exploit database feeds or threat-intelligence platforms; returns SUCCESS if a newly published exploit is found, FAILURE otherwise. The BT invokes this node on-demand each tick; it does not run independently or fire a trigger endpoint (see BT-18-006).
 - **Factory-fn placement**: Sentinel actor internal logic — not wired into
-  CaseActor received-side pipeline. Issue #1250 (polling factory) superseded
+  CASE_MANAGER received-side pipeline. Issue #1250 (polling factory) superseded
   by IDEA-1836 (event-driven sentinel pattern). The sentinel runs equivalent
   logic and posts `Add(ParticipantStatus)` with CS.X=True when an exploit
   is detected.
@@ -109,7 +109,7 @@ the sentinel actor runs equivalent logic and posts the result as an
 - **New-arch cross-ref**: `vultron.demo.fuzzer.report_management.monitor_threats.MonitorPublicReports`
 - **Call-out point shape**: Retriever — synchronous per-tick query to OSINT feeds, news/RSS sources, or social-media tracking APIs; returns SUCCESS if public disclosure evidence is found, FAILURE otherwise. The BT invokes this node on-demand each tick; it does not run independently or fire a trigger endpoint (see BT-18-006).
 - **Factory-fn placement**: Sentinel actor internal logic — not wired into
-  CaseActor received-side pipeline. Issue #1250 (polling factory) superseded
+  CASE_MANAGER received-side pipeline. Issue #1250 (polling factory) superseded
   by IDEA-1836 (event-driven sentinel pattern). The sentinel runs equivalent
   logic and posts `Add(ParticipantStatus)` with CS.P=True when public
   disclosure is detected.
@@ -131,6 +131,6 @@ the sentinel actor runs equivalent logic and posts the result as an
 - **Call-out point shape**: ProtocolInternal — terminal success placeholder; AlwaysSucceed fallback leaf that prevents MonitorThreats from failing when no active threats are detected in this monitoring cycle; no external input, output, or monitoring seam.
 - **Factory-fn placement**: N/A — ProtocolInternal terminal success leaf in
   the sentinel actor's internal `MonitorThreats` tree. Issue #1250 (polling
-  factory) superseded by IDEA-1836. No CaseActor received-side role.
+  factory) superseded by IDEA-1836. No CASE_MANAGER received-side role.
 
 ---

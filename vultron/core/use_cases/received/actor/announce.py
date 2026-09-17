@@ -23,8 +23,13 @@ from vultron.core.ports.case_persistence import (
 )
 from vultron.core.ports.sync_activity import SyncActivityPort
 from vultron.core.models._helpers import _as_id
+from vultron.core.participants.authority import (
+    has_local_participant_roster,
+    resolve_case_manager_id,
+)
 from vultron.core.predicates.roles import has_case_manager_role
 from vultron.core.use_cases._helpers import (
+    _established_link_actor_id,
     _find_case_actor_id,
     resolve_receiving_actor_id,
 )
@@ -56,6 +61,18 @@ def _announced_case_manager_id(case_obj: Any) -> str | None:
     Bare ID strings in the roster are skipped, not dereferenced: Vultron cannot
     resolve a URI in another actor's message (see ``notes/stub-objects.md``), and
     fetching one on the sender's say-so would hand it the choice of what we read.
+    In practice the ``Announce`` projection built by
+    ``TriggerActivityAdapter.announce_vulnerability_case`` carries the roster as
+    bare IDs (``read_case`` does not expand ``case_participants``), so on that
+    path this function answers ``None`` and the first-contact decision rests on
+    the ``ReportCaseLink`` anchor alone.  CP-09-004 mandates inline participants
+    for ``Create(VulnerabilityCase)``, not for this projection; #3274 tracks the
+    residual gap.
+
+    The **first** CASE_MANAGER named by the roster is decisive, even when it
+    carries no ``attributed_to``.  Skipping past it to a later self-declared
+    participant would let a sender bury the real authority behind an
+    unresolvable entry and be believed about the next one.
     """
     participants = getattr(case_obj, "case_participants", None) or []
     for participant in participants:
@@ -63,9 +80,7 @@ def _announced_case_manager_id(case_obj: Any) -> str | None:
             continue
         roles = getattr(participant, "case_roles", None) or []
         if has_case_manager_role(list(roles)):
-            actor_id = _as_id(getattr(participant, "attributed_to", None))
-            if actor_id:
-                return actor_id
+            return _as_id(getattr(participant, "attributed_to", None))
     return None
 
 
@@ -74,8 +89,11 @@ class _AuthorityVerdict(NamedTuple):
 
     #: The actor this receiver expects, or ``None`` when it has no opinion.
     expected: str | None
-    #: True when the case is already in the local store.
+    #: True when this receiver holds a locally-derived replica of the case.
     seeded: bool
+    #: True when *expected* came from a locally recorded ``ReportCaseLink``
+    #: rather than from the case's participant roster.  Only affects wording.
+    from_link: bool = False
 
     def admits(self, sender_id: str | None) -> bool:
         """Whether *sender_id* may seed or update the case."""
@@ -89,6 +107,15 @@ class _AuthorityVerdict(NamedTuple):
 
     @property
     def basis(self) -> str:
+        """Plain-language name for where :attr:`expected` came from.
+
+        Distinguishes the link anchor from the roster because the two can
+        disagree — after a CASE_MANAGER handoff (CP-08-003) a stale bootstrap
+        link still names the *old* authority, and reporting that as "the
+        resolved CASE_MANAGER" sends a reader looking in the wrong place.
+        """
+        if self.from_link:
+            return "bootstrap-recorded authority"
         return "resolved CASE_MANAGER" if self.seeded else "expected authority"
 
 
@@ -97,27 +124,46 @@ def _authority_verdict(
 ) -> _AuthorityVerdict:
     """Resolve who may seed or update *case_id* (PCR-07-003, PCR-03-001).
 
-    Whose account of "the authority" is trusted turns on whether we already hold
-    the case, and the two accounts must not be mixed — the sender supplies the
-    announced roster, so letting it speak about a case we already have would let
-    an imposter name itself the authority and overwrite the stored record
-    (``SeedAnnouncedCaseNode`` *saves* on the existing-case path).
+    Whose account of "the authority" is trusted turns on whether this receiver
+    has a replica of its own, and the two accounts must not be mixed — the
+    sender supplies the announced roster, so letting it speak about a case we
+    already hold would let an imposter name itself the authority and overwrite
+    the stored record (``SeedAnnouncedCaseNode`` *saves* on the existing-case
+    path).
 
-    The branch is on the **presence of the case**, deliberately not on whether a
-    lookup happened to answer. An already-seeded case can resolve ``None`` too —
-    its roster may name no CASE_MANAGER yet, or that participant may carry no
-    ``attributed_to`` — and treating that as "no local opinion" is what reopens
-    the overwrite. A seeded replica names its CASE_MANAGER from the moment it is
-    seeded (CP-09-004), so an unresolvable authority there is anomalous.
+    The branch is on **holding a locally-derived roster**
+    (:func:`~vultron.core.participants.authority.has_local_participant_roster`),
+    not on the case row being present and not on whether a lookup happened to
+    answer.  All three readings are wrong in a different direction:
+
+    - *Whether a lookup answered* is what reopens the overwrite.  A real replica
+      can resolve ``None`` — its roster may name no CASE_MANAGER, or that
+      participant may carry no ``attributed_to`` — and treating that as "no
+      local opinion" lets the announced roster decide (#3273 AC-4).
+    - *Whether the case row is present* fails the other way.  The FastAPI
+      ingress adapter pre-stores an inbound activity's nested objects before
+      dispatch, so on the HTTP path the row is always present — it is this very
+      announce, echoed back.  Reading it as local evidence made the legitimate
+      CASE_MANAGER's *first* announce fail closed against itself, which is the
+      bootstrap window CM-02-012 exists to rule out.
+    - *Holding a resolvable roster* is the signal that means what the guard
+      needs: this receiver has an opinion it derived itself.
 
     For a case we do not hold, the locally recorded anchor comes first: a
-    completed ``ReportCaseLink`` carries the address this receiver itself reached
-    the authority at during bootstrap (CBT-05-004), which the sender cannot
-    forge. Only with no local record at all does the announced roster get a say —
-    see :func:`_announced_case_manager_id` for what that can and cannot catch.
+    completed ``ReportCaseLink`` carries the address this receiver itself
+    reached the authority at during bootstrap (CBT-01-006), which the sender
+    cannot forge. Only with no local record at all does the announced roster get
+    a say — see :func:`_announced_case_manager_id` for what that can and cannot
+    catch.
     """
-    if dl.read_case(case_id) is not None:
-        return _AuthorityVerdict(_find_case_actor_id(dl, case_id), True)
+    local_case = dl.read_case(case_id)
+    if local_case is not None and has_local_participant_roster(local_case, dl):
+        # Pass the case we already read rather than resolving from the id again.
+        link_anchor = _established_link_actor_id(dl, case_id)
+        if link_anchor is not None:
+            return _AuthorityVerdict(link_anchor, True, from_link=True)
+        return _AuthorityVerdict(resolve_case_manager_id(local_case, dl), True)
+
     expected = _find_case_actor_id(dl, case_id) or _announced_case_manager_id(
         case_obj
     )

@@ -142,19 +142,93 @@ class TestAnnounceVulnerabilityCaseReceivedUseCase:
         assert isinstance(link, VultronReportCaseLink)
         assert link.case_id == _CASE_ID
 
-    def test_idempotent_when_case_already_exists(
-        self, dl, event, case, case_actor
-    ):
-        """MV-10-004: A second Announce for an existing case is a no-op."""
-        dl.create(case_actor)
-        dl.create(case)
+    @pytest.mark.spec("MV-10-004")
+    def test_redelivery_of_the_same_announce_is_stable(self, dl, make_payload):
+        """MV-10-004: receiving the same Announce twice leaves the same state.
 
-        # First call — case exists; should not fail or overwrite
+        Asserts *stability*, not merely that a row survives: the name is
+        unchanged and the participant records are neither duplicated nor
+        dropped.  The previous version of this test seeded a participant-less
+        case and asserted only ``dl.read(_CASE_ID) is not None`` — trivially
+        true because the test had just created the case itself, so it passed
+        whether the announce was applied, ignored, or rejected outright.
+        """
+        manager = as_CaseParticipant(
+            id_=_CASE_ACTOR_PARTICIPANT_ID,
+            context=_CASE_ID,
+            attributed_to=_CASE_ACTOR_ID,
+            case_roles=[CVDRole.CASE_MANAGER],
+        )
+        announced = as_VulnerabilityCase(id_=_CASE_ID, name="Announced Once")
+        announced.case_participants.append(manager)
+        event = make_payload(
+            announce_vulnerability_case_activity(
+                announced, actor=_CASE_ACTOR_ID, context=_CASE_ID
+            )
+        )
+
+        AnnounceVulnerabilityCaseReceivedUseCase(dl, event).execute()
+        first = cast(Any, dl.read(_CASE_ID))
+        assert first is not None
+        assert dl.read(_CASE_ACTOR_PARTICIPANT_ID) is not None
+        first_roster = sorted(str(p) for p in first.case_participants)
+
+        AnnounceVulnerabilityCaseReceivedUseCase(dl, event).execute()
+        second = cast(Any, dl.read(_CASE_ID))
+
+        assert second is not None
+        assert second.name == first.name == "Announced Once"
+        assert (
+            sorted(str(p) for p in second.case_participants) == first_roster
+        ), "Re-delivery must not duplicate or drop roster entries"
+        assert len(first_roster) == 1
+
+    @pytest.mark.spec("PCR-07-003")
+    @pytest.mark.spec("CM-02-012")
+    def test_ingress_prestored_case_row_is_not_local_evidence(
+        self, dl, case, make_payload
+    ):
+        """The authority's *first* Announce is admitted on the HTTP inbox path.
+
+        ``FastAPIIngressAdapter.parse`` pre-stores an inbound activity's nested
+        objects before dispatch, so by the time this use case runs the case row
+        is already present — it is this very announce, echoed back.  Treating
+        that row as local evidence made the legitimate CASE_MANAGER's first
+        announce fail closed against itself: the roster is still bare ID strings
+        that resolve to nothing, so no authority could be resolved and the
+        seeded branch demanded a match.  Nothing was then seeded, and because
+        the row stayed present every retry failed the same way.
+
+        The discriminator is a *locally-derived roster*, not row presence, so
+        this shape must be treated as first contact and admitted.
+        """
+        manager = as_CaseParticipant(
+            id_=_CASE_ACTOR_PARTICIPANT_ID,
+            context=_CASE_ID,
+            attributed_to=_CASE_ACTOR_ID,
+            case_roles=[CVDRole.CASE_MANAGER],
+        )
+        announced = as_VulnerabilityCase(id_=_CASE_ID, name="Announced")
+        announced.case_participants.append(manager)
+
+        # The ingress pre-store shape: the row exists, but its roster is bare
+        # ID references with no backing participant records.
+        echoed = as_VulnerabilityCase(id_=_CASE_ID, name="Announced")
+        echoed.case_participants.append(_CASE_ACTOR_PARTICIPANT_ID)
+        dl.create(echoed)
+        assert dl.read(_CASE_ACTOR_PARTICIPANT_ID) is None
+
+        event = make_payload(
+            announce_vulnerability_case_activity(
+                announced, actor=_CASE_ACTOR_ID, context=_CASE_ID
+            )
+        )
         AnnounceVulnerabilityCaseReceivedUseCase(dl, event).execute()
 
-        # Confirm the case is still there and unchanged
-        result = dl.read(_CASE_ID)
-        assert result is not None
+        assert dl.read(_CASE_ACTOR_PARTICIPANT_ID) is not None, (
+            "The authority's own first Announce must seed the replica;"
+            " an ingress-echoed row is not evidence about the sender"
+        )
 
     def test_missing_activity_skips_gracefully(self, dl, event):
         """No-op (with a warning log) when event.activity is None."""
@@ -298,6 +372,45 @@ class TestAnnounceVulnerabilityCaseReceivedUseCase:
 
         result = cast(Any, dl.read(_CASE_ID))
         assert result.name == "Seeded"
+
+    @pytest.mark.spec("PCR-07-003")
+    def test_first_announced_case_manager_is_decisive_even_when_unresolvable(
+        self, dl, make_payload
+    ):
+        """A sender cannot bury the real authority behind an unresolvable entry.
+
+        ``_announced_case_manager_id`` stops at the *first* participant holding
+        CASE_MANAGER, even when that entry carries no ``attributed_to``.  Walking
+        past it to the next self-declared CASE_MANAGER would let a sender pad the
+        roster with a role-holding stub and then be believed about the entry it
+        controls.  Here the announced roster names an anonymous CASE_MANAGER
+        first and the sender second: the anonymous one wins, resolves to
+        ``None``, and — with no local record at all — first contact stays
+        permissive rather than crediting the sender's own claim.
+        """
+        anonymous_manager = as_CaseParticipant(
+            id_=f"{_CASE_ID}/participants/anon",
+            context=_CASE_ID,
+            case_roles=[CVDRole.CASE_MANAGER],
+        )
+        self_claim = as_CaseParticipant(
+            id_=f"{_CASE_ID}/participants/imposter",
+            context=_CASE_ID,
+            attributed_to=_IMPOSTER_ID,
+            case_roles=[CVDRole.CASE_MANAGER],
+        )
+        announced = as_VulnerabilityCase(id_=_CASE_ID, name="Padded Roster")
+        announced.case_participants.append(anonymous_manager)
+        announced.case_participants.append(self_claim)
+
+        from vultron.core.use_cases.received.actor.announce import (
+            _announced_case_manager_id,
+        )
+
+        assert _announced_case_manager_id(announced) is None, (
+            "The first CASE_MANAGER must be decisive; walking past it credits"
+            " a later self-declared entry"
+        )
 
     @pytest.mark.spec("PCR-07-003")
     def test_seeded_case_with_no_resolvable_manager_still_rejects_an_imposter(

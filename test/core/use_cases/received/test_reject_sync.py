@@ -21,6 +21,7 @@ from unittest.mock import MagicMock
 
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
+from vultron.core.models._helpers import _as_id
 from vultron.core.models.case_ledger import HashChainLedgerRecord
 from vultron.core.models.case_ledger_entry import VultronCaseLedgerEntry
 from vultron.core.models.events import MessageSemantics
@@ -385,3 +386,18 @@ class TestRejectLedgerEntryReceivedUseCase:
         # announce saved to DataLayer; outbox queue uses actor-scoped table.
         announces = dl.by_type("Announce")
         assert len(announces) == 1
+        # The count alone does not test the role resolution this test is named
+        # for — one Announce is queued whichever sender `FindCaseActorNode`
+        # publishes.  `CASE_ACTOR_URI` is deliberately distinct from both
+        # `CASE_URI` and the store's own actor, so asserting the sender is what
+        # pins the resolution: publishing the executing actor instead fails here.
+        queued = list(
+            announces.values() if isinstance(announces, dict) else announces
+        )
+        record = queued[0]
+        sender = (
+            record.get("actor")
+            if isinstance(record, dict)
+            else getattr(record, "actor", None)
+        )
+        assert _as_id(sender) == CASE_ACTOR_URI

@@ -3,10 +3,15 @@ title: Participant Case Replica — Implementation Notes
 status: active
 description: "Design notes for participant case replicas: per-actor case copies and synchronization model."
 related_specs:
+  - specs/architecture.yaml
   - specs/participant-case-replica.yaml
   - specs/case-bootstrap-trust.yaml
   - specs/case-management.yaml
   - specs/sync-ledger-replication.yaml
+related_notes:
+  - notes/case-communication-model.md
+  - notes/case-ledger-authority.md
+  - notes/sync-ledger-replication.md
 relevant_packages:
   - vultron/core/behaviors/case
   - vultron/core/models
@@ -56,8 +61,10 @@ Participant Actor (single inbox)
 
 There is one externally-addressable Actor. Case-scoped routing is fully
 internal. The only entity that may update participant replicas is whoever holds
-`CVDRole.CASE_MANAGER` for the case (in the prototype, the "CaseActor"). That is
-a role a container wears, one per container, **not** one per case
+`CVDRole.CASE_MANAGER` for the case. In the prototype that role is enacted by
+an actor labelled "CaseActor" — a cosmetic identity, never a synonym for the
+authority and never something to match on (ADR-0088). It is a role a container
+wears, one per container, **not** one per case
 (CP-08-002/003, #1872): the enacting actor's identity is the stable
 `{case_actor_service_url}/actors/case-actor`. Code MUST gate on the role rather
 than compare `actor_id` against a computed `case_actor_id` (CM-24-004).
@@ -66,13 +73,13 @@ than compare `actor_id` against a computed `case_actor_id` (CM-24-004).
 Case Lifecycle:
   Case created
     └── Case creator sends Create(VulnerabilityCase) to original report submitter
-          └── Submitter validates report linkage + CaseActor identity
-          └── Trusted CaseActor sends Announce(VulnerabilityCase) updates
+          └── Submitter validates report linkage + CASE_MANAGER identity
+          └── Trusted CASE_MANAGER sends Announce(VulnerabilityCase) updates
 
   New participant invited and accepts
     └── Case creator sends InviteActorToCase
-          └── Invitee validates invite + CaseActor identity
-          └── CaseActor sends Announce(VulnerabilityCase) to new participant
+          └── Invitee validates invite + CASE_MANAGER identity
+          └── CASE_MANAGER sends Announce(VulnerabilityCase) to new participant
                 └── New participant creates local replica
 ```
 
@@ -107,10 +114,17 @@ case through one of two paths:
    pending-expectation record associating the CASE_MANAGER identity with the
    incoming case ID.
 
-**Implementation note**: the `_find_case_actor_id` helper returns `None`
-only when NO local CASE_MANAGER record exists *and* there is no pending-expectation
-record for that case. When `case_actor_id is None`, the handler should check for
-a pending trust record before creating the replica — not accept blindly.
+**Implementation note**: `_find_case_actor_id` resolves an *address*, from a
+completed `ReportCaseLink` anchor or else the `CVDRole.CASE_MANAGER` role-holder.
+It returns `None` only when neither answers. The pending-expectation path it once
+carried was removed by ADR-0088: it existed to cover a window the URL-shape gate
+created, and once the role answers unconditionally the replica's own roster covers
+that window (CP-09-004).
+
+`None` from it means "no resolvable address", never "no authority" and never
+"accept blindly" — the recognition decision is `_authority_verdict`'s, which fails
+closed for a case whose roster the receiver already holds. See the Layer and
+Import Rules section below.
 
 **Spec reference**: `PCR-03-004`.
 
@@ -137,13 +151,25 @@ class AnnounceVulnerabilityCaseReceivedUseCase:
             )
             return
 
-        # PCR-03-001: only accept updates from the CASE_MANAGER for this case
-        case_actor_id = _resolve_case_actor(case.id_, self._dl)
-        if case_actor_id is not None and actor_id != case_actor_id:
+        # PCR-03-001 / PCR-07-003: only the CASE_MANAGER may seed or update.
+        #
+        # Note the shape. An earlier version of this guard read
+        # `if case_actor_id is not None and actor_id != case_actor_id`, which is
+        # silently permissive: an unresolvable authority meant "accept". That was
+        # tolerable only while the resolver was gated on the `case-actor` URL
+        # shape and so answered `None` for most cases. Once ADR-0088 made it
+        # answer from the role, the same `None` became reachable for a *seeded*
+        # replica — a roster naming no CASE_MANAGER, or one whose participant
+        # carries no `attributed_to` — and accepting there overwrote the stored
+        # record (#3273).
+        verdict = _authority_verdict(self._dl, case.id_, case)
+        if not verdict.admits(actor_id):
             logger.warning(
-                "announce_case: actor '%s' is not the CASE_MANAGER for case '%s'"
-                " — update rejected (PCR-03-001)",
+                "announce_case: actor '%s' is not the %s ('%s') for case '%s'"
+                " — rejected (PCR-03-001, PCR-07-003)",
                 actor_id,
+                verdict.basis,
+                verdict.expected,
                 case.id_,
             )
             return
@@ -160,7 +186,7 @@ class AnnounceVulnerabilityCaseReceivedUseCase:
                 "announce_case: updating local replica for case '%s'",
                 case.id_,
             )
-            # Merge authoritative fields from CaseActor snapshot
+            # Merge authoritative fields from the CASE_MANAGER's snapshot
             self._dl.save(case)
 ```
 
@@ -297,14 +323,26 @@ against a different actor's case replica, producing incorrect state.
 ## Layer and Import Rules
 
 - `AnnounceVulnerabilityCaseReceivedUseCase` lives in
-  `vultron/core/use_cases/received/case.py`.
-- The CASE_MANAGER authority check reads the case's participant roster via
-  `resolve_case_manager_id` (`vultron/core/participants/authority.py`) — the
-  single neutral resolver (ADR-0088, ARCH-24-001). It does **not** scan for a
-  `Service` object whose `context` is the case id; that hosting signal was
-  retired by ARCH-24-004, and it answered `None` during the bootstrap window
-  before any `Service` carries `context` (CM-02-012). The lookup is idempotent
-  and safe to call multiple times.
+  `vultron/core/use_cases/received/actor/announce.py`.
+- The recognition check (`_authority_verdict`) decides whether an inbound
+  `Announce(VulnerabilityCase)` may seed or update the local replica. It does
+  **not** scan for a `Service` object whose `context` is the case id; that
+  hosting signal was retired by ARCH-24-004, and it answered `None` during the
+  bootstrap window before any `Service` carries `context` (CM-02-012).
+  Two things about its shape are load-bearing:
+  - It branches on whether the receiver holds a **locally-derived roster**
+      (`has_local_participant_roster`), not on whether the case row is present.
+      The FastAPI ingress adapter pre-stores an inbound activity's nested objects
+      before dispatch, so on the HTTP path the row is always present — it is the
+      announce itself, echoed back — and reading it as local evidence made the
+      legitimate CASE_MANAGER's first announce fail closed against itself.
+  - With a local roster it fails closed, resolving the expected sender from a
+      completed `ReportCaseLink` anchor or else `resolve_case_manager_id`
+      (`vultron/core/participants/authority.py`, ADR-0088, ARCH-24-001). Without
+      one it treats the message as first contact and stays permissive, because
+      accepting is the point of seeding. The announced payload's own roster is
+      consulted only in that second case, and never for a case already held.
+  The lookup is idempotent and safe to call multiple times.
 - The late-joiner bootstrap node belongs in
   `vultron/core/behaviors/case/` as part of the invite-acceptance BT,
   not in the use-case `execute()` body.
@@ -316,7 +354,7 @@ against a different actor's case replica, producing incorrect state.
 ## Testing Patterns
 
 ```python
-# PCR-07-001: Announce from CaseActor creates local replica
+# PCR-07-001: Announce from the CASE_MANAGER creates local replica
 def test_announce_creates_replica(dl, case_actor, new_case):
     activity = AnnounceVulnerabilityCaseActivity(
         actor=case_actor.id_,

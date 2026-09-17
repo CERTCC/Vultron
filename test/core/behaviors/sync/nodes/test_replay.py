@@ -104,6 +104,14 @@ def test_send_missing_entries_node_replays_entries_after_divergence(
     assert kwargs["to"] == [PARTICIPANT_ACTOR_ID]
 
 
+#: A CASE_MANAGER that is deliberately *not* the store owner or the executing
+#: actor.  When all three collapse onto one id, publishing ``self.actor_id``
+#: instead of resolving the role passes every assertion here — verified by
+#: mutation, 34 tests stayed green — so the role resolution ADR-0088 introduces
+#: would be untested.
+MANAGER_ACTOR_ID = "https://example.org/actors/the-case-manager"
+
+
 def _seed_case_with_manager(datalayer, manager_actor_id: str) -> None:
     """Seed a case whose CASE_MANAGER is *manager_actor_id*."""
     participant = CaseParticipant(
@@ -132,7 +140,7 @@ class TestFindCaseActorNode:
     def test_resolves_the_case_manager_and_publishes_both_outputs(
         self, bridge, datalayer
     ):
-        _seed_case_with_manager(datalayer, OWNER_ACTOR_ID)
+        _seed_case_with_manager(datalayer, MANAGER_ACTOR_ID)
         event = _make_reject_event(tail_hash="")
 
         result = bridge.execute_with_setup(
@@ -143,7 +151,7 @@ class TestFindCaseActorNode:
 
         assert result.status == Status.SUCCESS
         storage = py_trees.blackboard.Blackboard.storage
-        assert storage.get("/case_actor_id") == OWNER_ACTOR_ID
+        assert storage.get("/case_actor_id") == MANAGER_ACTOR_ID
         # The role gate downstream reads this; without it the guard's selector
         # silently took its skip branch and the announce never fired.
         assert storage.get("/case_id") == CASE_ID
@@ -157,9 +165,9 @@ class TestFindCaseActorNode:
         ADR-0041 writes the CaseActor ``Service`` with no ``context``, so a
         ``context == case_id`` scan found nothing here and the node failed.
         """
-        _seed_case_with_manager(datalayer, OWNER_ACTOR_ID)
+        _seed_case_with_manager(datalayer, MANAGER_ACTOR_ID)
         datalayer.create(
-            VultronCaseActor(id_=OWNER_ACTOR_ID, name="CaseActor")
+            VultronCaseActor(id_=MANAGER_ACTOR_ID, name="CaseActor")
         )
         event = _make_reject_event(tail_hash="")
 
@@ -172,7 +180,7 @@ class TestFindCaseActorNode:
         assert result.status == Status.SUCCESS
         assert (
             py_trees.blackboard.Blackboard.storage.get("/case_actor_id")
-            == OWNER_ACTOR_ID
+            == MANAGER_ACTOR_ID
         )
 
     @pytest.mark.spec("ARCH-24-004")
@@ -205,10 +213,21 @@ class TestFindCaseActorNode:
         )
 
         assert result.status == Status.FAILURE
+        # The node has three FAILURE paths and a bare status assertion cannot
+        # tell them apart: deleting the case seeding above still left this test
+        # green, satisfied by the case-absent branch instead of the branch it
+        # names.  `_require_case` sets a canonical feedback_message; the
+        # no-CASE_MANAGER path does not, so its absence pins the right branch.
+        assert "not found in DataLayer" not in result.feedback_message
 
     def test_fails_when_the_case_is_absent_from_this_store(
         self, bridge, datalayer
     ):
+        """Regime 1 (ADR-0087): a peer asking us to replay a log we do not hold.
+
+        Distinguished from the no-CASE_MANAGER failure by the canonical
+        `_require_case` feedback message.
+        """
         event = _make_reject_event(tail_hash="")
 
         result = bridge.execute_with_setup(
@@ -218,6 +237,7 @@ class TestFindCaseActorNode:
         )
 
         assert result.status == Status.FAILURE
+        assert "not found in DataLayer" in result.feedback_message
 
 
 @pytest.mark.spec("SYNC-03-002")

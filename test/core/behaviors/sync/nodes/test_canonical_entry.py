@@ -90,6 +90,43 @@ def test_validate_canonical_entry_rejects_case_actor_as_snapshot_actor_for_non_c
 
 
 @pytest.mark.spec("CLP-07-003")
+@pytest.mark.xfail(
+    strict=True,
+    reason=(
+        "Known CLP-07-003 false positive, deferred to #3282 (fix planned in"
+        " #3301, which moves the actor-identity check to the receive pipeline)."
+        " A coordinator that manages its own case is the CASE_MANAGER *and* an"
+        " ordinary participant, so its own note is refused as a substitution."
+        " strict=True on purpose: this test starts failing as XPASS the moment"
+        " the fix lands, which is the prompt to delete the marker."
+    ),
+)
+def test_role_holding_participant_may_assert_on_a_case_it_manages():
+    """CLP-07-003 refuses a legitimate self-assertion by the role-holder.
+
+    ADR-0088 made an ordinary participant enacting CASE_MANAGER resolvable as the
+    authority, which turned on a predicate that had been dormant whenever
+    ``_find_case_actor_id`` answered ``None``.  The predicate assumes the
+    authority and the participants are disjoint sets; CLP-10-001 says the
+    opposite — "the CaseActor is a participant with extra duties; it is not
+    excluded".
+
+    Pinned rather than left implied so the regression cannot be lost between this
+    PR and #3301: nothing else in the suite exercises asserter == role-holder for
+    a non-case-authored signature, because the two tests that used to were
+    re-shaped to a different-asserter flow.
+    """
+    _validate_canonical_entry(
+        case_id=CASE_ID,
+        actor_id=PARTICIPANT_ACTOR_ID,
+        case_actor_id=PARTICIPANT_ACTOR_ID,
+        disposition="recorded",
+        payload_snapshot=_note_snapshot_with_actor(PARTICIPANT_ACTOR_ID),
+        event_type="note_added",
+    )
+
+
+@pytest.mark.spec("CLP-07-003")
 def test_validate_canonical_entry_allows_participant_actor_for_non_case_authored():
     """CLP-07-003: participant actor is valid for non-CaseActor-authored signatures."""
     _validate_canonical_entry(

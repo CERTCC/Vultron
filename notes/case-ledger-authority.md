@@ -361,13 +361,13 @@ The decision is captured at the ADR level in
 A subtle but important distinction:
 
 ```text
-Vendor sends:  Add(ParticipantStatus, actor=vendor) → CaseActor
-CaseActor commits: CaseLedgerEntry(
+Vendor sends:  Add(ParticipantStatus, actor=vendor) → CASE_MANAGER
+CASE_MANAGER commits: CaseLedgerEntry(
   log_index=N,
   recording_actor=case_actor,
   payloadSnapshot=Add(ParticipantStatus, actor=vendor),  ← verbatim assertion
 )
-CaseActor broadcasts: Announce(
+CASE_MANAGER broadcasts: Announce(
   actor=case_actor,                                       ← envelope actor
   object=CaseLedgerEntry(...),
 ) → all participants
@@ -516,8 +516,9 @@ test for commits that already exists for dispatch.
 Some use-case classes are invoked more than once for the same logical
 activity, with different receiving actors. The clearest example is
 `ack_report` in the two/three-actor demo: the same `AckReportReceivedUseCase`
-runs once with the vendor (case actor) as receiver, and once with the finder
-as a relay target. Only the case-actor invocation should commit.
+runs once with the vendor (which holds `CVDRole.CASE_MANAGER`) as receiver, and
+once with the finder as a relay target. Only the CASE_MANAGER's invocation
+should commit.
 
 This is structurally the same bug shape that produced the original
 hash-chain fork in issue #923 — a use case authored or committing on behalf

@@ -1344,8 +1344,14 @@ groups:
       real CaseActor fails its own hosting test and would take the participant arm
       on its own ledger. Role membership is stable from replica-seed onward.
     verification: >-
-      A ratchet asserts no protocol-logic module branches on `is_case_actor_identity`
-      or on the `case-actor` URL substring.
+      `test/architecture/test_role_authority_resolver.py` ratchets both halves:
+      `test_no_protocol_logic_branches_on_the_case_actor_url` asserts no
+      protocol-logic module compares, shape-tests or match-cases on the
+      `case-actor` substring, the segment constant, or the identity
+      `case_actor_identity()` builds, and
+      `test_no_protocol_logic_resolves_authority_by_service_hosting` asserts none
+      resolves the authority by scanning `Service` objects for a hosted case
+      `context`. Each has a self-test that fires it on a known-bad snippet.
     relationships:
     - rel_type: refines
       spec_id: ARCH-24-001
@@ -1364,6 +1370,14 @@ groups:
       delegated-emit fall-through from minting a canonical index in a store that is
       not the log's home (which would fork the hash chain, #2626). Authority (role)
       and "where the write may land" (store) are different jobs.
+    verification: >-
+      Inspection of `vultron/core/behaviors/sync/nodes/ledger_authority.py` and
+      `vultron/core/behaviors/store_scope.py` confirms both are documented as
+      store-consistency / anti-fork guards that never ask whether the executing
+      actor is the authority, and that the role question is answered only by
+      `CheckIsCaseManagerNode` via the single resolver (ARCH-24-001). The
+      separation is structural rather than ratcheted: the guard reads a store
+      name and never a role, so there is no role read to assert the absence of.
     relationships:
     - rel_type: depends_on
       spec_id: ARCH-24-001
