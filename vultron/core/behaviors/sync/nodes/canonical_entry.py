@@ -307,8 +307,6 @@ def _validate_entry_timestamps(
 def _validate_canonical_entry(
     *,
     case_id: str,
-    actor_id: str | None,
-    case_actor_id: str | None = None,
     disposition: str,
     payload_snapshot: dict[str, Any],
     event_type: str,
@@ -349,19 +347,6 @@ def _validate_canonical_entry(
         raise VultronCanonicalEntryError(
             f"{event_type}: payloadSnapshot type/object pair {signature!r} "
             "is not canonical"
-        )
-
-    # CLP-07-003: only CaseActor-authored activities may have the CaseActor as
-    # snapshot actor; all participant-originated activities must have a
-    # participant (non-CaseActor) actor.
-    if (
-        case_actor_id
-        and snapshot_actor == case_actor_id
-        and signature not in _CASE_AUTHORED_SIGNATURES
-    ):
-        raise VultronCanonicalEntryError(
-            f"{event_type}: payloadSnapshot.actor must not be the CaseActor"
-            f" for non-case-authored entries (signature={signature!r})"
         )
 
     context = payload_snapshot.get("context")

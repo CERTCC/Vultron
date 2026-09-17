@@ -185,6 +185,10 @@ def create_close_case_received_tree(
                 case_id=case_id, name="ReconstructChainTail"
             ),
             CreateLogEntryNode(
+                # CLP-07-003: actor is sourced from sender_actor_id, which is
+                # extracted from the trusted inbound Leave by the framework —
+                # not from the unverified payload — so the identity invariant
+                # holds without going through CommitCaseLedgerEntryNode.
                 case_id=case_id,
                 object_id=activity_id,
                 event_type="case_fully_closed",

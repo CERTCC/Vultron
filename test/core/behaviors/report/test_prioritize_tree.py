@@ -88,7 +88,7 @@ def _make_engage_request(
         semantic_type=MessageSemantics.ENGAGE_CASE,
         activity=VultronActivity(
             type_="Announce",
-            actor=f"{case.id_}/actor",
+            actor=actor_id,
             object_=VultronCase(id_=case.id_),
             context=case.id_,
         ),
@@ -105,7 +105,7 @@ def _make_defer_request(
         semantic_type=MessageSemantics.DEFER_CASE,
         activity=VultronActivity(
             type_="Announce",
-            actor=f"{case.id_}/actor",
+            actor=actor_id,
             object_=VultronCase(id_=case.id_),
             context=case.id_,
         ),
