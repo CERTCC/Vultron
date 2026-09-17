@@ -470,7 +470,7 @@ using `conditions.py` and `transitions.py` as state machine logic reference.
 
 **Embargo management** (`vultron/bt/embargo_management/`): Contains
 `behaviors.py`, `conditions.py`, `states.py`, `transitions.py`. The embargo
-state machine (EM: NO_EMBARGO → PROPOSED → ACTIVE → REVISE → EXITED) maps
+state machine (EM: NONE → PROPOSED → ACTIVE → REVISE → EXITED) maps
 directly to the handler sequence for the establish_embargo workflow. Note:
 `Accept` is an **activity type** that triggers `PROPOSED → ACTIVE` (or
 `REVISE → ACTIVE`) — it is not a state. See
