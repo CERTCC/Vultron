@@ -97,6 +97,7 @@ that the cost of a full scan is justified on every invocation.
    gh issue list \
      --repo CERTCC/Vultron \
      --state open \
+     --limit 1000 \
      --label concern \
      --json number,title,body
    ```text

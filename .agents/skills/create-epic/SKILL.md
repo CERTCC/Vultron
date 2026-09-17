@@ -32,7 +32,7 @@ Search for open Epics with similar titles to avoid duplicates:
 
 ```bash
 gh issue list --repo CERTCC/Vultron \
-  --state open \
+  --state open --limit 1000 \
   --json number,title,issueType \
   | python3 -c "
 import json, sys
