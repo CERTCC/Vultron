@@ -107,6 +107,49 @@ if manager_id is None:
 
 ---
 
+## Instrument a Permissive Fallback and Count What It Absorbs Before Deciding It Is Load-Bearing
+
+When a bare `except Exception`, an `or <default>`, a `return None` on a failed
+lookup, or any silent-degradation branch blocks a fix, do **not** reason about
+whether it is load-bearing from the code and the commit message. That is a
+coin-flip: remove a real compatibility shim and you break callers; keep a
+bug-mask and you leave a silent mis-routing defect in place. Instead measure it.
+
+Instrument the branch to record `(class, keys, error)` for everything that
+reaches it, run the **full** suite, and group the results by cause. The output is
+a *cause count*, which answers three questions at once: is the tolerated input
+legitimate, how many distinct cases exist, and does anything have to be fixed
+*before* the tolerance can be removed (removing it first would turn every
+currently-absorbed case into a hard failure). Interpreting the count:
+
+- **One cause** — the fallback is almost certainly masking a single bug. Removing
+  the tolerance is the fix, not a risk.
+- **Many causes** — it is a genuine compatibility surface. It deserves a comment
+  explaining what it absorbs, or an ADR if the blast radius is repo-wide.
+
+This is cheap — one instrumented run — and it also reveals the *order* a fix must
+be applied in. In ISSUE-3217 the `parser.py` fallback fired 52 times with exactly
+one cause (a wire/core layering fault, ARCH-22-001, flattening every inline actor
+to a bare `as_Link`), which showed both that removal was correct and that wire
+type resolution had to be restricted first.
+
+**Watch-claim (two witnesses, not yet a rule):** undocumented defensive code is
+disproportionately likely to be masking a defect rather than handling a real
+case — the absence of a rationale is itself the signal, because a genuine
+compatibility surface tends to get explained. Witnesses so far: ISSUE-3217
+(`vultron/wire/as2/parser.py`, one cause) and ISSUE-3192
+(`vultron/core/behaviors/sync/nodes/replay.py`, `_find_case_actor` returned an
+arbitrary `Service` on a failed lookup, publishing a case-actor address belonging
+to a *different case*).
+
+The enforcement of this theme is tracked by Epic #3329 (fail-loud defensive code)
+and #3325 (eradicate broad `except Exception` in `vultron/core/`, ratchet
+CS-23-001); #3325's AC-6 names this instrument-and-count method as the way to
+resolve a genuinely-uncertain catch. Promote the watch-claim to a normative rule
+only once a handful more instances confirm it (BW-07-005).
+
+---
+
 ## Canonical Helper Locations
 
 Layer-neutral utilities with no dependencies above `models/` belong in
