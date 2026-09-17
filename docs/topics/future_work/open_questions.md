@@ -44,6 +44,8 @@ They also apply to the obligations of a production deployment that the prototype
 
 {% include-markdown "../../reference/vultron-spec/_oq-embargo-termination-authority.md" %}
 
+{% include-markdown "../../reference/vultron-spec/_oq-pec-unbound-declined-collapse.md" %}
+
 ---
 
 ## History and delivery
