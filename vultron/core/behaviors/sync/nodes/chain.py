@@ -300,14 +300,6 @@ class CreateLogEntryNode(DataLayerActionWithPorts):
             return f
         assert self.datalayer is not None
 
-        # One scan of this case's recorded entries, shared by the
-        # claimed-timestamp guard's predecessor lookup and the idempotency
-        # check below.  ``list_objects`` takes no case filter, so each scan
-        # walks the whole store (CS-22-001).
-        recorded = recorded_entries_for_case(
-            case_id=self.case_id, dl=self.datalayer
-        )
-
         # Temporal context for the CLP-14/CLP-15 claimed-timestamp guard.  The
         # guard used to be gated on ``case_published`` being supplied and this
         # call site never supplied it, so it never ran (ISSUE-2824).
@@ -315,10 +307,19 @@ class CreateLogEntryNode(DataLayerActionWithPorts):
         # Resolved only for recorded entries: ``_validate_canonical_entry``
         # returns immediately for any other disposition, so a
         # ``disposition="rejected"`` correlation marker must not pay for the
-        # ``read_case`` or the predecessor lookup.
+        # ``read_case``, the predecessor lookup, or the full-store entries
+        # scan (CS-22-001).
         case_published: datetime | None = None
         prev_actor_published: datetime | None = None
+        recorded: list[CaseLedgerEntry] = []
         if self.disposition == "recorded":
+            # One scan of this case's recorded entries, shared by the
+            # claimed-timestamp guard's predecessor lookup and the idempotency
+            # check below.  ``list_objects`` takes no case filter, so each
+            # scan walks the whole store (CS-22-001).
+            recorded = recorded_entries_for_case(
+                case_id=self.case_id, dl=self.datalayer
+            )
             # ``read_case`` returning ``None`` is expected, not an error: the
             # genesis ``create_case`` entry is committed alongside case
             # creation, so the case may not be readable yet.  The guard skips
@@ -351,7 +352,7 @@ class CreateLogEntryNode(DataLayerActionWithPorts):
             event_type=self.event_type,
             payload_snapshot=self.payload_snapshot,
             dl=self.datalayer,
-            entries=recorded,
+            entries=recorded or None,
         )
         if existing is not None:
             if isinstance(existing, VultronCaseLedgerEntry):

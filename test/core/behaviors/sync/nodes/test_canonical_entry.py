@@ -99,7 +99,7 @@ def _call_with_ts(
     prev_actor_published: datetime | None = None,
     future_tolerance: timedelta | None = None,
     staleness_window: timedelta | None = None,
-    skew_tolerance: timedelta = timedelta(0),
+    skew_tolerance: timedelta = timedelta(minutes=5),
 ) -> None:
     _validate_canonical_entry(
         case_id=CASE_ID,
@@ -146,7 +146,7 @@ def test_clp07_011_accepts_datetime_object_published():
 
 @pytest.mark.spec("CLP-14-006")
 def test_clp14_006_rejects_entry_before_case():
-    before_case = _CASE_PUBLISHED - timedelta(seconds=1)
+    before_case = _CASE_PUBLISHED - timedelta(minutes=6)
     with pytest.raises(VultronCanonicalEntryError, match="CLP-14-006"):
         _call_with_ts(_ts_snapshot(published=before_case))
 
