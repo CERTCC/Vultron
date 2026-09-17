@@ -58,23 +58,34 @@ Run the check-priority-status skill. The skill will:
 ### Querying Project #24 by Schedule Tier
 
 ```bash
+# Paginated: Project #24 has ~300 items; the API cap is 100 per page.
 PROJECT_ID=$(bash .agents/skills/shared/board-id.sh project)
-gh api graphql -f query='{
-  node(id: "'"$PROJECT_ID"'") {
-    ... on ProjectV2 {
-      items(first: 100) {
-        nodes {
-          content {
-            ... on Issue { number title state }
-          }
-          fieldValueByName(name: "Schedule") {
-            ... on ProjectV2ItemFieldSingleSelectValue { name }
+CURSOR=""
+while true; do
+  [ -n "$CURSOR" ] && AFTER=', after: "'"$CURSOR"'"' || AFTER=""
+  PAGE=$(gh api graphql \
+    --jq '{items:.data.node.items.nodes,more:.data.node.items.pageInfo.hasNextPage,cursor:.data.node.items.pageInfo.endCursor}' \
+    -f query='{
+    node(id: "'"$PROJECT_ID"'") {
+      ... on ProjectV2 {
+        items(first: 100'"$AFTER"') {
+          pageInfo { hasNextPage endCursor }
+          nodes {
+            content {
+              ... on Issue { number title state }
+            }
+            fieldValueByName(name: "Schedule") {
+              ... on ProjectV2ItemFieldSingleSelectValue { name }
+            }
           }
         }
       }
     }
-  }
-}'
+  }')
+  echo "$PAGE" | jq -r '.items[]'
+  [ "$(echo "$PAGE" | jq -r '.more')" = "true" ] || break
+  CURSOR=$(echo "$PAGE" | jq -r '.cursor')
+done
 ```
 
 Group results by `fieldValueByName.name` (Now / Next / Later / Someday /
@@ -99,7 +110,7 @@ gh api graphql -f query='{
 ```bash
 # Get all open issues
 ALL_OPEN=$(gh issue list --repo CERTCC/Vultron \
-  --state open --json number,title,labels --limit 500)
+  --state open --json number,title,labels --limit 1000)
 
 # Get all issue numbers from Project #24
 BOARD_ISSUES=$(gh api graphql ... # items query above, extract numbers)

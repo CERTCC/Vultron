@@ -117,7 +117,7 @@ def trigger_accept_embargo(
         "Triggers the reject-embargo behavior for the given actor. "
         "Rejects the current (or specified) embargo proposal by emitting "
         "an EmRejectEmbargoActivity activity. "
-        "EM state transitions: PROPOSED → NO_EMBARGO or REVISE → ACTIVE. "
+        "EM state transitions: PROPOSED → NONE or REVISE → ACTIVE. "
         "Returns the resulting activity in the response body (TB-04-001)."
     ),
     operation_id="actors_trigger_reject_embargo",

@@ -64,7 +64,7 @@ table so the agent has full context before creating or updating anything:
 gh issue list \
   --repo CERTCC/Vultron \
   --state open \
-  --limit 200 \
+  --limit 1000 \
   --json number,title,issueType,labels \
   --jq '.[] | select(.issueType.name == "Concern") | "#\(.number): \(.title)"'
 ```

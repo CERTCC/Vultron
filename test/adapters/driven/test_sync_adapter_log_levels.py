@@ -55,7 +55,6 @@ def entry() -> VultronCaseLedgerEntry:
     return VultronCaseLedgerEntry(
         case_id=chain.case_id,
         log_index=chain.log_index,
-        disposition=chain.disposition,
         term=chain.term,
         log_object_id=chain.object_id,
         event_type=chain.event_type,

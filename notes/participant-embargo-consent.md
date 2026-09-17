@@ -78,6 +78,7 @@ participant's consent state is `SIGNATORY`; `False` for all other states.
 | `INVITED` | `Reject(Invite(Embargo))` received | `DECLINED` | Wire: `ER` / `REJECT_INVITE_TO_EMBARGO_ON_CASE` |
 | `INVITED` | Invitation deadline passed (pocket veto) | `DECLINED` | Timer: no wire message; CASE_MANAGER authors ledger entry (CM-28-005) |
 | `SIGNATORY` | Shared EM enters `REVISE` state | `LAPSED` | Cascade: `EV` side-effect; no outbound PEC message |
+| `SIGNATORY` | Explicit consent withdrawal (per VP-13-007/008) | `DECLINED` | Wire: `ER` / `REJECT_INVITE_TO_EMBARGO_ON_CASE` (ADR-0093) |
 | `LAPSED` | Re-invited for revised embargo terms | `INVITED` | Wire: `EP` / `INVITE_TO_EMBARGO_ON_CASE` |
 | `LAPSED` | Direct `Accept` of revised terms | `SIGNATORY` | Wire: `EA` / `ACCEPT_INVITE_TO_EMBARGO_ON_CASE` |
 | `LAPSED` | Re-acceptance deadline passed (pocket veto) | `DECLINED` | Timer: no wire message; CASE_MANAGER authors ledger entry (CM-28-005) |

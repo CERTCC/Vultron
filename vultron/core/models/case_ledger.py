@@ -50,6 +50,11 @@ Append-only enforcement:
 - :class:`CaseLedger` rejects any attempt to modify or remove existing
   entries.  New entries are appended via :meth:`CaseLedger.append`.
 
+**Canonical entries only**: the case ledger records protocol-significant
+assertions that the CASE_MANAGER accepted.  Rejected or locally-scoped
+markers are not ledger entries — they are logging events.  See
+``notes/case-ledger-authority.md`` and CLP-04-007.
+
 Per ``specs/sync-ledger-replication.yaml`` SYNC-01, SYNC-07,
 ``specs/case-ledger-processing.yaml`` CLP-02 through CLP-08, and
 ``notes/sync-ledger-replication.md``.
@@ -59,7 +64,7 @@ import hashlib
 import json
 import logging
 from datetime import datetime
-from typing import Any, Literal
+from typing import Any
 
 from pydantic import BaseModel, Field, model_validator
 
@@ -99,13 +104,6 @@ def compute_genesis_hash(
     """
     raw = f"{case_id}|{created_at.isoformat()}|{case_actor_id}"
     return hashlib.sha256(raw.encode("utf-8")).hexdigest()
-
-
-# ---------------------------------------------------------------------------
-# Disposition type
-# ---------------------------------------------------------------------------
-
-LogDisposition = Literal["recorded", "rejected"]
 
 
 # ---------------------------------------------------------------------------
@@ -163,8 +161,6 @@ class HashChainLedgerRecord(ValidatedAssignmentMixin, BaseModel):
         log_index: Monotonically increasing integer scoped to ``case_id``.
             Assigned by :class:`CaseLedger.append`; MUST NOT be set by
             callers directly (CLP-02-006, SYNC-01-002).
-        disposition: Outcome of CaseActor processing — ``"recorded"`` for
-            accepted assertions; ``"rejected"`` for rejected ones.
         term: Raft cluster term at the time of append.  ``None`` (or ``0``)
             for single-node deployments (CLP-02-007).
         object_id: Full URI of the asserted activity or the primary object
@@ -183,13 +179,9 @@ class HashChainLedgerRecord(ValidatedAssignmentMixin, BaseModel):
             (excluding ``entry_hash`` itself).  Computed automatically by
             :meth:`model_validator` if not supplied.
         received_at: Server-generated TZ-aware UTC timestamp.
-        reason_code: Machine-readable rejection reason code.  SHOULD be
-            populated for ``"rejected"`` dispositions (CLP-02-005).
-        reason_detail: Optional human-readable elaboration on the rejection
-            reason.  MAY be populated for ``"rejected"`` dispositions.
 
     Spec: CLP-02-001 through CLP-02-007; SYNC-01-002, SYNC-01-003,
-    SYNC-01-005, SYNC-07-001.
+    SYNC-01-005, SYNC-07-001; CLP-04-007.
     """
 
     case_id: str = Field(
@@ -199,10 +191,6 @@ class HashChainLedgerRecord(ValidatedAssignmentMixin, BaseModel):
         default=-1,
         description="Monotonically increasing index scoped to case_id; assigned by CaseLedger",
         ge=-1,
-    )
-    disposition: LogDisposition = Field(
-        default="recorded",
-        description="Outcome: 'recorded' (accepted) or 'rejected'",
     )
     term: int | None = Field(
         default=None,
@@ -230,14 +218,6 @@ class HashChainLedgerRecord(ValidatedAssignmentMixin, BaseModel):
         default_factory=now_utc,
         description="Server-generated TZ-aware UTC timestamp at receipt",
     )
-    reason_code: str | None = Field(
-        default=None,
-        description="Machine-readable rejection reason code (for rejected dispositions)",
-    )
-    reason_detail: str | None = Field(
-        default=None,
-        description="Human-readable rejection reason detail (for rejected dispositions)",
-    )
 
     @model_validator(mode="before")
     @classmethod
@@ -259,15 +239,12 @@ class HashChainLedgerRecord(ValidatedAssignmentMixin, BaseModel):
         hashable = {
             "case_id": data.get("case_id", ""),
             "log_index": data.get("log_index", -1),
-            "disposition": data.get("disposition", "recorded"),
             "term": data.get("term"),
             "object_id": data.get("object_id", ""),
             "event_type": data.get("event_type", ""),
             "payload_snapshot": data.get("payload_snapshot", {}),
             "prev_log_hash": data.get("prev_log_hash", ""),
             "received_at": received_iso,
-            "reason_code": data.get("reason_code"),
-            "reason_detail": data.get("reason_detail"),
         }
         data["entry_hash"] = _sha256_hex(hashable)
         return data
@@ -293,15 +270,12 @@ class HashChainLedgerRecord(ValidatedAssignmentMixin, BaseModel):
         return {
             "case_id": self.case_id,
             "log_index": self.log_index,
-            "disposition": self.disposition,
             "term": self.term,
             "object_id": self.object_id,
             "event_type": self.event_type,
             "payload_snapshot": self.payload_snapshot,
             "prev_log_hash": self.prev_log_hash,
             "received_at": self.received_at.isoformat(),
-            "reason_code": self.reason_code,
-            "reason_detail": self.reason_detail,
         }
 
     def _hash_content(self) -> str:
@@ -335,12 +309,9 @@ class CaseLedger:
     - **Monotonically increasing** ``log_index`` values scoped to the case
       (SYNC-01-002).
 
-    The log exposes two views:
-
-    - :attr:`entries` — full audit log (both ``recorded`` and ``rejected``).
-    - :attr:`recorded_entries` — filtered projection of ``recorded`` entries
-      only, used for hash-chain computation and state reconstruction
-      (CLP-04-001, CLP-04-003).
+    Every entry in the ledger is a canonical accepted assertion.  The ledger
+    records only what happened, not what was rejected.  Rejection outcomes are
+    surfaced through Python logging, not ledger entries (CLP-04-007).
 
     Usage example::
 
@@ -360,7 +331,7 @@ class CaseLedger:
         assert entry.verify_hash()
 
     Spec: SYNC-01-001, SYNC-01-002, SYNC-01-003, SYNC-07-001; CLP-04-001,
-    CLP-04-003, CLP-08-002, CLP-08-004.
+    CLP-04-003, CLP-04-007, CLP-08-002, CLP-08-004.
     """
 
     def __init__(self, case_id: str, genesis_hash: str) -> None:
@@ -388,34 +359,25 @@ class CaseLedger:
 
     @property
     def entries(self) -> tuple[HashChainLedgerRecord, ...]:
-        """All entries (recorded *and* rejected) as an immutable tuple."""
+        """All canonical entries as an immutable tuple."""
         return tuple(self._entries)
 
     @property
-    def recorded_entries(self) -> tuple[HashChainLedgerRecord, ...]:
-        """Projection of entries whose disposition is ``"recorded"``.
-
-        Used for hash-chain computation and canonical state reconstruction.
-        Per CLP-04-001, CLP-04-003.
-        """
-        return tuple(e for e in self._entries if e.disposition == "recorded")
-
-    @property
     def tail_hash(self) -> str:
-        """Hash of the last *recorded* entry, or the per-case genesis hash.
+        """Hash of the last entry, or the per-case genesis hash when empty.
 
-        This is the ``prev_log_hash`` that the next recorded entry MUST
-        reference.  Rejected entries do not advance the tail (their hash is
-        still chained, but only recorded entries participate in replication
-        hash-chain computation per CLP-04-003).
+        This is the ``prev_log_hash`` that the next entry MUST reference.
 
         Returns:
             64-character lowercase hex SHA-256 string, or the per-case
-            genesis hash (see :func:`compute_genesis_hash`) if no recorded
-            entries exist (CLP-08-004).
+            genesis hash (see :func:`compute_genesis_hash`) if no entries
+            exist yet (CLP-08-004).
         """
-        recorded = self.recorded_entries
-        return recorded[-1].entry_hash if recorded else self._genesis_hash
+        return (
+            self._entries[-1].entry_hash
+            if self._entries
+            else self._genesis_hash
+        )
 
     @property
     def next_index(self) -> int:
@@ -434,13 +396,10 @@ class CaseLedger:
         self,
         object_id: str,
         event_type: str,
-        disposition: LogDisposition = "recorded",
         payload_snapshot: dict[str, Any] | None = None,
         term: int | None = None,
-        reason_code: str | None = None,
-        reason_detail: str | None = None,
     ) -> HashChainLedgerRecord:
-        """Append a new entry to the log and return it.
+        """Append a new canonical entry to the log and return it.
 
         Assigns ``log_index``, sets ``prev_log_hash`` from
         :attr:`tail_hash`, and computes ``entry_hash`` automatically.
@@ -448,44 +407,28 @@ class CaseLedger:
         Args:
             object_id: Full URI of the asserted activity or primary object.
             event_type: Short machine-readable event kind descriptor.
-            disposition: ``"recorded"`` (default) or ``"rejected"``.
             payload_snapshot: Normalised snapshot of the asserted activity
                 payload for deterministic replay (CLP-02-003).
             term: Raft cluster term; ``None`` for single-node deployments.
-            reason_code: Machine-readable rejection reason (for rejected).
-            reason_detail: Human-readable rejection detail (for rejected).
 
         Returns:
             The newly created and appended :class:`HashChainLedgerRecord`.
-
-        Raises:
-            ValueError: If *disposition* is ``"rejected"`` but *reason_code*
-                is not provided.
         """
-        if disposition == "rejected" and reason_code is None:
-            raise ValueError(
-                "reason_code is required for rejected HashChainLedgerRecord objects"
-            )
-
         entry = HashChainLedgerRecord(
             case_id=self._case_id,
             log_index=self.next_index,
-            disposition=disposition,
             term=term,
             object_id=object_id,
             event_type=event_type,
             payload_snapshot=payload_snapshot or {},
             prev_log_hash=self.tail_hash,
-            reason_code=reason_code,
-            reason_detail=reason_detail,
         )
         self._entries.append(entry)
         logger.info(
-            "Committed ledger entry: case_id=%s event_type=%s log_index=%d disposition=%s",
+            "Committed ledger entry: case_id=%s event_type=%s log_index=%d",
             self._case_id,
             event_type,
             entry.log_index,
-            disposition,
         )
         logger.debug(
             "Ledger entry detail: entry_hash=%.16s… payload_snapshot=%s",
@@ -495,27 +438,25 @@ class CaseLedger:
         return entry
 
     def verify_chain(self) -> bool:
-        """Return ``True`` if the full hash chain is internally consistent.
+        """Return ``True`` if the hash chain is internally consistent.
 
         Checks:
 
         1. Every entry's ``entry_hash`` matches its computed hash.
         2. Every entry's ``prev_log_hash`` equals the ``entry_hash`` of the
-           previous *recorded* entry (or the per-case genesis hash for the
-           first).
+           previous entry (or the per-case genesis hash for the first).
         3. Every entry's ``log_index`` equals its position in :attr:`entries`.
 
         Returns:
             ``True`` if the chain is intact; ``False`` on the first violation.
         """
-        prev_recorded_hash = self._genesis_hash
+        prev_hash = self._genesis_hash
         for pos, entry in enumerate(self._entries):
             if entry.log_index != pos:
                 return False
             if not entry.verify_hash():
                 return False
-            if entry.disposition == "recorded":
-                if entry.prev_log_hash != prev_recorded_hash:
-                    return False
-                prev_recorded_hash = entry.entry_hash
+            if entry.prev_log_hash != prev_hash:
+                return False
+            prev_hash = entry.entry_hash
         return True

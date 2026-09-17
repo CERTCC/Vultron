@@ -342,17 +342,23 @@ Items moved here are no longer checked manually; the mechanism is noted.
 | MkDocs build with zero warnings | `mkdocs-build-strict.sh` CI step | pre-existing |
 | Broken `§N.M` heading anchors | `mkdocs.yml` `validation.links.anchors: warn` + strict build | pre-existing |
 
-!!! warning "`lint-docs` does not cover this document — tracked as #3300"
+!!! warning "`lint-docs` does not cover this document yet — tracked as #3318"
     `lint-docs` drops files matching `not_in_nav`'s generated patterns, which
-    includes `_*.md`. All 35 fragments of this specification are therefore outside
+    includes `_*.md`. All fragments of this specification are therefore outside
     the linter's default target set, so every style-guide rule in §1–§2 above is
     checked by review only — including the mechanical ones a linter is best at
     (spelling, filler, acronym expansion, voice).
 
     This is not hypothetical: an American-spelling regression was introduced
     during the PR #3265 review round and survived `markdownlint`, `mdlint.sh` and
-    a clean strict build. Until #3300 closes, treat the `[M]` items in §1–§2 as
-    `[J]` for this document and check them by reading.
+    a clean strict build.
+
+    The covering mechanism is decided but not yet built: fragments are to be
+    linted as source for per-sentence and per-block rules, with page-scoped rules
+    evaluated against the assembling page (DF-09-007, [ADR-0092](../docs/adr/0092-lint-fragments-as-source-page-rules-on-rendered-page.md)),
+    and `codespell` as the mechanical floor for spelling (SG-37). Until #3318
+    lands, treat the `[M]` items in §1–§2 as `[J]` for this document and check
+    them by reading.
 
 ---
 

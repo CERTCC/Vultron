@@ -18,9 +18,10 @@ from __future__ import annotations
 
 import logging
 from datetime import datetime
-from typing import Any, Literal, cast
+from typing import Any, cast
 
 from py_trees.common import Status
+from py_trees.ports import NoDataAvailable
 
 from vultron.core.behaviors.helpers import (
     DataLayerActionWithPorts,
@@ -79,15 +80,12 @@ def _to_persistable_entry(
     return VultronCaseLedgerEntry(
         case_id=chain_entry.case_id,
         log_index=chain_entry.log_index,
-        disposition=chain_entry.disposition,
         term=chain_entry.term,
         log_object_id=chain_entry.object_id,
         event_type=chain_entry.event_type,
         payload_snapshot=dict(chain_entry.payload_snapshot),
         prev_log_hash=chain_entry.prev_log_hash,
         entry_hash=chain_entry.entry_hash,
-        reason_code=chain_entry.reason_code,
-        reason_detail=chain_entry.reason_detail,
     )
 
 
@@ -124,7 +122,10 @@ class ReconstructChainTailNode(DataLayerActionWithPorts):
         if self._case_id is None:
             try:
                 self.activity = self.get_input("activity")
-            except Exception:
+            except (NoDataAvailable, NotImplementedError):
+                # Optional port: absent (NoDataAvailable) or explicitly None
+                # (NotImplementedError).  Any other error is a real port-wiring
+                # fault and must surface (CS-23-001).
                 self.activity = None
         else:
             self.activity = None
@@ -248,9 +249,6 @@ class CreateLogEntryNode(DataLayerActionWithPorts):
         *,
         payload_snapshot: dict[str, Any] | None = None,
         term: int | None = None,
-        reason_code: str | None = None,
-        reason_detail: str | None = None,
-        disposition: Literal["recorded", "rejected"] = "recorded",
         name: str | None = None,
     ) -> None:
         super().__init__(name=name or self.__class__.__name__)
@@ -259,9 +257,6 @@ class CreateLogEntryNode(DataLayerActionWithPorts):
         self.event_type = event_type
         self.payload_snapshot = dict(payload_snapshot or {})
         self.term = term
-        self.reason_code = reason_code
-        self.reason_detail = reason_detail
-        self.disposition: Literal["recorded", "rejected"] = disposition
 
     @classmethod
     def input_ports(cls) -> dict[str, PortInformation]:
@@ -300,43 +295,33 @@ class CreateLogEntryNode(DataLayerActionWithPorts):
             return f
         assert self.datalayer is not None
 
-        # Temporal context for the CLP-14/CLP-15 claimed-timestamp guard.  The
-        # guard used to be gated on ``case_published`` being supplied and this
-        # call site never supplied it, so it never ran (ISSUE-2824).
-        #
-        # Resolved only for recorded entries: ``_validate_canonical_entry``
-        # returns immediately for any other disposition, so a
-        # ``disposition="rejected"`` correlation marker must not pay for the
-        # ``read_case``, the predecessor lookup, or the full-store entries
-        # scan (CS-22-001).
-        case_published: datetime | None = None
-        prev_actor_published: datetime | None = None
-        recorded: list[CaseLedgerEntry] = []
-        if self.disposition == "recorded":
-            # One scan of this case's recorded entries, shared by the
-            # claimed-timestamp guard's predecessor lookup and the idempotency
-            # check below.  ``list_objects`` takes no case filter, so each
-            # scan walks the whole store (CS-22-001).
-            recorded = recorded_entries_for_case(
-                case_id=self.case_id, dl=self.datalayer
-            )
-            # ``read_case`` returning ``None`` is expected, not an error: the
-            # genesis ``create_case`` entry is committed alongside case
-            # creation, so the case may not be readable yet.  The guard skips
-            # CLP-14-006 in that case and still applies every other check.
-            case = self.datalayer.read_case(self.case_id)
-            case_published = case.published if case is not None else None
-            prev_actor_published = _find_prev_actor_published(
-                case_id=self.case_id,
-                payload_snapshot=self.payload_snapshot,
-                dl=self.datalayer,
-                entries=recorded,
-            )
+        # One scan of this case's entries, shared by the
+        # claimed-timestamp guard's predecessor lookup and the idempotency
+        # check below.  ``list_objects`` takes no case filter, so each scan
+        # walks the whole store (CS-22-001).
+        recorded = recorded_entries_for_case(
+            case_id=self.case_id, dl=self.datalayer
+        )
+
+        # Temporal context for the CLP-14/CLP-15 claimed-timestamp guard.
+        # ``read_case`` returning ``None`` is expected, not an error: the
+        # genesis ``create_case`` entry is committed alongside case creation,
+        # so the case may not be readable yet.  The guard skips CLP-14-006 in
+        # that case and still applies every other check.
+        case = self.datalayer.read_case(self.case_id)
+        case_published: datetime | None = (
+            case.published if case is not None else None
+        )
+        prev_actor_published = _find_prev_actor_published(
+            case_id=self.case_id,
+            payload_snapshot=self.payload_snapshot,
+            dl=self.datalayer,
+            entries=recorded,
+        )
 
         ledger_cfg = get_config().ledger
         _validate_canonical_entry(
             case_id=self.case_id,
-            disposition=self.disposition,
             payload_snapshot=self.payload_snapshot,
             event_type=self.event_type,
             case_published=case_published,
@@ -380,12 +365,9 @@ class CreateLogEntryNode(DataLayerActionWithPorts):
             log_index=tail_index + 1,
             object_id=self.object_id,
             event_type=self.event_type,
-            disposition=self.disposition,
             payload_snapshot=self.payload_snapshot,
             prev_log_hash=tail_hash,
             term=self.term,
-            reason_code=self.reason_code,
-            reason_detail=self.reason_detail,
         )
         self._set_output("log_entry", _to_persistable_entry(chain_entry))
         self._set_output("log_entry_preexisting", False)

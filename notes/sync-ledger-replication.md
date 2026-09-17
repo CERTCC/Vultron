@@ -36,9 +36,12 @@ Key properties:
 - **Eventual consistency**: Participants synchronize by receiving replicated
   log entries; their local state converges to the CASE_MANAGER's state as
   entries are delivered.
-- **Audit vs replication split**: The CASE_MANAGER MAY keep a broader local case
-  audit trail including rejected assertion outcomes, but only the recorded
-  canonical projection participates in replication and hash chaining.
+- **Canonical ledger vs. process log**: The canonical case ledger contains only
+  accepted protocol-significant assertions; rejection outcomes are sent to
+  the asserting participant as protocol `Reject` activities and emitted to
+  Python `logging`, never written to the ledger (CLP-04-007, CLP-05-002).
+  The canonical ledger participates in replication and hash chaining in its
+  entirety — no disposition filtering is required.
 - **Single-node Raft framing**: The AppendOnlyLedger through PeerLedgerSync phases effectively
   implement a single-node Raft cluster. The CASE_MANAGER is permanently the
   leader (no election needed), and every append is an immediate commit. A

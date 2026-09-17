@@ -151,15 +151,30 @@ class TestContiguousChain:
 
 class TestMissingGenesisEntry:
     def test_missing_genesis_is_stale(self, dl):
-        """SYNC-10-004: first entry must be at log_index=0."""
+        """SYNC-10-004: a real gap (hash mismatch) is stale.
+
+        Stores e0 and e2 where e2's prev_log_hash points to a missing entry
+        at index 1 rather than to e0.  The hash chain is broken.
+        """
         case = _make_case()
         dl.save(case)
         e0 = _store(dl, _entry(0, case.genesis_hash))
-        # Skip index 1; add entry at index 2 referencing e0's hash
-        _store(dl, _entry(2, e0.entry_hash))
+        # e2 points to a hash that isn't e0.entry_hash — real missing entry
+        missing_e1_hash = "f" * 64
+        e2 = VultronCaseLedgerEntry(
+            case_id=CASE_ID,
+            log_index=2,
+            log_object_id="https://example.org/activities/log-2",
+            event_type="test_event",
+            payload_snapshot={"log_index": 2},
+            prev_log_hash=missing_e1_hash,
+            entry_hash="a" * 64,
+        )
+        dl.save(e2)
         fresh, reason = is_ledger_fresh_for_case(CASE_ID, dl)
         assert fresh is False
-        assert "gap" in reason or "jump" in reason
+        assert "hash mismatch" in reason
+        assert e0  # used for setup — suppress unused warning
 
     def test_no_case_in_dl_with_entries_is_stale(self, dl):
         """Fail-closed: entries present but case not in DataLayer → stale.
@@ -233,25 +248,49 @@ class TestHashMismatch:
 
 class TestIndexGap:
     def test_gap_in_middle_is_stale(self, dl):
-        """Entries 0, 1, 3 (missing 2) is a gap → stale."""
+        """A genuine missing entry (broken hash chain) is stale.
+
+        Entries 0, 1, 3 where entry 3 points to a hash that doesn't match
+        entry 1 — simulating a genuinely missing recorded entry at index 2.
+        """
         case = _make_case()
         dl.save(case)
         e0 = _store(dl, _entry(0, case.genesis_hash))
         e1 = _store(dl, _entry(1, e0.entry_hash))
-        # Skip index 2; build entry at index 3 referencing e1's hash
+        # Entry 3 points to a missing entry at index 2, not to e1
+        missing_e2_hash = "c" * 64
         e3 = VultronCaseLedgerEntry(
             case_id=CASE_ID,
             log_index=3,
             log_object_id="https://example.org/activities/log-3",
             event_type="test_event",
             payload_snapshot={"log_index": 3},
-            prev_log_hash=e1.entry_hash,
+            prev_log_hash=missing_e2_hash,
             entry_hash="e" * 64,
         )
         dl.save(e3)
         fresh, reason = is_ledger_fresh_for_case(CASE_ID, dl)
         assert fresh is False
-        assert "gap" in reason or "jump" in reason
+        assert "hash mismatch" in reason
+        assert e1  # used for setup — suppress unused warning
+
+    def test_sequential_index_with_valid_chain_is_fresh(self, dl):
+        """Entries 0, 1, 3 where 3 chains correctly to 1 is fresh.
+
+        This is the AC-3 regression test for issue #3053: previously, the
+        log_index consecutive check (now removed) would have reported a
+        false 'gap' for this scenario.  With only hash-chain verification,
+        the ledger is correctly reported as fresh.
+        """
+        case = _make_case()
+        dl.save(case)
+        e0 = _store(dl, _entry(0, case.genesis_hash))
+        e1 = _store(dl, _entry(1, e0.entry_hash))
+        # Entry at index 3 chains correctly to e1 — no real gap
+        e3 = _store(dl, _entry(3, e1.entry_hash))
+        fresh, reason = is_ledger_fresh_for_case(CASE_ID, dl)
+        assert fresh is True, reason
+        assert e3  # used for setup — suppress unused warning
 
 
 class TestEquivalentRecordedEntry:
@@ -352,15 +391,3 @@ class TestEquivalentRecordedEntry:
         )
 
         assert found is None
-
-    def test_a_rejected_entry_is_not_a_match(self, dl):
-        """Only ``recorded`` entries count; a rejection is not an assertion."""
-        snapshot = self._snapshot("2026-01-01T00:00:00+00:00")
-        entry = self._record(dl, snapshot)
-        entry.disposition = "rejected"
-        entry.reason_code = "invalid"
-        dl.save(entry)
-
-        assert (
-            self._find(dl, self._snapshot("2026-01-01T00:00:09+00:00")) is None
-        )

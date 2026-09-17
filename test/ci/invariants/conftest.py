@@ -101,7 +101,7 @@ _CLOSED_STATUS = {
     "object": {
         "attributedTo": ACTOR_A,
         "rmState": "CLOSED",
-        "emConsentState": "NO_EMBARGO",
+        "emConsentState": "UNBOUND",
         "cvdRole": ["FINDER"],
         "vfState": "VF",
         "dState": "D",

@@ -279,11 +279,11 @@ Sources: ISSUE-2232, ISSUE-2264
 
 ### Deciding whether a permissive fallback is load-bearing
 
-Moved to [notes/domain-validation.md](domain-validation.md) § "Instrument a
-Permissive Fallback and Count What It Absorbs" — the defensive/validation-boundary
-home referenced by CS-23-001 (#3325). Use the instrument-and-count method there
-before removing or trusting a bare `except`, `or <default>`, or failed-lookup
-fallback.
+Moved to [notes/domain-validation.md](domain-validation.md) § "Broad `except
+Exception` Is a Masking Smell" (subsection "When you cannot tell whether a
+fallback is load-bearing") — the defensive/validation-boundary home for the
+normative rule (CS-23-001). Use the instrument-and-count method there before
+removing or trusting a bare `except`, `or <default>`, or failed-lookup fallback.
 
 ### A FAILURE Test Must Prove the Harness Can Produce Its Named Reason
 

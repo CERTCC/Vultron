@@ -64,6 +64,7 @@ from typing import Any, cast
 
 import py_trees
 from py_trees.common import Status
+from pydantic import ValidationError
 
 from vultron.config.actor import ActorConfig
 from vultron.core.behaviors.bridge import BTBridge
@@ -287,7 +288,10 @@ class _StoreProposalReportNode(DataLayerAction):
             return None
         try:
             return VulnerabilityReport.model_validate(raw)
-        except Exception as exc:
+        except ValidationError as exc:
+            # A malformed inline report cannot be reconstructed; stay lenient
+            # and fall back to the reference-only path.  A non-validation error
+            # would indicate a real fault and must surface (CS-23-001).
             logger.warning(
                 "%s: could not reconstruct the inline report '%s' from the"
                 " proposal: %s",
@@ -886,7 +890,6 @@ class _CommitNativeLedgerEntriesNode(DataLayerActionWithPorts):
             object_id=object_id,
             event_type=event_type,
             payload_snapshot=snapshot,
-            disposition="recorded",
         )
         result = BTBridge(
             datalayer=cast(CaseOutboxPersistence, self.datalayer)

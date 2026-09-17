@@ -769,24 +769,23 @@ def check_cs_state_transitions_observed(
 def check_no_rejected_invite_entries(
     replicas: dict[str, list[dict]],
 ) -> list[str]:
-    """No invite_actor_to_case entries with disposition=rejected exist (CLP-13-001).
+    """No invite_actor_to_case entries carry a disposition field (CLP-13-001, CLP-04-007).
 
-    Idempotency guards MUST NOT write any CaseLedgerEntry.  A spurious
-    ``disposition="rejected"`` entry on an ``invite_actor_to_case`` event type
-    indicates an idempotency guard incorrectly wrote to the ledger.
+    The canonical ledger contains only accepted entries; the ``disposition``
+    field no longer exists on ``CaseLedgerEntry`` (removed by CLP-04-007).
+    Any entry that carries a ``disposition`` key at all indicates a stale or
+    malformed record from a pre-CLP-04-007 implementation.
 
     Returns one violation string per offending entry.
     """
     violations: list[str] = []
     for actor, entries in replicas.items():
         for e in entries:
-            if (
-                event_type(e) == "invite_actor_to_case"
-                and e.get("disposition") == "rejected"
-            ):
+            if event_type(e) == "invite_actor_to_case" and "disposition" in e:
                 violations.append(
-                    f"Actor {actor!r} logIndex={log_index(e)}: spurious"
-                    f" rejected invite_actor_to_case entry (CLP-13-001 violation)"
+                    f"Actor {actor!r} logIndex={log_index(e)}: stale"
+                    f" 'disposition' field present on invite_actor_to_case entry"
+                    f" (CLP-04-007 / CLP-13-001 violation)"
                 )
     return violations
 

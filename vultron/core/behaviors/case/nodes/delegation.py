@@ -128,7 +128,6 @@ class AutoAcceptCaseParticipantRoleNode(DataLayerAction):
             object_id=accept_id,
             event_type="accept_case_participant_role",
             payload_snapshot=snapshot_dict,
-            disposition="recorded",
         )
         result = BTBridge(
             datalayer=cast(CaseOutboxPersistence, self.datalayer)

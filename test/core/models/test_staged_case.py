@@ -282,7 +282,7 @@ class TestEmbargoedCase:
             CaseStatus(
                 context=vc.id_,
                 attributed_to=_ACTOR,
-                em=EmDimension(state=EM.NO_EMBARGO),
+                em=EmDimension(state=EM.NONE),
             )
         ]
         with pytest.raises(VultronValidationError, match="em_state"):
