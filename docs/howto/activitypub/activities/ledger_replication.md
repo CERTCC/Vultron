@@ -11,7 +11,7 @@ with `Announce(VulnerabilityCase)` (ADR-0059).
 
 See also:
 
-- [Case Ledger Synchronization](../../../topics/case_ledger_sync.md) — why the
+- [Case Ledger Synchronization](../../../topics/case_lifecycle/case_ledger_sync.md) — why the
   ledger is ordered this way and what the buffering guarantees
 - [ADR-0037 — Buffer Out-of-Order Ledger
   Entries](../../../adr/0037-buffer-out-of-order-ledger-entries.md)
