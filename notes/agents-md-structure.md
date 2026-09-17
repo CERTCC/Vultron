@@ -12,6 +12,7 @@ related_notes:
   - notes/parallel-development.md
 related_specs:
   - specs/project-documentation.yaml
+  - specs/meta-specifications.yaml
 ---
 
 # AGENTS.md Structure: Routing Policy and Per-Directory Files
@@ -69,12 +70,14 @@ predate the ratchet and carry recorded ceilings in its `KNOWN_OVERAGE` map;
 those may only be lowered, and a ceiling above the file's current size fails
 too. Condense the file rather than raising a ceiling.
 
-**Root sits at exactly 400, so there is no headroom.** Adding a pitfall to the
-root index means *trimming as you add*: extend an existing row's cell, or fold
-two rows together, rather than appending a line. A new symptom area that genuinely
-needs its own row must pay for it by condensing another. This is deliberate — the
-target is a budget, and a budget with slack is the state root was in when it
-reached 1166 lines.
+**Root runs close to its target, so assume no headroom.** Adding a pitfall to
+the root index means *trimming as you add*: extend an existing row's cell, or
+fold two rows together, rather than appending a line. A new symptom area that
+genuinely needs its own row must pay for it by condensing another. This is
+deliberate — the target is a budget, and a budget with slack is the state root
+was in when it grew to nearly three times its target (ISSUE-2954). Read the
+current count from the file rather than from this note; a number written here
+would be a snapshot guaranteed to drift (MS-16-001).
 
 ### Per-directory AGENTS.md — subsystem-specific rules
 
@@ -88,6 +91,8 @@ them. Canonical locations and the content they own:
 | `vultron/wire/as2/` | ActivityStreams wire conventions, extractor ordering, pattern naming |
 | `vultron/adapters/` | Hexagonal-layer boundary rules, FastAPI adapter conventions |
 | `test/` | Test data quality rules, fixture isolation, parallelism notes |
+| `specs/` | Spec-authoring workflow, field-value enums, lint traps, the coverage gate |
+| `vultron/metadata/` | Metadata-loader failure attribution, spec-first lint suppressions |
 
 Each per-directory file SHOULD start with:
 
