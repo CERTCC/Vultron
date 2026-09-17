@@ -39,6 +39,20 @@ Four more acronyms occur across the entries below:
 
 {% include-markdown "./_oq-participant-routing.md" %}
 
+{% include-markdown "../../reference/vultron-spec/_oq-role-acquisition.md" %}
+
+---
+
+## Protocol state
+
+{% include-markdown "../../reference/vultron-spec/_oq-cs-ordering.md" %}
+
+{% include-markdown "../../reference/vultron-spec/_oq-v-to-V.md" %}
+
+{% include-markdown "../../reference/vultron-spec/_oq-embargo-termination-authority.md" %}
+
+{% include-markdown "../../reference/vultron-spec/_oq-pec-unbound-declined-collapse.md" %}
+
 ---
 
 ## History and delivery
@@ -48,6 +62,8 @@ Four more acronyms occur across the entries below:
 {% include-markdown "./_oq-fanout-ordering.md" %}
 
 {% include-markdown "./_oq-delivery-receipts.md" %}
+
+{% include-markdown "../../reference/vultron-spec/_oq-negative-ack.md" %}
 
 ---
 
