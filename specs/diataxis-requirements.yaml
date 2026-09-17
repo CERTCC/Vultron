@@ -2,7 +2,7 @@ id: DF
 title: Diátaxis documentation requirements
 description: >-
   Brief requirements for organizing project documentation according to the Diátaxis framework.
-version: 1.1.0
+version: 1.2.0
 scope:
 - prototype
 - production
@@ -307,12 +307,17 @@ groups:
     priority: MUST
     kind: process
     statement: >-
-      Acronyms MUST be expanded on first use on each `docs/` page.
+      Acronyms MUST be expanded on first use on each rendered `docs/` page, where "page" means
+      the page as published rather than the source file it was authored in.
     rationale: >-
       First use resets per page because readers arrive from search results and deep links rather
-      than by reading in nav order. Site-wide `abbr` tooltips are not sufficient on their own:
-      they do not survive print output, and they are invisible to anyone reading the raw Markdown
-      on GitHub.
+      than by reading in nav order. Site-wide `abbr` tooltips do not survive print output and are
+      invisible in raw Markdown. "Page" names the rendered artifact because an assembled page has
+      one first use, not one per fragment: an expansion in each of the Protocol Specification's
+      35 fragments would render 35 times on one page. See DF-09-007.
+    verification: >-
+      Inspection of a page assembled from `{% include-markdown %}` fragments confirms each
+      acronym is expanded once in the rendered output.
   - id: DF-09-004
     priority: MUST
     kind: process
@@ -342,3 +347,59 @@ groups:
       The page must stay comprehensible when the Mermaid render fails, in print-site output, and
       to a screen reader. The accompanying sentence also disciplines the author: a diagram whose
       point cannot be stated in a sentence usually has not earned its place.
+  - id: DF-09-007
+    priority: MUST
+    kind: process
+    adr:
+      - ADR-0091
+    statement: >-
+      Style rules whose scope is a page MUST be evaluated against the rendered page, and style
+      rules whose scope is a sentence or a block MUST be evaluated against the source file that
+      contains them, including source files that are `{% include-markdown %}` fragments rather
+      than pages in their own right.
+    rationale: >-
+      A fragment is prose, so exempting it leaves it unchecked: 2,773 lines of the Protocol
+      Specification went uncovered because its filenames carried a nav-exclusion prefix. But a
+      fragment is not a page, so page-scoped rules applied to one yield artifacts of the split
+      rather than prose defects — acronym first use (DF-09-003), concept order (DF-09-005), and
+      any rule naming the H1 or nav label. `.markdownlint-cli2.yaml` set the precedent by
+      disabling MD041 for this reason.
+    verification: >-
+      Resolving the lint target set over a directory of `{% include-markdown %}` fragments yields
+      a non-empty list, and findings cite the fragment's own line numbers.
+  - id: DF-09-008
+    priority: MUST
+    kind: process
+    adr:
+      - ADR-0091
+    statement: >-
+      The Diátaxis quadrant of an `{% include-markdown %}` fragment MUST be taken from the pages
+      that include it, and a fragment with more than one host MUST satisfy the quadrant rules of
+      each host.
+    rationale: >-
+      Quadrant selects the voice rules (DF-03-004, DF-04-004, DF-05-001, DF-06-007), and a
+      fragment's own path does not determine it. `docs/tutorials/worked_example.md` and
+      `docs/topics/measuring_cvd/possible_histories.md` are both included into the reference
+      Protocol Specification's annexes, and `includes/_rm-states-table.md` has four host pages.
+      Inferring quadrant from the fragment's directory would apply tutorial voice rules to
+      reference content and vice versa.
+    verification: >-
+      Inspection confirms each fragment's voice is assessed against the quadrant of every page
+      that includes it, not against its own directory.
+  - id: DF-09-009
+    priority: MUST
+    kind: process
+    adr:
+      - ADR-0091
+    statement: >-
+      A documentation check that acts as a blocking gate MUST report an empty target set as a
+      distinct failure, and MUST NOT report success when it has resolved no targets.
+    rationale: >-
+      A gate that checks nothing and reports success is worse than no gate, because it produces a
+      false clean signal that suppresses the review the gate replaced. This is not hypothetical:
+      the `lint-docs` gate in `check-docs-sync` resolved to zero targets for every fragment of
+      the Protocol Specification and passed, and an American-spelling regression reached `main`
+      through it.
+    verification: >-
+      Invoking the gate on a path with no lintable targets reports the empty target set and does
+      not report success.

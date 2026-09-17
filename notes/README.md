@@ -890,9 +890,15 @@ type (tutorial / how-to / reference / explanation) a new page should be.
 
 **`documentation-strategy.md`**
 Docs chronology and trust levels, process models, formal protocol reference,
-behavior simulator reference, Do Work behaviors, and ISO crosswalks.
-**Load when**: evaluating where new documentation belongs, or cross-referencing
-Vultron docs to ISO/CVD process standards.
+behavior simulator reference, Do Work behaviors, and ISO crosswalks. Also the
+fragment/assembly-unit model for `{% include-markdown %}` pages: why nav
+exclusion (`not_in_nav`) is not a lint-scope class, which style rules are
+page-scoped vs. per-sentence, why the include graph is not a tree, and the
+`codespell` configuration and its three silent hazards (DF-09-007 through
+DF-09-009, ADR-0091).
+**Load when**: evaluating where new documentation belongs, cross-referencing
+Vultron docs to ISO/CVD process standards, or changing the target set, exemption
+list, or auto-fix behavior of `lint-docs`.
 
 **`message-type-reference.md`**
 Why the formal message set (shorthands partitioned by state machine) and the

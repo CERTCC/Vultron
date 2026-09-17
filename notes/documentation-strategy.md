@@ -8,7 +8,10 @@ related_notes:
   - notes/bt-integration.md
   - notes/case-state-model.md
   - notes/message-type-reference.md
+  - notes/rfc-spec-authoring.md
   - notes/spec-authoring-rules.md
+related_specs:
+  - specs/diataxis-requirements.yaml
 relevant_packages:
   - vultron/bt
   - vultron/core
@@ -289,3 +292,119 @@ current design. This preserves historical context without causing confusion.
 
 Files excluded from nav MUST ALSO be listed in `not_in_nav`; the overlay list
 *replaces* the base list rather than extending it.
+
+## Nav Visibility Is Not a Content Class: Fragments vs. Assembly Units
+
+`not_in_nav` answers "does this file get a nav entry". It does not answer "is
+this file prose that prose rules apply to". Conflating the two is what left the
+Protocol Specification — 35 fragments, 2,773 lines of normative reference
+material — outside `lint-docs` entirely, because the fragments carry the `_`
+prefix that keeps them out of nav. Normative requirements: DF-09-007 through
+DF-09-009. Decision record: ADR-0091.
+
+The `_` prefix was doing double duty. In `mkdocs.yml` it means "exclude from
+nav"; `lint-docs` read it as "not really a page". The second claim is false for
+prose-heavy content that merely happens to be *delivered* as fragments.
+
+### The two kinds of file
+
+A page assembled from `{% include-markdown %}` directives is an **assembly
+unit**; the files it pulls in are **fragments**. Both are prose. They differ in
+which rules can be evaluated against them.
+
+| Rule scope | Evaluate against | Examples |
+|---|---|---|
+| Sentence or block | the fragment, with its own line numbers | spelling, filler, sentence shape, list and table discipline, Mermaid title and type, reference voice |
+| Page | the assembly unit | acronym first use (DF-09-003), concept order (DF-09-005), page furniture and anything naming the H1 or nav label |
+
+Applying a page-scoped rule to a fragment produces a finding that is an artifact
+of how the document was split, not a defect in the prose. Requiring acronym
+expansion in each of 35 fragments would render 35 expansions of the same acronym
+on one published page.
+
+Two things make this cheap rather than a tooling problem:
+
+- **The assembly unit is already a lint target.** `index.md` is not
+  `_`-prefixed and is in nav, so it is already in scope. Evaluating page-scoped
+  rules against it means reading its include directives in order — not building
+  an include-graph resolver.
+- **There is precedent for suppressing rather than resolving.**
+  `.markdownlint-cli2.yaml` disables MD041 ("First line in file should be a top
+  level header") with the comment *"Disabled because we use `include-markdown`
+  plugin for merging markdown files"*. The repo already met this class of
+  fragment-only artifact and named the rule instead of teaching the tool about
+  assembly.
+
+### The include graph is not a tree
+
+A fragment can have several hosts, and hosts can sit in different Diátaxis
+quadrants. `includes/_rm-states-table.md` has four host parents; each `_oq-*.md`
+has two (inline at point of use, plus the open-questions appendix).
+`docs/tutorials/worked_example.md` (tutorial) and
+`docs/topics/measuring_cvd/possible_histories.md` (explanation) are both
+included into the reference specification's annexes. Quadrant selects the voice
+rules, so a fragment's quadrant comes from its hosts and never from its own path
+(DF-09-008).
+
+### Content shape is not a usable exemption criterion
+
+Exempting "fragments with no prose" sounds principled and does not survive
+contact with the population. Of 73 fragments under `docs/`, roughly six are
+genuinely content-free (`vultron-spec/includes/_*-table.md`,
+`process_models/cs/_events_table.md`,
+`measuring_cvd/_history_constraints.md`). The rest carry prose, *including the
+ones that look content-free*: `_em_blurb.md` is five lines and a pure
+admonition, and `_nda_sidebar.md` is a pure admonition carrying ten lines of
+substantive argument. "Skip pure admonitions" would exempt exactly the wrong
+files — and classifying by content shape means reading every file, which is what
+linting is.
+
+### A gate that resolves zero targets must fail
+
+`check-docs-sync` calls `lint-docs` a blocking gate. When PR #3265 wrote the 35
+fragments, the gate resolved to an empty target set and reported success. A
+gate that checks nothing and passes is worse than no gate, because the false
+clean signal suppresses the review it replaced (DF-09-009).
+
+### Auto-fix scale is about edit kind, not file count
+
+Whether a fix is safe to apply in bulk depends on whether it is a deterministic
+substitution or a model rewriting prose, not on how many files are in the target
+set. `markdownlint --fix` and `black` run tree-wide with no threshold because
+their edits are substitutions. An LLM deleting filler "where the sentence
+survives it" or rewriting a sentence for a quadrant's voice carries per-edit
+risk that does not shrink with volume. A file-count guard conflates the two: it
+blocks the safe fixes above the threshold and permits the risky ones below it.
+
+### `codespell` is the mechanical floor for spelling
+
+Spelling is the only style rule in this project with off-the-shelf tooling, so
+it is the only one that need not depend on an agent noticing. `codespell` is
+configured in `pyproject.toml` with `builtin = "en-GB_to_en-US"` and run as a
+stock pre-commit hook over `docs/`.
+
+Its scope cannot be widened. `behaviour` appears 1,114 times in `vultron/` and
+`test/` as `py_trees.behaviour.Behaviour` — a third-party API — across 142
+files. `notes/` and `specs/` are outside SG-37's scope by the style guide's own
+scope table.
+
+Three hazards, all silent, all found by measurement rather than anticipated:
+
+- **`codespell` has no notion of a code fence.** `docs/howto/wire_capability.md`
+  uses `py_trees.behaviour.Behaviour` on ten lines, in fences and inline code
+  spans. `--write-changes` would rewrite documentation into code that raises
+  `AttributeError`. An `ignore-regex` for the API name covers both tokens in one
+  match.
+- **`codespell` will rewrite its own config.** Run against the repo root with
+  `write-changes` in `pyproject.toml`, it "corrects" the `ignore-regex` line and
+  destroys the pattern protecting the API name. Keep `write-changes` in the hook
+  args (as `markdownlint` carries `--fix`) and restrict the hook with
+  `files: ^docs/.*\.md$`.
+- **`skip` patterns must match the path as `codespell` sees it.** A
+  `./`-prefixed pattern silently fails to match when the target is passed as
+  `docs/`, inflating the finding count from 94 to 222 with no error.
+
+The generalizable rule: what makes `--write-changes` safe is not the dictionary
+but an audit that no finding sits inside a code fence, an inline code span, an
+external citation title, or a link target. Correcting someone else's published
+paper title is a defect, not a fix.
