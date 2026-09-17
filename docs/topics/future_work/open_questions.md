@@ -12,6 +12,13 @@ No meaning shows that the project rejects the capability.
 Most of these questions apply to the movement of the Vultron ActivityStreams 2.0 (AS2) vocabulary between organizations.
 They also apply to the obligations of a production deployment that the prototype does not obey.
 
+Four more acronyms occur across the entries below:
+
+- Uniform Resource Identifier (URI)
+- Uniform Resource Locator (URL)
+- JavaScript Object Notation for Linked Data (JSON-LD)
+- Domain Name System (DNS)
+
 ---
 
 ## Federation

@@ -6,12 +6,12 @@
     It does not supply the other parts of an ActivityPub server:
 
     - a NodeInfo document
-    - a public outbox collection
     - followers and following collections
     - a shared inbox
-    - a client-to-server API
+    - a client-to-server Application Programming Interface (API)
 
-    The project does not reject these parts.
+    The prototype does supply a readable outbox collection for each actor.
+    The project does not reject the missing parts.
     The prototype does not need them to show coordination between known peers.
     Thus the correct depth of ActivityPub conformance for a production deployment is open.
     Full conformance gives interoperability with existing fediverse tools.

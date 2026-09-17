@@ -19,5 +19,5 @@
     The method to retire stale or offline instances is a third open point.
 
     Demo deployments do not have this problem.
-    Each container receives the URL of each other container at start-up (CP-08-003).
+    Each container receives the URL of each other container at start-up (CP-08).
     This is an alternative to a directory service, and the specification records it as one.

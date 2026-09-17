@@ -7,7 +7,7 @@ description: >
 related_specs:
   - specs/encryption.yaml
 related_notes:
-  - notes/federation_ideas.md
+  - archived_notes/federation_ideas.md
 ---
 
 # Encryption implementation notes

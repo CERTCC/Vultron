@@ -3,8 +3,8 @@
     A Report is not a Case.
     A Report is the object of the initial `Offer`.
     A Case exists only after a recipient accepts that `Offer`.
-    Two Report formats are in scope: plain text and CSAF-formatted JSON.
-    More formats can follow.
+    Two Report formats are possible: plain text and JavaScript Object Notation (JSON) in the Common Security Advisory Framework (CSAF) format.
+    The project has not specified either format, and more formats can follow.
 
     The unresolved condition occurs when the same Report goes to more than one recipient.
     Each recipient can accept the Report and make its own Case from it.

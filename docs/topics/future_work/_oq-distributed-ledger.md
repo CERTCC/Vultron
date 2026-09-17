@@ -2,7 +2,7 @@
 
     Each case has one writer.
     The actor that enacts CASE_MANAGER is the only author of the canonical hash-chained case ledger.
-    Each Participant Case Replica is a projection of that ledger (PCR-08).
+    Each Participant Case Replica is a projection of that ledger (PCR-03-001, PCR-03-002).
     This is an intentional simplification.
     This single-writer regime needs no consensus protocol.
     The hash chain also keeps the history tamper-evident, and each Participant can verify it independently.
