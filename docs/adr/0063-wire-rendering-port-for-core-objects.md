@@ -21,9 +21,11 @@ violation has been tracked as a known deviation (#1991) behind an
 for long enough that downstream code came to depend on it.
 
 `ParticipantStatus` compounds the problem with a `_migrate_flat_fields`
-`model_validator(mode="before")` that accepts flat wire spellings
-(`rm_state`/`rmState`, `vfd_state`/`vfdState`, `em_consent_state`/`emConsentState`)
-and rewrites them into the ADR-0036 dimension objects. SDO-03-003 says the old
+`model_validator(mode="before")` that accepts flat wire spellings and rewrites
+them into the ADR-0036 dimension objects. (This ADR predates ADR-0075, which
+split the VFD dimension into `vf` and `d`; the shim's flat fields are now
+`rm_state`, `vf_state`, `d_state`, and `em_consent_state`, not the single
+`vfd_state` this ADR was written against.) SDO-03-003 says the old
 flat enum fields MUST NOT be retained as aliases or shim properties after the
 dimension migration — so this shim violates a MUST-level requirement
 independently of ARCH-12-003.
@@ -150,14 +152,15 @@ Concretely:
    same port, which fixes CLP-07-006 inlining for every type rather than only
    for types that happen to be aliased.
 
-5. **`alias_generator` is removed from all eight classes**, and
+5. **(Pending — not yet landed; tracked by open #2288/#2289.)**
+   `alias_generator` is removed from all eight classes, and
    `_migrate_flat_fields` is deleted. Each de-aliased class gains a rejecting
    `model_validator(mode="before")` built on the existing
    `reject_wire_spelled_keys` mechanism in
    `vultron/core/models/_wire_spelling.py`, extended to cover the flat wire field
-   names (`rm_state`/`rmState`, `vfd_state`/`vfdState`,
-   `em_consent_state`/`emConsentState`) so that a wire-shaped payload raises
-   instead of being silently dropped. `_to_core_status` in
+   names (`rm_state`/`rmState`, `vf_state`/`vfState`, `d_state`/`dState`,
+   `em_consent_state`/`emConsentState` — post-ADR-0075) so that a wire-shaped
+   payload raises instead of being silently dropped. `_to_core_status` in
    `behaviors/status/nodes/dimension_filter.py` is converted from
    dump-and-revalidate to the `to_core()` boundary projection at the same time,
    since the guard would otherwise make it raise (ARCH-20-007).
@@ -167,11 +170,19 @@ Concretely:
    a core actor with `by_alias=True`. The vestigial `CoreActor.to_json()` (no
    callers) is removed.
 
-7. **The ratchet is retired.** The `xfail` on
-   `test_no_core_object_has_to_camel_alias_generator` becomes a plain passing
-   assertion, and #1991 is closed. The known-deviation paragraph in
+7. **(Pending — not yet landed; tracked by open #2288/#2289.)** The ratchet is
+   retired. The `xfail` on `test_no_core_object_has_to_camel_alias_generator`
+   becomes a plain passing assertion, and the tracking issue (originally #1991,
+   now carried by #2288/#2289) is closed. The known-deviation paragraph in
    `CaseParticipant._reject_wire_spelled_keys`'s docstring is rewritten, because
    ARCH-12-003 then does hold throughout that subtree.
+
+> **Status (2026-09 audit).** Steps 1–4 and 6 have landed (the port, the AS2
+> adapter, blackboard injection, and the `ledger_snapshots.py` rewrite). Steps 5
+> and 7 — removing `alias_generator` from the eight classes, deleting
+> `_migrate_flat_fields`, and retiring the `_TO_CAMEL_BACKLOG_1991` ratchet —
+> have **not** landed; the ratchet is still live and the work is tracked by open
+> #2288/#2289. The decision stands; only the completion is pending.
 
 **Persisted rows are unaffected.** `Record.from_obj` calls
 `obj.model_dump(mode="json", serialize_as_any=True)` with no `by_alias`, so rows

@@ -5,7 +5,14 @@ deciders: [adh, Claude Sonnet 4.6]
 supersedes: 0015-create-case-at-report-receipt.md
 ---
 
-# ADR-0041: CaseActor-Authoritative Case Initialization
+# ADR-0041: CASE_MANAGER-Authoritative Case Initialization
+
+> **Identity vs. role (ADR-0088).** This ADR predates ADR-0088 and its prose
+> says "CaseActor" where it means *the participant holding the `CASE_MANAGER`
+> role*. Authority to create and write the canonical case is conferred by that
+> **role**, never by an actor named `case-actor` or by any URL shape. Read every
+> "CaseActor" below as "the CASE_MANAGER"; see ADR-0088 for the identity/role
+> distinction and the resolver that enforces it.
 
 ## Context and Problem Statement
 
@@ -127,14 +134,13 @@ Receiver (on Create(VulnerabilityCase)):
   adds itself as `CASE_MANAGER` when creating the case natively, so the
   `Offer(CaseManagerRole)` handshake is no longer part of case initialization.
 
-  **Scope limit:** what is removed is the handshake's role in *initialization*,
-  not the handshake. `Offer(CaseManagerRole)` remains a protocol operation in
-  its own right — explicit CASE_MANAGER delegation to a service actor while the
-  vendor retains CASE_OWNER — required by DEMOMA-08-002, DEMOMA-08-003, and
-  DEMOMA-08-006 through DEMOMA-08-009, and reachable via the manual trigger
-  `offer_case_manager_role_trigger_bt`. `create_offer_case_manager_role_received_tree`
-  therefore keeps its accept/reject path fully functional, which also means
-  traffic from pre-ADR-0041 actors is answered rather than silently dropped.
+  This ADR originally scoped the removal to *initialization* only and stated
+  that `Offer(CaseManagerRole)` survived as a standalone delegation operation.
+  **That is no longer true (ADR-0039, CONCERN-2322, #2429):** the
+  `CaseManagerRole` patterns and use cases were deleted entirely and replaced by
+  `OFFER_CASE_PARTICIPANT_ROLE`; DEMOMA-08-006 through DEMOMA-08-009 are marked
+  superseded. Only the removal from *initialization* originated with this ADR;
+  the operation's later deletion belongs to ADR-0039.
 - `CreateCaseActorNode` from the vendor's `receive_report_case_tree.py` — the
   CaseActor is a pre-existing service; the vendor does not spawn it at report
   receipt. The node itself is **retained**: `create_tree.py` still uses it for
@@ -213,14 +219,18 @@ testable:
 
 - Supersedes: `docs/adr/0015-create-case-at-report-receipt.md`
 - Refines: `docs/adr/0023-case-proposal-protocol.md`
+- Refined by: `docs/adr/0088-consolidate-case-authority-determination.md`
+  (narrows the identity narrative: authority is the `CASE_MANAGER` role, not the
+  CaseActor identity or URL)
 - Source concern: Issue #1771
 - Symptom issue resolved: Issue #1767
 - Workaround removed: Issue #1688 (`WritePrologueLedgerEntriesNode`)
 - Generated spec requirements: `specs/case-proposal.yaml` CP-09,
-  `specs/case-management.yaml` CM-22 (CaseActor-authoritative init),
+  `specs/case-management.yaml` CM-22 (CASE_MANAGER-authoritative init),
   `specs/case-ledger-processing.yaml` CLP-12
-- Retained by scope limit: DEMOMA-08-002, DEMOMA-08-003, DEMOMA-08-006 through
-  DEMOMA-08-009 (`Offer(CaseManagerRole)` as a standalone delegation operation)
+- Later deleted by ADR-0039 (CONCERN-2322): `Offer(CaseManagerRole)` as a
+  standalone delegation operation, formerly DEMOMA-08-006 through DEMOMA-08-009
+  (replaced by `OFFER_CASE_PARTICIPANT_ROLE`)
 
 ### Revision history
 

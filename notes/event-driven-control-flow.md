@@ -193,10 +193,12 @@ depend on the unmet precondition (DEMOCI-01-007, EDF-06-005).
 
 When writing tests for a gate, exercise the real context manager. Patching it out
 with `contextlib.nullcontext` makes the assertion propagate and the test pass
-while proving nothing about gating. This idiom is currently used in seven demo
-test modules, so no test in the suite exercises the real control flow of these
-context managers — which is how the advisory `RM.VALID` gate before `engage-case`
-went unnoticed.
+while proving nothing about gating. That idiom formerly appeared in seven demo
+test modules, so no test exercised the real control flow — which is how the
+advisory `RM.VALID` gate before `engage-case` went unnoticed. That gap is now
+closed: `demo_gate` is implemented (`vultron/demo/utils.py`) and tested against
+its real control flow by `TestDemoGate` (`test/demo/test_demo_context_managers.py`),
+where `nullcontext` is explicitly banned.
 
 ### Not every wait is a defect
 
