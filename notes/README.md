@@ -740,6 +740,18 @@ root-owned venv, the broken `gh` credential-helper path, and the hard-linked
 **Load when**: a tool fails to start, `git push` cannot authenticate, or you are
 about to edit a skill file.
 
+**`lint-tooling.md`**
+Lint and format gate policy (ADR-0094): ruff as the sole Python linter and
+formatter, why `select` names families while `ignore` is curated by exception,
+what makes an acceptable exclusion reason (IMPLTS-07-019), and why `RUF100`
+rather than a bespoke test is the ratchet for baselined findings
+(IMPLTS-07-020). Records the two notable exclusions — provisional `PLC0415`
+(#3350) and deferred `G004` — and the commit-loop habits that changed when the
+whole-tree flake8 hook went away.
+**Load when**: editing `[tool.ruff]`, adding or removing an `ignore` entry,
+baselining a new rule, tightening the ruleset, or wiring a lint step into CI or
+pre-commit.
+
 **`ci-workflow-authoring.md`**
 Pitfalls when writing or reading GitHub Actions workflows: PyYAML resolving bare
 `on:` to `True`, matrix booleans failing differently at job- vs. step-level

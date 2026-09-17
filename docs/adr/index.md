@@ -163,6 +163,7 @@ General information about architectural decision records is available at <https:
 - [ADR-0091 Rename PEC `NO_EMBARGO` to `UNBOUND`; Drop `EM.NO_EMBARGO` Alias](0091-rename-pec-no-embargo-to-unbound.md)
 - [ADR-0092 Lint Fragments as Source, and Evaluate Page-Scoped Style Rules on the Rendered Page](0092-lint-fragments-as-source-page-rules-on-rendered-page.md)
 - [ADR-0093 `DECLINE` Is Legal from `SIGNATORY` — Consent Withdrawal Is a First-Class PEC Action](0093-signatory-declined-pec-transition.md)
+- [ADR-0094 Replace flake8, isort and black with ruff, and declare lint exclusions instead of discovering them](0094-ruff-replaces-flake8-isort-black.md)
 
 ## Proposed ADRs
 

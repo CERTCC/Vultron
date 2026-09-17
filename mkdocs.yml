@@ -356,6 +356,7 @@ nav:
       - "Rename PEC NO_EMBARGO to UNBOUND; Drop EM.NO_EMBARGO Alias": 'adr/0091-rename-pec-no-embargo-to-unbound.md'
       - 'Lint Fragments as Source, and Evaluate Page-Scoped Style Rules on the Rendered Page': 'adr/0092-lint-fragments-as-source-page-rules-on-rendered-page.md'
       - "DECLINE Is Legal from SIGNATORY — Consent Withdrawal Is a First-Class PEC Action": 'adr/0093-signatory-declined-pec-transition.md'
+      - 'Replace flake8, isort and black with ruff, and declare lint exclusions instead of discovering them': 'adr/0094-ruff-replaces-flake8-isort-black.md'
   - About:
     - What's New: 'about/whats_new.md'
     - Contributing: 'about/contributing.md'
