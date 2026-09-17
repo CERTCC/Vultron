@@ -442,8 +442,11 @@ groups:
       one edit to one file, and makes caller disagreement impossible rather than unlikely.
     verification: >-
       No invocation of `ruff`, `mypy` or `pyright` in `.github/workflows/`, `.agents/skills/`,
-      `.pre-commit-config.yaml`, or `docs/developer/` passes a path operand, and each tool's
-      configuration declares its own scope.
+      `.pre-commit-config.yaml`, `Makefile`, `CONTRIBUTING.md`, or `docs/developer/` passes a
+      path operand, and each tool's configuration declares its own scope. `Makefile` and
+      `CONTRIBUTING.md` are named explicitly because they are the two call sites most easily
+      missed: the `Makefile` carries both a `flake8` target and an aggregate `lint` target, and
+      `CONTRIBUTING.md` is the invocation new contributors copy.
     relationships:
     - rel_type: refines
       spec_id: IMPLTS-07-017

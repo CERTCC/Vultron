@@ -12,6 +12,7 @@ related_notes:
   - notes/docker-build.md
   - notes/git-workflow-pitfalls.md
   - notes/parallel-development.md
+  - notes/lint-tooling.md
 ---
 
 # Devcontainer and Toolchain Pitfalls
@@ -60,6 +61,11 @@ guard only skips when nothing relevant changed, so a cold cache or any edited
 source file makes the hook pay the full ~35s whole-tree cost. A fast manual
 `uv run flake8` is not evidence the hook will be fast — the cost is the
 whole-tree invocation, not flake8 startup.
+
+ADR-0094 retires this hook in favour of ruff, which removes this timeout's cause
+entirely; the replacement policy is [notes/lint-tooling.md](lint-tooling.md). That
+change has **not** landed — it is tracked as #3352 — so the timeout above is still
+required. Revisit this section when #3352 merges.
 
 Sources: ISSUE-2479
 

@@ -13,16 +13,23 @@ related_specs:
 related_notes:
   - notes/devcontainer-tooling.md
   - notes/ci-workflow-authoring.md
-  - notes/documentation-strategy.md
 ---
 
 # Lint Tooling Policy — Ruff Configuration, Exclusions, and Baselining
 
-Ruff is the sole Python linter and formatter (IMPLTS-07-017). `mypy` and
-`pyright` remain separate type-checking jobs. Black, flake8 and isort were
-retired by ADR-0094 and MUST NOT be reintroduced alongside ruff — leaving a
-superseded linter in place as a fallback recreates the duplicate-gate problem
-that decision removed (CS-15-001 applied to tooling).
+> **Status: decided, not yet built.** ADR-0094 is accepted, but the configuration
+> this note describes lands with **#3352**. Until it does, `ruff` is not installed,
+> there is no `[tool.ruff]` table in `pyproject.toml`, and flake8, black and isort
+> are still the live gate. Read what follows as the policy that governs the ruff
+> config once it exists — not as a description of the current tree.
+> [notes/devcontainer-tooling.md](devcontainer-tooling.md) remains authoritative
+> for today's commit loop.
+
+Ruff is to be the sole Python linter and formatter (IMPLTS-07-017). `mypy` and
+`pyright` remain separate type-checking jobs. Black, flake8 and isort are retired
+by ADR-0094 and MUST NOT be reintroduced alongside ruff — leaving a superseded
+linter in place as a fallback recreates the duplicate-gate problem that decision
+removed (the config-level form of the shim CS-15-001 prohibits for code symbols).
 
 ADR-0094 is the decision record and holds the measurements: the timing
 comparison, the per-rule finding counts behind each exclusion, and the rejected
@@ -31,7 +38,7 @@ here (MS-16-001) — read them from the ADR, where they carry a measurement date
 
 ## Invoke with no path arguments
 
-Every caller runs exactly these, with **no paths**:
+Every caller MUST run exactly these, with **no paths**:
 
 ```bash
 uv run ruff check          # or --fix
@@ -40,11 +47,11 @@ uv run ruff format         # or --check
 
 Scope lives in the config, never in the invocation (**IMPLTS-07-021**). This is
 not a style preference — a scope expressed as arguments is duplicated at every
-call site and drifts, and ADR-0094 records two drifts that were live before it
-was written: one tool formatted the whole repository while another linted two
-directories, leaving code formatted but never linted; and two skills disagreed
-about how much of the tree to type-check, so some pull requests checked less than
-commits did. `pyright` had no such problem, because `pyrightconfig.json` declares
+call site and drifts, and ADR-0094 records two drifts that are live in the tree
+today: one tool formats the whole repository while another lints two
+directories, leaving code formatted but never linted; and two skills disagree
+about how much of the tree to type-check, so some pull requests check less than
+commits do. `pyright` has no such problem, because `pyrightconfig.json` declares
 its own scope and every caller invokes it bare. `mypy` is scoped by `.mypy.ini`
 the same way — a bare `uv run mypy` is the correct form, and any invocation that
 names a package is narrowing the gate by accident.
@@ -87,13 +94,13 @@ about scope — the exact drift this whole section exists to prevent.
 
 ## The shape of the configuration
 
-Everything lives in `[tool.ruff]` in `pyproject.toml`. Four settings carry
-obligations forward from the retired tools, and changing any of them silently
+Everything belongs in `[tool.ruff]` in `pyproject.toml`. Four settings carry
+obligations forward from the tools ruff replaces, and changing any of them silently
 breaks a requirement:
 
 | Setting | Carries |
 |---|---|
-| `line-length` | the retired `[tool.black]` value; keeps lint and format agreed |
+| `line-length` | the `[tool.black]` value it replaces; keeps lint and format agreed |
 | `target-version` | IMPLTS-01-001, the Python floor |
 | `[tool.ruff.lint.mccabe] max-complexity` | IMPLTS-07-008, the complexity gate, formerly in `.flake8` |
 | `per-file-ignores` for `__init__.py` | the `.flake8` re-export exemption |
@@ -104,10 +111,13 @@ differently-calibrated complexity gate can disagree with the first, and then
 neither is authoritative.
 
 There is deliberately **no `lint.exclude`**. Lint covers the whole tracked Python
-surface, including `scripts/` — which the retired flake8 configuration never
-linted even though black formatted it. ADR-0094 resolved that asymmetry by
-widening lint rather than preserving it, so do not reintroduce a directory
-exclusion to make a finding go away; baseline the finding instead.
+surface, including `scripts/` and `.agents/` — which the flake8 configuration it
+replaces never linted even though black formatted them. ADR-0094 resolved that
+asymmetry by widening lint rather than preserving it, so do not reintroduce a
+directory exclusion to make a finding go away; baseline the finding instead. The
+widening's real cost is eight `C901` functions in that newly-linted surface, listed
+in ADR-0094 — refactors, not suppressions, because raising the threshold would
+weaken IMPLTS-07-008 tree-wide to accommodate tooling scripts.
 
 ## Select families, exclude by exception
 
@@ -209,20 +219,22 @@ eradication carried by epic #3329, so they add a gate, not a backlog.
 Never tighten by enabling a family. Families are the coarse dial for what is
 already clean; individual rules are the dial for taking on new debt.
 
-## Consequences for the commit loop
+## Consequences for the commit loop (once #3352 lands)
 
-Ruff makes the whole-tree lint and format gate roughly a second, which changes
-three habits the flake8 era required:
+Ruff will make the whole-tree lint and format gate roughly a second, which changes
+three habits the flake8 era requires:
 
-- The pre-commit ruff hook is invoked **directly**, not through
+- The pre-commit ruff hook is to be invoked **directly**, not through
   `.agents/skills/shared/run-if-changed.sh`. Fingerprint memoization (#3153)
   exists to avoid repeating expensive whole-tree work; at this speed the cache
-  lookup is a larger share of the cost than the work. `run-if-changed.sh` is
-  retained for `mypy` and `pyright`, which remain the genuinely slow checks.
+  lookup is a larger share of the cost than the work. `run-if-changed.sh` stays in
+  place for `mypy` and `pyright`, which remain the genuinely slow checks.
 - The ten-minute `git commit` timeout that
-  [notes/devcontainer-tooling.md](devcontainer-tooling.md) prescribes was driven
-  by the whole-tree flake8 hook. That specific cause is gone; the note records
-  what remains.
+  [notes/devcontainer-tooling.md](devcontainer-tooling.md) prescribes exists
+  because the flake8 hook lints all of `vultron/` and `test/` regardless of what is
+  staged. Retiring that hook removes the cause, so #3352 (AC-11) updates that note
+  to say what remains instead of leaving a dead workaround prescribed. Until then
+  the timeout is still needed.
 - `ruff check` is cheap enough to run repeatedly while editing, rather than once
   before committing. Prefer `--fix` on the files you touched over a whole-tree
   autofix, so a mechanical rewrite never rides along in an unrelated diff — the
