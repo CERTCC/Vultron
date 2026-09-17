@@ -35,19 +35,19 @@ gh api graphql -f query='{
 ```bash
 # Open Idea issues
 gh issue list --repo CERTCC/Vultron \
-  --limit 200 \
+  --limit 1000 \
   --json number,title,issueType \
   --jq '[.[] | select(.issueType.name == "Idea")] | length'
 
 # Open Bug issues
 gh issue list --repo CERTCC/Vultron \
-  --limit 200 \
+  --limit 1000 \
   --json number,title,issueType \
   --jq '[.[] | select(.issueType.name == "Bug")] | length'
 
 # Open Concern issues
 gh issue list --repo CERTCC/Vultron \
-  --limit 200 \
+  --limit 1000 \
   --json number,title,issueType \
   --jq '[.[] | select(.issueType.name == "Concern")] | length'
 ```
