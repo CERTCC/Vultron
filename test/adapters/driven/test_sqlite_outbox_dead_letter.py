@@ -223,3 +223,76 @@ def test_dead_letter_list_skips_corrupted_entries(
     assert len(entries) == 1
     assert entries[0].activity_id == _ACT_ID
     assert "could not reconstruct" in caplog.text
+
+
+def test_dead_letter_ledger_entry_id_roundtrip(alice_dl):
+    """ledger_entry_id is persisted and readable from the dead-letter store.
+
+    OX-14-001: the entry correlates an exhausted activity to its canonical
+    CaseLedgerEntry.
+    """
+    ledger_id = "urn:case:test-case/log/0"
+    alice_dl.dead_letter_append(
+        _ACT_ID,
+        reason="max_attempts_exhausted",
+        total_attempts=12,
+        failed_recipients=[_BOB],
+        ledger_entry_id=ledger_id,
+    )
+    entries = alice_dl.dead_letter_list()
+    assert len(entries) == 1
+    assert entries[0].ledger_entry_id == ledger_id
+
+
+def test_dead_letter_ledger_entry_id_defaults_to_none(alice_dl):
+    """ledger_entry_id is None when not provided (non-ledger activities).
+
+    OX-14-001 (AC-4): non-ledger activities dead-letter with the correlation
+    absent rather than fabricated.
+    """
+    alice_dl.dead_letter_append(
+        _ACT_ID,
+        reason="max_attempts_exhausted",
+        total_attempts=12,
+        failed_recipients=[],
+    )
+    entries = alice_dl.dead_letter_list()
+    assert len(entries) == 1
+    assert entries[0].ledger_entry_id is None
+
+
+@pytest.mark.spec("OX-14-001", "OX-14-002")
+def test_resolve_ledger_entry_id_reads_inline_object_from_sqlite(alice_dl):
+    """_resolve_ledger_entry_id extracts the entry ID from a stored Announce(CaseLedgerEntry).
+
+    AC-7 (seam): verifies that a real Announce(CaseLedgerEntry) activity saved
+    to and read back from SqliteDataLayer has an inline CaseLedgerEntry object_
+    with an accessible id_.  The CaseLedgerEntry is committed (saved) before the
+    Announce is queued — the emit-after-commit invariant (OX-14-002) means the
+    entry is always resolvable when _resolve_ledger_entry_id runs.
+    """
+    from vultron.adapters.driving.fastapi.outbox_handler import (
+        _resolve_ledger_entry_id,
+    )
+    from vultron.wire.as2.factories import announce_log_entry_activity
+    from vultron.wire.as2.vocab.objects.case_ledger_entry import (
+        as_CaseLedgerEntry,
+    )
+
+    ledger_entry_id = "urn:case:seam-test/log/0"
+    wire_entry = as_CaseLedgerEntry(
+        id_=ledger_entry_id,
+        case_id="urn:case:seam-test",
+        log_object_id="urn:activity:seam-object",
+        event_type="SeamTest",
+    )
+    announce = announce_log_entry_activity(
+        entry=wire_entry,
+        actor=_ALICE,
+        to=[_BOB],
+    )
+    alice_dl.save(announce)
+
+    result = _resolve_ledger_entry_id(announce.id_, alice_dl)
+
+    assert result == ledger_entry_id
