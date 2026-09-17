@@ -34,6 +34,7 @@ import logging
 from typing import TYPE_CHECKING, Any
 
 from py_trees.common import Status
+from pydantic import ValidationError
 
 from vultron.config.actor import ActorConfig
 from vultron.core.behaviors.bridge import BTBridge
@@ -122,7 +123,7 @@ class CreateCaseProposalReceivedUseCase:
             return None
         try:
             candidate = to_core()
-        except Exception as exc:  # noqa: BLE001
+        except ValidationError as exc:
             logger.warning(
                 "create_case_proposal_received: could not convert the inline"
                 " report of proposal '%s' to its core shape: %s — falling back"

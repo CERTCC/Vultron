@@ -61,10 +61,7 @@ def resolve_pxa_threat_state(case_status: object) -> CS_pxa | None:
         return None
     if pxa_state is None:
         return None
-    try:
-        if pxa_state == CS_pxa.pxa:
-            return None
-    except Exception:
+    if pxa_state == CS_pxa.pxa:
         return None
     return cast(CS_pxa, pxa_state)
 

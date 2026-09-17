@@ -115,30 +115,31 @@ class VultronObject(ValidatedAssignmentMixin, VultronBase):
             return
         try:
             hints = _typing.get_type_hints(cls)
-        except Exception:
+        except (NameError, TypeError):
+            # Forward references cannot be resolved yet (NameError) or an
+            # annotation is not a valid type (TypeError) — do not register.
+            # A half-constructed entry is worse than a missing one, which
+            # surfaces immediately at lookup time (CS-23-001).
             return
         annotation = hints.get("type_")
         if isinstance(annotation, _types.UnionType):
             return
         if _typing.get_origin(annotation) is _typing.Union:
             return
-        try:
-            # Register by class name (covers classes where _set_type_from_class_name
-            # sets type_ = cls.__name__, e.g. CoreActor stored as "CoreActor").
-            CORE_TYPE_MAP[cls.__name__] = cls
-            # Also register by the Literal value itself when it differs from the
-            # class name (e.g. VultronOfferRecord → "OfferRecord"). Extract from
-            # the annotation directly; model_fields is not yet populated at
-            # __init_subclass__ time.
-            literal_args = _typing.get_args(annotation)
-            if (
-                literal_args
-                and len(literal_args) == 1
-                and isinstance(literal_args[0], str)
-            ):
-                CORE_TYPE_MAP[literal_args[0]] = cls
-        except Exception:
-            pass
+        # Register by class name (covers classes where _set_type_from_class_name
+        # sets type_ = cls.__name__, e.g. CoreActor stored as "CoreActor").
+        CORE_TYPE_MAP[cls.__name__] = cls
+        # Also register by the Literal value itself when it differs from the
+        # class name (e.g. VultronOfferRecord → "OfferRecord"). Extract from
+        # the annotation directly; model_fields is not yet populated at
+        # __init_subclass__ time.
+        literal_args = _typing.get_args(annotation)
+        if (
+            literal_args
+            and len(literal_args) == 1
+            and isinstance(literal_args[0], str)
+        ):
+            CORE_TYPE_MAP[literal_args[0]] = cls
 
     replies: Any | None = None
     url: NonEmptyString | None = None
@@ -235,7 +236,7 @@ class CoreObject(VultronObject):
             return  # Skip CORE_VOCABULARY — not a concrete vocab entry
         try:
             hints = _typing.get_type_hints(cls)
-        except Exception:
+        except NameError:
             # If forward references cannot be resolved, do not register —
             # silent registration of a half-constructed class is worse than
             # a missing entry, which surfaces immediately at lookup time.

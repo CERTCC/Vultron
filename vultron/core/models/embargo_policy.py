@@ -45,7 +45,10 @@ def parse_duration(value: Any) -> timedelta | None:
             )
         try:
             parsed = isodate.parse_duration(value)
-        except Exception as exc:
+        except (isodate.ISO8601Error, OverflowError) as exc:
+            # ISO8601Error: malformed string; OverflowError: an in-range-looking
+            # but astronomically large component (e.g. 'P<many-digits>D').  Both
+            # are bad input and become a clean ValueError (→ 422), not a 500.
             raise ValueError(f"Invalid ISO 8601 duration: {value!r}") from exc
         if not isinstance(parsed, timedelta):
             raise ValueError(

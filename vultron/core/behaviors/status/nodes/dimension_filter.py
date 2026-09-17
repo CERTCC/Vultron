@@ -21,11 +21,9 @@ several *independent* state machines: ``rm`` (Report Management), ``vfd``
 (participant embargo consent).  Because they are independent, a value that is
 unacceptable in one dimension says nothing about the others.
 
-Before RSH-05, one refused dimension discarded the entire snapshot: the
-receiving Case Actor dropped the accepted dimensions along with the refused
-one and aborted the enclosing ``AddParticipantStatusBT`` Sequence, which also
-skipped the StatusAdoptionGate → EmbargoTeardownAuthorizationGate emit and therefore embargo teardown
-(ISSUE-2235, RSH-01-003, RSH-01-004).
+Before RSH-05, one refused dimension discarded the entire snapshot: the Case
+Actor dropped the accepted dimensions, aborted ``AddParticipantStatusBT``, and
+skipped the gate emit and embargo teardown (ISSUE-2235, RSH-01-003/004).
 
 :class:`FilterParticipantStatusDimensionsNode` adjudicates each dimension on
 its own and publishes a *filtered* status in which refused dimensions carry
@@ -42,6 +40,8 @@ from typing import TYPE_CHECKING, Any
 
 import py_trees
 from py_trees.common import Status
+from py_trees.ports import NoDataAvailable
+from pydantic import ValidationError
 
 if TYPE_CHECKING:
     from vultron.core.ports.wire_render import WireRenderPort
@@ -122,7 +122,7 @@ def _to_core_status(status_obj: Any) -> ParticipantStatus | None:
     try:
         result = to_core()
         return result if isinstance(result, ParticipantStatus) else None
-    except Exception as exc:  # pragma: no cover - defensive
+    except ValidationError as exc:
         logger.warning(
             "FilterParticipantStatusDimensionsNode: could not normalise"
             " status object '%s' to a core ParticipantStatus: %s",
@@ -249,7 +249,7 @@ class FilterParticipantStatusDimensionsNode(DataLayerConditionWithPorts):
         super().initialise()
         try:
             self.wire_render_port = self.get_input("wire_render_port")
-        except Exception:
+        except (NoDataAvailable, NotImplementedError):
             self.wire_render_port = None
 
     def _publish(
