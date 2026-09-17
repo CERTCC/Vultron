@@ -260,6 +260,54 @@ class TestSvcCreateCaseUseCase:
             len(to_ids) == 1
         ), f"PCR-08-001: exactly one recipient expected, got {to_ids!r}"
 
+    def test_create_case_trigger_registers_owner_and_manager(self):
+        """SvcCreateCaseUseCase registers CASE_OWNER+CASE_MANAGER participant (CM-02-014, CM-02-015)."""
+        from vultron.core.participants.authority import resolve_case_manager_id
+        from vultron.enums.roles import CVDRole
+
+        request = CreateCaseTriggerRequest(
+            actor_id=self.actor.id_,
+            name="Test Case Participant Roles",
+            content="A test case for participant role registration",
+        )
+        SvcCreateCaseUseCase(
+            self.dl,
+            request,
+            trigger_activity=TriggerActivityAdapter(self.dl),
+        ).execute()
+
+        raw_case_id = None
+        for obj in self.dl.list_objects("VulnerabilityCase"):
+            if getattr(obj, "name", "") == "Test Case Participant Roles":
+                raw_case_id = getattr(obj, "id_", None)
+                break
+        assert raw_case_id is not None, "Case should have been created"
+
+        case_obj = self.dl.read_case(raw_case_id)
+        assert (
+            case_obj is not None
+        ), "Case must be readable as VulnerabilityCase"
+
+        manager_id = resolve_case_manager_id(case_obj, self.dl)
+        assert (
+            manager_id is not None
+        ), "CASE_MANAGER must be registered at case creation (CM-02-014, CM-02-015)"
+        assert (
+            manager_id == self.actor.id_
+        ), "CASE_MANAGER must be the creating actor"
+
+        all_roles: set[CVDRole] = set()
+        for pid in case_obj.actor_participant_index.values():
+            p = self.dl.read(pid)
+            if p is not None:
+                all_roles.update(getattr(p, "case_roles", []))
+        assert (
+            CVDRole.CASE_OWNER in all_roles
+        ), "CASE_OWNER must be registered (CM-02-014)"
+        assert (
+            CVDRole.CASE_MANAGER in all_roles
+        ), "CASE_MANAGER must be registered (CM-02-014)"
+
     def test_create_case_activity_queued_in_delivery_queue(self):
         """SvcCreateCaseUseCase queues activity in delivery queue for outbox_handler."""
         request = CreateCaseTriggerRequest(
@@ -284,44 +332,3 @@ class TestSvcCreateCaseUseCase:
         assert (
             outbox_activity_id == activity_id
         ), "Activity ID in outbox should match returned activity ID"
-
-    @pytest.mark.xfail(
-        strict=True,
-        reason=(
-            "CM-02-014/CM-02-015: create-case trigger does not register "
-            "participants yet. Tracked by #3335."
-        ),
-    )
-    @pytest.mark.spec("CM-02-014")
-    @pytest.mark.spec("CM-02-015")
-    def test_create_case_trigger_registers_owner_and_manager(self):
-        """Created case must have CASE_OWNER and CASE_MANAGER participants from birth (CM-02-014, CM-02-015)."""
-        from vultron.core.models.case_participant import CaseParticipant
-        from vultron.enums.roles import CVDRole
-
-        request = CreateCaseTriggerRequest(
-            actor_id=self.actor.id_,
-            name="Participant Registration Test",
-            content="Verify participants registered at birth",
-        )
-        SvcCreateCaseUseCase(
-            self.dl,
-            request,
-            trigger_activity=TriggerActivityAdapter(self.dl),
-        ).execute()
-
-        participants = [
-            obj
-            for obj in self.dl.list_objects("CaseParticipant")
-            if isinstance(obj, CaseParticipant)
-        ]
-        assert participants, "No CaseParticipant registered after create-case"
-        roles = {
-            role for p in participants for role in getattr(p, "case_roles", [])
-        }
-        assert (
-            CVDRole.CASE_OWNER in roles
-        ), "CASE_OWNER not registered at case birth"
-        assert (
-            CVDRole.CASE_MANAGER in roles
-        ), "CASE_MANAGER not registered at case birth"
