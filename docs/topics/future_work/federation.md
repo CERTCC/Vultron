@@ -36,7 +36,8 @@ Vultron declares its own object types and activity types as AS2 vocabulary exten
 It uses a JavaScript Object Notation for Linked Data (JSON-LD) `@context` for these declarations.
 
 Vultron uses AS2 as a message format.
-It does not use ActivityPub as a social protocol.
+The prototype implements an actor and an inbox, and it implements no more of ActivityPub than that.
+This is the current condition of the work, and it is not a decision against the other parts.
 
 {% include-markdown "./_oq-activitypub-depth.md" %}
 
@@ -58,10 +59,12 @@ That name is a convenience (CM-02-013).
 One such actor can hold the role for many cases at the same time.
 The `context` field of an activity identifies the case, and the URI of the actor does not identify it.
 
+An actor has a key pair, and the key material applies to the actor identity.
+
 As an alternative, a deployment can use a case actor service to supply one CASE_MANAGER actor for each case.
-This selection is open, and it has an effect on more than the host.
-Key material applies to an actor identity.
-Thus the quantity of cases that one actor holds sets the cryptographic separation between those cases.
+Each case then has its own actor, and encryption becomes per-case as a result.
+This is an intended use of Vultron.
+It needs a ready mechanism for actors to find each other, and [actor discovery](open_questions.md#federation) is an open question.
 
 ---
 
@@ -78,41 +81,44 @@ title: Actors, Participants, and Cases
 ---
 classDiagram
     class Actor {
-        +URI id
+        +id
         +inbox
         +outbox
     }
     class Participant {
-        +roles
-        +joinedAt
-        +status
+        +attributedTo
+        +caseRoles
+        +participantStatuses
+        +context
     }
     class Case {
         +attributedTo
-        +ledger
+        +caseParticipants
+        +caseActivity
     }
-    Actor "1" --> "*" Participant : is referenced by
-    Case "1" --> "*" Participant : has
-    Participant "*" --> "1" Actor : identifies
+    Actor "1" --> "*" Participant : attributedTo
+    Case "1" --> "*" Participant : caseParticipants
 ```
 
 The diagram shows that a Participant connects a long-lived Actor to one Case.
 An Actor exists independently of a case.
 A Participant exists only in one case.
+The field names are the serialized AS2 names on `as_CaseParticipant` and `as_VulnerabilityCase`, and the diagram is not notional.
+The `attributedTo` of a Participant holds the Actor, and the `context` of a Participant holds the Case.
 
 ---
 
 ## Case ownership
 
-The `attributed_to` field of a case holds an actor identifier, and it does not hold a host.
+The `attributedTo` field of a case holds an actor identifier, and it does not hold a host.
 The CASE_MANAGER that makes the case is the value of that field (CP-09-001).
-Ownership is unambiguous for a different reason: one Participant holds `CVDRole.CASE_OWNER` at a given time (CM-21-001).
+Ownership is unambiguous for a different reason: one Actor holds `CVDRole.CASE_OWNER` at a given time (CM-21-001).
 A transfer of that role uses an `Offer` and `Accept` cycle.
 The Case Activity Log gives the full history of ownership.
 
-Each deployment can accept a report and make a case from it.
-The deployment that makes the case supplies the CASE_MANAGER for it.
-That deployment also holds the CASE_OWNER role until a transfer occurs.
+Any Participant Actor can accept a report and make a case from it.
+The Actor that makes the case supplies the CASE_MANAGER for it.
+That Actor also holds the CASE_OWNER role until a transfer occurs.
 The host of an actor gives no authority, and the role gives all of it (ADR-0088).
 
 {% include-markdown "./_oq-case-manager-migration.md" %}
@@ -155,6 +161,8 @@ After a case exists, all case communication is a set of direct messages.
 These messages go between each Participant actor and the CASE_MANAGER.
 The protocol publishes no case data in public.
 Participants do not send messages directly to each other (PCR-08-001, PCR-08-002).
+One interchange is outside this rule.
+A Reporter sends a report directly to an Actor to start the process, and no case exists at that time.
 
 One relay through one actor gives four properties, at the cost of one more network step.
 The CASE_MANAGER can apply authorization, because it sees each message and knows the roles of each Participant.
@@ -178,7 +186,7 @@ It puts the initial activity in an AS2 `Announce` and signs the `Announce`.
   "id": "https://vendorb.example/cases/1234/actor/outbox/relay/88",
   "actor": "https://vendorb.example/cases/1234/actor",
   "published": "2025-03-08T12:00:00Z",
-  "log_index": 3,
+  "logIndex": 3,
   "prevLogHash": "sha256-of-entry-2",
   "to": "https://vendora.example/users/alice",
   "object": {
@@ -201,10 +209,10 @@ A recipient verifies each signature independently.
 A recipient can thus trust a relayed message without a direct connection to the Participant that sent it.
 
 Each outbound message declares the Vultron JSON-LD context, and the ActivityStreams namespace alone is not sufficient (VM-10-001).
-The example shows the `log_index` and `prevLogHash` fields on the `Announce` for clarity.
+The example shows the `logIndex` and `prevLogHash` fields on the `Announce` for clarity.
 The implementation carries them on the `as_CaseLedgerEntry` object instead.
 
-The `log_index` and `prevLogHash` fields let a recipient put the relayed activity in its replica immediately.
+The `logIndex` and `prevLogHash` fields let a recipient put the relayed activity in its replica immediately.
 The recipient does not wait for a synchronization cycle.
 
 {% include-markdown "./_oq-message-security.md" %}
@@ -218,13 +226,13 @@ The two collections have different functions.
 
 | Collection | Content | Synchronized |
 |---|---|---|
-| Case ledger (`/outbox`) | Hash-chained record of the case events, indexed by `log_index` | Yes — this is the replication target |
+| Case ledger (`/outbox`) | Hash-chained record of the case events, indexed by `logIndex` | Yes — this is the replication target |
 | Delivery log (`/streams/delivery`) | The `Announce` relays, with the recipient and the time of each one | No |
 
 The case ledger is append-only.
 Each entry holds the hash of the entry before it, which keeps the ledger tamper-evident.
 The case ledger holds the events of the case: `Create`, `Update`, `Offer`, `Accept`, `Add`, `Remove`, and the others.
-Only ledger entries use `log_index` positions.
+Only ledger entries use `logIndex` positions.
 
 The delivery log is a tool for operators.
 It gives data for diagnosis, for retry control, and for delivery verification.
@@ -242,12 +250,12 @@ One `Note` to twenty Participants makes one ledger entry and twenty delivery log
 
 Each Participant keeps a Participant Case Replica, and the CASE_MANAGER pushes each change to it.
 The CASE_MANAGER sends each Case Ledger Entry at the time of the event, which is ledger fanout.
-Each entry holds its `log_index` and `prevLogHash`, and the recipient uses these fields to put the entry in sequence.
+Each entry holds its `logIndex` and `prevLogHash`, and the recipient uses these fields to put the entry in sequence.
 Each entry also connects to the entry before it, and the CASE_MANAGER signs it.
 A Participant can thus verify the integrity and the authenticity of the stream on arrival, and it does not trust the transport.
 
 Push is the only specified path.
-A Participant records the `log_index` of each entry that it received.
+A Participant records the `logIndex` of each entry that it received.
 A discontinuity in those values shows that an entry is absent.
 Ledger reconciliation then repairs the gap.
 It is a loop on the side of the CASE_MANAGER, with retry and backoff (SYNC-00-007).

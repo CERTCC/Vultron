@@ -6,7 +6,7 @@
 
     Eventual consistency is sufficient.
     No part of the protocol uses the sequence of arrival.
-    The `log_index` value of each entry holds the correct sequence.
+    The `logIndex` value of each entry holds the correct sequence.
     A Participant that receives entries 1, 2, 3, and 5 finds that entry 4 is missing.
     It buffers entry 5, and ledger reconciliation delivers entry 4 (SYNC-00-007, ADR-0037).
     The Participant does not use a history that has missing entries.
