@@ -26,6 +26,67 @@ recipients (typically Vendors and Coordinators) do so.
     Vulnerability Disclosure Policy to set expectations with potential
     Reporters.
 
+## Embargoes Are Active at Case Creation
+
+The scenarios below describe embargo agreement as an exchange between two
+parties. In the most common situation, however, no exchange is visible at
+all: a case is created and it *already* has an active embargo. This section
+explains why.
+
+When a Report Recipient has published a default embargo period (see
+[Declaring Defaults](#declaring-defaults)), that default acts as a **standing
+proposal**. A Reporter who submits a report without proposing different terms
+has, by not objecting, **tacitly accepted** that standing proposal. Both
+parties have therefore already agreed before the case exists: the Recipient by
+publishing the policy, the Reporter by not contradicting it.
+
+Because the agreement is already in place, nothing remains to negotiate. The
+embargo is *Active* from the moment the case is created.
+
+!!! note ""
+
+    When a case is created and a published default embargo applies with no
+    contrary proposal, the embargo SHALL begin in the *Active* state.
+
+### Why *Active* and Not *Proposed*?
+
+The *Proposed* state represents an embargo that has been offered but not yet
+agreed — an open question awaiting a decision. On the default path there is no
+open question: the published default supplies the *propose* action and the
+Reporter's silence supplies the *accept* action, so both transitions along
+$N \xrightarrow{p} P \xrightarrow{a} A$ are already satisfied when the case
+begins. The case does not *rest* in *Proposed*, because no decision is
+pending.
+
+Leaving a newly created case in *Proposed* would misrepresent a settled
+agreement as an unresolved one and would imply that some party still owes a
+response. This is why a protocol trace of the happy path shows an *Active*
+embargo with no preceding *propose* or *accept* message exchanged between the
+parties. The absence of that exchange is intentional and correct — it is not a
+skipped step.
+
+### The Case Owner Is a Signatory from the Start
+
+The party who creates the case is its Case Owner. Because the Case Owner
+established the default embargo, they are a party to it from the moment the
+case exists — it would be incoherent for the Case Owner to bring an active
+embargo into being and then be treated as not yet bound by it. Each
+participant's individual relationship to the embargo is tracked by the
+[Participant Embargo Consent](participant-embargo-consent.md) state machine,
+and the Case Owner begins there as a `SIGNATORY`.
+
+### When a Counter-Proposal Is Present
+
+The default path applies only when the Reporter proposes nothing to the
+contrary. If the Reporter proposes different terms, the case follows the
+negotiated path instead — see
+[Sender Proposes an Embargo Longer than the Receiver Default](#sender-proposes-an-embargo-longer-than-the-receiver-default)
+and
+[Sender Proposes an Embargo Shorter than the Receiver Default](#sender-proposes-an-embargo-shorter-than-the-receiver-default)
+below. Even then, the shortest proposal is taken as accepted and the longer one
+as a proposed revision, so the case still reaches an *Active* embargo promptly
+rather than stalling in negotiation.
+
 ## Using Defaults
 
 Next, we work through the possible interactions of published policies
