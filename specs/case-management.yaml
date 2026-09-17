@@ -1847,7 +1847,7 @@ groups:
     statement: >-
       The PEC state machine MUST implement exactly the following valid triggers:
       INVITE (from UNBOUND, LAPSED, or DECLINED), ACCEPT (from UNBOUND,
-      INVITED, or LAPSED), DECLINE (from UNBOUND, INVITED, or LAPSED),
+      INVITED, or LAPSED), DECLINE (from UNBOUND, INVITED, LAPSED, or SIGNATORY),
       REVISE (from SIGNATORY only), and RESET (from any state).
     rationale: 'The `LAPSED` and `DECLINED` states are not terminal: a participant who lapsed or declined can be re-invited
       (e.g., when embargo terms change). `SIGNATORY → LAPSED` occurs when the embargo enters REVISE and the participant''s
@@ -1856,8 +1856,13 @@ groups:
       has no inviter; participants added during case initialization already have an embargo in scope (ADR-0041); and the
       reporter''s consent is implicit in submitting the report (CM-14-005). Requiring a synthetic `INVITED` step for these
       paths would record an invitation event that never occurred. `DECLINE` is valid from `UNBOUND` for symmetry, so a
-      participant added to an embargoed case can refuse without a formal invitation. See
-      `vultron/core/states/participant_embargo_consent.py`.'
+      participant added to an embargoed case can refuse without a formal invitation. Per ADR-0093, `DECLINE` is also valid
+      from `SIGNATORY`: a participant who is already bound by an embargo MAY explicitly withdraw consent (VP-13-007,
+      VP-13-008). `SIGNATORY → DECLINED` is a volitional, first-class PEC action distinct from `SIGNATORY → LAPSED`
+      (which is automatic when revision terms change under the participant). See
+      `vultron/core/states/participant_embargo_consent.py`.
+      Open question: whether `UNBOUND` and `DECLINED` should collapse into a single "not bound" state — see
+      `docs/reference/vultron-spec/_oq-pec-unbound-declined-collapse.md`.'
     verification: Inspection of `vultron/core/states/participant_embargo_consent.py` confirms
       that `PecDimension` implements exactly the triggers INVITE, ACCEPT, DECLINE, REVISE, and
       RESET with the specified source-state constraints.
@@ -1866,6 +1871,7 @@ groups:
       spec_id: CM-18-001
     adr:
     - ADR-0048
+    - ADR-0093
   - id: CM-18-004
     priority: MUST_NOT
     kind: protocol
