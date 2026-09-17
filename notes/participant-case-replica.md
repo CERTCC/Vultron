@@ -101,18 +101,35 @@ case through one of two paths:
 
 1. **Report-submission path**: the receiver has already processed a
    `Create(VulnerabilityCase)` from the case creator, which establishes the
-   local CASE_MANAGER identity before any `Announce` arrives.
-2. **Invite/Accept path**: the receiver has completed an
-   `InviteActorToCase`/`AcceptInviteToCase` exchange that leaves a
-   pending-expectation record associating the CASE_MANAGER identity with the
-   incoming case ID.
+   local CASE_MANAGER identity before any `Announce` arrives.  The
+   `VultronReportCaseLink.trusted_case_actor_id` field carries the
+   trusted identity; `_find_case_actor_id()` returns it via path 1.
+2. **Invite/Accept path**: the receiver has processed an inbound
+   `InviteActorToCase` from the CASE_MANAGER, which leaves an invite trust
+   anchor in the receiver's DataLayer recording the expected CASE_MANAGER for
+   that case ID.  The authority check finds this anchor before the case is
+   seeded and admits only the expected actor.
 
-**Implementation note**: the `_find_case_actor_id` helper returns `None`
-only when NO local CASE_MANAGER record exists *and* there is no pending-expectation
-record for that case. When `case_actor_id is None`, the handler should check for
-a pending trust record before creating the replica — not accept blindly.
+**Why the announced roster is not a trust anchor**: the roster is supplied by
+the sender.  A fabricated case naming the sender as its own `CASE_MANAGER`
+passes a roster-only check — nothing available at first contact can refute it.
+What the roster *does* catch is the realistic imposter that was previously
+caught by the `Service`-hosting scan (since removed by ADR-0088): an actor
+replaying a legitimate case whose roster names a *different* authority.  For
+that narrow use, reading the announced roster was correct but it is now
+superseded by the locally-derived anchor approach, which catches both the
+replay *and* the fabrication case.  `_announced_case_manager_id()` must NOT
+be used as the fallback when no local record exists — that fallback is the gap
+filed as concern #3274.
 
-**Spec reference**: `PCR-03-004`.
+**When neither anchor exists**: `_authority_verdict` for the unseeded case
+MUST reject (WARNING logged, case NOT seeded) when `_find_case_actor_id()`
+returns `None` and no invite trust anchor is present.  There is no legitimate
+protocol sequence that delivers an unsolicited first-contact
+`Announce(VulnerabilityCase)` without a preceding `Create(VulnerabilityCase)`
+or `InviteActorToCase`.
+
+**Spec reference**: `PCR-03-004`, `PCR-07-010`.
 
 The receiver therefore also needs bootstrap-state awareness before treating a
 CASE_MANAGER-originated snapshot as authoritative:
