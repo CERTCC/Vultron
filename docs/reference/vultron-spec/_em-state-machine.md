@@ -71,6 +71,8 @@ embargo requires Case Owner authorization by default, on the same terms as any
 other change to canonical case state
 ([§10.3](index.md#103-status-adoption-the-two-seam-model)).
 
+{% include-markdown "./_oq-embargo-termination-authority.md" %}
+
 **Embargo duration selection.** Where several proposals are outstanding,
 participants SHOULD accept the shortest and propose the remainder as a revision.
 Other policies are also admissible: an implementation MAY defer the choice to the

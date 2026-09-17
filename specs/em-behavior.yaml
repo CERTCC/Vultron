@@ -1239,6 +1239,19 @@ groups:
 
 - id: EMB-14
   title: Actor-Voluntary Embargo Termination (Trigger Side)
+  description: >-
+    Trigger-side factory for voluntarily ending an active embargo (e.g., fix
+    deployed or ready). "The actor" here is the actor enacting the CASE_MANAGER
+    role: the factory's canonical case-state write (EM → EXITED, ledger commit,
+    teardown announce) is gated on `CVDRole.CASE_MANAGER` (`terminate_embargo_bt`
+    runs `ResolveCaseManagerNode` before the state mutation) and is authorised by
+    the Case Owner by default (CM-02-005; `EmbargoTeardownAuthorizationGate`
+    defaults to `RequireCaseOwnerApproval`, RSH-02-002). A non-manager Participant
+    that wishes to end an embargo does not run this trigger to write canonical
+    state; it initiates termination by reporting the condition or notifying intent
+    (VP-11-003, VP-13-017/018), and terminates only its own compliance. See
+    CONCERN-3280 for the reconciliation of the participant-facing protocol prose
+    with this authority model.
   trigger:
     type: state_entered
     value: EM.ACTIVE
