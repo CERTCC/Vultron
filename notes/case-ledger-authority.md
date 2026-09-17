@@ -3,11 +3,13 @@ title: Case Ledger Authority and Assertion Recording
 status: active
 description: "Authority model for the case activity log: trusted timestamps, assertion recording, and authority chain."
 related_specs:
+  - specs/architecture.yaml
   - specs/case-ledger-processing.yaml
   - specs/case-management.yaml
   - specs/sync-ledger-replication.yaml
 related_notes:
   - notes/activitystreams-semantics.md
+  - notes/case-communication-model.md
   - notes/case-state-model.md
   - notes/configuration.md
   - notes/ownership-transfer.md
@@ -95,6 +97,58 @@ publishing the canonical statement:
 
 > I received and processed this asserted activity, and I recorded it as part of
 > authoritative case history.
+
+---
+
+## Three Questions That Look Like One (ADR-0088)
+
+Code near the commit boundary asks three things that all sound like "who is the
+CaseActor here?". They are different questions with different answers, and
+conflating any two of them has already produced bugs. ADR-0088 separates them.
+
+| Question | Answered by | Signal |
+|---|---|---|
+| Am I the authority? | `resolve_case_manager_id` / `CheckIsCaseManagerNode` | The `CVDRole.CASE_MANAGER` role, and nothing else |
+| What address do I route to? | `_find_case_actor_id` | The role-holder's id, or a `ReportCaseLink`-recorded address during bootstrap |
+| May *this store* append here? | `DeclineForeignLedgerCommitNode` / `store_for_actor` | Whether the store in hand holds the log |
+
+**Authority is the role (CM-02-011).** Not a hosting location, not a URL shape.
+"Case Actor" is the readable label a demo gives to whichever actor enacts
+`CASE_MANAGER`, exactly like "vendor" or "finder" — nobody adopts it as an
+identity, and no protocol logic may branch on the string (CM-02-013,
+ARCH-24-004, ratcheted by
+`test/architecture/test_role_authority_resolver.py`).
+
+**Address resolution is downstream of authority, not a variant of it**
+(ARCH-24-005). Because authority *is* the role, the authority's address is just
+the role-holder's address, so `_find_case_actor_id` reads the same roster —
+but it answers "where do I send this?" and a `None` from it means "no
+resolvable address", never "no authority".
+
+**The store guard is not an authority check either** (ARCH-24-005). By the time
+`DeclineForeignLedgerCommitNode` runs, role-authority has already said "you may
+commit"; it only stops a delegated-emit fall-through from minting a canonical
+index in a store that is not the log's home, which would fork the chain
+(#2626). Reading it as an authority check makes the role look like a property of
+a store, which it is not.
+
+### The bootstrap window this replaced
+
+The retired signals were not merely redundant, they were wrong in a reachable
+state. Under ADR-0041 the CaseActor `Service` object is written *before* the
+case exists, so it carries no `context` — and a `context == case_id` scan
+therefore found nothing. In that window the real authority **failed its own
+hosting test** and took the *participant* arm of the announce split on its own
+ledger, validating a hash chain it owns. Role membership is stable from
+replica-seed onward (CP-09-004) and has no such window; the regression test is
+`test_case_manager_role_takes_authority_arm_without_service_object`
+(CM-02-012).
+
+A related trap lived in the deleted `_find_case_actor` helper: on a miss it
+returned *the first arbitrary `Service` in the store*, so a failed lookup was
+indistinguishable from a successful one and published a plausible-looking
+address belonging to some other case. When a resolver cannot answer, it must
+say so.
 
 ---
 
@@ -307,13 +361,13 @@ The decision is captured at the ADR level in
 A subtle but important distinction:
 
 ```text
-Vendor sends:  Add(ParticipantStatus, actor=vendor) → CaseActor
-CaseActor commits: CaseLedgerEntry(
+Vendor sends:  Add(ParticipantStatus, actor=vendor) → CASE_MANAGER
+CASE_MANAGER commits: CaseLedgerEntry(
   log_index=N,
   recording_actor=case_actor,
   payloadSnapshot=Add(ParticipantStatus, actor=vendor),  ← verbatim assertion
 )
-CaseActor broadcasts: Announce(
+CASE_MANAGER broadcasts: Announce(
   actor=case_actor,                                       ← envelope actor
   object=CaseLedgerEntry(...),
 ) → all participants
@@ -497,8 +551,9 @@ test for commits that already exists for dispatch.
 Some use-case classes are invoked more than once for the same logical
 activity, with different receiving actors. The clearest example is
 `ack_report` in the two/three-actor demo: the same `AckReportReceivedUseCase`
-runs once with the vendor (case actor) as receiver, and once with the finder
-as a relay target. Only the case-actor invocation should commit.
+runs once with the vendor (which holds `CVDRole.CASE_MANAGER`) as receiver, and
+once with the finder as a relay target. Only the CASE_MANAGER's invocation
+should commit.
 
 This is structurally the same bug shape that produced the original
 hash-chain fork in issue #923 — a use case authored or committing on behalf

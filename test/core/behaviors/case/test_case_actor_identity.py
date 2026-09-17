@@ -21,7 +21,6 @@ from _pytest.monkeypatch import MonkeyPatch
 from vultron.core.behaviors.case.case_actor_identity import (
     CASE_ACTOR_SEGMENT,
     case_actor_identity,
-    is_case_actor_identity,
 )
 
 _BASE = "http://case-actor.test/api/v2"
@@ -91,25 +90,21 @@ class TestCaseActorIdentity:
             reload_config()
 
 
-class TestIsCaseActorIdentity:
-    def test_recognises_the_container_identity(self):
-        assert is_case_actor_identity(f"{_BASE}/actors/case-actor")
+@pytest.mark.spec("CM-02-013")
+def test_this_module_exposes_no_shape_predicate():
+    """ADR-0088: the identity's *shape* is not a protocol signal.
 
-    def test_recognises_a_remote_container(self):
-        """Shape-based, so it answers for a container whose config is unreadable."""
-        assert is_case_actor_identity(
-            "https://elsewhere.example/api/v2/actors/case-actor"
-        )
+    ``is_case_actor_identity`` used to live here and answer "is this id really a
+    CaseActor?" from the URL suffix.  Authority is the ``CVDRole.CASE_MANAGER``
+    role and nothing else (CM-02-011), so the question the predicate answered is
+    not one any caller should be asking.  This module still *builds* the
+    provisioned identity — a convenience ADR-0041 established and ADR-0088 keeps
+    — but it no longer offers a way to test one.
 
-    def test_rejects_an_ordinary_participant(self):
-        assert not is_case_actor_identity(f"{_BASE}/actors/vendor")
+    The repo-wide guarantee is the ARCH-24-004 ratchet in
+    ``test/architecture/test_role_authority_resolver.py``; this asserts the
+    narrower module contract so a local re-add fails next to its own tests.
+    """
+    from vultron.core.behaviors.case import case_actor_identity as mod
 
-    def test_rejects_the_retired_per_case_form(self):
-        """A slugged id is not a CaseActor identity — that is the bug (#1872)."""
-        assert not is_case_actor_identity(
-            f"{_BASE}/actors/case-actor-abc123def456"
-        )
-
-    def test_rejects_none_and_empty(self):
-        assert not is_case_actor_identity(None)
-        assert not is_case_actor_identity("")
+    assert not hasattr(mod, "is_case_actor_identity")

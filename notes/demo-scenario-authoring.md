@@ -112,10 +112,10 @@ governs `vultron/demo/scenario/`, where actors live in separate containers and
 the delivery path is the thing under test.
 
 **No self-delivery exception.** An actor does not need to POST to its own inbox
-to update its own replica either — activities route through the CaseActor, which
+to update its own replica either — activities route through the CASE_MANAGER, which
 broadcasts the `Announce` that every replica consumes. See
 [notes/ownership-transfer.md](ownership-transfer.md) § "The Accepting Actor's
-Replica Updates via the CaseActor's Announce".
+Replica Updates via the CASE_MANAGER's Announce".
 
 Source: CONCERN-1635, amended by CONCERN-2181
 

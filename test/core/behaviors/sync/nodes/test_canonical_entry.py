@@ -90,6 +90,46 @@ def test_validate_canonical_entry_rejects_case_actor_as_snapshot_actor_for_non_c
 
 
 @pytest.mark.spec("CLP-07-003")
+@pytest.mark.xfail(
+    strict=True,
+    reason=(
+        "CLP-07-003's commit-boundary check contradicts CLP-07-003 as revised by"
+        " #3301: the statement now says that when the CASE_MANAGER also holds a"
+        " participant role, its identity in payloadSnapshot.actor *is* the"
+        " correct asserter identity and is not a substitution. The code fix —"
+        " moving the check to the receive pipeline, where the inbound actor_id"
+        " is still available — is #3302. strict=True on purpose: this test"
+        " starts failing as XPASS the moment that lands, which is the prompt to"
+        " delete the marker."
+    ),
+)
+def test_role_holding_participant_may_assert_on_a_case_it_manages():
+    """CLP-07-003 refuses a legitimate self-assertion by the role-holder.
+
+    ADR-0088 made an ordinary participant enacting CASE_MANAGER resolvable as the
+    authority, which turned on a predicate that had been dormant whenever
+    ``_find_case_actor_id`` answered ``None``.  The predicate assumes the
+    authority and the participants are disjoint sets; CLP-10-001 says the
+    opposite — "the CaseActor is a participant with extra duties; it is not
+    excluded" — and CLP-07-003 now says so too, in as many words.
+
+    Pinned rather than left implied so the divergence cannot be lost between the
+    spec revision (#3301, merged) and the code fix (#3302, open): nothing else in
+    the suite exercises asserter == role-holder for a non-case-authored
+    signature, because the two tests that used to were re-shaped to a
+    different-asserter flow.
+    """
+    _validate_canonical_entry(
+        case_id=CASE_ID,
+        actor_id=PARTICIPANT_ACTOR_ID,
+        case_actor_id=PARTICIPANT_ACTOR_ID,
+        disposition="recorded",
+        payload_snapshot=_note_snapshot_with_actor(PARTICIPANT_ACTOR_ID),
+        event_type="note_added",
+    )
+
+
+@pytest.mark.spec("CLP-07-003")
 def test_validate_canonical_entry_allows_participant_actor_for_non_case_authored():
     """CLP-07-003: participant actor is valid for non-CaseActor-authored signatures."""
     _validate_canonical_entry(

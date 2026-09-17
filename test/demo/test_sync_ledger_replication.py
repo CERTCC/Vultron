@@ -55,6 +55,7 @@ from vultron.wire.as2.vocab.objects.case_ledger_entry import (
     as_CaseLedgerEntry as WireCaseLedgerEntry,
 )
 from vultron.wire.as2.vocab.objects.case_actor import as_CaseActor
+from vultron.enums.roles import CVDRole
 from vultron.wire.as2.vocab.objects.case_participant import as_CaseParticipant
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCase,
@@ -170,6 +171,10 @@ def test_sync_single_peer_happy_path_replication(two_app_setup) -> None:
     case_actor_participant = as_CaseParticipant(
         attributed_to=case_actor_id,
         context=case.id_,
+        # Authority is the role, so the actor managing this case must hold it:
+        # `FindCaseActorNode` and the commit gate both read the roster, not an
+        # `as_CaseActor` object's hosting `context` (ADR-0088, ARCH-24-004).
+        case_roles=[CVDRole.CASE_MANAGER],
     )
     peer_participant = as_CaseParticipant(
         attributed_to=peer_actor_id,
@@ -272,6 +277,10 @@ def test_sync_predecessor_mismatch_reject_and_replay(two_app_setup) -> None:
     case_actor_participant = as_CaseParticipant(
         attributed_to=case_actor_id,
         context=case.id_,
+        # Authority is the role, so the actor managing this case must hold it:
+        # `FindCaseActorNode` and the commit gate both read the roster, not an
+        # `as_CaseActor` object's hosting `context` (ADR-0088, ARCH-24-004).
+        case_roles=[CVDRole.CASE_MANAGER],
     )
     peer_participant = as_CaseParticipant(
         attributed_to=peer_actor_id,
@@ -425,6 +434,10 @@ def test_sync_duplicate_delivery_idempotency(
     case_actor_participant = as_CaseParticipant(
         attributed_to=case_actor_id,
         context=case.id_,
+        # Authority is the role, so the actor managing this case must hold it:
+        # `FindCaseActorNode` and the commit gate both read the roster, not an
+        # `as_CaseActor` object's hosting `context` (ADR-0088, ARCH-24-004).
+        case_roles=[CVDRole.CASE_MANAGER],
     )
     peer_participant = as_CaseParticipant(
         attributed_to=peer_actor_id,

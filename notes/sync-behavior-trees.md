@@ -4,7 +4,7 @@ status: active
 description: >-
   Design decisions and implementation guidance for the three sync BTs:
   AnnounceLogEntryReceivedBT, RejectLogEntryReceivedBT, and CommitLogEntryBT.
-  Covers case-actor vs non-case-actor branching, port injection pattern, and
+  Covers CASE_MANAGER vs participant branching, port injection pattern, and
   migration from procedural sync use-case code.
 related_specs:
   - specs/sync-behavior-trees.yaml
@@ -28,7 +28,7 @@ relevant_packages:
 **Relates to**: `specs/sync-behavior-trees.yaml` (SBT-01 through SBT-05),
 `specs/sync-ledger-replication.yaml`, `specs/behavior-tree-integration.yaml`
 
-**Source ideas**: IDEA-26050402 (case-actor vs non-case-actor log entry
+**Source ideas**: IDEA-26050402 (CASE_MANAGER vs participant log entry
 handling), IDEA-26050403 (sync behavior tree design)
 
 ---
@@ -41,7 +41,7 @@ BT-06-001 (all protocol-significant behavior MUST be in BTs) and BT-06-005
 (cascades as BT subtrees, not procedural calls).
 
 This note captures the design decisions and BT structure needed to bring sync
-into compliance, and introduces the case-actor vs non-case-actor branching
+into compliance, and introduces the CASE_MANAGER vs participant branching
 distinction that the current code treats uniformly.
 
 ---
@@ -56,7 +56,7 @@ distinction that the current code treats uniformly.
 | Case-actor no-op on valid round-trip? | Log DEBUG + return SUCCESS | Noisy but detectable; not a state update |
 | Sender verification check? | Actor-ID comparison now | Simple, correct at prototype stage; seam for future crypto |
 | Logging level for injection attempts? | WARNING | Protocol-significant but not a system failure |
-| Hash-chain validation for non-case-actor? | MUST validate | Prevents spoofed log entries from corrupting replica state |
+| Hash-chain validation for participants? | MUST validate | Prevents spoofed log entries from corrupting replica state |
 | CommitLogEntryBT trigger call? | Replace with BT subtree | Core MUST NOT call trigger functions; triggers are external API |
 | Port injection method? | Blackboard context via BTBridge | Consistent with DataLayer pattern; keeps nodes decoupled |
 | Spec RFC keywords? | MUST throughout | Prototype mode: no half-way implementations |
@@ -67,19 +67,30 @@ distinction that the current code treats uniformly.
 
 ### 1. AnnounceLogEntryReceivedBT
 
-Handles inbound `Announce(CaseLedgerEntry)`. Root is a Selector with an
-identity-check branch at the top — if the receiving actor is the case-actor,
-take the case-actor subtree; otherwise take the participant subtree.
+Handles inbound `Announce(CaseLedgerEntry)`. Root is a Selector with a
+**role**-check branch at the top — if the receiving actor holds
+`CVDRole.CASE_MANAGER` for this case it takes the authority subtree, otherwise
+the participant subtree.
+
+> **Updated by ADR-0088.** This was originally an *identity* check, and the node
+> names below reflect that: `CheckIsOwnCaseActor` resolved the arm by scanning
+> for a `Service` object hosting the case. That signal is retired — hosting
+> location and URL shape are not evidence of authority (ARCH-24-004) — and it had
+> a bootstrap window in which the real authority failed its own hosting test and
+> took the *participant* arm on its own ledger (CM-02-012). `CheckIsOwnCaseActor`
+> / `CheckIsNotOwnCaseActor` are deleted; both arms now gate on the single
+> `CheckIsCaseManagerNode` (and an `Inverter`), which reads the participant
+> roster through `resolve_case_manager_id` (ARCH-24-001/003).
 
 ```text
 AnnounceLogEntryReceivedBT (Selector)
-├─ CaseActorSubtree (Sequence)            # early-exit if this actor IS the case-actor
-│  ├─ CheckIsOwnCaseActor                 # Condition: am I the case-actor for this case?
+├─ AuthoritySubtree (Sequence)            # early-exit if this actor holds CASE_MANAGER
+│  ├─ CheckIsCaseManagerNode              # Condition: do I hold CASE_MANAGER here?
 │  ├─ VerifySenderIsOwnId                 # Condition: sender == my actor_id?
 │  │   └─ [on FAILURE: log WARNING, return FAILURE to outer Selector]
 │  └─ LogDeliveryConfirmation             # Action: log DEBUG, return SUCCESS
 │
-└─ ParticipantSubtree (Selector)          # taken if NOT the case-actor
+└─ ParticipantSubtree (Selector)          # taken if NOT the CASE_MANAGER
    ├─ CheckLogEntryAlreadyStored          # Condition: idempotency guard (SYNC-03-003)
    └─ ValidateAndPersistFlow (Sequence)
       ├─ ReconstructChainTail             # Action: populate tail_hash, tail_index on blackboard
@@ -90,9 +101,9 @@ AnnounceLogEntryReceivedBT (Selector)
 
 **Notes**:
 
-- The outer Selector means: try the case-actor path first. If I am not the
-  case-actor, `CheckIsOwnCaseActor` fails and falls through to the participant
-  path.
+- The outer Selector means: try the authority path first. If I do not hold the
+  role, `CheckIsCaseManagerNode` fails and execution falls through to the
+  participant path.
 - `VerifySenderIsOwnId` failure logs WARNING and propagates FAILURE upward.
   A WARNING here signals a potential injection attempt.
 - `CheckHashChainMatch` failure MUST trigger a `SendRejectLogEntry` action
@@ -106,7 +117,7 @@ announced entry due to hash-chain divergence.
 
 ```text
 RejectLogEntryReceivedBT (Sequence)
-├─ FindCaseActor          # Action: resolve case-actor ID for this case
+├─ FindCaseActorNode      # Action: resolve the CASE_MANAGER's address for this case
 ├─ UpdateReplicationState # Action: upsert VultronReplicationState with last-accepted hash
 └─ ReplayMissingEntries   # Action: fan-out Announce activities from last-accepted hash forward
 ```
@@ -116,8 +127,13 @@ RejectLogEntryReceivedBT (Sequence)
 - `ReplayMissingEntries` queries the DataLayer for all log entries with
   `log_index > index_of(last_accepted_hash)` and queues one
   `Announce(CaseLedgerEntry)` per entry per recipient via SyncActivityPort.
-- The case-actor ID resolved in `FindCaseActor` is used as the sender for
-  replayed announces.
+- The address resolved in `FindCaseActorNode` is used as the sender for replayed
+  announces. It comes from the role, not from a hosting scan: the node resolves
+  through `resolve_case_manager_id` and returns FAILURE when the case names no
+  CASE_MANAGER, rather than borrowing an arbitrary `Service` as it once did.
+  Resolving an *address* is a different question from deciding authority — the
+  authority gate for the genesis pre-seed is the separate
+  `CheckIsCaseManagerNode` (ARCH-24-005).
 
 ### 3. CommitLogEntryBT
 
@@ -151,16 +167,16 @@ identically. This is incorrect:
 
 | Actor type | Semantics of received `Announce(CaseLedgerEntry)` |
 |---|---|
-| Non-case-actor (participant) | State update: replicate entry into local replica |
+| Participant (not the CASE_MANAGER) | State update: replicate entry into local replica |
 | Case-actor (own entry round-tripped) | Delivery confirmation: entry already committed |
 
-The case-actor committed the entry before announcing it. Receiving it back via
+The CASE_MANAGER committed the entry before announcing it. Receiving it back via
 outbox→inbox is delivery confirmation only. Re-validating the hash chain and
 re-persisting would be redundant and potentially incorrect if the local log
 has advanced since the entry was sent.
 
 **Caution**: A third-party actor could attempt to inject a log entry with the
-case-actor's ID in the `actor` field. The sender verification node guards
+CASE_MANAGER's ID in the `actor` field. The sender verification node guards
 against this at prototype stage (actor-ID comparison). In a production
 implementation, cryptographic signature verification replaces this node
 without restructuring the tree (SBT-02-005).

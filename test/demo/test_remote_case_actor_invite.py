@@ -124,16 +124,16 @@ def topology(request):
     URL would share stores across the whole module and each would inherit the
     last one's records.
 
-    The *slug* stays ``case-actor`` in every case: that is what
-    :func:`~vultron.core.behaviors.case.case_actor_identity.is_case_actor_identity`
-    reads, and varying the authority is what makes each node's CaseActor
-    genuinely distinct — the cross-authority isolation this test exercises.
+    The *slug* stays ``case-actor`` in every case, purely as a readable label —
+    ADR-0088 gives the string no protocol meaning (CM-02-013).  What makes each
+    node's authority genuinely distinct is the differing *authority* in its base
+    URL, which is the cross-authority isolation this test exercises.
 
     Deliberately does *not* patch ``VULTRON_ACTOR__CASE_ACTOR_SERVICE_URL``: the
     replica is seeded directly with a remote CASE_MANAGER, which is the state a
-    handoff leaves behind, and resolution is by identity shape rather than by
-    configuration.  Patching it would only obscure which input the resolver
-    actually reads.
+    handoff leaves behind, and resolution reads the participant roster's role
+    rather than configuration.  Patching it would only obscure which input the
+    resolver actually reads.
 
     Yields:
         The :class:`_Topology` for this test, with all three clients entered.

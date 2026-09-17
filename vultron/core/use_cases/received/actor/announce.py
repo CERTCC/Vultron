@@ -40,8 +40,14 @@ def _sender_is_trusted(
 
     Resolution order (PCR-03-001, PCR-03-004):
 
-    1. An established ``_find_case_actor_id`` anchor (ReportCaseLink path 1–4):
-       trust iff the sender matches.
+    1. An established ``_find_case_actor_id`` anchor — the address recorded on a
+       completed ``ReportCaseLink``, or else the ``CVDRole.CASE_MANAGER``
+       role-holder on the local replica: trust iff the sender matches.  Both are
+       locally derived, which is the property this guard depends on.  ADR-0088
+       removed the two other paths that resolver once had (a ``case-actor``
+       URL-shape gate and a ``Service``-hosting scan), because neither is
+       evidence of authority (ARCH-24-004) and the hosting scan answered ``None``
+       during the bootstrap window (CM-02-012).
     2. An invite trust anchor from ``InviteActorToCaseReceivedUseCase`` (a
        ``VultronPendingCaseInbox`` whose ``case_actor_id`` names the expected
        CASE_MANAGER): trust iff the sender matches.

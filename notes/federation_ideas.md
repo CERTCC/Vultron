@@ -15,6 +15,18 @@ relevant_packages:
 
 > Captured from architecture discussion. Intended as input to design specs and
 > ADRs.
+>
+> **Terminology (ADR-0088).** "CaseActor" throughout this file means the
+> *concrete actor* that enacts `CVDRole.CASE_MANAGER` — the thing with an inbox,
+> an outbox, key material and a URI that can migrate. That is the referent the
+> glossary reserves the name for, so it is kept here rather than rewritten.
+> It is **not** a synonym for the authority. Authority over a case is the
+> `CASE_MANAGER` role and nothing else: no protocol logic may derive it from this
+> actor's name, its URL shape, or where it is hosted (ARCH-24-004, CM-02-013).
+> Where this file describes the authority *as such* — who may write canonical
+> history, who a participant must route through — read "the CASE_MANAGER".
+> Anything below that appears to make the name or hosting location load-bearing
+> is superseded by ADR-0088.
 
 ---
 
@@ -53,7 +65,8 @@ between known, trusted peers, not open-web broadcast.
   coordination primitive.
 - Each deployed instance has instance-level actors for peering and cold-contact
   delivery.
-- Per-case coordination is handled by dedicated **CaseActors** (see below).
+- Per-case coordination is handled by whichever actor holds `CVDRole.CASE_MANAGER`
+  for that case — in the prototype, a **CaseActor** (see below).
 
 ### 3. Case Object Model
 
@@ -68,7 +81,8 @@ Actor (global, instance-scoped)
 Case
   ├── attributed_to → Actor (current owning instance)
   ├── participants  → [Participant, ...]
-  └── managed by   → CaseActor (1:1 with Case)
+  └── managed by   → the CASE_MANAGER role-holder
+                       (in the prototype, a CaseActor; see note below)
 
 CaseActor  (is a full AS2 "Service" Actor)
   ├── inbox    — receives activities from participants
@@ -79,8 +93,13 @@ CaseActor  (is a full AS2 "Service" Actor)
 - **Participant** is a wrapper object that points to a global Actor and carries
   case-scoped role and authorization metadata. An actor can be a participant in
   many cases with distinct (and sometimes multiple) roles in each.
-- **CaseActor** is the coordination hub for a single case. It owns the inbox,
-  manages fan-out to participants, and maintains the authoritative case history.
+- **CaseActor** is the coordination hub for a case. It owns the inbox, manages
+  fan-out to participants, and maintains the authoritative case history — not
+  because of what it is called, but because it holds `CVDRole.CASE_MANAGER`.
+  Note that this sketch's original "1:1 with Case" framing is wrong: one actor
+  enacts the role for *many* cases, one per container rather than one per case
+  (CP-08-002/003, #1872). A per-case identity was tried and abandoned — it was
+  unhostable by construction, so its delivery 404'd.
 
 ### 4. Case Ownership
 

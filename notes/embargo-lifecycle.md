@@ -319,12 +319,12 @@ epic #1147 (companion Idea to #1257), not built here.
 ## Owner-Close With an Active Embargo: Decline, Do Not Auto-Tear-Down
 
 **Decision (CONCERN-2955, planning group G06 / #2834):** when the Case Owner
-tries to close a case that still holds an **active embargo**, the Case Actor
+tries to close a case that still holds an **active embargo**, the CASE_MANAGER
 **declines the close** rather than closing. It does not silently tear the embargo
 down as part of closure.
 
 The problem: owner-close is a hard, global, terminal write boundary (ADR-0085) —
-once the owner leaves, "the front door locks" and the Case Actor accepts no
+once the owner leaves, "the front door locks" and the CASE_MANAGER accepts no
 further external ledger writes. The owner-close path
 (`create_close_case_received_tree` → `case_fully_closed`) currently has **no
 embargo precondition**, so an owner could close a case out from under an active
@@ -351,7 +351,7 @@ re-issue the close. "Case MUST NOT close while an embargo is live" is the rule �
 
 **Options weighed:**
 
-- **Option A — decline the premature close (chosen).** The Case Actor refuses the
+- **Option A — decline the premature close (chosen).** The CASE_MANAGER refuses the
   owner `Leave(VulnerabilityCase)` while an embargo is active and requires an
   explicit terminate-embargo-then-close ordering. Keeps the closure sequence
   simple and atomic, and makes the embargo teardown a deliberate, auditable act by

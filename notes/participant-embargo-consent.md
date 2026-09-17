@@ -124,7 +124,7 @@ consent must be preceded by an invitation — which is false:
 - A Finder who creates a case for their own finding and sets its default
   embargo has **no inviter**.
 - Participants added during case initialization (ADR-0041) already have an
-  embargo in scope from the moment they exist, because the CaseActor
+  embargo in scope from the moment they exist, because the CASE_MANAGER
   initializes the default embargo in the same BT sequence.
 - The reporter's consent is **implicit** in submitting the report (CM-14-005);
   no invitation is ever sent.

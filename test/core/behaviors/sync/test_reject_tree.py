@@ -13,7 +13,6 @@ from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.sync.reject_tree import (
     create_reject_log_entry_tree,
 )
-from vultron.core.models.case_actor import VultronCaseActor
 from vultron.core.models.case_ledger import HashChainLedgerRecord
 from vultron.core.models.case_ledger_entry import VultronCaseLedgerEntry
 from vultron.core.models.events.sync import RejectLogEntryReceivedEvent
@@ -54,30 +53,25 @@ def bridge(datalayer):
 
 
 @pytest.fixture
-def case_actor(datalayer):
-    actor = VultronCaseActor(
-        name="Case Actor",
-        attributed_to=OWNER_ACTOR_ID,
-        context=CASE_ID,
-    )
-    datalayer.create(actor)
-    return actor
-
-
-@pytest.fixture
 def case_manager_case(datalayer):
     """A case in which OWNER_ACTOR_ID holds CASE_MANAGER.
 
+    Every test in this module needs it, for two nodes.
     ``AnnounceCaseOnGenesisRejectNode`` sits inside
     ``GuardedAnnounceCaseOnGenesisRejectBT``, whose guard is the *role* (CLP-09)
     and not an identity comparison — the holder may be any Actor type.  With no
     case naming a CASE_MANAGER the guard's selector falls through to
     ``AnnounceCaseSkippedNotCaseManager``: the tree still reports SUCCESS while
     the announce never fires, so a test without this fixture asserts nothing.
+    ``FindCaseActorNode`` then resolves the replay's sender address from the
+    same role (ADR-0088, ARCH-24-004) and returns FAILURE without it.
 
     Note that the role is modelled as a ``CaseParticipant`` carrying
     ``case_roles``, not as the ``VultronCaseActor`` service entity — those are
-    different things, and only the former satisfies the gate.
+    different things, and only the former satisfies either node.  A
+    ``VultronCaseActor`` whose ``context`` was the case id used to be enough for
+    ``FindCaseActorNode``; ADR-0088 retired that hosting signal, so this module
+    no longer creates one.
     """
     from vultron.enums.roles import CVDRole
     from vultron.wire.as2.vocab.objects.case_participant import (
@@ -142,7 +136,7 @@ def test_create_reject_log_entry_tree_returns_sequence():
 @pytest.mark.spec("SYNC-04-001")
 @pytest.mark.spec("SYNC-04-002")
 def test_reject_tree_updates_replication_state_and_replays_entries(
-    bridge, datalayer, case_actor
+    bridge, datalayer, case_manager_case
 ):
     first_entry = _make_entry(0)
     second_entry = _make_entry(1, first_entry.entry_hash)
@@ -170,13 +164,21 @@ def test_reject_tree_updates_replication_state_and_replays_entries(
     sync_port.send_announce_log_entry.assert_called_once()
     call_kwargs = sync_port.send_announce_log_entry.call_args.kwargs
     assert call_kwargs["entry"].id_ == second_entry.id_
-    assert call_kwargs["actor_id"] == case_actor.id_
+    # The CASE_MANAGER and the executing actor are necessarily the same id here:
+    # the guarded announce gates on the *executing* actor holding the role, so a
+    # distinct manager would send the tree down its skip branch and there would
+    # be no call to inspect.  This assertion therefore cannot distinguish "the
+    # role was resolved" from "the executing actor was echoed" — that
+    # discrimination lives in the FindCaseActorNode unit tests
+    # (test/core/behaviors/sync/nodes/test_replay.py), where MANAGER_ACTOR_ID is
+    # deliberately neither the store owner nor the executing actor.
+    assert call_kwargs["actor_id"] == OWNER_ACTOR_ID
     assert call_kwargs["to"] == [PEER_ID]
 
 
 @pytest.mark.spec("SYNC-03-002")
 def test_reject_tree_replays_all_entries_when_hash_not_found(
-    bridge, datalayer, case_actor
+    bridge, datalayer, case_manager_case
 ):
     first_entry = _make_entry(0)
     second_entry = _make_entry(1, first_entry.entry_hash)
@@ -199,7 +201,7 @@ def test_reject_tree_replays_all_entries_when_hash_not_found(
 @pytest.mark.spec("SYNC-15-002")
 @pytest.mark.spec("SYNC-15-005")
 def test_genesis_reject_queues_announce_vulnerability_case(
-    datalayer, case_actor, case_manager_case
+    datalayer, case_manager_case
 ):
     """When last_accepted_hash='', AnnounceVulnerabilityCase is sent before
     entry replay so the peer can anchor its hash chain (SYNC-15-002).
@@ -236,7 +238,7 @@ def test_genesis_reject_queues_announce_vulnerability_case(
 
 @pytest.mark.spec("SYNC-15-002")
 def test_genesis_reject_without_trigger_port_still_succeeds(
-    bridge, datalayer, case_actor
+    bridge, datalayer, case_manager_case
 ):
     """Missing trigger port is a WARNING, not a FAILURE — replay continues
     (SYNC-15-002 is best-effort; replay remains the backstop).
@@ -258,7 +260,7 @@ def test_genesis_reject_without_trigger_port_still_succeeds(
 
 @pytest.mark.spec("SYNC-15-002")
 def test_non_genesis_reject_skips_announce_vulnerability_case(
-    datalayer, case_actor, case_manager_case
+    datalayer, case_manager_case
 ):
     """When last_accepted_hash is non-empty the node is a no-op — the peer
     already has the case and does not need re-seeding (SYNC-15-002).
@@ -297,7 +299,7 @@ def test_non_genesis_reject_skips_announce_vulnerability_case(
 @pytest.mark.spec("SYNC-15-003")
 @pytest.mark.spec("SYNC-15-009")
 def test_repeated_reject_at_same_hash_does_not_replay_unboundedly(
-    bridge, datalayer, case_actor
+    bridge, datalayer, case_manager_case
 ):
     """A peer stuck at the same ``last_accepted_hash`` must not trigger an
     unbounded full-ledger replay on every Reject.
@@ -338,7 +340,9 @@ def test_repeated_reject_at_same_hash_does_not_replay_unboundedly(
 
 
 @pytest.mark.spec("SYNC-15-010")
-def test_reject_at_advanced_hash_replays_again(bridge, datalayer, case_actor):
+def test_reject_at_advanced_hash_replays_again(
+    bridge, datalayer, case_manager_case
+):
     """The guard must not wedge a peer that *is* making progress.
 
     When a peer's ``last_accepted_hash`` advances between Rejects, the replay
@@ -370,7 +374,7 @@ def test_reject_at_advanced_hash_replays_again(bridge, datalayer, case_actor):
 
 @pytest.mark.spec("SYNC-15-011")
 def test_reject_at_tail_then_growth_replays_the_new_suffix(
-    bridge, datalayer, case_actor
+    bridge, datalayer, case_manager_case
 ):
     """A Reject that needs nothing must not start a cooldown against its position.
 

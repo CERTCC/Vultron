@@ -175,7 +175,12 @@ groups:
       the `case-actor` name is a demo convenience.
     verification: >-
       Inspection of `vultron/core/` confirms every authority determination reads
-      `CaseParticipant.case_roles` via the single role-authority resolver (ARCH-24-001).
+      `CaseParticipant.case_roles` via the single role-authority resolver (ARCH-24-001), ratcheted
+      by `test/architecture/test_role_authority_resolver.py`. Behavioural coverage:
+      `test/core/behaviors/sync/nodes/test_replay.py::TestFindCaseActorNode` (whose fixture makes
+      the role-holder neither the store owner nor the executing actor, so echoing the executing
+      actor fails), `test/core/use_cases/test_helpers.py::TestFindCaseActorId`, and
+      `test/core/use_cases/received/test_reject_sync.py::TestRejectLedgerEntryReceivedUseCase::test_replay_triggered_when_the_case_manager_is_resolvable`.
     relationships:
     - rel_type: refines
       spec_id: CM-02-002
@@ -195,8 +200,14 @@ groups:
       hosting test and would take the participant arm on its own ledger. Role membership is
       stable from replica-seed onward and has no such window.
     verification: >-
-      A regression test confirms the actor enacting `CVDRole.CASE_MANAGER` takes the authority
-      arm on its own ledger entry even before any `Service` object carries `context`.
+      `test/core/behaviors/sync/test_announce_tree.py::test_case_manager_role_takes_authority_arm_without_service_object`
+      confirms the actor enacting `CVDRole.CASE_MANAGER` takes the authority arm on its own ledger
+      entry even before any `Service` object carries `context`. Two further windows are covered:
+      `test/core/behaviors/sync/nodes/test_replay.py::TestFindCaseActorNode::test_resolves_without_any_service_object_carrying_context`
+      for address resolution, and
+      `test/core/use_cases/received/actor/test_announce.py::TestAnnounceVulnerabilityCaseReceivedUseCase::test_ingress_prestored_case_row_is_not_local_evidence`
+      for the inbox path, where the ingress pre-store makes the case row present before the
+      replica has a roster.
     relationships:
     - rel_type: depends_on
       spec_id: CM-02-011
@@ -216,8 +227,11 @@ groups:
       ADR-0088 narrows that identity narrative: the stable URL is a convenience, and no protocol
       logic may treat the `case-actor` name or URL shape as evidence of authority.
     verification: >-
-      Ratchet ARCH-24-004 asserts no protocol-logic module branches on `is_case_actor_identity`
-      or the `case-actor` URL substring.
+      Ratchet ARCH-24-004 asserts no protocol-logic module branches on `is_case_actor_identity`,
+      the `case-actor` URL substring, the segment constant, the identity `case_actor_identity()`
+      builds, or a `Service`-hosting `context` scan. `vultron/demo/` is outside that corpus by
+      design (provisioning at a readable URL is the convenience ADR-0088 preserves); #3304 tracks
+      the one demo helper that still resolves an address by hosting location.
     relationships:
     - rel_type: refines
       spec_id: CM-02-011
