@@ -360,7 +360,7 @@ groups:
       knowable; no on-behalf assertion is ever permitted for this transition
       (ADR-0084).
     rationale: >-
-      Allowing a non-vendor to assert fix-readiness would let the Case Actor
+      Allowing a non-vendor to assert fix-readiness would let the CASE_MANAGER
       fabricate protocol-visible fix state, undermining the meaning of the F
       event.
     verification: >-

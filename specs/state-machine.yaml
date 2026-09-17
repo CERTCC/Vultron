@@ -2,7 +2,7 @@ id: SM
 title: State Machine
 description: 'Requirements governing how the RM (Report Management), EM (Embargo Management), and CS (CVD Case State: VFD
   and PXA axes) protocol state machines are defined, represented, and executed at runtime. Each participant maintains its
-  own RM state; the CaseActor maintains shared EM and Case State. Within CS, the PXA axis is shared across participants while
+  own RM state; the CASE_MANAGER maintains shared EM and Case State. Within CS, the PXA axis is shared across participants while
   the VFD axis is per-participant.'
 version: 1.0.0
 scope:
@@ -82,7 +82,7 @@ groups:
     rationale: >-
       The precondition check MUST be contextually appropriate — it verifies that
       the intended transition is valid for the specific domain situation, not merely
-      that it passes a strict adjacency test. For example, when the CaseActor sets
+      that it passes a strict adjacency test. For example, when the CASE_MANAGER sets
       a reporter participant to `RM.ACCEPTED` at bootstrap time, the guard does not
       check strict RM adjacency (the reporter's intermediate states were never
       observed and MUST NOT be inserted into the ledger); it checks instead that
