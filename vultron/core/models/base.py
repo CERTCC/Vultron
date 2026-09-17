@@ -236,10 +236,15 @@ class CoreObject(VultronObject):
             return  # Skip CORE_VOCABULARY — not a concrete vocab entry
         try:
             hints = _typing.get_type_hints(cls)
-        except NameError:
-            # If forward references cannot be resolved, do not register —
-            # silent registration of a half-constructed class is worse than
-            # a missing entry, which surfaces immediately at lookup time.
+        except (NameError, TypeError):
+            # Forward references cannot be resolved yet (NameError) or an
+            # annotation is not a valid type (TypeError) — do not register.
+            # Silent registration of a half-constructed class is worse than a
+            # missing entry, which surfaces immediately at lookup time.  Kept
+            # symmetric with VultronObject.__init_subclass__, which runs the
+            # same get_type_hints(cls) call for every CoreObject subclass; a
+            # divergent catch here would let one handler swallow what the other
+            # crashes on (CS-23-001).
             return
         annotation = hints.get("type_")
         # Skip union annotations (e.g. ``str | None``) — these mark

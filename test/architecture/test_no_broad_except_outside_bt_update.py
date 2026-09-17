@@ -49,22 +49,26 @@ _BEHAVIORS_ROOT = _corpus.REPO_ROOT / "vultron" / "core" / "behaviors"
 _SANCTIONED_METHOD = "update"
 
 
+_BROAD_NAMES = frozenset({"Exception", "BaseException"})
+
+
 def _is_broad_except(handler: ast.ExceptHandler) -> bool:
     """Return True if *handler* is a blanket catch (``except Exception`` or bare).
 
     Detects:
     - ``except:``                         (bare — ``handler.type is None``)
-    - ``except Exception:``               (``Name`` id == "Exception")
-    - ``except (Exception, ...):``        (a tuple that includes ``Exception``)
+    - ``except Exception:``               (``Name`` id in ``_BROAD_NAMES``)
+    - ``except BaseException:``           (broader than Exception — also blanket)
+    - ``except (Exception, ...):``        (a tuple that includes a broad name)
     """
     exc_type = handler.type
     if exc_type is None:
         return True
-    if isinstance(exc_type, ast.Name) and exc_type.id == "Exception":
+    if isinstance(exc_type, ast.Name) and exc_type.id in _BROAD_NAMES:
         return True
     if isinstance(exc_type, ast.Tuple):
         return any(
-            isinstance(elt, ast.Name) and elt.id == "Exception"
+            isinstance(elt, ast.Name) and elt.id in _BROAD_NAMES
             for elt in exc_type.elts
         )
     return False
@@ -237,6 +241,18 @@ def test_detector_flags_exception_in_tuple() -> None:
         "    try:\n"
         "        do()\n"
         "    except (KeyError, Exception):\n"
+        "        pass\n"
+    )
+    assert _count_broad_excepts_outside_update(tree) == 1
+
+
+def test_detector_flags_base_exception() -> None:
+    """``except BaseException`` is broader than Exception — also a blanket catch."""
+    tree = _corpus.parse_inline(
+        "def f():\n"
+        "    try:\n"
+        "        do()\n"
+        "    except BaseException:\n"
         "        pass\n"
     )
     assert _count_broad_excepts_outside_update(tree) == 1
