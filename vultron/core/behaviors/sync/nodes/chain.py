@@ -300,10 +300,6 @@ class CreateLogEntryNode(DataLayerActionWithPorts):
             return f
         assert self.datalayer is not None
 
-        from vultron.core.use_cases._helpers import _find_case_actor_id
-
-        case_actor_id = _find_case_actor_id(self.datalayer, self.case_id)
-
         # One scan of this case's recorded entries, shared by the
         # claimed-timestamp guard's predecessor lookup and the idempotency
         # check below.  ``list_objects`` takes no case filter, so each scan
@@ -339,8 +335,6 @@ class CreateLogEntryNode(DataLayerActionWithPorts):
         ledger_cfg = get_config().ledger
         _validate_canonical_entry(
             case_id=self.case_id,
-            actor_id=self.actor_id,
-            case_actor_id=case_actor_id,
             disposition=self.disposition,
             payload_snapshot=self.payload_snapshot,
             event_type=self.event_type,

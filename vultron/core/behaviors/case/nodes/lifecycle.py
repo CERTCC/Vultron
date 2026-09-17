@@ -39,7 +39,7 @@ from vultron.core.ports.case_persistence import (
     CasePersistence,
 )
 from vultron.core.use_cases._helpers import build_activity_payload_snapshot
-from vultron.errors import VultronValidationError
+from vultron.errors import VultronCanonicalEntryError, VultronValidationError
 
 logger = logging.getLogger(__name__)
 
@@ -153,6 +153,26 @@ def _snapshot_object_id(payload_snapshot: dict[str, Any]) -> str | None:
     if isinstance(value, dict):
         return value.get("id") or value.get("id_") or None
     return None
+
+
+def _assert_actor_identity(
+    event_type: str, payload_snapshot: dict[str, Any], activity: Any
+) -> None:
+    """CLP-07-003: payloadSnapshot.actor MUST equal the inbound activity's actor_id."""
+    activity_actor_id = getattr(activity, "actor_id", None)
+    snapshot_actor = (
+        payload_snapshot.get("actor") if payload_snapshot else None
+    )
+    if (
+        activity_actor_id
+        and snapshot_actor
+        and snapshot_actor != activity_actor_id
+    ):
+        raise VultronCanonicalEntryError(
+            f"{event_type}: CLP-07-003 — payloadSnapshot.actor"
+            f" {snapshot_actor!r} does not match activity.actor_id"
+            f" {activity_actor_id!r}; identity substitution refused"
+        )
 
 
 class CommitCaseLedgerEntryNode(DataLayerActionWithPorts):
@@ -371,6 +391,8 @@ class CommitCaseLedgerEntryNode(DataLayerActionWithPorts):
                     _snapshot_object_id(payload_snapshot),
                     case_id,
                 )
+
+        _assert_actor_identity(event_type, payload_snapshot, activity)
 
         tree = create_commit_log_entry_tree(
             case_id=case_id,

@@ -155,18 +155,11 @@ class TestSnapshotBuilders:
 
 
 class TestSnapshotsPassCanonicalGuard:
-    """CLP-07 / CLP-12: every native-init snapshot must survive validation.
-
-    Each case is exercised with ``case_actor_id`` equal to the snapshot actor,
-    which is the only configuration that triggers the CLP-07-003 provenance
-    check — i.e. the single-actor deployment where the vendor IS the CaseActor.
-    """
+    """CLP-07 / CLP-12: every native-init snapshot must survive validation."""
 
     def test_create_case(self, case, port):
         _validate_canonical_entry(
             case_id=CASE_ID,
-            actor_id=CASE_ACTOR_ID,
-            case_actor_id=CASE_ACTOR_ID,
             disposition="recorded",
             payload_snapshot=build_create_case_snapshot(
                 case, CASE_ACTOR_ID, CASE_ID, port
@@ -177,8 +170,6 @@ class TestSnapshotsPassCanonicalGuard:
     def test_add_report_to_case(self, report, case, port):
         _validate_canonical_entry(
             case_id=CASE_ID,
-            actor_id=CASE_ACTOR_ID,
-            case_actor_id=CASE_ACTOR_ID,
             disposition="recorded",
             payload_snapshot=build_add_report_to_case_snapshot(
                 report, case, CASE_ACTOR_ID, CASE_ID, port
@@ -189,8 +180,6 @@ class TestSnapshotsPassCanonicalGuard:
     def test_add_participant_status(self, participant, port):
         _validate_canonical_entry(
             case_id=CASE_ID,
-            actor_id=CASE_ACTOR_ID,
-            case_actor_id=CASE_ACTOR_ID,
             disposition="recorded",
             payload_snapshot=build_add_participant_status_snapshot(
                 participant.participant_statuses[0],
@@ -215,8 +204,6 @@ class TestSnapshotsPassCanonicalGuard:
         assert isinstance(raw_status, CaseStatus)
         _validate_canonical_entry(
             case_id=CASE_ID,
-            actor_id=CASE_ACTOR_ID,
-            case_actor_id=CASE_ACTOR_ID,
             disposition="recorded",
             payload_snapshot=build_add_case_status_snapshot(
                 raw_status, case, actor, CASE_ID, port
