@@ -446,7 +446,7 @@ def _coerce_pec_or_none(raw: object) -> PEC | None:
     if isinstance(raw, PEC):
         return raw
     if isinstance(raw, str):
-        return PEC[raw]
+        return PEC[raw] if raw in PEC.__members__ else None
     return None
 
 
