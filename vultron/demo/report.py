@@ -412,7 +412,6 @@ class CaseTimelineEvent(BaseModel):
             never interleaved (DRPT-02-006).
         log_index: Monotonic per-case index; the canonical ordering key.
         entry_hash: Full SHA-256 hex hash of the entry (chain traceability).
-        disposition: ``"recorded"`` or ``"rejected"``.
         event_type: Short machine-readable event descriptor (``eventType``).
         actor_uri: Full URI of the acting actor (secondary detail).
         target_ref: Full id of the target object (secondary detail).
@@ -436,7 +435,6 @@ class CaseTimelineEvent(BaseModel):
     case_id: str = ""
     log_index: int = -1
     entry_hash: str = ""
-    disposition: str = "recorded"
     event_type: str = ""
     actor_uri: str | None = None
     actor_display_name: str | None = None
@@ -528,7 +526,6 @@ class CaseTimelineEvent(BaseModel):
                 _first(raw, "log_index", "logIndex", default=-1), default=-1
             ),
             entry_hash=str(_first(raw, "entry_hash", "entryHash", default="")),
-            disposition=str(_first(raw, "disposition", default="recorded")),
             event_type=str(_first(raw, "event_type", "eventType", default="")),
             actor_uri=_actor_uri(payload.get("actor")),
             target_ref=str(target_ref) if target_ref else None,
@@ -641,10 +638,7 @@ class CaseTimelineEvent(BaseModel):
 
         if not self.actor_uri and phrase.startswith("— "):
             phrase = phrase[2:]
-        summary = phrase[:1].upper() + phrase[1:] if phrase else phrase
-        if self.disposition != "recorded":
-            summary = f"{summary} [{self.disposition}]"
-        return summary
+        return phrase[:1].upper() + phrase[1:] if phrase else phrase
 
 
 # ---------------------------------------------------------------------------
@@ -714,10 +708,6 @@ def build_timeline(
     replicas hold each entry, and orders the result by ``log_index`` ascending
     (DRPT-02-004, DRPT-02-005).
 
-    Entries with ``disposition != "recorded"`` are silently skipped; they are
-    local-only correlation markers with empty payloads that must not appear in
-    the report (DRPT-02-007).
-
     Actor URIs are resolved to display names extracted from inline actor objects
     in the payload snapshots (e.g. Organization objects carrying a ``name``
     field).  This resolves UUID-based actor URIs (which produce hex-fragment
@@ -731,8 +721,6 @@ def build_timeline(
     for actor_name in sorted(replicas):
         for raw in replicas[actor_name]:
             event = CaseTimelineEvent.from_raw(raw)
-            if event.disposition != "recorded":
-                continue
             if event.entry_hash:
                 key = event.entry_hash
             else:
@@ -973,7 +961,6 @@ th, td {
   vertical-align: top;
 }
 th { background: #f0f0f0; }
-tr.rejected { background: #fff0f0; }
 td.presence { text-align: center; }
 th.presence-group { text-align: center; }
 code { font-family: ui-monospace, monospace; }
@@ -994,9 +981,6 @@ def _render_html_case_table(
     body_rows: list[str] = []
     prev_ts: str | None = None
     for event in events:
-        row_class = (
-            "" if event.disposition == "recorded" else ' class="rejected"'
-        )
         delta = _format_delta(event.received_at, prev_ts)
         if event.received_at is not None:
             prev_ts = event.received_at
@@ -1015,8 +999,7 @@ def _render_html_case_table(
             _html_cell(event.short_hash, title=event.entry_hash or None),
         ]
         body_rows.append(
-            f"<tr{row_class}>{''.join(cells)}"
-            f"{_html_presence_row(event, actors)}</tr>"
+            f"<tr>{''.join(cells)}" f"{_html_presence_row(event, actors)}</tr>"
         )
 
     return (

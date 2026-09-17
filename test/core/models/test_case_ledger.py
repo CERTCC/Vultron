@@ -20,9 +20,9 @@ Covers:
 - ``CaseLedgerEntry`` construction, auto-hash computation, and ``verify_hash``
   (SYNC-07-001, CLP-02-001 through CLP-02-007).
 - ``CaseLedger`` append-only semantics, hash-chain integrity,
-  ``tail_hash``, ``recorded_entries`` projection, and ``verify_chain``
+  ``tail_hash``, and ``verify_chain``
   (SYNC-01-001, SYNC-01-002, SYNC-01-003, SYNC-07-001,
-  CLP-04-001, CLP-04-003).
+  CLP-04-001, CLP-04-003, CLP-04-007).
 - ``CaseLedger.append()`` logging at INFO and DEBUG levels (SL-03-001,
   SL-04-001).
 - ``VultronReplicationState`` construction and DataLayer serialisation
@@ -93,7 +93,6 @@ def log_with_three_entries(empty_log: CaseLedger) -> CaseLedger:
     empty_log.append(
         object_id="urn:uuid:obj3",
         event_type="participant_added",
-        disposition="recorded",
     )
     return empty_log
 
@@ -265,29 +264,6 @@ class TestCaseLedgerEntry:
             "received_at or payload_snapshot was not preserved (ISSUE-2252 AC-4)"
         )
 
-    def test_default_disposition_is_recorded(self):
-        entry = HashChainLedgerRecord(
-            case_id=CASE_ID,
-            log_index=0,
-            object_id=OBJECT_ID,
-            event_type="test",
-            prev_log_hash=_ZERO_HASH,
-        )
-        assert entry.disposition == "recorded"
-
-    def test_rejected_disposition(self):
-        entry = HashChainLedgerRecord(
-            case_id=CASE_ID,
-            log_index=0,
-            object_id=OBJECT_ID,
-            event_type="test",
-            prev_log_hash=_ZERO_HASH,
-            disposition="rejected",
-            reason_code="INVALID_STATE",
-        )
-        assert entry.disposition == "rejected"
-        assert entry.reason_code == "INVALID_STATE"
-
     def test_term_defaults_to_none(self):
         entry = HashChainLedgerRecord(
             case_id=CASE_ID,
@@ -338,19 +314,6 @@ class TestCaseLedgerEntry:
             payload_snapshot=snap,
         )
         assert entry.payload_snapshot == snap
-
-    def test_reason_detail_optional(self):
-        entry = HashChainLedgerRecord(
-            case_id=CASE_ID,
-            log_index=0,
-            object_id=OBJECT_ID,
-            event_type="test",
-            prev_log_hash=_ZERO_HASH,
-            disposition="rejected",
-            reason_code="PRECONDITION_FAILED",
-            reason_detail="Case is already closed",
-        )
-        assert entry.reason_detail == "Case is already closed"
 
 
 # ---------------------------------------------------------------------------
@@ -408,25 +371,6 @@ class TestCaseLedgerAppend:
         stored = empty_log.entries[0]
         assert returned is stored
 
-    def test_rejected_entry_requires_reason_code(self, empty_log: CaseLedger):
-        with pytest.raises(ValueError, match="reason_code"):
-            empty_log.append(
-                object_id=OBJECT_ID,
-                event_type="test",
-                disposition="rejected",
-            )
-
-    def test_rejected_entry_with_reason_code_succeeds(
-        self, empty_log: CaseLedger
-    ):
-        entry = empty_log.append(
-            object_id=OBJECT_ID,
-            event_type="test",
-            disposition="rejected",
-            reason_code="PRECONDITION_FAILED",
-        )
-        assert entry.disposition == "rejected"
-
     def test_omitting_payload_snapshot_gives_empty_dict(
         self, empty_log: CaseLedger
     ):
@@ -468,44 +412,17 @@ class TestCaseLedgerAppendOnly:
 
 
 # ---------------------------------------------------------------------------
-# CaseLedger — recorded_entries projection (CLP-04-001, CLP-04-003)
+# CaseLedger — entries view (CLP-04-001, CLP-04-003, CLP-04-007)
 # ---------------------------------------------------------------------------
 
 
 class TestCaseLedgerRecordedProjection:
-    def test_all_recorded_by_default(self, log_with_three_entries: CaseLedger):
-        assert len(log_with_three_entries.recorded_entries) == 3
+    def test_all_entries_canonical(self, log_with_three_entries: CaseLedger):
+        """All entries are canonical records — no rejected entries (CLP-04-007)."""
+        assert len(log_with_three_entries.entries) == 3
 
-    def test_rejected_entry_excluded_from_recorded(
-        self, empty_log: CaseLedger
-    ):
-        empty_log.append(object_id="urn:uuid:a", event_type="first")
-        empty_log.append(
-            object_id="urn:uuid:b",
-            event_type="second",
-            disposition="rejected",
-            reason_code="PRECONDITION_FAILED",
-        )
-        empty_log.append(object_id="urn:uuid:c", event_type="third")
-        assert len(empty_log.entries) == 3
-        assert len(empty_log.recorded_entries) == 2
-        assert all(
-            e.disposition == "recorded" for e in empty_log.recorded_entries
-        )
-
-    def test_tail_hash_skips_rejected_entries(self, empty_log: CaseLedger):
-        e1 = empty_log.append(object_id="urn:uuid:a", event_type="first")
-        empty_log.append(
-            object_id="urn:uuid:b",
-            event_type="rejected_event",
-            disposition="rejected",
-            reason_code="ERR",
-        )
-        # tail_hash should still equal e1.entry_hash (last *recorded*)
-        assert empty_log.tail_hash == e1.entry_hash
-
-    def test_recorded_entries_is_tuple(self, log_with_one_entry: CaseLedger):
-        assert isinstance(log_with_one_entry.recorded_entries, tuple)
+    def test_entries_is_tuple(self, log_with_one_entry: CaseLedger):
+        assert isinstance(log_with_one_entry.entries, tuple)
 
 
 # ---------------------------------------------------------------------------
@@ -585,33 +502,6 @@ class TestCaseLedgerAppendLogging:
         ):
             empty_log.append(object_id=OBJECT_ID, event_type="test_event")
         assert any("log_index=0" in r.message for r in caplog.records)
-
-    def test_info_log_contains_disposition(
-        self, empty_log: CaseLedger, caplog: pytest.LogCaptureFixture
-    ):
-        with caplog.at_level(
-            logging.INFO, logger="vultron.core.models.case_ledger"
-        ):
-            empty_log.append(
-                object_id=OBJECT_ID,
-                event_type="test_event",
-                disposition="recorded",
-            )
-        assert any("recorded" in r.message for r in caplog.records)
-
-    def test_info_log_rejected_disposition(
-        self, empty_log: CaseLedger, caplog: pytest.LogCaptureFixture
-    ):
-        with caplog.at_level(
-            logging.INFO, logger="vultron.core.models.case_ledger"
-        ):
-            empty_log.append(
-                object_id=OBJECT_ID,
-                event_type="test_event",
-                disposition="rejected",
-                reason_code="PRECONDITION_FAILED",
-            )
-        assert any("rejected" in r.message for r in caplog.records)
 
     def test_debug_log_contains_entry_hash(
         self, empty_log: CaseLedger, caplog: pytest.LogCaptureFixture

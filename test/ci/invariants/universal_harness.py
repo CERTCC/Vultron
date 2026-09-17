@@ -264,12 +264,13 @@ def make_universal_invariant_tests(  # noqa: C901
     def test_invariant_clp13_no_rejected_invite_entries(
         request: pytest.FixtureRequest,
     ) -> None:
-        """No invite_actor_to_case entries with disposition=rejected exist (CLP-13-001)."""
+        """No invite_actor_to_case entries carry a stale disposition field (CLP-13-001, CLP-04-007)."""
         replicas = request.getfixturevalue(replicas_fixture)
         violations = check_no_rejected_invite_entries(replicas)
         assert not violations, (
-            f"Found {len(violations)} spurious rejected invite_actor_to_case"
-            f" entries (CLP-13-001 violation):\n" + "\n".join(violations)
+            f"Found {len(violations)} stale-disposition invite_actor_to_case"
+            f" entries (CLP-13-001/CLP-04-007 violation):\n"
+            + "\n".join(violations)
         )
 
     @pytest.mark.case_ledger_invariants

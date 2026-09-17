@@ -67,7 +67,7 @@ class as_CaseLedgerEntry(VultronAS2Object):
     The ``id_`` is NOT auto-computed; it must be present in the incoming JSON
     (set by the sender's domain model).
 
-    Spec: SYNC-01-002, SYNC-02-003, SYNC-02-004.
+    Spec: SYNC-01-002, SYNC-02-003, SYNC-02-004; CLP-04-007.
     """
 
     type_: Literal["CaseLedgerEntry"] = Field(  # type: ignore[assignment]
@@ -82,10 +82,6 @@ class as_CaseLedgerEntry(VultronAS2Object):
         default=-1,
         description="Monotonically increasing index scoped to case_id",
         ge=-1,
-    )
-    disposition: str = Field(
-        default="recorded",
-        description="Outcome: 'recorded' or 'rejected'",
     )
     term: Optional[int] = Field(
         default=None,
@@ -111,7 +107,7 @@ class as_CaseLedgerEntry(VultronAS2Object):
     )
     prev_log_hash: str = Field(
         default="",
-        description="SHA-256 hex hash of the previous recorded entry; per-case genesis hash for the first entry",
+        description="SHA-256 hex hash of predecessor entry; per-case genesis hash for the first entry",
         validation_alias="prevLogHash",
         serialization_alias="prevLogHash",
     )
@@ -126,18 +122,6 @@ class as_CaseLedgerEntry(VultronAS2Object):
         description="Server-generated TZ-aware UTC receipt timestamp",
         validation_alias="receivedAt",
         serialization_alias="receivedAt",
-    )
-    reason_code: Optional[str] = Field(
-        default=None,
-        description="Machine-readable rejection reason code",
-        validation_alias="reasonCode",
-        serialization_alias="reasonCode",
-    )
-    reason_detail: Optional[str] = Field(
-        default=None,
-        description="Human-readable rejection reason detail",
-        validation_alias="reasonDetail",
-        serialization_alias="reasonDetail",
     )
 
     @classmethod

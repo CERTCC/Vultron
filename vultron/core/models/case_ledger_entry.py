@@ -62,18 +62,16 @@ class CaseLedgerEntry(CoreObject):
     Fields:
         case_id: URI of the parent :class:`VulnerabilityCase`.
         log_index: Monotonically increasing index scoped to ``case_id``.
-        disposition: ``"recorded"`` or ``"rejected"``.
         term: Raft cluster term; ``None`` for single-node deployments.
         log_object_id: Full URI of the asserted activity or primary object.
         event_type: Short machine-readable event descriptor.
         payload_snapshot: Normalised activity payload snapshot.
-        prev_log_hash: SHA-256 hash of the previous recorded entry.
+        prev_log_hash: SHA-256 hash of the predecessor entry's content.
         entry_hash: SHA-256 hash of this entry's canonical content.
         received_at: Server-generated TZ-aware UTC receipt timestamp.
-        reason_code: Machine-readable rejection reason (rejected entries only).
-        reason_detail: Human-readable rejection reason detail.
 
-    Spec: SYNC-01-002, SYNC-02-003, SYNC-03-001 through SYNC-03-003.
+    Spec: SYNC-01-002, SYNC-02-003, SYNC-03-001 through SYNC-03-003;
+    CLP-04-007.
     """
 
     type_: Literal["CaseLedgerEntry"] = Field(  # type: ignore[assignment]
@@ -88,10 +86,6 @@ class CaseLedgerEntry(CoreObject):
         default=-1,
         description="Monotonically increasing index scoped to case_id",
         ge=-1,
-    )
-    disposition: str = Field(
-        default="recorded",
-        description="Outcome: 'recorded' or 'rejected'",
     )
     term: int | None = Field(
         default=None,
@@ -117,7 +111,7 @@ class CaseLedgerEntry(CoreObject):
     )
     prev_log_hash: str = Field(
         default="",
-        description="SHA-256 hex hash of the previous recorded entry; per-case genesis hash for the first entry",
+        description="SHA-256 hex hash of predecessor entry; per-case genesis hash for the first entry",
         validation_alias="prevLogHash",
         serialization_alias="prevLogHash",
     )
@@ -132,18 +126,6 @@ class CaseLedgerEntry(CoreObject):
         description="Server-generated TZ-aware UTC receipt timestamp",
         validation_alias="receivedAt",
         serialization_alias="receivedAt",
-    )
-    reason_code: str | None = Field(
-        default=None,
-        description="Machine-readable rejection reason code",
-        validation_alias="reasonCode",
-        serialization_alias="reasonCode",
-    )
-    reason_detail: str | None = Field(
-        default=None,
-        description="Human-readable rejection reason detail",
-        validation_alias="reasonDetail",
-        serialization_alias="reasonDetail",
     )
 
     @model_validator(mode="before")
