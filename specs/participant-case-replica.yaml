@@ -200,6 +200,20 @@ groups:
       CASE_MANAGER identity, or (b) the actor has completed an `InviteActorToCase`/`AcceptInviteToCase`
       exchange that records a pending-expectation for that case. Accepting any `Announce(VulnerabilityCase)`
       from an unauthenticated or unexpected sender as a bootstrap signal is not permitted.
+    rationale: >-
+      An `Announce(VulnerabilityCase)` roster is supplied by the sender; a fabricated case
+      naming the sender as its own CASE_MANAGER passes a roster-only check. Permitting a
+      first-contact Announce when no locally derived record exists lets an attacker pre-seed
+      a fake replica, blocking the real CASE_MANAGER on the seeded path (PCR-03-001 fails
+      closed). No legitimate protocol sequence delivers an unsolicited first-contact Announce
+      without a preceding `Create(VulnerabilityCase)` or `InviteActorToCase`.
+    verification: >-
+      A unit test confirms that `Announce(VulnerabilityCase)` from an actor with no prior
+      local trust record — no matching `VultronReportCaseLink` and no invite trust anchor for
+      the announced case — is rejected with a WARNING log entry and the case is NOT seeded in
+      the receiver's DataLayer (PCR-07-010).  A separate unit test confirms that once the
+      receiver has processed an `InviteActorToCase` from the CASE_MANAGER, a subsequent
+      `Announce(VulnerabilityCase)` from that same actor IS admitted (CBT-05-004).
     relationships:
     - rel_type: refines
       spec_id: PCR-03-001
@@ -728,5 +742,23 @@ groups:
       spec_id: PCR-08-009
     - rel_type: verifies
       spec_id: PCR-08-010
+    lint_suppress:
+    - missing_story_reference
+  - id: PCR-07-010
+    priority: MUST
+    kind: protocol
+    statement: >-
+      Unit tests MUST verify that `Announce(VulnerabilityCase)` from an actor with no
+      prior local trust record — no matching `VultronReportCaseLink.trusted_case_actor_id`
+      and no invite trust anchor for the announced case ID — is rejected with a WARNING
+      log entry and the case is NOT seeded in the receiver's DataLayer.
+    verification: >-
+      A unit test in `test/core/use_cases/received/actor/test_announce.py`
+      confirms that when the receiver's DataLayer contains no `VultronReportCaseLink`
+      for the announced case and no invite trust anchor, a first-contact
+      `Announce(VulnerabilityCase)` is rejected (WARNING logged, case not stored).
+    relationships:
+    - rel_type: verifies
+      spec_id: PCR-03-004
     lint_suppress:
     - missing_story_reference
