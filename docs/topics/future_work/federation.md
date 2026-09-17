@@ -2,7 +2,7 @@
 
 Vultron has a design for a world in which each organization operates its own coordination service.
 This page gives the federation model for those services.
-It tells you which data the services interchange, which actor has authority for a case, and how two organizations make sufficient trust to coordinate.
+It tells you which data the services interchange, which actor has authority for a case, and how two organizations build the trust that coordination needs.
 
 The project has not built this model.
 The prototype operates more than one actor in a single deployment.
@@ -19,7 +19,7 @@ That service is a gateway between the internal tracker of the organization and t
 Neither organization needs data about the internal systems of the other organization.
 Both organizations speak the same protocol.
 
-Federation occurs between two parties or more parties that know each other.
+Federation occurs between parties that know each other.
 It is not open-web discovery, and it is not public broadcast.
 A human relationship or an inbound report puts two organizations together, and the protocol then carries the coordination.
 This condition controls almost all of the design decisions on this page.
@@ -88,14 +88,14 @@ classDiagram
     }
     class Case {
         +attributedTo
-        +journal
+        +ledger
     }
     Actor "1" --> "*" Participant : is referenced by
     Case "1" --> "*" Participant : has
     Participant "*" --> "1" Actor : identifies
 ```
 
-The diagram shows that a Participant connects a long-life Actor to one Case.
+The diagram shows that a Participant connects a long-lived Actor to one Case.
 An Actor exists independently of a case.
 A Participant exists only in one case.
 
@@ -107,7 +107,7 @@ The `attributed_to` field of a case identifies the instance that owns the case.
 Ownership is unambiguous, because only one instance holds it at a given time.
 A transfer uses an `Offer` and `Accept` cycle.
 After the cycle, the instances change the `attributed_to` field.
-The activity history of the case gives the full history of ownership.
+The Case Activity Log gives the full history of ownership.
 
 Each participant instance can make a case from a report.
 The instance that makes the case owns it until an ownership transfer occurs.
@@ -133,7 +133,7 @@ sequenceDiagram
     B->>CM: provision case and CASE_MANAGER
     B->>A: Accept(Offer(Report))
     B->>A: Create(Case)
-    Note over A: local replica seeded
+    Note over A: case replica seeded
     CM->>A: Add(Participant, target Case)
     A->>CM: case traffic from here on
     CM->>A: relayed activities from other Participants
@@ -157,7 +157,7 @@ One relay through one actor gives four properties, at the cost of one more netwo
 The CASE_MANAGER can apply authorization, because it sees each message and knows the roles of each Participant.
 It can also attest to the sequence, because it gives each entry its position.
 A Participant cannot send a message that seems to come from a different Participant, because only the CASE_MANAGER sends case traffic.
-The view of each Participant also comes from one authoritative sequence, and not from the messages that arrive.
+The view of each Participant also comes from the canonical recorded log, and not from the messages that arrive.
 
 {% include-markdown "./_oq-participant-routing.md" %}
 
@@ -174,8 +174,8 @@ It puts the initial activity in an AS2 `Announce` and signs the `Announce`.
   "id": "https://vendorb.example/cases/1234/actor/outbox/relay/88",
   "actor": "https://vendorb.example/cases/1234/actor",
   "published": "2025-03-08T12:00:00Z",
-  "vultron:journalSeq": 3,
-  "vultron:journalPrev": "hash-of-journal-seq-2",
+  "vultron:log_index": 3,
+  "vultron:prevLogHash": "sha256-of-entry-2",
   "to": "https://vendora.example/users/alice",
   "object": {
     "type": "Create",
@@ -192,37 +192,37 @@ It puts the initial activity in an AS2 `Announce` and signs the `Announce`.
 
 The two signatures have two different functions.
 The inner signature shows that the activity came from the Participant that claims it.
-The outer signature shows that the authoritative hub received the activity and relayed it, at a known position in the case history.
+The outer signature shows that the CASE_MANAGER received the activity and relayed it, at a known position in the case ledger.
 A recipient verifies each signature independently.
-The relayed message is thus reliable data, and not a report at second hand.
+A recipient can thus trust a relayed message without a direct connection to the Participant that sent it.
 
-The `journalSeq` and `journalPrev` fields let a recipient put the relayed activity in its local replica immediately.
+The `log_index` and `prevLogHash` fields let a recipient put the relayed activity in its replica immediately.
 The recipient does not wait for a synchronization cycle.
 
 {% include-markdown "./_oq-message-security.md" %}
 
 ---
 
-## The case journal and the delivery log
+## The case ledger and the delivery log
 
 The CASE_MANAGER keeps two collections and shows them as AS2 named streams.
 The two collections have different functions.
 
 | Collection | Content | Synchronized |
 |---|---|---|
-| Case journal (`/outbox`) | Sequenced hash-chained record of the case events | Yes — this is the replication target |
+| Case ledger (`/outbox`) | Hash-chained record of the case events, indexed by `log_index` | Yes — this is the replication target |
 | Delivery log (`/streams/delivery`) | The `Announce` relays, with the recipient and the time of each one | No |
 
-The case journal is append-only.
-Each entry holds the hash of the entry before it, which keeps the journal tamper-evident.
-The journal holds the events of the case: `Create`, `Update`, `Offer`, `Accept`, `Add`, `Remove`, and the others.
-Only journal entries use sequence positions.
+The case ledger is append-only.
+Each entry holds the hash of the entry before it, which keeps the ledger tamper-evident.
+The case ledger holds the events of the case: `Create`, `Update`, `Offer`, `Accept`, `Add`, `Remove`, and the others.
+Only ledger entries use `log_index` positions.
 
 The delivery log is a tool for operators.
 It gives data for diagnosis, for retry control, and for delivery verification.
 An operator can remove or archive the delivery log, and the integrity of the case stays correct.
-The delivery log is also much larger than the journal.
-One `Note` to twenty Participants makes one journal entry and twenty delivery log entries.
+The delivery log is also much larger than the case ledger.
+One `Note` to twenty Participants makes one ledger entry and twenty delivery log entries.
 
 {% include-markdown "./_oq-distributed-ledger.md" %}
 
@@ -230,11 +230,11 @@ One `Note` to twenty Participants makes one journal entry and twenty delivery lo
 
 ---
 
-## Consistency of the replicas
+## Convergence of the replicas
 
-Each Participant keeps a local replica of the case, and the CASE_MANAGER pushes each change to it.
-The CASE_MANAGER sends each journal activity at the time of the event.
-Each activity holds `journalSeq` and `journalPrev`, and the recipient uses these fields to put the activity in sequence.
+Each Participant keeps a Participant Case Replica, and the CASE_MANAGER pushes each change to it.
+The CASE_MANAGER sends each Case Ledger Entry at the time of the event, which is ledger fanout.
+Each entry holds its `log_index` and `prevLogHash`, and the recipient uses these fields to put the entry in sequence.
 Each entry also connects to the entry before it, and the CASE_MANAGER signs it.
 A Participant can thus verify the integrity and the authenticity of the stream on arrival, and it does not trust the transport.
 
@@ -242,7 +242,7 @@ Push is the primary path, and it is not the only path.
 A Participant records the sequence numbers that it received.
 A discontinuity in those numbers shows that an entry is absent.
 The Participant then pulls the `/outbox` of the CASE_MANAGER, which is a paginated AS2 `OrderedCollection`.
-Pull reconciliation is the alternative path, and the CASE_MANAGER permits it only for the active Participants of that case.
+Ledger reconciliation is the alternative path, and the CASE_MANAGER permits it only for the active Participants of that case.
 
 {% include-markdown "./_oq-fanout-ordering.md" %}
 
