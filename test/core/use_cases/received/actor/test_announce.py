@@ -21,6 +21,7 @@ from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.core.models.case_ledger import HashChainLedgerRecord
 from vultron.core.models.case_ledger_entry import VultronCaseLedgerEntry
 from vultron.core.models.ledger_gap_buffer import LedgerGapBuffer
+from vultron.core.models.pending_case_inbox import VultronPendingCaseInbox
 from vultron.core.models.report_case_link import VultronReportCaseLink
 from vultron.core.use_cases.received.actor.announce import (
     AnnounceVulnerabilityCaseReceivedUseCase,
@@ -109,14 +110,28 @@ class TestAnnounceVulnerabilityCaseReceivedUseCase:
         result = cast(Any, dl.read(_CASE_ID))
         assert result.name == "DR-10 Announce Case"
 
-    def test_creates_case_when_case_actor_not_yet_known_locally(
-        self, dl, event, case
+    def test_rejects_announce_when_no_trust_anchor_exists(
+        self, dl, event, caplog
     ):
-        """First-time replica seeding succeeds before the as_CaseActor is stored."""
-        AnnounceVulnerabilityCaseReceivedUseCase(dl, event).execute()
+        """PCR-03-004 / PCR-07-010: first-contact Announce with no prior trust record
+        is rejected with a WARNING and the case is NOT seeded.
+
+        No VultronReportCaseLink, no as_CaseActor Service, no
+        VultronPendingCaseInbox invite anchor — all three sources of trust are
+        absent, so the authority check MUST fail closed.
+        """
+        import logging
+
+        with caplog.at_level(logging.WARNING):
+            AnnounceVulnerabilityCaseReceivedUseCase(dl, event).execute()
 
         result = dl.read(_CASE_ID)
-        assert result is not None
+        assert result is None, "Case must NOT be seeded without a trust anchor"
+        assert any(
+            "PCR-03-004" in r.getMessage() or "PCR-07-010" in r.getMessage()
+            for r in caplog.records
+            if r.levelno == logging.WARNING
+        ), "Expected a WARNING log citing PCR-03-004 or PCR-07-010"
 
     def test_updates_report_case_link_when_case_contains_report(
         self, dl, event, case, case_actor
@@ -217,6 +232,96 @@ class TestAnnounceVulnerabilityCaseReceivedUseCase:
 
 
 # ---------------------------------------------------------------------------
+# PCR-03-004 / PCR-07-010: invite trust anchor gates first-contact Announce
+# ---------------------------------------------------------------------------
+
+
+class TestAnnounceFirstContactTrustGap:
+    """PCR-03-004 / PCR-07-010: first-contact Announce(VulnerabilityCase) is
+    rejected unless a prior trust anchor exists."""
+
+    def test_rejects_first_contact_announce_without_any_anchor(
+        self, dl, event, caplog
+    ):
+        """AC-5a / PCR-07-010: no-prior-record Announce rejected with WARNING,
+        case NOT seeded."""
+        import logging
+
+        with caplog.at_level(logging.WARNING):
+            AnnounceVulnerabilityCaseReceivedUseCase(dl, event).execute()
+
+        assert (
+            dl.read(_CASE_ID) is None
+        ), "Case MUST NOT be seeded when no trust anchor exists (PCR-03-004)"
+        assert any(
+            "PCR-03-004" in r.getMessage() or "PCR-07-010" in r.getMessage()
+            for r in caplog.records
+            if r.levelno == logging.WARNING
+        ), "Expected WARNING log citing the PCR spec reference"
+
+    def test_admits_announce_after_invite_trust_anchor(self, dl, event, case):
+        """AC-5b / PCR-03-004: Announce from the invite sender is admitted once
+        a VultronPendingCaseInbox trust anchor is stored by the invite path."""
+        dl.save(
+            VultronPendingCaseInbox(
+                case_id=_CASE_ID,
+                case_actor_id=_CASE_ACTOR_ID,
+            )
+        )
+
+        AnnounceVulnerabilityCaseReceivedUseCase(dl, event).execute()
+
+        result = dl.read(_CASE_ID)
+        assert (
+            result is not None
+        ), "Case MUST be seeded when an invite trust anchor for the sender exists"
+
+    def test_rejects_announce_when_pending_record_has_no_case_actor_id(
+        self, dl, event
+    ):
+        """A VultronPendingCaseInbox with case_actor_id=None must NOT admit any sender.
+
+        Protects against None == None evaluation that would let an Announce with
+        actor_id=None (or any sender when the queued record lacks a trust anchor)
+        pass the PCR-03-004 gate.
+        """
+        dl.save(
+            VultronPendingCaseInbox(
+                case_id=_CASE_ID,
+                case_actor_id=None,  # no trust anchor set yet
+            )
+        )
+
+        AnnounceVulnerabilityCaseReceivedUseCase(dl, event).execute()
+
+        assert (
+            dl.read(_CASE_ID) is None
+        ), "A pending record with case_actor_id=None must NOT admit any Announce"
+
+    def test_rejects_announce_from_wrong_actor_with_trust_anchor(
+        self, dl, make_payload, case
+    ):
+        """AC-1: a trust anchor for actor A does not admit an Announce from actor B."""
+        dl.save(
+            VultronPendingCaseInbox(
+                case_id=_CASE_ID,
+                case_actor_id=_CASE_ACTOR_ID,  # trust anchor names expected sender
+            )
+        )
+        # Build an announce from a *different* actor (the imposter)
+        imposter_announce = announce_vulnerability_case_activity(
+            case, actor=_IMPOSTER_ID, context=case.id_
+        )
+        event = make_payload(imposter_announce)
+
+        AnnounceVulnerabilityCaseReceivedUseCase(dl, event).execute()
+
+        assert (
+            dl.read(_CASE_ID) is None
+        ), "Case MUST NOT be seeded when the sender does not match the trust anchor"
+
+
+# ---------------------------------------------------------------------------
 # #2186 / #2180: pre-genesis Announce(CaseLedgerEntry) drains on case seed
 # ---------------------------------------------------------------------------
 
@@ -278,6 +383,17 @@ class TestAnnounceDrainsPreGenesisBuffer:
         assert gap_buffer.depth(_CASE_ID) == 1
         assert dl.read(entry.id_) is None  # not yet applicable — case absent
 
+        # Establish trust anchor so the authority check (PCR-03-004) admits the
+        # Announce from _CASE_ACTOR_ID before the case replica exists.
+        dl.create(
+            as_CaseActor(
+                id_=_CASE_ACTOR_ID,
+                attributed_to=_OWNER_ID,
+                context=_CASE_ID,
+                name="CaseActor",
+            )
+        )
+
         activity = announce_vulnerability_case_activity(
             case_with_actor,
             actor=_CASE_ACTOR_ID,
@@ -313,6 +429,30 @@ class TestAnnounceStoresEmbeddedParticipants:
     BT nodes (``CheckParticipantExists``, ``AppendParticipantStatusNode``)
     would then fail with participant-not-found on the Announce path.
     """
+
+    @pytest.fixture()
+    def dl(self):
+        """DataLayer with _CASE_ACTOR_ID pre-seeded as the CaseActor Service.
+
+        Required by PCR-03-004: the authority check rejects an Announce when no
+        trust anchor exists.  Seeding the as_CaseActor makes _find_case_actor_id
+        return _CASE_ACTOR_ID via path 4 (legacy Service scan) so the announce
+        from _CASE_ACTOR_ID is admitted without a VultronReportCaseLink or invite
+        trust anchor.
+        """
+        _dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id="https://test.example/api/v2/actors/test-actor",
+        )
+        _dl.create(
+            as_CaseActor(
+                id_=_CASE_ACTOR_ID,
+                attributed_to=_OWNER_ID,
+                context=_CASE_ID,
+                name="CaseActor",
+            )
+        )
+        return _dl
 
     @pytest.fixture()
     def case_with_participants(self):
