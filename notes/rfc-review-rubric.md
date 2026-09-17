@@ -342,12 +342,17 @@ Items moved here are no longer checked manually; the mechanism is noted.
 | MkDocs build with zero warnings | `mkdocs-build-strict.sh` CI step | pre-existing |
 | Broken `§N.M` heading anchors | `mkdocs.yml` `validation.links.anchors: warn` + strict build | pre-existing |
 
-!!! warning "`lint-docs` does not cover this document"
+!!! warning "`lint-docs` does not cover this document — tracked as #3300"
     `lint-docs` drops files matching `not_in_nav`'s generated patterns, which
-    includes `_*.md`. Every fragment of this specification is therefore outside
-    the linter's default target set, and the style-guide rules in §1–§2 above are
-    checked by review only. Point `lint-docs` at
-    `docs/reference/vultron-spec/` explicitly, or treat those items as `[J]`.
+    includes `_*.md`. All 35 fragments of this specification are therefore outside
+    the linter's default target set, so every style-guide rule in §1–§2 above is
+    checked by review only — including the mechanical ones a linter is best at
+    (spelling, filler, acronym expansion, voice).
+
+    This is not hypothetical: an American-spelling regression was introduced
+    during the PR #3265 review round and survived `markdownlint`, `mdlint.sh` and
+    a clean strict build. Until #3300 closes, treat the `[M]` items in §1–§2 as
+    `[J]` for this document and check them by reading.
 
 ---
 
