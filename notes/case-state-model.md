@@ -739,9 +739,11 @@ CM-13), whose RM states are set as part of the case creation sequence.
 
 ### Implementation
 
-- **`CreateInviteeParticipantAtReceivedNode`** (renamed from
-  `CreateInviteeParticipantAtAcceptedNode`) records only `RM.RECEIVED` for
-  the invitee in the CaseActor's DataLayer.
+- **`CreateInviteeParticipantNode`** constructs the invitee participant at
+  `RM.START`; **`AdvanceInviteeToReceivedNode`** then records `RM.RECEIVED` for
+  the invitee through the sole writer (`CreateParticipantStatusNode`) in the
+  CaseActor's DataLayer, after the participant is attached (ADR-0089 birth:
+  construct → attach → advance).
 - The invitee's subsequent V/A transitions are driven by received RM status
   messages from the invitee themselves.
 

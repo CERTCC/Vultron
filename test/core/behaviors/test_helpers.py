@@ -36,6 +36,7 @@ from vultron.core.models.case import VultronCase
 from vultron.core.models.participant import VultronParticipant
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+from test.support.participant_status import advance_participant_rm
 from vultron.wire.as2.vocab.objects.vulnerability_report import (
     as_VulnerabilityReport,
 )
@@ -343,8 +344,12 @@ def test_find_participant_by_actor_id_reads_live_record_for_inline_object(
         attributed_to=target_actor_id,
         context=case_id,
     )
-    live.append_rm_state(RM.RECEIVED, actor=target_actor_id, context=case_id)
-    live.append_rm_state(RM.VALID, actor=target_actor_id, context=case_id)
+    advance_participant_rm(
+        live, RM.RECEIVED, actor=target_actor_id, context=case_id
+    )
+    advance_participant_rm(
+        live, RM.VALID, actor=target_actor_id, context=case_id
+    )
     datalayer.save(live)
 
     # Case has an inline CaseParticipant at RECEIVED (stale snapshot)
@@ -353,8 +358,8 @@ def test_find_participant_by_actor_id_reads_live_record_for_inline_object(
         attributed_to=target_actor_id,
         context=case_id,
     )
-    stale_inline.append_rm_state(
-        RM.RECEIVED, actor=target_actor_id, context=case_id
+    advance_participant_rm(
+        stale_inline, RM.RECEIVED, actor=target_actor_id, context=case_id
     )
 
     case = VultronCase(

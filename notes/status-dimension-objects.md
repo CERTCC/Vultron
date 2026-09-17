@@ -261,10 +261,13 @@ enforces the same composed rule set:
   purpose: Postel's maxim, not an inconsistency (ADR-0061, ADR-0086). See
   [notes/domain-validation.md](domain-validation.md).
 
-Two `ParticipantStatus` writers still sit outside the composed evaluator
-(`CaseParticipant.append_rm_state()` and
-`_ReportPhaseRMTransition._guard_transition()`), each enforcing RM adjacency only;
-consolidating them is #3111.
+`CreateParticipantStatusNode` is now the sole `ParticipantStatus` writer
+(ADR-0089, closing #3111): the model-level `append_rm_state` mutators were
+removed and pre-case RM state moved onto `VultronReportCaseLink`
+(`_ReportPhaseRMTransition` writes the link's `rm_state`, not a
+`ParticipantStatus`). The only two `ParticipantStatus`-write exclusions that
+remain are the receive path and the replica-apply path, which adjudicate under a
+different disposition by design.
 
 `test/architecture/test_vfd_rm_pxa_write_sites.py` (the AC-7 ratchet) AST-scans
 `vultron/core/behaviors/` for every dimension constructor call and fails on any

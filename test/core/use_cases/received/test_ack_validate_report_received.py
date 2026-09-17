@@ -165,6 +165,7 @@ class TestFullReportFlow:
         from vultron.wire.as2.factories import create_case_activity
         from vultron.wire.as2.vocab.objects.case_participant import (
             as_CaseParticipant,
+            as_ParticipantStatus,
         )
         from vultron.core.use_cases.received.case.create import (
             CreateCaseReceivedUseCase,
@@ -181,9 +182,13 @@ class TestFullReportFlow:
             attributed_to=self.VENDOR_ID,
             context=self.CASE_ID,
             case_roles=[CVDRole.VENDOR],
-        )
-        vendor_participant.append_rm_state(
-            RM.RECEIVED, self.VENDOR_ID, self.CASE_ID
+            participant_statuses=[
+                as_ParticipantStatus(
+                    attributed_to=self.VENDOR_ID,
+                    context=self.CASE_ID,
+                    rm_state=RM.RECEIVED,
+                )
+            ],
         )
         case = as_VulnerabilityCase(
             id_=self.CASE_ID,

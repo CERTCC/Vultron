@@ -1138,7 +1138,7 @@ class TestInviteActorUseCases:
 
 
 class TestAcceptInviteRolesAC4:
-    """AC-4: CreateInviteeParticipantAtReceivedNode reads roles from Invite."""
+    """AC-4: CreateInviteeParticipantNode reads roles from Invite."""
 
     def test_roles_from_invite_set_on_participant(self, make_payload):
         """AC-4: Accept(Invite) causes new participant to inherit roles from Invite."""

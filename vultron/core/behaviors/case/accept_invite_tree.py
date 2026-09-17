@@ -25,9 +25,10 @@ Tree structure::
     ├── CheckInviteeNotAlreadyParticipantNode  — idempotency guard
     ├── CapturePreCommitBackfillTargetNode     — snapshot ledger for resume case
     ├── GuardedCommitCaseLedgerEntryBT         — record receipt (CLP-10-006)
-    ├── CreateInviteeParticipantAtReceivedNode — build participant at RM.RECEIVED
+    ├── CreateInviteeParticipantNode           — construct participant at RM.START
     ├── MaybeSignEmbargoConsentNode            — sign when embargo is EM.ACTIVE
     ├── PersistInviteeParticipantNode          — dl.create, attach, save case
+    ├── AdvanceInviteeToReceivedNode           — advance to RM.RECEIVED via writer
     ├── EmitAddCaseParticipantNode             — emit Add(CaseParticipant), commit ledger
     ├── EmitAnnounceCaseToInviteeNode          — queue Announce(VulnerabilityCase)
     └── BackfillCanonicalLedgerToInviteeNode   — send prior ledger to invitee
@@ -66,6 +67,7 @@ from vultron.core.ports.case_persistence import CaseOutboxPersistence
 from vultron.core.ports.sync_activity import SyncActivityPort
 from vultron.core.states.em import EM
 from vultron.core.states.participant_embargo_consent import PEC_Trigger
+from vultron.core.states.rm import RM
 from vultron.enums.roles import validate_roles
 from vultron.core.models._helpers import _as_id
 
@@ -294,13 +296,22 @@ class CheckInviteeNotAlreadyParticipantNode(
         return None
 
 
-class CreateInviteeParticipantAtReceivedNode(DataLayerActionWithPorts):
-    """Build a ``VultronParticipant`` for the invitee at RM.RECEIVED.
+class CreateInviteeParticipantNode(DataLayerActionWithPorts):
+    """Construct a ``VultronParticipant`` record for the invitee, at RM.START.
 
-    Per CM-11-001, ``Accept(Invite)`` signals willingness to join; the
-    CaseActor records RM.RECEIVED only.  The full triage cycle
-    (VALID/ACCEPTED) is a distinct subsequent step run by the invitee
-    after the case replica has been delivered (PCR-08-010).
+    Under ADR-0089 birth is three steps and RM advances only through the sole
+    writer.  This node performs step 1 (*construct*): it builds the participant
+    auto-seeded at ``RM.START`` (by ``_init_participant_status_if_empty``) and
+    writes it to the blackboard.  :class:`PersistInviteeParticipantNode`
+    attaches and saves it (step 2), then
+    :class:`AdvanceInviteeToReceivedNode` advances it to ``RM.RECEIVED``
+    through :class:`CreateParticipantStatusNode` (step 3).  Handing a detached
+    participant *already* at ``RM.RECEIVED`` onto the blackboard was the
+    pattern ADR-0089 removes.
+
+    Per CM-11-001, ``Accept(Invite)`` records ``RM.RECEIVED`` only; the full
+    triage cycle (VALID/ACCEPTED) is a distinct subsequent step run by the
+    invitee after the case replica has been delivered (PCR-08-010).
 
     Writes ``new_invite_participant`` to the blackboard.
     """
@@ -448,11 +459,19 @@ class CreateInviteeParticipantAtReceivedNode(DataLayerActionWithPorts):
             return Status.SUCCESS
 
         roles = self._read_invite_roles()
-        # CM-11-001: Accept(Invite) records RM.RECEIVED only. The full
-        # triage cycle is a distinct step run by the invitee after replica
-        # delivery (PCR-08-010).
-        participant = VultronParticipant.new_at_received(
-            self.case_id, self.invitee_id, roles
+        # ADR-0089 birth step 1 (construct): build the participant auto-seeded
+        # at RM.START. PersistInviteeParticipantNode attaches it and
+        # AdvanceInviteeToReceivedNode advances it to RM.RECEIVED through the
+        # sole writer. CM-11-001: Accept(Invite) records RM.RECEIVED only; the
+        # full triage cycle is a later step (PCR-08-010).
+        participant = VultronParticipant(
+            id_=(
+                f"{self.case_id}/participants/"
+                f"{self.invitee_id.split('/')[-1]}"
+            ),
+            attributed_to=self.invitee_id,
+            context=self.case_id,
+            case_roles=roles or [],
         )
         if roles:
             self.logger.info(
@@ -464,8 +483,8 @@ class CreateInviteeParticipantAtReceivedNode(DataLayerActionWithPorts):
             )
         self._set_output("new_invite_participant", participant)
         self.logger.info(
-            "%s: created participant object for invitee '%s' at RM.RECEIVED"
-            " (CM-11-001)",
+            "%s: constructed participant object for invitee '%s' at RM.START;"
+            " to be advanced to RM.RECEIVED through the writer (CM-11-001)",
             self.name,
             self.invitee_id,
         )
@@ -707,6 +726,121 @@ class PersistInviteeParticipantNode(DataLayerActionWithPorts):
         return Status.SUCCESS
 
 
+class AdvanceInviteeToReceivedNode(DataLayerActionWithPorts):
+    """Advance the freshly-attached invitee participant to RM.RECEIVED.
+
+    ADR-0089 birth step 3 (*advance*): once
+    :class:`PersistInviteeParticipantNode` has attached the participant to the
+    case (at RM.START), this node advances it to ``RM.RECEIVED`` through the
+    sole ``ParticipantStatus`` writer, :class:`CreateParticipantStatusNode`,
+    rather than letting the participant be born already-advanced.  The write is
+    attributed to the invitee (the subject), while the tree executes as the
+    CaseActor (the store owner); the two actors are kept distinct (#2300).
+
+    On the backfill-resume path (``invitee_already_participant`` is true) the
+    advance is *forward-only on the participant's actual RM state*, not a blanket
+    skip: an existing participant already at ``RM.RECEIVED`` or beyond keeps its
+    state (forcing it back would be an illegal backward transition), but one
+    still at ``RM.START`` is advanced.  Birth now commits in three separate
+    steps (construct → persist → advance), so a prior run that persisted the
+    participant at ``RM.START`` and then failed the advance leaves it durably at
+    ``RM.START``; a blanket skip on retry would strand it there permanently, and
+    ``RM.START → RM.VALID`` is illegal, so the invitee could never validate
+    (issue #3283 — the #2548 family AC-4 guards).  ``RM.START → RM.RECEIVED`` is
+    a legal forward move, so the retry completes the interrupted birth.
+    """
+
+    def __init__(
+        self, case_id: str, invitee_id: str, name: str | None = None
+    ) -> None:
+        super().__init__(name=name or self.__class__.__name__)
+        self.case_id = case_id
+        self.invitee_id = invitee_id
+        from vultron.core.behaviors.case.nodes.participant.status import (
+            CreateParticipantStatusNode,
+        )
+
+        # Pre-built once (BTND-10-004); its own stop() resets the latched actor
+        # id after each tick (#3268).
+        self._status_node = CreateParticipantStatusNode(
+            actor_id=invitee_id,
+            rm_state=RM.RECEIVED,
+            vf_state=None,
+            d_state=None,
+            pxa_state=None,
+        )
+
+    @classmethod
+    def input_ports(cls) -> dict[str, PortInformation]:
+        ports = super().input_ports()
+        ports["invitee_already_participant"] = PortInformation(
+            data_type=object, required=True
+        )
+        return ports
+
+    @classmethod
+    def _domain_port_remappings(cls) -> dict[str, str]:
+        return {
+            "invitee_already_participant": "/invitee_already_participant",
+        }
+
+    def initialise(self) -> None:
+        super().initialise()
+        self.invitee_already_participant = self.get_input(
+            "invitee_already_participant"
+        )
+
+    def _current_participant_rm(self) -> RM | None:
+        """Return the persisted invitee participant's current RM state.
+
+        None when the participant record cannot be read or has no status yet.
+        The participant id is derived the same way steps 1–2 build it
+        (:class:`CreateInviteeParticipantNode`), so this reads the participant
+        directly rather than resolving the case (ADR-0087: no direct
+        ``read_case`` here).
+        """
+        assert self.datalayer is not None
+        participant_id = (
+            f"{self.case_id}/participants/" f"{self.invitee_id.split('/')[-1]}"
+        )
+        participant = self.datalayer.read(participant_id)
+        if not isinstance(participant, CaseParticipant):
+            return None
+        status = participant.participant_status
+        return status.rm.state if status is not None else None
+
+    def update(self) -> Status:
+        if (f := self._require_datalayer_and_actor()) is not None:
+            return f
+        assert self.datalayer is not None
+        assert self.actor_id is not None
+
+        if self.invitee_already_participant:
+            # Backfill resume: forward-only on the participant's actual RM
+            # state.  Skip only when it already reached RM.RECEIVED or beyond
+            # (forcing it back would be illegal).  A participant still at
+            # RM.START — a prior run persisted it but failed the advance —
+            # must be advanced, or it is stranded permanently (issue #3283).
+            current_rm = self._current_participant_rm()
+            if current_rm is not None and current_rm != RM.START:
+                return Status.SUCCESS
+
+        from vultron.core.behaviors.bridge import BTBridge
+
+        result = BTBridge(datalayer=self.datalayer).execute_with_setup(
+            self._status_node,
+            actor_id=self.actor_id,
+            case_id=self.case_id,
+        )
+        if result.status != Status.SUCCESS:
+            self.feedback_message = (
+                f"failed to advance invitee '{self.invitee_id}'"
+                " to RM.RECEIVED"
+            )
+            self.logger.error("%s: %s", self.name, self.feedback_message)
+        return result.status
+
+
 class BackfillCanonicalLedgerToInviteeNode(DataLayerActionWithPorts):
     """Send canonical CaseLedgerEntry history to a joiner in strict order."""
 
@@ -944,9 +1078,10 @@ def create_accept_invite_actor_to_case_tree(
         ├── CheckInviteeNotAlreadyParticipantNode  — idempotency guard
         ├── CapturePreCommitBackfillTargetNode     — snapshot ledger for resume case
         ├── GuardedCommitCaseLedgerEntryBT         — record receipt (CLP-10-006)
-        ├── CreateInviteeParticipantAtReceivedNode — build participant at RM.RECEIVED
+        ├── CreateInviteeParticipantNode           — construct participant at RM.START
         ├── MaybeSignEmbargoConsentNode            — sign when EM.ACTIVE
         ├── PersistInviteeParticipantNode          — persist, attach, save case
+        ├── AdvanceInviteeToReceivedNode           — advance to RM.RECEIVED via writer
         ├── EmitAddCaseParticipantNode             — emit Add(CaseParticipant), commit ledger
         ├── EmitAnnounceCaseToInviteeNode          — queue Announce to invitee
         └── BackfillCanonicalLedgerToInviteeNode   — send prior ledger to invitee
@@ -977,13 +1112,16 @@ def create_accept_invite_actor_to_case_tree(
             CapturePreCommitBackfillTargetNode(case_id=case_id),
         ],
         effect_nodes=[
-            CreateInviteeParticipantAtReceivedNode(
+            CreateInviteeParticipantNode(
                 case_id=case_id, invitee_id=invitee_id
             ),
             MaybeSignEmbargoConsentNode(
                 case_id=case_id, invitee_id=invitee_id
             ),
             PersistInviteeParticipantNode(
+                case_id=case_id, invitee_id=invitee_id
+            ),
+            AdvanceInviteeToReceivedNode(
                 case_id=case_id, invitee_id=invitee_id
             ),
             EmitAddCaseParticipantNode(case_id=case_id, invitee_id=invitee_id),
@@ -1000,10 +1138,11 @@ def create_accept_invite_actor_to_case_tree(
 __all__ = [
     "CapturePreCommitBackfillTargetNode",
     "CheckInviteeNotAlreadyParticipantNode",
-    "CreateInviteeParticipantAtReceivedNode",
+    "CreateInviteeParticipantNode",
     "EmitAddCaseParticipantNode",
     "MaybeSignEmbargoConsentNode",
     "PersistInviteeParticipantNode",
+    "AdvanceInviteeToReceivedNode",
     "EmitAnnounceCaseToInviteeNode",
     "BackfillCanonicalLedgerToInviteeNode",
     "create_accept_invite_actor_to_case_tree",
