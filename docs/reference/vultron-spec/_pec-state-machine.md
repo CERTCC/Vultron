@@ -43,9 +43,9 @@ embargo enters Revised, and **reset** fires when it enters Exited.
 
 | From | Trigger | To |
 |---|---|---|
-| No Embargo | invite | Invited |
-| No Embargo | accept | Signatory |
-| No Embargo | decline | Declined |
+| Unbound | invite | Invited |
+| Unbound | accept | Signatory |
+| Unbound | decline | Declined |
 | Invited | accept | Signatory |
 | Invited | decline | Declined |
 | Invited | deadline passes | Declined |
@@ -55,10 +55,10 @@ embargo enters Revised, and **reset** fires when it enters Exited.
 | Lapsed | decline | Declined |
 | Lapsed | deadline passes | Declined |
 | Declined | invite | Invited |
-| any state | reset | No Embargo |
+| any state | reset | Unbound |
 
-Equivalently, by trigger: invite is valid from No Embargo, Lapsed and Declined;
-accept and decline are each valid from No Embargo, Invited and Lapsed; revise is
+Equivalently, by trigger: invite is valid from Unbound, Lapsed and Declined;
+accept and decline are each valid from Unbound, Invited and Lapsed; revise is
 valid only from Signatory; reset is valid from any state.
 
 Neither Lapsed nor Declined is terminal. A participant in either can be invited
@@ -72,9 +72,9 @@ again, which is what makes renegotiation possible.
     A participant that lets a deadline pass reaches **Declined**, not Lapsed —
     from Invited and from Lapsed alike. Both timer paths end in Declined.
 
-### 9.3 What No Embargo Means
+### 9.3 What Unbound Means
 
-No Embargo means there is no embargo in scope for this participant. It does not
+Unbound means there is no embargo in scope for this participant. It does not
 mean "has not yet agreed".
 
 That reading matters because consent does not always arrive through an
@@ -85,13 +85,13 @@ been sent, and the case history MUST NOT record an invitation that did not happe
 
 Two consequences follow:
 
-- Accept and decline are valid directly from No Embargo. No invitation is
+- Accept and decline are valid directly from Unbound. No invitation is
   required.
 - The transition from Signatory to Invited MUST be rejected. Consent already
   given cannot be withdrawn by re-inviting the participant; if the terms change,
   the revise trigger lapses the consent instead.
 
-No Embargo is also the state every participant returns to when an embargo ends,
+Unbound is also the state every participant returns to when an embargo ends,
 which is independent evidence for the absence reading: reset fires when the
 embargo goes away, not when an answer is pending.
 

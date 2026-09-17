@@ -108,9 +108,9 @@ sections carry the full definitions.
   ([§7](index.md#7-embargo-management-em-state-machine-n)).
 - **Case State (CS)** — what is known about the vulnerability. CS is the pair
   `(VFD, PXA)` ([§8](index.md#8-case-state-cs-dimensions-n)).
-- **Participant Embargo Consent (PEC)** — whether each participant has agreed to
+- **Participant Embargo Consent (PEC)** — whether each participant is bound by
   the case's current embargo terms. Per-participant, written by the
-  CASE_MANAGER. Five states: No Embargo, Invited, Signatory, Lapsed, Declined
+  CASE_MANAGER. Five states: Unbound, Invited, Signatory, Lapsed, Declined
   ([§9](index.md#9-participant-embargo-consent-pec-state-machine-n)).
 
 {% include-markdown "./includes/_dimensions-vs-machines.md" %}
@@ -146,8 +146,8 @@ case state is decided separately
 ([§10.3](index.md#103-status-adoption-the-two-seam-model)).
 
 **EM and PEC answer different questions.** EM says whether the case has an
-embargo. PEC says whether a given participant has agreed to it. The two can
-disagree: a case at EM Active may hold a participant at PEC No Embargo, if that
+embargo. PEC says whether a given participant is bound by it. The two can
+disagree: a case at EM Active may hold a participant at PEC Unbound, if that
 participant joined after the embargo was agreed or declined the terms. Cascade
 rules keep them consistent
 ([§10.2](index.md#102-embargo-revision-and-termination-cascades)).
