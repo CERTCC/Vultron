@@ -193,7 +193,7 @@ then substitute it into the query:
 
 ```bash
 gh issue list --repo CERTCC/Vultron \
-  --state open --json number,title,labels --limit 500
+  --state open --json number,title,labels --limit 1000
 ```
 
 ### PRs referencing an issue
