@@ -161,6 +161,7 @@ General information about architectural decision records is available at <https:
 - [ADR-0089 One `ParticipantStatus` Writer, and Pre-Case RM State Belongs to `ReportCaseLink`](0089-one-participant-status-writer.md)
 - [ADR-0090 A Blank Required Field Is Absence, and a Recognised Inline Object That Fails Validation Is Refused](0090-blank-is-absent-and-inline-faults-are-refused.md)
 - [ADR-0091 Rename PEC `NO_EMBARGO` to `UNBOUND`; Drop `EM.NO_EMBARGO` Alias](0091-rename-pec-no-embargo-to-unbound.md)
+- [ADR-0092 Lint Fragments as Source, and Evaluate Page-Scoped Style Rules on the Rendered Page](0092-lint-fragments-as-source-page-rules-on-rendered-page.md)
 - [ADR-0093 `DECLINE` Is Legal from `SIGNATORY` — Consent Withdrawal Is a First-Class PEC Action](0093-signatory-declined-pec-transition.md)
 
 ## Proposed ADRs
