@@ -94,7 +94,6 @@ class EmitAcceptActorRecommendationNode(DataLayerActionWithPorts):
                 object_id=activity_id,
                 event_type="accept_actor_recommendation",
                 payload_snapshot=snapshot,
-                disposition="recorded",
             )
             result = BTBridge(
                 datalayer=cast(CaseOutboxPersistence, self.datalayer)
@@ -173,7 +172,6 @@ class EmitRejectActorRecommendationNode(DataLayerActionWithPorts):
                 object_id=activity_id,
                 event_type="reject_actor_recommendation",
                 payload_snapshot=snapshot,
-                disposition="recorded",
             )
             result = BTBridge(
                 datalayer=cast(CaseOutboxPersistence, self.datalayer)

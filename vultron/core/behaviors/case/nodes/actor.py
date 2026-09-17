@@ -186,7 +186,6 @@ class EmitInviteActorToCaseNode(_EmitSingleActivityBase):
             object_id=activity_id,
             event_type="invite_actor_to_case",
             payload_snapshot=snapshot,
-            disposition="recorded",
         )
         result = BTBridge(
             datalayer=cast(CaseOutboxPersistence, self.datalayer)
