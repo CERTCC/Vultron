@@ -228,13 +228,6 @@ migration path.
 **Load when**: adding new ActivityStreams vocabulary types, modifying
 registry decorators, or diagnosing vocabulary type-resolution issues.
 
-**`federation_ideas.md`**
-Open design exploration: AS2 as vocabulary (not full ActivityPub), actor /
-inbox / outbox model, case object ownership, relay pattern, journal vs delivery
-log, mirror consistency, instance trust, peering handshake, connector plugins.
-**Load when**: scoping multi-instance federation, designing actor peering, or
-evaluating the relay/journal delivery architecture.
-
 ---
 
 ## Protocol Conformance and Behavioral Specs
