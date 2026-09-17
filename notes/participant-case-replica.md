@@ -122,12 +122,12 @@ replay *and* the fabrication case.  `_announced_case_manager_id()` must NOT
 be used as the fallback when no local record exists — that fallback is the gap
 filed as concern #3274.
 
-**When neither anchor exists**: `_authority_verdict` for the unseeded case
-MUST reject (WARNING logged, case NOT seeded) when `_find_case_actor_id()`
-returns `None` and no invite trust anchor is present.  There is no legitimate
-protocol sequence that delivers an unsolicited first-contact
-`Announce(VulnerabilityCase)` without a preceding `Create(VulnerabilityCase)`
-or `InviteActorToCase`.
+**When neither anchor exists**: `_sender_is_trusted()` in
+`announce.py` MUST reject (WARNING logged, case NOT seeded) when
+`_find_case_actor_id()` returns `None` and no `VultronPendingCaseInbox` invite
+anchor is present.  There is no legitimate protocol sequence that delivers an
+unsolicited first-contact `Announce(VulnerabilityCase)` without a preceding
+`Create(VulnerabilityCase)` or `InviteActorToCase`.
 
 **Spec reference**: `PCR-03-004`, `PCR-07-010`.
 

@@ -19,6 +19,7 @@ from vultron.core.models.events.actor import (
     InviteActorToCaseReceivedEvent,
     RejectInviteActorToCaseReceivedEvent,
 )
+from vultron.core.models.pending_case_inbox import VultronPendingCaseInbox
 from vultron.core.ports.case_persistence import (
     CaseOutboxPersistence,
     CasePersistence,
@@ -34,6 +35,42 @@ if TYPE_CHECKING:
     from vultron.core.ports.trigger_activity import TriggerActivityPort
 
 logger = logging.getLogger(__name__)
+
+
+def _record_invite_trust_anchor(
+    dl: "CaseOutboxPersistence", case_id: str, case_actor_id: str
+) -> None:
+    """Write a VultronPendingCaseInbox trust anchor for the inviting CASE_MANAGER.
+
+    Called by the invitee path of InviteActorToCaseReceivedUseCase so that
+    AnnounceVulnerabilityCaseReceivedUseCase can admit a subsequent Announce
+    from the same actor even before the local case replica exists
+    (PCR-03-004 path b, AC-2).
+
+    First-invite-wins: if a record already exists with a case_actor_id, it is
+    kept unchanged.  A record with case_actor_id=None (created by the pre-
+    bootstrap queue for an earlier ledger entry) is updated with the sender.
+    """
+    pending_id = VultronPendingCaseInbox.build_id(case_id)
+    existing = dl.read(pending_id)
+    if not isinstance(existing, VultronPendingCaseInbox):
+        dl.save(
+            VultronPendingCaseInbox(
+                case_id=case_id,
+                case_actor_id=case_actor_id,
+            )
+        )
+        logger.debug(
+            "InviteActorToCase: trust anchor recorded for case '%s'",
+            case_id,
+        )
+    elif existing.case_actor_id is None:
+        dl.save(existing.model_copy(update={"case_actor_id": case_actor_id}))
+        logger.debug(
+            "InviteActorToCase: trust anchor added to existing pending"
+            " record for case '%s'",
+            case_id,
+        )
 
 
 class InviteActorToCaseReceivedUseCase:
@@ -114,6 +151,14 @@ class InviteActorToCaseReceivedUseCase:
                     " Awaiting AnnounceVulnerabilityCase before creating case.",
                     case_stub_id,
                 )
+                # Record the invite sender as the expected CASE_MANAGER for
+                # this case so AnnounceVulnerabilityCaseReceivedUseCase can
+                # admit a subsequent Announce before the case replica exists
+                # (PCR-03-004 trust anchor, AC-2).
+                if request.actor_id:
+                    _record_invite_trust_anchor(
+                        self._dl, case_stub_id, request.actor_id
+                    )
             return
 
         # CaseActor self-delivery path (CLP-10-001): the BT handles idempotent
