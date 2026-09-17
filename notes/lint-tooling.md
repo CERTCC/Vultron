@@ -29,6 +29,62 @@ comparison, the per-rule finding counts behind each exclusion, and the rejected
 options. This note holds the operating policy. Counts are deliberately absent
 here (MS-16-001) — read them from the ADR, where they carry a measurement date.
 
+## Invoke with no path arguments
+
+Every caller runs exactly these, with **no paths**:
+
+```bash
+uv run ruff check          # or --fix
+uv run ruff format         # or --check
+```
+
+Scope lives in the config, never in the invocation (**IMPLTS-07-021**). This is
+not a style preference — a scope expressed as arguments is duplicated at every
+call site and drifts, and ADR-0094 records two drifts that were live before it
+was written: one tool formatted the whole repository while another linted two
+directories, leaving code formatted but never linted; and two skills disagreed
+about how much of the tree to type-check, so some pull requests checked less than
+commits did. `pyright` had no such problem, because `pyrightconfig.json` declares
+its own scope and every caller invokes it bare. `mypy` is scoped by `.mypy.ini`
+the same way — a bare `uv run mypy` is the correct form, and any invocation that
+names a package is narrowing the gate by accident.
+
+When you change scope, verify with:
+
+```bash
+uv run ruff check --show-files | wc -l
+```
+
+**Not** `--show-settings`. See the two silent failures below for why.
+
+## Two scoping mechanisms that fail silently
+
+Both were found by measuring a config that read correctly. Expect no error
+message from either.
+
+**`lint.exclude` needs glob form.** `exclude = ["scripts"]` under
+`[tool.ruff.lint]` resolves — `--show-settings` prints it back — and does
+nothing. A bare directory name only prunes traversal in the discovery-time
+top-level `exclude`; `lint.exclude` is matched against each file's full path, so
+it needs `"scripts/**"`. This is why `--show-files` is the verification and
+`--show-settings` is not: the latter confirms ruff *parsed* your exclusion, not
+that it *applied* it.
+
+**`ruff format` formats Python embedded in Markdown.** Unscoped, no-args
+`ruff format` reaches far beyond the Python tree because it processes fenced
+Python in `.md`. That includes `plan/history/`, which is append-only and
+immutable once merged (HM-01-005) — the same failure as bug #2952, where a
+markdown auto-fixer rewrote write-once history entries. It also reaches `docs/`,
+which has its own style gate (DF-09-001), and the hard-linked `.agents/` and
+`.claude/` skill trees. Black never touched Markdown, so
+`[tool.ruff.format] exclude = ["**/*.md"]` is what keeps the formatter swap
+faithful. Do not remove it without re-reading #2952.
+
+**`force-exclude = true` is required.** Ruff normally lints a file named
+explicitly on the command line even when the config excludes it. Pre-commit
+passes staged filenames, so without this flag the hook and the CI job disagree
+about scope — the exact drift this whole section exists to prevent.
+
 ## The shape of the configuration
 
 Everything lives in `[tool.ruff]` in `pyproject.toml`. Four settings carry
@@ -46,6 +102,12 @@ breaks a requirement:
 (arguments, returns, branches, statements) are excluded on purpose: a second,
 differently-calibrated complexity gate can disagree with the first, and then
 neither is authoritative.
+
+There is deliberately **no `lint.exclude`**. Lint covers the whole tracked Python
+surface, including `scripts/` — which the retired flake8 configuration never
+linted even though black formatted it. ADR-0094 resolved that asymmetry by
+widening lint rather than preserving it, so do not reintroduce a directory
+exclusion to make a finding go away; baseline the finding instead.
 
 ## Select families, exclude by exception
 

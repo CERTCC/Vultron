@@ -372,7 +372,7 @@ groups:
       keeps known residue visible rather than silently tolerated.
     verification: >-
       The `lint-ruff` job in `.github/workflows/python-app.yml` runs both commands without an
-      exit-code override, and the `build` job lists it in `needs`.
+      exit-code override and without path operands, and the `build` job lists it in `needs`.
     relationships:
     - rel_type: supersedes
       spec_id: IMPLTS-07-013
@@ -424,6 +424,31 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: IMPLTS-07-017
+  - id: IMPLTS-07-021
+    priority: MUST
+    kind: process
+    adr:
+    - ADR-0094
+    statement: >-
+      The scope of a lint, format, or type check MUST be declared in that tool's configuration
+      file, not in the arguments of the commands that invoke it. Callers — CI jobs, pre-commit
+      hooks, agent skills, and documented developer commands — MUST invoke the tool with no
+      path operands.
+    rationale: >-
+      A scope expressed as command-line arguments is duplicated at every call site and drifts
+      silently, because nothing compares the spellings. ADR-0094 records two drifts that were
+      live when it was written — one left code formatted but never linted, the other made some
+      pull requests type-check less than commits did. Declaring scope once makes a scope change
+      one edit to one file, and makes caller disagreement impossible rather than unlikely.
+    verification: >-
+      No invocation of `ruff`, `mypy` or `pyright` in `.github/workflows/`, `.agents/skills/`,
+      `.pre-commit-config.yaml`, or `docs/developer/` passes a path operand, and each tool's
+      configuration declares its own scope.
+    relationships:
+    - rel_type: refines
+      spec_id: IMPLTS-07-017
+    - rel_type: constrains
+      spec_id: IMPLTS-07-005
 - id: IMPLTS-06
   title: Optional and Prototype Extensions
   specs:
