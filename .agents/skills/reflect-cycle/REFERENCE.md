@@ -40,7 +40,7 @@ Non-zero → `learn` has input.
 ### Open Concern issues (also gates `learn`)
 
 ```bash
-gh issue list --repo CERTCC/Vultron --state open --limit 200 \
+gh issue list --repo CERTCC/Vultron --state open --limit 1000 \
   --json number,title,issueType \
   --jq '[.[] | select(.issueType.name == "Concern")] | length'
 ```
