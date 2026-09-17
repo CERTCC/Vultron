@@ -307,9 +307,10 @@ linked file before touching that area. New pitfalls MUST be routed per
   self-healing recovery paths log WARNING/INFO, never ERROR
   ([notes/structured-logging.md](notes/structured-logging.md)).
 - **Superseded notes sections are archived via `append-history note`** (PD-03-002,
-  PD-03-004); **large migrations partition by node shape, then domain**
-  ([notes/agentic-workflow.md](notes/agentic-workflow.md)); **MkDocs `not_in_nav`
-  ≠ `exclude_docs`** ([notes/documentation-strategy.md](notes/documentation-strategy.md)).
+  PD-03-004); **large migrations partition by node shape, then domain — and batch
+  by subsystem or script the mechanical pass so a fork run does not exhaust its
+  200-turn cap** ([notes/agentic-workflow.md](notes/agentic-workflow.md)); **MkDocs
+  `not_in_nav` ≠ `exclude_docs`** ([notes/documentation-strategy.md](notes/documentation-strategy.md)).
 - **Transport-role naming must stay explicit** — core ports docs, adapter notes,
   ADR refs and codebase reference pages change together. Likewise
   `HashChainLedgerRecord` (in-memory) vs. `CaseLedgerEntry` (wire): distinct

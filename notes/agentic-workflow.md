@@ -310,3 +310,27 @@ structural shape first (trivial reparent / read-only extra inputs / complex
 output ports), then split by domain only to balance PR size. "Each PR should be a
 lot of the same thing." See ISSUE-1809 for the typed-Ports chain decomposition as
 the reference example.
+
+### A single-pass mechanical refactor can exhaust the fork agent's turn limit
+
+A fork/sub-agent runs under a hard turn cap (200 turns). A purely mechanical
+edit that is nonetheless spread across enough files will hit it: in ISSUE-2490,
+replacing ~120 `isinstance(VulnerabilityCase)` guards across ~60 files ran the
+fork out of turns before completion, leaving a handful of files uncommitted and
+some downstream `pyright` errors unaddressed. The main agent had to inspect the
+stopped state and finish by hand.
+
+Two mitigations, applied before dispatching the agent:
+
+- **Batch by subsystem**, not one 60-file pass — e.g. `behaviors/` first, then
+  `use_cases/`, then `services/` — so each batch fits comfortably inside one
+  agent's budget and commits cleanly.
+- **Script the mechanical part** with `sed`/`awk` (or a codemod) and reserve the
+  agent for edge-case handling and the type-checker fallout only. The
+  substitution itself does not need an LLM; the judgment at the boundaries does.
+
+Corollary for the dispatching agent: after any large fork-run refactor, verify
+the end state (uncommitted files, remaining occurrences, `pyright`) rather than
+trusting the fork's completion report — a turn-capped stop looks like a finish.
+
+Source: ISSUE-2490

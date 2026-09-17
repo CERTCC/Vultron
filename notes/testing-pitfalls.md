@@ -277,6 +277,49 @@ present" from "present but invalid" and assert a raise/`FAILURE` for the latter.
 
 Sources: ISSUE-2232, ISSUE-2264
 
+### Instrument a Permissive Fallback and Count What It Absorbs Before Deciding It Is Load-Bearing
+
+When a bare `except Exception`, an `or <default>`, a `return None` on a failed
+lookup, or any silent-degradation branch blocks a fix, do **not** reason about
+whether it is load-bearing from the code and the commit message. That is a
+coin-flip: remove a real compatibility shim and you break callers; keep a
+bug-mask and you leave a silent mis-routing defect in place. Instead measure it.
+
+Instrument the branch to record `(class, keys, error)` for everything that
+reaches it, run the **full** suite, and group the results by cause. The output is
+a *cause count*, which answers three questions at once: is the tolerated input
+legitimate, how many distinct cases exist, and does anything have to be fixed
+*before* the tolerance can be removed (removing it first would turn every
+currently-absorbed case into a hard failure). Interpreting the count:
+
+- **One cause** — the fallback is almost certainly masking a single bug. Removing
+  the tolerance is the fix, not a risk.
+- **Many causes** — it is a genuine compatibility surface. It deserves a comment
+  explaining what it absorbs, or an ADR if the blast radius is repo-wide.
+
+This is cheap — one instrumented run — and it also reveals the *order* a fix must
+be applied in. In ISSUE-3217 the `parser.py` fallback fired 52 times with exactly
+one cause (a wire/core layering fault, ARCH-22-001, flattening every inline actor
+to a bare `as_Link`), which showed both that removal was correct and that wire
+type resolution had to be restricted first.
+
+**Watch-claim (two witnesses, not yet a rule):** undocumented defensive code is
+disproportionately likely to be masking a defect rather than handling a real
+case — the absence of a rationale is itself the signal, because a genuine
+compatibility surface tends to get explained. Witnesses so far: ISSUE-3217
+(`vultron/wire/as2/parser.py`, one cause) and ISSUE-3192
+(`vultron/core/behaviors/sync/nodes/replay.py`, `_find_case_actor` returned an
+arbitrary `Service` on a failed lookup, publishing a case-actor address belonging
+to a *different case*).
+
+**Open Question (deferred from CONCERN-3295):** a repo-wide inventory of
+undocumented permissive paths — and a possible `CS`-series requirement that a
+permissive path MUST state what it tolerates, which would turn this judgment call
+into a mechanical ratchet — remains unbuilt. Promote the watch-claim to a
+normative rule only once a handful more instances confirm it (BW-07-005).
+
+Sources: ISSUE-3217, ISSUE-3192, CONCERN-3295
+
 ### A FAILURE Test Must Prove the Harness Can Produce Its Named Reason
 
 `BTTestScenario` injects some collaborators unconditionally, so several
