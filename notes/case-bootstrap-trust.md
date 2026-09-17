@@ -159,22 +159,6 @@ recorded earlier in `accept_case_proposal_received_tree.py`.
 The `Create(VulnerabilityCase)` payload MUST embed participant objects inline
 so `_store_embedded_participants` can seed them on the receiver's replica.
 
-## Migration Guidance
-
-Per ADR-0041, the following call sites change:
-
-1. **Case creation at report receipt** — receiver no longer creates
-   `VulnerabilityCase`; replaced by `VultronReportCaseLink(status=PENDING_PROPOSAL)`
-2. **CASE_MANAGER bootstrap payload** — `Create(VulnerabilityCase)` must embed
-   inline participants (not bare IDs)
-3. **Participant-side bootstrap validation and trust persistence** — already
-   implemented in `CreateCaseReceivedUseCase`; no change needed
-4. **Unknown-context / pre-bootstrap queueing** — existing queueing logic
-   applies unchanged
-5. **Invite-to-case handling for late-joiner trust establishment** — unchanged
-
----
-
 ## Layer and Import Rules
 
 - Trust-establishment rules belong in core use-case / behavior logic, not in

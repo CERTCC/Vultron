@@ -116,6 +116,14 @@ class TestPecDimensionTransition:
         )
         assert result.state == PEC.DECLINED
 
+    # --- ADR-0093: SIGNATORY → DECLINED via DECLINE trigger ---
+    @pytest.mark.spec("SDO-02-001")
+    def test_decline_from_signatory(self) -> None:
+        result = PecDimension(state=PEC.SIGNATORY).transition(
+            PEC_Trigger.DECLINE
+        )
+        assert result.state == PEC.DECLINED
+
     # --- CM-18-004: SIGNATORY → INVITED must remain invalid ---
     @pytest.mark.spec("SDO-02-002")
     def test_invite_from_signatory_raises(self) -> None:

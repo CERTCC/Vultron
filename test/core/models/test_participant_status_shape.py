@@ -48,6 +48,7 @@ from vultron.core.models.dimensions import (
 from vultron.core.states.participant_embargo_consent import PEC
 from vultron.core.models.participant_status import (
     ParticipantStatus,
+    coerce_em_consent_state,
     participant_status_d_state,
     participant_status_rm_state,
     participant_status_vf_state,
@@ -437,3 +438,23 @@ class TestParticipantStatusBackwardRMValidator:
                 rm=RmDimension(state=RM.ACCEPTED),
                 previous_rm_state=RM.START,
             )
+
+
+class TestCoerceEmConsentState:
+    """Unit tests for coerce_em_consent_state legacy-migration behaviour."""
+
+    def test_none_returns_none(self) -> None:
+        assert coerce_em_consent_state(None) is None
+
+    def test_pec_instance_returned_unchanged(self) -> None:
+        assert coerce_em_consent_state(PEC.SIGNATORY) is PEC.SIGNATORY
+
+    def test_current_string_values_parse(self) -> None:
+        for member in PEC:
+            result = coerce_em_consent_state(member.value)
+            assert result is member
+
+    def test_legacy_no_embargo_migrates_to_unbound(self) -> None:
+        """ADR-0091 renamed NO_EMBARGO → UNBOUND; stored strings must coerce."""
+        result = coerce_em_consent_state("NO_EMBARGO")
+        assert result is PEC.UNBOUND

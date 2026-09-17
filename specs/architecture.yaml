@@ -1341,8 +1341,8 @@ groups:
     rationale: >-
       Hosting location and URL shape are incidental, and one is provably fragile:
       `_find_case_actor_id`'s own docstring records a bootstrap window in which the
-      real CaseActor fails its own hosting test and would take the participant arm
-      on its own ledger. Role membership is stable from replica-seed onward.
+      actor enacting `CVDRole.CASE_MANAGER` fails its own hosting test and would take
+      the participant arm on its own ledger. Role membership is stable from replica-seed onward.
     verification: >-
       `test/architecture/test_role_authority_resolver.py` ratchets both halves:
       `test_no_protocol_logic_branches_on_the_case_actor_url` asserts no

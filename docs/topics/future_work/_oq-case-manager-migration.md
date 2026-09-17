@@ -26,3 +26,5 @@
 
     The redirect method is the most practical method from the current data.
     This is a working preference, not a decision.
+
+    Concern [#3362](https://github.com/CERTCC/Vultron/issues/3362) records this question.

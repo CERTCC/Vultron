@@ -244,7 +244,12 @@ the receive path's job (RSH-05-020).
 
 - `test/architecture/test_participant_status_validation.py` — the widened
   detector fires on any module constructing a participant dimension; the
-  exclusion list ends at two entries.
+  exclusion list ends at two *writer* exclusions plus the permanent non-writer
+  over-catch (read-side, projection, and `CaseStatus`-writer modules whose
+  dimension happens to be `PxaDimension`). It does not end at two entries total:
+  driving the list down to two entries would require narrowing the gate to real
+  writers, which is exactly the escapable-by-validating-less alternative this
+  ADR rejected above (ISSUE-3207).
 - A new ratchet assertion pins that `CreateParticipantStatusNode` is never
   constructed inside another node's `update()`.
 - A new ratchet assertion pins the two input rules: no `case_id` constructor

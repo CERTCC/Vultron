@@ -25,7 +25,8 @@ HTTP POST /inbox  (wire: AS2 JSON)
   -> UseCase.execute()             `vultron/core/use_cases/received/`
      (may run BT sub-tree via py-trees)
   -> DataLayer.save()              `vultron/adapters/driven/datalayer_sqlite/`
-  -> outbound delivery queue       `vultron/adapters/driven/prod_http_delivery.py`
+  -> outbound delivery             `vultron/adapters/driven/http_delivery.py`
+                                   (`prod_http_delivery.py` is a NotImplementedError stub; demo uses `demo_http_delivery.py`)
   -> HTTP 202 Accepted             (background task via FastAPI BackgroundTasks)
 ```
 

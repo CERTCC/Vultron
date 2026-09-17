@@ -15,7 +15,7 @@
 | `vultron/enums/` | Shared CVD-domain enums (roles, states) imported by config and core | `vultron/enums/` |
 | `vultron/demo/` | Demo scenario runners and seed-config helpers | `pyproject.toml` entry points |
 | `vultron/metadata/` | Spec registry, history CLI, notes metadata tooling, message-semantics mapping renderer | `vultron/metadata/specs/`, `vultron/metadata/history/`, `vultron/metadata/msm/` |
-| `vultron/scripts/` | CLI entry points (`vultrabot`) | `pyproject.toml` `[project.scripts]` |
+| `vultron/scripts/` | Standalone helper scripts (e.g. `ontology2md.py`); NOT the console-script entry points (those live under `vultron/bt/`, `vultron/demo/`, `vultron/metadata/`) | `vultron/scripts/ontology2md.py` |
 | `vultron/semantic_registry/` | ActivityStreams semantic pattern registry | `vultron/semantic_registry/` |
 | `test/` | Pytest test suite (mirrors `vultron/` layout) | `pyproject.toml` `[tool.pytest.ini_options]` |
 | `test/architecture/` | Architecture-boundary enforcement tests | `test/architecture/test_core_no_adapter_imports.py` |
@@ -25,20 +25,21 @@
 | `plan/` | Agent workflow files: learnings queue and history archive | `plan/history/`, `plan/incoming/` |
 | `.github/workflows/` | CI/CD pipeline definitions | `.github/workflows/python-app.yml` |
 | `.devcontainer/` | Dev container configuration | `.devcontainer/Dockerfile` |
-| `integration_tests/` | Separate integration test suite | `integration_tests/README.md` |
+| `docker/` | Containerized multi-actor demo (Dockerfile, two compose files, seed configs, entrypoint) | `docker/docker-compose-multi-actor.yml` |
+| `integration_tests/` | Separate integration test suite (demo helpers) | `integration_tests/README.md`, `integration_tests/demo/` |
+| `help/` | Declared `uv` workspace member (`[tool.uv.workspace]`); currently empty | `pyproject.toml` `[tool.uv.workspace]` |
 
 ### 2) Entry Points
 
 - **Main ASGI app** (uvicorn/production): `vultron.adapters.driving.fastapi.main:app`
 - **Sub-app for dev/tests**: `vultron.adapters.driving.fastapi.app:app_v2`
-- **CLI scripts**:
-  - `vultron-demo` → `vultron.demo.cli:main`
-  - `vultrabot` → `vultron.bt.base.demo.cvd:main`
-  - `vultrabot_cvd` → `vultron.bt.base.demo.cvd:main`
+- **CLI scripts** (`[project.scripts]` in `pyproject.toml`):
+  - `vultron-demo` → `vultron.demo.cli:main`; `vultron-demo-report` → `vultron.demo.report:main`
+  - `vultrabot` / `vultrabot_cvd` → `vultron.bt.base.demo.cvd:main`; `vultrabot_pacman` → `...demo.pacman:main`; `vultrabot_robot` → `...demo.robot:main`
   - `spec-dump` / `spec-dump-llm-json` → `vultron.metadata.specs.render:main_llm_json`
-  - `spec-lint` → `vultron.metadata.specs.lint:main`
-  - `append-history` → `vultron.metadata.history.cli:main`
-  - `show-history` → `vultron.metadata.history.show_history_cli:main`
+  - `spec-lint` → `vultron.metadata.specs.lint:main`; `spec-coverage` → `vultron.metadata.specs.coverage:main`
+  - `adr-index` → `vultron.metadata.adr.index_gen:main`
+  - `append-history` → `vultron.metadata.history.cli:main`; `show-history` → `vultron.metadata.history.show_history_cli:main`; `backfill-implementation-history` → `vultron.metadata.history.backfill_implementation:main`
 - **How entry is selected**: via `[project.scripts]` in `pyproject.toml`; uvicorn deployment uses `vultron.adapters.driving.fastapi.main:app`
 
 ### 3) Module Boundaries

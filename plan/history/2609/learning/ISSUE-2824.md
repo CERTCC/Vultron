@@ -61,3 +61,6 @@ into a commit-stamp entry and a claimed-time entry that defers to CLP-15-003.
 
 Related: [[20260901-2906-emit-receive-invariant-asymmetry]] — the same shape,
 a requirement whose enforcing side was left implicit.
+
+**Promoted**: 2026-09-17 — captured in specs already landed in `specs/case-ledger-processing.yaml` (CLP-14/CLP-15, cite ISSUE-2824); the cross-cutting rule promoted to `notes/spec-authoring-rules.md`.
+Docs PR: <https://github.com/CERTCC/Vultron/pull/3328>

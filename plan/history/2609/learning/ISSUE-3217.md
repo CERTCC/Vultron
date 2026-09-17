@@ -58,3 +58,6 @@ fallback and finds a single bug-shaped cause, that pattern is worth promoting.
 Related: [[20260903-2824-clp14-15-do-not-name-their-timestamp]] — also a case
 where reading the artifact was not enough and the enforcing side had to be
 determined from behaviour.
+
+**Promoted**: 2026-09-17 — captured in `notes/testing-pitfalls.md` (fallback-instrumentation methodology + watch-claim).
+Docs PR: <https://github.com/CERTCC/Vultron/pull/3328>

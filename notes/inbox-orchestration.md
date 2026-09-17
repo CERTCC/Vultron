@@ -79,50 +79,6 @@ This two-adapter design was chosen over:
 
 ---
 
-## BT Node Ordering Invariant
-
-The BT implementation enforces a fixed pipeline via Sequence nodes:
-
-```text
-Sequence
-  ├─ ParsePayloadNode       (ingress_adapter → as_Activity)
-  ├─ RehydrateActivityNode  (rehydrate nested objects)
-  ├─ ExtractSemanticsNode   (as_Activity → MessageSemantics)
-  ├─ DeferCheckNode         (case context readiness check)
-  ├─ DispatchNode           (dispatch_adapter → use case)
-  └─ BuildOutcomeNode       (assemble InboxOutcome)
-```
-
-The Sequence guarantees that callers can never invoke steps out of order.
-BT node names are descriptive and observable — the tree structure is the
-workflow documentation.
-
----
-
-## InboxOutcome Contract
-
-`InboxOutcome` is a Pydantic model returned by every `process_payload` call:
-
-```python
-class InboxOutcome(BaseModel):
-    status: Literal["processed", "deferred", "rejected"]
-    context_id: str | None = None
-    failure_reason: str | None = None
-```
-
-- `processed` — activity was dispatched successfully.
-- `deferred` — activity was queued for replay (case context not yet known).
-- `rejected` — activity could not be processed (parse failure, unknown type,
-  or protocol violation). `failure_reason` is always populated for `rejected`
-  outcomes.
-
-`process_payload` MUST NOT raise for protocol-invalid payloads. All error
-conditions produce a typed `rejected` outcome with an explicit
-`failure_reason`. Callers use the outcome status to decide logging severity
-and response codes.
-
----
-
 ## Pending-Queue Port Injection
 
 The defer-check step (step 4) needs to read and write the pending case
@@ -161,13 +117,3 @@ in-memory test adapter should implement `IngressPayloadAdapter` so the
 same interface is exercised in both contexts.
 
 ---
-
-## Migration Path
-
-The existing `InboxPipeline` class and `inbox_handler` function can be
-kept temporarily as thin wrappers that delegate to `process_payload` with
-production adapters. Once all callers use `process_payload` directly,
-the adapter-layer wrappers can be deleted.
-
-See GitHub issue #977 and implementation issue (wired as blocked-by #977)
-for task tracking.

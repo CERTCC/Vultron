@@ -87,20 +87,6 @@ event types it exercises. Event types are those recorded as `event_type` in
   `accept_actor_recommendation`; corrected as part of ISSUE-1996 (AC-2 follow-up).
 - `fcv-reject` (DEMOMA-16-011) was added as part of IDEA-1218 planning.
 
-## AC-2 Corrections Applied
-
-| File | Added event type |
-|---|---|
-| `test/ci/invariants/test_fvv_invariants.py` | `accept_invite_actor_to_case` |
-| `test/ci/invariants/test_fcv_invariants.py` | `accept_invite_actor_to_case` |
-| `test/ci/invariants/test_fvcv_extension_invariants.py` | `accept_invite_actor_to_case` |
-| `test/ci/invariants/test_fcvcv_invariants.py` | `accept_actor_recommendation` |
-| `test/ci/invariants/test_fvcv_extension_invariants.py` | `accept_actor_recommendation` |
-| `test/ci/invariants/test_fccv_extension_invariants.py` | `accept_actor_recommendation` |
-
-Corresponding DEMOMA-16 spec entries updated: 16-003, 16-004, 16-007.
-New spec entry DEMOMA-16-010 added for `fccv-extension`.
-
 ## Coverage Scope: What the Matrix Covers and Why
 
 The matrix above is scoped to `CaseLedgerEntry.event_type` values that represent

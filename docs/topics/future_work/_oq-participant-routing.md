@@ -19,3 +19,5 @@
     The per-Participant send makes the decision to relay an activity or not to relay it.
     A prototype can relay each activity to each Participant and stay correct.
     But the structure gives space for a complete set of rules.
+
+    Concern [#3365](https://github.com/CERTCC/Vultron/issues/3365) records this question.

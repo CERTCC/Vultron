@@ -11,3 +11,5 @@
     A peer that does not recognize a type cannot act on that type.
     The third part is the URI of the `@context` document and the operator that hosts it.
     A `@context` document that a peer can resolve makes the vocabulary interoperable instead of local.
+
+    Concern [#3368](https://github.com/CERTCC/Vultron/issues/3368) records this question.

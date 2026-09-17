@@ -32,7 +32,8 @@ relevant_packages:
 ## Resolved Design Decisions: Trigger Implementation (P30-1 through P30-3)
 
 These decisions were reached during initial implementation of the trigger
-endpoints in `vultron/api/v2/routers/triggers.py`.
+endpoints, now under `vultron/adapters/driving/fastapi/routers/`
+(`demo_triggers.py`, `trigger_case.py`, `trigger_sync.py`).
 
 ### P30-1: Outbox Diff Strategy for Retrieving the Resulting Activity
 

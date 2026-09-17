@@ -25,3 +25,5 @@
     In the second form, one Case becomes a read-only area in the other Case.
     A redirect sends each request for the frozen Case to the Case that remains.
     The second form is more practical, and the project has not specified it.
+
+    Concern [#3366](https://github.com/CERTCC/Vultron/issues/3366) records this question.

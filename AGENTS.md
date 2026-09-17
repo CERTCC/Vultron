@@ -308,9 +308,10 @@ linked file before touching that area. New pitfalls MUST be routed per
   self-healing recovery paths log WARNING/INFO, never ERROR
   ([notes/structured-logging.md](notes/structured-logging.md)).
 - **Superseded notes sections are archived via `append-history note`** (PD-03-002,
-  PD-03-004); **large migrations partition by node shape, then domain**
-  ([notes/agentic-workflow.md](notes/agentic-workflow.md)); **MkDocs `not_in_nav`
-  ≠ `exclude_docs`, and neither is a lint-scope class** — nav exclusion says nothing
+  PD-03-004); **large migrations partition by node shape, then domain — and batch
+  by subsystem or script the mechanical pass so a fork run does not exhaust its
+  200-turn cap** ([notes/agentic-workflow.md](notes/agentic-workflow.md)); **MkDocs
+  `not_in_nav` ≠ `exclude_docs`, and neither is a lint-scope class** — nav exclusion says nothing
   about whether a file is prose, so `_*.md` include fragments MUST be linted as
   source while page-scoped rules go to the assembled page (DF-09-007, ADR-0092;
   `lint-docs` does not do this yet — #3318)

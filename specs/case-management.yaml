@@ -2132,11 +2132,11 @@ groups:
     statement: >-
       A Coordinator invited to a case as a regular participant MUST hold
       `CVDRole.COORDINATOR` in their `case_roles` list.
-    rationale: '`CASE_OWNER` is the role that confers case administration authority (CM-02-001, CM-02-004, CM-02-005). `CASE_MANAGER`
-      is a distinct role reserved exclusively for the Case Actor (the automated actor that enacts it); it grants write authority to the canonical ledger
-      (CLP-09) and MUST NOT be held by any participant actor regardless of their organizational role. These two constraints
-      are independent: a Coordinator participant lacks both `CASE_OWNER` (they are not the case administrator) and `CASE_MANAGER`
-      (they are not the case management service).'
+    rationale: '`CASE_OWNER` confers case administration authority (CM-02-001, CM-02-004, CM-02-005). `CASE_MANAGER` is a distinct
+      role: it grants single-writer authority over the canonical ledger (CLP-09) and is held by the case-creating actor enacting
+      `CVDRole.CASE_MANAGER`, which SHOULD also carry `CVDRole.COORDINATOR` (CBT-01-003). It is not conferred merely for being
+      invited as a facilitation participant, so a Coordinator invited as a regular participant holds neither `CASE_OWNER` nor
+      `CASE_MANAGER`.'
     verification: Integration tests in `test/demo/` confirm that a Coordinator actor admitted to
       a case holds `CVDRole.COORDINATOR` in their `CaseParticipant.case_roles`.
     relationships:
@@ -2152,7 +2152,7 @@ groups:
       the roles assigned to the Coordinator participant MUST include `CVDRole.COORDINATOR` and MUST NOT include `CVDRole.CASE_MANAGER`
       or `CVDRole.CASE_OWNER`.
     rationale: Invitation and case ownership transfer are distinct protocol operations. An `Offer(Actor, Case)` invite adds
-      a participant; it does not transfer `CASE_OWNER` authority (CM-02-001) or the `CASE_MANAGER` service role (CM-20-001).
+      a participant; it does not transfer `CASE_OWNER` authority (CM-02-001) or the `CASE_MANAGER` single-writer authority (CM-20-001).
       Role assignments at invite time must reflect the invited actor's actual function in the case, not their organizational
       identity.
     verification: Integration tests in `test/demo/` confirm that a Coordinator admitted via
@@ -2195,8 +2195,9 @@ groups:
     statement: >-
       A Coordinator invited to a case as a regular participant MUST NOT hold
       `CVDRole.CASE_MANAGER` in their `case_roles` list.
-    rationale: '`CVDRole.CASE_MANAGER` is reserved exclusively for the Case Actor (the automated actor that enacts it; CBT-01-003); it grants write authority
-      to the canonical ledger and MUST NOT be held by any organizational or human participant.'
+    rationale: '`CVDRole.CASE_MANAGER` grants single-writer authority over the canonical ledger and is held by the actor that
+      created the case and enacts that role (CBT-01-003, ADR-0088). It MUST NOT be conferred on an organizational or human
+      actor invited to the case as a regular facilitation participant.'
     relationships:
     - rel_type: refines
       spec_id: CM-20-001
@@ -2205,10 +2206,11 @@ groups:
     kind: protocol
     statement: >-
       `CVDRole.CASE_MANAGER` MUST NOT be assigned to any organizational or human participant
-      joining a case as a facilitation actor rather than as the Case Actor that enacts it
-      (CBT-01-003).
-    rationale: '`CVDRole.CASE_MANAGER` grants write authority to the canonical ledger (CLP-09). Assigning it to a human or
-      organizational participant would allow them to author ledger entries that the CASE_MANAGER is the sole authorized author of.'
+      joining a case as a facilitation actor rather than as the actor enacting the
+      `CVDRole.CASE_MANAGER` role (CBT-01-003).
+    rationale: '`CVDRole.CASE_MANAGER` grants single-writer authority over the canonical ledger (CLP-09). Conferring it on a
+      participant invited for facilitation would let them author ledger entries that only the actor enacting `CVDRole.CASE_MANAGER`
+      is authorized to write.'
     relationships:
     - rel_type: refines
       spec_id: CM-20-004
@@ -2828,7 +2830,16 @@ groups:
       closure with an `as:Reject` response ("received and understood but declined",
       MSM-05-001) and MUST NOT execute the CM-23-002 closure sequence (no
       participant advances to `RM.CLOSED`; no `case_fully_closed` entry is
-      emitted). The Case Owner MUST terminate the active embargo first, then
+      emitted). The decline MUST suppress the receipt commit itself: a declined
+      owner-close records NO `close_case` `CaseLedgerEntry` at all. Gating the
+      receive-and-commit path behind the decline is required, not optional,
+      because that receipt commit IS the closure mechanism — it is committed
+      before any role-specific effect (CLP-10-006) and then fans out, and each
+      replica's replica-apply advances the departing participant to `RM.CLOSED`
+      (CLP-10-001, CM-23-003). Skipping only the local CM-23-002 steps while still
+      committing the receipt would therefore close the case everywhere via
+      fan-out, contradicting "no participant advances to `RM.CLOSED`" (ISSUE-3137).
+      The Case Owner MUST terminate the active embargo first, then
       re-issue the close. Declining the close does NOT itself terminate the
       embargo — the embargo remains active until terminated through the normal EM
       path. This is the terminal, case-global counterpart to the
