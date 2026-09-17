@@ -107,7 +107,6 @@ def _harness_entry(
         "caseId": CASE_ID,
         "logIndex": log_index,
         "eventType": event_type,
-        "disposition": "recorded",
         "payloadSnapshot": {"actor": ACTOR_ID},
     }
     if published is not None:
@@ -218,7 +217,6 @@ def test_clp_14_006_entry_not_before_case_creation():
     with pytest.raises(VultronCanonicalEntryError, match="CLP-14-006"):
         _validate_canonical_entry(
             case_id=CASE_ID,
-            disposition="recorded",
             event_type="test",
             payload_snapshot=_minimal_payload(
                 published=(case_created - timedelta(hours=1)).isoformat()
@@ -251,7 +249,6 @@ def test_clp_14_007_future_timestamp_payload_rejected():
     with pytest.raises(VultronCanonicalEntryError, match="CLP-14-007"):
         _validate_canonical_entry(
             case_id=CASE_ID,
-            disposition="recorded",
             event_type="test",
             payload_snapshot=_minimal_payload(published=far_future),
             case_published=T0,
@@ -266,7 +263,6 @@ def test_clp_14_008_stale_timestamp_payload_rejected():
     with pytest.raises(VultronCanonicalEntryError, match="CLP-14-008"):
         _validate_canonical_entry(
             case_id=CASE_ID,
-            disposition="recorded",
             event_type="test",
             payload_snapshot=_minimal_payload(published=far_past.isoformat()),
             case_published=case_created,
@@ -350,7 +346,6 @@ def test_clp_15_003_regression_is_reported_not_refused(caplog):
     ):
         _validate_canonical_entry(
             case_id=CASE_ID,
-            disposition="recorded",
             event_type="test",
             payload_snapshot=_minimal_payload(
                 published=T0.isoformat(), obj_id=OBJ_ID + "/y"
@@ -373,7 +368,6 @@ def test_clp_15_003_monotonicity_is_scoped_to_one_actor():
     """
     _validate_canonical_entry(
         case_id=CASE_ID,
-        disposition="recorded",
         event_type="test",
         payload_snapshot=_minimal_payload(
             published=T0.isoformat(), obj_id=OBJ_ID + "/y"
@@ -398,7 +392,6 @@ def test_clp_15_004_participant_timestamp_reflects_event_time():
     with pytest.raises(VultronCanonicalEntryError, match="CLP-14-007"):
         _validate_canonical_entry(
             case_id=CASE_ID,
-            disposition="recorded",
             event_type="test",
             payload_snapshot=_minimal_payload(published=far_future),
             case_published=T0,

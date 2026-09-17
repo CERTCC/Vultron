@@ -35,19 +35,19 @@ gh api graphql -f query='{
 ```bash
 # Open Idea issues
 gh issue list --repo CERTCC/Vultron \
-  --limit 200 \
+  --limit 1000 \
   --json number,title,issueType \
   --jq '[.[] | select(.issueType.name == "Idea")] | length'
 
 # Open Bug issues
 gh issue list --repo CERTCC/Vultron \
-  --limit 200 \
+  --limit 1000 \
   --json number,title,issueType \
   --jq '[.[] | select(.issueType.name == "Bug")] | length'
 
 # Open Concern issues
 gh issue list --repo CERTCC/Vultron \
-  --limit 200 \
+  --limit 1000 \
   --json number,title,issueType \
   --jq '[.[] | select(.issueType.name == "Concern")] | length'
 ```
@@ -59,34 +59,36 @@ For the full list (not just count), omit `| length` and add
 
 ```bash
 # Get all project items with Schedule=Someday
+# Paginated: Project #24 has ~300 items; the API cap is 100 per page.
 PROJECT_ID=$(bash .agents/skills/shared/board-id.sh project)
-gh api graphql --jq '
-  [ .data.node.items.nodes[]
-    | select(
-        .content.state == "OPEN" and
-        ( .fieldValues.nodes[]
-          | select(.field.name == "Schedule")
-          | .name
-        ) == "Someday"
-      )
-    | .content.number
-  ] | length
-' -f query='{
-  node(id: "'"$PROJECT_ID"'") {
-    ... on ProjectV2 {
-      items(first: 200) {
-        nodes {
-          content { ... on Issue { number state } }
-          fieldValues(first: 10) { nodes {
-            ... on ProjectV2ItemFieldSingleSelectValue {
-              name field { ... on ProjectV2SingleSelectField { name } }
-            }
-          }}
+CURSOR=""
+TOTAL=0
+while true; do
+  [ -n "$CURSOR" ] && AFTER=', after: "'"$CURSOR"'"' || AFTER=""
+  PAGE=$(gh api graphql \
+    --jq '{count:([.data.node.items.nodes[] | select(.content.state=="OPEN" and ((.fieldValues.nodes[] | select(.field.name=="Schedule") | .name)=="Someday"))] | length), more:.data.node.items.pageInfo.hasNextPage, cursor:.data.node.items.pageInfo.endCursor}' \
+    -f query='{
+    node(id: "'"$PROJECT_ID"'") {
+      ... on ProjectV2 {
+        items(first: 100'"$AFTER"') {
+          pageInfo { hasNextPage endCursor }
+          nodes {
+            content { ... on Issue { number state } }
+            fieldValues(first: 10) { nodes {
+              ... on ProjectV2ItemFieldSingleSelectValue {
+                name field { ... on ProjectV2SingleSelectField { name } }
+              }
+            }}
+          }
         }
       }
     }
-  }
-}'
+  }')
+  TOTAL=$((TOTAL + $(echo "$PAGE" | jq -r '.count')))
+  [ "$(echo "$PAGE" | jq -r '.more')" = "true" ] || break
+  CURSOR=$(echo "$PAGE" | jq -r '.cursor')
+done
+echo "$TOTAL"
 ```
 
 ## Query: Ready-to-Build Count

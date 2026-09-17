@@ -91,18 +91,23 @@ groups:
   - id: CLP-02-004
     priority: MUST
     kind: protocol
-    statement: '`CaseLedgerEntry` MUST include a disposition field with at least `recorded`
-      and `rejected`'
+    statement: Every `CaseLedgerEntry` records a canonical accepted assertion; the
+      entry model MUST NOT include disposition, reason_code, or reason_detail fields
+      because the ledger contains only accepted entries (see CLP-04-007).
     verification: Inspection of `vultron/core/models/case_ledger_entry.py` confirms
-      that the `disposition` field is a typed literal or enum accepting at least `"recorded"`
-      and `"rejected"` as valid values.
+      that `CaseLedgerEntry` declares no `disposition`, `reason_code`, or
+      `reason_detail` field.
     stories:
     - story_2022_045
   - id: CLP-02-005
-    priority: SHOULD
+    priority: MUST
     kind: protocol
-    statement: Rejected `CaseLedgerEntry` objects SHOULD include a machine-readable
-      reason code and MAY include human-readable detail
+    statement: When the CASE_MANAGER rejects an incoming assertion, the rejection
+      outcome MUST be emitted as a `Reject` protocol activity directed at the
+      asserting participant; it MUST NOT be written to the canonical case ledger.
+    stories:
+    - story_2022_045
+    - story_2022_088
   - id: CLP-02-006
     priority: MUST
     kind: protocol
@@ -202,28 +207,28 @@ groups:
     - story_2022_074
     - story_2022_088
 - id: CLP-04
-  title: Recorded Projection and Replication
+  title: Canonical Ledger and Replication
   specs:
   - id: CLP-04-001
     priority: MUST
     kind: protocol
-    statement: The authoritative recorded history of a case MUST be a filtered projection
-      of `CaseLedgerEntry` objects whose disposition is `recorded`
-    verification: '`test/demo/test_ledger_dump.py` confirms that the recorded history
-      projection contains only `CaseLedgerEntry` objects with `disposition="recorded"`
-      and that no `disposition="rejected"` entries appear in it.'
+    statement: The authoritative history of a case MUST be the append-only canonical
+      ledger; every entry in it records a protocol-significant accepted assertion.
+      The ledger contains no rejected or locally-scoped entries (see CLP-04-007).
+    verification: '`test/demo/test_ledger_dump.py` confirms that the case history
+      ledger contains only protocol-significant accepted entries and that no
+      rejection-tagged entries appear in it.'
     stories:
     - story_2022_045
     - story_2022_088
   - id: CLP-04-002
     priority: MUST
     kind: protocol
-    statement: Case-state reconstruction MUST use only the recorded projection and
-      MUST ignore rejected entries
-    verification: Integration tests in `test/demo/` confirm that case-state reconstruction
-      reads exclusively from the recorded projection; when a rejected entry is present
-      in the ledger, the reconstructed state matches the state derived from recorded-only
-      entries.
+    statement: Case-state reconstruction MUST use only the canonical case ledger;
+      rejected assertions are never committed to the ledger and therefore require
+      no filter during reconstruction.
+    verification: Integration tests in `test/demo/` confirm that case-state
+      reconstruction reads exclusively from the canonical case ledger.
     stories:
     - story_2022_045
     - story_2022_088
@@ -231,10 +236,11 @@ groups:
     priority: MUST
     kind: protocol
     statement: Replicated hash chains, Merkle proofs, and replay state MUST be computed
-      over recorded `CaseLedgerEntry` objects only
+      over the canonical case ledger; because the ledger contains only accepted
+      canonical entries, no disposition filtering is required during chain computation.
     verification: Integration tests in `test/demo/test_sync_ledger_replication.py`
-      confirm that hash chain verification (`verify_hash_chain`) is computed only
-      over recorded `CaseLedgerEntry` objects and passes for a correctly formed ledger.
+      confirm that hash chain verification (`verify_hash_chain`) passes for the
+      canonical case ledger.
     stories:
     - story_2022_045
     - story_2022_089
@@ -254,7 +260,7 @@ groups:
     kind: protocol
     statement: When a participant includes log-position context with an assertion,
       it SHOULD use the sender's last accepted canonical hash or position from the
-      recorded projection
+      canonical case ledger
   - id: CLP-04-006
     priority: MUST
     kind: protocol
@@ -267,25 +273,42 @@ groups:
       state.
     stories:
     - story_2022_088
+  - id: CLP-04-007
+    priority: MUST
+    kind: protocol
+    statement: The case ledger MUST contain only canonical accepted entries. Rejection
+      outcomes from any processing path MUST be surfaced through structured logging,
+      not written as ledger entries. Freshness-gate and tail-reconstruction helpers
+      operate on the ledger directly and therefore require no disposition filter.
+    verification: '`test/core/test_sync_helpers.py` confirms that `is_ledger_fresh_for_case`
+      and `_reconstruct_tail_hash` return correct results with a ledger containing
+      only canonical entries, and that no `disposition` field exists on
+      `HashChainLedgerRecord` or `CaseLedgerEntry`.'
+    stories:
+    - story_2022_045
+    - story_2022_088
 - id: CLP-05
   title: Rejection Handling
   specs:
   - id: CLP-05-001
     priority: SHOULD
     kind: protocol
-    statement: CASE_MANAGER rejection outcomes SHOULD be sent directly to the asserting
-      participant rather than broadcast to all participants
+    statement: When the CASE_MANAGER rejects an incoming assertion, it SHOULD send
+      a rejection notification directly to the asserting participant via a protocol
+      Reject activity rather than recording the rejection as a ledger entry.
   - id: CLP-05-002
     priority: MUST_NOT
     kind: protocol
-    statement: Normal case-update fan-out MUST NOT replicate rejected `CaseLedgerEntry`
-      objects to all case participants
+    statement: Rejection outcomes MUST NOT be recorded as entries in the canonical
+      case ledger; the canonical ledger contains only accepted protocol-significant
+      assertions (see CLP-04-007).
   - id: CLP-05-003
-    priority: SHOULD
+    priority: MUST_NOT
     kind: protocol
-    statement: The system SHOULD provide a convenient way to retrieve the recorded-only
-      history projection without requiring consumers to manually filter rejected entries
-      from the broader audit log
+    statement: Implementations MUST NOT write local-only tracking markers or
+      duplicate-detection markers as `CaseLedgerEntry` objects of any kind; such
+      markers belong in ephemeral per-actor stores (e.g., `PendingAssertionStore`),
+      not in the canonical ledger.
 - id: CLP-06
   title: Pending Assertion Suppression
   specs:

@@ -43,13 +43,13 @@ multiple-choice list via `ask_user`:
 
 ```bash
 # Ideas and Concerns
-gh issue list --repo CERTCC/Vultron --state open --limit 200 \
+gh issue list --repo CERTCC/Vultron --state open --limit 1000 \
   --json number,title,issueType \
   --jq '.[] | select(.issueType.name == "Idea" or .issueType.name == "Concern")
         | "#\(.number) [\(.issueType.name)]: \(.title)"'
 
 # Epics with needs-decomposition label only
-gh issue list --repo CERTCC/Vultron --state open --limit 200 \
+gh issue list --repo CERTCC/Vultron --state open --limit 1000 \
   --label "needs-decomposition" \
   --json number,title,issueType \
   --jq '.[] | select(.issueType.name == "Epic")

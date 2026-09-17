@@ -886,7 +886,6 @@ class _CommitNativeLedgerEntriesNode(DataLayerActionWithPorts):
             object_id=object_id,
             event_type=event_type,
             payload_snapshot=snapshot,
-            disposition="recorded",
         )
         result = BTBridge(
             datalayer=cast(CaseOutboxPersistence, self.datalayer)

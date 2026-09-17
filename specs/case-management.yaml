@@ -202,12 +202,8 @@ groups:
     verification: >-
       `test/core/behaviors/sync/test_announce_tree.py::test_case_manager_role_takes_authority_arm_without_service_object`
       confirms the actor enacting `CVDRole.CASE_MANAGER` takes the authority arm on its own ledger
-      entry even before any `Service` object carries `context`. Two further windows are covered:
-      `test/core/behaviors/sync/nodes/test_replay.py::TestFindCaseActorNode::test_resolves_without_any_service_object_carrying_context`
-      for address resolution, and
-      `test/core/use_cases/received/actor/test_announce.py::TestAnnounceVulnerabilityCaseReceivedUseCase::test_ingress_prestored_case_row_is_not_local_evidence`
-      for the inbox path, where the ingress pre-store makes the case row present before the
-      replica has a roster.
+      entry even before any `Service` object carries `context`. Address-resolution window:
+      `test/core/behaviors/sync/nodes/test_replay.py::TestFindCaseActorNode::test_resolves_without_any_service_object_carrying_context`.
     relationships:
     - rel_type: depends_on
       spec_id: CM-02-011
@@ -230,13 +226,61 @@ groups:
       Ratchet ARCH-24-004 asserts no protocol-logic module branches on `is_case_actor_identity`,
       the `case-actor` URL substring, the segment constant, the identity `case_actor_identity()`
       builds, or a `Service`-hosting `context` scan. `vultron/demo/` is outside that corpus by
-      design (provisioning at a readable URL is the convenience ADR-0088 preserves); #3304 tracks
-      the one demo helper that still resolves an address by hosting location.
+      design (provisioning at a readable URL is the convenience ADR-0088 preserves).
     relationships:
     - rel_type: refines
       spec_id: CM-02-011
     adr:
     - ADR-0088
+    lint_suppress:
+    - missing_story_reference
+  - id: CM-02-014
+    priority: MUST
+    kind: protocol
+    statement: >-
+      A `VulnerabilityCase` MUST have both a `CVDRole.CASE_OWNER` participant and a
+      `CVDRole.CASE_MANAGER` participant from the moment of creation. Neither slot may be left
+      empty or deferred to a later operation.
+    rationale: >-
+      An unoccupied `CASE_OWNER` or `CASE_MANAGER` slot makes role-guard checks undefined from
+      the moment the case exists. Any creation path that omits either participant leaves the case
+      in a state that cannot be self-healed without an explicit remediation step, and causes
+      `resolve_case_manager_id` to return `None` immediately — making the role ledger unreliable
+      as the single source of authority (ADR-0088, ARCH-24-001).
+    verification: >-
+      `test_create_case_trigger_registers_owner_and_manager` in
+      `test/core/use_cases/triggers/case/test_create.py` asserts both `CVDRole.CASE_OWNER`
+      and `CVDRole.CASE_MANAGER` are present on a `CaseParticipant` after
+      `SvcCreateCaseUseCase` executes. The `Accept(CaseProposal)` path is covered by existing
+      tests in `test/core/behaviors/case/test_case_proposal_received_tree.py`.
+    relationships:
+    - rel_type: refines
+      spec_id: CM-02-001
+    lint_suppress:
+    - missing_story_reference
+  - id: CM-02-015
+    priority: MUST
+    kind: protocol
+    statement: >-
+      When a `VulnerabilityCase` is created via the direct-mint path (e.g. `trigger/create-case`,
+      without a `Create(as_CaseProposal)` round-trip), the creating actor MUST be registered as a
+      `CaseParticipant` carrying both `CVDRole.CASE_OWNER` and `CVDRole.CASE_MANAGER` as part of
+      the same atomic case-creation operation.
+    rationale: >-
+      In the direct-mint path there is no intermediary proposer; the creating actor is the sole
+      authority holder from the start and holds both roles until it delegates `CASE_MANAGER` via
+      an `Offer(role)` → `Accept` exchange. Deferring or omitting participant registration means
+      the case roster is empty at birth, violating CM-02-014 and breaking any caller that queries
+      the role ledger immediately after creation.
+    verification: >-
+      `test_create_case_trigger_registers_owner_and_manager` in
+      `test/core/use_cases/triggers/case/test_create.py` asserts both roles are present on
+      the `CaseParticipant` after `SvcCreateCaseUseCase.execute()`. The demo-layer invariant is
+      enforced by `test/demo/test_invite_actor_demo.py` asserting `resolve_case_manager_id`
+      returns a non-`None` value after `setup_initialized_case`.
+    relationships:
+    - rel_type: refines
+      spec_id: CM-02-014
     lint_suppress:
     - missing_story_reference
 - id: CM-03
@@ -1803,7 +1847,7 @@ groups:
     statement: >-
       The PEC state machine MUST implement exactly the following valid triggers:
       INVITE (from UNBOUND, LAPSED, or DECLINED), ACCEPT (from UNBOUND,
-      INVITED, or LAPSED), DECLINE (from UNBOUND, INVITED, or LAPSED),
+      INVITED, or LAPSED), DECLINE (from UNBOUND, INVITED, LAPSED, or SIGNATORY),
       REVISE (from SIGNATORY only), and RESET (from any state).
     rationale: 'The `LAPSED` and `DECLINED` states are not terminal: a participant who lapsed or declined can be re-invited
       (e.g., when embargo terms change). `SIGNATORY → LAPSED` occurs when the embargo enters REVISE and the participant''s
@@ -1812,8 +1856,13 @@ groups:
       has no inviter; participants added during case initialization already have an embargo in scope (ADR-0041); and the
       reporter''s consent is implicit in submitting the report (CM-14-005). Requiring a synthetic `INVITED` step for these
       paths would record an invitation event that never occurred. `DECLINE` is valid from `UNBOUND` for symmetry, so a
-      participant added to an embargoed case can refuse without a formal invitation. See
-      `vultron/core/states/participant_embargo_consent.py`.'
+      participant added to an embargoed case can refuse without a formal invitation. Per ADR-0093, `DECLINE` is also valid
+      from `SIGNATORY`: a participant who is already bound by an embargo MAY explicitly withdraw consent (VP-13-007,
+      VP-13-008). `SIGNATORY → DECLINED` is a volitional, first-class PEC action distinct from `SIGNATORY → LAPSED`
+      (which is automatic when revision terms change under the participant). See
+      `vultron/core/states/participant_embargo_consent.py`.
+      Open question: whether `UNBOUND` and `DECLINED` should collapse into a single "not bound" state — see
+      `docs/reference/vultron-spec/_oq-pec-unbound-declined-collapse.md`.'
     verification: Inspection of `vultron/core/states/participant_embargo_consent.py` confirms
       that `PecDimension` implements exactly the triggers INVITE, ACCEPT, DECLINE, REVISE, and
       RESET with the specified source-state constraints.
@@ -1822,6 +1871,7 @@ groups:
       spec_id: CM-18-001
     adr:
     - ADR-0048
+    - ADR-0093
   - id: CM-18-004
     priority: MUST_NOT
     kind: protocol

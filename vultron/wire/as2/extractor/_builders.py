@@ -374,7 +374,6 @@ def _build_case_ledger_entry_object(obj: object) -> dict[str, Any]:
                 id_=object_id,
                 case_id=case_id,
                 log_index=log_index,
-                disposition=getattr(obj, "disposition", "recorded"),
                 term=getattr(obj, "term", None),
                 log_object_id=log_object_id,
                 event_type=event_type,
@@ -386,10 +385,6 @@ def _build_case_ledger_entry_object(obj: object) -> dict[str, Any]:
                 entry_hash=getattr(obj, "entry_hash", None)
                 or getattr(obj, "entryHash", None)
                 or "",
-                reason_code=getattr(obj, "reason_code", None)
-                or getattr(obj, "reasonCode", None),
-                reason_detail=getattr(obj, "reason_detail", None)
-                or getattr(obj, "reasonDetail", None),
             )
         }
     return {}

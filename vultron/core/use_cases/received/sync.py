@@ -293,8 +293,8 @@ class AnnounceLedgerEntryReceivedUseCase:
             )
 
         # Clear pending assertion for this entry regardless of BT outcome
-        # (SYNC-11-003): both "recorded" and "rejected" dispositions confirm
-        # the assertion has been processed by the log authority.
+        # (SYNC-11-003): a canonical ledger entry confirms the assertion has
+        # been processed by the log authority.
         store = self._pending_assertions
         if store is None and request.receiving_actor_id:
             store = get_pending_assertion_store(request.receiving_actor_id)

@@ -110,33 +110,14 @@ This invariant is enforced by CLP-10-006 in `specs/case-ledger-processing.yaml`.
 
 ---
 
-## Use `disposition="rejected"` for Local-Only Ledger Correlation Markers
-
-(ISSUE-1325, 2026-07-13)
-
-When a BT node needs a local ledger entry that does NOT correspond to a
-canonical AS2 activity (e.g., tracking an outbound `offer_case_participant`
-for duplicate detection), use `disposition="rejected"` in
-`create_commit_log_entry_tree`.
-
-`_validate_canonical_entry` returns early for non-`"recorded"` dispositions,
-bypassing the `_CANONICAL_PAYLOAD_SIGNATURES` allowlist check. The entry is
-still persisted and `find_protocol_pair` does not filter on disposition, so
-the correlation marker remains visible to duplicate-detection nodes.
-
----
-
 ## Idempotency Guards Must Be Silent — No Ledger Write on Duplicate
 
 (CONCERN-1754, 2026-08-05)
 
-`disposition="rejected"` is valid for **emit-side correlation markers** (see
-above). It is **not** valid for **idempotency guard no-ops**.
-
 An idempotency guard is a `DataLayerCondition` node that detects "this event
 was already processed" and returns `Status.FAILURE` to abort the tree. When
-a guard fires, **no ledger entry of any disposition must be written**
-(CLP-13-001). Use only `logger.info` / `logger.debug`:
+a guard fires, **no ledger entry must be written** (CLP-13-001). Use only
+`logger.info` / `logger.debug`:
 
 ```python
 self.logger.info(
@@ -146,17 +127,14 @@ self.logger.info(
 return Status.FAILURE
 ```
 
-**Distinction table**:
+The ledger records only canonical protocol-significant assertions the
+CASE_MANAGER accepted (CLP-04-007). Rejection outcomes from any path — failed
+guards, bad payloads, out-of-order entries — are surfaced through Python
+logging, not ledger entries.
 
-| Pattern | Ledger entry? | Disposition | Use case |
-|---|---|---|---|
-| Emit-side correlation marker | ✅ yes | `"rejected"` | Dedup guard for outbound activities |
-| Received-side canonical entry | ✅ yes | `"recorded"` | CaseActor accepts a protocol assertion |
-| Idempotency guard no-op | ❌ **no** | — | Already-processed duplicate detected |
-
-**Resolved** (issue #2010, PR #2024): `SilentIdempotencyGuardMixin`
-(`vultron/core/behaviors/idempotency.py`) now exists and satisfies CLP-13-002.
-Implement all idempotency guards using this mixin.
+**`SilentIdempotencyGuardMixin`** (`vultron/core/behaviors/idempotency.py`)
+implements this correctly and satisfies CLP-13-002. Use it for all idempotency
+guards.
 
 ---
 
