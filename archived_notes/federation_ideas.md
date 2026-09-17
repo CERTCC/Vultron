@@ -1,6 +1,7 @@
 ---
 title: Federation Design Ideas
-status: draft
+status: superseded
+superseded_by: docs/topics/future_work/federation.md
 description: >
   Exploratory federation architecture ideas for Vultron captured from design
   discussion; input for future ADRs.
