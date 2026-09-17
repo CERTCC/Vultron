@@ -59,7 +59,10 @@ from vultron.core.use_cases.triggers.service import TriggerService
 from vultron.core.models.offer_record import VultronOfferRecord
 from vultron.wire.as2.vocab.base.objects.activities.transitive import as_Offer
 from vultron.wire.as2.vocab.base.objects.actors import as_Service
-from vultron.wire.as2.vocab.objects.case_participant import as_CaseParticipant
+from vultron.wire.as2.vocab.objects.case_participant import (
+    as_CaseParticipant,
+    as_ParticipantStatus,
+)
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCase,
 )
@@ -144,8 +147,14 @@ def _make_case_at_received(
         attributed_to=vendor_id,
         context=case_id,
         case_roles=[CVDRole.VENDOR],
+        participant_statuses=[
+            as_ParticipantStatus(
+                attributed_to=vendor_id,
+                context=case_id,
+                rm_state=RM.RECEIVED,
+            )
+        ],
     )
-    vendor_participant.append_rm_state(RM.RECEIVED, vendor_id, case_id)
     dl.create(vendor_participant)
     case.actor_participant_index[vendor_id] = vendor_participant.id_
     case.case_participants.append(vendor_participant.id_)
@@ -475,14 +484,20 @@ class TestCaseActorReceivedWritesLedgerEntry:
 
         vendor_svc = VultronCaseActor(id_=self.VENDOR_ID)
         dl.save(vendor_svc)
+        # RM.RECEIVED is the state the sender holds before validate-report;
+        # RECEIVED -> VALID is a legal move, START -> VALID is not (ISSUE-2548).
         vendor_p = as_CaseParticipant(
             attributed_to=self.VENDOR_ID,
             context=self.CASE_ID,
             case_roles=[CVDRole.COORDINATOR],
+            participant_statuses=[
+                as_ParticipantStatus(
+                    attributed_to=self.VENDOR_ID,
+                    context=self.CASE_ID,
+                    rm_state=RM.RECEIVED,
+                )
+            ],
         )
-        # RM.RECEIVED is the state the sender holds before validate-report;
-        # RECEIVED -> VALID is a legal move, START -> VALID is not (ISSUE-2548).
-        vendor_p.append_rm_state(RM.RECEIVED, self.VENDOR_ID, self.CASE_ID)
         dl.create(vendor_p)
         case.case_participants.append(vendor_p.id_)
         case.actor_participant_index[self.VENDOR_ID] = vendor_p.id_

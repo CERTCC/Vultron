@@ -97,8 +97,7 @@ This is the key distinction between PEC and the other per-participant state mach
 
 - **RM state** is self-reported by the participant (e.g., "I accept this report").
 - **VF/D state** is self-reported by the vendor/deployer (e.g., "I built the fix").
-- **PEC state** is set by the **CASE_MANAGER** (holding `CVDRole.CASE_MANAGER`) based on
-  *observed* participant behavior:
+- **PEC state** is set by the **CASE_MANAGER** based on *observed* participant behavior:
   - The CASE_MANAGER observes an inbound `Accept(Invite(EmbargoEvent))` and records
     `SIGNATORY` for the sending participant.
   - The CASE_MANAGER observes a `Reject(...)` and records `DECLINED`.
@@ -219,8 +218,7 @@ window is the fallback for invitations that omit it (EP-07-001, default 7 days).
 Do not introduce a second timeout notion — they will drift.
 
 - The timeout is a **configurable policy option** (per-case or global setting)
-- Enforcement authority is the CASE_MANAGER holding `CVDRole.CASE_MANAGER`
-  (CM-28-003)
+- Enforcement authority is the CASE_MANAGER (CM-28-003)
 - The deadline is stored on the **invited participant's** record
   (`CaseParticipant.invite_rsvp_deadline`), and `detect_and_apply_lapse()`
   reads the record of the actor whose lapse is being evaluated. Those two must
@@ -321,7 +319,7 @@ a participant:
 
 | Situation | Behaviour |
 |---|---|
-| Accepted embargo **is** the current embargo | Honour it; PEC → `SIGNATORY` (EMB-17-002) |
+| Accepted embargo **is** the current embargo (EM `ACTIVE` **or** `REVISE`) | Honour it; PEC → `SIGNATORY` (EMB-17-001/002) |
 | Accepted embargo is **stale** (revised/replaced) | Send a **fresh invite** carrying the current embargo; do not record stale consent (EMB-17-003) |
 | Case has **no** current embargo (EM `EXITED`/`NONE`) | Acknowledge as a no-op; PEC stays `NO_EMBARGO`; **keep** their case participation (EMB-17-004) |
 
@@ -453,7 +451,7 @@ in post-BT procedural code. See `specs/message-validation.yaml` MV-10-005.
   *Partially resolved*: EMB-17-004 establishes that case participation survives
   an embargo no-op, so removal is not automatic on the late-accept path. The
   general `DECLINED` case is still open.
-- Should the CASE_MANAGER notify the case owner when a participant's consent
+- Should the case actor notify the case owner when a participant's consent
   state transitions to `DECLINED` (via timeout or explicit rejection)?
   *Partially resolved*: CM-28-005 requires a CASE_MANAGER-authored ledger entry for
   a lapse, which makes it visible to the owner via the ledger. Whether a

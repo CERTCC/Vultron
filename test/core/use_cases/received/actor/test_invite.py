@@ -174,6 +174,82 @@ class TestInviteActorUseCases:
         assert awaiting, "Expected the case-stub awaiting log entry"
         assert all(r.levelno == logging.DEBUG for r in awaiting)
 
+    def test_invite_invitee_path_stores_trust_anchor(self, make_payload):
+        """InviteActorToCaseReceivedUseCase invitee path stores a trust anchor.
+
+        PCR-03-004 AC-2: after processing an InviteActorToCase on the invitee
+        path, a VultronPendingCaseInbox record with case_actor_id set to the
+        invite sender must be present in the DataLayer.  The authority check in
+        AnnounceVulnerabilityCaseReceivedUseCase reads this anchor to admit a
+        subsequent Announce from the same actor.
+        """
+        from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+        from vultron.core.models.pending_case_inbox import (
+            VultronPendingCaseInbox,
+        )
+
+        case_id = "https://example.org/cases/case-trust-1"
+        invitee_id = "https://example.org/actors/invitee"
+        case_manager_id = "https://example.org/actors/case-actor"
+
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id=invitee_id,
+        )
+        invite = rm_invite_to_case_activity(
+            as_Actor(id_=invitee_id),
+            target=case_id,
+            actor=case_manager_id,
+            id_=f"{case_id}/invitations/trust-anchor-1",
+        )
+        event = make_payload(invite)
+        InviteActorToCaseReceivedUseCase(dl, event).execute()
+
+        pending_id = VultronPendingCaseInbox.build_id(case_id)
+        pending = dl.read(pending_id)
+        assert isinstance(
+            pending, VultronPendingCaseInbox
+        ), "VultronPendingCaseInbox trust anchor must be written on the invitee path"
+        assert (
+            pending.case_actor_id == case_manager_id
+        ), "Trust anchor case_actor_id must equal the invite sender (the CASE_MANAGER)"
+
+    def test_invite_trust_anchor_is_first_invite_wins(self, make_payload):
+        """A second invite from a different sender does not overwrite the anchor."""
+        from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+        from vultron.core.models.pending_case_inbox import (
+            VultronPendingCaseInbox,
+        )
+
+        case_id = "https://example.org/cases/case-trust-2"
+        invitee_id = "https://example.org/actors/invitee"
+        first_sender = "https://example.org/actors/case-actor-a"
+        second_sender = "https://example.org/actors/case-actor-b"
+
+        dl = SqliteDataLayer("sqlite:///:memory:", actor_id=invitee_id)
+
+        invite1 = rm_invite_to_case_activity(
+            as_Actor(id_=invitee_id),
+            target=case_id,
+            actor=first_sender,
+            id_=f"{case_id}/invitations/a",
+        )
+        invite2 = rm_invite_to_case_activity(
+            as_Actor(id_=invitee_id),
+            target=case_id,
+            actor=second_sender,
+            id_=f"{case_id}/invitations/b",
+        )
+
+        InviteActorToCaseReceivedUseCase(dl, make_payload(invite1)).execute()
+        InviteActorToCaseReceivedUseCase(dl, make_payload(invite2)).execute()
+
+        pending = dl.read(VultronPendingCaseInbox.build_id(case_id))
+        assert isinstance(pending, VultronPendingCaseInbox)
+        assert (
+            pending.case_actor_id == first_sender
+        ), "First-invite-wins: trust anchor MUST NOT be overwritten by a second invite"
+
     def test_invite_actor_to_case_idempotent(self, monkeypatch, make_payload):
         """InviteActorToCaseReceivedUseCase skips storing a duplicate Invite."""
         from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
@@ -1138,7 +1214,7 @@ class TestInviteActorUseCases:
 
 
 class TestAcceptInviteRolesAC4:
-    """AC-4: CreateInviteeParticipantAtReceivedNode reads roles from Invite."""
+    """AC-4: CreateInviteeParticipantNode reads roles from Invite."""
 
     def test_roles_from_invite_set_on_participant(self, make_payload):
         """AC-4: Accept(Invite) causes new participant to inherit roles from Invite."""

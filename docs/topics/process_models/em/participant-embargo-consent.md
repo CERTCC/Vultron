@@ -42,26 +42,7 @@ PEC: it is `True` if and only if the participant's consent state is
     invitation — for example, the case owner who initialises the
     default embargo at case creation.
 
-```mermaid
----
-title: PEC State Machine
----
-stateDiagram-v2
-    direction LR
-    [*] --> NO_EMBARGO
-    NO_EMBARGO --> INVITED: EP — invite
-    NO_EMBARGO --> SIGNATORY: EA — accept
-    NO_EMBARGO --> DECLINED: ER — decline
-    INVITED --> SIGNATORY: EA — accept
-    INVITED --> DECLINED: ER — decline
-    INVITED --> DECLINED: Timer — pocket veto
-    SIGNATORY --> LAPSED: EV cascade
-    LAPSED --> INVITED: EP — re-invite
-    LAPSED --> SIGNATORY: EA — accept
-    LAPSED --> DECLINED: ER — decline
-    LAPSED --> DECLINED: Timer — pocket veto
-    DECLINED --> INVITED: EP — re-invite
-```
+{% include-markdown "./pec_state_machine_diagram.md" %}
 
 > **`ET` reset cascade (not shown above for clarity):** When EM enters
 > `EXITED` via an `ET` activity, the CASE_MANAGER resets every participant's
@@ -210,11 +191,11 @@ coordinate. A missed deadline MUST NOT result in their acceptance being
 refused.
 
 !!! note ""
-    If a late `Accept` matches the current active embargo, the CASE_MANAGER
-    MUST honour it and advance PEC to `SIGNATORY`. If the accepted embargo
-    is stale (terms have since been revised), the CASE_MANAGER MUST send a
-    fresh invitation carrying the current embargo terms instead.
-    (EMB-17-002, EMB-17-003)
+    If a late `Accept` matches the current active embargo (whether `EM` is
+    `ACTIVE` or `REVISE`), the CASE_MANAGER MUST honor it and advance PEC
+    to `SIGNATORY` (EMB-17-001). If the accepted embargo is stale (terms
+    have since been revised), the CASE_MANAGER MUST send a fresh invitation
+    carrying the current embargo terms instead (EMB-17-002, EMB-17-003).
 
 ---
 

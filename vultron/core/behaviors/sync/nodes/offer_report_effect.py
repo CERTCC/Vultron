@@ -214,7 +214,7 @@ class ApplyOfferReportFromLedgerNode(DataLayerActionWithPorts):
         )
 
         # Seed VultronReportCaseLink(rm_state=RM.RECEIVED) for invited replicas
-        # (BTND-10-006, ADR-0089): _ValidRMLatchNode requires the link to exist
+        # (BTND-10-006, ADR-0089): TransitionRMtoValid requires the link to exist
         # before it can advance rm_state to RM.VALID.  Invited participants never
         # receive Offer(VulnerabilityReport) directly, so this is their only
         # creation point.  Idempotent: skip if the link is already present.

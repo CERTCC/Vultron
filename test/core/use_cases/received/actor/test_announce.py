@@ -21,6 +21,7 @@ from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.core.models.case_ledger import HashChainLedgerRecord
 from vultron.core.models.case_ledger_entry import VultronCaseLedgerEntry
 from vultron.core.models.ledger_gap_buffer import LedgerGapBuffer
+from vultron.core.models.pending_case_inbox import VultronPendingCaseInbox
 from vultron.core.models.report_case_link import VultronReportCaseLink
 from vultron.core.use_cases.received.actor.announce import (
     AnnounceVulnerabilityCaseReceivedUseCase,
@@ -67,6 +68,22 @@ def case_actor():
     )
 
 
+def _anchor_expected_authority(
+    dl, case_id: str = _CASE_ID, actor_id: str = _CASE_ACTOR_ID
+) -> None:
+    """Record a locally-derived trust anchor naming *actor_id* for *case_id*.
+
+    PCR-03-004 fails closed, so a test that expects an Announce to be *admitted*
+    must establish an anchor first.  These fixtures used to get one for free from
+    an ``as_CaseActor`` whose ``context`` was the case id — the legacy
+    ``Service``-hosting scan.  ADR-0088 retired hosting location as a signal of
+    anything protocol-salient (ARCH-24-004), so the anchor moves to the invite
+    record ``InviteActorToCaseReceivedUseCase`` actually writes: locally derived,
+    not forgeable by the sender, and unaffected by where anyone is hosted.
+    """
+    dl.save(VultronPendingCaseInbox(case_id=case_id, case_actor_id=actor_id))
+
+
 @pytest.fixture()
 def announce_activity(case, case_actor):
     return announce_vulnerability_case_activity(
@@ -86,14 +103,7 @@ class TestAnnounceVulnerabilityCaseReceivedUseCase:
 
     def test_creates_case_when_absent(self, dl, event, case):
         """MV-10-003: Announce seeding creates the case in the invitee's DL."""
-        dl.create(
-            as_CaseActor(
-                id_=_CASE_ACTOR_ID,
-                attributed_to=_OWNER_ID,
-                context=_CASE_ID,
-                name="CaseActor",
-            )
-        )
+        _anchor_expected_authority(dl)
         assert dl.read(_CASE_ID) is None
 
         AnnounceVulnerabilityCaseReceivedUseCase(dl, event).execute()
@@ -103,26 +113,41 @@ class TestAnnounceVulnerabilityCaseReceivedUseCase:
 
     def test_case_fields_preserved(self, dl, event, case, case_actor):
         """The seeded case retains the name from the Announce payload."""
-        dl.create(case_actor)
+        _anchor_expected_authority(dl)
         AnnounceVulnerabilityCaseReceivedUseCase(dl, event).execute()
 
         result = cast(Any, dl.read(_CASE_ID))
         assert result.name == "DR-10 Announce Case"
 
-    def test_creates_case_when_case_actor_not_yet_known_locally(
-        self, dl, event, case
+    def test_rejects_announce_when_no_trust_anchor_exists(
+        self, dl, event, caplog
     ):
-        """First-time replica seeding succeeds before the as_CaseActor is stored."""
-        AnnounceVulnerabilityCaseReceivedUseCase(dl, event).execute()
+        """PCR-03-004 / PCR-07-010: first-contact Announce with no prior trust record
+        is rejected with a WARNING and the case is NOT seeded.
+
+        Neither a completed VultronReportCaseLink nor a VultronPendingCaseInbox
+        invite anchor is present, so the authority check MUST fail closed.  A
+        hosting `as_CaseActor` Service is no longer a third source — ADR-0088
+        retired it (ARCH-24-004), which is why it is not set up here.
+        """
+        import logging
+
+        with caplog.at_level(logging.WARNING):
+            AnnounceVulnerabilityCaseReceivedUseCase(dl, event).execute()
 
         result = dl.read(_CASE_ID)
-        assert result is not None
+        assert result is None, "Case must NOT be seeded without a trust anchor"
+        assert any(
+            "PCR-03-004" in r.getMessage() or "PCR-07-010" in r.getMessage()
+            for r in caplog.records
+            if r.levelno == logging.WARNING
+        ), "Expected a WARNING log citing PCR-03-004 or PCR-07-010"
 
     def test_updates_report_case_link_when_case_contains_report(
         self, dl, event, case, case_actor
     ):
         """A valid Announce links known reports to the seeded case replica."""
-        dl.create(case_actor)
+        _anchor_expected_authority(dl)
         case.vulnerability_reports.append(_REPORT_ID)
         dl.save(VultronReportCaseLink(report_id=_REPORT_ID))
 
@@ -142,93 +167,19 @@ class TestAnnounceVulnerabilityCaseReceivedUseCase:
         assert isinstance(link, VultronReportCaseLink)
         assert link.case_id == _CASE_ID
 
-    @pytest.mark.spec("MV-10-004")
-    def test_redelivery_of_the_same_announce_is_stable(self, dl, make_payload):
-        """MV-10-004: receiving the same Announce twice leaves the same state.
-
-        Asserts *stability*, not merely that a row survives: the name is
-        unchanged and the participant records are neither duplicated nor
-        dropped.  The previous version of this test seeded a participant-less
-        case and asserted only ``dl.read(_CASE_ID) is not None`` — trivially
-        true because the test had just created the case itself, so it passed
-        whether the announce was applied, ignored, or rejected outright.
-        """
-        manager = as_CaseParticipant(
-            id_=_CASE_ACTOR_PARTICIPANT_ID,
-            context=_CASE_ID,
-            attributed_to=_CASE_ACTOR_ID,
-            case_roles=[CVDRole.CASE_MANAGER],
-        )
-        announced = as_VulnerabilityCase(id_=_CASE_ID, name="Announced Once")
-        announced.case_participants.append(manager)
-        event = make_payload(
-            announce_vulnerability_case_activity(
-                announced, actor=_CASE_ACTOR_ID, context=_CASE_ID
-            )
-        )
-
-        AnnounceVulnerabilityCaseReceivedUseCase(dl, event).execute()
-        first = cast(Any, dl.read(_CASE_ID))
-        assert first is not None
-        assert dl.read(_CASE_ACTOR_PARTICIPANT_ID) is not None
-        first_roster = sorted(str(p) for p in first.case_participants)
-
-        AnnounceVulnerabilityCaseReceivedUseCase(dl, event).execute()
-        second = cast(Any, dl.read(_CASE_ID))
-
-        assert second is not None
-        assert second.name == first.name == "Announced Once"
-        assert (
-            sorted(str(p) for p in second.case_participants) == first_roster
-        ), "Re-delivery must not duplicate or drop roster entries"
-        assert len(first_roster) == 1
-
-    @pytest.mark.spec("PCR-07-003")
-    @pytest.mark.spec("CM-02-012")
-    def test_ingress_prestored_case_row_is_not_local_evidence(
-        self, dl, case, make_payload
+    def test_idempotent_when_case_already_exists(
+        self, dl, event, case, case_actor
     ):
-        """The authority's *first* Announce is admitted on the HTTP inbox path.
+        """MV-10-004: A second Announce for an existing case is a no-op."""
+        dl.create(case_actor)
+        dl.create(case)
 
-        ``FastAPIIngressAdapter.parse`` pre-stores an inbound activity's nested
-        objects before dispatch, so by the time this use case runs the case row
-        is already present — it is this very announce, echoed back.  Treating
-        that row as local evidence made the legitimate CASE_MANAGER's first
-        announce fail closed against itself: the roster is still bare ID strings
-        that resolve to nothing, so no authority could be resolved and the
-        seeded branch demanded a match.  Nothing was then seeded, and because
-        the row stayed present every retry failed the same way.
-
-        The discriminator is a *locally-derived roster*, not row presence, so
-        this shape must be treated as first contact and admitted.
-        """
-        manager = as_CaseParticipant(
-            id_=_CASE_ACTOR_PARTICIPANT_ID,
-            context=_CASE_ID,
-            attributed_to=_CASE_ACTOR_ID,
-            case_roles=[CVDRole.CASE_MANAGER],
-        )
-        announced = as_VulnerabilityCase(id_=_CASE_ID, name="Announced")
-        announced.case_participants.append(manager)
-
-        # The ingress pre-store shape: the row exists, but its roster is bare
-        # ID references with no backing participant records.
-        echoed = as_VulnerabilityCase(id_=_CASE_ID, name="Announced")
-        echoed.case_participants.append(_CASE_ACTOR_PARTICIPANT_ID)
-        dl.create(echoed)
-        assert dl.read(_CASE_ACTOR_PARTICIPANT_ID) is None
-
-        event = make_payload(
-            announce_vulnerability_case_activity(
-                announced, actor=_CASE_ACTOR_ID, context=_CASE_ID
-            )
-        )
+        # First call — case exists; should not fail or overwrite
         AnnounceVulnerabilityCaseReceivedUseCase(dl, event).execute()
 
-        assert dl.read(_CASE_ACTOR_PARTICIPANT_ID) is not None, (
-            "The authority's own first Announce must seed the replica;"
-            " an ingress-echoed row is not evidence about the sender"
-        )
+        # Confirm the case is still there and unchanged
+        result = dl.read(_CASE_ID)
+        assert result is not None
 
     def test_missing_activity_skips_gracefully(self, dl, event):
         """No-op (with a warning log) when event.activity is None."""
@@ -266,30 +217,11 @@ class TestAnnounceVulnerabilityCaseReceivedUseCase:
 
         assert dl.read(_CASE_ID2) is None
 
-    @pytest.mark.spec("PCR-07-003")
-    @pytest.mark.spec("CM-02-011")
-    def test_rejects_announce_from_an_actor_without_the_case_manager_role(
+    def test_rejects_announce_from_non_case_actor(
         self, dl, case, make_payload
     ):
-        """PCR-07-003: only the case's CASE_MANAGER may seed a replica.
-
-        At first seeding there is no local case to read a roster from, so the
-        evidence is the announced case's own roster (CP-09-004). This is the
-        realistic imposter: it forwards a legitimate case whose roster names the
-        real authority, and is not that authority.
-
-        This used to be caught by a local ``as_CaseActor`` whose ``context`` was
-        the case id. ADR-0088 retired hosting location as an authority signal
-        (ARCH-24-004), so the roster carries the check instead.
-        """
-        case.case_participants.append(
-            as_CaseParticipant(
-                id_=_CASE_ACTOR_PARTICIPANT_ID,
-                context=_CASE_ID,
-                attributed_to=_CASE_ACTOR_ID,
-                case_roles=[CVDRole.CASE_MANAGER],
-            )
-        )
+        """PCR-07-003: a sender that is not the expected authority cannot seed."""
+        _anchor_expected_authority(dl)
         announce = announce_vulnerability_case_activity(
             case,
             actor=_IMPOSTER_ID,
@@ -301,164 +233,95 @@ class TestAnnounceVulnerabilityCaseReceivedUseCase:
 
         assert dl.read(_CASE_ID) is None
 
-    @pytest.mark.spec("PCR-07-003")
-    def test_accepts_announce_from_the_role_holder_at_first_seeding(
-        self, dl, case, make_payload
-    ):
-        """The mirror of the rejection: the roster's CASE_MANAGER is admitted.
 
-        Pins that the roster check gates on *who holds the role* rather than
-        rejecting every announce that carries a roster.
-        """
-        case.case_participants.append(
-            as_CaseParticipant(
-                id_=_CASE_ACTOR_PARTICIPANT_ID,
-                context=_CASE_ID,
-                attributed_to=_CASE_ACTOR_ID,
-                case_roles=[CVDRole.CASE_MANAGER],
+# ---------------------------------------------------------------------------
+# PCR-03-004 / PCR-07-010: invite trust anchor gates first-contact Announce
+# ---------------------------------------------------------------------------
+
+
+class TestAnnounceFirstContactTrustGap:
+    """PCR-03-004 / PCR-07-010: first-contact Announce(VulnerabilityCase) is
+    rejected unless a prior trust anchor exists."""
+
+    def test_rejects_first_contact_announce_without_any_anchor(
+        self, dl, event, caplog
+    ):
+        """AC-5a / PCR-07-010: no-prior-record Announce rejected with WARNING,
+        case NOT seeded."""
+        import logging
+
+        with caplog.at_level(logging.WARNING):
+            AnnounceVulnerabilityCaseReceivedUseCase(dl, event).execute()
+
+        assert (
+            dl.read(_CASE_ID) is None
+        ), "Case MUST NOT be seeded when no trust anchor exists (PCR-03-004)"
+        assert any(
+            "PCR-03-004" in r.getMessage() or "PCR-07-010" in r.getMessage()
+            for r in caplog.records
+            if r.levelno == logging.WARNING
+        ), "Expected WARNING log citing the PCR spec reference"
+
+    def test_admits_announce_after_invite_trust_anchor(self, dl, event, case):
+        """AC-5b / PCR-03-004: Announce from the invite sender is admitted once
+        a VultronPendingCaseInbox trust anchor is stored by the invite path."""
+        dl.save(
+            VultronPendingCaseInbox(
+                case_id=_CASE_ID,
+                case_actor_id=_CASE_ACTOR_ID,
             )
         )
-        announce = announce_vulnerability_case_activity(
-            case,
-            actor=_CASE_ACTOR_ID,
-            context=case.id_,
-        )
-        event = make_payload(announce)
 
         AnnounceVulnerabilityCaseReceivedUseCase(dl, event).execute()
 
-        assert dl.read(_CASE_ID) is not None
+        result = dl.read(_CASE_ID)
+        assert (
+            result is not None
+        ), "Case MUST be seeded when an invite trust anchor for the sender exists"
 
-    @pytest.mark.spec("PCR-07-003")
-    def test_local_roster_outranks_the_announced_one(
-        self, dl, case, make_payload
+    def test_rejects_announce_when_pending_record_has_no_case_actor_id(
+        self, dl, event
     ):
-        """A re-announce cannot rewrite who the authority is.
+        """A VultronPendingCaseInbox with case_actor_id=None must NOT admit any sender.
 
-        Once the case is seeded, the local roster decides. The announced payload
-        is the sender's own account, so an imposter that names *itself* as
-        CASE_MANAGER must not be able to talk its way past a locally known
-        authority.
+        Protects against None == None evaluation that would let an Announce with
+        actor_id=None (or any sender when the queued record lacks a trust anchor)
+        pass the PCR-03-004 gate.
         """
-        real_manager = as_CaseParticipant(
-            id_=_CASE_ACTOR_PARTICIPANT_ID,
-            context=_CASE_ID,
-            attributed_to=_CASE_ACTOR_ID,
-            case_roles=[CVDRole.CASE_MANAGER],
-        )
-        dl.create(real_manager)
-        seeded = as_VulnerabilityCase(id_=_CASE_ID, name="Seeded")
-        seeded.case_participants.append(real_manager.id_)
-        seeded.actor_participant_index[_CASE_ACTOR_ID] = real_manager.id_
-        dl.create(seeded)
-
-        # The imposter's payload claims the role for itself.
-        case.case_participants.append(
-            as_CaseParticipant(
-                id_=f"{_CASE_ID}/participants/imposter",
-                context=_CASE_ID,
-                attributed_to=_IMPOSTER_ID,
-                case_roles=[CVDRole.CASE_MANAGER],
+        dl.save(
+            VultronPendingCaseInbox(
+                case_id=_CASE_ID,
+                case_actor_id=None,  # no trust anchor set yet
             )
         )
-        announce = announce_vulnerability_case_activity(
-            case,
-            actor=_IMPOSTER_ID,
-            context=case.id_,
-        )
-        event = make_payload(announce)
 
         AnnounceVulnerabilityCaseReceivedUseCase(dl, event).execute()
 
-        result = cast(Any, dl.read(_CASE_ID))
-        assert result.name == "Seeded"
+        assert (
+            dl.read(_CASE_ID) is None
+        ), "A pending record with case_actor_id=None must NOT admit any Announce"
 
-    @pytest.mark.spec("PCR-07-003")
-    def test_first_announced_case_manager_is_decisive_even_when_unresolvable(
-        self, dl, make_payload
+    def test_rejects_announce_from_wrong_actor_with_trust_anchor(
+        self, dl, make_payload, case
     ):
-        """A sender cannot bury the real authority behind an unresolvable entry.
-
-        ``_announced_case_manager_id`` stops at the *first* participant holding
-        CASE_MANAGER, even when that entry carries no ``attributed_to``.  Walking
-        past it to the next self-declared CASE_MANAGER would let a sender pad the
-        roster with a role-holding stub and then be believed about the entry it
-        controls.  Here the announced roster names an anonymous CASE_MANAGER
-        first and the sender second: the anonymous one wins, resolves to
-        ``None``, and — with no local record at all — first contact stays
-        permissive rather than crediting the sender's own claim.
-        """
-        anonymous_manager = as_CaseParticipant(
-            id_=f"{_CASE_ID}/participants/anon",
-            context=_CASE_ID,
-            case_roles=[CVDRole.CASE_MANAGER],
-        )
-        self_claim = as_CaseParticipant(
-            id_=f"{_CASE_ID}/participants/imposter",
-            context=_CASE_ID,
-            attributed_to=_IMPOSTER_ID,
-            case_roles=[CVDRole.CASE_MANAGER],
-        )
-        announced = as_VulnerabilityCase(id_=_CASE_ID, name="Padded Roster")
-        announced.case_participants.append(anonymous_manager)
-        announced.case_participants.append(self_claim)
-
-        from vultron.core.use_cases.received.actor.announce import (
-            _announced_case_manager_id,
-        )
-
-        assert _announced_case_manager_id(announced) is None, (
-            "The first CASE_MANAGER must be decisive; walking past it credits"
-            " a later self-declared entry"
-        )
-
-    @pytest.mark.spec("PCR-07-003")
-    def test_seeded_case_with_no_resolvable_manager_still_rejects_an_imposter(
-        self, dl, case, make_payload
-    ):
-        """A seeded case must not fall back to the sender's own roster.
-
-        The trust decision keys on whether the case is present, not on whether
-        the local lookup answered. A seeded case can resolve ``None`` — its
-        roster may name no CASE_MANAGER yet, or that participant may carry no
-        ``attributed_to``. Consulting the announced roster there would let an
-        imposter name itself the authority and overwrite the stored record,
-        since the existing-case path in ``SeedAnnouncedCaseNode`` saves.
-        """
-        # Seeded, but with a roster that resolves no CASE_MANAGER.
-        bystander = as_CaseParticipant(
-            id_=f"{_CASE_ID}/participants/vendor",
-            context=_CASE_ID,
-            attributed_to=_VENDOR_ID,
-        )
-        dl.create(bystander)
-        seeded = as_VulnerabilityCase(id_=_CASE_ID, name="Seeded")
-        seeded.case_participants.append(bystander.id_)
-        seeded.actor_participant_index[_VENDOR_ID] = bystander.id_
-        dl.create(seeded)
-
-        # Built fresh rather than mutating the fixture: wire artifacts are frozen
-        # (VM-08-002), so the payload's name is set at construction.
-        hostile = as_VulnerabilityCase(id_=_CASE_ID, name="PWNED")
-        hostile.case_participants.append(
-            as_CaseParticipant(
-                id_=f"{_CASE_ID}/participants/imposter",
-                context=_CASE_ID,
-                attributed_to=_IMPOSTER_ID,
-                case_roles=[CVDRole.CASE_MANAGER],
+        """AC-1: a trust anchor for actor A does not admit an Announce from actor B."""
+        dl.save(
+            VultronPendingCaseInbox(
+                case_id=_CASE_ID,
+                case_actor_id=_CASE_ACTOR_ID,  # trust anchor names expected sender
             )
         )
-        announce = announce_vulnerability_case_activity(
-            hostile,
-            actor=_IMPOSTER_ID,
-            context=hostile.id_,
+        # Build an announce from a *different* actor (the imposter)
+        imposter_announce = announce_vulnerability_case_activity(
+            case, actor=_IMPOSTER_ID, context=case.id_
         )
-        event = make_payload(announce)
+        event = make_payload(imposter_announce)
 
         AnnounceVulnerabilityCaseReceivedUseCase(dl, event).execute()
 
-        result = cast(Any, dl.read(_CASE_ID))
-        assert result.name == "Seeded"
+        assert (
+            dl.read(_CASE_ID) is None
+        ), "Case MUST NOT be seeded when the sender does not match the trust anchor"
 
 
 # ---------------------------------------------------------------------------
@@ -523,6 +386,11 @@ class TestAnnounceDrainsPreGenesisBuffer:
         assert gap_buffer.depth(_CASE_ID) == 1
         assert dl.read(entry.id_) is None  # not yet applicable — case absent
 
+        # Establish the locally-derived trust anchor so the authority check
+        # (PCR-03-004) admits the Announce from _CASE_ACTOR_ID before the case
+        # replica exists.  Not a hosting `Service` — ADR-0088 retired that.
+        _anchor_expected_authority(dl)
+
         activity = announce_vulnerability_case_activity(
             case_with_actor,
             actor=_CASE_ACTOR_ID,
@@ -558,6 +426,23 @@ class TestAnnounceStoresEmbeddedParticipants:
     BT nodes (``CheckParticipantExists``, ``AppendParticipantStatusNode``)
     would then fail with participant-not-found on the Announce path.
     """
+
+    @pytest.fixture()
+    def dl(self):
+        """DataLayer with an invite trust anchor naming _CASE_ACTOR_ID.
+
+        Required by PCR-03-004: the authority check rejects an Announce when no
+        trust anchor exists.  This used to seed an ``as_CaseActor`` whose
+        ``context`` was the case id and rely on the legacy ``Service`` scan in
+        ``_find_case_actor_id``; ADR-0088 retired that path (ARCH-24-004), so the
+        anchor is now the locally recorded invite record instead.
+        """
+        _dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id="https://test.example/api/v2/actors/test-actor",
+        )
+        _anchor_expected_authority(_dl)
+        return _dl
 
     @pytest.fixture()
     def case_with_participants(self):

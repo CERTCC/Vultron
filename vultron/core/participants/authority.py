@@ -40,30 +40,3 @@ def resolve_case_manager_id(
         if CVDRole.CASE_MANAGER in p.roles:
             return _as_id(getattr(p, "attributed_to", None))
     return None
-
-
-def has_local_participant_roster(
-    case: VulnerabilityCase, dl: CasePersistence
-) -> bool:
-    """True when *case*'s roster resolves to at least one local participant record.
-
-    Distinguishes a **locally-derived replica** from a case object that is merely
-    *present* in the store.  The two are not the same, and the difference matters
-    wherever the local roster is used as evidence about a sender: the FastAPI
-    ingress adapter pre-stores an inbound activity's nested objects before
-    dispatch, so ``dl.read_case()`` can answer with the *sender's own announced
-    payload* echoed straight back.  Reading that as local evidence is circular.
-
-    A genuine replica has participant *records* — ``SeedAnnouncedCaseNode``
-    writes them, and the ingress pre-store does not — so a resolvable roster is
-    the signal that the receiver has an opinion of its own.  A payload echoed in
-    by ingress carries ``case_participants`` as bare ID strings that resolve to
-    nothing locally, and answers ``False`` here.
-
-    Deliberately *not* "does the roster name a CASE_MANAGER": a seeded replica
-    whose roster names only a bystander, or whose CASE_MANAGER carries no
-    ``attributed_to``, still has a local opinion and must still fail closed
-    (PCR-07-003, #3273 AC-4).  Use :func:`resolve_case_manager_id` for the
-    separate question of *who* the authority is.
-    """
-    return any(True for _ in iter_case_participants(case, dl))

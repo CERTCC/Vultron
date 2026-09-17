@@ -1,9 +1,30 @@
 {
-  "@context": "https://www.w3.org/ns/activitystreams",
-  "asType": "Join",
-  "id": "https://for.example/2d2958ec-0029-4b68-9045-f0458754158e",
-  "name": "https://vultron.example/organizations/vendor Join https://vultron.example/cases/VDR-20991514",
+  "id": "urn:uuid:ee7860f2-a5f4-4435-8440-f6089fe4968e",
+  "type": "Join",
+  "name": "https://vultron.example/organizations/vendorco Join VendorCo Case #63674360",
   "content": "We're reengaging this case.",
-  "actor": "https://vultron.example/organizations/vendor",
-  "object": "https://vultron.example/cases/VDR-20991514"
+  "@context": "https://www.w3.org/ns/activitystreams",
+  "actor": "https://vultron.example/organizations/vendorco",
+  "object": {
+    "id": "urn:uuid:0d4a16ce-9ce4-44c2-a73f-81961d7f3fa5",
+    "type": "VulnerabilityCase",
+    "name": "VendorCo Case #63674360",
+    "published": "2026-09-16T18:38:47+00:00",
+    "updated": "2026-09-16T18:38:47+00:00",
+    "attributedTo": "https://vultron.example/organizations/vendorco",
+    "@context": "https://certcc.github.io/Vultron/ns/context.jsonld",
+    "caseParticipants": [],
+    "actorParticipantIndex": {},
+    "vulnerabilityReports": [],
+    "caseStatuses": [],
+    "notes": [],
+    "genesisHash": "b32a18414fd12346df39aa09c0eae6496de3ca425dfff9a9378dc43385775efc",
+    "proposedEmbargoes": [],
+    "pendingEmbargoProposalIndex": {},
+    "recommendationRecommenderIndex": {},
+    "caseActivity": [],
+    "parentCases": [],
+    "childCases": [],
+    "siblingCases": []
+  }
 }

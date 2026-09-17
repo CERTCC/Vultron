@@ -108,25 +108,35 @@ case through one of two paths:
 
 1. **Report-submission path**: the receiver has already processed a
    `Create(VulnerabilityCase)` from the case creator, which establishes the
-   local CASE_MANAGER identity before any `Announce` arrives.
-2. **Invite/Accept path**: the receiver has completed an
-   `InviteActorToCase`/`AcceptInviteToCase` exchange that leaves a
-   pending-expectation record associating the CASE_MANAGER identity with the
-   incoming case ID.
+   local CASE_MANAGER identity before any `Announce` arrives.  The
+   `VultronReportCaseLink.trusted_case_actor_id` field carries the
+   trusted identity; `_find_case_actor_id()` returns it via path 1.
+2. **Invite/Accept path**: the receiver has processed an inbound
+   `InviteActorToCase` from the CASE_MANAGER, which leaves an invite trust
+   anchor in the receiver's DataLayer recording the expected CASE_MANAGER for
+   that case ID.  The authority check finds this anchor before the case is
+   seeded and admits only the expected actor.
 
-**Implementation note**: `_find_case_actor_id` resolves an *address*, from a
-completed `ReportCaseLink` anchor or else the `CVDRole.CASE_MANAGER` role-holder.
-It returns `None` only when neither answers. The pending-expectation path it once
-carried was removed by ADR-0088: it existed to cover a window the URL-shape gate
-created, and once the role answers unconditionally the replica's own roster covers
-that window (CP-09-004).
+**Why the announced roster is not a trust anchor**: the roster is supplied by
+the sender.  A fabricated case naming the sender as its own `CASE_MANAGER`
+passes a roster-only check — nothing available at first contact can refute it.
+What the roster *does* catch is the realistic imposter that was previously
+caught by the `Service`-hosting scan (since removed by ADR-0088): an actor
+replaying a legitimate case whose roster names a *different* authority.  For
+that narrow use, reading the announced roster was correct but it is now
+superseded by the locally-derived anchor approach, which catches both the
+replay *and* the fabrication case.  `_announced_case_manager_id()` must NOT
+be used as the fallback when no local record exists — that fallback is the gap
+filed as concern #3274.
 
-`None` from it means "no resolvable address", never "no authority" and never
-"accept blindly" — the recognition decision is `_authority_verdict`'s, which fails
-closed for a case whose roster the receiver already holds. See the Layer and
-Import Rules section below.
+**When neither anchor exists**: `_sender_is_trusted()` in
+`announce.py` MUST reject (WARNING logged, case NOT seeded) when
+`_find_case_actor_id()` returns `None` and no `VultronPendingCaseInbox` invite
+anchor is present.  There is no legitimate protocol sequence that delivers an
+unsolicited first-contact `Announce(VulnerabilityCase)` without a preceding
+`Create(VulnerabilityCase)` or `InviteActorToCase`.
 
-**Spec reference**: `PCR-03-004`.
+**Spec reference**: `PCR-03-004`, `PCR-07-010`.
 
 The receiver therefore also needs bootstrap-state awareness before treating a
 CASE_MANAGER-originated snapshot as authoritative:
@@ -151,7 +161,8 @@ class AnnounceVulnerabilityCaseReceivedUseCase:
             )
             return
 
-        # PCR-03-001 / PCR-07-003: only the CASE_MANAGER may seed or update.
+        # PCR-03-001 / PCR-03-004: only a locally anchored CASE_MANAGER may
+        # seed or update, and no anchor means reject.
         #
         # Note the shape. An earlier version of this guard read
         # `if case_actor_id is not None and actor_id != case_actor_id`, which is
@@ -161,15 +172,14 @@ class AnnounceVulnerabilityCaseReceivedUseCase:
         # answer from the role, the same `None` became reachable for a *seeded*
         # replica — a roster naming no CASE_MANAGER, or one whose participant
         # carries no `attributed_to` — and accepting there overwrote the stored
-        # record (#3273).
-        verdict = _authority_verdict(self._dl, case.id_, case)
-        if not verdict.admits(actor_id):
+        # record (#3273). Failing closed removes the whole class: there is no
+        # legitimate sequence that delivers a first-contact Announce with no
+        # preceding Create or Invite.
+        if not _sender_is_trusted(self._dl, case.id_, actor_id):
             logger.warning(
-                "announce_case: actor '%s' is not the %s ('%s') for case '%s'"
-                " — rejected (PCR-03-001, PCR-07-003)",
+                "announce_case: untrusted sender '%s' for case '%s'"
+                " — Announce rejected (PCR-03-001, PCR-03-004, PCR-07-010)",
                 actor_id,
-                verdict.basis,
-                verdict.expected,
                 case.id_,
             )
             return
@@ -324,25 +334,23 @@ against a different actor's case replica, producing incorrect state.
 
 - `AnnounceVulnerabilityCaseReceivedUseCase` lives in
   `vultron/core/use_cases/received/actor/announce.py`.
-- The recognition check (`_authority_verdict`) decides whether an inbound
+- The recognition check (`_sender_is_trusted`) decides whether an inbound
   `Announce(VulnerabilityCase)` may seed or update the local replica. It does
   **not** scan for a `Service` object whose `context` is the case id; that
   hosting signal was retired by ARCH-24-004, and it answered `None` during the
-  bootstrap window before any `Service` carries `context` (CM-02-012).
-  Two things about its shape are load-bearing:
-  - It branches on whether the receiver holds a **locally-derived roster**
-      (`has_local_participant_roster`), not on whether the case row is present.
-      The FastAPI ingress adapter pre-stores an inbound activity's nested objects
-      before dispatch, so on the HTTP path the row is always present — it is the
-      announce itself, echoed back — and reading it as local evidence made the
-      legitimate CASE_MANAGER's first announce fail closed against itself.
-  - With a local roster it fails closed, resolving the expected sender from a
-      completed `ReportCaseLink` anchor or else `resolve_case_manager_id`
-      (`vultron/core/participants/authority.py`, ADR-0088, ARCH-24-001). Without
-      one it treats the message as first contact and stays permissive, because
-      accepting is the point of seeding. The announced payload's own roster is
-      consulted only in that second case, and never for a case already held.
-  The lookup is idempotent and safe to call multiple times.
+  bootstrap window before any `Service` carries `context` (CM-02-012). Both of
+  its anchors are **locally derived**, which is the property that matters — the
+  sender supplies the announced roster, so anything read out of the payload is
+  the sender's own account of who may speak for the case:
+  - `_find_case_actor_id()` — the address recorded on a completed
+    `ReportCaseLink`, or else the `CVDRole.CASE_MANAGER` role-holder on the
+    local replica (`vultron/core/participants/authority.py`, ADR-0088,
+    ARCH-24-001).
+  - a `VultronPendingCaseInbox` invite anchor, written by
+    `InviteActorToCaseReceivedUseCase` when this receiver processed the invite,
+    which covers the late joiner before any replica exists (PCR-03-004 path b).
+  Neither answering means **reject**, not accept. The lookup is idempotent and
+  safe to call multiple times.
 - The late-joiner bootstrap node belongs in
   `vultron/core/behaviors/case/` as part of the invite-acceptance BT,
   not in the use-case `execute()` body.

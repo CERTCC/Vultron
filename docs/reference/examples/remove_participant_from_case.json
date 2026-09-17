@@ -1,10 +1,43 @@
 {
-  "@context": "https://www.w3.org/ns/activitystreams",
-  "asType": "Remove",
-  "id": "https://for.example/6872b216-eaf2-48dc-bc83-b1af0a2a0e58",
-  "name": "https://vultron.example/organizations/vendor Remove https://vultron.example/cases/VDR-20991514/participants/coordinator from https://vultron.example/cases/VDR-20991514",
+  "id": "urn:uuid:e1a58634-57c0-48d7-9a0f-d1d5928b737e",
+  "type": "Remove",
+  "name": "https://vultron.example/organizations/vendorco Remove Coordinator LLC from urn:uuid:0d4a16ce-9ce4-44c2-a73f-81961d7f3fa5",
   "summary": "Vendor is removing the coordinator from the case.",
-  "actor": "https://vultron.example/organizations/vendor",
-  "origin": "https://vultron.example/cases/VDR-20991514",
-  "object": "https://vultron.example/cases/VDR-20991514/participants/coordinator"
+  "@context": "https://www.w3.org/ns/activitystreams",
+  "actor": "https://vultron.example/organizations/vendorco",
+  "origin": "urn:uuid:0d4a16ce-9ce4-44c2-a73f-81961d7f3fa5",
+  "object": {
+    "id": "urn:uuid:0d4a16ce-9ce4-44c2-a73f-81961d7f3fa5/participants/coordinator",
+    "type": "CaseParticipant",
+    "name": "Coordinator LLC",
+    "context": "urn:uuid:0d4a16ce-9ce4-44c2-a73f-81961d7f3fa5",
+    "published": "2026-09-16T18:38:48+00:00",
+    "updated": "2026-09-16T18:38:48+00:00",
+    "attributedTo": "https://vultron.example/organizations/coordinator",
+    "@context": "https://certcc.github.io/Vultron/ns/context.jsonld",
+    "caseRoles": [
+      "coordinator"
+    ],
+    "participantStatuses": [
+      {
+        "id": "urn:uuid:4f74eed1-f907-49e4-ad30-cd12cc9d3582",
+        "type": "ParticipantStatus",
+        "name": "START",
+        "context": "urn:uuid:0d4a16ce-9ce4-44c2-a73f-81961d7f3fa5",
+        "published": "2026-09-16T18:38:48+00:00",
+        "updated": "2026-09-16T18:38:48+00:00",
+        "attributedTo": "https://vultron.example/organizations/coordinator",
+        "@context": "https://certcc.github.io/Vultron/ns/context.jsonld",
+        "rmState": "START",
+        "caseEngagement": true,
+        "embargoAdherence": false,
+        "emConsentState": "NO_EMBARGO",
+        "cvdRole": [
+          "COORDINATOR"
+        ]
+      }
+    ],
+    "acceptedEmbargoIds": [],
+    "embargoConsentState": "NO_EMBARGO"
+  }
 }

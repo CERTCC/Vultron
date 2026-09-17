@@ -23,6 +23,7 @@ protocol with other related standards and protocols, including:
 - :material-format-list-text: An annotated listing of the [Case States](case_states/index.md) of the Vultron Protocol
 - :material-altimeter: [Measuring CVD](../topics/measuring_cvd/index.md) — metrics and benchmarks for CVD efficacy
 - :material-book: [User Stories](user_stories/index.md) — requirements captured as user stories
+- :material-sitemap: [Behaviors](behaviors/index.md) — auto-generated reference from the current `vultron/core/behaviors/` implementation
 - :material-language-python: [Documentation](code/index.md) of Python code included in the Vultron Protocol prototype
 - :material-owl: A set of OWL [Ontologies](ontology/index.md) for the Vultron Protocol
 - :material-arrow-left-right-bold: A [Crosswalk](iso_crosswalks/index.md) of the Vultron Protocol against ISO/IEC standards (including ISO/IEC 29147, 30111, and 5895)

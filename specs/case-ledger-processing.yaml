@@ -388,13 +388,23 @@ groups:
     priority: MUST
     kind: protocol
     statement: The `payloadSnapshot.actor` field of a `CaseLedgerEntry(recorded)`
-      MUST preserve the original asserting actor's identity; the CASE_MANAGER's own identity
-      appears only on the `Announce(CaseLedgerEntry)` transport envelope and in CaseLedgerEntry
-      recording metadata, never as a substitute for the asserter
-    verification: Integration tests in `test/demo/` confirm that the `actor` field
-      of every recorded `CaseLedgerEntry.payloadSnapshot` identifies the original
-      asserting participant, not the CASE_MANAGER, even when the CASE_MANAGER is the one
-      appending the entry.
+      MUST preserve the original asserting actor's identity. `payloadSnapshot.actor`
+      MUST equal the inbound activity's `actor_id` as received; any mismatch indicates
+      identity substitution. The CASE_MANAGER's identity appears on the transport
+      envelope and in recording metadata; it MUST NOT be substituted for a participant-asserter's
+      identity. When the CASE_MANAGER also holds a participant role in the case, their
+      identity in `payloadSnapshot.actor` is the correct asserter identity and is not
+      a substitution.
+    rationale: ADR-0088 makes authority role-based rather than identity-based, so a
+      `CVDRole.CASE_MANAGER` holder may simultaneously hold a participant role and
+      legitimately assert any participant-role activity. Enforcing this at the receive-pipeline
+      layer — where the original sender's `actor_id` is still available for comparison —
+      avoids false positives that a commit-boundary identity comparison cannot distinguish.
+    verification: A unit test in `test/core/behaviors/case/nodes/` verifies that
+      `lifecycle.CommitCaseLedgerEntryNode` raises `VultronCanonicalEntryError` when
+      `payloadSnapshot.actor` does not match the inbound activity's `actor_id`. A
+      companion test confirms that a CASE_MANAGER who also participates in a case can
+      add entries (e.g. `Add(Note)`) without error.
     stories:
     - story_2022_045
     - story_2022_089

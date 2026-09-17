@@ -13,12 +13,23 @@ The behavioral requirements for this tree are specified in the
 - [CSB-06](../../reference/specs/protocol.md#csb-06) — Receive CA (Attacks Observed)
 - [CSB-07](../../reference/specs/protocol.md#csb-07) — Receive CE (CS Error)
 - [CSB-08](../../reference/specs/protocol.md#csb-08) — Receive CK (CS Acknowledgment)
+- [CSB-16](../../reference/specs/protocol.md#csb-16) — CS Write-Boundary Transition Validation
+- [CSB-17](../../reference/specs/protocol.md#csb-17) — CS Compound State and History Validity
+- [CSB-18](../../reference/specs/protocol.md#csb-18) — Cross-Machine State Entailments
+- [CSB-19](../../reference/specs/protocol.md#csb-19) — CS Ordering Invariants Under Out-of-Order Ledger Delivery
 
 !!! note "Implementation approach"
 
     The behavior tree diagram below illustrates one conformant implementation of these requirements.
     Implementations are not required to use behavior trees — any approach that satisfies the
     requirements above is conformant.
+
+!!! note "Legacy design diagram"
+
+    The diagram on this page reflects the simulator-era design from `vultron/bt/` and may not
+    match the current implementation in `vultron/core/behaviors/`.
+    See the [Behaviors Reference](../../reference/behaviors/index.md) for
+    auto-generated documentation from the current implementation.
 
 The Process CS Messages Behavior Tree is shown below.
 

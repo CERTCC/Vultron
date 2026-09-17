@@ -91,7 +91,10 @@ class _PublicDisclosureSkipConditionNode(DataLayerConditionWithPorts):
         if case_status is None:
             pxa_state = None
         elif hasattr(case_status, "pxa"):
-            pxa_state = getattr(case_status, "pxa").state
+            _pxa = getattr(case_status, "pxa")
+            if _pxa is None:
+                return False
+            pxa_state = _pxa.state
         elif hasattr(case_status, "pxa_state"):
             pxa_state = getattr(case_status, "pxa_state")
         else:

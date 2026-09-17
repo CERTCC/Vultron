@@ -182,13 +182,14 @@ class TestResolveParticipantStateShapeGuard:
         )
         from vultron.core.models.case_participant import CaseParticipant
         from vultron.core.states.rm import RM
+        from test.support.participant_status import advance_participant_rm
 
         actor = "https://example.org/actors/alice"
         participant = CaseParticipant(
             attributed_to=actor, context=self._CONTEXT
         )
-        participant.append_rm_state(
-            RM.RECEIVED, actor=actor, context=self._CONTEXT
+        advance_participant_rm(
+            participant, RM.RECEIVED, actor=actor, context=self._CONTEXT
         )
 
         rm_state, _, _ = resolve_participant_state_from_dl(

@@ -141,12 +141,14 @@ class TestParticipantRmStateShapeGuard:
             _participant_rm_state,
         )
 
+        from test.support.participant_status import advance_participant_rm
+
         actor = "https://example.org/actors/alice"
         participant = CaseParticipant(
             attributed_to=actor, context=self._CONTEXT
         )
-        participant.append_rm_state(
-            RM.RECEIVED, actor=actor, context=self._CONTEXT
+        advance_participant_rm(
+            participant, RM.RECEIVED, actor=actor, context=self._CONTEXT
         )
         assert _participant_rm_state(participant) is RM.RECEIVED
 

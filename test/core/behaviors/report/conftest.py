@@ -19,6 +19,7 @@ from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.states.rm import RM
 from vultron.enums.roles import CVDRole
 from vultron.semantic_registry import extract_event
+from test.support.participant_status import advance_participant_rm
 
 
 @pytest.fixture
@@ -44,7 +45,7 @@ def case_with_participant(bt_scenario, report, actor) -> VulnerabilityCase:
         context=obj.id_,
         case_roles=[CVDRole.VENDOR],
     )
-    participant.append_rm_state(RM.RECEIVED, actor.id_, obj.id_)
+    advance_participant_rm(participant, RM.RECEIVED, actor.id_, obj.id_)
     obj.add_participant(participant)
     bt_scenario.dl.create(participant)
     bt_scenario.dl.create(obj)

@@ -388,7 +388,8 @@ This design was established during planning for issue #3255 and is the basis for
 the normative text in §12.4.1 of the protocol specification. The edge cases (vendor
 disputing third-party assertion of awareness; whether transport-level delivery
 success alone suffices to constitute receipt) remain open and are tracked as
-open question OQ-13 in `docs/reference/draft-vultron-spec.md` (§12.4.1).
+an open question in the protocol specification, stated inline at §12.4.1
+(`docs/reference/vultron-spec/_oq-v-to-V.md`).
 
 **Contrast with `f→F` and `d→D`**: Fix-readiness (`f→F`) is a vendor
 self-declaration that they have produced a fix; no third party can assert this on
@@ -739,9 +740,11 @@ CM-13), whose RM states are set as part of the case creation sequence.
 
 ### Implementation
 
-- **`CreateInviteeParticipantAtReceivedNode`** (renamed from
-  `CreateInviteeParticipantAtAcceptedNode`) records only `RM.RECEIVED` for
-  the invitee in the CASE_MANAGER's DataLayer.
+- **`CreateInviteeParticipantNode`** constructs the invitee participant at
+  `RM.START`; **`AdvanceInviteeToReceivedNode`** then records `RM.RECEIVED` for
+  the invitee through the sole writer (`CreateParticipantStatusNode`) in the
+  CASE_MANAGER's DataLayer, after the participant is attached (ADR-0089 birth:
+  construct → attach → advance).
 - The invitee's subsequent V/A transitions are driven by received RM status
   messages from the invitee themselves.
 

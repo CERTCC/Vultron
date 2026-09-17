@@ -331,10 +331,12 @@ class TestEnsureEmbargoExistsPorts:
 
 
 class TestTransitionRMtoValid:
-    """TransitionRMtoValid is now a factory function (ADR-0089 AC-5).
+    """TransitionRMtoValid is a single node (ADR-0089 AC-5; issue #3267).
 
-    Returns a Sequence([CreateParticipantStatusNode, _ValidRMLatchNode])
-    so the case-scoped participant write uses the canonical writer.
+    It advances the case-scoped participant RM state through the canonical
+    writer (:class:`CreateParticipantStatusNode`) and then latches
+    ``ReportCaseLink.rm_state`` in one execution, so a partial failure cannot
+    leave the two records disagreeing.
     """
 
     def test_creates_rm_valid_status_record(
@@ -343,6 +345,7 @@ class TestTransitionRMtoValid:
         from vultron.core.models.activity import VultronOffer
         from vultron.core.models.case_participant import CaseParticipant
         from vultron.enums.roles import CVDRole
+        from test.support.participant_status import advance_participant_rm
 
         actor = VultronCaseActor(id_=ACTOR_ID, name="Vendor")
         report = VultronReport(id_=REPORT_ID, name="R1", content="c")
@@ -362,7 +365,7 @@ class TestTransitionRMtoValid:
             context=case.id_,
             case_roles=[CVDRole.VENDOR],
         )
-        participant.append_rm_state(RM.RECEIVED, ACTOR_ID, case.id_)
+        advance_participant_rm(participant, RM.RECEIVED, ACTOR_ID, case.id_)
         case.add_participant(participant)
         link = VultronReportCaseLink(report_id=REPORT_ID, rm_state=RM.RECEIVED)
         bt_scenario.seed(actor, report, offer, participant, case, link)

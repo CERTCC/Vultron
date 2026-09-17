@@ -6,12 +6,21 @@ The behavioral requirements for this tree are specified in the
 [Protocol Specifications](../../reference/specs/protocol.md):
 
 - [EMB-13](../../reference/specs/protocol.md#emb-13) — Enter EM Exited
+- [EMB-14](../../reference/specs/protocol.md#emb-14) — Actor-Voluntary Embargo Termination (Trigger Side)
+- [EMB-19](../../reference/specs/protocol.md#emb-19) — Embargo Teardown Announcement
 
 !!! note "Implementation approach"
 
     The behavior tree diagram below illustrates one conformant implementation of these requirements.
     Implementations are not required to use behavior trees — any approach that satisfies the
     requirements above is conformant.
+
+!!! note "Legacy design diagram"
+
+    The diagram on this page reflects the simulator-era design from `vultron/bt/` and may not
+    match the current implementation in `vultron/core/behaviors/`.
+    See the [Behaviors Reference](../../reference/behaviors/index.md) for
+    auto-generated documentation from the current implementation.
 
 The Terminate Embargo Behavior Tree is shown in the diagram below.
 It consists of two major behaviors depending on whether an embargo has been established or not.

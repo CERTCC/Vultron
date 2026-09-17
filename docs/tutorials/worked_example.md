@@ -5,6 +5,7 @@
 Here we give a brief worked example showing a few usage scenarios of the [protocol](../reference/formal_protocol/index.md).
 We use Unified Modeling Language (UML) Sequence Diagrams to show the interaction between Participant roles.
 
+<!-- single-vendor-start -->
 ## A Finder Becomes a Reporter
 
 As mentioned in
@@ -216,6 +217,8 @@ sequenceDiagram
     Reporter -->> Vendor: RK
 ```
 
+<!-- single-vendor-end -->
+<!-- multi-party-start -->
 ## Coordination With a Coordinator
 
 The next two diagrams show the process of a Reporter engaging a Coordinator, who, in turn, engages a Vendor.
@@ -417,3 +420,5 @@ sequenceDiagram
     Vendor ->> Coordinator: RC
     Coordinator -->> Vendor: RK
 ```
+
+<!-- multi-party-end -->

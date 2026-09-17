@@ -1,12 +1,37 @@
 {
-  "@context": "https://www.w3.org/ns/activitystreams",
-  "asType": "Offer",
-  "id": "https://for.example/55e567a2-a259-41e9-8f26-67518e21018a",
-  "name": "https://vultron.example/users/finn Offer https://vultron.example/organizations/coordinator to https://vultron.example/cases/VDR-20991514",
-  "context": "https://vultron.example/cases/VDR-20991514",
+  "id": "urn:uuid:5d21866b-35bd-4aab-91a0-2f0746cf1a31",
+  "type": "Offer",
+  "name": "https://vultron.example/users/finndervul Offer Coordinator LLC to urn:uuid:0d4a16ce-9ce4-44c2-a73f-81961d7f3fa5",
+  "context": "urn:uuid:0d4a16ce-9ce4-44c2-a73f-81961d7f3fa5",
   "content": "I'm recommending we add Coordinator LLC to the case.",
-  "to": "https://vultron.example/organizations/vendor",
-  "actor": "https://vultron.example/users/finn",
-  "target": "https://vultron.example/cases/VDR-20991514",
-  "object": "https://vultron.example/organizations/coordinator"
+  "to": "https://vultron.example/organizations/vendorco",
+  "@context": "https://www.w3.org/ns/activitystreams",
+  "actor": "https://vultron.example/users/finndervul",
+  "target": "urn:uuid:0d4a16ce-9ce4-44c2-a73f-81961d7f3fa5",
+  "object": {
+    "id": "https://vultron.example/organizations/coordinator",
+    "type": "Organization",
+    "name": "Coordinator LLC",
+    "published": "2026-09-16T18:38:47+00:00",
+    "updated": "2026-09-16T18:38:47+00:00",
+    "@context": "https://www.w3.org/ns/activitystreams",
+    "inbox": {
+      "id": "urn:uuid:ff472d6b-0c35-40bf-9ed1-5035292867fe",
+      "type": "OrderedCollection",
+      "published": "2026-09-16T18:38:47+00:00",
+      "updated": "2026-09-16T18:38:47+00:00",
+      "@context": "https://www.w3.org/ns/activitystreams",
+      "items": [],
+      "current": 0
+    },
+    "outbox": {
+      "id": "urn:uuid:913746d7-5dc1-4755-a553-5415ebae6f44",
+      "type": "OrderedCollection",
+      "published": "2026-09-16T18:38:47+00:00",
+      "updated": "2026-09-16T18:38:47+00:00",
+      "@context": "https://www.w3.org/ns/activitystreams",
+      "items": [],
+      "current": 0
+    }
+  }
 }

@@ -14,6 +14,7 @@
 from vultron.wire.as2.vocab.base.objects.activities.transitive import (
     as_Accept,
     as_Add,
+    as_Announce,
     as_Create,
     as_Ignore,
     as_Join,
@@ -42,6 +43,7 @@ from vultron.enums.roles import CVDRole
 from vultron.wire.as2.factories import (
     accept_case_ownership_transfer_activity,
     add_report_to_case_activity,
+    announce_vulnerability_case_activity,
     create_case_activity,
     offer_case_ownership_transfer_activity,
     reject_case_ownership_transfer_activity,
@@ -193,3 +195,16 @@ def update_case() -> as_Update:
         content="We're updating the case to reflect a transfer of ownership.",
     )
     return _activity
+
+
+def announce_case() -> as_Announce:
+    """Build ``Announce(VulnerabilityCase)`` — sent by the case owner to a new participant.
+
+    The full case object is delivered inline so the recipient can seed their
+    local DataLayer immediately after their invite is accepted.
+    """
+    _case = populated_case()
+    return announce_vulnerability_case_activity(
+        _case,
+        actor=_VENDOR.id_,
+    )

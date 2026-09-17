@@ -146,7 +146,7 @@ nav:
     - Protocol Architecture:
       - Concept Taxonomy: 'reference/vultron-taxonomy.md'
       - Glossary: 'reference/glossary.md'
-      - Draft Protocol Specification: 'reference/draft-vultron-spec.md'
+      - Protocol Specification: 'reference/vultron-spec/index.md'
     - Terms and Definitions: 'reference/terms.md'
     - Notation: 'reference/notation.md'
     - Versioning: 'reference/versioning.md'
@@ -165,12 +165,21 @@ nav:
       - Case State (CS): 'reference/messages/cs.md'
       - General (GI): 'reference/messages/general.md'
       - Faults and Acknowledgements: 'reference/messages/faults_and_acknowledgements.md'
+      - Case Management: 'reference/messages/case_management.md'
+      - Case Proposal: 'reference/messages/case_proposal.md'
+      - Ledger Replication: 'reference/messages/ledger_replication.md'
     - Specifications:
       - 'reference/specs/index.md'
       - Protocol: 'reference/specs/protocol.md'
       - Architecture: 'reference/specs/architecture.md'
       - Project: 'reference/specs/project.md'
       - Process: 'reference/specs/process.md'
+    - Behaviors:
+      - 'reference/behaviors/index.md'
+      - Report Management: 'reference/behaviors/rm_handlers.md'
+      - Embargo Management: 'reference/behaviors/em_handlers.md'
+      - Case Handlers: 'reference/behaviors/case_handlers.md'
+      - Case State Handlers: 'reference/behaviors/cs_handlers.md'
     - Case States:
       - 'reference/case_states/index.md'
       - vfdpxa: 'reference/case_states/state_vfdpxa.md'
@@ -350,6 +359,7 @@ nav:
     - License: 'about/license.md'
 not_in_nav: |
   _*.md
+  reference/vultron-spec/includes/*
   # Published at the namespace URI and reached by that URI, not by browsing.
   ns/index.md
   adr/archived/*.md
@@ -383,7 +393,6 @@ validation:
     anchors: warn
 draft_docs: |
   draft-*.md
-  !reference/draft-vultron-spec.md
   # Patterns are relative to docs_dir; `docs/developer/` was mis-anchored
   # (matched a nonexistent docs/docs/developer/) so these maintainer pages were
   # silently published. Exclude them from production builds per DOCBW-03-004

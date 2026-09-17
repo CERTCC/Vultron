@@ -56,6 +56,7 @@ from vultron.core.states.cs import CS_d, CS_vf
 from vultron.core.states.rm import RM
 from vultron.enums.roles import CVDRole
 from vultron.errors import VultronValidationError
+from test.support.participant_status import advance_participant_rm
 
 _ACTOR = "https://example.org/actors/alice"
 _CONTEXT = "https://example.org/cases/case-2232"
@@ -64,7 +65,9 @@ _CONTEXT = "https://example.org/cases/case-2232"
 def _core_participant_with_ladder() -> CaseParticipant:
     """Return a core participant whose RM ladder is START → RECEIVED."""
     participant = CaseParticipant(attributed_to=_ACTOR, context=_CONTEXT)
-    participant.append_rm_state(RM.RECEIVED, actor=_ACTOR, context=_CONTEXT)
+    advance_participant_rm(
+        participant, RM.RECEIVED, actor=_ACTOR, context=_CONTEXT
+    )
     assert [s.rm.state.name for s in participant.participant_statuses] == [
         "START",
         "RECEIVED",

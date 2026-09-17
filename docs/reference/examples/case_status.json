@@ -1,9 +1,9 @@
 {
-  "@context": "https://www.w3.org/ns/activitystreams",
-  "type": "CaseStatus",
   "id": "https://vultron.example/cases/1/status/1",
-  "name": "EMBARGO_MANAGEMENT_NONE pxa",
+  "type": "CaseStatus",
+  "name": "NONE pxa",
   "context": "https://vultron.example/cases/1",
-  "emState": "EMBARGO_MANAGEMENT_NONE",
+  "@context": "https://certcc.github.io/Vultron/ns/context.jsonld",
+  "emState": "NONE",
   "pxaState": "pxa"
 }
