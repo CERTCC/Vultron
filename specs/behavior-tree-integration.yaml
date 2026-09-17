@@ -156,9 +156,10 @@ groups:
       ledger commit fails outright (CLP-08-005). This is reachable in normal
       operation: after an ownership handoff the case's CaseActor is on the
       container that first received the report (CP-08-003) while the owner is
-      elsewhere, and the CaseActor is resolved by identity shape
-      (`.../actors/case-actor`, ADR-0041), which answers for remote containers
-      too. The wire identity is unaffected — the activity still carries the
+      elsewhere, and that actor — the participant holding the CASE_MANAGER role —
+      answers for remote containers too. Authority follows the role, not the
+      `.../actors/case-actor` URL shape (ADR-0088). The wire identity is
+      unaffected — the activity still carries the
       CaseActor as `actor` (PCR-08-007) — and the CaseActor's canonical ledger
       learns of it over the wire via the `cc:` copy (CLP-10-001).
     tags:
