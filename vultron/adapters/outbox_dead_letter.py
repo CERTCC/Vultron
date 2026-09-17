@@ -64,7 +64,7 @@ class OutboxDeadLetterEntry(VultronBase):
     reason: NonEmptyString
     total_attempts: int
     failed_recipients: list[str] = Field(default_factory=list)
-    ledger_entry_id: str | None = None
+    ledger_entry_id: NonEmptyString | None = None
     recorded_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
 
 
