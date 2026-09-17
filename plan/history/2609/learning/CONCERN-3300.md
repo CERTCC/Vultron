@@ -87,7 +87,7 @@ external citation title, or a link target.
 
 **Resolved**: 2026-09-17 — implementation tracked in #3318.
 Docs PR: <https://github.com/CERTCC/Vultron/pull/3316>.
-ADR: `docs/adr/0091-lint-fragments-as-source-page-rules-on-rendered-page.md`.
+ADR: `docs/adr/0092-lint-fragments-as-source-page-rules-on-rendered-page.md`.
 Spec: `specs/diataxis-requirements.yaml` DF-09-003 (amended), DF-09-007,
 DF-09-008, DF-09-009.
 Notes: `notes/documentation-strategy.md` § "Nav Visibility Is Not a Content

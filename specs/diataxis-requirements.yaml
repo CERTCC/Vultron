@@ -351,7 +351,7 @@ groups:
     priority: MUST
     kind: process
     adr:
-      - ADR-0091
+      - ADR-0092
     statement: >-
       Style rules whose scope is a page MUST be evaluated against the rendered page, and style
       rules whose scope is a sentence or a block MUST be evaluated against the source file that
@@ -371,7 +371,7 @@ groups:
     priority: MUST
     kind: process
     adr:
-      - ADR-0091
+      - ADR-0092
     statement: >-
       The Diátaxis quadrant of an `{% include-markdown %}` fragment MUST be taken from the pages
       that include it, and a fragment with more than one host MUST satisfy the quadrant rules of
@@ -390,7 +390,7 @@ groups:
     priority: MUST
     kind: process
     adr:
-      - ADR-0091
+      - ADR-0092
     statement: >-
       A documentation check that acts as a blocking gate MUST report an empty target set as a
       distinct failure, and MUST NOT report success when it has resolved no targets.

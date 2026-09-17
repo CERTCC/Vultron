@@ -895,7 +895,7 @@ fragment/assembly-unit model for `{% include-markdown %}` pages: why nav
 exclusion (`not_in_nav`) is not a lint-scope class, which style rules are
 page-scoped vs. per-sentence, why the include graph is not a tree, and the
 `codespell` configuration and its three silent hazards (DF-09-007 through
-DF-09-009, ADR-0091).
+DF-09-009, ADR-0092).
 **Load when**: evaluating where new documentation belongs, cross-referencing
 Vultron docs to ISO/CVD process standards, or changing the target set, exemption
 list, or auto-fix behavior of `lint-docs`.

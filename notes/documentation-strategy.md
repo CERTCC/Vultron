@@ -300,7 +300,7 @@ this file prose that prose rules apply to". Conflating the two is what left the
 Protocol Specification — 35 fragments, 2,773 lines of normative reference
 material — outside `lint-docs` entirely, because the fragments carry the `_`
 prefix that keeps them out of nav. Normative requirements: DF-09-007 through
-DF-09-009. Decision record: ADR-0091.
+DF-09-009. Decision record: ADR-0092.
 
 The `_` prefix was doing double duty. In `mkdocs.yml` it means "exclude from
 nav"; `lint-docs` read it as "not really a page". The second claim is false for
