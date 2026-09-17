@@ -292,6 +292,9 @@ groups:
       anchor that gives the guide normative force and lets `lint-docs` findings cite a spec ID.
       Generated trees (`docs/reference/code/`, `docs/reference/case_states/`) and `docs/adr/` are
       outside the guide's scope; fix the generator or the template instead.
+    verification: >-
+      A `lint-docs` run over a hand-written `docs/` page reports findings that each cite a
+      style-guide rule ID, and pages outside the guide's scope are excluded from the target set.
   - id: DF-09-002
     priority: MUST
     kind: process
@@ -303,9 +306,14 @@ groups:
       term in the glossary is domain language and should be used, and a term in neither the
       glossary nor the taxonomy is jargon that must be expanded, replaced, or registered. Naming
       one arbiter also prevents the three overlapping term sources from drifting further apart.
+    verification: >-
+      Inspection of a `docs/` page confirms each domain term used matches the canonical spelling in
+      `docs/reference/glossary.md`, or in `docs/reference/vultron-taxonomy.md` for Vultron concepts.
   - id: DF-09-003
     priority: MUST
     kind: process
+    adr:
+      - ADR-0092
     statement: >-
       Acronyms MUST be expanded on first use on each rendered `docs/` page, where "page" means
       the page as published rather than the source file it was authored in.
@@ -313,8 +321,9 @@ groups:
       First use resets per page because readers arrive from search results and deep links rather
       than by reading in nav order. Site-wide `abbr` tooltips do not survive print output and are
       invisible in raw Markdown. "Page" names the rendered artifact because an assembled page has
-      one first use, not one per fragment: an expansion in each of the Protocol Specification's
-      35 fragments would render 35 times on one page. See DF-09-007.
+      one first use, not one per fragment: applied to the Protocol Specification's fragments
+      standalone, the rule would demand twelve expansions of "VFD" and ten of "RM" on one rendered
+      page. See DF-09-007.
     verification: >-
       Inspection of a page assembled from `{% include-markdown %}` fragments confirms each
       acronym is expanded once in the rendered output.
@@ -326,6 +335,9 @@ groups:
     rationale: >-
       `pymdownx.snippets` auto-appends that file to every page, so a registered acronym gets a
       hover definition everywhere it appears. An unregistered one silently gets nothing.
+    verification: >-
+      Every acronym appearing in `docs/` resolves to an entry in `docs/_acronyms/index.md`, and the
+      rendered page shows a hover definition for it.
   - id: DF-09-005
     priority: SHOULD
     kind: process
@@ -358,7 +370,7 @@ groups:
       contains them, including source files that are `{% include-markdown %}` fragments rather
       than pages in their own right.
     rationale: >-
-      A fragment is prose, so exempting it leaves it unchecked: 2,773 lines of the Protocol
+      A fragment is prose, so exempting it leaves it unchecked: roughly 2,800 lines of the Protocol
       Specification went uncovered because its filenames carried a nav-exclusion prefix. But a
       fragment is not a page, so page-scoped rules applied to one yield artifacts of the split
       rather than prose defects — acronym first use (DF-09-003), concept order (DF-09-005), and

@@ -18,9 +18,9 @@ that list includes `_*.md`.
 
 The Vultron Protocol Specification is assembled entirely from `_*.md` fragments
 via the `mkdocs-include-markdown` plugin. So the largest reference document in
-the tree — 35 fragments, 2,773 lines of normative prose — was outside the target
-set of the tool whose job is checking it. So were 38 other fragments elsewhere
-under `docs/`.
+the tree — 35 fragments, roughly 2,800 lines of normative prose — was outside the
+target set of the tool whose job is checking it. So were 38 other fragments
+elsewhere under `docs/`.
 
 Two facts make this more than a missed pattern.
 
@@ -44,13 +44,15 @@ evaluated against a fragment at all*.
 ## Decision Drivers
 
 - Some style rules are page-scoped by construction. SG-07 and DF-09-003 require
-  acronym expansion "at first use on each page". Applied to 35 fragments
-  standalone, that demands 35 expansions of "CVD" that render as one page.
-  SG-10 concept order is a property of the assembled document. SG-21, SG-39 and
-  SG-41 refer to the H1 and the nav label, which a fragment does not have — and
-  `heading-offset` demotes the headings it does have.
-- Findings must carry usable line numbers. The document is 2,773 lines and is
-  edited as fragments, so a finding located in the assembly is a finding a
+  acronym expansion "at first use on each page". Applied to the fragments
+  standalone, the rule demands a fresh expansion in every fragment that uses the
+  acronym, all of which render as one page: 12 expansions of "VFD", 10 of "RM",
+  9 of "EM", 8 each of "CS" and "PEC", 5 of "CVD". SG-10 concept order is a
+  property of the assembled document. SG-21, SG-39 and SG-41 refer to the H1 and
+  the nav label, which a fragment does not have — and `heading-offset` demotes
+  the headings it does have.
+- Findings must carry usable line numbers. The document is roughly 2,800 lines
+  and is edited as fragments, so a finding located in the assembly is a finding a
   maintainer cannot act on directly.
 - The include graph is not a tree. `includes/_rm-states-table.md` has four host
   parents; each `_oq-*.md` has two. Hosts cross Diátaxis quadrants:
@@ -123,8 +125,13 @@ occurrences, with SG-20 routing pervasive drift to a Phase 4 finding.
 
 **`codespell` becomes the mechanical floor for SG-37.** Of the eight rules
 violated in PR #3265, spelling is the only one with off-the-shelf tooling.
-`codespell` is configured in `pyproject.toml` and run as a stock pre-commit
+`codespell` is to be configured in `pyproject.toml` and run as a stock pre-commit
 hook, so British spelling stops depending on an agent noticing it.
+
+Everything in this section is the decided target state. None of it is built yet:
+this ADR is the decision record, and the implementation — the `lint-docs` target
+set, the rule-scope split, the empty-target-set failure, and the `codespell`
+configuration — is tracked in #3318.
 
 ### Consequences
 
@@ -142,15 +149,18 @@ hook, so British spelling stops depending on an agent noticing it.
   at all.
 - Bad, because SG-37 enforcement is now split across two mechanisms — a
   dictionary for the mechanical class and agent reading for the rest.
-- Neutral, because 74 fragments remain excluded from nav. Nav visibility and
+- Neutral, because all 73 fragments remain excluded from nav. Nav visibility and
   lint scope are now independent, which is the point.
 
 ## Validation
 
-`lint-docs` invoked on `docs/reference/vultron-spec/` resolves a non-empty
-target set including the 35 fragments. `codespell` over `docs/` with the
-configured dictionary and exclusions exits 0. `check-docs-sync` fails rather
-than passes when its `lint-docs` invocation resolves to zero targets.
+To be validated when #3318 lands, by all three of:
+
+- `lint-docs` invoked on `docs/reference/vultron-spec/` resolves a non-empty
+  target set including all 35 fragments.
+- `codespell` over `docs/` with the configured dictionary and exclusions exits 0.
+- `check-docs-sync` fails rather than passes when its `lint-docs` invocation
+  resolves to zero targets.
 
 ## Pros and Cons of the Options
 
@@ -159,13 +169,15 @@ than passes when its `lint-docs` invocation resolves to zero targets.
 Skip files with no prose; lint the rest.
 
 - Good, because it targets the property the original exemption was reaching for.
-- Bad, because the population does not have that shape. Of 73 fragments, about
-  six are genuinely content-free (`includes/_*-table.md`, `cs/_events_table.md`,
-  `measuring_cvd/_history_constraints.md`). The rest carry prose, *including the
-  ones that look content-free*: `_em_blurb.md` is five lines and a pure
-  admonition; `_nda_sidebar.md` is a pure admonition carrying ten lines of
-  substantive argument about NDAs and bug bounty programs. "Skip pure
-  admonitions" would exempt exactly the wrong files.
+- Bad, because the population does not have that shape. Of 73 fragments, fewer
+  than ten are genuinely content-free — the six `includes/_*-table.md` files,
+  `cs/_events_table.md`, and `measuring_cvd/_table_possible_histories.md`. The
+  rest carry prose, *including the ones that look content-free*: `_em_blurb.md`
+  is five lines and a pure admonition; `_nda_sidebar.md` is a pure admonition
+  carrying fourteen lines of substantive argument about NDAs and bug bounty
+  programs; even `measuring_cvd/_history_constraints.md`, which reads as a table,
+  has seven lines of prose around it. "Skip pure admonitions" would exempt
+  exactly the wrong files.
 - Bad, because classifying by content shape requires reading every file, which
   is what linting is. The rule buys nothing and adds a judgment call per file.
 
@@ -186,8 +198,8 @@ Add `docs/reference/vultron-spec/**` as an explicit include.
 - Good, because it matches how the document is read, and page-scoped rules are
   correct by construction.
 - Bad, because findings land in the assembly rather than the source, so every
-  fix requires mapping a line number back through 24 includes across 2,773
-  lines.
+  fix requires mapping a line number back through 23 includes across roughly
+  2,800 lines.
 - Bad, because the assembled artifact cannot be edited. Every finding needs
   that mapping before it can be acted on.
 
@@ -216,20 +228,23 @@ Map each fragment to its hosts and compute the applicable rule set.
 
 ## More Information
 
-The `codespell` configuration is narrow, and each exclusion was derived from a
-measured case rather than anticipated:
+The `codespell` configuration is narrow. The exclusions below are the ones with a
+measured case; #3318 carries the full list, including the remaining `skip`
+entries for `docs/adr`, `docs/reference/code`, `docs/reference/case_states`,
+`pyproject.toml`, and the draft spec file.
 
 | Exclusion | Reason |
 |---|---|
-| `ignore-words-list = "cna,ot,dialogues"` | `CNA` is corrected to `CAN` 37 times; `## Example Dialogues` in the glossary becomes "Dialogs", a UI term |
+| `ignore-words-list = "dialogues"` | `## Example Dialogues` in the glossary becomes "Dialogs", a UI term |
+| `ignore-words-list = "cna,ot"` | Defensive only. Both fire under `codespell`'s default dictionaries — `CNA` is corrected to `CAN` 37 times — but not under `builtin = "en-GB_to_en-US"`, which *replaces* the defaults rather than adding to them. Kept so that widening the builtin later does not silently mangle `CNA` |
 | `ignore-regex` for `py_trees\.behaviour\.Behaviour` | `docs/howto/wire_capability.md` uses the third-party API on ten lines, in code fences and inline code spans. `codespell` has no notion of a code fence, so `--write-changes` would rewrite documentation into code that raises `AttributeError` |
 | `ignore-regex` for `Analysing an Email Corpus` | The title of a cited external paper. A published title is not ours to correct |
 | `skip` for `docs/reference/codebase` | Regenerated by `acquire-codebase-knowledge`; fix the generator, not the output |
 
 Scope is `docs/` only. `vultron/` and `test/` cannot be included at all:
-`behaviour` appears 1,114 times there as `py_trees.behaviour.Behaviour` across
-142 files. `notes/` and `specs/` are outside SG-37's scope by the style guide's
-own scope table.
+`behaviour` appears there as `py_trees.behaviour.Behaviour` — a third-party API —
+well over a thousand times across more than two hundred files. `notes/` and
+`specs/` are outside SG-37's scope by the style guide's own scope table.
 
 `write-changes` belongs in the pre-commit hook arguments rather than in
 `pyproject.toml`, matching how `markdownlint` carries `--fix`. The config stays
@@ -252,9 +267,9 @@ The general lesson for the implementation: what makes `--write-changes` safe is
 not the dictionary but an audit that no finding sits inside a code fence, an
 inline code span, an external citation title, or a link target.
 
-The `notes/rfc-review-rubric.md` warning that recorded this gap is replaced by a
-pointer to the covering mechanism, per that rubric's own instruction not to
-delete retired items.
+The `notes/rfc-review-rubric.md` warning that recorded this gap now points at the
+covering mechanism and at #3318, per that rubric's own instruction not to delete
+retired items. It is retired outright — not merely repointed — when #3318 lands.
 
 Design rationale and the fragment inventory: `notes/documentation-strategy.md`
 § "Nav Visibility Is Not a Content Class: Fragments vs. Assembly Units".

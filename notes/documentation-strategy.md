@@ -297,10 +297,14 @@ Files excluded from nav MUST ALSO be listed in `not_in_nav`; the overlay list
 
 `not_in_nav` answers "does this file get a nav entry". It does not answer "is
 this file prose that prose rules apply to". Conflating the two is what left the
-Protocol Specification — 35 fragments, 2,773 lines of normative reference
+Protocol Specification — 35 fragments, roughly 2,800 lines of normative reference
 material — outside `lint-docs` entirely, because the fragments carry the `_`
 prefix that keeps them out of nav. Normative requirements: DF-09-007 through
 DF-09-009. Decision record: ADR-0092.
+
+**This section describes the decided target state, not what `lint-docs` does
+today.** The tooling changes are tracked in #3318; until they land, `lint-docs`
+still drops every `_*.md` fragment.
 
 The `_` prefix was doing double duty. In `mkdocs.yml` it means "exclude from
 nav"; `lint-docs` read it as "not really a page". The second claim is false for
@@ -319,8 +323,9 @@ which rules can be evaluated against them.
 
 Applying a page-scoped rule to a fragment produces a finding that is an artifact
 of how the document was split, not a defect in the prose. Requiring acronym
-expansion in each of 35 fragments would render 35 expansions of the same acronym
-on one published page.
+expansion in every fragment that uses an acronym renders one expansion per
+fragment on a single published page — twelve for "VFD", ten for "RM", nine for
+"EM", eight each for "CS" and "PEC".
 
 Two things make this cheap rather than a tooling problem:
 
@@ -349,15 +354,16 @@ rules, so a fragment's quadrant comes from its hosts and never from its own path
 ### Content shape is not a usable exemption criterion
 
 Exempting "fragments with no prose" sounds principled and does not survive
-contact with the population. Of 73 fragments under `docs/`, roughly six are
-genuinely content-free (`vultron-spec/includes/_*-table.md`,
-`process_models/cs/_events_table.md`,
-`measuring_cvd/_history_constraints.md`). The rest carry prose, *including the
-ones that look content-free*: `_em_blurb.md` is five lines and a pure
-admonition, and `_nda_sidebar.md` is a pure admonition carrying ten lines of
-substantive argument. "Skip pure admonitions" would exempt exactly the wrong
-files — and classifying by content shape means reading every file, which is what
-linting is.
+contact with the population. Of 73 fragments under `docs/`, fewer than ten are
+genuinely content-free — the six `vultron-spec/includes/_*-table.md` files,
+`process_models/cs/_events_table.md`, and
+`measuring_cvd/_table_possible_histories.md`. The rest carry prose, *including
+the ones that look content-free*: `_em_blurb.md` is five lines and a pure
+admonition; `_nda_sidebar.md` is a pure admonition carrying fourteen lines of
+substantive argument; and `measuring_cvd/_history_constraints.md`, which reads as
+a table, has seven lines of prose around it. "Skip pure admonitions" would exempt
+exactly the wrong files — and classifying by content shape means reading every
+file, which is what linting is.
 
 ### A gate that resolves zero targets must fail
 
@@ -379,14 +385,19 @@ blocks the safe fixes above the threshold and permits the risky ones below it.
 ### `codespell` is the mechanical floor for spelling
 
 Spelling is the only style rule in this project with off-the-shelf tooling, so
-it is the only one that need not depend on an agent noticing. `codespell` is
-configured in `pyproject.toml` with `builtin = "en-GB_to_en-US"` and run as a
-stock pre-commit hook over `docs/`.
+it is the only one that need not depend on an agent noticing. `codespell` is to
+be configured in `pyproject.toml` with `builtin = "en-GB_to_en-US"` and run as a
+stock pre-commit hook over `docs/` (#3318; nothing is configured yet).
 
-Its scope cannot be widened. `behaviour` appears 1,114 times in `vultron/` and
-`test/` as `py_trees.behaviour.Behaviour` — a third-party API — across 142
-files. `notes/` and `specs/` are outside SG-37's scope by the style guide's own
-scope table.
+Note that `builtin` *replaces* `codespell`'s default dictionaries rather than
+adding to them, so a word absent from `en-GB_to_en-US` is not checked at all —
+which is why an `ignore-words-list` entry may have no measured case under this
+setting and still be worth keeping.
+
+Its scope cannot be widened. `behaviour` appears in `vultron/` and `test/` as
+`py_trees.behaviour.Behaviour` — a third-party API — well over a thousand times
+across more than two hundred files. `notes/` and `specs/` are outside SG-37's
+scope by the style guide's own scope table.
 
 Three hazards, all silent, all found by measurement rather than anticipated:
 
@@ -402,7 +413,7 @@ Three hazards, all silent, all found by measurement rather than anticipated:
   `files: ^docs/.*\.md$`.
 - **`skip` patterns must match the path as `codespell` sees it.** A
   `./`-prefixed pattern silently fails to match when the target is passed as
-  `docs/`, inflating the finding count from 94 to 222 with no error.
+  `docs/`, more than doubling the finding count with no error.
 
 The generalizable rule: what makes `--write-changes` safe is not the dictionary
 but an audit that no finding sits inside a code fence, an inline code span, an

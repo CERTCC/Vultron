@@ -310,8 +310,9 @@ linked file before touching that area. New pitfalls MUST be routed per
   PD-03-004); **large migrations partition by node shape, then domain**
   ([notes/agentic-workflow.md](notes/agentic-workflow.md)); **MkDocs `not_in_nav`
   ≠ `exclude_docs`, and neither is a lint-scope class** — nav exclusion says nothing
-  about whether a file is prose, so `_*.md` include fragments are linted as source
-  while page-scoped rules go to the assembled page (DF-09-007, ADR-0092)
+  about whether a file is prose, so `_*.md` include fragments MUST be linted as
+  source while page-scoped rules go to the assembled page (DF-09-007, ADR-0092;
+  `lint-docs` does not do this yet — #3318)
   ([notes/documentation-strategy.md](notes/documentation-strategy.md)).
 - **Transport-role naming must stay explicit** — core ports docs, adapter notes,
   ADR refs and codebase reference pages change together. Likewise
