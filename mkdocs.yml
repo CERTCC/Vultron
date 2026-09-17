@@ -179,6 +179,7 @@ nav:
       - Report Management: 'reference/behaviors/rm_handlers.md'
       - Embargo Management: 'reference/behaviors/em_handlers.md'
       - Case Handlers: 'reference/behaviors/case_handlers.md'
+      - Case State Handlers: 'reference/behaviors/cs_handlers.md'
     - Case States:
       - 'reference/case_states/index.md'
       - vfdpxa: 'reference/case_states/state_vfdpxa.md'
