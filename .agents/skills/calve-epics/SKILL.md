@@ -86,6 +86,14 @@ parent is wrong). Goal: land each on the epic that matches it.
    and, when the match is not obvious, its existing children — you are matching
    against what the epic *is about*, not its title alone.
 
+   **Sanity-check the count before trusting a no-match.** A truncated epic list
+   is indistinguishable from a genuine absence of candidates, and `gh` truncates
+   newest-first — so it hides the oldest epics, which are the long-lived ones you
+   are most likely to be looking for. Compare the epics returned against the
+   repository's open-issue total; if the listing limit is at or below that total,
+   the list is partial and step 3's "zero plausible epics" branch is unsafe.
+   At `--limit 200` on 305 open issues this returned 16 of 34 (#3319).
+
 2. **Match by grain, not by keyword.** Ask which epic's design idea this issue
    advances. A protocol-correctness bug belongs with protocol correctness even
    if its title mentions a demo scenario; a prod-only concern belongs with

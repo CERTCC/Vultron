@@ -11,6 +11,7 @@ related_specs:
   - specs/case-management.yaml (CM-23-012, CM-27-001 through CM-27-003)
   - specs/participant-role-management.yaml (PRM-03-003)
   - specs/error-handling.yaml (EH-05-002, EH-07-001 through EH-07-003)
+  - specs/code-style.yaml (CS-23-001)
   - specs/behavior-tree-node-design.yaml (BTND-10-001 through BTND-10-006)
   - specs/received-status-handling.yaml (RSH-05-001, RSH-05-002, RSH-05-020, RSH-05-022)
 related_notes:
@@ -736,6 +737,70 @@ to report on the trigger path, only on the five paths that bypass the guard.
 
 See `specs/architecture.yaml` ARCH-15-001 through ARCH-15-004 for
 normative requirements derived from this concern.
+
+---
+
+## Broad `except Exception` Is a Masking Smell (CONCERN-3295, CS-23-001)
+
+A blanket `except Exception` (or a bare `except:`) around domain logic is,
+in this codebase, more likely to be **masking a defect** than handling a
+real case. The tell is the absence of a rationale: a genuine compatibility
+surface tends to get explained, because the author had a specific input in
+mind. Two witnesses established the pattern:
+
+- **#3217** — `vultron/wire/as2/parser.py` wrapped nested inline validation
+  in `except Exception: return expanded`. It read as a compatibility shim for
+  bare-ID / partial-stub inline objects. Instrumented, it fired **52 times**
+  with exactly **one** cause: a wire/core layering fault (ARCH-22-001) that
+  flattened every inline actor to a bare `as_Link`. The tolerance was
+  concealing a bug, not absorbing legitimate input.
+- **#3192** — `_find_case_actor` returned the **first arbitrary `Service`** in
+  the store on a failed lookup, so `FindCaseActorNode` reported `SUCCESS` and
+  published a case-actor address belonging to a *different case*. Again one
+  bug-shaped cause, again undocumented.
+
+### The rule: narrow, delete, or justify
+
+For every `except Exception` outside the sanctioned boundary below, do **one**
+of:
+
+1. **Narrow** it to the specific exception type(s) you actually expect
+   (`except KeyError`, `except (ValidationError, ValueError)`), so an
+   unexpected error surfaces loudly instead of being absorbed.
+2. **Delete** it and let the error propagate, if nothing legitimately needs
+   catching there.
+3. **Justify** it — only at a genuine framework/execution boundary — by
+   narrowing to the narrowest covering type *and* adding an inline comment
+   stating what it guards and why.
+
+**The one sanctioned broad-catch boundary is a BT node's `update()` method**,
+where converting an unexpected error into `Status.FAILURE` is the documented
+node contract (BT-HELPER-01, see [bt-pitfalls.md](bt-pitfalls.md)). Note that
+even an `update()`-level catch can *defeat* the bridge's `internal_error`
+detection (see [bt-integration.md](bt-integration.md)); the `update()`
+exemption is about where a broad catch is *permitted*, not a claim that it is
+always harmless.
+
+Other genuine boundaries — the `BTBridge` execution boundary
+(`behaviors/bridge.py`), py_trees `setup()`/`initialise()` — keep their broad
+catch but are enumerated in the enforcing test's `_DECLARED_EXCLUSIONS`
+allow-list, one reason per entry, and the list can only shrink.
+
+### When you cannot tell whether a broad catch is load-bearing
+
+Do **not** reason about it from the code and the commit message alone. Use the
+instrument-and-count method from #3217: log the `(class, keys, error)` reaching
+the handler, run the **full** suite, and group the results by cause. A
+**single** cause usually means the catch is masking a bug (fix the root cause,
+delete the tolerance); **many** causes mean it is a genuine compatibility
+surface (narrow it and document what it absorbs). This is one cheap
+instrumented run and it replaces a coin-flip guess. Any masked defect found
+this way is itself a new witness for the pattern.
+
+**Enforcement**: CS-23-001 disallows broad `except Exception` in `vultron/`
+outside the `update()` boundary;
+`test/architecture/test_no_broad_except_outside_bt_update.py` is the AST
+ratchet for `vultron/core/behaviors/`.
 
 ---
 

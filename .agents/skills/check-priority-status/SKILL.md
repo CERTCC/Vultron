@@ -99,7 +99,7 @@ gh api graphql -f query='{
 ```bash
 # Get all open issues
 ALL_OPEN=$(gh issue list --repo CERTCC/Vultron \
-  --state open --json number,title,labels --limit 500)
+  --state open --json number,title,labels --limit 1000)
 
 # Get all issue numbers from Project #24
 BOARD_ISSUES=$(gh api graphql ... # items query above, extract numbers)
