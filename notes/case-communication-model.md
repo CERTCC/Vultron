@@ -343,7 +343,7 @@ bridge.execute_with_setup(tree, actor_id=invitee_id)   # spoofed actor
 ```
 
 ```python
-# ✅ CORRECT — the Case Actor advances the invitee's RM state through the sole
+# ✅ CORRECT — the CASE_MANAGER advances the invitee's RM state through the sole
 # writer, in its own DataLayer, attributing the write to the invitee — no proxy
 # activity and no spoofed invitee BT (ADR-0089):
 BTBridge(datalayer=dl).execute_with_setup(

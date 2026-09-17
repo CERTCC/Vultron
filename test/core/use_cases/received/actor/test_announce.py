@@ -167,19 +167,36 @@ class TestAnnounceVulnerabilityCaseReceivedUseCase:
         assert isinstance(link, VultronReportCaseLink)
         assert link.case_id == _CASE_ID
 
-    def test_idempotent_when_case_already_exists(
-        self, dl, event, case, case_actor
-    ):
-        """MV-10-004: A second Announce for an existing case is a no-op."""
-        dl.create(case_actor)
-        dl.create(case)
+    @pytest.mark.spec("MV-10-004")
+    def test_redelivery_of_the_same_announce_is_stable(self, dl, event, case):
+        """MV-10-004: receiving the same Announce twice leaves the same state.
 
-        # First call — case exists; should not fail or overwrite
+        Asserts *stability*, which is what idempotency means here — not merely
+        that a row survives.  The previous version of this test seeded the case
+        itself and then asserted only ``dl.read(_CASE_ID) is not None``, which is
+        true by construction: it passed whether the announce was applied,
+        ignored, or rejected outright.  Its anchor was an ``as_CaseActor``
+        carrying ``context``, the hosting signal ADR-0088 retires, so once that
+        path was removed the announce was in fact being *rejected* on both calls
+        and the test still passed.
+
+        Anchored on the invite record instead, so both deliveries are genuinely
+        admitted, and asserting the payload's own name so an unapplied announce
+        cannot pass.
+        """
+        _anchor_expected_authority(dl)
+
         AnnounceVulnerabilityCaseReceivedUseCase(dl, event).execute()
+        first = cast(Any, dl.read(_CASE_ID))
+        assert first is not None
+        assert first.name == "DR-10 Announce Case"
 
-        # Confirm the case is still there and unchanged
-        result = dl.read(_CASE_ID)
-        assert result is not None
+        AnnounceVulnerabilityCaseReceivedUseCase(dl, event).execute()
+        second = cast(Any, dl.read(_CASE_ID))
+
+        assert second is not None
+        assert second.name == first.name
+        assert second.id_ == first.id_
 
     def test_missing_activity_skips_gracefully(self, dl, event):
         """No-op (with a warning log) when event.activity is None."""
