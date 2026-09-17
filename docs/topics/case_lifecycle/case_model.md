@@ -71,6 +71,13 @@ Do not confuse `CaseActor` with the `CASE_OWNER` role (the human
 decision-maker who administers the case) or with the `CASE_MANAGER`
 role (the role that authorizes ledger writes).
 
+The `CaseActor` name and its `.../actors/case-actor` URL are provisioning
+conveniences and carry no protocol meaning. Authority follows the role, so no
+protocol logic may read that name, that URL shape, or where an actor is hosted as
+evidence of who the authority is ([ADR-0088](../../adr/0088-consolidate-case-authority-determination.md)).
+An ordinary participant that holds `CVDRole.CASE_MANAGER` is the authority just as
+fully as a spawned Service actor is.
+
 ## `CaseParticipant`
 
 A `CaseParticipant` (defined in `vultron/core/models/case_participant.py`)
@@ -152,7 +159,7 @@ Dimension objects are defined in `vultron/core/models/dimensions.py`:
 | `RmDimension` | Report Management (RM) | Start → Received → … → Closed | `ParticipantStatus` |
 | `VfDimension` | Vendor-awareness / Fix-readiness (VF) | vf → Vf → VF | `ParticipantStatus` (VENDOR only) |
 | `DDimension` | Fix-deployment (D) | d → D | `ParticipantStatus` (DEPLOYER only) |
-| `PecDimension` | Participant Embargo Consent (PEC) | NO_EMBARGO / INVITED / SIGNATORY / LAPSED / DECLINED | `ParticipantStatus` |
+| `PecDimension` | Participant Embargo Consent (PEC) | UNBOUND / INVITED / SIGNATORY / LAPSED / DECLINED | `ParticipantStatus` |
 
 ## `CVDRole`
 

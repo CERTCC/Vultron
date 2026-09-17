@@ -23,7 +23,7 @@ relevant_packages:
 > **SUPERSEDED by ADR-0041.** The vendor-creates-case sequence documented here
 > (`CreateCaseNode`, `CreateCaseOwnerParticipant`, `InitializeDefaultEmbargoNode`)
 > is no longer the correct flow. Per ADR-0041, the vendor stores the report and
-> sends `Create(as_CaseProposal)` to the CaseActor; the CaseActor creates the
+> sends `Create(as_CaseProposal)` to the case actor service; the CASE_MANAGER creates the
 > `VulnerabilityCase` natively. See `notes/case-proposal.md` (ADR-0041 section)
 > for the corrected initialization sequence (CM-22).
 

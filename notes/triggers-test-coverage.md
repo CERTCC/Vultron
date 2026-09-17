@@ -85,7 +85,7 @@ That follow-up has now landed: `triggers/case.py` was split into a
 - Originating concern: [#652](https://github.com/CERTCC/Vultron/issues/652)
 - Parallel BT-nodes pattern: `specs/behavior-tree-node-design.yaml`
   BTND-07-001, BTND-07-002
-- PCR-08-001 (participant → CaseActor addressing): see
+- PCR-08-001 (participant → CASE_MANAGER addressing): see
   `notes/case-communication-model.md`
 - Trigger-side state machine BT integration: [#711](https://github.com/CERTCC/Vultron/issues/711)
 - EmbargoLifecycle consolidation: [#538](https://github.com/CERTCC/Vultron/issues/538)

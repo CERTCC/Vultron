@@ -301,11 +301,11 @@ groups:
     kind: protocol
     statement: >-
       An idempotent retry or re-processing of a participant add-or-update MUST NOT
-      overwrite a non-null PEC state with the default `NO_EMBARGO`. Once a participant
+      overwrite a non-null PEC state with the default `UNBOUND`. Once a participant
       has been assigned any non-default PEC state (`INVITED`, `SIGNATORY`, `LAPSED`,
       or `DECLINED`), that state MUST be preserved across retries.
     rationale: >-
-      Overwriting a `SIGNATORY` or `DECLINED` state with `NO_EMBARGO` on retry silently
+      Overwriting a `SIGNATORY` or `DECLINED` state with `UNBOUND` on retry silently
       revokes or erases consent that was already given. The positive-path idempotency
       rule (don't double-add) is covered by CM-13-005; this rule covers the negative
       path (don't downgrade).

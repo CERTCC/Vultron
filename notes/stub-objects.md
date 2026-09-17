@@ -38,7 +38,7 @@ AKM-03-001):
 2. **Privacy / selective disclosure**: There are cases where an actor wants to
    convey the identity and type of an object to a recipient without sharing its
    full contents. For example, when inviting a new participant to a case, the
-   case actor may want to share only enough information to allow the invitee to
+   CASE_MANAGER may want to share only enough information to allow the invitee to
    decide whether to accept — without disclosing sensitive vulnerability details
    before the invitee has agreed to the embargo.
 

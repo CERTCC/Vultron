@@ -634,7 +634,7 @@ groups:
       forward (RSH-05-016).
     rationale: >
       EM follows a directed state machine
-      (NO_EMBARGO → PROPOSED ↔ ACTIVE ↔ REVISE → EXITED). Out-of-order or
+      (NONE → PROPOSED ↔ ACTIVE ↔ REVISE → EXITED). Out-of-order or
       backward EM assertions do not correspond to legal protocol events; applying
       them would corrupt the canonical EM state shared by all participants.
       Using `is_valid_em_transition()` as the acceptance predicate ensures only

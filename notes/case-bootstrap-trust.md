@@ -64,7 +64,7 @@ report_submitter validates:
   - case references the submitted report
   - case identifies the CASE_MANAGER
 
-CaseActor -> Announce(VulnerabilityCase updates) -> report_submitter
+CASE_MANAGER -> Announce(VulnerabilityCase updates) -> report_submitter
 ```
 
 ### 2. Late-joiner path
@@ -74,9 +74,9 @@ creator-signed invite becomes the trust-establishing message.
 
 ```text
 case_creator -> InviteActorToCase -> late_joiner
-late_joiner validates invite + CaseActor identity
+late_joiner validates invite + CASE_MANAGER identity
 late_joiner -> Accept(InviteActorToCase) -> case_creator
-CaseActor -> Announce(VulnerabilityCase full snapshot) -> late_joiner
+CASE_MANAGER -> Announce(VulnerabilityCase full snapshot) -> late_joiner
 ```
 
 ---
@@ -144,9 +144,9 @@ is now:
 Receiver: Offer(VulnerabilityReport) received
   → store report
   → write VultronReportCaseLink(status=PENDING_PROPOSAL)
-  → send Create(as_CaseProposal) to CaseActor
+  → send Create(as_CaseProposal) to the case actor service
 
-CaseActor: Create(VulnerabilityCase, actor=CaseActor, inline participants)
+CASE_MANAGER: Create(VulnerabilityCase, actor=case_actor_id, inline participants)
   → Receiver seeds local replica via CreateCaseReceivedUseCase
   → trust anchors recorded in VultronReportCaseLink
 ```

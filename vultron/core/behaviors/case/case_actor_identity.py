@@ -38,7 +38,18 @@ case" direction rather than away from it. That is the special case of "an actor
 participates in many cases" where the count is one, and such a process gets its
 own first-class actor identity — not a slug suffix on somebody else's.
 
-Spec: CP-04-003, BT-10-002. Per ADR-0041.
+The name and URL are **provisioning conveniences with no protocol meaning**
+(ADR-0088). This module builds the identity a container provisions itself at;
+it does not — and no protocol logic may — treat that identity's *shape* as
+evidence of authority, recognition, or routing. Authority is the
+``CVDRole.CASE_MANAGER`` role, resolved by
+:func:`~vultron.core.participants.authority.resolve_case_manager_id`. The
+``is_case_actor_identity`` shape predicate that once gated authority paths was
+deleted for exactly that reason; the ratchet in
+``test/architecture/test_role_authority_resolver.py`` keeps it from returning
+(ARCH-24-004, CM-02-013).
+
+Spec: CP-04-003, BT-10-002, CM-02-013. Per ADR-0041, narrowed by ADR-0088.
 """
 
 from vultron.config import get_config
@@ -73,14 +84,3 @@ def case_actor_identity(base_url: str | None = None) -> str | None:
     if base.endswith(suffix):
         return base
     return f"{base}{suffix}"
-
-
-def is_case_actor_identity(actor_id: str | None) -> bool:
-    """True when *actor_id* names a CaseActor by the container-identity shape.
-
-    Shape-based on purpose: it must answer for a *remote* container's CaseActor
-    too, whose configuration this node cannot read.
-    """
-    if not actor_id:
-        return False
-    return actor_id.rstrip("/").endswith(f"/actors/{CASE_ACTOR_SEGMENT}")
