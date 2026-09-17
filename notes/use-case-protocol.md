@@ -2,19 +2,24 @@
 title: Use-Case Protocol — Result Envelope and Request Paths
 status: active
 description: >
-  Design decisions for the UseCaseResult type hierarchy, the two semantically
-  distinct request paths (VultronEvent vs TriggerRequest), and why a shared
-  UseCaseRequest base was not introduced.
+  Design decisions for the UseCaseResult type hierarchy, the HandlerDisposition
+  vocabulary and its route to InboxOutcome, the two semantically distinct request
+  paths (VultronEvent vs TriggerRequest), and why a shared UseCaseRequest base
+  was not introduced. Designed, not yet built.
 related_specs:
   - specs/use-case-organization.yaml
+  - specs/handler-protocol.yaml
+  - specs/inbox-orchestration.yaml
 related_notes:
   - notes/use-case-behavior-trees.md
   - notes/architecture-hexagonal.md
+  - notes/inbox-orchestration.md
 relevant_packages:
   - vultron/core/ports
   - vultron/core/use_cases
   - vultron/core/use_cases/received
   - vultron/core/use_cases/triggers
+  - vultron/core/behaviors/inbox
 ---
 
 # Use-Case Protocol — Result Envelope and Request Paths
@@ -24,7 +29,16 @@ the result envelope type hierarchy and the two semantically distinct request
 paths.
 
 See `specs/use-case-organization.yaml` UCORG-05 for the normative requirements.
-See `docs/adr/0040-use-case-result-envelope.md` for the full decision record.
+See `docs/adr/0040-use-case-result-envelope.md` for the original decision record
+and `docs/adr/0094-received-side-handler-result.md` for the received-side half.
+
+> **Status: designed, not built.** None of the types below exist in the codebase
+> yet. `grep -rn "class UseCaseResult" vultron/` returns nothing; all 51
+> received-side `execute()` methods are `-> None` and all trigger-side ones
+> return `dict`. Earlier revisions of this note described the migration in the
+> past tense while no part of it had been written — that drift is what concern
+> #1769 was filed to correct. Treat this note as the design to implement, and do
+> not infer from it that any of it is in place.
 
 ---
 
@@ -38,11 +52,37 @@ UseCaseResult (base, Pydantic BaseModel)
 
 ### HandlerResult
 
-Handler use cases (processing inbound `VultronEvent`s) are fire-and-process:
-their primary effect is domain state change, not producing a value for the
-caller. `HandlerResult` makes this explicit with no required payload fields.
-Subclasses MAY add domain-specific fields (e.g. a resolved entity ID) when
-the handler needs to surface something to the dispatcher for logging.
+Handler use cases process inbound `VultronEvent`s. Their primary effect is
+domain state change, but they are *not* fire-and-forget: the handler is the only
+component that knows what actually happened to the activity, and that verdict has
+a destination (`InboxOutcome`). `HandlerResult` carries it:
+
+- `disposition: HandlerDisposition` — what the handler did
+- `reason: str | None` — populated when the disposition is `REFUSED`
+
+`HandlerDisposition` is a `StrEnum`, following the project idiom for closed
+value sets (`CVDRole`, `VultronObjectType`) — not a `Literal`:
+
+| Value | Meaning | `InboxOutcome.status` |
+|---|---|---|
+| `APPLIED` | Local state changed to reflect the inbound assertion. | `processed` |
+| `SKIPPED` | Correct no-op — duplicate, already-present, or otherwise legitimately nothing to do. | `processed` |
+| `REFUSED` | The inbound assertion was rejected; `reason` is populated. | `rejected` |
+
+Two things to note about the vocabulary:
+
+- **There is no `DEFERRED`.** Deferral is decided by `DeferCheckNode` *before*
+  dispatch, so a handler is never in a position to return it. `InboxOutcome`
+  models `deferred`; `HandlerDisposition` deliberately does not.
+- **`APPLIED` and `SKIPPED` both map to `processed`,** and that is intentional.
+  They are the same *report* but not the same *event*. Today both look identical
+  — a line in a log file — and `received/status.py` already special-cases
+  `CASE_STATUS_ALREADY_PRESENT` to keep a benign skip from reading as a failure.
+  Naming the distinction in the type keeps it available without changing what the
+  pipeline reports.
+
+Subclasses MAY add domain-specific fields, but MUST NOT carry raw `dict`
+payloads (UCORG-05-005).
 
 ### TriggerResult
 
@@ -131,9 +171,9 @@ See ADR-0040 for the full decision record.
 
 ## TriggerService and TriggerServicePort Migration
 
-`TriggerService` methods previously returned `dict[str, Any]` because
-`SvcBTTriggerBase.execute()` returned a raw `dict`. After the result-envelope
-migration:
+Not yet done; tracked by #3354. `TriggerService` methods return `dict[str, Any]`
+today because `SvcBTTriggerBase.execute()` returns a raw `dict`. After the
+result-envelope migration:
 
 - `SvcBTTriggerBase.execute()` returns `TriggerResult`
 - `TriggerService.*` methods return `TriggerResult`
@@ -146,26 +186,61 @@ attribute access instead of dict-key access.
 
 ---
 
-## Dispatcher Behavior
+## Dispatcher Behavior — the Verdict Chain
 
-The dispatcher calls `use_case_class(dl, event, **extra_kwargs).execute()`.
-After the migration it captures the result in a local variable for logging:
+ADR-0040 declined to decide whether `UseCaseResult` crosses the dispatcher
+boundary. ADR-0094 decides it: **it does**, because that boundary is the only
+road from the handler to `InboxOutcome`.
 
-```python
-result = use_case_class(dl, event, **extra_kwargs).execute()
-logger.debug("use case result: %s", result)
+`InboxOutcome` (`vultron/core/behaviors/inbox/models.py`) already models
+`processed`/`deferred`/`rejected` and carries `failure_reason`, but
+`_read_inbox_outcome()` assembles it from inbox-BT blackboard keys, and
+`DispatchNode.update()` treats "dispatch did not raise" as SUCCESS. Every link
+in between is typed `-> None`, so a handler's verdict cannot reach it. That is
+bug #2255: a handler can find nothing it can act on, log a warning, return, and
+the pipeline still reports `processed`.
+
+Each link returns `HandlerResult`:
+
+```text
+execute() -> HandlerResult
+  → ActivityDispatcher.dispatch()      core/dispatcher.py
+  → dispatch()                         adapters/driving/fastapi/inbox_handler.py
+  → FastAPIDispatchAdapter.dispatch()  adapters/driving/fastapi/inbox_orchestration.py
+  → DispatchAdapter Protocol           core/behaviors/inbox/models.py
+  → DispatchNode.update()              maps disposition → InboxOutcome
 ```
 
-The dispatcher's own `dispatch()` return type is **not** changed in this
-issue. Surfacing `UseCaseResult` through the dispatcher boundary is a
-separate architectural decision.
+Six call sites, two Protocol declarations, one concrete dispatcher. The change is
+additive: callers that ignore the returned value keep working, so the blast
+radius is bounded by the type declarations rather than by call-site rewrites.
+
+`DispatchNode` owns the mapping (`APPLIED`/`SKIPPED` → `processed`, `REFUSED` →
+`rejected` + `failure_reason`). Handlers do not know about `InboxOutcome`'s
+vocabulary and MUST NOT reach for it.
+
+**What this does not do.** The verdict reaches `InboxOutcome` and the actor log.
+It does not reach the *sender* — `post_actor_inbox` returns 202 before any
+handler runs, so the HTTP response cannot carry a processing verdict. Acceptance
+("is this a well-formed activity addressed to me?") and processing ("did handling
+it succeed?") are distinct paths, and only the first is synchronous. Surfacing
+processing outcomes to a remote party is #2682's problem, and at the protocol
+level it is an ack/`ProcessingFault` message, not a response code.
 
 ---
 
 ## Ratchet Test
 
-`test/architecture/test_execute_return_types.py` inspects all concrete
-use-case classes in `vultron/core/use_cases/` and asserts that their
-`execute()` annotation is `UseCaseResult` or a subtype. This catches drift
-when new use cases are added without the correct return type, independent
-of mypy configuration.
+Not yet written. Planned: an architecture ratchet that inspects all concrete
+use-case classes in `vultron/core/use_cases/` and asserts that their `execute()`
+annotation is `UseCaseResult` or a subtype, catching drift when new use cases are
+added without the correct return type, independent of mypy configuration
+(UCORG-05-004).
+
+It must exclude trigger-side classes until #3354 migrates them from `dict`. That
+exclusion is temporary and tied to that issue — record it as such in the test, so
+it does not read as a permanent carve-out.
+
+ADR-0040's Validation section listed this test as realized validation for three
+months while the file was never written. Do not cite a ratchet as validation
+before it exists.

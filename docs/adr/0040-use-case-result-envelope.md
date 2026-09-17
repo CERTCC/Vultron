@@ -104,11 +104,32 @@ concrete class, is explicit and honest.
 
 ## Validation
 
-- Architecture ratchet test: `test/architecture/test_execute_return_types.py`
-  — asserts all concrete use-case classes declare `execute()` → `UseCaseResult`
-  or a registered subtype.
+Not yet implemented. This ADR records the decision only; neither validation
+mechanism below exists in the codebase.
+
+Planned:
+
+- Architecture ratchet test asserting that all concrete use-case classes declare
+  `execute()` → `UseCaseResult` or a registered subtype.
 - mypy: `UseCase` Protocol declares `execute() -> UseCaseResult`; mypy reports
   non-conforming concrete classes.
+
+Earlier revisions of this section listed
+`test/architecture/test_execute_return_types.py` as realized validation. That
+file was never written, and the claim is a direct cause of concern #1769.
+
+## Scope Note Superseded
+
+The out-of-scope note above — that `dispatch()` keeps its return type and that
+surfacing `UseCaseResult` through the dispatcher boundary is a separate
+architectural decision — has been decided.
+[ADR-0094](0094-received-side-handler-result.md) makes that call for the
+received side: the dispatcher boundary returns `HandlerResult`, which carries a
+`HandlerDisposition` to `InboxOutcome`. Do not read this ADR as settling the
+boundary at `-> None`; it declined to settle it.
+
+The rest of this ADR — the `UseCaseResult` hierarchy and the decision not to
+introduce `UseCaseRequest` — stands unchanged.
 
 ## More Information
 
@@ -117,4 +138,4 @@ through UCORG-05-006.
 
 Design note: `notes/use-case-protocol.md`.
 
-Source idea: #423.
+Source idea: #423. Received-side successor: ADR-0094 (#1769).

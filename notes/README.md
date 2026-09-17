@@ -202,13 +202,18 @@ dispatcher or use-case layer, or deciding whether a use case needs a BT.
 
 **`use-case-protocol.md`**
 Design decisions for the `UseCaseResult` type hierarchy (`HandlerResult` /
-`TriggerResult`), the two semantically distinct request paths (`VultronEvent`
-vs `TriggerRequest`), why `UseCaseRequest` was not introduced, how
-`TriggerService` and `TriggerServicePort` were migrated from `dict` to
-`TriggerResult`, and the ratchet test design. ADR: `docs/adr/0040-use-case-result-envelope.md`.
+`TriggerResult`), the `HandlerDisposition` vocabulary
+(`APPLIED`/`SKIPPED`/`REFUSED`) and how it reaches `InboxOutcome` across the
+dispatcher boundary, the two semantically distinct request paths (`VultronEvent`
+vs `TriggerRequest`), why `UseCaseRequest` was not introduced, the planned
+`TriggerService`/`TriggerServicePort` migration from `dict` to `TriggerResult`,
+and the ratchet test design. **None of it is implemented yet** — handlers are
+`-> None`, triggers return `dict`. ADRs:
+`docs/adr/0040-use-case-result-envelope.md` (original) and
+`docs/adr/0094-received-side-handler-result.md` (received-side half).
 **Load when**: implementing a new use case, reviewing the `execute()` contract,
-working on `UseCase` Protocol or `TriggerServicePort` signatures, or debugging
-return-type ratchet failures.
+working on `UseCase` Protocol or `TriggerServicePort` signatures, threading a
+handler verdict to `InboxOutcome`, or debugging return-type ratchet failures.
 
 **`inbox-orchestration.md`**
 Design decisions for the core BT-backed inbox orchestration module: why
