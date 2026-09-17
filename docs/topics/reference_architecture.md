@@ -99,6 +99,7 @@ This keeps the transport uniform: the same JSON payload is deliverable whether t
 
 Delivery is treated as unreliable and bounded.
 The outbox retries with backoff, classifies `4xx` responses as terminal, and moves an activity to a dead-letter store once its per-activity attempt budget is exhausted rather than retrying forever ([ADR-0066](../adr/0066-outbox-terminal-state.md)).
+When the exhausted activity is an `Announce(CaseLedgerEntry)`, the dead-letter record also carries the URI of the canonical ledger entry being replicated, so replica divergence is observable without log access (OX-14-001, OX-14-003).
 An outbound activity always carries a non-empty `to:` field (OX-08-001) and full inline objects, because a recipient can only act on what it has received — it cannot read the sender's store (see the [Actor Knowledge Model](actor-knowledge-model.md)).
 
 ---
