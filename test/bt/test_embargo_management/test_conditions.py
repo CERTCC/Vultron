@@ -28,7 +28,7 @@ class TestEmbargoManagementConditions(unittest.TestCase):
     def setUp(self):
         self.emstates = tuple(EM)
         self.checks = {
-            EM.NO_EMBARGO: emc.EMinStateNone,
+            EM.NONE: emc.EMinStateNone,
             EM.PROPOSED: emc.EMinStateProposed,
             EM.ACTIVE: emc.EMinStateActive,
             EM.REVISE: emc.EMinStateRevise,
@@ -76,7 +76,7 @@ class TestEmbargoManagementConditions(unittest.TestCase):
 
         """
         cls = emc.EMinStateNone
-        should_succeed = (EM.NO_EMBARGO,)
+        should_succeed = (EM.NONE,)
 
         self._test_in_state(cls, should_succeed)
 
@@ -144,7 +144,7 @@ class TestEmbargoManagementConditions(unittest.TestCase):
 
         """
         node = emc.EMinStateNoneOrExited
-        expected_states = (EM.NO_EMBARGO, EM.EXITED)
+        expected_states = (EM.NONE, EM.EXITED)
 
         self._test_in_state(node, expected_states)
 
@@ -166,7 +166,7 @@ class TestEmbargoManagementConditions(unittest.TestCase):
 
         """
         node = emc.EMinStateNoneOrProposeOrRevise
-        expected_states = (EM.NO_EMBARGO, EM.PROPOSED, EM.REVISE)
+        expected_states = (EM.NONE, EM.PROPOSED, EM.REVISE)
 
         self._test_in_state(node, expected_states)
 

@@ -1,4 +1,4 @@
-"""Multi-participant PEC chain: NO_EMBARGO → INVITED → SIGNATORY.
+"""Multi-participant PEC chain: UNBOUND → INVITED → SIGNATORY.
 
 Exercises the full PEC state machine path via BTTestScenario and BT nodes.
 A regression to direct PEC assignment would cause this test to fail because:
@@ -6,10 +6,10 @@ A regression to direct PEC assignment would cause this test to fail because:
 - The BT nodes enforce valid trigger-based transitions.
 
 Covers:
-- NO_EMBARGO → INVITED: via PEC_Trigger.INVITE applied before the accept BT
+- UNBOUND → INVITED: via PEC_Trigger.INVITE applied before the accept BT
 - INVITED → SIGNATORY: via _SignEmbargoConsentLeafNode inside the accept BT
-- NO_EMBARGO → SIGNATORY: single-step path (ADR-0048: NO_EMBARGO is absence,
-  not pre-consent, so direct ACCEPT from NO_EMBARGO is valid)
+- UNBOUND → SIGNATORY: single-step path (ADR-0048: UNBOUND is absence,
+  not pre-consent, so direct ACCEPT from UNBOUND is valid)
 - Multi-participant: two participants, each reaching SIGNATORY independently
 
 AC-5 of ISSUE-1976.
@@ -66,7 +66,7 @@ def _run_sign_node(
 
 
 # ---------------------------------------------------------------------------
-# Full chain: NO_EMBARGO → INVITED → SIGNATORY
+# Full chain: UNBOUND → INVITED → SIGNATORY
 # ---------------------------------------------------------------------------
 
 
@@ -77,27 +77,27 @@ class TestPecChainNoEmbargoToSignatory:
     def test_no_embargo_to_signatory_via_accept_bt(
         self, bt_scenario: BTTestScenario
     ):
-        """NO_EMBARGO → SIGNATORY via _SignEmbargoConsentLeafNode.
+        """UNBOUND → SIGNATORY via _SignEmbargoConsentLeafNode.
 
-        ADR-0048: NO_EMBARGO means 'no embargo in scope', not 'pre-consent',
-        so ACCEPT is valid directly from NO_EMBARGO.
+        ADR-0048: UNBOUND means 'no embargo in scope', not 'pre-consent',
+        so ACCEPT is valid directly from UNBOUND.
         """
-        participant = _participant(_ACTOR_A, PEC.NO_EMBARGO)
+        participant = _participant(_ACTOR_A, PEC.UNBOUND)
         final_pec = _run_sign_node(bt_scenario, participant)
         assert (
             final_pec == PEC.SIGNATORY
-        ), f"Expected SIGNATORY after ACCEPT from NO_EMBARGO, got {final_pec!r}"
+        ), f"Expected SIGNATORY after ACCEPT from UNBOUND, got {final_pec!r}"
 
     @pytest.mark.spec("EMB-11-001")
     def test_invited_to_signatory_via_accept_bt(
         self, bt_scenario: BTTestScenario
     ):
-        """NO_EMBARGO → INVITED → SIGNATORY full two-step path.
+        """UNBOUND → INVITED → SIGNATORY full two-step path.
 
         Step 1: apply_pec_transition(INVITE) → INVITED (simulates receiving invite)
         Step 2: BT sign node applies ACCEPT trigger → SIGNATORY
         """
-        participant = _participant(_ACTOR_A, PEC.NO_EMBARGO)
+        participant = _participant(_ACTOR_A, PEC.UNBOUND)
 
         # Step 1: simulate invite arrival via PEC machine
         participant.apply_pec_transition(PEC_Trigger.INVITE)
@@ -120,7 +120,7 @@ class TestPecChainNoEmbargoToSignatory:
         instead of apply_pec_transition, this test would pass but the
         transition-rule enforcement would be silently dropped.
         """
-        participant = _participant(_ACTOR_A, PEC.NO_EMBARGO)
+        participant = _participant(_ACTOR_A, PEC.UNBOUND)
         # Direct assignment: no validation — this is the regression pattern
         participant.embargo_consent_state = PEC.SIGNATORY  # type: ignore[assignment]
         # Shows it worked but bypassed the machine
@@ -140,8 +140,8 @@ class TestMultiParticipantPecChain:
         self, bt_scenario: BTTestScenario
     ):
         """Both participants independently transition to SIGNATORY via BT path."""
-        participant_a = _participant(_ACTOR_A, PEC.NO_EMBARGO)
-        participant_b = _participant(_ACTOR_B, PEC.NO_EMBARGO)
+        participant_a = _participant(_ACTOR_A, PEC.UNBOUND)
+        participant_b = _participant(_ACTOR_B, PEC.UNBOUND)
 
         pec_a = _run_sign_node(bt_scenario, participant_a)
         pec_b = _run_sign_node(bt_scenario, participant_b)
@@ -157,9 +157,9 @@ class TestMultiParticipantPecChain:
     def test_participants_reach_signatory_from_different_starting_states(
         self, bt_scenario: BTTestScenario
     ):
-        """One participant starts at NO_EMBARGO; one at INVITED. Both reach SIGNATORY."""
-        participant_a = _participant(_ACTOR_A, PEC.NO_EMBARGO)
-        participant_b = _participant(_ACTOR_B, PEC.NO_EMBARGO)
+        """One participant starts at UNBOUND; one at INVITED. Both reach SIGNATORY."""
+        participant_a = _participant(_ACTOR_A, PEC.UNBOUND)
+        participant_b = _participant(_ACTOR_B, PEC.UNBOUND)
 
         # B gets invited first
         participant_b.apply_pec_transition(PEC_Trigger.INVITE)
@@ -177,7 +177,7 @@ class TestMultiParticipantPecChain:
         self, bt_scenario: BTTestScenario
     ):
         """Running the sign node for B does not alter A's PEC state."""
-        participant_a = _participant(_ACTOR_A, PEC.NO_EMBARGO)
+        participant_a = _participant(_ACTOR_A, PEC.UNBOUND)
         participant_b = _participant(_ACTOR_B, PEC.INVITED)
 
         _run_sign_node(bt_scenario, participant_a)

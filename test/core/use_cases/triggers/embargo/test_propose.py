@@ -18,7 +18,7 @@ from vultron.wire.as2.vocab.base.objects.actors import as_Service
 
 from .conftest import (
     _build_exited_case,
-    _build_no_embargo_case_with_case_manager,
+    _build_unbound_case_with_case_manager,
 )
 
 
@@ -56,7 +56,7 @@ def test_propose_embargo_updates_case_state_via_bt_path(
     from vultron.core.models.case import VulnerabilityCase
 
     finder, finder_dl = finder_actor_and_dl
-    case = _build_no_embargo_case_with_case_manager(finder_dl, finder.id_)
+    case = _build_unbound_case_with_case_manager(finder_dl, finder.id_)
     request = ProposeEmbargoTriggerRequest(
         actor_id=finder.id_,
         case_id=case.id_,

@@ -154,6 +154,28 @@ class TestCoreEmbargoPolicyDurationParsing:
                 }
             )
 
+    def test_out_of_range_duration_rejected_cleanly(self):
+        """An astronomically large duration is bad input, not a crash.
+
+        ``isodate.parse_duration`` raises ``OverflowError`` (not
+        ``ISO8601Error``) for a value like ``P<many-digits>D``.  It must be
+        folded into a ``ValidationError`` (→ 422), never escape as an
+        unhandled 500 (CS-23-001 regression guard).
+        """
+        with pytest.raises(ValidationError):
+            EmbargoPolicy.model_validate(
+                {
+                    "actor_id": ACTOR_ID,
+                    "inbox": INBOX,
+                    "preferred_duration": "P999999999999999999999999D",
+                }
+            )
+
+    def test_parse_duration_out_of_range_raises_value_error(self):
+        """``parse_duration`` maps an OverflowError to a clean ValueError."""
+        with pytest.raises(ValueError, match="Invalid ISO 8601 duration"):
+            parse_duration("P999999999999999999999999D")
+
 
 class TestCoreEmbargoPolicySerialization:
     """Durations serialize to ISO 8601 strings in JSON mode — DUR-05-002."""

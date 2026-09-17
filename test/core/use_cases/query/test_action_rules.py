@@ -229,7 +229,7 @@ class TestGetActionRulesUseCase:
             name="Default Participant Status Case",
             case_participants=[PARTICIPANT_ID],
             actor_participant_index={ACTOR_ID: PARTICIPANT_ID},
-            case_statuses=[as_CaseStatus(em_state=EM.NO_EMBARGO)],
+            case_statuses=[as_CaseStatus(em_state=EM.NONE)],
         )
         layer.create(case)
         participant = as_CaseParticipant(
@@ -253,7 +253,7 @@ class TestGetActionRulesUseCase:
     def test_em_state_variations(self, dl):
         """Different EM states are correctly reflected."""
         for em in [
-            EM.NO_EMBARGO,
+            EM.NONE,
             EM.PROPOSED,
             EM.ACTIVE,
             EM.REVISE,

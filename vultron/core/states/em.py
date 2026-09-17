@@ -25,7 +25,7 @@ from vultron.core.states.common import TransitionBase, mermaid_machine
 class EM(StrEnum):
     """Embargo Management States
 
-    NO_EMBARGO: No embargo is in effect
+    NONE: No embargo is in effect
     PROPOSED: Embargo is proposed but not yet active
     ACTIVE: Embargo is active
     REVISE: Embargo is active and a revision is proposed
@@ -44,8 +44,6 @@ class EM(StrEnum):
     EMBARGO_MANAGEMENT_ACTIVE = ACTIVE
     EMBARGO_MANAGEMENT_REVISE = REVISE
     EMBARGO_MANAGEMENT_EXITED = EXITED
-
-    NO_EMBARGO = NONE
 
     N = NONE
     P = PROPOSED
@@ -74,13 +72,13 @@ class EmTransition(TransitionBase):
 
 _transitions = [
     EmTransition(
-        trigger=EM_Trigger.PROPOSE, source=EM.NO_EMBARGO, dest=EM.PROPOSED
+        trigger=EM_Trigger.PROPOSE, source=EM.NONE, dest=EM.PROPOSED
     ).model_dump(),
     EmTransition(
         trigger=EM_Trigger.PROPOSE, source=EM.PROPOSED, dest=EM.PROPOSED
     ).model_dump(),
     EmTransition(
-        trigger=EM_Trigger.REJECT, source=EM.PROPOSED, dest=EM.NO_EMBARGO
+        trigger=EM_Trigger.REJECT, source=EM.PROPOSED, dest=EM.NONE
     ).model_dump(),
     EmTransition(
         trigger=EM_Trigger.ACCEPT, source=EM.PROPOSED, dest=EM.ACTIVE

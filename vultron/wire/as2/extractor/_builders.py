@@ -395,7 +395,7 @@ def _coerce_em(raw: object) -> EM:
         return raw
     if isinstance(raw, str):
         return EM[raw] if raw in EM.__members__ else EM(raw)
-    return EM.NO_EMBARGO
+    return EM.NONE
 
 
 def _coerce_pxa(raw: object) -> CS_pxa:
@@ -446,7 +446,7 @@ def _coerce_pec_or_none(raw: object) -> PEC | None:
     if isinstance(raw, PEC):
         return raw
     if isinstance(raw, str):
-        return PEC[raw]
+        return PEC[raw] if raw in PEC.__members__ else None
     return None
 
 

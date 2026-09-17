@@ -26,8 +26,8 @@ class TestEmbargoStates(unittest.TestCase):
         pass
 
     def test_embargo_states(self):
-        self.assertIs(EM.NONE, EM.NO_EMBARGO)
-        self.assertIs(EM.NO_EMBARGO, EM.N)
+        self.assertIs(EM.NONE, EM.NONE)
+        self.assertIs(EM.NONE, EM.N)
         self.assertIs(EM.PROPOSED, EM.P)
         self.assertIs(EM.ACTIVE, EM.A)
         self.assertIs(EM.REVISE, EM.R)
