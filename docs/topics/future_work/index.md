@@ -32,5 +32,5 @@ The text says which condition applies at each point.
 Open questions are in call-out boxes.
 Each open question is at the point in the text where it first applies.
 The [Open questions](open_questions.md) page also collects all of them.
-Where an issue or an epic records the question, the entry identifies it.
+Each open question identifies the issue or the epic that records it.
 You can go to that issue or epic for the current condition of the discussion.

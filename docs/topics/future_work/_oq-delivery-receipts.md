@@ -15,3 +15,5 @@
     `Read` is too strong, because it shows that the Participant processed the activity.
     A `Receive` or `Ack` activity is the weaker statement.
     It also gives the delivery log the data that the log needs.
+
+    Concern [#3363](https://github.com/CERTCC/Vultron/issues/3363) records this question.
