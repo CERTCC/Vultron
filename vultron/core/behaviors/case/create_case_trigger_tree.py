@@ -23,12 +23,17 @@ import py_trees
 from py_trees.common import Status
 from py_trees.ports import NoDataAvailable
 
+from vultron.core.behaviors.case.nodes.participant.common import (
+    _create_and_attach_participant,
+)
 from vultron.core.behaviors.helpers import (
     DataLayerActionWithPorts,
     PortInformation,
     UpdateActorOutbox,
 )
 from vultron.core.models.case import VultronCase
+from vultron.core.models.case_participant import CaseParticipant
+from vultron.enums.roles import CVDRole
 
 
 class _CreateCaseRecordNode(DataLayerActionWithPorts):
@@ -71,6 +76,53 @@ class _CreateCaseRecordNode(DataLayerActionWithPorts):
         self.datalayer.create(case)
         self._set_output("case_id", case.id_)
         self._result_out["case_id"] = case.id_
+        return Status.SUCCESS
+
+
+class _RegisterCreatorParticipantNode(DataLayerActionWithPorts):
+    """Register CASE_OWNER+CASE_MANAGER participant for the creating actor (CM-02-015)."""
+
+    def __init__(self, name: str | None = None) -> None:
+        super().__init__(name=name or self.__class__.__name__)
+
+    @classmethod
+    def input_ports(cls) -> dict[str, PortInformation]:
+        ports = super().input_ports()
+        ports["case_id"] = PortInformation(data_type=str, required=True)
+        return ports
+
+    @classmethod
+    def _domain_port_remappings(cls) -> dict[str, str]:
+        return {"case_id": "/case_id"}
+
+    def initialise(self) -> None:
+        super().initialise()
+        try:
+            self._case_id_bb: str = self.get_input("case_id")
+        except (NoDataAvailable, NotImplementedError):
+            self._case_id_bb = ""
+
+    def update(self) -> Status:
+        case_id = self._case_id_bb
+        if not case_id:
+            self.feedback_message = "case_id not found in blackboard"
+            return Status.FAILURE
+
+        if (f := self._require_datalayer_and_actor()) is not None:
+            return f
+        assert self.datalayer is not None
+        assert self.actor_id is not None
+
+        participant = CaseParticipant(
+            attributed_to=self.actor_id,
+            case_roles=[CVDRole.CASE_OWNER, CVDRole.CASE_MANAGER],
+        )
+        case = _create_and_attach_participant(
+            self.datalayer, participant, case_id, self.actor_id, self.logger
+        )
+        if case is None:
+            return Status.FAILURE
+        self.datalayer.save(case)
         return Status.SUCCESS
 
 
@@ -147,6 +199,7 @@ def create_case_trigger_bt(
                 report_id=report_id,
                 result_out=result_out,
             ),
+            _RegisterCreatorParticipantNode(),
             _BuildCreateCaseActivityNode(
                 activity_builder=activity_builder,
                 result_out=result_out,
