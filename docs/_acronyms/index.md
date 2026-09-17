@@ -67,6 +67,7 @@ sense the docs actually use.
 *[DFAs]: Deterministic Finite Automata
 *[DFIR]: Digital Forensics and Incident Response
 *[DHS]: U.S. Department of Homeland Security
+*[DKIM]: DomainKeys Identified Mail
 *[DNS]: Domain Name System
 *[DoD]: U.S. Department of Defense
 *[DoJ]: U.S. Department of Justice
@@ -127,6 +128,7 @@ sense the docs actually use.
 
 *[JPCERT/CC]: Japan Computer Emergency Response Team Coordination Center
 *[JSON]: JavaScript Object Notation
+*[JSON-LD]: JavaScript Object Notation for Linked Data
 *[JTAG]: Joint Test Action Group
 *[JVN]: Japan Vulnerability Notes
 
@@ -138,6 +140,8 @@ sense the docs actually use.
 *[MON]: The Monitoring Process Area of the CERT Resilience Management Model
 *[MPCVD]: Multi-Party Coordinated Vulnerability Disclosure
 *[MPLS]: Multiprotocol Label Switching
+*[mTLS]: Mutual Transport Layer Security
+*[MX]: Mail Exchanger
 
 *[NCSC]: National Cyber Security Centre
 *[NDA]: Non-Disclosure Agreement

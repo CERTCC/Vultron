@@ -31,8 +31,17 @@ def demo_env(client):
         mp.setattr(
             demo.DataLayerClient, "call", make_testclient_call(client, base)
         )
+        _original_base_url_default = demo.DataLayerClient.model_fields[
+            "base_url"
+        ].default
+        demo.DataLayerClient.model_fields["base_url"].default = base
+        demo.DataLayerClient.model_rebuild(force=True)
         yield
     finally:
+        demo.DataLayerClient.model_fields["base_url"].default = (
+            _original_base_url_default
+        )
+        demo.DataLayerClient.model_rebuild(force=True)
         mp.undo()
         importlib.reload(demo)
         importlib.reload(init_demo)

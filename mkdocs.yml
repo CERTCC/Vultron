@@ -117,6 +117,10 @@ nav:
       - Benchmarking MPCVD: 'topics/measuring_cvd/benchmarking_mpcvd.md'
       - Reward Functions: 'topics/measuring_cvd/reward_functions.md'
       - Modeling and Simulation: 'topics/measuring_cvd/mod_sim.md'
+    - Future Work:
+      - 'topics/future_work/index.md'
+      - Federation: 'topics/future_work/federation.md'
+      - Open Questions: 'topics/future_work/open_questions.md'
   - How-to Guides:
       - 'howto/index.md'
       - A Case Object: 'howto/case_object.md'
