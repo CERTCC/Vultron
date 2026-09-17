@@ -4,6 +4,11 @@ date: 2026-09-17
 deciders: Vultron maintainers
 consulted: Vultron maintainers
 informed: Vultron contributors
+# The decision itself is accepted, not provisional. The word appears because two
+# of the *rule exclusions* it records are provisional and cite tracking issues
+# (#3350, #3378) — which IMPLTS-07-019 requires them to say. Suppress the
+# MS-14-002 match on that vocabulary.
+lint_suppress: [status_prose_contradiction]
 ---
 
 # Replace flake8, isort and black with ruff, and declare lint exclusions instead of discovering them
@@ -11,15 +16,18 @@ informed: Vultron contributors
 ## Context and Problem Statement
 
 The Python quality gate runs four tools plus a fifth that is configured but never
-executed. Measured on `vultron/` + `test/` on 2026-09-17, cold, in the
-devcontainer:
+executed. Measured 2026-09-17, cold, in the devcontainer. The scopes are
+deliberately not equal: the flake8 and black rows are the invocations in use
+today, which name `vultron/` and `test/`, while the ruff rows are the bare
+whole-tree invocations this decision adopts. Ruff is faster over a strictly
+larger surface, so the comparison understates the gain rather than inflating it.
 
-| Tool | Wall clock | CPU |
-|---|---|---|
-| `flake8 vultron/ test/` | 34.0 s | 64 s |
-| `black --check vultron/ test/` | 3.4 s | 5 s |
-| `ruff check` (rule families below) | **0.65 s** | 0.8 s |
-| `ruff format --check` | **0.35 s** | 0.5 s |
+| Tool | Scope | Wall clock | CPU |
+|---|---|---|---|
+| `flake8 vultron/ test/` | 2 directories | 34.0 s | 64 s |
+| `black --check vultron/ test/` | 2 directories | 3.4 s | 5 s |
+| `ruff check` (rule families below) | whole tree | **0.65 s** | 0.8 s |
+| `ruff format --check` | whole tree | **0.35 s** | 0.5 s |
 
 That 34-second flake8 cost is paid on every commit that edits a file under
 `vultron/` or `test/`: the pre-commit hook is `pass_filenames: false` and lints
@@ -41,21 +49,34 @@ reordered imports in over a hundred files unrelated to that PR — accumulated
 silent drift. Until import order is gated, `isort` is a trap for any tool or PR
 that runs it.
 
-**Several `CS-*` requirements have no gate at all.** flake8 cannot see them:
+**Two `CS-*` requirements have no gate at all.** flake8 cannot see either:
 
-| Requirement | Priority | What it forbids | Detectable by |
+| Requirement | Priority | What it requires | Detectable by |
 |---|---|---|---|
-| CS-02-001 | SHOULD | ungrouped imports | `I001` |
-| CS-21-001 | MUST NOT | `None` defaults for collection fields | `RUF012`, `B008` |
-| CS-13-001 | MUST | naive (non-UTC) datetimes | `DTZ001`, `DTZ005`, `DTZ011` |
-| CS-03-002 | MUST | unused imports outside `__init__.py` | `F401` |
+| CS-02-001 | SHOULD | grouped, ordered imports | `I001` |
+| CS-13-001 | MUST | UTC-aware datetimes | `DTZ001`, `DTZ005`, `DTZ011` |
 
-Four requirements the project believes it follows and does not enforce anywhere.
+Two requirements the project believes it follows and does not enforce anywhere.
 The gap is not that the bar is too low; it is that nothing stands under the bar
 that was already set.
 
-CS-23-001 (blanket `except Exception` / bare `except`) is a different case and is
-deliberately not in that table: it *does* have a gate. Its `verification:` names
+Two neighbouring requirements were considered for this table and do **not**
+belong in it, which is worth recording because both are easy to miscount:
+
+- **CS-03-002 (unused imports outside `__init__.py`) is already gated.** flake8
+  bundles pyflakes, so `F401` is reported today: `.flake8`'s `extend-ignore` is
+  `E203,E501` and does not suppress it, and the `__init__.py: F401` exemption is
+  already carried there. Ruff preserves this gate rather than adding one.
+- **CS-21-001 (`None` defaults for collection fields) has no ruff rule that
+  matches it.** The two candidates detect something else: `RUF012` reports mutable
+  *literal* class defaults (`= []`), which is closer to the inverse of what
+  CS-21-001 forbids, and every `B008` finding in `vultron/` is a FastAPI
+  `Depends()` default — working dependency injection, not a collection field. So
+  CS-21-001 remains ungated after this decision, and a rule that actually detects
+  it would have to be written as an AST check rather than selected.
+
+CS-23-001 (blanket `except Exception` / bare `except`) is a third case kept out of
+that table, and the most instructive one: it *does* have a gate. Its `verification:` names
 `test/architecture/test_no_broad_except_outside_bt_update.py`, an AST scan with a
 shrink-only `_DECLARED_EXCLUSIONS` allow-list — but that ratchet covers only
 `vultron/core/behaviors/`. Ruff's `BLE001`, `S110` and `S112` widen the same check
@@ -87,8 +108,11 @@ ruleset without turning every future PR into a fresh argument about rules?"
   approach proposed in #2199 as originally written.
 - **B — Replace flake8, isort and black with ruff; select rule families and
   declare a short annotated `ignore` list.**
-- **C — Adopt ruff's full default ruleset and pin every current violation into a
-  shrink-only `per-file-ignores` baseline.**
+- **C — Select every rule ruff has (`--select ALL`) and pin every current
+  violation into a shrink-only `per-file-ignores` baseline.** Note this is *not*
+  ruff's out-of-the-box default, which selects only `E4`, `E7`, `E9` and `F` and
+  reports 3,033 findings here — narrower than flake8's current coverage, so it is
+  not a candidate.
 
 ## Decision Outcome
 
@@ -156,28 +180,40 @@ declares `include: ["vultron", "test"]`, which is why every caller runs a bare
 ### Scope, and the drift that motivated moving it into the config
 
 Path arguments in invocations are not a cosmetic problem; they had already
-produced two live inconsistencies.
+produced three live inconsistencies.
 
-**flake8 and black disagreed about the tree.** `black --check .` formatted the
-whole repository while `flake8 vultron/ test/` linted two directories, so
-`scripts/`, `.agents/` and root-level modules were formatted but never linted.
-`create-pr` carried a four-line comment explaining that a bare `uv run flake8`
-"walks the whole repo (including `scripts/`, which carries pre-existing C901/E741
-findings no other gate covers) and fails every docs PR on debt it did not
-introduce" — an accurate description of debt that existed *because* the two tools
-had different scopes.
+**black disagreed with itself.** There is no single black scope to compare
+flake8 against: `black --check .` covers the whole repository in `Makefile`, the
+pre-commit hook and `create-pr`, while CI runs `black --check vultron/ test/`
+(`.github/workflows/python-app.yml`) and
+`docs/developer/how-to/run-linters-and-formatters.md` — the page whose entire
+subject is these commands — tells developers `uv run black vultron/ test/`. So
+`scripts/`, `.agents/` and root-level modules were formatted by some call sites
+and by neither CI gate. That is a worse fact than "formatted but never linted":
+in CI they were *neither* formatted nor linted, and which guarantee you got
+depended on which command you happened to run.
+
+**flake8 covered less than black's widest spelling.** `flake8 vultron/ test/` is
+consistent everywhere, so the whole-repo black call sites formatted code no
+linter ever read. `create-pr` carried a four-line comment explaining that a bare
+`uv run flake8` "walks the whole repo (including `scripts/`, which carries
+pre-existing C901/E741 findings no other gate covers) and fails every docs PR on
+debt it did not introduce" — an accurate description of debt that existed
+*because* the scopes disagreed.
 
 **Two skills disagreed about mypy.** `create-pr` runs `uv run mypy vultron` (727
 files) while the AGENTS.md commit workflow runs bare `uv run mypy` (1,380 files),
 so docs PRs type-check strictly less than commits do. Bare `mypy` is already the
 correct form — `.mypy.ini` scopes it — and the stray argument is simply removed.
 
-**Two call sites sit outside the skill tree** and are easy to miss when auditing
+**Three call sites sit outside the skill tree** and are easy to miss when auditing
 for path operands, so IMPLTS-07-021's verification names them explicitly:
 
 - `Makefile` — a `black` target (`uv run black .`), a `flake8` target
   (`uv run flake8 ${VULTRON_DIR} ${TEST_DIR}`), a `flake8-lint` target that adds
-  `--exit-zero`, and an aggregate `lint` target wiring them together. The
+  `--exit-zero`, and an aggregate `lint` target (`lint: black mdlint flake8-lint
+  mypy`). Note what that aggregate actually wires: `flake8-lint`, the
+  `--exit-zero` variant — not the `flake8` target — and no pyright. The
   `--exit-zero` form must not be carried across: a target that reports findings
   without failing is the configured-but-ungated shape this decision exists to
   remove, and it would contradict IMPLTS-07-018's zero-finding gate.
@@ -185,6 +221,10 @@ for path operands, so IMPLTS-07-021's verification names them explicitly:
   `uv run flake8 vultron/ test/`". This is the invocation new contributors copy, so
   leaving it stale teaches the wrong command to exactly the audience with no other
   source.
+- `docs/developer/how-to/run-linters-and-formatters.md` — a 45-line how-to whose
+  whole subject is this command set, carrying `uv run black vultron/ test/` and
+  `uv run flake8 vultron/ test/`. It is the third black spelling described above,
+  and the one a developer following the docs will actually use.
 
 This decision resolves the flake8/black split by **linting the whole tracked
 Python surface**, not by encoding the historical asymmetry. `ruff check` therefore
@@ -193,8 +233,9 @@ autofixable), and it makes the `create-pr` comment above obsolete rather than
 permanent.
 
 The residue is mechanical except for the complexity gate, which is where the
-widening actually costs something. Eight functions in the newly-linted surface
-exceed `max-complexity = 10`, none of them previously seen by any gate:
+widening actually costs something. **Five** functions in the newly-linted surface
+exceed `max-complexity = 10` under `C901`, none of them previously seen by any
+gate:
 
 | Site | Complexity |
 |---|---|
@@ -203,11 +244,19 @@ exceed `max-complexity = 10`, none of them previously seen by any gate:
 | `scripts/velocity.py:162` `build_metrics` | 18 |
 | `scripts/backfill_stories.py:193` `insert_suppress_in_yaml` | 14 |
 | `scripts/migrate_spec_kinds.py:35` `migrate_file` | 13 |
-| `.agents/…/scan.py:468` `search_todos`, `:632` `detect_containers`, `:693` `collect_code_metrics` | 11 each |
 
 These are refactors, not suppressions: raising the threshold would weaken
 IMPLTS-07-008 for the whole tree to accommodate tooling scripts, and excluding
 the files would reintroduce the `lint.exclude` this decision removed.
+
+**The two tools disagree about complexity, and only ruff's answer matters here.**
+Running `flake8 --select C901 --max-complexity 10` over the same surface reports
+**eight** functions, adding `.agents/…/scan.py:468` `search_todos`, `:632`
+`detect_containers` and `:693` `collect_code_metrics` at 11 each. Ruff's mccabe
+implementation scores those three at or below the threshold and does not report
+them. Since ruff becomes the gate, five is the number that will fail CI — sizing
+this work from flake8's output would have over-scoped it by three functions. The
+same caution applies to any other count carried over from the retired tool.
 
 `extend-exclude` is deliberately absent: `graphify-out/` and `wip_notes/` are
 gitignored and ruff's `respect-gitignore` default already covers them. Adding
@@ -222,21 +271,28 @@ and both would have shipped a config that looks correct and is not.
 `[tool.ruff.lint]` resolves — `ruff check --show-settings` prints
 `linter.exclude = ["scripts"]` — and has no effect, because a bare directory name
 only prunes traversal in the discovery-time `exclude`, whereas `lint.exclude` is
-matched against each file's path. It needs `"scripts/**"`. Any future
-`lint.exclude` entry must be verified against `--show-files`, not against
-`--show-settings`, because only the former proves the exclusion took effect.
+matched against each file's path. It needs `"scripts/**"`.
+
+Worse, **neither `--show-settings` nor `--show-files` will tell you which form you
+wrote.** `--show-settings` echoes the broken value back as though it were live, and
+`lint.exclude` is not reflected in `--show-files` at all: both forms list the
+supposedly-excluded files identically, because `--show-files` reports discovery,
+which `lint.exclude` happens after. The only signal that distinguishes them is the
+finding count. So a `lint.exclude` entry must be verified by asserting on findings —
+add the exclusion, confirm the count drops by exactly the findings you meant to
+drop — and no `--show-*` flag substitutes for that.
 
 **`ruff format` formats Python embedded in Markdown.** Left unscoped, no-args
-`ruff format` reaches 3,576 files rather than 1,384, because it processes fenced
-Python in `.md` — the tracked surface is 1,384 `.py` plus 2,192 `.md`, which is
-exactly 3,576. 1,371 of those Markdown files are under `plan/history/`, which is
-append-only and immutable once merged (HM-01-005); 40 of them carry a `python`
-fence and so are candidates for rewriting, and 19 would actually be reformatted as
-the tree stands. Any of those 19 is a rerun of bug #2952, where `mdlint.sh --fix`
-rewrote write-once history entries. It would also rewrite `docs/` (which has its
-own style gate, DF-09-001) and the hard-linked `.agents/`/`.claude/` skill trees.
-Black never touched Markdown, so `[tool.ruff.format] exclude = ["**/*.md"]` is what
-makes the formatter swap faithful.
+`ruff format` reaches 3,576 files rather than the 1,384-file Python surface,
+because it processes fenced Python in `.md`. The great majority of those Markdown
+files are under `plan/history/`, which is append-only and immutable once merged
+(HM-01-005); 40 of them carry a `python` fence and so are candidates for
+rewriting, and 19 would actually be reformatted as the tree stands. Any of those
+19 is a rerun of bug #2952, where `mdlint.sh --fix` rewrote write-once history
+entries. It would also rewrite `docs/` (which has its own style gate, DF-09-001)
+and the hard-linked `.agents/`/`.claude/` skill trees. Black never touched
+Markdown, so `[tool.ruff.format] exclude = ["**/*.md"]` is what makes the
+formatter swap faithful.
 
 **`force-exclude = true` is required, not optional.** Ruff normally lints a file
 named explicitly on the command line even when the config excludes it. Pre-commit
@@ -250,37 +306,51 @@ deliberately not restated in `specs/` or `notes/` (MS-16-001).
 
 | Excluded | Findings suppressed | Reason |
 |---|---|---|
-| `PLC0415` import-outside-top-level | 2,423 | Function-local imports are this codebase's cycle-break idiom. CS-05-002 calls the pattern a "last resort"; at this scale it is the norm. That contradiction is real and is tracked as #3350 — it is a premise question, not a lint question, and enabling the rule before it is answered would either bury the tree in noise or force thousands of rewrites toward an unagreed target. |
+| `PLC0415` import-outside-top-level | 2,426 | Function-local imports are this codebase's cycle-break idiom. CS-05-002 calls the pattern a "last resort"; at this scale it is the norm. That contradiction is real and is tracked as #3350 — it is a premise question, not a lint question, and enabling the rule before it is answered would either bury the tree in noise or force thousands of rewrites toward an unagreed target. |
 | `TC006` runtime-cast-value | 654 | Would quote the type argument of every `cast()` call. Pure churn. |
-| `TRY003` raise-vanilla-args | 564 | Would require one exception class per distinct message string. |
-| `PLR2004` magic-value-comparison | 409 | Overwhelmingly test literals, where a named constant reduces clarity. |
-| `PLR0904`, `PLR0911`–`PLR0917` | 480 | Argument, return, branch and statement counts. `C901` at `max-complexity = 10` is this project's chosen complexity gate (IMPLTS-07-008); a second, differently-calibrated one would compete with it. |
-| `G004` logging-f-string | 194 | A legitimate rule — f-strings defeat logging's lazy formatting — but the fix interacts with the structured-logging requirements (`specs/structured-logging.yaml`). Deferred as its own decision rather than smuggled in here. |
-| `TC001`, `TC002`, `TC003` | 92 | Would force `if TYPE_CHECKING:` blocks across the tree. |
+| `TRY003` raise-vanilla-args | 567 | Would require one exception class per distinct message string. |
+| `PLR2004` magic-value-comparison | 412 | Overwhelmingly test literals, where a named constant reduces clarity. |
+| `PLR0904`, `PLR0911`–`PLR0917` | 495 | Argument, return, branch and statement counts. `C901` at `max-complexity = 10` is this project's chosen complexity gate (IMPLTS-07-008); a second, differently-calibrated one would compete with it. |
+| `G004` logging-f-string | 194 | A legitimate rule — f-strings defeat logging's lazy formatting — but the rewrite has no agreed target, because the choice between lazy `%`-args and structured `extra=` fields belongs to the structured-logging requirements (`specs/structured-logging.yaml`). Provisional, tracked as #3378. |
+| `TC001`, `TC002`, `TC003` | 113 | Would force `if TYPE_CHECKING:` blocks across the tree. |
 | `RET504` unnecessary-assign | 86 | Assign-then-return is more readable at the sites where it appears. |
-| `RUF001`–`RUF003` ambiguous-unicode | 39 | Fires on prose and docstrings, not code. |
-| `TRY300`, `SIM105`, `SIM117` | 165 | Style preferences (`else` after `try`, `contextlib.suppress`, combined `with`). Nested `with` is frequently the clearer form. |
+| `RUF001`–`RUF003` ambiguous-unicode | 47 | Fires on prose and docstrings, not code. |
+| `TRY300`, `SIM105`, `SIM117` | 170 | Style preferences (`else` after `try`, `contextlib.suppress`, combined `with`). Nested `with` is frequently the clearer form. |
 | `UP040`, `UP047` PEP 695 syntax | 52 | Type-alias and generic-syntax modernization with no requirement behind it. |
 | `PYI042` snake-case-type-alias | 35 | `snake_case` type aliases are established house style. |
 | `E501`, `E203` | — | Line length and slice whitespace belong to the formatter. Carried over verbatim from `.flake8`'s `extend-ignore`. |
-| `EXE` family (not selected) | 846 | `EXE001` fires on every file carrying the standard `#!/usr/bin/env python` + CMU copyright header — a file template, not a defect. Excluded by not selecting the family, so no `ignore` entry is needed. |
+| `EXE` family (not selected) | 850 | `EXE001` fires on every file carrying the standard `#!/usr/bin/env python` + CMU copyright header — a file template, not a defect. Excluded by not selecting the family, so no `ignore` entry is needed. |
 
 Selecting the remaining families across the whole tracked Python surface (1,384
 files) leaves **2,219 findings**: 1,338 safe-autofixable, 305 more fixable with
 `--unsafe-fixes`, and roughly 576 requiring hand work.
 
-That surface is *nearly* but not exactly the set black covered. `black --check .`
-reports 1,385 files because it also reads `vultron/_version.py`, which is gitignored
-(`.gitignore:145`) and which ruff therefore skips under its `respect-gitignore`
-default. The generated version file is not a formatting target, so the one-file
-difference is correct rather than a gap — but an equivalence check written as "ruff
-and black report the same count" will fail on it. Compare against the tracked
-surface (`git ls-files '*.py' | wc -l`) instead.
+That surface is *nearly* but not exactly the set black covered, and the two tools'
+file counts are a trap: both report **1,385**, but they are counting different
+sets, and neither equals the 1,384-file tracked Python surface.
+
+| | Count | Difference from `git ls-files '*.py'` |
+|---|---|---|
+| `git ls-files '*.py'` | 1,384 | — |
+| `ruff check --show-files` | 1,385 | **+ `pyproject.toml`**, which ruff lints for the `RUF2xx` rules |
+| `black --check .` | 1,385 | **+ `vultron/_version.py`**, gitignored (`.gitignore:145`) and skipped by ruff's `respect-gitignore` default |
+
+Both extras are correct behaviour rather than gaps: the generated version file is
+not a formatting target, and `pyproject.toml` genuinely is a ruff lint target. But
+the coincidence means **no equality check between these three numbers holds**.
+"ruff and black report the same count" passes by accident and proves nothing;
+"ruff reports the tracked Python surface" is simply false. Any scope assertion has
+to compare the file *lists*, not their lengths — for example, that
+`ruff check --show-files` equals `git ls-files '*.py'` plus `pyproject.toml`
+exactly.
 
 The largest hand-work cluster is exception handling, and it is **already owned
-elsewhere**. Epic #3329 covers it: #3325 (merged during this planning) eradicated
-broad `except Exception` from `vultron/core/`, and #3326 and #3340 carry the
-remainder. Ruff's `BLE001`, `S110` and `S112` are therefore not new work — they
+elsewhere**. Epic #3329 covers it: #3325 eradicated broad `except Exception` from
+`vultron/core/` and closed during this planning when PR #3338 merged, and #3326
+carries the remainder as a scheduled task. (#3340 is adjacent but is typed `Idea`
+and overlaps #3326's scope, so it is not a work item a baseline marker can point
+at — which is why the markers cite #3326.) Ruff's `BLE001`, `S110` and `S112` are
+therefore not new work — they
 are a mechanical detector for an eradication already in flight, and their residue
 is baselined with markers citing **#3326**, not a new issue. The exception-adjacent
 rules those issues do *not* cover (`TRY400`, `TRY004`, `B017`, `B904`, `TRY301`,
@@ -297,12 +367,13 @@ the wrong class, `pytest.raises(Exception)` as a vacuous assertion, missing
   `isort`'s ungated-drift trap is closed by making import order a hard gate.
 - Good, because `run-if-changed.sh` is no longer needed for lint or format; it is
   retained only for mypy and pyright, which remain the genuinely slow checks.
-- Good, because CS-02-001, CS-03-002, CS-13-001 and CS-21-001 gain gates they have
-  never had.
+- Good, because CS-02-001 and CS-13-001 gain gates they have never had, and
+  CS-23-001's existing gate widens from `vultron/core/behaviors/` to the whole
+  tree. Not CS-21-001: no selected rule detects what it forbids (see above).
 - Good, because every caller invokes the same two commands with no arguments, so a
   scope change is one edit to one file rather than a search for every spelling. The
-  two live drifts described above (`black .` vs `flake8 vultron/ test/`, and
-  `mypy vultron` vs `mypy`) are both resolved, and `scripts/` becomes linted for
+  three live drifts described above (black's own three spellings, black vs flake8,
+  and `mypy vultron` vs `mypy`) are all resolved, and `scripts/` becomes linted for
   the first time.
 - Bad, because the residue is baselined as in-tree `# noqa` markers rather than
   configuration, which is visible churn in the diff. Accepted: the markers are
@@ -314,9 +385,10 @@ the wrong class, `pytest.raises(Exception)` as a vacuous assertion, missing
   the whole-tree rewrite it was initially assumed to be.
 - Bad, because two of the scoping keys fail silently when written the obvious way
   (`lint.exclude` with a bare directory name; `format` without a Markdown
-  exclusion). Mitigated by requiring `--show-files` as the verification for scope
-  rather than `--show-settings`, and recorded above so the next editor of this
-  config does not rediscover them.
+  exclusion), and in the `lint.exclude` case neither `--show-settings` nor
+  `--show-files` reveals which form you wrote — only the finding count does.
+  Mitigated by recording both above, with the finding-count check, so the next
+  editor of this config does not rediscover them.
 - Neutral, because the eight `PLR09xx`/`TRY003`/`TC00x` exclusions could each be
   revisited independently; none of them blocks anything.
 
@@ -324,15 +396,24 @@ the wrong class, `pytest.raises(Exception)` as a vacuous assertion, missing
 
 - CI runs a single `lint-ruff` job executing `ruff check` and
   `ruff format --check` (IMPLTS-07-005, IMPLTS-07-018). The `build` job gates on
-  it, and the mandatory `notify-failure` wiring (CISEC-05) is preserved.
+  it, and the mandatory `notify-failure` wiring (CISEC-05-001) is preserved.
 - A single pre-commit hook invokes ruff directly, without the
   `run-if-changed.sh` wrapper.
 - **No invocation anywhere carries a path argument** (IMPLTS-07-021). The check is
-  mechanical: `grep -rn "ruff \(check\|format\)" .github/ .agents/ docs/
-  .pre-commit-config.yaml` should show no path operands.
-- Scope is verified with `ruff check --show-files`, which must report the tracked
-  Python surface. `--show-settings` is *not* sufficient — it will happily print an
-  exclusion that has no effect.
+  mechanical, and the search must cover every call site named above — including the
+  two outside the skill tree, which are the ones a narrower grep misses:
+
+  ```bash
+  grep -rn "ruff \(check\|format\)" \
+    .github/ .agents/ docs/ .pre-commit-config.yaml Makefile CONTRIBUTING.md
+  ```
+
+  No hit may carry a path operand.
+- Scope is verified by comparing the file *list*, not a count:
+  `ruff check --show-files` must equal `git ls-files '*.py'` plus `pyproject.toml`.
+  Counting is not enough — three different numbers here coincide at 1,385/1,384
+  for unrelated reasons (see above). Neither `--show-settings` nor `--show-files`
+  can verify a `lint.exclude` entry at all; that one is checked on finding counts.
 - `RUF100` remaining selected is the mechanism that validates the baseline:
   a stale marker fails the gate (IMPLTS-07-020).
 - The absence of `.flake8`, `[tool.black]` and `[tool.isort]`, and of the three
@@ -365,13 +446,16 @@ the wrong class, `pytest.raises(Exception)` as a vacuous assertion, missing
   removal of three tools.
 - Neutral, because it does not touch mypy or pyright, which remain separate jobs.
 
-### C — Full default ruleset with a shrink-only `per-file-ignores` baseline
+### C — Every rule ruff has, with a shrink-only `per-file-ignores` baseline
 
 - Good, because CI is green on arrival with no cleanup at all, and new code is
   clean by default.
-- Bad, because the default ruleset yields 7,191 findings on this tree, dominated
-  by categories this project has deliberately chosen against. A baseline that
-  large is not a debt record; it is a way of not making the decision.
+- Bad, because `--select ALL` yields **64,254** findings on this tree, dominated by
+  categories this project has deliberately chosen against — most of the volume is
+  missing-docstring and annotation rules that no requirement asks for. A baseline
+  that large is not a debt record; it is a way of not making the decision. For
+  scale, the same measurement puts option B's selected families at 7,412 findings
+  before its `ignore` list and **2,219** after it.
 - Bad, because `per-file-ignores` is file-scoped, so fixing one of several
   violations in a file is invisible — the "silent progress fails" property is lost
   and has to be rebuilt as a bespoke test.
@@ -386,17 +470,22 @@ the wrong class, `pytest.raises(Exception)` as a vacuous assertion, missing
 - Ratchet-shape precedent, and the evidence that non-forcing ratchets stall:
   ADR-0064 § "Ratcheting across the steps".
 - Precedent for a lint-tooling decision recorded as an ADR: ADR-0092.
-- Follow-on questions deliberately left open: #3350 (`PLC0415` vs CS-05-002).
+- Follow-on questions deliberately left open, each cited as the reason for a
+  provisional exclusion: #3350 (`PLC0415` vs CS-05-002) and #3378 (`G004` vs the
+  structured-logging requirements).
 - Exception-handling findings are owned by epic #3329, not by this decision:
-  #3325 (merged), #3326, #3340.
+  #3325 (closed via PR #3338), #3326.
 - Policy write-up for future maintainers: `notes/lint-tooling.md`.
-- All measurements in this record were taken on 2026-09-17 with ruff 0.16.8
-  against `origin/main` at `9ea51249d`, except the per-exclusion counts in the
-  table above, taken a few hours earlier at `d2d5df9b2`. #3325 merged between the
-  two, which moved the exception-rule counts by roughly a percent of the total.
-  These are point-in-time evidence for the decision, not requirements — every
-  count here will drift, and none of them is restated in `specs/` or `notes/`
-  (MS-16-001).
+- All measurements in this record were taken on 2026-09-17 with ruff 0.16.8, at
+  `origin/main` `9ea51249d` except the per-exclusion counts in the table above,
+  taken a few hours earlier at `d2d5df9b2`. #3325 landed between the two, which
+  moved the exception-rule counts by roughly a percent of the total. The
+  `ruff format` file counts were taken on the working tree rather than at
+  `9ea51249d`, so they include the three Markdown files this decision itself adds;
+  that is why they do not reproduce exactly from a clean checkout of either commit.
+  All of these are point-in-time evidence for the decision, not requirements —
+  every count here will drift, and none of them is restated in `specs/` or
+  `notes/` (MS-16-001).
 
 Generated spec requirements: `tech-stack.yaml` IMPLTS-07-017 through
 IMPLTS-07-021, with IMPLTS-07-005 and IMPLTS-07-008 amended and IMPLTS-07-001,

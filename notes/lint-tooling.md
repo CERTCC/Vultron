@@ -38,7 +38,9 @@ here (MS-16-001) — read them from the ADR, where they carry a measurement date
 
 ## Invoke with no path arguments
 
-Every caller MUST run exactly these, with **no paths**:
+Every caller that acts as a **gate** — a CI job, a pre-commit hook, an agent
+skill, or a documented developer command — MUST run exactly these, with **no
+paths**:
 
 ```bash
 uv run ruff check          # or --fix
@@ -115,9 +117,12 @@ surface, including `scripts/` and `.agents/` — which the flake8 configuration 
 replaces never linted even though black formatted them. ADR-0094 resolved that
 asymmetry by widening lint rather than preserving it, so do not reintroduce a
 directory exclusion to make a finding go away; baseline the finding instead. The
-widening's real cost is eight `C901` functions in that newly-linted surface, listed
-in ADR-0094 — refactors, not suppressions, because raising the threshold would
-weaken IMPLTS-07-008 tree-wide to accommodate tooling scripts.
+widening's real cost is the handful of `C901` functions in that newly-linted
+surface, tabulated in ADR-0094 — refactors, not suppressions, because raising the
+threshold would weaken IMPLTS-07-008 tree-wide to accommodate tooling scripts.
+When you size that work, measure it with **ruff**: ruff and flake8 implement
+mccabe differently and disagree about which functions clear the threshold, and
+flake8's answer is the one that stops mattering.
 
 ## Select families, exclude by exception
 
@@ -157,10 +162,15 @@ an open question tracked as **#3350** — a premise question, not a lint questio
 Do not enable the rule to force the issue; the resolution has to decide the
 target state first.
 
-**`G004` (`logging-f-string`) is excluded, and it is a real rule.** F-strings in
-log calls defeat lazy formatting. The fix interacts with the structured-logging
-requirements (`specs/structured-logging.yaml`), so it is deferred as its own
-decision rather than smuggled in as lint cleanup.
+**`G004` (`logging-f-string`) is excluded, and that exclusion is provisional
+too.** F-strings in log calls defeat lazy formatting, so this is a rule the
+project agrees with. It is excluded because the rewrite has no agreed target: the
+choice between lazy `%`-args and structured `extra=` fields belongs to the
+structured-logging requirements (`specs/structured-logging.yaml`), which have not
+settled it. Tracked as **#3378**, and that citation is what the entry rests on —
+by the four reasons above, "we agree with the rule but the fix is a design
+question" is only acceptable as a provisional exclusion with an issue attached.
+Delete the entry when #3378 resolves.
 
 ## Baselining: `RUF100` is the ratchet
 
@@ -227,8 +237,9 @@ three habits the flake8 era requires:
 - The pre-commit ruff hook is to be invoked **directly**, not through
   `.agents/skills/shared/run-if-changed.sh`. Fingerprint memoization (#3153)
   exists to avoid repeating expensive whole-tree work; at this speed the cache
-  lookup is a larger share of the cost than the work. `run-if-changed.sh` stays in
-  place for `mypy` and `pyright`, which remain the genuinely slow checks.
+  lookup costs a meaningful fraction of the work it is avoiding, so the wrapper
+  stops paying for itself. `run-if-changed.sh` stays in place for `mypy` and
+  `pyright`, which remain the genuinely slow checks.
 - The ten-minute `git commit` timeout that
   [notes/devcontainer-tooling.md](devcontainer-tooling.md) prescribes exists
   because the flake8 hook lints all of `vultron/` and `test/` regardless of what is
@@ -236,6 +247,12 @@ three habits the flake8 era requires:
   to say what remains instead of leaving a dead workaround prescribed. Until then
   the timeout is still needed.
 - `ruff check` is cheap enough to run repeatedly while editing, rather than once
-  before committing. Prefer `--fix` on the files you touched over a whole-tree
-  autofix, so a mechanical rewrite never rides along in an unrelated diff — the
-  drift that bit #3244.
+  before committing.
+- **Do not run a whole-tree `ruff check --fix`** to clean up as you go: it will
+  autofix files your change has nothing to do with, and a mechanical rewrite
+  riding along in an unrelated diff is the drift that bit #3244. This is the one
+  place the no-paths rule above does not settle the question, because it governs
+  *gates* — the CI job, the hook, the skills — and `--fix` is not a gate. For an
+  interactive cleanup, name the files you touched (`ruff check --fix <paths>`) and
+  understand that you are deliberately narrowing scope for that one run. Never
+  encode a path into anything a gate invokes.

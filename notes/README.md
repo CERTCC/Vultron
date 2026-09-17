@@ -739,7 +739,7 @@ formatter, why `select` names families while `ignore` is curated by exception,
 what makes an acceptable exclusion reason (IMPLTS-07-019), and why `RUF100`
 rather than a bespoke test is the ratchet for baselined findings
 (IMPLTS-07-020). Records the two notable exclusions — provisional `PLC0415`
-(#3350) and deferred `G004` — and the commit-loop habits that change when the
+(#3350) and provisional `G004` (#3378) — and the commit-loop habits that change when the
 flake8 hook is retired. **Decided but not yet built**: the configuration it
 describes lands with #3352; flake8, black and isort are still the live gate.
 **Load when**: editing `[tool.ruff]`, adding or removing an `ignore` entry,
