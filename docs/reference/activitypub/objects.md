@@ -152,7 +152,7 @@ As noted above,
 the `CaseParticipant` object is a wrapper around an `as:Actor` object that associates the actor with a specific
 `VulnerabilityCase` object.
 The `CaseParticipant` object is intended to be consistent with the
-[CaseParticipant](../../topics/case_model.md#caseparticipant) defined as part of the [Case Model](../../topics/case_model.md).
+[CaseParticipant](../../topics/case_lifecycle/case_model.md#caseparticipant) defined as part of the [Case Model](../../topics/case_lifecycle/case_model.md).
 The `CaseParticipant` object also includes a `participantStatus` property that describes the
 participant's status in the case as it progresses.
 

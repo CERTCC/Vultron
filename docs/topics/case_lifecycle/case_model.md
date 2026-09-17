@@ -121,7 +121,7 @@ in `VulnerabilityCase.case_statuses`.
 | `attributed_to` | The actor who reported this status (optional) |
 
 !!! tip "Dimension state machines"
-    See [Process Models](process_models/index.md) for detailed explanations
+    See [Process Models](../process_models/index.md) for detailed explanations
     of the EM and PXA state machines and their transition rules.
 
 ### `ParticipantStatus`
@@ -262,9 +262,9 @@ brokers all inter-participant messages. It participates as a
 
 - [Case Ledger Synchronization](case_ledger_sync.md) — how the canonical
   ledger orders events and how replicas catch up to it
-- [Process Models](process_models/index.md) — RM, EM, and CS state machines
+- [Process Models](../process_models/index.md) — RM, EM, and CS state machines
   that drive status transitions
-- [Demo Scenarios](scenarios/index.md) — how the objects evolve end-to-end
+- [Demo Scenarios](../scenarios/index.md) — how the objects evolve end-to-end
   in practice
 - ADR-0036: Per-Machine Dimension Objects for `CaseStatus` and
   `ParticipantStatus`
