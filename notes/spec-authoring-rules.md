@@ -23,6 +23,15 @@ keeps the short index; the decision of *what* belongs in a spec at all is in
 
 ---
 
+**Reading a lint or loader failure**: the mechanics of how these tools report a
+file they cannot read — and the three reasons a failure can arrive without
+naming its file — are in
+[`vultron/metadata/AGENTS.md`](../vultron/metadata/AGENTS.md) § "Loader Failure
+Attribution". Read that first if the output you are looking at is a traceback
+rather than an `[ERROR]` line.
+
+---
+
 ## Field Value Enums
 
 ### Valid `kind:` Values

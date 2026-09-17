@@ -3,7 +3,7 @@ title: Notes Frontmatter
 description: >-
   Requirements for YAML frontmatter in notes files, covering the required schema, a
   Pydantic-based loader, validation enforcement, and migration requirements.
-version: 1.0.0
+version: 1.1.0
 scope:
 - prototype
 - production
@@ -121,6 +121,30 @@ groups:
       The loader SHOULD resolve the repository root by searching upward from the current working
       directory for a `pyproject.toml` file, so it works correctly regardless of where it
       is called from.
+  - id: NF-03-006
+    priority: MUST
+    kind: project
+    statement: >-
+      The `ValueError` required by NF-03-003 MUST name the offending notes file per MS-17-001,
+      and the loader MUST obtain that attribution from the shared helper named by MS-17-003.
+      This applies to the frontmatter parse as well as the `NotesFrontmatter` validation — a
+      malformed frontmatter block MUST NOT surface as a raw parser traceback.
+    rationale: >-
+      The loader walks the whole `notes/` tree, so a schema violation reported as a bare field
+      path names no file. The parse step was the wider gap: a frontmatter block that fails to
+      scan raised a YAML error, which is not a `ValueError`, so it escaped NF-03-003's
+      documented contract entirely and reached the pre-commit hook as a traceback.
+    verification: >-
+      Unit tests assert that a notes file with an unparseable frontmatter block and one with an
+      invalid `status` value each raise a `ValueError` naming that file.
+    relationships:
+    - rel_type: implements
+      spec_id: MS-17-001
+    - rel_type: implements
+      spec_id: MS-17-003
+    - rel_type: refines
+      spec_id: NF-03-003
+      note: constrains the error NF-03-003 requires to name its file
 - id: NF-04
   title: Validation Enforcement
   specs:

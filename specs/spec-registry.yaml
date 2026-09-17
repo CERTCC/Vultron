@@ -4,7 +4,7 @@ description: >-
   Requirements for the structured spec registry: YAML spec files governed by Pydantic models,
   with linting, pytest integration, and context-generation tooling. The registry provides a
   single source of truth for spec IDs, prefixes, titles, and cross-reference validation.
-version: 1.1.0
+version: 1.2.0
 scope:
 - prototype
 - production
@@ -288,6 +288,51 @@ groups:
     kind: project
     statement: The loader SHOULD provide a `_find_repo_root()` helper (mirroring the notes loader) for callers that do not
       supply an explicit path.
+  - id: SR-03-008
+    priority: MUST
+    kind: project
+    statement: >-
+      `load_registry` MUST attribute a failed file to its path per MS-17-001, and MUST obtain
+      that attribution from the shared helper named by MS-17-003 rather than its own wrapper.
+      This applies to both the YAML parse and the `SpecFile` validation of each file.
+    rationale: >-
+      `load_registry` backs every spec consumer — the linter, the pre-commit hook, `spec-dump`,
+      the coverage report, the docs renderer, the pytest marker check — so an unattributed
+      failure here is the one an author is most likely to meet. Attributing the parse alone
+      would leave the more common fault unnamed: an invalid enum value (`kind`, `priority`,
+      `rel_type`) is reported as a positional path into the parsed structure, which locates a
+      requirement no better than a bare line number does.
+    verification: >-
+      Unit tests corrupt a temporary spec directory two ways — a YAML syntax fault and an
+      invalid enum value — and assert each raised error names the offending file.
+    relationships:
+    - rel_type: implements
+      spec_id: MS-17-001
+    - rel_type: implements
+      spec_id: MS-17-003
+  - id: SR-03-009
+    priority: MUST
+    kind: project
+    statement: >-
+      When more than one file in `specs/` fails to load, `load_registry` MUST report every
+      failing file in a single error rather than stopping at the first, and MUST carry the
+      individual failures as structured data on the exception rather than only as a joined
+      message.
+    rationale: >-
+      The loader rejects the corpus as a unit, so a caller told one reason at a time gains
+      nothing from the round trip — the principle EH-07-001 states for validation boundaries.
+      The linter that wraps this loader already collects and prints all of its own findings
+      together, so stopping at the first file makes the loader the one part of the tool that
+      reports less than it knows. The case that matters is a bulk spec edit breaking several
+      files at once.
+    verification: >-
+      A unit test corrupts two files in a temporary spec directory and asserts that both names
+      appear in the single raised error, and that the individual failures are recoverable from
+      the exception without parsing its message.
+    relationships:
+    - rel_type: derives_from
+      spec_id: EH-07-001
+      note: applies the report-every-violation rule to a file-walking loader
 - id: SR-04
   title: Linter
   specs:
@@ -301,6 +346,11 @@ groups:
     kind: project
     statement: 'The linter MUST report as hard errors: duplicate spec IDs, dangling relationship targets, group-ID/file-prefix
       mismatches, and invalid YAML structure.'
+    verification: >-
+      A unit test asserts that each listed fault produces a hard error in the linter's own
+      output format and exit code 1. Reporting a fault by propagating a parser traceback does
+      not satisfy this requirement, because the traceback names neither the file nor the
+      requirement (MS-17-002).
   - id: SR-04-003
     priority: MUST
     kind: project

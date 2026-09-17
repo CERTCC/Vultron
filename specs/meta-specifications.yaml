@@ -2,7 +2,7 @@ id: MS
 title: Meta-Specification Style Guide
 description: Normative rules for authoring specification files in this project. Covers file structure, requirement format,
   IDs, writing rules, cross-references, lifecycle, quality criteria, and the delineation between spec files and ADRs.
-version: 1.2.0
+version: 1.3.0
 scope:
 - prototype
 - production
@@ -725,3 +725,75 @@ groups:
       note: extends spec-authoring rules with a count-drift prohibition
     tags:
     - documentation
+- id: MS-17
+  title: Metadata Loader Failure Attribution
+  description: >-
+    Rules for how the file-walking loaders under `vultron/metadata/` report a file they
+    cannot read. These loaders back the pre-commit hooks and the `spec-dump` / `spec-lint` /
+    `append-history` / `adr-index` entry points, so their error output is the first thing an
+    author sees after a bad edit.
+  specs:
+  - id: MS-17-001
+    priority: MUST
+    kind: project
+    statement: >-
+      A loader under `vultron/metadata/` that walks a set of files and validates each one MUST
+      attribute every failure to the file that caused it, naming the repository-relative path
+      and — when the underlying parser supplies a position — the line and column, in the form
+      `path:line:col`. A message that reports only a position, or only a positional index into
+      the parsed structure, does not satisfy this requirement.
+    rationale: >-
+      Each of these loaders reads a whole directory, so a position without a filename
+      identifies nothing: the corpus under `specs/` alone spans dozens of files in which
+      "line 404" is ambiguous. PyYAML compounds this, because a loader that hands it text
+      rather than a named stream gets a mark reading `<unicode string>` — a position
+      attributed to a source that does not exist on disk. The file name is knowledge only the
+      loader holds, so only the loader can supply it.
+    verification: >-
+      A unit test corrupts one file in a temporary directory for each loader and asserts the
+      raised error names that file, and that no `<unicode string>` marker survives in the
+      message.
+    tags:
+    - tooling
+  - id: MS-17-002
+    priority: MUST_NOT
+    kind: project
+    statement: >-
+      A YAML parse error or a schema-validation error MUST NOT escape such a loader as an
+      unhandled traceback. Both the parse and the model validation of each file MUST be
+      reported as a `ValueError`, the type these loaders already document raising.
+    rationale: >-
+      A YAML scanner error is not a `ValueError`, so a caller guarding
+      `except (ValidationError, ValueError)` never sees it and the tool exits through a
+      third-party traceback instead of its own error format. Every frame in that traceback
+      belongs to the parser, so it names neither the file nor the requirement, and it appears
+      alongside the loader's own clean output in the same run — the same underlying fault
+      reported two different ways depending on which line of the loader raised.
+    verification: >-
+      A unit test asserts that a malformed file raises `ValueError` from each loader rather
+      than a bare parser exception, and that the linter's exit path prints its own error
+      prefix rather than a traceback.
+    tags:
+    - tooling
+  - id: MS-17-003
+    priority: MUST
+    kind: project
+    statement: >-
+      The attribution required by MS-17-001 and MS-17-002 MUST be obtained from a single
+      shared helper in `vultron/metadata/file_loading.py`, not reimplemented per loader.
+      A loader that walks files MUST route both its parse step and its validation step
+      through that helper.
+    rationale: >-
+      The same wrapper was written independently in the ADR loader and in the history entry
+      loaders, in as many message shapes as there were copies, while the notes and spec
+      loaders were left without one — so what an author sees depends on which directory they
+      edited rather than on what they got wrong. A shared helper is also the only way an
+      improvement reaches every loader: no hand-written copy read the parser's position mark,
+      so each named the file and then gave a `<unicode string>` position.
+    verification: >-
+      A ratchet test asserts that no module under `vultron/metadata/` catches a YAML parser
+      exception outside `file_loading.py`.
+    lint_suppress:
+    - phantom_path_ref
+    tags:
+    - tooling
