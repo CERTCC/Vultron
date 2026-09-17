@@ -93,7 +93,7 @@ The protocol mechanics of removal and the effect on active embargo consent
 are not yet fully specified.
 
 !!! info "See also"
-    - [Transferring a Case](../../howto/activitypub/activities/transfer_ownership.md)
+    - [Transferring a Case](../../topics/case_lifecycle/ownership_transfer.md)
     - [Role Delegation](../../howto/activitypub/activities/role_delegation.md)
     - [Suggest an Actor for a Case](../../howto/activitypub/activities/suggest_actor.md)
 
