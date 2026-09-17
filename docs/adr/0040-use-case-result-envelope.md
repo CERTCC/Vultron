@@ -118,18 +118,18 @@ Earlier revisions of this section listed
 `test/architecture/test_execute_return_types.py` as realized validation. That
 file was never written, and the claim is a direct cause of concern #1769.
 
-## Scope Note Superseded
+## The Dispatcher Boundary Is Not Decided Here
 
-The out-of-scope note above — that `dispatch()` keeps its return type and that
-surfacing `UseCaseResult` through the dispatcher boundary is a separate
-architectural decision — has been decided.
-[ADR-0094](0094-received-side-handler-result.md) makes that call for the
-received side: the dispatcher boundary returns `HandlerResult`, which carries a
-`HandlerDisposition` to `InboxOutcome`. Do not read this ADR as settling the
-boundary at `-> None`; it declined to settle it.
+This ADR is silent on whether `UseCaseResult` crosses the dispatcher boundary —
+it neither settles that question nor mentions it. Do not read the absence as a
+decision that the boundary stays `-> None`.
+
+[ADR-0094](0094-received-side-handler-result.md) decides it for the received
+side: the dispatcher boundary returns `HandlerResult`, which carries a
+`HandlerDisposition` to `InboxOutcome`. The trigger side is #3354.
 
 The rest of this ADR — the `UseCaseResult` hierarchy and the decision not to
-introduce `UseCaseRequest` — stands unchanged.
+introduce `UseCaseRequest` — is unaffected.
 
 ## More Information
 
@@ -138,4 +138,4 @@ through UCORG-05-006.
 
 Design note: `notes/use-case-protocol.md`.
 
-Source idea: #423. Received-side successor: ADR-0094 (#1769).
+Source idea: #423. Received-side dispatcher boundary: ADR-0094 (#1769).

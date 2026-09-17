@@ -52,10 +52,14 @@ returns early with a WARNING when `entry is None` and is still reported as
   `docs/reference/glossary.md` (defining all three types as existing).
   `AGENTS.md` separately contradicted them with `execute() -> None`.
 - It listed `ActivityDispatcher.dispatch() -> None` as settled and
-  not-to-be-touched, citing ADR-0040's Out of Scope section. ADR-0040 did not
-  settle that boundary — it declined to decide, calling it "a separate
-  architectural decision." Since the dispatcher boundary is the only route from a
-  handler to `InboxOutcome`, the decision had to be made. ADR-0094 makes it.
+  not-to-be-touched, citing "ADR-0040 'Out of Scope'". ADR-0040 has no such
+  section and never mentions the dispatcher boundary at all; the "separate
+  architectural decision" language it was reaching for lived in
+  `notes/use-case-protocol.md`. So the boundary was not settled in either
+  direction, and since it is the only route from a handler to `InboxOutcome`, the
+  decision had to be made. ADR-0094 makes it. Worth noting that the citation
+  survived into the first draft of this PR unchecked — a plausible-looking ADR
+  citation is exactly as easy to inherit as the stale Validation section below.
 
 ## Transferable lessons
 
@@ -104,7 +108,7 @@ Also filed #3374 (HP-04's `dispatchable.payload` contract, which no handler uses
 — same species of spec residue, unrelated to this work).
 
 Docs PR: <https://github.com/CERTCC/Vultron/pull/3370>.
-ADR: `docs/adr/0094-received-side-handler-result.md` (amends ADR-0040).
+ADR: `docs/adr/0094-received-side-handler-result.md` (extends ADR-0040).
 Specs: `specs/handler-protocol.yaml` HP-01-002/003/004;
 `specs/use-case-organization.yaml` UCORG-05-004b, -005, -009, -010, -011.
 Notes: `notes/use-case-protocol.md`.

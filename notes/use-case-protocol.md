@@ -188,9 +188,11 @@ attribute access instead of dict-key access.
 
 ## Dispatcher Behavior — the Verdict Chain
 
-ADR-0040 declined to decide whether `UseCaseResult` crosses the dispatcher
-boundary. ADR-0094 decides it: **it does**, because that boundary is the only
-road from the handler to `InboxOutcome`.
+No ADR before ADR-0094 reached the question of whether `UseCaseResult` crosses
+the dispatcher boundary — ADR-0040 does not mention it, and an earlier revision
+of *this note* was the only place it was ever addressed, with a bare "separate
+architectural decision." ADR-0094 decides it: **it does**, because that boundary
+is the only road from the handler to `InboxOutcome`.
 
 `InboxOutcome` (`vultron/core/behaviors/inbox/models.py`) already models
 `processed`/`deferred`/`rejected` and carries `failure_reason`, but
@@ -204,24 +206,54 @@ Each link returns `HandlerResult`:
 
 ```text
 execute() -> HandlerResult
-  → ActivityDispatcher.dispatch()      core/dispatcher.py
+  → DispatcherBase._handle()           core/dispatcher.py — calls execute()
+  → DispatcherBase.dispatch()          core/dispatcher.py
+  → ActivityDispatcher Protocol        core/ports/dispatcher.py
   → dispatch()                         adapters/driving/fastapi/inbox_handler.py
   → FastAPIDispatchAdapter.dispatch()  adapters/driving/fastapi/inbox_orchestration.py
   → DispatchAdapter Protocol           core/behaviors/inbox/models.py
   → DispatchNode.update()              maps disposition → InboxOutcome
 ```
 
-Six call sites, two Protocol declarations, one concrete dispatcher. The change is
-additive: callers that ignore the returned value keep working, so the blast
-radius is bounded by the type declarations rather than by call-site rewrites.
+Six return-type declarations (UCORG-05-010): two Protocols, two methods on the
+one concrete dispatcher, two adapter-level functions. The change is additive:
+callers that ignore the returned value keep working, so the blast radius is
+bounded by the type declarations rather than by call-site rewrites.
+
+Two things are easy to get wrong here:
+
+- **`_handle()` is the link that calls `execute()`**, not `dispatch()` — the
+  latter only logs and delegates. Working from the public method names alone
+  leaves the first hop at `-> None` and loses the verdict before any other link
+  sees it. It is named explicitly in UCORG-05-010 for that reason.
+- **`_handle()` can return without a handler running at all.** It catches
+  `UnroutableActivityError` and returns, and `_get_use_case()` raises
+  `VultronApiHandlerNotFoundError` for unrecognised semantics. The first path
+  raises nothing, so a dropped activity is reported `processed` today. A return
+  type alone does not fix it; UCORG-05-012 requires the dispatcher layer to
+  synthesize a verdict when no handler ran.
+
+Most `SKIPPED` decisions also do not live in `execute()` — `_idempotent_create`
+and peers in `vultron/core/use_cases/_helpers.py` return without storing when the
+record already exists, and are `-> None` themselves. Five handlers delegate their
+whole duplicate-skip decision there, so that layer has to return a disposition
+too or `SKIPPED` is unreachable for the commonest skip in the codebase.
 
 `DispatchNode` owns the mapping (`APPLIED`/`SKIPPED` → `processed`, `REFUSED` →
 `rejected` + `failure_reason`). Handlers do not know about `InboxOutcome`'s
 vocabulary and MUST NOT reach for it.
 
 **What this does not do.** The verdict reaches `InboxOutcome` and the actor log.
-It does not reach the *sender* — `post_actor_inbox` returns 202 before any
-handler runs, so the HTTP response cannot carry a processing verdict. Acceptance
+Reaching the log takes a deliberate step: `run_inbox_pipeline` only debug-logs
+`outcome.status`, so a refusal is invisible at normal log levels until that is
+raised (UCORG-05-013, and #2255's acceptance criterion).
+
+It does not reach the *sender* over the HTTP response — `post_actor_inbox`
+returns 202 before any handler runs, so the response cannot carry a processing
+verdict. One path does already reach the sender by another route:
+`received/status.py` emits a `Create(ProcessingFault)` carrying
+`VULTRON_FAILURE_STATUS_ASSERTION_REFUSED` when a status assertion fails
+non-idempotently. That predates this design and must not regress. Acceptance
 ("is this a well-formed activity addressed to me?") and processing ("did handling
 it succeed?") are distinct paths, and only the first is synchronous. Surfacing
 processing outcomes to a remote party is #2682's problem, and at the protocol

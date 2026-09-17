@@ -9,13 +9,22 @@ deciders: Allen D. Householder
 ## Context and Problem Statement
 
 ADR-0040 introduced the `UseCaseResult` envelope with `HandlerResult` and
-`TriggerResult` subtypes, and explicitly declined to decide one question:
+`TriggerResult` subtypes. It said nothing at all about whether that envelope
+crosses the dispatcher boundary — the words "dispatch" and "scope" do not appear
+in it. The only place that question was ever addressed is a design note:
 
 > The dispatcher's own `dispatch()` return type is **not** changed in this
 > issue. Surfacing `UseCaseResult` through the dispatcher boundary is a
 > separate architectural decision.
+>
+> — `notes/use-case-protocol.md`, before this ADR
 
-That deferral left the received-side half of the envelope without a purpose.
+So the boundary was never decided in either direction, and nothing of ADR-0040's
+needs overturning to decide it now. (Concern #1769 cites "ADR-0040 'Out of
+Scope'" as having settled the boundary at `-> None`. There is no such section;
+that citation is mistaken, and the note above is what it was reaching for.)
+
+That silence left the received-side half of the envelope without a purpose.
 `HandlerResult` was specified (UCORG-05-002) as a required return type carrying
 no required fields, and nothing downstream could read it — so implementing it
 literally would change 51 signatures to convey nothing. Concern #1769 asked what
@@ -38,12 +47,18 @@ outcome is typed `-> None`:
 
 ```text
 execute() -> None
-  → ActivityDispatcher.dispatch() -> None        (core/dispatcher.py)
+  → DispatcherBase._handle() -> None             (core/dispatcher.py — calls execute())
+  → DispatcherBase.dispatch() -> None            (core/dispatcher.py)
+  → ActivityDispatcher Protocol -> None          (core/ports/dispatcher.py)
   → dispatch() -> None                           (adapters/.../inbox_handler.py)
   → FastAPIDispatchAdapter.dispatch() -> None    (adapters/.../inbox_orchestration.py)
   → DispatchAdapter Protocol -> None             (core/behaviors/inbox/models.py)
   → DispatchNode.update()
 ```
+
+`_handle()` is the link that actually calls `execute()`; `dispatch()` only logs
+and delegates to it. It is easy to miss and it is the first hop the verdict has
+to survive.
 
 So a handler can inspect an activity, find nothing it can act on, log a warning,
 return, and the pipeline still reports `status="processed"`. Bug #2255 records
@@ -106,15 +121,31 @@ consumer without changing what the pipeline reports.
 
 ### Why the dispatcher boundary changes
 
-Option 2 requires overturning ADR-0040's out-of-scope note, because the
-dispatcher boundary is the only road from the handler to `InboxOutcome`. ADR-0040
-did not decide that the boundary stays `-> None`; it declined to decide, and
-this ADR makes the call it deferred.
+The dispatcher boundary is the only road from the handler to `InboxOutcome`, so
+option 2 requires deciding a question no prior ADR reached. This ADR decides it:
+the boundary returns `HandlerResult`.
 
-The change is additive and cheap: 6 call sites, 2 Protocol declarations, and 1
-concrete dispatcher. Callers that ignore the returned value keep working, so the
-blast radius is bounded by the type declarations rather than by call-site
-rewrites.
+The change is additive and cheap: six return-type declarations — two Protocols
+(`ActivityDispatcher`, `DispatchAdapter`), two methods on the single concrete
+dispatcher (`_handle`, `dispatch`), and two adapter-level functions. Callers that
+ignore the returned value keep working, so the blast radius is bounded by the
+type declarations rather than by call-site rewrites.
+
+Two parts of the chain need explicit handling and are easy to overlook:
+
+- **`_handle()` can return without a handler running.** It catches
+  `UnroutableActivityError`, logs, and returns (no `case_id` extractable), and
+  `_get_use_case()` raises `VultronApiHandlerNotFoundError` for unrecognised
+  semantics. In the first case no exception escapes, so a dropped activity is
+  reported as `processed` today. A `HandlerResult` return type alone does not fix
+  that: the dispatcher layer has to synthesise a verdict when no handler ran, and
+  UCORG-05-012 requires it.
+- **Most `SKIPPED` decisions do not live in `execute()`.** `_idempotent_create`
+  and its peers in `vultron/core/use_cases/_helpers.py` return without storing
+  when the record already exists, and are themselves `-> None`. Five handlers
+  delegate their entire duplicate-skip decision to that layer, so it has to
+  return a disposition too or `SKIPPED` is unreachable for the most common skip
+  in the codebase.
 
 ### Why not the alternatives
 
@@ -135,19 +166,30 @@ state. The boundary is not valuable enough to protect at that price.
 ### Consequences
 
 - Good: a genuine refusal reaches `InboxOutcome` with a populated
-  `failure_reason` instead of vanishing into a log file.
+  `failure_reason` instead of being observable only in the actor's own log.
+  (One path is already better than that: `received/status.py` emits a
+  `Create(ProcessingFault)` carrying
+  `VULTRON_FAILURE_STATUS_ASSERTION_REFUSED` for a non-idempotent status
+  failure. That behaviour predates this ADR and must not regress.)
 - Good: the skip-vs-refusal distinction becomes a typed fact rather than
   something a reader infers from log phrasing.
 - Good: `UseCaseResult` gains a real definition, which #3354 needs as
   `TriggerResult`'s parent.
 - Good: HP-01-002 and UCORG-05-002 stop contradicting each other.
-- Neutral: ~31 of the 51 handlers return `APPLIED` unconditionally. The uniform
-  contract is what makes the ratchet possible and keeps `-> None` from meaning
-  two different things.
-- Bad: the migration touches all 51 handler modules. It is partitioned by module
-  so a stalled pass cannot strand the contract work.
-- Bad: ADR-0040's out-of-scope note is now wrong and must be amended to point
-  here, or a future reader will inherit a retired premise.
+- Bad: the migration is mostly judgment, not a mechanical pass. Of the 51
+  handlers, 34 carry at least one early-return guard clause and 9 more log a
+  failure and fall through without changing state, so roughly 43 need a
+  refusal-vs-skip determination; only a handful do unconditional work. (#2255
+  enumerates ~20 BT-non-success call sites — that is the narrower population of
+  sites where a `Status.FAILURE` is logged, not the full set of handlers needing a
+  disposition decision.) #3372 therefore returns `APPLIED` everywhere and leaves
+  every classification to #2255, so the contract can land without waiting on 43
+  judgments.
+- Bad: the migration touches all 51 handler modules plus the shared helpers in
+  `use_cases/_helpers.py`. It is partitioned by module so a stalled pass cannot
+  strand the contract work.
+- Neutral: ADR-0040 needs a pointer here so a reader of the older ADR learns the
+  boundary has since been decided. Nothing in ADR-0040 becomes wrong.
 
 ## Validation
 
@@ -163,6 +205,11 @@ Planned:
   that issue, not open-ended.
 - mypy: the `UseCase` Protocol declares `execute() -> UseCaseResult`, so a
   non-conforming concrete class is reported statically.
+- Behavioural tests for the two paths a ratchet cannot see: a `REFUSED`
+  disposition reaching `InboxOutcome.status == "rejected"` with a populated
+  `failure_reason`, and an unroutable or unrecognised-semantics activity **not**
+  reporting `processed` (UCORG-05-012). The return annotations can all be correct
+  while both of these still fail.
 
 Per this ADR's own subject matter: no Validation entry here asserts that a test
 exists until it does. ADR-0040's Validation section claimed the ratchet as
@@ -171,10 +218,9 @@ claim is a direct cause of concern #1769.
 
 ## More Information
 
-Supersedes the out-of-scope note in
-[ADR-0040](0040-use-case-result-envelope.md) regarding the dispatcher boundary.
-The rest of ADR-0040 — the `UseCaseResult` hierarchy and the decision not to
-introduce `UseCaseRequest` — stands unchanged.
+Extends [ADR-0040](0040-use-case-result-envelope.md), which introduced the
+`UseCaseResult` hierarchy but did not reach the dispatcher boundary. ADR-0040
+stands unchanged; it gains only a pointer here.
 
 Design note: `notes/use-case-protocol.md`.
 
@@ -182,5 +228,7 @@ Source concern: #1769. Consumer: #2255. Trigger-side counterpart: #3354.
 Related: #2369 and #2682 (surfacing outcomes to the *sender*, which this ADR
 does not address — the 202 is already sent before a handler runs).
 
-Generated spec requirements: `specs/use-case-organization.yaml` UCORG-05-001
-through UCORG-05-009; `specs/handler-protocol.yaml` HP-01-002.
+Generated spec requirements: `specs/use-case-organization.yaml` UCORG-05-004b,
+UCORG-05-005, and UCORG-05-009 through UCORG-05-013 (this ADR also relies on the
+pre-existing UCORG-05-001 through UCORG-05-008);
+`specs/handler-protocol.yaml` HP-01-002 (amended), HP-01-003, and HP-01-004.
