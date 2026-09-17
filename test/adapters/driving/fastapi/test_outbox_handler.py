@@ -417,3 +417,184 @@ def test_processing_outbox_preamble_not_emitted_at_info(monkeypatch, caplog):
         asyncio.run(oh.outbox_handler("actor-xyz", mock_dl))
 
     assert not _preamble_records(caplog)
+
+
+# ---------------------------------------------------------------------------
+# Undelivered-Activity Correlation (OX-14)
+# ---------------------------------------------------------------------------
+
+
+def _make_announce_ledger_activity(ledger_entry_id: str):
+    """Return a SimpleNamespace mimicking an Announce(CaseLedgerEntry) activity."""
+    from types import SimpleNamespace
+
+    ledger_entry = SimpleNamespace(
+        type_="CaseLedgerEntry", id_=ledger_entry_id
+    )
+    return SimpleNamespace(type_="Announce", object_=ledger_entry)
+
+
+def _mock_dl_for_ox14(
+    queue: list[str],
+    actor_id: str,
+    activity_id: str,
+    activity_obj,
+) -> MagicMock:
+    """Mock DataLayer that returns *actor* for actor_id and *activity_obj* for activity_id."""
+    from types import SimpleNamespace
+
+    actor_ns = SimpleNamespace()
+    mock_dl = MagicMock()
+
+    def _read(obj_id):
+        if obj_id == actor_id:
+            return actor_ns
+        if obj_id == activity_id:
+            return activity_obj
+        return None
+
+    mock_dl.read.side_effect = _read
+    mock_dl.find_actor_by_short_id.return_value = None
+    mock_dl.outbox_list.side_effect = lambda: list(queue)
+    mock_dl.outbox_pop.side_effect = lambda: queue.pop(0) if queue else None
+    mock_dl.outbox_append.side_effect = lambda x: queue.append(x)
+    mock_dl.get_outbox_attempt_count.return_value = oh.MAX_TOTAL_ATTEMPTS - 1
+    return mock_dl
+
+
+@pytest.mark.spec("OX-14-001")
+def test_dead_letter_includes_ledger_entry_id_for_announce_ledger_activity(
+    monkeypatch,
+):
+    """Dead-letter record includes ledger_entry_id for Announce(CaseLedgerEntry).
+
+    AC-1 (OX-14-001): a dead-lettered activity carrying a committed ledger
+    event MUST be correlatable to that entry via the dead-letter record.
+    """
+    actor_id = "actor-case-manager"
+    activity_id = "urn:uuid:announce-log-0"
+    ledger_entry_id = "urn:case:abc/log/0"
+
+    queue = _make_queue(activity_id)
+    activity_obj = _make_announce_ledger_activity(ledger_entry_id)
+    mock_dl = _mock_dl_for_ox14(queue, actor_id, activity_id, activity_obj)
+
+    async def always_raise(a_id, act_id, dl, emitter):
+        raise RuntimeError("network down")
+
+    monkeypatch.setattr(oh, "handle_outbox_item", always_raise)
+    monkeypatch.setattr(oh.asyncio, "sleep", lambda _s: None)
+
+    asyncio.run(oh.outbox_handler(actor_id, mock_dl))
+
+    mock_dl.dead_letter_append.assert_called_once()
+    _kw = mock_dl.dead_letter_append.call_args.kwargs
+    assert _kw.get("ledger_entry_id") == ledger_entry_id
+
+
+@pytest.mark.spec("OX-14-001")
+def test_dead_letter_ledger_entry_id_absent_for_non_ledger_activity(
+    monkeypatch,
+):
+    """Dead-letter record has ledger_entry_id=None for non-ledger activities.
+
+    AC-4: activities with no associated ledger entry dead-letter as before,
+    with the correlation absent rather than fabricated.
+    """
+    from types import SimpleNamespace
+
+    actor_id = "actor-xyz"
+    activity_id = "urn:uuid:create-report-0"
+
+    queue = _make_queue(activity_id)
+    # A non-Announce activity has no CaseLedgerEntry object_
+    non_ledger_activity = SimpleNamespace(
+        type_="Create", object_=SimpleNamespace(type_="Report")
+    )
+    mock_dl = _mock_dl_for_ox14(
+        queue, actor_id, activity_id, non_ledger_activity
+    )
+
+    async def always_raise(a_id, act_id, dl, emitter):
+        raise RuntimeError("permanent failure")
+
+    monkeypatch.setattr(oh, "handle_outbox_item", always_raise)
+    monkeypatch.setattr(oh.asyncio, "sleep", lambda _s: None)
+
+    asyncio.run(oh.outbox_handler(actor_id, mock_dl))
+
+    mock_dl.dead_letter_append.assert_called_once()
+    _kw = mock_dl.dead_letter_append.call_args.kwargs
+    assert _kw.get("ledger_entry_id") is None
+
+
+@pytest.mark.spec("OX-14-003")
+def test_dead_letter_includes_failed_recipients_and_ledger_entry_id(
+    monkeypatch,
+):
+    """Exhaustion observable names unreached recipients AND canonical entry.
+
+    AC-3 (OX-14-003): the dead-letter record includes both failed_recipients
+    and ledger_entry_id so targeted replay is possible without log access.
+    """
+    from vultron.adapters.driven.http_delivery import DeliveryError
+
+    actor_id = "actor-case-manager"
+    activity_id = "urn:uuid:announce-log-1"
+    ledger_entry_id = "urn:case:xyz/log/3"
+    unreached = ["urn:actor:vendor-a", "urn:actor:vendor-b"]
+
+    queue = _make_queue(activity_id)
+    activity_obj = _make_announce_ledger_activity(ledger_entry_id)
+    mock_dl = _mock_dl_for_ox14(queue, actor_id, activity_id, activity_obj)
+
+    async def raise_delivery_error(a_id, act_id, dl, emitter):
+        raise DeliveryError(unreached, act_id)
+
+    monkeypatch.setattr(oh, "handle_outbox_item", raise_delivery_error)
+    monkeypatch.setattr(oh.asyncio, "sleep", lambda _s: None)
+
+    asyncio.run(oh.outbox_handler(actor_id, mock_dl))
+
+    mock_dl.dead_letter_append.assert_called_once()
+    _kw = mock_dl.dead_letter_append.call_args.kwargs
+    assert _kw.get("ledger_entry_id") == ledger_entry_id
+    assert set(_kw.get("failed_recipients", [])) == set(unreached)
+
+
+@pytest.mark.spec("OX-14-001", "OX-14-002", "OX-14-003")
+def test_resolve_ledger_entry_id_full_path(monkeypatch):
+    """_resolve_ledger_entry_id returns entry ID for Announce(CaseLedgerEntry).
+
+    AC-7: full-path check — commit produces an activity in the DataLayer,
+    exhaustion resolves the ledger entry ID from that stored activity, and the
+    dead-letter record links back to the committed entry.
+    """
+    ledger_entry_id = "urn:case:full-path/log/0"
+    activity_id = "urn:uuid:announce-full-path"
+
+    activity_obj = _make_announce_ledger_activity(ledger_entry_id)
+
+    mock_dl = MagicMock()
+    mock_dl.read.return_value = activity_obj
+
+    result = oh._resolve_ledger_entry_id(activity_id, mock_dl)
+
+    assert result == ledger_entry_id
+    mock_dl.read.assert_called_once_with(activity_id)
+
+
+def test_resolve_ledger_entry_id_returns_none_for_missing_activity():
+    """_resolve_ledger_entry_id returns None when the activity is not in the DataLayer."""
+    mock_dl = MagicMock()
+    mock_dl.read.return_value = None
+
+    assert oh._resolve_ledger_entry_id("urn:uuid:gone", mock_dl) is None
+
+
+def test_resolve_ledger_entry_id_returns_none_on_read_error():
+    """_resolve_ledger_entry_id returns None (not raises) when dl.read raises."""
+    mock_dl = MagicMock()
+    mock_dl.read.side_effect = RuntimeError("db error")
+
+    assert oh._resolve_ledger_entry_id("urn:uuid:bad", mock_dl) is None
