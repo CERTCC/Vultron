@@ -83,6 +83,7 @@ The following conventions indicate whether a page contains normative requirement
     This banner appears on pages where that may not be clear, for example on pages describing a specific implementation
     in terms of SHOULD, MUST, MAY, etc. statements that are not intended to be normative requirements.
 
+<!-- notation-math-start -->
 ## Mathematical Notation
 
 All of these definitions assume the standard [Zermelo-Fraenkel set theory](https://en.wikipedia.org/wiki/Zermelo%E2%80%93Fraenkel_set_theory){:target="_blank"}.
@@ -174,3 +175,5 @@ classDiagram
 ### Behavior Tree Diagrams
 
 A few additional notation details specific to [Behavior Trees](../topics/behavior_logic/index.md) are introduced when needed.
+
+<!-- notation-math-end -->

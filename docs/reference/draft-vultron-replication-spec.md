@@ -29,8 +29,8 @@ all Participant Actors: the hash-chain construction, replication transport,
 conflict handling, gap detection and recovery, ordering guarantees, and the
 normative single-hub / single-writer + fan-out architecture.
 
-These mechanics are scoped to a companion document by design. The Vultron
-Protocol Specification (`docs/reference/draft-vultron-spec.md`) states the
+These mechanics are scoped to a companion document by design. The
+[Vultron Protocol Specification](vultron-spec/index.md) states the
 normative obligation — Hosting capability set implementations MUST replicate
 the canonical ledger via `Announce(CaseLedgerEntry)` — and delegates the
 mechanical specification to this document. See ADR-0077 for the rationale
@@ -66,7 +66,7 @@ is out of scope for this version of the document.
 
 | Document | Role |
 |---|---|
-| `docs/reference/draft-vultron-spec.md` | Parent RFC; states the normative obligation to replicate and delegates mechanics here |
+| [Vultron Protocol Specification](vultron-spec/index.md) | Parent specification; states the normative obligation to replicate and delegates mechanics here |
 | `specs/sync-ledger-replication.yaml` | Internal normative requirements source (SYNC-01 through SYNC-15); every requirement in this document is traceable to a SYNC spec ID |
 | `notes/sync-ledger-replication.md` | Design rationale, implementation notes, and the internal architecture reference |
 | `docs/adr/0077-ledger-replication-companion-spec.md` | Records the decision to scope mechanics to this companion document and the rationale for the normative replication model |
