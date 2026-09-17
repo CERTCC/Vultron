@@ -175,14 +175,19 @@ class TransitionRMtoValid(DataLayerActionWithPorts):
     cannot permanently strand the records:
 
     1. It first *reads and validates* the link.  When the link is **absent**
-       it is seeded fresh at ``RM.RECEIVED`` (issue #3283) rather than failing:
-       some stores legitimately reach this transition without a prior
-       link-seeding node — e.g. the CaseActor advancing a participant it tracks
-       — and the pre-#3267 design advanced the participant regardless of link
-       presence, so fail-fast-on-absence regressed those paths.  An **illegal**
-       source state (``current → RM.VALID`` not legal, and not already
-       ``VALID``) still fails here, **before** the participant is touched, so
-       the participant is never advanced when the link cannot follow.
+       the participant is still advanced but the link is **left absent**
+       (issue #3283): some stores legitimately reach this transition without a
+       prior link-seeding node — e.g. the CaseActor's store, which tracks every
+       participant of the one report — and the pre-#3267 design advanced the
+       participant regardless of link presence.  Because the link is
+       report-scoped *per store*, latching an absent link to ``RM.VALID`` for
+       the first participant would make ``CheckRMStateValid`` short-circuit
+       every sibling participant's validate in that shared store, stranding
+       them at ``RM.RECEIVED`` (issue #3283 / #3266) — so an absent link is
+       never persisted.  An **illegal** source state (``current → RM.VALID``
+       not legal, and not already ``VALID``) still fails here, **before** the
+       participant is touched, so the participant is never advanced when the
+       link cannot follow.
     2. It then advances the case participant through
        :class:`CreateParticipantStatusNode` — the sole ``ParticipantStatus``
        writer (ADR-0089) — reading ``/case_id`` from the blackboard seeded by
@@ -260,7 +265,8 @@ class TransitionRMtoValid(DataLayerActionWithPorts):
             SUCCESS once both records read ``RM.VALID``; FAILURE when the
             DataLayer is unavailable, the report-phase transition is illegal,
             the case-scoped write does not succeed, or the final link save
-            raises.  An absent link is seeded (not a failure — issue #3283).
+            raises.  An absent link advances the participant but is left
+            unpersisted, not a failure (issue #3283).
         """
         if (f := self._require_datalayer()) is not None:
             return f
@@ -270,18 +276,23 @@ class TransitionRMtoValid(DataLayerActionWithPorts):
         #    source state cannot strand the participant at VALID while the link
         #    — the record CheckRMStateValid reads — stays behind (issue #3267).
         link = self._read_link()
+        link_existed = link is not None
         if link is None:
             # A store can reach the VALID transition with no link (issue #3283):
             # the pre-#3267 design advanced the participant regardless, so
-            # fail-fast-on-absence regressed those paths.  Seed the link fresh
-            # at RM.RECEIVED (its default) and continue — advancing then
-            # latching it to VALID in this one execution keeps the two records
-            # from diverging (the #3267 invariant) without stranding the
-            # participant merely because the link is absent.
+            # fail-fast-on-absence regressed those paths.  Build a transient
+            # link *only* to run the transition-legality guard below; it is NOT
+            # persisted (see step 3).  An absent link must stay absent because
+            # the link is report-scoped per store: in the CaseActor's store,
+            # which tracks every participant of the one report, latching the
+            # shared link to VALID for the first participant makes
+            # CheckRMStateValid short-circuit every sibling's validate, so they
+            # never advance (issue #3283 / #3266).
             link = VultronReportCaseLink(report_id=self.report_id)
             self.logger.info(
-                "%s: no ReportCaseLink for report '%s'; seeding at RM.RECEIVED"
-                " before advancing (issue #3283)",
+                "%s: no ReportCaseLink for report '%s'; advancing the"
+                " participant without latching an absent (report-scoped) link"
+                " (issue #3283)",
                 self.name,
                 self.report_id,
             )
@@ -318,7 +329,18 @@ class TransitionRMtoValid(DataLayerActionWithPorts):
             self.logger.error("%s: %s", self.name, self.feedback_message)
             return Status.FAILURE
 
-        # 3. Latch RM.VALID on the link only after the participant advanced.
+        # 3. Latch RM.VALID on the link only after the participant advanced,
+        #    and only when the link already existed.  Latching an *absent*
+        #    (transient) link would persist a report-scoped VALID record that
+        #    short-circuits sibling participants in a shared CaseActor store
+        #    (issue #3283); leaving it absent matches the pre-#3267 behavior.
+        if not link_existed:
+            self.logger.info(
+                "RM → VALID for participant on report '%s' (report link left"
+                " unlatched: it was absent — issue #3283)",
+                self.report_id,
+            )
+            return Status.SUCCESS
         try:
             link.rm_state = RM.VALID
             self.datalayer.save(link)

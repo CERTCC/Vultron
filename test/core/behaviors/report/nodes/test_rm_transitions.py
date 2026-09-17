@@ -37,11 +37,14 @@ from vultron.core.behaviors.report.nodes.rm_transitions import (
 )
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_actor import VultronCaseActor
+from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.report import VultronReport
 from vultron.core.models.activity import VultronOffer
 from vultron.core.models.report_case_link import VultronReportCaseLink
 from vultron.core.states.rm import RM
+from vultron.enums.roles import CVDRole
 from test.core.behaviors.bt_harness import BTTestScenario
+from test.support.participant_status import advance_participant_rm
 
 
 @pytest.mark.spec("RMB-15-001")
@@ -350,24 +353,31 @@ def test_transition_rm_to_valid_without_participant_fails_without_updating_link(
 
 
 @pytest.mark.spec("BT-03-004")
-def test_transition_rm_to_valid_seeds_absent_link_and_advances(
+def test_transition_rm_to_valid_absent_link_advances_without_latching(
     bt_scenario: BTTestScenario,
     actor: VultronCaseActor,
     report: VultronReport,
     offer: VultronOffer,
     case_with_participant: VulnerabilityCase,
 ) -> None:
-    """Absent ReportCaseLink is seeded, not fatal — participant still reaches VALID.
+    """Absent ReportCaseLink: advance the participant, do NOT latch the link.
 
     Issue #3283.  The #3267 rewrite gated the participant advance behind a
     successful link read, so a store that reached the VALID transition without a
     prior link-seeding node (e.g. the CaseActor advancing a participant it
-    tracks) was stranded at RM.RECEIVED — the fcvcv/fvcv-handoff demo
-    regression.  The pre-#3267 design advanced the participant regardless.  This
-    fixture deliberately omits the ``report_case_link`` fixture: no link exists
-    in the store, but the case + participant do.  The node must seed the link at
-    RM.RECEIVED, advance the participant, and latch the link to RM.VALID.
+    tracks) was stranded at RM.RECEIVED.  The pre-#3267 design advanced the
+    participant regardless.  But because the link is report-scoped *per store*,
+    latching an absent link to VALID for one participant would make
+    ``CheckRMStateValid`` short-circuit every sibling participant in a shared
+    CaseActor store (the fcvcv/fvcv-handoff regression).  So the node advances
+    the participant's own record while leaving the absent link unpersisted.
+    This fixture omits the ``report_case_link`` fixture: no link exists, but the
+    case + participant do.
     """
+    from vultron.core.models.participant_status import (
+        participant_status_rm_state,
+    )
+
     # Precondition: no link in the store.
     link_id = VultronReportCaseLink.build_id(report.id_)
     assert not isinstance(
@@ -384,9 +394,97 @@ def test_transition_rm_to_valid_seeds_absent_link_and_advances(
         case_id=case_with_participant.id_,
     )
     bt_scenario.assert_success(result)
-    bt_scenario.assert_rm_state(report.id_, RM.VALID, actor_id=actor.id_)
 
-    # The link was seeded and latched to VALID in the same execution.
+    # The participant's own record advanced to RM.VALID.
+    participant_id = case_with_participant.actor_participant_index[actor.id_]
+    participant = bt_scenario.dl.read(participant_id)
+    assert isinstance(participant, CaseParticipant)
+    assert (
+        participant_status_rm_state(participant.participant_status) == RM.VALID
+    )
+
+    # The absent report-scoped link was NOT latched to VALID — otherwise it
+    # would short-circuit sibling participants' validate in a shared store.
     link = bt_scenario.dl.read(link_id)
-    assert isinstance(link, VultronReportCaseLink)
-    assert link.rm_state is RM.VALID
+    assert not (
+        isinstance(link, VultronReportCaseLink) and link.rm_state == RM.VALID
+    ), "an absent report link must not be latched to VALID (issue #3283)"
+
+
+@pytest.mark.spec("BT-03-004")
+def test_two_participants_one_report_both_reach_valid_in_shared_store(
+    bt_scenario: BTTestScenario,
+    actor: VultronCaseActor,
+    report: VultronReport,
+    offer: VultronOffer,
+    case_with_participant: VulnerabilityCase,
+) -> None:
+    """fcvcv-in-miniature: two participants on one report both reach RM.VALID.
+
+    Issue #3283 / #3266.  The CaseActor's store holds every participant of the
+    one report but only one report-scoped ``ReportCaseLink``.  If the first
+    participant's validate latches that shared link to VALID, ``CheckRMStateValid``
+    short-circuits the second participant's validate and it never advances — the
+    fcvcv/fvcv-handoff regression.  With no link pre-seeded, advancing participant
+    A must leave the shared link unlatched so participant B still advances.
+    """
+    from vultron.core.models.participant_status import (
+        participant_status_rm_state,
+    )
+
+    case = case_with_participant
+    actor_a = actor.id_  # already a participant at RECEIVED (the fixture)
+    actor_b = "https://example.org/actors/second-participant"
+    participant_b = CaseParticipant(
+        id_=f"{case.id_}/participants/second",
+        attributed_to=actor_b,
+        context=case.id_,
+        case_roles=[CVDRole.VENDOR],
+    )
+    advance_participant_rm(participant_b, RM.RECEIVED, actor_b, case.id_)
+    case.add_participant(participant_b)
+    bt_scenario.dl.create(participant_b)
+    bt_scenario.dl.save(case)
+
+    # No ReportCaseLink in the shared store (the CaseActor never received Offer).
+    link_id = VultronReportCaseLink.build_id(report.id_)
+    assert not isinstance(bt_scenario.dl.read(link_id), VultronReportCaseLink)
+
+    # Participant A validates first.
+    bt_scenario.assert_success(
+        bt_scenario.run(
+            TransitionRMtoValid(
+                report_id=report.id_,
+                offer_id=offer.id_,
+                sender_actor_id=actor_a,
+            ),
+            actor_id=actor_a,
+            case_id=case.id_,
+        )
+    )
+    # The idempotency gate must NOT report the report valid yet — otherwise B
+    # would be short-circuited.
+    bt_scenario.assert_failure(
+        bt_scenario.run(
+            CheckRMStateValid(report_id=report.id_, sender_actor_id=actor_b),
+            actor_id=actor_a,
+        )
+    )
+    # Participant B validates and also advances.
+    bt_scenario.assert_success(
+        bt_scenario.run(
+            TransitionRMtoValid(
+                report_id=report.id_,
+                offer_id=offer.id_,
+                sender_actor_id=actor_b,
+            ),
+            actor_id=actor_a,
+            case_id=case.id_,
+        )
+    )
+
+    pa = bt_scenario.dl.read(case.actor_participant_index[actor_a])
+    pb = bt_scenario.dl.read(case.actor_participant_index[actor_b])
+    assert isinstance(pa, CaseParticipant) and isinstance(pb, CaseParticipant)
+    assert participant_status_rm_state(pa.participant_status) == RM.VALID
+    assert participant_status_rm_state(pb.participant_status) == RM.VALID
