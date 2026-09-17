@@ -1,9 +1,13 @@
 ---
 title: Encryption implementation notes
-status: draft
+status: active
 description: >
   Exploratory notes on encryption options for Vultron using ActivityPub
   public-key infrastructure.
+related_specs:
+  - specs/encryption.yaml
+related_notes:
+  - notes/federation_ideas.md
 ---
 
 # Encryption implementation notes
@@ -16,8 +20,38 @@ description: >
 - ActivityPub supports public-key distribution via actor profiles.
 - Leverage ActivityPub public keys where possible to avoid re-inventing
   discovery and distribution.
-- Goal: enable CaseActors and other actors to send and receive encrypted
-  messages while preserving semantic routing and handler behavior.
+- Goal: enable the actor enacting `CVDRole.CASE_MANAGER` and other actors to
+  send and receive encrypted messages while preserving semantic routing and
+  handler behavior.
+
+## Key material binds to an actor, not to a case
+
+ENC-01-001 requires a key pair per actor identity, generated when that identity
+is provisioned. It does **not** require one per case, and no code may derive
+key material from a case id.
+
+Per-case key separation is a property of **deployment topology**, not of the
+key-binding rule:
+
+- An actor that enacts `CVDRole.CASE_MANAGER` for several cases uses **one** key
+  pair across all of them. This is the shape the prototype has: a single
+  `case-actor` container identity holds N cases, and the case a given activity
+  belongs to travels in `activity.context` rather than in the actor URI
+  (ISSUE-1872).
+- Where a **case actor service** provisions a dedicated CASE_MANAGER actor per
+  case (glossary, "Case Actor Service"), each case ends up with distinct key
+  material — because each case has its own actor, not because a per-case key
+  rule exists.
+
+Which of those a production deployment should use is unresolved, and it is the
+question that decides how much cryptographic separation exists between cases on
+one host. It belongs to the actor identity model (#2841, epic #1156).
+
+The pitfall this replaces: ENC-01 was written as "one key pair per case, bound
+to the CaseActor for that case's lifetime", which invited an implementation
+keyed on the case. Deriving anything per-case from a CaseActor's *identity* is
+the category error ADR-0088 names — no container has registered a per-case
+identity, so calls to it answer 404.
 
 ## Principles
 

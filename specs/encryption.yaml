@@ -17,13 +17,13 @@ groups:
   - id: ENC-01-001
     priority: MUST
     kind: protocol
-    statement: Each CaseActor MUST generate a unique asymmetric key pair when first created for a case.
-    rationale: The intended model is one key pair per case, bound to the CaseActor for that case's lifetime. Regenerating
-      on restart would invalidate any peer's cached public key and break encrypted communication mid-case. Open question —
-      if a single CaseActor process ever manages multiple cases, it is unresolved whether the key pair belongs to the actor
-      or to the actor/case tuple; for now the 1:1 case-actor-to-case assumption holds.
-    verification: A unit test confirms that two independently created CaseActors have distinct public keys, and that a
-      newly created CaseActor's key pair is non-None.
+    statement: Each actor MUST generate a unique asymmetric key pair when its identity is first provisioned.
+    rationale: Key material binds to an actor identity, not to a case. An actor that enacts `CVDRole.CASE_MANAGER` for
+      several cases uses one key pair for all of them, so per-case key separation is a consequence of deployment topology
+      rather than a key-binding rule. Regenerating a key pair would invalidate any peer's cached public key and break
+      encrypted communication mid-case. See `notes/encryption.md` for the topology discussion.
+    verification: A unit test confirms that two independently provisioned actors have distinct public keys, and that a
+      newly provisioned actor's key pair is non-None.
     scope:
     - production
     relationships:
@@ -38,7 +38,7 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      The CaseActor MUST publish its public key in its ActivityPub actor profile using the
+      Each actor MUST publish its public key in its ActivityPub actor profile using the
       `publicKey` property per ActivityPub HTTP Signatures conventions
     verification: Inspection of the actor profile endpoint confirms the `publicKey` field is populated with the actor's
       public key per ActivityPub HTTP Signatures conventions.
@@ -51,10 +51,10 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      The CaseActor MUST share its public key with each case participant when they are added
-      to the case
+      The actor enacting `CVDRole.CASE_MANAGER` MUST share its public key with each case
+      participant when they are added to the case
     verification: Integration tests confirm that when a participant is added to a case, the outbound activity includes
-      the CaseActor's public key.
+      the CASE_MANAGER's public key.
     scope:
     - production
     stories:
@@ -72,12 +72,12 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      The CaseActor's asymmetric key pair MUST be persisted and reused across process
-      restarts for the lifetime of that case.
+      An actor's asymmetric key pair MUST be persisted and reused across process
+      restarts for the lifetime of that actor identity.
     rationale: >-
       Regenerating on restart would invalidate any peer's cached public key and break
       encrypted communication mid-case.
-    verification: A unit test confirms that a CaseActor reconstructed from a persisted record retains the same key pair
+    verification: A unit test confirms that an actor reconstructed from a persisted record retains the same key pair
       as the original and does not generate a new one on reconstruction.
     scope:
     - production
@@ -90,7 +90,7 @@ groups:
   - id: ENC-01-006
     priority: MUST_NOT
     kind: protocol
-    statement: A new key pair MUST NOT be generated on process resumption for an existing case.
+    statement: A new key pair MUST NOT be generated on process resumption for an existing actor identity.
     rationale: >-
       Generating a new key pair on restart breaks any encrypted channel established
       with the previous key, invalidating cached public keys held by case participants.
@@ -106,8 +106,8 @@ groups:
     priority: MAY
     kind: protocol
     statement: >-
-      Case participants MAY encrypt messages sent to the CaseActor using the CaseActor's published
-      public key
+      Case participants MAY encrypt messages sent to the CASE_MANAGER using the CASE_MANAGER's
+      published public key
     scope:
     - production
     relationships:
@@ -121,7 +121,7 @@ groups:
     priority: SHOULD
     kind: protocol
     statement: >-
-      When sending messages to case participants, the CaseActor SHOULD encrypt each outbound
+      When sending messages to case participants, the CASE_MANAGER SHOULD encrypt each outbound
       message to the recipient's public key individually (one encrypted payload per recipient)
     rationale: >-
       The specific encryption scheme (e.g., ECDH key agreement + AES-256-GCM, RSA-OAEP) is
