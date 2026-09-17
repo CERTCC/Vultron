@@ -7,8 +7,7 @@ It tells you which data the services interchange, which actor has authority for 
 The project has not built this model.
 The prototype operates more than one actor in a single deployment.
 Therefore this page gives a design direction, not a description of code that operates.
-Each open question in the text is unresolved.
-Where an issue or an epic records the question, the entry identifies it.
+Each open question in the text is unresolved, and each one identifies the issue or the epic that records it.
 
 ---
 

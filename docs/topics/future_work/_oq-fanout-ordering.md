@@ -14,3 +14,5 @@
 
     One point is not tested.
     The project does not know if a coordination decision needs a stronger guarantee than eventual consistency.
+
+    Concern [#3364](https://github.com/CERTCC/Vultron/issues/3364) records this question.
