@@ -220,40 +220,54 @@ query($owner:String!){
 # Open epics with their Schedule tier
 # Uses GraphQL to filter state=="OPEN" and issueType=="Epic" in one pass.
 # gh project item-list does not expose state; a GraphQL query is required.
+# Paginated: Project #24 has ~300 items; the API cap is 100 per page.
 PROJECT_ID=$(bash .agents/skills/shared/board-id.sh project)
-gh api graphql --jq '
-  .data.node.items.nodes[]
-  | select(
-      .content.state == "OPEN" and
-      .content.issueType.name == "Epic"
-    )
-  | [(.content.number|tostring),
-     ((.fieldValues.nodes[]
-       | select(.field.name == "Schedule")
-       | .name) // "-"),
-     .content.title]
-  | @tsv
-' -f query='{
-  node(id: "'"$PROJECT_ID"'") {
-    ... on ProjectV2 {
-      items(first: 100) {
-        nodes {
-          content {
-            ... on Issue {
-              number title state
-              issueType { name }
+CURSOR=""
+while true; do
+  if [ -n "$CURSOR" ]; then
+    AFTER=', after: "'"$CURSOR"'"'
+  else
+    AFTER=""
+  fi
+  PAGE=$(gh api graphql \
+    --jq '{items:.data.node.items.nodes,more:.data.node.items.pageInfo.hasNextPage,cursor:.data.node.items.pageInfo.endCursor}' \
+    -f query='{
+    node(id: "'"$PROJECT_ID"'") {
+      ... on ProjectV2 {
+        items(first: 100'"$AFTER"') {
+          pageInfo { hasNextPage endCursor }
+          nodes {
+            content {
+              ... on Issue {
+                number title state
+                issueType { name }
+              }
             }
+            fieldValues(first: 10) { nodes {
+              ... on ProjectV2ItemFieldSingleSelectValue {
+                name field { ... on ProjectV2SingleSelectField { name } }
+              }
+            }}
           }
-          fieldValues(first: 10) { nodes {
-            ... on ProjectV2ItemFieldSingleSelectValue {
-              name field { ... on ProjectV2SingleSelectField { name } }
-            }
-          }}
         }
       }
     }
-  }
-}'
+  }')
+  echo "$PAGE" | jq -r '
+    .items[]
+    | select(
+        .content.state == "OPEN" and
+        .content.issueType.name == "Epic"
+      )
+    | [(.content.number|tostring),
+       ((.fieldValues.nodes[]
+         | select(.field.name == "Schedule")
+         | .name) // "-"),
+       .content.title]
+    | @tsv'
+  [ "$(echo "$PAGE" | jq -r '.more')" = "true" ] || break
+  CURSOR=$(echo "$PAGE" | jq -r '.cursor')
+done
 ```
 
 To read an issue's current parent and an epic's open children, use the
