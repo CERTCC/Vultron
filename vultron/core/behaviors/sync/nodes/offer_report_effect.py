@@ -28,6 +28,7 @@ from typing import Any
 
 from py_trees.common import Status
 from py_trees.ports import NoDataAvailable, PortInformation
+from pydantic import ValidationError
 
 from vultron.core.behaviors.helpers import DataLayerActionWithPorts
 from vultron.core.behaviors.sync.nodes._helpers import _extract_id_from_field
@@ -159,22 +160,27 @@ class ApplyOfferReportFromLedgerNode(DataLayerActionWithPorts):
         from vultron.core.models.report import VulnerabilityReport
 
         try:
-            self.datalayer.save(
-                VulnerabilityReport.model_validate(object_data)
-            )
-            self.logger.info(
-                "%s: stored VulnerabilityReport '%s' from ledger snapshot"
-                " for invited replica (#2180)",
-                self.name,
-                report_id,
-            )
-        except Exception as exc:
+            report = VulnerabilityReport.model_validate(object_data)
+        except ValidationError as exc:
+            # A malformed snapshot cannot be reconstructed; stay lenient (this
+            # restore is best-effort).  A non-validation error would be a real
+            # fault and must surface (CS-23-001).
             self.logger.warning(
                 "%s: could not reconstruct VulnerabilityReport from"
                 " add_report_to_case snapshot: %s",
                 self.name,
                 exc,
             )
+            return
+        # A write failure is infrastructure, not a malformed snapshot — let it
+        # propagate to BTBridge, which classifies it as an internal error.
+        self.datalayer.save(report)
+        self.logger.info(
+            "%s: stored VulnerabilityReport '%s' from ledger snapshot"
+            " for invited replica (#2180)",
+            self.name,
+            report_id,
+        )
 
     def _save_offer_record(
         self,
@@ -195,15 +201,18 @@ class ApplyOfferReportFromLedgerNode(DataLayerActionWithPorts):
                 offer_actor_id=offer_actor_id,
                 offer_to=list(offer_to) if offer_to else [],
             )
-            self.datalayer.save(record)
-        except Exception as exc:
+        except ValidationError as exc:
+            # A malformed offer snapshot cannot be built into a record; stay
+            # lenient so a bad payload cannot wedge replication.  A write
+            # failure below is infrastructure and must surface (CS-23-001).
             self.logger.warning(
-                "%s: failed to create VultronOfferRecord for offer '%s': %s",
+                "%s: could not build VultronOfferRecord for offer '%s': %s",
                 self.name,
                 offer_id,
                 exc,
             )
             return Status.SUCCESS
+        self.datalayer.save(record)
 
         self.logger.info(
             "%s: created VultronOfferRecord '%s' for offer '%s'"
@@ -220,20 +229,14 @@ class ApplyOfferReportFromLedgerNode(DataLayerActionWithPorts):
         # creation point.  Idempotent: skip if the link is already present.
         link_id = VultronReportCaseLink.build_id(report_id)
         if self.datalayer.read(link_id) is None:
-            try:
-                self.datalayer.save(VultronReportCaseLink(report_id=report_id))
-                self.logger.info(
-                    "%s: seeded VultronReportCaseLink for invited replica"
-                    " report '%s' (BTND-10-006)",
-                    self.name,
-                    report_id,
-                )
-            except Exception as exc:
-                self.logger.warning(
-                    "%s: failed to seed VultronReportCaseLink for report '%s': %s",
-                    self.name,
-                    report_id,
-                    exc,
-                )
+            # A write failure here is infrastructure and must surface via
+            # BTBridge rather than be swallowed (CS-23-001).
+            self.datalayer.save(VultronReportCaseLink(report_id=report_id))
+            self.logger.info(
+                "%s: seeded VultronReportCaseLink for invited replica"
+                " report '%s' (BTND-10-006)",
+                self.name,
+                report_id,
+            )
 
         return Status.SUCCESS

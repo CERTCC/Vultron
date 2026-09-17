@@ -16,9 +16,9 @@
     This method is simple.
     But if a second ownership transfer occurs, the chain of proxies becomes longer.
 
-    **An HTTP 301 redirect with an AS2 `Move`** keeps the initial URI as the canonical URI.
+    **A Hyper Text Transfer Protocol (HTTP) 301 redirect with an AS2 `Move`** keeps the initial URI as the canonical URI.
     A new instance answers at that URI.
-    ActivityPub defines this mechanism for actor migration.
+    The fediverse uses `Move` and `movedTo` for actor migration, and ActivityPub itself does not define the mechanism.
 
     **A new actor**, with the previous actor in a frozen condition, is the minimum work to build.
     It is also the largest risk to verification.

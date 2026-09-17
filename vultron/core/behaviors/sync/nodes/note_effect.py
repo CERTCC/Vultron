@@ -23,6 +23,7 @@ from __future__ import annotations
 import logging
 
 from py_trees.common import Status
+from pydantic import ValidationError
 
 from vultron.core.behaviors.sync.nodes._helpers import (
     _LedgerEffectNode,
@@ -133,7 +134,10 @@ class ApplyNoteFromLedgerNode(_LedgerEffectNode):
 
         try:
             note = VultronNote.model_validate(note_data)
-        except Exception as exc:
+        except ValidationError as exc:
+            # A malformed note snapshot cannot be reconstructed; stay lenient
+            # and record the reference only.  A non-validation error would be a
+            # real fault and must surface (CS-23-001).
             self.logger.warning(
                 "%s: failed to reconstruct note '%s' from payload_snapshot:"
                 " %s — recording the reference only",

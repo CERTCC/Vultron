@@ -42,6 +42,7 @@ from typing import Any, cast
 
 from py_trees.common import Status
 from py_trees.ports import BehaviourWithPorts, NoDataAvailable, PortInformation
+from pydantic import ValidationError
 
 from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.helpers import (
@@ -328,7 +329,12 @@ class ProposeCaseToActorNode(DataLayerActionWithPorts):
                     offer_actor_id=offer_actor_id,
                 )
             )
-        except Exception as exc:
+        except (ValidationError, ValueError) as exc:
+            # The proposal could not be built from the report — a malformed
+            # report (ValidationError) or a missing/invalid one (ValueError,
+            # e.g. report not found).  Fail the node with a message; a
+            # programming error (TypeError, AttributeError) must surface loudly
+            # instead (CS-23-001).
             self.feedback_message = f"create_case_proposal failed: {exc}"
             self.logger.warning("%s: %s", self.name, self.feedback_message)
             return None

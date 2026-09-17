@@ -2,7 +2,7 @@
 
     The prototype does not sign or encrypt its messages.
     Activities move as plaintext AS2 JSON on HTTP.
-    The adapter for signed remote delivery is a stub (OX-10-004).
+    The adapter for signed remote delivery is a stub (OX-10).
     The prototype is a demonstration of coordination logic, not a service for deployment.
     Concern [#509](https://github.com/CERTCC/Vultron/issues/509) records this gap.
 
@@ -20,7 +20,7 @@
     The inner signature comes from the Participant that originated the activity.
     The outer signature comes from the CASE_MANAGER that relayed it.
     A recipient can thus verify the source and the relay position independently.
-    HTTP Message Signatures (RFC 9421) is the candidate transport mechanism ([#892](https://github.com/CERTCC/Vultron/issues/892), [#1163](https://github.com/CERTCC/Vultron/issues/1163)).
+    HTTP Message Signatures is the candidate transport mechanism, and Request for Comments (RFC) 9421 defines it ([#892](https://github.com/CERTCC/Vultron/issues/892), [#1163](https://github.com/CERTCC/Vultron/issues/1163)).
 
     Three points are open.
     First, the project has not selected the requirements that apply to a deployment that claims Vultron conformance.

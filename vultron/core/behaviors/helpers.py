@@ -277,13 +277,10 @@ class DataLayerCondition(py_trees.behaviour.Behaviour):
         self.blackboard.register_key(
             key="actor_id", access=py_trees.common.Access.READ
         )
-        try:
-            self.blackboard.register_key(
-                key="wire_render_port",
-                access=py_trees.common.Access.READ,
-            )
-        except Exception:
-            pass
+        self.blackboard.register_key(
+            key="wire_render_port",
+            access=py_trees.common.Access.READ,
+        )
 
     def initialise(self) -> None:
         """Initialize condition node by reading blackboard state."""
@@ -292,7 +289,10 @@ class DataLayerCondition(py_trees.behaviour.Behaviour):
 
         try:
             self.wire_render_port = self.blackboard.wire_render_port
-        except Exception:
+        except KeyError:
+            # Optional key: registered in setup() but may carry no value on
+            # this tick.  py_trees raises KeyError for a registered-but-unset
+            # blackboard key; anything else is a real fault (CS-23-001).
             self.wire_render_port = None
 
         if self.datalayer is None:
@@ -382,20 +382,14 @@ class DataLayerAction(py_trees.behaviour.Behaviour):
         self.blackboard.register_key(
             key="actor_id", access=py_trees.common.Access.READ
         )
-        try:
-            self.blackboard.register_key(
-                key="trigger_activity_factory",
-                access=py_trees.common.Access.READ,
-            )
-        except Exception:
-            pass
-        try:
-            self.blackboard.register_key(
-                key="wire_render_port",
-                access=py_trees.common.Access.READ,
-            )
-        except Exception:
-            pass
+        self.blackboard.register_key(
+            key="trigger_activity_factory",
+            access=py_trees.common.Access.READ,
+        )
+        self.blackboard.register_key(
+            key="wire_render_port",
+            access=py_trees.common.Access.READ,
+        )
 
     def initialise(self) -> None:
         """Initialize action node by reading blackboard state."""
@@ -406,12 +400,15 @@ class DataLayerAction(py_trees.behaviour.Behaviour):
             self.trigger_activity_factory = (
                 self.blackboard.trigger_activity_factory
             )
-        except Exception:
+        except KeyError:
+            # Optional key: registered in setup() but may carry no value on
+            # this tick (KeyError from py_trees); anything else is a real
+            # fault (CS-23-001).
             self.trigger_activity_factory = None
 
         try:
             self.wire_render_port = self.blackboard.wire_render_port
-        except Exception:
+        except KeyError:
             self.wire_render_port = None
 
         if self.datalayer is None:

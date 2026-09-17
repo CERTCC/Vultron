@@ -206,7 +206,7 @@ def demo_status_workflow(
     with demo_step("Step 1: Vendor creates as_CaseStatus"):
         case_status = as_CaseStatus(
             context=case.id_,
-            em_state=EM.NO_EMBARGO,
+            em_state=EM.NONE,
             pxa_state=CS_pxa.pxa,
         )
         create_status_activity = create_case_status_activity(
@@ -241,7 +241,7 @@ def demo_status_workflow(
             context=participant.id_,
             rm_state=RM.RECEIVED,
             attributed_to=finder.id_,
-            em_consent_state=PEC.NO_EMBARGO,
+            em_consent_state=PEC.UNBOUND,
             cvd_role=[CVDRole.FINDER],
             case_status=case_status,
         )

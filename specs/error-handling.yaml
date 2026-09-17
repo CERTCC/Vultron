@@ -4,7 +4,7 @@ description: >-
   Requirements for handling error conditions in the Vultron inbox handler, covering the
   exception hierarchy and error categories. Governs graceful degradation, clear error
   messages, system stability, and debuggability.
-version: 1.1.0
+version: 1.1.1
 scope:
 - prototype
 - production
@@ -22,6 +22,11 @@ groups:
     priority: MUST
     kind: project
     statement: Custom exceptions MUST inherit from a base VultronError exception
+    rationale: >-
+      This hierarchy is the protocol domain's. It does not extend to the metadata tooling layer
+      under `vultron/metadata/`, whose loaders raise `ValueError` by documented contract so that
+      their callers can guard a single exception pair — see MS-17-004, which draws that boundary
+      explicitly.
   - id: EH-01-003
     priority: MUST
     kind: project

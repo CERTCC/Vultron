@@ -31,13 +31,13 @@
         "rmState": "START",
         "caseEngagement": true,
         "embargoAdherence": false,
-        "emConsentState": "NO_EMBARGO",
+        "emConsentState": "UNBOUND",
         "cvdRole": [
           "COORDINATOR"
         ]
       }
     ],
     "acceptedEmbargoIds": [],
-    "embargoConsentState": "NO_EMBARGO"
+    "embargoConsentState": "UNBOUND"
   }
 }

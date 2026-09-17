@@ -59,7 +59,7 @@ def _coerce_em(v: object) -> EM:
         if v in EM.__members__:
             return EM[v]
         return EM(v)
-    return EM.NO_EMBARGO
+    return EM.NONE
 
 
 def _coerce_pxa(v: object) -> CS_pxa:
@@ -123,7 +123,7 @@ class as_CaseStatus(VultronAS2Object):
     )
 
     context: NonEmptyString | None = None  # Case ID goes here
-    em_state: EM = EM.NO_EMBARGO
+    em_state: EM = EM.NONE
     pxa_state: CS_pxa = CS_pxa.pxa
 
     @field_serializer("em_state")
