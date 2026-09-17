@@ -86,6 +86,13 @@ parent is wrong). Goal: land each on the epic that matches it.
    and, when the match is not obvious, its existing children — you are matching
    against what the epic *is about*, not its title alone.
 
+   **Truncation check (do this before step 3):** A query that returns an empty
+   or very short list is indistinguishable from a query that truncated. Before
+   treating "zero plausible epics" as a calving signal, verify the epic count
+   is plausible: compare the returned count against the known open-epic total
+   (query it with `--limit 1000` if in doubt). A suspiciously short list means
+   the query hit its limit, not that the forest is sparse.
+
 2. **Match by grain, not by keyword.** Ask which epic's design idea this issue
    advances. A protocol-correctness bug belongs with protocol correctness even
    if its title mentions a demo scenario; a prod-only concern belongs with

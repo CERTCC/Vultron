@@ -35,7 +35,7 @@ If this fails, stop and investigate before proceeding.
    **"Create a new bug"** option at the end:
 
    ```bash
-   gh issue list --repo CERTCC/Vultron --limit 200 \
+   gh issue list --repo CERTCC/Vultron --limit 1000 \
      --json number,title,issueType \
      --jq '.[] | select(.issueType.name == "Bug") | "#\(.number): \(.title)"'
    ```

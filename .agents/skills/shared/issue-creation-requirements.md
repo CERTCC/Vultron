@@ -18,9 +18,11 @@ Missing any one causes the script to exit non-zero.
 bash .agents/skills/shared/board-id.sh issue-type Task
 
 # Open epics (pick the best-fit parent)
-gh issue list --repo CERTCC/Vultron --state open --limit 200 \
+gh issue list --repo CERTCC/Vultron --state open --limit 1000 \
   --json number,title,issueType \
   --jq '.[] | select(.issueType.name == "Epic") | "#\(.number): \(.title)"'
+# --limit 1000: the repo has 298+ open issues; 200 silently truncates and hides
+# the oldest epics first. Do not reduce this — increase it if the repo grows past 1000.
 
 # Open milestones with numbers
 gh api repos/CERTCC/Vultron/milestones \
