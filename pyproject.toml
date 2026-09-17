@@ -150,6 +150,10 @@ testpaths = [
 ]
 filterwarnings = [
     "always::vultron.metadata.specs.UnknownSpecIdWarning",
+    # Both spec-gate warnings must outrank "error" below. They report that a
+    # *spec* is wrong, so escalating them would abort the session that has to
+    # run to fix it — see test/conftest.py pytest_collection_modifyitems.
+    "always::vultron.metadata.specs.SpecRegistryUnavailableWarning",
     "error",
     "ignore::DeprecationWarning:vultron.demo.scenario.three_actor_demo",
     "ignore:three_actor_demo.py is based on older code:DeprecationWarning",
