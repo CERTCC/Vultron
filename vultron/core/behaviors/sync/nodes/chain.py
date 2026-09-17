@@ -21,6 +21,7 @@ from datetime import datetime
 from typing import Any, cast
 
 from py_trees.common import Status
+from py_trees.ports import NoDataAvailable
 
 from vultron.core.behaviors.helpers import (
     DataLayerActionWithPorts,
@@ -121,7 +122,10 @@ class ReconstructChainTailNode(DataLayerActionWithPorts):
         if self._case_id is None:
             try:
                 self.activity = self.get_input("activity")
-            except Exception:
+            except (NoDataAvailable, NotImplementedError):
+                # Optional port: absent (NoDataAvailable) or explicitly None
+                # (NotImplementedError).  Any other error is a real port-wiring
+                # fault and must surface (CS-23-001).
                 self.activity = None
         else:
             self.activity = None
