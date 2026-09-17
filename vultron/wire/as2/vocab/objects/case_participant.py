@@ -115,7 +115,7 @@ class as_CaseParticipant(VultronAS2Object):
         default_factory=list
     )
     accepted_embargo_ids: list[str] = Field(default_factory=list)
-    embargo_consent_state: str = Field(default="NO_EMBARGO")
+    embargo_consent_state: str = Field(default="UNBOUND")
     participant_case_name: NonEmptyString | None = Field(
         default=None, exclude=True
     )

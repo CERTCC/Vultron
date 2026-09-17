@@ -58,11 +58,11 @@ class TestCaseParticipantConstruction:
         assert p.case_roles == []
 
     def test_default_embargo_consent_state(self):
-        """Default embargo_consent_state is PEC.NO_EMBARGO."""
+        """Default embargo_consent_state is PEC.UNBOUND."""
         from vultron.core.states.participant_embargo_consent import PEC
 
         p = _make()
-        assert p.embargo_consent_state == PEC.NO_EMBARGO
+        assert p.embargo_consent_state == PEC.UNBOUND
 
     def test_participant_case_name_default_none(self):
         """participant_case_name defaults to None."""
@@ -343,13 +343,13 @@ class TestApplyPecTransition:
         """AC-3: participant_status.consent.state agrees with embargo_consent_state.
 
         After apply_pec_transition(ACCEPT), the snapshot emConsentState MUST
-        equal SIGNATORY — it must not be the stale NO_EMBARGO pre-fix value
+        equal SIGNATORY — it must not be the stale UNBOUND pre-fix value
         (CM-18-006).
         """
         from vultron.core.states.participant_embargo_consent import PEC_Trigger
 
         p = _make()
-        assert p.embargo_consent_state == PEC.NO_EMBARGO
+        assert p.embargo_consent_state == PEC.UNBOUND
         p.apply_pec_transition(PEC_Trigger.ACCEPT)
         assert p.embargo_consent_state == PEC.SIGNATORY
         status = p.participant_status

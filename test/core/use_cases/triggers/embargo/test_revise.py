@@ -23,7 +23,7 @@ from vultron.wire.as2.vocab.objects.case_participant import as_CaseParticipant
 
 from .conftest import (
     _build_active_embargo_case_with_case_manager,
-    _build_no_embargo_case_with_case_manager,
+    _build_unbound_case_with_case_manager,
 )
 
 
@@ -78,7 +78,7 @@ def test_propose_embargo_revision_invalid_em_state_raises_error(
 ) -> None:
     """SvcProposeEmbargoRevisionUseCase raises error when EM state is not ACTIVE/REVISE."""
     actor, dl = finder_actor_and_dl
-    case = _build_no_embargo_case_with_case_manager(dl, actor.id_)
+    case = _build_unbound_case_with_case_manager(dl, actor.id_)
 
     request = ProposeEmbargoRevisionTriggerRequest(
         actor_id=actor.id_,
@@ -97,7 +97,7 @@ def test_propose_embargo_revision_invalid_state_does_not_persist_embargo(
 ) -> None:
     """Failed revision must not leave behind a persisted EmbargoEvent."""
     actor, dl = finder_actor_and_dl
-    case = _build_no_embargo_case_with_case_manager(dl, actor.id_)
+    case = _build_unbound_case_with_case_manager(dl, actor.id_)
 
     before = len(list(dl.list_objects("EmbargoEvent")))
 

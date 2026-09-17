@@ -39,14 +39,14 @@
             "rmState": "START",
             "caseEngagement": true,
             "embargoAdherence": false,
-            "emConsentState": "NO_EMBARGO",
+            "emConsentState": "UNBOUND",
             "cvdRole": [
               "VENDOR"
             ]
           }
         ],
         "acceptedEmbargoIds": [],
-        "embargoConsentState": "NO_EMBARGO"
+        "embargoConsentState": "UNBOUND"
       }
     ],
     "actorParticipantIndex": {},

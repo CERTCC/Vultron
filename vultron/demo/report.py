@@ -425,7 +425,7 @@ class CaseTimelineEvent(BaseModel):
         rm_state / em_state / pec_state / vf_state / d_state / pxa_state: Resulting
             state-machine dimensions extracted from the payload snapshot, where
             present. ``pec_state`` is the per-participant Embargo Consent state
-            (NO_EMBARGO, INVITED, SIGNATORY, LAPSED, DECLINED), extracted from
+            (UNBOUND, INVITED, SIGNATORY, LAPSED, DECLINED), extracted from
             the ``consent`` dimension object or legacy ``emConsentState`` /
             ``embargoConsentState`` flat fields.
         present_in: Sorted actor-directory names whose replicas hold this

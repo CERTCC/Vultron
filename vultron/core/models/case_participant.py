@@ -83,7 +83,7 @@ class CaseParticipant(CoreObject):
     case_roles: list[CVDRole] = Field(default_factory=list)
     participant_statuses: list[ParticipantStatus] = Field(default_factory=list)
     accepted_embargo_ids: list[NonEmptyString] = Field(default_factory=list)
-    embargo_consent_state: PEC = Field(default=PEC.NO_EMBARGO)
+    embargo_consent_state: PEC = Field(default=PEC.UNBOUND)
     participant_case_name: NonEmptyString | None = None
     invite_rsvp_deadline: datetime | None = None
 
@@ -164,7 +164,7 @@ class CaseParticipant(CoreObject):
             data["id"] = _new_urn()
         id_val = data.get("id") or data.get("id_")
         _consent_state = coerce_em_consent_state(
-            data.get("embargo_consent_state", PEC.NO_EMBARGO)
+            data.get("embargo_consent_state", PEC.UNBOUND)
         )
         data["participant_statuses"] = [
             ParticipantStatus(
@@ -206,7 +206,7 @@ class CaseParticipant(CoreObject):
         """
         current_pec = coerce_em_consent_state(self.embargo_consent_state)
         if current_pec is None:
-            current_pec = PEC.NO_EMBARGO
+            current_pec = PEC.UNBOUND
         new_dim = PecDimension(state=current_pec).transition(trigger)
         self.embargo_consent_state = new_dim.state
         self._sync_latest_status_metadata()
@@ -340,7 +340,7 @@ def _seed_accepted_status(data: Any) -> Any:
         data["id"] = _new_urn()
     id_val = data.get("id") or data.get("id_")
     _consent_state = coerce_em_consent_state(
-        data.get("embargo_consent_state", PEC.NO_EMBARGO)
+        data.get("embargo_consent_state", PEC.UNBOUND)
     )
     data["participant_statuses"] = [
         ParticipantStatus(

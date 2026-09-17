@@ -154,7 +154,7 @@ class _PublicDisclosureSkipConditionNode(DataLayerConditionWithPorts):
 
         # Check EM state directly (EMB-16-001): teardown is required for
         # ACTIVE, REVISE (terminate path) and PROPOSED (reject path).
-        # NO_EMBARGO and EXITED have nothing to tear down.
+        # NONE and EXITED have nothing to tear down.
         em_state = self._em_state(case)
         if em_state not in (EM.ACTIVE, EM.REVISE, EM.PROPOSED):
             return Status.SUCCESS

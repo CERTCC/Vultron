@@ -29,7 +29,7 @@ def em_state_in(state: EM) -> Type[ConditionCheck]:
     return state_in("q_em", state)
 
 
-EMinStateNone = em_state_in(EM.NO_EMBARGO)
+EMinStateNone = em_state_in(EM.NONE)
 EMinStateProposed = em_state_in(EM.PROPOSED)
 EMinStateActive = em_state_in(EM.ACTIVE)
 EMinStateRevise = em_state_in(EM.REVISE)

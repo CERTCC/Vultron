@@ -45,7 +45,7 @@ class ActorState(BaseModel):
     others: Dict = Field(default_factory=dict)
 
     q_rm: RM = RM.START
-    q_em: EM = EM.NO_EMBARGO
+    q_em: EM = EM.NONE
     q_cs: CS = CS.vfdpxa
 
     q_rm_history: List[RM] = Field(default_factory=list)
