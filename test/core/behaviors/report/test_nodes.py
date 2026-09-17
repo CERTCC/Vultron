@@ -219,6 +219,55 @@ def test_transition_rm_to_valid_from_invalid(
     bt_scenario.assert_rm_state(report.id_, RM.VALID, actor_id=actor.id_)
 
 
+def test_transition_rm_to_valid_no_participant_advance_when_link_blocked(
+    bt_scenario: BTTestScenario,
+    actor: VultronCaseActor,
+    report: VultronReport,
+    offer: VultronOffer,
+    case_with_participant: VulnerabilityCase,
+) -> None:
+    """No desync: a blocked link write must not advance the participant (#3267).
+
+    The link is seeded at ``RM.CLOSED`` — an illegal source for ``→ RM.VALID``.
+    Because ``TransitionRMtoValid`` validates the link *before* touching the
+    participant, the node fails and the participant stays at ``RM.RECEIVED``.
+    It is never left at ``RM.VALID`` ahead of a link that could not follow,
+    which is the permanent desync ``CheckRMStateValid`` (link-reading) would
+    otherwise expose.
+    """
+    from vultron.core.models.case_participant import CaseParticipant
+    from vultron.core.models.participant_status import (
+        participant_status_rm_state,
+    )
+
+    bt_scenario.seed(
+        VultronReportCaseLink(report_id=report.id_, rm_state=RM.CLOSED)
+    )
+
+    result = bt_scenario.run(
+        TransitionRMtoValid(
+            report_id=report.id_,
+            offer_id=offer.id_,
+            sender_actor_id=actor.id_,
+        ),
+        actor_id=actor.id_,
+        case_id=case_with_participant.id_,
+    )
+    bt_scenario.assert_failure(result)
+
+    # The link is untouched ...
+    bt_scenario.assert_rm_state(report.id_, RM.CLOSED)
+    # ... and, crucially, the participant was never advanced to VALID.
+    participant = bt_scenario.dl.read(
+        f"{case_with_participant.id_}/participants/vendor"
+    )
+    assert isinstance(participant, CaseParticipant)
+    assert (
+        participant_status_rm_state(participant.participant_status)
+        == RM.RECEIVED
+    )
+
+
 def test_transition_rm_to_closed_valid_from_invalid(
     bt_scenario: BTTestScenario,
     actor: VultronCaseActor,

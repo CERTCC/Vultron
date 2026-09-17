@@ -28,7 +28,7 @@ import pytest
 from py_trees.common import Status
 
 from vultron.core.behaviors.case.accept_invite_tree import (
-    CreateInviteeParticipantAtReceivedNode,
+    CreateInviteeParticipantNode,
     _SignEmbargoConsentLeafNode,
 )
 from vultron.core.models.activity import VultronActivity
@@ -228,7 +228,7 @@ def test_create_invitee_participant_reads_roles_from_accept_activity_when_invite
         activity=accept_activity,
     )
 
-    node = CreateInviteeParticipantAtReceivedNode(
+    node = CreateInviteeParticipantNode(
         case_id=_CM17_CASE_ID,
         invitee_id=_CM17_INVITEE_ID,
     )
@@ -278,7 +278,7 @@ def test_read_invite_roles_warns_when_invite_object_missing(
         object_=VultronObject(id_=_CM17_INVITE_ID, type_="Invite"),
         activity=accept_activity,
     )
-    node = CreateInviteeParticipantAtReceivedNode(
+    node = CreateInviteeParticipantNode(
         case_id=_CM17_CASE_ID,
         invitee_id=_CM17_INVITEE_ID,
     )
@@ -328,7 +328,7 @@ def test_read_invite_roles_warns_when_roles_field_absent(
         object_=VultronObject(id_=_CM17_INVITE_ID, type_="Invite"),
         activity=accept_activity,
     )
-    node = CreateInviteeParticipantAtReceivedNode(
+    node = CreateInviteeParticipantNode(
         case_id=_CM17_CASE_ID,
         invitee_id=_CM17_INVITEE_ID,
     )
@@ -378,7 +378,7 @@ def test_read_invite_roles_warns_and_recovers_on_typeerror(
         object_=VultronObject(id_=_CM17_INVITE_ID, type_="Invite"),
         activity=accept_activity,
     )
-    node = CreateInviteeParticipantAtReceivedNode(
+    node = CreateInviteeParticipantNode(
         case_id=_CM17_CASE_ID,
         invitee_id=_CM17_INVITEE_ID,
     )
@@ -396,3 +396,217 @@ def test_read_invite_roles_warns_and_recovers_on_typeerror(
         )
 
     assert result.status == Status.SUCCESS
+
+
+@pytest.mark.spec("CM-11-001")
+def test_invitee_birth_is_construct_attach_then_advance(
+    bt_scenario: BTTestScenario,
+) -> None:
+    """AC-4 (#3207): birth is construct → attach → advance-through-the-writer.
+
+    Between attach and advance the invitee participant reads ``RM.START``; only
+    the writer moves it to ``RM.RECEIVED``.  Pinning the intermediate state
+    guards against re-fusing the two halves of the transition — the #2548
+    family of bug that a detached, already-advanced participant reintroduced.
+    """
+    from vultron.core.behaviors.case.accept_invite_tree import (
+        AdvanceInviteeToReceivedNode,
+        PersistInviteeParticipantNode,
+    )
+    from vultron.core.models.participant_status import (
+        participant_status_rm_state,
+    )
+    from vultron.core.states.rm import RM
+
+    # The CaseActor runs this tree in its own store, so make it the harness's
+    # own actor — otherwise the write lands in a different per-actor store
+    # (ADR-0073) than the one this test reads from.
+    case_actor_id = bt_scenario.actor_id
+    invitee_id = "https://example.org/actors/invitee-birth"
+    case = VulnerabilityCase(
+        id_=f"{case_actor_id}/cases/birth-order",
+        attributed_to=case_actor_id,
+    )
+    bt_scenario.seed(case)
+
+    # Steps 1 (construct at RM.START) + 2 (attach and save).
+    create_then_persist = py_trees.composites.Sequence(
+        name="CreateThenPersist",
+        memory=True,
+        children=[
+            CreateInviteeParticipantNode(
+                case_id=case.id_, invitee_id=invitee_id
+            ),
+            PersistInviteeParticipantNode(
+                case_id=case.id_, invitee_id=invitee_id
+            ),
+        ],
+    )
+    result = bt_scenario.run(
+        create_then_persist,
+        actor_id=case_actor_id,
+        invitee_case=case,
+        invitee_already_participant=False,
+    )
+    assert result.status == Status.SUCCESS
+
+    participant_id = f"{case.id_}/participants/{invitee_id.split('/')[-1]}"
+    attached = bt_scenario.dl.read(participant_id)
+    assert isinstance(attached, CaseParticipant)
+    # AC-4: attached, but not yet advanced.
+    assert participant_status_rm_state(attached.participant_status) == RM.START
+
+    # Step 3 (advance): the writer moves it to RM.RECEIVED.
+    advance_result = bt_scenario.run(
+        AdvanceInviteeToReceivedNode(case_id=case.id_, invitee_id=invitee_id),
+        actor_id=case_actor_id,
+        invitee_already_participant=False,
+    )
+    assert advance_result.status == Status.SUCCESS
+
+    advanced = bt_scenario.dl.read(participant_id)
+    assert isinstance(advanced, CaseParticipant)
+    assert (
+        participant_status_rm_state(advanced.participant_status) == RM.RECEIVED
+    )
+
+
+def _seed_case_with_persisted_invitee(
+    bt_scenario: BTTestScenario, invitee_id: str
+) -> tuple[VulnerabilityCase, str]:
+    """Construct + persist an invitee (steps 1–2), leaving it at RM.START.
+
+    Returns the case and the persisted participant id.  Mirrors the interrupted
+    birth: the participant is durable at RM.START but not yet advanced.
+    """
+    case_actor_id = bt_scenario.actor_id
+    case = VulnerabilityCase(
+        id_=f"{case_actor_id}/cases/birth-resume",
+        attributed_to=case_actor_id,
+    )
+    bt_scenario.seed(case)
+    from vultron.core.behaviors.case.accept_invite_tree import (
+        CreateInviteeParticipantNode,
+        PersistInviteeParticipantNode,
+    )
+
+    result = bt_scenario.run(
+        py_trees.composites.Sequence(
+            name="CreateThenPersist",
+            memory=True,
+            children=[
+                CreateInviteeParticipantNode(
+                    case_id=case.id_, invitee_id=invitee_id
+                ),
+                PersistInviteeParticipantNode(
+                    case_id=case.id_, invitee_id=invitee_id
+                ),
+            ],
+        ),
+        actor_id=case_actor_id,
+        invitee_case=case,
+        invitee_already_participant=False,
+    )
+    assert result.status == Status.SUCCESS
+    participant_id = f"{case.id_}/participants/{invitee_id.split('/')[-1]}"
+    return case, participant_id
+
+
+def test_advance_invitee_retry_after_failure_completes_from_rm_start(
+    bt_scenario: BTTestScenario,
+) -> None:
+    """Issue #3283: retry advances a participant stranded at RM.START.
+
+    Birth commits in three steps.  If a prior run persisted the participant
+    (step 2) but its advance (step 3) failed, the retry sees
+    ``invitee_already_participant=True``.  A blanket skip would strand it at
+    RM.START forever (RM.START → RM.VALID is illegal), so the invitee could
+    never validate — the #2548 family AC-4 guards.  The advance must be
+    forward-only on the *actual* RM state: RM.START → RM.RECEIVED is legal, so
+    the retry completes the interrupted birth.
+    """
+    from vultron.core.behaviors.case.accept_invite_tree import (
+        AdvanceInviteeToReceivedNode,
+    )
+    from vultron.core.models.participant_status import (
+        participant_status_rm_state,
+    )
+    from vultron.core.states.rm import RM
+
+    invitee_id = "https://example.org/actors/invitee-strand"
+    case, participant_id = _seed_case_with_persisted_invitee(
+        bt_scenario, invitee_id
+    )
+    stranded = bt_scenario.dl.read(participant_id)
+    assert isinstance(stranded, CaseParticipant)
+    assert participant_status_rm_state(stranded.participant_status) == RM.START
+
+    # Retry with the resume flag set — the participant already exists.
+    result = bt_scenario.run(
+        AdvanceInviteeToReceivedNode(case_id=case.id_, invitee_id=invitee_id),
+        actor_id=bt_scenario.actor_id,
+        invitee_already_participant=True,
+    )
+    assert result.status == Status.SUCCESS
+
+    recovered = bt_scenario.dl.read(participant_id)
+    assert isinstance(recovered, CaseParticipant)
+    assert (
+        participant_status_rm_state(recovered.participant_status)
+        == RM.RECEIVED
+    ), "retry must complete the interrupted birth, not strand it at RM.START"
+
+
+def test_advance_invitee_resume_leaves_already_advanced_participant(
+    bt_scenario: BTTestScenario,
+) -> None:
+    """Issue #3283: a genuine backfill-resume does not re-advance or regress.
+
+    When the existing participant has already progressed to RM.RECEIVED or
+    beyond, the advance is skipped: forcing it back to RM.RECEIVED would be an
+    illegal backward transition, and re-advancing would append a redundant rung.
+    """
+    from vultron.core.behaviors.case.accept_invite_tree import (
+        AdvanceInviteeToReceivedNode,
+    )
+    from vultron.core.models.participant_status import (
+        participant_status_rm_state,
+    )
+    from vultron.core.states.rm import RM
+
+    invitee_id = "https://example.org/actors/invitee-resume"
+    case, participant_id = _seed_case_with_persisted_invitee(
+        bt_scenario, invitee_id
+    )
+
+    # First advance completes the birth: RM.START → RM.RECEIVED.
+    first = bt_scenario.run(
+        AdvanceInviteeToReceivedNode(case_id=case.id_, invitee_id=invitee_id),
+        actor_id=bt_scenario.actor_id,
+        invitee_already_participant=False,
+    )
+    assert first.status == Status.SUCCESS
+    after_first = bt_scenario.dl.read(participant_id)
+    assert isinstance(after_first, CaseParticipant)
+    assert (
+        participant_status_rm_state(after_first.participant_status)
+        == RM.RECEIVED
+    )
+    rungs_after_first = len(after_first.participant_statuses)
+
+    # Resume: the participant is already at RM.RECEIVED — skip, do not re-append.
+    second = bt_scenario.run(
+        AdvanceInviteeToReceivedNode(case_id=case.id_, invitee_id=invitee_id),
+        actor_id=bt_scenario.actor_id,
+        invitee_already_participant=True,
+    )
+    assert second.status == Status.SUCCESS
+    after_second = bt_scenario.dl.read(participant_id)
+    assert isinstance(after_second, CaseParticipant)
+    assert (
+        participant_status_rm_state(after_second.participant_status)
+        == RM.RECEIVED
+    )
+    assert (
+        len(after_second.participant_statuses) == rungs_after_first
+    ), "genuine backfill-resume must not append a redundant RM.RECEIVED rung"

@@ -45,6 +45,7 @@ from vultron.core.models.vultron_types import (
 )
 from vultron.core.states.rm import RM
 from vultron.enums.roles import CVDRole
+from test.support.participant_status import advance_participant_rm
 
 logger = logging.getLogger(__name__)
 
@@ -177,7 +178,7 @@ def _seed_mock_case(storage: dict) -> VulnerabilityCase:
         context=case.id_,
         case_roles=[CVDRole.VENDOR],
     )
-    participant.append_rm_state(RM.RECEIVED, _PERF_ACTOR_ID, case.id_)
+    advance_participant_rm(participant, RM.RECEIVED, _PERF_ACTOR_ID, case.id_)
     case.add_participant(participant)
     storage[case.id_] = case
     storage[participant.id_] = participant

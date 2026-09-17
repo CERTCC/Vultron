@@ -57,10 +57,21 @@ def test_render_recent_pages_excludes_draft_pages():
     assert "quick_reference" in out
 
 
-def test_render_recent_pages_keeps_undrafted_exception():
-    """The one file negated in draft_docs IS built, so keep it."""
-    out = render_recent_pages(["docs/reference/draft-vultron-spec.md"])
-    assert "](../../reference/draft-vultron-spec/)" in out
+def test_render_recent_pages_excludes_all_draft_prefixed():
+    """No draft_docs negations remain, so every ``draft-*`` page is excluded.
+
+    ``reference/draft-vultron-spec.md`` used to be negated in mkdocs.yml
+    ``draft_docs`` and therefore built; it was replaced by
+    ``reference/vultron-spec/`` in #3255 and the negation removed.
+    """
+    out = render_recent_pages(
+        [
+            "docs/reference/draft-vultron-spec.md",
+            "docs/reference/quick_reference.md",
+        ]
+    )
+    assert "draft-vultron-spec" not in out
+    assert "quick_reference" in out
 
 
 def test_render_recent_pages_excludes_developer_tree():

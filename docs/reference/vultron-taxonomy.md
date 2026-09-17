@@ -441,6 +441,6 @@ These labels were candidates for this taxonomy but did not survive review.
 ## Related Documents
 
 - [Glossary](glossary.md) — domain terminology for the Vultron protocol and reference implementation
-- [Draft Vultron Protocol Specification](draft-vultron-spec.md) — normative protocol specification including capability sets and role taxonomy
+- [Vultron Protocol Specification](vultron-spec/index.md) — normative protocol specification including capability sets and role taxonomy
 - ADR-0024 — Coordination Agent Taxonomy (original "agent shapes" decision; capability shapes is the updated name)
 - ADR-0038 — Four-Tier Specification Taxonomy (how specification files are classified)

@@ -148,9 +148,10 @@ def create_validate_report_subtree(
     action_children: list[py_trees.behaviour.Behaviour] = []
     if emit:
         # The emit is masked by a Success fallback because emit failure was
-        # already tolerated by design: ValidateCaseUseCase builds its BTBridge
-        # without a TriggerActivityPort, and ADR-0066 gives the outbox its own
-        # retry path.  Without the mask those callers would regress to FAILURE.
+        # already tolerated by design: callers that run this tree without a
+        # TriggerActivityPort (e.g. the received-validate path) still succeed,
+        # and ADR-0066 gives the outbox its own retry path.  Without the mask
+        # those callers would regress to FAILURE.
         action_children.append(
             py_trees.composites.Selector(
                 name="MaybeEmitValidateReport",

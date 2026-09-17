@@ -619,15 +619,23 @@ The general shape: **a model that auto-seeds a field on construction turns
 "leave it alone." Check every constructor call for a type with `mode="before"`
 seeding validators.
 
-ADR-0089 removes both `append_rm_state()` mutators, so the two named
-counter-examples are gone — but the rule is about *constructor calls*, not about
-those methods, and it still binds every `ParticipantStatus(...)` site.
+ADR-0089 removed both `append_rm_state()` mutators — the core one on
+`CaseParticipant` and its wire twin on `as_CaseParticipant` — so the two named
+counter-examples no longer exist. But the rule is about *constructor calls*, not
+about those methods, and it still binds every `ParticipantStatus(...)` site.
 `_init_participant_status_if_empty` (core, seeds `RM.START`) and
 `_set_accepted_status` (on `ReporterParticipant` and
 `FinderReporterParticipant`, seeds `RM.ACCEPTED`) are still live seeding
-validators. The two copies of `_set_accepted_status` are byte-identical — a
-straight copy-paste duplicate and an ARCH-15-004 / CS-22-001 violation in its own
-right; ADR-0089's work de-duplicates them.
+validators. `_set_accepted_status` was two byte-identical copies — a
+copy-paste duplicate and an ARCH-15-004 / CS-22-001 violation in its own right;
+ADR-0089 de-duplicated them into the shared module-level `_seed_accepted_status`
+helper that both validators now delegate to.
+
+Test arrange sites that used to call `append_rm_state()` to place a participant
+at an RM state now go through the `advance_participant_rm` helper in
+`test/support/participant_status.py`, which appends through the public
+`add_participant_status()` door (PRM-03-003) and reproduces the same vendor/
+deployer carry-forward.
 
 ### Pitfall: a forced promotion runs after validation
 

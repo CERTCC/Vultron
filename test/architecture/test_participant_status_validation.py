@@ -47,12 +47,33 @@ _VALIDATING_NODE_MODULES: tuple[str, ...] = (
     "vultron/core/behaviors/case/nodes/participant/status.py",
 )
 
-# Modules that validate a transition and write a ParticipantStatus but are
-# deliberately outside the shared evaluator's domain.  Each needs a reason, and
-# `test_no_undeclared_participant_status_validator` fails when a module joins
-# the population without appearing here or in _VALIDATING_NODE_MODULES.
+# Modules in vultron/core/behaviors/ that construct a participant dimension but
+# are deliberately outside the shared evaluator's domain.  Each needs a reason,
+# and `test_no_undeclared_participant_status_validator` fails when a module
+# joins the population without appearing here or in _VALIDATING_NODE_MODULES.
 #
-# The divergence these exclusions record is tracked as type:Concern #3111.
+# There are two kinds of entry here, and only the first kind is a *writer*:
+#
+#   1. WRITER exclusions (exactly two, ADR-0089 AC-7): `_adjudication.py` (the
+#      receive path) and `participant_status_effect.py` (the replica-apply
+#      path).  Both genuinely write a ParticipantStatus but under a different
+#      disposition than the emit evaluator, so they legitimately do not route
+#      through it.  These are the "exactly two" the ADR-0089 end state names.
+#      The former `models/case_participant.py` writer entry is gone: ADR-0089
+#      deleted `CaseParticipant.append_rm_state`, so the model no longer writes
+#      a ParticipantStatus at all (and models/ is outside this scan regardless).
+#
+#   2. NON-WRITER over-catch (permanent, ADR-0089).  The gate fires on *any*
+#      participant-dimension construction so a writer cannot escape it by
+#      validating less; the price is that it also catches read-side, guard-side
+#      and CaseStatus-writing modules that never write a ParticipantStatus
+#      (`common.py`, `deploy_fix.py`, `develop_fix_conditions.py`,
+#      `case_status.py`, `cs_dimension_filter.py`).  These are declared
+#      permanently rather than narrowing the gate — a narrower gate keyed on the
+#      store site is exactly what a real writer could dodge, which is the
+#      failure mode this ratchet exists to remove.
+#
+# The divergence the WRITER exclusions record is tracked as type:Concern #3111.
 _DECLARED_EXCLUSIONS: dict[str, str] = {
     # Receive path, not emit path.  It MUST NOT use the emit evaluator: it
     # adjudicates each dimension independently and carries the participant's

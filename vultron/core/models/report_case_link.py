@@ -26,7 +26,25 @@ from vultron.core.states.rm import RM
 
 
 class VultronReportCaseLink(VultronObject):
-    """Track the case associated with a submitted vulnerability report."""
+    """Track the case associated with a submitted vulnerability report.
+
+    The DataLayer id is derived from ``report_id`` alone (:meth:`build_id`), so
+    a store holds exactly **one** link per report.  ``rm_state`` is therefore
+    report-scoped *per store*, not per actor.
+
+    That is not an isolation gap, because ADR-0073 gives every hosted actor its
+    own store and forbids two actors sharing one DataLayer (a shared
+    multi-tenant store is the anti-pattern that decision removes; PCR-01-003).
+    Under per-actor isolation "one link per report per store" already means
+    "one link per report per actor", so each coordinator progresses its own
+    report RM state independently.
+
+    Co-locating two distinct coordinators in a **single** DataLayer is
+    unsupported: they would collide on this one record and one actor's advance
+    would block the other's (issue #3266).  Coordinators that must both handle a
+    report run as separate actors with separate stores and exchange state only
+    through protocol messages (PCR-01-003), never a shared link.
+    """
 
     type_: Literal["ReportCaseLink"] = Field(  # type: ignore[assignment]
         default="ReportCaseLink",
