@@ -1,13 +1,17 @@
 # Future Work
 
-This section covers design areas that Vultron anticipates and does not yet implement.
-It exists so that a reader can tell the difference between a capability the protocol rules out and one that has not been built yet.
-Almost everything here falls in the second category.
+This section gives the design areas that Vultron plans but does not supply.
+It lets you find the difference between two conditions.
+In the first condition, the protocol excludes a capability.
+In the second condition, the project has not built the capability.
+Almost all of the content in this section is in the second condition.
 
-The prototype demonstrates coordination logic.
-It is not a deployable service, and several of the things a deployment would need — message signing, encryption, actor discovery, multi-instance federation — are described here rather than implemented.
-Where a design exists, this section says so and points at it.
-Where the decision is genuinely open, it says that instead.
+The prototype shows the coordination logic of the protocol.
+It is not a service for deployment.
+A deployment needs message signing, encryption, actor discovery, and federation across instances.
+This section gives those subjects, and the prototype does not supply them.
+Where a design exists, this section identifies it.
+Where the design is open, this section says so.
 
 <div class="grid cards" markdown>
 
@@ -18,8 +22,12 @@ Where the decision is genuinely open, it says that instead.
 
 ## How to read this section
 
-Statements about what a deployment must do carry a requirement identifier, and those requirements live in the specifications with `scope: production`.
-They describe an obligation that the prototype does not yet meet.
+A statement about the obligations of a deployment gives a requirement identifier.
+Those requirements are in the specifications, and each one has `scope: production`.
+The prototype does not obey them.
 
-Open questions appear as call-outs, inline at the point where they first matter and collected on the [Open questions](open_questions.md) page.
-Each names the issue or epic where it is tracked, so a reader who wants the current state of a discussion can find it.
+Open questions are in call-out boxes.
+Each open question is at the point in the text where it first applies.
+The [Open questions](open_questions.md) page also collects all of them.
+Each open question identifies the issue or the epic that records it.
+You can go to that issue or epic for the current condition of the discussion.

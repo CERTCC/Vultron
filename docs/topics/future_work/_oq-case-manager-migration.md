@@ -1,16 +1,28 @@
-!!! warning "Open question: where does the enacting actor live after ownership transfers?"
+!!! warning "Open question: where is the enacting actor after an ownership transfer?"
 
-    Case ownership transfer moves the `CASE_OWNER` role from one actor to another through an `Offer` and `Accept` handshake routed through the CASE_MANAGER (ADR-0053).
-    That handshake does not settle where the actor *enacting* CASE_MANAGER lives afterward.
-    If the new owner's organization is to administer the case, the enacting actor either moves to that organization or stays where it is and keeps the previous one involved.
+    A case ownership transfer moves the `CASE_OWNER` role from one actor to another actor.
+    It uses an `Offer` and `Accept` handshake through the CASE_MANAGER (ADR-0053).
+    The handshake does not set the location of the actor that enacts CASE_MANAGER.
+    If the organization of the new owner administers the case, there are two results.
+    The enacting actor moves to that organization, or it stays in position and the previous organization continues to hold a part in the case.
 
-    Four options are open, and none has been chosen.
-    **Migration** changes the actor's URI and notifies every participant.
-    It is clean, and it has to account for messages already in flight and for replicas that still address the old URI.
-    **Proxying** leaves the previous instance forwarding to the new one.
-    It is simple until ownership transfers a second time and the forwarding chain grows.
-    **An HTTP 301 redirect paired with an AS2 `Move`** keeps the original URI canonical while a new instance answers it, and borrows a mechanism ActivityPub already defines for actor migration.
-    **Provisioning a fresh actor** and freezing the previous one is the least work to build and the most disruptive to verification, because new key material breaks signature continuity across the transfer.
+    There are four possible methods, and the project has not selected one.
 
-    The redirect option looks most pragmatic on current evidence.
-    That is a working preference, not a decision.
+    **Migration** changes the URI of the actor and tells each participant the new URI.
+    This method is clear.
+    It also controls the messages that are in transit and the replicas that use the previous URI.
+
+    **A proxy** keeps the previous instance, which forwards each message to the new instance.
+    This method is simple.
+    But if a second ownership transfer occurs, the chain of proxies becomes longer.
+
+    **An HTTP 301 redirect with an AS2 `Move`** keeps the initial URI as the canonical URI.
+    A new instance answers at that URI.
+    ActivityPub defines this mechanism for actor migration.
+
+    **A new actor**, with the previous actor in a frozen condition, is the minimum work to build.
+    It is also the largest risk to verification.
+    New key material breaks the continuity of signatures across the transfer.
+
+    The redirect method is the most practical method from the current data.
+    This is a working preference, not a decision.

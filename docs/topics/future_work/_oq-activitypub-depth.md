@@ -1,13 +1,24 @@
-!!! warning "Open question: how deep into ActivityPub should a deployment go?"
+!!! warning "Open question: how much of ActivityPub does a deployment implement?"
 
-    Vultron adopts AS2 as its message vocabulary and borrows ActivityPub's actor, inbox, and outbox primitives.
+    Vultron uses AS2 as its message vocabulary.
+    It also uses the actor, inbox, and outbox primitives from ActivityPub.
     The prototype stops there.
-    It does not implement the rest of the ActivityPub server surface: no NodeInfo document, no publicly readable outbox collection, no followers or following collections, no shared inbox, and no client-to-server API.
+    It does not supply the other parts of an ActivityPub server:
 
-    None of that is ruled out.
-    The prototype did not need it to demonstrate coordination between known peers, so the depth of ActivityPub conformance a production deployment should target is still open.
-    The trade-off is interoperability with existing fediverse infrastructure against the cost of implementing and securing endpoints that a closed set of trusted peers never reads.
+    - a NodeInfo document
+    - a public outbox collection
+    - followers and following collections
+    - a shared inbox
+    - a client-to-server API
 
-    Two paths are under consideration ([#2068](https://github.com/CERTCC/Vultron/issues/2068)).
-    A deployment can harden the existing AS2 endpoints toward full ActivityPub conformance, or it can layer Vultron on top of an existing ActivityPub server and act as an application above it.
-    Conformance test coverage, maintainability, fit with the behavior-tree core, and deployment footprint are the criteria for choosing.
+    The project does not reject these parts.
+    The prototype does not need them to show coordination between known peers.
+    Thus the correct depth of ActivityPub conformance for a production deployment is open.
+    Full conformance gives interoperability with existing fediverse tools.
+    It also has a cost.
+    A deployment makes endpoints that a closed group of trusted peers does not read, and it gives them protection.
+
+    There are two possible paths ([#2068](https://github.com/CERTCC/Vultron/issues/2068)).
+    A deployment can make the current AS2 endpoints fully conformant to ActivityPub.
+    As an alternative, it can put Vultron above an existing ActivityPub server.
+    Four criteria apply to this selection: conformance test coverage, maintainability, agreement with the behavior-tree core, and deployment footprint.

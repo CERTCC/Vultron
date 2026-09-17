@@ -1,16 +1,23 @@
 !!! warning "Open question: how do actors find each other?"
 
-    Coordination starts with one party being able to reach another.
-    An actor needs a peer's inbox address, and eventually its public key, its embargo policy, and its disclosure policy.
-    Nothing in the protocol says how any of that is found.
+    Coordination starts when one party can contact another.
+    An actor needs the inbox address of a peer.
+    It also needs the public key of that peer, its embargo policy, and its disclosure policy.
+    The protocol does not say how an actor finds this data.
 
-    Discovery has two levels, and both are open.
-    At the actor level, resolving a name to an actor profile is the missing step, and something WebFinger-compatible is the likely shape because it fits existing fediverse tooling and the profile record is already an ActivityStreams actor with a small number of Vultron extensions ([#1189](https://github.com/CERTCC/Vultron/issues/1189)).
-    At the instance level, a voluntary public registry would let operators find each other at all, which is desirable and secondary to the peering protocol itself.
+    Discovery has two levels, and the two levels are open.
+    At the actor level, an actor cannot resolve a name to an actor profile.
+    A WebFinger-compatible mechanism is the expected shape, because it fits existing fediverse tools ([#1189](https://github.com/CERTCC/Vultron/issues/1189)).
+    The profile record is already an ActivityStreams actor with a small number of Vultron extensions.
+    At the instance level, a voluntary public registry lets operators find each other at all.
+    A registry is useful, but it is secondary to the peering protocol.
 
-    A registry raises questions the peering protocol does not.
-    Who operates one is unsettled, and a neutral foundation, a git repository, and a DNS zone are all plausible answers.
-    So is whether it carries only domain names, with trust verified through DNS TXT records, or richer metadata, and how stale or offline instances are retired from it.
+    A registry has questions that the peering protocol does not have.
+    The operator of a registry is unsettled, and a neutral foundation, a git repository, and a DNS zone are all possible answers.
+    The content is also unsettled.
+    A registry can hold only domain names, with DNS TXT records as the trust anchor, or it can hold more data.
+    The method to retire stale or offline instances is a third open point.
 
-    Demo deployments sidestep all of this by telling every container the URL of every other container at boot (CP-08-003).
-    That is a stand-in for a directory service, and it is documented as one.
+    Demo deployments do not have this problem.
+    Each container receives the URL of each other container at start-up (CP-08-003).
+    This is an alternative to a directory service, and the specification records it as one.

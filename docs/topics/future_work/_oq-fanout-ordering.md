@@ -1,10 +1,15 @@
-!!! warning "Open question: how strong do the ordering guarantees need to be?"
+!!! warning "Open question: how strong are the necessary ordering guarantees?"
 
-    Fan-out is not instantaneous.
-    When the CASE_MANAGER relays a journal entry to Participants across several instances, those Participants can see activities in different orders for a while.
+    Fan-out does not occur immediately.
+    The CASE_MANAGER relays a journal entry to Participants on more than one instance.
+    For a short time, those Participants can see the activities in different sequences.
 
-    Eventual consistency looks sufficient, and the protocol should be built so that nothing depends on arrival order.
-    The journal sequence numbers carry the ordering, so a Participant that receives entries 1, 2, 3, and 5 can detect that 4 is missing and pull the gap rather than act on an incomplete history.
-    Gap detection replaces delivery ordering.
+    Eventual consistency is sufficient.
+    No part of the protocol uses the sequence of arrival.
+    The journal sequence numbers hold the correct sequence.
+    A Participant that receives entries 1, 2, 3, and 5 finds that entry 4 is missing.
+    It then pulls the missing entry, and it does not use a history that has missing entries.
+    Gap detection replaces delivery order.
 
-    What has not been tested is whether any coordination decision genuinely needs a stronger guarantee than that.
+    One point is not tested.
+    The project does not know if a coordination decision needs a stronger guarantee than eventual consistency.

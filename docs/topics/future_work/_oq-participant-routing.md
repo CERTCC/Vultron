@@ -1,14 +1,17 @@
 !!! warning "Open question: which activities does each Participant receive?"
 
-    A Participant carries case-scoped roles, and those roles should govern which case activities reach that Participant.
-    An Observer plausibly needs less than a Vendor with fix obligations.
-    The rules have not been written.
+    A Participant holds case-scoped roles.
+    These roles control which case activities go to that Participant.
+    An Observer possibly receives fewer activities than a Vendor that has fix obligations.
+    The project has not written these rules.
 
-    Two placements are possible.
-    The routing policy can live on the Participant, as metadata each activity is tested against.
-    It can instead live with the CASE_MANAGER, as a role-based rule set applied at fan-out time.
-    The second is more consistent, because it keeps one actor answerable for what every Participant knows.
+    There are two possible locations for the routing policy.
+    The policy can be on the Participant, as metadata for a test against each activity.
+    As an alternative, the policy can be with the CASE_MANAGER, as a set of role-based rules for fan-out.
+    The second location agrees better with the other parts of the protocol.
+    It keeps one actor responsible for the knowledge of each Participant.
 
-    Either way the CASE_MANAGER's fan-out stays a plain loop over Participants, and the decision about whether a given activity is relayed sits inside the per-Participant send.
-    A prototype can relay everything to everyone and remain correct.
-    The structure has to leave room for a real rule set later.
+    For the two locations, the fan-out of the CASE_MANAGER continues to be a simple loop across the Participants.
+    The per-Participant send makes the decision to relay an activity or not to relay it.
+    A prototype can relay each activity to each Participant and stay correct.
+    But the structure gives space for a complete set of rules.

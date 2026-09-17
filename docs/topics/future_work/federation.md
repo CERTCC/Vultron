@@ -1,35 +1,41 @@
 # Federation
 
-Vultron is designed for a world in which each organization runs its own coordination service.
-This page explains the federation model those services would use: what they exchange, which actor is authoritative for a case, and how two organizations come to trust each other well enough to coordinate.
+Vultron has a design for a world in which each organization operates its own coordination service.
+This page gives the federation model for those services.
+It tells you which data the services interchange, which actor has authority for a case, and how two organizations make sufficient trust to coordinate.
 
-None of it is implemented.
-The prototype runs several actors inside a single deployment, so what follows is a design direction rather than a description of working code.
-The open questions marked throughout are unresolved, and each one names where it is tracked.
+The project has not built this model.
+The prototype operates more than one actor in a single deployment.
+Therefore this page gives a design direction, not a description of code that operates.
+Each open question in the text is unresolved, and each one identifies the issue that records it.
 
 ---
 
 ## Federation between known peers, not open-web broadcast
 
 The federation model is closer to email or to Matrix homeservers than to a public social network.
-Each organization deploys a service that acts as a gateway between its own internal tracker and the shared Vultron protocol.
-Neither side needs to know anything about the other's internal systems.
-Both need to speak the same protocol.
+Each organization operates a service.
+That service is a gateway between the internal tracker of the organization and the Vultron protocol.
+Neither organization needs data about the internal systems of the other organization.
+Both organizations speak the same protocol.
 
-Federation is bilateral or multilateral between parties that already know each other.
+Federation occurs between two parties or more parties that know each other.
 It is not open-web discovery, and it is not public broadcast.
-Two organizations coordinate because a human relationship or an inbound report brought them together, and the protocol carries the coordination from there.
-This shapes almost every design choice below: a closed set of known peers can rely on out-of-band trust establishment, and has no need for the machinery that public federation requires.
+A human relationship or an inbound report puts two organizations together, and the protocol then carries the coordination.
+This condition controls almost all of the design decisions on this page.
+A closed group of known peers can use out-of-band trust, and it does not need the mechanisms of public federation.
 
 ---
 
 ## AS2 supplies the vocabulary
 
-Vultron uses ActivityStreams 2.0 (AS2) as the semantic vocabulary for every coordination message.
-An AS2 activity is a sentence about who did what to what, and when.
-Vultron's own object and activity types are declared as AS2 vocabulary extensions through a JavaScript Object Notation for Linked Data (JSON-LD) `@context`.
+Vultron uses ActivityStreams 2.0 (AS2) as the semantic vocabulary for each coordination message.
+An AS2 activity is a sentence: it gives the actor, the object, and the time of one event.
+Vultron declares its own object types and activity types as AS2 vocabulary extensions.
+It uses a JavaScript Object Notation for Linked Data (JSON-LD) `@context` for these declarations.
 
-This is an adoption of AS2 as a message format, not an adoption of ActivityPub as a social protocol.
+Vultron uses AS2 as a message format.
+It does not use ActivityPub as a social protocol.
 
 {% include-markdown "./_oq-activitypub-depth.md" %}
 
@@ -37,27 +43,33 @@ This is an adoption of AS2 as a message format, not an adoption of ActivityPub a
 
 ## Actors, inboxes, and outboxes
 
-Vultron takes the AS2 actor model as its coordination primitive.
-An actor is any peer identified by a Uniform Resource Identifier (URI), and it has an inbox that receives activities and an outbox that publishes them.
-A deployment carries instance-level actors for peering and for first contact from strangers.
+Vultron uses the AS2 actor model as its coordination primitive.
+An actor is a peer with a Uniform Resource Identifier (URI).
+Each actor has an inbox, which receives activities, and an outbox, which sends them.
+A deployment also has instance-level actors for peering and for first contact from an unknown party.
 
-Case coordination is handled by whichever actor holds `CVDRole.CASE_MANAGER` for that case.
-Authority follows the role and nothing else (ADR-0088, CM-02-011).
-An actor's name, its URL shape, and where it is hosted carry no protocol meaning.
+The actor that holds `CVDRole.CASE_MANAGER` for a case coordinates that case.
+Authority comes from the role and from nothing else (ADR-0088, CM-02-011).
+The name of an actor, the shape of its URL, and its host have no protocol meaning.
 
-The prototype provisions a dedicated container actor for this purpose and labels it `case-actor`.
-That label is a provisioning convenience (CM-02-013).
-A single such actor can hold the role for many cases at once, because the case a given activity belongs to travels in the activity's `context` rather than in the actor's URI.
-A deployment may instead provision one CASE_MANAGER actor per case through a case actor service.
-That choice is open, and it has consequences beyond hosting — key material binds to an actor identity, so the number of cases an actor serves determines how much cryptographic separation exists between them.
+The prototype supplies a dedicated container actor for this function and gives it the name `case-actor`.
+That name is a convenience (CM-02-013).
+One such actor can hold the role for many cases at the same time.
+The `context` field of an activity identifies the case, and the URI of the actor does not identify it.
+
+As an alternative, a deployment can use a case actor service to supply one CASE_MANAGER actor for each case.
+This selection is open, and it has an effect on more than the host.
+Key material applies to an actor identity.
+Thus the quantity of cases that one actor holds sets the cryptographic separation between those cases.
 
 ---
 
-## What a case looks like across instances
+## The parts of a case across instances
 
 A case is a container for participants, reports, status, and history.
-A Participant is a case-scoped wrapper that points at a global Actor and carries the roles and authorization that actor holds *in this case*.
-The distinction matters because one actor participates in many cases, holding different roles in each.
+A Participant is a case-scoped record that refers to a global Actor.
+It holds the roles and the authorization of that actor *in this case*.
+This difference is important, because one actor participates in many cases and holds different roles in each case.
 
 ```mermaid
 ---
@@ -83,20 +95,22 @@ classDiagram
     Participant "*" --> "1" Actor : identifies
 ```
 
-The diagram shows that Participants are the join between long-lived Actors and individual Cases.
-An Actor exists independently of any case.
-A Participant exists only within one.
+The diagram shows that a Participant connects a long-life Actor to one Case.
+An Actor exists independently of a case.
+A Participant exists only in one case.
 
 ---
 
 ## Case ownership
 
-The `attributed_to` field on a case designates the instance that currently owns it.
-Ownership is unambiguous, because exactly one instance holds it at any moment.
-Transfer follows an `Offer` and `Accept` cycle, after which `attributed_to` is updated, and the full ownership history is recoverable from the case's activity history.
+The `attributed_to` field of a case identifies the instance that owns the case.
+Ownership is unambiguous, because only one instance holds it at a given time.
+A transfer uses an `Offer` and `Accept` cycle.
+After the cycle, the instances change the `attributed_to` field.
+The activity history of the case gives the full history of ownership.
 
-Any participant instance can create a case from a report.
-The creating instance owns what it created until ownership transfers.
+Each participant instance can make a case from a report.
+The instance that makes the case owns it until an ownership transfer occurs.
 
 {% include-markdown "./_oq-case-manager-migration.md" %}
 
@@ -104,7 +118,7 @@ The creating instance owns what it created until ownership transfers.
 
 ## From report to case
 
-First contact is the only exchange that happens outside a case, because no case exists yet.
+First contact is the only interchange that occurs when no case exists.
 
 ```mermaid
 ---
@@ -125,32 +139,34 @@ sequenceDiagram
     CM->>A: relayed activities from other Participants
 ```
 
-The diagram shows the transition from a single cold-contact message to steady-state coordination.
-After the Reporter's replica is seeded, every later message is case-scoped and routes through the CASE_MANAGER.
+The diagram shows the change from one cold-contact message to steady-state coordination.
+After the Reporter has a replica, each subsequent message is case-scoped and goes through the CASE_MANAGER.
 
 {% include-markdown "./_oq-report-object-model.md" %}
 
 ---
 
-## Case traffic routes through the CASE_MANAGER
+## Case traffic goes through the CASE_MANAGER
 
-Once a case exists, all case communication consists of direct messages between individual Participant actors and the CASE_MANAGER.
-Nothing is published publicly.
-Participants do not message each other directly (PCR-08-001, PCR-08-002).
+After a case exists, all case communication is a set of direct messages.
+These messages go between each Participant actor and the CASE_MANAGER.
+The protocol publishes no case data in public.
+Participants do not send messages directly to each other (PCR-08-001, PCR-08-002).
 
-Routing everything through one actor buys four properties at the cost of a relay hop.
-The CASE_MANAGER can enforce authorization, because it sees every message and knows every Participant's roles.
-It can attest to ordering, because it assigns each entry its position.
-Participants cannot spoof messages to each other, because a message that did not come from the CASE_MANAGER is not case traffic.
-And every Participant's view of the case derives from one authoritative sequence rather than from whatever happened to reach it.
+One relay through one actor gives four properties, at the cost of one more network step.
+The CASE_MANAGER can apply authorization, because it sees each message and knows the roles of each Participant.
+It can also attest to the sequence, because it gives each entry its position.
+A Participant cannot send a message that seems to come from a different Participant, because only the CASE_MANAGER sends case traffic.
+The view of each Participant also comes from one authoritative sequence, and not from the messages that arrive.
 
 {% include-markdown "./_oq-participant-routing.md" %}
 
 ---
 
-## Relaying with Announce
+## Relay with Announce
 
-When the CASE_MANAGER passes a Participant's activity on to the other Participants, it wraps the original in an AS2 `Announce` and signs the wrapper.
+The CASE_MANAGER sends the activity of one Participant to the other Participants.
+It puts the initial activity in an AS2 `Announce` and signs the `Announce`.
 
 ```json
 {
@@ -174,12 +190,14 @@ When the CASE_MANAGER passes a Participant's activity on to the other Participan
 }
 ```
 
-Two signatures do two jobs.
-The inner signature proves the activity originated with the Participant who claims it.
-The outer signature proves the authoritative hub received and relayed it, at a stated position in the case history.
-A recipient verifies each independently, so a relayed message is not hearsay.
+The two signatures have two different functions.
+The inner signature shows that the activity came from the Participant that claims it.
+The outer signature shows that the authoritative hub received the activity and relayed it, at a known position in the case history.
+A recipient verifies each signature independently.
+The relayed message is thus reliable data, and not a report at second hand.
 
-The `journalSeq` and `journalPrev` fields let a recipient place the relayed activity in its local replica immediately, without waiting for a synchronization pass.
+The `journalSeq` and `journalPrev` fields let a recipient put the relayed activity in its local replica immediately.
+The recipient does not wait for a synchronization cycle.
 
 {% include-markdown "./_oq-message-security.md" %}
 
@@ -187,20 +205,24 @@ The `journalSeq` and `journalPrev` fields let a recipient place the relayed acti
 
 ## The case journal and the delivery log
 
-The CASE_MANAGER maintains two collections, exposed as AS2 named streams, and they serve different purposes.
+The CASE_MANAGER keeps two collections and shows them as AS2 named streams.
+The two collections have different functions.
 
-| Collection | Contains | Synchronized |
+| Collection | Content | Synchronized |
 |---|---|---|
-| Case journal (`/outbox`) | Sequenced, hash-chained record of meaningful case events | Yes — this is the replication target |
-| Delivery log (`/streams/delivery`) | The `Announce` relays, recording what was sent to whom and when | No |
+| Case journal (`/outbox`) | Sequenced hash-chained record of the case events | Yes — this is the replication target |
+| Delivery log (`/streams/delivery`) | The `Announce` relays, with the recipient and the time of each one | No |
 
-The case journal is append-only, and each entry carries the hash of its predecessor, which makes the log tamper-evident.
-It holds the events that constitute the case: `Create`, `Update`, `Offer`, `Accept`, `Add`, `Remove`, and the rest.
-Only journal entries consume sequence positions.
+The case journal is append-only.
+Each entry holds the hash of the entry before it, which keeps the journal tamper-evident.
+The journal holds the events of the case: `Create`, `Update`, `Offer`, `Accept`, `Add`, `Remove`, and the others.
+Only journal entries use sequence positions.
 
-The delivery log is operational.
-It supports debugging, retry tracking, and delivery verification, and it can be pruned or archived without affecting case integrity.
-It is also much noisier than the journal: one `Note` sent to twenty Participants produces one journal entry and twenty delivery log entries.
+The delivery log is a tool for operators.
+It gives data for diagnosis, for retry control, and for delivery verification.
+An operator can remove or archive the delivery log, and the integrity of the case stays correct.
+The delivery log is also much larger than the journal.
+One `Note` to twenty Participants makes one journal entry and twenty delivery log entries.
 
 {% include-markdown "./_oq-distributed-ledger.md" %}
 
@@ -208,16 +230,19 @@ It is also much noisier than the journal: one `Note` sent to twenty Participants
 
 ---
 
-## Keeping replicas consistent
+## Consistency of the replicas
 
-Each Participant maintains a local replica of the case, and the CASE_MANAGER pushes to it.
-Journal activities are delivered as they occur, carrying `journalSeq` and `journalPrev` so the recipient can order them on arrival.
-Because each entry chains to its predecessor and is signed by the CASE_MANAGER, a Participant can verify the integrity and the authenticity of the stream as it arrives rather than trusting the transport.
+Each Participant keeps a local replica of the case, and the CASE_MANAGER pushes each change to it.
+The CASE_MANAGER sends each journal activity at the time of the event.
+Each activity holds `journalSeq` and `journalPrev`, and the recipient uses these fields to put the activity in sequence.
+Each entry also connects to the entry before it, and the CASE_MANAGER signs it.
+A Participant can thus verify the integrity and the authenticity of the stream on arrival, and it does not trust the transport.
 
-Push is the primary path and it is not the only one.
-A Participant tracks the sequence numbers it has seen, and a discontinuity means an entry is missing.
-It then pulls the CASE_MANAGER's `/outbox` — a paginated AS2 `OrderedCollection` — to fill the gap.
-Pull reconciliation is the fallback, and the CASE_MANAGER restricts it to active Participants of that case.
+Push is the primary path, and it is not the only path.
+A Participant records the sequence numbers that it received.
+A discontinuity in those numbers shows that an entry is absent.
+The Participant then pulls the `/outbox` of the CASE_MANAGER, which is a paginated AS2 `OrderedCollection`.
+Pull reconciliation is the alternative path, and the CASE_MANAGER permits it only for the active Participants of that case.
 
 {% include-markdown "./_oq-fanout-ordering.md" %}
 
@@ -225,24 +250,32 @@ Pull reconciliation is the fallback, and the CASE_MANAGER restricts it to active
 
 ## Instance identity and trust
 
-Instances communicate over Hyper Text Transfer Protocol Secure (HTTPS) with authenticated transport.
-Mutual Transport Layer Security (mTLS) between instances is the preferred mechanism, because it authenticates at the transport layer without per-message overhead.
-Activities are also signed with actor key pairs, so non-repudiation survives independently of how the bytes traveled.
+Instances send messages on Hyper Text Transfer Protocol Secure (HTTPS) with authenticated transport.
+Mutual Transport Layer Security (mTLS) between instances is the preferred mechanism.
+It authenticates at the transport layer, and it adds no work to each message.
+Each actor also signs its activities with its key pair.
+The transport thus has no effect on non-repudiation.
 
-Trust in an instance's identity is anchored in the Domain Name System (DNS), on the model of DomainKeys Identified Mail (DKIM) and Mail Exchanger (MX) records for email.
+The Domain Name System (DNS) holds the trust anchor for the identity of an instance.
+This model follows DomainKeys Identified Mail (DKIM) and Mail Exchanger (MX) records for email.
 
-1. The operator publishes a DNS TXT record at their domain carrying the instance public key fingerprint.
-2. Two operators exchange domain names out of band, through human channels.
-3. The connecting instance reads the peer's DNS TXT record and notes the fingerprint.
-4. It fetches `/.well-known/vultron-meta.json` for the full public key, the inbox URL, and the supported vocabulary extensions.
-5. It verifies the fetched key against the fingerprint from DNS.
-6. It posts a signed `Follow` activity to the peer's instance inbox.
-7. The peer verifies reciprocally and answers with `Accept` or `Reject`.
-8. Both sides store a local record of the peering.
+1. The operator publishes a DNS TXT record at its domain with the fingerprint of the instance public key.
+2. Two operators interchange domain names out of band, through human channels.
+3. The instance that connects reads the DNS TXT record of the peer and records the fingerprint.
+4. It gets `/.well-known/vultron-meta.json`, which holds the full public key, the inbox URL, and the vocabulary extensions.
+5. It compares the public key against the fingerprint from DNS.
+6. It sends a signed `Follow` activity to the instance inbox of the peer.
+7. The peer does the same checks and answers with `Accept` or `Reject`.
+8. Both instances keep a local record of the peering.
 
-The out-of-band step is the load-bearing one.
-It establishes organizational trust, which is a different thing from cryptographic verification and cannot be derived from it.
-An invite token is an option that automates the "did I invite this peer" check without requiring a directory: one operator generates a signed token and sends it out of band, and the other presents it with the peering request.
+The out-of-band step is the most important step.
+It makes trust between the organizations, which is different from cryptographic verification.
+Cryptographic verification cannot give organizational trust.
+
+An invite token is a possible addition.
+One operator makes a signed token and sends it out of band.
+The other operator sends the token with its peering request, which shows that an invitation exists.
+A directory is not necessary for this check.
 
 {% include-markdown "./_oq-actor-discovery.md" %}
 
@@ -250,30 +283,36 @@ An invite token is an option that automates the "did I invite this peer" check w
 
 ## Delivery
 
-Outbound activities are written to a durable queue before any transmission is attempted.
-Workers then attempt HTTPS delivery to peer inboxes with retry and backoff.
-A prototype may satisfy this with synchronous delivery underneath, provided the architecture leaves room for asynchronous delivery with retries.
+Each instance writes its outbound activities to a durable queue before it sends them.
+Workers then send each activity to the inbox of the peer on HTTPS, with retry and backoff.
+A prototype can use synchronous delivery below this interface.
+But the architecture gives space for asynchronous delivery with retries.
 
-Two refinements matter at scale.
-Delivery to multiple Participants on the same peer instance is deduplicated into one request rather than one per Participant.
-Each instance exposes a shared inbox that accepts activities on behalf of any local actor and distributes them internally, which is what makes that deduplication possible.
+Two refinements are important at large scale.
+An instance sends one request for more than one Participant on the same peer instance, and not one request for each Participant.
+Each instance also has a shared inbox.
+The shared inbox receives activities for each local actor and sends them to the correct actor in the instance.
+This shared inbox makes the single request possible.
 
 ---
 
 ## Connectors
 
-The coordination service is tracker-agnostic.
-It speaks the Vultron protocol and knows nothing about any particular issue tracker.
-Each deployment pairs the service with a connector for its own internal tracker, and the connector translates between internal tracker events and Vultron activities in both directions.
+The coordination service is independent of the issue tracker.
+It speaks the Vultron protocol, and it has no data about any one tracker.
+Each deployment adds a connector for its own internal tracker.
+The connector translates between the events of the internal tracker and Vultron activities, in both directions.
 
-Connectors are discovered at startup as plugins, so adding support for a new tracker does not require modifying the service.
+The service finds its connectors as plugins at start-up.
+Support for a new tracker thus needs no change to the service.
 
 ---
 
-## Extending the vocabulary
+## Extension of the vocabulary
 
-Vultron's object and activity types extend AS2 rather than replacing it.
-An extension type is declared in a JSON-LD `@context`, which is what allows a peer to recognize a Vultron activity as a Vultron activity.
+The object types and activity types of Vultron are extensions to AS2, and not replacements for it.
+Vultron declares each extension type in a JSON-LD `@context`.
+A peer uses that declaration to recognize a Vultron activity.
 
 {% include-markdown "./_oq-vocabulary-governance.md" %}
 
@@ -281,7 +320,7 @@ An extension type is declared in a JSON-LD `@context`, which is what allows a pe
 
 ## Further reading
 
-- [Actor Knowledge Model](../actor-knowledge-model.md) — what an actor is permitted to know, and why outbound activities carry full inline objects
-- [Case Ledger Synchronization](../case_lifecycle/case_ledger_sync.md) — how replication works in the current single-deployment implementation
-- [Ownership Transfer](../case_lifecycle/ownership_transfer.md) — the transfer sequence as it is implemented today
-- [Open questions](open_questions.md) — every open question on this page, collected
+- [Actor Knowledge Model](../actor-knowledge-model.md) — the limits of the knowledge of an actor, and why each outbound activity holds full inline objects
+- [Case Ledger Synchronization](../case_lifecycle/case_ledger_sync.md) — replication in the current single-deployment implementation
+- [Ownership Transfer](../case_lifecycle/ownership_transfer.md) — the transfer sequence in the current implementation
+- [Open questions](open_questions.md) — each open question on this page, collected

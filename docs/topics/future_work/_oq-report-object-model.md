@@ -1,19 +1,27 @@
-!!! warning "Open question: what happens when one Report becomes two Cases?"
+!!! warning "Open question: what occurs when one Report becomes two Cases?"
 
     A Report is not a Case.
-    A Report is the object of the initial `Offer`, and a Case exists only once that `Offer` is accepted.
-    Two Report formats are known to be in scope, plain text and CSAF-formatted JSON, and others may follow.
+    A Report is the object of the initial `Offer`.
+    A Case exists only after a recipient accepts that `Offer`.
+    Two Report formats are in scope: plain text and CSAF-formatted JSON.
+    More formats can follow.
 
-    The unresolved part is what happens when the same Report reaches more than one recipient.
-    Each recipient can accept and create its own Case from it, which leaves the Reporter tracking two coordination efforts for one vulnerability.
-    The protocol permits this and should keep permitting it.
-    It is expected to be rare, because a recipient that wants several vendors involved is better served by creating one Case and inviting them.
+    The unresolved condition occurs when the same Report goes to more than one recipient.
+    Each recipient can accept the Report and make its own Case from it.
+    The Reporter then follows two coordination efforts for one vulnerability.
+    The protocol lets this condition occur, and this behavior is intentional.
+    This condition is rare.
+    A recipient that wants more than one vendor in the coordination can make one Case and invite each vendor to it.
 
-    The common version of this is sequential rather than simultaneous.
-    A Reporter whose `Offer` goes unanswered asks a Coordinator for help, and the second `Offer` is accepted before the first.
-    That argues for an `Offer` identifier unique to at least the Report and recipient pair, so the two attempts are distinguishable.
+    The frequent form of this condition is sequential, not concurrent.
+    A Reporter receives no answer to an `Offer`, and then it asks a Coordinator for aid.
+    The recipient of the second `Offer` accepts before the recipient of the first `Offer` accepts.
+    Therefore each `Offer` has an identifier that is unique to a minimum of the Report and the recipient.
+    The two attempts are then different from each other.
 
-    Case merging is the candidate resolution, and it has two shapes.
-    The Cases can reconcile their ledgers, which is involved.
-    One Case can instead be frozen into a read-only region of the other, leaving a redirect so that requests for the frozen Case resolve to the surviving one.
-    The second shape looks more practical and still needs specifying.
+    A merge of the two Cases is the candidate solution, and a merge has two possible forms.
+    In the first form, the two Cases reconcile their ledgers.
+    This form is complex.
+    In the second form, one Case becomes a read-only area in the other Case.
+    A redirect sends each request for the frozen Case to the Case that remains.
+    The second form is more practical, and the project has not specified it.

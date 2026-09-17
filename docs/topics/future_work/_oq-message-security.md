@@ -1,21 +1,30 @@
-!!! warning "Open question: what does a deployment have to sign and encrypt?"
+!!! warning "Open question: what does a deployment sign and encrypt?"
 
-    The prototype signs nothing and encrypts nothing.
-    Activities travel as plaintext AS2 JSON over HTTP, and the adapter for signed remote delivery is a stub (OX-10-004).
-    Treat the prototype as a demonstration of coordination logic rather than a deployable service.
-    Concern [#509](https://github.com/CERTCC/Vultron/issues/509) tracks the gap.
+    The prototype does not sign or encrypt its messages.
+    Activities move as plaintext AS2 JSON on HTTP.
+    The adapter for signed remote delivery is a stub (OX-10-004).
+    The prototype is a demonstration of coordination logic, not a service for deployment.
+    Concern [#509](https://github.com/CERTCC/Vultron/issues/509) records this gap.
 
     Encryption has a design.
-    `specs/encryption.yaml` (ENC-01 through ENC-03) gives every actor a key pair, publishes the public key in the actor profile, and places decryption in the inbox handler ahead of semantic extraction, so handlers still receive typed and validated activities.
-    Every requirement in that file carries `scope: production`.
-    They state what a deployment owes, and the prototype is not a deployment.
+    `specs/encryption.yaml` (ENC-01 through ENC-03) gives each actor a key pair.
+    It publishes the public key in the actor profile.
+    It also puts decryption in the inbox handler, before semantic extraction.
+    Each handler thus continues to receive typed and validated activities.
 
-    Signing has no specification yet.
-    The intended shape is two signatures on a relayed activity: an inner one from the originating Participant and an outer one from the CASE_MANAGER that relayed it, so a recipient can verify origin and relay position independently.
+    Each requirement in that file has `scope: production`.
+    The requirements apply to a deployment, and the prototype is not a deployment.
+
+    Signing has no specification.
+    The intended shape puts two signatures on a relayed activity.
+    The inner signature comes from the Participant that originated the activity.
+    The outer signature comes from the CASE_MANAGER that relayed it.
+    A recipient can thus verify the source and the relay position independently.
     HTTP Message Signatures (RFC 9421) is the candidate transport mechanism ([#892](https://github.com/CERTCC/Vultron/issues/892), [#1163](https://github.com/CERTCC/Vultron/issues/1163)).
 
-    Three things are open.
-    Which of these requirements a deployment claiming Vultron conformance must satisfy is undecided.
-    Whether per-recipient encryption (ENC-02-002) is sufficient for cases with many Participants, or whether a multi-recipient envelope format is warranted, has not been settled.
-    And key material binds to an actor identity rather than to a case, so how many cases one CASE_MANAGER actor serves determines how much key separation a deployment gets.
-    Work is tracked under epic [#1156](https://github.com/CERTCC/Vultron/issues/1156), with the actor identity model itself still pending ([#2841](https://github.com/CERTCC/Vultron/issues/2841)).
+    Three points are open.
+    First, the project has not selected the requirements that apply to a deployment that claims Vultron conformance.
+    Second, per-recipient encryption (ENC-02-002) can be sufficient for a case that has many Participants, or a multi-recipient envelope format can be necessary.
+    Third, key material applies to an actor identity, not to a case.
+    The quantity of cases that one CASE_MANAGER actor holds thus sets the separation between the keys of those cases.
+    Epic [#1156](https://github.com/CERTCC/Vultron/issues/1156) records this work, and the actor identity model is open ([#2841](https://github.com/CERTCC/Vultron/issues/2841)).

@@ -1,13 +1,16 @@
 # Open questions
 
-This page collects every unresolved design question in the Future Work section.
-Each one also appears inline on the page where it first matters, so a reader who meets a gap in context sees it there rather than only here.
+This page collects each unresolved design question in the Future Work section.
+Each question is also at the point in the text where it first applies.
+A reader who finds a gap in context sees the question at that point, and not only on this page.
 
-An entry on this page means one of two things.
-Either the design decision has not been made, or it has been made for the prototype and does not bind a production deployment.
-Neither means the capability has been ruled out.
+An entry on this page has one of two meanings.
+In the first meaning, the project has not made the design decision.
+In the second meaning, the project made the decision for the prototype, and that decision does not apply to a production deployment.
+No meaning shows that the project rejects the capability.
 
-Most of these questions concern how Vultron's ActivityStreams 2.0 (AS2) vocabulary travels between organizations, and what a production deployment owes that the prototype does not.
+Most of these questions apply to the movement of the Vultron ActivityStreams 2.0 (AS2) vocabulary between organizations.
+They also apply to the obligations of a production deployment that the prototype does not obey.
 
 ---
 
