@@ -1,0 +1,10 @@
+!!! warning "Open question: who may assert that a vendor became aware"
+    The first VFD transition — `v→V`, vendor becomes aware — has **no
+    trigger-side specification and no implementation**. Design intent is a
+    third-party assertion ("I notified this Vendor"), not a self-report.
+
+    Open questions: who may assert it, whether the subject Vendor may dispute
+    it, and whether transport-level delivery success (HTTP 200) suffices to
+    constitute the assertion.
+
+    Do not infer a rule from this document's silence.

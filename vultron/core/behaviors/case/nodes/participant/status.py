@@ -150,6 +150,10 @@ class CreateParticipantStatusNode(
         """
         super().__init__(name=name or self.__class__.__name__)
         self._actor_id = actor_id
+        # The value handed to the constructor is the execution-scoped baseline.
+        # ``stop()`` restores it after every tick so a pre-built node re-used
+        # for a second actor cannot inherit the first actor's latched id (#3268).
+        self._initial_actor_id = actor_id
         self._rm_state = rm_state
         self._vf_state = vf_state
         self._d_state = d_state
@@ -161,6 +165,23 @@ class CreateParticipantStatusNode(
         super().initialise()
         if not self._actor_id:
             self._actor_id = self.actor_id or ""
+
+    def stop(self, new_status: Status = Status.INVALID) -> None:
+        """Reset the execution-scoped actor id after each tick.
+
+        ``_actor_id`` is latched from the ``actor_id`` port on the first
+        ``initialise`` when the constructor left it empty — the pre-built
+        pattern of ``CreateOwnerInitialStatusNode`` and
+        ``_AddCaseActorParticipantNode``, which build the node once in
+        ``__init__`` and run it through ``BTBridge.execute_with_setup``
+        (BTND-10-004, ADR-0089).  Without this reset the first execution's
+        actor would persist, so re-using a pre-built node for a second actor
+        would silently write to the first (issue #3268).  Restoring the
+        constructor value makes the actor id execution-scoped: the next
+        ``initialise`` re-reads it from the port.
+        """
+        self._actor_id = self._initial_actor_id
+        super().stop(new_status)
 
     def _persist_status(
         self, dl: object, participant_id: str, status: "ParticipantStatus"

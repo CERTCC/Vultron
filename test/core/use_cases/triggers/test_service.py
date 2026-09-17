@@ -47,7 +47,10 @@ from vultron.enums.roles import CVDRole
 from vultron.wire.as2.factories import em_propose_embargo_activity
 from vultron.wire.as2.vocab.base.objects.activities.transitive import as_Offer
 from vultron.wire.as2.vocab.base.objects.actors import as_Service
-from vultron.wire.as2.vocab.objects.case_participant import as_CaseParticipant
+from vultron.wire.as2.vocab.objects.case_participant import (
+    as_CaseParticipant,
+    as_ParticipantStatus,
+)
 from vultron.wire.as2.vocab.objects.embargo_event import as_EmbargoEvent
 from vultron.wire.as2.vocab.objects.vulnerability_case import (  # noqa: F401
     as_VulnerabilityCase,
@@ -89,8 +92,14 @@ def _add_self_participant(case, dl, actor_id: str, rm: RM = RM.RECEIVED):
         attributed_to=actor_id,
         context=case.id_,
         case_roles=[CVDRole.VENDOR],
+        participant_statuses=[
+            as_ParticipantStatus(
+                attributed_to=actor_id,
+                context=case.id_,
+                rm_state=rm,
+            )
+        ],
     )
-    participant.append_rm_state(rm, actor_id, case.id_)
     dl.create(participant)
     case.actor_participant_index[actor_id] = participant.id_
     dl.save(case)
@@ -260,16 +269,17 @@ def closed_report(dl, report, actor):
 @pytest.fixture
 def case_with_participant(dl, actor):
     case_obj = VulnerabilityCase(name="TEST-CASE-001", attributed_to=actor.id_)
+    # Pre-seed RM lifecycle so engage/defer (VALID→ACCEPTED/DEFERRED) are valid
     participant = as_CaseParticipant(
         attributed_to=actor.id_,
         context=case_obj.id_,
-    )
-    # Pre-seed RM lifecycle so engage/defer (VALID→ACCEPTED/DEFERRED) are valid
-    participant.append_rm_state(
-        RM.RECEIVED, actor=actor.id_, context=case_obj.id_
-    )
-    participant.append_rm_state(
-        RM.VALID, actor=actor.id_, context=case_obj.id_
+        participant_statuses=[
+            as_ParticipantStatus(
+                attributed_to=actor.id_,
+                context=case_obj.id_,
+                rm_state=RM.VALID,
+            )
+        ],
     )
     case_obj.case_participants.append(participant.id_)
     case_obj.actor_participant_index[actor.id_] = participant.id_

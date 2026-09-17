@@ -210,10 +210,10 @@ class TestReportReplicatedToPostTransferParticipant:
     def test_report_case_link_seeded_for_invited_replica(
         self, bridge, dl, new_owner_case_actor
     ) -> None:
-        """VultronReportCaseLink is seeded so _ValidRMLatchNode can advance rm_state.
+        """VultronReportCaseLink is seeded so TransitionRMtoValid can advance rm_state.
 
         Regression for phase11-demo-ci-invited-participant-validate-0:
-        _ValidRMLatchNode.update() returns FAILURE when no VultronReportCaseLink
+        TransitionRMtoValid returns FAILURE when no VultronReportCaseLink
         exists for the report, blocking validate-report for invited participants
         who never received Offer(VulnerabilityReport) directly (BTND-10-006,
         ADR-0089).  ApplyOfferReportFromLedgerNode must seed the link so that
@@ -245,7 +245,7 @@ class TestReportReplicatedToPostTransferParticipant:
         link = dl.read(link_id)
         assert link is not None, (
             "VultronReportCaseLink MUST be seeded by ApplyOfferReportFromLedgerNode "
-            "so that _ValidRMLatchNode can advance rm_state to RM.VALID when an "
+            "so that TransitionRMtoValid can advance rm_state to RM.VALID when an "
             "invited participant calls validate-report (BTND-10-006, ADR-0089, "
             "phase11-demo-ci-invited-participant-validate-0)"
         )

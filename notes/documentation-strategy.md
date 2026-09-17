@@ -148,6 +148,22 @@ it is an invaluable reference for:
 3. **Correspondence with documentation**: The simulator trees correspond
    directly to the documentation in `docs/topics/behavior_logic/*.md`.
 
+### Current-Implementation Reference
+
+`docs/reference/behaviors/` provides auto-generated reference documentation
+rendered from the *current* `vultron/core/behaviors/` implementation using
+`py_trees.display.unicode_tree()`. These pages complement (and will eventually
+supersede) the simulator-era `behavior_logic/` pages — use them when you need
+to understand what the prototype actually does, rather than what the original
+design envisioned.
+
+| Reference page | Implementation source |
+|---|---|
+| `reference/behaviors/rm_handlers.md` | `vultron/core/behaviors/report/` |
+| `reference/behaviors/em_handlers.md` | `vultron/core/behaviors/embargo/` |
+| `reference/behaviors/case_handlers.md` | `vultron/core/behaviors/case/`, `sync/` |
+| `reference/behaviors/cs_handlers.md` | `vultron/core/behaviors/status/` |
+
 ### Documentation-to-Simulator Correspondence
 
 | Documentation file | Simulator module |

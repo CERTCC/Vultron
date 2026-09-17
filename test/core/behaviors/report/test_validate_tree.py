@@ -171,6 +171,7 @@ def _seed_case_participant(datalayer, case_obj, participant_actor_id, slug):
     """
     from vultron.core.models.case_participant import CaseParticipant
     from vultron.enums.roles import CVDRole
+    from test.support.participant_status import advance_participant_rm
 
     participant = CaseParticipant(
         id_=f"{case_obj.id_}/participants/{slug}",
@@ -178,8 +179,8 @@ def _seed_case_participant(datalayer, case_obj, participant_actor_id, slug):
         context=case_obj.id_,
         case_roles=[CVDRole.VENDOR],
     )
-    participant.append_rm_state(
-        RM.RECEIVED, participant_actor_id, case_obj.id_
+    advance_participant_rm(
+        participant, RM.RECEIVED, participant_actor_id, case_obj.id_
     )
     datalayer.create(participant)
     case_obj.add_participant(participant)
@@ -682,59 +683,109 @@ def test_tree_execution_idempotency(
 
 
 @pytest.mark.spec("BT-09-001")
-def test_tree_execution_actor_isolation(
-    bridge, datalayer, report, offer, actor, case, report_case_link
-):
-    """Different actors maintain isolated execution contexts.
+def test_tree_execution_actor_isolation():
+    """Each actor validates in its own store; the report link is never shared.
 
-    In a shared datalayer, both actors write to the same VultronReportCaseLink.
-    actor_a transitions to VALID; actor_b sees VALID and early-exits successfully.
+    ADR-0073 gives every actor its own DataLayer and forbids two actors sharing
+    one store — a shared multi-tenant store is exactly the anti-pattern that
+    decision removes (PCR-01-003).  ``VultronReportCaseLink`` is keyed per
+    report *per store*, so under per-actor isolation that means per actor
+    (issue #3266).  This test builds a separate store for each of two
+    coordinators and shows their report links advance to ``RM.VALID``
+    independently: one actor's write cannot reach the other's record.
+
+    The earlier form of this test put both actors in a single DataLayer and
+    asserted that actor B saw actor A's VALID latch — a configuration ADR-0073
+    declares unsupported and unreachable, which is the RM-isolation breakage
+    #3266 describes.
     """
+    from typing import cast
+
+    from vultron.adapters.driven.trigger_activity_adapter import (
+        TriggerActivityAdapter,
+    )
+    from vultron.core.models.case import VulnerabilityCase
+    from vultron.core.ports.case_persistence import CaseOutboxPersistence
+
+    report_id = "https://example.org/reports/CVE-2024-001"
+    offer_id = "https://example.org/activities/offer-123"
+    reporter_id = "https://example.org/actors/reporter"
+
+    def _build_store(
+        actor_id: str, slug: str
+    ) -> tuple[SqliteDataLayer, BTBridge]:
+        """A fully seeded, actor-scoped store — the ADR-0073 unit of isolation."""
+        dl = SqliteDataLayer("sqlite:///:memory:", actor_id=actor_id)
+        dl.create(VultronReport(id_=report_id, name="R", content="c"))
+        dl.create(
+            VultronOffer(
+                id_=offer_id,
+                actor=reporter_id,
+                object_=report_id,
+                target=actor_id,
+            )
+        )
+        dl.create(VultronCaseActor(id_=actor_id, name=f"Actor {slug}"))
+        case_obj = VulnerabilityCase(
+            id_=f"{actor_id}/cases/test-case-validate",
+            name="Validate-tree isolation case",
+            attributed_to=actor_id,
+            vulnerability_reports=[report_id],
+            active_embargo=f"{actor_id}/embargoes/test-embargo",
+        )
+        dl.create(case_obj)
+        _seed_case_participant(dl, case_obj, actor_id, slug)
+        dl.create(
+            VultronReportCaseLink(report_id=report_id, rm_state=RM.RECEIVED)
+        )
+        trigger = TriggerActivityAdapter(cast(CaseOutboxPersistence, dl))
+        return dl, BTBridge(datalayer=dl, trigger_activity=trigger)
+
     actor_a = "https://example.org/actors/vendor-a"
     actor_b = "https://example.org/actors/vendor-b"
+    dl_a, bridge_a = _build_store(actor_a, "vendor-a")
+    dl_b, bridge_b = _build_store(actor_b, "vendor-b")
 
-    # Create both actors and register each as a participant of the case —
-    # RM.VALID is case-scoped, so an actor with no CaseParticipant cannot make
-    # the transition at all (ISSUE-2548).
-    for aid, slug in ((actor_a, "vendor-a"), (actor_b, "vendor-b")):
-        actor_obj = VultronCaseActor(id_=aid, name=f"Actor {aid}")
-        datalayer.create(actor_obj)
-        _seed_case_participant(datalayer, case, aid, slug)
-
-    # Execute for actor A
-    tree_a = create_validate_report_tree(
-        report_id=report.id_,
-        offer_id=offer.id_,
-        call_out=_ALWAYS_SUCCEED_BUNDLE,
-        sender_actor_id=actor_a,
-    )
-    result_a = bridge.execute_with_setup(
-        tree=tree_a,
+    # actor_a validates in its own store.
+    result_a = bridge_a.execute_with_setup(
+        tree=create_validate_report_tree(
+            report_id=report_id,
+            offer_id=offer_id,
+            call_out=_ALWAYS_SUCCEED_BUNDLE,
+            sender_actor_id=actor_a,
+        ),
         actor_id=actor_a,
-        datalayer=datalayer,
     )
-
-    # Execute for actor B
-    tree_b = create_validate_report_tree(
-        report_id=report.id_,
-        offer_id=offer.id_,
-        call_out=_ALWAYS_SUCCEED_BUNDLE,
-        sender_actor_id=actor_b,
-    )
-    result_b = bridge.execute_with_setup(
-        tree=tree_b,
-        actor_id=actor_b,
-        datalayer=datalayer,
-    )
-
-    # Assert: Both succeed independently
     assert result_a.status == Status.SUCCESS
+
+    # actor_b's link has NOT moved: it lives in a different store entirely.
+    link_b_before = dl_b.read(VultronReportCaseLink.build_id(report_id))
+    assert (
+        isinstance(link_b_before, VultronReportCaseLink)
+        and link_b_before.rm_state == RM.RECEIVED
+    )
+
+    result_b = bridge_b.execute_with_setup(
+        tree=create_validate_report_tree(
+            report_id=report_id,
+            offer_id=offer_id,
+            call_out=_ALWAYS_SUCCEED_BUNDLE,
+            sender_actor_id=actor_b,
+        ),
+        actor_id=actor_b,
+    )
     assert result_b.status == Status.SUCCESS
 
-    # Verify: ReportCaseLink should be at VALID after execution
-    link = datalayer.read(VultronReportCaseLink.build_id(report.id_))
+    # Each store independently reaches VALID; neither wrote the other's record.
+    link_a = dl_a.read(VultronReportCaseLink.build_id(report_id))
+    link_b = dl_b.read(VultronReportCaseLink.build_id(report_id))
     assert (
-        isinstance(link, VultronReportCaseLink) and link.rm_state == RM.VALID
+        isinstance(link_a, VultronReportCaseLink)
+        and link_a.rm_state == RM.VALID
+    )
+    assert (
+        isinstance(link_b, VultronReportCaseLink)
+        and link_b.rm_state == RM.VALID
     )
 
 

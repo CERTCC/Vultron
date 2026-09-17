@@ -13,6 +13,13 @@ The behavioral requirements for this tree are specified in the
     Implementations are not required to use behavior trees — any approach that satisfies the
     requirements above is conformant.
 
+!!! note "Legacy design diagram"
+
+    The diagram on this page reflects the simulator-era design from `vultron/bt/` and may not
+    match the current implementation in `vultron/core/behaviors/`.
+    See the [Behaviors Reference](../../reference/behaviors/index.md) for
+    auto-generated documentation from the current implementation.
+
 The Publication Behavior Tree is shown in the following diagram.
 (A) It begins by ensuring that the Participant knows what they intend to publish (A1), followed by a check to
 see if that publication has been achieved (A2).

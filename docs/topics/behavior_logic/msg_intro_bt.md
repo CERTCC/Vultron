@@ -45,6 +45,13 @@ The behavioral requirements for the message-receive behaviors are specified in t
     Implementations are not required to use behavior trees — any approach that satisfies the
     requirements above is conformant.
 
+!!! note "Legacy design diagram"
+
+    The diagram on this page reflects the simulator-era design from `vultron/bt/` and may not
+    match the current implementation in `vultron/core/behaviors/`.
+    See the [Behaviors Reference](../../reference/behaviors/index.md) for
+    auto-generated documentation from the current implementation.
+
 Now we return to the [CVD Behavior Tree](cvd_bt.md) to pick up the last unexplored branch, Receive Messages.
 The Receive Messages Behavior Tree is shown below.
 

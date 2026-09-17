@@ -10,7 +10,7 @@ machines, and design notes.
 
 | Term | Definition | Aliases to avoid |
 |------|-----------|-----------------|
-| **Vulnerability** | A weakness in an information system that could be exploited to cause harm | Bug, issue, flaw |
+| **Vulnerability** | A set of conditions or behaviors that allows the violation of an explicit or implicit security policy. Definition taken from the [CERT Guide to CVD](https://certcc.github.io/CERT-Guide-to-CVD/tutorials/terms/vulnerability/); Vultron uses it unchanged | Bug, issue, flaw, weakness |
 | **Coordinated Vulnerability Disclosure (CVD)** | A collaborative process where affected parties work together to manage vulnerability remediation and public disclosure | Responsible disclosure, coordinated release |
 | **Multi-Party CVD (MPCVD)** | CVD process involving three or more independent organizations with different interests and roles | Multiparty coordination |
 | **Report** | A formal notification of a discovered vulnerability, including technical details and potential impact | Submission, notice |
