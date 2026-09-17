@@ -284,3 +284,44 @@ class TestSvcCreateCaseUseCase:
         assert (
             outbox_activity_id == activity_id
         ), "Activity ID in outbox should match returned activity ID"
+
+    @pytest.mark.xfail(
+        strict=True,
+        reason=(
+            "CM-02-014/CM-02-015: create-case trigger does not register "
+            "participants yet. Tracked by #3335."
+        ),
+    )
+    @pytest.mark.spec("CM-02-014")
+    @pytest.mark.spec("CM-02-015")
+    def test_create_case_trigger_registers_owner_and_manager(self):
+        """Created case must have CASE_OWNER and CASE_MANAGER participants from birth (CM-02-014, CM-02-015)."""
+        from vultron.core.models.case_participant import CaseParticipant
+        from vultron.enums.roles import CVDRole
+
+        request = CreateCaseTriggerRequest(
+            actor_id=self.actor.id_,
+            name="Participant Registration Test",
+            content="Verify participants registered at birth",
+        )
+        SvcCreateCaseUseCase(
+            self.dl,
+            request,
+            trigger_activity=TriggerActivityAdapter(self.dl),
+        ).execute()
+
+        participants = [
+            obj
+            for obj in self.dl.list_objects("CaseParticipant")
+            if isinstance(obj, CaseParticipant)
+        ]
+        assert participants, "No CaseParticipant registered after create-case"
+        roles = {
+            role for p in participants for role in getattr(p, "case_roles", [])
+        }
+        assert (
+            CVDRole.CASE_OWNER in roles
+        ), "CASE_OWNER not registered at case birth"
+        assert (
+            CVDRole.CASE_MANAGER in roles
+        ), "CASE_MANAGER not registered at case birth"
