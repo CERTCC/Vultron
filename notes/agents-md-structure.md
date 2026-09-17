@@ -12,6 +12,7 @@ related_notes:
   - notes/parallel-development.md
 related_specs:
   - specs/project-documentation.yaml
+  - specs/meta-specifications.yaml
 ---
 
 # AGENTS.md Structure: Routing Policy and Per-Directory Files
@@ -90,7 +91,8 @@ them. Canonical locations and the content they own:
 | `vultron/wire/as2/` | ActivityStreams wire conventions, extractor ordering, pattern naming |
 | `vultron/adapters/` | Hexagonal-layer boundary rules, FastAPI adapter conventions |
 | `test/` | Test data quality rules, fixture isolation, parallelism notes |
-| `vultron/metadata/` | Metadata-loader failure attribution, spec-lint traps, spec-first lint suppressions |
+| `specs/` | Spec-authoring workflow, field-value enums, lint traps, the coverage gate |
+| `vultron/metadata/` | Metadata-loader failure attribution, spec-first lint suppressions |
 
 Each per-directory file SHOULD start with:
 

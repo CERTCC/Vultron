@@ -130,7 +130,7 @@ groups:
       This applies to the frontmatter parse as well as the `NotesFrontmatter` validation — a
       malformed frontmatter block MUST NOT surface as a raw parser traceback.
     rationale: >-
-      The loader walks the whole `notes/` tree, so a schema violation reported as a bare field
+      The loader walks every file in `notes/`, so a schema violation reported as a bare field
       path names no file. The parse step was the wider gap: a frontmatter block that fails to
       scan raised a YAML error, which is not a `ValueError`, so it escaped NF-03-003's
       documented contract entirely and reached the pre-commit hook as a traceback.

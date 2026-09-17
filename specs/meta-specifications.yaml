@@ -765,10 +765,10 @@ groups:
     rationale: >-
       A YAML scanner error is not a `ValueError`, so a caller guarding
       `except (ValidationError, ValueError)` never sees it and the tool exits through a
-      third-party traceback instead of its own error format. Every frame in that traceback
-      belongs to the parser, so it names neither the file nor the requirement, and it appears
-      alongside the loader's own clean output in the same run — the same underlying fault
-      reported two different ways depending on which line of the loader raised.
+      traceback instead of its own error format, in which no frame names the offending file.
+      Which step raised also decides the output's shape: a parse fault escapes as a traceback and
+      suppresses the loader's own reporting, while a validation fault is caught and rendered as
+      the tool's error line.
     verification: >-
       A unit test asserts that a malformed file raises `ValueError` from each loader rather
       than a bare parser exception, and that the linter's exit path prints its own error
@@ -788,12 +788,40 @@ groups:
       loaders, in as many message shapes as there were copies, while the notes and spec
       loaders were left without one — so what an author sees depends on which directory they
       edited rather than on what they got wrong. A shared helper is also the only way an
-      improvement reaches every loader: no hand-written copy read the parser's position mark,
-      so each named the file and then gave a `<unicode string>` position.
+      improvement reaches all of them: no hand-written copy read the parser's position mark, and
+      the history CLI's copy reported no path at all.
     verification: >-
-      A ratchet test asserts that no module under `vultron/metadata/` catches a YAML parser
-      exception outside `file_loading.py`.
+      A ratchet test asserts that no module under `vultron/metadata/` other than
+      `file_loading.py` re-raises a caught exception as a path-prefixed `ValueError` — the
+      shape every hand-written copy takes. Asserting instead that no module catches a
+      YAML-specific exception would be vacuous: every copy catches bare `Exception`, so such a
+      test passes with all of the duplication still in place.
     lint_suppress:
     - phantom_path_ref
+    tags:
+    - tooling
+  - id: MS-17-004
+    priority: MUST
+    kind: project
+    statement: >-
+      An exception class raised by the shared helper to report loader failures MUST be a
+      `ValueError` subclass defined within the tooling layer. The `VultronError` hierarchy
+      required by EH-01-002 governs protocol code and MUST NOT be extended into
+      `vultron/metadata/`.
+    rationale: >-
+      SR-03-009 makes this the tooling layer's first custom exception class, which is what brings
+      EH-01-002 into contact with it — today's loaders raise the built-in `ValueError`, so that
+      rule has never applied here. Obeying it now would invert the contract: `VultronError`
+      derives from `Exception`, not `ValueError`, so a caller guarding
+      `except (ValidationError, ValueError)` would miss the new error as it misses today's
+      scanner error. `vultron/errors.py` is the protocol domain's; this is tooling.
+    verification: >-
+      A unit test asserts the helper's exception type is a `ValueError` subclass and that a
+      caller guarding only `except (ValidationError, ValueError)` catches it. A ratchet test
+      asserts that no module under `vultron/metadata/` imports from `vultron/errors.py`.
+    relationships:
+    - rel_type: refines
+      spec_id: MS-17-002
+      note: fixes the concrete exception type that satisfies the ValueError requirement
     tags:
     - tooling

@@ -19,7 +19,8 @@ are the product**.
 | `notes/` | `notes/*.md` frontmatter | `NotesFrontmatter` |
 | `adr/` | `docs/adr/*.md` frontmatter | `AdrFrontmatter` |
 | `history/` | `plan/history/**/*.md`, `plan/incoming/learnings/*.md` | `HistoryEntryFrontmatter` |
-| `msm/`, `docs/` | derived views over the above | — |
+| `msm/` | a constant mapping table + the wire `SEMANTIC_REGISTRY` | — |
+| `docs/` | `git log` over `docs/`, for the what's-new page | — |
 
 ## Loader Failure Attribution (MS-17)
 
@@ -29,17 +30,20 @@ validate the parsed data against a Pydantic model. Both steps can fail, and
 supplies a position (MS-17-001).
 
 Route both steps through the shared helper in `file_loading.py`; do not write
-a new wrapper (MS-17-003). Adoption is in progress — see CONCERN-3296 for the
-sites still carrying hand-written copies.
+a new wrapper (MS-17-003). That helper does not exist yet — #3324 creates it and
+converts every loader, and its AC-5 lists the sites still carrying hand-written
+copies.
 
 Three traps make this easy to get wrong:
 
 1. **A YAML error is not a `ValueError`.** `yaml.scanner.ScannerError` derives
    from `Exception`, so a caller guarding `except (ValidationError, ValueError)`
-   — which is what these loaders' callers do, because that is the contract the
-   loaders document — does not catch it. It escapes as a traceback whose frames
-   are all inside `yaml/_yaml.pyx`, naming neither the file nor the requirement
-   (MS-17-002).
+   — the contract the loaders document — does not catch it. It escapes as a
+   traceback in which no frame names the offending file (MS-17-002). Only
+   `specs/lint.py` guards that pair at all: `coverage.py`, `render.py` (which
+   backs `spec-dump`), `docs_render.py` and `llm_export.py` call `load_registry`
+   with no guard, and `test/conftest.py` wraps it in `except Exception: return`,
+   so most callers surface even less than the traceback does.
 
 2. **Passing text instead of a stream costs you the filename.** PyYAML takes the
    name for its position mark from the stream it is given. Hand it
@@ -64,8 +68,10 @@ general principle and `history/incoming.py` for the shape.
 
 `spec-lint` hard-errors when a spec `statement` or `verification` names a file
 that does not exist (MS-15-001) or a `SCREAMING_SNAKE_CASE` symbol absent from
-`vultron/` and `test/` (MS-15-004). This is deliberate — a MUST pointing at
-missing infrastructure is a stale-premise landmine.
+the **Python sources** under `vultron/` and `test/` (MS-15-004 — the scan is
+`rglob("*.py")`, so a token that appears only in markdown does not resolve it).
+This is deliberate — a MUST pointing at missing infrastructure is a
+stale-premise landmine.
 
 When a requirement is written *before* the code it governs, that check fires on
 the new requirement. Use the documented opt-out on that entry:
