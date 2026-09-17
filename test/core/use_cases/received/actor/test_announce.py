@@ -68,6 +68,22 @@ def case_actor():
     )
 
 
+def _anchor_expected_authority(
+    dl, case_id: str = _CASE_ID, actor_id: str = _CASE_ACTOR_ID
+) -> None:
+    """Record a locally-derived trust anchor naming *actor_id* for *case_id*.
+
+    PCR-03-004 fails closed, so a test that expects an Announce to be *admitted*
+    must establish an anchor first.  These fixtures used to get one for free from
+    an ``as_CaseActor`` whose ``context`` was the case id — the legacy
+    ``Service``-hosting scan.  ADR-0088 retired hosting location as a signal of
+    anything protocol-salient (ARCH-24-004), so the anchor moves to the invite
+    record ``InviteActorToCaseReceivedUseCase`` actually writes: locally derived,
+    not forgeable by the sender, and unaffected by where anyone is hosted.
+    """
+    dl.save(VultronPendingCaseInbox(case_id=case_id, case_actor_id=actor_id))
+
+
 @pytest.fixture()
 def announce_activity(case, case_actor):
     return announce_vulnerability_case_activity(
@@ -87,14 +103,7 @@ class TestAnnounceVulnerabilityCaseReceivedUseCase:
 
     def test_creates_case_when_absent(self, dl, event, case):
         """MV-10-003: Announce seeding creates the case in the invitee's DL."""
-        dl.create(
-            as_CaseActor(
-                id_=_CASE_ACTOR_ID,
-                attributed_to=_OWNER_ID,
-                context=_CASE_ID,
-                name="CaseActor",
-            )
-        )
+        _anchor_expected_authority(dl)
         assert dl.read(_CASE_ID) is None
 
         AnnounceVulnerabilityCaseReceivedUseCase(dl, event).execute()
@@ -104,7 +113,7 @@ class TestAnnounceVulnerabilityCaseReceivedUseCase:
 
     def test_case_fields_preserved(self, dl, event, case, case_actor):
         """The seeded case retains the name from the Announce payload."""
-        dl.create(case_actor)
+        _anchor_expected_authority(dl)
         AnnounceVulnerabilityCaseReceivedUseCase(dl, event).execute()
 
         result = cast(Any, dl.read(_CASE_ID))
@@ -116,9 +125,10 @@ class TestAnnounceVulnerabilityCaseReceivedUseCase:
         """PCR-03-004 / PCR-07-010: first-contact Announce with no prior trust record
         is rejected with a WARNING and the case is NOT seeded.
 
-        No VultronReportCaseLink, no as_CaseActor Service, no
-        VultronPendingCaseInbox invite anchor — all three sources of trust are
-        absent, so the authority check MUST fail closed.
+        Neither a completed VultronReportCaseLink nor a VultronPendingCaseInbox
+        invite anchor is present, so the authority check MUST fail closed.  A
+        hosting `as_CaseActor` Service is no longer a third source — ADR-0088
+        retired it (ARCH-24-004), which is why it is not set up here.
         """
         import logging
 
@@ -137,7 +147,7 @@ class TestAnnounceVulnerabilityCaseReceivedUseCase:
         self, dl, event, case, case_actor
     ):
         """A valid Announce links known reports to the seeded case replica."""
-        dl.create(case_actor)
+        _anchor_expected_authority(dl)
         case.vulnerability_reports.append(_REPORT_ID)
         dl.save(VultronReportCaseLink(report_id=_REPORT_ID))
 
@@ -157,19 +167,36 @@ class TestAnnounceVulnerabilityCaseReceivedUseCase:
         assert isinstance(link, VultronReportCaseLink)
         assert link.case_id == _CASE_ID
 
-    def test_idempotent_when_case_already_exists(
-        self, dl, event, case, case_actor
-    ):
-        """MV-10-004: A second Announce for an existing case is a no-op."""
-        dl.create(case_actor)
-        dl.create(case)
+    @pytest.mark.spec("MV-10-004")
+    def test_redelivery_of_the_same_announce_is_stable(self, dl, event, case):
+        """MV-10-004: receiving the same Announce twice leaves the same state.
 
-        # First call — case exists; should not fail or overwrite
+        Asserts *stability*, which is what idempotency means here — not merely
+        that a row survives.  The previous version of this test seeded the case
+        itself and then asserted only ``dl.read(_CASE_ID) is not None``, which is
+        true by construction: it passed whether the announce was applied,
+        ignored, or rejected outright.  Its anchor was an ``as_CaseActor``
+        carrying ``context``, the hosting signal ADR-0088 retires, so once that
+        path was removed the announce was in fact being *rejected* on both calls
+        and the test still passed.
+
+        Anchored on the invite record instead, so both deliveries are genuinely
+        admitted, and asserting the payload's own name so an unapplied announce
+        cannot pass.
+        """
+        _anchor_expected_authority(dl)
+
         AnnounceVulnerabilityCaseReceivedUseCase(dl, event).execute()
+        first = cast(Any, dl.read(_CASE_ID))
+        assert first is not None
+        assert first.name == "DR-10 Announce Case"
 
-        # Confirm the case is still there and unchanged
-        result = dl.read(_CASE_ID)
-        assert result is not None
+        AnnounceVulnerabilityCaseReceivedUseCase(dl, event).execute()
+        second = cast(Any, dl.read(_CASE_ID))
+
+        assert second is not None
+        assert second.name == first.name
+        assert second.id_ == first.id_
 
     def test_missing_activity_skips_gracefully(self, dl, event):
         """No-op (with a warning log) when event.activity is None."""
@@ -210,15 +237,8 @@ class TestAnnounceVulnerabilityCaseReceivedUseCase:
     def test_rejects_announce_from_non_case_actor(
         self, dl, case, make_payload
     ):
-        """PCR-07-003: non-as_CaseActor senders cannot seed a case replica."""
-        dl.create(
-            as_CaseActor(
-                id_=_CASE_ACTOR_ID,
-                attributed_to=_OWNER_ID,
-                context=_CASE_ID,
-                name="CaseActor",
-            )
-        )
+        """PCR-07-003: a sender that is not the expected authority cannot seed."""
+        _anchor_expected_authority(dl)
         announce = announce_vulnerability_case_activity(
             case,
             actor=_IMPOSTER_ID,
@@ -383,16 +403,10 @@ class TestAnnounceDrainsPreGenesisBuffer:
         assert gap_buffer.depth(_CASE_ID) == 1
         assert dl.read(entry.id_) is None  # not yet applicable — case absent
 
-        # Establish trust anchor so the authority check (PCR-03-004) admits the
-        # Announce from _CASE_ACTOR_ID before the case replica exists.
-        dl.create(
-            as_CaseActor(
-                id_=_CASE_ACTOR_ID,
-                attributed_to=_OWNER_ID,
-                context=_CASE_ID,
-                name="CaseActor",
-            )
-        )
+        # Establish the locally-derived trust anchor so the authority check
+        # (PCR-03-004) admits the Announce from _CASE_ACTOR_ID before the case
+        # replica exists.  Not a hosting `Service` — ADR-0088 retired that.
+        _anchor_expected_authority(dl)
 
         activity = announce_vulnerability_case_activity(
             case_with_actor,
@@ -432,26 +446,19 @@ class TestAnnounceStoresEmbeddedParticipants:
 
     @pytest.fixture()
     def dl(self):
-        """DataLayer with _CASE_ACTOR_ID pre-seeded as the CaseActor Service.
+        """DataLayer with an invite trust anchor naming _CASE_ACTOR_ID.
 
         Required by PCR-03-004: the authority check rejects an Announce when no
-        trust anchor exists.  Seeding the as_CaseActor makes _find_case_actor_id
-        return _CASE_ACTOR_ID via path 4 (legacy Service scan) so the announce
-        from _CASE_ACTOR_ID is admitted without a VultronReportCaseLink or invite
-        trust anchor.
+        trust anchor exists.  This used to seed an ``as_CaseActor`` whose
+        ``context`` was the case id and rely on the legacy ``Service`` scan in
+        ``_find_case_actor_id``; ADR-0088 retired that path (ARCH-24-004), so the
+        anchor is now the locally recorded invite record instead.
         """
         _dl = SqliteDataLayer(
             "sqlite:///:memory:",
             actor_id="https://test.example/api/v2/actors/test-actor",
         )
-        _dl.create(
-            as_CaseActor(
-                id_=_CASE_ACTOR_ID,
-                attributed_to=_OWNER_ID,
-                context=_CASE_ID,
-                name="CaseActor",
-            )
-        )
+        _anchor_expected_authority(_dl)
         return _dl
 
     @pytest.fixture()

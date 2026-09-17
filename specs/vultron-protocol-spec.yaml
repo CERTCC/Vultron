@@ -1252,8 +1252,24 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      If information about the vulnerability or an exploit has been made public, Participants
-      SHALL terminate the embargo ($q^{cs} \in \{\cdots P \cdots, \cdots X \cdot\}$)
+      When information about the vulnerability or an exploit is publicly known
+      ($q^{cs} \in \{\cdots P \cdots, \cdots X \cdot\}$), the case-level embargo SHALL be
+      terminated. A Participant who becomes aware of the public condition SHALL initiate
+      termination by reporting it (VP-11-003); the authority to terminate the case-level
+      embargo belongs to the Case Owner (CM-02-005), and the CASE_MANAGER effects the
+      teardown as the single writer of canonical case state (EMB-19-001). A Participant
+      other than the authorising Case Owner does not itself terminate the case-level
+      embargo; it may only initiate termination and terminate its own compliance
+      (VP-13-017).
+    note: >-
+      Rephrased from the original "Participants SHALL terminate the embargo" (CONCERN-3280):
+      that wording conflated the obligation to *initiate* termination (any Participant) with
+      the authority to *effect* it (Case Owner, enacted by the CASE_MANAGER). Whether the
+      Case Owner retains any discretion to keep an embargo once the public/exploit condition
+      is canonical is an open question — see
+      `docs/reference/vultron-spec/_oq-embargo-termination-authority.md`; the working
+      position is that teardown is mandatory once the condition is adopted as canonical case
+      state (DEMOMA-07-003).
     verification: >-
       Integration tests in `test/demo/test_manage_embargo_demo.py` confirm
       that the EM state transitions to Terminated when a CP or CX message is
@@ -1292,8 +1308,14 @@ groups:
     priority: SHOULD
     kind: protocol
     statement: >-
-      If attacks are known to have occurred, Participants SHOULD terminate the embargo ($q^{cs}
-      \in \cdots A$)
+      When attacks are known to have occurred ($q^{cs} \in \cdots A$), the case-level embargo
+      SHOULD be terminated. A Participant who becomes aware SHOULD initiate termination by
+      reporting the condition (VP-11-007); as with VP-11-002 the authority to terminate the
+      case-level embargo belongs to the Case Owner (CM-02-005) and the CASE_MANAGER effects
+      the teardown (EMB-19-001).
+    note: >-
+      Rephrased from "Participants SHOULD terminate the embargo" for the same reason as
+      VP-11-002 (CONCERN-3280).
     stories:
     - story_2022_019
   - id: VP-11-007
@@ -1476,12 +1498,26 @@ groups:
     kind: protocol
     statement: >-
       Participants MAY choose to terminate their compliance with an embargo at any time
+    note: >-
+      Terminating one's own compliance is distinct from terminating the case-level embargo
+      (VP-11-002, CM-02-005): it changes only the Participant's own PEC state and does not end
+      the embargo for the case (VP-13-009). As of CONCERN-3280 the PEC state machine has no
+      transition that lets an already-consenting Participant (`SIGNATORY`) withdraw, so
+      "at any time" is not yet reachable once a Participant has accepted; a withdrawal
+      transition is tracked as a separate implementation issue.
   - id: VP-13-018
     priority: MAY
     kind: protocol
     statement: >-
       Upon receipt of a Participant's notification of intent to end their compliance with
-      an embargo, other Participants MAY choose to terminate the embargo
+      an embargo, other Participants MAY choose to terminate their own compliance
+      (VP-13-017), and the Case Owner MAY choose to terminate the case-level embargo
+      (CM-02-005), which the CASE_MANAGER then effects (EMB-19-001)
+    note: >-
+      Rephrased from "other Participants MAY choose to terminate the embargo" (CONCERN-3280):
+      a Participant other than the authorising Case Owner cannot effect the case-level
+      teardown; it may terminate only its own compliance. Terminating the case-level embargo
+      is the Case Owner's authority.
 - id: VP-14
   title: RM-EM-CS Interactions
   specs:

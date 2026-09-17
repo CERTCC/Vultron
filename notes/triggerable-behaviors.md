@@ -414,8 +414,8 @@ Key design constraints:
 - All participants MUST be on record as having accepted the active embargo
   at the time they are added to the case. This provides a complete audit
   trail of which participants were aware of which embargo terms.
-- Embargo acceptances MUST be timestamped. The CaseActor applies the
-  trusted timestamp (the time the CaseActor received the acceptance); the
+- Embargo acceptances MUST be timestamped. The CASE_MANAGER applies the
+  trusted timestamp (the time the CASE_MANAGER received the acceptance); the
   participant's own claimed timestamp MUST NOT be trusted for audit
   purposes.
 - Design option (recommended): Add an `accepted_embargo_ids: list[str]`

@@ -136,14 +136,22 @@ def owner_bridge():
 
 
 @pytest.mark.spec("ARCH-24-003")
+@pytest.mark.spec("CM-02-011")
+@pytest.mark.spec("CM-02-012")
 def test_case_manager_role_takes_authority_arm_without_service_object(
     owner_bridge,
 ):
-    """ARCH-24-003 bootstrap window: role-based check is stable before any Service carries context.
+    """CM-02-012 bootstrap window: the authority recognizes its own ledger entry.
 
-    CheckIsCaseManagerNode must succeed for the CASE_MANAGER actor even when
-    no VultronCaseActor Service object with context=CASE_ID exists — the
-    failure mode of the removed CheckIsOwnCaseActorNode (ADR-0088).
+    The actor enacting ``CVDRole.CASE_MANAGER`` must take the *authority* arm of
+    the announce two-arm split on its own ledger entry even before any
+    ``Service`` object carries the case ``context`` — the exact window in which
+    the removed hosting-based ``CheckIsOwnCaseActorNode`` made the real
+    authority fail its own test and fall through to the participant arm, where
+    it would have validated the hash chain of a log it owns (ADR-0088).
+
+    The two arms are ``CheckIsCaseManagerNode`` and its ``Inverter``, so this
+    also pins CM-02-011: the split gates on the role, not on hosting.
     """
     entry = _make_entry(0)
     event = _make_event(entry, actor_id=OWNER_ACTOR_ID)

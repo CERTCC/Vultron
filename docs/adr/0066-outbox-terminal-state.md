@@ -99,6 +99,14 @@ failures without running indefinitely). When exhausted:
 Dead-letter entries are readable from the DataLayer so operators can inspect
 exhausted activities without log access (OX-13-004).
 
+Each `OutboxDeadLetterEntry` also carries a `ledger_entry_id` field — the URI of
+the `CaseLedgerEntry` the activity was replicating, or `None` for non-ledger
+activities (OX-14-001, OX-14-003). The value is resolved at exhaustion time by
+reading the activity back from the DataLayer and inspecting `object_.id_` when
+`object_.type_ == "CaseLedgerEntry"`. The `CaseLedgerEntry` is always committed
+before its fan-out activity is queued (emit-after-commit invariant, OX-14-002),
+so the entry is always resolvable when dead-lettering occurs.
+
 **Protocol-level NACK**: out of scope in this ADR. If the protocol eventually
 requires a terminal error notification (the question raised by #1880), that can be
 layered onto exhaustion without changing the data model here.
@@ -153,6 +161,7 @@ pool growth.
 ## Generated Requirements
 
 - `specs/outbox.yaml` OX-13-001 through OX-13-006
+- `specs/outbox.yaml` OX-14-001 through OX-14-003
 - `specs/sync-ledger-replication.yaml` SYNC-05-004
 
 ## More Information
@@ -163,4 +172,5 @@ pool growth.
 - Parent epic: CERTCC/Vultron#2231
 - Implementation Tasks: CERTCC/Vultron#2315 (abort-scope + 4xx),
   CERTCC/Vultron#2316 (timeout + jitter + limits),
-  CERTCC/Vultron#2317 (attempt counter + dead letter)
+  CERTCC/Vultron#2317 (attempt counter + dead letter),
+  CERTCC/Vultron#2891 (OX-14 ledger entry correlation)

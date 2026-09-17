@@ -248,12 +248,13 @@ def test_setup_tree_keeps_the_injected_store_for_a_foreign_authority(
 ):
     """A store is never re-scoped to an actor this node does not host (#2484).
 
-    ``_find_case_actor_id`` resolves a case's CaseActor by *identity shape*
-    (``.../actors/case-actor``, ADR-0041), which answers for remote containers
-    just as readily as local ones — deliberately, since after a handoff the
-    CaseActor is on the container that first received the report (CP-08-003)
-    while the case owner is elsewhere.  ``setup_tree`` then runs with that
-    foreign actor as the executing actor.
+    ``_find_case_actor_id`` resolves a case's authority from the participant
+    roster — the ``CVDRole.CASE_MANAGER`` role (ADR-0088, ARCH-24-004) — which
+    names remote actors just as readily as local ones, since a roster records
+    who holds the role and not where they are hosted.  That matters after a
+    handoff, when the authority is on the container that first received the
+    report (CP-08-003) while the case owner is elsewhere.  ``setup_tree`` then
+    runs with that foreign actor as the executing actor.
 
     Re-scoping there would mint an empty local store under a foreign actor's
     name, and nothing would raise: the tree would simply run against nothing.

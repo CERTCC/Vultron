@@ -13,7 +13,8 @@ These types live in the adapter layer (not ``vultron/core/``) because:
 
 ``SqliteDataLayer`` satisfies ``OutboxRetryStore`` structurally.
 
-See ``specs/outbox.yaml`` OX-13-001 through OX-13-004.
+See ``specs/outbox.yaml`` OX-13-001 through OX-13-004 and OX-14-001 through
+OX-14-003.
 """
 
 #  Copyright (c) 2026 Carnegie Mellon University and Contributors.
@@ -47,6 +48,9 @@ class OutboxDeadLetterEntry(VultronBase):
         reason: Short machine-readable reason code (e.g. ``"max_attempts_exhausted"``).
         total_attempts: Cumulative delivery attempt count at time of exhaustion.
         failed_recipients: Actor IDs that could not be reached.
+        ledger_entry_id: ID of the ``CaseLedgerEntry`` whose event this activity
+            was replicating, or ``None`` when the activity is not an
+            ``Announce(CaseLedgerEntry)`` (OX-14-001, OX-14-003).
         recorded_at: UTC timestamp when the dead-letter was recorded.
     """
 
@@ -60,6 +64,7 @@ class OutboxDeadLetterEntry(VultronBase):
     reason: NonEmptyString
     total_attempts: int
     failed_recipients: list[str] = Field(default_factory=list)
+    ledger_entry_id: NonEmptyString | None = None
     recorded_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
 
 
@@ -93,6 +98,7 @@ class OutboxRetryStore(Protocol):
         reason: str,
         total_attempts: int,
         failed_recipients: list[str],
+        ledger_entry_id: str | None = None,
     ) -> None: ...
 
     def dead_letter_list(self) -> list[OutboxDeadLetterEntry]: ...

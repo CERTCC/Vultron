@@ -238,13 +238,13 @@ Moving `sync-log-entry` to `/demo/` surfaces a design note about a
 future production `force-sync` operation.
 
 SYNC-03-004 already requires that participants include their log tail
-hash in the `context` field of messages sent to the CaseActor:
+hash in the `context` field of messages sent to the CASE_MANAGER:
 
 ```text
 context: "https://example.org/cases/abc123#sha256:deadbeef..."
 ```
 
-This allows the CaseActor to detect out-of-sync participants and initiate
+This allows the CASE_MANAGER to detect out-of-sync participants and initiate
 a replay automatically. A proper `force-sync` trigger, if ever added
 under `/trigger/`, would build on this mechanism. Until then,
 `sync-log-entry` remains a demo scaffold under `/demo/`.

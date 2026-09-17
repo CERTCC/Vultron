@@ -203,9 +203,10 @@ class BTBridge:
         this node hosts: after a
         handoff the case's CaseActor is on the container that first received the
         report (CP-08-003) while the owner is elsewhere, and
-        ``_find_case_actor_id`` resolves it by *identity shape*
-        (``.../actors/case-actor``, ADR-0041) which answers for remote
-        containers too.  ``clone_for_actor`` would then mint an empty local
+        ``_find_case_actor_id`` resolves it from the case's own participant
+        roster — the ``CVDRole.CASE_MANAGER`` role (ADR-0088, ARCH-24-004) —
+        which names remote actors just as readily as local ones.
+        ``clone_for_actor`` would then mint an empty local
         store under a foreign actor's name, and the tree would run against
         nothing: no case to enrich the wire object from (CM-17-002), no case to
         read a genesis hash out of, so ``ReconstructChainTailNode`` cannot

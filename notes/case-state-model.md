@@ -482,7 +482,7 @@ The same pattern applies to `CaseParticipant.participant_status`: each
 `ParticipantStatus` is an append-only history entry, and the current
 participant status is the entry with the latest timestamp.
 
-**CaseActor trusted timestamp principle** (see `CM-02-009`): The CaseActor
+**CASE_MANAGER trusted timestamp principle** (see `CM-02-009`): The CASE_MANAGER
 MUST apply its own timestamp to every state-changing event it receives —
 not just embargo acceptances, but also participant joins, notes, status
 updates, and any other activity that modifies canonical case state.
@@ -495,10 +495,10 @@ auditability and the single-source-of-truth guarantee provided by CM-02-002.
 Directly setting `.em_state` on the `case_status` list attribute is a bug
 (lists do not support arbitrary attribute assignment).
 
-**Trusted timestamp implementation note**: When the spec says the CaseActor
+**Trusted timestamp implementation note**: When the spec says the CASE_MANAGER
 must timestamp state-changing events on receipt, this does NOT mean modifying
 the `updated_at` field on the receiving or participating object. It means
-the CaseActor records the event to the canonical `CaseLedgerEntry` hash
+the CASE_MANAGER records the event to the canonical `CaseLedgerEntry` hash
 chain. The distinction matters: modifying an existing object's timestamp
 would break the append-only history invariant and allow event-ordering
 disagreements across actor copies.
@@ -707,7 +707,7 @@ demo-visibility gap.
 When an actor sends `Accept(Invite(actor, case))`, they have seen only a redacted
 or stub view of the `VulnerabilityCase` — enough to agree to join and consent to
 the embargo, but not the full vulnerability details (report, description, affected
-versions, etc.). The full case is replicated to them *after* the CaseActor
+versions, etc.). The full case is replicated to them *after* the CASE_MANAGER
 processes their Accept. Therefore:
 
 - `Accept(Invite)` = "I am willing to join this case and accept its embargo terms."
@@ -719,16 +719,16 @@ cannot be in that state before seeing the report.
 
 ### Correct Lifecycle for Invited Participants
 
-After the CaseActor processes `Accept(Invite)`:
+After the CASE_MANAGER processes `Accept(Invite)`:
 
-1. CaseActor records invitee at **RM.RECEIVED**.
-2. CaseActor replicates the full `VulnerabilityCase` to the invitee via
+1. CASE_MANAGER records invitee at **RM.RECEIVED**.
+2. CASE_MANAGER replicates the full `VulnerabilityCase` to the invitee via
    `Announce(VulnerabilityCase)` and join-time ledger backfill.
 3. Invitee reviews the full case, runs their own validation:
-   - Transitions to **RM.VALID** or **RM.INVALID** and notifies the CaseActor.
+   - Transitions to **RM.VALID** or **RM.INVALID** and notifies the CASE_MANAGER.
 4. If valid, invitee decides to engage or defer:
-   - Transitions to **RM.ACCEPTED** or **RM.DEFERRED** and notifies the CaseActor.
-5. CaseActor updates its representation of the invitee's RM state based on
+   - Transitions to **RM.ACCEPTED** or **RM.DEFERRED** and notifies the CASE_MANAGER.
+5. CASE_MANAGER updates its representation of the invitee's RM state based on
    the received status messages (CM-11-002).
 
 ### Scope Boundary
@@ -743,7 +743,7 @@ CM-13), whose RM states are set as part of the case creation sequence.
 - **`CreateInviteeParticipantNode`** constructs the invitee participant at
   `RM.START`; **`AdvanceInviteeToReceivedNode`** then records `RM.RECEIVED` for
   the invitee through the sole writer (`CreateParticipantStatusNode`) in the
-  CaseActor's DataLayer, after the participant is attached (ADR-0089 birth:
+  CASE_MANAGER's DataLayer, after the participant is attached (ADR-0089 birth:
   construct → attach → advance).
 - The invitee's subsequent V/A transitions are driven by received RM status
   messages from the invitee themselves.
@@ -784,7 +784,7 @@ and `specs/case-management.yaml`), the rules must distinguish two perspectives:
 
 1. **Participant-specific rules**: Evaluated against a single participant's
    RM/VFD state (applies to each vendor independently).
-2. **Case-level rules (CaseActor/Case Owner perspective)**: Must aggregate
+2. **Case-level rules (CASE_MANAGER / Case Owner perspective)**: Must aggregate
    across all relevant participants. For example, an `EMBARGO_END` trigger
    MUST NOT be based on a single vendor reaching `FIX_READY` when other
    vendors have not.

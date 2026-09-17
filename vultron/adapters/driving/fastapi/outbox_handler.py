@@ -94,6 +94,31 @@ MAX_TOTAL_ATTEMPTS: int = 12
 _default_emitter: ActivityEmitter | None = None
 
 
+def _resolve_ledger_entry_id(activity_id: str, dl: DataLayer) -> str | None:
+    """Return the CaseLedgerEntry ID if *activity_id* is an Announce(CaseLedgerEntry).
+
+    Reads the activity from *dl* and extracts ``object_.id_`` when the
+    object type is ``"CaseLedgerEntry"``.  Returns ``None`` for all other
+    activity types so non-ledger activities dead-letter unchanged (OX-14-001).
+
+    The CaseLedgerEntry is always committed before its fan-out activity is
+    queued (emit-after-commit invariant, OX-14-002), so the entry is always
+    present in *dl* when this function runs.
+    """
+    try:
+        activity = dl.read(activity_id)
+    except Exception:
+        return None
+    if activity is None:
+        return None
+    obj = getattr(activity, "object_", None)
+    if obj is None:
+        return None
+    if getattr(obj, "type_", None) != "CaseLedgerEntry":
+        return None
+    return getattr(obj, "id_", None)
+
+
 def configure_default_emitter(emitter: ActivityEmitter) -> None:
     """Set the default ``ActivityEmitter`` for ``outbox_handler``.
 
@@ -272,11 +297,16 @@ async def outbox_handler(
             total = _retry.get_outbox_attempt_count(activity_id) + 1
             if total >= MAX_TOTAL_ATTEMPTS:
                 # Budget exhausted — dead-letter the activity (OX-13-002).
+                # Resolve the ledger entry being replicated, if any (OX-14-001).
+                ledger_entry_id = _resolve_ledger_entry_id(
+                    activity_id, _read_dl
+                )
                 _retry.dead_letter_append(
                     activity_id,
                     reason="max_attempts_exhausted",
                     total_attempts=total,
                     failed_recipients=failed_recipients,
+                    ledger_entry_id=ledger_entry_id,
                 )
                 _retry.clear_outbox_attempt_count(activity_id)
                 logger.error(

@@ -76,6 +76,24 @@ def _get_case_actor_id(client: DataLayerClient, case_id: str) -> str | None:
 
     The Case Actor Service is stored in the DataLayer with ``context`` equal to
     the case ID.  Returns ``None`` when no matching Service is found.
+
+    **This reads hosting location, which ADR-0088 retired as a signal of
+    authority (ARCH-24-004, CM-02-013).**  It survives here only because this is
+    demo scaffolding rather than protocol logic — no protocol path may resolve
+    the authority this way, and the ratchet in
+    ``test/architecture/test_role_authority_resolver.py`` enforces that for
+    ``vultron/core``, ``vultron/wire``, ``vultron/adapters`` and
+    ``vultron/semantic_registry``.
+
+    It cannot yet be replaced by the role lookup that ADR-0088 prescribes: at
+    this point in the demo the case roster holds only the finder, with an empty
+    ``caseRoles``, because the ``trigger/create-case`` path this demo uses
+    registers no ``CVDRole.CASE_MANAGER`` participant.  A role-based resolver
+    here would therefore answer ``None`` on every call and silently fall through
+    — a dead branch that reads like coverage.  Fixing the *cause* — having demo
+    case creation register the role-holder as a participant — is tracked as
+    **#3304**.  Until then an ordinary participant enacting CASE_MANAGER, legal
+    under ADR-0088, is invisible to this helper.
     """
     actors = client.get("/actors/")
     if not isinstance(actors, list):

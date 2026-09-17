@@ -288,8 +288,12 @@ class TestEmbargoLogEntryCascade:
         """AcceptInviteToEmbargoOnCaseReceivedUseCase commits a CaseLedgerEntry."""
         coordinator_id = "https://example.org/users/coordinator"
         case_id = "https://example.org/cases/em_cas_accept"
+        vendor_id = "https://example.org/users/vendor"
         dl, case_actor, case, embargo = _make_embargo_case_with_actor(
-            case_id, coordinator_id, case_manager_actor_id=coordinator_id
+            case_id,
+            coordinator_id,
+            extra_participants=[vendor_id],
+            case_manager_actor_id=coordinator_id,
         )
         case = cast(VulnerabilityCase, dl.read(case.id_))
         assert case is not None
@@ -299,15 +303,19 @@ class TestEmbargoLogEntryCascade:
         proposal = em_propose_embargo_activity(
             embargo,
             context=case.id_,
-            actor="https://example.org/users/vendor",
+            actor=vendor_id,
             id_=f"{case_id}/embargo_proposals/1",
         )
         dl.create(proposal)
 
+        # The *vendor* accepts; the CASE_MANAGER receives and commits.  Those are
+        # two different actors on purpose: CLP-07-003 requires the snapshot to
+        # name the asserter, and making the asserter the committing CASE_MANAGER
+        # would model a substitution rather than the flow under test.
         accept = em_accept_embargo_activity(
             proposal,
             context=case.id_,
-            actor=coordinator_id,
+            actor=vendor_id,
         )
         # Per ADR-0022 / CLP-10-005: the guarded commit fires when
         # receiving_actor_id holds CVDRole.CASE_MANAGER.  coordinator_id is
@@ -333,22 +341,28 @@ class TestEmbargoLogEntryCascade:
         """RejectInviteToEmbargoOnCaseReceivedUseCase commits a CaseLedgerEntry."""
         coordinator_id = "https://example.org/users/coordinator"
         case_id = "https://example.org/cases/em_cas_reject"
+        vendor_id = "https://example.org/users/vendor"
         dl, case_actor, case, embargo = _make_embargo_case_with_actor(
-            case_id, coordinator_id, case_manager_actor_id=coordinator_id
+            case_id,
+            coordinator_id,
+            extra_participants=[vendor_id],
+            case_manager_actor_id=coordinator_id,
         )
 
         proposal = em_propose_embargo_activity(
             embargo,
             context=case_id,
-            actor="https://example.org/users/vendor",
+            actor=vendor_id,
             id_=f"{case_id}/embargo_proposals/1",
         )
         dl.create(proposal)
 
+        # The vendor rejects; the CASE_MANAGER receives and commits.  See the
+        # accept test above for why the asserter must not be the committer.
         reject = em_reject_embargo_activity(
             proposal,
             context=case_id,
-            actor=coordinator_id,
+            actor=vendor_id,
         )
         # coordinator_id holds CASE_MANAGER in this fixture, and the ledger
         # commit is gated on that role, so it is the receiving actor.

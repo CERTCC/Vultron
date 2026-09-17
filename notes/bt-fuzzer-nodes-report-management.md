@@ -257,7 +257,7 @@ Tree structure::
 **New ProtocolInternal node**:
 
 - `_WriteRolesNode` — writes `suggested_roles_{case_id_segment}` = [CVDRole.X]
-  to the blackboard before the trigger fires, so the downstream CaseActor
+  to the blackboard before the trigger fires, so the downstream CASE_MANAGER
   receive path carries the correct role when forwarding
   `Offer(CaseParticipant)` to the Case Owner (BTND-03-004, AC-2).
 

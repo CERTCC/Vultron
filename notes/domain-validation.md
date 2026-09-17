@@ -365,10 +365,10 @@ of the maxim applies at that boundary, not which path is inconsistent.
 **The receive path stays liberal — this question is settled (CONCERN-3040).**
 The arguments for all-or-nothing were examined and rejected on two grounds:
 
-1. *RM is self-declaratory* (ADR-0084): the CaseActor has no independent
+1. *RM is self-declaratory* (ADR-0084): the CASE_MANAGER has no independent
    knowledge of a participant's RM state. If a sender asserts `rm=VALID` while
    the ledger records `ACCEPTED`, the ledger is merely stale — the participant
-   knows their own state. The CaseActor cannot correct a self-report.
+   knows their own state. The CASE_MANAGER cannot correct a self-report.
 
 2. *PXA dimensions are external observational facts, not self-declared process
    state.* A threat sentinel may correctly observe `exploit=public` while
@@ -683,7 +683,7 @@ departing actor's own self-declaratory closure act (ADR-0084), so advancing
 *that single actor* to `RM.CLOSED` regardless of rung is legitimate
 self-declaration — the RM adjacency rule is a report-handling invariant that a
 case-level `Leave` legitimately overrides. The scope is the key constraint: each
-site advances exactly one named actor (the leaver, or the case actor closing its
+site advances exactly one named actor (the leaver, or the CASE_MANAGER closing its
 own lifecycle on owner Leave, ADR-0051). Closure **never** force-advances a
 non-leaving ("bystander") participant — a participant that never sent `Leave`
 has made no closure declaration, so it retains its last RM state when the case
