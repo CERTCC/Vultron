@@ -22,6 +22,13 @@ In this section, we will expand on the set of behaviors shown in the diagram bel
     Decisions about which (and how many) of the following tasks are necessary for a Participant to complete work
     on their $Accepted$ CVD cases are left to the discretion of individual Participants.
 
+!!! note "Legacy design diagram"
+
+    The diagram on this page reflects the simulator-era design from `vultron/bt/` and may not
+    match the current implementation in `vultron/core/behaviors/`.
+    See the [Behaviors Reference](../../reference/behaviors/index.md) for
+    auto-generated documentation from the current implementation.
+
 ```mermaid
 ---
 title: Do Work Behavior Tree
