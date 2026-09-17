@@ -249,21 +249,6 @@ intentionally skipped.
 
 ---
 
-## Migration Procedure
-
-1. Create `plan/history/` directory.
-2. Move `plan/IMPLEMENTATION_HISTORY.md` → `plan/history/IMPLEMENTATION_HISTORY.md`.
-3. Move `plan/IDEA-HISTORY.md` → `plan/history/IDEA-HISTORY.md`.
-4. Move `plan/PRIORITY_HISTORY.md` → `plan/history/PRIORITY_HISTORY.md`.
-5. Write `plan/history/README.md` explaining the legacy files and migration date.
-6. Update `AGENTS.md`, `notes/append-only-file-handling.md`,
-   `notes/plan-history-management.md`, `.agents/skills/build/SKILL.md`,
-   `.agents/skills/ingest-idea/SKILL.md`, `.agents/skills/learn/SKILL.md`,
-   and `.agents/skills/study-project-docs/SKILL.md`.
-7. Delete `tools/migrate_spec_md_to_yaml.py` (vestigial script).
-
----
-
 ## Agent Context Boundary
 
 During the standard orientation phase (`study-project-docs` Step 2), agents
@@ -282,62 +267,6 @@ command for reproducible access), then open only the specific entry files
 needed.
 
 ---
-
-## Skill Update Summary
-
-| Skill | What changes |
-|---|---|
-| `build` | Replace direct append to `plan/IMPLEMENTATION_HISTORY.md` with `uv run append-history implementation` |
-| `ingest-idea` | Replace direct append to `plan/IDEA-HISTORY.md` with `uv run append-history idea` |
-| `learn` | Remove direct reads of `plan/*HISTORY.md`; rely on `study-project-docs` for plan context |
-| `study-project-docs` | Add explicit note that Step 2 covers `plan/*.md` only, NOT `plan/history/` |
-
----
-
-## Relation to IDEA-26042801
-
-IDEA-26042801 (build skill notes vs. history distinction) is closely related.
-The `append-history` tool introduced here is the mechanism by which the `build`
-skill will write *status* entries (what was done) to history, keeping
-`BUILD_LEARNINGS.md` focused on observations and learnings. The two
-ideas are designed to be implemented together: this spec provides the
-infrastructure; IDEA-26042801 provides the usage policy for the `build` skill.
-
----
-
-## Testing Pattern
-
-```python
-# test/metadata/test_append_history.py
-import subprocess
-from pathlib import Path
-
-def test_append_creates_entry_file(tmp_path, monkeypatch):
-    monkeypatch.chdir(tmp_path)
-    content = "---\ntitle: Test\ntype: idea\ndate: 2026-04-28\nsource: IDEA-TEST\n---\n\nBody."
-    result = subprocess.run(
-        ["uv", "run", "append-history", "idea"],
-        input=content,
-        text=True,
-        capture_output=True,
-    )
-    assert result.returncode == 0
-    entry_files = list(Path("plan/history").rglob("*.md"))
-    assert any("IDEA-TEST" in f.name for f in entry_files)
-
-def test_append_regenerates_readme(tmp_path, monkeypatch):
-    # After append, plan/history/YYMM/README.md should exist
-    ...
-
-def test_invalid_type_exits_nonzero():
-    result = subprocess.run(
-        ["uv", "run", "append-history", "bogus_type"],
-        input="content",
-        text=True,
-        capture_output=True,
-    )
-    assert result.returncode != 0
-```
 
 ## Superseded Notes Sections Are Archived via `append-history note`
 

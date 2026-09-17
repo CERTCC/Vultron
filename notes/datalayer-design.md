@@ -79,85 +79,6 @@ sometimes legitimate, but it should not become invisible. When a
 architectural smell: the handler is mixing inbound processing with
 outbound broadcast and should be reviewed for a cleaner split later.
 
-## Auto-Rehydration: `dl.read()` MUST Return Fully Typed Objects
-
-The DataLayer port MUST guarantee that `dl.read(id)` and
-`dl.list_objects(type_key)` always return fully rehydrated, typed domain
-objects — never raw storage records, untyped dicts, or objects with
-dehydrated string references in nested fields.
-
-**Rationale**: the SQLite DataLayer adapter currently dehydrates nested
-object references to ID strings on write. Without auto-rehydration on
-read, every use case that retrieves an activity with a nested object must
-manually coerce the dehydrated string back to a typed object via
-`model_validate`. That duplication:
-
-- directly caused the INLINE-OBJ-B bugs (bare string `object_` values
-  passing through to Accept/Reject constructors)
-- repeats the same strip-and-validate boilerplate across multiple use
-  cases
-- violates the hexagonal principle that core should not know about
-  storage internals
-
-Auto-rehydration applies to **all fields that the adapter dehydrates**:
-
-- `object_` — the primary offender (transitive activity nested object)
-- `target` — target object reference
-- `origin` — origin object reference
-- any other field that `_dehydrate_data` currently collapses to an ID
-  string
-
-Once the DataLayer adapter implements auto-rehydration on read, all
-manual coercion code in use cases MUST be removed. Search targets
-include:
-
-- `vultron/core/use_cases/triggers/embargo.py`
-- `vultron/core/use_cases/triggers/report.py`
-- `vultron/core/use_cases/received/sync.py`
-- any other site calling `model_validate` after `dl.read()` to recover
-  nested object type information
-
-Specs: `specs/datalayer.yaml` DL-01-001 through DL-01-004.
-
-## Core Should Reliably Get Domain Objects from DataLayer
-
-Core should be able to call `dl.read(id)` or `dl.list(type_key)` and
-receive properly typed domain objects rather than raw SQLite records,
-untyped dicts, or ambiguous `StorableRecord` types.
-
-Conversely, when persisting objects, core should be able to call
-`dl.save(domain_obj)` and trust that the adapter handles the translation
-to whatever storage format is needed. Core should not need to call
-`object_to_record()` or know anything about storage internals.
-
-Symptoms of an unhealthy boundary include:
-
-- `record_to_object()` being called in core use cases to convert
-  DataLayer results back into domain objects
-- `object_to_record()` being called in core use cases before
-  `dl.update()`
-- type checks like `if isinstance(result, Document): ...` appearing in
-  core, revealing DataLayer implementation details in business logic
-
-Recommended direction:
-
-1. `dl.read(id)` returns a typed, fully rehydrated domain object (or
-   raises `VultronNotFoundError`).
-2. `dl.save(obj)` accepts domain objects directly and handles all
-   serialization internally.
-3. `dl.list(type_key)` returns an iterable of typed, fully rehydrated
-   domain objects.
-4. All `object_to_record()` / `record_to_object()` calls move into the
-   adapter.
-
-A mapping layer between core objects and DataLayer records belongs in the
-adapter, not in core. This improves separation of concerns and makes core
-logic easier to test without mocking storage internals.
-
-This is also why `get()` and `by_type()` are a poor long-term fit for
-`CasePersistence`: they keep raw-record style access available to core
-when the target direction is fully typed domain-object access.
-
 ## DataLayer Storage Records Need Re-Evaluation
 
 `Record` and `StorableRecord` in
@@ -183,40 +104,6 @@ store.
 Research needed: audit all current callers of `object_to_record()`,
 `record_to_object()`, and `find_in_vocabulary()` to understand the scope
 of the coupling before designing the refactor.
-
-## Read Path MUST Return Core Objects (ADR-0034, DL-05)
-
-**Decided (ADR-0034):** `dl.read()` and `dl.list_objects()` MUST return
-**core** domain objects (`vultron/core/models/`), never **wire** vocabulary
-types (`vultron/wire/as2/vocab/objects/`, `as_`-prefixed), for any persisted
-`type_` that has a registered core counterpart in `CORE_VOCABULARY`.
-
-**Implemented (PR #1529):** The read path now reconstructs domain entities via
-`CORE_VOCABULARY`, so `dl.read()` returns core objects. The duck-typing
-Protocols and `TypeGuard` helpers (`CaseModel`, `is_case_model()`, etc.) in
-`vultron/core/models/protocols.py` were removed; core uses direct
-`isinstance()` checks against concrete core classes (DL-05-003).
-
-DL-05 end-state achieved (all four requirements met):
-
-1. The adapter reconstructs registered domain entities via
-   `find_in_core_vocabulary()` / `CORE_VOCABULARY`, so reads/writes of domain
-   entities are core → core.
-2. The adapter owns wire↔core translation and keeps its own
-   `type_`→core-class mapping, independent of the wire `VOCABULARY`.
-3. The duck-typing Protocols in `protocols.py` are removed; core depends on
-   concrete core classes (real `isinstance` narrowing).
-4. A ratchet test asserts no `vultron.wire.as2` vocabulary type escapes
-   `dl.read()` / `dl.list_objects()` into `vultron/core/`.
-
-**Recognised exception — AS2 Activities.** The 29 protocol message types
-(`vultron/wire/as2/vocab/activities/`) have no core counterpart, so they
-cannot be returned as core objects. Core code that reads a stored wire
-Activity back from the DataLayer (e.g. `dl.read(offer_id)` returning an
-`as_Offer`) is itself a boundary violation (ARCH-01-002, ARCH-03-001), but
-migrating it out of core is tracked as a **separate concern** (#1506, decided
-in ADR-0035), not part of the DL-05 entity work. Until then, the ratchet
-exemption set enumerates these Activity types explicitly so it can only shrink.
 
 ## Write Path Normalises Wire → Core (#2232, ADR-0062)
 
@@ -400,7 +287,7 @@ delivery happened to store the value; that hidden dependency on delivery order
 is a latent race, not a safety net.
 
 `_read_invite_roles()` in
-`vultron/core/use_cases/received/accept_invite_tree.py` (ISSUE-2719) read invite
+`vultron/core/behaviors/case/accept_invite_tree.py` (ISSUE-2719) read invite
 roles from the DataLayer rather than from the received activity. A protocol field
 that is *present in the message* must be read from the message; treating the
 DataLayer as a substitute source silently tolerates a message that never carried
@@ -508,7 +395,7 @@ without knowing anything about AS2 naming conventions.
 Files to investigate:
 
 - `vultron/adapters/driven/db_record.py`
-- `vultron/adapters/driven/datalayer_sqlite.py`
+- `vultron/adapters/driven/datalayer_sqlite/`
 - `vultron/wire/as2/rehydration.py`
 - `vultron/wire/as2/vocab/registry.py`
 

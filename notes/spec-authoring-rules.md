@@ -274,6 +274,22 @@ cannot perform. Give such a requirement a `note` naming the enforcing side and a
 
 Source: ISSUE-2824, ISSUE-3217, ISSUE-3207
 
+### Verify an "All-Members" Group Claim Against Each Member
+
+The verification-side companion to the rule above. When a spec **group
+description** asserts a property of *all* its members ("All CS shorthands share
+the `ADD_CASE_STATUS_TO_CASE` semantic"), check each member against the code
+before relying on the generalization. Group descriptions are written once and
+rarely revisited when one member's behaviour later diverges, so a stale "all"
+claim silently mis-specifies the members that changed. MSM-03-001/002/003
+inherited exactly this: the group generalized a `CaseStatus` semantic onto `CV`/
+`CF`/`CD`, which actually carry participant-scoped VF/D state
+(`as_ParticipantStatus`, ADR-0075) — so the group asserted, normatively, the
+opposite of an invariant the domain model enforces. An implementer following it
+faithfully would have dropped the vendor identity.
+
+Source: MSM-03-001/002/003 (promoted from notes/message-type-reference.md)
+
 ### Never Restate Counts in Cross-References
 
 See [notes/specs-vs-adrs.md](specs-vs-adrs.md) § "Never State Ephemeral Counts
