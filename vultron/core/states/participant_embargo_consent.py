@@ -19,7 +19,7 @@ Transitions
 -----------
 INVITE  : UNBOUND | LAPSED | DECLINED → INVITED
 ACCEPT  : UNBOUND | INVITED | LAPSED → SIGNATORY
-DECLINE : UNBOUND | INVITED | LAPSED → DECLINED
+DECLINE : UNBOUND | INVITED | LAPSED | SIGNATORY → DECLINED
 REVISE  : SIGNATORY → LAPSED
 RESET   : * → UNBOUND  (embargo terminated or removed)
 
@@ -97,7 +97,8 @@ _transitions: list[dict] = [
     PECTransition(
         trigger=PEC_Trigger.ACCEPT, source=PEC.LAPSED, dest=PEC.SIGNATORY
     ).model_dump(),
-    # DECLINE transitions (ADR-0048: symmetric with ACCEPT from UNBOUND)
+    # DECLINE transitions (ADR-0048: symmetric with ACCEPT from UNBOUND;
+    # ADR-0093: SIGNATORY → DECLINED is consent withdrawal, not a lapse)
     PECTransition(
         trigger=PEC_Trigger.DECLINE, source=PEC.UNBOUND, dest=PEC.DECLINED
     ).model_dump(),
@@ -106,6 +107,9 @@ _transitions: list[dict] = [
     ).model_dump(),
     PECTransition(
         trigger=PEC_Trigger.DECLINE, source=PEC.LAPSED, dest=PEC.DECLINED
+    ).model_dump(),
+    PECTransition(
+        trigger=PEC_Trigger.DECLINE, source=PEC.SIGNATORY, dest=PEC.DECLINED
     ).model_dump(),
     # REVISE: an active signatory lapses when embargo terms change
     PECTransition(

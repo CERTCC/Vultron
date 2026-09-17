@@ -650,19 +650,14 @@ class TestInviteeIsTheAddressee:
         assert lookups, "no OptionalLookupParticipantNode in the reject tree"
         assert all(node.target_actor_id == _INVITEE for node in lookups)
 
-    def test_reject_from_signatory_is_refused_not_applied(self, make_payload):
-        """A SIGNATORY rejecting is refused by the PEC machine, and says so.
+    def test_reject_from_signatory_transitions_to_declined(self, make_payload):
+        """A SIGNATORY rejecting an embargo revision transitions to DECLINED.
 
-        Documents current behavior rather than endorsing it.  ``DECLINE`` is
-        legal only from ``UNBOUND | INVITED | LAPSED``, and the received
-        side runs no EM lifecycle node, so nothing moves a SIGNATORY to
-        ``LAPSED`` in this replica first.  The transition is refused, the tree
-        reports FAILURE, and ``BTBridge`` logs it at ERROR with a traceback —
-        the participant is left as it was rather than silently mutated.
-
-        The protocol question this raises — what a SIGNATORY rejecting a
-        *revision* should transition to — needs an EM lifecycle change on the
-        received path and is recorded as a learning, not decided here.
+        ADR-0093 adds ``SIGNATORY → DECLINED`` as a first-class PEC
+        transition.  A ``SIGNATORY`` participant who explicitly rejects is
+        exercising consent withdrawal; the received-side reject tree issues
+        ``PEC_Trigger.DECLINE`` directly without needing an EM lifecycle
+        step to pass through ``LAPSED`` first.
         """
         dl = _make_dl(actor_id=_COORD)
         case_id = "https://example.org/cases/addressee8"
@@ -686,9 +681,9 @@ class TestInviteeIsTheAddressee:
 
         RejectInviteToEmbargoOnCaseReceivedUseCase(dl, event).execute()
 
-        # Refused, not applied — and emphatically not applied to the CaseActor.
+        # Consent withdrawal applied: SIGNATORY → DECLINED (ADR-0093).
         invitee = self._read_participant(dl, invitee_p_id)
-        assert invitee.embargo_consent_state == PEC.SIGNATORY
+        assert invitee.embargo_consent_state == PEC.DECLINED
         coord = self._read_participant(dl, coord_p_id)
         assert coord.embargo_consent_state == PEC.UNBOUND
 

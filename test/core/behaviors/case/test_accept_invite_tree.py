@@ -107,14 +107,15 @@ class TestSignEmbargoConsentLeafNode:
         assert status == Status.SUCCESS
         assert participant.embargo_consent_state == PEC.SIGNATORY
 
-    def test_already_signatory_raises_on_accept(
+    def test_already_signatory_is_idempotent(
         self, bt_scenario: BTTestScenario
     ) -> None:
-        """Participant already SIGNATORY: ACCEPT is an illegal trigger → FAILURE.
+        """Participant already SIGNATORY: ACCEPT is skipped, node returns SUCCESS.
 
-        apply_pec_transition() is fail-closed: ACCEPT from SIGNATORY raises
-        VultronInvalidStateTransitionError; the BTBridge catches it and
-        returns FAILURE with the error in feedback_message (AC-5, CM-18-005).
+        ADR-0093 introduced SIGNATORY → DECLINED, making DECLINED a reachable
+        terminal state.  A SIGNATORY re-accepting is a no-op: the guard added
+        to _SignEmbargoConsentLeafNode prevents the invalid ACCEPT trigger and
+        the node succeeds without changing PEC state (CM-18-005).
         """
         node = _SignEmbargoConsentLeafNode(invitee_id=_ACTOR_ID)
         participant = CaseParticipant(
@@ -128,8 +129,8 @@ class TestSignEmbargoConsentLeafNode:
             new_invite_participant=participant,
             active_embargo_id=_EMBARGO_ID,
         )
-        assert result.status == Status.FAILURE
-        assert "does not accept trigger" in result.feedback_message
+        assert result.status == Status.SUCCESS
+        assert participant.embargo_consent_state == PEC.SIGNATORY
 
     def test_embargo_id_recorded_on_participant(
         self, bt_scenario: BTTestScenario
