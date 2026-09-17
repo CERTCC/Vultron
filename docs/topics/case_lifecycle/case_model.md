@@ -74,7 +74,7 @@ role (the role that authorizes ledger writes).
 The `CaseActor` name and its `.../actors/case-actor` URL are provisioning
 conveniences and carry no protocol meaning. Authority follows the role, so no
 protocol logic may read that name, that URL shape, or where an actor is hosted as
-evidence of who the authority is ([ADR-0088](../adr/0088-consolidate-case-authority-determination.md)).
+evidence of who the authority is ([ADR-0088](../../adr/0088-consolidate-case-authority-determination.md)).
 An ordinary participant that holds `CVDRole.CASE_MANAGER` is the authority just as
 fully as a spawned Service actor is.
 
