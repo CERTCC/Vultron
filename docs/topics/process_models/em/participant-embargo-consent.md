@@ -60,7 +60,7 @@ state machines:
 |---|---|
 | RM state | Self-reported by the participant |
 | VF/D state | Self-reported by the vendor or deployer |
-| **PEC state** | **Set by the CASE_MANAGER, based on observed behaviour** |
+| **PEC state** | **Set by the CASE_MANAGER, based on observed behavior** |
 
 The participant never declares "I am now `SIGNATORY`." Instead, the
 CASE_MANAGER observes an inbound `Accept(Invite(EmbargoEvent))` activity
@@ -117,7 +117,7 @@ An `ER` message (`Reject(Invite(EmbargoEvent))`) also has two effects:
        the shared EM state advances from `PROPOSED` to `NONE`.
     2. **All rejecting actors**: the CASE_MANAGER MUST apply the `DECLINE`
        PEC trigger, advancing the actor's consent state from `INVITED`,
-       `UNBOUND`, or `LAPSED` to `DECLINED`. (MSM-07-004)
+       `UNBOUND`, `LAPSED`, or `SIGNATORY` to `DECLINED`. (MSM-07-004)
 
 ### EV — Embargo Revision Proposed
 
@@ -225,6 +225,7 @@ transitions result from inaction.
 | `INVITED` | EA received | `SIGNATORY` | Wire | MSM-07-003 |
 | `INVITED` | ER received | `DECLINED` | Wire | MSM-07-004 |
 | `INVITED` | Deadline passed | `DECLINED` | Timer | MSM-07-007 |
+| `SIGNATORY` | ER received | `DECLINED` | Wire | MSM-07-004 |
 | `SIGNATORY` | EM enters `REVISE` (EV) | `LAPSED` | Cascade | MSM-07-005 |
 | `LAPSED` | EP received | `INVITED` | Wire | MSM-07-002 |
 | `LAPSED` | EA received | `SIGNATORY` | Wire | MSM-07-003 |
