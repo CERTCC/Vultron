@@ -254,6 +254,17 @@ mismatch. Note that the generator randomizes IDs and timestamps on every run, so
 running it in place rewrites every committed artifact: generate into a temp
 directory and copy across only the files you added.
 
+**An example must be dispatchable, and "well-formed" does not imply it.** Set the
+discriminator fields the activity's `ActivityPattern` requires — `object_`,
+`target_`, `context_` — and note that `ActivityPattern` has **no `origin_`
+field**, so `origin` is never consulted for dispatch no matter how well it reads.
+`test/architecture/test_vocab_examples_dispatchable.py` is the ratchet: every
+example activity must match exactly one registered pattern. It found two examples
+that matched none (#3438, #3439), each rendered on a reference page and each
+committed as a JSON artifact, because the two pre-existing gates ask only whether
+an example *executes* and whether its *filename* is committed — never whether a
+receiver could route it.
+
 The generator's output path is now resolved from the file's own location
 (`Path(__file__).parents[5]`), so it works regardless of the caller's working
 directory. A drift check in `test/architecture/test_vocab_examples_current.py`
