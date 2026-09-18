@@ -195,94 +195,108 @@ def _phase_report_submission(
         offer=offer,
     )
 
-    # Wait for the initial participants (Finder + Vendor1 + CaseActor) before
-    # inviting Vendor2.
-    wait_for_case_participants(
-        vendor_client=vendor_client,
-        case_id=case.id_,
-        expected_actor_ids={finder.id_, vendor.id_},
-    )
-
-    with demo_check(
-        "Finder's DataLayer received case via Vendor1 outbox delivery"
+    # Causal precondition: the initial case (Finder + Vendor1 present on
+    # Vendor1's replica) must exist before Vendor2 is invited.  A demo_gate — not
+    # demo_check — because inviting/admitting Vendor2 operates on unestablished
+    # state if this times out; the gate skips the doomed dependent steps rather
+    # than cascading (DEMOCI-01-011, vultron/demo/AGENTS.md § "Never Wrap a
+    # Causal Wait in demo_check").
+    with demo_gate(
+        "Vendor1 case has Finder + Vendor1 before inviting Vendor2"
     ):
-        wait_for_finder_case(
-            finder_client=finder_client,
+        wait_for_case_participants(
+            vendor_client=vendor_client,
             case_id=case.id_,
+            expected_actor_ids={finder.id_, vendor.id_},
         )
 
-    # Vendor1 invites Vendor2 to the case.
-    invite_result = None
-    with demo_step("Vendor1 invites Vendor2 to the case"):
-        invite_result = post_to_trigger(
-            client=vendor_client,
-            actor_id=vendor_in_vendor.id_,
-            behavior="invite-actor-to-case",
-            body={
-                "case_id": case.id_,
-                "invitee_id": vendor2.id_,
-                "roles": ["vendor"],
-            },
+        with demo_check(
+            "Finder's DataLayer received case via Vendor1 outbox delivery"
+        ):
+            wait_for_finder_case(
+                finder_client=finder_client,
+                case_id=case.id_,
+            )
+
+        # Vendor1 invites Vendor2 to the case.
+        invite_result = None
+        with demo_step("Vendor1 invites Vendor2 to the case"):
+            invite_result = post_to_trigger(
+                client=vendor_client,
+                actor_id=vendor_in_vendor.id_,
+                behavior="invite-actor-to-case",
+                body={
+                    "case_id": case.id_,
+                    "invitee_id": vendor2.id_,
+                    "roles": ["vendor"],
+                },
+            )
+        invite = as_TransitiveActivity.model_validate(
+            invite_result["activity"]
         )
-    invite = as_TransitiveActivity.model_validate(invite_result["activity"])
-    logger.info("Invite created: %s", invite.id_)
+        logger.info("Invite created: %s", invite.id_)
 
-    with demo_check("Vendor2 invite delivered to Vendor2's DataLayer"):
-        find_case_invite_for_actor(
-            client=vendor2_client,
-            case_id=case.id_,
-            invitee_id=vendor2.id_,
-            timeout_seconds=20.0,
-        )
+        with demo_check("Vendor2 invite delivered to Vendor2's DataLayer"):
+            find_case_invite_for_actor(
+                client=vendor2_client,
+                case_id=case.id_,
+                invitee_id=vendor2.id_,
+                timeout_seconds=20.0,
+            )
 
-    # Vendor2 accepts the invite.
-    with demo_step("Vendor2 accepts the case invitation"):
-        post_to_trigger(
-            client=vendor2_client,
-            actor_id=vendor2_in_vendor2.id_,
-            behavior="accept-case-invite",
-            body={"invite_id": invite.id_},
-        )
+        # Vendor2 accepts the invite.
+        with demo_step("Vendor2 accepts the case invitation"):
+            post_to_trigger(
+                client=vendor2_client,
+                actor_id=vendor2_in_vendor2.id_,
+                behavior="accept-case-invite",
+                body={"invite_id": invite.id_},
+            )
 
-    # Wait for Vendor2's container to replicate the case.
-    with demo_check("Vendor2's DataLayer received case replica"):
-        wait_for_case_on_container(
-            client=vendor2_client,
-            case_id=case.id_,
-        )
+        # Wait for Vendor2's container to replicate the case.
+        with demo_check("Vendor2's DataLayer received case replica"):
+            wait_for_case_on_container(
+                client=vendor2_client,
+                case_id=case.id_,
+            )
 
-    # 4 participants: Finder + Vendor1 + Vendor2 + CaseActor
-    wait_for_case_participants(
-        vendor_client=vendor_client,
-        case_id=case.id_,
-        expected_actor_ids={
-            finder.id_,
-            vendor.id_,
-            vendor2.id_,
-        },
-    )
+        # All 4 participants (Finder + Vendor1 + Vendor2 + CaseActor) present is
+        # the precondition for Vendor2's RM triage below.
+        with demo_gate(
+            "Vendor1 case has all 4 participants before Vendor2 RM triage"
+        ):
+            wait_for_case_participants(
+                vendor_client=vendor_client,
+                case_id=case.id_,
+                expected_actor_ids={
+                    finder.id_,
+                    vendor.id_,
+                    vendor2.id_,
+                },
+            )
 
-    # CLP-08-005: ensure Finder's genesis hash is seeded before Announce(CaseLedgerEntry)
-    # is broadcast by the triage cycle below.
-    with demo_check(
-        "Finder's DataLayer received case replica before Vendor2 RM triage"
-    ):
-        wait_for_case_on_container(
-            client=finder_client,
-            case_id=case.id_,
-        )
+            # CLP-08-005: ensure Finder's genesis hash is seeded before
+            # Announce(CaseLedgerEntry) is broadcast by the triage cycle below.
+            with demo_check(
+                "Finder's DataLayer received case replica before Vendor2 RM"
+                " triage"
+            ):
+                wait_for_case_on_container(
+                    client=finder_client,
+                    case_id=case.id_,
+                )
 
-    # CM-11-002: Vendor2 joined via invite-accept — run standard RM triage cycle.
-    run_invite_path_rm_triage(
-        invited_client=vendor2_client,
-        invited_actor=vendor2_in_vendor2,
-        offer=offer,
-        report=report,
-        finder=finder,
-        auth_client=vendor_client,
-        case=case,
-        invited_obj=vendor2,
-    )
+            # CM-11-002: Vendor2 joined via invite-accept — run RM triage cycle.
+            run_invite_path_rm_triage(
+                invited_client=vendor2_client,
+                invited_actor=vendor2_in_vendor2,
+                offer=offer,
+                report=report,
+                finder=finder,
+                auth_client=vendor_client,
+                case=case,
+                invited_obj=vendor2,
+            )
 
     with demo_check(
         "M1: required participants (≥4), EM.ACTIVE, finder + vendor2 have replicas"
