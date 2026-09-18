@@ -7,6 +7,7 @@ import pytest
 
 from vultron.adapters.driving.fastapi import inbox_handler as ih
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+from vultron.errors import VultronProtocolViolationError
 from vultron.core.models.pending_case_inbox import VultronPendingCaseInbox
 from vultron.core.models.events import MessageSemantics, VultronEvent
 from vultron.wire.as2.vocab.base.objects.actors import as_Service
@@ -119,6 +120,66 @@ def test_inbox_handler_retries_and_aborts_after_too_many_errors(monkeypatch):
 
     # Item should have been re-appended after each error
     assert item_id in _queue
+
+
+def test_inbox_handler_rehydrate_protocol_violation_does_not_propagate(
+    monkeypatch,
+):
+    """AC-2 (#3044): VultronProtocolViolationError from rehydrate() inside
+    inbox_handler() must not propagate — permanent failure, item not re-queued.
+    """
+    item_id = "https://example.org/activities/perm-fail-001"
+    mock_dl = MagicMock()
+    mock_dl.read.return_value = None
+    _queue = [item_id]
+    mock_dl.inbox_list.side_effect = lambda: list(_queue)
+    mock_dl.inbox_pop.side_effect = lambda: _queue.pop(0) if _queue else None
+    mock_dl.inbox_append.side_effect = lambda x: _queue.append(x)
+    mock_dl.outbox_list.return_value = []
+
+    monkeypatch.setattr(
+        ih,
+        "rehydrate",
+        lambda x, dl=None: (_ for _ in ()).throw(
+            VultronProtocolViolationError("perm rehydrate failure")
+        ),
+    )
+
+    asyncio.run(ih.inbox_handler("actor-xyz", mock_dl))
+
+    assert item_id not in _queue, (
+        "VultronProtocolViolationError from rehydrate() is a permanent failure"
+        " — the item must NOT be re-queued (#3044)"
+    )
+
+
+def test_inbox_handler_rehydrate_transient_error_requeues_item(monkeypatch):
+    """AC-2 (#3044): A generic exception from rehydrate() inside inbox_handler()
+    must not propagate — transient failure, item must be re-queued for retry.
+    """
+    item_id = "https://example.org/activities/transient-fail-001"
+    mock_dl = MagicMock()
+    mock_dl.read.return_value = None
+    _queue = [item_id]
+    mock_dl.inbox_list.side_effect = lambda: list(_queue)
+    mock_dl.inbox_pop.side_effect = lambda: _queue.pop(0) if _queue else None
+    mock_dl.inbox_append.side_effect = lambda x: _queue.append(x)
+    mock_dl.outbox_list.return_value = []
+
+    monkeypatch.setattr(
+        ih,
+        "rehydrate",
+        lambda x, dl=None: (_ for _ in ()).throw(
+            RuntimeError("transient rehydrate failure")
+        ),
+    )
+
+    asyncio.run(ih.inbox_handler("actor-xyz", mock_dl))
+
+    assert item_id in _queue, (
+        "A transient rehydrate() failure must re-queue the item for retry"
+        " (#3044)"
+    )
 
 
 def test_dispatch_uses_explicit_dispatcher(monkeypatch):
