@@ -345,14 +345,24 @@ re-expand the table ADR-0048 deliberately simplified.
 
 A coercively short deadline ("respond within 60 seconds") formally invites a
 participant while guaranteeing they cannot answer. The mitigation is a minimum
-window (EP-07-002, default 72h) plus **clamp-on-receipt** (EP-07-003): a
+window (EP-07-002) plus **clamp-on-receipt** (EP-07-003): a
 receiver that gets a sub-floor deadline raises it to the floor rather than
 rejecting the invitation. Rejecting would hand a hostile sender exactly what
 they want — an invite that never takes effect — and would penalise the invitee
 for the inviter's misbehaviour.
 
-Caveat: because the floor is configured per deployment, a receiver whose floor
-differs from the sender's computes a different effective deadline. The clamp
+The floor is **relative, not absolute** (ADR-0096). It is the lesser of the
+configured window — 72h by default — and the time remaining in the embargo the
+invitation concerns. An absolute floor would contradict the ceiling of EP-07-006,
+which clamps a deadline **down** to the embargo's `end_time`: a 12-hour agreed
+embargo is reachable (EP-04-007), and a 72-hour floor on it would place the
+respond-by instant 60 hours after the embargo ended. An invitee to a 12-hour
+embargo gets a 12-hour window, which still serves the rationale above — the floor
+exists to stop an *unreasonably* short deadline, and a deadline equal to the whole
+embargo is not unreasonable.
+
+Caveat: because the configured window is set per deployment, a receiver whose
+window differs from the sender's computes a different effective deadline. The clamp
 guarantees safety, not identical arithmetic.
 
 ### UTC Handling
@@ -444,16 +454,29 @@ in post-BT procedural code. See `specs/message-validation.yaml` MV-10-005.
   *separate* notification activity is also warranted is still open.
 - ~~What is the default embargo invitation timeout?~~ **Resolved**: EP-07-001
   sets the fallback default at 7 days (matching CM-18-002), superseded by
-  `Invite.end_time` when present (CM-28-002). Minimum window is 72h (EP-07-002).
+  `Invite.end_time` when present (CM-28-002). The minimum window is the lesser of
+  the configured window (72h by default) and the time remaining in the embargo
+  (EP-07-002, amended by ADR-0096), and whichever deadline results is clamped down
+  to the embargo's own `end_time` (EP-07-006, CM-28-011). Neither the explicit
+  `Invite.end_time` nor the policy window escapes that ceiling — see
+  `notes/embargo-default-semantics.md` § "An RSVP Deadline May Not Outlive Its
+  Embargo".
 - No mechanism exists to **rescind** an unanswered invitation before its
   deadline. `as_Undo` is already in the vocabulary
   (`vultron/wire/as2/vocab/base/objects/activities/transitive.py`), so
   `Undo(Invite(EmbargoEvent))` needs no new noun — but it does need a pattern,
   extractor entry, and use case. Deferred from ADR-0065; tracked as its own
   Idea under epic #2088.
-- Embargo negotiation **before** report submission is documented as permitted
-  (`docs/topics/process_models/model_interactions/rm_em.md`: the EM `propose`
-  transition MAY occur while `q^rm ∈ S`) but has no implemented mechanics —
-  every embargo path is case-scoped (`EmbargoLifecycle.propose_embargo()`
-  requires a `case_id`; PEC lives on a `CaseParticipant`), and pre-case there is
-  neither. Tracked as a Concern.
+- ~~Embargo negotiation **before** report submission is documented as permitted
+  but has no implemented mechanics.~~ **Resolved** by ADR-0096 (CONCERN-2215):
+  there is no pre-case EM phase, and there cannot be one. EM is a per-case machine,
+  so a `propose` transition before a case exists names a machine instance that
+  cannot exist — the defect was unrepresentability, not a lagging implementation.
+  `rm_em.md` now states the EM process SHALL NOT begin before a case exists. The
+  need it served is met two other ways: a short protocol default means a sender
+  always knows the floor (EP-04-005), and a sender states its own terms by
+  embedding a proposed `EmbargoEvent` on the report offer (EP-04-004). The second
+  of those *does* give pre-case terms a home, so there is no deadline-without-a-case
+  problem to solve: the proposal is not an invitation, and the RSVP deadline still
+  attaches only to a case-scoped `Invite(EmbargoEvent)`. See
+  `notes/embargo-default-semantics.md` § "No Pre-Case Embargo Phase".

@@ -48,6 +48,12 @@ embargo is *Active* from the moment the case is created.
     When a case is created and a published default embargo applies with no
     contrary proposal, the embargo SHALL begin in the *Active* state.
 
+The same holds when *nobody* has published anything: a short
+[protocol default](#no-defaults-no-proposals-the-protocol-default) applies
+instead. So an embargo-eligible case always begins with an *Active* embargo,
+whatever the parties have or have not declared. Reaching a case with no embargo
+through mutual silence is the outcome the EM process exists to avoid.
+
 ### Why *Active* and Not *Proposed*?
 
 The *Proposed* state represents an embargo that has been offered but not yet
@@ -102,25 +108,73 @@ is performing the action. For example, $a_{sender}$ indicates acceptance
 of the Sender's proposal, even if it is the Receiver doing the
 accepting.
 
-### No Defaults, No Proposals
-
-???+ note inline end "Formalism"
-
-    $$q^{em} \in N$$
+### No Defaults, No Proposals — the Protocol Default
 
 We begin with the simplest case, in which neither party has a default and no
-embargo has been proposed.
+embargo has been proposed. Even here an embargo is established, at a short
+duration fixed by the protocol itself.
 
 ```mermaid
 stateDiagram-v2
     direction LR
     [*] --> N
+    N --> P : propose<br/>(protocol default)
+    P --> A : accept
 ```
 
-!!! note ""  
+As on the other paths below, the two transitions are applied atomically at case
+creation and the intermediate *Proposed* state is never externally observable
+(see [Why *Active* and Not *Proposed*?](#why-active-and-not-proposed) above).
+What is different here is only the source of the duration: the protocol itself,
+rather than either party.
+
+!!! note ""
 
     If neither Sender nor Receiver proposes an embargo, _and_ no policy
-    defaults apply, no embargo SHALL exist.
+    defaults apply, the **protocol default embargo** SHALL apply and the
+    embargo SHALL begin in the *Active* state.
+
+!!! note ""
+
+    The protocol default embargo duration MUST be configurable. It SHALL be
+    no less than 72 hours and no more than 5 days.
+
+The protocol default is deliberately short. Its purpose is not to provide a
+comfortable embargo — it is to make publishing a default embargo period the
+rewarded behavior. A Participant who publishes nothing gets a few days; one who
+publishes a considered period gets the period they asked for. A generous fallback
+would remove the reason to publish at all.
+
+!!! warning "The Protocol Default Is Not a Proposal"
+
+    The protocol default does **not** take part in the *shortest proposal wins*
+    comparison described below. It is the value applied when there are no
+    candidates, never a candidate itself.
+
+    This distinction is load-bearing. A 3-day protocol default that competed
+    under shortest-wins would win against every longer proposal and cap every
+    embargo in the system at 3 days — no longer embargo could ever be agreed.
+
+    Two different things are called a *default*, and they behave differently:
+
+    | Term | What it is | Competes under shortest-wins? |
+    |---|---|---|
+    | **Actor default** | A duration from an Actor's published `EmbargoPolicy` — a *standing proposal* | **Yes** |
+    | **Protocol default** | The fallback when no proposal and no actor default applies | **No** |
+
+Nor is the protocol default a *minimum*. A Participant who proposes terms
+shorter than it gets the terms they proposed; the range above bounds what the
+fallback may be set to, not what parties may agree.
+
+One exception applies. An embargo on an already-public vulnerability protects
+nothing, so:
+
+!!! note ""
+
+    The protocol default embargo SHALL NOT apply to a case that is no longer
+    embargo-eligible. Where the vulnerability is already public, exploit code is
+    public, or attacks have been observed, no embargo is established and
+    $q^{em} \in N$.
 
 ### Sender Proposes When Receiver Has No Default Embargo
 

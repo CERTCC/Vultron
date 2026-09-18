@@ -108,9 +108,13 @@ participant never gave.
 The deadline may be explicit or defaulted:
 
 - An embargo invitation MAY carry its own `endTime`, giving an explicit
-  respond-by instant. Where present, it is authoritative.
+  respond-by instant. Where present, it takes precedence over the policy window.
 - Where absent, a configurable policy window applies. The default window is
   7 days.
+
+Either way the result is bounded below and above by the two rules further down
+this section: the explicit `endTime` takes precedence over the policy window, but
+neither escapes the minimum window or the embargo-end ceiling.
 
 The pocket veto is the implicit form of this one mechanism, not a second
 mechanism alongside it.
@@ -131,10 +135,23 @@ it next handles the case, it compares the deadline against the current time. No
 scheduler or timer service is required.
 
 **A minimum window applies.** The CASE_MANAGER MUST enforce a minimum respond-by
-window, by default 72 hours. Where an invitation carries a shorter deadline, the
-CASE_MANAGER MUST extend the deadline to the minimum. It MUST NOT reject the
-invitation for this reason: a too-short deadline is the proposer's error, and
-refusing the invitation would penalize the invitee for it.
+window. The minimum is the lesser of a configured window, 72 hours by default, and
+the time remaining in the embargo the invitation concerns. Where an invitation
+carries a shorter deadline, the CASE_MANAGER MUST extend the deadline to that
+minimum. It MUST NOT reject the invitation for this reason: a too-short deadline is
+the proposer's error, and refusing the invitation would penalize the invitee for it.
+
+**A deadline may not outlive its embargo.** The CASE_MANAGER MUST NOT let a
+respond-by deadline fall after the end of the embargo it concerns. Where a computed
+deadline would — whether it came from the invitation's explicit `endTime` or from
+the policy window — the CASE_MANAGER MUST clamp it down to the embargo's end.
+
+An invitee must be able to answer while there is still something to answer about.
+Invite a participant to a 24-hour embargo with no explicit `endTime` and a 7-day
+policy window records their inaction as a refusal on day 7 — six days after the
+embargo ended. This is why the minimum window above is relative rather than
+absolute: a 12-hour embargo grants a 12-hour answer window, and that is not an
+unreasonably short deadline when 12 hours is the whole embargo.
 
 **A late acceptance is not refused.** The CASE_MANAGER MUST NOT refuse a late
 accept on deadline grounds. Three cases apply. If the terms it accepts are still

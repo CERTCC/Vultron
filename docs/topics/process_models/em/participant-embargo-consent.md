@@ -174,10 +174,31 @@ The invitation window has two forms:
 | Form | Source | Precedence |
 |---|---|---|
 | **Explicit** | `Invite.end_time` on the invitation activity | Higher — overrides the policy default |
-| **Implicit** | Configurable CASE_MANAGER policy (default 7 days; minimum floor 72 hours) | Lower — applies when no explicit deadline is present |
+| **Implicit** | Configurable CASE_MANAGER policy (default 7 days) | Lower — applies when no explicit deadline is present |
 
-When `Invite.end_time` is present it is authoritative; the policy default
-applies only for invitations that omit it.
+When `Invite.end_time` is present it is authoritative over the policy default,
+which applies only for invitations that omit it.
+
+Whichever form supplies the deadline, the result is bounded at both ends.
+
+!!! note ""
+    The effective deadline MUST NOT be earlier than the minimum respond-by
+    window, which is the lesser of a configured window — 72 hours by default —
+    and the time remaining in the embargo the invitation concerns
+    (EP-07-002, EP-07-003).
+
+!!! note ""
+    The effective deadline MUST NOT fall after the end of the embargo it
+    concerns. Where it would, it is clamped down to the embargo's `end_time`
+    (EP-07-006, CM-28-011).
+
+The ceiling matters more than it looks. Invite a Participant to a 24-hour embargo
+with no explicit `Invite.end_time` and the 7-day policy window fires the Pocket
+Veto on day 7 — recording a refusal six days after the embargo ended. The floor is
+relative for the same reason: an absolute 72 hours would place the respond-by
+instant 60 hours past the end of a 12-hour embargo, which
+[shortest-wins](defaults.md#rationale-for-accepting-the-shortest-proposed-embargo)
+makes reachable. A Participant invited to a 12-hour embargo gets a 12-hour window.
 
 !!! warning "`LAPSED` is not the timer destination"
 
