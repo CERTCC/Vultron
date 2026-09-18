@@ -707,3 +707,65 @@ before passing the snapshot to `create_commit_log_entry_tree`. Skipping this
 step will cause `_validate_canonical_entry` to reject the entry with
 `"bare string found"`. See also
 `notes/plan/incoming/learnings/20260727-snapshot-bare-ref-pattern.md`.
+
+---
+
+## A Store-Local State Change Is Invisible to Every Replica (Issue #2505)
+
+A node that writes a state change to its own actor's store and stops has
+changed nothing that any other participant can see. The ledger is the only
+channel through which state crosses actors, so **an unrecorded transition did
+not happen** as far as every replica and every ledger-derived check is
+concerned.
+
+This is what a spec clause like CM-23-005 — *"Each transition MUST be recorded
+as a `CaseLedgerEntry`"* — is actually for. It reads like bookkeeping. It is the
+**visibility contract**: the recording is not a log of the transition, it *is*
+the transition's only cross-actor existence.
+
+**Why a replica cannot infer the transition from a neighbouring entry.** A
+replica-side effect node keys off its own entry's `payloadSnapshot.actor`, so an
+actor's transition can never be derived from an entry attributed to somebody
+else. Both entries adjacent to the CASE_MANAGER's own `RM.CLOSED` are
+attributed elsewhere:
+
+| Entry | `payloadSnapshot.actor` | Why it cannot stand in |
+|---|---|---|
+| `close_case` | the *departing* actor | `ApplyCloseCaseFromLedgerNode` fires for the leaver, and the Case Actor never sends itself a `Leave` |
+| `case_fully_closed` | the *owner* who left | attributed to the owner, and has no effect node at all |
+
+So for months the CASE_MANAGER advanced itself to `RM.CLOSED` correctly
+(`AdvanceCaseActorToRMClosedNode`, CM-23-002 step 2) while every replica read it
+as permanently `RM.ACCEPTED`. The three bootstrap transitions
+(`RECEIVED`/`VALID`/`ACCEPTED`) were recorded; the terminal one was not.
+`CommitCaseActorRMClosedEntryNode` (`case/nodes/leave/record.py`) is that
+missing record.
+
+**Recording it is best-effort, deliberately.** The node warns and returns
+SUCCESS on every path where it cannot produce the entry. CM-23-002 orders this
+entry *before* `case_fully_closed` in a single Sequence, so a FAILURE would skip
+the final entry and its fan-out — and the enclosing Selector would read the
+failed owner arm as "the sender is not the Case Owner" and report SUCCESS down
+the non-owner path, leaving a half-closed case with no diagnostic. Losing one
+transition's visibility beats losing the case's terminal anchor. `_commit_one`
+in `case_proposal_received_tree.py` makes the same call for the same event type,
+reserving hard failure for the load-bearing genesis entry.
+
+**Why this entry is committed synchronously rather than through the loopback.**
+The standard path for a protocol-significant event is CLP-10-001: emit an
+activity addressed to `case_manager_id` and let HTTP loopback self-delivery
+(OX-12-004) drive the received-side commit. That is unavailable here, because
+loopback delivery runs as an outbox background task and CM-23-002 requires a
+specific *order* — the CASE_MANAGER's own `RM.CLOSED` penultimate,
+`case_fully_closed` last. A background task cannot honour that. The entry is
+therefore committed inline in the CaseActor's own receive tree, which keeps
+ADR-0021's identity contract intact: the commit runs where
+`receiving_actor_id == case_actor_id`, not by resolving a foreign actor ID, and
+`create_commit_log_entry_tree`'s `DeclineForeignLedgerCommitNode` makes a
+replica decline rather than fork the chain.
+
+**The generalisation.** When reviewing any write node, ask what a *different*
+actor learns from it. If the answer is "nothing", the node is incomplete no
+matter how correct its local write is — and the gap is invisible to any check
+that reads the writer's own store. See also `notes/case-state-model.md` for the
+RM lifecycle itself, and `notes/sync-ledger-replication.md` for fan-out.

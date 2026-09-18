@@ -23,6 +23,8 @@ Covers CM-23-002 (owner Leave) and CM-23-003 (non-owner Leave) across:
 
 from __future__ import annotations
 
+import logging
+
 import pytest
 import py_trees
 
@@ -897,3 +899,219 @@ class TestOwnerLeaveDuringActiveEmbargo:
         assert not _case_fully_closed_present(
             dl
         ), "No case_fully_closed entry may be written when the decline emit fails"
+
+
+def _case_actor_rm_closed_entries(dl: SqliteDataLayer) -> list:
+    """Return the ledger entries recording the CaseActor's own RM.CLOSED."""
+    from vultron.core.models.case_ledger_entry import CaseLedgerEntry
+
+    return [
+        e
+        for e in dl.list_objects("CaseLedgerEntry")
+        if isinstance(e, CaseLedgerEntry)
+        and getattr(e, "case_id", None) == CASE_ID
+        and getattr(e, "event_type", None)
+        == "add_participant_status_to_participant"
+        and (e.payload_snapshot or {}).get("object", {}).get("attributedTo")
+        == CASE_ACTOR_ID
+        and str(
+            (e.payload_snapshot or {}).get("object", {}).get("rmState", "")
+        ).endswith("CLOSED")
+    ]
+
+
+class TestCaseActorRMClosedRecordingIsBestEffort:
+    """Recording the CaseActor's own RM.CLOSED must never cost the case its closure.
+
+    ``CommitCaseActorRMClosedEntryNode`` sits between CM-23-002 step 2 (advance
+    the CASE_MANAGER) and step 3 (``case_fully_closed``) in a single Sequence.
+    If it returned FAILURE, steps 3 and 4 would be skipped — and because the
+    enclosing ``OwnerOrNonOwnerEffects`` Selector reads a failed owner arm as
+    "the sender is not the Case Owner", the tree would then succeed down the
+    non-owner path and report SUCCESS with an empty failure reason. The result
+    is a permanently half-closed case with no diagnostic: no
+    ``case_fully_closed``, no fan-out, nothing logged.
+
+    So the node warns and returns SUCCESS on every path where it cannot produce
+    the entry. These tests pin that: closure completes, the owner arm is the arm
+    that ran, and the only thing lost is the one entry.
+    """
+
+    @pytest.mark.spec("CM-23-002")
+    def test_missing_port_still_commits_case_fully_closed(self):
+        """No WireRenderPort: the entry is skipped, the case still fully closes."""
+        dl = _make_full_dl()
+        CloseCaseReceivedUseCase(
+            dl=dl,
+            request=_make_close_case_event(sender_actor_id=OWNER_ID),
+            sync_port=SyncActivityAdapter(dl),
+            wire_render_port=None,
+        ).execute()
+
+        assert _case_fully_closed_present(dl), (
+            "case_fully_closed must still be committed when the CASE_MANAGER's"
+            " own RM.CLOSED cannot be recorded — a missing WireRenderPort must"
+            " not strand the case half-closed (CM-23-002 steps 3-4)"
+        )
+
+    @pytest.mark.spec("CM-23-002")
+    def test_missing_port_still_takes_the_owner_arm(self):
+        """No WireRenderPort: the owner arm ran, not the non-owner fallback.
+
+        The distinguishing effect is the CaseActor's own advance to RM.CLOSED
+        (step 2), which only the owner arm performs. If a failed recording had
+        bumped the tree onto ``NonOwnerLeaveFallbackSeq``, only the departing
+        owner would have advanced.
+        """
+        dl = _make_full_dl()
+        CloseCaseReceivedUseCase(
+            dl=dl,
+            request=_make_close_case_event(sender_actor_id=OWNER_ID),
+            sync_port=SyncActivityAdapter(dl),
+            wire_render_port=None,
+        ).execute()
+
+        assert (
+            _latest_rm(dl, OWNER_ID) == RM.CLOSED
+        ), "the departing owner must reach RM.CLOSED (CM-23-002 step 1)"
+        assert RM.CLOSED in _participant_rm_states(dl, CASE_ACTOR_ID), (
+            "the CaseActor must still advance itself to RM.CLOSED (CM-23-002"
+            " step 2) — a failed *recording* must not divert the tree onto the"
+            " non-owner path"
+        )
+
+    @pytest.mark.spec("CM-23-005")
+    def test_missing_port_skips_only_the_case_actor_entry(self):
+        """No WireRenderPort: the ledger entry is the only casualty.
+
+        The honest cost of best-effort recording. This is ISSUE-2505 in
+        miniature — replicas cannot see the CASE_MANAGER's closure on this run —
+        and it is the trade accepted to keep the case's terminal anchor.
+        """
+        dl = _make_full_dl()
+        CloseCaseReceivedUseCase(
+            dl=dl,
+            request=_make_close_case_event(sender_actor_id=OWNER_ID),
+            sync_port=SyncActivityAdapter(dl),
+            wire_render_port=None,
+        ).execute()
+
+        assert not _case_actor_rm_closed_entries(dl), (
+            "without a WireRenderPort no snapshot can be rendered, so no entry"
+            " should be committed — an empty payload would be worse"
+        )
+
+    @pytest.mark.spec("CM-23-002")
+    def test_failed_commit_still_commits_case_fully_closed(self, monkeypatch):
+        """A failing commit tree does not take case closure down with it.
+
+        This is the path reachable without any wiring regression:
+        ``create_commit_log_entry_tree`` opens with ``CheckLedgerFreshnessNode``,
+        which returns FAILURE on a gapped local prefix by design
+        (SYNC-10-001/002). Stand-in for that here is a tree that always fails.
+        """
+        dl = _make_full_dl()
+        monkeypatch.setattr(
+            "vultron.core.behaviors.sync.commit_tree"
+            ".create_commit_log_entry_tree",
+            lambda *a, **kw: py_trees.behaviours.Failure(name="ForcedFailure"),
+        )
+
+        CloseCaseReceivedUseCase(
+            dl=dl,
+            request=_make_close_case_event(sender_actor_id=OWNER_ID),
+            sync_port=SyncActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
+        ).execute()
+
+        assert not _case_actor_rm_closed_entries(
+            dl
+        ), "sanity: the forced failure must actually have suppressed the entry"
+        assert _case_fully_closed_present(dl), (
+            "case_fully_closed must still be committed when the CASE_MANAGER's"
+            " RM.CLOSED entry cannot be committed — a gapped local ledger must"
+            " not block case closure (SYNC-10-001/002)"
+        )
+
+    @pytest.mark.spec("CM-23-005")
+    def test_failed_recording_is_logged_to_the_stdlib_logger(self, caplog):
+        """A skipped entry is announced where deployment logs can see it.
+
+        Best-effort is only defensible if the miss is observable.
+        ``py_trees.behaviour.Behaviour.logger`` writes to the console and never
+        reaches the stdlib ``logging`` tree, so the node must also log through
+        its module logger — otherwise this degrades into the silent drop that
+        ISSUE-2505 already was.
+        """
+        dl = _make_full_dl()
+        with caplog.at_level(
+            logging.WARNING,
+            logger="vultron.core.behaviors.case.nodes.leave.record",
+        ):
+            CloseCaseReceivedUseCase(
+                dl=dl,
+                request=_make_close_case_event(sender_actor_id=OWNER_ID),
+                sync_port=SyncActivityAdapter(dl),
+                wire_render_port=None,
+            ).execute()
+
+        assert any(
+            "WireRenderPort" in r.getMessage() for r in caplog.records
+        ), (
+            "the skipped entry must be logged via the stdlib logger; got"
+            f" {[r.getMessage() for r in caplog.records]}"
+        )
+
+
+class TestCaseActorRMClosedRecordingIsRoleGated:
+    """Only the CASE_MANAGER authors the canonical RM.CLOSED entry (CLP-09-001).
+
+    The receive tree passes ``receiving_actor_id`` straight through as the
+    node's ``case_actor_id``, so without a role check the node's authority would
+    rest on addressing alone — ``SvcLeaveCaseUseCase`` happening to address the
+    Leave only to ``case_manager_id``. ``DeclineForeignLedgerCommitNode`` inside
+    the commit tree does not close that gap: it is a store-consistency guard,
+    not an authority check (ARCH-24-005), and on a container co-hosting the
+    CaseActor with another actor it resolves a store for the co-hosted actor and
+    reports "not foreign".
+    """
+
+    @pytest.mark.spec("CLP-09-001")
+    def test_non_case_manager_receiver_commits_no_canonical_entry(self):
+        """A receiver without the CASE_MANAGER role authors nothing."""
+        dl = _make_full_dl()
+        case = dl.read(CASE_ID)
+        assert isinstance(case, VulnerabilityCase)
+        participant = dl.read(case.actor_participant_index[CASE_ACTOR_ID])
+        assert isinstance(participant, CaseParticipant)
+        participant.case_roles = [CVDRole.VENDOR]
+        dl.save(participant)
+
+        CloseCaseReceivedUseCase(
+            dl=dl,
+            request=_make_close_case_event(sender_actor_id=OWNER_ID),
+            sync_port=SyncActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
+        ).execute()
+
+        assert not _case_actor_rm_closed_entries(dl), (
+            "a receiver that does not hold CVDRole.CASE_MANAGER must not mint a"
+            " canonical add_participant_status_to_participant entry (CLP-09-001,"
+            " BT-17-005/006)"
+        )
+
+    @pytest.mark.spec("CM-23-005")
+    def test_case_manager_receiver_still_commits_the_entry(self):
+        """Control: the gate does not block the CASE_MANAGER itself."""
+        dl = _make_full_dl()
+        CloseCaseReceivedUseCase(
+            dl=dl,
+            request=_make_close_case_event(sender_actor_id=OWNER_ID),
+            sync_port=SyncActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
+        ).execute()
+
+        assert _case_actor_rm_closed_entries(dl), (
+            "the CASE_MANAGER must still record its own RM.CLOSED (CM-23-005)"
+            " — the role gate must not suppress the entry it exists to protect"
+        )

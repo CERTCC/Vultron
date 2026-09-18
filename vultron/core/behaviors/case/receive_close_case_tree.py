@@ -248,6 +248,15 @@ def create_close_case_received_tree(
         # stays RM.ACCEPTED on every replica forever (ISSUE-2505): no effect
         # node derives its closure, because ``close_case`` names the departing
         # actor and ``case_fully_closed`` is attributed to the owner.
+        #
+        # The node records best-effort — it warns and returns SUCCESS rather
+        # than failing. That is load-bearing *here*, not merely defensive: this
+        # Sequence runs the entry before ``case_fully_closed``, so a FAILURE
+        # would skip steps 3 and 4, and the Selector below would then read the
+        # failed owner arm as "the sender is not the Case Owner" and report
+        # SUCCESS down the non-owner path — a half-closed case with no
+        # diagnostic. Do not "harden" the node into failing without first
+        # making this arm's failure propagate past that Selector.
         owner_leave_children.append(
             CommitCaseActorRMClosedEntryNode(
                 case_actor_id=receiving_actor_id,

@@ -40,6 +40,7 @@ from vultron.core.models.participant_status import (
 )
 from vultron.core.ports.case_persistence import CaseOutboxPersistence
 from vultron.core.states.rm import RM
+from vultron.enums.roles import CVDRole
 
 if TYPE_CHECKING:
     from vultron.core.ports.wire_render import WireRenderPort
@@ -76,6 +77,13 @@ class CommitCaseActorRMClosedEntryNode(DataLayerActionWithPorts):
     already exists for the same object, and the node no-ops when the Case Actor
     has no ``RM.CLOSED`` status to record.
 
+    **Recording is best-effort.**  Every way this node can fail to produce the
+    entry returns SUCCESS with a WARNING rather than FAILURE — see
+    :meth:`_best_effort` for why.  Only the framework regime guards
+    (``_require_datalayer_and_actor``, ``_require_case``) still fail, because a
+    missing store or case fails ``case_fully_closed`` too and there is no
+    closure left to protect.
+
     Per CM-23-002 step 2, CM-23-005, ADR-0051.
     """
 
@@ -110,6 +118,44 @@ class CommitCaseActorRMClosedEntryNode(DataLayerActionWithPorts):
         except (NoDataAvailable, NotImplementedError):
             pass
 
+    def _best_effort(self, reason: str) -> Status:
+        """Log *reason* as a WARNING and return SUCCESS.
+
+        Recording this entry must not cost the case its closure.  CM-23-002
+        places this entry between the CASE_MANAGER's own advance (step 2) and
+        ``case_fully_closed`` (step 3), and ``create_close_case_received_tree``
+        runs those as one Sequence — so a FAILURE here skips steps 3 and 4
+        entirely: the case is never recorded as fully closed and nothing fans
+        out.  It is worse than a plain abort, because the enclosing
+        ``OwnerOrNonOwnerEffects`` Selector reads a failed owner arm as "the
+        sender is not the Case Owner" and succeeds down the non-owner path, so
+        the half-closed case reports SUCCESS with an empty failure reason.
+
+        A missing entry costs the replicas their view of *one* transition, which
+        is ISSUE-2505 in miniature; a missing ``case_fully_closed`` costs every
+        replica the case's terminal anchor.  The lesser loss wins, loudly.
+        ``_commit_one`` in :mod:`..case_proposal_received_tree` makes the same
+        call for the same event type, reserving hard failure for the
+        load-bearing genesis entry.
+
+        This is also why a gapped local ledger cannot block closure:
+        ``create_commit_log_entry_tree`` opens with ``CheckLedgerFreshnessNode``,
+        which fails by design on a gapped prefix (SYNC-10-001/002) — a condition
+        the protocol tolerates elsewhere and must keep tolerating here.
+
+        Logs through the **module-level** ``logger`` as well as ``self.logger``.
+        ``py_trees.behaviour.Behaviour.logger`` is a ``py_trees.logging.Logger``,
+        which writes to the console directly and never reaches the stdlib
+        ``logging`` tree — so on its own it is invisible to deployment logs and
+        CI artifacts. A silently-dropped entry is exactly what ISSUE-2505 was;
+        best-effort is only defensible if the miss is actually observable.
+        ``_commit_one`` uses the module logger for the same reason.
+        """
+        self.feedback_message = f"{self.name}: {reason}"
+        logger.warning("%s", self.feedback_message)
+        self.logger.warning(self.feedback_message)
+        return Status.SUCCESS
+
     def _latest_rm_closed_status(
         self, participant: CaseParticipant
     ) -> ParticipantStatus | None:
@@ -134,15 +180,13 @@ class CommitCaseActorRMClosedEntryNode(DataLayerActionWithPorts):
 
         if self.wire_render_port is None:
             # A snapshot cannot be rendered without the port, and a snapshot is
-            # the whole point of the entry. Fail loudly rather than commit an
-            # empty payload: ISSUE-2505 was masked for months by a silently
-            # absent wire_render_port on the genesis commit path.
-            self.feedback_message = (
-                f"{self.name}: no WireRenderPort — cannot render the"
-                " CASE_MANAGER's RM.CLOSED ParticipantStatus snapshot"
+            # the whole point of the entry — so skip the entry rather than
+            # commit an empty payload. Loudly: ISSUE-2505 was masked for months
+            # by a silently absent wire_render_port on the genesis commit path.
+            return self._best_effort(
+                "no WireRenderPort — cannot render the CASE_MANAGER's"
+                " RM.CLOSED ParticipantStatus snapshot, so it is not recorded"
             )
-            self.logger.warning(self.feedback_message)
-            return Status.FAILURE
 
         case, failure = self._require_case(self._case_id)
         if failure is not None:
@@ -150,21 +194,46 @@ class CommitCaseActorRMClosedEntryNode(DataLayerActionWithPorts):
 
         participant_id = case.actor_participant_index.get(self._case_actor_id)
         if participant_id is None:
-            self.feedback_message = (
-                f"{self.name}: case actor '{self._case_actor_id}' not in"
+            return self._best_effort(
+                f"case actor '{self._case_actor_id}' not in"
                 f" actor_participant_index for case '{self._case_id}'"
             )
-            self.logger.warning(self.feedback_message)
-            return Status.FAILURE
 
         participant = self.datalayer.read(participant_id)
         if not isinstance(participant, CaseParticipant):
-            self.feedback_message = (
-                f"{self.name}: participant '{participant_id}' for case actor"
-                " not found or wrong type"
+            return self._best_effort(
+                f"participant '{participant_id}' for case actor not found or"
+                " wrong type"
             )
-            self.logger.warning(self.feedback_message)
-            return Status.FAILURE
+
+        if CVDRole.CASE_MANAGER not in (participant.case_roles or []):
+            # Authority gate (CLP-09-001, BT-17-005/006), which requires every
+            # canonical-commit call site to reach the commit through a check
+            # that the active actor holds CVDRole.CASE_MANAGER *at invocation
+            # time* — explicitly "a role-based check, not an identity
+            # comparison, even where the CASE_MANAGER and the role holder
+            # happen to coincide today".
+            #
+            # ``DeclineForeignLedgerCommitNode`` inside the commit tree does not
+            # satisfy that: it is a store-consistency check, not an authority one
+            # (ARCH-24-005).  On a container co-hosting the CaseActor and another
+            # actor, ``store_for_actor(require_same_authority=True)`` resolves for
+            # the co-hosted actor, so the guard reports "not foreign" and would
+            # let a non-CASE_MANAGER mint a canonical index in its own log.
+            #
+            # Quiet SUCCESS, not a warning: a participant that is not the
+            # CASE_MANAGER has nothing to record here, which is ordinary, not a
+            # miss.  The tree reaches this node with ``case_actor_id`` set to
+            # whoever received the Leave, so this is the check that makes that
+            # assumption explicit rather than inherited from addressing.
+            self.logger.debug(
+                "%s: receiving actor '%s' is not the CASE_MANAGER for case"
+                " '%s' — no canonical entry to author",
+                self.name,
+                self._case_actor_id,
+                self._case_id,
+            )
+            return Status.SUCCESS
 
         status = self._latest_rm_closed_status(participant)
         if status is None:
@@ -181,12 +250,10 @@ class CommitCaseActorRMClosedEntryNode(DataLayerActionWithPorts):
 
         status_id = getattr(status, "id_", None)
         if not status_id:
-            self.feedback_message = (
-                f"{self.name}: RM.CLOSED ParticipantStatus for case actor"
+            return self._best_effort(
+                "RM.CLOSED ParticipantStatus for case actor"
                 f" '{self._case_actor_id}' has no id_"
             )
-            self.logger.warning(self.feedback_message)
-            return Status.FAILURE
 
         snapshot = build_add_participant_status_snapshot(
             status,
@@ -213,13 +280,13 @@ class CommitCaseActorRMClosedEntryNode(DataLayerActionWithPorts):
             actor_id=self.actor_id,
         )
         if result.status != Status.SUCCESS:
-            self.feedback_message = (
-                f"{self.name}: could not commit the CASE_MANAGER's RM.CLOSED"
-                f" entry for case '{self._case_id}':"
+            # The reachable one: CheckLedgerFreshnessNode opens the commit tree
+            # and fails on a gapped local prefix by design (SYNC-10-001/002).
+            return self._best_effort(
+                "could not commit the CASE_MANAGER's RM.CLOSED entry for case"
+                f" '{self._case_id}' (best-effort):"
                 f" {result.feedback_message}"
             )
-            self.logger.warning(self.feedback_message)
-            return Status.FAILURE
 
         self.logger.info(
             "%s: recorded case actor '%s' RM.CLOSED as a canonical ledger"

@@ -151,7 +151,10 @@ reporting a protocol result.
 - `test/demo/test_scenario_harness.py`
 - `test/ci/invariants/test_common.py::TestLoadDevlogsManifestHandling`
 - `test/ci/invariants/test_common.py::TestAllSkipGuard`
-- `test/ci/invariants/test_common.py::TestCheckPerActorReplicaDivergence` (ISSUE-2411 Gap 1)
+- `test/ci/invariants/test_common.py::TestForEachReplica` and the four
+  `TestCheckPerActorReplica*` classes — `NoRmStateOscillation`,
+  `RmClosedTermination`, `ParticipantStatusSchemaCompleteness`,
+  `CsStateTransitionsObserved` (ISSUE-2411 Gap 1, split per ISSUE-3385)
 - `test/demo/test_ledger_dump.py::TestWritePrerunSentinel` (AC4 for #2281)
 
 ---
