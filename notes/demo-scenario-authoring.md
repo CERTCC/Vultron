@@ -9,6 +9,7 @@ description: >
   arguments, and treat docker service names as routing labels rather than actor
   identities.
 related_specs:
+  - specs/demo-ci.yaml
   - specs/multi-actor-demo.yaml
   - specs/event-driven-control-flow.yaml
   - specs/code-style.yaml
@@ -236,6 +237,54 @@ now has to treat the return as possibly-absent.
   `in_reply_to` conditional on the prior result being present.
 
 Source: ISSUE-2390
+
+---
+
+## A Raising `wait_for_*` Must Never Run Bare in a Scenario
+
+Every `wait_for_*` (and equivalent verification) helper in `vultron/demo/`
+raises `AssertionError` on timeout — that is the primitive's contract, and it is
+correct for unit tests that assert the timeout. But inside a scenario a bare
+raising call **crashes the whole run at the first failure**, which contradicts
+the demo failure-accumulation model (DEMOCI-01-003 / DEMOCI-01-004,
+DEMOCI-01-011): failures are supposed to accumulate through
+`demo_step` / `demo_check` / `demo_gate` and surface together at the end via
+`assert_demo_success()`. A bare raise stops the run before later checks execute,
+burying any co-occurring failures behind a single misleading signal.
+
+**Why this keeps happening:** the raising primitive and the accumulating
+scenario are two different execution contexts, and it is easy to call the former
+directly from the latter. It has now bitten the project twice:
+
+- **Ledger coverage (#1772 / #1802):** bare `wait_for_contiguous_ledger_coverage`
+  calls crashed sync-verification; fixed by wrapping them at the call site in
+  `demo_gate` (see `test/demo/test_fvv_demo.py::TestCoverageWaitInsideDemoCheck`).
+- **Participant waits (#3384):** the `wait_for_participants_on_replicas` calls in
+  the seven replica-sync scenarios' `_phase_sync_verification` were bare, so a
+  replica participant-index propagation timeout aborted the entire run.
+
+**How to apply:**
+
+1. A raising wait invoked directly from scenario code MUST sit inside a
+   `demo_step`, `demo_check`, or `demo_gate` — use `demo_gate` when dependent
+   steps follow inside the block, `demo_check` for an independent bounded check.
+2. **Prefer wrapping inside the shared helper** when one exists, so all callers
+   inherit the fix (DRY). `drain_phase1_ledger` in
+   `vultron/demo/helpers/polling.py` is the reference pattern: it wraps each
+   per-replica poll in a demo context internally (lazy-importing the context
+   manager from `vultron.demo.utils` to avoid a circular import). Note that when
+   the wrap lives in the helper and the dependent steps live in the scenario,
+   `demo_check` and `demo_gate` behave identically — the block contains only the
+   wait, so nothing is skipped either way; pick the label that reads true.
+3. Keep the raising primitive raising for its unit tests — add the accumulation
+   wrap in a scenario-facing helper, not in the low-level `_poll_until` /
+   `wait_for_case_participants` primitives that tests depend on.
+
+Normative: `specs/demo-ci.yaml` DEMOCI-01-011, refining DEMOCI-01-003. An
+architecture ratchet enforces that scenario `_phase_*` functions do not call a
+known raising wait outside a demo context.
+
+Source: CONCERN-3384 (generalising the #1772/#1802 fix)
 
 ---
 
