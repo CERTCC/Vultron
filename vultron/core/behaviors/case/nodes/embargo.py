@@ -442,7 +442,10 @@ class SeedOwnerAsSignatoryNode(DataLayerActionWithPorts):
             return Status.SUCCESS
 
         embargo_id = _as_id(stored_case.active_embargo)
-        if participant.embargo_consent_state != PEC.SIGNATORY:
+        if participant.embargo_consent_state not in (
+            PEC.SIGNATORY,
+            PEC.DECLINED,
+        ):
             participant.apply_pec_transition(PEC_Trigger.ACCEPT)
         if embargo_id and embargo_id not in participant.accepted_embargo_ids:
             participant.accepted_embargo_ids.append(embargo_id)

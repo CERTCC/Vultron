@@ -870,6 +870,11 @@ class EmbargoLifecycle:
                 deadline,
             )
 
+        # A SIGNATORY participant has already accepted; a stale deadline is not
+        # a real lapse.  Only DECLINED (just-lapsed or already-declined) triggers
+        # the EMB-17 late-Accept routing in the caller.
+        is_lapsed = participant.embargo_consent_state != PEC.SIGNATORY.value
+
         return EmbargoLifecycleResult(
             em_before=em_state,
             em_after=em_state,
@@ -877,7 +882,7 @@ class EmbargoLifecycle:
             case_embargo_changed=False,
             pec_reset=False,
             participant_changes=participant_changes,
-            is_lapsed=True,
+            is_lapsed=is_lapsed,
         )
 
     # ------------------------------------------------------------------
@@ -979,7 +984,10 @@ class EmbargoLifecycle:
         pec_before = participant.embargo_consent_state
         changed = False
 
-        if participant.embargo_consent_state != PEC.SIGNATORY.value:
+        if participant.embargo_consent_state not in (
+            PEC.SIGNATORY.value,
+            PEC.DECLINED.value,
+        ):
             participant.apply_pec_transition(PEC_Trigger.ACCEPT)
             changed = True
 
