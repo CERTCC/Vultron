@@ -2,24 +2,15 @@
 
 {% include-markdown "../../../includes/not_normative.md" %}
 
-It may not always be necessary to generate a new `CreateParticipant` activity when creating a new `VulnerabilityCase`
-object. It is possible to create a new `VulnerabilityCase` object and add a new `CaseParticipant` object to it in a
-single `Create` activity.
+Use a separate `CreateParticipant` activity when the case participants are not
+all known at the time the case is created. When they are known, a single
+`Create` activity can carry the `VulnerabilityCase` and its `CaseParticipant`
+objects together.
 
-However, there times when all the case participants are not known at the time the case is created. For example, a
-finder might report a vulnerability to a coordinator, who then creates a new case. The relevant vendors might not be
-known at the time the case is created, but they might be added later. In this scenario, the coordinator would create the
-case with just the coordinator and the finder/reporter to start, and then add the vendors as participants in separate
-steps as they are identified.
-
-!!! question "What's the difference between a Case Participant and an Actor?"
-
-    ActivityStreams actor objects are used to represent long-lived identities of people, organizations, groups, or 
-    software agents.
-    The `CaseParticipant` object is a wrapper around an `as:Actor` object that associates the actor with a specific
-    `VulnerabilityCase` object. 
-    This is done so that an actor can be associated with multiple cases, each with 
-    different roles and statuses contextual to the individual cases.
+A [`CaseParticipant`](../../../reference/activitypub/objects.md#caseparticipant)
+wraps an `as:Actor` and binds it to one `VulnerabilityCase`. For why the binding
+is per-case, and for when to collapse these two activities into one, see
+[Activity Vocabulary Design](../../../topics/activity_vocabulary_design.md).
 
 ```mermaid
 flowchart LR

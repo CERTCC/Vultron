@@ -20,13 +20,12 @@ flowchart LR
     CreateCase --> AddNoteToCase
 ```
 
-!!! tip "Combining steps"
-
-    It is not always necessary for these steps to be performed individually.
-    It would be reasonable to create a case with the report and appropriate
-    participants and notes all in the initial case object. We have broken
-    these steps out individually to make it easier to understand the
-    process.
+These steps do not have to be performed individually. A case may be created with
+its report, participants, and notes already inline in the initial case object;
+the steps are broken out here because the individual steps are easier to follow.
+See
+[Activity Vocabulary Design](../../../topics/activity_vocabulary_design.md)
+for the reasoning.
 
 {% include-markdown "./_create_case.md" heading-offset=1 %}
 {% include-markdown "./_add_report_to_case.md" heading-offset=1 %}

@@ -6,15 +6,17 @@ Role delegation is the protocol flow by which the Case Owner (or another
 authorized participant) offers a specific `CVDRole` to another actor in the case.
 The recipient may accept or reject the offer.
 
-The canonical wire format uses a dedicated `as_CaseParticipantRole` object
-(introduced in ADR-0039) to unambiguously distinguish a role offer from a case
-ownership-transfer offer. Both previously serialized as `Offer(VulnerabilityCase)`,
-creating an ambiguity resolved only by registry ordering. The new format is
-self-describing: the object type alone identifies the activity as a role offer.
+The canonical wire format uses a dedicated `as_CaseParticipantRole` object to
+distinguish a role offer from a case ownership-transfer offer. The object type
+alone identifies the activity as a role offer.
 
-See also: [ADR-0039 — Resolve Wire Ambiguity Between OFFER\_CASE\_MANAGER\_ROLE
-and OFFER\_CASE\_OWNERSHIP\_TRANSFER via Dedicated Object
-Type](../../../adr/0039-offer-case-participant-role-wire-type.md)
+See also:
+
+- [Activity Vocabulary Design](../../../topics/activity_vocabulary_design.md) —
+  why a new object type was minted here rather than a new verb
+- [ADR-0039 — Resolve Wire Ambiguity Between OFFER\_CASE\_MANAGER\_ROLE
+  and OFFER\_CASE\_OWNERSHIP\_TRANSFER via Dedicated Object
+  Type](../../../adr/0039-offer-case-participant-role-wire-type.md)
 
 ## Protocol Flow
 
