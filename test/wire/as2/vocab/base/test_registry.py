@@ -276,6 +276,33 @@ class TestCoreTypeMapFallback:
         cls = find_in_vocabulary("ReplicationState")
         assert cls is VultronReplicationState
 
+    def test_pending_case_inbox_resolves_correctly(self):
+        """find_in_vocabulary('PendingCaseInbox') returns VultronPendingCaseInbox."""
+        from vultron.core.models.pending_case_inbox import (
+            VultronPendingCaseInbox,
+        )
+
+        cls = find_in_vocabulary("PendingCaseInbox")
+        assert cls is VultronPendingCaseInbox
+
+    def test_pending_create_case_activity_resolves_correctly(self):
+        """find_in_vocabulary('PendingCreateCaseActivity') returns PendingCreateCaseActivity."""
+        from vultron.core.models.pending_create_case_activity import (
+            PendingCreateCaseActivity,
+        )
+
+        cls = find_in_vocabulary("PendingCreateCaseActivity")
+        assert cls is PendingCreateCaseActivity
+
+    def test_report_case_link_resolves_correctly(self):
+        """find_in_vocabulary('ReportCaseLink') returns VultronReportCaseLink."""
+        from vultron.core.models.report_case_link import (
+            VultronReportCaseLink,
+        )
+
+        cls = find_in_vocabulary("ReportCaseLink")
+        assert cls is VultronReportCaseLink
+
 
 class TestDisjointKeys:
     """ARCH-23-002: set(VOCABULARY) & set(CORE_VOCABULARY) must be empty."""
