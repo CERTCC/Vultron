@@ -31,7 +31,7 @@ normative single-hub / single-writer + fan-out architecture.
 
 These mechanics are scoped to a companion document by design. The
 [Vultron Protocol Specification](vultron-spec/index.md) states the
-normative obligation — Hosting capability set implementations MUST replicate
+normative obligation — Case Hosting capability set implementations MUST replicate
 the canonical ledger via `Announce(CaseLedgerEntry)` — and delegates the
 mechanical specification to this document. See ADR-0077 for the rationale
 behind that boundary.
@@ -566,7 +566,7 @@ document rather than included inline in the parent RFC. The rationale is
 recorded in ADR-0077: the replication mechanics are technically precise and
 lengthy; including them inline would make the RFC too long and operationally
 focused for its intended audience of external protocol reviewers. The
-Hosting capability set's obligation to replicate (`Announce(CaseLedgerEntry)`)
+Case Hosting capability set's obligation to replicate (`Announce(CaseLedgerEntry)`)
 is stable and belongs in the RFC regardless of where the mechanics are
 specified; this document supplies the "how."
 

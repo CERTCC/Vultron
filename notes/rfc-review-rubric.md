@@ -222,7 +222,7 @@ Check after any structural reorganization or addition of new sections.
 - `[J]` The "four dimensions / five state machines" disambiguation (CS
   comprises two independent machines, VFD and PXA) is re-stated or explicitly
   cited wherever the five-machine count is normatively load-bearing —
-  currently required at §12.2 Observer capability set requirements.
+  currently required at §12.2 Case Observer capability set requirements.
 - `[J]` When a transition is implied by a state machine's compound-state table
   but its drive authority is unresolved, an open-question admonition (or
   `!!! warning` citing the relevant OQ) is placed in the defining section at
