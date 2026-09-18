@@ -3,7 +3,7 @@
 Capability shapes define optional, pluggable capabilities that connect to
 call-out points in the behavior engine. Capability shapes and capability sets
 ([§12.2](../index.md#122-capability-sets)) are independent: an implementation may
-provide the Observer capability set and no capability shapes at all.
+provide the Case Observer capability set and no capability shapes at all.
 
 A capability shape defines a **contract** — what the call-out point accepts and
 what it returns. A concrete implementation that satisfies the contract is a
@@ -35,8 +35,8 @@ case.
 
 #### G.2 Relationship to Conformance
 
-Capability shapes are not part of the Observer, Authority or Hosting capability
-set requirements. An implementation at any capability set level may provide any
+Capability shapes are not part of the Case Observer, Case Decision or Case Hosting
+capability set requirements. An implementation at any capability set level may provide any
 number of shapes, and a conformance claim does not state which
 ([§12.6](../index.md#126-capability-shapes)).
 

@@ -318,6 +318,27 @@ fix not ready) are structurally impossible, per SM-09-002 and CSB-17-001.
 
 ---
 
+## Conformance — Capability Sets
+
+Conformance is two-dimensional: a **capability set** claim (what protocol
+machinery the software provides) and a **role** profile (which positions the
+actor holds in a case). The two are different kinds of thing — a capability set
+is a property of *software*; a **CVDRole** is a position an actor holds — and are
+named so they never collide. The three named sets carry a **`Case`** prefix
+precisely to keep them distinct from the similarly-named roles they serve
+(ADR-0088). A conformance claim writes them together as
+`CapabilitySet [+ ...] / Role [+ ...]`, e.g.
+`Case Observer + Case Decision + Case Hosting / Coordinator + Case Owner`.
+
+| Term | Definition | Aliases to avoid |
+|------|-----------|-----------------|
+| **Capability set** | A named group of protocol obligations an implementation takes on — a property of *software*, distinct from a **CVDRole** (a position in a case). The three named sets are **Case Observer**, **Case Decision**, and **Case Hosting**; the `Case` prefix marks each as a capability set, not a role. Capability sets are orthogonal to both **capability shapes** and conformance test **layers** (L1–L4). | Conformance tier, T0/T1/T2, capability level |
+| **Case Observer capability set** | The participation floor every case **Participant** MUST implement: track all five state machines (RM, EM, PEC, VFD, PXA), drive the transitions its roles authorize, take part in embargo negotiation, and route case-scoped messages through the **CASE_MANAGER**. Named to echo the **Observer** role, with the `Case` prefix keeping set and role distinct. There is no sub-Observer participation level. | Observer capability set (unprefixed), Observer tier, T1 |
+| **Case Decision capability set** | The **Case Owner** governance obligations, separable from **Case Hosting**: adopt status updates without an external approval gate (the Case Owner's own updates are authoritative), drive shared EM transitions, and transfer case ownership. Formerly the "Authority capability set"; renamed because *authority* is reserved for the **CASE_MANAGER**'s single-writer control (ADR-0088). | Authority capability set, governance authority |
+| **Case Hosting capability set** | The **Case Manager** infrastructure obligations, separable from **Case Decision**: host the actor enacting the **CASE_MANAGER** role, maintain the authoritative canonical case ledger, replicate it to participants via `Announce(CaseLedgerEntry)`, and run multi-party case management. Ledger authority follows the **CASE_MANAGER** role the implementation holds — never its hosting location or actor name (ADR-0088). | Hosting capability set (unprefixed) |
+
+---
+
 ---
 
 ---
@@ -673,7 +694,7 @@ fix not ready) are structurally impossible, per SM-09-002 and CSB-17-001.
 ## Metadata
 
 - **Source:** Vultron codebase, CERT/CC CVD research publications, architecture audit, formal protocol specification
-- **Last Updated:** 2026-09-14
+- **Last Updated:** 2026-09-18
 - **Domains:** Formal MPCVD protocol, CVD process models (RM/EM/CS), communicating state machines, hexagonal architecture, activity pattern matching, persistence abstraction, behavior tree orchestration, case actor federation, participant case replicas, trust bootstrap and delegation
 - **Related References:**
   - [A State-Based Model for Multi-Party Coordinated Vulnerability Disclosure](https://resources.sei.cmu.edu/library/asset-view.cfm?assetid=735513) (CMU/SEI-2021-SR-021)
