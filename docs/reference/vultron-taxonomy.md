@@ -368,7 +368,7 @@ The relationship between capabilities and roles is bidirectional.
 
 **Relationship to other concepts.**
 
-- A Vultron-enabled application that implements vultron-core, vultron-wire, and vultron-transport at the Observer level or above is a "coordination engine" in the sense that it can coordinate CVD cases. That label is descriptive vocabulary for what the application does, not a separate taxonomy concept.
+- A Vultron-enabled application that implements vultron-core, vultron-wire, and vultron-transport at the Case Observer level or above is a "coordination engine" in the sense that it can coordinate CVD cases. That label is descriptive vocabulary for what the application does, not a separate taxonomy concept.
 
 ---
 
@@ -434,8 +434,8 @@ These labels were candidates for this taxonomy but did not survive review.
 | Label | Outcome |
 |---|---|
 | vultron-behaviors | Dissolved. The behavioral conformance specifications (RMB, EMB, CSB) are part of vultron-core. "Behavior trees" are one implementation mechanism for vultron-core, not a separate taxonomy concept. |
-| coordination engine | Demoted to descriptive vocabulary. A Vultron-enabled application that implements vultron-core at the Observer level or above is a "coordination engine" for CVD. This label describes what the application does, not a separate concept. |
-| T0 / Consumer | Dropped. A parse-only entity has nothing useful to do with Vultron data if it cannot honor embargoes. Observer is the participation floor. |
+| coordination engine | Demoted to descriptive vocabulary. A Vultron-enabled application that implements vultron-core at the Case Observer level or above is a "coordination engine" for CVD. This label describes what the application does, not a separate concept. |
+| T0 / Consumer | Dropped. A parse-only entity has nothing useful to do with Vultron data if it cannot honor embargoes. Case Observer is the participation floor. |
 | T1 / Participant | Collapsed into the Case Observer capability set. |
 | T2 / Coordinator | Split into three separable concepts: Coordinator role extension set, Case Decision capability set, and Case Hosting capability set. |
 | T0/T1/T2 tier notation | Eradicated. Conformance claims name capability sets and roles directly. Example: `Case Observer / Vendor` replaces `T1 / Vendor`. |
