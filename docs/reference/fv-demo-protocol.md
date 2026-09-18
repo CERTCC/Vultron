@@ -99,11 +99,11 @@ sequenceDiagram
 
     note over F,CA: Phase 6 — Case Closure
 
-    V->>CA: Add(ParticipantStatus, RM.CLOSED)
+    V->>CA: Leave(VulnerabilityCase)
+    note right of CA: owner Leave: Vendor → RM.CLOSED,<br/>CaseActor → RM.CLOSED, case_fully_closed
     CA->>F: Announce(CaseLedgerEntry)
-    F->>CA: Add(ParticipantStatus, RM.CLOSED)
+    F->>CA: Leave(VulnerabilityCase)
     CA->>V: Announce(CaseLedgerEntry)
-    note right of CA: BT: all participants RM.CLOSED<br/>→ close case
     note over F,CA: ✓ M7 — All participants RM.CLOSED, case closed
 ```
 
@@ -421,27 +421,36 @@ POST /api/v2/actors/{finder_id}/demo/close-case
 
 ### What happens internally
 
-1. **Vendor** sends
-   `Add(ParticipantStatus(RM.CLOSED), target=Case)` to the Case
-   Actor.
-2. **Finder** sends the same.
-3. **Case Actor** detects that all participants are now `RM.CLOSED`
-   and closes the case.
+Closure is driven by `Leave(VulnerabilityCase)`, not by a participant asserting
+its own `RM.CLOSED`. An `Add(ParticipantStatus, rm_state=RM.CLOSED)` is not a
+closure trigger (ADR-0050, CM-23-001). A lost message would otherwise let a
+participant ghost the case: locally closed, still open to its peers.
 
-### Example: Add(ParticipantStatus) — Case Closure
+1. **Vendor** sends `Leave(VulnerabilityCase)` to the Case Actor. The Vendor is
+   the `CASE_OWNER` in FV, so this is an **owner Leave** and the Case Actor runs
+   the CM-23-002 sequence: advance the Vendor to `RM.CLOSED`, advance **its own**
+   participant record to `RM.CLOSED`, record that transition as an
+   `add_participant_status_to_participant` entry (CM-23-005), then commit
+   `case_fully_closed`.
+2. **Finder** sends `Leave(VulnerabilityCase)`. As a non-owner this advances only
+   the Finder (CM-23-003); the other participants keep their rung (CM-23-012).
+3. Each entry is fanned out as `Announce(CaseLedgerEntry)`, and every replica
+   applies it — which is how a participant learns that a *peer* has departed.
+
+The Case Actor's own entry matters to anyone reading the ledger. Without it the
+`CASE_MANAGER` appears permanently `RM.ACCEPTED` on every replica: `close_case`
+names only the departing actor, and `case_fully_closed` is attributed to the
+owner who left.
+
+### Example: Leave(VulnerabilityCase) — Case Closure
 
 ```json
 {
   "@context": "https://www.w3.org/ns/activitystreams",
-  "type": "Add",
+  "type": "Leave",
   "actor": "http://vendor:7999/api/v2/actors/vendor",
   "to": ["http://vendor:7999/api/v2/actors/{ca-uuid}"],
   "object": {
-    "type": "ParticipantStatus",
-    "rm_state": "CLOSED",
-    "attributed_to": "http://vendor:7999/api/v2/actors/vendor"
-  },
-  "target": {
     "type": "VulnerabilityCase",
     "id": "http://vendor:7999/api/v2/datalayer/{case-uuid}"
   }
@@ -452,7 +461,7 @@ POST /api/v2/actors/{finder_id}/demo/close-case
 
 | Check | Both replicas |
 |:------|:-------------|
-| All participants `RM.CLOSED` | ✓ |
+| All participants `RM.CLOSED`, including the `CASE_MANAGER` | ✓ |
 | Case status = closed | ✓ |
 | Final CS state = `VFDPxa` | ✓ |
 
