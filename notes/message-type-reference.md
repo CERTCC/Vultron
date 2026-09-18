@@ -99,6 +99,22 @@ should not be documented as such:
 `unknown` and `unknown_unresolvable_object` are dispatcher fallbacks, not
 message types. Exclude them from message-type reference material.
 
+### An activity has two names, and docs use both
+
+An activity is declared twice — as a class in `vultron/wire/as2/vocab/activities/`
+and as an `ActivityPattern` in `vultron/wire/as2/extractor/_instances.py` — and
+the two names often differ. `_CreateStatusForParticipantActivity` is
+`CreateParticipantStatusPattern`. Some activities have only one of the two:
+`CreateNote` is a pattern with no class, because a note is minted with a bare
+`as:Create` rather than a Vultron subclass. Neither list is a superset.
+
+When naming an activity in docs, use a name from one of those two lists. The
+pairing ratchet (`test/architecture/test_docs_activity_verbs.py`) reads both and
+rejects a name in neither, which is how `CreateStatus` — a plausible-looking
+name belonging to no system — was caught. Prose that merely mentions a name is
+left alone; only a `subgraph as:Verb` membership claim is checked, because
+declaring a name there asserts the activity exists.
+
 ## The mechanisms that evolved rather than went missing
 
 MSM currently records `RE`, `EE`, `CE`, `EK`, and `CK` as having "no AS2 wire

@@ -26,10 +26,6 @@ _SCAN_ROOTS = [REPO_ROOT / "vultron", REPO_ROOT / "test"]
 
 _DOCS_ROOT = REPO_ROOT / "docs"
 
-#: Directory names under ``docs/`` excluded from the markdown cache.
-#: ``codebase`` holds a gitignored local scan artifact, not authored prose.
-_DOCS_SKIP_DIRS = frozenset({"codebase"})
-
 # ---------------------------------------------------------------------------
 # Module-level source cache — populated at import time.
 # Import-time I/O is not subject to the pytest-timeout 5 s per-test budget
@@ -49,16 +45,23 @@ for _root in _SCAN_ROOTS:
 # ---------------------------------------------------------------------------
 # Module-level markdown cache for ``docs/`` — also populated at import time,
 # for ratchets that assert docs prose against code. Markdown needs no parse
-# step, so there is no lazy tier: ~555 files / 2.7 MB read in ~0.1 s.
+# step, so there is no lazy tier: ~556 files / 2.8 MB read in ~0.03 s.
+#
+# No directory is excluded.  The ``*.md`` glob already skips the only
+# non-authored content under ``docs/`` — the gitignored ``.codebase-scan.txt``
+# artifacts — while ``docs/reference/codebase/`` holds eight tracked, authored
+# reference pages that docs ratchets must be able to see.
+#
+# ``UnicodeDecodeError`` is not an ``OSError``, and this loop runs at import
+# time, so letting one escape would error out every ratchet module at
+# collection rather than skipping a single file.
 # ---------------------------------------------------------------------------
 _docs_cache: dict[Path, str] = {}
 
 for _md_file in sorted(_DOCS_ROOT.rglob("*.md")):
-    if _DOCS_SKIP_DIRS.intersection(_md_file.parts):
-        continue
     try:
         _docs_cache[_md_file] = _md_file.read_text(encoding="utf-8")
-    except OSError:
+    except (OSError, UnicodeDecodeError):
         pass
 
 # ---------------------------------------------------------------------------

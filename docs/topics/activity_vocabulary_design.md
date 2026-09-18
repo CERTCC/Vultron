@@ -78,23 +78,23 @@ acknowledgement and validity are distinct claims on the wire.
 title: Acknowledging, validating, or invalidating a submitted report
 ---
 flowchart LR
-    subgraph RM:Received
+    subgraph RM:RECEIVED
         a{Accept?}
         subgraph as:Read
             RmReadReport
         end
     end
-    subgraph RM:Start
+    subgraph RM:START
         subgraph as:Offer
             RmSubmitReport
         end
     end
-    subgraph RM:Valid
+    subgraph RM:VALID
         subgraph as:Accept
             RmValidateReport
         end
     end
-    subgraph RM:Invalid
+    subgraph RM:INVALID
         subgraph as:TentativeReject
             RmInvalidateReport
         end
@@ -165,14 +165,14 @@ flowchart TB
     subgraph as:Create
         CreateNote
         CreateParticipantStatus
-        CreateStatus
+        CreateCaseStatus
     end
     start([Start])
-    start -.-> CreateStatus
+    start -.-> CreateCaseStatus
     start -.-> CreateParticipantStatus
     start -.-> CreateNote
     CreateNote --> AddNoteToCase
-    CreateStatus --> AddStatusToCase
+    CreateCaseStatus --> AddStatusToCase
     CreateParticipantStatus --> AddStatusToParticipant
     AddStatusToParticipant -.-> AddStatusToCase
     AddNoteToCase -.-> AddStatusToParticipant

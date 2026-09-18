@@ -40,22 +40,43 @@ documentation prose against code. Accessors are `docs_mentioning(*fragments)`
 and `all_docs()`, mirroring `sources_mentioning` / `all_sources`.
 
 There is **no lazy tier for markdown**, because these ratchets match on text
-and never parse. The whole cache is populated at import time: ~555 files and
-2.7 MB read in ~0.1 s, an order of magnitude cheaper than the Python cold
-parse that motivated the lazy AST tier. `docs/codebase/` is excluded — it holds
-a gitignored local scan artifact (which embeds a whole `search_index.json`, so
-including it would both dominate the byte count and produce false matches on
-retired content).
+and never parse. The whole cache is populated at import time: 556 files and
+2.8 MB read in ~0.03 s, an order of magnitude cheaper than the Python cold
+parse that motivated the lazy AST tier.
+
+**No directory is excluded.** An earlier version of this tier skipped any path
+component named `codebase`, on the theory that it held a gitignored scan
+artifact whose embedded `search_index.json` would dominate the byte count and
+produce false matches on retired content. That reasoning was wrong twice over,
+and both errors are worth recording because they are easy to repeat. The
+artifacts are `.codebase-scan.txt` files, so a `*.md` glob never sees them and
+the byte-count argument cannot apply. What the exclusion actually dropped was
+the eight **tracked, authored** reference pages under `docs/reference/codebase/`
+— and `test_codebase_docs_paths.py`, which reads exactly those eight files, is
+the obvious candidate to migrate onto `all_docs()`, so the migration would have
+turned it silently vacuous. Match on the path *relative to* the scan root if a
+future exclusion is ever genuinely needed: the old check tested `Path.parts` of
+the absolute path, so a clone under any directory named `codebase` emptied the
+entire cache.
+
+`UnicodeDecodeError` is not an `OSError`, and this loop runs at import time, so
+the read is guarded against both. Letting one escape would error out every
+ratchet module at collection rather than skipping a single file.
 
 The markdown tier exists because the meta-ratchet forbids `.rglob(` in
 siblings, and the first docs-versus-code ratchet
-(`test_docs_activity_verbs.py`, TB-13-003 / ISSUE-3402) needed to walk
-`docs/`. Extending the corpus was the correct response to that ratchet rather
-than reaching for a glob spelling it does not pattern-match: the hygiene rule
-is about routing discovery through one cache, not about the literal substring.
+(`test_docs_activity_verbs.py`, ISSUE-3402) needed to walk `docs/`. Extending
+the corpus was the correct response to that ratchet rather than reaching for a
+glob spelling it does not pattern-match: the hygiene rule is about routing
+discovery through one cache, not about the literal substring.
+
+Note the spec gap: TB-13-003 is what *forces* routing through the corpus, but
+TB-13-001 scopes the shared corpus to tests "that scan the source tree," and no
+TB-13 entry governs `docs_mentioning` / `all_docs`. The markdown tier is
+currently convention rather than requirement.
 
 Prefilter markdown ratchets the same way as Python ones. The activity-verb
-ratchet filters on `"subgraph as:"` and `` "(`as:" ``, which selects 9 of 555
+ratchet filters on `"subgraph as:"` and `` "(`as:" ``, which selects 9 of 556
 files.
 
 ## xdist Compatibility

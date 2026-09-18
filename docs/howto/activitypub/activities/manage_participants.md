@@ -18,8 +18,8 @@ flowchart TB
         RmRejectInviteToCase
     end
     subgraph as:Create
-        RmCreateParticipant
-        RmCreateParticipantStatus
+        CreateParticipant
+        CreateParticipantStatus
     end
     subgraph as:Add
         AddParticipantToCase
@@ -33,12 +33,12 @@ flowchart TB
     RmInviteToCase --> a{Accept?}
     a -->|y| RmAcceptInviteToCase
     a -->|n| RmRejectInviteToCase
-    RmAcceptInviteToCase --> RmCreateParticipant
+    RmAcceptInviteToCase --> CreateParticipant
     
-    RmCreateParticipantStatus --> AddStatusToParticipant
-    RmCreateParticipant --> AddParticipantToCase
+    CreateParticipantStatus --> AddStatusToParticipant
+    CreateParticipant --> AddParticipantToCase
     AddParticipantToCase --> s{Status?}
-    s -->|y| RmCreateParticipantStatus
+    s -->|y| CreateParticipantStatus
     s -->|n| r{Remove?}
     AddStatusToParticipant --> r
     r -->|y| RemoveParticipantFromCase
