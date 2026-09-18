@@ -37,8 +37,9 @@ See `CONTEXT.md` § Capability Shapes for the canonical definitions of
 See ADR-0024 for the original taxonomy and ADR-0097 for the current one.
 
 > **Sentinel is not one of them.** ADR-0097 (planning group G07) demoted Sentinel
-> out of the capability-shape taxonomy: it is a **call-in integration pattern**,
-> tracked under the Agentic Participants epic (#2450), not a call-out shape. See
+> out of the capability-shape taxonomy: it is a **call-in integration pattern**
+> whose design questions belong to the Agentic Participants epic (#2450), not a
+> call-out shape. See
 > [The Sentinel pattern is call-in, not a shape](#the-sentinel-pattern-is-call-in-not-a-shape)
 > below for why, and BT-18-013 for the normative statement.
 
@@ -112,10 +113,23 @@ come from a peer, you want `notes/protocol-asks.md`, not this file.
 
 ## The capability's contract is core-owned typed ports
 
+> **Decided, not yet built.** This section records the target state set by
+> ADR-0097 and BT-18-012. None of it exists in the tree yet — the mixins are still
+> in `vultron/demo/fuzzer/call_out_point.py` and still carry `output_keys`.
+> #3421 implements it; #3423 implements the latency budget below.
+
 A capability declares its blackboard contract as **py_trees typed ports**
 (`input_ports()` / `output_ports()`, ADR-0044) on a declaration owned by the core
 layer — **not** as a docstring, and **not** as an `output_keys` dict in
 `vultron/demo/fuzzer/` (BT-18-012).
+
+Because a shape is shared by many capabilities, the shape base class cannot hold
+the per-capability contract. So the declaration splits in two: each named
+capability gets a **core-owned declaration** carrying its own ports, and the
+probabilistic node that stands in for it stays in `vultron/demo/fuzzer/`
+(BT-16-001) and binds to that declaration rather than restating it. Core owns what
+the capability promises; the simulation layer owns one way of pretending to keep
+it.
 
 This is not a new mechanism. ADR-0044 already makes typed ports *"the standard
 base for all nodes in `vultron/core/behaviors/`"*; the capability layer uses the
@@ -129,29 +143,36 @@ Two consequences worth internalising:
   a reader should not have to open two files — but a test reads the declared
   ports. A docstring that disagrees with the ports is a doc bug, not a contract
   change.
-- **The shape base classes are core, and named for capabilities.** They live in
+- **The shape base classes become core, and named for capabilities.** They move to
   `vultron/core/behaviors/call_out/` as `EvaluatorCapability`,
   `RetrieverCapability`, `ComposerCapability`, and `ActuatorCapability`
-  (ADR-0097 decision 6). The simulation layer re-exports the older
-  `*CallOutPoint` names so existing fuzzer subclasses keep working; new code uses
-  the capability names.
+  (ADR-0097 decision 6, #3421). The simulation layer will re-export the older
+  `*CallOutPoint` names so the 81 existing fuzzer subclasses keep working; new
+  code uses the capability names.
 
 ### A capability answers fast, or it is not a capability
 
 A call-out backend answers within one tick (BT-18-011, guarded by
 `SynchronousCallOut`) **and** within a bounded, configurable time budget
-(BT-18-015). The budget lives in `ActorConfig`, not in the spec and not in a
-literal: it is local to one actor and observable by no peer, so two deployments
-choosing different values is not divergence. Contrast an ask deadline, which
-travels on the wire in `end_time` precisely so both parties read the same number
-(ASK-03-003).
+(BT-18-015). The budget belongs in `ActorConfig`, not in the spec and not in a
+literal (#3423). The reason is **wire visibility**, not configurability: the budget
+is local to one actor and observable by no peer, so two deployments choosing
+different values is not divergence. An ask deadline is the contrast — it travels on
+the wire in the AS2 `endTime` field precisely so both parties read the same number
+(ASK-03-004). Do not draw the contrast on configurability: ask deadline durations
+are `ActorConfig`-configurable too (ASK-03-005).
 
-The failure this prevents is easy to miss. Nothing suspends, so a backend that
+The failure this addresses is easy to miss. Nothing suspends, so a backend that
 makes a slow HTTP call does not *look* broken — it blocks a `BackgroundTasks`
 worker while the bridge ticks toward `max_iterations`, and then fails without
 naming the offending node. That is the same opaque failure BT-18-011 was written
 to prevent, reached by a different route. Work that cannot meet the budget is an
 ask or a call-in monitor.
+
+One honest limit: a guard at the seam **detects** an overrun and names the node; it
+does not interrupt the backend. A py_trees tick is synchronous, so interrupting one
+means running it off the ticking thread. An implementation owes a clear statement
+of which of the two it provides.
 
 ---
 
@@ -181,7 +202,7 @@ For each fuzzer node, ask:
 8. Does it require a condition to be monitored continuously over time, such that
    the monitoring should trigger a protocol action when fired?
    → the **Sentinel pattern** on the call-in surface (no call-out point, no
-   capability shape; tracked under #2450)
+   capability shape; designed under #2450, issues still filed under #1147)
 
 The fuzzer node's `Input category` docstring annotation
 (`Human decision`, `Environmental check`, `System integration`, etc.) and
@@ -267,9 +288,12 @@ be accountable to the case wants the participant form; an embargo timer that is
 merely how one organisation operates its own actor wants the operator-side form.
 Expect to answer this per monitor, not once for all of them.
 
-**Where the work went.** The Sentinel pattern is tracked under the Agentic
-Participants epic (#2450). Nothing was cancelled; #1143 and the four Sentinel
-Ideas (#1845, #1856, #1893, #1943) moved there. ADR-0080's `reap-expired-asks`
+**Where the work went.** Nothing was cancelled, and nothing was reparented
+either. #1143 and the four Sentinel Ideas (#1845, #1856, #1893, #1943) remain
+children of Epic #1147 — the G07 planning protocol (#2828) keeps members on their existing
+domain-epic parents so board tiers survive — but the **questions** they carry are
+now Agentic Participants questions (#2450), not capability-layer ones. Look for
+them under #1147; read them against #2450. ADR-0080's `reap-expired-asks`
 trigger (ASK-05-002) is the canonical example of the pattern's seam: core exposes
 a trigger endpoint, and a watcher calls it.
 
@@ -287,10 +311,13 @@ An Evaluator is called at a call-out node inside a BT. It receives the
 current case context and a description of the decision to be made, and
 returns a structured answer that guides the BT's next branch.
 
-**BT integration**: The call-out node blocks (or queues) BT execution,
-dispatches to the Evaluator, and routes the BT based on the response.
-The exact async pattern — synchronous HTTP call, queue-based dispatch,
-webhook callback — is an open design question (see issue #1144).
+**BT integration**: The call-out node dispatches to the Evaluator within the tick
+that reached it and routes the BT on the answer. There is no async pattern to
+choose: the convention is uniform across the four shapes — synchronous,
+in-process, `name: str → Behaviour` — and `SynchronousCallOut` raises
+`CallOutContractError` on a `RUNNING` return (BT-18-011, ADR-0080, ADR-0097
+decision 2). A judgment that cannot be answered inside the tick because it belongs
+to *another actor* is not an Evaluator at all; it is a protocol ask (BT-18-014).
 
 **SSVC reuse**: SSVC decision-point structures (decision point +
 enumerated answer set) are a natural schema for Evaluator input/output.
@@ -302,10 +329,12 @@ WIP notes.
 A Retriever is called at a call-out node that needs external facts. It
 receives a query and returns structured data from an external source.
 
-**BT integration**: Same async pattern question as Evaluator. The key
+**BT integration**: Same synchronous, in-tick convention as Evaluator. The key
 additional design consideration is caching and staleness: the same external
 fact may be queried multiple times across a case lifetime; the Retriever
 should not be called redundantly if the answer is already in the DataLayer.
+Caching is also one of the few ways a slow external lookup can meet the
+BT-18-015 budget. Open — tracked in #3427.
 
 ### Composer
 
@@ -314,13 +343,20 @@ the case — a notification body, an advisory draft, an invitation message.
 Unlike Evaluators and Retrievers, a Composer's output does not affect BT
 control flow; it is attached to the case or placed in the outbox.
 
-**BT integration**: The call-out node suspends, dispatches to the Composer,
-receives the artifact, and attaches it. The BT then continues regardless of
-content (unless the Composer signals failure).
+**BT integration**: The call-out node dispatches to the Composer within its tick,
+receives the artifact, and writes it to the capability's declared output port. The
+BT then continues regardless of content (unless the Composer signals failure).
+It does **not** suspend — nothing in Vultron does, and `SynchronousCallOut` raises
+on a `RUNNING` return (BT-18-011).
 
 **Human-review gate**: Whether Composer output auto-sends or requires human
 review before dispatch is a per-deployment policy question, not a protocol
 question.
+
+**Open** (tracked in #3427): which BT nodes and use cases should consult a
+Composer, how a Composer relates to the existing Note and advisory behaviours in
+`vultron/core/behaviors/note/`, and whether a Composer may reuse prior advisory
+text (which would make it a composite with a Retriever phase).
 
 ### Actuator
 
@@ -339,6 +375,14 @@ Actuator's job is execution, not decision.
 **Examples**: `OnEmbargoExit`, `OnEmbargoAccept`, `OnEmbargoReject`,
 `SetRcptQrmR`, `InjectParticipant`, `RemoveRecipient` — all nodes that fire
 integration hooks when protocol state transitions occur.
+
+**Open** (tracked in #3427): what the tree does on FAILURE, how partial success is
+reported, and — unlike the other three shapes, because an Actuator is the only one
+that *writes* to a foreign system — what authentication and authorization model it
+uses to reach that system, and which classes of external system it is expected to
+reach at all. The latency bound (BT-18-015) binds an Actuator like any other
+backend, so a hook that cannot confirm its side effect promptly is an ask or a
+call-in monitor, not an Actuator.
 
 **Added in**: ADR-0024 amendment, 2026-07-07 (issue #1239, PR #1195).
 

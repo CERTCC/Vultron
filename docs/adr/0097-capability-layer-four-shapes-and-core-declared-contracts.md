@@ -48,7 +48,7 @@ Two real questions remained underneath it.
 
 The first is a **classification** question, and ADR-0080 had already hit it from
 the other side: it amended ADR-0076 because an approval gate had been modelled as
-an Evaluator call-out, and *"at the moment of asking no answer exists, so an
+an Evaluator call-out, and *"at the moment of asking no answer exists and an
 Evaluator can therefore only ever answer no."* The distinction — answerable now by
 a service the actor runs, versus requiring a decision from another actor in the
 case — decides whether something is a call-out point at all. It was documented as
@@ -56,7 +56,7 @@ prose in `docs/topics/capability_model/index.md` and was normative nowhere.
 
 The second is **latency**. The guard forbids `RUNNING` but says nothing about a
 backend that simply blocks. `docs/howto/wire_capability.md` invites implementers
-to call a REST service from `update()`, and the pipeline runs under FastAPI
+to call an external service from `update()`, and the pipeline runs under FastAPI
 `BackgroundTasks`, so a slow backend stalls a worker with no diagnostic.
 
 ### The contract lives in the wrong layer, and the default cannot honour it
@@ -71,23 +71,27 @@ implementation is wired in."*
 
 It cannot honour the contract, because the only machine-readable form of the
 contract is an `output_keys` dict on a mixin in `vultron/demo/fuzzer/`, which core
-must not import (BT-16-001). The rest of the contract is docstring prose.
+must not import (BTND-04-002; BT-16-001 is why the probabilistic nodes live
+there). The rest of the contract is docstring prose.
 
 Measured at the time of this decision:
 
 | | Count |
 |---|---|
-| Core DETERMINISTIC factory fields | 64 |
+| Core DETERMINISTIC factory fields | 65 |
 | …defaulting to a bare `_always_succeed` | 49 |
 | …defaulting to a bare `_always_fail` | 13 |
+| …defaulting to `_require_case_owner_approval` (the BT-23-012 gates) | 2 |
 | …wired to a contract-honouring backend | **1** |
-| Capabilities declaring non-empty output keys | 59 (44 Evaluator, 9 Composer, 6 Retriever) |
+| Capabilities declaring non-empty output keys | 60 (45 Evaluator, 9 Composer, 6 Retriever) |
 
 The two halves of that table count different things — bundle *fields* and
 declared *capabilities* — and are not a clean cross-tabulation: some fields answer
-capabilities that produce no data (Actuators, binary Retrievers). The load-bearing
-figure is the last-but-one row: exactly one field resolves to a backend that
-writes what its capability declares.
+capabilities that produce no data (Actuators, binary Retrievers), and some
+declaring capabilities have no bundle field at all, because the tree that would
+have consulted them was removed (`report_to_others`, ADR-0047/#1848). The
+load-bearing figure is the last-but-one row: exactly one field resolves to a
+backend that writes what its capability declares.
 
 That single exception, `_DeterministicPrioritizePublicationIntents`, is the
 familiar shape of this project's recurring problem: the mechanism exists, built
@@ -97,12 +101,19 @@ The consequence is silent rather than loud. Core guards the read
 (`required=False`), so `ShouldPublishFix` reads a missing
 `publication_intent_decision`, returns FAILURE, and the arm no-ops. In
 DETERMINISTIC mode every data-gated arm quietly does nothing — inverting the
-stated premise of BT-23-002/006/007, which chose `AlwaysSucceed` *"so that
-deterministic demo scenarios make forward protocol progress."* The ceiling rule
-was written for boolean call-outs and silently generalised to data-producing
-ones. The test suite knows: `test_publication_tree.py` writes the key by hand
-before ticking, commented *"Without this write, all three arms…"* — compensating
-for the gap instead of catching it.
+stated premise of BT-23-002 and BT-23-007, which chose `AlwaysSucceed` *"so that
+deterministic demo scenarios make forward protocol progress."* (BT-23-006 is not
+part of that group: it selects `AlwaysFail`, for a different reason.) The ceiling
+rule was written for boolean call-outs and silently generalised to data-producing
+ones.
+
+The one place a test guards this is the one place the mechanism was built:
+`test_publication_tree.py` carries a regression test asserting that the
+DETERMINISTIC bundle *does* write `PublicationIntentDecision`, *"Without this
+write, all three arms silently take the Inverter-skip path."* That test passes
+only because `_DeterministicPrioritizePublicationIntents` exists. No equivalent
+guard exists for any other data-producing capability, so for the rest the gap is
+unobserved rather than caught.
 
 The blast radius is currently latent: `create_publication_tree` and
 `create_acquire_exploit_strategy_tree` have no callers outside tests.
@@ -133,7 +144,8 @@ explicitly not to the fifth:
 BT-18-006 exists solely to stop authors misclassifying call-outs as Sentinels.
 `SentinelCallOutPoint` and its three subclasses are dead code that contradicts
 the definition — py_trees Behaviours carrying a `success_rate`, wired into no
-bundle and instantiated nowhere, while `CheckNoNewDeploymentInfoNode` reads a
+bundle and instantiated only by their own unit tests
+(`test/demo/fuzzer/test_call_out_point.py`), while `CheckNoNewDeploymentInfoNode` reads a
 blackboard flag documented as written by a Sentinel that never runs. Annex G even
 assigns Sentinel a *"returns SUCCESS/FAILURE… used as a precondition guard"*
 contract, which is precisely the call-out framing it is not.
@@ -232,12 +244,16 @@ blocking I/O in `update()`. Work that cannot meet the budget is not a call-out
 point — it is a protocol ask or a call-in monitor.
 
 The **spec asserts that a bound exists and is configurable; it does not fix the
-number.** A duration is a deployment property, not a protocol rule: unlike an ask
-deadline (which travels on the wire in `end_time`, so both parties must read the
-same value — ASK-03-003), a call-out budget is local to one actor and observable
-by nobody else, so two deployments choosing different values is not divergence.
-`ActorConfig` (`vultron/config/actor.py`) already carries `timedelta` settings
-and is layer-neutral, so it is the home for it.
+number.** The distinction that matters is **wire visibility**, not
+configurability. An ask deadline travels on the wire in the AS2 `endTime` field, so
+both parties must read the same value (ASK-03-004); a call-out budget is local to
+one actor and observable by nobody else, so two deployments choosing different
+values is not divergence. Both are actor configuration — ask deadline durations
+are `ActorConfig`-configurable too (ASK-03-005) — which is why the contrast has to
+be drawn on visibility rather than on where the number is set. `ActorConfig`
+(`vultron/config/actor.py`) already carries `timedelta` settings
+(`min_rsvp_window`, `default_rsvp_window`) and is layer-neutral, so it is the home
+for this one as well.
 
 The guard is a sibling of `SynchronousCallOut`, applied at the same place.
 Implementation must state honestly whether it *interrupts* an overrunning backend
@@ -247,7 +263,8 @@ interruption requires running the backend off the ticking thread.
 ### 5. Sentinel is demoted out of the capability-shape taxonomy
 
 Chosen: **four call-out capability shapes.** Sentinel is reclassified as a
-**call-in integration pattern** and moves to the Agentic Participants epic
+**call-in integration pattern**, and its design work belongs to the Agentic
+Participants epic
 (#2450), where an independently-acting process — with its own schedule, its own
 credentials, and possibly its own protocol identity — belongs.
 
@@ -321,18 +338,29 @@ one by enacting the other.
 
 Chosen: **move and rename.** The mixins move from
 `vultron/demo/fuzzer/call_out_point.py` into
-`vultron/core/behaviors/call_out/`, carry the typed-port declaration, and are
+`vultron/core/behaviors/call_out/`, fix the typed-port *lifecycle* for their
+shape, and are
 renamed to the capability vocabulary (`EvaluatorCapability`, `RetrieverCapability`,
 `ComposerCapability`, `ActuatorCapability`).
+
+A shape base class cannot hold a *per-capability* contract, since many
+capabilities share one shape — which is why the `output_keys` dict sits on the
+concrete subclasses today. So decision 1 forces a **split** that this decision
+only half completes: each named capability gets a core-owned declaration carrying
+its own ports, and the probabilistic node that stands in for it stays in
+`vultron/demo/fuzzer/` (BT-16-001) and binds to that declaration instead of
+restating the contract. Core owns what the capability promises; the simulation
+layer owns one way of pretending to keep it. The module layout for those
+declarations is left to #3421.
 
 Issue #2454 framed the rename as churn for vocabulary's sake and weighed it
 against a permanent docs/code translation burden. That framing does not survive
 decision 1:
 the classes hold the only machine-readable contract, core needs to read it, and
-BT-16-001 forbids core importing from `vultron/demo/`. **The move is required
+BTND-04-002 forbids core importing from `vultron/demo/`. **The move is required
 regardless, so the rename is a free rider** — the migration cost is the move, not
-the word. The simulation layer re-exports the old names so the 84 existing
-subclasses keep working.
+the word. The simulation layer re-exports the old names so the 81 existing
+subclasses of the four retained shapes keep working.
 
 `SentinelCallOutPoint` and its three subclasses are deleted rather than moved, per
 decision 5.
@@ -360,13 +388,21 @@ invalidate cross-references from RSH-07, BT-20, and BTND-05.
   (glossary, Annex G, `docs/topics/`, `docs/reference/vultron-taxonomy.md`)
   changes, and 118 lines across 31 files carry the capability-shape sense of
   "Sentinel"
-- Neutral: Sentinel work is not cancelled, only rehomed. #1143 and the four
-  Sentinel Ideas move from #1147 to #2450, and G14's premise ("define Sentinel
-  once, instantiate four times") shifts from a shape contract to a call-in one
-- Bad: making the 58 remaining DETERMINISTIC defaults honour their contracts is a
-  real behaviour change. It is latent today (no live caller reaches a data-gated
-  arm), but it will change what those arms do the moment one is wired, and it
-  invalidates the hand-written compensating writes in the existing tests
+- Neutral: Sentinel work is not cancelled, only rehomed *conceptually*. #1143 and
+  the four Sentinel Ideas stay parented to #1147 — the G07 planning protocol
+  (#2828) keeps members on their existing domain-epic parents — while their design
+  questions become Agentic Participants questions (#2450). G14's premise ("define
+  Sentinel once, instantiate four times") shifts from a shape contract to a
+  call-in one
+- Bad: making the remaining DETERMINISTIC defaults honour their contracts is a
+  real behaviour change, affecting every bundle field whose capability declares
+  output ports except the one already conforming. It is latent today (no live
+  caller reaches a data-gated arm), but it will change what those arms do the
+  moment one is wired
+- Bad: the three `SentinelCallOutPoint` subclasses are deleted, which also deletes
+  their unit tests in `test/demo/fuzzer/test_call_out_point.py`, and leaves the
+  change-detection flags they were documented as writing without an attributed
+  writer until #3424 resolves each one
 - Bad: shape remains a class-hierarchy property rather than queryable metadata, so
   a capability's shape is still read by inspecting its base class
 
@@ -390,7 +426,7 @@ invalidate cross-references from RSH-07, BT-20, and BTND-05.
 
 - **Partially supersedes ADR-0024** — only its five-shape enumeration; ADR-0024
   remains authoritative for its other five decisions
-- **Amends ADR-0025** — decision 5 (shape base classes move to core and are
+- **Amends ADR-0025** — decision 6 (shape base classes move to core and are
   renamed) and its ceiling/floor amendment (a data-producing capability's ceiling
   is a contract-honouring default, not bare `AlwaysSucceed`)
 - **Revises ADR-0047 in place** — its decision stands; its Sentinel vocabulary

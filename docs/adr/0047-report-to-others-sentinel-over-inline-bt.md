@@ -86,10 +86,11 @@ note").
 - ADR-0026: CaseActor-Routed Actor Suggestion and Invitation Flow
 - ADR-0029: Notification Loop Collapse (Production Collapse 3)
 - ADR-0097: Sentinel is a call-in pattern, not a capability shape; this decision
-  is unaffected, but the Sentinel's design questions are tracked under Agentic
+  is unaffected, but the Sentinel's design questions belong to Agentic
   Participants rather than the capability layer
-- Issue #1143: Sentinel pattern design (open)
-- Issue #2450: Agentic Participants epic (where the Sentinel design is tracked)
+- Issue #1143: Sentinel pattern design (open; still a child of Epic #1147)
+- Issue #2450: Agentic Participants epic — the conceptual home for the Sentinel
+  design questions. The Sentinel issues themselves stay parented to #1147
 - Issue #1252: Idea planning session that surfaced this decision (closed)
 - `notes/bt-fuzzer-rm-reporting.md` § "Sentinel supersession note"
 

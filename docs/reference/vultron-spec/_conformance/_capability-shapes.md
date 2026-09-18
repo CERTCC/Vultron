@@ -74,12 +74,17 @@ distinct artifacts:
 
 | Level | Reference-implementation artifact |
 |---|---|
-| Capability shape | A base class in the core behavior layer that fixes the lifecycle for that shape |
-| Capability | A core-owned declaration naming the shape and the typed blackboard ports the capability reads and writes |
+| Capability shape | A base class that fixes the lifecycle for that shape |
+| Capability | A declaration naming the shape and the typed blackboard ports the capability reads and writes |
 | Capability implementation | A factory callable satisfying the backend Protocol, injected through a domain bundle |
 
-The contract a capability declares is machine-readable and belongs to the core
-layer, so a substituted implementation is checked against it rather than trusted.
+The intent, set by ADR-0097, is that the contract a capability declares is
+machine-readable and belongs to the core layer, so a substituted implementation is
+checked against it rather than trusted. The shape base classes and the
+per-capability declarations are being moved into the core layer to make that
+checking possible; until that work lands they live in the simulation layer and the
+contract is carried as prose plus a key dictionary.
+
 This mapping is specific to the hexagonal architecture of the reference
 implementation. Other implementations are not required to use this structure.
 

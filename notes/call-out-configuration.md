@@ -592,9 +592,14 @@ ceiling rule's purpose.
 
 **Diagnostic**: if a data-gated arm never fires in DETERMINISTIC mode, check
 whether the capability's default writes its declared ports before looking at the
-gate. And treat a test that writes a capability's output key by hand before
-ticking as a **symptom**: it is compensating for a non-conforming default, and
-once the default conforms the hand-write is what hides a regression.
+gate. And be suspicious of a test that writes a capability's output key by hand
+before ticking a **whole tree**: that is usually compensating for a non-conforming
+default, and once the default conforms the hand-write is what hides a regression.
+The legitimate use is narrower — a unit test that hand-writes the key to exercise a
+*gate* in isolation, independently of which backend produced the value. The
+distinction is what the test asserts: the tree making progress (suspicious) versus
+the gate reading correctly (fine). `test_publication_tree.py` shows both, and it is
+also the one capability with a real regression test on its default.
 
 ### The same obligation binds the STOCHASTIC side
 

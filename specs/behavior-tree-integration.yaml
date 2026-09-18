@@ -817,9 +817,10 @@ groups:
       (what flows in, what flows out, and in what direction). A Retriever backed by a REST API is still a Retriever; the automation
       just means the Retriever implementation does not require human action. Conflating the two dimensions caused the FUZZ-08a
       misclassification tracked in issue #1188, where ~38 nodes with High automation potential were incorrectly assigned ProtocolInternal
-      shape, causing downstream work (FUZZ-08a-bis, FUZZ-08d through FUZZ-08g) to build wrong seams. The five canonical shapes
-      are: Sentinel, Evaluator, Retriever, Composer, and Actuator (added in issue #1239). Nodes that invoke external systems
-      to cause side effects without producing a content artifact MUST be classified as Actuator, not Composer.'
+      shape, causing downstream work (FUZZ-08a-bis, FUZZ-08d through FUZZ-08g) to build wrong seams. The canonical call-out
+      shapes are enumerated by BT-18-013 (Actuator added in issue #1239; Sentinel removed as a shape by ADR-0097). Nodes that
+      invoke external systems to cause side effects without producing a content artifact MUST be classified as Actuator, not
+      Composer.'
     relationships:
     - rel_type: implements
       spec_id: BT-16-005
@@ -849,11 +850,21 @@ groups:
   - id: BT-18-010
     priority: MUST
     kind: project
-    statement: A binary-result Retriever MUST declare an empty blackboard output-key set in the node docstring; the structured
-      fact is expressed as the BT return value (SUCCESS/FAILURE), not as a blackboard write.
+    statement: A binary-result Retriever MUST declare an empty output-port set; the structured fact is expressed as the BT
+      return value (SUCCESS/FAILURE), not as a blackboard write. As with every capability contract, the authoritative
+      declaration is the typed-port declaration required by BT-18-012 and the node docstring describes it (BT-18-001).
     rationale: BT-18-001 through BT-18-003 require every call-out point to declare its complete blackboard contract. A
       binary-result Retriever has an empty output-key set; that empty set MUST still be explicitly declared so that the
-      absence of output keys is documented as intentional rather than an oversight, and backend swaps remain transparent.
+      absence of output keys is documented as intentional rather than an oversight, and backend swaps remain transparent. An
+      empty declaration is also what makes the BT-23-013 check decidable, because a capability that declares no output ports
+      is not data-producing, so a bare constant-status default is a conforming default for it.
+    relationships:
+    - rel_type: refines
+      spec_id: BT-18-012
+      note: >
+        BT-18-012 makes the typed-port declaration the authority for every
+        capability contract; BT-18-010 states what that declaration contains for
+        a binary-result Retriever — the empty set, declared rather than omitted.
   - id: BT-18-007
     priority: MUST
     kind: project
@@ -909,12 +920,21 @@ groups:
       the core layer. The typed-port declaration is the authoritative contract;
       the class docstring required by BT-18-001 describes it but is not the
       authority. A capability declaration MUST NOT live in vultron/demo/.
+      Because a shape base class is shared by many capabilities, it cannot carry
+      a per-capability contract: the declaration MUST therefore be a core-owned
+      per-capability artifact carrying that capability's own ports, and the
+      probabilistic simulation node that stands in for it stays in
+      vultron/demo/fuzzer/ (BT-16-001) and binds to the core declaration rather
+      than restating the contract.
     rationale: >
       BT-18-002 is enforceable only if the contract is machine-readable from the
       layer that must satisfy it. A contract expressed as docstring prose cannot
       be checked, and one expressed in vultron/demo/ cannot be read by core at
-      all (BT-16-001) — which leaves the DETERMINISTIC default unable to write
-      outputs it has no way to enumerate. Typed ports are the mechanism ADR-0044
+      all (BTND-04-002 forbids the import; BT-16-001 is why the probabilistic
+      nodes are there) — which leaves the DETERMINISTIC default unable to write
+      outputs it has no way to enumerate. Splitting the declaration from the
+      simulation node is what lets both rules hold at once: core owns what the
+      capability promises, demo owns one way of pretending to keep it. Typed ports are the mechanism ADR-0044
       already mandates for every node in vultron/core/behaviors/, and they carry
       runtime type checks on both read and write, so reusing them makes the
       capability contract enforceable without a second registry for a problem
@@ -1034,11 +1054,13 @@ groups:
       the bridge ticks toward max_iterations and then fails without naming the
       node — the same opaque failure BT-18-011 refuses, reached by blocking rather
       than by suspending. Answering synchronously is therefore necessary but not
-      sufficient; the answer must also be prompt. The duration is configuration
-      rather than protocol because it is local to one actor and observable by no
-      peer, so two deployments choosing different values is not divergence. An
-      ask deadline is the opposite case: it travels on the wire in end_time so
-      both parties read the same number (ASK-03-003).
+      sufficient; the answer must also be prompt. The duration is not protocol
+      because it is local to one actor and observable by no peer, so two
+      deployments choosing different values is not divergence. An ask deadline is
+      the opposite case in the respect that matters: it travels on the wire in the
+      AS2 endTime field, so both parties read the same number (ASK-03-004). Both
+      durations are actor configuration (compare ASK-03-005) — what separates them
+      is wire visibility, not configurability.
       Source: CONCERN-2835 (planning group G07), IDEA-2453.
     adr:
     - ADR-0097
@@ -1046,6 +1068,11 @@ groups:
       A test configures a short budget, injects a backend that exceeds it, and
       asserts an internal error naming the node; a test asserts the budget is read
       from actor configuration and that no literal duration appears at the seam.
+      Note the limit of what this verifies: a py_trees tick is synchronous, so a
+      guard at the seam detects an overrun and names the node but does not by
+      itself interrupt the offending backend. Interrupting one requires running it
+      off the ticking thread, and an implementation MUST state which of the two it
+      provides (ADR-0097 decision 4).
     relationships:
     - rel_type: refines
       spec_id: BT-18-011
@@ -1558,14 +1585,17 @@ groups:
     kind: project
     statement: >
       For a capability that declares one or more output ports, the DETERMINISTIC
-      backend selected by the ceiling rule MUST write type-conformant values to
-      every declared output port when it returns SUCCESS. A bare constant
-      SUCCESS backend MUST NOT be used as the DETERMINISTIC default for such a
-      capability. BT-23-002 and BT-23-007 select the SUCCESS/FAILURE direction
-      only; they do not license returning SUCCESS without the declared outputs.
+      backend MUST write type-conformant values to every declared output port
+      when it returns SUCCESS — notwithstanding BT-23-002 and BT-23-007, which
+      name AlwaysSucceed by class. Where this requirement and those apply to the
+      same capability, this one governs: a bare constant SUCCESS backend MUST NOT
+      be used as the DETERMINISTIC default for a capability that declares output
+      ports. BT-23-002 and BT-23-007 remain authoritative for the SUCCESS/FAILURE
+      direction, which this requirement does not change.
     rationale: >
-      BT-23-002/006/007 select the deterministic backend so that deterministic
-      demo scenarios make forward protocol progress. For a capability that
+      BT-23-002 and BT-23-007 select the deterministic backend so that
+      deterministic demo scenarios make forward protocol progress. For a
+      capability that
       produces data, a bare constant SUCCESS defeats that goal instead of serving
       it: the capability reports success, the downstream gate reads an absent key,
       and the arm silently no-ops. Forward progress through a data-gated arm
@@ -1588,9 +1618,18 @@ groups:
     - rel_type: constrains
       spec_id: BT-23-002
       note: >
-        The ceiling rule fixes the status direction only; for a data-producing
-        capability the ceiling is a contract-honouring backend, not bare
-        AlwaysSucceed. The same constraint applies to BT-23-007.
+        BT-23-002 names AlwaysSucceed by class; for a data-producing capability
+        BT-23-013 substitutes a contract-honouring backend in the same
+        SUCCESS direction. The same constraint applies to BT-23-007.
+    - rel_type: constrains
+      spec_id: BT-23-012
+      note: >
+        BT-23-012 and BT-23-013 are the two constraints on the ceiling/floor
+        rule, and they do not overlap: BT-23-012 overrides the status direction
+        for a security-significant gate, BT-23-013 overrides the backend class
+        for a data-producing capability while leaving the direction intact. A
+        gate covered by BT-23-012 declares no output ports, so BT-23-013 does
+        not reach it.
     - rel_type: implements
       spec_id: BT-18-002
       note: >
