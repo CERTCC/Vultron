@@ -146,9 +146,9 @@ Two consequences worth internalising:
 - **The shape base classes become core, and named for capabilities.** They move to
   `vultron/core/behaviors/call_out/` as `EvaluatorCapability`,
   `RetrieverCapability`, `ComposerCapability`, and `ActuatorCapability`
-  (ADR-0097 decision 6, #3421). The simulation layer will re-export the older
-  `*CallOutPoint` names so the 81 existing fuzzer subclasses keep working; new
-  code uses the capability names.
+  (ADR-0097#shape-base-classes-move-to-core-and-are-renamed, #3421). The
+  simulation layer will re-export the older `*CallOutPoint` names so the 81
+  existing fuzzer subclasses keep working; new code uses the capability names.
 
 ### A capability answers fast, or it is not a capability
 
@@ -315,8 +315,9 @@ returns a structured answer that guides the BT's next branch.
 that reached it and routes the BT on the answer. There is no async pattern to
 choose: the convention is uniform across the four shapes — synchronous,
 in-process, `name: str → Behaviour` — and `SynchronousCallOut` raises
-`CallOutContractError` on a `RUNNING` return (BT-18-011, ADR-0080, ADR-0097
-decision 2). A judgment that cannot be answered inside the tick because it belongs
+`CallOutContractError` on a `RUNNING` return (BT-18-011, ADR-0080,
+ADR-0097#uniform-synchronous-in-process-convention). A judgment that cannot be
+answered inside the tick because it belongs
 to *another actor* is not an Evaluator at all; it is a protocol ask (BT-18-014).
 
 **SSVC reuse**: SSVC decision-point structures (decision point +

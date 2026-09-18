@@ -1072,7 +1072,7 @@ groups:
       guard at the seam detects an overrun and names the node but does not by
       itself interrupt the offending backend. Interrupting one requires running it
       off the ticking thread, and an implementation MUST state which of the two it
-      provides (ADR-0097 decision 4).
+      provides (ADR-0097#bounded-configurable-call-out-latency).
     relationships:
     - rel_type: refines
       spec_id: BT-18-011

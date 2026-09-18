@@ -203,6 +203,8 @@ themselves when to act on it.
 
 ### 1. A capability declares its blackboard contract with ADR-0044 typed ports, in core
 
+<a id="core-declared-typed-port-contract"></a>
+
 Chosen: **typed ports in core**. The capability declaration is core-owned and
 machine-readable, so `AlwaysSucceed` can read it, BT-18-002 becomes testable, and
 the docstring contract becomes descriptive rather than the only authority.
@@ -218,6 +220,8 @@ by hand. The docs catalog is generated from or ratcheted against them.
 
 ### 2. The calling convention is uniform, synchronous, and in-process
 
+<a id="uniform-synchronous-in-process-convention"></a>
+
 Chosen: **adopt ADR-0080's primitive rather than define a parallel one.** All
 four call-out shapes share one convention — `CallOutBackendFactory`,
 `name: str → Behaviour`, answering within a single tick with SUCCESS or FAILURE.
@@ -225,6 +229,8 @@ This ADR adds no new mechanism here; it records that #2453's question was
 answered by G01 and closes it.
 
 ### 3. Call-out point versus protocol ask is a normative classification rule
+
+<a id="call-out-versus-protocol-ask-rule"></a>
 
 A question that a service the actor itself runs can answer within a tick is a
 **call-out point**. A question that requires a decision from another actor in the
@@ -238,6 +244,8 @@ no, which is the defect ADR-0080 found in ADR-0076. The rule existed as prose in
 applies it when adding a seam rather than discovering it by audit.
 
 ### 4. A call-out backend's answer is time-bounded, and the bound is configuration
+
+<a id="bounded-configurable-call-out-latency"></a>
 
 A backend MUST answer within a bounded budget and MUST NOT perform unbounded
 blocking I/O in `update()`. Work that cannot meet the budget is not a call-out
@@ -261,6 +269,8 @@ or merely *detects* the overrun after the fact: a py_trees tick is synchronous, 
 interruption requires running the backend off the ticking thread.
 
 ### 5. Sentinel is demoted out of the capability-shape taxonomy
+
+<a id="sentinel-demoted-to-call-in-pattern"></a>
 
 Chosen: **four call-out capability shapes.** Sentinel is reclassified as a
 **call-in integration pattern**, and its design work belongs to the Agentic
@@ -336,6 +346,8 @@ one by enacting the other.
 
 ### 6. The four shape base classes move to core and are renamed
 
+<a id="shape-base-classes-move-to-core-and-are-renamed"></a>
+
 Chosen: **move and rename.** The mixins move from
 `vultron/demo/fuzzer/call_out_point.py` into
 `vultron/core/behaviors/call_out/`, fix the typed-port *lifecycle* for their
@@ -366,6 +378,8 @@ subclasses of the four retained shapes keep working.
 decision 5.
 
 ### 7. The capability-layer requirements extend BT-18 and BT-23 in place
+
+<a id="requirements-extend-bt-18-and-bt-23-in-place"></a>
 
 No new spec file and no new prefix. BT-18-001…011 and BT-23-001…012 already *are*
 the capability layer; giving it a second home would split the corpus and
