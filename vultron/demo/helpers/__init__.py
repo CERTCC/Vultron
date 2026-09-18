@@ -23,8 +23,6 @@ Sub-modules
   ``find_case_actor_participant_id``, ``find_ownership_transfer_offer_for_actor``,
   ``resolve_case_actor_store_id``, ``wait_for_object_stored``, and all
   ``wait_for_*`` helpers.
-- :mod:`~vultron.demo.helpers.actions` — ``actor_notifies_state_change``
-  and named CVD lifecycle action wrappers.
 - :mod:`~vultron.demo.helpers.embargo` — ``make_embargo_event`` factory.
 - :mod:`~vultron.demo.helpers.runner` — ``run_exchange_demos`` and
   ``check_all_containers``.
@@ -48,13 +46,6 @@ Sub-modules
   ``verify_publicly_disclosed``, ``verify_case_closed``).
 """
 
-from vultron.demo.helpers.actions import (  # noqa: F401
-    actor_closes_case,
-    actor_notifies_fix_deployed,
-    actor_notifies_fix_ready,
-    actor_notifies_published,
-    actor_notifies_state_change,
-)
 from vultron.demo.helpers.embargo import (  # noqa: F401
     make_embargo_event,
 )

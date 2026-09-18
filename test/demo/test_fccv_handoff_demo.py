@@ -23,9 +23,11 @@ True multi-container isolation is validated by the acceptance test runnable via:
 
 import importlib
 import json
+from types import SimpleNamespace
 from unittest.mock import MagicMock, call, patch
 
 import pytest
+from vultron.demo.actor_session import ActorSession
 from _pytest.monkeypatch import MonkeyPatch
 from click.testing import CliRunner
 from fastapi.testclient import TestClient
@@ -623,7 +625,7 @@ class TestFccvHandoffMilestoneAssertions:
 
         with (
             patch.object(demo, "wait_for_participant_rm_state"),
-            patch.object(demo, "actor_notifies_fix_ready"),
+            patch.object(ActorSession, "notify_fix_ready"),
             patch.object(demo, "wait_for_participant_vf_state"),
             patch.object(demo, "verify_fix_ready") as mock_m4,
             patch.object(
@@ -667,8 +669,8 @@ class TestFccvHandoffMilestoneAssertions:
         with (
             patch.object(demo, "wait_for_participant_rm_state", _rm_wait),
             patch.object(
-                demo,
-                "actor_notifies_fix_ready",
+                ActorSession,
+                "notify_fix_ready",
                 side_effect=lambda *a, **kw: call_order.append("fix_ready"),
             ),
             patch.object(demo, "wait_for_participant_vf_state"),
@@ -715,7 +717,7 @@ class TestFccvHandoffMilestoneAssertions:
         case = self._case()
 
         with (
-            patch.object(demo, "actor_notifies_published"),
+            patch.object(ActorSession, "notify_published"),
             patch.object(demo, "wait_for_case_em_terminated"),
             patch.object(demo, "wait_for_participant_vf_state"),
             patch.object(demo, "verify_publicly_disclosed") as mock_m6,
@@ -772,7 +774,7 @@ class TestFccvHandoffMilestoneAssertions:
         }
 
         with (
-            patch.object(demo, "actor_closes_case"),
+            patch.object(ActorSession, "close_case"),
             patch.object(demo, "wait_for_all_participants_rm_closed"),
             patch.object(demo, "verify_case_closed") as mock_m7,
             patch.object(demo, "wait_for_event_type_in_ledger"),
@@ -825,10 +827,10 @@ class TestFccvHandoffMilestoneAssertions:
             }
         }
 
-        mock_close = MagicMock()
-
         with (
-            patch.object(demo, "actor_closes_case", mock_close),
+            patch.object(
+                ActorSession, "close_case", autospec=True
+            ) as mock_close,
             patch.object(demo, "wait_for_all_participants_rm_closed"),
             patch.object(demo, "verify_case_closed"),
             patch.object(demo, "wait_for_event_type_in_ledger"),
@@ -858,7 +860,7 @@ class TestFccvHandoffMilestoneAssertions:
             )
 
         actors_closed = [
-            call.kwargs["actor"].id_ for call in mock_close.call_args_list
+            call.args[0].actor.id_ for call in mock_close.call_args_list
         ]
         assert (
             actors_closed[-1] == c2_in_c2.id_
@@ -938,13 +940,24 @@ class TestFinderCaseReplicaWaitBeforeVendorTriage:
                 demo, "run_invite_path_rm_triage", side_effect=_triage
             ),
             patch.object(
-                demo,
-                "post_to_trigger",
-                return_value={"activity": {"id": invite.id_}},
+                ActorSession,
+                "invite_actor_to_case",
+                return_value=SimpleNamespace(activity=invite),
+            ),
+            patch.object(
+                ActorSession,
+                "accept_case_invite",
+                return_value=SimpleNamespace(
+                    activity={
+                        "type": "Accept",
+                        "id": "http://t/acc",
+                        "actor": "http://t/a",
+                        "object": "http://t/o",
+                    }
+                ),
             ),
             patch.object(demo, "find_case_invite_for_actor"),
             patch.object(demo, "wait_for_case_participants"),
-            patch.object(demo, "as_TransitiveActivity") as mock_ta,
             patch.object(
                 demo,
                 "demo_check",
@@ -960,7 +973,6 @@ class TestFinderCaseReplicaWaitBeforeVendorTriage:
                 side_effect=lambda _: contextlib.nullcontext(),
             ),
         ):
-            mock_ta.model_validate.return_value = invite
             demo._phase_c2_invites_vendor(
                 finder_client=finder_client,
                 c1_client=c1_client,
