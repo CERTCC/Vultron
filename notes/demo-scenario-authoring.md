@@ -9,6 +9,7 @@ description: >
   arguments, and treat docker service names as routing labels rather than actor
   identities.
 related_specs:
+  - specs/demo-ci.yaml
   - specs/multi-actor-demo.yaml
   - specs/event-driven-control-flow.yaml
   - specs/code-style.yaml
@@ -259,8 +260,8 @@ directly from the latter. It has now bitten the project twice:
   calls crashed sync-verification; fixed by wrapping them at the call site in
   `demo_gate` (see `test/demo/test_fvv_demo.py::TestCoverageWaitInsideDemoCheck`).
 - **Participant waits (#3384):** the `wait_for_participants_on_replicas` calls in
-  every scenario's `_phase_sync_verification` were bare, so a replica
-  participant-index propagation timeout aborted the entire run.
+  the seven replica-sync scenarios' `_phase_sync_verification` were bare, so a
+  replica participant-index propagation timeout aborted the entire run.
 
 **How to apply:**
 
