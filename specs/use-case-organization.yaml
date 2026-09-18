@@ -272,3 +272,26 @@ groups:
       spec_id: UCORG-05-011
     adr:
     - ADR-0095
+  - id: UCORG-05-014
+    priority: MUST
+    kind: project
+    statement: >-
+      A concrete `ActivityResult` subtype of `TriggerResult` MUST exist in
+      `vultron/demo/` that carries a non-optional `activity` field typed as
+      `as_TransitiveActivity`. It MUST be constructed by validating the
+      `activity` key from the raw `dict` returned by `post_to_trigger`, and
+      MUST NOT be placed in `vultron/core/` until a core-layer activity type
+      is available via the `WireParsePort` seam (ADR-0082).
+    rationale: >-
+      Core trigger use cases capture `activity` as `dict[str, Any]` from the BT
+      blackboard; placing a wire type there would violate ARCH-03-001.
+      `ActivityResult` in `vultron/demo/` bridges the gap by validating the raw
+      dict to `as_TransitiveActivity` at the HTTP response boundary, so
+      `ActorSession` method return types are fully typed without polluting core.
+    verification: >-
+      `ActivityResult` exists in `vultron/demo/`, its `activity` field is
+      `as_TransitiveActivity` (non-optional), and mypy passes with no
+      `# type: ignore` in `ActorSession` method bodies.
+    relationships:
+    - rel_type: refines
+      spec_id: UCORG-05-005
