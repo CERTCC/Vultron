@@ -33,6 +33,31 @@ problem it was meant to fix.
 failing when any sibling file contains `ast.parse(` or `.rglob(` outside
 of `_corpus.py`. This makes the shared-corpus requirement self-enforcing.
 
+## The Markdown Tier
+
+The corpus also caches `docs/**/*.md` text, for ratchets that assert
+documentation prose against code. Accessors are `docs_mentioning(*fragments)`
+and `all_docs()`, mirroring `sources_mentioning` / `all_sources`.
+
+There is **no lazy tier for markdown**, because these ratchets match on text
+and never parse. The whole cache is populated at import time: ~555 files and
+2.7 MB read in ~0.1 s, an order of magnitude cheaper than the Python cold
+parse that motivated the lazy AST tier. `docs/codebase/` is excluded — it holds
+a gitignored local scan artifact (which embeds a whole `search_index.json`, so
+including it would both dominate the byte count and produce false matches on
+retired content).
+
+The markdown tier exists because the meta-ratchet forbids `.rglob(` in
+siblings, and the first docs-versus-code ratchet
+(`test_docs_activity_verbs.py`, TB-13-003 / ISSUE-3402) needed to walk
+`docs/`. Extending the corpus was the correct response to that ratchet rather
+than reaching for a glob spelling it does not pattern-match: the hygiene rule
+is about routing discovery through one cache, not about the literal substring.
+
+Prefilter markdown ratchets the same way as Python ones. The activity-verb
+ratchet filters on `"subgraph as:"` and `` "(`as:" ``, which selects 9 of 555
+files.
+
 ## xdist Compatibility
 
 `pytest-xdist` is a declared dependency (`pyproject.toml`) but not
