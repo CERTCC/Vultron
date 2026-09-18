@@ -2,6 +2,7 @@
 status: accepted
 date: 2026-07-07
 deciders: [adh]
+partially_superseded_by: docs/adr/0097-capability-layer-four-shapes-and-core-declared-contracts.md
 ---
 
 # Capability Shape Taxonomy
@@ -74,6 +75,10 @@ A fifth capability shape is added:
 | **Actuator** | Receives a trigger and context; invokes an external system to cause a side effect (notification dispatch, state write, queue mutation, API call); returns SUCCESS when the side effect is confirmed, FAILURE otherwise. Does not produce a content artifact. |
 
 The updated five-shape taxonomy:
+
+> **Superseded in part by ADR-0097.** The taxonomy is now **four** call-out
+> shapes — Evaluator, Retriever, Composer, Actuator. Sentinel is a call-in
+> pattern, not a capability shape. The rest of this ADR stands.
 
 | Shape | Role |
 | --- | --- |

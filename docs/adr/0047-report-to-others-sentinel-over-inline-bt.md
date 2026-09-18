@@ -35,9 +35,9 @@ capability?**
   lookups or LLM evaluation is an inherently external, latency-variable
   operation — poorly suited to a tick-driven inline BT that must return
   quickly
-- The Sentinel capability shape pattern (ADR-0024, issue #1143) explicitly
-  covers "monitors a condition; when met, calls a trigger endpoint"; this is
-  exactly the party-discovery model
+- The Sentinel pattern (ADR-0024; reclassified as a call-in pattern rather than a
+  capability shape by ADR-0097) explicitly covers "monitors a condition; when met,
+  calls a trigger endpoint"; this is exactly the party-discovery model
 - The existing `create_report_to_others_tree` module (from #1311) has no
   production callers — it exists only in tests — confirming it was never wired
   into the real protocol cascade
@@ -68,7 +68,7 @@ note").
 
 ### Consequences
 
-- Good, because party discovery becomes a proper Sentinel capability — observable,
+- Good, because party discovery becomes a proper Sentinel — observable,
   auditable, and independently replaceable without changing the BT tree structure
 - Good, because the downstream suggest-actor-to-case cascade already works; no
   new BT machinery is required
@@ -82,11 +82,14 @@ note").
 
 ## More Information
 
-- ADR-0024: Capability Shape Taxonomy (Sentinel pattern)
+- ADR-0024: Capability Shape Taxonomy (original home of the Sentinel pattern)
 - ADR-0026: CaseActor-Routed Actor Suggestion and Invitation Flow
 - ADR-0029: Notification Loop Collapse (Production Collapse 3)
-- Issue #1143: Sentinel capability shape design (open)
-- Issue #1147: Capability Shapes epic
+- ADR-0097: Sentinel is a call-in pattern, not a capability shape; this decision
+  is unaffected, but the Sentinel's design questions are tracked under Agentic
+  Participants rather than the capability layer
+- Issue #1143: Sentinel pattern design (open)
+- Issue #2450: Agentic Participants epic (where the Sentinel design is tracked)
 - Issue #1252: Idea planning session that surfaced this decision (closed)
 - `notes/bt-fuzzer-rm-reporting.md` § "Sentinel supersession note"
 
