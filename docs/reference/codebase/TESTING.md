@@ -30,7 +30,7 @@ uv run pytest -v --tb=short
 - **Test directory**: `test/` at repo root; mirrors `vultron/` package layout
 - **Naming convention**: `test_<module>.py` files; test functions named `test_<behavior>()`
 - **Architecture tests**: `test/architecture/` — a large (~40 file) suite of boundary-enforcement and ratchet tests (import graph checks, write-site ratchets, naming/hygiene ratchets). Beyond the core/wire/demo import-boundary tests it now includes, e.g., `test_no_bare_register_key_datalayer_nodes.py` (BTND-03-009: no new `register_key()` bare DataLayer nodes), `test_no_dl_mutations_in_execute.py` (ARCH-13), `test_role_authority_resolver.py`, `test_spec_coverage_ratchet.py`, `test_codebase_docs_paths.py` (validates path references in these very docs), and `test_ratchet_hygiene.py`
-- **CI invariant harness**: `test/ci/invariants/universal_harness.py` — factory for 16 universal ledger-invariant test functions injected into each scenario module via `globals().update(make_universal_invariant_tests(...))` (ISSUE-2007); eliminates copy-paste across scenario test files
+- **CI invariant harness**: `test/ci/invariants/universal_harness.py` — factory for the universal ledger-invariant test functions injected into each scenario module via `globals().update(make_universal_invariant_tests(...))` (ISSUE-2007); eliminates copy-paste across scenario test files. Read the inventory from the factory's `result` dict, not a count quoted here. Diagnostic guidance per invariant lives in `notes/demo-ci-diagnostics.md`, which `test/ci/invariants/test_diagnostic_map_sync.py` ratchets against the factory (ISSUE-3337)
 - **Setup files**: `test/conftest.py` — root conftest; sets `VULTRON_DATABASE__DB_URL=sqlite:///:memory:` before all imports and registers `spec` marker; `reset_datalayer()` fixture keeps tests isolated
 
 ### 3) Test Scope Matrix
@@ -59,7 +59,7 @@ uv run pytest -v --tb=short
 - **Known gaps/flaky areas**:
   - Core-boundary ratchet tests (`test_core_no_wire_imports.py`, `test_core_no_adapter_imports.py`) have `KNOWN_VIOLATIONS: frozenset()` — those boundaries are fully clean; a new violation causes immediate CI failure
   - Wire-boundary ratchet test (`test_wire_no_core_model_imports.py`) has 32 `KNOWN_VIOLATIONS` entries — direct `vultron.core.models` imports in wire modules (ARCH-22-001). Per ADR-0082 the goal is a declared structural exemption set, **not** `frozenset()`, and the `from_core()` seam is no longer the remedy; read the current inventory from the file, not a count quoted here
-  - Case-ledger invariant tests require `devlogs/` JSONL artifacts (skipped when absent; `case_ledger_invariants` marker)
+  - Case-ledger invariant tests require `devlogs/` JSONL artifacts (skipped when absent; `case_ledger_invariants` marker). Not everything under `test/ci/invariants/` is one: the structural ratchets (`test_universal_event_types.py`, `test_diagnostic_map_sync.py`) and the `common.py` helper unit tests read source and docs, carry no marker, and are expected to run everywhere. The `_AllSkipGuard` in that directory's `conftest.py` (DEMOCI-10-005) fails a session in which *every* test skipped, so CI must keep invoking one harness file at a time rather than the whole directory
   - Demo CI integration tests run against Docker Compose — not run in standard `uv run pytest`
   - **pytest-timeout unit tier is 30 s** (raised from 5 s in #2270; integration tier 60 s). `timeout_method = "thread"` kills the whole pytest process on a trip, yielding no summary line — a killed run can look like a passing run. The prior 5 s ceiling tripped AST-walking architecture ratchets nondeterministically under load (re-misdiagnosed as flakiness across ISSUE-1925/1988/2086/2237). Run with `--timeout=0` to disable when diagnosing suite-level hangs
   - `caplog` captures log records emitted during fixture setup phase (before test body), not just the test body — set `caplog.set_level()` inside the test, not in a fixture, to avoid capturing noise
@@ -73,5 +73,6 @@ uv run pytest -v --tb=short
 - `test/architecture/test_no_bare_register_key_datalayer_nodes.py`
 - `test/ci/invariants/common.py` (and per-scenario `test/ci/invariants/test_*_invariants.py`)
 - `test/ci/invariants/universal_harness.py`
+- `test/ci/invariants/test_diagnostic_map_sync.py`
 - `.github/workflows/python-app.yml`
 - `.github/workflows/demo-integration.yml`
