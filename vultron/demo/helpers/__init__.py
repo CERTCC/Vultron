@@ -77,6 +77,7 @@ from vultron.demo.helpers.polling import (  # noqa: F401
     LATE_JOINER_REPLICA_TIMEOUT,
     LATE_JOINER_TIMEOUT,
     PARTICIPANT_JOIN_TIMEOUT,
+    REPLICA_PARTICIPANT_TIMEOUT,
     _poll_until,
     find_case_actor_participant_id,
     find_case_invite_for_actor,
@@ -97,6 +98,7 @@ from vultron.demo.helpers.polling import (  # noqa: F401
     wait_for_object_stored,
     wait_for_participant_d_state,
     wait_for_participant_vf_state,
+    wait_for_participants_on_replicas,
     wait_for_pending_inbox_quiescent,
 )
 from vultron.demo.helpers.seeding import (  # noqa: F401
