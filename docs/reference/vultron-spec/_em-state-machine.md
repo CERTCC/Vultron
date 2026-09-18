@@ -79,8 +79,21 @@ mandate shortest-wins.
 
 **Tacit acceptance.** A receiver MAY publish a default embargo policy. Where it
 has, a sender that submits a report without proposing terms accepts that default.
-This applies only to the default-policy path. In every other case, embargo
-agreement and rejection SHOULD be explicit.
+
+**A protocol default applies when nobody proposes anything.** Where neither party
+proposes terms and the receiver has published no default, an embargo-eligible case
+MUST still begin with an active embargo, at a short duration fixed by the protocol
+rather than by either party. The duration MUST be configurable, and MUST be no less
+than 72 hours and no more than 5 days. Where the case is not embargo-eligible — the
+vulnerability is public, an exploit is public, or attacks are observed — no embargo
+is established and the case remains in *None*.
+
+The protocol default is not a proposal: it MUST NOT take part in the shortest-wins
+comparison above, because a default short enough to be useful would otherwise win
+against every longer proposal and cap every embargo at its own length. Nor is it a
+minimum: a party that proposes a shorter duration MUST get the duration it proposed.
+
+Outside these two default paths, embargo agreement and rejection SHOULD be explicit.
 
 ### 7.3 Relationship to Embargo Consent
 

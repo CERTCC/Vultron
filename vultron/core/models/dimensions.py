@@ -84,6 +84,8 @@ def _coerce_pec(v: object) -> PEC:
     if isinstance(v, PEC):
         return v
     if isinstance(v, str):
+        if v == "NO_EMBARGO":
+            return PEC.UNBOUND
         return PEC[v]
     raise ValueError(f"Cannot coerce {v!r} to PEC")
 

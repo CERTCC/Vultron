@@ -446,6 +446,8 @@ def _coerce_pec_or_none(raw: object) -> PEC | None:
     if isinstance(raw, PEC):
         return raw
     if isinstance(raw, str):
+        if raw == "NO_EMBARGO":
+            return PEC.UNBOUND
         return PEC[raw] if raw in PEC.__members__ else None
     return None
 
@@ -505,9 +507,7 @@ def _build_participant_status_object(obj: object) -> dict[str, Any]:
                     ),
                 )
         raw_pec = getattr(obj, "em_consent_state", None)
-        pec_val = _coerce_pec_or_none(
-            PEC[raw_pec] if isinstance(raw_pec, str) else raw_pec
-        )
+        pec_val = _coerce_pec_or_none(raw_pec)
         return {
             "object_": ParticipantStatus(
                 id_=object_id,

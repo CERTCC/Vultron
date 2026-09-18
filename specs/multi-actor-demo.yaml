@@ -3822,3 +3822,147 @@ groups:
     tags:
     - demo
     - testing
+- id: DEMOMA-26
+  title: ActorSession — typed demo trigger API
+  specs:
+  - id: DEMOMA-26-001
+    priority: MUST_NOT
+    kind: project
+    statement: >-
+      Demo scripts under `vultron/demo/scenario/` and `vultron/demo/exchange/`
+      MUST NOT call `post_to_trigger` directly. All trigger endpoint calls MUST
+      be made through `ActorSession` typed methods.
+    rationale: >-
+      `post_to_trigger` accepts a bare string behavior name and an untyped
+      `body` dict. A misspelled behavior name is a 404 at runtime; a misspelled
+      body key is silently dropped by `extra="ignore"` request models
+      (TRIG-03-002), producing an undetectable no-op. `ActorSession` makes
+      both mistakes unrepresentable at the call site. `post_to_trigger` remains
+      as the private implementation of `ActorSession._post` and MUST NOT be
+      imported outside `vultron/demo/utils.py` and `vultron/demo/actor_session.py`.
+    relationships:
+    - rel_type: refines
+      spec_id: DEMOMA-17-001
+    tags:
+    - demo
+  - id: DEMOMA-26-002
+    priority: MUST
+    kind: project
+    statement: >-
+      `ActorSession` MUST be a frozen dataclass with fields `client:
+      DataLayerClient`, `actor: as_Actor`, `case: as_VulnerabilityCase | None =
+      None`, and `narrate: bool = True`. The `__post_init__` method MUST
+      perform the container/actor authority check (formerly
+      `_assert_client_hosts_actor`), running it exactly once at construction
+      rather than on every trigger call.
+    rationale: >-
+      Moving the authority check to construction makes a mismatched
+      `(client, actor)` pair unconstructible rather than a runtime guard that
+      silently passes in unit tests (where neither side is a real absolute URI).
+      The frozen constraint prevents callers from drifting the pairing after
+      construction.
+    verification: >-
+      Constructing `ActorSession` with a mismatched container/actor URI pair
+      raises `ValueError`; constructing with a matched pair succeeds. Mypy
+      reports the four fields at their declared types with no `Any` escapes.
+    relationships:
+    - rel_type: refines
+      spec_id: DEMOMA-26-001
+    tags:
+    - demo
+  - id: DEMOMA-26-003
+    priority: MUST
+    kind: project
+    statement: >-
+      `ActorSession.with_case(case: as_VulnerabilityCase) -> ActorSession` MUST
+      return a new frozen `ActorSession` with the `case` field set. It MUST NOT
+      modify the receiver. Case-scoped trigger methods MUST raise if `self.case`
+      is `None` at call time.
+    rationale: >-
+      Cases do not exist at session construction time; the actor must exist
+      before the case does. The immutable-copy pattern (`with_case`) matches the
+      frozen dataclass semantics and avoids a mutable binding that could drift
+      between steps.
+    verification: >-
+      `session.with_case(case)` returns a new object; `session.case` is still
+      `None` on the original. A case-scoped method called on a session where
+      `self.case is None` raises `ValueError`.
+    relationships:
+    - rel_type: refines
+      spec_id: DEMOMA-26-002
+    tags:
+    - demo
+  - id: DEMOMA-26-004
+    priority: MUST
+    kind: project
+    statement: >-
+      `ActorSession` MUST expose one typed method per trigger verb called from
+      `vultron/demo/`. Each method MUST accept only the keyword arguments that
+      are meaningful for that verb (no `**kwargs`). An architecture ratchet test
+      MUST verify that each method's keyword parameter set is a subset of the
+      corresponding trigger request model's fields minus `actor_id`.
+    rationale: >-
+      A `**kwargs` shim or `behavior: str` pass-through discards the static
+      checking that is the entire point of `ActorSession`. The drift test closes
+      the `extra="ignore"` silent-drop class at the call site: if the method
+      accepts a kwarg the request model does not have, a misspelled key would
+      pass through silently. Discovered via #3356.
+    verification: >-
+      Architecture ratchet test in `test/architecture/` confirms each
+      `ActorSession` method's kwargs are a subset of its request model's fields
+      minus `actor_id`. Test fails if a new method is added without a
+      corresponding request model check.
+    relationships:
+    - rel_type: refines
+      spec_id: DEMOMA-26-001
+    tags:
+    - demo
+    - testing
+  - id: DEMOMA-26-005
+    priority: MUST
+    kind: project
+    statement: >-
+      `vultron/demo/helpers/actions.py` MUST be deleted when `ActorSession`
+      lands. No backward-compatibility shims or re-export stubs for its
+      functions are permitted. All callers MUST be migrated to `ActorSession`
+      methods in the same PR.
+    rationale: >-
+      `actions.py` is a 1:1 wrapper layer over `post_to_trigger` that
+      `ActorSession` wholly subsumes. Keeping it alongside `ActorSession` would
+      leave two competing APIs for the same operations, undoing the
+      consolidation goal.
+    verification: >-
+      `vultron/demo/helpers/actions.py` does not exist in the repository after
+      the PR merges. `grep -r "from vultron.demo.helpers.actions" vultron/`
+      returns no results.
+    relationships:
+    - rel_type: refines
+      spec_id: DEMOMA-26-001
+    tags:
+    - demo
+  - id: DEMOMA-26-006
+    priority: MUST
+    kind: project
+    statement: >-
+      The architecture ratchet test
+      `test/architecture/test_demo_trigger_client_matches_actor.py` MUST be
+      deleted in the same PR that removes the last `post_to_trigger` call site
+      from `vultron/demo/`. It MUST NOT be deleted before that point; until
+      then it serves as the migration's own safety net against regressions.
+    rationale: >-
+      The ratchet hunts the `(client, actor_id)` mismatch that `ActorSession`
+      makes structurally unrepresentable. Once no `post_to_trigger` call sites
+      remain, the class of bug it hunts cannot be written, so the ratchet is
+      redundant. Keeping it past that point is maintenance burden with no safety
+      value.
+    verification: >-
+      After the PR merges, `test/architecture/test_demo_trigger_client_matches_actor.py`
+      does not exist and `grep -rn "post_to_trigger" vultron/demo/scenario/
+      vultron/demo/exchange/ vultron/demo/helpers/` returns no results outside
+      `utils.py` and `actor_session.py`.
+    relationships:
+    - rel_type: refines
+      spec_id: DEMOMA-26-001
+    tags:
+    - demo
+    - testing
