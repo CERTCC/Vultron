@@ -34,9 +34,11 @@ class SpecRegistryUnavailableWarning(UserWarning):
     pass as a corpus with no unknown IDs in it (#3331).
 
     Non-blocking by design, which requires a matching ``always::`` entry in
-    ``filterwarnings`` (``pyproject.toml`` sets ``"error"``): a malformed spec
-    file must not abort the session, or the tests that diagnose it could not be
-    run.
+    ``filterwarnings`` **listed after** ``pyproject.toml``'s ``"error"`` entry
+    (SR-05-007) — pytest inserts ini filters at index 0 in list order, so a later
+    entry outranks an earlier one and an exemption placed *before* ``"error"`` is
+    a no-op. A malformed spec file must not abort the session, or the tests that
+    diagnose it could not be run.
     """
 
 

@@ -369,8 +369,16 @@ groups:
   - id: SR-05-002
     priority: MUST
     kind: project
-    statement: '`pytest_collection_modifyitems` MUST validate each `spec` marker value against the loaded `SpecRegistry` and
-      emit a `PytestWarning` (non-blocking) for any unknown spec ID.'
+    statement: >-
+      `pytest_collection_modifyitems` MUST validate each `spec` marker value against the loaded `SpecRegistry` and emit
+      `UnknownSpecIdWarning` (a `UserWarning` subclass, non-blocking per SR-05-007) for any unknown spec ID.
+    rationale: >-
+      Previously specified as a `PytestWarning`. Nothing under `vultron/` imports pytest, and the warning classes live in
+      `vultron/metadata/specs/` so that `filterwarnings` can target them by a stable dotted path — conforming to the old
+      wording would have pulled a test dependency into production code. The code has always raised a `UserWarning`
+      subclass; this corrects the spec to the implementation rather than the reverse. The "non-blocking" clause is split
+      out to SR-05-007 because it depends on a filter-ordering property that is easy to get backwards and was in fact
+      wrong in `pyproject.toml` from the marker gate's introduction until #3336.
   - id: SR-05-003
     priority: SHOULD
     kind: project
@@ -396,6 +404,54 @@ groups:
       A SHOULD-only rule (the former SR-05-004) produced near-zero adoption with no enforcement signal. A CI-enforced
       floor is the minimum mechanism that guarantees the ratchet cannot be accidentally broken by future commits that add
       protocol requirements without linking tests.
+  - id: SR-05-006
+    priority: MUST
+    kind: project
+    statement: >-
+      `pytest_collection_modifyitems` MUST distinguish three cases when resolving the registry, and MUST NOT conflate
+      them. (a) **No corpus** — `specs/` absent, or present with no spec files: return silently, because there is nothing
+      to validate against and nothing is wrong. (b) **Unloadable corpus** — the directory exists but `load_registry`
+      raises: emit `SpecRegistryUnavailableWarning` (non-blocking per SR-05-007) naming the spec directory, the
+      underlying cause, and the requirement whose gate is down, then return without validating markers. (c) **Unexpected
+      failure** — an exception type outside the documented load-failure set: do not catch it. The `except` clause MUST
+      name the narrowest concrete types that a corpus which exists but does not load can raise (CS-23-001); a blanket
+      `except Exception` is a defect.
+    rationale: >-
+      A silently skipped gate reports the same clean pass as a corpus with no unknown IDs in it, so one malformed spec
+      file disabled SR-05-002 validation for a whole session with no warning and no change in exit code (#3331).
+      Measurement showed the broad catch absorbed nothing on a healthy corpus and exactly one bug-shaped cause on a
+      corrupted one — the signature CONCERN-3295 describes. The session must still be allowed to continue: aborting it
+      would mean a malformed spec file blocks the very tests that diagnose it, which is why (b) warns rather than raises.
+      Case (c) is separated because an unexpected type means a bug in the loader, not a bad spec file.
+    relationships:
+    - rel_type: refines
+      spec_id: SR-05-002
+      note: SR-05-002 specifies the marker check; SR-05-006 specifies what happens when the registry it needs is unavailable
+    - rel_type: refines
+      spec_id: CS-23-001
+      note: applies the narrow-catch rule to the pytest collection hook, which sits outside CS-23-001's `vultron/` scope
+  - id: SR-05-007
+    priority: MUST
+    kind: project
+    statement: >-
+      Every warning the pytest integration relies on being non-blocking MUST have a matching `always::` entry in
+      `pyproject.toml`'s `filterwarnings`, and that entry MUST be listed **after** the `"error"` entry. pytest applies
+      ini `filterwarnings` in list order via `warnings.filterwarnings()`, which inserts each filter at index 0, so a
+      later entry outranks an earlier one; an exemption placed before `"error"` is a no-op. Conformance MUST be verified
+      behaviourally — by emitting the warning under the project's real filter list in a sub-session — and not only by
+      asserting the entry's position in the ini list.
+    rationale: >-
+      The ordering is counter-intuitive and was recorded backwards in the marker gate's original implementation notes
+      ("placed BEFORE `error` so the specific rule takes precedence (Python prepend semantics)"). The consequence was
+      that SR-05-002's non-blocking guarantee never held: an unknown spec ID aborted collection instead of warning. #2329
+      measured the correct rule but the finding was not applied, and #3336 then reproduced the same mistake for a second
+      warning class — which is why the verification method is normative here. A position assertion alone passes while the
+      behaviour is broken, because `pytest.warns` and `catch_warnings` both replace the ini filters and so cannot observe
+      an escalation.
+    relationships:
+    - rel_type: refines
+      spec_id: SR-05-002
+      note: supplies the "non-blocking" mechanism SR-05-002 and SR-05-006 both depend on
 - id: SR-06
   title: Pre-commit Hook
   specs:

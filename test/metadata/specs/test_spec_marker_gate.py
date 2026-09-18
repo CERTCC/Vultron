@@ -33,16 +33,20 @@ a deliberately bogus marker ID went unreported.
 
 The gate stays non-blocking on purpose — aborting the session would mean a
 malformed spec file blocks the very tests that diagnose it — so "visible" here
-means a warning, and that warning needs an ``always::`` filter to outrank the
-``"error"`` rule in ``pyproject.toml``. ``TestWarningIsNotEscalated`` pins that,
-because without it this fix would convert a silent skip into a hard abort.
+means a warning, and that warning needs an ``always::`` filter that outranks the
+``"error"`` rule in ``pyproject.toml``. **Outranking means being listed after
+it**: pytest applies ini ``filterwarnings`` in list order through
+``warnings.filterwarnings()``, which inserts at index 0, so a later entry wins.
+Both spec-gate entries originally sat *before* ``"error"`` and were therefore
+no-ops, which is why SR-05-002's "non-blocking" guarantee never actually held
+(#2329 measured this first). ``TestWarningIsNotEscalated`` pins both halves —
+the ordering and, in a real sub-session, the behaviour it produces.
 """
 
 import contextlib
 import warnings
 
 import pytest
-import yaml
 from yaml.scanner import ScannerError
 
 from test import conftest as root_conftest
@@ -51,6 +55,8 @@ from vultron.metadata.specs import (
     UnknownSpecIdWarning,
     warn_spec_registry_unavailable,
 )
+
+pytest_plugins = ["pytester"]
 
 
 class SpecMarkedItem:
@@ -96,6 +102,48 @@ def _run_gate(items=()):
     root_conftest.pytest_collection_modifyitems(None, None, list(items))
 
 
+def _redirect_spec_dir(monkeypatch, tmp_path, *, corpus_exists):
+    """Point the hook's hard-coded ``specs/`` lookup into *tmp_path*.
+
+    The hook derives ``spec_dir`` inline from ``Path(__file__)``, so there is no
+    seam to override except ``Path`` itself. Patching it is what lets the two
+    *silent* early returns be tested at all.
+    """
+    spec_dir = tmp_path / "repo" / "specs"
+    if corpus_exists:
+        spec_dir.mkdir(parents=True)
+    monkeypatch.setattr(
+        root_conftest,
+        "Path",
+        lambda _: tmp_path / "repo" / "test" / "conftest.py",
+    )
+    return spec_dir
+
+
+@pytest.mark.spec("SR-05-006")
+class TestNoCorpusStaysSilent:
+    """The two *silent* early returns must stay silent.
+
+    The docstring on the hook names three non-interchangeable early returns, and
+    the point of #3331 is that they were conflated. Pinning the silent pair is
+    what stops a future change from fixing the conflation in the other
+    direction — warning on a corpus that is merely absent or empty, where
+    nothing is wrong and there is nothing to validate against.
+    """
+
+    @pytest.mark.parametrize(
+        "corpus_exists", [False, True], ids=["absent-dir", "empty-dir"]
+    )
+    def test_no_warning_and_no_validation(
+        self, monkeypatch, tmp_path, corpus_exists
+    ):
+        _redirect_spec_dir(monkeypatch, tmp_path, corpus_exists=corpus_exists)
+
+        with _escalated(UnknownSpecIdWarning, SpecRegistryUnavailableWarning):
+            _run_gate([SpecMarkedItem("BOGUS-99-999")])
+
+
+@pytest.mark.spec("SR-05-006")
 class TestUnloadableCorpusIsVisible:
     """A corpus that exists but does not load MUST warn, not skip silently."""
 
@@ -173,6 +221,7 @@ class TestUnloadableCorpusIsVisible:
         assert calls == [[]]
 
 
+@pytest.mark.spec("SR-05-006")
 class TestUnexpectedFailureStillSurfaces:
     """A bug in the loader is not a bad spec file and MUST NOT degrade."""
 
@@ -186,17 +235,29 @@ class TestUnexpectedFailureStillSurfaces:
         with pytest.raises(AttributeError, match="loader bug"):
             _run_gate()
 
-    def test_caught_types_are_the_documented_load_failures(self):
-        """Bare ``Exception`` here is the defect; keep the tuple narrow."""
+    def test_the_catch_is_not_blanket(self):
+        """Bare ``Exception`` here is the defect; keep the tuple narrow.
+
+        Deliberately not an exact-set assertion: which concrete types belong in
+        the tuple is settled behaviourally by the parametrized test above, and
+        the set shrinks by design once #3324 lands. Asserting the whole set
+        would only be a change-detector on the constant.
+        """
         caught = root_conftest._REGISTRY_LOAD_ERRORS
 
         assert Exception not in caught
         assert BaseException not in caught
-        assert set(caught) == {ValueError, OSError, yaml.YAMLError}
 
 
+@pytest.mark.spec_corpus
+@pytest.mark.spec("SR-05-002")
 class TestHealthyCorpusStillValidates:
-    """The fix must not cost the gate its normal behaviour."""
+    """The fix must not cost the gate its normal behaviour.
+
+    These read the real ``specs/`` corpus through the hook's own ``spec_dir``,
+    so they carry ``spec_corpus`` — otherwise ``spec-check.yml`` would not run
+    them on a specs-only PR, which is the gap that marker exists to close.
+    """
 
     def test_unknown_marker_id_is_reported_against_the_real_corpus(self):
         with pytest.warns(UnknownSpecIdWarning, match="BOGUS-99-999"):
@@ -212,12 +273,23 @@ class TestHealthyCorpusStillValidates:
             _run_gate()
 
 
+@pytest.mark.spec("SR-05-007")
 class TestWarningIsNotEscalated:
     """The ``always::`` filter is load-bearing, not decoration.
 
     ``pyproject.toml`` sets ``filterwarnings = [..., "error", ...]``. Without an
     entry that outranks it, this fix would turn a silently-skipped gate into a
     session that cannot run at all whenever a spec file is malformed.
+
+    **Ordering is counter-intuitive and was originally recorded backwards.**
+    pytest applies ini entries in list order through
+    ``warnings.filterwarnings()``, which inserts each at index 0, so a **later**
+    entry outranks an earlier one. An exemption listed *before* ``"error"`` is a
+    no-op. Both spec-gate entries sat before it, which meant SR-05-002's
+    "non-blocking" guarantee never held (see #2329, which measured this first).
+    ``test_the_error_rule_does_not_escalate_the_warning`` pins the *behaviour*;
+    the index test below pins the ordering that produces it. The index test
+    alone is not enough — it passed while the behaviour was broken.
     """
 
     _ENTRY = "always::vultron.metadata.specs.SpecRegistryUnavailableWarning"
@@ -230,16 +302,55 @@ class TestWarningIsNotEscalated:
         assert self._ENTRY in self._filters(pytestconfig)
 
     def test_the_always_entry_outranks_the_error_rule(self, pytestconfig):
-        """pytest applies these in order, so ``error`` must not come first."""
+        """Later entries win, so the exemption must come *after* ``error``."""
         filters = self._filters(pytestconfig)
 
-        assert filters.index(self._ENTRY) < filters.index("error")
+        assert filters.index(self._ENTRY) > filters.index("error")
+
+    @pytest.mark.parametrize(
+        "dotted_path",
+        [
+            "vultron.metadata.specs.SpecRegistryUnavailableWarning",
+            "vultron.metadata.specs.UnknownSpecIdWarning",
+        ],
+        ids=["registry-unavailable", "unknown-spec-id"],
+    )
+    def test_the_error_rule_does_not_escalate_the_warning(
+        self, pytester, pytestconfig, dotted_path
+    ):
+        """The behavioural half: a real sub-session under the real ini filters.
+
+        Every other warning assertion in this file runs inside
+        ``pytest.warns``/``catch_warnings``, which **replaces** the ini filters,
+        so none of them can see an escalation — which is how the misordering
+        shipped green. This one feeds the project's own ``filterwarnings`` list
+        verbatim to a sub-session, so reordering the entries wrongly fails here.
+        """
+        entries = "\n".join(
+            f"    {entry}" for entry in self._filters(pytestconfig)
+        )
+        pytester.makeini(f"[pytest]\nfilterwarnings =\n{entries}\n")
+        module, _, name = dotted_path.rpartition(".")
+        pytester.makepyfile(f"""
+            import warnings
+
+            from {module} import {name}
+
+
+            def test_probe():
+                warnings.warn("probe", {name})
+            """)
+
+        result = pytester.runpytest_subprocess("-p", "no:randomly")
+
+        result.assert_outcomes(passed=1, warnings=1)
 
     def test_error_rule_is_still_in_force(self, pytestconfig):
         """Guard against 'fixing' this by dropping the strict rule entirely."""
         assert "error" in self._filters(pytestconfig)
 
 
+@pytest.mark.spec("SR-05-006")
 class TestWarnSpecRegistryUnavailable:
     """Unit-level contract for the warning helper."""
 

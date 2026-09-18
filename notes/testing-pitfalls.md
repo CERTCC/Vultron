@@ -3,13 +3,15 @@ title: Testing Pitfalls and Patterns
 status: active
 description: >
   Full write-ups for pytest pitfalls in this repo: reading a killed run, the
-  two-tier timeout guardrail, fixture and blackboard isolation, py_trees test
-  patterns, assertion-quality traps (vacuous asserts, "falls back to" tests,
-  bare MagicMock), and test layout rules for module splits. `test/AGENTS.md`
-  keeps the short index and the rules you need on every run.
+  two-tier timeout guardrail, `filterwarnings` precedence, fixture and blackboard
+  isolation, py_trees test patterns, assertion-quality traps (vacuous asserts,
+  "falls back to" tests, bare MagicMock), and test layout rules for module
+  splits. `test/AGENTS.md` keeps the short index and the rules you need on every
+  run.
 related_specs:
   - specs/testability.yaml
   - specs/behavior-tree-integration.yaml
+  - specs/spec-registry.yaml
 related_notes:
   - notes/flaky-tests.md
   - notes/configuration.md
@@ -94,6 +96,47 @@ is firing on honest work rather than catching hangs, change the tier rather
 than contorting the tests around it. Do not add a row to
 [notes/flaky-tests.md](flaky-tests.md) for a test that is merely near its
 ceiling.
+
+### A `filterwarnings` Exemption Placed Before `"error"` Is a No-Op
+
+pytest applies ini `filterwarnings` entries in list order through
+`warnings.filterwarnings()`, and that function **inserts at index 0**. So the
+list reads in *increasing* order of precedence: the **last** entry wins. An
+`always::`/`ignore::` exemption listed *before* `"error"` never applies, and the
+warning it was meant to surface non-blockingly raises instead.
+
+```toml
+filterwarnings = [
+    "error",                       # must come FIRST
+    "always::pkg.AdvisoryWarning", # exemptions AFTER it
+]
+```
+
+Verify with `warnings.filters` — index 0 is highest precedence:
+
+```bash
+uv run python -c "import warnings; print(warnings.filters[:6])"  # inside a session
+```
+
+**Why this keeps recurring.** The rule is the opposite of how the list reads, and
+the original write-up recorded it backwards ("placed BEFORE `error` so the
+specific rule takes precedence (Python prepend semantics)"). Consequences:
+
+- `always::UnknownSpecIdWarning` sat before `"error"` from the spec-marker gate's
+  introduction, so SR-05-002's normative "non-blocking" guarantee **never held** —
+  an unknown spec ID aborted collection rather than warning.
+- #2329 measured the correct rule and named the latent bug, but the finding sat in
+  an issue body rather than here, so #3331 and PR #3336 both reproduced it for a
+  second warning class before it was caught in review.
+
+**A position assertion cannot catch this.** `pytest.warns` and
+`warnings.catch_warnings` both replace the ini filters, so no in-session test can
+observe the escalation — which is why a test asserting the *index* passed while
+the behaviour was broken. Assert the behaviour in a `pytester` sub-session fed the
+project's real filter list
+(`test/metadata/specs/test_spec_marker_gate.py::TestWarningIsNotEscalated`).
+
+Normative: SR-05-007. Sources: #2329, #3336.
 
 ### `caplog` Captures Fixture-Setup-Phase Records
 

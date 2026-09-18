@@ -127,8 +127,11 @@ def pytest_collection_modifyitems(session, config, items):
     any ``@pytest.mark.spec`` marker referencing an ID not found in the
     registry.
 
+    Both warnings are non-blocking, which depends on their ``always::`` entries
+    being listed *after* ``"error"`` in ``pyproject.toml`` (SR-05-007).
+
     Returns early without validating markers in three cases, which are not
-    interchangeable:
+    interchangeable (SR-05-006):
 
     - **No corpus** (``specs/`` absent, or present with no spec files) — there
       is nothing to validate against and nothing is wrong. Silent.
