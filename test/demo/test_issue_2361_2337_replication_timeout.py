@@ -238,7 +238,9 @@ def test_fcvcv_sync_verification_uses_gate_not_check_for_ledger_coverage(
         _ledger_coverage,
     )
     monkeypatch.setattr(
-        fcvcv_demo_module, "wait_for_case_participants", lambda *a, **kw: None
+        fcvcv_demo_module,
+        "wait_for_participants_on_replicas",
+        lambda *a, **kw: None,
     )
     monkeypatch.setattr(
         fcvcv_demo_module, "verify_replica_state", lambda *a, **kw: None
@@ -327,7 +329,9 @@ def test_fcvcv_sync_verification_non_v2_timeout_is_at_least_30s(monkeypatch):
         _ledger_coverage,
     )
     monkeypatch.setattr(
-        fcvcv_demo_module, "wait_for_case_participants", lambda *a, **kw: None
+        fcvcv_demo_module,
+        "wait_for_participants_on_replicas",
+        lambda *a, **kw: None,
     )
     monkeypatch.setattr(
         fcvcv_demo_module, "verify_replica_state", lambda *a, **kw: None

@@ -82,6 +82,7 @@ from vultron.demo.helpers.polling import (
     wait_for_case_on_container,
     wait_for_case_participants,
     wait_for_contiguous_ledger_coverage,
+    wait_for_participants_on_replicas,
     wait_for_event_type_in_ledger,
     wait_for_finder_case,
     wait_for_participant_rm_state,
@@ -346,23 +347,20 @@ def _phase_sync_verification(
                     expected_tail_index=vendor_tail_index,
                 )
 
-    wait_for_case_participants(
-        vendor_client=finder_client,
+    # Temporal (EDF-06-006): Vendor2 is a late joiner — allow extra time for
+    # participant-index propagation; see wait_for_participants_on_replicas.
+    # The finder + vendor2 replicas were previously polled with two bare
+    # wait_for_case_participants calls that used the 15 s default, so Vendor2
+    # never got the extended budget and could time out spuriously (#2852).
+    wait_for_participants_on_replicas(
+        replica_clients=(finder_client, vendor2_client),
         case_id=case.id_,
         expected_actor_ids={
             finder.id_,
             vendor.id_,
             vendor2.id_,
         },
-    )
-    wait_for_case_participants(
-        vendor_client=vendor2_client,
-        case_id=case.id_,
-        expected_actor_ids={
-            finder.id_,
-            vendor.id_,
-            vendor2.id_,
-        },
+        late_joiners=(vendor2_client,),
     )
 
     with demo_check(

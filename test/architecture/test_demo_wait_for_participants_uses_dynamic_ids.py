@@ -67,7 +67,13 @@ def _hardcoded_actor_id_violations(
             if isinstance(func, ast.Attribute)
             else getattr(func, "id", "")
         )
-        if callee != "wait_for_case_participants":
+        # wait_for_participants_on_replicas is the consolidated replica-loop
+        # wrapper (#2852); it forwards the same expected_actor_ids set, so the
+        # hardcoded-constant guard must cover both call sites.
+        if callee not in (
+            "wait_for_case_participants",
+            "wait_for_participants_on_replicas",
+        ):
             continue
         for kw in node.keywords:
             if kw.arg != "expected_actor_ids":

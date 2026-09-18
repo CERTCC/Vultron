@@ -87,6 +87,7 @@ from vultron.demo.helpers.polling import (
     wait_for_case_on_container,
     wait_for_case_participants,
     wait_for_contiguous_ledger_coverage,
+    wait_for_participants_on_replicas,
     wait_for_event_type_in_ledger,
     wait_for_participant_rm_state,
     wait_for_participant_vf_state,
@@ -395,20 +396,18 @@ def _phase_sync_verification(
                     )
                 logger.info("  %s ledger synchronized", label)
 
-    for replica_client in (finder_client, vendor_client):
-        # Temporal (EDF-06-006): Vendor is a late joiner — allow extra time
-        # for participant-index propagation; causal-gate migration in #2202.
-        p_timeout = 30.0 if replica_client is vendor_client else 10.0
-        wait_for_case_participants(
-            vendor_client=replica_client,
-            case_id=case.id_,
-            expected_actor_ids={
-                finder.id_,
-                coordinator.id_,
-                vendor.id_,
-            },
-            timeout_seconds=p_timeout,
-        )
+    # Temporal (EDF-06-006): Vendor is a late joiner — allow extra time for
+    # participant-index propagation; causal-gate migration in #2202.
+    wait_for_participants_on_replicas(
+        replica_clients=(finder_client, vendor_client),
+        case_id=case.id_,
+        expected_actor_ids={
+            finder.id_,
+            coordinator.id_,
+            vendor.id_,
+        },
+        late_joiners=(vendor_client,),
+    )
 
     with demo_check("Finder replica matches authoritative Coordinator state"):
         verify_replica_state(
