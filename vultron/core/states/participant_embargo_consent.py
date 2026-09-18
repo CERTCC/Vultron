@@ -97,7 +97,8 @@ _transitions: list[dict] = [
     PECTransition(
         trigger=PEC_Trigger.ACCEPT, source=PEC.LAPSED, dest=PEC.SIGNATORY
     ).model_dump(),
-    # DECLINE transitions (ADR-0048: symmetric with ACCEPT from UNBOUND)
+    # DECLINE transitions (ADR-0048: symmetric with ACCEPT from UNBOUND;
+    # ADR-0093: SIGNATORY → DECLINED is consent withdrawal, not a lapse)
     PECTransition(
         trigger=PEC_Trigger.DECLINE, source=PEC.UNBOUND, dest=PEC.DECLINED
     ).model_dump(),

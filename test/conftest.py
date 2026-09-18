@@ -37,11 +37,13 @@ from pathlib import Path
 os.environ.setdefault("VULTRON_DATABASE__DB_URL", "sqlite:///:memory:")
 
 import pytest  # noqa: E402
+import yaml  # noqa: E402
 from vultron.adapters.driven.datalayer_sqlite import (  # noqa: E402
     reset_datalayer,
 )
 from vultron.metadata.specs import (  # noqa: E402
     load_registry,
+    warn_spec_registry_unavailable,
     warn_unknown_spec_id,
 )
 
@@ -104,13 +106,43 @@ def apply_integration_timeout(items):
     return modified
 
 
+#: Failure modes ``load_registry`` can raise for a corpus that exists but does
+#: not load.  ``pydantic.ValidationError`` is a ``ValueError`` subclass, and a
+#: duplicate spec ID raises ``ValueError`` directly; ``OSError`` covers an
+#: unreadable file.  ``yaml.YAMLError`` is listed because a syntax error is
+#: *not* a ``ValueError`` and so escapes the loader's documented contract — it
+#: becomes redundant once #3324 routes the parse through the attributing helper.
+#:
+#: Deliberately not ``Exception``: an unexpected type means a bug in the loader
+#: rather than a bad spec file, and that must surface rather than degrade to a
+#: warning (#3331).
+_REGISTRY_LOAD_ERRORS = (ValueError, OSError, yaml.YAMLError)
+
+
 def pytest_collection_modifyitems(session, config, items):
     """Apply the integration timeout, then warn for unknown spec IDs.
 
     Spec-ID warnings (SR-05-002) emit
     :class:`~vultron.metadata.specs.UnknownSpecIdWarning` (non-blocking) for
     any ``@pytest.mark.spec`` marker referencing an ID not found in the
-    registry. Skips silently when no YAML files exist in ``specs/``.
+    registry.
+
+    Both warnings are non-blocking, which depends on their ``always::`` entries
+    being listed *after* ``"error"`` in ``pyproject.toml`` (SR-05-007).
+
+    Returns early without validating markers in three cases, which are not
+    interchangeable (SR-05-006):
+
+    - **No corpus** (``specs/`` absent, or present with no spec files) — there
+      is nothing to validate against and nothing is wrong. Silent.
+    - **Unloadable corpus** — the gate cannot run, so it says so via
+      :class:`~vultron.metadata.specs.SpecRegistryUnavailableWarning`. Returning
+      silently here reported the same clean pass as a corpus with no unknown IDs
+      in it, which disabled SR-05-002 for a whole session without a trace
+      (#3331). The session is allowed to continue on purpose: aborting it would
+      mean a malformed spec file blocks the very tests that diagnose it.
+    - **Unexpected load failure** — not caught at all; see
+      :data:`_REGISTRY_LOAD_ERRORS`.
     """
     apply_integration_timeout(items)
 
@@ -119,7 +151,8 @@ def pytest_collection_modifyitems(session, config, items):
         return
     try:
         registry = load_registry(spec_dir)
-    except Exception:
+    except _REGISTRY_LOAD_ERRORS as exc:
+        warn_spec_registry_unavailable(spec_dir, exc)
         return
     if not registry.files:
         return

@@ -559,6 +559,39 @@ def test_reject_embargo_invite_owner_proposed_to_none(
     assert owner_participant.embargo_consent_state == PEC.DECLINED.value
 
 
+def test_reject_embargo_invite_signatory_from_proposed(
+    owner_and_dl: tuple[as_Service, SqliteDataLayer],
+) -> None:
+    """SIGNATORY actor rejecting a PROPOSED embargo succeeds and moves to DECLINED.
+
+    ADR-0093: SIGNATORY → DECLINED is a first-class PEC transition.  Before
+    this ADR, the node raised VultronInvalidStateTransitionError (returned
+    FAILURE); after, it returns SUCCESS and the PEC state is DECLINED.
+    """
+    owner, dl = owner_and_dl
+    case, participants = _make_case(dl, owner.id_, em_state=EM.PROPOSED)
+    owner_participant_id = participants[0].id_
+    embargo = _make_embargo(dl, case.id_)
+
+    # Seed owner to SIGNATORY (active consent on a prior version)
+    owner_p = cast(CaseParticipant, dl.read(owner_participant_id))
+    owner_p.apply_pec_transition(PEC_Trigger.ACCEPT)
+    dl.save(owner_p)
+
+    lifecycle = EmbargoLifecycle(persistence=dl)
+    result = lifecycle.reject_embargo_invite(
+        case_id=case.id_,
+        embargo_id=embargo.id_,
+        actor_id=owner.id_,
+    )
+
+    assert result.em_before == EM.PROPOSED
+    assert result.em_after == EM.NONE
+
+    owner_participant = cast(CaseParticipant, dl.read(owner_participant_id))
+    assert owner_participant.embargo_consent_state == PEC.DECLINED.value
+
+
 def test_reject_embargo_invite_owner_revise_stays_active(
     owner_and_dl: tuple[as_Service, SqliteDataLayer],
 ) -> None:
@@ -626,11 +659,11 @@ def test_reject_embargo_invite_signatory_non_owner_transitions_to_declined(
     )
     embargo = _make_embargo(dl, case.id_)
 
-    # Seed finder as SIGNATORY (already consented to the active embargo).
+    # Seed finder to SIGNATORY via proper FSM path (UNBOUND → SIGNATORY).
     finder_participant_id = case.actor_participant_index.get(finder.id_)
     assert finder_participant_id is not None
     finder_p = cast(CaseParticipant, dl.read(finder_participant_id))
-    object.__setattr__(finder_p, "embargo_consent_state", PEC.SIGNATORY)
+    finder_p.apply_pec_transition(PEC_Trigger.ACCEPT)
     dl.save(finder_p)
 
     lifecycle = EmbargoLifecycle(persistence=dl)
