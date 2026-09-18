@@ -1058,3 +1058,113 @@ class TestLateAcceptHandling:
         assert lapse_entry.event_type != "reject_invite_to_embargo_on_case"
         # payloadSnapshot must be non-empty (CLP-07-001)
         assert lapse_entry.payload_snapshot
+
+    def test_late_accept_ac2_signatory_participant_no_crash(
+        self, make_payload
+    ):
+        """AC-2: late Accept for current embargo on a SIGNATORY participant must not crash.
+
+        If the participant is already SIGNATORY (reached that state without
+        passing through INVITED since the last invite), calling
+        record_participant_consent(PEC_Trigger.INVITE) on them would raise
+        VultronInvalidStateTransitionError (SIGNATORY → INVITED is illegal,
+        CM-18-004).  The use case must guard the INVITE call and stay
+        idempotent — participant remains SIGNATORY (issue #3358).
+        """
+        dl = _make_dl(actor_id=_COORD)
+        case_id = "https://example.org/cases/ea-sig-ac2"
+        embargo_id = "https://example.org/cases/ea-sig-ac2/embargos/e1"
+
+        # Seed case with SIGNATORY participant (already accepted the embargo).
+        case, embargo, _ = _make_active_embargo_case(
+            dl,
+            case_id,
+            embargo_id,
+            invitee_pec=PEC.SIGNATORY,
+            invitee_deadline=_PAST,
+        )
+
+        proposal = em_propose_embargo_activity(
+            embargo=embargo,
+            context=case.id_,
+            actor=_COORD,
+            to=[_INVITEE],
+            id_=f"{case_id}/proposals/p-sig-ac2",
+        )
+        dl.create(proposal)
+
+        event = _make_accept_event(proposal, case, _INVITEE, make_payload)
+        # Must not raise VultronInvalidStateTransitionError (bug #3358).
+        AcceptInviteToEmbargoOnCaseReceivedUseCase(dl, event).execute()
+
+        fresh_case = dl.read(case_id)
+        assert isinstance(fresh_case, CoreCase)
+        p_id = fresh_case.actor_participant_index[_INVITEE]
+        participant = dl.read(p_id)
+        assert isinstance(participant, CaseParticipant)
+        # Idempotent: still SIGNATORY (no state change for already-consenting actor).
+        assert participant.embargo_consent_state == PEC.SIGNATORY
+
+    def test_late_accept_ac3_signatory_participant_no_crash(
+        self, make_payload
+    ):
+        """AC-3: late Accept for stale embargo on a SIGNATORY participant must not crash.
+
+        When the participant is already SIGNATORY for the current active embargo
+        and sends an Accept for a stale (replaced) embargo, calling
+        record_participant_consent(PEC_Trigger.INVITE) on them would crash
+        (SIGNATORY → INVITED is illegal).  The use case must skip the re-invite
+        and leave the participant SIGNATORY (issue #3358).
+        """
+        from unittest.mock import MagicMock
+
+        dl = _make_dl(actor_id=_COORD)
+        case_id = "https://example.org/cases/ea-sig-ac3"
+        current_embargo_id = (
+            "https://example.org/cases/ea-sig-ac3/embargos/current"
+        )
+        stale_embargo_id = (
+            "https://example.org/cases/ea-sig-ac3/embargos/stale"
+        )
+
+        # Participant is SIGNATORY on the current embargo.
+        case, current_embargo, _ = _make_active_embargo_case(
+            dl,
+            case_id,
+            current_embargo_id,
+            invitee_pec=PEC.SIGNATORY,
+            invitee_deadline=_PAST,
+        )
+
+        stale_embargo = as_EmbargoEvent(id_=stale_embargo_id, context=case_id)
+        dl.create(stale_embargo)
+
+        stale_proposal = em_propose_embargo_activity(
+            embargo=stale_embargo,
+            context=case.id_,
+            actor=_COORD,
+            id_=f"{case_id}/proposals/stale-sig",
+        )
+        dl.create(stale_proposal)
+
+        trigger_mock = MagicMock()
+        trigger_mock.propose_embargo.return_value = (
+            f"{case_id}/proposals/reinvite-sig",
+            {},
+        )
+
+        event = _make_accept_event(
+            stale_proposal, case, _INVITEE, make_payload
+        )
+        # Must not raise VultronInvalidStateTransitionError (bug #3358).
+        AcceptInviteToEmbargoOnCaseReceivedUseCase(
+            dl, event, trigger_activity=trigger_mock
+        ).execute()
+
+        fresh_case = dl.read(case_id)
+        assert isinstance(fresh_case, CoreCase)
+        p_id = fresh_case.actor_participant_index[_INVITEE]
+        participant = dl.read(p_id)
+        assert isinstance(participant, CaseParticipant)
+        # Already SIGNATORY for current embargo — no re-invite needed.
+        assert participant.embargo_consent_state == PEC.SIGNATORY

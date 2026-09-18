@@ -184,3 +184,8 @@ class TestPecDimension:
         d = PecDimension(state=PEC.SIGNATORY)
         d2 = PecDimension.model_validate_json(d.model_dump_json())
         assert d2.state == PEC.SIGNATORY
+
+    def test_no_embargo_legacy_string_coerces_to_unbound(self):
+        """ADR-0091 renamed NO_EMBARGO → UNBOUND; PecDimension must coerce stored legacy values (issue #3376)."""
+        d = PecDimension.model_validate({"state": "NO_EMBARGO"})
+        assert d.state == PEC.UNBOUND
