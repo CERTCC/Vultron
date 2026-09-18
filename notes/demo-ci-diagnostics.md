@@ -8,8 +8,10 @@ description: >
 related_specs:
   - specs/demo-ci.yaml
   - specs/case-ledger-processing.yaml
+  - specs/multi-actor-demo.yaml
 related_notes:
-  - notes/demo-ci.md
+  - notes/demo-ci-invariants.md
+  - notes/demo-ci-scenario-coverage.md
   - notes/case-ledger-authority.md
   - notes/sync-ledger-replication.md
   - notes/ci-workflow-authoring.md
@@ -31,11 +33,13 @@ root cause with this guide.
 
 ## Overview
 
-The Demo Integration CI workflow runs each demo scenario (FV, FVV, FVCV-Extension,
-FVCV-Handoff, FCCV-Handoff, FCV) as an independent matrix job inside Docker,
-collects JSONL case-ledger replica files, and then runs the scenario-specific
-invariant test file against those files. Failures come from one of three layers,
-each with its own diagnostic surface.
+The Demo Integration CI workflow runs each demo scenario as an independent
+matrix job inside Docker, collects JSONL case-ledger replica files, and then
+runs that scenario's invariant test file against them. The scenario set and its
+harness files come from `.github/demo-scenarios.json` — the sole registry; a
+pull request runs the DEMOCI-06-002 minimum validation subset and push-to-main
+runs all of them. Failures come from one of three layers, each with its own
+diagnostic surface.
 
 ---
 
@@ -96,32 +100,95 @@ from the `vultron.core.behaviors.sync` logger in the `case-actor` container.
 
 ## Per-Invariant Diagnostic Map
 
-Invariant tests live under `test/ci/invariants/`, one file per scenario. Run
-a specific scenario's tests with:
+Invariant tests live under `test/ci/invariants/`, one file per scenario.
+`.github/demo-scenarios.json` is the sole scenario→harness registry. Run one
+scenario's tests with the harness file that registry names, for example:
 
 ```bash
 uv run pytest test/ci/invariants/test_fv_invariants.py -v --tb=short
-# or fvv, fvcv_extension, fvcv_handoff, fccv_handoff, fcv
+# harness files exist for fv, fvv, fvcv_extension, fvcv_handoff,
+# fccv_extension, fccv_handoff, fcv, fcv_reject, and fcvcv
 ```
 
 ### Invariant Status and Diagnostic Focus
 
-| # | Test function | Status | Start at Layer | Resolving issue |
-|---|---|---|---|---|
-| 1 | `test_invariant_1_local_hash_chain_consistent` | ⏳ xfail (all actors) | 3 — Committed | #789 |
-| 2 | `test_invariant_2_cross_actor_hash_agreement` | ⏳ xfail | 3 — Committed | #789 |
-| 3 | `test_invariant_3_cross_actor_payload_actor_agreement` | ⏳ xfail | 3 — Committed | #789 |
-| 4 | `test_invariant_4_non_empty_payload_snapshot` | ⏳ xfail | 3 — Committed | #789 |
-| 5 | `test_invariant_5_expected_event_types_present` | ⏳ xfail | 3 — Committed | #789 |
-| 6 | `test_invariant_6_no_rm_state_oscillation` | ✅ passing | 3 — Committed | — |
-| 7 | `test_invariant_7_log_terminates_all_rm_closed` | ⏳ xfail | 3 — Committed | #789 |
-| 8 | `test_invariant_8_late_joiner_has_full_history` | ⏳ xfail | 2 — Received | #791 |
-| 9 | `test_invariant_9_participant_status_schema_completeness` | ⏳ xfail | 3 — Committed | #789 |
-| 10 | `test_invariant_10_nested_objects_inlined_in_payload` | ✅ passing | 3 — Committed | — |
-| 11 | `test_invariant_11_payload_context_uses_case_uri` | ✅ passing | 3 — Committed | — |
-| 12 | `test_invariant_12_genesis_entry_present` | ✅ case-actor, ✅ vendor, ⏳ finder | 2 — Received | #937 (finder) |
-| 13 | `test_invariant_13_log_starts_at_genesis` | ✅ case-actor, ✅ vendor, ⏳ finder | 2 — Received | #937 (finder) |
-| 14 | `test_invariant_14_no_gaps_in_log_indices` | ✅ all actors | 3 — Committed | — |
+The table below is the **universal** set — the invariants
+`make_universal_invariant_tests()` in
+`test/ci/invariants/universal_harness.py` injects into every scenario harness.
+`test/ci/invariants/test_diagnostic_map_sync.py` ratchets this table against
+that function, so a new or retired invariant fails here until the row is added
+or removed.
+
+**Status** is the ratchet state read off the harness, not today's pass/fail:
+
+- **active** — no `xfail` marker. A failure is a real regression; work the
+  layers.
+- **⏳ xfail** — a known defect owns it, named in the marker's `reason`. The job
+  stays green while it fails.
+
+**How to read "Start at Layer"**: it names the layer whose failure most often
+explains this invariant. Check it first, then walk 1→2→3 to find the first
+missing log pattern.
+
+- A missing **entry or event** → start at Layer 1 (was it ever sent?).
+- A replica that is **incomplete or disagrees with a peer** → start at Layer 2
+  (did the fan-out arrive?).
+- An entry that is **present but malformed** → start at Layer 3 (did the commit
+  write it wrong?).
+
+| # | Test function | Status | Start at Layer |
+|---|---|---|---|
+| 1 | `test_invariant_1_local_hash_chain_consistent` | active | 3 — Committed |
+| 2 | `test_invariant_2_cross_actor_hash_agreement` | active | 2 — Received |
+| 3 | `test_invariant_3_cross_actor_payload_actor_agreement` | active | 2 — Received |
+| 4 | `test_invariant_4_non_empty_payload_snapshot` | active | 3 — Committed |
+| 5 | `test_invariant_5_expected_event_types_present` | active | 1 — Sent |
+| 6 | `test_invariant_6_no_rm_state_oscillation` | active | 3 — Committed |
+| 7 | `test_invariant_7_log_terminates_all_rm_closed` | ⏳ xfail — #2505 | 1 — Sent |
+| 9 | `test_invariant_9_participant_status_schema_completeness` | active | 3 — Committed |
+| 10 | `test_invariant_10_nested_objects_inlined_in_payload` | active | 3 — Committed |
+| 11 | `test_invariant_11_payload_context_uses_case_uri` | active | 3 — Committed |
+| 12 | `test_invariant_12_genesis_entry_present` | active | 2 — Received |
+| 13 | `test_invariant_13_log_starts_at_genesis` | active | 2 — Received |
+| 14 | `test_invariant_14_no_gaps_in_log_indices` | active | 2 — Received |
+| 15 | `test_invariant_15_cs_state_transitions_observed` | active | 1 — Sent |
+| 16 | `test_invariant_16_causal_edges_in_ledger_order` | active | 3 — Committed |
+| — | `test_invariant_clp13_no_rejected_invite_entries` | active | 3 — Committed |
+| — | `test_invariant_clp14_timestamp_invariants` | active | 3 — Committed |
+| — | `test_invariant_per_actor_replica_divergence` | ⏳ xfail — #2505 | 2 — Received |
+
+**The `#` column is a historical label, not an index.** It skips 8 (that
+invariant is scenario-local — see below) and runs out entirely for the last
+three, which are named for the spec clause or the property they check rather
+than taking the next number. Match a pytest failure to a row by **test
+function name**, never by number or position.
+
+**Invariant 8 is scenario-local, not universal — and there is more than one of
+it.** Late-joiner backfill has to name a specific early actor and late actor,
+which differ per scenario, so the factory cannot inject it. Instead every
+harness but `fcv_reject` declares its own, one per late-joining actor in that
+scenario — a dozen-plus tests in total, all active, all calling
+`check_late_joiner_has_full_history`. Only FV's keeps the historical
+`test_invariant_8_` prefix; the rest are named
+`test_<scenario>_<late_actor>_late_joiner_has_full_history` (e.g.
+`test_fcvcv_c2_late_joiner_has_full_history`). So:
+
+- A failing test whose name ends `_late_joiner_has_full_history` is this
+  invariant, whatever the prefix, and is **not** a row in the table above.
+- Start at Layer 2 (did the backfill fan-out arrive?), and read the failure for
+  which pair it compared — the test names the late actor, not the early one.
+- To enumerate them, grep `late_joiner_has_full_history` across
+  `test/ci/invariants/`; this note deliberately does not list them, because a
+  list here would rot exactly the way the table above did.
+
+**Invariant 16 is conditional.** The factory injects it only when the harness
+passes `narrative_path`, because it reads the scenario narrative page's
+`causal_edges:` front-matter (DEMOMA-22-005). Omitting the argument is legal
+and produces a harness that collects and passes with no causal-edge check at
+all, so `test_diagnostic_map_sync.py::test_every_harness_passes_a_narrative_path`
+asserts every harness in `.github/demo-scenarios.json` supplies one. It is the
+only invariant whose *presence* is conditional; every other row above is
+injected unconditionally.
 
 **xfail semantics**: An unexpected `XPASS` (xfail test that passed) is
 green in CI but visible in the output. When an `XPASS` appears, remove the
@@ -129,24 +196,52 @@ green in CI but visible in the output. When an `XPASS` appears, remove the
 guard. See `test/ci/README-case-log-ratchet.md` for the full ratchet
 workflow.
 
-**Unexpected FAIL on a passing invariant (✅)**: This is a regression.
+**Unexpected FAIL on an active invariant**: This is a regression.
 Check Layers 1→2→3 in order; do not push a retry commit until you have
 identified which layer broke.
 
 ### Invariant Groups
 
-- **Invariants 1–5, 7, 9**: All xfail pending #789 (CaseActor
-  commit-path uniqueness). These test the `case-actor` replica first.
+- **Invariants 7 and `per_actor_replica_divergence`**: the only two xfails in
+  the universal set. Both markers name **#2505** — the FV demo's CaseActor
+  never reaches `RM.CLOSED` — because participant-status entries about the
+  CaseActor appear in *every* replica, so the same defect trips both. They are
+  **not** the same check and do not necessarily clear together: invariant 7
+  asserts termination alone, whereas `per_actor_replica_divergence` aggregates
+  four checks (below). Expect invariant 7 to XPASS first; do not read that as
+  licence to leave the other xfail in place, and do not read the other's
+  continued failure as evidence #2505 is unfixed. Read the failure text.
+- **`per_actor_replica_divergence` is a per-replica check, not a cross-replica
+  one.** Despite the name, it does not compare replicas against each other. It
+  runs each non-`case-actor` replica **in isolation** (`{actor: entries}`, so
+  `auth_entries()` falls back to that actor's own log) through four canonical
+  checks — RM-state oscillation, RM-closed termination, `ParticipantStatus`
+  schema completeness, and CS-transition observation — and skips the last three
+  for any replica holding no `add_participant_status_to_participant` entries.
+  A failure therefore means *one replica* independently violates a state
+  invariant; the `Actor '<id>':` prefix on each violation names which. Do not
+  go looking for disagreement between actors.
 - **Invariant 6**: No RM-state oscillation after `CLOSED`. Tests the
   `add_participant_status` entries in the case-actor log. If this
   regresses, check `ValidateRMTransitionNode` for CLOSED terminal-state
   guard ordering (see `notes/codebase-structure.md`
   § "RM-TERMINAL-GUARD-928").
-- **Invariants 12–13**: Log completeness from genesis (`logIndex=0`).
-  `finder` is xfail until #937 (join-time history backfill) lands.
-- **Invariant 14**: No gaps within an actor's present `logIndex` range.
-  Passes for all actors today (including finder's partial fragment).
-- **Invariant 8**: Late-joiner history backfill. xfail until #791/#937.
+- **Invariants 12–14**: log completeness and contiguity from genesis
+  (`logIndex=0`). These, plus invariant 1, are the per-actor parametrized
+  checks — one test case per entry in the harness's `_CHAIN_ACTORS` — so the
+  failing case id names which replica is short. Read it before assuming the
+  whole fan-out broke.
+- **Invariants 2 and 3**: the actual cross-replica agreement checks — the same
+  `logIndex` must carry the same `entryHash` and the same
+  `payloadSnapshot.actor` in every replica that holds it. Mid-protocol
+  divergence is normal (a replica legitimately lags), so confirm the demo
+  reached its final phase before treating a mismatch as a defect. Note these
+  compare only indices that *two or more* replicas share; an index one actor
+  is missing entirely is invariant 12–14 territory.
+- **Invariant 5**: expected `eventType` presence. The first five entries of
+  every harness's `_XXX_EXPECTED_EVENT_TYPES` are the DEMOMA-16-001 universal
+  block, ratcheted by `test/ci/invariants/test_universal_event_types.py`. Do
+  not "fix" a failure by editing the constant.
 
 ---
 
@@ -195,8 +290,9 @@ A non-zero exit code means the demo runner itself failed (Layer 1 or 2).
 
 ### Step 2 — Run the invariant harness
 
-Replace `<scenario>` with the scenario you're diagnosing (`fv`, `fvv`,
-`fvcv_extension`, `fvcv_handoff`, `fccv_handoff`, or `fcv`):
+Replace `<scenario>` with the scenario you're diagnosing, spelled as its
+harness file is (underscores, not hyphens — `fvcv_extension`, not
+`fvcv-extension`):
 
 ```bash
 uv run pytest test/ci/invariants/test_<scenario>_invariants.py -v --tb=short
@@ -233,8 +329,8 @@ Actions run summary page under **Artifacts**, named after the scenario.
 
 ### `<demo>-case-logs` (always uploaded)
 
-Where `<demo>` is the scenario name: `fv`, `fvv`, `fvcv-extension`,
-`fvcv-handoff`, `fccv-handoff`, or `fcv`.
+Where `<demo>` is the `demo:` value from `.github/demo-scenarios.json` —
+hyphenated (`fvcv-extension`), unlike the underscored harness filenames.
 
 Path in artifact: `devlogs/`
 

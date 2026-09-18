@@ -27,9 +27,11 @@ mirrors it and MUST be kept in step.
 Scenarios marked *In PR set* run on `pull_request` events (the DEMOCI-06-002
 minimum validation set); all nine run on push-to-main and `workflow_dispatch`.
 
-A tenth file, `test/ci/invariants/test_universal_event_types.py`, is not a
-scenario harness: it is a structural ratchet over the harness constants and the
-DEMOMA-16-001 spec statement, and needs no demo artifacts.
+The other files in `test/ci/invariants/` are not scenario harnesses and need no
+demo artifacts: `test_universal_event_types.py` and `test_diagnostic_map_sync.py`
+are structural ratchets over the harness constants, the DEMOMA-16-001 spec
+statement and the diagnostic map, while `test_common.py`, `test_late_joiner.py`
+and `test_causal_edges_negative.py` unit-test the `common.py` check helpers.
 
 ---
 
@@ -37,9 +39,9 @@ DEMOMA-16-001 spec statement, and needs no demo artifacts.
 
 Each scenario test file parses JSONL case-ledger replica files produced by
 the corresponding demo and asserts universal invariants (via `common.py`)
-plus scenario-specific checks. There are no active `xfail` markers anywhere in
-`test/ci/`. All invariants pass except invariant 5, which ISSUE-2266 made red in
-every scenario on purpose — see [Invariant Status](#invariant-status).
+plus scenario-specific checks. Two universal invariants carry a live `xfail`
+marker; the rest are active, so a failure is a real regression. See
+[Invariant Status](#invariant-status) for where that inventory lives.
 
 ---
 
@@ -51,55 +53,54 @@ every scenario on purpose — see [Invariant Status](#invariant-status).
 uv run pytest -m case_ledger_invariants -v
 ```
 
-Or target a specific scenario directly:
+Or target a specific scenario directly, using the harness file the scenario
+table above names for it:
 
 ```bash
 uv run pytest test/ci/invariants/test_fv_invariants.py -v
-uv run pytest test/ci/invariants/test_fvv_invariants.py -v
-uv run pytest test/ci/invariants/test_fvcv_extension_invariants.py -v
-uv run pytest test/ci/invariants/test_fvcv_handoff_invariants.py -v
 ```
 
 ### Locally (without demo artifacts)
 
-All tests will **skip** automatically when `devlogs/` is absent — safe
-to include in the regular unit-test run.
+Every test in a *scenario harness* **skips** automatically when `devlogs/` is
+absent, so the harnesses are safe to include in the regular unit-test run. The
+structural ratchets and helper unit tests listed above do not skip — they read
+source and docs, not artifacts, and are expected to run and pass everywhere.
+
+One consequence worth knowing: the `_AllSkipGuard` in
+`test/ci/invariants/conftest.py` (DEMOCI-10-005) forces a non-zero exit when
+*every* collected test skipped, which is how a vacuous green is caught. It
+judges the whole session, so it only works because CI invokes one harness file
+at a time. Do not "helpfully" widen that CI command to the directory — adding
+the non-skipping tests to the session defeats the guard.
 
 ---
 
 ## Invariant Status
 
-Per-actor parametrized tests (1, 12–14) show status per actor role.
-`✅` = passing today, `⚠️` = failing today and **not** `xfail`ed, so the job is
-red (the linked issue owns the fix).
+**The per-invariant inventory lives in
+[`notes/demo-ci-diagnostics.md`](../../notes/demo-ci-diagnostics.md)
+§ "Per-Invariant Diagnostic Map".** Read it there. That table names every
+universal invariant by test-function name, its `xfail`-or-active state and the
+issue owning each `xfail`, and which of the three diagnostic layers to check
+first — and `test/ci/invariants/test_diagnostic_map_sync.py` ratchets it against
+`make_universal_invariant_tests()`, so it cannot drift silently.
 
-> **Invariant 5 is currently red, by design.** ISSUE-2266 promoted
-> `engage_case` to the fifth universal expected event type (DEMOMA-16-001)
-> across all nine harnesses. The event is driven by every scenario but never
-> reaches the ledger, because the engage-case trigger returns HTTP 422
-> (`SvcEngageCaseUseCase failed: TransitionParticipantRMtoAccepted`) — root
-> cause tracked in **#2233**. Until that lands, invariant 5 fails in every
-> scenario. It was deliberately left un-`xfail`ed rather than hidden: #2242
-> exists precisely because these harnesses reported green on confirmed-broken
-> scenarios. Do not "fix" it by editing the expected-event-types constants.
+This section used to carry a second copy of that table, keyed by per-actor
+pass/fail. It is deliberately gone rather than resynced (ISSUE-3337). Two
+reasons, both worth knowing before adding another one:
 
-| # | Description | case-actor | vendor | finder | Resolved by |
-|---|-------------|-----------|--------|--------|-------------|
-| 1 | Local hash-chain consistency | ✅ | ✅ | ✅ | #789, #791 |
-| 2 | Cross-actor `entryHash` agreement per `logIndex` | ✅ | n/a | n/a | #789 |
-| 3 | Cross-actor `payloadSnapshot.actor` agreement | ✅ | n/a | n/a | #789 |
-| 4 | Every recorded entry has non-empty `payloadSnapshot` | ✅ | n/a | n/a | #789 |
-| 5 | All expected protocol `eventType`s present | ⚠️ | n/a | n/a | #1029, #1030; `engage_case` blocked on #2233 |
-| 6 | No RM-state oscillation after `CLOSED` | ✅ | n/a | n/a | #936 |
-| 7 | Log terminates with all participants `RM=CLOSED` | ✅ | n/a | n/a | #789 |
-| 8 | Late-joining participants have full pre-join history | ✅ | n/a | n/a | #937 |
-| 9 | Every `ParticipantStatus` has `emConsentState`+`cvdRole` | ✅ | n/a | n/a | #936 |
-| 10 | Nested objects inlined (not bare ID strings) | ✅ | n/a | n/a | #936 |
-| 11 | `payloadSnapshot.context` uses case URI | ✅ | n/a | n/a | #936 |
-| 12 | `logIndex=0` entry is present in actor's log | ✅ | ✅ | ✅ | #937 |
-| 13 | First entry in sorted log has `logIndex=0` | ✅ | ✅ | ✅ | #937 |
-| 14 | No gaps in held `logIndex` range (`min`–`max`) | ✅ | ✅ | ✅ | #937 |
-| 15 | All key CS transitions observed (`VFd`, `VFD`, `Pxa`) | ✅ | n/a | n/a | #1020 |
+- **Two tables on one subject drift apart, and the reader cannot tell which is
+  wrong.** This copy still cited #789/#791/#937 long after all three closed,
+  omitted the four invariants added since it was written, and carried a row for
+  invariant 8, which is not universal at all.
+- **Per-actor pass/fail is not derivable from source**, so nothing can ratchet
+  it. It records the outcome of one demo run on one day. The CI run is the
+  ground truth for pass/fail; a checked-in doc is not.
+
+The rule that follows: a doc may state what the source says — the `xfail`-vs-
+active ratchet state and who owns each `xfail` — and must leave today's
+pass/fail to CI.
 
 ---
 
@@ -120,8 +121,15 @@ red (the linked issue owns the fix).
 1. Add a `check_<name>` function to `test/ci/invariants/common.py`
    following the existing pattern (returns `list[str]` of violations).
 
-2. Add a `test_invariant_<N>_<slug>` function to each scenario test file
-   that calls the new check function.
+2. Add a `test_invariant_<N>_<slug>` closure to
+   `make_universal_invariant_tests()` in
+   `test/ci/invariants/universal_harness.py`, and register it in that
+   function's `result` dict. Do **not** copy the test into the nine scenario
+   files — the factory injects it into all of them (ISSUE-2007).
+
+3. Add a row for it to the diagnostic map in
+   [`notes/demo-ci-diagnostics.md`](../../notes/demo-ci-diagnostics.md).
+   `test/ci/invariants/test_diagnostic_map_sync.py` fails until you do.
 
 ### Scenario-specific invariant
 
@@ -152,7 +160,9 @@ red (the linked issue owns the fix).
        ...
    ```
 
-   Then add a row to the invariant status table above.
+   Name the owning issue in the `reason` string. For a universal invariant,
+   record the same issue number in the diagnostic map's Status column;
+   `test_diagnostic_map_sync.py` checks that the two agree.
 
 ### Adding a new scenario
 
@@ -160,12 +170,39 @@ red (the linked issue owns the fix).
 
 2. Define a module-scoped fixture that calls `load_devlogs(demo_name=...)`.
 
-3. Add the universal invariants by importing from `common.py` and calling
-   the check helpers.
+3. Get the universal invariants by calling `make_universal_invariant_tests()`
+   and splatting the result into module globals — **not** by importing
+   `check_*` helpers from `common.py` and hand-rolling test functions. Copying
+   them by hand is how a harness ends up with an arbitrary subset:
 
-4. Add scenario-specific invariants below the universal section.
+   ```python
+   from test.ci.invariants.universal_harness import make_universal_invariant_tests
 
-5. Update the scenario table at the top of this document.
+   globals().update(
+       make_universal_invariant_tests(
+           replicas_fixture="<scenario>_replicas",
+           chain_actors=_CHAIN_ACTORS,
+           expected_event_types=_<SCENARIO>_EXPECTED_EVENT_TYPES,
+           narrative_path="docs/topics/scenarios/<scenario>.md",
+       )
+   )
+   ```
+
+   Pass `narrative_path`. Omitting it is legal and silently drops invariant 16
+   (causal-edge ordering) for this scenario.
+
+4. Add scenario-specific invariants below the universal section — count checks,
+   late-joiner checks, and any protocol-path constraint unique to this
+   scenario. Import `check_*` helpers from `common.py` for these rather than
+   writing the logic inline.
+
+5. Register the `demo:` / `test_file:` pair in `.github/demo-scenarios.json`.
+   That file is the **sole** registry: until the pair is there, the scenario is
+   in no CI matrix and nothing runs it.
+   `test_all_ci_scenarios_have_a_harness_module` pins the scenario count, so it
+   fails until DEMOMA-16 and the `notes/` scenario tables are updated too.
+
+6. Update the scenario table at the top of this document.
 
 ---
 

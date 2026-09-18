@@ -293,8 +293,10 @@ jobs:
           path: devlogs/
 
       # AC-925-1: run canonical-log invariant harness against JSONL artifacts.
-      # All invariants are currently passing; no xfail markers are in use.
-      # See test/ci/README-case-log-ratchet.md for the invariant inventory.
+      # Two universal invariants carry a live xfail marker (both owned by
+      # #2505); every other invariant is active, so a failure here is a real
+      # regression.  The inventory and per-invariant diagnostics live in
+      # notes/demo-ci-diagnostics.md - "Per-Invariant Diagnostic Map".
       - name: Set up Python and uv
         uses: ./.github/actions/setup-python-uv
 

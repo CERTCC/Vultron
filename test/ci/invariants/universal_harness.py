@@ -1,4 +1,4 @@
-"""Factory for the 16 universal case-ledger invariant test functions.
+"""Factory for the universal case-ledger invariant test functions.
 
 Each scenario harness calls::
 
@@ -10,12 +10,20 @@ Each scenario harness calls::
         )
     )
 
-to inject all 16 universal test functions without copying their
-implementations (ISSUE-2007, AC-1).
+to inject every universal test function without copying their
+implementations (ISSUE-2007, AC-1).  The returned ``result`` dict below is
+the definitive inventory — do not restate its size in prose, here or in
+docs, because that number is what goes stale (ISSUE-3337).
 
 The injected functions use ``request.getfixturevalue(replicas_fixture)``
 to retrieve the calling module's scenario-specific replicas fixture at
 pytest collection time.
+
+Diagnostic guidance per invariant (which layer to check first, which
+``xfail`` markers are live and who owns them) lives in
+``notes/demo-ci-diagnostics.md`` § "Per-Invariant Diagnostic Map", which
+``test/ci/invariants/test_diagnostic_map_sync.py`` ratchets against this
+factory.
 """
 
 from __future__ import annotations
