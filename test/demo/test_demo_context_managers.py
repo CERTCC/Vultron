@@ -414,8 +414,7 @@ class TestUnboundLocalErrorRegression:
         import vultron.demo.helpers.workflow as workflow_mod
 
         monkeypatch.setattr(
-            workflow_mod,
-            "post_to_trigger",
+            "vultron.demo.actor_session.post_to_trigger",
             MagicMock(side_effect=RuntimeError("trigger failed")),
         )
 
@@ -439,8 +438,7 @@ class TestUnboundLocalErrorRegression:
         import vultron.demo.helpers.workflow as workflow_mod
 
         monkeypatch.setattr(
-            workflow_mod,
-            "post_to_trigger",
+            "vultron.demo.actor_session.post_to_trigger",
             MagicMock(side_effect=RuntimeError("trigger failed")),
         )
 
@@ -471,8 +469,7 @@ class TestUnboundLocalErrorRegression:
         import vultron.demo.helpers.workflow as workflow_mod
 
         monkeypatch.setattr(
-            workflow_mod,
-            "post_to_trigger",
+            "vultron.demo.actor_session.post_to_trigger",
             MagicMock(side_effect=RuntimeError("trigger failed")),
         )
 

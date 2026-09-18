@@ -31,7 +31,9 @@ from vultron.demo.helpers.polling import (
     CROSS_CONTAINER_TIMEOUT,
     _poll_until,
 )
-from vultron.demo.utils import DataLayerClient, post_to_trigger
+from vultron.demo.actor_session import ActorSession
+from vultron.demo.utils import DataLayerClient
+from vultron.wire.as2.vocab.base.objects.actors import as_Actor
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCase,
 )
@@ -110,23 +112,19 @@ def trigger_log_commit(
 
     Spec: SYNC-02-002, SYNC-02-003.
     """
-    result = post_to_trigger(
-        client=client,
-        actor_id=actor_id,
-        behavior="sync-log-entry",
-        body={
-            "case_id": case_id,
-            "object_id": object_id if object_id is not None else case_id,
-            "event_type": event_type,
-        },
-        path_prefix="demo",
+    session = ActorSession(
+        client=client, actor=as_Actor(id_=actor_id)
+    ).with_case(as_VulnerabilityCase(id_=case_id))
+    result = session.sync_log_entry(
+        object_id=object_id if object_id is not None else case_id,
+        event_type=event_type,
     )
-    entry_hash: str = result["entry_hash"]
+    entry_hash = result.entry_hash
     logger.info(
         "Log entry committed for case '%s': hash=%s, index=%d",
         case_id,
         entry_hash[:16],
-        result.get("log_index", -1),
+        result.log_index if result.log_index is not None else -1,
     )
     return entry_hash
 
