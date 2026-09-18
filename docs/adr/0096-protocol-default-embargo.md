@@ -23,7 +23,7 @@ It is unrepresentable, for four independent reasons:
 | Fact | Where |
 |---|---|
 | EM is defined as a global **per-case** state machine | `docs/reference/glossary.md` |
-| EM state exists only as `CaseStatus.em` (an `EmDimension`) | `vultron/core/models/dimensions.py` |
+| EM state exists only as `CaseStatus.em` (an `EmDimension`) | `vultron/core/models/case_status.py`, `dimensions.py` |
 | `EmbargoEvent.context` is required, and every core construction site sets it to `case_id` | `vultron/core/behaviors/case/nodes/embargo.py`, `triggers/embargo/{propose,revise}.py` |
 | `EmbargoLifecycle.propose_embargo(case_id=…)` raises `VultronNotFoundError` when the case does not resolve | `vultron/core/services/embargo_lifecycle.py` |
 
@@ -134,7 +134,9 @@ that competed under shortest-wins would win against every longer proposal and ca
 every embargo in the system at 72 hours; no longer embargo could ever be agreed.
 
 Code must stop conflating them. `_DEFAULT_EMBARGO_DAYS` and the blackboard key
-`default_embargo_duration` currently carry both meanings.
+`default_embargo_duration` currently carry both meanings, and
+`EmbargoEvent.end_time`'s 45-day field default is a third implicit duration
+carried nowhere anyone would look for it (#3404).
 
 ### The protocol default is configurable within a fixed range
 
@@ -142,10 +144,18 @@ The protocol default embargo duration MUST be configurable, and MUST be no less
 than 72 hours and no more than 5 days. Deployments tune it; none may quietly
 restore a value generous enough to re-invert the incentive.
 
-The 72-hour floor is not arbitrary — it equals the minimum RSVP window already
-established by EP-07-002. Aligning them means the shortest embargo the protocol
-will ever produce is exactly as long as the shortest answer window it will ever
-grant, so the two numbers need no relationship maintained between them.
+The 72-hour floor is not arbitrary — it equals the *configured* minimum RSVP
+window already established by EP-07-002. Aligning them means the shortest embargo
+the protocol will ever produce is exactly as long as the shortest answer window it
+grants by default, so the two configured numbers move together rather than needing
+to be reconciled.
+
+The alignment does not remove the relationship entirely, and the next section is
+why. Because a *stated* proposal may be shorter than the protocol default,
+EP-07-002's effective minimum has to become the lesser of the configured window
+and the time remaining in the embargo. So there is still arithmetic relating the
+RSVP floor to the embargo duration — the alignment buys that the arithmetic never
+fires on the protocol-default path, not that it does not exist.
 
 This overturns `defaults.md` § "No Defaults, No Proposals". That section's rule
 — no defaults and no proposals means no embargo — optimizes for formal tidiness
@@ -156,13 +166,28 @@ least deliberate way to arrive there.
 ### Every eligible Case is created with an Active embargo
 
 A Case is created with an Active embargo unless the vulnerability is already
-public. `EMB-01-002` already forbids proposing an embargo once any of P/X/A is
-set, enforced by `_assert_pxa_embargo_eligible()`; the protocol default inherits
-that guard rather than bypassing it. An embargo on an already-public
+public. `VP-06-001` already forbids *proposing or accepting* an embargo
+negotiation once any of P/X/A is set (`EMB-01-002` is the accept half of the same
+prohibition), enforced by `_assert_pxa_embargo_eligible()`; the protocol default
+inherits that guard rather than bypassing it. An embargo on an already-public
 vulnerability protects nothing.
 
-`EM.NONE` remains reachable for a live Case via `PROPOSED → NONE` on reject
-(`vultron/core/states/em.py`), so no state is orphaned by this.
+This narrows which EM states a live Case can be observed in, and the narrowing is
+sharper than it first looks. `EM.NONE` survives: it is where a non-eligible Case
+sits from creation. `EM.PROPOSED` is the state that thins out. Its only entry is
+`PROPOSE: NONE → PROPOSED` (`vultron/core/states/em.py`), EP-04-002 requires the
+creation-time traversal of it to be atomic and never observable, and the Cases
+still at `NONE` are exactly the non-eligible ones where `VP-06-001` forbids
+proposing. So once a sender-side proposal exists, shortest-wins puts the losing
+duration at `EM.REVISE`, not `EM.PROPOSED`, and an *externally observable*
+`EM.PROPOSED` has no remaining producer.
+
+That is an acceptable consequence rather than a hidden one: `EM.PROPOSED` stays in
+the machine because EP-04-002 traverses it, and because a Case that leaves `NONE`
+by becoming eligible later needs it. But the EM state-machine documentation
+describes `Proposed` as a state participants sit in and negotiate from, and that
+description is now narrower than it reads. Worth revisiting if a later decision
+wants an observable proposal step.
 
 ### The protocol default is a fallback, not a minimum
 
@@ -198,18 +223,34 @@ and 12 hours is not unreasonable when 12 hours is the whole embargo.
 
 ### A Reporter states terms by embedding a proposed `EmbargoEvent`
 
-`Offer(VulnerabilityReport)` carries a proposed `EmbargoEvent`. Its factory
-already forwards arbitrary AS2 fields, and its own docstring describes it as *"the
-RS message when no case exists"* — it is the right activity to carry pre-case
-terms.
+`Offer(VulnerabilityReport)` carries a proposed `EmbargoEvent`. Its own docstring
+describes it as *"the RS message when no case exists"* — it is the right activity
+to carry pre-case terms.
 
-This requires widening `EmbargoEvent.context` from *always a Case* to **the thing
-the embargo is about**: the Report before a Case exists, the Case afterwards. At
-Case creation the context is rewritten to the Case id. The widening is a semantic
-change, not a type change — `context` is a `NonEmptyString` and is only ever
-*cast* to a Case (`vultron/core/models/events/embargo.py`), never validated as
-one. `CreateEmbargoEventPattern`'s `context_=VULNERABILITY_CASE` constraint
-widens correspondingly.
+It does not carry them for free. `_RmSubmitReportActivity`
+(`vultron/wire/as2/vocab/activities/report.py`) declares only `object_`, and the
+AS2 base model sets no `extra` policy, so Pydantic's default `extra="ignore"`
+applies: an undeclared keyword passed to the factory is silently dropped. The
+proposal therefore needs a **declared optional field** on the Offer activity
+model. That is one field on one existing class — it is not a new object, a new
+context type, a new storage shape, or a migration — but it is not zero work, and
+an implementer who believes the factory already forwards arbitrary fields will
+write a proposal that vanishes without an error.
+
+This also requires widening `EmbargoEvent.context` from *always a Case* to **the
+thing the embargo is about**: the Report before a Case exists, the Case
+afterwards. At Case creation the context is rewritten to the Case id. The widening
+is a semantic change, not a type change — the field is
+`EmbargoEvent.context` in `vultron/core/models/embargo_event.py`, typed
+`NonEmptyString`, and nothing validates it as a Case reference. (Do not confuse it
+with `VultronEvent.context` in `vultron/core/models/events/base.py`, a
+`VultronObject | None` holding the inbound activity's resolved context; the casts
+to `VultronCase` in `events/embargo.py` are on *that* field, for `Announce` and
+`Invite` events whose context genuinely is a Case, and are unaffected.)
+`CreateEmbargoEventPattern`'s `context_=VULNERABILITY_CASE` constraint widens
+correspondingly, to declare the intent — that pattern matches `context_`
+permissively today, and it keys on `TAtype.CREATE`, so it never sees an `Offer` at
+all.
 
 This discharges EP-04-004's contingency and makes EP-04-003 — shortest-wins at
 Case creation — reachable for the first time.
@@ -295,8 +336,10 @@ object it would negotiate over already exists; what this decision declines is th
 
 ### Revive the proto-case (ADR-0015)
 
-- Good, because `notes/embargo-default-semantics.md` § "Known Gap" already
-  proposes it, and it reuses existing machinery.
+- Good, because `notes/embargo-default-semantics.md` already proposed it as one of
+  two design paths for closing the reporter-proposal gap, and it reuses existing
+  machinery. (That section is now § "Resolved: Reporter Embargo Proposal
+  Mechanism (EP-04-004)", carrying a do-not-revive warning.)
 - Bad, because ADR-0041 supersedes ADR-0015 for precisely this window, and
   ADR-0089 re-rejected it when deciding where pre-case RM state lives.
 - Bad, because it makes every prospective report a real Case, including the ones
@@ -346,7 +389,7 @@ all — not embargo state location. Their prerequisites are the actor identity
 model (G13, #2841, whose own acceptance criteria already name public-key
 discovery) rather than anything decided here.
 
-Four defects surfaced while scoping and are fixed or recorded here:
+Five defects surfaced while scoping and are fixed or recorded here:
 
 1. The silent 90-day fallback, contradicting `defaults.md`,
    `notes/embargo-default-semantics.md` and `em/principles.md`, and inverting the
@@ -356,6 +399,15 @@ Four defects surfaced while scoping and are fixed or recorded here:
 3. An RSVP deadline may outlive the embargo it concerns — unguarded, and a gap in
    ADR-0065 as it stands.
 4. `rm_em.md` asserts an EM transition on a machine instance that cannot exist.
+5. A *second* undeclared default duration: `EmbargoEvent.end_time` carries
+   `default_factory=_45_days_hence` (`vultron/core/models/embargo_event.py`), so
+   any `EmbargoEvent` constructed without an explicit `end_time` silently acquires
+   45 days — nine times the 5-day ceiling this decision sets, and as unchosen a
+   number as the 90. EP-04-010 covers it; tracked as #3404.
+
+Defect 3 is the one worth remembering: it was found only because aligning the
+protocol-default floor with EP-07-002's minimum RSVP window forced a look at how
+the two timers relate.
 
 Related decisions: ADR-0065 (RSVP deadline and pocket veto as one mechanism),
 ADR-0041 (CASE_MANAGER-authoritative case initialisation, superseding ADR-0015),
@@ -364,6 +416,9 @@ ADR-0089 (pre-case RM state belongs to `ReportCaseLink`), ADR-0048 and ADR-0091
 ADR-0080 (protocol asks).
 
 Generated spec requirements: `specs/embargo-policy.yaml` EP-04-001 and EP-04-004
-(amended), EP-04-005 through EP-04-010 (new), EP-07-002 and EP-07-003 (amended);
-`specs/case-management.yaml` CM-28-011 (new); `specs/vultron-as2-mapping.yaml`
-VAM-05-001 (amended). Design notes: `notes/embargo-default-semantics.md`.
+(amended), EP-04-005 through EP-04-010 (new), EP-07-002, EP-07-003 and EP-07-005
+(amended), EP-07-006 (new); `specs/case-management.yaml` CM-28-011 (new),
+CM-12-004, CM-14-006, CM-14-010 and CM-28-002 (amended);
+`specs/vultron-protocol-spec.yaml` VP-07-001 (amended);
+`specs/vultron-as2-mapping.yaml` VAM-05-001 (amended). Design notes:
+`notes/embargo-default-semantics.md`.

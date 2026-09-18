@@ -111,13 +111,14 @@ EP-04-001 and EP-04-005 apply at case creation.
 | What if *nobody* has a default or proposal? | Protocol default → ACTIVE (EP-04-005) | A case with no embargo is what the EM process exists to avoid; reaching it by mutual silence is the least deliberate route there. ADR-0096. |
 | Does the protocol default take part in shortest-wins? | **No** (EP-04-006) | A short default that competed would beat every longer proposal and cap every embargo at its own length. |
 | Is the protocol default a minimum on agreed terms? | No (EP-04-007) | It bounds the fallback, not what parties may agree. A 12-hour proposal yields 12 hours. |
-| What if the vulnerability is already public? | No embargo; `EM.NONE` (EP-04-008) | EMB-01-002 already forbids proposing once P/X/A is set. An embargo on a public vulnerability protects nothing. |
+| What if the vulnerability is already public? | No embargo; `EM.NONE` (EP-04-008) | VP-06-001 already forbids proposing *or accepting* once P/X/A is set (EMB-01-002 is the accept half). An embargo on a public vulnerability protects nothing. |
 
 ---
 
 ## Implementation: `InitializeDefaultEmbargoNode`
 
-`InitializeDefaultEmbargoNode` (in `vultron/core/behaviors/case/nodes/embargo.py`)
+`InitializeDefaultEmbargoNode` (in `vultron/core/behaviors/case/embargo_tree.py`;
+the leaf nodes it composes live in `vultron/core/behaviors/case/nodes/embargo.py`)
 implements the default path by delegating to `EmbargoLifecycle.propose_embargo()`
 followed by an internal accept, landing the case at `EM.ACTIVE` atomically. The
 intermediate `EM.PROPOSED` state is never persisted or externally observable
@@ -168,6 +169,22 @@ Two smaller traps in the same function:
   policy applied was arbitrary when an actor's store held more than one.
 - Its 90-day value was never *chosen*; it sat at the far end of `em/principles.md`'s
   "a few days to a few months" by default.
+
+### There is a third implicit duration, and it is the quietest
+
+`_DEFAULT_EMBARGO_DAYS` is not the only unchosen number. `EmbargoEvent.end_time`
+(`vultron/core/models/embargo_event.py`) carries
+`default_factory=_45_days_hence`, so **any** `EmbargoEvent` constructed without an
+explicit `end_time` silently acquires 45 days — nine times the 5-day ceiling
+EP-04-005 sets, and reachable from any construction site that forgets the argument.
+
+It is worth naming separately because it hides differently from the 90-day fallback.
+The 90 days was at least reachable by reading one function that everyone knew
+resolved the default. A field default applies wherever the object is built, with no
+call site to inspect. EP-04-010 therefore requires the protocol default be the
+*single* source of the fallback duration: all three carriers — the 90-day constant,
+the shared blackboard key, and this field default — must resolve to it or be made
+explicit at construction. Tracked as #3404.
 
 ## Resolved: Reporter Embargo Proposal Mechanism (EP-04-004)
 
@@ -249,9 +266,16 @@ principled: the floor exists to stop an *unreasonably* short deadline, and a
 deadline equal to the whole embargo is not unreasonable.
 
 Why the protocol default floor is 72 hours and not 24: it is set equal to
-EP-07-002's minimum RSVP window on purpose, so the shortest embargo the protocol
-produces is exactly as long as the shortest answer window it grants. Two numbers
-that would otherwise need a relationship maintained between them become one.
+EP-07-002's *configured* minimum RSVP window on purpose, so the shortest embargo the
+protocol produces is exactly as long as the shortest answer window it grants by
+default. The two configured numbers move together instead of needing to be
+reconciled.
+
+Note what that alignment does **not** buy. Because a stated proposal may be shorter
+than the protocol default, EP-07-002's *effective* minimum still has to be computed
+as the lesser of the configured window and the time remaining in the embargo. The
+arithmetic relating the RSVP floor to the embargo duration exists either way; the
+alignment only guarantees it never fires on the protocol-default path.
 
 ---
 
@@ -270,9 +294,14 @@ The rules specified in EP-04 derive directly from
 
 ## Cross-references
 
-- `specs/embargo-policy.yaml` EP-04-001 through EP-04-010, EP-07-002/003/006
-- `specs/case-management.yaml` CM-12-004 (default embargo at case creation),
-  CM-18-002 (pocket-veto policy window), CM-28-011 (window bounded by the embargo)
+- `specs/embargo-policy.yaml` EP-04-001 through EP-04-010, EP-07-002/003/005/006
+- `specs/case-management.yaml` CM-12-004 and CM-14-010 (default embargo at case
+  creation, no longer conditional on a configured policy), CM-14-006 (reporter
+  proposal reconciliation, now reachable), CM-18-002 (pocket-veto policy window),
+  CM-28-002 (explicit `Invite.end_time` precedence, bounded by EP-07-006),
+  CM-28-011 (window bounded by the embargo)
+- `specs/vultron-protocol-spec.yaml` VP-07-001 (the "no embargo SHALL exist" rule
+  the protocol default replaces), VP-06-001 (propose/accept forbidden once P/X/A is set)
 - `specs/vultron-as2-mapping.yaml` VAM-05-001 (`Create(Event)` context may be a report)
 - `specs/duration.yaml` DUR-07-003 (default embargo logging)
 - `docs/topics/process_models/em/defaults.md` (authoritative protocol source)

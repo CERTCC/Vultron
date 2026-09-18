@@ -118,8 +118,15 @@ duration fixed by the protocol itself.
 stateDiagram-v2
     direction LR
     [*] --> N
-    N --> A : protocol default
+    N --> P : propose<br/>(protocol default)
+    P --> A : accept
 ```
+
+As on the other paths below, the two transitions are applied atomically at case
+creation and the intermediate *Proposed* state is never externally observable
+(see [Why *Active* and Not *Proposed*?](#why-active-and-not-proposed) above).
+What is different here is only the source of the duration: the protocol itself,
+rather than either party.
 
 !!! note ""
 
@@ -152,7 +159,7 @@ would remove the reason to publish at all.
 
     | Term | What it is | Competes under shortest-wins? |
     |---|---|---|
-    | **Actor default** | A duration from a published Vulnerability Disclosure Policy — a *standing proposal* | **Yes** |
+    | **Actor default** | A duration from an Actor's published `EmbargoPolicy` — a *standing proposal* | **Yes** |
     | **Protocol default** | The fallback when no proposal and no actor default applies | **No** |
 
 Nor is the protocol default a *minimum*. A Participant who proposes terms

@@ -50,8 +50,11 @@ Two mechanisms give the Sender what they need instead:
 
 !!! note ""
 
-    If it has not already begun, the [EM](../em/index.md) process SHOULD begin when a recipient
-    is in RM _Received_ ($q^{rm} \in R$) whenever possible.
+    The [EM](../em/index.md) process SHALL begin when a recipient reaches RM _Received_
+    ($q^{rm} \in R$), because that is when the case exists. For an embargo-eligible case
+    this is not merely a SHOULD: an embargo is established at case creation, from the
+    Recipient's published default, the Sender's proposal, or the
+    [protocol default](../em/defaults.md#no-defaults-no-proposals-the-protocol-default).
 
 ```mermaid
 stateDiagram-v2
@@ -61,9 +64,14 @@ stateDiagram-v2
     }
     state EM {
         None --> Proposed : propose
+        Proposed --> Active : accept
     }
-    RM --> EM : begin if not<br/>already started
+    RM --> EM : begin at<br/>case creation
 ```
+
+The *propose* and *accept* transitions above are applied atomically at case creation
+and the intermediate *Proposed* state is never externally observable
+([EP-04-002](../em/defaults.md#why-active-and-not-proposed)).
 
 ## Negotiate Embargoes for Active Reports
 

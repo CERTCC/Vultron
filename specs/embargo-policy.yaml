@@ -286,9 +286,10 @@ groups:
     kind: protocol
     statement: >-
       A **protocol default** embargo duration MUST exist and MUST be configurable. It MUST be
-      no less than 72 hours and no more than 5 days. When a case is created and no embargo
-      proposal and no actor default applies, the protocol default MUST be used and the case
-      MUST begin at `EM.ACTIVE`.
+      no less than 72 hours and no more than 5 days. When an embargo-eligible case is created and
+      no embargo proposal and no actor default applies, the protocol default MUST be used and the
+      case MUST begin at `EM.ACTIVE`. Where the case is not embargo-eligible, EP-04-008 applies
+      instead and no protocol default embargo is created.
     rationale: >-
       The goal of the EM process is to lock in *an* embargo as early as possible
       (`docs/topics/process_models/em/principles.md`). A case with no embargo is the outcome
@@ -300,18 +301,24 @@ groups:
       incentive: a receiver who published nothing got a longer embargo than one who published a
       considered 30 days.
 
-      The 72-hour floor is not arbitrary — it equals the EP-07-002 minimum RSVP window, so the
-      shortest embargo the protocol produces is exactly as long as the shortest answer window
-      it grants, and the two need no relationship maintained between them. The 5-day ceiling
-      prevents a deployment from quietly restoring a value generous enough to re-invert the
-      incentive.
+      The 72-hour floor is not arbitrary — it equals the *configured* EP-07-002 minimum RSVP
+      window, so the shortest embargo the protocol produces is exactly as long as the shortest
+      answer window it grants. Note that this alignment holds at the configured values only:
+      EP-07-002's effective minimum is the lesser of that window and the time remaining in the
+      embargo, precisely so that the floor cannot outlive a shorter agreed embargo (EP-07-006).
+      The 5-day ceiling prevents a deployment from quietly restoring a value generous enough to
+      re-invert the incentive.
 
-      This overturns `docs/topics/process_models/em/defaults.md` § "No Defaults, No Proposals",
-      which stated that no embargo SHALL exist in this case. See ADR-0096.
+      This overturns `docs/topics/process_models/em/defaults.md` § "No Defaults, No Proposals"
+      and its corpus encoding VP-07-001, both of which stated that no embargo SHALL exist in
+      this case. See ADR-0096.
     verification: >-
       A unit test asserts that a case created with no `EmbargoPolicy` in the store and no
       sender proposal reaches `EM.ACTIVE` at the configured protocol default, and that
       configuring a value outside [72 hours, 5 days] is refused.
+    relationships:
+    - rel_type: constrains
+      spec_id: VP-07-001
     adr:
     - ADR-0096
     stories:
@@ -366,16 +373,19 @@ groups:
       any of P/X/A is set at case creation, no protocol default embargo is created and the
       case MUST remain at `EM.NONE`.
     rationale: >-
-      EMB-01-002 already forbids proposing an embargo once the vulnerability is public,
-      exploit code is public, or attacks are observed. An embargo on an already-public
-      vulnerability protects nothing, so the protocol default inherits that guard rather than
-      bypassing it. See ADR-0096.
+      VP-06-001 already forbids proposing or accepting an embargo negotiation once the
+      vulnerability is public, exploit code is public, or attacks are observed (EMB-01-002 is the
+      accept half of the same prohibition). An embargo on an already-public vulnerability
+      protects nothing, so the protocol default inherits that guard rather than bypassing it.
+      See ADR-0096.
     verification: >-
       A unit test asserts that a case created with `pxa_state != CS_pxa.pxa` receives no
       protocol default embargo and remains at `EM.NONE`.
     relationships:
     - rel_type: refines
-      spec_id: EMB-01-002
+      spec_id: VP-06-001
+    - rel_type: constrains
+      spec_id: EP-04-005
     adr:
     - ADR-0096
     stories:
@@ -389,15 +399,21 @@ groups:
       is a case without checking.
     rationale: >-
       A proposal embedded on `Offer(VulnerabilityReport)` (EP-04-004) precedes the case, so it
-      has no case URI to point at. Widening the subject is a semantic change, not a type
-      change: `context` is a `NonEmptyString` and is only ever *cast* to a case in
-      `vultron/core/models/events/embargo.py`, never validated as one. This also gives
-      pre-case embargo terms a legitimate home, which is what CONCERN-2215 asked for; what
-      ADR-0096 declines is the pre-case *phase*, not the *representation*.
+      has no case URI to point at. Widening the subject is a semantic change, not a type change:
+      the field is `EmbargoEvent.context` in `vultron/core/models/embargo_event.py`, typed
+      `NonEmptyString`, and nothing validates it as a case reference. This also gives pre-case
+      embargo terms a legitimate home, which is what CONCERN-2215 asked for; what ADR-0096
+      declines is the pre-case *phase*, not the *representation*.
+    note: >-
+      Do not confuse this field with `VultronEvent.context` in
+      `vultron/core/models/events/base.py`, which is typed `VultronObject | None` and holds the
+      *inbound activity's* resolved context. The casts to `VultronCase` in
+      `vultron/core/models/events/embargo.py` are on that field, for `Announce`/`Invite` events
+      whose context genuinely is a case, and are unaffected by this widening.
     verification: >-
-      A unit test confirms an `EmbargoEvent` constructed with a report URI context validates,
-      and that the two cast sites in `vultron/core/models/events/embargo.py` check the
-      referent type rather than assuming a case.
+      A unit test confirms an `EmbargoEvent` constructed with a report URI context validates, and
+      that every consumer of `EmbargoEvent.context` resolves the referent type rather than
+      assuming a case.
     adr:
     - ADR-0096
     stories:
@@ -408,7 +424,9 @@ groups:
     statement: >-
       Implementations MUST NOT conflate the actor default with the protocol default. The two
       MUST be carried under distinct names, so that a consumer can distinguish "the receiver
-      published this duration" from "the receiver published nothing".
+      published this duration" from "the receiver published nothing". The protocol default MUST
+      be the single source of the fallback duration: no other implicit default embargo duration
+      may be carried anywhere in the implementation.
     rationale: >-
       `_preferred_embargo_duration()` returned its fallback into the same blackboard key
       (`default_embargo_duration`) that a published `EmbargoPolicy` filled, so no downstream
@@ -416,10 +434,20 @@ groups:
       in contradiction of three documents. Additionally, that function selected `policies[0]`
       from an unordered list, making the applicable policy arbitrary when an actor's store
       holds more than one. See ADR-0096.
+    note: >-
+      Three implicit durations exist today, not one: `_DEFAULT_EMBARGO_DAYS = 90` in
+      `vultron/core/behaviors/case/nodes/embargo.py`, the blackboard key that carries both
+      meanings, and `EmbargoEvent.end_time`'s `default_factory=_45_days_hence` in
+      `vultron/core/models/embargo_event.py`. The 45-day default is the quietest of the three —
+      any `EmbargoEvent` built without an explicit `end_time` silently acquires it, nine times the
+      5-day ceiling EP-04-005 sets. All three must resolve to the configured protocol default or
+      be made explicit at every construction site.
     verification: >-
       Inspection of `vultron/core/behaviors/case/nodes/embargo.py` confirms the actor default
       and the protocol default are resolved under distinct names, and that actor-default
-      selection is deterministic rather than positional.
+      selection is deterministic rather than positional. Inspection of
+      `vultron/core/models/embargo_event.py` confirms no independent default embargo duration
+      remains on `EmbargoEvent.end_time`.
     adr:
     - ADR-0096
     lint_suppress:
@@ -540,7 +568,7 @@ groups:
       minimum window, and that for an embargo whose remaining duration is shorter
       than that window the remaining duration is used as the minimum instead.
     relationships:
-    - rel_type: constrains
+    - rel_type: refines
       spec_id: EP-07-006
     adr:
     - ADR-0065
@@ -639,19 +667,30 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      A receiving actor MUST log the deadline clamp when it clamps an
-      `Invite(EmbargoEvent)` deadline up to the configured minimum window.
+      A receiving actor MUST log every deadline clamp it applies to an
+      `Invite(EmbargoEvent)` deadline — both the EP-07-003 clamp up to the
+      applicable minimum window and the EP-07-006 clamp down to the embargo's
+      `end_time`.
     rationale: >-
       Logging the clamp makes the adjustment observable for auditing and
       debugging without rejecting the invitation.
+    note: >-
+      Amended by ADR-0096. This requirement previously named only the up-clamp, and only
+      "the configured minimum window". The applicable minimum is now derived (EP-07-002:
+      the lesser of the configured window and the time remaining in the embargo), and a
+      second clamp direction exists. Both are adjustments a reader of the log needs to see.
     verification: >-
       A unit test confirms that clamping a sub-minimum deadline emits a log entry at
       the appropriate level recording both the original and the effective deadline
-      values.
+      values, and that clamping a deadline down to the embargo's `end_time` emits the
+      same record.
     relationships:
     - rel_type: refines
       spec_id: EP-07-003
+    - rel_type: refines
+      spec_id: EP-07-006
     adr:
     - ADR-0065
+    - ADR-0096
     stories:
     - story_2022_074

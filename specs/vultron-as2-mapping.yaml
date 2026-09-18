@@ -388,9 +388,17 @@ groups:
       or `Create(Event)[context=VulnerabilityReport]`. The context identifies the subject the
       embargo concerns, per EP-04-009.
     note: >-
-      Widened by ADR-0096. The report context serves the sender-side proposal of EP-04-004,
-      which is embedded on `Offer(VulnerabilityReport)` and therefore precedes the case. A
-      pattern that admitted only `VULNERABILITY_CASE` could not match it.
+      Widened by ADR-0096, so that a `Create(Event)` naming a report as its subject is a
+      recognised mapping rather than an accident of permissive matching. The report context
+      exists because EP-04-004's sender-side proposal precedes the case (EP-04-009).
+
+      Two things this widening does *not* do. It does not affect the proposal embedded on
+      `Offer(VulnerabilityReport)`: `ActivityPattern.match()` compares `activity_` before any
+      context check, so an `Offer` never matches a `TAtype.CREATE` pattern whatever its context —
+      extracting the embedded proposal is the `Offer` pattern's job, not this one. And it does not
+      change today's matching behaviour: `context_` is compared with `strict=False` hardcoded in
+      `ActivityPattern.match()`, so a bare URI string already matched. What changes is the
+      declared intent, which is what an implementer reads.
     verification: A unit test in `test/wire/as2/test_extractor.py` confirms that `Create(EmbargoEvent)` with a
       `VulnerabilityCase` context maps to `CREATE_EMBARGO_EVENT`, that the same activity with a
       `VulnerabilityReport` context also maps to `CREATE_EMBARGO_EVENT`, and inspection of `_instances.py`

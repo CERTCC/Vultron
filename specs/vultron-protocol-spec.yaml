@@ -796,12 +796,29 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      If neither Sender nor Receiver proposes an embargo and no policy defaults apply, no
-      embargo SHALL exist
+      If neither Sender nor Receiver proposes an embargo and no actor default applies, the
+      protocol default embargo of EP-04-005 SHALL apply. No embargo SHALL exist only where the
+      case is not embargo-eligible, that is where any of P/X/A is set (EP-04-008).
+    note: >-
+      Amended by ADR-0096. This requirement previously read "no embargo SHALL exist" in the
+      no-default, no-proposal case, which was the corpus encoding of
+      `docs/topics/process_models/em/defaults.md` § "No Defaults, No Proposals". ADR-0096
+      overturned that rule: a case with no embargo is the outcome the EM process exists to
+      avoid, and reaching it through mutual silence is the least deliberate way to arrive
+      there. The bounded protocol default replaces it; `EM.NONE` survives only behind the
+      embargo-eligibility guard.
     verification: >-
-      Integration tests in `test/demo/test_establish_embargo_demo.py` confirm
-      that EM initializes and remains in the None state when neither party has
-      a default policy and no proposal is made.
+      Integration tests in `test/demo/test_establish_embargo_demo.py` confirm that EM reaches
+      `EM.ACTIVE` at the configured protocol default when neither party has an actor default
+      and no proposal is made, and that EM remains in the None state when the case is not
+      embargo-eligible.
+    relationships:
+    - rel_type: refines
+      spec_id: EP-04-005
+    - rel_type: refines
+      spec_id: EP-04-008
+    adr:
+    - ADR-0096
     stories:
     - story_2022_004
     - story_2022_079

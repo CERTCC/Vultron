@@ -120,6 +120,27 @@ invite. Clamping keeps both parties deterministic and makes a coercively short
 deadline ineffective rather than fatal — rejecting outright would hand the
 sender a way to get their own invite discarded.
 
+> **Amended by ADR-0096 (2026-09-18).** This decision compares the RSVP deadline
+> against nothing but the configured minimum window, and clamps in one direction
+> only — up. Nothing here compares the deadline against the embargo it concerns,
+> so an answer window can outlive its own subject: invite a participant to a
+> 24-hour embargo with no explicit `Invite.end_time` and the CM-18-002 policy
+> window fires the pocket veto on day 7, six days after it stopped mattering. The
+> same happens on day 28 of a 30-day embargo, with no protocol default involved.
+>
+> ADR-0096 adds the missing ceiling (EP-07-006, CM-28-011): an RSVP deadline is
+> clamped **down** to the embargo's `end_time`. Two parts of this ADR narrow as a
+> result. Point 2's "authoritative" still settles precedence between the wire
+> value and the receiver's local policy window, but it no longer means unbounded —
+> an explicit `Invite.end_time` that outlives the embargo is clamped like any
+> other. And the minimum window in the abuse-mitigation paragraph above becomes
+> relative: the lesser of the configured window (72 hours by default) and the time
+> remaining in the embargo (EP-07-002), so the floor cannot contradict the new
+> ceiling when an agreed embargo is shorter than the floor. An invitee to a
+> 12-hour embargo gets a 12-hour window, which still serves the abuse rationale —
+> the floor exists to stop an *unreasonably* short deadline, and a deadline equal
+> to the whole embargo is not unreasonable.
+
 ### Consequences
 
 - Good, because lapse becomes computable by both parties from a shared field,

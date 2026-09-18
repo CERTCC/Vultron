@@ -11,8 +11,10 @@ phase before a Case exists. Members: #2215, #2075, #2060, #1189.
 **Resolved**: 2026-09-18 — no pre-case protocol phase. Design recorded in **ADR-0096**;
 implementation tracked in #3390, #3391, #3392, #3393.
 Docs PR: <https://github.com/CERTCC/Vultron/pull/3389>
-Spec: `specs/embargo-policy.yaml` EP-04-005 through EP-04-010, EP-07-006;
-`specs/case-management.yaml` CM-28-011; `specs/vultron-as2-mapping.yaml` VAM-05-001.
+Spec: `specs/embargo-policy.yaml` EP-04-005 through EP-04-010, EP-07-006 (new), EP-04-001/004,
+EP-07-002/003/005 (amended); `specs/case-management.yaml` CM-28-011 (new), CM-12-004, CM-14-006,
+CM-14-010, CM-28-002 (amended); `specs/vultron-protocol-spec.yaml` VP-07-001 (amended);
+`specs/vultron-as2-mapping.yaml` VAM-05-001 (amended).
 Notes: `notes/embargo-default-semantics.md`.
 
 ## The umbrella's premise was half-stale, and its framing was wrong twice
@@ -68,7 +70,7 @@ a member of it. It is also not a minimum — a 12-hour proposal yields 12 hours.
 receiver published 90 days" from "the receiver published nothing". That is the mechanism by which
 a behaviour three documents deny survived unnoticed.
 
-## Four defects surfaced
+## Five defects surfaced
 
 1. The silent 90-day fallback, contradicting three documents and inverting the publish incentive.
 2. `_preferred_embargo_duration()` selects `policies[0]` from an unordered `list_objects()`
@@ -79,12 +81,20 @@ a behaviour three documents deny survived unnoticed.
    `end_time` and the Pocket Veto fires on day 7. Reachable today without any protocol default —
    day 28 of a 30-day embargo does it. Recorded as a gap in ADR-0065 as it stood.
 4. `rm_em.md` asserting a transition on a machine that cannot exist.
+5. A second undeclared duration: `EmbargoEvent.end_time` defaults to `_45_days_hence`, so any
+   `EmbargoEvent` built without an explicit `end_time` silently gets 45 days — nine times the new
+   5-day ceiling. Found during PR review, not scoping; EP-04-010 widened to cover it. Impl #3404.
 
 Defect 3 is the one worth remembering: it was found only because aligning the protocol-default
 floor with EP-07-002's minimum RSVP window forced a look at how the two timers relate. The
-maintainer's first instinct was `minRSVP >= minProtoDefault`; that inequality is *satisfied*
-today (72h ≥ 24h) and is exactly what produces the bug. The coherent constraint runs the other
-way — an invitee must be able to answer while the embargo still exists.
+maintainer's first instinct was to constrain the two *configured* numbers against each other —
+`minRSVP >= minProtoDefault`, which the chosen values satisfy by construction (both 72h). That
+instinct is the trap: comparing the RSVP floor against the *default* embargo says nothing about
+the RSVP floor against a *particular* embargo, which is where the bug lives. Today's 90-day
+fallback makes the inequality false and the bug fires anyway; any protocol default makes it true
+and the bug still fires, because a 12-hour agreed embargo is reachable either way. The coherent
+constraint is not between the two configured numbers at all — it runs per-invitation: an invitee
+must be able to answer while the embargo still exists.
 
 ## Where each member's content went
 

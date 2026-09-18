@@ -94,7 +94,9 @@ date rather than `ET`.
 
 Tacit acceptance of a receiver's default embargo policy is specified at
 [§7.2](index.md#72-transitions-and-guards): submitting a report without proposing
-terms accepts the receiver's default.
+terms accepts the receiver's default. Where the receiver has published no default,
+the same section specifies a short protocol default, so an embargo-eligible case
+never begins without an embargo.
 
 ### 4.3 Case State Messages
 
