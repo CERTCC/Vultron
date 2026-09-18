@@ -55,6 +55,7 @@ Public API
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
+from datetime import timedelta
 from itertools import combinations
 from typing import Any
 
@@ -271,6 +272,8 @@ __all__ = [
 
 def extract_event(
     activity: as_Activity,
+    *,
+    min_rsvp_window: timedelta | None = None,
 ) -> AnyReceivedEvent:
     """Extract a typed ``AnyReceivedEvent`` from an AS2 activity.
 
@@ -281,24 +284,28 @@ def extract_event(
 
     Args:
         activity: The rehydrated AS2 activity to process.
+        min_rsvp_window: When supplied, overrides the default 72 h floor when
+            clamping a sub-floor inbound ``Invite.end_time`` (EP-07-003).
+            Pass ``ActorConfig.min_rsvp_window`` to apply actor-configured
+            floor enforcement.  Omit (or pass ``None``) to use the 72 h
+            protocol default.
 
     Returns:
         A concrete ``VultronEvent`` subclass populated with domain fields.
-
-    Note:
-        This wrapper always uses the 72 h default ``min_rsvp_window`` when
-        clamping inbound ``Invite.end_time`` values (EP-07-003).  Callers
-        that need actor-configured floor enforcement must call
-        ``extract_intent()`` directly and pass
-        ``min_rsvp_window=actor_config.min_rsvp_window``.
     """
     semantics = find_matching_semantics(activity)
     entry = lookup_entry(semantics)
+    extra: dict[str, Any] = (
+        {"min_rsvp_window": min_rsvp_window}
+        if min_rsvp_window is not None
+        else {}
+    )
     return _extract_intent(
         activity,
         semantics=semantics,
         event_class=entry.event_class,
         include_activity=entry.include_activity,
+        **extra,
     )
 
 

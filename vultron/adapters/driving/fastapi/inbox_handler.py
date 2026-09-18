@@ -37,6 +37,7 @@ from vultron.core.models.case import VulnerabilityCase
 from vultron.core.ports.datalayer import DataLayer
 from vultron.core.ports.dispatcher import ActivityDispatcher
 from vultron.core.ports.emitter import ActivityEmitter
+from vultron.errors import VultronProtocolViolationError
 from vultron.semantic_registry import (
     extract_event,
     use_case_map as _use_case_map,
@@ -317,6 +318,46 @@ def _log_rehydrated_item(item: as_Activity) -> None:
     logger.debug("Item has transitive object of type: %s", obj_type_label)
 
 
+def _rehydrate_inbox_item(
+    item_id: str,
+    dl: DataLayer,
+    queue_dl: DataLayer,
+) -> as_Activity | None:
+    """Rehydrate one inbox item, routing errors through the permanent/transient
+    classification instead of letting them escape (AC-1 of #3044).
+
+    Returns the rehydrated ``as_Activity`` or ``None`` on any error.
+    On a permanent failure (``VultronProtocolViolationError``) the item is not
+    re-queued; on any other exception it is re-queued for retry.
+    """
+    try:
+        obj = rehydrate(item_id, dl=dl)
+    except VultronProtocolViolationError:
+        logger.error(
+            "Protocol violation rehydrating inbox item %s"
+            " — skipping (permanent failure)",
+            item_id,
+            exc_info=True,
+        )
+        return None
+    except Exception:
+        logger.error(
+            "Error rehydrating inbox item %s — re-queuing for retry",
+            item_id,
+            exc_info=True,
+        )
+        queue_dl.inbox_append(item_id)
+        return None
+    if not isinstance(obj, as_Activity):
+        logger.error(
+            "Rehydrated inbox item %s is not an Activity: %s",
+            item_id,
+            type(obj).__name__,
+        )
+        return None
+    return obj
+
+
 def _process_inbox_item(
     actor_id: str,
     canonical_actor_id: str,
@@ -415,14 +456,15 @@ async def inbox_handler(
         if item_id is None:
             break
 
-        item = rehydrate(item_id, dl=dl)
-        if not isinstance(item, as_Activity):
-            logger.error(
-                "Rehydrated inbox item %s is not an Activity: %s",
-                item_id,
-                type(item).__name__,
-            )
+        item = _rehydrate_inbox_item(item_id, dl=dl, queue_dl=queue_dl)
+        if item is None:
             err_count += 1
+            if err_count > 3:
+                logger.error(
+                    "Too many errors processing inbox for actor %s, aborting.",
+                    actor_id,
+                )
+                break
             continue
 
         if not _process_inbox_item(
