@@ -651,13 +651,12 @@ class TestInviteeIsTheAddressee:
         assert all(node.target_actor_id == _INVITEE for node in lookups)
 
     def test_reject_from_signatory_transitions_to_declined(self, make_payload):
-        """A SIGNATORY rejecting an embargo revision transitions to DECLINED.
+        """A SIGNATORY rejecting transitions to DECLINED (ADR-0093).
 
-        ADR-0093 adds ``SIGNATORY → DECLINED`` as a first-class PEC
-        transition.  A ``SIGNATORY`` participant who explicitly rejects is
-        exercising consent withdrawal; the received-side reject tree issues
-        ``PEC_Trigger.DECLINE`` directly without needing an EM lifecycle
-        step to pass through ``LAPSED`` first.
+        ``DECLINE`` is now valid from ``SIGNATORY`` — the received side applies
+        the ``DECLINE`` PEC trigger directly, and the participant moves to
+        ``DECLINED``.  The case-level EM state is not changed (VP-13-009);
+        only the invitee's own consent record is updated.
         """
         dl = _make_dl(actor_id=_COORD)
         case_id = "https://example.org/cases/addressee8"
@@ -681,9 +680,10 @@ class TestInviteeIsTheAddressee:
 
         RejectInviteToEmbargoOnCaseReceivedUseCase(dl, event).execute()
 
-        # Consent withdrawal applied: SIGNATORY → DECLINED (ADR-0093).
+        # Invitee's consent withdrawal is recorded as DECLINED.
         invitee = self._read_participant(dl, invitee_p_id)
         assert invitee.embargo_consent_state == PEC.DECLINED
+        # CASE_MANAGER's own PEC is unaffected.
         coord = self._read_participant(dl, coord_p_id)
         assert coord.embargo_consent_state == PEC.UNBOUND
 

@@ -4,7 +4,7 @@ description: >-
   Requirements for the physical package layout of the use_cases package, registry
   synchronization, test mirroring, and documentation of the trigger-to-received-to-sync
   information flow pattern.
-version: 1.1.0
+version: 1.2.0
 scope:
 
 - prototype
@@ -38,8 +38,14 @@ groups:
     priority: MUST_NOT
     kind: project
     statement: >-
-      The `vultron/core/use_cases/` package root MUST contain only `__init__.py` and `use_case_map.py`;
-      use-case implementations MUST NOT be placed at the root level
+      The `vultron/core/use_cases/` package root MUST contain only `__init__.py` and shared
+      private helper modules; use-case implementations MUST NOT be placed at the root level
+    rationale: >-
+      Previously required a `use_case_map.py` at the package root. No such file exists or
+      ever did — the registry lives in `vultron/semantic_registry/`, where `use_case_map()`
+      is a function, and `DispatcherBase` receives the map by injection. The
+      no-implementations-at-root prohibition is the load-bearing half and is retained. See
+      #3377.
 - id: UCORG-02
   title: Registry Synchronization
   specs:
@@ -119,12 +125,29 @@ groups:
       `vultron/core/use_cases/` declare an `execute()` return annotation that is
       `UseCaseResult` or a registered subtype
     rationale: Belt-and-suspenders companion to mypy enforcement; caught at CI time without mypy strictness flags.
+  - id: UCORG-05-004b
+    priority: MAY
+    kind: project
+    statement: >-
+      The UCORG-05-004 ratchet MAY exclude classes under
+      `vultron/core/use_cases/triggers/` until the trigger-side migration lands; any such
+      exclusion MUST name the tracking issue in the test and MUST be removed when that
+      issue closes
+    rationale: >-
+      The received and trigger halves migrate independently (#1769 and #3354), so the
+      ratchet has to be landable while one half still returns `dict`. Naming the issue
+      keeps the carve-out from reading as permanent — an unattributed exclusion list is
+      indistinguishable from a deliberate design choice a year later.
+    adr:
+    - ADR-0095
   - id: UCORG-05-005
     priority: MUST
     kind: project
     statement: >-
       `TriggerResult` MUST carry `activity` and `emitting_actor_id` fields; `HandlerResult`
-      MAY carry domain-specific result fields but MUST NOT carry raw `dict` payloads
+      MUST carry a `disposition` field of type `HandlerDisposition` and an optional
+      `reason`; either MAY carry further domain-specific result fields but MUST NOT carry
+      raw `dict` payloads
   - id: UCORG-05-006
     priority: MUST_NOT
     kind: project
@@ -153,3 +176,99 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: UCORG-05-002
+  - id: UCORG-05-009
+    priority: MUST
+    kind: project
+    statement: >-
+      `HandlerDisposition` MUST be a `StrEnum` whose members are exactly `APPLIED`,
+      `SKIPPED`, `DEFERRED`, and `REFUSED`
+    rationale: >-
+      A closed `StrEnum` follows the project idiom for fixed value sets (`CVDRole`,
+      `VultronObjectType`) rather than an inline `Literal`. `DEFERRED` is a member because
+      handler-side deferral is real: `BufferOutOfOrderEntryNode` and
+      `BufferPreGenesisEntryNode` return `SUCCESS` after parking a ledger entry in the
+      `LedgerGapBuffer` for replay once its predecessor arrives, which is neither a state
+      change nor a benign no-op nor a refusal. `DeferCheckNode` decides the *other* kind of
+      deferral — missing case context — before dispatch; the two are distinct and both map
+      to `InboxOutcome.status == "deferred"`. See ADR-0095.
+    adr:
+    - ADR-0095
+  - id: UCORG-05-010
+    priority: MUST
+    kind: project
+    statement: >-
+      Every link between a received-side `execute()` and `DispatchNode` MUST propagate the
+      returned `HandlerResult` — specifically `DispatcherBase._handle()`,
+      `DispatcherBase.dispatch()`, the `ActivityDispatcher` Protocol, the adapter-level
+      `dispatch()` helper, `FastAPIDispatchAdapter.dispatch()`, and the `DispatchAdapter`
+      Protocol MUST all declare `HandlerResult` rather than `None`
+    rationale: >-
+      The dispatcher boundary is the only route from a handler to `InboxOutcome`, and no
+      prior ADR reached it; ADR-0095 decides it. Any link left at `None` silently discards
+      the verdict and reinstates issue #2255. `_handle()` is named explicitly because it is
+      the link that actually calls `execute()` — `dispatch()` only logs and delegates to it
+      — so an implementer working from the public method names alone would leave the first
+      hop at `None` and lose the verdict before any other link saw it.
+    adr:
+    - ADR-0095
+  - id: UCORG-05-011
+    priority: MUST
+    kind: project
+    statement: >-
+      `InboxOutcome.status` MUST be derived from the handler's `HandlerDisposition` when a
+      dispatch occurred — `APPLIED` and `SKIPPED` mapping to `processed`, `DEFERRED` mapping
+      to `deferred`, and `REFUSED` mapping to `rejected` with `failure_reason` populated from
+      the handler's `reason` — and MUST NOT be inferred from the absence of a raised
+      exception
+    rationale: >-
+      Treating "dispatch did not raise" as success is what lets a handler take no action and
+      still be reported as `processed` (issue #2255). `deferred` has two producers that must
+      not be conflated: `DeferCheckNode` before dispatch, for missing case context, and a
+      handler returning `DEFERRED` after dispatch, for an entry parked pending its
+      predecessor. Both reach the same `InboxOutcome.status`; only the second flows through
+      this mapping.
+    relationships:
+    - rel_type: implements
+      spec_id: IO-01-001
+    adr:
+    - ADR-0095
+  - id: UCORG-05-012
+    priority: MUST
+    kind: project
+    statement: >-
+      When a dispatch is attempted but no handler runs, the dispatcher layer MUST
+      synthesize an explicit verdict rather than returning normally: an activity dropped
+      as unroutable and an unrecognized-semantics lookup failure MUST NOT yield
+      `InboxOutcome.status == "processed"`
+    rationale: >-
+      `DispatcherBase._handle()` catches `UnroutableActivityError`, logs, and returns
+      (`vultron/core/dispatcher.py`), so no exception escapes and no `HandlerResult` is
+      produced — today that path reports `processed` for an activity that was silently
+      dropped. `_get_use_case()` raising `VultronApiHandlerNotFoundError` is the companion
+      case. UCORG-05-011 covers only "a dispatch occurred and a handler returned a
+      verdict"; without this requirement the exact defect class #2255 describes survives
+      the migration on the no-handler paths. Because HP-01-004 reserves `InboxOutcome`'s
+      vocabulary to `DispatchNode`, this verdict is synthesized at the dispatcher layer,
+      not by a handler.
+    relationships:
+    - rel_type: refines
+      spec_id: UCORG-05-011
+    adr:
+    - ADR-0095
+  - id: UCORG-05-013
+    priority: MUST
+    kind: project
+    statement: >-
+      A `REFUSED` disposition reaching `InboxOutcome` MUST be logged above `DEBUG` by the
+      component that observes the completed outcome
+    rationale: >-
+      `run_inbox_pipeline` only debug-logs `outcome.status`, so the verdict is discarded a
+      second time after `process_payload` returns. Issue #2255's acceptance criterion
+      requires the refusal be visible in the actor log above `DEBUG`; without this
+      requirement the whole chain could satisfy UCORG-05-010 and UCORG-05-011 and still
+      leave the refusal invisible in normal operation.
+    relationships:
+    - rel_type: refines
+      spec_id: UCORG-05-011
+    adr:
+    - ADR-0095

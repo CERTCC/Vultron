@@ -66,7 +66,7 @@ class SvcValidateReportUseCase:
         # ❌ ANTI-PATTERN: domain action outside the tree
         if bt.status == Status.SUCCESS:
             SvcEngageCaseUseCase(self._dl, engage_event).execute()
-        return HandlerResult()
+        return HandlerResult(disposition=HandlerDisposition.APPLIED)
 ```
 
 The call to `SvcEngageCaseUseCase` after the BT runs means the
@@ -82,11 +82,19 @@ class SvcValidateReportUseCase:
         bt = ValidateReportBt(...)   # ← includes PrioritizeBt as a child
         bridge.execute_with_setup(self._dl, bt, bb)   # ✅ cascade inside tree
         # check status, extract output only
-        return HandlerResult()
+        return HandlerResult(disposition=HandlerDisposition.APPLIED)
 ```
 
 The validate→engage/defer cascade is a child subtree of `ValidateReportBt`,
 mirroring the canonical CVD protocol BT structure.
+
+> **The return types in both samples are the target contract, not current code.**
+> Every received-side `execute()` is `-> None` today; `HandlerResult` and
+> `HandlerDisposition` do not exist yet. See
+> [notes/use-case-protocol.md](use-case-protocol.md) and ADR-0095 for the design,
+> and #1769 for why this note previously read as though the migration had
+> happened. The in-tree-cascade rule the samples illustrate is in force
+> regardless of the return type.
 
 ---
 

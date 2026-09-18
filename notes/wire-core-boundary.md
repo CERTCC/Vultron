@@ -279,8 +279,8 @@ or raise something Pydantic recognises as a validation failure.
 ## Related Files
 
 - `docs/adr/0082-wire-core-boundary-pairing-registry.md` — the decision
-- `docs/adr/0062-…` — superseded by 0081; still describes current code
-- `docs/adr/0063-…` — decision stands, mechanism revised by 0081
+- `docs/adr/0062-…` — superseded by 0082; still describes current code
+- `docs/adr/0063-…` — decision stands, mechanism revised by 0082
 - `vultron/core/models/_wire_spelling.py` — the camelCase guard, retired by
   ARCH-12-003's `extra="forbid"` clause
 - `vultron/adapters/driven/wire_render/as2.py` — the render adapter whose

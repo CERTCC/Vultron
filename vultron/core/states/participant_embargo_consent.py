@@ -108,6 +108,7 @@ _transitions: list[dict] = [
     PECTransition(
         trigger=PEC_Trigger.DECLINE, source=PEC.LAPSED, dest=PEC.DECLINED
     ).model_dump(),
+    # ADR-0093: volitional consent withdrawal — SIGNATORY may explicitly decline
     PECTransition(
         trigger=PEC_Trigger.DECLINE, source=PEC.SIGNATORY, dest=PEC.DECLINED
     ).model_dump(),

@@ -12,7 +12,7 @@ stateDiagram-v2
     INVITED --> DECLINED: ER — decline
     INVITED --> DECLINED: Timer — pocket veto
     SIGNATORY --> LAPSED: EV cascade
-    SIGNATORY --> DECLINED: ER — consent withdrawal
+    SIGNATORY --> DECLINED: ER — decline
     LAPSED --> INVITED: EP — re-invite
     LAPSED --> SIGNATORY: EA — accept
     LAPSED --> DECLINED: ER — decline
