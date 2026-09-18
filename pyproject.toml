@@ -149,8 +149,17 @@ testpaths = [
     "test",
 ]
 filterwarnings = [
-    "always::vultron.metadata.specs.UnknownSpecIdWarning",
     "error",
+    # Both spec-gate warnings MUST be listed *after* "error" above, not before.
+    # pytest applies these entries in list order through
+    # warnings.filterwarnings(), which inserts each at index 0 — so a LATER
+    # entry outranks an earlier one. An exemption placed before "error" is a
+    # no-op. Both warnings report that a *spec* is wrong, so escalating them
+    # would abort the very session that has to run to fix it. See
+    # test/conftest.py pytest_collection_modifyitems, SR-05-002, SR-05-006, and
+    # test_spec_marker_gate.py::TestWarningIsNotEscalated.
+    "always::vultron.metadata.specs.UnknownSpecIdWarning",
+    "always::vultron.metadata.specs.SpecRegistryUnavailableWarning",
     "ignore::DeprecationWarning:vultron.demo.scenario.three_actor_demo",
     "ignore:three_actor_demo.py is based on older code:DeprecationWarning",
     "ignore::DeprecationWarning:vultron.demo.scenario.multi_vendor_demo",
