@@ -40,7 +40,7 @@ documentation prose against code. Accessors are `docs_mentioning(*fragments)`
 and `all_docs()`, mirroring `sources_mentioning` / `all_sources`.
 
 There is **no lazy tier for markdown**, because these ratchets match on text
-and never parse. The whole cache is populated at import time: 556 files and
+and never parse. The whole cache is populated at import time: 564 files and
 2.8 MB read in ~0.03 s, an order of magnitude cheaper than the Python cold
 parse that motivated the lazy AST tier.
 
@@ -76,7 +76,7 @@ TB-13 entry governs `docs_mentioning` / `all_docs`. The markdown tier is
 currently convention rather than requirement.
 
 Prefilter markdown ratchets the same way as Python ones. The activity-verb
-ratchet filters on `"subgraph as:"` and `` "(`as:" ``, which selects 9 of 556
+ratchet filters on `"subgraph as:"` and `` "(`as:" ``, which selects 9 of 564
 files.
 
 ## xdist Compatibility
