@@ -33,7 +33,7 @@ arrives before its predecessor.
 
 ```mermaid
 sequenceDiagram
-    participant CA as Case Actor
+    participant CA as CASE_MANAGER
     participant P1 as Participant 1
     participant P2 as Participant 2
     CA ->> P1: Announce(CaseLedgerEntry)

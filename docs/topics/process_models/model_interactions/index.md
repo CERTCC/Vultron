@@ -71,7 +71,7 @@ until it is torn down through the EM process.
 
 The Case Owner's departure is different, because it ends the case for every
 Participant. For that reason, when the Case Owner tries to leave a case that
-still holds an active embargo, the Case Actor declines the request: the case
+still holds an active embargo, the CASE_MANAGER declines the request: the case
 stays open and the embargo stays in force. The Case Owner ends the embargo
 first (for example, once the vulnerability is public) and then leaves.
 
