@@ -107,6 +107,8 @@ def _coerce_pec_or_none(v: object) -> PEC | None:
     if isinstance(v, PEC):
         return v
     if isinstance(v, str):
+        if v == "NO_EMBARGO":
+            return PEC.UNBOUND
         return PEC(v)
     return None
 

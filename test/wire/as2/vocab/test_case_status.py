@@ -27,6 +27,7 @@ from vultron.core.models.case_status import CaseStatus as CoreCaseStatus
 from vultron.core.models.participant_status import (
     ParticipantStatus as CoreParticipantStatus,
 )
+from vultron.core.states.participant_embargo_consent import PEC
 from vultron.enums.roles import CVDRole
 from vultron.wire.as2.vocab.objects.case_status import (
     as_CaseStatus,
@@ -223,6 +224,21 @@ class TestRetiredVfdKeyRejection(unittest.TestCase):
             attributed_to=ACTOR_ID,
         )
         self.assertEqual(CASE_ID, ps.context)
+
+
+class TestParticipantStatusLegacyPecMigration(unittest.TestCase):
+    """as_ParticipantStatus must coerce legacy emConsentState values (ADR-0091)."""
+
+    def test_no_embargo_em_consent_state_migrates_to_unbound(self):
+        """ADR-0091 renamed NO_EMBARGO → UNBOUND; as_ParticipantStatus must migrate stored legacy emConsentState (issue #3376)."""
+        ps = as_ParticipantStatus.model_validate(
+            {
+                "context": CASE_ID,
+                "attributed_to": ACTOR_ID,
+                "emConsentState": "NO_EMBARGO",
+            }
+        )
+        self.assertEqual(ps.em_consent_state, PEC.UNBOUND)
 
 
 if __name__ == "__main__":
