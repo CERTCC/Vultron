@@ -639,3 +639,11 @@ def test_activity_snapshot_never_reprs_a_non_uri_attributed_to(raw, expected):
     assert event.activity.attributed_to == expected
     if event.activity.attributed_to is not None:
         assert not event.activity.attributed_to.startswith(("{", "["))
+
+
+def test_coerce_pec_or_none_maps_no_embargo_to_unbound():
+    """ADR-0091 renamed NO_EMBARGO → UNBOUND; _coerce_pec_or_none must migrate legacy wire values (issue #3376)."""
+    from vultron.core.states.participant_embargo_consent import PEC
+    from vultron.wire.as2.extractor._builders import _coerce_pec_or_none
+
+    assert _coerce_pec_or_none("NO_EMBARGO") == PEC.UNBOUND
