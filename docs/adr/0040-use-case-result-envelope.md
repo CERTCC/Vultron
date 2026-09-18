@@ -124,7 +124,7 @@ This ADR is silent on whether `UseCaseResult` crosses the dispatcher boundary â€
 it neither settles that question nor mentions it. Do not read the absence as a
 decision that the boundary stays `-> None`.
 
-[ADR-0094](0094-received-side-handler-result.md) decides it for the received
+[ADR-0095](0095-received-side-handler-result.md) decides it for the received
 side: the dispatcher boundary returns `HandlerResult`, which carries a
 `HandlerDisposition` to `InboxOutcome`. The trigger side is #3354.
 
@@ -138,4 +138,4 @@ through UCORG-05-006.
 
 Design note: `notes/use-case-protocol.md`.
 
-Source idea: #423. Received-side dispatcher boundary: ADR-0094 (#1769).
+Source idea: #423. Received-side dispatcher boundary: ADR-0095 (#1769).

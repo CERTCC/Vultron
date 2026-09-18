@@ -139,7 +139,7 @@ groups:
       keeps the carve-out from reading as permanent — an unattributed exclusion list is
       indistinguishable from a deliberate design choice a year later.
     adr:
-    - ADR-0094
+    - ADR-0095
   - id: UCORG-05-005
     priority: MUST
     kind: project
@@ -190,9 +190,9 @@ groups:
       `LedgerGapBuffer` for replay once its predecessor arrives, which is neither a state
       change nor a benign no-op nor a refusal. `DeferCheckNode` decides the *other* kind of
       deferral — missing case context — before dispatch; the two are distinct and both map
-      to `InboxOutcome.status == "deferred"`. See ADR-0094.
+      to `InboxOutcome.status == "deferred"`. See ADR-0095.
     adr:
-    - ADR-0094
+    - ADR-0095
   - id: UCORG-05-010
     priority: MUST
     kind: project
@@ -204,13 +204,13 @@ groups:
       Protocol MUST all declare `HandlerResult` rather than `None`
     rationale: >-
       The dispatcher boundary is the only route from a handler to `InboxOutcome`, and no
-      prior ADR reached it; ADR-0094 decides it. Any link left at `None` silently discards
+      prior ADR reached it; ADR-0095 decides it. Any link left at `None` silently discards
       the verdict and reinstates issue #2255. `_handle()` is named explicitly because it is
       the link that actually calls `execute()` — `dispatch()` only logs and delegates to it
       — so an implementer working from the public method names alone would leave the first
       hop at `None` and lose the verdict before any other link saw it.
     adr:
-    - ADR-0094
+    - ADR-0095
   - id: UCORG-05-011
     priority: MUST
     kind: project
@@ -231,7 +231,7 @@ groups:
     - rel_type: implements
       spec_id: IO-01-001
     adr:
-    - ADR-0094
+    - ADR-0095
   - id: UCORG-05-012
     priority: MUST
     kind: project
@@ -254,7 +254,7 @@ groups:
     - rel_type: refines
       spec_id: UCORG-05-011
     adr:
-    - ADR-0094
+    - ADR-0095
   - id: UCORG-05-013
     priority: MUST
     kind: project
@@ -271,4 +271,4 @@ groups:
     - rel_type: refines
       spec_id: UCORG-05-011
     adr:
-    - ADR-0094
+    - ADR-0095

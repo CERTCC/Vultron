@@ -210,7 +210,7 @@ vs `TriggerRequest`), why `UseCaseRequest` was not introduced, the planned
 and the ratchet test design. **None of it is implemented yet** — handlers are
 `-> None`, triggers return `dict`. ADRs:
 `docs/adr/0040-use-case-result-envelope.md` (original) and
-`docs/adr/0094-received-side-handler-result.md` (received-side half).
+`docs/adr/0095-received-side-handler-result.md` (received-side half).
 **Load when**: implementing a new use case, reviewing the `execute()` contract,
 working on `UseCase` Protocol or `TriggerServicePort` signatures, threading a
 handler verdict to `InboxOutcome`, or debugging return-type ratchet failures.
@@ -726,6 +726,19 @@ root-owned venv, the broken `gh` credential-helper path, and the hard-linked
 `.agents/` and `.claude/` skill trees.
 **Load when**: a tool fails to start, `git push` cannot authenticate, or you are
 about to edit a skill file.
+
+**`lint-tooling.md`**
+Lint and format gate policy (ADR-0095): ruff as the sole Python linter and
+formatter, why `select` names families while `ignore` is curated by exception,
+what makes an acceptable exclusion reason (IMPLTS-07-019), and why `RUF100`
+rather than a bespoke test is the ratchet for baselined findings
+(IMPLTS-07-020). Records the two notable exclusions — provisional `PLC0415`
+(#3350) and provisional `G004` (#3378) — and the commit-loop habits that change when the
+flake8 hook is retired. **Decided but not yet built**: the configuration it
+describes lands with #3352; flake8, black and isort are still the live gate.
+**Load when**: editing `[tool.ruff]`, adding or removing an `ignore` entry,
+baselining a new rule, tightening the ruleset, or wiring a lint step into CI or
+pre-commit.
 
 **`ci-workflow-authoring.md`**
 Pitfalls when writing or reading GitHub Actions workflows: PyYAML resolving bare

@@ -91,7 +91,7 @@ mirroring the canonical CVD protocol BT structure.
 > **The return types in both samples are the target contract, not current code.**
 > Every received-side `execute()` is `-> None` today; `HandlerResult` and
 > `HandlerDisposition` do not exist yet. See
-> [notes/use-case-protocol.md](use-case-protocol.md) and ADR-0094 for the design,
+> [notes/use-case-protocol.md](use-case-protocol.md) and ADR-0095 for the design,
 > and #1769 for why this note previously read as though the migration had
 > happened. The in-tree-cascade rule the samples illustrate is in force
 > regardless of the return type.

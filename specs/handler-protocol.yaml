@@ -48,7 +48,7 @@ groups:
     rationale: >-
       Previously MAY (None or HandlerResult), which directly contradicted UCORG-05-002's
       MUST. The permissive form also made `-> None` ambiguous between "nothing to report"
-      and "not yet migrated". Resolved in favour of MUST by ADR-0094, which gives the
+      and "not yet migrated". Resolved in favour of MUST by ADR-0095, which gives the
       return value a consumer: the handler's `HandlerDisposition` is the only thing that
       can tell `InboxOutcome` whether an inbound assertion was applied, skipped, or
       refused. See CONCERN-1769.
@@ -56,7 +56,7 @@ groups:
     - rel_type: implements
       spec_id: UCORG-05-002
     adr:
-    - ADR-0094
+    - ADR-0095
   - id: HP-01-003
     priority: MUST
     kind: project
@@ -72,9 +72,9 @@ groups:
       SUCCESS for an entry they have only parked. Conflating either with a refusal would
       promote it to `InboxOutcome.status == "rejected"` and produce false alarms; conflating
       a deferral with `APPLIED` or `SKIPPED` hides the fact that a replay is pending. See
-      ADR-0094 and issue #2255.
+      ADR-0095 and issue #2255.
     adr:
-    - ADR-0094
+    - ADR-0095
   - id: HP-01-004
     priority: MUST_NOT
     kind: project
@@ -90,7 +90,7 @@ groups:
       can cause: a handler can produce a deferral (`HandlerDisposition.DEFERRED`), it just
       must not say so in `InboxOutcome`'s words.
     adr:
-    - ADR-0094
+    - ADR-0095
 - id: HP-02
   title: Semantic Verification
   specs:

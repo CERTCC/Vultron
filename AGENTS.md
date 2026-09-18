@@ -22,7 +22,7 @@ documentation structure guidance.
   (`vultron/core/use_cases/`).
 - Use-Case Protocol: `__init__(dl, request)` + `execute() -> None` (received) or
   `-> dict` (trigger); routing via `use_case_map()` key lookup. Both are slated
-  to return `UseCaseResult` subtypes — designed in ADR-0040/ADR-0094, **not yet
+  to return `UseCaseResult` subtypes — designed in ADR-0040/ADR-0095, **not yet
   built** (#1769, #3354). Do not assume the envelope exists.
 - ASGI entrypoint: `vultron.adapters.driving.fastapi.main:app`.
 - Tests: `uv run pytest --tb=short 2>&1 | tee /tmp/last-test-run.log | tail -5` — run once. See

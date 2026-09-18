@@ -30,7 +30,7 @@ paths.
 
 See `specs/use-case-organization.yaml` UCORG-05 for the normative requirements.
 See `docs/adr/0040-use-case-result-envelope.md` for the original decision record
-and `docs/adr/0094-received-side-handler-result.md` for the received-side half.
+and `docs/adr/0095-received-side-handler-result.md` for the received-side half.
 
 > **Status: designed, not built.** None of the types below exist in the codebase
 > yet. `grep -rn "class UseCaseResult" vultron/` returns nothing; all 51
@@ -195,10 +195,10 @@ attribute access instead of dict-key access.
 
 ## Dispatcher Behavior — the Verdict Chain
 
-No ADR before ADR-0094 reached the question of whether `UseCaseResult` crosses
+No ADR before ADR-0095 reached the question of whether `UseCaseResult` crosses
 the dispatcher boundary — ADR-0040 does not mention it, and an earlier revision
 of *this note* was the only place it was ever addressed, with a bare "separate
-architectural decision." ADR-0094 decides it: **it does**, because that boundary
+architectural decision." ADR-0095 decides it: **it does**, because that boundary
 is the only road from the handler to `InboxOutcome`.
 
 `InboxOutcome` (`vultron/core/behaviors/inbox/models.py`) already models

@@ -34,7 +34,7 @@ HP-01-002 said handlers MAY return `None` or `HandlerResult`; UCORG-05-002 said
 they MUST return `HandlerResult`. The code conformed to the permissive one. This
 was not a spec-vs-code gap but a contradiction *inside* the corpus, so the
 deliverable had to adjudicate rather than merely implement. Resolved in favour of
-MUST, because ADR-0094 gives the return value a consumer.
+MUST, because ADR-0095 gives the return value a consumer.
 
 **A received-side outcome envelope already existed, one layer up.**
 `InboxOutcome` carries `processed`/`deferred`/`rejected` and `failure_reason`,
@@ -57,7 +57,7 @@ returns early with a WARNING when `entry is None` and is still reported as
   architectural decision" language it was reaching for lived in
   `notes/use-case-protocol.md`. So the boundary was not settled in either
   direction, and since it is the only route from a handler to `InboxOutcome`, the
-  decision had to be made. ADR-0094 makes it. Worth noting that the citation
+  decision had to be made. ADR-0095 makes it. Worth noting that the citation
   survived into the first draft of this PR unchecked — a plausible-looking ADR
   citation is exactly as easy to inherit as the stale Validation section below.
 
@@ -69,7 +69,7 @@ the missing envelope. What was harmful was five documents asserting completed
 work, which would lead any agent reading them to assume the types existed.
 ADR-0040's Validation section listing a ratchet test file that was never written
 is the sharpest form of this: a Validation section is read as evidence, so an
-aspirational one is worse than an empty one. ADR-0094 therefore states in its own
+aspirational one is worse than an empty one. ADR-0095 therefore states in its own
 Validation section that nothing is implemented yet, and names the issue that will
 add the ratchet.
 
@@ -94,7 +94,7 @@ exactly that and had to be amended. This is the same conflation #2369 documents
 on the trigger side; it is a recurring shape, not a one-off.
 
 **Before excluding a value from an enum because "no producer can emit it," go
-find the producers.** The first draft of ADR-0094 dropped `DEFERRED` from
+find the producers.** The first draft of ADR-0095 dropped `DEFERRED` from
 `HandlerDisposition` on the reasoning that `DeferCheckNode` decides deferral
 *before* dispatch, so a handler is never in a position to return one. The
 reasoning was sound and the conclusion was wrong: `BufferOutOfOrderEntryNode` and
@@ -117,7 +117,7 @@ and #3377 (UCORG-01-003's required `use_case_map.py`, which does not exist) —
 both the same species of spec residue, unrelated to this work.
 
 Docs PR: <https://github.com/CERTCC/Vultron/pull/3370>.
-ADR: `docs/adr/0094-received-side-handler-result.md` (extends ADR-0040).
+ADR: `docs/adr/0095-received-side-handler-result.md` (extends ADR-0040).
 Specs: `specs/handler-protocol.yaml` HP-01-002/003/004;
 `specs/use-case-organization.yaml` UCORG-05-004b, -005, -009, -010, -011.
 Notes: `notes/use-case-protocol.md`.
