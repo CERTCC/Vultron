@@ -221,7 +221,10 @@ def remove_participant_from_case():
     activity = remove_participant_from_case_activity(
         coord_p,
         actor=_vendor.id_,
-        origin=_case.id_,
+        # `target`, not `origin`: RemoveCaseParticipantFromCasePattern
+        # discriminates on target_, and ActivityPattern has no origin_ field, so
+        # an origin-only Remove matches no pattern and never dispatches (#3438).
+        target=_case.id_,
         summary="Vendor is removing the coordinator from the case.",
     )
     return activity

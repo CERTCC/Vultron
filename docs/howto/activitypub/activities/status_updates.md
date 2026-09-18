@@ -1,79 +1,95 @@
-# Status Updates and Comments
+# How to Publish a Status Update or a Note
 
-{% include-markdown "../../../includes/not_normative.md" %}
+Use this guide to tell the other participants something: that your fix is ready,
+that the vulnerability is now public, or anything that needs narrative rather
+than a state change.
+Each of these follows the same two-step shape — `as:Create` mints the object and
+`as:Add` attaches it.
+You finish with the update committed to the case ledger and replicated to every
+participant.
 
-This section covers activities used to update the status of a
-case, or to add a comment to a case.
+---
 
-Each of these follows the same two-step shape: `as:Create` mints the object, and
-`as:Add` attaches it. A status update to a participant can lead to a status
-update to the case, and a note can lead to a status update on either.
+## Prerequisites
 
-!!! tip inline end "See also"
+{% include-markdown "./_demo_prerequisites.md" %}
 
-    Descriptions of the [`CaseStatus`](../../../reference/activitypub/objects.md#casestatus) and
-    [`ParticipantStatus`](../../../reference/activitypub/objects.md#participantstatus), and [`CaseParticipant`](../../../reference/activitypub/objects.md#caseparticipant)
-    objects can be found in the [Objects](../../../reference/activitypub/objects.md) section.
-    `as:Note` is described there as well.
+- A case you are seated on, and your own `CaseParticipant` record.
+- For a participant status, the dimension you are reporting: `vf_state` and
+  `d_state` apply only to a Vendor or a Deployer.
 
-For the activity-graph diagram, why the Create/Add split exists, and when an
-implementation may collapse the two into a single `as:Create` carrying a
-`target`, see
-[Activity Vocabulary Design](../../../topics/activity_vocabulary_design.md).
+---
 
-## Create Status
+## Report your own progress
 
-```python exec="true" idprefix=""
-from vultron.wire.as2.vocab.examples.vocab_examples import create_case_status, json2md
+Use a participant status for anything that is true of you rather than of the
+case.
 
-print(json2md(create_case_status()))
-```
+1. Send `CreateParticipantStatus`, carrying your `rm_state` and, where they
+   apply, `vf_state` and `d_state`.
+2. Send `AddStatusToParticipant`, targeting your own participant record.
 
-## Add Status to Case
+Send only your own status.
+Participant status is self-declaratory, so a participant asserting another
+participant's state is a protocol violation outside the narrow
+externally-evidenced exceptions (ADR-0084).
 
-```python exec="true" idprefix=""
-from vultron.wire.as2.vocab.examples.vocab_examples import add_status_to_case, json2md
+---
 
-print(json2md(add_status_to_case()))
-```
+## Report something true of the case
 
-## Create Participant Status
+Use a case status for public awareness, exploit publication, and observed
+attacks — the dimensions that are properties of the vulnerability rather than of
+any one participant.
 
-```python exec="true" idprefix=""
-from vultron.wire.as2.vocab.examples.vocab_examples import create_participant_status, json2md
+1. Send `CreateCaseStatus`, carrying the new `pxa_state`, and name the case in
+   `context`.
+2. Send `AddStatusToCase`, naming the case in `target`.
 
-print(json2md(create_participant_status()))
-```
+The state change hangs off the `Add`, because that is the activity that asserts
+the attachment.
 
-## Add Status to Participant
+!!! warning "The case goes in `context` on the `Create` and `target` on the `Add`"
 
-```python exec="true" idprefix=""
-from vultron.wire.as2.vocab.examples.vocab_examples import add_status_to_participant, json2md
+    That asymmetry is what the two patterns discriminate on:
+    `Create(CaseStatus)` is recognized by its `context`, `Add(CaseStatus)` by its
+    `target`.
+    A `Create(CaseStatus)` that names the case in `target` instead matches
+    neither pattern — it dispatches as unrecognized and the state change never
+    happens.
+    Send the `Add`, with the status inline if you prefer one activity to two.
 
-print(json2md(add_status_to_participant()))
-```
+---
 
-## Create Note
+## Add a note
 
-```python exec="true" idprefix=""
-from vultron.wire.as2.vocab.examples.vocab_examples import create_note, json2md
+Use a note when the case needs narrative that no status field carries — a
+question, an answer, or a condition that needs human attention.
 
-print(json2md(create_note()))
-```
+1. Send `CreateNote` with the note body.
+2. Send `AddNoteToCase`, targeting the case.
 
-## Add Note to Case
+If the note is a fault report rather than ordinary case discussion, see
+[How to Report a Protocol Fault](error.md).
 
-```python exec="true" idprefix=""
-from vultron.wire.as2.vocab.examples.vocab_examples import add_note_to_case, json2md
+---
 
-print(json2md(add_note_to_case()))
-```
+## Verify
 
-## Demo
+| What you sent | What to confirm |
+|---|---|
+| `AddStatusToParticipant` | Your participant record carries the new status, on every replica. |
+| `AddStatusToCase` | The case status carries the new `pxa_state`, on every replica. |
+| `AddNoteToCase` | The note appears on the case. |
+
+Each of these is committed by the CASE_MANAGER and fanned out, so checking your
+own store alone does not confirm the update landed.
+
+---
+
+## See it end to end
 
 !!! example "Try it: `vultron-demo status-updates`"
-
-    Run this workflow end-to-end with the unified demo CLI:
 
     ```bash
     vultron-demo status-updates
@@ -84,3 +100,21 @@ print(json2md(add_note_to_case()))
     ```bash
     DEMO=status-updates docker compose -f docker/docker-compose.yml run --rm demo
     ```
+
+    The scenario adds a note, a case status, and a participant status.
+
+---
+
+## Further reading
+
+- [Case State (CS) Messages](../../../reference/messages/cs.md) — the wire format
+  and a rendered example for each status activity, and which dimensions are
+  participant-scoped
+- [General (GI) Messages](../../../reference/messages/general.md) — the wire
+  format for the note lifecycle
+- [Vultron AS Objects](../../../reference/activitypub/objects.md) — the
+  `CaseStatus`, `ParticipantStatus`, and `CaseParticipant` objects these
+  activities carry
+- [Activity Vocabulary Design](../../../topics/activity_vocabulary_design.md) —
+  why the `Create` and `Add` split exists, and when an implementation may send
+  only the `Add`

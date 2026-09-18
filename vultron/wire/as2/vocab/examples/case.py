@@ -42,11 +42,14 @@ from vultron.wire.as2.vocab.objects.vulnerability_case import (
 from vultron.enums.roles import CVDRole
 from vultron.wire.as2.factories import (
     accept_case_ownership_transfer_activity,
+    accept_case_participant_role_activity,
     add_report_to_case_activity,
     announce_vulnerability_case_activity,
     create_case_activity,
     offer_case_ownership_transfer_activity,
+    offer_case_participant_role_activity,
     reject_case_ownership_transfer_activity,
+    reject_case_participant_role_activity,
     rm_close_case_activity,
     rm_defer_case_activity,
     rm_engage_case_activity,
@@ -207,4 +210,54 @@ def announce_case() -> as_Announce:
     return announce_vulnerability_case_activity(
         _case,
         actor=_VENDOR.id_,
+    )
+
+
+def offer_case_participant_role() -> as_Offer:
+    """Build ``Offer(CaseParticipantRole)`` — the ADR-0039 role-delegation offer.
+
+    Distinct from ``offer_case_participant``, which is the GI actor-suggestion
+    handshake.  The ``as_CaseParticipantRole`` object carries the role, so the
+    object type alone tells a receiver this is a role offer and not an
+    ownership-transfer offer.
+    """
+    _case = case()
+    _vendor = vendor()
+    _coordinator = _COORDINATOR
+    return offer_case_participant_role_activity(
+        role=CVDRole.COORDINATOR,
+        target_actor=_coordinator,
+        case=_case,
+        actor=_vendor.id_,
+        to=[_coordinator.id_],
+        content=(
+            f"We're offering the {CVDRole.COORDINATOR.value} role on case "
+            f"{_case.name} to {_coordinator.name}."
+        ),
+    )
+
+
+def accept_case_participant_role() -> as_Accept:
+    """Build ``Accept(Offer(CaseParticipantRole))`` — the target takes the role."""
+    _vendor = vendor()
+    _coordinator = _COORDINATOR
+    _offer = offer_case_participant_role()
+    return accept_case_participant_role_activity(
+        _offer,
+        actor=_coordinator.id_,
+        to=[_vendor.id_],
+        content="We're accepting the role you offered.",
+    )
+
+
+def reject_case_participant_role() -> as_Reject:
+    """Build ``Reject(Offer(CaseParticipantRole))`` — the target declines the role."""
+    _vendor = vendor()
+    _coordinator = _COORDINATOR
+    _offer = offer_case_participant_role()
+    return reject_case_participant_role_activity(
+        _offer,
+        actor=_coordinator.id_,
+        to=[_vendor.id_],
+        content="We're declining the role you offered.",
     )

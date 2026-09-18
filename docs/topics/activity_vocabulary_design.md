@@ -11,7 +11,7 @@ and the places where a wire-level distinction has no counterpart in the formal
 protocol.
 
 For the activities themselves, see the
-[Vultron AS Activities](../howto/activitypub/activities/index.md) guides.
+[Vultron AS Activity Guides](../howto/activitypub/activities/index.md).
 For the mapping between formal protocol shorthands and wire activities, see
 [Message Types](../reference/messages/index.md).
 
@@ -458,8 +458,8 @@ the hash chain carries an acknowledgement — are described in
   mapping, with the discriminating field for every collapsed row
 - [Vultron AS Objects](../reference/activitypub/objects.md) — the object types
   these activities carry
-- [Vultron AS Activities](../howto/activitypub/activities/index.md) — the
-  activity guides, organized by user flow
+- [Vultron AS Activity Guides](../howto/activitypub/activities/index.md) — how to
+  carry out each protocol task with these activities
 - [ADR-0083](../adr/0083-formal-message-set-and-as2-vocabulary-are-different-shapes.md)
   — the decision to keep the formal message set and the wire vocabulary as
   different shapes

@@ -57,7 +57,7 @@ def _example_funcs() -> list:
     """Every zero-argument example function reachable from ``vocab_examples``.
 
     These are exactly the callables the ``markdown_exec`` blocks under
-    ``docs/howto/activitypub/`` invoke, so this list is what keeps the docs
+    ``docs/reference/`` invoke, so this list is what keeps the docs
     build from being the only place a broken example is detected.
     """
     return [

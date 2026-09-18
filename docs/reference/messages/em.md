@@ -25,7 +25,7 @@ print(render_page("em", heading=False))
   `Create(Event)`, `Add(Event)[target=VulnerabilityCase]`,
   `Invite(Event)`, and `Announce(Event)` — as shown in the mapping
   table above.
-- **How-to:** [Establishing an Embargo](../../howto/activitypub/activities/establish_embargo.md).
+- **How-to:** [How to Establish an Embargo](../../howto/activitypub/activities/establish_embargo.md).
 - **Formal definition:** [Message Types](../formal_protocol/messages.md#em-message-types),
   [Transitions](../formal_protocol/transitions.md).
 
@@ -35,12 +35,64 @@ from vultron.wire.as2.vocab.examples.vocab_examples import propose_embargo, json
 print(json2md(propose_embargo()))
 ```
 
+### Add Embargo to Case
+
+`Add(Event)[target=VulnerabilityCase]` attaches an embargo to a case without a
+preceding proposal. The Case Owner uses it when the terms need no negotiation.
+
+```python exec="true" idprefix=""
+from vultron.wire.as2.vocab.examples.vocab_examples import add_embargo_to_case, json2md
+
+print(json2md(add_embargo_to_case()))
+```
+
+### Activate Embargo
+
+The activation form of the same `Add(Event)`, sent in reply to a proposal that has
+carried. The distinction from the form above is the presence of the proposal it
+answers, not the wire shape.
+
+```python exec="true" idprefix=""
+from vultron.wire.as2.vocab.examples.vocab_examples import activate_embargo, json2md
+
+print(json2md(activate_embargo()))
+```
+
+### Announce Embargo
+
+`Announce(Event)` tells participants the terms of the active embargo. It also
+carries notice of a change significant enough to warrant attention beyond the
+corresponding `CaseStatus` message, such as an embargo being removed from a case.
+
+```python exec="true" idprefix=""
+from vultron.wire.as2.vocab.examples.vocab_examples import announce_embargo, json2md
+
+print(json2md(announce_embargo()))
+```
+
+### Choose Preferred Embargo
+
+`as:Question` offers a set of candidate embargoes and asks participants which one
+they prefer. It carries no EM state change of its own; the answer arrives as an
+`EA` or `ER` against whichever candidate is proposed.
+
+This activity has a factory and a wire class but no registered `ActivityPattern`
+and no `MessageSemantics` value, so it does not appear in the mapping table above
+and a receiving Vultron actor does not dispatch it. Treat it as emit-only until
+that gap is closed (#3433).
+
+```python exec="true" idprefix=""
+from vultron.wire.as2.vocab.examples.vocab_examples import choose_preferred_embargo, json2md
+
+print(json2md(choose_preferred_embargo()))
+```
+
 ## ER — Embargo Proposal Rejection
 
 - **Protocol role:** The Participant has rejected an embargo proposal.
 - **Triggering transition:** Proposed → None (P → N).
 - **Wire activity:** `Reject(Invite(Event)[context=VulnerabilityCase])`.
-- **How-to:** [Managing an Embargo](../../howto/activitypub/activities/manage_embargo.md).
+- **How-to:** [How to Revise or Terminate an Embargo](../../howto/activitypub/activities/manage_embargo.md).
 - **Formal definition:** [Message Types](../formal_protocol/messages.md#em-message-types),
   [Transitions](../formal_protocol/transitions.md).
 
@@ -55,7 +107,7 @@ print(json2md(reject_embargo()))
 - **Protocol role:** The Participant has accepted an embargo proposal.
 - **Triggering transition:** Proposed → Active (P → A).
 - **Wire activity:** `Accept(Invite(Event)[context=VulnerabilityCase])`.
-- **How-to:** [Managing an Embargo](../../howto/activitypub/activities/manage_embargo.md).
+- **How-to:** [How to Revise or Terminate an Embargo](../../howto/activitypub/activities/manage_embargo.md).
 - **Formal definition:** [Message Types](../formal_protocol/messages.md#em-message-types),
   [Transitions](../formal_protocol/transitions.md).
 
@@ -72,7 +124,7 @@ print(json2md(accept_embargo()))
 - **Wire activity:** `Invite(Event)[context=VulnerabilityCase]` —
   **collapsed onto `EP`**, discriminated by EM state context (a proposal
   received in the Active state is a revision).
-- **How-to:** [Managing an Embargo](../../howto/activitypub/activities/manage_embargo.md).
+- **How-to:** [How to Revise or Terminate an Embargo](../../howto/activitypub/activities/manage_embargo.md).
 - **Formal definition:** [Message Types](../formal_protocol/messages.md#em-message-types),
   [Transitions](../formal_protocol/transitions.md).
 
@@ -88,7 +140,7 @@ print(json2md(propose_embargo()))
 - **Triggering transition:** Revise → Active (R → A).
 - **Wire activity:** `Reject(Invite(Event)[context=VulnerabilityCase])` —
   **collapsed onto `ER`**, discriminated by EM state context.
-- **How-to:** [Managing an Embargo](../../howto/activitypub/activities/manage_embargo.md).
+- **How-to:** [How to Revise or Terminate an Embargo](../../howto/activitypub/activities/manage_embargo.md).
 - **Formal definition:** [Message Types](../formal_protocol/messages.md#em-message-types),
   [Transitions](../formal_protocol/transitions.md).
 
@@ -104,7 +156,7 @@ print(json2md(reject_embargo()))
 - **Triggering transition:** Revise → Active (R → A).
 - **Wire activity:** `Accept(Invite(Event)[context=VulnerabilityCase])` —
   **collapsed onto `EA`**, discriminated by EM state context.
-- **How-to:** [Managing an Embargo](../../howto/activitypub/activities/manage_embargo.md).
+- **How-to:** [How to Revise or Terminate an Embargo](../../howto/activitypub/activities/manage_embargo.md).
 - **Formal definition:** [Message Types](../formal_protocol/messages.md#em-message-types),
   [Transitions](../formal_protocol/transitions.md).
 
@@ -120,7 +172,7 @@ print(json2md(accept_embargo()))
   effect.
 - **Triggering transition:** Active or Revise → eXited ({A,R} → X).
 - **Wire activity:** `Remove(Event)`.
-- **How-to:** [Managing an Embargo](../../howto/activitypub/activities/manage_embargo.md).
+- **How-to:** [How to Revise or Terminate an Embargo](../../howto/activitypub/activities/manage_embargo.md).
 - **Formal definition:** [Message Types](../formal_protocol/messages.md#em-message-types),
   [Transitions](../formal_protocol/transitions.md).
 

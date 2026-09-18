@@ -422,7 +422,7 @@ relative to `docs/` as the site root, with the target page title as link text:
 
 ```python
 """
-See [Reporting a Vulnerability](/howto/activitypub/activities/report_vulnerability.md).
+See [How to Report a Vulnerability](/howto/activitypub/activities/report_vulnerability.md).
 """
 ```
 

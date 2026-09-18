@@ -1,24 +1,33 @@
-# Suggesting an Actor for a Case
+# How to Suggest an Actor for a Case
 
-{% include-markdown "../../../includes/not_normative.md" %}
+Use this guide when you believe an actor belongs on a case and you are not the
+one who decides.
+A suggestion goes to the CASE_MANAGER, which presents it to the Case Owner for a
+decision (ADR-0026, ADR-0029).
+You finish with the suggested actor either invited or the recommendation
+declined, and with the outcome reported back to you.
 
-During the course of coordinating a case, an existing case participant might recognize that another actor
-should be invited to participate in the case. The following mechanisms provide a way for a case participant
-to suggest that another actor be invited to participate in the case.
+---
 
-<!-- for vertical spacing -->
-<br/>
-<br/>
-<br/>
+## Prerequisites
 
-Use this flow to get an actor invited when you are not the Case Owner, or when a
-case has more than one Case Owner and the invitation needs a decision. A Case
-Owner can also invite an actor directly — see
-[Inviting an Actor to a Case](invite_actor.md). For why the suggestion step
-exists alongside direct invitation, and for the situations it covers, see
-[Activity Vocabulary Design](../../../topics/activity_vocabulary_design.md).
+{% include-markdown "./_demo_prerequisites.md" %}
 
-The sequence diagram below shows the process of suggesting an actor for a case.
+- A case you participate in. Any participant can suggest an actor.
+- The suggested actor's URI.
+- The CASE_MANAGER's actor URI.
+
+If you hold the Case Owner role and the decision is yours alone, invite the actor
+directly instead — see
+[How to Invite an Actor to a Case](invite_actor.md).
+
+---
+
+## The exchange
+
+The sequence diagram below shows the full round trip, from recommendation to
+invitation or refusal.
+The recommender never contacts the Case Owner or the invitee directly.
 
 ```mermaid
 ---
@@ -49,61 +58,53 @@ sequenceDiagram
     deactivate CA
 ```
 
-## Recommend Actor
+---
 
-A participant recommends another actor to the **CASE_MANAGER** by sending an `Offer` activity with the
-`object` property set to the actor being recommended and the `target` set to the case.
-The CASE_MANAGER records the recommendation in the canonical ledger, assigns default roles, and
-forwards a transformed offer to the Case Owner.
+## Recommend the actor
 
-```python exec="true" idprefix=""
-from vultron.wire.as2.vocab.examples.vocab_examples import recommend_actor, json2md
+1. Send an `Offer` to the CASE_MANAGER with the recommended actor as its `object`
+   and the case as its `target`.
+2. Wait. The CASE_MANAGER records the recommendation on the ledger, assigns
+   default roles, and forwards a transformed offer to the Case Owner.
+3. Read the outcome from the CASE_MANAGER's reply —
+   `AcceptActorRecommendation` or `RejectActorRecommendation`.
 
-print(json2md(recommend_actor()))
-```
+The forwarded offer carries the original recommendation's ID in its `origin`
+field, so the Case Owner can trace the request back to you.
 
-## CASE_MANAGER Forwards Offer to Case Owner
+---
 
-The CASE_MANAGER transforms the `Offer(Actor, Case)` into `Offer(CaseParticipant{actor, roles}, Case)`
-and sends it to the Case Owner's inbox. The `origin` field carries the ID of the original recommendation
-so the Case Owner can trace the causal chain.
+## Decide on a recommendation
 
-```python exec="true" idprefix=""
-from vultron.wire.as2.vocab.examples.vocab_examples import offer_case_participant, json2md
+As Case Owner, answer the forwarded offer, addressing the reply to the
+CASE_MANAGER and not to the recommender.
 
-print(json2md(offer_case_participant()))
-```
+- If the actor should join, send `Accept` with the forwarded
+  `Offer(CaseParticipant)` as its `object`. The CASE_MANAGER then invites the
+  actor.
+- If it should not, send `Reject` with the same `object`. No invitation is sent.
 
-## Case Owner Accepts Recommendation
+!!! warning "Replying to the recommender skips the record"
 
-The Case Owner accepts the recommendation by sending `Accept(Offer(CaseParticipant))` to the
-**CASE_MANAGER** (not directly to the recommender). The CASE_MANAGER records the decision, notifies the
-original recommender, and sends an `Invite` to the proposed participant.
+    The CASE_MANAGER is the single writer for the case ledger.
+    A decision sent straight back to the recommender is never committed, so no
+    replica learns of it and no invitation follows.
 
-```python exec="true" idprefix=""
-from vultron.wire.as2.vocab.examples.vocab_examples import accept_case_participant_offer, json2md
+---
 
-print(json2md(accept_case_participant_offer()))
-```
+## Verify
 
-## Case Owner Rejects Recommendation
+| What you sent | What to confirm |
+|---|---|
+| `Offer(Actor, Case)` | The recommendation appears as a ledger entry. |
+| `Accept(Offer(CaseParticipant))` | The recommender holds an `AcceptActorRecommendation`, and the suggested actor holds an `Invite`. |
+| `Reject(Offer(CaseParticipant))` | The recommender holds a `RejectActorRecommendation`, and no `Invite` was sent. |
 
-The Case Owner rejects the recommendation by sending `Reject(Offer(CaseParticipant))` to the
-**CASE_MANAGER**. The CASE_MANAGER records the decision and notifies the original recommender.
+---
 
-```python exec="true" idprefix=""
-from vultron.wire.as2.vocab.examples.vocab_examples import reject_case_participant_offer, json2md
-
-print(json2md(reject_case_participant_offer()))
-```
-
-{% include-markdown "./_invite_to_case.md" heading-offset=1 %}
-
-## Demo
+## See it end to end
 
 !!! example "Try it: `vultron-demo suggest-actor`"
-
-    Run this workflow end-to-end with the unified demo CLI:
 
     ```bash
     vultron-demo suggest-actor
@@ -114,3 +115,18 @@ print(json2md(reject_case_participant_offer()))
     ```bash
     DEMO=suggest-actor docker compose -f docker/docker-compose.yml run --rm demo
     ```
+
+    The scenario runs both outcomes: the Case Owner accepts one suggestion and
+    rejects another.
+
+---
+
+## Further reading
+
+- [General (GI) Messages](../../../reference/messages/general.md) — the wire
+  format and a rendered example for the recommendation activities
+- [Case Management Messages](../../../reference/messages/case_management.md) —
+  the wire format for the forwarded offer and its accept and reject replies
+- [Activity Vocabulary Design](../../../topics/activity_vocabulary_design.md) —
+  why the suggestion step exists alongside direct invitation, and the situations
+  it covers

@@ -98,9 +98,9 @@ independent of the replay rate limit.
 - [Activity Vocabulary Design](../../topics/activity_vocabulary_design.md) — why
   faults are partitioned by failure mode and acknowledgement moved to the hash
   chain.
-- [Error Handling](../../howto/activitypub/activities/error.md) — how-to guide
+- [How to Report a Protocol Fault](../../howto/activitypub/activities/error.md) — how-to guide
   for fault activities.
-- [Acknowledging a Report](../../howto/activitypub/activities/acknowledge.md) —
+- [How to Acknowledge a Report](../../howto/activitypub/activities/acknowledge.md) —
   how-to guide for `RK`.
-- [Ledger Replication](../../howto/activitypub/activities/ledger_replication.md) —
-  how-to guide for `Announce(CaseLedgerEntry)`.
+- [Ledger Replication](ledger_replication.md) — the wire format for
+  `Announce(CaseLedgerEntry)` and `Reject(CaseLedgerEntry)`.
