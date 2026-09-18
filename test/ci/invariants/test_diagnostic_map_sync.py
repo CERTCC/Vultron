@@ -111,8 +111,14 @@ def _called_name(func: ast.expr) -> str | None:
 
 
 @functools.cache
-def _factory_invariants() -> Mapping[str, str | None]:
-    """Return ``{test function name: xfail reason or None}``.
+def _factory_markers() -> tuple[Mapping[str, str | None], Mapping[str, str]]:
+    """Read the factory's xfail markers in one pass.
+
+    Returns ``({name: xfail reason or None}, {name: offending marker})``, the
+    second holding any marker this ratchet cannot reduce to a single Status
+    cell.  Recorded rather than asserted here so that a bad marker fails one
+    named test instead of raising inside the ``parametrize`` decorators and
+    interrupting collection for the whole module.
 
     Arguments are placeholders: the factory builds closures without touching
     them, so no fixture, devlog, or narrative file is needed.  ``narrative_path``
@@ -129,29 +135,48 @@ def _factory_invariants() -> Mapping[str, str | None]:
         narrative_path="docs/topics/scenarios/fv.md",
     )
     invariants: dict[str, str | None] = {}
+    unrepresentable: dict[str, str] = {}
     for name, fn in tests.items():
         xfail = [
             mark
             for mark in getattr(fn, "pytestmark", [])
             if mark.name == "xfail"
         ]
-        assert len(xfail) <= 1, f"{name} carries {len(xfail)} xfail markers"
-        if xfail:
-            marker = xfail[0]
-            # A conditional xfail has no single truthful Status cell: the table
-            # would have to print "xfail" for a test pytest may well run and
-            # report normally.  Reject the form rather than record a claim that
-            # is only sometimes true.
-            assert not marker.args and "condition" not in marker.kwargs, (
-                f"{name} carries a *conditional* xfail marker, which the "
-                "diagnostic map cannot represent — its Status column records "
-                "one unconditional xfail-or-active state per invariant. Move "
-                "the condition into the check itself, or drop it."
+        if len(xfail) > 1:
+            unrepresentable[name] = f"{len(xfail)} xfail markers"
+        # A conditional xfail has no single truthful Status cell: the table
+        # would have to print "xfail" for a test pytest may well run and report
+        # normally.
+        if xfail and (xfail[0].args or "condition" in xfail[0].kwargs):
+            unrepresentable[name] = (
+                f"conditional xfail: {xfail[0].kwargs.get('condition', xfail[0].args)!r}"
             )
         invariants[name] = (
             str(xfail[0].kwargs.get("reason", "")) if xfail else None
         )
-    return MappingProxyType(invariants)
+    return MappingProxyType(invariants), MappingProxyType(unrepresentable)
+
+
+def _factory_invariants() -> Mapping[str, str | None]:
+    """``{test function name: xfail reason or None}`` from the factory."""
+    return _factory_markers()[0]
+
+
+def test_factory_xfail_markers_are_representable() -> None:
+    """Every xfail marker reduces to one unconditional Status cell.
+
+    The map has a single Status cell per invariant, so a second marker or a
+    ``condition=`` kwarg would make the cell true only some of the time.
+    """
+    offenders = _factory_markers()[1]
+    assert not offenders, (
+        "universal_harness.py carries xfail markers the diagnostic map cannot "
+        "represent:\n"
+        + "\n".join(f"  - {name}: {why}" for name, why in offenders.items())
+        + "\n\nThe Status column records one unconditional xfail-or-active "
+        "state per invariant. Move the condition into the check itself, or "
+        "drop it."
+    )
 
 
 @functools.cache
