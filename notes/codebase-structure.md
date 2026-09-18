@@ -94,27 +94,6 @@ technical debt.
 
 ---
 
-## Core Object Modules: Split `vultron_types.py` (TECHDEBT-14)
-
-`vultron/core/models/vultron_types.py` currently bundles multiple core object
-types into a single file. These SHOULD be split into individual modules for
-better organization, following the same pattern used in `vultron/wire/as2/vocab/objects/`:
-
-- Each core domain object class gets its own module
-  (e.g., `vultron/core/models/report.py`, `vultron/core/models/case.py`)
-- `vultron/core/models/__init__.py` or a thin re-export module can re-export
-  all types for callers that import from `vultron.core.models`
-
-This makes individual classes easier to find, reduces merge conflicts, and
-matches the source layout pattern already established in the wire layer.
-
-**Priority**: Low. No blocking impact; purely organizational.
-**Related**: `notes/domain-model-separation.md` "DRY Core Domain Models"
-proposes consolidating `vultron_types.py` and `events.py` under a shared
-`VultronObject` base class as part of this cleanup.
-
----
-
 ## `CVDRoles` Design Decision: StrEnum List, Not Flag
 
 The `CVDRoles` enum in `vultron/bt/roles/states.py` uses bitwise `Flag`
@@ -145,27 +124,6 @@ The old `CVDRoles` `Flag` class can be renamed `CVDRoleFlags` and left in
 `vultron/bt/roles/states.py` as long as the legacy BT simulator still uses it.
 When the BT simulator is eventually retired or migrated, `CVDRoleFlags` can be
 removed.
-
----
-
-## State Machine Library Consideration
-
-The RM, EM, and CS state machines are currently implemented as manually-defined
-enums with no formal state machine enforcement. The
-[`transitions`](https://github.com/pytransitions/transitions) Python library
-provides a clean, declarative way to define state machines with guards,
-callbacks, and transition tables.
-
-**Long-term consideration**: Integrating `transitions` would make it easier to
-define and maintain the RM/EM/CS state machines, enforce valid state transitions
-at runtime, and generate transition diagrams for documentation. This is not a
-high priority for the prototype, but may become valuable as the state machines
-grow more complex or when implementing actor independence (PRIORITY 100).
-
-**Open Question**: Should `transitions` (or an equivalent) be adopted before or
-after the domain model separation (see `notes/domain-model-separation.md`)? The
-state machines are a core domain concept; their implementation should live in
-`vultron/core/` regardless of which library is used.
 
 ---
 

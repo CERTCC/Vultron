@@ -40,9 +40,8 @@ sender's side. The important distinction is instead:
 
 - **participant assertion**: an inbound case- or proto-case-scoped activity
   that claims a protocol-relevant change occurred
-- **canonical case ledger entry**: a CASE_MANAGER-authored record that says the
-  assertion was processed and either accepted into canonical history or
-  rejected at the case layer
+- **canonical case ledger entry**: a CASE_MANAGER-authored record that the
+  assertion was accepted into canonical history (CLP-04-007)
 
 This keeps Vultron aligned with the existing rule that Activities are
 state-change notifications, not commands, while still preserving the CASE_MANAGER
@@ -159,76 +158,74 @@ of the original activity and not the transport envelope itself.
 
 Why a neutral object type:
 
-- it must represent both accepted and rejected outcomes
+- it records only CASE_MANAGER-accepted assertions — every entry is canonical
 - it separates canonical log content from transport concerns
 - it gives the CASE_MANAGER a stable object to hash, replicate, replay, and audit
 
-A `CaseLedgerEntry` should carry at least:
+A `CaseLedgerEntry` carries:
 
 - the asserted activity payload, or a normalized immutable snapshot sufficient
   for deterministic replay
-- the CASE_MANAGER's own recording metadata
-- a disposition such as `recorded` or `rejected`
-- for rejections, a small machine-readable reason code plus optional
-  human-readable detail
+- the CASE_MANAGER's own recording metadata (log_index, entry_hash, received_at,
+  prev_log_hash, term)
+
+Rejection outcomes are not recorded as ledger entries. When the CASE_MANAGER
+rejects an incoming assertion, it sends a `Reject` protocol activity to the
+asserting participant (CLP-02-005) and emits a Python log event; nothing enters
+the hash chain (CLP-04-007, CLP-05-002).
 
 `Announce` remains the **transport wrapper** for replication. The thing being
 announced is the `CaseLedgerEntry`, not the other way around.
 
 ---
 
-## Local Audit Log vs. Replicated Canonical Chain
+## Canonical Ledger vs. Python Process Log
 
-Two related but distinct structures are useful:
+Two related but distinct structures capture case-layer information:
 
-### 1. Local Case Audit Log
+### 1. Canonical Case Ledger
 
-The local audit log is append-only and captures case-layer processing outcomes
-for assertions that can be tied to a report, proto-case (RM.RECEIVED or
-    RM.INVALID stage case), or case.
+The canonical case ledger is append-only and contains only CASE_MANAGER-accepted
+protocol-significant assertions. Every entry is a `CaseLedgerEntry` with a valid
+payload snapshot and a hash chain position. No disposition field exists — every
+entry in the ledger is, by definition, accepted (CLP-04-007).
 
-It may contain both:
+The canonical ledger:
 
-- `recorded` entries
-- `rejected` entries
+- drives participant replica state reconstruction
+- participates in the Merkle/hash chain
+- is fanned out to other participants as canonical updates via `Announce`
 
-This log is useful for:
+### 2. Python Process Log
 
-- local traceability
-- debugging and human review
-- explaining why a sender was rejected
-- preserving case-level audit context without mixing it into transport logs
+Rejection outcomes, diagnostic events, and processing traces go to Python
+`logging` output. This log is per-actor, ephemeral, and must never be
+replicated or relied on for protocol semantics (ADR-0019).
 
-### 2. Replicated Canonical History
+When the CASE_MANAGER rejects an incoming assertion:
 
-The replicated canonical history is a **filtered projection** of only the
-`recorded` entries from the broader audit log.
-
-Only this recorded projection should:
-
-- drive participant replica state reconstruction
-- participate in the Merkle/hash chain
-- be fanned out to other participants as canonical updates
-
-Rejected entries are part of local case auditability, but they are **not** part
-of the canonical replicated history.
+- A `Reject` protocol activity is sent directly to the asserting participant
+  (CLP-02-005, CLP-05-001)
+- A Python log event is emitted at `INFO` or `WARNING` level
+- Nothing enters the hash chain (CLP-05-002, CLP-05-003)
 
 ---
 
-## Rejections Stay Local Except for Sender Feedback
+## Rejection Routing
 
-Not every inbound failure belongs in the case audit ledger.
+Not every inbound failure belongs in the canonical ledger — nothing does except
+accepted assertions.
 
 - If a message cannot be tied to a report/case (including proto-cases in
   RM.RECEIVED/INVALID stages), it belongs in transport- or actor-level
-  diagnostics, not the case ledger.
-- If the CASE_MANAGER can resolve the message to a case context but rejects it
-  during case-layer validation, the rejection belongs in the local case audit
-  log.
+  diagnostics (Python `logging`), not the canonical ledger.
+- If the CASE_MANAGER resolves the message to a case context but rejects it
+  during case-layer validation, it sends a `Reject` protocol activity to the
+  asserting participant (CLP-05-001) and emits a Python log event.
 
-Rejected case-ledger outcomes should normally be reported only to the asserting
-sender, not broadcast to all case participants. The other participants need the
-canonical recorded history, not the full stream of invalid assertion attempts.
+Rejection feedback is directed only to the asserting sender, not broadcast to
+all case participants. The other participants need the canonical history, not
+the full stream of invalid assertion attempts (CLP-05-001).
 
 ---
 
@@ -237,8 +234,9 @@ canonical recorded history, not the full stream of invalid assertion attempts.
 This model sharpens the replication boundary:
 
 - participant assertions are **inputs** to CASE_MANAGER processing
-- `CaseLedgerEntry(recorded)` objects are the **canonical replicated facts**
-- participant replicas derive state only from the canonical recorded entries
+- `CaseLedgerEntry` objects are the **canonical replicated facts** — every entry
+  is an accepted assertion by definition (CLP-04-007)
+- participant replicas derive state only from canonical ledger entries
 
 To support replay and stale-position detection, participant assertions should
 carry the sender's last accepted canonical log hash or position in `context`
@@ -253,49 +251,35 @@ because replicas need the actual asserted content to reconstruct state.
 
 ---
 
-## Post-#787 Convergence Decisions (Epic #788 — Completed)
+## `pending_assertions`: Local Decision-Suppression Memory (Epic #788)
 
-Issue #787 intentionally kept `CaseEvent` as a lightweight inline value object.
-That merged decision remained valid as a short-term compatibility step while the
-project converged on canonical `CaseLedgerEntry` history.
+Epic #788 (#789–#792, completed) made canonical `CaseLedgerEntry` the sole source
+of protocol-significant history and removed `CaseEvent` / `record_event()`.
+Actor-local `pending_assertions` suppresses duplicate emits during the canonical
+round-trip window — it is temporary local memory, not a second source of truth;
+canonical `CaseLedgerEntry` remains authoritative.
 
-Follow-on plan (Epic #788, all completed):
+Policy (`vultron/core/models/pending_assertion.py`):
 
-- #789 migrated remaining `record_event()`-only write paths to CASE_MANAGER
-  canonical log commits.
-- #790 introduced actor-local `pending_assertions` to suppress duplicate emits
-  during canonical round-trip windows.
-- #791 added a hard catch-up gate so actors must re-establish case-ledger
-  freshness before taking new case actions after restart.
-- #792 removed `CaseEvent` and `VulnerabilityCase.record_event()` — canonical
-  `CaseLedgerEntry` is now the sole source of protocol-significant history.
-
-`pending_assertions` is temporary local memory for decision suppression, not a
-second source of truth. Canonical `CaseLedgerEntry` remains authoritative.
-
-Initial policy decisions for pending assertions:
-
-- default timeout is 180 seconds and configurable
-- timeout marks the assertion as `timed_out` and logs an error
-- timeout does not auto-retry; future behavior may decide to re-emit if still
-  needed
-- entries clear when matching canonical `CaseLedgerEntry(recorded|rejected)`
-  arrives
-
----
+- default timeout is **180 seconds** and configurable
+- timeout marks the assertion `timed_out` and logs an error
+- timeout does not auto-retry
+- entries clear when a matching canonical `CaseLedgerEntry` arrives
 
 ## Consequences for Future Design Work
 
 This framing has several practical consequences:
 
 - The old "intent vs event" terminology should be retired for this topic.
-  `asserted` vs `recorded` is more accurate, with `rejected` as an additional
-  CASE_MANAGER disposition.
+  `asserted` vs `accepted` is more accurate — every entry in the ledger is an
+  accepted canonical assertion; rejections are protocol activities, not ledger
+  entries (CLP-04-007).
 - The `CaseEvent` / `record_event()` path was a useful foundation, but
   the long-term canonical content model needs to grow into a richer
   `CaseLedgerEntry`.
-- Specs and implementations dealing with replication must distinguish between
-  the broader local audit trail and the narrower canonical recorded chain.
+- Specs and implementations dealing with replication operate directly on the
+  canonical ledger — no disposition filtering is required because the ledger
+  contains only accepted entries.
 - Proto-case history must remain continuous across the
   report-to-case transition rather than being split into two unrelated logs.
 
@@ -388,40 +372,19 @@ they enter the hash chain. Failing fast at commit time keeps the
 canonical chain clean and surfaces bugs immediately, rather than allowing
 silent pollution that's discovered only when replicas diverge.
 
-### CLP-07-003 Actor-Identity Check Must Live at the Receive Pipeline, Not the Commit Boundary
+### CLP-07-003 Actor-Identity Check Lives at the Receive Pipeline, Not the Commit Boundary
 
-*Issue #3282; implemented by PR #3313.*
-
-CLP-07-003 requires that `payloadSnapshot.actor` equal the original asserting
-actor's identity. A guard was originally placed at `_validate_canonical_entry`
-(the commit boundary inside `chain.py`), checking whether `snapshot_actor ==
-case_actor_id` for non-CASE_AUTHORED signatures. ADR-0088 made this check
-incorrect by granting authority through role (`CVDRole.CASE_MANAGER`) rather
-than identity: a holder of that role may simultaneously participate as a
-reporter, finder, or coordinator, and may legitimately assert any
-participant-role activity — `Add(Note)`, `Offer(EmbargoEvent)`, etc.
-
-The commit boundary lacks the context to distinguish legitimate
-CASE_MANAGER-participant self-assertion from substitution: `_validate_canonical_entry`
-receives only the already-built snapshot and does not know the original inbound
-`actor_id`. Eleven payload signatures (every signature in
-`_CANONICAL_PAYLOAD_SIGNATURES` that is not in `_CASE_AUTHORED_SIGNATURES`) were
-incorrectly rejected as false positives.
-
-**The correct enforcement point is `lifecycle.CommitCaseLedgerEntryNode`
-(`vultron/core/behaviors/case/nodes/lifecycle.py`)**, where `activity.actor_id`
-(the original sender) is still available alongside the snapshot. The check is:
-`snapshot["actor"] MUST equal activity.actor_id`. A mismatch is a substitution;
-the CASE_MANAGER's own identity in `payloadSnapshot.actor` is never a mismatch
-when they are the sender.
+The check that `payloadSnapshot.actor` equals the asserting actor is enforced at
+`CommitCaseLedgerEntryNode` (`vultron/core/behaviors/case/nodes/lifecycle.py`),
+where the original `activity.actor_id` is still available — **not** at
+`_validate_canonical_entry` in `chain.py`, which sees only the built snapshot.
+ADR-0088 grants authority by role, so a CASE_MANAGER may legitimately self-assert
+participant activities; an identity check at the commit boundary false-rejects
+those (ISSUE-3282, PR #3313).
 
 Pitfall: do not restore the identity comparison to `_validate_canonical_entry`.
 `_CASE_AUTHORED_SIGNATURES` is still needed there for CLP-12-002's native-init
-coverage check — do not delete it, only remove its use in the identity comparison.
-
-Also remove the now-dead `actor_id` and `case_actor_id` parameters from
-`_validate_canonical_entry` and the corresponding `_find_case_actor_id` lookup
-in `chain.py` (confirmed dead after the block removal).
+coverage check — do not delete it, only its use in the identity comparison.
 
 ### An Entry Has Two Timestamps, and They Belong to Different Layers
 
@@ -704,17 +667,15 @@ correct implementation.
 
 ---
 
-## `invite_actor_to_case` Uses `disposition="recorded"` (Issue #1689)
+## `invite_actor_to_case` Commits a Canonical Ledger Entry (Issue #1689)
 
 `EmitInviteActorToCaseNode._call_factory()` (in
-`vultron/core/behaviors/case/nodes/actor.py`, renamed from `_emit()` by #2881) was changed from
-`disposition="rejected"` to `disposition="recorded"` in PR #1746.
-
-**Why this matters**: `disposition="rejected"` bypasses
-`_validate_canonical_entry`, so the payload snapshot was never validated.
-Using `disposition="recorded"` runs full validation, which requires that
-`Invite(CoreActor, VulnerabilityCase)` be recognized as a canonical payload
-signature. This is why `"CoreActor"` was added to `_ACTOR_TYPES` in
+`vultron/core/behaviors/case/nodes/actor.py`, renamed from `_emit()` by #2881)
+commits a canonical ledger entry via `create_commit_log_entry_tree`. All ledger
+entries pass through `_validate_canonical_entry` — there is no bypass path
+(CLP-04-007). This requires that `Invite(CoreActor, VulnerabilityCase)` be
+recognized as a canonical payload signature, which is why `"CoreActor"` was
+added to `_ACTOR_TYPES` in
 `vultron/core/behaviors/sync/nodes/canonical_entry.py`.
 
 **Snapshot construction**: the `payloadSnapshot` is built with
@@ -730,7 +691,7 @@ After `PersistInviteeParticipantNode` records the new participant in the
 DataLayer, `EmitAddCaseParticipantNode` (in
 `vultron/core/behaviors/case/nodes/accept_invite.py`) fans out
 `Add(CaseParticipant, Case)` to all existing participants and commits a
-canonical `CaseLedgerEntry(disposition="recorded")`.
+canonical `CaseLedgerEntry`.
 
 **Fan-out delivery**: recipients are resolved from
 `case.actor_participant_index.keys()` (HTTP actor URLs), **not** from

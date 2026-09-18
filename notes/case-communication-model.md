@@ -429,11 +429,3 @@ This is why `announce_case_ledger_entry` MUST NOT appear in
 See ADR-0021 for the full decision record.
 
 ---
-
-## Known Implementation Gaps
-
-| Gap | Location | Status |
-|---|---|---|
-| Notes trigger sends to all participants | `triggers/note.py:102` | Open |
-| Embargo triggers send to all participants | `triggers/embargo.py` | Open |
-| Engage/defer-case triggers send to all participants | `triggers/case.py:84,132` | Open |

@@ -85,8 +85,9 @@ The pilot validates the migration recipe before the full sweep (Issue #1809).
   has no mechanism for passing constructor arguments (factories, case IDs).
   Vultron nodes are **heavily constructor-parameterized** (BTND-01-001), so
   XML-based tree authoring is not yet feasible. This tension is documented
-  in `notes/py-trees-ports-adoption.md` and is the subject of the XML
-  feasibility spike (Issue #1810).
+  in `plan/history/2609/note/NOTES-py-trees-ports-adoption.md` (archived — the
+  migration is complete) and is the subject of the XML feasibility spike
+  (Issue #1810).
 
 ### Implementation pattern
 
@@ -114,8 +115,8 @@ populate `self.datalayer` and `self.actor_id`.
 
 ## More Information
 
-- `notes/py-trees-ports-adoption.md` — full migration recipe and issue
-  sequence.
+- `plan/history/2609/note/NOTES-py-trees-ports-adoption.md` — full migration
+  recipe and issue sequence (archived; migration complete).
 - `specs/behavior-tree-node-design.yaml` BTND-03-009 through BTND-03-011 —
   normative requirements for typed port declarations.
 - `vultron/core/behaviors/helpers.py` — `DataLayerConditionWithPorts` and

@@ -118,10 +118,10 @@ def test_trigger_reject_embargo_no_proposal_returns_404(
     assert resp.status_code == status.HTTP_404_NOT_FOUND
 
 
-def test_trigger_reject_embargo_sets_em_state_to_no_embargo(
+def test_trigger_reject_embargo_sets_em_state_to_none(
     client_triggers, dl, actor, case_with_proposal
 ):
-    """reject-embargo transitions case EM state from PROPOSED to NO_EMBARGO."""
+    """reject-embargo transitions case EM state from PROPOSED to NONE."""
     case_obj, proposal, _ = case_with_proposal
 
     resp = client_triggers.post(
@@ -131,7 +131,7 @@ def test_trigger_reject_embargo_sets_em_state_to_no_embargo(
     assert resp.status_code == status.HTTP_202_ACCEPTED
 
     updated_case = dl.read(case_obj.id_)
-    assert updated_case.current_status.em.state == EM.NO_EMBARGO
+    assert updated_case.current_status.em.state == EM.NONE
 
 
 def test_trigger_reject_embargo_adds_activity_to_outbox(

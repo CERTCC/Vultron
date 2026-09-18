@@ -13,9 +13,10 @@ informed: Vultron protocol working group
 `CVDRole.OTHER` was introduced as a catch-all placeholder for case participants
 that do not fit any of the standard CVD roles (FINDER, REPORTER, VENDOR, DEPLOYER,
 COORDINATOR). The draft Vultron Protocol spec (PR #2078, §7.3.3) proposed
-renaming this role to "Observer" to give it a meaningful semantic identity, but
-the rename was marked provisional because the protocol had not yet defined what
-an Observer *is*:
+renaming this role to "Observer" to give it a meaningful semantic identity. In
+that draft the rename had been left open, pending a definition of what
+an Observer *is* — the definition this ADR now supplies. The open questions at
+that point were:
 
 - What `case_roles` value does the `Invite` carry for an Observer?
   (Empty list `[]` was indistinguishable from the `caseRoles=[]` admission

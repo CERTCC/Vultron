@@ -316,13 +316,13 @@ class TestInviteeIsTheAddressee:
         dl,
         case_id: str,
         embargo_id: str,
-        invitee_pec: PEC = PEC.NO_EMBARGO,
+        invitee_pec: PEC = PEC.UNBOUND,
         extra_actors: tuple[str, ...] = (),
     ):
         """Case with the coordinator as CASE_MANAGER and a separate invitee.
 
         ``extra_actors`` seeds additional VENDOR participants at
-        ``PEC.NO_EMBARGO``; their participant IDs are returned in a dict keyed
+        ``PEC.UNBOUND``; their participant IDs are returned in a dict keyed
         by actor ID so multi-recipient tests can assert on them.
         """
         case = VulnerabilityCase(
@@ -355,7 +355,7 @@ class TestInviteeIsTheAddressee:
             extra_cp = WireCP(
                 attributed_to=actor,
                 context=case_id,
-                embargo_consent_state=PEC.NO_EMBARGO.value,
+                embargo_consent_state=PEC.UNBOUND.value,
                 case_roles=[CVDRole.VENDOR],
             ).to_core()
             dl.create(extra_cp)
@@ -399,7 +399,7 @@ class TestInviteeIsTheAddressee:
         assert invitee.invite_rsvp_deadline == _FUTURE
 
         coord = self._read_participant(dl, coord_p_id)
-        assert coord.embargo_consent_state == PEC.NO_EMBARGO
+        assert coord.embargo_consent_state == PEC.UNBOUND
         assert coord.invite_rsvp_deadline is None
 
     def test_absent_receiving_actor_targets_the_addressee(self, make_payload):
@@ -428,7 +428,7 @@ class TestInviteeIsTheAddressee:
         assert invitee.invite_rsvp_deadline == _FUTURE
 
         coord = self._read_participant(dl, coord_p_id)
-        assert coord.embargo_consent_state == PEC.NO_EMBARGO
+        assert coord.embargo_consent_state == PEC.UNBOUND
         assert coord.invite_rsvp_deadline is None
 
     def test_missing_to_field_warns_and_uses_receiving_actor(
@@ -498,7 +498,7 @@ class TestInviteeIsTheAddressee:
         assert invitee.embargo_consent_state == PEC.DECLINED
 
         coord = self._read_participant(dl, coord_p_id)
-        assert coord.embargo_consent_state == PEC.NO_EMBARGO
+        assert coord.embargo_consent_state == PEC.UNBOUND
 
     def test_multi_recipient_invite_targets_this_replica(self, make_payload):
         """Each recipient of a multi-party EP is invited in its own replica.
@@ -537,11 +537,11 @@ class TestInviteeIsTheAddressee:
 
         # The other recipient is invited in *its own* replica, not this one.
         other = self._read_participant(dl, other_p_id)
-        assert other.embargo_consent_state == PEC.NO_EMBARGO
+        assert other.embargo_consent_state == PEC.UNBOUND
         assert other.invite_rsvp_deadline is None
 
         coord = self._read_participant(dl, coord_p_id)
-        assert coord.embargo_consent_state == PEC.NO_EMBARGO
+        assert coord.embargo_consent_state == PEC.UNBOUND
 
     def test_multi_recipient_not_addressed_to_this_store_warns(
         self, make_payload, caplog
@@ -574,9 +574,9 @@ class TestInviteeIsTheAddressee:
         # Degrades to the receiving actor rather than guessing to[0]; neither
         # named recipient is touched on the strength of a positional guess.
         invitee = self._read_participant(dl, invitee_p_id)
-        assert invitee.embargo_consent_state == PEC.NO_EMBARGO
+        assert invitee.embargo_consent_state == PEC.UNBOUND
         other = self._read_participant(dl, other_p_id)
-        assert other.embargo_consent_state == PEC.NO_EMBARGO
+        assert other.embargo_consent_state == PEC.UNBOUND
 
         coord = self._read_participant(dl, coord_p_id)
         assert coord.embargo_consent_state == PEC.INVITED
@@ -617,9 +617,9 @@ class TestInviteeIsTheAddressee:
         )
         # Nothing is written to either real participant.
         invitee = self._read_participant(dl, invitee_p_id)
-        assert invitee.embargo_consent_state == PEC.NO_EMBARGO
+        assert invitee.embargo_consent_state == PEC.UNBOUND
         coord = self._read_participant(dl, coord_p_id)
-        assert coord.embargo_consent_state == PEC.NO_EMBARGO
+        assert coord.embargo_consent_state == PEC.UNBOUND
 
     def test_reject_tree_threads_subject_to_participant_lookup(self):
         """``reject_invite_to_embargo_tree`` wires its subject to the node.
@@ -650,19 +650,13 @@ class TestInviteeIsTheAddressee:
         assert lookups, "no OptionalLookupParticipantNode in the reject tree"
         assert all(node.target_actor_id == _INVITEE for node in lookups)
 
-    def test_reject_from_signatory_is_refused_not_applied(self, make_payload):
-        """A SIGNATORY rejecting is refused by the PEC machine, and says so.
+    def test_reject_from_signatory_transitions_to_declined(self, make_payload):
+        """A SIGNATORY rejecting transitions to DECLINED (ADR-0093).
 
-        Documents current behavior rather than endorsing it.  ``DECLINE`` is
-        legal only from ``NO_EMBARGO | INVITED | LAPSED``, and the received
-        side runs no EM lifecycle node, so nothing moves a SIGNATORY to
-        ``LAPSED`` in this replica first.  The transition is refused, the tree
-        reports FAILURE, and ``BTBridge`` logs it at ERROR with a traceback —
-        the participant is left as it was rather than silently mutated.
-
-        The protocol question this raises — what a SIGNATORY rejecting a
-        *revision* should transition to — needs an EM lifecycle change on the
-        received path and is recorded as a learning, not decided here.
+        ``DECLINE`` is now valid from ``SIGNATORY`` — the received side applies
+        the ``DECLINE`` PEC trigger directly, and the participant moves to
+        ``DECLINED``.  The case-level EM state is not changed (VP-13-009);
+        only the invitee's own consent record is updated.
         """
         dl = _make_dl(actor_id=_COORD)
         case_id = "https://example.org/cases/addressee8"
@@ -686,11 +680,12 @@ class TestInviteeIsTheAddressee:
 
         RejectInviteToEmbargoOnCaseReceivedUseCase(dl, event).execute()
 
-        # Refused, not applied — and emphatically not applied to the CaseActor.
+        # Invitee's consent withdrawal is recorded as DECLINED.
         invitee = self._read_participant(dl, invitee_p_id)
-        assert invitee.embargo_consent_state == PEC.SIGNATORY
+        assert invitee.embargo_consent_state == PEC.DECLINED
+        # CASE_MANAGER's own PEC is unaffected.
         coord = self._read_participant(dl, coord_p_id)
-        assert coord.embargo_consent_state == PEC.NO_EMBARGO
+        assert coord.embargo_consent_state == PEC.UNBOUND
 
 
 class TestInviteeIdProperty:
@@ -874,11 +869,11 @@ class TestLateAcceptHandling:
         assert isinstance(fresh_case, CoreCase)
         assert _INVITEE in fresh_case.actor_participant_index
 
-        # PEC should be NO_EMBARGO (reset; no active embargo to consent to)
+        # PEC should be UNBOUND (reset; no active embargo to consent to)
         p_id = fresh_case.actor_participant_index[_INVITEE]
         participant = dl.read(p_id)
         assert isinstance(participant, CaseParticipant)
-        assert participant.embargo_consent_state == PEC.NO_EMBARGO
+        assert participant.embargo_consent_state == PEC.UNBOUND
 
     def test_late_accept_honored_when_em_revise_with_matching_embargo(
         self, make_payload

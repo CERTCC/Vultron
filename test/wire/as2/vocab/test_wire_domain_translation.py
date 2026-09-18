@@ -91,7 +91,7 @@ def test_participant_status_from_core_materializes_case_status_reference():
         id_="https://example.org/cases/1/status/1",
         context="https://example.org/cases/1",
         attributed_to="https://example.org/actors/vendor",
-        em=EmDimension(state=EM.NO_EMBARGO),
+        em=EmDimension(state=EM.NONE),
     )
     core = CoreParticipantStatus(
         id_="https://example.org/cases/1/participants/1/status/1",

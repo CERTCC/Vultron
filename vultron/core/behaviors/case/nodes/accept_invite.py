@@ -47,7 +47,7 @@ class EmitAddCaseParticipantNode(_EmitSingleActivityBase):
     (``PersistInviteeParticipantNode``).  Fans the ``Add(CaseParticipant, Case)``
     activity out to all current case participants so they can update their
     local replica, and commits the corresponding canonical
-    ``CaseLedgerEntry(disposition="recorded")`` to the hash chain.
+    ``CaseLedgerEntry`` to the hash chain.
 
     Uses ``trigger_activity_factory.add_participant_to_case()`` to build and
     persist the activity.  The activity's ``payloadSnapshot`` is built with
@@ -166,7 +166,6 @@ class EmitAddCaseParticipantNode(_EmitSingleActivityBase):
             object_id=activity_id,
             event_type="add_case_participant",
             payload_snapshot=snapshot,
-            disposition="recorded",
         )
         result = BTBridge(
             datalayer=cast(CaseOutboxPersistence, self.datalayer)

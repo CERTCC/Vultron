@@ -114,17 +114,7 @@ class DispatcherBase:
         port_factory = self._port_factories.get(event.semantic_type)
         if port_factory is not None:
             extra_kwargs = port_factory(dl)
-        try:
-            use_case_class(dl, event, **extra_kwargs).execute()
-        except Exception:
-            logger.error(
-                "Unexpected error dispatching activity_id=%s actor_id=%s semantics=%s",
-                event.activity_id,
-                event.actor_id,
-                event.semantic_type,
-                exc_info=True,
-            )
-            raise
+        use_case_class(dl, event, **extra_kwargs).execute()
 
     def _enforce_join_backfill_gate(
         self, event: "VultronEvent", dl: "DataLayer"

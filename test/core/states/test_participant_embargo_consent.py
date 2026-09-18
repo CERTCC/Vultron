@@ -20,7 +20,7 @@ class TestPECEnum:
     def test_all_states_exist(self) -> None:
         names = {m.name for m in PEC}
         assert names == {
-            "NO_EMBARGO",
+            "UNBOUND",
             "INVITED",
             "SIGNATORY",
             "DECLINED",
@@ -45,10 +45,8 @@ class TestPECMachineCreation:
 class TestPecDimensionTransition:
     # --- INVITE transitions ---
     @pytest.mark.spec("SDO-02-001")
-    def test_invite_from_no_embargo(self) -> None:
-        result = PecDimension(state=PEC.NO_EMBARGO).transition(
-            PEC_Trigger.INVITE
-        )
+    def test_invite_from_unbound(self) -> None:
+        result = PecDimension(state=PEC.UNBOUND).transition(PEC_Trigger.INVITE)
         assert result.state == PEC.INVITED
 
     @pytest.mark.spec("SDO-02-001")
@@ -99,23 +97,29 @@ class TestPecDimensionTransition:
     @pytest.mark.spec("SDO-02-001")
     @pytest.mark.parametrize(
         "state",
-        [PEC.NO_EMBARGO, PEC.INVITED, PEC.SIGNATORY, PEC.DECLINED, PEC.LAPSED],
+        [PEC.UNBOUND, PEC.INVITED, PEC.SIGNATORY, PEC.DECLINED, PEC.LAPSED],
     )
     def test_reset_from_any_state(self, state: PEC) -> None:
         result = PecDimension(state=state).transition(PEC_Trigger.RESET)
-        assert result.state == PEC.NO_EMBARGO
+        assert result.state == PEC.UNBOUND
 
-    # --- ADR-0048: ACCEPT and DECLINE directly from NO_EMBARGO ---
+    # --- ADR-0048: ACCEPT and DECLINE directly from UNBOUND ---
     @pytest.mark.spec("SDO-02-001")
-    def test_accept_from_no_embargo(self) -> None:
-        result = PecDimension(state=PEC.NO_EMBARGO).transition(
-            PEC_Trigger.ACCEPT
-        )
+    def test_accept_from_unbound(self) -> None:
+        result = PecDimension(state=PEC.UNBOUND).transition(PEC_Trigger.ACCEPT)
         assert result.state == PEC.SIGNATORY
 
     @pytest.mark.spec("SDO-02-001")
-    def test_decline_from_no_embargo(self) -> None:
-        result = PecDimension(state=PEC.NO_EMBARGO).transition(
+    def test_decline_from_unbound(self) -> None:
+        result = PecDimension(state=PEC.UNBOUND).transition(
+            PEC_Trigger.DECLINE
+        )
+        assert result.state == PEC.DECLINED
+
+    # --- ADR-0093: SIGNATORY → DECLINED via DECLINE trigger ---
+    @pytest.mark.spec("SDO-02-001")
+    def test_decline_from_signatory(self) -> None:
+        result = PecDimension(state=PEC.SIGNATORY).transition(
             PEC_Trigger.DECLINE
         )
         assert result.state == PEC.DECLINED
@@ -143,6 +147,6 @@ class TestPecDimensionTransition:
             PecDimension(state=PEC.INVITED).transition(PEC_Trigger.REVISE)
 
     @pytest.mark.spec("SDO-02-002")
-    def test_revise_from_no_embargo_raises(self) -> None:
+    def test_revise_from_unbound_raises(self) -> None:
         with pytest.raises(VultronInvalidStateTransitionError):
-            PecDimension(state=PEC.NO_EMBARGO).transition(PEC_Trigger.REVISE)
+            PecDimension(state=PEC.UNBOUND).transition(PEC_Trigger.REVISE)

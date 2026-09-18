@@ -14,11 +14,11 @@
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 """Canonical-entry validation for the case ledger commit boundary.
 
-Guards every ``disposition="recorded"`` ``CaseLedgerEntry`` before it reaches
-the hash chain: the ``payloadSnapshot`` must carry a non-empty actor URI, a
-registered ``(activity_type, object_type)`` signature, fully inline nested
-objects, a ``context`` equal to the case URI, and — per CLP-07-003 — a
-CaseActor actor only for signatures the CaseActor is authorized to author.
+Guards every ``CaseLedgerEntry`` before it reaches the hash chain: the
+``payloadSnapshot`` must carry a non-empty actor URI, a registered
+``(activity_type, object_type)`` signature, fully inline nested objects, a
+``context`` equal to the case URI, and — per CLP-07-003 — a CaseActor actor
+only for signatures the CaseActor is authorized to author.
 
 Extracted from ``chain.py`` to keep that module within the BTND-07-004
 500-line leaf limit; grouped here as its own semantic concern per BTND-07-006.
@@ -307,7 +307,6 @@ def _validate_entry_timestamps(
 def _validate_canonical_entry(
     *,
     case_id: str,
-    disposition: str,
     payload_snapshot: dict[str, Any],
     event_type: str,
     case_published: datetime | None = None,
@@ -317,9 +316,7 @@ def _validate_canonical_entry(
     skew_tolerance: timedelta = timedelta(minutes=5),
 ) -> None:
     # Runs before idempotency check so malformed entries never reach the
-    # equivalence lookup (CLP-07). Relaxed for non-recorded dispositions.
-    if disposition != "recorded":
-        return
+    # equivalence lookup (CLP-07).
     if not payload_snapshot:
         raise VultronCanonicalEntryError(
             f"{event_type}: recorded canonical entries require a non-empty "

@@ -44,8 +44,8 @@ def is_ledger_fresh_for_case(
     Returns ``(True, "")`` when the actor's local log entries form an
     unbroken, hash-verified sequence starting at ``log_index=0`` with
     ``prev_log_hash`` equal to the per-case genesis hash.  Returns
-    ``(False, reason)`` if any index gap, hash mismatch, or missing genesis
-    metadata is found.
+    ``(False, reason)`` if any hash mismatch or missing genesis metadata is
+    found.
 
     An empty local log (no entries yet) is considered trivially fresh: the
     actor's acknowledged prefix is the empty prefix, which is contiguous.
@@ -58,7 +58,7 @@ def is_ledger_fresh_for_case(
     ``(False, reason)`` is returned — the check is **fail-closed** per
     CLP-08-003/CLP-08-004.
 
-    Spec: SYNC-10-003, SYNC-10-004, SYNC-10-005, CLP-08-004.
+    Spec: SYNC-10-003, SYNC-10-004, SYNC-10-005, CLP-04-007, CLP-08-004.
 
     Args:
         case_id: URI of the case whose local ledger to check.
@@ -110,11 +110,6 @@ def is_ledger_fresh_for_case(
     for i in range(1, len(entries)):
         prev = entries[i - 1]
         curr = entries[i]
-        if curr.log_index != prev.log_index + 1:
-            return False, (
-                f"log gap: entries jump from index {prev.log_index} "
-                f"to {curr.log_index}"
-            )
         if curr.prev_log_hash != prev.entry_hash:
             return False, (
                 f"hash mismatch at index {curr.log_index}: "
@@ -150,13 +145,13 @@ def _reconstruct_tail_hash(
         VultronValidationError: When the ledger is empty and the per-case
             genesis hash cannot be found in the DataLayer.
     """
-    entries: list[CaseLedgerEntry] = [
+    all_entries: list[CaseLedgerEntry] = [
         obj
         for obj in dl.list_objects("CaseLedgerEntry")
         if isinstance(obj, CaseLedgerEntry) and obj.case_id == case_id
     ]
 
-    if not entries:
+    if not all_entries:
         genesis = _get_case_genesis_hash(case_id, dl)
         if not genesis:
             raise VultronValidationError(
@@ -167,8 +162,8 @@ def _reconstruct_tail_hash(
             )
         return genesis, -1
 
-    entries.sort(key=lambda entry: entry.log_index)
-    last = entries[-1]
+    all_entries.sort(key=lambda entry: entry.log_index)
+    last = all_entries[-1]
     return last.entry_hash, last.log_index
 
 
@@ -220,7 +215,7 @@ def _semantic_payload(value: Any) -> Any:
 def recorded_entries_for_case(
     *, case_id: str, dl: CasePersistence
 ) -> list[CaseLedgerEntry]:
-    """Return *case_id*'s recorded entries, oldest first, in one store scan.
+    """Return *case_id*'s ledger entries, oldest first, in one store scan.
 
     :meth:`CasePersistence.list_objects` takes no case filter, so it walks every
     ledger entry in the store regardless of case.  The commit boundary needs
@@ -232,9 +227,7 @@ def recorded_entries_for_case(
     entries = [
         obj
         for obj in dl.list_objects("CaseLedgerEntry")
-        if isinstance(obj, CaseLedgerEntry)
-        and obj.case_id == case_id
-        and obj.disposition == "recorded"
+        if isinstance(obj, CaseLedgerEntry) and obj.case_id == case_id
     ]
     entries.sort(key=lambda entry: entry.log_index)
     return entries

@@ -69,7 +69,6 @@ def _seed_ledger_entry(
     entry = VultronCaseLedgerEntry(
         case_id=case_id,
         log_index=index,
-        disposition="recorded",
         log_object_id=object_id,
         event_type=event_type,
         payload_snapshot={},

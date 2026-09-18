@@ -77,9 +77,9 @@ class PendingAssertionStore:
     ``CaseLedgerEntry`` round-trip.  An entry is suppressed if its status is
     ``"pending"`` and it has not exceeded ``timeout_seconds``.
 
-    Cleared when a matching ``Announce(CaseLedgerEntry)`` (disposition
-    ``"recorded"`` or ``"rejected"``) arrives at the actor.  Timed-out entries
-    are marked ``"timed_out"`` and no longer suppress future decisions.
+    Cleared when a matching canonical ``Announce(CaseLedgerEntry)`` arrives at
+    the actor.  Timed-out entries are marked ``"timed_out"`` and no longer
+    suppress future decisions.
 
     Setting ``timeout_seconds=0`` disables suppression entirely.
 

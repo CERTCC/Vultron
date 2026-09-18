@@ -71,6 +71,12 @@ and fall through to Level 2 (GitHub label search).
 > `FAILED` lines. Always check for a summary line and the `+++ Timeout +++`
 > marker before concluding a test is nondeterministic.
 >
+> Note: exit 137 (SIGKILL) with no summary line also occurs from **container
+> memory exhaustion** when the full suite is run repeatedly in one session —
+> e.g. a third consecutive `uv run pytest` aborting mid-run while the first two
+> passed — independent of any per-test timeout. Same triage rule: no summary
+> line means the run was killed, not that a test failed (ISSUE-2458).
+>
 > Note: `test_vultrabot` shows `SUBFAILED` in the full suite due to py_trees
 > blackboard global-state ordering, but exit code stays 0 (unittest subtest
 > failures don't trigger pytest's failure exit code). Documented in

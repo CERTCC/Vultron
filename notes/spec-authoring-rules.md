@@ -23,6 +23,15 @@ keeps the short index; the decision of *what* belongs in a spec at all is in
 
 ---
 
+**Reading a lint or loader failure**: the mechanics of how these tools report a
+file they cannot read — and the three reasons a failure can arrive without
+naming its file — are in
+[`vultron/metadata/AGENTS.md`](../vultron/metadata/AGENTS.md) § "Loader Failure
+Attribution". Read that first if the output you are looking at is a traceback
+rather than an `[ERROR]` line.
+
+---
+
 ## Field Value Enums
 
 ### Valid `kind:` Values
@@ -232,6 +241,63 @@ implemented and faithfully wrong. Grep the spec corpus for MUST requirements
 whose subject is `CaseActor` to catch these before they hide defects.
 
 Source: ISSUE-1872, ISSUE-3260
+
+### Name Which Member of a Population a Requirement Constrains
+
+When a requirement constrains one member of a set of similar things — one of
+several timestamps on an object, one of several registries consulted on the same
+value, one of several *kinds* of entry in a list — it MUST name **which one**.
+An RFC 2119 verb applied to an unnamed member is not merely vague; it is often
+*wrong under the plainer reading a new implementer will take*, producing a check
+that is either vacuous or falsely rejecting:
+
+- **Timestamps (ISSUE-2824).** A `CaseLedgerEntry` carries both an envelope
+  `published` (the CASE_MANAGER's commit stamp) and a `payloadSnapshot.published`
+  (the asserting participant's claimed time). CLP-14/CLP-15 constrained "the
+  published timestamp" without saying which; applied to the claimed field,
+  CLP-14-003's monotonicity check compares two participants' unsynchronised
+  clocks — the wall-clock ordering ADR-0079 rejected — and rejects well-formed
+  assertions. The fix names the field in every entry.
+- **Registries (ISSUE-3217).** Two lookups act on an activity's `type`: the AS2
+  vocabulary (`parse_activity` → reject with HTTP 422) and the semantic pattern
+  registry (`find_matching_semantics` → route to `UNKNOWN`). MV-01-006 said
+  "unrecognized activity types" without naming the registry, so "reject" and
+  "route to UNKNOWN" both looked correct. The fix names the semantic pattern
+  registry and points the parse-time behaviour at MV-01-001.
+- **List kinds (ISSUE-3207).** ADR-0089's ratchet exclusion list holds two
+  *writer* exclusions plus a permanent non-writer over-catch. An AC that says
+  the list "ends at exactly two entries" (dropping *writer*) contradicts the
+  design that made the gate deliberately over-broad. Count the kind, not the
+  whole population.
+
+**Corollary — name the enforcing side of a participant obligation.** A
+requirement written as a participant duty ("a participant MUST emit … in causal
+order") MUST also say what the *receiver* does about it: enforce, flag, or
+nothing. A group heading is not a substitute — CLP-15's *Participant Assertion
+Timestamp Obligations* heading did not stop four entries from being read as
+CASE_MANAGER duties, and seven `xfail(strict=True)` stubs were written against a
+per-assertion enforcement that CLP-15-005 forbids and a stateless commit boundary
+cannot perform. Give such a requirement a `note` naming the enforcing side and a
+`verification` pointing at the vantage point (e.g. a whole-scenario
+`check_causal_edges`) from which the obligation is actually observable.
+
+Source: ISSUE-2824, ISSUE-3217, ISSUE-3207
+
+### Verify an "All-Members" Group Claim Against Each Member
+
+The verification-side companion to the rule above. When a spec **group
+description** asserts a property of *all* its members ("All CS shorthands share
+the `ADD_CASE_STATUS_TO_CASE` semantic"), check each member against the code
+before relying on the generalization. Group descriptions are written once and
+rarely revisited when one member's behaviour later diverges, so a stale "all"
+claim silently mis-specifies the members that changed. MSM-03-001/002/003
+inherited exactly this: the group generalized a `CaseStatus` semantic onto `CV`/
+`CF`/`CD`, which actually carry participant-scoped VF/D state
+(`as_ParticipantStatus`, ADR-0075) — so the group asserted, normatively, the
+opposite of an invariant the domain model enforces. An implementer following it
+faithfully would have dropped the vendor identity.
+
+Source: MSM-03-001/002/003 (promoted from notes/message-type-reference.md)
 
 ### Never Restate Counts in Cross-References
 

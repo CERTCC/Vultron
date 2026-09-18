@@ -229,7 +229,7 @@ class TestResetEmbargoConsentWithInlineParticipants:
         assert updated_participant is not None
         assert (
             getattr(updated_participant, "embargo_consent_state", None)
-            == PEC.NO_EMBARGO.value
+            == PEC.UNBOUND.value
         )
 
 

@@ -253,7 +253,6 @@ class EmitOfferCaseParticipantToOwnerNode(DataLayerActionWithPorts):
                 object_id=activity_id,
                 event_type="offer_case_participant",
                 payload_snapshot=snapshot,
-                disposition="recorded",
             )
             result = BTBridge(
                 datalayer=cast(CaseOutboxPersistence, self.datalayer)

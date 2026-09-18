@@ -228,13 +228,6 @@ migration path.
 **Load when**: adding new ActivityStreams vocabulary types, modifying
 registry decorators, or diagnosing vocabulary type-resolution issues.
 
-**`federation_ideas.md`**
-Open design exploration: AS2 as vocabulary (not full ActivityPub), actor /
-inbox / outbox model, case object ownership, relay pattern, journal vs delivery
-log, mirror consistency, instance trust, peering handshake, connector plugins.
-**Load when**: scoping multi-instance federation, designing actor peering, or
-evaluating the relay/journal delivery architecture.
-
 ---
 
 ## Protocol Conformance and Behavioral Specs
@@ -324,17 +317,6 @@ composability, and open architecture questions.
 **Load when**: making architecture decisions about BT structure, deciding
 whether a new use case needs a BT, or implementing a BT-backed use case
 from scratch.
-
-**`py-trees-ports-adoption.md`** *(archived — migration complete)*
-Completed reference for the py_trees 2.5.0 typed-Ports migration
-(`vultron/core/behaviors/`): the eight finalized conventions (Type A–D node
-shapes, execution-scoped keys, read-modify-write dual-alias, `_InboxNodeWithPorts`
-base, `NotImplementedError` on explicit `None`), the composite and
-constructor-parameterized gate exemptions, and the planned XML-as-spec spike.
-**Load when**: writing a new BT node that uses typed Ports and need the
-canonical patterns reference (finalized conventions sections 1–8).
-**Do not load when**: looking for live migration tasks — the migration
-(`#1809` chain, parts 1–5) is complete.
 
 **`bt-canonical-reference.md`**
 Canonical CVD Protocol Behavior Tree structural reference: trunk-removed
@@ -739,6 +721,19 @@ root-owned venv, the broken `gh` credential-helper path, and the hard-linked
 `.agents/` and `.claude/` skill trees.
 **Load when**: a tool fails to start, `git push` cannot authenticate, or you are
 about to edit a skill file.
+
+**`lint-tooling.md`**
+Lint and format gate policy (ADR-0094): ruff as the sole Python linter and
+formatter, why `select` names families while `ignore` is curated by exception,
+what makes an acceptable exclusion reason (IMPLTS-07-019), and why `RUF100`
+rather than a bespoke test is the ratchet for baselined findings
+(IMPLTS-07-020). Records the two notable exclusions — provisional `PLC0415`
+(#3350) and provisional `G004` (#3378) — and the commit-loop habits that change when the
+flake8 hook is retired. **Decided but not yet built**: the configuration it
+describes lands with #3352; flake8, black and isort are still the live gate.
+**Load when**: editing `[tool.ruff]`, adding or removing an `ignore` entry,
+baselining a new rule, tightening the ruleset, or wiring a lint step into CI or
+pre-commit.
 
 **`ci-workflow-authoring.md`**
 Pitfalls when writing or reading GitHub Actions workflows: PyYAML resolving bare

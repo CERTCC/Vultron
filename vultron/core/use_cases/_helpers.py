@@ -432,11 +432,11 @@ def resolve_case_participant_id_for_actor(
 def reset_case_participant_embargo_consent(
     dl: CasePersistence, case: VulnerabilityCase
 ) -> None:
-    """Reset all participants' embargo consent state to NO_EMBARGO.
+    """Reset all participants' embargo consent state to UNBOUND.
 
     Called when an embargo is terminated or removed.  Iterates over all
     participants in *case* and applies ``PEC_Trigger.RESET`` to any
-    participant whose embargo_consent_state is not already ``NO_EMBARGO``.
+    participant whose embargo_consent_state is not already ``UNBOUND``.
     Tolerates both string IDs and inline ``CaseParticipant`` objects in
     ``case.case_participants`` (regression #609).
 
@@ -452,7 +452,7 @@ def reset_case_participant_embargo_consent(
         participant = dl.read(participant_id)
         if not isinstance(participant, CaseParticipant):
             continue
-        if participant.embargo_consent_state != PEC.NO_EMBARGO.value:
+        if participant.embargo_consent_state != PEC.UNBOUND.value:
             participant.apply_pec_transition(PEC_Trigger.RESET)
             dl.save(participant)
 

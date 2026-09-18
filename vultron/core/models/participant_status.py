@@ -51,7 +51,10 @@ def coerce_em_consent_state(value: object) -> PEC | None:
     if isinstance(value, PEC):
         return value
     if isinstance(value, str):
-        return PEC[value]
+        # ADR-0091 renamed NO_EMBARGO → UNBOUND; migrate stored legacy values.
+        if value == "NO_EMBARGO":
+            return PEC.UNBOUND
+        return PEC(value)
     raise TypeError(
         f"Unsupported em_consent_state type: {type(value).__name__}"
     )

@@ -64,6 +64,8 @@
 - **Test file naming/location**: `test/` directory mirrors `vultron/` package layout; files named `test_<module>.py`
 - **Spec marker**: `@pytest.mark.spec("SPEC-ID-NNN")` links tests to spec requirements; validated against `SpecRegistry` at collection time (warns on unknown IDs)
 - **Integration marker**: `@pytest.mark.integration` for tests that exercise the full HTTP stack; excluded from default `pytest` run
+- **Other registered markers** (`pyproject.toml` `[tool.pytest.ini_options].markers`): `case_ledger_invariants` (require `devlogs/` JSONL artifacts; skip when absent), `executes_as(actor_id)` (actor identity the test's BT runs under; opens that actor's store per ADR-0073), `spec_corpus` (tests that load real `specs/` YAML; gated on `specs/**` changes via `spec-check.yml`)
+- **Per-test timeout**: `pytest-timeout` unit tier is 30 s (raised from 5 s in #2270; `timeout_method = "thread"`), integration tier 60 s (`INTEGRATION_TIMEOUT_SECONDS` in `test/conftest.py`)
 - **Mocking strategy**: real `sqlite:///:memory:` database in all tests (no DB mocking); `conftest.py` forces in-memory DB via env var before any imports
 - **Coverage expectation**: [TODO] — no coverage tool configured in `pyproject.toml`; CI does not report coverage percentage
 

@@ -179,26 +179,6 @@ dimension-object shape handling there. See
 
 ---
 
-## Call-Site Migration Scope
-
-There are approximately 308 call sites in `vultron/` and `test/` (excluding
-`vultron/bt/`) that access the old flat enum fields. The migration pattern
-is mechanical:
-
-| Old access pattern | New access pattern |
-|---|---|
-| `status.em_state` | `status.em.state` |
-| `status.pxa_state` | `status.pxa.state` |
-| `status.rm_state` | `status.rm.state` |
-| `status.vfd_state` | `status.vf.state` (VENDOR) or `status.d.state` (DEPLOYER) |
-| `status.em_consent_state` | `status.consent.state` (or `None` check) |
-| `CaseStatus(em_state=EM.ACTIVE, ...)` | `CaseStatus(em=EmDimension(state=EM.ACTIVE), ...)` |
-
-The `vultron/bt/` legacy simulator is **out of scope** — it uses the custom
-BT engine and accesses enums directly; migrating it is a separate effort.
-
----
-
 ## Relationship to Existing Predicates
 
 The existing state-group tuples and `is_*()` free-standing helpers in
@@ -272,28 +252,6 @@ different disposition by design.
 `test/architecture/test_vfd_rm_pxa_write_sites.py` (the AC-7 ratchet) AST-scans
 `vultron/core/behaviors/` for every dimension constructor call and fails on any
 new unclassified site, making it hard to add an unguarded write path silently.
-
----
-
-## Relationship to EmbargoLifecycle
-
-`EmbargoLifecycle` currently mutates `em_state` and `em_consent_state` fields
-directly on `CaseStatus`/`ParticipantStatus`. After this migration, it MUST
-use the dimension-object transition pattern:
-
-```python
-# Before
-case_status.em_state = new_em_state
-
-# After
-updated_em = EmDimension(state=new_em_state)
-# ... or via transition():
-updated_em = case_status.em.transition(EM_Trigger.ACTIVATE)
-case_status = case_status.model_copy(update={"em": updated_em})
-```
-
-This is the single most complex migration site (`embargo_lifecycle.py` has
-~17 flat-field accesses). The impl agent should prioritize this file.
 
 ---
 

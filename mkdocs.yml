@@ -117,6 +117,10 @@ nav:
       - Benchmarking MPCVD: 'topics/measuring_cvd/benchmarking_mpcvd.md'
       - Reward Functions: 'topics/measuring_cvd/reward_functions.md'
       - Modeling and Simulation: 'topics/measuring_cvd/mod_sim.md'
+    - Future Work:
+      - 'topics/future_work/index.md'
+      - Federation: 'topics/future_work/federation.md'
+      - Open Questions: 'topics/future_work/open_questions.md'
   - How-to Guides:
       - 'howto/index.md'
       - A Case Object: 'howto/case_object.md'
@@ -355,6 +359,8 @@ nav:
       - 'A Blank Required Field Is Absence, and a Recognised Inline Object That Fails Validation Is Refused': 'adr/0090-blank-is-absent-and-inline-faults-are-refused.md'
       - "Rename PEC NO_EMBARGO to UNBOUND; Drop EM.NO_EMBARGO Alias": 'adr/0091-rename-pec-no-embargo-to-unbound.md'
       - 'Lint Fragments as Source, and Evaluate Page-Scoped Style Rules on the Rendered Page': 'adr/0092-lint-fragments-as-source-page-rules-on-rendered-page.md'
+      - "DECLINE Is Legal from SIGNATORY — Consent Withdrawal Is a First-Class PEC Action": 'adr/0093-signatory-declined-pec-transition.md'
+      - 'Replace flake8, isort and black with ruff, and declare lint exclusions instead of discovering them': 'adr/0094-ruff-replaces-flake8-isort-black.md'
   - About:
     - What's New: 'about/whats_new.md'
     - Contributing: 'about/contributing.md'

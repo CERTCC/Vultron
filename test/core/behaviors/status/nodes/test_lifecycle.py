@@ -339,7 +339,7 @@ class TestPublicDisclosureBranchNodeProposedEmPath:
         """EM PROPOSED + CS.P → BranchNode succeeds; EM transitions to NONE.
 
         Per EMB-16-001: reject_proposed_embargo_bt arm must execute, driving
-        EM PROPOSED → NO_EMBARGO via reject_embargo_invite().
+        EM PROPOSED → NONE via reject_embargo_invite().
         """
         reject_id = "https://example.org/activities/reject-01"
         dl, bridge, node = self._setup(

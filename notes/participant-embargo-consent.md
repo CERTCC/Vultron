@@ -78,6 +78,7 @@ participant's consent state is `SIGNATORY`; `False` for all other states.
 | `INVITED` | `Reject(Invite(Embargo))` received | `DECLINED` | Wire: `ER` / `REJECT_INVITE_TO_EMBARGO_ON_CASE` |
 | `INVITED` | Invitation deadline passed (pocket veto) | `DECLINED` | Timer: no wire message; CASE_MANAGER authors ledger entry (CM-28-005) |
 | `SIGNATORY` | Shared EM enters `REVISE` state | `LAPSED` | Cascade: `EV` side-effect; no outbound PEC message |
+| `SIGNATORY` | Explicit consent withdrawal (per VP-13-007/008) | `DECLINED` | Wire: `ER` / `REJECT_INVITE_TO_EMBARGO_ON_CASE` (ADR-0093) |
 | `LAPSED` | Re-invited for revised embargo terms | `INVITED` | Wire: `EP` / `INVITE_TO_EMBARGO_ON_CASE` |
 | `LAPSED` | Direct `Accept` of revised terms | `SIGNATORY` | Wire: `EA` / `ACCEPT_INVITE_TO_EMBARGO_ON_CASE` |
 | `LAPSED` | Re-acceptance deadline passed (pocket veto) | `DECLINED` | Timer: no wire message; CASE_MANAGER authors ledger entry (CM-28-005) |
@@ -379,21 +380,6 @@ even to `DECLINED` and `LAPSED` participants:
 
 Only **case content** (vulnerability report details, fix status, technical
 notes with sensitive information) is gated on `embargo_adherence=True`.
-
----
-
-## Implementation Notes
-
-- The state machine SHOULD be implemented using the `transitions` library,
-  consistent with the RM, EM, and CS state machines elsewhere in the codebase
-- The machine name is `ParticipantEmbargoConsent`
-- Define states and triggers in a new module:
-  `vultron/core/states/participant_embargo_consent.py`
-- `ParticipantStatus.embargo_adherence` is a `@computed_field` (Pydantic v2)
-  that returns `self.consent is not None and self.consent.state == PEC.SIGNATORY`.
-  It MUST NOT be declared as a stored field. Consent writes go through
-  `apply_pec_transition()` on `CaseParticipant`; the computed field reflects the
-  result automatically. Decision: ADR-0056.
 
 ---
 

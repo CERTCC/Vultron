@@ -101,15 +101,12 @@ class _PublicDisclosureSkipConditionNode(DataLayerConditionWithPorts):
             pxa_state = None
         if pxa_state is None:
             return False
-        try:
-            return pxa_state in (
-                CS_pxa.Pxa,
-                CS_pxa.PxA,
-                CS_pxa.PXa,
-                CS_pxa.PXA,
-            )
-        except Exception:
-            return False
+        return pxa_state in (
+            CS_pxa.Pxa,
+            CS_pxa.PxA,
+            CS_pxa.PXa,
+            CS_pxa.PXA,
+        )
 
     def _sender_is_case_owner(self, case: VulnerabilityCase) -> bool:
         """Return True iff sender is a known CASE_OWNER participant."""
@@ -154,7 +151,7 @@ class _PublicDisclosureSkipConditionNode(DataLayerConditionWithPorts):
 
         # Check EM state directly (EMB-16-001): teardown is required for
         # ACTIVE, REVISE (terminate path) and PROPOSED (reject path).
-        # NO_EMBARGO and EXITED have nothing to tear down.
+        # NONE and EXITED have nothing to tear down.
         em_state = self._em_state(case)
         if em_state not in (EM.ACTIVE, EM.REVISE, EM.PROPOSED):
             return Status.SUCCESS

@@ -145,8 +145,10 @@ in `docs/topics/scenarios/index.md`, which is the authoritative source.
 - Good, because the narrative check fails when the demo and the intended
   protocol disagree, which no existing invariant detects.
 - Good, because it composes with ADR-0037/0055 rather than competing: where the
-  actor buffers, the harness needs no gate, and some of the 26
-  `wait_for_case_on_container` sites may now be removable.
+  actor buffers, the harness needs no gate. (An early consequence speculated that
+  some `wait_for_case_on_container` sites would become removable; in practice the
+  count has grown, not shrunk, as scenario coverage expanded — those polling
+  sites persist alongside the gates.)
 - Bad, because migrating nine scenarios and roughly 20 gate call sites is
   substantial mechanical work, and the timeout constants are hand-tuned per site.
 - Bad, because some preconditions are not observable today. "The receiver
@@ -234,13 +236,13 @@ gating would not have prevented.
 
 Related decisions: ADR-0037 (buffer out-of-order ledger entries), ADR-0059
 (buffer pre-genesis ledger entries — the production-side counterpart of this
-decision), ADR-0041 (`log_index` order is causal order), ADR-0052 (demo CI job
-structure).
+decision), ADR-0079 / CLP-14-001 (`log_index` order is causal order), ADR-0052
+(demo CI job structure).
 
 Source concern: CONCERN-2181. Evidence: the Epic #2136 sub-issues ISSUE-2120,
 ISSUE-2134, ISSUE-2135, ISSUE-2141, ISSUE-2169, ISSUE-2178, ISSUE-2180, and
 ISSUE-2186.
 
 Generated spec requirements: `event-driven-control-flow.yaml` EDF-06-001 through
-EDF-06-007; `multi-actor-demo.yaml` DEMOMA-22-001 through DEMOMA-22-006;
+EDF-06-008; `multi-actor-demo.yaml` DEMOMA-22-001 through DEMOMA-22-007;
 `demo-ci.yaml` DEMOCI-01-007.

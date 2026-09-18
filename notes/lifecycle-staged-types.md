@@ -155,29 +155,6 @@ staged object must rehydrate to the base type and re-validate to its staged type
 without loss. Register the base type in `CORE_VOCABULARY` as today; do not add a
 persisted stage discriminator.
 
-## Future Direction: Per-Dimension Status Decomposition
-
-A natural next layer — **not** part of ADR-0033 — is decomposing
-`CaseStatus`/`ParticipantStatus` into per-machine dimension objects (each state
-machine its own small object with its own `transition()`/guard method), e.g.
-`ParticipantStatus` → `{report: RmState, vf: VfState, d: DState, consent: PecState}`.
-
-Where it helps: it gives the scattered EM/RM transition logic (see
-`notes/embargo-lifecycle.md`, #538) one home, models the genuinely independent
-dimensions faithfully, and composes with staged types (the `is_rm_validated()`
-predicates become methods on the RM dimension). Staged types make illegal
-*shapes* unrepresentable; dimension objects make illegal *transitions*
-unrepresentable.
-
-Where it gets messier: it is a wire- and persistence-visible schema change
-(rehydration, `CORE_VOCABULARY`, AS2 projection, and the append-only
-history model all interact), so it deserves its **own ADR** and must not be
-folded into the staged-types work. Tracked as a separate Idea issue.
-
-**Resolved**: ADR-0036 and `specs/status-dimension-objects.yaml` capture the
-design and normative requirements. See `notes/status-dimension-objects.md`
-for implementation guidance.
-
 ## Transition Constructors: Not Adopted (field-mutation retained)
 
 **Decision (CONCERN-1912, planning group G06 / #2834):** the write path stays as

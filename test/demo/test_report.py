@@ -503,12 +503,6 @@ class TestFriendlyNaming:
         event = CaseTimelineEvent.from_raw(_camel_entry())
         assert event.summary == "Vendor validated the report"
 
-    def test_summary_marks_rejected_disposition(self):
-        event = CaseTimelineEvent.from_raw(
-            _camel_entry(disposition="rejected")
-        )
-        assert event.summary.endswith("[rejected]")
-
     def test_summary_no_uri_or_uuid(self):
         """DRPT-03-001: summaries must not contain bare URIs/UUIDs."""
         event = CaseTimelineEvent.from_raw(_camel_entry())
@@ -789,30 +783,6 @@ class TestBuildTimeline:
         b = _camel_entry(entryHash="", logIndex=1, eventType="close_case")
         events = build_timeline({"vendor": [a, b]})
         assert len(events) == 2
-
-    def test_rejected_entries_excluded(self):
-        """disposition=rejected entries are silently dropped (DRPT-02-007)."""
-        recorded = _camel_entry(logIndex=0, entryHash="a" * 64)
-        rejected = _camel_entry(
-            logIndex=1,
-            entryHash="b" * 64,
-            disposition="rejected",
-            payloadSnapshot={},
-        )
-        events = build_timeline({"vendor": [recorded, rejected]})
-        assert len(events) == 1
-        assert events[0].log_index == 0
-
-    def test_only_rejected_entries_yields_empty_timeline(self):
-        """A replica with only rejected entries produces an empty timeline."""
-        r1 = _camel_entry(
-            logIndex=0, entryHash="a" * 64, disposition="rejected"
-        )
-        r2 = _camel_entry(
-            logIndex=1, entryHash="b" * 64, disposition="rejected"
-        )
-        events = build_timeline({"vendor": [r1, r2]})
-        assert events == []
 
 
 # ---------------------------------------------------------------------------

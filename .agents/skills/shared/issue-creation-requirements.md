@@ -24,6 +24,7 @@ bash .agents/skills/shared/board-id.sh issue-type Task
 # 305-open-issue repo this returned 16 of 34 open epics and hid #1190
 # entirely. A truncated list is indistinguishable from a genuine no-match, and
 # `calve-epics` reads no-match as a signal to create a new epic (#3319).
+# Increase if the repo grows past 1000 open issues.
 gh issue list --repo CERTCC/Vultron --state open --limit 1000 \
   --json number,title,issueType \
   --jq '.[] | select(.issueType.name == "Epic") | "#\(.number): \(.title)"'

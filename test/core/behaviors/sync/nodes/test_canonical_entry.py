@@ -58,7 +58,6 @@ def test_validate_canonical_entry_rejects_empty_snapshot():
     with pytest.raises(VultronCanonicalEntryError):
         _validate_canonical_entry(
             case_id=CASE_ID,
-            disposition="recorded",
             payload_snapshot={},
             event_type="note_added",
         )
@@ -103,7 +102,6 @@ def _call_with_ts(
 ) -> None:
     _validate_canonical_entry(
         case_id=CASE_ID,
-        disposition="recorded",
         payload_snapshot=snapshot,
         event_type="note_added",
         case_published=case_published,
@@ -285,18 +283,6 @@ def test_timestamp_checks_are_not_gated_on_case_published():
     with pytest.raises(VultronCanonicalEntryError, match="CLP-07-011"):
         _validate_canonical_entry(
             case_id=CASE_ID,
-            disposition="recorded",
             payload_snapshot=_ts_snapshot(published=None),
             event_type="note_added",
         )
-
-
-@pytest.mark.spec("CLP-07-011")
-def test_timestamp_checks_skipped_for_rejected_disposition():
-    """Non-recorded entries are outside the canonical chain and stay relaxed."""
-    _validate_canonical_entry(
-        case_id=CASE_ID,
-        disposition="rejected",
-        payload_snapshot=_ts_snapshot(published=None),
-        event_type="note_added",
-    )

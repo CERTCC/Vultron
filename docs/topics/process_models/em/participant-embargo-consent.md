@@ -116,8 +116,11 @@ An `ER` message (`Reject(Invite(EmbargoEvent))`) also has two effects:
     1. **Case-owner path**: if the rejecting actor is the case owner,
        the shared EM state advances from `PROPOSED` to `NONE`.
     2. **All rejecting actors**: the CASE_MANAGER MUST apply the `DECLINE`
-       PEC trigger, advancing the actor's consent state from `INVITED`,
-       `UNBOUND`, or `LAPSED` to `DECLINED`. (MSM-07-004)
+       PEC trigger, advancing the actor's consent state from `UNBOUND`,
+       `INVITED`, `LAPSED`, or `SIGNATORY` to `DECLINED`. (MSM-07-004)
+       A `SIGNATORY` rejecting is exercising volitional consent withdrawal
+       (VP-13-007, VP-13-008; ADR-0093) — the case-level EM state is
+       unchanged, and only the actor's own consent record is updated.
 
 ### EV — Embargo Revision Proposed
 
@@ -205,7 +208,7 @@ Each PEC transition is driven by one of three sources:
 
 | Source | Description | Examples |
 |---|---|---|
-| **Wire** | An inbound EM wire activity observed by the CASE_MANAGER | EP → `INVITED`; EA → `SIGNATORY`; ER → `DECLINED` |
+| **Wire** | An inbound EM wire activity observed by the CASE_MANAGER | EP → `INVITED`; EA → `SIGNATORY`; ER → `DECLINED` (from `UNBOUND`, `INVITED`, `LAPSED`, or `SIGNATORY`) |
 | **Cascade** | Automatic side-effect of a shared EM state change | EV → `LAPSED` for all signatories; ET → `UNBOUND` for all |
 | **Timer** | Pocket-veto deadline enforced lazily by the CASE_MANAGER | `INVITED → DECLINED`; `LAPSED → DECLINED` after deadline |
 
@@ -226,6 +229,7 @@ transitions result from inaction.
 | `INVITED` | ER received | `DECLINED` | Wire | MSM-07-004 |
 | `INVITED` | Deadline passed | `DECLINED` | Timer | MSM-07-007 |
 | `SIGNATORY` | EM enters `REVISE` (EV) | `LAPSED` | Cascade | MSM-07-005 |
+| `SIGNATORY` | ER received (consent withdrawal) | `DECLINED` | Wire | MSM-07-004 |
 | `LAPSED` | EP received | `INVITED` | Wire | MSM-07-002 |
 | `LAPSED` | EA received | `SIGNATORY` | Wire | MSM-07-003 |
 | `LAPSED` | ER received | `DECLINED` | Wire | MSM-07-004 |
