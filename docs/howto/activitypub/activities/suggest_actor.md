@@ -48,7 +48,7 @@ title: Suggesting an Actor for a Case (ADR-0026 CaseActor-routed)
 ---
 sequenceDiagram
     actor A as Recommender
-    participant CA as CaseActor
+    participant CA as CASE_MANAGER
     actor B as Case Owner
     actor D as Invitee
     Note over A: Recognize that Actor should be invited
@@ -73,9 +73,9 @@ sequenceDiagram
 
 ## Recommend Actor
 
-A participant recommends another actor to the **CaseActor** by sending an `Offer` activity with the
+A participant recommends another actor to the **CASE_MANAGER** by sending an `Offer` activity with the
 `object` property set to the actor being recommended and the `target` set to the case.
-The CaseActor records the recommendation in the canonical ledger, assigns default roles, and
+The CASE_MANAGER records the recommendation in the canonical ledger, assigns default roles, and
 forwards a transformed offer to the Case Owner.
 
 ```python exec="true" idprefix=""
@@ -84,9 +84,9 @@ from vultron.wire.as2.vocab.examples.vocab_examples import recommend_actor, json
 print(json2md(recommend_actor()))
 ```
 
-## CaseActor Forwards Offer to Case Owner
+## CASE_MANAGER Forwards Offer to Case Owner
 
-The CaseActor transforms the `Offer(Actor, Case)` into `Offer(CaseParticipant{actor, roles}, Case)`
+The CASE_MANAGER transforms the `Offer(Actor, Case)` into `Offer(CaseParticipant{actor, roles}, Case)`
 and sends it to the Case Owner's inbox. The `origin` field carries the ID of the original recommendation
 so the Case Owner can trace the causal chain.
 
@@ -99,7 +99,7 @@ print(json2md(offer_case_participant()))
 ## Case Owner Accepts Recommendation
 
 The Case Owner accepts the recommendation by sending `Accept(Offer(CaseParticipant))` to the
-**CaseActor** (not directly to the recommender). The CaseActor records the decision, notifies the
+**CASE_MANAGER** (not directly to the recommender). The CASE_MANAGER records the decision, notifies the
 original recommender, and sends an `Invite` to the proposed participant.
 
 ```python exec="true" idprefix=""
@@ -111,7 +111,7 @@ print(json2md(accept_case_participant_offer()))
 ## Case Owner Rejects Recommendation
 
 The Case Owner rejects the recommendation by sending `Reject(Offer(CaseParticipant))` to the
-**CaseActor**. The CaseActor records the decision and notifies the original recommender.
+**CASE_MANAGER**. The CASE_MANAGER records the decision and notifies the original recommender.
 
 ```python exec="true" idprefix=""
 from vultron.wire.as2.vocab.examples.vocab_examples import reject_case_participant_offer, json2md

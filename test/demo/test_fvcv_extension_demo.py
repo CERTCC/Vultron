@@ -937,7 +937,7 @@ class TestFvcvExtensionCausalGates:
                 "wait_for_contiguous_ledger_coverage",
                 side_effect=coverage_wait_called,
             ),
-            patch.object(demo, "wait_for_case_participants"),
+            patch.object(demo, "wait_for_participants_on_replicas"),
             patch.object(demo, "verify_replica_state"),
         ):
             demo._phase_sync_verification(

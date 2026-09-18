@@ -117,12 +117,12 @@ This concept is analogous to TAXII in the STIX/TAXII pairing, where STIX is the 
 **What is out of scope.**
 
 - Message format and semantic meaning — those are vultron-wire
-- Protocol routing rules (for example, the single-writer rule and the requirement that all case-scoped messages route through the Case Actor) — those are vultron-core rules that apply at the protocol layer, not the transport layer
+- Protocol routing rules (for example, the single-writer rule and the requirement that all case-scoped messages route through the CASE_MANAGER) — those are vultron-core rules that apply at the protocol layer, not the transport layer
 
 **Relationship to other concepts.**
 
 - vultron-transport carries vultron-wire messages. The same JSON payload is deliverable over REST or ActivityPub.
-- The routing topology rule (Participant → Case Actor → all Participants) is a vultron-core protocol rule. It governs message routing regardless of which transport is in use.
+- The routing topology rule (Participant → CASE_MANAGER → all Participants) is a vultron-core protocol rule. It governs message routing regardless of which transport is in use.
 
 !!! note "Current status"
     The REST profile is in use in the reference implementation. The ActivityPub
@@ -393,8 +393,8 @@ This view answers the question: how do two Vultron participants communicate?
 This view is planned and not yet drawn. It will show:
 
 - How two participants exchange vultron-wire messages over vultron-transport
-- How the Case Actor mediates all case-scoped messages
-- How case state replicates from the Case Actor to participants via ledger entries
+- How the CASE_MANAGER mediates all case-scoped messages
+- How case state replicates from the CASE_MANAGER to participants via ledger entries
 - Where capability shapes connect to the behavior engine
 
 ### View 3 — Conformance view (custom)

@@ -19,7 +19,7 @@ maintain their own local copy of the case's state. They synchronize
 those copies by exchanging ActivityStreams 2.0 messages through a
 **Case Actor** service peer.
 
-The canonical record is the **Case Actor**'s append-only, hash-chained
+The canonical record is the **CASE_MANAGER**'s append-only, hash-chained
 ledger. All other participants hold **replicas** that converge toward
 that ledger via `Announce(CaseLedgerEntry)` messages.
 

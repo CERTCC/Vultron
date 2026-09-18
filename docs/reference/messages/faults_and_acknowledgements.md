@@ -63,7 +63,7 @@ state is acknowledged **cumulatively and implicitly** via hash-chain continuity:
   matches its local ledger tail says **nothing** — the match *is* the
   acknowledgement.
 - On a mismatch the participant emits `Reject(CaseLedgerEntry)`, whereupon the
-  CaseActor replays all entries after the last accepted hash
+  CASE_MANAGER replays all entries after the last accepted hash
   (`RejectLedgerEntryReceivedUseCase`,
   `vultron/core/use_cases/received/sync.py`).
 

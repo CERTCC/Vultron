@@ -24,8 +24,9 @@ actors**:
 The **Case Actor** is a `Service`-type ActivityStreams actor that is
 spawned automatically during case creation. It lives inside the Vendor
 container as a separate actor record with its own inbox URL.
-The Case Actor is the single-writer authority for the canonical case
-log and coordinates state across all participants.
+The Case Actor holds `CVDRole.CASE_MANAGER`, making it the single-writer
+authority for the canonical case log, and coordinates state across all
+participants.
 
 ---
 

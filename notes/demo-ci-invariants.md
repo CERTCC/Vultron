@@ -172,7 +172,7 @@ existing nine:
    `_<SCENARIO>_EXPECTED_EVENT_TYPES`.
 4. Define the module-scoped fixture (e.g. `fv_replicas`) that calls
    `load_devlogs(demo_name=_DEMO_NAME)`.
-5. Inject the 16 universal invariant tests by calling:
+5. Inject the universal invariant tests by calling:
 
    ```python
    from test.ci.invariants.universal_harness import make_universal_invariant_tests
@@ -182,6 +182,7 @@ existing nine:
            replicas_fixture="<scenario>_replicas",
            chain_actors=_CHAIN_ACTORS,
            expected_event_types=_<SCENARIO>_EXPECTED_EVENT_TYPES,
+           narrative_path="docs/topics/scenarios/<scenario>.md",
        )
    )
    ```
@@ -190,16 +191,29 @@ existing nine:
    case participant (currently only `fcv-reject`), mirroring the canonical
    `test_invariant_15_cs_state_transitions_observed` rule (ISSUE-2411 Gap 1).
 
+   `narrative_path` is not optional in practice. Omitting it silently drops
+   invariant 16 (the causal-edge ordering check, DEMOMA-22-005) from that
+   scenario — the harness still collects and passes, so the gap would otherwise
+   be invisible. `test_diagnostic_map_sync.py::test_every_harness_passes_a_narrative_path`
+   parses every harness named in `.github/demo-scenarios.json` and fails if the
+   argument is missing.
+
 6. Add only the **scenario-specific** assertions below the injection call —
    count checks, late-joiner checks, and any protocol-path constraints unique
    to this scenario.
 
 `test/ci/invariants/universal_harness.py` defines `make_universal_invariant_tests()`.
-It generates the 16 standard test functions (Invariants 1–15, clp13, per_actor)
-as closures that retrieve the scenario's replicas fixture at runtime via
+It generates the standard test functions as closures that retrieve the
+scenario's replicas fixture at runtime via
 `request.getfixturevalue(replicas_fixture)`. Each function has its `__module__`
 set to the calling harness so pytest's fixture lookup resolves to the harness
 module's own fixtures (ISSUE-2007, AC-1).
+
+For the current inventory — which invariants exist, which carry an `xfail` and
+who owns it — read `notes/demo-ci-diagnostics.md` § "Per-Invariant Diagnostic
+Map" rather than a count restated here. That table is ratcheted against the
+factory by `test/ci/invariants/test_diagnostic_map_sync.py`; a count in prose
+is not (ISSUE-3337).
 
 **The scenario→harness registry is the CI matrix**, not a Python module. The
 `demo:` / `test_file:` pairs in `.github/demo-scenarios.json` (read by the

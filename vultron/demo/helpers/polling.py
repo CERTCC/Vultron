@@ -20,7 +20,7 @@ boilerplate and ensures a single place to tune timeout/interval defaults.
 
 import logging
 import time
-from typing import Callable
+from typing import Callable, Sequence
 
 from vultron.adapters.utils import parse_id, strip_id_prefix
 from vultron.demo.utils import CASE_ACTOR_SLUG, DataLayerClient, logfmt
@@ -43,6 +43,8 @@ PARTICIPANT_JOIN_TIMEOUT: float = 20.0
 LATE_JOINER_TIMEOUT: float = 90.0
 # 30 s: late-joiner replica catch-up after the join gate passes.
 LATE_JOINER_REPLICA_TIMEOUT: float = 30.0
+# 10 s: early participant's replica participant-index propagation budget.
+REPLICA_PARTICIPANT_TIMEOUT: float = 10.0
 
 
 # ---------------------------------------------------------------------------
@@ -202,6 +204,62 @@ def wait_for_case_participants(
         f"{case_id!r}",
         swallow_exceptions=True,
     )
+
+
+def wait_for_participants_on_replicas(
+    replica_clients: "Sequence[DataLayerClient]",
+    case_id: str,
+    expected_actor_ids: "set[str]",
+    *,
+    late_joiners: "Sequence[DataLayerClient]" = (),
+    late_joiner_timeout: float = LATE_JOINER_REPLICA_TIMEOUT,
+    default_timeout: float = REPLICA_PARTICIPANT_TIMEOUT,
+) -> None:
+    """Wait for every replica in *replica_clients* to reflect all participants.
+
+    Sync-verification polls each replica container until its
+    ``actor_participant_index`` contains all *expected_actor_ids*.  Late
+    joiners (LedgerFanout catch-up from genesis) need extra time for
+    participant-index propagation, so any client in *late_joiners* is given
+    *late_joiner_timeout* (30 s); all other replicas use *default_timeout*
+    (10 s).  Temporal budget per EDF-06-006.
+
+    This is the single implementation of the per-scenario replica
+    participant-wait loop: previously each scenario carried its own copy of
+    ``for replica_client in (...): p_timeout = 30.0 if ... else 10.0; ...``.
+    fvv omitted the loop entirely — its two bare
+    :func:`wait_for_case_participants` calls used the 15 s default, so the
+    late joiner (Vendor2) never received the extended budget and could time
+    out spuriously under CI load (#2852, extending the #2202/#2337
+    sync-verification hardening).
+
+    Each replica is polled independently via :func:`wait_for_case_participants`,
+    so the identity-based participant check (EDF-06-002) and the
+    raise-on-timeout semantics apply unchanged.
+
+    Args:
+        replica_clients: Replica containers to poll, in order.
+        case_id: Full URI of the ``as_VulnerabilityCase``.
+        expected_actor_ids: Actor URIs that must all appear as participants.
+        late_joiners: Subset of *replica_clients* that joined late and need
+            the extended timeout.  Membership is tested by object identity.
+        late_joiner_timeout: Timeout for late joiners.
+        default_timeout: Timeout for early participants.
+
+    Raises:
+        AssertionError: If any replica lacks an expected actor after its
+            timeout elapses.
+    """
+    for replica_client in replica_clients:
+        is_late = any(replica_client is lj for lj in late_joiners)
+        wait_for_case_participants(
+            vendor_client=replica_client,
+            case_id=case_id,
+            expected_actor_ids=expected_actor_ids,
+            timeout_seconds=(
+                late_joiner_timeout if is_late else default_timeout
+            ),
+        )
 
 
 def wait_for_note_in_case(

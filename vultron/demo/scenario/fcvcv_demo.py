@@ -101,6 +101,7 @@ from vultron.demo.helpers.polling import (
     wait_for_case_on_container,
     wait_for_case_participants,
     wait_for_contiguous_ledger_coverage,
+    wait_for_participants_on_replicas,
     wait_for_event_type_in_ledger,
     wait_for_participant_d_state,
     wait_for_participant_rm_state,
@@ -601,21 +602,19 @@ def _phase_sync_verification(
                     )
                 logger.info("  %s ledger synchronized", label)
 
-    for replica_client in (finder_client, v1_client, c2_client, v2_client):
-        # V2 is a late joiner — allow extra time for participant index propagation.
-        p_timeout = 30.0 if replica_client is v2_client else 10.0
-        wait_for_case_participants(
-            vendor_client=replica_client,
-            case_id=case.id_,
-            expected_actor_ids={
-                finder.id_,
-                c1.id_,
-                v1.id_,
-                c2_in_c2.id_,
-                v2.id_,
-            },
-            timeout_seconds=p_timeout,
-        )
+    # V2 is a late joiner — allow extra time for participant index propagation.
+    wait_for_participants_on_replicas(
+        replica_clients=(finder_client, v1_client, c2_client, v2_client),
+        case_id=case.id_,
+        expected_actor_ids={
+            finder.id_,
+            c1.id_,
+            v1.id_,
+            c2_in_c2.id_,
+            v2.id_,
+        },
+        late_joiners=(v2_client,),
+    )
 
     with demo_check("Finder replica matches authoritative C1 state"):
         verify_replica_state(

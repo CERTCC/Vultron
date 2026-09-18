@@ -89,9 +89,9 @@ Normative requirements are indexed to their source SYNC spec IDs in
 
 **The normative replication model for Vultron is single-hub / single-writer + fan-out.** One CASE_MANAGER holds exclusive write authority over the canonical case ledger. It is the sole authorised source of `CaseLedgerEntry` records for its cases. All Participant Actors receive ledger entries from the CASE_MANAGER; they do not write to it. (SYNC-01-004, SYNC-13-005)
 
-This model is a degenerate single-node Raft cluster. The Case Actor is
+This model is a degenerate single-node Raft cluster. The CASE_MANAGER is
 permanently the leader; no leader election is required or performed in
-single-node deployments. In single-node deployments the Case Actor MUST be
+single-node deployments. In single-node deployments the CASE_MANAGER MUST be
 treated as the permanent replication leader with exclusive write authority.
 (SYNC-06-003)
 
@@ -474,7 +474,7 @@ marked timed-out and SHOULD no longer suppress future re-emits, allowing
 operator retry or the catch-up gate to resubmit the assertion. (SYNC-11-005)
 
 The CASE_MANAGER MUST NOT use the pending-assertion store for its own ledger
-commits; the CASE_MANAGER's DataLayer idempotency check already guards against
+commits; the Case Actor's DataLayer idempotency check already guards against
 duplicate commits by the single authoritative writer. (SYNC-11-004)
 
 ---
