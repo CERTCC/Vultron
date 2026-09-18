@@ -469,6 +469,28 @@ def test_invite_rsvp_deadline_clamped_uses_custom_min_rsvp_window():
     assert ev.rsvp_deadline > deadline.astimezone(timezone.utc)
 
 
+@pytest.mark.spec("EP-07-003")
+def test_extract_event_honours_custom_min_rsvp_window():
+    """AC-2 (#3045): extract_event() forwards min_rsvp_window to extract_intent.
+
+    Before the fix extract_event() had no min_rsvp_window parameter and always
+    applied the 72 h default floor, regardless of actor configuration.
+    """
+    # deadline 5 days out: above 72 h default, but below the 10-day custom floor
+    deadline = datetime.now(tz=timezone.utc) + timedelta(days=5)
+    invite = _make_embargo_invite(end_time=deadline)
+
+    event = extract_event(invite, min_rsvp_window=timedelta(days=10))
+
+    ev = cast(Any, event)
+    assert ev.rsvp_deadline is not None
+    # Clamped to 10-day floor — must be strictly greater than 5-day deadline
+    assert ev.rsvp_deadline > deadline.astimezone(timezone.utc), (
+        "extract_event() must apply the caller-supplied min_rsvp_window,"
+        " not always use the 72 h default (#3045)"
+    )
+
+
 # --- discriminated-union return-type narrowing tests (issue #2491) ---
 
 
