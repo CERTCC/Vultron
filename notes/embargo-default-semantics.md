@@ -2,16 +2,23 @@
 title: Embargo Default Semantics — Implementation Notes
 status: active
 description: >
-  Design decisions for embargo policy EP-04 requirements; default embargo
-  duration and expiry semantics; and the published-default / tacit-acceptance
-  model that explains why the happy-path embargo requires no explicit
-  negotiation exchange.
+  Design decisions for embargo policy EP-04 requirements; the actor-default
+  versus protocol-default distinction and why the protocol default never
+  competes under shortest-wins; default embargo duration and expiry semantics;
+  the published-default / tacit-acceptance model that explains why the
+  happy-path embargo requires no explicit negotiation exchange; why there is no
+  pre-case embargo phase; and why an RSVP deadline may not outlive its embargo.
 related_specs:
   - specs/case-management.yaml
   - specs/embargo-policy.yaml
+  - specs/vultron-as2-mapping.yaml
+related_notes:
+  - notes/participant-embargo-consent.md
+  - notes/embargo-lifecycle.md
 relevant_packages:
   - transitions
   - vultron/bt/embargo_management
+  - vultron/core/behaviors/case
   - vultron/core/use_cases/triggers
 ---
 
@@ -60,19 +67,22 @@ reached with no visible `ProposeEmbargo` or `AcceptEmbargo` activity. This is
 
 | Scenario | Protocol path | EM outcome |
 |---|---|---|
-| Receiver has default, reporter proposes nothing | Default path (tacit acceptance) | `EM.ACTIVE` immediately (EP-04-001) |
-| Receiver has default, reporter proposes *shorter* | Negotiated path | Shorter → `EM.ACTIVE`; receiver default → `EM.REVISE` (EP-04-003) |
-| Receiver has default, reporter proposes *longer* | Negotiated path | Receiver default → `EM.ACTIVE`; longer → `EM.REVISE` (EP-04-003) |
-| Neither party has a default or proposal | No embargo | `EM.NONE` remains |
+| Receiver has actor default, reporter proposes nothing | Default path (tacit acceptance) | `EM.ACTIVE` immediately (EP-04-001) |
+| Receiver has actor default, reporter proposes *shorter* | Negotiated path | Shorter → `EM.ACTIVE`; receiver default → `EM.REVISE` (EP-04-003) |
+| Receiver has actor default, reporter proposes *longer* | Negotiated path | Receiver default → `EM.ACTIVE`; longer → `EM.REVISE` (EP-04-003) |
+| Neither party has a default or proposal | **Protocol default** | `EM.ACTIVE` at the protocol default (EP-04-005) |
+| Neither party has a default or proposal, and P/X/A is set | No embargo | `EM.NONE` remains (EP-04-008) |
 
 The **default path** is the common happy-path scenario. No EP or EA message
 is emitted; no per-participant acceptance round-trip occurs. The demo
-scenarios all use this path because no reporter-side embargo proposal
-mechanism yet exists in the implementation (see "Known Gap" below).
+scenarios all use this path because the reporter-side embargo proposal
+mechanism is specified but not yet built — see
+"Resolved: Reporter Embargo Proposal Mechanism" below.
 
-The **negotiated path** requires a reporter-proposal mechanism that is not
-yet implemented (EP-04-003 / EP-04-004). When it is, it will involve an
-explicit message exchange before `EM.ACTIVE` is reached.
+The **negotiated path** requires that mechanism. EP-04-004 now specifies it
+(a proposed `EmbargoEvent` embedded on the report offer), which makes
+EP-04-003's shortest-wins comparison reachable; until the Tasks land, only
+EP-04-001 and EP-04-005 apply at case creation.
 
 ### Implications for demos and implementers
 
@@ -98,6 +108,10 @@ explicit message exchange before `EM.ACTIVE` is reached.
 | What if sender proposes shorter embargo? | Sender's duration → ACTIVE; receiver's default → REVISE | "Shortest embargo wins" rule. |
 | What if sender proposes longer embargo? | Receiver's default → ACTIVE; sender's longer → REVISE | Same shortest-wins rule from the other direction. |
 | Does the SM need a new NONE→ACTIVE transition? | No | Atomic PROPOSE+ACCEPT inside the node is sufficient. |
+| What if *nobody* has a default or proposal? | Protocol default → ACTIVE (EP-04-005) | A case with no embargo is what the EM process exists to avoid; reaching it by mutual silence is the least deliberate route there. ADR-0096. |
+| Does the protocol default take part in shortest-wins? | **No** (EP-04-006) | A short default that competed would beat every longer proposal and cap every embargo at its own length. |
+| Is the protocol default a minimum on agreed terms? | No (EP-04-007) | It bounds the fallback, not what parties may agree. A 12-hour proposal yields 12 hours. |
+| What if the vulnerability is already public? | No embargo; `EM.NONE` (EP-04-008) | EMB-01-002 already forbids proposing once P/X/A is set. An embargo on a public vulnerability protects nothing. |
 
 ---
 
@@ -114,25 +128,130 @@ after the embargo is activated (see "Case Owner Initial Embargo Consent" below).
 
 ---
 
-## Known Gap: No Reporter Embargo Proposal Mechanism
+## Two Kinds of Default — Do Not Conflate Them
 
-The current protocol implementation has no mechanism for a reporter to
-include an embargo proposal with (or before) a report submission. Until
-that mechanism is implemented:
+This is the single most important distinction in this file, and the codebase got
+it wrong for a long time.
 
-- EP-04-003 cannot be exercised; only EP-04-001 applies at case creation.
+| Term | What it is | Competes under shortest-wins |
+|---|---|---|
+| **Actor default** | A duration from a published `EmbargoPolicy`; what `em/defaults.md` calls a *standing proposal* | **Yes** |
+| **Protocol default** | The fallback applied when no proposal and no actor default applies | **No** |
 
-Two design paths exist for closing this gap (for future consideration):
+The protocol default is **the value when the candidate set is empty, never a
+member of the candidate set** (EP-04-006). A 72-hour protocol default that
+competed under shortest-wins would beat every longer proposal and cap every
+embargo in the system at 72 hours; no longer embargo could ever be agreed.
 
-1. **Inline proposal**: Reporter includes an embargo duration in the
-   `Offer(Report)` payload. This requires a wire-format extension to allow
-   an embargo policy or duration field on the offer object.
+It is also **not a minimum** (EP-04-007). A reporter who proposes 12 hours gets
+12 hours. EP-04-005's `[72 hours, 5 days]` range bounds what the *fallback* may be
+configured to, not what parties may agree.
 
-2. **Pre-negotiation flow**: Reporter creates a case with themselves as the
-   sole participant, proposes an embargo to the receiver via the existing
-   accept-embargo-before-case-share mechanics, then (optionally) transfers
-   case ownership to the receiver upon acceptance. This uses existing
-   machinery but is not yet documented as a standard flow.
+### How the conflation hid a defect
+
+`_preferred_embargo_duration()` (`vultron/core/behaviors/case/nodes/embargo.py`)
+returned a hardcoded 90-day fallback into the *same* blackboard key
+(`default_embargo_duration`) that a published `EmbargoPolicy` filled. Downstream,
+nothing could distinguish "the receiver published 90 days" from "the receiver
+published nothing". That is how a silent 90-day embargo survived in contradiction
+of three documents — `em/defaults.md` ("no embargo SHALL exist"), this file's own
+decision table, and `em/principles.md` ("shortest duration possible").
+
+It also inverted the incentive the protocol depends on: a receiver who published
+*nothing* got a longer embargo than one who published a considered 30 days. The
+short protocol default exists to reverse that — publishing must be the rewarded
+behavior.
+
+Two smaller traps in the same function:
+
+- It selected `policies[0]` from an unordered `list_objects()` result, so which
+  policy applied was arbitrary when an actor's store held more than one.
+- Its 90-day value was never *chosen*; it sat at the far end of `em/principles.md`'s
+  "a few days to a few months" by default.
+
+## Resolved: Reporter Embargo Proposal Mechanism (EP-04-004)
+
+**This gap is closed by ADR-0096.** A reporter states terms by embedding a
+proposed `EmbargoEvent` in the `Offer(VulnerabilityReport)` activity.
+`EmbargoEvent.context` carries the report URI before a case exists and is
+rewritten to the case URI at case creation (EP-04-009). That discharges
+EP-04-004's contingency and makes EP-04-003 reachable for the first time.
+
+Two alternatives were rejected. An activity-level `end_time` on the `Offer`
+would add a third meaning to a field CM-28-001 already calls a critical naming
+hazard. Inlining the reporter's own `EmbargoPolicy` states a standing preference,
+not terms for this report.
+
+### Do not revive the proto-case
+
+An earlier version of this section proposed a second design path: the reporter
+creates a case with themselves as sole participant, negotiates, then transfers
+ownership on acceptance. **Do not build this.** ADR-0041 supersedes ADR-0015 for
+precisely this window, and ADR-0089 re-rejected the proto-case when deciding where
+pre-case RM state lives. The path was recorded here before either decision landed,
+which is why it read as a live option for so long.
+
+## No Pre-Case Embargo Phase
+
+CONCERN-2215 asked whether Vultron gets a protocol phase before a case exists, on
+the strength of `model_interactions/rm_em.md` stating that the EM process MAY begin
+before the report is sent. **ADR-0096 answered no**, and the reason is stronger
+than "not implemented":
+
+| Fact | Where |
+|---|---|
+| EM is defined as a global **per-case** state machine | `docs/reference/glossary.md` |
+| EM state exists only as `CaseStatus.em` (an `EmDimension`) | `vultron/core/models/dimensions.py` |
+| `EmbargoEvent.context` is required, and every core construction site set it to `case_id` | `case/nodes/embargo.py`, `triggers/embargo/{propose,revise}.py` |
+| `propose_embargo(case_id=…)` raises `VultronNotFoundError` when the case does not resolve | `vultron/core/services/embargo_lifecycle.py` |
+
+So the documented $q^{em} \in N \xrightarrow{p} P$ before any case exists named a
+machine instance that could not exist. `rm_em.md` has been corrected: its
+*motivation* survives (a sender may want terms fixed before disclosing), its
+*mechanism claim* is withdrawn.
+
+What replaces the phase is two rules, both above: the protocol default means a
+reporter never faces "no embargo at all", and the embedded proposal means they can
+always state the terms they want. Shortest-wins settles any disagreement at case
+creation.
+
+Note that EP-04-009's context widening does give pre-case embargo terms a
+legitimate home. What ADR-0096 declines is the *phase*, not the *representation* —
+so if a genuine pre-submission negotiation is ever wanted, the object it would
+negotiate over already exists.
+
+## An RSVP Deadline May Not Outlive Its Embargo
+
+EP-07-006 and CM-28-011, added by ADR-0096, close a defect that is independent of
+everything else in this file.
+
+Nothing previously compared the RSVP deadline against the embargo's own
+`end_time`. EP-07-003 clamps a sub-minimum deadline **up** to a 72-hour floor, with
+no upper bound at all. So:
+
+> Invite a participant to a 24-hour embargo. The `Invite(EmbargoEvent)` carries no
+> `end_time`, so the CM-18-002 policy window applies: 7 days. The pocket veto fires
+> on day 7. The embargo ended at hour 24.
+
+The participant is asked to consent to an embargo that is already over, and their
+inaction is recorded as a decline six days after it stopped mattering. The same
+thing happens on day 28 of a 30-day embargo with an ordinary published actor
+default — this is reachable today, without any protocol default in the picture.
+
+The rule is now: an RSVP deadline is clamped **down** to the embargo's `end_time`.
+Consequently EP-07-002's minimum became "72 hours, **or the remaining embargo,
+whichever is shorter**" — otherwise the floor and the new ceiling would contradict
+each other whenever the remaining embargo is under 72 hours, which EP-04-007 makes
+reachable by permitting a 12-hour agreed embargo.
+
+An invitee to a 12-hour embargo therefore gets a 12-hour window. That is
+principled: the floor exists to stop an *unreasonably* short deadline, and a
+deadline equal to the whole embargo is not unreasonable.
+
+Why the protocol default floor is 72 hours and not 24: it is set equal to
+EP-07-002's minimum RSVP window on purpose, so the shortest embargo the protocol
+produces is exactly as long as the shortest answer window it grants. Two numbers
+that would otherwise need a relationship maintained between them become one.
 
 ---
 
@@ -151,7 +270,12 @@ The rules specified in EP-04 derive directly from
 
 ## Cross-references
 
-- `specs/embargo-policy.yaml` EP-04-001 through EP-04-004
-- `specs/case-management.yaml` CM-12-004 (default embargo at case creation)
+- `specs/embargo-policy.yaml` EP-04-001 through EP-04-010, EP-07-002/003/006
+- `specs/case-management.yaml` CM-12-004 (default embargo at case creation),
+  CM-18-002 (pocket-veto policy window), CM-28-011 (window bounded by the embargo)
+- `specs/vultron-as2-mapping.yaml` VAM-05-001 (`Create(Event)` context may be a report)
 - `specs/duration.yaml` DUR-07-003 (default embargo logging)
 - `docs/topics/process_models/em/defaults.md` (authoritative protocol source)
+- `docs/topics/process_models/model_interactions/rm_em.md` (pre-case guidance, corrected)
+- ADR-0096 (protocol default embargo; no pre-case phase), ADR-0065 (RSVP deadline
+  and pocket veto as one mechanism), ADR-0041 / ADR-0089 (why not a proto-case)

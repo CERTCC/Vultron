@@ -383,10 +383,23 @@ groups:
   - id: VAM-05-001
     priority: MUST
     kind: protocol
-    statement: '`CREATE_EMBARGO_EVENT` MUST be represented as `Create(Event)[context=VulnerabilityCase]`'
+    statement: >-
+      `CREATE_EMBARGO_EVENT` MUST be represented as `Create(Event)[context=VulnerabilityCase]`
+      or `Create(Event)[context=VulnerabilityReport]`. The context identifies the subject the
+      embargo concerns, per EP-04-009.
+    note: >-
+      Widened by ADR-0096. The report context serves the sender-side proposal of EP-04-004,
+      which is embedded on `Offer(VulnerabilityReport)` and therefore precedes the case. A
+      pattern that admitted only `VULNERABILITY_CASE` could not match it.
     verification: A unit test in `test/wire/as2/test_extractor.py` confirms that `Create(EmbargoEvent)` with a
-      `VulnerabilityCase` context maps to `CREATE_EMBARGO_EVENT`, and inspection of `_instances.py` confirms
-      `CreateEmbargoEventPattern` uses `TAtype.CREATE`, `AOtype.EVENT`, and `context_=VULNERABILITY_CASE`.
+      `VulnerabilityCase` context maps to `CREATE_EMBARGO_EVENT`, that the same activity with a
+      `VulnerabilityReport` context also maps to `CREATE_EMBARGO_EVENT`, and inspection of `_instances.py`
+      confirms `CreateEmbargoEventPattern` uses `TAtype.CREATE`, `AOtype.EVENT`, and admits both contexts.
+    relationships:
+    - rel_type: refines
+      spec_id: EP-04-009
+    adr:
+    - ADR-0096
     stories:
     - story_2022_014
     - story_2022_010

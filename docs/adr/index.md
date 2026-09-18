@@ -165,6 +165,7 @@ General information about architectural decision records is available at <https:
 - [ADR-0093 `DECLINE` Is Legal from `SIGNATORY` — Consent Withdrawal Is a First-Class PEC Action](0093-signatory-declined-pec-transition.md)
 - [ADR-0094 Replace flake8, isort and black with ruff, and declare lint exclusions instead of discovering them](0094-ruff-replaces-flake8-isort-black.md)
 - [ADR-0095 Received-Side `HandlerResult` Carries a Handler Disposition Across the Dispatcher Boundary](0095-received-side-handler-result.md)
+- [ADR-0096 A Protocol Default Embargo Replaces the Pre-Case Phase](0096-protocol-default-embargo.md)
 
 ## Proposed ADRs
 

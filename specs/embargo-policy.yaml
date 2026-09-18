@@ -202,10 +202,15 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      When a receiver applies their published default embargo at case creation and the sender
+      When a receiver applies their **actor default** embargo at case creation and the sender
       submitted no explicit embargo proposal, the initial `CaseStatus.em_state` MUST be set
       to `EM.ACTIVE`, not `EM.PROPOSED`. The sender's report submission without a counter-proposal
-      constitutes tacit acceptance of the receiver's default embargo.
+      constitutes tacit acceptance of the receiver's actor default embargo.
+    note: >-
+      "Actor default" is the duration carried by a published `EmbargoPolicy`, as distinguished
+      from the "protocol default" of EP-04-005. Only the actor default participates in the
+      shortest-wins comparison (EP-04-003); the protocol default never does (EP-04-006).
+      Amended by ADR-0096.
     verification: >-
       Integration tests in `test/demo/test_establish_embargo_demo.py` confirm that a
       case created without a sender-side embargo proposal immediately enters `EM.ACTIVE`,
@@ -213,6 +218,8 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: DUR-07-003
+    adr:
+    - ADR-0096
     stories:
     - story_2022_014
     - story_2022_023
@@ -249,12 +256,172 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      EP-04-003 is contingent on a sender-proposal mechanism being available. Until such a
-      mechanism exists, only the no-sender-proposal case (EP-04-001) applies at case creation.
+      A sender MUST be able to propose embargo terms when submitting a report, by embedding a
+      proposed `EmbargoEvent` in the `Offer(VulnerabilityReport)` activity. The proposed
+      `EmbargoEvent` carries the report URI as its `context` (EP-04-009), and the
+      CASE_MANAGER MUST rewrite that context to the case URI at case creation.
+    rationale: >-
+      This discharges the contingency this requirement previously recorded. Until ADR-0096 no
+      sender-proposal mechanism existed, so EP-04-003 was unreachable and only the
+      no-sender-proposal path applied.
+    note: >-
+      Embedding the proposal on the report offer was chosen over two alternatives. An
+      activity-level `end_time` on the `Offer` would add a third meaning to a field CM-28-001
+      already names a critical naming hazard. Inlining the sender's own `EmbargoPolicy` states
+      a standing preference, not terms for this report — "I generally prefer 30 days" is not
+      "for this report I propose 30 days". Amended by ADR-0096.
     verification: >-
-      Inspection of `InitializeDefaultEmbargoNode` in `vultron/core/behaviors/` confirms
-      that only the no-sender-proposal code path is implemented; no sender-proposal
-      branch exists.
+      A unit test confirms that `Offer(VulnerabilityReport)` carrying a proposed `EmbargoEvent`
+      is extracted with the proposal intact, and that the context is rewritten from the report
+      URI to the case URI when the case is created.
+    relationships:
+    - rel_type: refines
+      spec_id: EP-04-003
+    adr:
+    - ADR-0096
+    stories:
+    - story_2022_014
+  - id: EP-04-005
+    priority: MUST
+    kind: protocol
+    statement: >-
+      A **protocol default** embargo duration MUST exist and MUST be configurable. It MUST be
+      no less than 72 hours and no more than 5 days. When a case is created and no embargo
+      proposal and no actor default applies, the protocol default MUST be used and the case
+      MUST begin at `EM.ACTIVE`.
+    rationale: >-
+      The goal of the EM process is to lock in *an* embargo as early as possible
+      (`docs/topics/process_models/em/principles.md`). A case with no embargo is the outcome
+      the process exists to avoid, and reaching it through mutual silence is the least
+      deliberate way to arrive there.
+    note: >-
+      The duration is deliberately short so that publishing an `EmbargoPolicy` is strictly
+      better than publishing nothing. The previous hardcoded 90-day fallback inverted that
+      incentive: a receiver who published nothing got a longer embargo than one who published a
+      considered 30 days.
+
+      The 72-hour floor is not arbitrary — it equals the EP-07-002 minimum RSVP window, so the
+      shortest embargo the protocol produces is exactly as long as the shortest answer window
+      it grants, and the two need no relationship maintained between them. The 5-day ceiling
+      prevents a deployment from quietly restoring a value generous enough to re-invert the
+      incentive.
+
+      This overturns `docs/topics/process_models/em/defaults.md` § "No Defaults, No Proposals",
+      which stated that no embargo SHALL exist in this case. See ADR-0096.
+    verification: >-
+      A unit test asserts that a case created with no `EmbargoPolicy` in the store and no
+      sender proposal reaches `EM.ACTIVE` at the configured protocol default, and that
+      configuring a value outside [72 hours, 5 days] is refused.
+    adr:
+    - ADR-0096
+    stories:
+    - story_2022_014
+    - story_2022_023
+  - id: EP-04-006
+    priority: MUST_NOT
+    kind: protocol
+    statement: >-
+      The protocol default MUST NOT participate in the shortest-wins comparison of EP-04-003.
+      It is the value applied when no proposal and no actor default applies, never a candidate
+      within that comparison.
+    rationale: >-
+      A 72-hour protocol default that competed under shortest-wins would win against every
+      longer proposal and cap every embargo in the system at 72 hours, so no longer embargo
+      could ever be agreed. The protocol default answers "what if nobody said anything", not
+      "whose terms are shortest". See ADR-0096.
+    verification: >-
+      A unit test asserts that a 30-day actor default with no sender proposal yields a 30-day
+      active embargo, not the protocol default.
+    relationships:
+    - rel_type: constrains
+      spec_id: EP-04-003
+    adr:
+    - ADR-0096
+    stories:
+    - story_2022_014
+  - id: EP-04-007
+    priority: MUST_NOT
+    kind: protocol
+    statement: >-
+      The protocol default MUST NOT be applied as a minimum on agreed embargo terms. A
+      proposal or actor default shorter than the protocol default MUST be honored at its
+      stated duration and MUST NOT be clamped up to it.
+    rationale: >-
+      `em/principles.md` requires embargo duration be "limited to the shortest duration
+      possible", and a Participant is free to set their own terms. EP-04-005's range bounds
+      what the fallback may be configured to; it does not constrain what parties may agree.
+      A reporter who proposes 12 hours gets 12 hours. See ADR-0096.
+    verification: >-
+      A unit test asserts that a sender proposal shorter than the configured protocol default
+      is activated at its stated duration.
+    adr:
+    - ADR-0096
+    stories:
+    - story_2022_014
+  - id: EP-04-008
+    priority: MUST_NOT
+    kind: protocol
+    statement: >-
+      The protocol default MUST NOT be applied to a case that is not embargo-eligible. When
+      any of P/X/A is set at case creation, no protocol default embargo is created and the
+      case MUST remain at `EM.NONE`.
+    rationale: >-
+      EMB-01-002 already forbids proposing an embargo once the vulnerability is public,
+      exploit code is public, or attacks are observed. An embargo on an already-public
+      vulnerability protects nothing, so the protocol default inherits that guard rather than
+      bypassing it. See ADR-0096.
+    verification: >-
+      A unit test asserts that a case created with `pxa_state != CS_pxa.pxa` receives no
+      protocol default embargo and remains at `EM.NONE`.
+    relationships:
+    - rel_type: refines
+      spec_id: EMB-01-002
+    adr:
+    - ADR-0096
+    stories:
+    - story_2022_014
+  - id: EP-04-009
+    priority: MUST
+    kind: protocol
+    statement: >-
+      `EmbargoEvent.context` MUST identify the subject the embargo concerns: the report URI
+      before a case exists, and the case URI afterwards. A reader MUST NOT assume the context
+      is a case without checking.
+    rationale: >-
+      A proposal embedded on `Offer(VulnerabilityReport)` (EP-04-004) precedes the case, so it
+      has no case URI to point at. Widening the subject is a semantic change, not a type
+      change: `context` is a `NonEmptyString` and is only ever *cast* to a case in
+      `vultron/core/models/events/embargo.py`, never validated as one. This also gives
+      pre-case embargo terms a legitimate home, which is what CONCERN-2215 asked for; what
+      ADR-0096 declines is the pre-case *phase*, not the *representation*.
+    verification: >-
+      A unit test confirms an `EmbargoEvent` constructed with a report URI context validates,
+      and that the two cast sites in `vultron/core/models/events/embargo.py` check the
+      referent type rather than assuming a case.
+    adr:
+    - ADR-0096
+    stories:
+    - story_2022_014
+  - id: EP-04-010
+    priority: MUST_NOT
+    kind: project
+    statement: >-
+      Implementations MUST NOT conflate the actor default with the protocol default. The two
+      MUST be carried under distinct names, so that a consumer can distinguish "the receiver
+      published this duration" from "the receiver published nothing".
+    rationale: >-
+      `_preferred_embargo_duration()` returned its fallback into the same blackboard key
+      (`default_embargo_duration`) that a published `EmbargoPolicy` filled, so no downstream
+      code could tell the two apart. That conflation is why a silent 90-day fallback survived
+      in contradiction of three documents. Additionally, that function selected `policies[0]`
+      from an unordered list, making the applicable policy arbitrary when an actor's store
+      holds more than one. See ADR-0096.
+    verification: >-
+      Inspection of `vultron/core/behaviors/case/nodes/embargo.py` confirms the actor default
+      and the protocol default are resolved under distinct names, and that actor-default
+      selection is deterministic rather than positional.
+    adr:
+    - ADR-0096
     lint_suppress:
     - missing_story_reference
 - id: EP-05
@@ -353,18 +520,31 @@ groups:
     statement: >-
       A minimum RSVP window MUST be enforced. An inviting actor MUST NOT send an
       `Invite(EmbargoEvent)` whose `Invite.end_time` is less than the configured
-      minimum after the invitation's `published` timestamp. The minimum SHOULD
-      default to 72 hours.
+      minimum after the invitation's `published` timestamp. The minimum is the
+      configured window — SHOULD default to 72 hours — **or the time remaining in
+      the embargo, whichever is shorter**.
     rationale: >-
       An unbounded-downward deadline weaponises the mechanism: a one-minute RSVP
       window formally invites a participant while guaranteeing they cannot
       answer, excluding them with the appearance of due process. See ADR-0065.
+    note: >-
+      The "whichever is shorter" clause was added by ADR-0096, because the absolute
+      72-hour floor can exceed the embargo it concerns: EP-04-007 permits a 12-hour
+      agreed embargo, and EP-04-005's protocol default floor is 72 hours exactly. The
+      floor exists to prevent an *unreasonably* short deadline, and a deadline equal to
+      the whole embargo is not unreasonable. Without this clause the floor would
+      contradict EP-07-006.
     verification: >-
       A unit test confirms that the outbound invite builder raises a validation error
       when the supplied `end_time` is less than `published` plus the configured
-      minimum window.
+      minimum window, and that for an embargo whose remaining duration is shorter
+      than that window the remaining duration is used as the minimum instead.
+    relationships:
+    - rel_type: constrains
+      spec_id: EP-07-006
     adr:
     - ADR-0065
+    - ADR-0096
     stories:
     - story_2022_014
     - story_2022_027
@@ -373,14 +553,22 @@ groups:
     kind: protocol
     statement: >-
       When a receiving actor receives an `Invite(EmbargoEvent)` whose
-      `Invite.end_time` is earlier than the configured minimum window, it MUST
-      clamp the effective deadline up to that minimum.
+      `Invite.end_time` is earlier than the applicable minimum window, it MUST
+      clamp the effective deadline up to that minimum. The applicable minimum is
+      the one computed by EP-07-002, so the clamp never raises the deadline past
+      the embargo's own end.
     note: >-
       Both parties must reach the same effective deadline for CM-28-002 to hold.
       Because the floor is a configured value, a receiver whose floor differs
       from the sender's can compute a different effective deadline. Deployments
       that require strict bilateral agreement SHOULD align their floor
       configuration; the clamp guarantees safety, not identical arithmetic.
+
+      The clamp is bidirectional in effect but not in mechanism: this requirement
+      raises a sub-minimum deadline, and EP-07-006 lowers one that overshoots the
+      embargo. Where both would apply — a remaining embargo shorter than the
+      configured window — EP-07-002 has already reduced the minimum to the
+      remaining embargo, so the two agree rather than fight.
     rationale: >-
       Clamping makes a coercive deadline ineffective rather than fatal.
       Rejecting the invitation outright would hand the sender exactly what a
@@ -388,12 +576,47 @@ groups:
       punish the invitee for the inviter's misbehaviour. See ADR-0065.
     verification: >-
       A unit test confirms that the invite receiver replaces a sub-minimum `end_time`
-      with `published + minimum_window` rather than using the on-wire value.
+      with `published + minimum_window` rather than using the on-wire value, and that
+      the substituted value never exceeds the embargo's `end_time`.
     relationships:
     - rel_type: refines
       spec_id: EP-07-002
     adr:
     - ADR-0065
+    - ADR-0096
+    stories:
+    - story_2022_014
+    - story_2022_027
+  - id: EP-07-006
+    priority: MUST_NOT
+    kind: protocol
+    statement: >-
+      An RSVP deadline MUST NOT fall after the end of the embargo it concerns. Where a
+      computed deadline — whether from an explicit `Invite.end_time` or from the
+      CM-18-002 policy window — would fall after the embargo's `end_time`, it MUST be
+      clamped down to that `end_time`.
+    rationale: >-
+      An invitee must be able to answer while the embargo still exists. Nothing previously
+      compared the RSVP deadline against the embargo's own end, so an answer window could
+      outlive the thing it was about. See ADR-0096.
+    note: >-
+      The failure is concrete. Invite a participant to a 24-hour embargo with no explicit
+      `Invite.end_time` and the CM-18-002 policy window applies: 7 days. The pocket veto
+      fires on day 7; the embargo ended at hour 24. The participant is asked to consent to
+      an embargo that is already over, and their inaction is recorded as a decline six days
+      after it stopped mattering.
+
+      This is independent of the protocol default of EP-04-005 — the same thing happens on
+      day 28 of a 30-day embargo with a published actor default, which is reachable today.
+    verification: >-
+      A unit test confirms that an RSVP deadline computed beyond the embargo's `end_time`
+      is clamped down to it, for both the explicit-`end_time` and policy-window paths,
+      including when the remaining embargo is shorter than the configured minimum window.
+    relationships:
+    - rel_type: constrains
+      spec_id: CM-18-002
+    adr:
+    - ADR-0096
     stories:
     - story_2022_014
     - story_2022_027

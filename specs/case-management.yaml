@@ -3485,6 +3485,31 @@ groups:
       spec_id: CM-28-005
     adr:
     - ADR-0065
+  - id: CM-28-011
+    priority: MUST_NOT
+    kind: protocol
+    statement: >-
+      The CM-18-002 policy window MUST NOT be applied so as to place the effective RSVP
+      deadline after the embargo's own `end_time`. Where the window would overshoot, the
+      deadline is the embargo's `end_time`.
+    rationale: >-
+      The policy window is an absolute duration (default 7 days) measured from the
+      invitation's `published` timestamp, with no reference to the embargo it concerns.
+      Applied to a short embargo it produces a pocket veto that fires after the embargo has
+      already ended, recording a decline for a decision that no longer exists. EP-07-006
+      states the general rule; this requirement binds the specific fallback path CM-18-002
+      defines. See ADR-0096.
+    verification: >-
+      A unit test confirms that when the CM-18-002 policy window would place the deadline
+      after the embargo's `end_time`, the embargo's `end_time` is used instead.
+    relationships:
+    - rel_type: refines
+      spec_id: CM-18-002
+    adr:
+    - ADR-0096
+    stories:
+    - story_2022_014
+    - story_2022_027
 
 - id: CM-27
   title: Case Collection Mutation Discipline

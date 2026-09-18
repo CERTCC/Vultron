@@ -6,39 +6,47 @@ There are additional constraints on how the [RM](../rm/index.md) and [EM](../em/
 
 ## Start Embargo Negotiations As Early as Possible
 
+A Sender often wants to know the embargo terms *before* handing over a report.
+The protocol serves that need, but not by running the EM process ahead of the
+report. The EM process is *per case*, so before a case exists there is no EM
+state machine for a transition to occur in.
+
+Two mechanisms give the Sender what they need instead:
+
+1. **Read the Recipient's published default.** A Report Recipient's published
+   default embargo period is a
+   [standing proposal](../em/defaults.md#embargoes-are-active-at-case-creation).
+   A Sender can know the terms in advance by reading it, with no exchange at all.
+   Where the Recipient has published nothing, the short
+   [protocol default](../em/defaults.md#no-defaults-no-proposals-the-protocol-default)
+   applies, so the Sender still knows the floor.
+
+2. **State terms with the report.** A Sender proposes its own terms by including
+   a proposed embargo with the report submission. Where the two differ, the
+   [shortest proposal wins](../em/defaults.md#rationale-for-accepting-the-shortest-proposed-embargo)
+   and the longer becomes a proposed revision — so agreement is reached at case
+   creation rather than negotiated beforehand.
+
 !!! note ""
 
-    The [EM](../em/index.md) process MAY begin (i.e., the initial _propose_ transition $q^{em} \in N \xrightarrow{p} P$)
-    prior to the report being sent to a potential Participant ($q^{rm} \in S$)
+    The [EM](../em/index.md) process SHALL NOT begin before a case exists. A
+    Sender that wishes to fix terms before sharing a report SHALL either rely on
+    the Recipient's published default embargo period or include a proposed
+    embargo with the report submission.
 
-!!! question "Why Propose before Reporting?"
+!!! info "This Guidance Changed"
 
-    Beginning an embargo negotiation before providing a report can be useful in cases where a Participant wishes to
-    ensure acceptable embargo terms prior to sharing a report with a potential recipient.
+    Earlier versions of this page stated that the EM process MAY begin — the
+    initial _propose_ transition $q^{em} \in N \xrightarrow{p} P$ — prior to the
+    report being sent to a potential Participant ($q^{rm} \in S$). ADR-0096
+    withdrew that.
 
-```mermaid
-stateDiagram-v2
-    direction LR
-    state ParticipantSpecific {
-        state Sender {
-            state RM {
-                Accepted
-            }
-        }
-        state Recipient {
-            RM2: RM
-            state RM2 {
-                Start
-            }
-        }
-    }
-    state Global {
-        state EM {
-            None --> Proposed : propose
-        }
-    }
-    Sender --> EM : propose
-```
+    The **motivation** was sound and is preserved above: a Participant may well
+    wish to ensure acceptable embargo terms before sharing a report with a
+    potential recipient. The **mechanism** was not. EM is a global per-case state
+    machine, so a $N \xrightarrow{p} P$ transition before any case exists names a
+    machine instance that cannot exist. The two mechanisms above deliver the same
+    assurance without a pre-case phase.
 
 !!! note ""
 
