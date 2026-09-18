@@ -63,7 +63,7 @@ groups:
     kind: protocol
     statement: A `Case` MUST guarantee at least one vulnerability report, the reporter and receiver participants (at least
       two parties), and a seeded `case_statuses` list.
-    rationale: ADR-0041 (superseding ADR-0015) requires the CaseActor to author all initialization entries when accepting a
+    rationale: ADR-0041 (superseding ADR-0015) requires the CASE_MANAGER to author all initialization entries when accepting a
       CaseProposal, so these structural minimums are guaranteed for any case that exists.
     verification: A unit test confirms that constructing a `Case` without a vulnerability report or without at least two
       participants raises a validation error.

@@ -612,6 +612,44 @@ def test_reject_embargo_invite_non_owner_strict(
     assert finder_participant.embargo_consent_state == PEC.DECLINED.value
 
 
+def test_reject_embargo_invite_signatory_non_owner_transitions_to_declined(
+    owner_and_dl: tuple[as_Service, SqliteDataLayer],
+) -> None:
+    """SIGNATORY non-owner explicitly withdrawing consent → DECLINED (ADR-0093)."""
+    owner, dl = owner_and_dl
+    finder = _make_actor(dl, "Finder Org")
+    case, _ = _make_case(
+        dl,
+        owner.id_,
+        extra_participant_ids=[finder.id_],
+        em_state=EM.ACTIVE,
+    )
+    embargo = _make_embargo(dl, case.id_)
+
+    # Seed finder as SIGNATORY (already consented to the active embargo).
+    finder_participant_id = case.actor_participant_index.get(finder.id_)
+    assert finder_participant_id is not None
+    finder_p = cast(CaseParticipant, dl.read(finder_participant_id))
+    object.__setattr__(finder_p, "embargo_consent_state", PEC.SIGNATORY)
+    dl.save(finder_p)
+
+    lifecycle = EmbargoLifecycle(persistence=dl)
+    result = lifecycle.reject_embargo_invite(
+        case_id=case.id_,
+        embargo_id=embargo.id_,
+        actor_id=finder.id_,
+    )
+
+    assert result.em_after == EM.ACTIVE  # case-level EM unchanged (VP-13-009)
+
+    finder_participant = cast(CaseParticipant, dl.read(finder_participant_id))
+    assert finder_participant.embargo_consent_state == PEC.DECLINED.value
+    # embargo_adherence derives from consent state: False when not SIGNATORY
+    ps = finder_participant.participant_status
+    assert ps is not None
+    assert ps.embargo_adherence is False
+
+
 def test_reject_embargo_invite_strict_invalid_state_raises(
     owner_and_dl: tuple[as_Service, SqliteDataLayer],
 ) -> None:
