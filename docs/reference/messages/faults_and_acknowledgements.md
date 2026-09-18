@@ -48,7 +48,7 @@ vocabulary splits them into two mechanisms.
 
 ### RK — a real wire activity
 
-`RK` (Report Acknowledgement) is realised as `Read(Offer(VulnerabilityReport))`
+`RK` (Report Acknowledgement) is realized as `Read(Offer(VulnerabilityReport))`
 (`MessageSemantics.ACK_REPORT`). Report submission is not ledger-replicated, so
 an explicit per-message acknowledgement is the correct mechanism here.
 
@@ -69,7 +69,7 @@ state is acknowledged **cumulatively and implicitly** via hash-chain continuity:
 
 This is negative acknowledgement with gap-fill replay — structurally closer to
 TCP cumulative ACK/SACK than to per-message positive acknowledgement. A matching
-hash proves receipt of the *entire* log prefix, not just one message.
+hash proves receipt of the *entire* log prefix, not only one message.
 
 Status: **evolved** — see MSM-05-002.
 
@@ -95,6 +95,9 @@ independent of the replay rate limit.
 - `docs/reference/messages/faults_and_acknowledgements.md` is the primary page
   for `reject_case_ledger_entry` (SYNC mechanism and ledger NAK, MSM-05-002)
   and `close_report` (ordinary `as:Reject` on the fault axis, MSM-05-003).
+- [Activity Vocabulary Design](../../topics/activity_vocabulary_design.md) — why
+  faults are partitioned by failure mode and acknowledgement moved to the hash
+  chain.
 - [Error Handling](../../howto/activitypub/activities/error.md) — how-to guide
   for fault activities.
 - [Acknowledging a Report](../../howto/activitypub/activities/acknowledge.md) —

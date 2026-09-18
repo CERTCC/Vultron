@@ -12,15 +12,9 @@ are used in the Vultron protocol.
 
 A full mapping of Vultron to ActivityStreams is available in the
 [Vultron ActivityStreams Ontology](../../../reference/ontology/vultron_as.md).
-
-!!! note "Design Goals"
-
-    The goal of each activity definition is to
-
-    - Avoid creating new activity types when an existing activity type can be used.
-    - Avoid creating defined activity types with the same objects and targets to avoid
-    confusion. Each activity type / object / target combination should have a
-    single meaning within the protocol.
+The design rules behind these definitions — which verbs Vultron reuses, which it
+declines to use, and when a new object type is minted — are explained in
+[Activity Vocabulary Design](../../../topics/activity_vocabulary_design.md).
 
 The Vultron AS activities are organized by user flow.
 Each of these user flows shows the activities that are used to perform a specific

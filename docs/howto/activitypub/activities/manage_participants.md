@@ -54,21 +54,12 @@ flowchart TB
     directly to the Case Owner. See [Inviting an Actor to a Case](invite_actor.md)
     for the full sequence diagram.
 
-!!! question "Create or Add?"
-
-    There appears to be some logical interchangeability of `as:Create` 
-    with `as:Add` since both include a `target` property that can be used to
-    specify the object to which the new object is being added. We chose to 
-    represent them separately here to acknowledge the difference between
-    creating a new object and adding an existing object to another object, but
-    in an actual implementation it may be acceptable to use either activity for
-    both cases.
-    It seems likely that the general idea should be to use `as:Create` when creating a new object to 
-    add to another object (as the `target` of the activity), and `as:Add` when adding an existing object to another object. 
-    
-    Vultron intends to be consistent with however ActivityPub handles this.
-    If the approach described here is inconsistent with ActivityPub, please report it as an issue or 
-    pull request.
+The flow above separates `as:Create` from `as:Add`. You can send fewer
+activities by carrying an object inline in the `as:Add` that attaches it, but
+keep the verbs distinct — a `Create` carrying a `target` matches no Vultron
+pattern. See
+[Activity Vocabulary Design](../../../topics/activity_vocabulary_design.md)
+for why the steps are documented separately and what a peer's dispatch requires.
 
 {% include-markdown "./_invite_to_case.md" heading-offset=1 %}
 {% include-markdown "./_accept_invite_to_case.md" heading-offset=1 %}

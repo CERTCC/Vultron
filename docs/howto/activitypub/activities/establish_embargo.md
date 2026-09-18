@@ -15,14 +15,12 @@ one of two ways:
 
 {% include-markdown "./_em_blurb.md" %}
 
-!!! question "Why would you add an embargo without asking first?"
-
-    There are a few reasons why you might want to add an embargo to a case without
-    asking first. For example, when the finder is also the case owner and hasn't invited any other participants to join
-    the case yet, the finder can just add an embargo. Then when the finder invites others to join the case, the invited
-    participants can
-    decide whether to accept the embargo or not. This could be an appropriate way to address the concept of
-    [Default Embargoes](../../../topics/process_models/em/defaults.md).
+Add an embargo without proposing it first when the terms are already settled —
+when no other participants have joined the case yet, or when your published
+default embargo applies and nobody has proposed anything to the contrary. Actors
+invited later decide for themselves whether to accept it. For why a newly created
+case can already carry an active embargo with no visible proposal exchange, see
+[Default Embargoes](../../../topics/process_models/em/defaults.md).
 
 ```mermaid
 flowchart TB

@@ -78,9 +78,11 @@ mis-classification.
 
 **The `Create(X)` + `Add(X → Y)` split is itself an expansion with no formal
 counterpart.** Every object gains two activities: one to mint it, one to attach
-it. The formal protocol models neither. `docs/howto/activitypub/activities/status_updates.md`
-already worries about this in prose ("Create *then* Add vs Create with a
-Target"); that discussion is Explanation and belongs in `docs/topics/`.
+it. The formal protocol models neither, so an implementation that collapses the
+pair loses no protocol-level information. That reconciliation now lives in
+`docs/topics/activity_vocabulary_design.md`, extracted from the prose that used
+to worry about it in `status_updates.md`, `manage_participants.md`,
+`invite_actor.md`, and `initialize_case.md` (#3002).
 
 ### No formal counterpart at all
 
@@ -167,13 +169,23 @@ combined view is unavoidable, the parts MUST be separated and each MUST link to
 the canonical page of its own type). These pages neither separate nor link, so
 they do not qualify for the escape clause. Each page mixes three quadrants:
 
-| Content | Actual quadrant | Destination |
-|---|---|---|
-| Design rationale, why-this-verb, alternatives weighed, activity-graph diagrams | Explanation | `docs/topics/` |
-| AS2 encoding facts, rendered JSON examples | Reference | `docs/reference/messages/` |
-| `!!! example "Try it: vultron-demo <scenario>"` blocks | How-to | stays, retitled "How to …" |
+| Content | Actual quadrant | Destination | Status |
+|---|---|---|---|
+| Design rationale, why-this-verb, alternatives weighed, activity-graph diagrams | Explanation | `docs/topics/activity_vocabulary_design.md` | done (#3002) |
+| AS2 encoding facts, rendered JSON examples | Reference | `docs/reference/messages/` | done (#2999, #3001) |
+| `!!! example "Try it: vultron-demo <scenario>"` blocks | How-to | stays, retitled "How to …" | pending (#3003) |
 
-Diagnostic evidence: the titles are noun phrases ("Status Updates and Comments",
+The Explanation half landed as a single page rather than several, because the
+rationale is one argument: ActivityStreams supplies the verbs, so every Vultron
+choice is either a verb selection, a decision not to mint a type, or a decision
+that a distinction the wire draws has no protocol counterpart. Splitting it per
+source page would have separated claims that only make sense together. Domain
+rationale that already had a home was cross-linked rather than duplicated —
+default-embargo reasoning to `topics/process_models/em/defaults.md`,
+ledger-buffering reasoning to `topics/case_lifecycle/case_ledger_sync.md`, and
+the Actor/`CaseParticipant` distinction to `reference/activitypub/objects.md`.
+
+Diagnostic evidence at the time of the split: the titles are noun phrases ("Status Updates and Comments",
 "Acknowledging Other Messages") where DF-04-003 and the framework require
 "How to [Action]"; the pages contain no imperatives or steps; `acknowledge.md` is
 almost entirely design rationale and passes the bath test; and nearly every page
