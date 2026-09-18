@@ -156,7 +156,7 @@ missing log pattern.
 | 4 | `test_invariant_4_non_empty_payload_snapshot` | active | 3 — Committed |
 | 5 | `test_invariant_5_expected_event_types_present` | active | 1 — Sent |
 | 6 | `test_invariant_6_no_rm_state_oscillation` | active | 3 — Committed |
-| 7 | `test_invariant_7_log_terminates_all_rm_closed` | ⏳ xfail — #2505 | 1 — Sent |
+| 7 | `test_invariant_7_log_terminates_all_rm_closed` | active | 1 — Sent |
 | 9 | `test_invariant_9_participant_status_schema_completeness` | active | 3 — Committed |
 | 10 | `test_invariant_10_nested_objects_inlined_in_payload` | active | 3 — Committed |
 | 11 | `test_invariant_11_payload_context_uses_case_uri` | active | 3 — Committed |
@@ -167,13 +167,26 @@ missing log pattern.
 | 16 | `test_invariant_16_causal_edges_in_ledger_order` | active | 3 — Committed |
 | — | `test_invariant_clp13_no_rejected_invite_entries` | active | 3 — Committed |
 | — | `test_invariant_clp14_timestamp_invariants` | active | 3 — Committed |
-| — | `test_invariant_per_actor_replica_divergence` | ⏳ xfail — #2505 | 2 — Received |
+| — | `test_invariant_per_actor_replica_no_rm_state_oscillation` | active | 2 — Received |
+| — | `test_invariant_per_actor_replica_rm_closed_termination` | active | 2 — Received |
+| — | `test_invariant_per_actor_replica_participant_status_schema_completeness` | active | 2 — Received |
+| — | `test_invariant_per_actor_replica_cs_state_transitions_observed` | active | 2 — Received |
 
 **The `#` column is a historical label, not an index.** It skips 8 (that
 invariant is scenario-local — see below) and runs out entirely for the last
-three, which are named for the spec clause or the property they check rather
+six, which are named for the spec clause or the property they check rather
 than taking the next number. Match a pytest failure to a row by **test
 function name**, never by number or position.
+
+**The four `per_actor_replica_*` rows are the replica-side halves of 6, 7, 9
+and 15.** Those four run against `auth_entries(replicas)`, which resolves to the
+`case-actor` log; the `per_actor_replica_*` rows run the same checks against
+each *other* replica in isolation, and are the only place those properties are
+asserted for non-`case-actor` replicas (ISSUE-2411 Gap 1). So a failure in a
+`per_actor_replica_*` row with its numbered twin green means the property holds
+on the authority and broke in replication — start at Layer 2. They were one
+aggregate test under one `xfail` until ISSUE-3385; splitting them is what lets a
+future known defect be scoped to the one property it owns.
 
 **Invariant 8 is scenario-local, not universal — and there is more than one of
 it.** Late-joiner backfill has to name a specific early actor and late actor,
@@ -208,31 +221,37 @@ green in CI but visible in the output. When an `XPASS` appears, remove the
 guard. See `test/ci/README-case-log-ratchet.md` for the full ratchet
 workflow.
 
+**There are currently no `xfail`s in the universal set** — every row above is
+active. Before adding one, make it as narrow as the defect: a marker over a
+check that aggregates several independent properties silences all of them, and
+`strict=False` means the silence does not lift when the defect is fixed, because
+an `XPASS` is green too. That is what ISSUE-3385 reported, and why the four
+`per_actor_replica_*` checks are separate tests rather than one.
+
 **Unexpected FAIL on an active invariant**: This is a regression.
 Check Layers 1→2→3 in order; do not push a retry commit until you have
 identified which layer broke.
 
 ### Invariant Groups
 
-- **Invariants 7 and `per_actor_replica_divergence`**: the only two xfails in
-  the universal set. Both markers name **#2505** — the FV demo's CaseActor
-  never reaches `RM.CLOSED` — because participant-status entries about the
-  CaseActor appear in *every* replica, so the same defect trips both. They are
-  **not** the same check and do not necessarily clear together: invariant 7
-  asserts termination alone, whereas `per_actor_replica_divergence` aggregates
-  four checks (below). Expect invariant 7 to XPASS first; do not read that as
-  licence to leave the other xfail in place, and do not read the other's
-  continued failure as evidence #2505 is unfixed. Read the failure text.
-- **`per_actor_replica_divergence` is a per-replica check, not a cross-replica
-  one.** Despite the name, it does not compare replicas against each other. It
-  runs each non-`case-actor` replica **in isolation** (`{actor: entries}`, so
-  `auth_entries()` falls back to that actor's own log) through four canonical
-  checks — RM-state oscillation, RM-closed termination, `ParticipantStatus`
-  schema completeness, and CS-transition observation — and skips the last three
-  for any replica holding no `add_participant_status_to_participant` entries.
-  A failure therefore means *one replica* independently violates a state
-  invariant; the `Actor '<id>':` prefix on each violation names which. Do not
-  go looking for disagreement between actors.
+- **Invariant 7 and the four `per_actor_replica_*` checks**: these five were the
+  universal set's only `xfail`s, all naming **#2505** — the CaseActor never
+  reached `RM.CLOSED`, because its own closure transition was written to its
+  store and never recorded as a ledger entry, so no replica could observe it.
+  All five are now active guards. If one goes red, the CASE_MANAGER's terminal
+  entry is missing again: check that `CommitCaseActorRMClosedEntryNode` ran on
+  the owner-Leave path and that `CLOSE_CASE` still receives a `WireRenderPort`
+  (without it the node hard-fails).
+- **The `per_actor_replica_*` checks are per-replica, not cross-replica.** They
+  do not compare replicas against each other. Each runs every non-`case-actor`
+  replica **in isolation** (`{actor: entries}`, so `auth_entries()` falls back
+  to that actor's own log). A failure therefore means *one replica*
+  independently violates a state invariant; the `Actor '<id>':` prefix on each
+  violation names which. Do not go looking for disagreement between actors —
+  that is invariants 2 and 3.
+- The three status-dependent ones skip any replica holding no
+  `add_participant_status_to_participant` entries; the RM-oscillation one does
+  not, because `close_case` entries also carry RM state.
 - **Invariant 6**: No RM-state oscillation after `CLOSED`. Tests the
   `add_participant_status` entries in the case-actor log. If this
   regresses, check `ValidateRMTransitionNode` for CLOSED terminal-state

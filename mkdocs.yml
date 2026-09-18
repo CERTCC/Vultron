@@ -28,6 +28,7 @@ nav:
       - Ownership Transfer: 'topics/case_lifecycle/ownership_transfer.md'
     - Protocol Event Flow: 'topics/protocol_flow.md'
     - Message Semantics: 'topics/message_semantics.md'
+    - Activity Vocabulary Design: 'topics/activity_vocabulary_design.md'
     - Actor Knowledge Model: 'topics/actor-knowledge-model.md'
     - Reference Implementation Architecture: 'topics/reference_architecture.md'
     - Process Models:

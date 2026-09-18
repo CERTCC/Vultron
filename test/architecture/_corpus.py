@@ -5,6 +5,10 @@ time (module-level — outside the 5-second per-test timeout window).  ASTs are
 cached lazily on first demand so only the files actually needed by each ratchet
 are ever parsed.
 
+Also caches ``docs/**/*.md`` text for ratchets that assert documentation prose
+against code (:func:`docs_mentioning`, :func:`all_docs`).  Markdown has no
+parse tier because these ratchets match on text.
+
 See ``notes/architecture-ratchet-corpus.md`` for the full design rationale and
 performance measurements.
 
@@ -19,6 +23,8 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).parents[2]
 
 _SCAN_ROOTS = [REPO_ROOT / "vultron", REPO_ROOT / "test"]
+
+_DOCS_ROOT = REPO_ROOT / "docs"
 
 # ---------------------------------------------------------------------------
 # Module-level source cache — populated at import time.
@@ -35,6 +41,28 @@ for _root in _SCAN_ROOTS:
             _source_cache[_py_file] = _py_file.read_text(encoding="utf-8")
         except OSError:
             pass
+
+# ---------------------------------------------------------------------------
+# Module-level markdown cache for ``docs/`` — also populated at import time,
+# for ratchets that assert docs prose against code. Markdown needs no parse
+# step, so there is no lazy tier: ~556 files / 2.8 MB read in ~0.03 s.
+#
+# No directory is excluded.  The ``*.md`` glob already skips the only
+# non-authored content under ``docs/`` — the gitignored ``.codebase-scan.txt``
+# artifacts — while ``docs/reference/codebase/`` holds eight tracked, authored
+# reference pages that docs ratchets must be able to see.
+#
+# ``UnicodeDecodeError`` is not an ``OSError``, and this loop runs at import
+# time, so letting one escape would error out every ratchet module at
+# collection rather than skipping a single file.
+# ---------------------------------------------------------------------------
+_docs_cache: dict[Path, str] = {}
+
+for _md_file in sorted(_DOCS_ROOT.rglob("*.md")):
+    try:
+        _docs_cache[_md_file] = _md_file.read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError):
+        pass
 
 # ---------------------------------------------------------------------------
 # Lazy AST cache — trees are parsed and stored on first demand.
@@ -123,6 +151,25 @@ def all_sources(under: Path) -> Iterator[tuple[Path, str]]:
         except ValueError:
             continue
         yield path, _source_cache[path]
+
+
+def docs_mentioning(*fragments: str) -> Iterator[tuple[Path, str]]:
+    """Yield ``(path, text)`` for cached ``docs/**/*.md`` containing any fragment.
+
+    The markdown counterpart to :func:`sources_mentioning`. Use this rather than
+    globbing ``docs/`` directly, so docs ratchets route through the shared
+    import-time cache like their Python siblings (TB-13-003).
+    """
+    for path in sorted(_docs_cache.keys()):
+        text = _docs_cache[path]
+        if any(fragment in text for fragment in fragments):
+            yield path, text
+
+
+def all_docs() -> Iterator[tuple[Path, str]]:
+    """Yield ``(path, text)`` for every cached ``docs/**/*.md`` file."""
+    for path in sorted(_docs_cache.keys()):
+        yield path, _docs_cache[path]
 
 
 def parse_inline(source: str, filename: str = "<inline>") -> ast.AST:

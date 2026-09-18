@@ -22,6 +22,7 @@ import pytest
 
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
+from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
 from vultron.core.models.activity import VultronActivity
 from vultron.core.models.case_actor import VultronCaseActor
 from vultron.core.models.events.base import MessageSemantics
@@ -149,6 +150,7 @@ class TestCloseCaseLedgerRouting:
             dl=dl,
             request=_make_close_case_event(receiving_actor_id=CASE_ACTOR_ID),
             sync_port=SyncActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
         ).execute()
 
         event_types = _ledger_event_types(dl)
@@ -167,6 +169,7 @@ class TestCloseCaseLedgerRouting:
             dl=dl,
             request=_make_close_case_event(receiving_actor_id=VENDOR_ID),
             sync_port=SyncActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
         ).execute()
 
         event_types = _ledger_event_types(dl)
@@ -198,6 +201,7 @@ class TestCloseCaseLedgerRouting:
                 leave_actor_id=CASE_ACTOR_ID,
             ),
             sync_port=SyncActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
         ).execute()
 
         event_types = _ledger_event_types(dl)
@@ -219,6 +223,7 @@ class TestCloseCaseLedgerRouting:
             dl=dl,
             request=_make_close_case_event(receiving_actor_id=None),
             sync_port=SyncActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
         ).execute()
 
         event_types = _ledger_event_types(dl)
