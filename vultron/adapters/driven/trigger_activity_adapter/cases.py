@@ -28,6 +28,7 @@ from vultron.wire.as2.factories.case import (
     add_status_to_case_activity,
     announce_vulnerability_case_activity,
     create_case_proposal_activity,
+    reject_case_proposal_activity,
 )
 from vultron.wire.as2.vocab.base.objects.activities.transitive import as_Add
 from vultron.wire.as2.vocab.objects.case_status import as_CaseStatus
@@ -324,6 +325,67 @@ class _CasesMixin:
         except ValueError:
             logger.warning(
                 "create_case_proposal: activity '%s' already exists — skipping",
+                activity.id_,
+            )
+        return activity.id_, activity.model_dump_json(**_DUMP_KWARGS)
+
+    def reject_case_proposal(
+        self,
+        actor: str,
+        proposal: dict,
+        to: list[str] | None = None,
+        summary: str | None = None,
+    ) -> tuple[str, str]:
+        """Create and persist a ``Reject(as_CaseProposal)`` activity.
+
+        Rebuilds the ``as_CaseProposal`` from the wire dict the inbound
+        ``Create`` carried, so the Reject embeds the proposal inline exactly as
+        the vendor sent it (CP-05-004, AKM-03-001).
+
+        The proposal is persisted alongside the activity for the same reason
+        ``create_case_proposal`` persists it: storage dehydrates an inline
+        Activity sub-field to its URI, so the outbox expansion path resolves the
+        proposal by reading it back. Without the stored object the vendor would
+        receive a Reject whose ``object_`` is a bare URI it cannot dereference —
+        the AKM-03-001 failure that #2482 found on the Create side.  Storing an
+        activity payload is not case state; declining still creates no case,
+        participant, or ledger entry.
+
+        Per CP-05-002, CP-05-004.
+        """
+        from vultron.wire.as2.vocab.objects.case_proposal import (
+            as_CaseProposal,
+        )
+
+        # `attributed_to` is a required `NonEmptyString` (CP-01-003), so a
+        # proposal with no proposer is refused here rather than needing a
+        # downstream guard for a case that cannot reach one.
+        wire_proposal = as_CaseProposal.model_validate(proposal)
+        try:
+            self._dl.create(wire_proposal)
+        except ValueError:
+            logger.debug(
+                "reject_case_proposal: proposal '%s' already exists — skipping",
+                wire_proposal.id_,
+            )
+        # The proposing vendor is the only party owed the refusal.
+        recipients = (
+            to if to is not None else [str(wire_proposal.attributed_to)]
+        )
+        extra: dict[str, Any] = {}
+        if summary is not None:
+            extra["summary"] = summary
+        activity = reject_case_proposal_activity(
+            actor_id=actor,
+            proposal=wire_proposal,
+            to=recipients,
+            **extra,
+        )
+        try:
+            self._dl.create(activity)
+        except ValueError:
+            logger.warning(
+                "reject_case_proposal: activity '%s' already exists — skipping",
                 activity.id_,
             )
         return activity.id_, activity.model_dump_json(**_DUMP_KWARGS)

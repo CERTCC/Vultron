@@ -103,6 +103,10 @@ def test_bundle_fields_satisfy_protocol():
             "AssignVulIdCallOutBundle",
         ),
         (
+            "vultron.demo.fuzzer.bundles.case_proposal",
+            "CaseProposalCallOutBundle",
+        ),
+        (
             "vultron.demo.fuzzer.bundles.assign_cve_id",
             "AssignCveIdCallOutBundle",
         ),
@@ -186,6 +190,11 @@ def test_bundle_is_frozen_dataclass(module_path, class_name):
             "ASSIGN_VUL_ID_STOCHASTIC",
         ),
         (
+            "vultron.demo.fuzzer.bundles.case_proposal",
+            "CASE_PROPOSAL_DETERMINISTIC",
+            "CASE_PROPOSAL_STOCHASTIC",
+        ),
+        (
             "vultron.demo.fuzzer.bundles.assign_cve_id",
             "ASSIGN_CVE_ID_DETERMINISTIC",
             "ASSIGN_CVE_ID_STOCHASTIC",
@@ -232,6 +241,7 @@ def test_bundles_init_re_exports_all_classes_and_singletons():
         "AcquireExploitCallOutBundle",
         "AssignCveIdCallOutBundle",
         "AssignVulIdCallOutBundle",
+        "CaseProposalCallOutBundle",
         "CloseReportCallOutBundle",
         "StatusAuthorizationCallOutBundle",
     ]
@@ -254,6 +264,8 @@ def test_bundles_init_re_exports_all_classes_and_singletons():
         "ASSIGN_CVE_ID_STOCHASTIC",
         "ASSIGN_VUL_ID_DETERMINISTIC",
         "ASSIGN_VUL_ID_STOCHASTIC",
+        "CASE_PROPOSAL_DETERMINISTIC",
+        "CASE_PROPOSAL_STOCHASTIC",
         "CLOSE_REPORT_DETERMINISTIC",
         "CLOSE_REPORT_STOCHASTIC",
         "STATUS_AUTHORIZATION_DETERMINISTIC",

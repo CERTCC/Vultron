@@ -27,6 +27,9 @@ import logging
 from typing import Any, cast
 
 from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
+from vultron.core.behaviors.call_out.bundles.case_proposal import (
+    CASE_PROPOSAL_DETERMINISTIC,
+)
 from vultron.config.actor import ActorConfig
 from vultron.config.app import load_actor_config
 from vultron.core.models.events import MessageSemantics
@@ -125,9 +128,23 @@ def _case_proposal_port_factory(dl: DataLayer) -> dict[str, Any]:
 
     Falls back to omitting ``actor_config`` when config load fails, leaving the
     receiver with ``CVDRole.CASE_OWNER`` only.
+
+    The trigger-activity port is needed only on the decline path, where
+    ``_EmitRejectCaseProposalNode`` builds ``Reject(as_CaseProposal)`` through
+    the shared emit seam (CP-05-002, CP-05-004).  The accept path never reads it.
+
+    ``call_out`` is the admission-policy injection point (CP-05-002).  This
+    adapter wires the core DETERMINISTIC bundle, which admits every well-formed
+    proposal — the behaviour the service had before the seam existed
+    (BT-23-001, BT-23-011).  A deployment with an admission policy substitutes
+    its own bundle here, the same way this module wires
+    ``STATUS_AUTHORIZATION_PERMISSIVE`` for the received-side status gates.
     """
-    del dl  # no driven ports required; only local configuration
-    kwargs: dict[str, Any] = {"wire_render_port": As2WireRenderAdapter()}
+    kwargs: dict[str, Any] = {
+        "wire_render_port": As2WireRenderAdapter(),
+        "call_out": CASE_PROPOSAL_DETERMINISTIC,
+        **_trigger_activity_port_factory(dl),
+    }
     actor_config = _resolve_actor_config()
     if actor_config is not None:
         kwargs["actor_config"] = actor_config
