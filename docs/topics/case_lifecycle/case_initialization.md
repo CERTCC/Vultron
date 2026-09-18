@@ -107,6 +107,26 @@ When the Case Actor declines, it sends `Reject(CaseProposal)` with
 inline (rather than referencing it by URI) gives the Vendor the full
 proposal context without requiring a separate fetch.
 
+The decision itself is a call-out point, `EvaluateCaseProposal` — the
+only place a deployment expresses admission policy (CP-05-002). The
+default admits, so a service that has wired nothing behaves as it always
+did. See the [Capability Model](../capability_model/index.md#case-admission)
+for the service contract.
+
+Two ordering properties follow from the decision being a refusal rather
+than a preference:
+
+- It runs **before** every step in Step 2a, so a declined proposal leaves
+  no case, no participants, and no ledger entries behind.
+- The refusal is recorded before it is sent. A decline the Case Actor
+  could not deliver reports a processing failure and is retried on the
+  next delivery; it never becomes an acceptance. A redelivered proposal is
+  answered once, not once per delivery.
+
+The Vendor records the refusal (CP-06-004). The `Reject` carries no
+reason today — nothing yet carries one from the decision onto the wire
+(see [#3399](https://github.com/CERTCC/Vultron/issues/3399)).
+
 ---
 
 ## Wire format examples

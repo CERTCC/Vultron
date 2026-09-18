@@ -1,7 +1,8 @@
 # Use-Case Behavior
 
 Each page in this section takes one coordination use case and explains the structure of the behavior behind it.
-The subject is the shape of the decision, not the code that carries it out: what starts the behavior, which parts the protocol settles by itself, which parts it hands to an outside judgment, and what the rest of the case learns as a result.
+The subject is the shape of the decision, not the code that carries it out.
+Four things define that shape: what starts the behavior, which parts the protocol settles by itself, which parts it hands to an outside judgment, and what the rest of the case learns.
 
 These pages are for implementers deciding what their own participant has to do at a given step, and for integrators deciding which judgments they will need to supply.
 They assume the actor model and cascade behavior described in [Protocol Event Flow](../../protocol_flow.md).
@@ -41,7 +42,10 @@ Judgment comes before effects because a refusal has to be able to stop the step 
 The useful distinction in a use case is not between "simple" and "complex" steps.
 It is between decisions the protocol can settle from what it already knows and decisions it cannot.
 
-A **mechanical** decision reads recorded state and applies a rule: is this participant already in the Valid state of the Report Management (RM) machine, does this case exist in this actor's own store, is this transition permitted by the state machine.
+A **mechanical** decision reads recorded state and applies a rule.
+Is this participant already in the Valid state of the Report Management (RM) machine?
+Does this case exist in this actor's own store?
+Is this transition permitted by the state machine?
 Two conformant implementations must reach the same answer, because the rule and the inputs are both fixed.
 
 A **delegated** decision has no answer in the record.
@@ -69,7 +73,9 @@ An Evaluator that wants to block the step returns failure rather than reporting 
 
 It has a default.
 Every call-out point is injected through a backend factory with a deterministic default, so a deployment that supplies nothing still runs (BT-18-004, BT-23-001).
-The default is usually the permissive one, on the reasoning that a stub should not silently withhold progress — but a gate whose permissive default would let a party other than the case owner force a case-state change or an embargo teardown defaults to the conservative answer instead (BT-23-012, [ADR-0076](../../../adr/0076-security-significant-gates-default-require-case-owner-approval.md)).
+The default is usually the permissive one, on the reasoning that a stub should not silently withhold progress.
+One class of gate inverts that.
+Where a permissive default would let a party other than the case owner force a case-state change or an embargo teardown, the default is the conservative answer instead (BT-23-012, [ADR-0076](../../../adr/0076-security-significant-gates-default-require-case-owner-approval.md)).
 When a page says a call-out point "defaults to accept", that is the stub's behavior and not a protocol requirement to accept.
 
 It is not the same as asking another actor.

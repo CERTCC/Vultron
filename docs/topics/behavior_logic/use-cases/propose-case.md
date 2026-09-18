@@ -20,7 +20,7 @@ It also carries the provenance of the report — which `Offer(VulnerabilityRepor
 The proposal is addressed to the service's container identity, never to an identity derived per case or per report (CP-04-003).
 The service does not exist yet as a per-case actor; that is what is being asked for.
 
-!!! note "Why not just create the case locally?"
+!!! note "Why not create the case locally?"
 
     An actor can hold a local case object. What it cannot do alone is be the
     **single-writer authority** for a case that other organizations will replicate
@@ -64,7 +64,10 @@ Sending a second `Accept` would tell the proposer it had been accepted twice, an
 One call-out point governs this use case: **EvaluateCaseProposal** (Evaluator), the admission decision (CP-05-002).
 
 It is the only place a deployment can express admission policy.
-Whether the proposing actor is one this service will work for, whether it already holds more open cases than the service will carry, whether the inline report is substantive enough to be worth coordinating — all of that lives here or nowhere.
+Is the proposing actor one this service will work for?
+Does it already hold more open cases than the service will carry?
+Is the inline report substantive enough to be worth coordinating?
+All of that lives here or nowhere.
 
 The decision is placed ahead of every one of the eleven steps above, and that placement is the interesting part.
 A refusal has to happen before the case exists.
@@ -78,7 +81,9 @@ A decline that cannot be delivered must not silently become an acceptance, so th
 The consequence a reader should expect: a service that decided "no" and then failed to say so reports a processing failure, and retries the refusal on the next delivery — it never creates the case.
 
 The reason for a refusal is a separate matter.
-CP-06-004 requires the proposer to surface one where present, but nothing yet carries a reason from the admission decision onto the wire: a call-out point signals refusal by returning failure, and the blackboard contract in BT-18 defines outputs only for the success case.
+CP-06-004 requires the proposer to surface one where present.
+Nothing yet carries a reason from the admission decision onto the wire.
+A call-out point signals refusal by returning failure, and the blackboard contract in BT-18 defines outputs only for the success case.
 Until that channel is designed the `Reject` carries no `summary`, so a proposer records the refusal without an explanation ([#3399](https://github.com/CERTCC/Vultron/issues/3399)).
 
 Under the deterministic default the service admits.
@@ -87,7 +92,8 @@ It is also not the conservative-default case that BT-23-012 governs, because acc
 
 An already-accepted proposal is never re-adjudicated.
 A duplicate delivery reuses the existing case rather than deciding again, because a later "decline" would contradict an `Accept` already sent.
-CP-05-006 goes further and requires the stored `Accept` to be re-sent unchanged, with its original identifier, so a proposer whose copy was lost converges rather than waiting forever; the reference implementation reuses the case but does not yet re-send ([#2890](https://github.com/CERTCC/Vultron/issues/2890)).
+CP-05-006 goes further: the stored `Accept` must be re-sent unchanged, with its original identifier, so a proposer whose copy was lost converges rather than waiting forever.
+The reference implementation reuses the case but does not yet re-send ([#2890](https://github.com/CERTCC/Vultron/issues/2890)).
 
 ---
 
@@ -130,7 +136,8 @@ Bringing in a vendor or a coordinator is a separate flow.
 
 The requirement most often read too loosely is CP-05-002.
 "Evaluate and either accept or reject" is not satisfied by a service that always accepts.
-An implementation with no refusal path has no admission policy, and a case actor service that cannot decline is an open relay: any actor able to reach the inbox obtains a managed case, a canonical ledger, and a default embargo.
+An implementation with no refusal path has no admission policy.
+A case actor service that cannot decline is an open relay: any actor able to reach the inbox obtains a managed case, a canonical ledger, and a default embargo.
 
 ---
 

@@ -47,7 +47,9 @@ Five things are decided from recorded state alone.
 Every one of those precedes the first write.
 That ordering is load-bearing rather than tidy.
 `RM.VALID` is case-scoped, and the case reaches a Participant only as a replica the case manager sends it ([ADR-0073](../../../adr/0073-per-actor-storage-isolation.md), PCR-01-003).
-An actor that validates before its replica has arrived must therefore do *nothing*, not half of the transition — if it writes the state latch and then fails the embargo check, the latch makes every later attempt take the early exit, and the two halves can never reconverge.
+An actor that validates before its replica has arrived must therefore do *nothing*, not half of the transition.
+Suppose it writes the state latch and then fails the embargo check.
+The latch now makes every later attempt take the early exit, and the two halves can never reconverge.
 
 ---
 
@@ -56,7 +58,9 @@ An actor that validates before its replica has arrived must therefore do *nothin
 Two call-out points sit between the preconditions and the effects, and they ask different questions.
 
 **EvaluateReportCredibility** (Evaluator) asks whether the source and the claim are believable enough to spend effort on.
-This is a judgment about the *report*, not the vulnerability: a well-known researcher's terse note and an anonymous submission with a working proof of concept are both credible, and a vague claim with no reproduction steps from an unknown sender may not be.
+This is a judgment about the *report*, not the vulnerability.
+A terse note from a Reporter with a track record and an anonymous submission carrying a working proof of concept are both credible.
+A vague claim with no reproduction steps, from an unknown sender, may not be.
 
 **EvaluateReportValidity** (Evaluator) asks whether the reported condition is a real vulnerability in a product this actor is answerable for.
 A report can be entirely credible and still invalid — intended behavior, a misconfiguration, or a product this actor does not maintain.
@@ -108,7 +112,9 @@ It must satisfy the RMB requirements for this step.
 
 Two of those are easy to miss.
 RMB-10-001 means validation is never the end of the path: reaching `RM.VALID` obliges the actor to decide whether to engage or defer, which is the [Prioritize report](prioritize-report.md) use case.
-RMB-11-002 rules out the most tempting use of `RM.INVALID` — a duplicate is a real vulnerability that this actor already knows about, and marking it invalid tells other Participants something false about the vulnerability rather than something true about the report.
+RMB-11-002 rules out the most tempting use of `RM.INVALID`.
+A duplicate is a real vulnerability that this actor already knows about.
+Marking it invalid tells other Participants something false about the vulnerability rather than something true about the report.
 
 ---
 
