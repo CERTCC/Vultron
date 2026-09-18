@@ -181,12 +181,16 @@ groups:
     kind: project
     statement: >-
       `HandlerDisposition` MUST be a `StrEnum` whose members are exactly `APPLIED`,
-      `SKIPPED`, and `REFUSED`; it MUST NOT declare a `DEFERRED` member
+      `SKIPPED`, `DEFERRED`, and `REFUSED`
     rationale: >-
       A closed `StrEnum` follows the project idiom for fixed value sets (`CVDRole`,
-      `VultronObjectType`) rather than an inline `Literal`. `DEFERRED` is excluded because
-      deferral is decided by `DeferCheckNode` before dispatch — a handler is never in a
-      position to return it, and offering the value would invite misuse. See ADR-0094.
+      `VultronObjectType`) rather than an inline `Literal`. `DEFERRED` is a member because
+      handler-side deferral is real: `BufferOutOfOrderEntryNode` and
+      `BufferPreGenesisEntryNode` return `SUCCESS` after parking a ledger entry in the
+      `LedgerGapBuffer` for replay once its predecessor arrives, which is neither a state
+      change nor a benign no-op nor a refusal. `DeferCheckNode` decides the *other* kind of
+      deferral — missing case context — before dispatch; the two are distinct and both map
+      to `InboxOutcome.status == "deferred"`. See ADR-0094.
     adr:
     - ADR-0094
   - id: UCORG-05-010
@@ -212,13 +216,17 @@ groups:
     kind: project
     statement: >-
       `InboxOutcome.status` MUST be derived from the handler's `HandlerDisposition` when a
-      dispatch occurred — `APPLIED` and `SKIPPED` mapping to `processed`, `REFUSED` mapping
-      to `rejected` with `failure_reason` populated from the handler's `reason` — and MUST
-      NOT be inferred from the absence of a raised exception
+      dispatch occurred — `APPLIED` and `SKIPPED` mapping to `processed`, `DEFERRED` mapping
+      to `deferred`, and `REFUSED` mapping to `rejected` with `failure_reason` populated from
+      the handler's `reason` — and MUST NOT be inferred from the absence of a raised
+      exception
     rationale: >-
       Treating "dispatch did not raise" as success is what lets a handler take no action and
-      still be reported as `processed` (issue #2255). `deferred` remains owned by the inbox
-      pipeline, since it is decided before any handler runs.
+      still be reported as `processed` (issue #2255). `deferred` has two producers that must
+      not be conflated: `DeferCheckNode` before dispatch, for missing case context, and a
+      handler returning `DEFERRED` after dispatch, for an entry parked pending its
+      predecessor. Both reach the same `InboxOutcome.status`; only the second flows through
+      this mapping.
     relationships:
     - rel_type: implements
       spec_id: IO-01-001

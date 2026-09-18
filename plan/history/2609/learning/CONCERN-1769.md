@@ -93,19 +93,28 @@ HTTP response can never carry a processing verdict. #2255's "Done when" asked fo
 exactly that and had to be amended. This is the same conflation #2369 documents
 on the trigger side; it is a recurring shape, not a one-off.
 
-**A vocabulary that a producer cannot legitimately emit invites misuse.**
-`InboxOutcome` models `deferred`, but `DeferCheckNode` decides deferral *before*
-dispatch, so a handler can never produce it. `HandlerDisposition` therefore
-carries only `APPLIED`/`SKIPPED`/`REFUSED`, and `DispatchNode` owns the mapping.
-Reusing the downstream vocabulary wholesale would have handed handlers a value
-with no legitimate use.
+**Before excluding a value from an enum because "no producer can emit it," go
+find the producers.** The first draft of ADR-0094 dropped `DEFERRED` from
+`HandlerDisposition` on the reasoning that `DeferCheckNode` decides deferral
+*before* dispatch, so a handler is never in a position to return one. The
+reasoning was sound and the conclusion was wrong: `BufferOutOfOrderEntryNode` and
+`BufferPreGenesisEntryNode` return `SUCCESS` after parking a ledger entry in the
+`LedgerGapBuffer`, reached from a handler through normal dispatch. One node had
+been found and generalised from, and a `grep` for other deferral-shaped behaviour
+would have caught it. The published ADR carries four values.
+
+The failure mode is worth naming because it is the *inverse* of the one this
+concern was filed about: there, a document asserted a mechanism that did not
+exist; here, a document denied a mechanism that did. Both come from reasoning
+about the codebase instead of reading it.
 
 ## Resolution
 
 **Resolved**: 2026-09-17 — implementation tracked in #3371, #3372, and #3373,
 with #2255 unblocked and rescoped to the per-handler verdict determinations.
-Also filed #3374 (HP-04's `dispatchable.payload` contract, which no handler uses
-— same species of spec residue, unrelated to this work).
+Also filed #3374 (HP-04's `dispatchable.payload` contract, which no handler uses)
+and #3377 (UCORG-01-003's required `use_case_map.py`, which does not exist) —
+both the same species of spec residue, unrelated to this work.
 
 Docs PR: <https://github.com/CERTCC/Vultron/pull/3370>.
 ADR: `docs/adr/0094-received-side-handler-result.md` (extends ADR-0040).

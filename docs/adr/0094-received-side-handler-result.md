@@ -69,8 +69,10 @@ this, names the same three-layer drop, and points at this ADR for the contract.
 - The handler is the only component that knows what happened to its activity.
 - `InboxOutcome` already exists and already models the destination vocabulary;
   a second parallel vocabulary would be worse than none.
-- Not every behavior-tree `FAILURE` is a refusal. Benign idempotent skips must
-  keep reporting `processed`, so the contract must distinguish them.
+- Not every behavior-tree `FAILURE` is a refusal, and not every `SUCCESS` is
+  applied work. Benign idempotent skips must keep reporting `processed`, and the
+  ledger-sync buffer nodes return `SUCCESS` for an entry they have only parked, so
+  the contract must distinguish all three from a refusal.
 - The received-side use-case layer has no base class — all 51 handler classes
   are standalone — so the contract cannot rely on inherited default behavior.
 - `specs/handler-protocol.yaml` HP-01-002 (`MAY` return None or HandlerResult)
@@ -99,18 +101,35 @@ handler's own verdict.
 
 ### The disposition vocabulary
 
-`HandlerDisposition` is a `StrEnum` with three values:
+`HandlerDisposition` is a `StrEnum` with four values:
 
 | Value | Meaning | Maps to `InboxOutcome.status` |
 |---|---|---|
 | `APPLIED` | The handler changed local state to reflect the inbound assertion. | `processed` |
 | `SKIPPED` | The handler correctly did nothing — duplicate, already-present, or otherwise a legitimate no-op. | `processed` |
+| `DEFERRED` | The handler parked the item for later replay rather than acting on it or declining it. | `deferred` |
 | `REFUSED` | The handler rejected the inbound assertion. `reason` is populated. | `rejected` |
 
-`deferred` is deliberately **not** a handler disposition. Deferral is decided by
-`DeferCheckNode` *before* dispatch, so a handler is never in a position to
-return it. Giving handlers a value they cannot legitimately produce would invite
-misuse.
+`DEFERRED` is a member because handler-side deferral is real, and it is easy to
+talk oneself out of. `DeferCheckNode` runs *before* dispatch and handles one kind
+of deferral — the case context is not known locally yet — which makes it tempting
+to conclude that a handler can never produce one. But the ledger-sync path does
+exactly that: `BufferOutOfOrderEntryNode` and `BufferPreGenesisEntryNode`
+(`core/behaviors/sync/nodes/receive.py`) return `SUCCESS` after parking an entry
+in the actor-local `LedgerGapBuffer`, to be replayed once its predecessor or its
+`VulnerabilityCase` seed arrives. `AnnounceLedgerEntryReceivedUseCase` reaches
+them through normal dispatch.
+
+A parked entry is not applied, is not a benign no-op, and is not refused. Forcing
+it into `APPLIED` would claim the assertion landed; forcing it into `SKIPPED`
+would claim there was nothing to do. Both discard the one fact a reader needs —
+that a replay is pending — and `InboxOutcome` already models `deferred`, so there
+is nothing to invent. The two producers of `deferred` stay distinct: pre-dispatch
+(`DeferCheckNode`, missing case context) and post-dispatch (a handler returning
+`DEFERRED`).
+
+This does not weaken HP-01-004. A handler reports in its own vocabulary;
+`DispatchNode` still owns the mapping onto `InboxOutcome`.
 
 `SKIPPED` exists because `APPLIED` and `SKIPPED` collapse to the same
 `InboxOutcome.status` but are not the same event. Today both look identical — a
@@ -171,8 +190,9 @@ state. The boundary is not valuable enough to protect at that price.
   `Create(ProcessingFault)` carrying
   `VULTRON_FAILURE_STATUS_ASSERTION_REFUSED` for a non-idempotent status
   failure. That behaviour predates this ADR and must not regress.)
-- Good: the skip-vs-refusal distinction becomes a typed fact rather than
-  something a reader infers from log phrasing.
+- Good: the skip-vs-deferral-vs-refusal distinction becomes a typed fact rather
+  than something a reader infers from log phrasing. A ledger entry parked pending
+  its predecessor stops reporting as `processed`.
 - Good: `UseCaseResult` gains a real definition, which #3354 needs as
   `TriggerResult`'s parent.
 - Good: HP-01-002 and UCORG-05-002 stop contradicting each other.

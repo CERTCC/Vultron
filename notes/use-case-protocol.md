@@ -67,13 +67,20 @@ value sets (`CVDRole`, `VultronObjectType`) — not a `Literal`:
 |---|---|---|
 | `APPLIED` | Local state changed to reflect the inbound assertion. | `processed` |
 | `SKIPPED` | Correct no-op — duplicate, already-present, or otherwise legitimately nothing to do. | `processed` |
+| `DEFERRED` | Parked for later replay, not acted on and not declined. | `deferred` |
 | `REFUSED` | The inbound assertion was rejected; `reason` is populated. | `rejected` |
 
 Two things to note about the vocabulary:
 
-- **There is no `DEFERRED`.** Deferral is decided by `DeferCheckNode` *before*
-  dispatch, so a handler is never in a position to return it. `InboxOutcome`
-  models `deferred`; `HandlerDisposition` deliberately does not.
+- **`DEFERRED` is here even though `DeferCheckNode` runs before dispatch.** That
+  node handles one kind of deferral — the case context is not known locally yet —
+  and it is tempting to conclude from it that a handler can never defer. The
+  ledger-sync path does: `BufferOutOfOrderEntryNode` and
+  `BufferPreGenesisEntryNode` (`core/behaviors/sync/nodes/receive.py`) return
+  `SUCCESS` after parking an entry in the `LedgerGapBuffer` for replay once its
+  predecessor arrives, and `AnnounceLedgerEntryReceivedUseCase` reaches them
+  through normal dispatch. So `deferred` has two producers, pre- and
+  post-dispatch, and only the second flows through `HandlerDisposition`.
 - **`APPLIED` and `SKIPPED` both map to `processed`,** and that is intentional.
   They are the same *report* but not the same *event*. Today both look identical
   — a line in a log file — and `received/status.py` already special-cases
@@ -239,9 +246,10 @@ record already exists, and are `-> None` themselves. Five handlers delegate thei
 whole duplicate-skip decision there, so that layer has to return a disposition
 too or `SKIPPED` is unreachable for the commonest skip in the codebase.
 
-`DispatchNode` owns the mapping (`APPLIED`/`SKIPPED` → `processed`, `REFUSED` →
-`rejected` + `failure_reason`). Handlers do not know about `InboxOutcome`'s
-vocabulary and MUST NOT reach for it.
+`DispatchNode` owns the mapping (`APPLIED`/`SKIPPED` → `processed`, `DEFERRED` →
+`deferred`, `REFUSED` → `rejected` + `failure_reason`). Handlers do not know about
+`InboxOutcome`'s vocabulary and MUST NOT reach for it — that is a layering rule
+(HP-01-004), not a claim about which outcomes a handler can cause.
 
 **What this does not do.** The verdict reaches `InboxOutcome` and the actor log.
 Reaching the log takes a deliberate step: `run_inbox_pipeline` only debug-logs

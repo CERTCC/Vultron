@@ -203,7 +203,7 @@ dispatcher or use-case layer, or deciding whether a use case needs a BT.
 **`use-case-protocol.md`**
 Design decisions for the `UseCaseResult` type hierarchy (`HandlerResult` /
 `TriggerResult`), the `HandlerDisposition` vocabulary
-(`APPLIED`/`SKIPPED`/`REFUSED`) and how it reaches `InboxOutcome` across the
+(`APPLIED`/`SKIPPED`/`DEFERRED`/`REFUSED`) and how it reaches `InboxOutcome` across the
 dispatcher boundary, the two semantically distinct request paths (`VultronEvent`
 vs `TriggerRequest`), why `UseCaseRequest` was not introduced, the planned
 `TriggerService`/`TriggerServicePort` migration from `dict` to `TriggerResult`,
