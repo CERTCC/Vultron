@@ -6,7 +6,7 @@ description: >-
   when the demo fails — closing the gap where tests pass while the demo produces
   silent failures. Includes requirements for the invariant harness to run as an
   independent CI gate so failures are visible even when the demo itself also fails.
-version: 2.0.0
+version: 2.1.0
 scope:
   - prototype
   - production
@@ -151,6 +151,40 @@ groups:
           Advisory accumulation is the correct behaviour for verification
           assertions — every failed check should be reported in a single run
           rather than stopping at the first one.
+
+      - id: DEMOCI-01-011
+        priority: MUST
+        kind: project
+        statement: >-
+          A scenario MUST NOT let a raising poll or verification helper's
+          timeout escape the failure accumulator. Any `wait_for_*` (or
+          equivalent verification) call that raises on timeout MUST execute
+          inside a `demo_step`, `demo_check`, or `demo_gate` context, OR be
+          invoked through a shared helper that wraps the raising call in one of
+          those contexts internally. A shared helper that encapsulates such
+          polling MUST perform the wrap itself so that every caller inherits it.
+        rationale: >-
+          DEMOCI-01-003 requires errors to accumulate and surface together; a
+          bare raising wait defeats that by crashing the scenario at the first
+          failure, burying every co-occurring failure behind one misleading
+          signal. This has recurred twice — bare
+          `wait_for_contiguous_ledger_coverage` (#1772/#1802) and bare
+          `wait_for_participants_on_replicas` (#3384) — so the constraint is
+          stated explicitly and enforced by an architecture ratchet rather than
+          reviewer vigilance. Wrapping inside the shared helper (as
+          `drain_phase1_ledger` already does) fixes every caller at once.
+        relationships:
+          - rel_type: refines
+            spec_id: DEMOCI-01-003
+            note: >-
+              Constrains where raising waits may run; the accumulation and
+              exit-code contract of DEMOCI-01-001 and DEMOCI-01-003 is unchanged.
+        verification: >-
+          An architecture ratchet test asserts that scenario `_phase_*`
+          functions in `vultron/demo/scenario/` do not invoke a known raising
+          wait helper outside a demo context, and that helpers encapsulating
+          such polling (e.g. `wait_for_participants_on_replicas`) wrap the call
+          internally.
 
   - id: DEMOCI-02
     title: GitHub Actions Demo Workflow
