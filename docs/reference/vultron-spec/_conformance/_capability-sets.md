@@ -1,8 +1,10 @@
 ### 12.2 Capability Sets
 
 A capability set is a group of obligations an implementation takes on. Three are
-defined: Observer, which every participant must provide, and Authority and Hosting,
-which add the obligations of deciding for a case and of running one.
+defined: Case Observer, which every participant must provide, and Case Decision
+and Case Hosting, which add the obligations of deciding for a case and of running
+one. The **Case** prefix marks each as a capability set — a property of software —
+distinct from the similarly-named roles it serves.
 
 Most of what a capability set requires is expressed as maintaining a state machine,
 so that phrase needs pinning down first.
@@ -24,9 +26,9 @@ so that phrase needs pinning down first.
 
 {% include-markdown "../includes/_dimensions-vs-machines.md" %}
 
-#### Observer capability set
+#### Case Observer capability set
 
-The Observer capability set is the participation floor.
+The Case Observer capability set is the participation floor.
 **Every actor that participates in any Vultron case MUST implement it.**
 
 There is no sub-Observer participation level. An actor that accepts a case
@@ -71,26 +73,27 @@ state and notify others of its own transitions.
     own VFD transitions; a Reporter drives RM; any participant may report PXA
     observations. See [§12.3](../index.md#123-role-taxonomy) and [§12.4](../index.md#124-role-specific-normative-requirements).
 
-#### Authority capability set
+#### Case Decision capability set
 
-The Authority capability set defines Case Owner governance capabilities.
-It is separable from the Hosting capability set.
+The Case Decision capability set defines Case Owner governance capabilities.
+It is separable from the Case Hosting capability set.
 
-- Observer capability set, plus:
+- Case Observer capability set, plus:
 - Status updates MUST be adopted without requiring an external approval gate
   (the Case Owner's own updates are authoritative)
 - MUST be able to drive shared EM transitions
 - MUST be able to transfer case ownership via the `Offer(VulnerabilityCase)` /
   `Accept` handshake
 
-A human Coordinator typically holds Authority while a service actor provides Hosting.
+A human Coordinator typically provides the Case Decision capability set while a
+service actor provides Case Hosting.
 
-#### Hosting capability set
+#### Case Hosting capability set
 
-The Hosting capability set defines Case Manager infrastructure capabilities.
-It is separable from the Authority capability set.
+The Case Hosting capability set defines Case Manager infrastructure capabilities.
+It is separable from the Case Decision capability set.
 
-- Observer capability set, plus:
+- Case Observer capability set, plus:
 - MUST hold the **CASE_MANAGER** role for each case it hosts, and therefore MUST implement the
   single-writer authority rules of [§5.4.1](../index.md#541-single-writer-authority)
 - MUST maintain the authoritative canonical case ledger and replicate it to
@@ -103,8 +106,8 @@ It is separable from the Authority capability set.
 
 !!! note "Ledger replication mechanics are specified separately"
     This specification states the obligation: an implementation holding the
-    Hosting capability set MUST maintain the canonical ledger and replicate it via
-    `Announce(CaseLedgerEntry)`. The single-writer-plus-fan-out model is normative:
+    Case Hosting capability set MUST maintain the canonical ledger and replicate it
+    via `Announce(CaseLedgerEntry)`. The single-writer-plus-fan-out model is normative:
     one CASE_MANAGER holds exclusive write authority and sends each entry to every
     participant actor.
 
@@ -127,9 +130,9 @@ full capability set list.
 
 | Configuration | Capability sets | Roles |
 |---|---|---|
-| **Hosting Coordinator** | Observer + Authority + Hosting | Coordinator + Case Owner |
-| **Self-coordinating Vendor** | Observer + Authority + Hosting | Vendor + Deployer + Case Owner |
-| **Bug Bounty Platform** | Observer + Hosting | Case Manager (Authority optional) |
+| **Hosting Coordinator** | Case Observer + Case Decision + Case Hosting | Coordinator + Case Owner |
+| **Self-coordinating Vendor** | Case Observer + Case Decision + Case Hosting | Vendor + Deployer + Case Owner |
+| **Bug Bounty Platform** | Case Observer + Case Hosting | Case Manager (Case Decision optional) |
 
 A Hosting Coordinator is a `type:service` actor that holds both `CASE_OWNER`
 and `CASE_MANAGER` roles. It decides and executes without a separate human

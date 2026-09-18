@@ -10,7 +10,7 @@ informed: Vultron implementers, external reviewers
 
 ## Context and Problem Statement
 
-`docs/reference/draft-vultron-spec.md` §7.2 requires Hosting capability set
+`docs/reference/draft-vultron-spec.md` §7.2 requires Case Hosting capability set
 implementations to replicate the canonical case ledger to participant actors
 via `Announce(CaseLedgerEntry)`. Open Question #2 asked whether the detailed
 replication mechanics (hash-chaining, gap detection, ordering guarantees,
@@ -23,7 +23,7 @@ forward reference. Silently leaving replication unspecified is not an option.
 
 ## Decision Drivers
 
-- The Hosting capability set's obligation to replicate the ledger is stable and
+- The Case Hosting capability set's obligation to replicate the ledger is stable and
   belongs in the RFC regardless of where the mechanics are specified.
 - The replication mechanics (hash-chain construction, gap detection, out-of-order
   buffering, rejection and replay) are technically precise and lengthy; including

@@ -68,14 +68,16 @@ itself:
 | **Case Owner** | The party whose disclosure decision the case exists to serve. It decides who is admitted, which roles they hold, and whether embargo terms are accepted or torn down. Case ownership is never delegated, though it may be transferred ([§11.3](index.md#113-case-ownership-transfer-n)). |
 | **Case Manager** | The participant that writes the canonical case ledger and relays case-scoped messages, acting on the Case Owner's behalf. It is the case's single-writer authority ([§5.4.1](index.md#541-single-writer-authority)). The Case Owner may delegate this role. |
 
-!!! note "Observer names two different things"
-    *Observer* is used in this specification for the process role defined above,
-    and also as the name of the minimum conformance capability set that **every**
-    participant must provide ([§12.2](index.md#122-capability-sets)). The reuse is
-    deliberate — the capability set is named after the least-privileged role — but
-    the two are not the same kind of thing. A role is a position in a case; a
-    capability set is a property of software
-    ([§12.3.3](index.md#1233-roles-and-capability-sets-are-independent)).
+!!! note "The Observer role and the Case Observer capability set"
+    *Observer* is a process role (defined above). The minimum conformance
+    capability set that **every** participant must provide is the **Case
+    Observer** capability set ([§12.2](index.md#122-capability-sets)) — named to
+    echo the least-privileged role, with a **Case** prefix that keeps the two
+    distinct. They are not the same kind of thing: a role is a position in a case;
+    a capability set is a property of software
+    ([§12.3.3](index.md#1233-roles-and-capability-sets-are-independent)). The same
+    prefix distinguishes the **Case Decision** and **Case Hosting** capability
+    sets from the roles they serve.
 
 !!! note "Informative: the CASE_MANAGER role and the actor that holds it"
     Authority over a case follows the Case Manager **role**. It does not follow
