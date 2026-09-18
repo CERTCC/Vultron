@@ -52,6 +52,7 @@ from vultron.adapters.driving.fastapi.inbox_port_factories import (  # noqa: F40
     _sync_and_trigger_port_factory,
     _submit_report_port_factory,
     _case_proposal_port_factory,
+    _close_case_port_factory,
     _status_auth_trigger_port_factory,
     _status_auth_sync_trigger_port_factory,
     _SYNC_PORT_SEMANTICS,
@@ -59,6 +60,7 @@ from vultron.adapters.driving.fastapi.inbox_port_factories import (  # noqa: F40
     _SYNC_AND_TRIGGER_PORT_SEMANTICS,
     _SUBMIT_REPORT_SEMANTICS,
     _CASE_PROPOSAL_SEMANTICS,
+    _CLOSE_CASE_SEMANTICS,
     _STATUS_AUTH_TRIGGER_SEMANTICS,
     _STATUS_AUTH_SYNC_TRIGGER_SEMANTICS,
 )
@@ -112,6 +114,7 @@ def make_dispatcher() -> ActivityDispatcher:
         _SYNC_AND_TRIGGER_PORT_SEMANTICS,
         _SUBMIT_REPORT_SEMANTICS,
         _CASE_PROPOSAL_SEMANTICS,
+        _CLOSE_CASE_SEMANTICS,
         _STATUS_AUTH_TRIGGER_SEMANTICS,
         _STATUS_AUTH_SYNC_TRIGGER_SEMANTICS,
     )
@@ -147,6 +150,9 @@ def make_dispatcher() -> ActivityDispatcher:
     )
     port_factories.update(
         {sem: _case_proposal_port_factory for sem in _CASE_PROPOSAL_SEMANTICS}
+    )
+    port_factories.update(
+        {sem: _close_case_port_factory for sem in _CLOSE_CASE_SEMANTICS}
     )
     port_factories.update(
         {

@@ -181,7 +181,10 @@ _SHARED_EVALUATOR = "participant_transition_violations"
 # ---------------------------------------------------------------------------
 _RM_FORCE_QUARANTINE: dict[str, int] = {
     "vultron/core/behaviors/sync/nodes/close_case_effect.py": 1,
-    "vultron/core/behaviors/case/nodes/leave.py": 2,
+    # Relocated, not added: these are the same two sites, moved when leave.py
+    # was split into the leave/ package (ISSUE-2505 pushed it past the
+    # 500-line BTND-07-004 cap). The count is unchanged.
+    "vultron/core/behaviors/case/nodes/leave/advance.py": 2,
     # Bootstrap writes: initial participant status at non-adjacent states
     # (issue #3206 — routed through CreateParticipantStatusNode, bypassing
     # the adjacency rule for the first write as allowed by BTND-10-001).

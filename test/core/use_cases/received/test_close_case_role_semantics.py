@@ -33,6 +33,7 @@ from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
 )
+from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
 from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.sync.announce_tree import (
     create_announce_log_entry_tree,
@@ -250,6 +251,7 @@ class TestOwnerLeaveReceivePath:
             dl=dl,
             request=_make_close_case_event(sender_actor_id=OWNER_ID),
             sync_port=SyncActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
         ).execute()
 
         rm_states = _participant_rm_states(dl, OWNER_ID)
@@ -266,6 +268,7 @@ class TestOwnerLeaveReceivePath:
             dl=dl,
             request=_make_close_case_event(sender_actor_id=OWNER_ID),
             sync_port=SyncActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
         ).execute()
 
         rm_states = _participant_rm_states(dl, CASE_ACTOR_ID)
@@ -286,6 +289,7 @@ class TestOwnerLeaveReceivePath:
             dl=dl,
             request=_make_close_case_event(sender_actor_id=OWNER_ID),
             sync_port=SyncActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
         ).execute()
 
         rm_states = _participant_rm_states(dl, VENDOR_ID)
@@ -304,6 +308,7 @@ class TestOwnerLeaveReceivePath:
             dl=dl,
             request=_make_close_case_event(sender_actor_id=OWNER_ID),
             sync_port=SyncActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
         ).execute()
 
         entries = [
@@ -316,6 +321,114 @@ class TestOwnerLeaveReceivePath:
         assert "case_fully_closed" in event_types, (
             f"Owner Leave must create a case_fully_closed ledger entry (CM-23-002 step 3);"
             f" found event_types={event_types}"
+        )
+
+    @pytest.mark.spec("CM-23-005")
+    def test_owner_leave_records_case_actor_rm_closed_as_ledger_entry(self):
+        """Owner Leave: the CaseActor's own RM.CLOSED becomes a ledger entry.
+
+        Regression test for ISSUE-2505. ``AdvanceCaseActorToRMClosedNode`` wrote
+        the transition to the CaseActor's own store only. Nothing recorded it,
+        and nothing could derive it: ``close_case`` names the *departing* actor
+        and the CaseActor never sends itself a Leave, while
+        ``case_fully_closed`` is attributed to the owner and has no effect node.
+        So every replica read the CASE_MANAGER as permanently ``RM.ACCEPTED``,
+        which is what CM-23-005 forbids by requiring each CASE_MANAGER RM
+        transition to be recorded as a ``CaseLedgerEntry``.
+
+        Asserts the entry exists *and* is about the CaseActor — an
+        ``add_participant_status_to_participant`` entry alone proves nothing,
+        since the bootstrap path emits several for other participants.
+        """
+        from vultron.core.models.case_ledger_entry import CaseLedgerEntry
+
+        dl = _make_full_dl()
+        CloseCaseReceivedUseCase(
+            dl=dl,
+            request=_make_close_case_event(sender_actor_id=OWNER_ID),
+            sync_port=SyncActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
+        ).execute()
+
+        status_entries = [
+            e
+            for e in dl.list_objects("CaseLedgerEntry")
+            if isinstance(e, CaseLedgerEntry)
+            and getattr(e, "case_id", None) == CASE_ID
+            and getattr(e, "event_type", None)
+            == "add_participant_status_to_participant"
+        ]
+        case_actor_closed = [
+            e
+            for e in status_entries
+            if (e.payload_snapshot or {}).get("object", {}).get("attributedTo")
+            == CASE_ACTOR_ID
+            and str(
+                (e.payload_snapshot or {}).get("object", {}).get("rmState", "")
+            ).endswith("CLOSED")
+        ]
+        assert case_actor_closed, (
+            "Owner Leave must record the CASE_MANAGER's own RM.CLOSED as an"
+            " add_participant_status_to_participant CaseLedgerEntry"
+            " (CM-23-005); found"
+            f" {[(e.payload_snapshot or {}).get('object', {}).get('attributedTo') for e in status_entries]}"
+        )
+
+    @pytest.mark.spec("CM-23-002")
+    def test_case_actor_rm_closed_entry_precedes_case_fully_closed(self):
+        """The CaseActor's RM.CLOSED entry is committed before case_fully_closed.
+
+        CM-23-002 orders the sequence: advancing the CASE_MANAGER is step 2 and
+        ``case_fully_closed`` is the final entry, which is precisely why this is
+        committed synchronously in the receive tree rather than emitted as a
+        self-addressed ``Add(ParticipantStatus)`` through the CLP-10-001
+        loopback — that is an outbox background task and could not honour the
+        ordering.
+        """
+        from vultron.core.models.case_ledger_entry import CaseLedgerEntry
+
+        dl = _make_full_dl()
+        CloseCaseReceivedUseCase(
+            dl=dl,
+            request=_make_close_case_event(sender_actor_id=OWNER_ID),
+            sync_port=SyncActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
+        ).execute()
+
+        by_index = sorted(
+            (
+                e
+                for e in dl.list_objects("CaseLedgerEntry")
+                if isinstance(e, CaseLedgerEntry)
+                and getattr(e, "case_id", None) == CASE_ID
+            ),
+            key=lambda e: getattr(e, "log_index", -1),
+        )
+        case_actor_idx = [
+            i
+            for i, e in enumerate(by_index)
+            if getattr(e, "event_type", None)
+            == "add_participant_status_to_participant"
+            and (e.payload_snapshot or {})
+            .get("object", {})
+            .get("attributedTo")
+            == CASE_ACTOR_ID
+            and str(
+                (e.payload_snapshot or {}).get("object", {}).get("rmState", "")
+            ).endswith("CLOSED")
+        ]
+        fully_closed_idx = [
+            i
+            for i, e in enumerate(by_index)
+            if getattr(e, "event_type", None) == "case_fully_closed"
+        ]
+        assert case_actor_idx, "no CASE_MANAGER RM.CLOSED entry was committed"
+        assert fully_closed_idx, "no case_fully_closed entry was committed"
+        assert max(case_actor_idx) < min(fully_closed_idx), (
+            "the CASE_MANAGER's RM.CLOSED entry must precede"
+            " case_fully_closed (CM-23-002 steps 2 then 3); got"
+            f" case-actor at {case_actor_idx}, case_fully_closed at"
+            f" {fully_closed_idx}"
         )
 
     @pytest.mark.spec("CM-23-002")
@@ -337,6 +450,7 @@ class TestOwnerLeaveReceivePath:
             dl=dl,
             request=_make_close_case_event(sender_actor_id=OWNER_ID),
             sync_port=sync_mock,
+            wire_render_port=As2WireRenderAdapter(),
         ).execute()
 
         assert (
@@ -381,6 +495,7 @@ class TestNonOwnerLeaveReceivePath:
             dl=dl,
             request=_make_close_case_event(sender_actor_id=VENDOR_ID),
             sync_port=SyncActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
         ).execute()
 
         rm_states = _participant_rm_states(dl, VENDOR_ID)
@@ -397,6 +512,7 @@ class TestNonOwnerLeaveReceivePath:
             dl=dl,
             request=_make_close_case_event(sender_actor_id=VENDOR_ID),
             sync_port=SyncActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
         ).execute()
 
         rm_states = _participant_rm_states(dl, OWNER_ID)
@@ -413,6 +529,7 @@ class TestNonOwnerLeaveReceivePath:
             dl=dl,
             request=_make_close_case_event(sender_actor_id=VENDOR_ID),
             sync_port=SyncActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
         ).execute()
 
         rm_states = _participant_rm_states(dl, CASE_ACTOR_ID)
@@ -552,6 +669,7 @@ class TestClosureRMBoundary:
             dl=dl,
             request=_make_close_case_event(sender_actor_id=OWNER_ID),
             sync_port=SyncActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
         ).execute()
 
         assert _latest_rm(dl, OWNER_ID) == RM.CLOSED, (
@@ -573,6 +691,7 @@ class TestClosureRMBoundary:
             dl=dl,
             request=_make_close_case_event(sender_actor_id=OWNER_ID),
             sync_port=SyncActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
         ).execute()
 
         assert _latest_rm(dl, VENDOR_ID) == RM.VALID, (
@@ -657,6 +776,7 @@ class TestOwnerLeaveDuringActiveEmbargo:
             dl=dl,
             request=_make_close_case_event(sender_actor_id=OWNER_ID),
             sync_port=SyncActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
             trigger_activity=TriggerActivityAdapter(dl),
         ).execute()
 
@@ -684,6 +804,7 @@ class TestOwnerLeaveDuringActiveEmbargo:
             dl=dl,
             request=_make_close_case_event(sender_actor_id=OWNER_ID),
             sync_port=SyncActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
             trigger_activity=TriggerActivityAdapter(dl),
         ).execute()
 
@@ -717,6 +838,7 @@ class TestOwnerLeaveDuringActiveEmbargo:
             dl=dl,
             request=_make_close_case_event(sender_actor_id=OWNER_ID),
             sync_port=SyncActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
             trigger_activity=TriggerActivityAdapter(dl),
         ).execute()
         assert RM.CLOSED not in _participant_rm_states(dl, OWNER_ID)
@@ -728,6 +850,7 @@ class TestOwnerLeaveDuringActiveEmbargo:
             dl=dl,
             request=_make_close_case_event(sender_actor_id=OWNER_ID),
             sync_port=SyncActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
             trigger_activity=TriggerActivityAdapter(dl),
         ).execute()
 
@@ -760,6 +883,7 @@ class TestOwnerLeaveDuringActiveEmbargo:
             dl=dl,
             request=_make_close_case_event(sender_actor_id=OWNER_ID),
             sync_port=SyncActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
             trigger_activity=None,
         ).execute()
 

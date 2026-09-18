@@ -403,6 +403,13 @@ def verify_case_closed(
     RM.CLOSED (DEMOMA-07-003 step 5).  This helper verifies the terminal
     participant state on both DataLayers.
 
+    The CASE_MANAGER is checked like any other participant.  It used to be
+    skipped here as "a coordinator", but it has a full RM lifecycle
+    (ADR-0051, CM-23-005) and CM-23-010 defines ``RM.CLOSED`` on its record as
+    "the Case Owner has left and the case is fully closed".  Skipping it meant
+    this check passed while the authority still read ``RM.ACCEPTED`` on every
+    replica — the mask over ISSUE-2505.
+
     Spec: DEMOMA-06-002.
 
     Args:
@@ -411,7 +418,7 @@ def verify_case_closed(
         case_id: Full URI of the ``as_VulnerabilityCase``.
 
     Raises:
-        AssertionError: If any non-receiver participant is not RM.CLOSED
+        AssertionError: If any locally-fetchable participant is not RM.CLOSED
             on either replica.
     """
     for label, client in [
@@ -428,9 +435,6 @@ def verify_case_closed(
             if p_data is None:
                 continue  # remote container — not fetchable here
             p = as_CaseParticipant(**p_data)
-            # Case Manager is a coordinator; skip RM closure check.
-            if CVDRole.CASE_MANAGER in (p.case_roles or []):
-                continue
             latest = p.participant_status
             if latest is None:
                 raise AssertionError(
