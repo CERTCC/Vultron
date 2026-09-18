@@ -110,18 +110,19 @@ class TestSignEmbargoConsentLeafNode:
     def test_already_signatory_is_idempotent(
         self, bt_scenario: BTTestScenario
     ) -> None:
-        """Participant already SIGNATORY: ACCEPT is skipped, node returns SUCCESS.
+        """SIGNATORY: ACCEPT is skipped, node succeeds, no duplicate embargo ID.
 
         ADR-0093 introduced SIGNATORY → DECLINED, making DECLINED a reachable
-        terminal state.  A SIGNATORY re-accepting is a no-op: the guard added
-        to _SignEmbargoConsentLeafNode prevents the invalid ACCEPT trigger and
-        the node succeeds without changing PEC state (CM-18-005).
+        terminal state.  A SIGNATORY re-accepting is a no-op: the guard skips
+        the invalid ACCEPT trigger, and the dedup check prevents appending a
+        duplicate embargo ID (CM-18-005).
         """
         node = _SignEmbargoConsentLeafNode(invitee_id=_ACTOR_ID)
         participant = CaseParticipant(
             id_=_ACTOR_ID,
             attributed_to=_ACTOR_ID,
             embargo_consent_state=PEC.SIGNATORY,
+            accepted_embargo_ids=[_EMBARGO_ID],
         )
         result = bt_scenario.run(
             node,
@@ -131,6 +132,31 @@ class TestSignEmbargoConsentLeafNode:
         )
         assert result.status == Status.SUCCESS
         assert participant.embargo_consent_state == PEC.SIGNATORY
+        assert participant.accepted_embargo_ids.count(_EMBARGO_ID) == 1
+
+    def test_declined_participant_accept_is_skipped(
+        self, bt_scenario: BTTestScenario
+    ) -> None:
+        """DECLINED: ACCEPT is skipped (ACCEPT from DECLINED is invalid), SUCCESS.
+
+        Mirrors the service-layer guard in _record_actor_pec_acceptance.
+        A DECLINED participant reaching this node (e.g., out-of-order EA
+        without prior EP re-invite) must not crash.
+        """
+        node = _SignEmbargoConsentLeafNode(invitee_id=_ACTOR_ID)
+        participant = CaseParticipant(
+            id_=_ACTOR_ID,
+            attributed_to=_ACTOR_ID,
+            embargo_consent_state=PEC.DECLINED,
+        )
+        result = bt_scenario.run(
+            node,
+            actor_id=_ACTOR_ID,
+            new_invite_participant=participant,
+            active_embargo_id=_EMBARGO_ID,
+        )
+        assert result.status == Status.SUCCESS
+        assert participant.embargo_consent_state == PEC.DECLINED
 
     def test_embargo_id_recorded_on_participant(
         self, bt_scenario: BTTestScenario
