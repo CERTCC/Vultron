@@ -36,8 +36,8 @@ canonical-write-before-side-effects rule of [§10.3](../index.md#103-status-adop
 ### 12.6 Capability Shapes
 
 Capability shapes describe optional, pluggable capabilities an implementation may
-connect to its own decision points. They are not part of the Observer, Authority
-or Hosting capability sets, and a conformance claim does not state which shapes an
+connect to its own decision points. They are not part of the Case Observer, Case Decision
+or Case Hosting capability sets, and a conformance claim does not state which shapes an
 implementation provides.
 
 Where an implementation does provide a capability shape, it MUST satisfy that

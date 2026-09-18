@@ -140,15 +140,15 @@ These concepts describe what a Vultron implementation or component can do.
 **Definition.** A capability set is a named group of capabilities that defines what an actor must be able to do for a given participation level or role.
 A capability is one specific thing a system can do within the Vultron protocol.
 
-#### The Observer capability set
+#### The Case Observer capability set
 
-**The Observer capability set is the participation floor.**
+**The Case Observer capability set is the participation floor.**
 Every actor that participates in any Vultron case must implement it.
 
 There is no sub-Observer participation level.
 Even a monitoring-only actor must track embargo state (PEC) to know what it is permitted to display.
 
-The Observer capability set includes:
+The Case Observer capability set includes:
 
 - Implement all five state machines (RM, EM, PEC, VFD, PXA) — track state and drive transitions
 - Embargo compliance: accept and decline embargo invitations; track PEC state
@@ -160,7 +160,7 @@ Those belong to role extension sets.
 
 #### Role extension sets
 
-Every CVD process role is the Observer capability set plus a role-specific extension.
+Every CVD process role is the Case Observer capability set plus a role-specific extension.
 
 | Role | Extension capabilities (added to Observer) |
 |---|---|
@@ -174,28 +174,32 @@ Only an actor that holds both Vendor and Deployer can drive the full fix path.
 Vendor alone cannot drive fix deployment.
 Deployer alone cannot drive fix readiness.
 
-#### The Authority capability set
+#### The Case Decision capability set
 
-The Authority capability set defines Case Owner governance capabilities:
+The Case Decision capability set defines Case Owner governance capabilities:
 
 - Adopt status updates without an external approval gate
 - Drive shared EM transitions
 - Transfer case ownership
 
-The Authority capability set is separable from the Hosting capability set.
-A human Coordinator can hold Authority while a service actor performs Hosting.
+The Case Decision capability set is separable from the Case Hosting capability set.
+A human Coordinator can provide the Case Decision capability set while a service
+actor performs Case Hosting.
 
-#### The Hosting capability set
+#### The Case Hosting capability set
 
-The Hosting capability set defines Case Manager infrastructure capabilities:
+The Case Hosting capability set defines Case Manager infrastructure capabilities:
 
-- Host a Case Actor (the single-writer for the canonical ledger)
+- Host the actor enacting the CASE_MANAGER role (the single-writer for the
+  canonical ledger)
 - Maintain the authoritative append-only case ledger
 - Replicate ledger entries to participants via `Announce(CaseLedgerEntry)`
 - Manage case participants (invitation, role assignment, removal)
 
-The Hosting capability set is separable from the Authority capability set.
-A platform can provide Hosting without holding governance authority.
+The Case Hosting capability set is separable from the Case Decision capability set.
+A platform can provide Case Hosting without holding the Case Decision capability
+set. Ledger authority follows the CASE_MANAGER role the hosting implementation
+holds, not its hosting location or actor name (ADR-0088).
 
 #### Named configurations
 
@@ -203,12 +207,12 @@ Common combinations of capability sets have names because they describe real dep
 
 | Configuration | Capability sets | Roles |
 |---|---|---|
-| **Hosting Coordinator** (or Autonomous Coordinator) | Observer + Authority + Hosting | Coordinator + Case Owner |
-| **Self-coordinating Vendor** | Observer + Authority + Hosting | Vendor + Deployer + Case Owner |
-| **Bug Bounty Platform** | Observer + Hosting | Case Manager (Authority optional) |
+| **Hosting Coordinator** (or Autonomous Coordinator) | Case Observer + Case Decision + Case Hosting | Coordinator + Case Owner |
+| **Self-coordinating Vendor** | Case Observer + Case Decision + Case Hosting | Vendor + Deployer + Case Owner |
+| **Bug Bounty Platform** | Case Observer + Case Hosting | Case Manager (Case Decision optional) |
 
 A Hosting Coordinator is a `type:service` actor that holds both `CASE_OWNER` and `CASE_MANAGER` roles.
-It decides (Authority) and executes (Hosting) without a separate human approval step.
+It decides (Case Decision) and executes (Case Hosting) without a separate human approval step.
 
 #### Optional domain capability sets
 
@@ -225,7 +229,7 @@ A [capability shape](#capability-shapes) describes the technical connection cont
 These two dimensions are orthogonal: the same domain set may use multiple shapes.
 
 **A conformance claim names capability sets and roles directly.**
-Examples: `Observer / Vendor`, `Observer + Authority + Hosting / Coordinator + Case Owner`.
+Examples: `Case Observer / Vendor`, `Case Observer + Case Decision + Case Hosting / Coordinator + Case Owner`.
 
 **What is in scope.**
 
@@ -275,7 +279,7 @@ A capability shape defines the contract. A concrete implementation that satisfie
 
 **Relationship to other concepts.**
 
-- Capability shapes are orthogonal to capability sets. An Observer implementation may have zero capability shapes implemented. A Sentinel capability does not require anything beyond what the host behavior engine provides.
+- Capability shapes are orthogonal to capability sets. A Case Observer implementation may have zero capability shapes implemented. A Sentinel capability does not require anything beyond what the host behavior engine provides.
 - Capability shapes are the taxonomy for the optional capabilities in [Vultron capability sets](#vultron-capability-sets).
 - In the reference implementation, a capability shape maps to a Port (abstract interface). A concrete capability implementation maps to an Adapter. This mapping is specific to the hexagonal architecture of the Python codebase and is not required of other implementations.
 
@@ -335,7 +339,7 @@ The relationship between capabilities and roles is bidirectional.
 **Relationship to other concepts.**
 
 - A role claim creates capability expectations. If an actor holds the Coordinator role, other participants expect it to have the Coordinator role extension set.
-- The Observer capability set is the minimum protocol floor for case participation. Role extension sets add further expectations on top of that floor.
+- The Case Observer capability set is the minimum protocol floor for case participation. Role extension sets add further expectations on top of that floor.
 
 ---
 
@@ -403,7 +407,7 @@ This view answers the question: what do I need to build to claim a specific conf
 
 This view is planned and not yet drawn. It will show:
 
-- A capability set matrix: rows are named capability sets (Observer, role extensions, Authority, Hosting, domain sets); columns are role or configuration claims; cells show required versus optional
+- A capability set matrix: rows are named capability sets (Case Observer, role extensions, Case Decision, Case Hosting, domain sets); columns are role or configuration claims; cells show required versus optional
 - Role overlays showing which capability sets each role requires
 - Named configuration profiles as pre-filled columns in the matrix
 
@@ -432,9 +436,9 @@ These labels were candidates for this taxonomy but did not survive review.
 | vultron-behaviors | Dissolved. The behavioral conformance specifications (RMB, EMB, CSB) are part of vultron-core. "Behavior trees" are one implementation mechanism for vultron-core, not a separate taxonomy concept. |
 | coordination engine | Demoted to descriptive vocabulary. A Vultron-enabled application that implements vultron-core at the Observer level or above is a "coordination engine" for CVD. This label describes what the application does, not a separate concept. |
 | T0 / Consumer | Dropped. A parse-only entity has nothing useful to do with Vultron data if it cannot honor embargoes. Observer is the participation floor. |
-| T1 / Participant | Collapsed into the Observer capability set. |
-| T2 / Coordinator | Split into three separable concepts: Coordinator role extension set, Authority capability set, and Hosting capability set. |
-| T0/T1/T2 tier notation | Eradicated. Conformance claims name capability sets and roles directly. Example: `Observer / Vendor` replaces `T1 / Vendor`. |
+| T1 / Participant | Collapsed into the Case Observer capability set. |
+| T2 / Coordinator | Split into three separable concepts: Coordinator role extension set, Case Decision capability set, and Case Hosting capability set. |
+| T0/T1/T2 tier notation | Eradicated. Conformance claims name capability sets and roles directly. Example: `Case Observer / Vendor` replaces `T1 / Vendor`. |
 
 ---
 

@@ -15,7 +15,7 @@ transitions it is authorized to drive. An actor may hold multiple process roles.
 | Observer | Holds no drive obligations for VFD; may report PXA observations ([§12.4.2](../index.md#1242-participant-agnostic-cs-transitions-pxa)) |
 
 **Capability prerequisites.** Every case Participant — whatever its roles — MUST
-implement the Observer capability set ([§12.2](../index.md#122-capability-sets), [§12.3.3](../index.md#1233-roles-and-capability-sets-are-independent)). Role extension sets add
+implement the Case Observer capability set ([§12.2](../index.md#122-capability-sets), [§12.3.3](../index.md#1233-roles-and-capability-sets-are-independent)). Role extension sets add
 obligations on top of that floor; they do not substitute for it. An implementation
 SHOULD verify that an actor has the capability prerequisites for a role before
 completing a role assignment ([§11.1](../index.md#111-role-assignment-n)).
@@ -60,17 +60,19 @@ the associated protocol responsibilities.
 A role is a position within a case. A capability set is a property of software.
 Mixing them produces contradictions, so the relationship is stated explicitly:
 
-- Every case Participant — whatever its roles — MUST implement the **Observer**
-  capability set. Holding a role means having a `CaseParticipant` record, an RM
-  state, and therefore tracking obligations.
+- Every case Participant — whatever its roles — MUST implement the **Case
+  Observer** capability set. Holding a role means having a `CaseParticipant`
+  record, an RM state, and therefore tracking obligations.
 - A parse-only actor is not a case Participant: it holds no role and no case owes
   it delivery.
-- An implementation holding the Hosting capability set additionally hosts the
-  CASE_MANAGER role. Hosting is commonly co-held with the Coordinator role, but it
-  is the Hosting capability set that obliges ledger authority, not the role name.
+- An implementation holding the Case Hosting capability set additionally hosts the
+  CASE_MANAGER role and is obliged to run the ledger. Case Hosting is commonly
+  co-held with the Coordinator role. Ledger authority follows the CASE_MANAGER
+  role the implementation holds — not its hosting location, and not any actor name
+  (ADR-0088).
 
 !!! note "Observer is a participant role, not a passive state"
-    An Observer role holder that is *in a case* implements the full Observer
+    An Observer role holder that is *in a case* implements the full Case Observer
     capability set: it has an RM state, it is subject to embargo consent, and it
     may report PXA observations. The Observer role is distinguished by holding no
     VFD drive obligations — not by being exempt from state tracking.

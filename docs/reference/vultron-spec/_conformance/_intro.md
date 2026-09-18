@@ -8,10 +8,10 @@ conformance claim names capability sets and roles directly:
 
 > `CapabilitySet [+ CapabilitySet ...] / Role [+ Role ...]`
 
-Examples: `Observer / Reporter`, `Observer / Vendor`, `Observer / Vendor + Deployer`,
-`Observer + Authority + Hosting / Coordinator + Case Owner`.
+Examples: `Case Observer / Reporter`, `Case Observer / Vendor`, `Case Observer / Vendor + Deployer`,
+`Case Observer + Case Decision + Case Hosting / Coordinator + Case Owner`.
 
-The Observer capability set is required for all participation.
+The Case Observer capability set is required for all participation.
 Role obligations are additive and orthogonal: no role subsumes another.
 
 Capability set names and role names come from [§12.2](../index.md#122-capability-sets) and [§12.3](../index.md#123-role-taxonomy) respectively.
@@ -30,7 +30,7 @@ assumption. See [§11.1](../index.md#111-role-assignment-n) for the role assignm
       provides* — a claim an implementer makes about their software.
     - **Conformance test layers (L1–L4)**, used in the behavioral conformance
       material, describe *what a test verifies* — syntax, semantics, behavior,
-      and internal process structure. These are orthogonal: an Observer
+      and internal process structure. These are orthogonal: a Case Observer
       implementation is tested at layers L1 through L3.
 
     A conformance claim names capability sets; a test result names a layer. The
