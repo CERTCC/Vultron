@@ -900,6 +900,15 @@ configuration and its three silent hazards (ADR-0092, #3318).
 Vultron docs to ISO/CVD process standards, or changing the target set, exemption
 list, or auto-fix behavior of `lint-docs`.
 
+**`documentation-sweeps.md`**
+Why relocating a documentation claim is not verifying it: the "re-reading in a
+new context" insight, the two witness sessions (#3342, #3002), and what agents
+must do when moving or republishing content (verify every claim against its
+authority; prefer `{% include-markdown %}` over copying).
+Normative anchors: DF-10-001, DF-10-002.
+**Load when**: performing any documentation sweep (naming, Diátaxis extraction,
+page split), or deciding how to share content across two docs/ locations.
+
 **`message-type-reference.md`**
 Why the formal message set (shorthands partitioned by state machine) and the
 AS2 wire vocabulary (`SEMANTIC_REGISTRY`) are different shapes, and how the

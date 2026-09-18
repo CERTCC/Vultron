@@ -98,6 +98,17 @@ not apply them.
   `warning` admonitions, emphasis sprawl.
 - **Grandfathered ASCII diagrams** (SG-36) — low priority; never auto-convert.
 
+- **Verbatim-copied block** (DF-10-001, DF-10-002) — if a paragraph, table, or
+  diagram on this page appears verbatim (or near-verbatim) on another `docs/`
+  page, flag it as a judgment finding. Recommend one of two resolutions: (a)
+  if the content should live in both places, replace both occurrences with an
+  `{% include-markdown "docs/includes/_<slug>.md" %}` fragment; (b) if the
+  content was moved from the source page, confirm the claims have been verified
+  against their authority (code, spec, or reference page) before closing the
+  finding. Do not auto-fix — this is a judgment call requiring the author to
+  decide whether the duplication is intentional and whether verification has
+  occurred.
+
 ### Quadrant misclassification
 
 Pervasive out-of-quadrant voice means the page may be the wrong Diátaxis type

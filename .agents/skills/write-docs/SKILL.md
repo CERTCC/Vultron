@@ -15,7 +15,7 @@ plus the maintainer-facing `docs/developer/` and `docs/agents/` trees.
 
 Rules live in [`../shared/docs-style-guide.md`](../shared/docs-style-guide.md)
 (`SG-nn` rule IDs). Normative anchors: `specs/diataxis-requirements.yaml`
-DF-01 through DF-09.
+DF-01 through DF-10.
 
 Out of scope: `docs/adr/` (use `create-architectural-decision-record`),
 generated trees (`docs/reference/code/`, `docs/reference/case_states/`),
@@ -83,6 +83,30 @@ Write the section outline from that order. If the outline requires a forward
 reference, the outline is wrong — reorder, or link out.
 
 ## Phase 4 — Draft
+
+### Moved or republished content (sweeps)
+
+If this page is being written as part of a sweep — a naming pass, a Diátaxis
+extraction, a page split, or any task that moves existing prose from one
+location to another — apply the following before writing any sentence drawn
+from the source:
+
+1. **Re-read each claim as an assertion**, not as furniture. A diagram or bullet
+   that was unremarkable in its source context may be a falsifiable statement in
+   the destination context.
+2. **Verify each first-order empirical claim** against its authority: source
+   code, a `specs/*.yaml` entry, or a `docs/reference/` page. Do not inherit
+   correctness from the source location (DF-10-001).
+3. **Prefer includes over copying.** When the same content belongs on two pages,
+   create an `{% include-markdown %}` fragment under `docs/includes/_<slug>.md`
+   rather than copying prose. One authoritative source, multiple render points —
+   silent drift is structurally impossible (DF-10-002).
+
+The move is not complete until every claim that is now a first-class assertion
+on this page has been confirmed. Flag any claim that cannot be verified as a
+finding rather than including it verbatim.
+
+### Drafting rules
 
 Write against the style guide. The rules that most often get missed:
 

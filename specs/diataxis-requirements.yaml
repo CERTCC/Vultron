@@ -415,3 +415,49 @@ groups:
     verification: >-
       Invoking the gate on a path with no lintable targets reports the empty target set and does
       not report success.
+
+- id: DF-10
+  title: Sweep verification
+  description: >-
+    Requirements that apply whenever a documentation sweep (naming sweep, Diátaxis extraction,
+    page split, or any mechanical pass that moves or republishes existing prose) touches content
+    in `docs/`. Faithful copying is insufficient — re-reading content in a new context is a
+    different act from reading it in place, and a sweep carries source errors forward with full
+    authority unless each moved claim is actively verified.
+  specs:
+  - id: DF-10-001
+    priority: MUST
+    kind: process
+    statement: >-
+      When a claim is moved, extracted, or republished in a new `docs/` location, it MUST be
+      verified against its authority (source code, `specs/*.yaml` entry, or `docs/reference/`
+      page) before the change is committed. Faithful copying is not verification.
+    rationale: >-
+      A sweep's success criterion is usually "all content accounted for," which a faithful copy
+      satisfies perfectly while propagating a false statement to a second location with more
+      authority than it had in the first. Two sessions confirmed this: the CaseActor rename (#3342)
+      surfaced stale-premise contradictions in CM-20-001/004/005, and a Diátaxis extraction (#3002)
+      exposed three wrong AS2 verb attributions (#3395) that had survived a prior accuracy-fix
+      sweep (#2785). In both cases the defect was invisible in the source context but became
+      falsifiable the moment it was read as a first-class assertion in the destination context.
+    verification: >-
+      When reviewing a PR whose description identifies it as a sweep, each claim that is new to
+      the destination page (not previously present there) is traceable to a code path, spec entry,
+      or reference page that confirms it.
+  - id: DF-10-002
+    priority: SHOULD
+    kind: process
+    statement: >-
+      When the same content is needed in more than one `docs/` location, use an
+      `{% include-markdown %}` fragment instead of copying prose — one authoritative source,
+      multiple render points.
+    rationale: >-
+      Copied prose drifts silently: one copy is updated, the other is not, and both pass lint
+      because neither is wrong by itself. The fragment/assembly-unit model in
+      `notes/documentation-strategy.md` already establishes `{% include-markdown %}` as the
+      correct pattern; this entry makes it normative and gives sweeps an explicit escape hatch
+      when content genuinely belongs in two places.
+    verification: >-
+      Inspection confirms that content appearing on more than one page either (a) uses
+      `{% include-markdown %}` or (b) has a documented reason why a shared fragment is
+      inappropriate for that case.
