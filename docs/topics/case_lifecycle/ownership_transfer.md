@@ -121,9 +121,9 @@ This routing model is identical to the Invite/Accept handshake (ADR-0026):
 | Case Actor creates `CaseParticipant` | Case Actor applies CASE_OWNER role change |
 | `CaseLedgerEntry` → broadcast | `CaseLedgerEntry` → broadcast |
 
-In both patterns, the Case Actor is the intermediary because it is the only
-actor authorized to write to the canonical ledger and the only actor whose
-writes reach all participants via `Announce(CaseLedgerEntry)`.
+In both patterns, the Case Actor is the intermediary because it holds
+`CVDRole.CASE_MANAGER` — the only role authorized to write to the canonical
+ledger — and its writes reach all participants via `Announce(CaseLedgerEntry)`.
 
 ---
 

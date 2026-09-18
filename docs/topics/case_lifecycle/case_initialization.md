@@ -1,6 +1,6 @@
 # Case Initialization
 
-This page explains why a Case Actor service creates every
+This page explains why the CASE_MANAGER creates every
 `VulnerabilityCase`. It also explains how the `CaseProposal` protocol works
 and what the exchange looks like on the wire.
 
@@ -14,7 +14,7 @@ is wrong.
 
 In ActivityStreams 2.0, `Create(X)` means "I created X." A Vendor that
 sends `Create(VulnerabilityCase)` is claiming to be the authoritative
-creator of the case. The Vendor is not. The Case Actor service is — it is
+creator of the case. The Vendor is not. The CASE_MANAGER is — it is
 the single-writer authority for the canonical ledger, the only peer that
 appends to the case history. Putting the Vendor as the `actor` on a
 `Create(VulnerabilityCase)` violates that semantics. It assigns the wrong
@@ -75,9 +75,9 @@ with `actor=vendor_uri`.
 ### Step 2a: Case Actor accepts
 
 When the Case Actor accepts the proposal, it performs the full case
-initialization. It creates the `VulnerabilityCase`, adds the Vendor as
-`CASE_OWNER` participant, adds the reporter as a participant, initializes
-the default embargo, and commits the canonical ledger entries. It then sends
+initialization as the CASE_MANAGER. It creates the `VulnerabilityCase`, adds
+the Vendor as `CASE_OWNER` participant, adds the reporter as a participant,
+initializes the default embargo, and commits the canonical ledger entries. It then sends
 **two** activities back to the Vendor.
 
 1. **`Accept(CaseProposal)`** — acknowledgment that the proposal was

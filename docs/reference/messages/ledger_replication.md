@@ -2,7 +2,7 @@
 
 The Vultron SYNC substrate replicates the case event log to all active
 participants so that each participant's local DataLayer stays consistent with
-the canonical log held by the CaseActor. The mechanism is described in
+the canonical log held by the CASE_MANAGER. The mechanism is described in
 [ADR-0077](../../adr/0077-ledger-replication-companion-spec.md).
 
 These messages are **infrastructure**, not protocol messages in the
@@ -15,13 +15,13 @@ For the acknowledgement semantics see
 
 ## How replication works
 
-1. The CaseActor commits a new log entry and fans it out:
+1. The CASE_MANAGER commits a new log entry and fans it out:
    `Announce(CaseLedgerEntry)` → each participant.
 2. A participant whose local `prev_log_hash` matches the incoming entry's
    `prev_log_hash` silently accepts — hash-chain continuity is the implicit
    positive acknowledgement (MSM-05-002).
 3. A participant whose hashes do not match rejects: `Reject(CaseLedgerEntry)`
-   with `context` = its last accepted hash, so the CaseActor can replay the
+   with `context` = its last accepted hash, so the CASE_MANAGER can replay the
    gap (SYNC-03-001, SYNC-03-002).
 
 ## Message mapping
@@ -36,7 +36,7 @@ print(render_page("ledger_replication", heading=False))
 
 ## Announce Case Ledger Entry
 
-- **Protocol role:** The CaseActor fans out a newly committed
+- **Protocol role:** The CASE_MANAGER fans out a newly committed
   `CaseLedgerEntry` to each participant actor for local DataLayer update
   (SYNC-09-002).
 - **Triggering transition:** triggered internally after any event is recorded
@@ -55,10 +55,10 @@ print(json2md(announce_case_ledger_entry()))
 
 ## Reject Case Ledger Entry
 
-- **Protocol role:** A participant sends this to the CaseActor when an
+- **Protocol role:** A participant sends this to the CASE_MANAGER when an
   incoming `Announce(CaseLedgerEntry)`'s `prev_log_hash` does not match the
   participant's local ledger tail. The `context` field carries the
-  participant's last accepted hash so the CaseActor can determine which
+  participant's last accepted hash so the CASE_MANAGER can determine which
   entries to replay (SYNC-03-001, SYNC-03-002).
 - **Triggering transition:** triggered by hash-chain mismatch detection —
   not a protocol shorthand.
