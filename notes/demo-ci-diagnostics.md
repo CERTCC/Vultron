@@ -126,6 +126,18 @@ or removed.
 - **⏳ xfail** — a known defect owns it, named in the marker's `reason`. The job
   stays green while it fails.
 
+There is no third state, and no per-actor state: each invariant gets exactly one
+cell, so `active` means every case of that invariant is a live guard. A
+`marks=pytest.mark.xfail(...)` entry on a harness's `_CHAIN_ACTORS` or
+`_XXX_EXPECTED_EVENT_TYPES` list would xfail *some* cases of a row this table
+calls `active`, where no cell could show it — so
+`test_diagnostic_map_sync.py::test_no_param_level_marks_on_factory_arguments`
+rejects that form outright. An xfail belongs on the invariant in
+`universal_harness.py`, where this table can record it. (The retired table in
+`test/ci/README-case-log-ratchet.md` did carry per-actor state, as
+"✅ case-actor, ✅ vendor, ⏳ finder" — and that is one of the columns that
+rotted.)
+
 **How to read "Start at Layer"**: it names the layer whose failure most often
 explains this invariant. Check it first, then walk 1→2→3 to find the first
 missing log pattern.
@@ -238,10 +250,11 @@ identified which layer broke.
   reached its final phase before treating a mismatch as a defect. Note these
   compare only indices that *two or more* replicas share; an index one actor
   is missing entirely is invariant 12–14 territory.
-- **Invariant 5**: expected `eventType` presence. The first five entries of
-  every harness's `_XXX_EXPECTED_EVENT_TYPES` are the DEMOMA-16-001 universal
-  block, ratcheted by `test/ci/invariants/test_universal_event_types.py`. Do
-  not "fix" a failure by editing the constant.
+- **Invariant 5**: expected `eventType` presence. The leading entries of every
+  harness's `_XXX_EXPECTED_EVENT_TYPES` are the DEMOMA-16-001 universal block,
+  ratcheted by `test/ci/invariants/test_universal_event_types.py` — read the
+  members from `_UNIVERSAL_EVENT_TYPES` there rather than a count restated here
+  (MS-16-001). Do not "fix" a failure by editing the constant.
 
 ---
 

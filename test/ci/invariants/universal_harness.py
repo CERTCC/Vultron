@@ -61,6 +61,7 @@ def make_universal_invariant_tests(  # noqa: C901
     chain_actors: list,
     expected_event_types: list,
     check_fix_ready: bool = True,
+    *,
     narrative_path: str | None = None,
 ) -> dict[str, Any]:
     """Return the universal invariant test functions keyed by name.

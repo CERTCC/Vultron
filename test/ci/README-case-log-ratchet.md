@@ -39,9 +39,11 @@ and `test_causal_edges_negative.py` unit-test the `common.py` check helpers.
 
 Each scenario test file parses JSONL case-ledger replica files produced by
 the corresponding demo and asserts universal invariants (via `common.py`)
-plus scenario-specific checks. Two universal invariants carry a live `xfail`
-marker; the rest are active, so a failure is a real regression. See
-[Invariant Status](#invariant-status) for where that inventory lives.
+plus scenario-specific checks. Some universal invariants carry a live `xfail`
+marker; the rest are active, so a failure is a real regression. Which are which
+is recorded in one ratcheted place — see
+[Invariant Status](#invariant-status) — and deliberately not counted here,
+because a count restated in prose is the part that goes stale.
 
 ---
 
@@ -163,6 +165,19 @@ pass/fail to CI.
    Name the owning issue in the `reason` string. For a universal invariant,
    record the same issue number in the diagnostic map's Status column;
    `test_diagnostic_map_sync.py` checks that the two agree.
+
+   Two forms are rejected, because the diagnostic map cannot express either and
+   would silently under-report:
+
+   - **`marks=pytest.mark.xfail(...)` on a `pytest.param` entry** in a
+     harness's `_CHAIN_ACTORS` or `_XXX_EXPECTED_EVENT_TYPES` list. That xfails
+     only *some* cases of a universal invariant, and the map has one Status
+     cell per invariant. Put the marker on the invariant in
+     `universal_harness.py`, or make the check tolerate that actor.
+   - **A conditional `xfail(condition=...)`**, which has no single truthful
+     Status cell. Move the condition into the check itself.
+
+   Scenario-local tests are exempt from both — they are not in the map.
 
 ### Adding a new scenario
 
