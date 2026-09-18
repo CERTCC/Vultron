@@ -120,7 +120,7 @@ class CreateParticipantStatusNode(
                 call sites that advance a *single departing actor* to
                 ``RM.CLOSED`` regardless of the rung its RM machine is on:
                 ``sync/nodes/close_case_effect.py`` (the received close fan-out)
-                and ``case/nodes/leave.py`` (twice).  ``RM.CLOSED`` is reachable
+                and ``case/nodes/leave/advance.py`` (twice).  ``RM.CLOSED`` is reachable
                 by adjacency only from ``ACCEPTED``, ``INVALID`` or ``DEFERRED``,
                 so from any earlier rung this write is non-adjacent — which is
                 why the RM adjacency rule (BTND-10-001) is suppressed here.

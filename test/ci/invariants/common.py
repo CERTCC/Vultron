@@ -28,6 +28,7 @@ from __future__ import annotations
 
 import json
 import re
+from collections.abc import Callable
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -790,52 +791,117 @@ def check_no_rejected_invite_entries(
     return violations
 
 
-def check_per_actor_replica_divergence(
+def for_each_replica(
     replicas: dict[str, list[dict]],
+    check: Callable[[dict[str, list[dict]]], list[str]],
     *,
-    check_fix_ready: bool = True,
+    requires_status_entries: bool = False,
 ) -> list[str]:
-    """Each non-case-actor replica satisfies the same state invariants as the authoritative log.
+    """Apply *check* to every non-``case-actor`` replica in isolation.
 
-    Runs RM-state and CS-transition invariants against every replica that is
-    not ``case-actor``.  The ``{actor: entries}`` single-actor dict causes
-    ``auth_entries()`` to fall back to the actor's own entries, reusing the
-    existing canonical check logic without modification (ISSUE-2411 Gap 1).
-
-    Actors whose replica contains no ``add_participant_status_to_participant``
-    entries are skipped for the three status-dependent checks; they have no
-    state-machine observations to verify.
+    Each replica is passed as a single-entry ``{actor: entries}`` dict, which
+    makes ``auth_entries()`` fall back to that actor's own log instead of the
+    ``case-actor`` one.  That is what turns a check written against the
+    authoritative log into a **replica-side** check, and it is the only place
+    these properties are asserted for non-``case-actor`` replicas (ISSUE-2411
+    Gap 1) — invariants 6, 9 and 15 run the same checks but against
+    ``auth_entries(replicas)``, which is the ``case-actor``.
 
     Args:
         replicas: All loaded replicas for the scenario.
-        check_fix_ready: Passed through to ``check_cs_state_transitions_observed``.
-            Set ``False`` for scenarios where no Vendor ever becomes a participant
-            (e.g. fcv-reject), matching the canonical invariant's behaviour.
+        check: A check function taking a replicas dict and returning violation
+            strings.
+        requires_status_entries: When ``True``, replicas holding no
+            ``add_participant_status_to_participant`` entries are skipped —
+            they carry no state-machine observations for the check to verify.
+            Set ``False`` for checks that are meaningful on any log.
+
+    Returns:
+        Violation strings, each prefixed with the actor whose replica produced
+        it, so a failure names the replica as well as the property.
     """
     violations: list[str] = []
     for actor, entries in replicas.items():
         if actor == "case-actor":
             continue
-        actor_dict = {actor: entries}
-        prefix = f"Actor {actor!r}"
-        for msg in check_no_rm_state_oscillation(actor_dict):
-            violations.append(f"{prefix}: {msg}")
-        has_status_entries = any(
+        if requires_status_entries and not any(
             event_type(e) == "add_participant_status_to_participant"
             for e in entries
-        )
-        if has_status_entries:
-            for msg in check_rm_closed_termination(actor_dict):
-                violations.append(f"{prefix}: {msg}")
-            for msg in check_participant_status_schema_completeness(
-                actor_dict
-            ):
-                violations.append(f"{prefix}: {msg}")
-            for msg in check_cs_state_transitions_observed(
-                actor_dict, check_fix_ready=check_fix_ready
-            ):
-                violations.append(f"{prefix}: {msg}")
+        ):
+            continue
+        for msg in check({actor: entries}):
+            violations.append(f"Actor {actor!r}: {msg}")
     return violations
+
+
+def check_per_actor_replica_no_rm_state_oscillation(
+    replicas: dict[str, list[dict]],
+) -> list[str]:
+    """No replica records an RM change after a participant first reaches CLOSED.
+
+    Replica-side counterpart of invariant 6.  Runs on every replica regardless
+    of whether it holds status entries: ``check_no_rm_state_oscillation`` reads
+    ``close_case`` entries too, so a replica with no
+    ``add_participant_status_to_participant`` can still violate it.
+    """
+    return for_each_replica(replicas, check_no_rm_state_oscillation)
+
+
+def check_per_actor_replica_rm_closed_termination(
+    replicas: dict[str, list[dict]],
+) -> list[str]:
+    """Each replica's log terminates with every participant in RM=CLOSED.
+
+    Replica-side counterpart of invariant 7.  This is the one property
+    ISSUE-2505 owned: until the CASE_MANAGER's own ``RM.CLOSED`` transition was
+    committed as a ledger entry (CM-23-005), no replica could observe it.
+    """
+    return for_each_replica(
+        replicas,
+        check_rm_closed_termination,
+        requires_status_entries=True,
+    )
+
+
+def check_per_actor_replica_participant_status_schema_completeness(
+    replicas: dict[str, list[dict]],
+) -> list[str]:
+    """Every ParticipantStatus snapshot on every replica carries the required fields.
+
+    Replica-side counterpart of invariant 9.  A participant replica that began
+    emitting snapshots without ``cvdRole`` or ``emConsentState`` is only caught
+    here.
+    """
+    return for_each_replica(
+        replicas,
+        check_participant_status_schema_completeness,
+        requires_status_entries=True,
+    )
+
+
+def check_per_actor_replica_cs_state_transitions_observed(
+    replicas: dict[str, list[dict]],
+    *,
+    check_fix_ready: bool = True,
+) -> list[str]:
+    """Each replica observed all key CS transitions.
+
+    Replica-side counterpart of invariant 15.
+
+    Args:
+        replicas: All loaded replicas for the scenario.
+        check_fix_ready: Passed through to
+            ``check_cs_state_transitions_observed``.  Set ``False`` for
+            scenarios where no Vendor ever becomes a participant (e.g.
+            ``fcv-reject``), matching the canonical invariant's behaviour.
+    """
+    return for_each_replica(
+        replicas,
+        lambda actor_dict: check_cs_state_transitions_observed(
+            actor_dict, check_fix_ready=check_fix_ready
+        ),
+        requires_status_entries=True,
+    )
 
 
 # ---------------------------------------------------------------------------
