@@ -12,7 +12,7 @@ flowchart TB
             RmSubmitReport
         end
     end
-    subgraph RM:VALIDATED 
+    subgraph RM:VALID
         subgraph as:Accept
             RmValidateReport
         end
@@ -21,7 +21,7 @@ flowchart TB
         end
     end
     subgraph RM:INVALID
-        subgraph as:Reject
+        subgraph as:TentativeReject
             RmInvalidateReport
         end
     end
@@ -38,6 +38,8 @@ flowchart TB
     subgraph RM:CLOSED
         subgraph as:Leave
             RmCloseCase
+        end
+        subgraph as:Reject
             RmCloseReport
         end
     end
@@ -73,28 +75,17 @@ flowchart TB
 
 {% include-markdown "./_engage_case.md" heading-offset=1 %}
 
-!!! tip "Re-Engaging a Case"
-
-    Re-engaging a deferred case uses the same `RmEngageCase` (`as:Join`)
-    activity. Because the RM model permits reversible transitions between
-    `ACCEPTED` and `DEFERRED`, re-engagement is an `accept` transition
-    emitted from the `DEFERRED` state — there is no separate `RmReEngageCase`
-    activity. Using `as:Undo` was considered but rejected: `Undo` implies
-    retracting the *effects* of a prior action, whereas re-engagement is a
-    forward state transition.
+To re-engage a deferred case, send the same `RmEngageCase` (`as:Join`) activity
+used for the first engagement. There is no separate `RmReEngageCase`.
 
 {% include-markdown "./_close_case.md" heading-offset=1 %}
 {% include-markdown "./_close_report.md" heading-offset=1 %}
 
-!!! tip "Close Case vs Close Report"
-
-    Closing a report is only relevant when the report is not valid, because 
-    valid reports should be converted to cases. Hence, `RmCloseReport` is
-    defined as an option for when a report is invalidated
-    before a case is created. Both `RmCloseReport` and `RmCloseCase` are
-    defined as subclasses of `as:Leave` to indicate that they are both
-    activities that indicate that the actor's participation in the case or
-    report has ended.
+Use `RmCloseReport` — `Reject(Offer(VulnerabilityReport))` — when a report was
+invalidated before a case was created. Use `RmCloseCase` —
+`Leave(VulnerabilityCase)` — once a case exists. For why re-engagement is not an
+`as:Undo`, and why the two closures use different verbs, see
+[Activity Vocabulary Design](../../../topics/activity_vocabulary_design.md).
 
 ## Demo
 

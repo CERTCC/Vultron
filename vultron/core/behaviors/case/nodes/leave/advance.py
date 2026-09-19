@@ -13,19 +13,11 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-"""Receiver-side action nodes for Leave(VulnerabilityCase) processing.
+"""Store-local ``RM.CLOSED`` advances for a received Leave(VulnerabilityCase).
 
-Implements the role-discriminating effects of a received Leave activity:
-
-- :class:`AdvanceParticipantToRMClosedNode`: Advances the leaving actor's
-  :class:`~vultron.core.models.participant_status.ParticipantStatus` to
-  ``RM.CLOSED`` in the local DataLayer.  Used on both the owner and non-owner
-  paths (the departure effect is the same; what differs is whether the whole
-  case also closes).
-
-- :class:`AdvanceCaseActorToRMClosedNode`: Advances the Case Actor's own
-  :class:`~vultron.core.models.participant_status.ParticipantStatus` to
-  ``RM.CLOSED``.  Only reached on the owner Leave path (CM-23-002 step 2).
+Both nodes here write a ``ParticipantStatus`` to the *local* DataLayer and
+nothing else.  Recording the CASE_MANAGER's transition on the ledger is a
+separate concern — see :mod:`.record`.
 
 Per ADR-0050, ADR-0051, and specs/case-management.yaml CM-23-002/CM-23-003.
 """
@@ -37,10 +29,7 @@ from py_trees.common import Status
 from vultron.core.behaviors.case.nodes.participant.status import (
     CreateParticipantStatusNode,
 )
-from vultron.core.behaviors.helpers import (
-    DataLayerActionWithPorts,
-    _EmitSingleActivityBase,
-)
+from vultron.core.behaviors.helpers import DataLayerActionWithPorts
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.participant_status import (
     participant_status_rm_state,
@@ -262,49 +251,3 @@ class AdvanceCaseActorToRMClosedNode(DataLayerActionWithPorts):
             self._case_id,
         )
         return Status.SUCCESS
-
-
-class EmitRejectCloseCaseNode(_EmitSingleActivityBase):
-    """Emit a ``Reject(Leave(VulnerabilityCase))`` declining an owner close.
-
-    Per CM-23-011, when the Case Owner sends ``Leave(VulnerabilityCase)`` while
-    the case still holds an active embargo, the Case Actor declines the closure
-    with an ``as:Reject`` ("received and understood but declined", MSM-05-001)
-    instead of running the CM-23-002 closure sequence.  The decline is sent
-    back to the owner (``close_sender_id``) and threaded to the received Leave
-    via ``in_reply_to``.
-
-    Subclasses :class:`_EmitSingleActivityBase`; only ``_call_factory`` is
-    overridden (BTND-07-005, BTND-07-009).
-    """
-
-    def __init__(
-        self,
-        case_id: str,
-        close_sender_id: str,
-        close_activity_id: str | None = None,
-        captured: dict | None = None,
-        name: str | None = None,
-    ) -> None:
-        super().__init__(captured=captured, name=name)
-        self._case_id = case_id
-        self._close_sender_id = close_sender_id
-        self._close_activity_id = close_activity_id
-
-    def _call_factory(self) -> tuple[str, str]:
-        assert self.trigger_activity_factory is not None
-        assert self.actor_id is not None
-        return self.trigger_activity_factory.reject_close_case(
-            case_id=self._case_id,
-            actor=self.actor_id,
-            close_sender=self._close_sender_id,
-            in_reply_to=self._close_activity_id,
-        )
-
-    def _on_success(self, activity_id: str, activity_blob: str) -> None:
-        self.logger.info(
-            "Case actor '%s' declined owner close of case '%s' via as:Reject"
-            " — active embargo (CM-23-011)",
-            self.actor_id,
-            self._case_id,
-        )

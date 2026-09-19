@@ -61,9 +61,10 @@ Each fuzzer node entry in the sub-files has these fields:
 - **New-arch cross-ref**: The corresponding `vultron.demo.fuzzer.*` class
   in the py_trees-based prototype (added in FUZZ-08a / PR #1179); N/A for
   simulation-only nodes not ported to the new architecture
-- **Call-out point shape**: Evaluator, Retriever, Sentinel, Composer, or
+- **Call-out point shape**: Evaluator, Retriever, Composer, Actuator, or
   ProtocolInternal — per the capability shape taxonomy in
-  `docs/adr/0024-coordination-agent-taxonomy.md` (added in FUZZ-08a / PR
+  `docs/adr/0024-coordination-agent-taxonomy.md`, as amended by ADR-0097 and
+  enumerated normatively by BT-18-013 (added in FUZZ-08a / PR
   #1179; reclassified in issue #1188). Use `ProtocolInternal` only for
   nodes that are terminal placeholders or structural composites with no
   external input or output seam. See BT-18-005: shape MUST be determined
@@ -90,10 +91,14 @@ Each fuzzer node entry in the sub-files has these fields:
 - **TerminalPlaceholder** — terminal placeholder node with no real decision
   logic (e.g., `AlwaysSucceed` fallback leaf); no external dependency exists
 
-**Call-out point shape values (per ADR-0024):**
+**Call-out point shape values (per ADR-0024, as amended by ADR-0097):**
 
-- **Sentinel** — binary condition monitor; no output keys; signals
-  `SUCCESS`/`FAILURE` only
+> **Sentinel is not one of these values.** ADR-0097 / BT-18-013 removed Sentinel
+> from the call-out taxonomy: it is a call-in pattern, so it has no output keys
+> *and no call-out point node* to classify. A synchronous binary external query is
+> a **Retriever**. Entries in the per-domain catalogs still carrying `Sentinel` are
+> being reclassified under #3424.
+
 - **Evaluator** — reads situation context; writes a structured
   recommendation; `SUCCESS` = recommendation available
 - **Retriever** — reads a query; writes structured facts from an external
@@ -111,7 +116,7 @@ Each fuzzer node entry in the sub-files has these fields:
   Use this value only for terminal placeholders and structural composites
   that have no call-out point. Do NOT use `ProtocolInternal` because a
   node's automation potential is High — those nodes have an external seam
-  and belong to one of the five shapes above (BT-18-005).
+  and belong to one of the shapes above (BT-18-005, BT-18-013).
 
 ### Fuzzer Base Types (Quick Reference)
 

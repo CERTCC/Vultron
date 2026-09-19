@@ -16,7 +16,11 @@ The mapping between the two is **many-to-many in both directions**, and roughly
 half the wire vocabulary has no formal shorthand at all. A shorthand and a wire
 activity are not interchangeable names for one thing. The design rationale for
 keeping the two vocabularies distinct is recorded in
-[ADR-0083](../../adr/0083-formal-message-set-and-as2-vocabulary-are-different-shapes.md).
+[ADR-0083](../../adr/0083-formal-message-set-and-as2-vocabulary-are-different-shapes.md)
+and explained in
+[Activity Vocabulary Design](../../topics/activity_vocabulary_design.md), which
+also covers the verb choices and the `Create`/`Add` split that produce the
+collapses and expansions cataloged here.
 
 ## The pages
 

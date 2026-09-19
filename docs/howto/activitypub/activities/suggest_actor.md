@@ -11,36 +11,14 @@ to suggest that another actor be invited to participate in the case.
 <br/>
 <br/>
 
-!!! question "Why Suggest instead of just Invite?"
+Use this flow to get an actor invited when you are not the Case Owner, or when a
+case has more than one Case Owner and the invitation needs a decision. A Case
+Owner can also invite an actor directly — see
+[Inviting an Actor to a Case](invite_actor.md). For why the suggestion step
+exists alongside direct invitation, and for the situations it covers, see
+[Activity Vocabulary Design](../../../topics/activity_vocabulary_design.md).
 
-    The process described here makes an assumption that there is a case owner who is responsible for coordinating the 
-    case. Participants having the case owner role can in principle just directly invite other actors to participate in 
-    the case, and they might not need the suggestion mechanism described here. However, this mechanism is included
-    to account for the possibilities that:
-    
-    - there could be multiple case owners, and they might not all agree on who should be invited to participate in the 
-      case.
-    - a non-case-owner participant might want to suggest that another actor be invited to participate in the case
-
-    Of these, the latter is the more likely scenario, but the mechanism described here can be used in either case.    
-
-!!! example "Reasons to Invite other Actors"
-
-    There are many reasons why a case participant might want to suggest another actor to participate in a case.
-    The following are some examples:
-
-    - A finder, having reported to one vendor, might further discover that the vulnerability is actually in a 
-      third-party library, and suggest inviting the library vendor to participate in the case.
-    - A vendor might be a participant in (but not the owner of) a case, and wants to suggest that the case owner
-      invite a sector-specific coordinator to participate in the case to address critical infrastructure concerns.
-    - A reporter participant might suggest a technical expert (for example, a member of a protocol working group) to 
-      include in the case.
-    - A coordinator might suggest to the case owner that a large deployer be invited to participat in a case to 
-      address concerns about the impact of deploying a fix for a vulnerability on infrastructure and operations.
-
-Below is a sequence diagram showing the process of suggesting an actor for a case.
-We used a sequence diagram instead of a flow chart since the process is relatively simple and the sequence diagram
-is easier to read.
+The sequence diagram below shows the process of suggesting an actor for a case.
 
 ```mermaid
 ---

@@ -48,39 +48,14 @@ sequenceDiagram
     not directly back to the Case Owner. The CASE_MANAGER is the authoritative
     recipient of all case-management handshake messages after case creation.
 
-!!! question "Invite vs Add?"
+Use `as:Invite` for actors that were not involved when the case was created.
+The Case Owner and any already-known participants, such as the Reporter, are
+seated inline on the `as:Create` activity for the case instead — see
+[Initializing a Case](initialize_case.md).
 
-    When a case is first created, the Case Owner and any known participants (e.g., the Reporter)
-    should be automatically added to the case. It's not even necessary for these to be emitted as
-    separate `as:Add` activities. The `as:Create` activity for the case can include the Case Owner
-    and any known participants as `CaseParticipant` objects.
-    See [Initializing a Case](initialize_case.md) for more.
-
-    However, over the lifespan of a case, there may be other actors that were
-    not already involved at the time the case was created, but who should be invited to participate
-    in the case. This is where the `as:Invite` activity comes in.
-
-!!! tip "Avoid bogging down in details"
-
-    Adding a participant to a case involves creating the participant object and a participant status object.
-    As discussed elsewhere, emitting separate `as:Create` and `as:Add` events for each
-    of these events is likely overkill.
-
-    ```mermaid
-    flowchart LR
-    
-    a[create participant] --> b[create participant status]
-    b --> c[add participant status to participant]
-    c --> d[add participant to case]
-    ```
-   
-    Instead, a single `as:Create` event for the participant, already containing a status object, could be emitted, with
-    the `target` of the `as:Create` event as the case object.
-
-    ```mermaid
-    flowchart LR
-    a[create particpant with status] -->|target| b[case]
-    ```
+For why late arrivals are invited rather than added, and for how many activities
+one participant addition needs, see
+[Activity Vocabulary Design](../../../topics/activity_vocabulary_design.md).
 
 {% include-markdown "./_invite_to_case.md" heading-offset=1 %}
 {% include-markdown "./_accept_invite_to_case.md" heading-offset=1 %}

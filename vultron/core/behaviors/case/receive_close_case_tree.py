@@ -44,6 +44,7 @@ import py_trees
 from vultron.core.behaviors.case.nodes.leave import (
     AdvanceCaseActorToRMClosedNode,
     AdvanceParticipantToRMClosedNode,
+    CommitCaseActorRMClosedEntryNode,
     EmitRejectCloseCaseNode,
 )
 from vultron.core.behaviors.case.nodes.lifecycle import (
@@ -112,6 +113,7 @@ def create_close_case_received_tree(
         │       │   │   ├── CheckIsCaseOwnerNode        # guard: sender IS CASE_OWNER
         │       │   │   ├── AdvanceParticipantToRMClosedNode  # step 1: owner → RM.CLOSED
         │       │   │   ├── AdvanceCaseActorToRMClosedNode    # step 2: CaseActor → RM.CLOSED
+        │       │   │   ├── CommitCaseActorRMClosedEntryNode  # step 2 on the ledger (CM-23-005)
         │       │   │   └── CommitCaseFullyClosedBT (Sequence)  # steps 3-4: commit + fan-out
         │       │   │       ├── ReconstructChainTailNode        # step 3a: tail hash
         │       │   │       ├── CreateCaseFullyClosedEntry      # step 3b: build entry
@@ -151,7 +153,11 @@ def create_close_case_received_tree(
             ``StoreActivityNode`` runs as a fallback.
         receiving_actor_id: Actor URI of the receiving actor.  Used as the
             ``case_actor_id`` argument of :class:`AdvanceCaseActorToRMClosedNode`
-            so that the CaseActor's own RM state is advanced on owner Leave.
+            and :class:`CommitCaseActorRMClosedEntryNode`, so that on owner Leave
+            the CaseActor's own RM state is advanced *and* that transition is
+            recorded as a canonical ledger entry (CM-23-005).  When ``None``,
+            both are omitted and the CaseActor's closure is neither applied nor
+            recorded.
 
     Returns:
         Root ``CloseCaseBT`` node (a Selector, or the fallback Sequence when
@@ -236,6 +242,26 @@ def create_close_case_received_tree(
                 case_actor_id=receiving_actor_id,
                 case_id=case_id,
                 name="AdvanceCaseActorToRMClosed",
+            )
+        )
+        # The advance above is store-local. Without this entry the CASE_MANAGER
+        # stays RM.ACCEPTED on every replica forever (ISSUE-2505): no effect
+        # node derives its closure, because ``close_case`` names the departing
+        # actor and ``case_fully_closed`` is attributed to the owner.
+        #
+        # The node records best-effort — it warns and returns SUCCESS rather
+        # than failing. That is load-bearing *here*, not merely defensive: this
+        # Sequence runs the entry before ``case_fully_closed``, so a FAILURE
+        # would skip steps 3 and 4, and the Selector below would then read the
+        # failed owner arm as "the sender is not the Case Owner" and report
+        # SUCCESS down the non-owner path — a half-closed case with no
+        # diagnostic. Do not "harden" the node into failing without first
+        # making this arm's failure propagate past that Selector.
+        owner_leave_children.append(
+            CommitCaseActorRMClosedEntryNode(
+                case_actor_id=receiving_actor_id,
+                case_id=case_id,
+                name="CommitCaseActorRMClosedEntry",
             )
         )
     owner_leave_children.append(case_fully_closed_commit)

@@ -1,86 +1,21 @@
 # Acknowledging a Report
 
-The ActivityStreams vocabulary includes several activities that can be used to
-indicate that a message or object has been read or acknowledged. These include:
+A recipient acknowledges a submitted report by sending
+`Read(Offer(VulnerabilityReport))` — the `RmReadReport` activity, a subclass of
+`as:Read`.
+Use it when you want to confirm that a report arrived without yet declaring it
+valid or invalid.
+If you are ready to declare a verdict, send `RmValidateReport` (`as:Accept`) or
+`RmInvalidateReport` (`as:TentativeReject`) instead; either one implies the
+report was read.
 
-- `as:Read`
-- `as:View`
-- `as:Listen`
-
-Since most CVD cases are text-centric, `as:Read` is the most commonly used activity.
-`as:View` and `as:Listen` activities may be used in some cases, such as when a case
-participant views a video or listens to an audio recording.
-
-`RmReadReport` is defined as a subclass of `as:Read` to indicate
-that a report has been read. This allows the receiver of a report to
-acknowledge receipt without indicating anything more than that the report has
-been read. That leaves `RmValidateReport` and `RmInvalidateReport` to indicate
-a more specific action (accept, reject) on the part of the receiver.
-
-```mermaid
-flowchart LR
-    subgraph RM:Received
-        a{Accept?}
-        subgraph as:Read
-            RmReadReport
-        end
-    end
-    subgraph RM:Start
-        subgraph as:Offer
-            RmSubmitReport
-        end
-    end
-    subgraph RM:Accepted
-        subgraph as:Accept
-            RmValidateReport
-        end
-    end
-    subgraph RM:Invalid
-        subgraph as:Reject
-            RmInvalidateReport
-        end
-    end
-    a -->|y| RmValidateReport
-    a -->|undecided| RmReadReport
-    a -->|n| RmInvalidateReport
-    RmSubmitReport --> a
-```
-
-!!! info "More Acknowledgements in the Ontology"
-
-    The [Vultron AS ontology](../../../reference/ontology/vultron_as.md) defines a
-    number of ActivityStreams activities that can serve as the various acknowledgements that are used in the Vultron
-    protocol. These include messages that are specifically `as:inReplyTo` a
-    message defined as one of the core protocol message types.
-
-    For example, it is not necessary to send a separate `RmReadReport` message
-    if the `RmValidateReport` message is sent as a reply to the `RmSubmitReport`
-    message. The `RmValidateReport` message logically indicates that the
-    report has been read in order to have been validated.
-
-!!! tip "Like, Dislike and Flag"
-
-    The ActivityStreams vocabulary also includes actions that indicate an opinion 
-    about a message or object, such as `as:Like`, `as:Dislike`, and `as:Flag`.
-    While these may be relevant to implementations of the Vultron protocol,
-    no specific use cases for them are defined at this time.
-
-## Acknowledgement for ledger-replicated state
-
-The `RK` pattern above applies to report submission, which is not
-ledger-replicated. For all other protocol-significant state — embargo events,
-case-state changes, participant status — acknowledgement is **cumulative and
-implicit** via hash-chain continuity. There is no per-message `EK`, `CK`, or
-`GK` wire activity.
-
-A participant receiving `Announce(CaseLedgerEntry)` whose `prev_log_hash`
-matches its local ledger tail says nothing: the match itself is the
-acknowledgement. On a mismatch, the participant emits
-`Reject(CaseLedgerEntry)` and the CASE_MANAGER replays all missing entries.
-
-For the full reference on both fault reporting and the acknowledgement
-evolution, see
-[Faults and Acknowledgements](../../../reference/messages/faults_and_acknowledgements.md).
+- For the full wire reference, including the mapping to the formal `RK` message
+  and the cumulative hash-chain acknowledgement used for ledger-replicated
+  state, see
+  [Faults and Acknowledgements](../../../reference/messages/faults_and_acknowledgements.md).
+- For why Vultron uses `as:Read` rather than `as:View` or `as:Listen`, and why
+  acknowledgement and validity are separate claims, see
+  [Activity Vocabulary Design](../../../topics/activity_vocabulary_design.md).
 
 ## Demo
 

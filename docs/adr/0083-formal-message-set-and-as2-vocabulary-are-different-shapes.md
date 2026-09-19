@@ -173,8 +173,14 @@ anything:
 - The build-time rendering that will make table-versus-code drift structurally
   impossible rather than merely tested for (#2998). Until that lands, the
   divergence this ADR describes is documented but unguarded.
-- Correcting `docs/howto/activitypub/activities/error.md`, which still depicts the
-  phantom fault taxonomy that MSM-05-004 forbids (#3002).
+
+Completed since this decision:
+
+- `docs/howto/activitypub/activities/error.md` no longer depicts the phantom
+  fault taxonomy. It describes the MSM-05-001 failure-mode trichotomy, and
+  `ActivityPattern.in_reply_to_` has been removed from the model (#3214). The
+  design rationale for the failure-mode partition is published as
+  [Activity Vocabulary Design](../topics/activity_vocabulary_design.md).
 
 ## Pros and Cons of the Options
 

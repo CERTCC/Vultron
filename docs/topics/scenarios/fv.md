@@ -121,7 +121,9 @@ as a participant status update in the ledger.
 
 Both the Finder and the Vendor indicate that their participation in the case
 is complete.  Each closure is recorded as a `close_case` entry in the ledger.
-When all participants have closed, the CaseActor records `case_fully_closed`.
+The Vendor is the case owner, so its departure also closes the case: the
+CaseActor records its own closure as a participant status entry, then records
+`case_fully_closed`.
 
 *Antecedent:* `validate_report` and `engage_case` are both present in the ledger.
 
