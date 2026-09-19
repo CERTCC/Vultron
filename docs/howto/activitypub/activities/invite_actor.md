@@ -1,15 +1,27 @@
-# Inviting an Actor to a Case
+# How to Invite an Actor to a Case
 
-{% include-markdown "../../../includes/not_normative.md" %}
+Use this guide to bring an actor into a case it was not present for.
+An invitation asks rather than asserts, so the actor joins only if it accepts.
+You finish with the actor either seated as a participant or recorded as having
+declined.
 
-Inviting an actor to a case is a way to add them as a participant in the case.
-The invitation is sent to the actor as an `as:Invite` activity.
-Depending on the actor's response, they may become a participant in the case.
+---
 
-<!-- for vertical spacing -->
-<br/>
-<br/>
-<br/>
+## Prerequisites
+
+{% include-markdown "./_demo_prerequisites.md" %}
+
+- An existing case, and the Case Owner role on it.
+- The actor's URI.
+- The CASE_MANAGER's actor URI. It sends the invitation and receives the reply.
+
+---
+
+## The exchange
+
+The sequence diagram below shows both outcomes.
+The Case Owner triggers the invitation, but every message on the wire is between
+the CASE_MANAGER and the invited actor.
 
 ```mermaid
 ---
@@ -37,36 +49,80 @@ sequenceDiagram
     deactivate O
 ```
 
-!!! info "CASE_MANAGER routing (PCR-08-007, PCR-08-008)"
+---
 
-    The `Invite` activity is sent by the **CASE_MANAGER**, not the Case Owner.
-    The Case Owner triggers the invite, but the CASE_MANAGER MUST be the
-    ActivityStreams `actor` on the outbound `Invite`. The `attributedTo` field
-    on the activity MAY carry the Case Owner's ID to record who initiated it.
+## Send the invitation
 
-    The invitee MUST address their `Accept` or `Reject` reply to the **CASE_MANAGER**,
-    not directly back to the Case Owner. The CASE_MANAGER is the authoritative
-    recipient of all case-management handshake messages after case creation.
+1. Trigger the invitation as Case Owner.
+2. The CASE_MANAGER sends `RmInviteToCase` to the actor's inbox, with itself as
+   the ActivityStreams `actor` and your identity in `attributedTo`
+   (PCR-08-007, PCR-08-008).
+3. Set the reply deadline on the activity's `end_time`.
+   When it is present that value settles precedence over the invitee's local
+   policy window; when it is absent the policy window applies instead
+   (CM-28-002, ADR-0065).
+   Either way the effective deadline is clamped down to the embargo's own
+   `end_time`, so an `end_time` that outlives the embargo does not buy the invitee
+   extra time (EP-07-006).
 
-Use `as:Invite` for actors that were not involved when the case was created.
-The Case Owner and any already-known participants, such as the Reporter, are
-seated inline on the `as:Create` activity for the case instead — see
-[Initializing a Case](initialize_case.md).
+!!! warning "The CASE_MANAGER is the sender, not the Case Owner"
 
-For why late arrivals are invited rather than added, and for how many activities
-one participant addition needs, see
-[Activity Vocabulary Design](../../../topics/activity_vocabulary_design.md).
+    Putting the Case Owner in the `actor` field makes the invitation
+    unrecognizable to a conformant peer, which expects case-management handshakes
+    to come from the CASE_MANAGER.
+    Record who asked for the invitation in `attributedTo` instead.
 
-{% include-markdown "./_invite_to_case.md" heading-offset=1 %}
-{% include-markdown "./_accept_invite_to_case.md" heading-offset=1 %}
-{% include-markdown "./_reject_invite_to_case.md" heading-offset=1 %}
-{% include-markdown "./_add_coordinator_participant_to_case.md" heading-offset=1 %}
+---
 
-## Demo
+## Answer an invitation
+
+Send your reply to the CASE_MANAGER, never to the Case Owner.
+
+- If you are joining the case, send `RmAcceptInviteToCase` with the `Invite`
+  activity as its `object`.
+- If you are not joining, send `RmRejectInviteToCase` with the `Invite` as its
+  `object`.
+
+On acceptance, the CASE_MANAGER commits the reply to the ledger, seats you at
+Report Management (RM) state `RM.RECEIVED`, signs your embargo consent if an
+embargo is active, sends `AnnounceVulnerabilityCase` to seed your replica, and
+backfills the earlier ledger entries (CM-17-004).
+
+Expect `RM.RECEIVED`, not `RM.ACCEPTED`.
+Accepting an invitation says you are willing to join the case; it does not say
+you have validated the report, which you have not yet seen in full
+(CM-11-001).
+Rule on the report afterwards — see
+[How to Advance a Case Through Report Management](manage_case.md).
+
+---
+
+## Choose invitation over seating
+
+Use `as:Invite` for an actor that was absent when the case was created.
+Seat the Case Owner and any already-known participants, such as the Reporter,
+inline on the `as:Create` for the case instead — see
+[How to Initialize a Case](initialize_case.md).
+
+If you are not the Case Owner but you know an actor belongs on the case, suggest
+it rather than inviting it: see
+[How to Suggest an Actor for a Case](suggest_actor.md).
+
+---
+
+## Verify
+
+| What you sent | What to confirm |
+|---|---|
+| `RmInviteToCase` | The invitee holds an `Invite` whose `actor` is the CASE_MANAGER. |
+| `RmAcceptInviteToCase` | The case roster holds you, and you have a local case replica. |
+| `RmRejectInviteToCase` | The roster does not list you, and the refusal is on the ledger. |
+
+---
+
+## See it end to end
 
 !!! example "Try it: `vultron-demo invite-actor`"
-
-    Run this workflow end-to-end with the unified demo CLI:
 
     ```bash
     vultron-demo invite-actor
@@ -77,3 +133,16 @@ one participant addition needs, see
     ```bash
     DEMO=invite-actor docker compose -f docker/docker-compose.yml run --rm demo
     ```
+
+    The scenario invites one coordinator that accepts and a second that rejects.
+
+---
+
+## Further reading
+
+- [Case Management Messages](../../../reference/messages/case_management.md) —
+  the wire format and a rendered example for each activity above
+- [Activity Vocabulary Design](../../../topics/activity_vocabulary_design.md) —
+  why late arrivals are invited rather than added
+- [Case Initialization](../../../topics/case_lifecycle/case_initialization.md) —
+  the case lifecycle these invitations sit inside

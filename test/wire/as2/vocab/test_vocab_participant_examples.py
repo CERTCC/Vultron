@@ -317,7 +317,12 @@ class TestVocabParticipantExamples(unittest.TestCase):
         self.assertEqual(participant.attributed_to, coord_p.attributed_to)
         self.assertEqual(participant.name, coord_p.name)
         self.assertEqual(participant.context, case.id_)
-        self.assertEqual(activity.origin, case.id_)
+        # `target`, not `origin`: RemoveCaseParticipantFromCasePattern
+        # discriminates on target_ and ActivityPattern has no origin_ field, so an
+        # origin-only Remove matches no pattern and never dispatches. This
+        # assertion previously required `origin` and so locked in the defect
+        # (#3438); test_vocab_examples_dispatchable.py is the ratchet now.
+        self.assertEqual(activity.target, case.id_)
 
 
 if __name__ == "__main__":

@@ -179,17 +179,28 @@ TCP's cumulative ACK/SACK than to a per-message positive ack. Adding per-message
 
 ## Diátaxis: these pages are an extraction, not a new surface
 
-`docs/howto/activitypub/activities/` is a **partial collapse** — it runs against
+`docs/howto/activitypub/activities/` was a **partial collapse** — it ran against
 DF-01-003 (pages SHOULD NOT combine multiple Diátaxis content types; where a
 combined view is unavoidable, the parts MUST be separated and each MUST link to
-the canonical page of its own type). These pages neither separate nor link, so
-they do not qualify for the escape clause. Each page mixes three quadrants:
+the canonical page of its own type). Those pages neither separated nor linked, so
+they did not qualify for the escape clause. Each page mixed three quadrants, and
+each quadrant went to its own tree:
 
 | Content | Actual quadrant | Destination | Status |
 |---|---|---|---|
 | Design rationale, why-this-verb, alternatives weighed, activity-graph diagrams | Explanation | `docs/topics/activity_vocabulary_design.md` | done (#3002) |
-| AS2 encoding facts, rendered JSON examples | Reference | `docs/reference/messages/` | done (#2999, #3001) |
-| `!!! example "Try it: vultron-demo <scenario>"` blocks | How-to | stays, retitled "How to …" | pending (#3003) |
+| AS2 encoding facts, rendered JSON examples | Reference | `docs/reference/messages/` | done (#2999, #3001, #3003) |
+| Task sequences and the `vultron-demo <scenario>` runs | How-to | stays, retitled "How to …" | done (#3003) |
+
+The How-to half is not just the retitled remainder. Each guide now carries
+prerequisites, an ordered activity sequence with conditional branches, a table of
+what to verify, and links out to its Reference and Explanation counterparts — and
+nothing else. The wire examples left with the `_*.md` partials that rendered them.
+
+`ledger_replication.md` was retired rather than reshaped, because every sentence
+on it described a pattern or a factory and none of it named an action a reader
+takes — ledger fan-out is automatic. Apply that test rather than the page's
+directory when deciding whether a how-to page has a task in it.
 
 The Explanation half landed as a single page rather than several, because the
 rationale is one argument: ActivityStreams supplies the verbs, so every Vultron
@@ -201,16 +212,24 @@ default-embargo reasoning to `topics/process_models/em/defaults.md`,
 ledger-buffering reasoning to `topics/case_lifecycle/case_ledger_sync.md`, and
 the Actor/`CaseParticipant` distinction to `reference/activitypub/objects.md`.
 
-Diagnostic evidence at the time of the split: the titles are noun phrases ("Status Updates and Comments",
-"Acknowledging Other Messages") where DF-04-003 and the framework require
-"How to [Action]"; the pages contain no imperatives or steps; `acknowledge.md` is
-almost entirely design rationale and passes the bath test; and nearly every page
-carries `{% include-markdown "not_normative.md" %}`, which is itself a signal the
-author knew the content was discursive. The two pages without that banner are
-`error.md` and `acknowledge.md` — which is not counter-evidence, since those are
-the two whose content is *least* task-shaped. `error.md` additionally documents a
-wire format that was never built (see above), and `acknowledge.md` is the
-bath-test example.
+Four signals identified the collapse, and they generalize to any tree suspected of
+one:
+
+- **Noun-phrase titles in the how-to tree.** "Status Updates and Comments" and
+  "Acknowledging Other Messages" name a subject, not a task, where DF-04-003
+  requires "How to [Action]".
+- **No imperatives and no steps.** A page with nothing for the reader to do is not
+  in the Action half of the compass whatever directory it sits in.
+- **A page that passes the bath test.** `acknowledge.md` was almost entirely
+  design rationale, which is Explanation by definition.
+- **A normativity disclaimer.** Nearly every page carried
+  `{% include-markdown "not_normative.md" %}`, which is an author saying the
+  content is discursive. The banners came off in #3003 for exactly that reason:
+  a task guide has nothing to disclaim.
+
+The banner signal inverts where you would expect it to. The two pages *without*
+it, `error.md` and `acknowledge.md`, had the least task-shaped content of any —
+so read its absence as no evidence either way, not as evidence of task shape.
 
 So the reference pages are the Reference half of un-blurring an existing
 collapse. Treating them as a fourth parallel surface would deepen the collapse
@@ -224,9 +243,27 @@ Build-time rendering cannot go stale.
 Two patterns are easy to confuse. `docs/reference/specs/protocol.md` is the
 exemplar for the **mapping tables** — a thin `markdown_exec` shell over
 `vultron.metadata.specs.docs_render.render_for_kind`. It does *not* render wire
-examples. For the **examples** themselves, follow the `_*.md` partials under
-`docs/howto/activitypub/activities/` and `docs/reference/activitypub/objects.md`,
-which are the pages that actually call `vocab_examples`.
+examples. For the **examples** themselves, follow `docs/reference/messages/*.md`
+and `docs/reference/activitypub/objects.md`, which are the pages that call
+`vocab_examples`. Since #3003 they are the only ones that do — a rendered wire
+example in the how-to tree is a collapse re-forming.
+
+A new example function needs a matching `obj_to_file` call in
+`vocab_examples.main()` or `test_vocab_examples_current.py` fails on the file-list
+mismatch. Note that the generator randomizes IDs and timestamps on every run, so
+running it in place rewrites every committed artifact: generate into a temp
+directory and copy across only the files you added.
+
+**An example must be dispatchable, and "well-formed" does not imply it.** Set the
+discriminator fields the activity's `ActivityPattern` requires — `object_`,
+`target_`, `context_` — and note that `ActivityPattern` has **no `origin_`
+field**, so `origin` is never consulted for dispatch no matter how well it reads.
+`test/architecture/test_vocab_examples_dispatchable.py` is the ratchet: every
+example activity must match exactly one registered pattern. It found two examples
+that matched none (#3438, #3439), each rendered on a reference page and each
+committed as a JSON artifact, because the two pre-existing gates ask only whether
+an example *executes* and whether its *filename* is committed — never whether a
+receiver could route it.
 
 The generator's output path is now resolved from the file's own location
 (`Path(__file__).parents[5]`), so it works regardless of the caller's working

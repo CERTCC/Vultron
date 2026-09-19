@@ -31,7 +31,7 @@ print(render_page("cs", heading=False))
   `d_state`, and `rm_state`. No formal shorthand; it precedes the `Add`.
 - **Triggering transition:** none (object construction).
 - **Wire activity:** `Create(ParticipantStatus)`.
-- **How-to:** [Status Updates and Comments](../../howto/activitypub/activities/status_updates.md).
+- **How-to:** [How to Publish a Status Update or a Note](../../howto/activitypub/activities/status_updates.md).
 
 ```python exec="true" idprefix=""
 from vultron.wire.as2.vocab.examples.vocab_examples import create_participant_status, json2md
@@ -46,7 +46,7 @@ print(json2md(create_participant_status()))
 - **Triggering transition:** vfd → Vfd (participant-scoped).
 - **Wire activity:** `Add(ParticipantStatus)[target=CaseParticipant]`.
 - **Discriminator:** `vf_state`.
-- **How-to:** [Status Updates and Comments](../../howto/activitypub/activities/status_updates.md).
+- **How-to:** [How to Publish a Status Update or a Note](../../howto/activitypub/activities/status_updates.md).
 - **Formal definition:** [Message Types](../formal_protocol/messages.md#cs-message-types),
   [Transitions](../formal_protocol/transitions.md).
 
@@ -62,7 +62,7 @@ print(json2md(add_status_to_participant()))
 - **Triggering transition:** Vfd → VFd (participant-scoped).
 - **Wire activity:** `Add(ParticipantStatus)[target=CaseParticipant]`.
 - **Discriminator:** `vf_state`.
-- **How-to:** [Status Updates and Comments](../../howto/activitypub/activities/status_updates.md).
+- **How-to:** [How to Publish a Status Update or a Note](../../howto/activitypub/activities/status_updates.md).
 - **Formal definition:** [Message Types](../formal_protocol/messages.md#cs-message-types),
   [Transitions](../formal_protocol/transitions.md).
 
@@ -78,7 +78,7 @@ print(json2md(add_status_to_participant()))
 - **Triggering transition:** VFd → VFD (participant-scoped, deployer path).
 - **Wire activity:** `Add(ParticipantStatus)[target=CaseParticipant]`.
 - **Discriminator:** `d_state`.
-- **How-to:** [Status Updates and Comments](../../howto/activitypub/activities/status_updates.md).
+- **How-to:** [How to Publish a Status Update or a Note](../../howto/activitypub/activities/status_updates.md).
 - **Formal definition:** [Message Types](../formal_protocol/messages.md#cs-message-types),
   [Transitions](../formal_protocol/transitions.md).
 
@@ -94,7 +94,7 @@ print(json2md(add_status_to_participant()))
   `pxa_state`. No formal shorthand; it precedes the `Add`.
 - **Triggering transition:** none (object construction).
 - **Wire activity:** `Create(CaseStatus)[context=VulnerabilityCase]`.
-- **How-to:** [Status Updates and Comments](../../howto/activitypub/activities/status_updates.md).
+- **How-to:** [How to Publish a Status Update or a Note](../../howto/activitypub/activities/status_updates.md).
 
 ```python exec="true" idprefix=""
 from vultron.wire.as2.vocab.examples.vocab_examples import create_case_status, json2md
@@ -109,7 +109,7 @@ print(json2md(create_case_status()))
 - **Triggering transition:** p → P (case-scoped).
 - **Wire activity:** `Add(CaseStatus)[target=VulnerabilityCase]`.
 - **Discriminator:** `pxa_state`.
-- **How-to:** [Status Updates and Comments](../../howto/activitypub/activities/status_updates.md).
+- **How-to:** [How to Publish a Status Update or a Note](../../howto/activitypub/activities/status_updates.md).
 - **Formal definition:** [Message Types](../formal_protocol/messages.md#cs-message-types),
   [Transitions](../formal_protocol/transitions.md).
 
@@ -125,7 +125,7 @@ print(json2md(add_status_to_case()))
 - **Triggering transition:** x → X (case-scoped).
 - **Wire activity:** `Add(CaseStatus)[target=VulnerabilityCase]`.
 - **Discriminator:** `pxa_state`.
-- **How-to:** [Status Updates and Comments](../../howto/activitypub/activities/status_updates.md).
+- **How-to:** [How to Publish a Status Update or a Note](../../howto/activitypub/activities/status_updates.md).
 - **Formal definition:** [Message Types](../formal_protocol/messages.md#cs-message-types),
   [Transitions](../formal_protocol/transitions.md).
 
@@ -142,7 +142,7 @@ print(json2md(add_status_to_case()))
 - **Triggering transition:** a → A (case-scoped).
 - **Wire activity:** `Add(CaseStatus)[target=VulnerabilityCase]`.
 - **Discriminator:** `pxa_state`.
-- **How-to:** [Status Updates and Comments](../../howto/activitypub/activities/status_updates.md).
+- **How-to:** [How to Publish a Status Update or a Note](../../howto/activitypub/activities/status_updates.md).
 - **Formal definition:** [Message Types](../formal_protocol/messages.md#cs-message-types),
   [Transitions](../formal_protocol/transitions.md).
 

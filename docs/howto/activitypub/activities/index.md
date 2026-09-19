@@ -1,40 +1,61 @@
-# Activities
+# Vultron AS Activity Guides
 
 {% include-markdown "../../../includes/not_normative.md" %}
 
-Activities are the core of the ActivityPub protocol. They are used to
-represent actions that are performed by actors. The ActivityStreams
-vocabulary defines a number of activities, extended with specific
-activities used in the Vultron AS vocabulary. The ActivityStreams
-vocabulary is sufficient for Vultron's needs, so extensions
-are limited to specifying the types of activities, actors, and objects that
-are used in the Vultron protocol.
+These guides show how to carry out each Vultron protocol task with
+ActivityStreams 2.0 (AS2) activities.
+Each one states its prerequisites, gives the activities to send in order, and
+says how to confirm the task landed.
+They assume you are implementing or operating a Vultron actor, not learning the
+protocol for the first time.
 
-A full mapping of Vultron to ActivityStreams is available in the
-[Vultron ActivityStreams Ontology](../../../reference/ontology/vultron_as.md).
-The design rules behind these definitions — which verbs Vultron reuses, which it
-declines to use, and when a new object type is minted — are explained in
+Two neighboring sections carry the material these guides deliberately leave out.
+The wire format of every activity — fields, discriminators, and a rendered
+example — is in [Message Types](../../../reference/messages/index.md).
+The reasoning behind the verb choices is in
 [Activity Vocabulary Design](../../../topics/activity_vocabulary_design.md).
+A full mapping of Vultron to ActivityStreams is in the
+[Vultron ActivityStreams Ontology](../../../reference/ontology/vultron_as.md).
 
-The Vultron AS activities are organized by user flow.
-Each of these user flows shows the activities that are used to perform a specific
-task. The user flows are:
+If you want a guided first pass rather than a task recipe, start with
+[Tutorials](../../../tutorials/index.md).
+
+---
+
+## Report and case lifecycle
 
 <div class="grid cards" markdown>
 
-- :material-message-alert: [Reporting a Vulnerability](./report_vulnerability.md)
-- :material-text-box-check: [Acknowledging a Report](./acknowledge.md)
-- :material-briefcase-plus: [Initializing a Case](./initialize_case.md)
-- :material-briefcase-edit: [Managing a Case](./manage_case.md)
-- :fontawesome-solid-person-circle-plus: [Suggest Actor for Case](./suggest_actor.md)
-- :fontawesome-solid-people-arrows: [Inviting an Actor to a Case](./invite_actor.md)
-- :fontawesome-solid-person-circle-check: [Initializing a Participant](./initialize_participant.md)
-- :fontawesome-solid-people-group: [Managing Participants](./manage_participants.md)
-- :material-calendar-start: [Establishing an Embargo](./establish_embargo.md)
-- :material-calendar-edit: [Managing an Embargo](./manage_embargo.md)
-- :material-message-plus: [Status Updates](./status_updates.md)
-- :material-database-sync: [Ledger Replication and Case Seeding](./ledger_replication.md)
-- :fontawesome-solid-user-shield: [Role Delegation](./role_delegation.md)
-- :material-lightning-bolt-circle: [Error Handling](./error.md)
+- :material-message-alert: [How to Report a Vulnerability](./report_vulnerability.md)
+- :material-text-box-check: [How to Acknowledge a Report](./acknowledge.md)
+- :material-briefcase-plus: [How to Initialize a Case](./initialize_case.md)
+- :material-briefcase-edit: [How to Advance a Case Through Report Management](./manage_case.md)
+- :material-message-plus: [How to Publish a Status Update or a Note](./status_updates.md)
+
+</div>
+
+---
+
+## Participants and roles
+
+<div class="grid cards" markdown>
+
+- :fontawesome-solid-person-circle-plus: [How to Suggest an Actor for a Case](./suggest_actor.md)
+- :fontawesome-solid-people-arrows: [How to Invite an Actor to a Case](./invite_actor.md)
+- :fontawesome-solid-person-circle-check: [How to Seat a Participant on an Existing Case](./initialize_participant.md)
+- :fontawesome-solid-people-group: [How to Manage a Case Roster](./manage_participants.md)
+- :fontawesome-solid-user-shield: [How to Delegate a Role to Another Participant](./role_delegation.md)
+
+</div>
+
+---
+
+## Embargoes and faults
+
+<div class="grid cards" markdown>
+
+- :material-calendar-start: [How to Establish an Embargo](./establish_embargo.md)
+- :material-calendar-edit: [How to Revise or Terminate an Embargo](./manage_embargo.md)
+- :material-lightning-bolt-circle: [How to Report a Protocol Fault](./error.md)
 
 </div>
