@@ -29,7 +29,7 @@ from typing import TypeAlias
 
 from pydantic import Field, field_serializer, field_validator
 
-from vultron.core.models.enums import VultronObjectType as VO_type
+from vultron.enums.object_types import VultronObjectType as VO_type
 from vultron.enums.roles import CVDRole
 from vultron.wire.as2.vocab.base.links import ActivityStreamRef
 from vultron.wire.as2.vocab.objects.base import VultronAS2Object
