@@ -902,9 +902,12 @@ list, or auto-fix behavior of `lint-docs`.
 
 **`documentation-sweeps.md`**
 Why relocating a documentation claim is not verifying it: the "re-reading in a
-new context" insight, the two witness sessions (#3342, #3002), and what agents
-must do when moving or republishing content (verify every claim against its
-authority; prefer `{% include-markdown %}` over copying).
+new context" insight, the two witness sessions (#3342 over `specs/`, #3002 over
+`docs/`), and what agents must do when moving or republishing content (verify
+every claim against its authority; prefer `{% include-markdown %}` over copying).
+Records the three fragment mechanics that bite — placement beside the host pages,
+include paths relative to the including file, and the fact that extraction moves
+prose out of `lint-docs`' target set until #3318 lands.
 Normative anchors: DF-10-001, DF-10-002.
 **Load when**: performing any documentation sweep (naming, Diátaxis extraction,
 page split), or deciding how to share content across two docs/ locations.

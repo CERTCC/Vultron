@@ -8,6 +8,8 @@ description: >
 related_notes:
   - notes/diataxis-framework.md
   - notes/documentation-strategy.md
+related_specs:
+  - specs/diataxis-requirements.yaml
 ---
 
 # Documentation Sweeps — Verification Budget
@@ -45,23 +47,47 @@ location with more authority than it had in the first.
 
 ### Witness 1 — #3342 (CaseActor → CASE_MANAGER rename, 2026-09-17)
 
-A naming sweep forced re-reading of the rationale text surrounding each
-occurrence of `CaseActor`.
-That reading exposed CM-20-001/004/005, which claimed to `refines:` CBT-01-003
-while asserting its opposite.
-The specs had coexisted on `main` until the sweep.
+A naming sweep over `specs/*.yaml` forced re-reading of the rationale text
+surrounding each occurrence of `CaseActor`.
+That reading exposed CM-20-001, CM-20-004 and CM-20-005, which contradicted
+CBT-01-003 while resting on it.
+Only CM-20-001 carried the contradiction structurally, in a declared
+`refines: CBT-01-003` relation.
+CM-20-004 and CM-20-005 cited CBT-01-003 in their rationale prose instead, which
+is why no relation check could have found them and only reading could.
+The three had coexisted with CBT-01-003 on `main` until the sweep corrected them
+in commit `2b0184756`.
 Recorded in `plan/incoming/learnings/20260917-3342-caseactor-rename-keeps-infrastructure-concrete.md`.
+
+This witness therefore sits outside DF-10's `docs/` scope.
+The mechanism is not specific to either tree: DF-10 makes it normative for
+`docs/` because that is where sweeps are most common, not because prose elsewhere
+is exempt from the same failure.
 
 ### Witness 2 — #3002 (Diátaxis extraction, 2026-09-18)
 
-A Diátaxis extraction copied a Mermaid diagram from `docs/howto/acknowledge.md`
-onto a new `docs/topics/` Explanation page.
-Reading the diagram as a set of claims — not as page furniture — exposed three
-wrong AS2 verb attributions that had survived issue #2785, whose stated purpose
-was correcting accuracy errors on those same pages.
-The near-miss: the new Explanation page almost shipped telling implementers to
-emit `Leave(VulnerabilityReport)`, an activity matching no registered
-`ActivityPattern`.
+A Diátaxis extraction copied a Mermaid diagram from
+`docs/howto/activitypub/activities/acknowledge.md` onto a new `docs/topics/`
+Explanation page.
+Reading the copied diagram and its source page as sets of claims — not as page
+furniture — exposed two wrong AS2 verb attributions and one wrong state label
+across `acknowledge.md`, `manage_case.md` and `report_vulnerability.md`:
+`RmInvalidateReport` placed under `as:Reject` when its wire class is
+`as_TentativeReject`; `RmCloseReport` placed under `as:Leave` when it is
+`as_Reject`; and the post-validation state written `RM:VALIDATED` when the state
+is `RM.VALID`.
+
+Those defects had survived #2785, an earlier pass whose express purpose was
+correcting accuracy errors in this same directory — but whose acceptance
+criteria named four other pages, so it never read these.
+Proximity to a prior accuracy sweep is not coverage by it.
+
+The sharpest instance: `acknowledge.md` prose asserted that both report closures
+were `as:Leave` subclasses, and no registered `ActivityPattern` pairs `Leave`
+with a report — the only `Leave` pattern in
+`vultron/wire/as2/extractor/_instances.py` pairs it with `VulnerabilityCase`.
+Republished onto an Explanation page, whose job is to justify the design, that
+sentence reads as implementation guidance.
 Defects filed as #3395.
 
 ## What agents must do when moving content
@@ -92,9 +118,33 @@ When the same content legitimately belongs on two pages, create an
 One authoritative source, multiple render points — drift is structurally
 impossible (DF-10-002).
 
-Fragment naming convention: `docs/includes/_<slug>.md`.
-The fragment itself must satisfy all style rules applicable to the quadrant of
-each host page (DF-09-007, DF-09-008).
+Three mechanics matter, and getting any of them wrong costs more than the copy
+would have.
+
+**Placement.** Put the fragment where its hosts are — a `_<slug>.md` file
+alongside the pages that include it, which is what the existing fragments do
+(`docs/topics/process_models/cs/_events_sigma.md`,
+`docs/reference/vultron-spec/includes/_rm-states-table.md`).
+Reserve `docs/includes/` for banners included from across the whole tree
+(`normative.md`, `not_normative.md`); its files carry no `_` prefix.
+
+**Path.** The include argument resolves relative to the *including* file, never
+to `docs/`.
+`mkdocs.yml` configures the plugin with no `base_path`, and every existing
+directive is relative — `{% include-markdown "./_events_sigma.md" %}`,
+`{% include-markdown "../../../includes/normative.md" %}`.
+A `docs/`-rooted argument fails the strict build.
+
+**Lint scope.** A fragment is linted as source for sentence- and block-scoped
+rules, while page-scoped rules — acronym first use, concept order, page
+furniture — are evaluated against the assembled page instead (DF-09-007).
+Quadrant, and so the voice rules, comes from every page that includes the
+fragment rather than from the fragment's own directory (DF-09-008).
+Until #3318 lands, `lint-docs` drops both `docs/includes/**` and `_*.md` from
+its target set, so a fragment you create today is unlinted and its prose needs a
+manual pass.
+Extracting a fragment therefore moves prose *out* of automated lint scope, which
+is one more reason the claims in it must be verified at the moment of the move.
 
 ### Scope the verification budget before starting
 

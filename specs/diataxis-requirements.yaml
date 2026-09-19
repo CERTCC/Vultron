@@ -2,7 +2,7 @@ id: DF
 title: Diátaxis documentation requirements
 description: >-
   Brief requirements for organizing project documentation according to the Diátaxis framework.
-version: 1.2.0
+version: 1.3.0
 scope:
 - prototype
 - production
@@ -435,15 +435,15 @@ groups:
     rationale: >-
       A sweep's success criterion is usually "all content accounted for," which a faithful copy
       satisfies perfectly while propagating a false statement to a second location with more
-      authority than it had in the first. Two sessions confirmed this: the CaseActor rename (#3342)
-      surfaced stale-premise contradictions in CM-20-001/004/005, and a Diátaxis extraction (#3002)
-      exposed three wrong AS2 verb attributions (#3395) that had survived a prior accuracy-fix
-      sweep (#2785). In both cases the defect was invisible in the source context but became
-      falsifiable the moment it was read as a first-class assertion in the destination context.
+      authority than it had in the first. Such a defect is invisible in the source context and
+      becomes falsifiable only once it is read as a first-class assertion in the destination. Two
+      sessions confirmed the mechanism (#3002 under `docs/`, #3342 over `specs/`); witnesses and
+      defect detail in `notes/documentation-sweeps.md`.
     verification: >-
-      When reviewing a PR whose description identifies it as a sweep, each claim that is new to
-      the destination page (not previously present there) is traceable to a code path, spec entry,
-      or reference page that confirms it.
+      For any diff that adds a block to a `docs/` page which appears verbatim or near-verbatim
+      elsewhere under `docs/` (or removes it from another page in the same change), each claim in
+      that block is traceable to a code path, spec entry, or reference page that confirms it. The
+      check is driven by the diff, not by whether the change describes itself as a sweep.
   - id: DF-10-002
     priority: SHOULD
     kind: process
@@ -453,11 +453,12 @@ groups:
       multiple render points.
     rationale: >-
       Copied prose drifts silently: one copy is updated, the other is not, and both pass lint
-      because neither is wrong by itself. The fragment/assembly-unit model in
-      `notes/documentation-strategy.md` already establishes `{% include-markdown %}` as the
-      correct pattern; this entry makes it normative and gives sweeps an explicit escape hatch
-      when content genuinely belongs in two places.
+      because neither is wrong by itself. DRY is already a project standard (CS-22-001) and the
+      tree already assembles pages from fragments, so this names the existing mechanism as the
+      required one. Extraction moves prose out of `lint-docs`' target set until #3318 lands,
+      raising rather than lowering the DF-10-001 obligation. Placement and include-path mechanics:
+      `notes/documentation-sweeps.md`.
     verification: >-
       Inspection confirms that content appearing on more than one page either (a) uses
-      `{% include-markdown %}` or (b) has a documented reason why a shared fragment is
-      inappropriate for that case.
+      `{% include-markdown %}` with a path relative to each including file or (b) has a documented
+      reason why a shared fragment is inappropriate for that case.

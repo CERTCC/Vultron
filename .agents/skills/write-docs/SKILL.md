@@ -98,9 +98,20 @@ from the source:
    code, a `specs/*.yaml` entry, or a `docs/reference/` page. Do not inherit
    correctness from the source location (DF-10-001).
 3. **Prefer includes over copying.** When the same content belongs on two pages,
-   create an `{% include-markdown %}` fragment under `docs/includes/_<slug>.md`
-   rather than copying prose. One authoritative source, multiple render points —
-   silent drift is structurally impossible (DF-10-002).
+   create an `{% include-markdown %}` fragment rather than copying prose. One
+   authoritative source, multiple render points — silent drift is structurally
+   impossible (DF-10-002). Three mechanics:
+   - **Placement** — a `_<slug>.md` file alongside the pages that include it.
+     `docs/includes/` is reserved for whole-tree banners (`normative.md`) and its
+     files carry no `_` prefix.
+   - **Path** — relative to the *including* file, never rooted at `docs/`. There
+     is no `base_path` configured, so `{% include-markdown "./_slug.md" %}` and
+     `{% include-markdown "../../includes/normative.md" %}` are the shapes that
+     resolve; a `docs/`-rooted argument fails the strict build.
+   - **Lint scope** — `lint-docs` drops `docs/includes/**` and `_*.md` until
+     #3318 lands, so lint the new fragment by hand. Page-scoped rules belong to
+     the assembled page, not the fragment (DF-09-007); quadrant comes from each
+     host page (DF-09-008).
 
 The move is not complete until every claim that is now a first-class assertion
 on this page has been confirmed. Flag any claim that cannot be verified as a

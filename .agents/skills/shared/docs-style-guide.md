@@ -280,6 +280,14 @@ a `## Further reading` link list with em-dash annotations, or both.
 by length. A long reference page is correct; a three-paragraph explanation page
 is correct.
 
+**SG-43 — Shared content is included, not copied.** A paragraph, table, or
+diagram that belongs on more than one page becomes an `{% include-markdown %}`
+fragment — a `_<slug>.md` file beside its hosts, referenced by a path relative to
+each including file. Never copy the block. A copy passes lint on both pages
+because neither is wrong by itself, then drifts when one is updated. Reported,
+never auto-fixed: whether the duplication is intentional is the author's call.
+Normative anchors: DF-10-001, DF-10-002.
+
 ---
 
 ## 10. Rule index
@@ -308,6 +316,7 @@ a recommendation.
 | SG-36 | ASCII art grandfathered | |
 | SG-37 | American spelling | yes |
 | SG-38, SG-39, SG-40, SG-41, SG-42 | Line breaks, headings, furniture | |
+| SG-43 | Shared content included, not copied | |
 
 ---
 
