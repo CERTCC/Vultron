@@ -70,12 +70,14 @@ A Diátaxis extraction copied a Mermaid diagram from
 `docs/howto/activitypub/activities/acknowledge.md` onto a new `docs/topics/`
 Explanation page.
 Reading the copied diagram and its source page as sets of claims — not as page
-furniture — exposed two wrong AS2 verb attributions and one wrong state label
-across `acknowledge.md`, `manage_case.md` and `report_vulnerability.md`:
-`RmInvalidateReport` placed under `as:Reject` when its wire class is
-`as_TentativeReject`; `RmCloseReport` placed under `as:Leave` when it is
-`as_Reject`; and the post-validation state written `RM:VALIDATED` when the state
+furniture — exposed wrong AS2 verb attributions repeated across
+`acknowledge.md`, `manage_case.md` and `report_vulnerability.md`:
+`RmInvalidateReport` filed under `as:Reject` when its wire class is
+`as_TentativeReject`, `RmCloseReport` filed under `as:Leave` when it is
+`as_Reject`, and the post-validation state written `RM:VALIDATED` when the state
 is `RM.VALID`.
+The same pairing was wrong in several places at once, because each page had
+copied it from the last.
 
 Those defects had survived #2785, an earlier pass whose express purpose was
 correcting accuracy errors in this same directory — but whose acceptance
@@ -89,6 +91,16 @@ with a report — the only `Leave` pattern in
 Republished onto an Explanation page, whose job is to justify the design, that
 sentence reads as implementation guidance.
 Defects filed as #3395.
+
+This particular class is now ratcheted: `test/architecture/test_docs_activity_verbs.py`
+reads the verb each activity class and each registered `ActivityPattern` actually
+declares, and fails when a `docs/` page pairs an activity with a different one
+(#3402).
+Note what the ratchet does *not* cover, which is the general case this note is
+about: it checks one narrow family of claim — activity-to-verb pairings — and
+only where the page writes them in one of two recognised shapes.
+A ratchet for the claim class you just moved is the best possible outcome of a
+sweep; it is not a substitute for reading.
 
 ## What agents must do when moving content
 
