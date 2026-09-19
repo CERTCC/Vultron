@@ -246,10 +246,12 @@ def accept_case_participant_offer_activity(
     # rehydrated from the DataLayer as a core type) are coerced to wire types.
     # serialize_as_any=True prevents PydanticSerializationUnexpectedValue when the
     # inner object_ is a core model; json round-trip normalises field aliases.
-    typed_offer = _OfferCaseParticipantActivity.model_validate(
-        json.loads(offer.model_dump_json(by_alias=True, serialize_as_any=True))
-    )
     try:
+        typed_offer = _OfferCaseParticipantActivity.model_validate(
+            json.loads(
+                offer.model_dump_json(by_alias=True, serialize_as_any=True)
+            )
+        )
         return _AcceptCaseParticipantOfferActivity(
             object_=typed_offer,
             target=target,
