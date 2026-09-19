@@ -95,13 +95,19 @@ The concrete form:
    (or a mapping of factories) as a parameter with the fuzzer factory as
    the default. This is the canonical swap mechanism.
 
-5. The five capability shapes (Evaluator, Retriever, Sentinel, Composer, Actuator
-   from ADR-0024) each define a **lifecycle pattern** — how the node reads
+5. The capability shapes each define a **lifecycle pattern** — how the node reads
    input from the blackboard, dispatches to the backend, and writes output
    back. Concrete call-out point nodes subclass the appropriate shape base
    class and declare their specific I/O keys and types. The shape base
    class is NOT reusable generically; it documents the lifecycle pattern and
    defines the hook points.
+
+   > **Amended by ADR-0097.** There are four call-out shapes (Evaluator,
+   > Retriever, Composer, Actuator); Sentinel is a call-in pattern and has no
+   > shape base class. The shape base classes are **core-owned** and named for
+   > capabilities, and a capability's I/O declaration is a py_trees typed-port
+   > declaration (ADR-0044) rather than a docstring or a simulation-layer dict —
+   > which is what lets a core default read the contract it must satisfy.
 
 ### Consequences
 
@@ -213,6 +219,14 @@ There are three logical backend modes:
 
 Deterministic is the default everywhere. The p=0.5 tie-breaking direction is
 `AlwaysSucceed` (happy-path forward progress).
+
+> **Amended by ADR-0097.** The ceiling/floor rule selects the SUCCESS/FAILURE
+> *direction* only. For a capability that declares output ports, the DETERMINISTIC
+> default must also write type-conformant values to every declared port, so a
+> bare `AlwaysSucceed` is not a conforming default for such a capability
+> (BT-23-013). Otherwise the capability reports success with no data, the
+> downstream gate reads an absent key, and the arm no-ops — defeating the forward
+> progress the rule exists to produce.
 
 **Security-significant gate exception (ADR-0076):** For call-out points whose
 permissive default enables unilateral state change or embargo consequences —

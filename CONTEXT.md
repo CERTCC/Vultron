@@ -57,11 +57,12 @@ on its own and must request input — a fact, a decision, or content — from an
 *Avoid*: decision point (reserved for SSVC scoring trees), touchpoint, integration point
 
 **Capability shape**:
-One of the five abstract interface contracts (Sentinel, Evaluator, Retriever, Composer,
-Actuator) that characterises the interaction pattern between a call-out point and the protocol.
+One of the four abstract interface contracts (Evaluator, Retriever, Composer, Actuator)
+that characterises the interaction pattern between a call-out point and the protocol.
 A capability shape does not prescribe the implementation — the implementation (function, human
 workflow, LLM agent) is a deployment-time decision.
-*Avoid*: Coordination Agent (retired; see ADR-0024)
+*Avoid*: Coordination Agent (retired; see ADR-0024); "the five shapes"; "Sentinel shape"
+(Sentinel is a call-in pattern, not a shape — ADR-0097, BT-18-013)
 
 **Capability**:
 A specific named call-out point with its own blackboard contract (e.g., `EvaluateReportCredibility`).
@@ -71,13 +72,7 @@ A capability implements one capability shape for a particular domain context.
 The factory backend fulfilling a capability at runtime. May be a Python function, a human
 workflow, a rules engine, or an LLM agent — any callable that honours the blackboard contract.
 
-The five canonical capability shapes:
-
-**Sentinel**:
-A capability shape that monitors a condition and, when the condition is met, calls a Vultron
-trigger endpoint to initiate a protocol action. Sentinels are proactive — they loop or watch;
-they are not called by the protocol. A Sentinel has no BT call-out point.
-*Avoid*: watcher, monitor (as standalone shape names)
+The canonical capability shapes:
 
 **Evaluator**:
 A capability shape that is called by the protocol with a described situation and a set of
@@ -103,6 +98,17 @@ A capability shape that receives a trigger and context, invokes an external syst
 side effect (notification dispatch, state write, queue mutation, API call), and returns SUCCESS
 when the side effect is confirmed. Does not produce a content artifact on the blackboard.
 *Avoid*: executor, dispatcher (these are valid sub-types but not the canonical shape name)
+
+Not a capability shape:
+
+**Sentinel**:
+A **call-in integration pattern**, not a capability shape (ADR-0097, BT-18-013). A process
+that monitors a condition and, when it is met, acts on its own initiative — calling a Vultron
+trigger endpoint, or emitting protocol messages if it is itself a case participant. The
+protocol never consults it, so it has no call-out point, no blackboard contract, and no
+backend factory. The discriminator is *who initiates*, not whether the information is
+external. Design work belongs to Agentic Participants (#2450).
+*Avoid*: watcher, monitor (as standalone names); "Sentinel capability"; "Sentinel shape"
 
 ---
 

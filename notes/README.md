@@ -850,12 +850,15 @@ CM-21-006, CM-21-007), auditing transfer routing in demos, or understanding
 why the CASE_MANAGER must be the intermediary for ownership transfers.
 
 **`coordination-agents.md`**
-Design guidance for capability shapes — the five abstract interface contracts
-(Sentinel, Evaluator, Retriever, Composer, Actuator) that answer Vultron
+Design guidance for capability shapes — the four abstract interface contracts
+(Evaluator, Retriever, Composer, Actuator) that answer Vultron
 call-out points. Covers the two-surface integration model (trigger endpoints =
-call-in; call-out points = call-out), the three-level taxonomy (shape /
-capability / capability implementation), the trust/execution-authority axis,
-composite capability design, and the fuzzer-node discovery methodology.
+call-in; call-out points = call-out), the three-surface routing table
+(call-out vs. protocol ask vs. call-in), the three-level taxonomy (shape /
+capability / capability implementation), the core-declared typed-port contract,
+the trust/execution-authority axis,
+composite capability design, and the fuzzer-node discovery methodology. Records
+why the **Sentinel** pattern is call-in rather than a fifth shape (ADR-0097).
 **Load when**: designing a new capability or call-out point integration,
 working on the fuzzer-to-capability replacement roadmap, or explaining the
 capability shape concept to new contributors.
