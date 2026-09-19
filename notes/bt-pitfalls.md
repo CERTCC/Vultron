@@ -9,8 +9,10 @@ description: >
 related_specs:
   - specs/behavior-tree-integration.yaml
   - specs/behavior-tree-node-design.yaml
+  - specs/case-proposal.yaml
 related_notes:
   - notes/bt-integration.md
+  - notes/call-out-configuration.md
   - notes/bt-canonical-reference.md
   - notes/bt-design-patterns.md
   - notes/domain-validation.md
@@ -967,3 +969,94 @@ call sites. Design rationale: [protocol-asks.md](protocol-asks.md) § "The
 invariant is enforced, not just observed".
 
 Source: ISSUE-3194 (BT-18-011, ADR-0080)
+
+---
+
+## A Refusal Arm in a Selector Fails Toward "Admit"
+
+A Selector falls through to its next child on FAILURE. Put a *refusal* in one of
+its arms and you have built a gate whose failure direction is the thing it exists
+to prevent: any failure inside the arm hands control to the permissive branch.
+
+`_EmitSingleActivityBase.update()` makes this reachable rather than theoretical —
+it catches **every** exception and returns FAILURE. So a decline arm that emits
+through the shared seam turns a missing wire payload, an uninjected
+`TriggerActivityPort`, or a transient store error into "proceed with the accept
+flow". In the case-proposal admission gate (CP-05-002) that produced a *full
+accept* under a declining policy: case created, canonical ledger entries
+committed, `Accept` + `Create` queued, tree status SUCCESS. Strictly worse than
+having no gate, because the caller is told the refusal succeeded.
+
+Ordering the arms does not fix it. Putting the refusal *first* stops the reverse
+error (a mid-flow accept failure emitting a refusal after the effects,
+CLP-10-009) but not this one, and there is no Selector arrangement that closes
+both — a Selector cannot express "the guard passed, commit to this arm".
+
+**The fix is durable state, not structure.** Persist the decision *before* the
+side effect, and make its absence a precondition of the permissive arm:
+
+```text
+Selector
+  ├─ AlreadyDeclinedArm      # record exists → decision stands; ensure the Reject went out
+  ├─ DeclineProposalArm      # Inverter(evaluate) → RECORD → emit
+  └─ AcceptProposalArm
+       ├─ CheckNoDeclineRecordNode   # FAILURE when the record exists
+       └─ <accept flow>
+```
+
+Now a failed emit leaves the record, the accept arm refuses, and the tree fails
+loudly instead of admitting. Three further properties fall out of writing the
+record first, and each is worth having:
+
+- **Redelivery is idempotent** — the decision is not re-made, so a retrying peer
+  is not answered afresh each time, and a stateful or stochastic backend cannot
+  reverse itself.
+- **A lost side effect is recoverable** — "decided, nothing emitted" is a
+  distinguishable state, so the next delivery can complete the obligation. This
+  is the same ordering `PendingCreateCaseActivity` uses for the accept side
+  (CP-05-005).
+- **The reason survives** — a re-emitted refusal reads its explanation from the
+  record rather than from a constructor argument, so it matches the original
+  decision.
+
+### Moving the barrier one node up does not fix it
+
+The first attempt at this fix put the record write immediately before the emit,
+which closed the emit failure and nothing else. The arm had four children; the
+barrier now sat at child 3, so children 1–2 failing still admitted. An
+adversarial pass reproduced it: make the "was this already answered?" guard's
+store read raise, and a *declining* policy created the case and queued
+`Accept` + `Create` without the backend ever being consulted.
+
+**In a refusal arm, a guard has no safe status to return when it cannot answer.**
+FAILURE runs the permissive arm. SUCCESS skips the refusal arm and runs it too.
+Both directions of "I could not tell" mean admit. So:
+
+> Every node in a refusal arm ahead of the durable write MUST let its errors
+> propagate. `BTBridge` converts an escaped exception into whole-tree FAILURE,
+> which is the only outcome that neither admits nor silently refuses.
+
+This inverts the usual convention that `update()` is the sole `try/except`
+(BT-HELPER-01). That convention assumes FAILURE is a safe answer; in a refusal
+arm it is not. Catching an exception to "handle it gracefully" here is precisely
+how the permissive branch gets reached — the one node in this gate that tried
+hardest to be careful was the only unsafe one.
+
+### Two more traps in the same shape
+
+- **An "already answered" guard must cover every state the permissive path can
+  leave behind, not just its last step.** Keying on the stored `Accept` looked
+  proposal-precise, but the accept flow creates the case and commits its ledger
+  entries *before* emitting, so a delivery that failed in between left a case
+  with no `Accept`. A later refusal then rejected a half-built case *and*
+  recorded a decline that blocked the accept arm forever — the case could never
+  be completed. Treat "the permissive path has begun" as the question, and probe
+  the earliest durable evidence of it.
+- **"Persisted" is not "queued".** A resend guard that checks the object store
+  answers "already told them" for an activity that was written and then failed to
+  enqueue, so the refusal is lost and every later delivery reports success with an
+  empty outbox. Ask the outbox. Adapters commonly persist and *then* enqueue, so
+  the gap between the two is a reachable state, not a theoretical one.
+
+*Source: ISSUE-3399, found by two pre-PR review passes on #1315 — the second
+pass broke the first pass's fix.*

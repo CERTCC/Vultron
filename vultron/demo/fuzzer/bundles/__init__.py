@@ -47,6 +47,11 @@ from vultron.demo.fuzzer.bundles.assign_vul_id import (
     ASSIGN_VUL_ID_STOCHASTIC,
     AssignVulIdCallOutBundle,
 )
+from vultron.demo.fuzzer.bundles.case_proposal import (
+    CASE_PROPOSAL_DETERMINISTIC,
+    CASE_PROPOSAL_STOCHASTIC,
+    CaseProposalCallOutBundle,
+)
 from vultron.demo.fuzzer.bundles.close_report import (
     CLOSE_REPORT_DETERMINISTIC,
     CLOSE_REPORT_STOCHASTIC,
@@ -101,6 +106,7 @@ __all__ = [
     "AssignCveIdCallOutBundle",
     "DevelopFixCallOutBundle",
     "AssignVulIdCallOutBundle",
+    "CaseProposalCallOutBundle",
     "CloseReportCallOutBundle",
     "DeployFixCallOutBundle",
     "DeployMitigationCallOutBundle",
@@ -115,6 +121,7 @@ __all__ = [
     "ASSIGN_CVE_ID_DETERMINISTIC",
     "DEVELOP_FIX_DETERMINISTIC",
     "ASSIGN_VUL_ID_DETERMINISTIC",
+    "CASE_PROPOSAL_DETERMINISTIC",
     "CLOSE_REPORT_DETERMINISTIC",
     "DEPLOY_FIX_DETERMINISTIC",
     "EMBARGO_DETERMINISTIC",
@@ -129,6 +136,7 @@ __all__ = [
     "ASSIGN_CVE_ID_STOCHASTIC",
     "DEVELOP_FIX_STOCHASTIC",
     "ASSIGN_VUL_ID_STOCHASTIC",
+    "CASE_PROPOSAL_STOCHASTIC",
     "CLOSE_REPORT_STOCHASTIC",
     "DEPLOY_FIX_STOCHASTIC",
     "DEPLOY_MITIGATION_DETERMINISTIC",

@@ -11,7 +11,9 @@ related_specs:
   - specs/behavior-tree-integration.yaml
   - specs/received-status-handling.yaml
   - specs/em-behavior.yaml
+  - specs/case-proposal.yaml
 related_notes:
+  - notes/bt-pitfalls.md
   - notes/coordination-agents.md
   - notes/bt-fuzzer-nodes.md
   - notes/configuration.md
@@ -171,6 +173,27 @@ criterion. They are called out here because a future reader auditing for
   legitimate voluntary-exit path. Not security-significant. (The received-side
   teardown path *is* covered — by `EmbargoTeardownAuthorizationGate`, above.)
 
+### Case-proposal admission — permissive, and not a BT-23-012 gate
+
+`CaseProposalCallOutBundle.evaluate_proposal_factory` (`EvaluateCaseProposal`,
+p=0.90 → `AlwaysSucceed`) is the case actor service's admission decision on an
+inbound `Create(as_CaseProposal)` (CP-05-002). It looks security-adjacent —
+declining it is the only way a service can refuse work — but it fails the
+BT-23-012 criterion, which asks whether a permissive backend lets a party *other
+than the Case Owner* force canonical case-state adoption or embargo teardown.
+Admitting a proposal creates a **new** case in which the proposing actor becomes
+the `CASE_OWNER`; no existing case's agreed state is touched and no other
+participant's embargo is affected. The ceiling/floor rule governs it.
+
+The permissive default is also load-bearing for compatibility: before this seam
+existed the service admitted unconditionally, so `AlwaysSucceed` is what keeps an
+unconfigured deployment behaving as it did (BT-23-001, BT-23-011).
+
+What the gate *is* for is admission policy — who may propose, how many open cases
+one actor may hold, whether the inline report is substantive. A deployment that
+wants any of that injects its own bundle. Without the seam that policy had
+nowhere to live, which is what #3399 recorded.
+
 ### Remaining gates
 
 Every other bundle field (report validation, prioritization, CVE/vulnerability
@@ -180,6 +203,11 @@ proposal/response evaluators) is a **local operational decision** — the actor'
 own triage, data retrieval, or content production — with no mechanism to impose
 canonical case state or an embargo consequence on another party. The
 ceiling/floor rule (BT-23-002/006/007) governs them.
+
+Note that `test_security_significant_defaults.py` discovers bundle singletons
+**reflectively** by walking the `bundles` package modules, so a newly added
+bundle is audited automatically. A new gate still owes this section a written
+verdict; the test only proves the verdict was applied, not that it was reasoned.
 
 ### Outcome
 

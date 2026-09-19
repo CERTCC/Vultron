@@ -160,6 +160,16 @@ Capabilities marked with a shape label are call-out points — Vultron calls you
 - **NewPrioritizationInfoSentinel** (Sentinel) — fires when new prioritization-relevant information arrives
 - **OnAccept** / **OnDefer** (Actuators) — notification hooks when a report is accepted or deferred
 
+### Case Admission
+
+*See also: [Propose case behavior](../behavior_logic/use-cases/propose-case.md), [Case Initialization](../case_lifecycle/case_initialization.md)*
+
+- **EvaluateCaseProposal** (Evaluator) — should this service open and manage a case for this proposal?
+
+This is the admission decision a case actor service makes on an inbound `Create(CaseProposal)`. It is the only place admission policy lives: whether the proposing actor is one you will work for, how many open cases one actor may hold, whether the inline report is substantive enough to coordinate. Returning FAILURE sends `Reject(CaseProposal)`; the default admits.
+
+Build this one if you run a case actor service for others. The decision is made before any case state is written, so a refusal leaves nothing behind.
+
 ### Embargo Management
 
 *See also: [Embargo behaviors](../behavior_logic/em_bt.md), [Evaluate proposed embargo](../behavior_logic/em_eval_bt.md), [Propose embargo](../behavior_logic/em_propose_bt.md), [Terminate embargo](../behavior_logic/em_terminate_bt.md)*

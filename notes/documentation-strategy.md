@@ -151,6 +151,29 @@ it is an invaluable reference for:
 3. **Correspondence with documentation**: The simulator trees correspond
    directly to the documentation in `docs/topics/behavior_logic/*.md`.
 
+### Three Views of Behavior, and Which One to Edit
+
+Behavior is documented from three directions. Writing into the wrong one is the
+recurring mistake, because all three describe "what an actor does".
+
+| View | Answers | Quadrant | Source of truth |
+|---|---|---|---|
+| `docs/topics/behavior_logic/*_bt.md` | What behavior does the protocol call for, and why | Explanation | *Designing Vultron* + the `vultron/bt/` simulator |
+| `docs/topics/behavior_logic/use-cases/` | Per use case: what is mechanical, what is delegated, what is emitted | Explanation | `vultron/core/behaviors/` + the RMB/EMB/CSB/CP specs |
+| `docs/reference/behaviors/` | What trees the prototype builds today | Reference | `vultron/core/behaviors/`, rendered at build time |
+
+The `*_bt.md` pages are **historical**: they are the original design and the
+formal behavioral specification, and `index.md` frames them that way. Do not
+update them to track implementation drift — that is what the other two views are
+for. They change only when the *design* changes.
+
+The `use-cases/` pages are the place for conceptual statements about current
+behavior: call-out points and the judgment each represents, the ordering
+constraints and why they are load-bearing, and the conformance obligations a
+participant carries regardless of whether it uses behavior trees. Keep node
+inventories out of them — a list of node names belongs in
+`docs/reference/behaviors/`, which generates it.
+
 ### Current-Implementation Reference
 
 `docs/reference/behaviors/` provides auto-generated reference documentation

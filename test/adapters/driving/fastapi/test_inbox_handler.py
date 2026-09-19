@@ -779,15 +779,23 @@ def test_make_dispatcher_close_case_gets_wire_render_port(monkeypatch):
 
 
 def test_case_proposal_port_factory_injects_actor_config(monkeypatch):
-    """_case_proposal_port_factory returns actor_config and wire_render_port.
+    """_case_proposal_port_factory returns actor_config and both ports.
 
     ``CreateCaseProposalReceivedUseCase`` needs ``default_case_roles`` so the
     CaseActor grants the proposing actor its real roles alongside CASE_OWNER
-    (CFG-07-002, CFG-07-004), and ``wire_render_port`` so ledger entries are
-    rendered via the wire adapter (issue #2287).
+    (CFG-07-002, CFG-07-004), ``wire_render_port`` so ledger entries are
+    rendered via the wire adapter (issue #2287), ``trigger_activity`` so the
+    admission decline path can emit Reject(as_CaseProposal) (CP-05-004), and
+    ``call_out`` as the admission-policy injection point (CP-05-002).
     """
+    from vultron.adapters.driven.trigger_activity_adapter import (
+        TriggerActivityAdapter,
+    )
     from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
     from vultron.config.actor import ActorConfig
+    from vultron.core.behaviors.call_out.bundles.case_proposal import (
+        CASE_PROPOSAL_DETERMINISTIC,
+    )
     from vultron.enums.roles import CVDRole
     import vultron.adapters.driving.fastapi.inbox_port_factories as pf
 
@@ -803,17 +811,32 @@ def test_case_proposal_port_factory_injects_actor_config(monkeypatch):
 
     assert kwargs["actor_config"] == fake
     assert isinstance(kwargs["wire_render_port"], As2WireRenderAdapter)
-    assert set(kwargs) == {"actor_config", "wire_render_port"}
+    assert isinstance(kwargs["trigger_activity"], TriggerActivityAdapter)
+    assert kwargs["call_out"] is CASE_PROPOSAL_DETERMINISTIC
+    assert set(kwargs) == {
+        "actor_config",
+        "wire_render_port",
+        "trigger_activity",
+        "call_out",
+    }
 
 
 def test_case_proposal_port_factory_omits_actor_config_when_unavailable(
     monkeypatch,
 ):
-    """The factory returns only wire_render_port when config load fails.
+    """The factory drops actor_config, keeping the ports, when config load fails.
 
     The owner gets CASE_OWNER only (no inherited role guess) but ledger
-    entries are still rendered via the wire adapter (issue #2287).
+    entries are still rendered via the wire adapter (issue #2287), and the
+    decline path can still emit Reject(as_CaseProposal) (CP-05-004) under the
+    default admission policy.
     """
+    from vultron.adapters.driven.trigger_activity_adapter import (
+        TriggerActivityAdapter,
+    )
+    from vultron.core.behaviors.call_out.bundles.case_proposal import (
+        CASE_PROPOSAL_DETERMINISTIC,
+    )
     from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
     import vultron.adapters.driving.fastapi.inbox_port_factories as pf
 
@@ -827,7 +850,13 @@ def test_case_proposal_port_factory_omits_actor_config_when_unavailable(
     )
 
     assert isinstance(kwargs["wire_render_port"], As2WireRenderAdapter)
-    assert set(kwargs) == {"wire_render_port"}
+    assert isinstance(kwargs["trigger_activity"], TriggerActivityAdapter)
+    assert kwargs["call_out"] is CASE_PROPOSAL_DETERMINISTIC
+    assert set(kwargs) == {
+        "wire_render_port",
+        "trigger_activity",
+        "call_out",
+    }
 
 
 def test_make_dispatcher_case_proposal_uses_actor_config_factory(monkeypatch):
