@@ -7,6 +7,7 @@ description: >
 related_notes:
   - notes/bt-integration.md
   - notes/case-state-model.md
+  - notes/documentation-sweeps.md
   - notes/message-type-reference.md
   - notes/rfc-spec-authoring.md
   - notes/spec-authoring-rules.md
@@ -289,6 +290,13 @@ of how the document was split, not a defect in the prose. Requiring acronym
 expansion in every fragment that uses an acronym renders one expansion per
 fragment on a single published page — twelve for "VFD", ten for "RM", nine for
 "EM", eight each for "CS" and "PEC".
+
+Note the direction this cuts while #3318 is open: extracting a fragment moves its
+prose *out* of `lint-docs`' target set, which drops both `docs/includes/**` and
+`_*.md`. Deduplicating by extraction is still right (DF-10-002), but it trades
+automated coverage for structural non-duplication, so the claims in an extracted
+fragment must be verified by hand at the moment of the move — see
+[documentation-sweeps.md](documentation-sweeps.md) and DF-10-001.
 
 Two things make this cheap rather than a tooling problem:
 
