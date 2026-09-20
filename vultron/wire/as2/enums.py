@@ -6,7 +6,7 @@ These enums map directly to ActivityStreams 2.0 vocabulary types.
 from enum import StrEnum
 from typing import cast
 
-from vultron.core.models.enums import VultronActorType
+from vultron.enums.object_types import VultronActorType
 
 
 class as_ObjectType(StrEnum):

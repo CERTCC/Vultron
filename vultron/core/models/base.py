@@ -15,14 +15,12 @@
 
 """Base class for Vultron Protocol core domain object models."""
 
-import re
 import types as _types
 import typing as _typing
 from datetime import datetime, timedelta
-from typing import Annotated, Any, ClassVar
+from typing import Any, ClassVar
 
 from pydantic import (
-    AfterValidator,
     BaseModel,
     ConfigDict,
     Field,
@@ -31,6 +29,7 @@ from pydantic import (
 
 from vultron.core.models._helpers import _new_urn, now_utc
 from vultron.core.models.registry import CORE_TYPE_MAP, CORE_VOCABULARY
+from vultron.primitives import NonEmptyString, UriString  # noqa: F401
 
 
 class ValidatedAssignmentMixin(BaseModel):
@@ -45,26 +44,6 @@ class ValidatedAssignmentMixin(BaseModel):
     """
 
     model_config = ConfigDict(validate_assignment=True)
-
-
-def _non_empty(v: str) -> str:
-    if not v.strip():
-        raise ValueError("must be a non-empty string")
-    return v
-
-
-NonEmptyString = Annotated[str, AfterValidator(_non_empty)]
-
-_URI_SCHEME_RE = re.compile(r"^[a-zA-Z][a-zA-Z0-9+\-.]*:[^\s]")
-
-
-def _valid_uri(v: str) -> str:
-    if not _URI_SCHEME_RE.match(v):
-        raise ValueError("must be a URI (e.g. urn:uuid:... or https://...)")
-    return v
-
-
-UriString = Annotated[NonEmptyString, AfterValidator(_valid_uri)]
 
 
 class VultronBase(BaseModel):

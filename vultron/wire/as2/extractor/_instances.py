@@ -8,7 +8,7 @@ Pattern ordering does **not** matter here — ordering is enforced by the
 registry in ``vultron/semantic_registry/``.
 """
 
-from vultron.core.models.enums import VultronObjectType as VOtype
+from vultron.enums.object_types import VultronObjectType as VOtype
 from vultron.wire.as2.enums import (
     as_ObjectType as AOtype,
     as_TransitiveActivityType as TAtype,
