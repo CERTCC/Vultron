@@ -247,133 +247,142 @@ def _phase_report_submission(
         timeout_seconds=60.0,
     )
 
-    # Wait for the initial participants (Finder + C1 + CaseActor) before
-    # inviting V1 and C2.
-    wait_for_case_participants(
-        vendor_client=c1_client,
-        case_id=case.id_,
-        expected_actor_ids={finder.id_, c1.id_},
-    )
-
-    with demo_check(
-        "Finder's DataLayer received case replica (genesis hash available)"
-    ):
-        wait_for_case_on_container(
-            client=finder_client,
+    # Causal precondition: the initial case (Finder + C1 present on C1's
+    # replica) must exist before V1 and C2 are invited.  A demo_gate — not
+    # demo_check — so a timeout skips the doomed invite/admit chain rather than
+    # cascading (DEMOCI-01-011, vultron/demo/AGENTS.md § "Never Wrap a Causal
+    # Wait in demo_check").
+    with demo_gate("C1 case has Finder + C1 before inviting V1 and C2"):
+        wait_for_case_participants(
+            vendor_client=c1_client,
             case_id=case.id_,
+            expected_actor_ids={finder.id_, c1.id_},
         )
 
-    # C1 invites V1 with CVDRole.VENDOR.
-    invite_v1_result = None
-    with demo_step("C1 invites V1 with CVDRole.VENDOR"):
-        invite_v1_result = post_to_trigger(
-            client=c1_client,
-            actor_id=c1_in_c1.id_,
-            behavior="invite-actor-to-case",
-            body={
-                "case_id": case.id_,
-                "invitee_id": v1.id_,
-                "roles": ["vendor"],
-            },
-        )
-    invite_v1 = as_TransitiveActivity.model_validate(
-        invite_v1_result["activity"]
-    )
-    logger.info("V1 invite created: %s", invite_v1.id_)
-
-    invite_v1_id = None
-    with demo_gate("CaseActor-routed Invite for V1 stored in V1's DataLayer"):
-        invite_v1_id = find_case_invite_for_actor(
-            client=v1_client,
-            case_id=case.id_,
-            invitee_id=v1.id_,
-        )
-    logger.info("CaseActor Invite for V1: %s", invite_v1_id)
-
-    with demo_step("V1 accepts the case invitation"):
-        post_to_trigger(
-            client=v1_client,
-            actor_id=v1_in_v1.id_,
-            behavior="accept-case-invite",
-            body={"invite_id": invite_v1_id},
-        )
-
-    with demo_check("V1's DataLayer received case replica"):
-        wait_for_case_on_container(
-            client=v1_client,
-            case_id=case.id_,
-        )
-
-    with demo_check(
-        "Finder's DataLayer received case replica before V1 RM triage"
-    ):
-        wait_for_case_on_container(
-            client=finder_client,
-            case_id=case.id_,
-        )
-
-    run_invite_path_rm_triage(
-        invited_client=v1_client,
-        invited_actor=v1_in_v1,
-        offer=offer,
-        report=report,
-        finder=finder,
-        auth_client=c1_client,
-        case=case,
-        invited_obj=v1,
-    )
-
-    # C1 invites C2 with CVDRole.COORDINATOR.
-    invite_c2_result = None
-    with demo_step("C1 invites C2 with CVDRole.COORDINATOR"):
-        invite_c2_result = post_to_trigger(
-            client=c1_client,
-            actor_id=c1_in_c1.id_,
-            behavior="invite-actor-to-case",
-            body={
-                "case_id": case.id_,
-                "invitee_id": c2.id_,
-                "roles": ["coordinator"],
-            },
-        )
-    invite_c2 = as_TransitiveActivity.model_validate(
-        invite_c2_result["activity"]
-    )
-    logger.info("C2 invite created: %s", invite_c2.id_)
-
-    with demo_gate("CaseActor-routed Invite for C2 stored in C2's DataLayer"):
-        invite_c2_id = find_case_invite_for_actor(
-            client=c2_client,
-            case_id=case.id_,
-            invitee_id=c2.id_,
-        )
-        logger.info("CaseActor Invite for C2: %s", invite_c2_id)
-
-        with demo_step("C2 accepts the case invitation"):
-            post_to_trigger(
-                client=c2_client,
-                actor_id=c2_in_c2.id_,
-                behavior="accept-case-invite",
-                body={"invite_id": invite_c2_id},
+        with demo_check(
+            "Finder's DataLayer received case replica (genesis hash available)"
+        ):
+            wait_for_case_on_container(
+                client=finder_client,
+                case_id=case.id_,
             )
 
-    with demo_check("C2's DataLayer received case replica"):
-        wait_for_case_on_container(
-            client=c2_client,
-            case_id=case.id_,
+        # C1 invites V1 with CVDRole.VENDOR.
+        invite_v1_result = None
+        with demo_step("C1 invites V1 with CVDRole.VENDOR"):
+            invite_v1_result = post_to_trigger(
+                client=c1_client,
+                actor_id=c1_in_c1.id_,
+                behavior="invite-actor-to-case",
+                body={
+                    "case_id": case.id_,
+                    "invitee_id": v1.id_,
+                    "roles": ["vendor"],
+                },
+            )
+        invite_v1 = as_TransitiveActivity.model_validate(
+            invite_v1_result["activity"]
+        )
+        logger.info("V1 invite created: %s", invite_v1.id_)
+
+        invite_v1_id = None
+        with demo_gate(
+            "CaseActor-routed Invite for V1 stored in V1's DataLayer"
+        ):
+            invite_v1_id = find_case_invite_for_actor(
+                client=v1_client,
+                case_id=case.id_,
+                invitee_id=v1.id_,
+            )
+        logger.info("CaseActor Invite for V1: %s", invite_v1_id)
+
+        with demo_step("V1 accepts the case invitation"):
+            post_to_trigger(
+                client=v1_client,
+                actor_id=v1_in_v1.id_,
+                behavior="accept-case-invite",
+                body={"invite_id": invite_v1_id},
+            )
+
+        with demo_check("V1's DataLayer received case replica"):
+            wait_for_case_on_container(
+                client=v1_client,
+                case_id=case.id_,
+            )
+
+        with demo_check(
+            "Finder's DataLayer received case replica before V1 RM triage"
+        ):
+            wait_for_case_on_container(
+                client=finder_client,
+                case_id=case.id_,
+            )
+
+        run_invite_path_rm_triage(
+            invited_client=v1_client,
+            invited_actor=v1_in_v1,
+            offer=offer,
+            report=report,
+            finder=finder,
+            auth_client=c1_client,
+            case=case,
+            invited_obj=v1,
         )
 
-    # 5 participants: Finder + C1 + V1 + C2 + CaseActor
-    wait_for_case_participants(
-        vendor_client=c1_client,
-        case_id=case.id_,
-        expected_actor_ids={
-            finder.id_,
-            c1_in_c1.id_,
-            v1.id_,
-            c2_in_c2.id_,
-        },
-    )
+        # C1 invites C2 with CVDRole.COORDINATOR.
+        invite_c2_result = None
+        with demo_step("C1 invites C2 with CVDRole.COORDINATOR"):
+            invite_c2_result = post_to_trigger(
+                client=c1_client,
+                actor_id=c1_in_c1.id_,
+                behavior="invite-actor-to-case",
+                body={
+                    "case_id": case.id_,
+                    "invitee_id": c2.id_,
+                    "roles": ["coordinator"],
+                },
+            )
+        invite_c2 = as_TransitiveActivity.model_validate(
+            invite_c2_result["activity"]
+        )
+        logger.info("C2 invite created: %s", invite_c2.id_)
+
+        with demo_gate(
+            "CaseActor-routed Invite for C2 stored in C2's DataLayer"
+        ):
+            invite_c2_id = find_case_invite_for_actor(
+                client=c2_client,
+                case_id=case.id_,
+                invitee_id=c2.id_,
+            )
+            logger.info("CaseActor Invite for C2: %s", invite_c2_id)
+
+            with demo_step("C2 accepts the case invitation"):
+                post_to_trigger(
+                    client=c2_client,
+                    actor_id=c2_in_c2.id_,
+                    behavior="accept-case-invite",
+                    body={"invite_id": invite_c2_id},
+                )
+
+        with demo_check("C2's DataLayer received case replica"):
+            wait_for_case_on_container(
+                client=c2_client,
+                case_id=case.id_,
+            )
+
+        # 5 participants: Finder + C1 + V1 + C2 + CaseActor
+        with demo_check("C1 case reflects Finder + C1 + V1 + C2 participants"):
+            wait_for_case_participants(
+                vendor_client=c1_client,
+                case_id=case.id_,
+                expected_actor_ids={
+                    finder.id_,
+                    c1_in_c1.id_,
+                    v1.id_,
+                    c2_in_c2.id_,
+                },
+            )
 
     with demo_check(
         "M1: required participants (≥5), EM.ACTIVE, Finder + V1 + C2 have replicas"
@@ -514,41 +523,46 @@ def _phase_c2_suggests_v2(
         )
     logger.info("V2 received case replica via CaseActor (ADR-0026 path)")
 
-    # 6 participants: Finder + C1 + V1 + C2 + V2 + CaseActor
-    wait_for_case_participants(
-        vendor_client=c1_client,
-        case_id=case.id_,
-        expected_actor_ids={
-            finder.id_,
-            c1_in_c1.id_,
-            v1.id_,
-            c2_in_c2.id_,
-            v2.id_,
-        },
-        timeout_seconds=LATE_JOINER_TIMEOUT,
-    )
-    logger.info("✓ V2 joined case (6 participants)")
-
-    with demo_check(
-        "Finder's DataLayer received case replica before V2 RM triage"
-    ):
-        wait_for_case_on_container(
-            client=finder_client,
+    # All 6 participants (Finder + C1 + V1 + C2 + V2 + CaseActor) present is the
+    # causal precondition for V2's RM triage below: a demo_gate — not
+    # demo_check — so a timeout skips the doomed triage rather than cascading
+    # (DEMOCI-01-011, vultron/demo/AGENTS.md § "Never Wrap a Causal Wait in
+    # demo_check").
+    with demo_gate("C1 case has all 6 participants before V2 RM triage"):
+        wait_for_case_participants(
+            vendor_client=c1_client,
             case_id=case.id_,
+            expected_actor_ids={
+                finder.id_,
+                c1_in_c1.id_,
+                v1.id_,
+                c2_in_c2.id_,
+                v2.id_,
+            },
+            timeout_seconds=LATE_JOINER_TIMEOUT,
+        )
+        logger.info("✓ V2 joined case (6 participants)")
+
+        with demo_check(
+            "Finder's DataLayer received case replica before V2 RM triage"
+        ):
+            wait_for_case_on_container(
+                client=finder_client,
+                case_id=case.id_,
+                timeout_seconds=40.0,
+            )
+
+        run_invite_path_rm_triage(
+            invited_client=v2_client,
+            invited_actor=v2_in_v2,
+            offer=offer,
+            report=report,
+            finder=finder,
+            auth_client=c1_client,
+            case=case,
+            invited_obj=v2,
             timeout_seconds=40.0,
         )
-
-    run_invite_path_rm_triage(
-        invited_client=v2_client,
-        invited_actor=v2_in_v2,
-        offer=offer,
-        report=report,
-        finder=finder,
-        auth_client=c1_client,
-        case=case,
-        invited_obj=v2,
-        timeout_seconds=40.0,
-    )
 
 
 def _phase_sync_verification(
