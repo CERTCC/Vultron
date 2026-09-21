@@ -19,9 +19,15 @@ Three mechanisms cover all cases (MSM-05-001):
 
 The formal protocol defines per-model error shorthands — $RE$ (RM), $EE$ (EM),
 $CE$ (CS), and $GE$ (General) — but these have no direct AS2 wire counterpart.
-The failure-mode partition above is how those shorthands are realised on the
+The failure-mode partition above is how those shorthands are realized on the
 wire. See [Message Types](../../../reference/formal_protocol/messages.md) and
 `specs/message-semantics-mapping.yaml` MSM-05.
+
+For the full wire reference see
+[Faults and Acknowledgements](../../../reference/messages/faults_and_acknowledgements.md).
+For why the implementation partitions by failure mode rather than by state
+machine, see
+[Activity Vocabulary Design](../../../topics/activity_vocabulary_design.md).
 
 !!! note "Name note"
 

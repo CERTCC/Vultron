@@ -1,4 +1,8 @@
-"""Core domain enumeration definitions for the Vultron Protocol."""
+"""Core domain enumeration definitions for the Vultron Protocol.
+
+Re-exports from ``vultron.enums.object_types`` for backward compatibility.
+New code should import directly from ``vultron.enums.object_types``.
+"""
 
 #  Copyright (c) 2026 Carnegie Mellon University and Contributors.
 #  - see Contributors.md for a full list of Contributors
@@ -13,31 +17,9 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-from enum import StrEnum
+from vultron.enums.object_types import (  # noqa: F401
+    VultronActorType,
+    VultronObjectType,
+)
 
-
-class VultronObjectType(StrEnum):
-    """Enumeration of Vultron-specific domain object types."""
-
-    VULNERABILITY_CASE = "VulnerabilityCase"
-    VULNERABILITY_REPORT = "VulnerabilityReport"
-    VULNERABILITY_RECORD = "VulnerabilityRecord"
-    CASE_REFERENCE = "CaseReference"
-    EMBARGO_POLICY = "EmbargoPolicy"
-    CASE_PARTICIPANT = "CaseParticipant"
-    CASE_PARTICIPANT_ROLE = "CaseParticipantRole"
-    CASE_STATUS = "CaseStatus"
-    PARTICIPANT_STATUS = "ParticipantStatus"
-    CASE_LEDGER_ENTRY = "CaseLedgerEntry"
-    CASE_PROPOSAL = "CaseProposal"
-    PROCESSING_FAULT = "ProcessingFault"
-
-
-class VultronActorType(StrEnum):
-    """Enumeration of supported ActivityStreams actor type values."""
-
-    PERSON = "Person"
-    ORGANIZATION = "Organization"
-    SERVICE = "Service"
-    APPLICATION = "Application"
-    GROUP = "Group"
+__all__ = ["VultronObjectType", "VultronActorType"]

@@ -735,6 +735,49 @@ def test_make_dispatcher_submit_report_uses_actor_config_factory(monkeypatch):
     assert kwargs["actor_config"].auto_create_case is False
 
 
+def test_make_dispatcher_close_case_gets_wire_render_port(monkeypatch):
+    """make_dispatcher() must wire CLOSE_CASE to a factory supplying all three ports.
+
+    CLOSE_CASE was moved out of ``_SYNC_AND_TRIGGER_PORT_SEMANTICS`` into
+    ``_CLOSE_CASE_SEMANTICS`` so it also receives a ``WireRenderPort``.  Without
+    that port, ``CommitCaseActorRMClosedEntryNode`` cannot render the
+    CASE_MANAGER's own ``RM.CLOSED`` snapshot and hard-fails, which would abort
+    the owner-Leave path before ``case_fully_closed`` is committed.  This guards
+    the wiring rather than the node, because a lost registration is silent at
+    the node (ISSUE-2505 stayed hidden for months behind exactly that shape of
+    absent port).
+    """
+    from vultron.adapters.driven.sync_activity_adapter import (
+        SyncActivityAdapter,
+    )
+    from vultron.adapters.driven.trigger_activity_adapter import (
+        TriggerActivityAdapter,
+    )
+    from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
+
+    captured: dict = {}
+
+    def fake_get_dispatcher(use_case_map, port_factories=None):
+        captured["port_factories"] = port_factories
+        return Mock()
+
+    monkeypatch.setattr(ih, "get_dispatcher", fake_get_dispatcher)
+    ih.make_dispatcher()
+
+    sem = MessageSemantics.CLOSE_CASE
+    assert sem in captured["port_factories"], "CLOSE_CASE must have a factory"
+
+    real_dl = SqliteDataLayer(
+        "sqlite:///:memory:",
+        actor_id="https://test.example/api/v2/actors/test-actor",
+    )
+    kwargs = captured["port_factories"][sem](real_dl)
+
+    assert isinstance(kwargs.get("sync_port"), SyncActivityAdapter)
+    assert isinstance(kwargs.get("trigger_activity"), TriggerActivityAdapter)
+    assert isinstance(kwargs.get("wire_render_port"), As2WireRenderAdapter)
+
+
 def test_case_proposal_port_factory_injects_actor_config(monkeypatch):
     """_case_proposal_port_factory returns actor_config and both ports.
 

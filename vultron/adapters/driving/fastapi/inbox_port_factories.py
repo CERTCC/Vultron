@@ -117,6 +117,21 @@ def _submit_report_port_factory(dl: DataLayer) -> dict[str, Any]:
     return kwargs
 
 
+def _close_case_port_factory(dl: DataLayer) -> dict[str, Any]:
+    """Create sync+trigger ports and a ``WireRenderPort`` for ``CLOSE_CASE``.
+
+    The ``WireRenderPort`` is what lets the owner-Leave path record the
+    CASE_MANAGER's own ``RM.CLOSED`` transition as a canonical ledger entry
+    (CM-23-005).  Without it that transition stays store-local and every
+    replica reads the CASE_MANAGER as permanently ``RM.ACCEPTED`` — the defect
+    behind ISSUE-2505.
+    """
+    return {
+        **_sync_and_trigger_port_factory(dl),
+        "wire_render_port": As2WireRenderAdapter(),
+    }
+
+
 def _case_proposal_port_factory(dl: DataLayer) -> dict[str, Any]:
     """Resolve the local ``ActorConfig`` for ``CREATE_CASE_PROPOSAL``.
 
@@ -194,10 +209,8 @@ _SYNC_AND_TRIGGER_PORT_SEMANTICS = frozenset(
         MessageSemantics.ACCEPT_INVITE_TO_EMBARGO_ON_CASE,
         MessageSemantics.ACCEPT_CASE_OWNERSHIP_TRANSFER,
         MessageSemantics.ACCEPT_INVITE_ACTOR_TO_CASE,
-        # CLOSE_CASE fans out case_fully_closed via sync_port (CM-23-002) AND
-        # needs trigger_activity to emit an as:Reject when it must decline an
-        # owner close during a live embargo (CM-23-011).
-        MessageSemantics.CLOSE_CASE,
+        # NOTE: CLOSE_CASE is intentionally absent here — it uses
+        # _close_case_port_factory (below), which adds wire_render_port.
         MessageSemantics.DEFER_CASE,
         MessageSemantics.ENGAGE_CASE,
         MessageSemantics.INVITE_TO_EMBARGO_ON_CASE,
@@ -222,6 +235,15 @@ _SUBMIT_REPORT_SEMANTICS = frozenset({MessageSemantics.SUBMIT_REPORT})
 # CaseProposalCallOutBundle for the decline path (CP-05-002, CP-05-004).  See
 # _case_proposal_port_factory.  Separate set for the same reason as above.
 _CASE_PROPOSAL_SEMANTICS = frozenset({MessageSemantics.CREATE_CASE_PROPOSAL})
+
+# CLOSE_CASE needs sync + trigger ports AND a WireRenderPort.  sync_port fans
+# out case_fully_closed (CM-23-002); trigger_activity emits the as:Reject that
+# declines an owner close during a live embargo (CM-23-011); wire_render_port
+# renders the CASE_MANAGER's own RM.CLOSED ParticipantStatus into the
+# add_participant_status_to_participant snapshot that CM-23-005 requires
+# (CommitCaseActorRMClosedEntryNode, ISSUE-2505).  Separate set so the
+# disjoint guard in make_dispatcher() needs no special-casing.
+_CLOSE_CASE_SEMANTICS = frozenset({MessageSemantics.CLOSE_CASE})
 
 # Status-authorization call-out seam (ADR-0076, RSH-07-003):
 # ADD_CASE_STATUS_TO_CASE and ADD_PARTICIPANT_STATUS_TO_PARTICIPANT both

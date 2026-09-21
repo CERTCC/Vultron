@@ -14,10 +14,13 @@
 """Unit tests for TriggerActivityAdapter case-domain methods."""
 
 import json
+from unittest.mock import patch
 
 import pytest
+
 from vultron.errors import VultronActivityConstructionError
 from vultron.wire.as2.vocab.base.objects.object_types import as_Note
+from vultron.wire.as2.vocab.objects.base import VultronAS2Object
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCase,
 )
@@ -133,6 +136,123 @@ class TestAddObjectToCase:
         )
 
         assert dl.read(activity_id) is not None
+
+
+_VOCAB_PATH = (
+    "vultron.adapters.driven.trigger_activity_adapter.cases.find_in_vocabulary"
+)
+
+
+class TestAddObjectToCaseConversionBranch:
+    """Tests for the core→wire conversion path in add_object_to_case."""
+
+    def _patched_read(self, dl, fake_id, fake_obj):
+        """Return side_effect that serves fake_obj for fake_id, real dl otherwise."""
+        original = dl.read
+
+        def _side_effect(id_):
+            if id_ == fake_id:
+                return fake_obj
+            return original(id_)
+
+        return _side_effect
+
+    def test_core_object_converted_to_wire_type(self, adapter, dl):
+        """Successful core→wire conversion: non-as_Object is looked up and from_core called."""
+        from vultron.core.models.case import VulnerabilityCase
+
+        case = _make_case(dl)
+        fake_id = "urn:test:core-vuln-case-1"
+        core_obj = VulnerabilityCase(attributed_to=_ACTOR)
+
+        with patch.object(
+            dl, "read", side_effect=self._patched_read(dl, fake_id, core_obj)
+        ):
+            activity_id, activity_dict = adapter.add_object_to_case(
+                actor=_ACTOR,
+                object_id=fake_id,
+                case_id=case.id_,
+            )
+
+        assert activity_id
+        assert isinstance(activity_dict, str)
+
+    def test_unregistered_core_type_raises_value_error(self, adapter, dl):
+        """KeyError from find_in_vocabulary is re-raised as ValueError with informative message."""
+        case = _make_case(dl)
+        fake_id = "urn:test:unregistered-1"
+
+        class _UnknownDomainObj:
+            pass
+
+        with patch.object(
+            dl,
+            "read",
+            side_effect=self._patched_read(dl, fake_id, _UnknownDomainObj()),
+        ):
+            with pytest.raises(ValueError, match="no wire class registered"):
+                adapter.add_object_to_case(
+                    actor=_ACTOR,
+                    object_id=fake_id,
+                    case_id=case.id_,
+                )
+
+    def test_from_core_failure_raises_value_error(self, adapter, dl):
+        """Exception from wire_cls.from_core is wrapped in ValueError."""
+        from vultron.core.models.case import VulnerabilityCase
+
+        case = _make_case(dl)
+        fake_id = "urn:test:core-vuln-case-2"
+        core_obj = VulnerabilityCase(attributed_to=_ACTOR)
+
+        class _BrokenWireClass(VultronAS2Object):
+            type_: str = "VulnerabilityCase"
+
+            @classmethod
+            def from_core(cls, obj):
+                raise RuntimeError("simulated from_core failure")
+
+        with (
+            patch.object(
+                dl,
+                "read",
+                side_effect=self._patched_read(dl, fake_id, core_obj),
+            ),
+            patch(_VOCAB_PATH, return_value=_BrokenWireClass),
+        ):
+            with pytest.raises(ValueError, match="from_core failed"):
+                adapter.add_object_to_case(
+                    actor=_ACTOR,
+                    object_id=fake_id,
+                    case_id=case.id_,
+                )
+
+    def test_non_vultron_wire_class_raises_value_error(self, adapter, dl):
+        """Wire class that is not VultronAS2Object raises ValueError."""
+        case = _make_case(dl)
+        fake_id = "urn:test:non-as2-obj-1"
+
+        class _SomeNonAS2DomainObj:
+            pass
+
+        with (
+            patch.object(
+                dl,
+                "read",
+                side_effect=self._patched_read(
+                    dl, fake_id, _SomeNonAS2DomainObj()
+                ),
+            ),
+            patch(_VOCAB_PATH, return_value=as_Note),
+        ):
+            with pytest.raises(
+                ValueError, match="no VultronAS2Object wire counterpart"
+            ):
+                adapter.add_object_to_case(
+                    actor=_ACTOR,
+                    object_id=fake_id,
+                    case_id=case.id_,
+                )
 
 
 class TestAnnounceVulnerabilityCase:

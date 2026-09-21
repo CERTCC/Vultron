@@ -27,7 +27,6 @@ from typing import Any, cast
 
 from pydantic import ValidationError
 
-from vultron.core.models.actor import CoreActor
 from vultron.core.models.case import VulnerabilityCase
 from vultron.enums.roles import CVDRole
 from vultron.core.states.em import EM
@@ -638,7 +637,7 @@ def reject_case_ownership_transfer_activity(
 
 
 def rm_invite_to_case_activity(
-    invitee: CoreActor | as_Actor,
+    invitee: as_Actor | str,
     target: Any = None,
     roles: list[str] | None = None,
     embargo_obj: Any = None,
@@ -674,6 +673,8 @@ def rm_invite_to_case_activity(
     """
     if isinstance(target, (VulnerabilityCase, as_VulnerabilityCase)):
         target = _project_case_to_stub(target, embargo_obj)
+    if isinstance(invitee, str):
+        invitee = as_Actor(id_=invitee)
     if roles is not None:
         kwargs["roles"] = roles
     try:

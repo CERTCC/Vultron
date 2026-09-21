@@ -30,8 +30,8 @@ from typing import ClassVar, TypeAlias
 
 from pydantic import Field
 
-from vultron.core.models.base import NonEmptyString
-from vultron.core.models.enums import VultronObjectType as VO_type
+from vultron.enums.object_types import VultronObjectType as VO_type
+from vultron.primitives import NonEmptyString
 from vultron.wire.as2.vocab.base.links import ActivityStreamRef
 from vultron.wire.as2.vocab.base.objects.base import ActivityStreamRequiredRef
 from vultron.wire.as2.vocab.objects.base import VultronAS2Object

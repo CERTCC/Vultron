@@ -21,7 +21,7 @@ import isodate  # type: ignore[import-untyped]
 from pydantic import ConfigDict, field_serializer, field_validator, Field
 
 from vultron.core.models._helpers import as_utc, now_utc
-from vultron.core.models.base import CoreObject, VultronObject
+from vultron.core.models.base import VultronObject
 from vultron.wire.as2.vocab.base.base import as_Base
 from vultron.wire.as2.vocab.base.utils import is_blank
 from vultron.wire.as2.vocab.base.links import (
@@ -159,10 +159,8 @@ class as_Object(as_Base, VultronObject):
         raise TypeError(f"Unsupported datetime value: {value!r}")
 
 
-as_ObjectRef: TypeAlias = ActivityStreamRef[as_Object] | CoreObject | None
-as_ObjectRequiredRef: TypeAlias = (
-    ActivityStreamRequiredRef[as_Object] | CoreObject
-)
+as_ObjectRef: TypeAlias = ActivityStreamRef[as_Object] | None
+as_ObjectRequiredRef: TypeAlias = ActivityStreamRequiredRef[as_Object]
 
 
 def main():

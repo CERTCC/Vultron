@@ -114,34 +114,22 @@ _VIOLATIONS: frozenset[str] = _collect_violations()
 # ---------------------------------------------------------------------------
 KNOWN_VIOLATIONS: frozenset[str] = frozenset(
     {
-        "vultron/wire/as2/enums.py",
         "vultron/wire/as2/extractor/_builders.py",
         "vultron/wire/as2/extractor/_extract.py",
-        "vultron/wire/as2/extractor/_instances.py",
         "vultron/wire/as2/extractor/_pattern.py",
-        "vultron/wire/as2/factories/actor.py",
         "vultron/wire/as2/factories/case.py",
-        "vultron/wire/as2/vocab/activities/actor.py",
         "vultron/wire/as2/vocab/activities/base.py",
-        "vultron/wire/as2/vocab/activities/case.py",
         "vultron/wire/as2/vocab/base/base.py",
         "vultron/wire/as2/vocab/base/objects/base.py",
         "vultron/wire/as2/vocab/base/registry.py",
         "vultron/wire/as2/vocab/objects/case_actor.py",
         "vultron/wire/as2/vocab/objects/case_ledger_entry.py",
         "vultron/wire/as2/vocab/objects/case_participant.py",
-        "vultron/wire/as2/vocab/objects/case_participant_role.py",
-        "vultron/wire/as2/vocab/objects/case_proposal.py",
         "vultron/wire/as2/vocab/objects/processing_fault.py",
         "vultron/wire/as2/vocab/objects/case_reference.py",
         "vultron/wire/as2/vocab/objects/case_status.py",
         "vultron/wire/as2/vocab/objects/embargo_event.py",
         "vultron/wire/as2/vocab/objects/embargo_policy.py",
-        "vultron/wire/as2/vocab/objects/offer_record.py",
-        "vultron/wire/as2/vocab/objects/pending_case_inbox.py",
-        "vultron/wire/as2/vocab/objects/pending_create_case_activity.py",
-        "vultron/wire/as2/vocab/objects/replication_state.py",
-        "vultron/wire/as2/vocab/objects/report_case_link.py",
         "vultron/wire/as2/vocab/objects/vulnerability_case.py",
         "vultron/wire/as2/vocab/objects/vulnerability_record.py",
         "vultron/wire/as2/vocab/objects/vulnerability_report.py",
@@ -199,7 +187,7 @@ def test_all_known_violations_still_present() -> None:
         "ADR-0082 established is unreachable: ARCH-12-001, ARCH-20-002 and "
         "ARCH-12-010 each mandate an import it forbids. ARCH-22-003 as amended "
         "targets an enumerated exemption set instead. Retargeting this test and "
-        "retiring the marker is #2944's job; tracked by #2670."
+        "retiring the marker is #2944's job; tracked by #2670, #2673."
     ),
 )
 def test_wire_core_model_import_boundary_goal() -> None:

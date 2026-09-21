@@ -34,6 +34,9 @@ from vultron.wire.as2.factories.case import (
     reject_case_proposal_activity,
 )
 from vultron.wire.as2.vocab.base.objects.activities.transitive import as_Add
+from vultron.wire.as2.vocab.base.objects.base import as_Object
+from vultron.wire.as2.vocab.base.registry import find_in_vocabulary
+from vultron.wire.as2.vocab.objects.base import VultronAS2Object
 from vultron.wire.as2.vocab.objects.case_status import as_CaseStatus
 from vultron.wire.as2.vocab.objects.vulnerability_report import (
     as_VulnerabilityReport,
@@ -169,6 +172,27 @@ class _CasesMixin:
         """Create and persist an ``Add(object, Case)`` activity."""
         case = _case_for_wire(self._dl, case_id)
         obj = cast(Any, self._dl.read(object_id))
+        if not isinstance(obj, as_Object):
+            try:
+                wire_cls = find_in_vocabulary(obj.__class__.__name__)
+            except KeyError:
+                raise ValueError(
+                    f"add_object_to_case: no wire class registered for"
+                    f" {obj.__class__.__name__!r}"
+                )
+            if issubclass(wire_cls, VultronAS2Object):
+                try:
+                    obj = wire_cls.from_core(obj)
+                except Exception as exc:
+                    raise ValueError(
+                        f"add_object_to_case: from_core failed for"
+                        f" {obj.__class__.__name__!r}: {exc}"
+                    ) from exc
+            else:
+                raise ValueError(
+                    f"add_object_to_case: {obj.__class__.__name__!r} has no"
+                    f" VultronAS2Object wire counterpart"
+                )
         activity = as_Add(actor=actor, object_=obj, target=case)
         try:
             self._dl.create(activity)

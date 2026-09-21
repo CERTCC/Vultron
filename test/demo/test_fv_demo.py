@@ -1962,10 +1962,6 @@ class TestCaseLedgerInvariants:
             f"event types: {sorted({_log_event_type(e) for e in entries})})"
         )
 
-    @pytest.mark.xfail(
-        strict=False,
-        reason="pre-existing bug #2505: FV demo CaseActor never reaches RM.CLOSED",
-    )
     def test_all_participants_rm_closed_at_scenario_end(
         self,
         completed_workflow: tuple[
@@ -1981,6 +1977,13 @@ class TestCaseLedgerInvariants:
         actor recorded in ``payloadSnapshot.actor`` (ADR-0050, CM-23-002/003).
         Corresponds to CI invariant 7 (terminal RM state check) from
         test/ci/test_case_ledger_invariants.py.
+
+        The CASE_MANAGER reaches ``RM.CLOSED`` here through its own
+        ``add_participant_status_to_participant`` entry, committed by
+        ``CommitCaseActorRMClosedEntryNode`` on the owner-Leave path (CM-23-005).
+        Before ISSUE-2505 that transition was applied only to the Case Actor's
+        own store and never recorded, so this assertion could not pass and the
+        test carried a blanket ``xfail``.
         Spec: CLP-07.
         """
         vendor_client, case = completed_workflow
