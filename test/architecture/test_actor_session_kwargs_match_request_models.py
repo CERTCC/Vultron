@@ -18,7 +18,7 @@ the trigger endpoint would silently drop (DEMOMA-26-004).
 
 Each ``ActorSession`` trigger method builds a request body and posts it to a
 trigger endpoint whose body is validated by a request model with
-``extra="ignore"`` (TB-03-002).  A keyword the method accepts but the model does
+``extra="ignore"`` (TRIG-03-002).  A keyword the method accepts but the model does
 not declare would be dropped without error — the exact silent-no-op class
 ``ActorSession`` exists to make unrepresentable.  This test pins each method's
 keyword parameters to a subset of its request model's fields (minus ``actor_id``,
@@ -120,7 +120,7 @@ def test_method_keywords_are_a_subset_of_request_model_fields(method_name):
     assert not extra, (
         f"ActorSession.{method_name} accepts keyword(s) {sorted(extra)} that"
         f" {model.__name__} does not declare — the trigger endpoint would drop"
-        f" them silently (TB-03-002). Allowed: {sorted(allowed)}."
+        f" them silently (TRIG-03-002). Allowed: {sorted(allowed)}."
     )
 
 

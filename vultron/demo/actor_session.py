@@ -96,7 +96,7 @@ def _is_absolute_uri(value: str) -> bool:
 
     Only a real absolute URI can mis-address a live container; a ``MagicMock``
     ``base_url`` repr or a bare unit-test actor slug cannot, so a pair where
-    either side is not absolute is left unchecked (see :meth:`_check_authority`).
+    either side is not absolute is left unchecked (see :meth:`__post_init__`).
     """
     try:
         parts = urlsplit(value)

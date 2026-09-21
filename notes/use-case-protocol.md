@@ -32,13 +32,18 @@ See `specs/use-case-organization.yaml` UCORG-05 for the normative requirements.
 See `docs/adr/0040-use-case-result-envelope.md` for the original decision record
 and `docs/adr/0095-received-side-handler-result.md` for the received-side half.
 
-> **Status: designed, not built.** None of the types below exist in the codebase
-> yet. `grep -rn "class UseCaseResult" vultron/` returns nothing; all 51
-> received-side `execute()` methods are `-> None` and all trigger-side ones
-> return `dict`. Earlier revisions of this note described the migration in the
-> past tense while no part of it had been written — that drift is what concern
-> #1769 was filed to correct. Treat this note as the design to implement, and do
-> not infer from it that any of it is in place.
+> **Status: largely designed, not built.** One slice now exists: a standalone
+> `TriggerResult` envelope in `vultron/core/use_cases/triggers/results.py`
+> (#3398), plus a demo-layer `ActivityResult` subtype, introduced only so
+> `ActorSession` can type demo trigger responses at the HTTP boundary. It is
+> **not** yet a use-case return type — the shared `UseCaseResult` base and the
+> `HandlerResult` sibling below do not exist (`grep -rn "class UseCaseResult"
+> vultron/` returns nothing), all 51 received-side `execute()` methods are
+> `-> None`, and all trigger-side ones still return `dict`. Earlier revisions of
+> this note described the whole migration in the past tense while no part of it
+> had been written — that drift is what concern #1769 was filed to correct.
+> Treat the hierarchy below as the design to implement, and do not infer from it
+> that any of it beyond the `TriggerResult` envelope is in place.
 
 ---
 
