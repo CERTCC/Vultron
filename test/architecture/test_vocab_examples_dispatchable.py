@@ -30,9 +30,8 @@ Three defects found when this was first measured:
   discriminates on ``target_``, so the example matched none of the patterns and
   ``docs/reference/messages/case_management.md`` documented the wrong field
   (fixed, #3438).
-* ``read_report`` builds ``Read(Report)`` while ``AckReportPattern`` requires
-  ``Read(Offer(Report))`` — the emit path and the receive path disagree about the
-  ``RK`` wire form (#3439, an ``xfail`` below).
+* ``read_report`` previously built ``Read(Report)`` while ``AckReportPattern``
+  required ``Read(Offer(Report))`` — fixed in #3439/#3455.
 * ``choose_preferred_embargo`` has a factory and a wire class but no registered
   pattern and no ``MessageSemantics``, so no peer can route it (#3433, an ``xfail``
   below).
@@ -108,7 +107,6 @@ _EXTRA_SOURCES = {
 # turn its exemption into a permanent ``KeyError``, which ``xfail`` records as a
 # pass.
 _KNOWN_UNDISPATCHABLE = {
-    "read_report": "#3439 — emit builds Read(Report), AckReportPattern requires Read(Offer(Report))",
     "choose_preferred_embargo": "#3433 — factory and wire class exist, but no ActivityPattern and no MessageSemantics",
 }
 

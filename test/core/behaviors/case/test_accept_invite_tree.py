@@ -27,8 +27,10 @@ import py_trees
 import pytest
 from py_trees.common import Status
 
-from vultron.core.behaviors.case.accept_invite_tree import (
+from vultron.core.behaviors.case.nodes import (
     CreateInviteeParticipantNode,
+)
+from vultron.core.behaviors.case.nodes.invite_embargo_consent import (
     _SignEmbargoConsentLeafNode,
 )
 from vultron.core.models.activity import VultronActivity
@@ -407,7 +409,7 @@ def test_read_invite_roles_warns_and_recovers_on_typeerror(
     )
 
     with patch(
-        "vultron.core.behaviors.case.accept_invite_tree.validate_roles",
+        "vultron.core.behaviors.case.nodes.invite_participant.validate_roles",
         side_effect=TypeError("not iterable"),
     ):
         result = bt_scenario.run(
@@ -432,7 +434,7 @@ def test_invitee_birth_is_construct_attach_then_advance(
     guards against re-fusing the two halves of the transition — the #2548
     family of bug that a detached, already-advanced participant reintroduced.
     """
-    from vultron.core.behaviors.case.accept_invite_tree import (
+    from vultron.core.behaviors.case.nodes import (
         AdvanceInviteeToReceivedNode,
         PersistInviteeParticipantNode,
     )
@@ -508,7 +510,7 @@ def _seed_case_with_persisted_invitee(
         attributed_to=case_actor_id,
     )
     bt_scenario.seed(case)
-    from vultron.core.behaviors.case.accept_invite_tree import (
+    from vultron.core.behaviors.case.nodes import (
         CreateInviteeParticipantNode,
         PersistInviteeParticipantNode,
     )
@@ -548,7 +550,7 @@ def test_advance_invitee_retry_after_failure_completes_from_rm_start(
     forward-only on the *actual* RM state: RM.START → RM.RECEIVED is legal, so
     the retry completes the interrupted birth.
     """
-    from vultron.core.behaviors.case.accept_invite_tree import (
+    from vultron.core.behaviors.case.nodes import (
         AdvanceInviteeToReceivedNode,
     )
     from vultron.core.models.participant_status import (
@@ -589,7 +591,7 @@ def test_advance_invitee_resume_leaves_already_advanced_participant(
     beyond, the advance is skipped: forcing it back to RM.RECEIVED would be an
     illegal backward transition, and re-advancing would append a redundant rung.
     """
-    from vultron.core.behaviors.case.accept_invite_tree import (
+    from vultron.core.behaviors.case.nodes import (
         AdvanceInviteeToReceivedNode,
     )
     from vultron.core.models.participant_status import (

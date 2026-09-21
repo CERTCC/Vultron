@@ -16,7 +16,7 @@
 """Regression: a pre-built CreateParticipantStatusNode is actor-scoped per tick.
 
 Issue #3268: nodes such as ``CreateOwnerInitialStatusNode`` and
-``_AddCaseActorParticipantNode`` build one ``CreateParticipantStatusNode`` in
+``AddCaseActorParticipantNode`` build one ``CreateParticipantStatusNode`` in
 ``__init__`` (BTND-10-004) and run it through ``BTBridge.execute_with_setup``
 for whichever actor is executing.  ``initialise`` latches ``_actor_id`` from the
 port only while it is empty, so before the fix the *first* actor's id stuck and

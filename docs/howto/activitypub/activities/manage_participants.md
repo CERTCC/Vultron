@@ -166,3 +166,6 @@ See [How to Advance a Case Through Report Management](manage_case.md).
 - [Activity Vocabulary Design](../../../topics/activity_vocabulary_design.md) —
   why `as:Invite` asks where `as:Add` asserts, and how many activities one participant
   addition needs
+- [Trigger API Reference](../../../reference/trigger-api.md#actor-participation) —
+  request schema and endpoint details for `suggest-actor-to-case`,
+  `invite-actor-to-case`, `accept-case-invite`, and `reject-case-invite`

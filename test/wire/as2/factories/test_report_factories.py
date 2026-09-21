@@ -23,8 +23,11 @@ Spec coverage:
 - AF-04-002: All factory functions are re-exported from factories/__init__.py.
 """
 
+from typing import cast
+
 import pytest
 
+from vultron.wire.as2.extractor._instances import AckReportPattern
 from vultron.wire.as2.factories import (
     VultronActivityConstructionError,
     parse_submit_report_offer,
@@ -183,31 +186,49 @@ def test_rm_submit_report_invalid_report_raises(sample_actor):
 @pytest.mark.spec("AF-01-002")
 @pytest.mark.spec("VAM-02-003")
 @pytest.mark.spec("MSM-01-008")
-def test_rm_read_report_returns_read(sample_report, sample_actor):
-    result = rm_read_report_activity(report=sample_report, actor=sample_actor)
+def test_rm_read_report_returns_read(sample_offer, sample_actor):
+    result = rm_read_report_activity(offer=sample_offer, actor=sample_actor)
     assert isinstance(result, as_Read)
 
 
 @pytest.mark.spec("AF-01-002")
 @pytest.mark.spec("VAM-02-003")
-def test_rm_read_report_object_is_report(sample_report, sample_actor):
-    result = rm_read_report_activity(report=sample_report, actor=sample_actor)
-    assert result.object_ == sample_report
+def test_rm_read_report_object_is_offer(sample_offer, sample_actor):
+    result = rm_read_report_activity(offer=sample_offer, actor=sample_actor)
+    assert isinstance(result.object_, as_Offer)
 
 
-def test_rm_read_report_kwargs_actor_forwarded(sample_report, sample_actor):
-    result = rm_read_report_activity(report=sample_report, actor=sample_actor)
+@pytest.mark.spec("VAM-02-003")
+def test_rm_read_report_inner_object_is_report(
+    sample_offer, sample_report, sample_actor
+):
+    result = rm_read_report_activity(offer=sample_offer, actor=sample_actor)
+    offer_obj = cast(as_Offer, result.object_)
+    assert offer_obj.object_ == sample_report
+
+
+def test_rm_read_report_kwargs_actor_forwarded(sample_offer, sample_actor):
+    result = rm_read_report_activity(offer=sample_offer, actor=sample_actor)
     assert result.actor == sample_actor
 
 
 @pytest.mark.spec("AF-04-001")
-def test_rm_read_report_invalid_report_raises(sample_actor):
+def test_rm_read_report_malformed_offer_raises(sample_actor):
+    """An offer whose object_ is not an as_VulnerabilityReport must still fail."""
+    malformed_offer = as_Offer(
+        actor=None, object_=as_Note(name="not a report")
+    )
     with pytest.raises(VultronActivityConstructionError) as exc_info:
-        rm_read_report_activity(
-            report="not-a-report",  # type: ignore[arg-type]
-            actor=sample_actor,
-        )
+        rm_read_report_activity(offer=malformed_offer, actor=sample_actor)
     assert exc_info.value.__cause__ is not None
+
+
+@pytest.mark.spec("MSM-01-008")
+@pytest.mark.spec("VAM-02-003")
+def test_rm_read_report_dispatches_as_ack_report(sample_offer, sample_actor):
+    """RK wire form Read(Offer(VulnerabilityReport)) must match AckReportPattern."""
+    result = rm_read_report_activity(offer=sample_offer, actor=sample_actor)
+    assert AckReportPattern.match(result)
 
 
 # ---------------------------------------------------------------------------

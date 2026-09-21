@@ -181,3 +181,6 @@ visible on every participant's replica, not only your own.
   why re-engagement is not an `as:Undo`, and why the two closures use different verbs
 - [Report Management](../../../topics/process_models/rm/index.md) — the state
   machine these activities drive
+- [Trigger API Reference](../../../reference/trigger-api.md#case-management) —
+  request schema and endpoint details for `create-case`, `engage-case`,
+  `defer-case`, `add-report-to-case`, and `add-object-to-case`

@@ -1,27 +1,27 @@
 {
-  "id": "urn:uuid:ae0b1667-4f32-4255-b93a-177b141fab5a",
+  "id": "urn:uuid:6a9638b0-619b-44d9-a23c-9566948c70e6",
   "type": "TentativeReject",
   "name": "https://vultron.example/organizations/vendorco TentativeReject https://vultron.example/users/finndervul Offer FDR-8675309",
   "content": "We're declining this report as invalid. If you have a reason we should reconsider, please let us know. Otherwise we'll be closing it shortly.",
   "@context": "https://www.w3.org/ns/activitystreams",
   "actor": "https://vultron.example/organizations/vendorco",
   "object": {
-    "id": "urn:uuid:ff87d8fb-e00f-4b15-9992-2bf32dd05246",
+    "id": "urn:uuid:5de2114b-bd30-4714-a196-1b1b57a8b54d",
     "type": "Offer",
     "name": "https://vultron.example/users/finndervul Offer FDR-8675309",
-    "published": "2026-09-16T18:38:48+00:00",
-    "updated": "2026-09-16T18:38:48+00:00",
+    "published": "2026-09-21T14:10:28+00:00",
+    "updated": "2026-09-21T14:10:28+00:00",
     "to": [
       "https://vultron.example/organizations/vendorco"
     ],
     "@context": "https://www.w3.org/ns/activitystreams",
     "actor": "https://vultron.example/users/finndervul",
     "object": {
-      "id": "https://demo.vultron.local/VulnerabilityReport/6bc3a1dc-558f-48ba-99d8-bf9dd1b50beb",
+      "id": "https://demo.vultron.local/VulnerabilityReport/73773cf7-ce0b-4349-ae31-7c46d42b7da5",
       "type": "VulnerabilityReport",
       "name": "FDR-8675309",
-      "published": "2026-09-16T18:38:47+00:00",
-      "updated": "2026-09-16T18:38:47+00:00",
+      "published": "2026-09-21T14:10:27+00:00",
+      "updated": "2026-09-21T14:10:27+00:00",
       "content": "I found a vulnerability!",
       "attributedTo": [
         "https://vultron.example/users/finndervul"

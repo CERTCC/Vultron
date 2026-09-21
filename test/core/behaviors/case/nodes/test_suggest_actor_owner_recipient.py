@@ -27,7 +27,7 @@ That is invisible in a single-store test — the owner and the CaseActor share
 ``attributed_to`` there — and it only surfaced in the fcvcv Docker scenario as a
 chain of five failures starting at "Offer(CaseParticipant) for V2 arrived in
 C1's DataLayer" and ending with a 422 from ``accept-actor-recommendation``.
-These tests seed the CaseActor's store the way ``_CreateCaseFromProposalNode``
+These tests seed the CaseActor's store the way ``CreateCaseFromProposalNode``
 actually leaves it, so the mis-addressing fails here instead.
 """
 
@@ -77,8 +77,8 @@ def _seed_case_actor_store(
 ) -> None:
     """Seed the case as the CaseActor's own store actually holds it.
 
-    ``_CreateCaseFromProposalNode`` sets ``attributed_to`` to the CaseActor
-    (CM-22-001), and ``_AddVendorOwnerParticipantNode`` adds the report
+    ``CreateCaseFromProposalNode`` sets ``attributed_to`` to the CaseActor
+    (CM-22-001), and ``AddVendorOwnerParticipantNode`` adds the report
     receiver as the ``CASE_OWNER`` participant.  The CASE_OWNER participant is
     therefore the only record of who owns the case in this store.
     """

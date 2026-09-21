@@ -55,11 +55,9 @@ def submit_report(verbose=False) -> as_Offer:
 
 
 def read_report() -> as_Read:
-    # Read(Report) is correct here: this is the RK acknowledgment sent against the raw report,
-    # not a response to the submission Offer. Accept/Reject/TentativeReject wrap the Offer
-    # because they are responses to it; Read is an independent acknowledgment.
+    _offer = submit_report()
     activity = rm_read_report_activity(
-        _REPORT,
+        _offer,
         actor=_VENDOR.id_,
         content="We've read the report. We'll get back to you soon.",
     )

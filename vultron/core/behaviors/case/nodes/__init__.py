@@ -30,6 +30,9 @@ Submodules:
 - ``communication``: Outbound activity emission action nodes
 - ``lifecycle``: Case log entry commit action node
 - ``proposal``: CaseProposal send nodes (ADR-0041 vendor-side slimmed tree)
+- ``proposal_admission_conditions``: case-actor-side admission guards (CP-05-002)
+- ``proposal_admission_actions``: case-actor-side admission writes and the
+  ``Reject`` emit (CP-05-002, CP-05-004)
 - ``suggest_actor``: Suggest-actor workflow emit and duplicate-detection nodes
 
 Composite subtrees (``Sequence``/``Selector`` subclasses) are defined in
@@ -61,6 +64,19 @@ from vultron.core.behaviors.case.nodes.invite_response import (
 )
 from vultron.core.behaviors.case.nodes.proposal import (
     ProposeReportCaseToActorNode,
+)
+from vultron.core.behaviors.case.nodes.proposal_admission_actions import (
+    EmitRejectCaseProposalNode,
+    RecordProposalAdmissionNode,
+    RecordProposalDeclineNode,
+)
+from vultron.core.behaviors.case.nodes.proposal_admission_conditions import (
+    CheckDeclineRecordExistsNode,
+    CheckNoDeclineRecordNode,
+    CheckProposalAlreadyAnsweredNode,
+    CheckRejectAlreadyAnsweredNode,
+    activity_names_proposal,
+    find_activity_for_proposal,
 )
 from vultron.core.behaviors.case.nodes.case_setup import (
     EnsureCaseActorHostedNode,
@@ -138,9 +154,59 @@ from vultron.core.behaviors.case.nodes.update import (
     CaptureCaseUpdateBroadcastExclusionsNode,
     CheckCaseUpdateOwnerNode,
 )
+from vultron.core.behaviors.case.nodes.proposal_case_resolution import (
+    CreateCaseFromProposalNode,
+    LoadExistingCaseNode,
+    StoreProposalReportNode,
+)
+from vultron.core.behaviors.case.nodes.proposal_participants import (
+    AddCaseActorParticipantNode,
+    AddVendorOwnerParticipantNode,
+)
+from vultron.core.behaviors.case.nodes.proposal_reporter import (
+    AddReporterParticipantNode,
+)
+from vultron.core.behaviors.case.nodes.proposal_consent import (
+    SeedReporterSignatoryNode,
+    SeedVendorOwnerSignatoryNode,
+)
+from vultron.core.behaviors.case.nodes.proposal_ledger import (
+    CommitNativeLedgerEntriesNode,
+)
+from vultron.core.behaviors.case.nodes.proposal_retry_marker import (
+    CheckMarkerExistsNode,
+    ClearCreateCaseMarkerNode,
+    WriteCreateCaseMarkerNode,
+)
+from vultron.core.behaviors.case.nodes.proposal_emits import (
+    EmitAcceptCaseProposalNode,
+    EmitCreateVulnerabilityCaseNode,
+)
+from vultron.core.behaviors.case.nodes.invite_participant import (
+    CheckInviteeNotAlreadyParticipantNode,
+    CreateInviteeParticipantNode,
+)
+from vultron.core.behaviors.case.nodes.invite_participant_persist import (
+    AdvanceInviteeToReceivedNode,
+    PersistInviteeParticipantNode,
+)
+from vultron.core.behaviors.case.nodes.invite_ledger_backfill import (
+    BackfillCanonicalLedgerToInviteeNode,
+    CapturePreCommitBackfillTargetNode,
+    EmitAnnounceCaseToInviteeNode,
+)
 from vultron.core.behaviors.helpers import UpdateActorOutbox  # noqa: F401
 
 __all__ = [
+    "CheckDeclineRecordExistsNode",
+    "CheckNoDeclineRecordNode",
+    "CheckProposalAlreadyAnsweredNode",
+    "CheckRejectAlreadyAnsweredNode",
+    "EmitRejectCaseProposalNode",
+    "RecordProposalAdmissionNode",
+    "RecordProposalDeclineNode",
+    "activity_names_proposal",
+    "find_activity_for_proposal",
     # actor (leaf nodes)
     "EmitInviteActorToCaseNode",
     "EmitAcceptCaseInviteNode",
@@ -219,6 +285,37 @@ __all__ = [
     "PendingOfferCaseParticipantNode",
     # re-exported from helpers (backward compat)
     "UpdateActorOutbox",
+    # proposal_case_resolution (leaf nodes, #3457 BTND-07-003)
+    "LoadExistingCaseNode",
+    "CreateCaseFromProposalNode",
+    "StoreProposalReportNode",
+    # proposal_participants (leaf nodes)
+    "AddCaseActorParticipantNode",
+    "AddVendorOwnerParticipantNode",
+    # proposal_reporter (leaf node)
+    "AddReporterParticipantNode",
+    # proposal_consent (leaf nodes)
+    "SeedVendorOwnerSignatoryNode",
+    "SeedReporterSignatoryNode",
+    # proposal_ledger (leaf node)
+    "CommitNativeLedgerEntriesNode",
+    # proposal_retry_marker (leaf nodes)
+    "CheckMarkerExistsNode",
+    "WriteCreateCaseMarkerNode",
+    "ClearCreateCaseMarkerNode",
+    # proposal_emits (leaf nodes)
+    "EmitAcceptCaseProposalNode",
+    "EmitCreateVulnerabilityCaseNode",
+    # invite_participant (leaf nodes)
+    "CheckInviteeNotAlreadyParticipantNode",
+    "CreateInviteeParticipantNode",
+    # invite_participant_persist (leaf nodes)
+    "PersistInviteeParticipantNode",
+    "AdvanceInviteeToReceivedNode",
+    # invite_ledger_backfill (leaf nodes)
+    "CapturePreCommitBackfillTargetNode",
+    "BackfillCanonicalLedgerToInviteeNode",
+    "EmitAnnounceCaseToInviteeNode",
 ]
 
 # TYPE_CHECKING stubs so mypy resolves composite names to their actual types.
