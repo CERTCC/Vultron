@@ -241,9 +241,13 @@ groups:
           .github/workflows/demo-integration.yml and
           .github/actions/build-demo-images/** are included so that changes to
           the workflow or the shared build action itself trigger a validation run.
-          .github/demo-scenarios.json is included because it is the source of
-          truth for which scenarios run (DEMOCI-06-004), so a change to it
-          changes the demo matrix itself.
+          .github/demo-scenarios.json is included because it is the file the
+          matrix is resolved from (DEMOCI-06-004), so a change to it changes the
+          demo matrix itself. Since ADR-0098 that file is a generated projection
+          of the scenario registry rather than the source of truth (DEMOCI-11),
+          but it remains in the filter: a registry change regenerates the JSON in
+          the same commit, so filtering on the JSON still detects every scenario
+          change.
 
       - id: DEMOCI-02-004
         priority: MUST
@@ -1501,3 +1505,213 @@ groups:
         relationships:
           - rel_type: refines
             spec_id: DEMOCI-10-002
+
+  - id: DEMOCI-11
+    title: Demo Scenario Registry and Derived Artifacts
+    description: >-
+      Requirements for the self-registering demo scenario registry introduced by
+      ADR-0098. The scenario set was previously restated by hand in eight-plus
+      places with nothing enforcing agreement, and had already drifted: a
+      documented `vc` sub-command named a demo script that never existed. These
+      requirements make the demo modules the sole declaration point and every
+      scenario table a derived artifact.
+    specs:
+      - id: DEMOCI-11-001
+        priority: MUST
+        kind: project
+        statement: >-
+          Each demo scenario module under `vultron/demo/scenario/` MUST declare
+          itself to the scenario registry at import time, and the registry MUST
+          be the sole declaration point for the set of demo scenarios.
+        rationale: >-
+          The demo module is the only artifact that can know a demo exists. Any
+          separate list — a data file, an import list, a documentation table —
+          can omit a scenario without failing, which is how
+          `vultron/demo/scenario/README.md` came to document a `vc` sub-command
+          backed by a `vc_demo.py` that has never existed in the repository.
+        verification: >-
+          A test asserts the registered scenario set equals the set of
+          `*_demo.py` modules present in `vultron/demo/scenario/`, so a module
+          that omits the declaration fails.
+        adr:
+          - ADR-0098
+        lint_suppress:
+          - missing_story_reference
+          - phantom_path_ref
+
+      - id: DEMOCI-11-002
+        priority: MUST
+        kind: project
+        statement: >-
+          Registry discovery MUST enumerate the scenario package
+          (`pkgutil`-style traversal of `vultron/demo/scenario/`). It MUST NOT
+          rely on a hand-maintained list of imports.
+        rationale: >-
+          Import-time registration only observes modules that were imported, so a
+          hand-written import list reintroduces the silent omission the registry
+          exists to remove: the new demo is written, nobody adds it to the list,
+          and every generated table looks complete and is wrong. This is the
+          discovery hazard already recorded for the AS2 vocabulary registry.
+        verification: >-
+          The same set-equality test as DEMOCI-11-001 fails when discovery misses
+          a module, and a test asserts no hand-maintained import list governs
+          discovery.
+        adr:
+          - ADR-0098
+        relationships:
+          - rel_type: refines
+            spec_id: DEMOCI-11-001
+        lint_suppress:
+          - missing_story_reference
+          - phantom_path_ref
+
+      - id: DEMOCI-11-003
+        priority: MUST
+        kind: project
+        statement: >-
+          A scenario's demo script, invariant harness, and narrative page paths
+          MUST be derived from its registered name by convention
+          (`vultron/demo/scenario/<name_>_demo.py`,
+          `test/ci/invariants/test_<name_>_invariants.py`,
+          `docs/topics/scenarios/<name>.md`, where `<name_>` replaces hyphens
+          with underscores). The registry MUST NOT store these paths.
+        rationale: >-
+          A stored path can be wrong about itself; a derived path either resolves
+          or fails a check. Every registered scenario satisfies all three
+          conventions, so no exception list is required, and introducing an
+          override field would re-open the drift channel for every scenario
+          rather than one.
+        verification: >-
+          A test asserts each registered scenario's three derived paths resolve
+          on disk.
+        adr:
+          - ADR-0098
+        relationships:
+          - rel_type: refines
+            spec_id: DEMOCI-11-001
+        lint_suppress:
+          - missing_story_reference
+          - phantom_path_ref
+
+      - id: DEMOCI-11-004
+        priority: MUST
+        kind: project
+        statement: >-
+          `.github/demo-scenarios.json` MUST be generated from the scenario
+          registry and MUST remain committed. It MUST carry only the keys the CI
+          matrix consumes (`demo`, `test_file`, `full_suite_only`), and
+          `full_suite_only` MUST be an explicit boolean on every entry.
+        rationale: >-
+          The `scenarios` job resolves the matrix with `jq` immediately after
+          checkout, in a job with no Python environment, so the matrix cannot be
+          computed at run time and the file cannot be build-time-only. Entries
+          are splatted into `matrix: include:`, so every extra key becomes a
+          matrix variable visible to every step of two jobs. The selection filter
+          is `select(.full_suite_only == false)`, so an omitted field silently
+          drops a PR-set scenario from the matrix instead of erroring.
+        verification: >-
+          The dumper's check mode fails when the committed JSON does not match
+          the registry, and a test asserts the projection carries no keys beyond
+          the three the matrix consumes.
+        adr:
+          - ADR-0098
+        relationships:
+          - rel_type: refines
+            spec_id: DEMOCI-06-004
+        lint_suppress:
+          - missing_story_reference
+
+      - id: DEMOCI-11-005
+        priority: MUST
+        kind: project
+        statement: >-
+          Every committed artifact generated from the scenario registry MUST be
+          gated by a check mode wired into pre-commit, which fails when the
+          committed artifact does not match the registry.
+        rationale: >-
+          A generated file that is committed but ungated is just a hand-edited
+          file with extra steps. The repository already runs this arrangement for
+          `docs/adr/index.md` via the `adr-index-sync` hook.
+        verification: >-
+          The pre-commit configuration registers the check, and a test asserts
+          the check fails on a deliberately stale artifact.
+        adr:
+          - ADR-0098
+        relationships:
+          - rel_type: refines
+            spec_id: DEMOCI-11-004
+        lint_suppress:
+          - missing_story_reference
+
+      - id: DEMOCI-11-006
+        priority: MUST_NOT
+        kind: project
+        statement: >-
+          Documentation outside the MkDocs tree MUST NOT use
+          `{% include-markdown %}` to source a scenario table. Such tables MUST
+          be generated into the file, and `docs/` pages MAY instead render the
+          table at build time.
+        rationale: >-
+          The `include-markdown` plugin expands only during a MkDocs build, and
+          `mkdocs.yml` references neither `notes/` nor `test/ci/`. An include
+          directive in either renders as literal text to every reader on GitHub
+          and to every agent reading the raw file. Build-time rendering is the
+          stronger guarantee — no table is committed, so drift is impossible —
+          but it is available only inside the MkDocs tree.
+        verification: >-
+          A test asserts no file outside the MkDocs tree contains an
+          include-markdown directive for a scenario table.
+        adr:
+          - ADR-0098
+        lint_suppress:
+          - missing_story_reference
+
+      - id: DEMOCI-11-007
+        priority: MUST
+        kind: project
+        statement: >-
+          Hand-written prose that enumerates scenarios — including DEMOCI-06-002,
+          DEMOCI-06-003, DEMOMA-16-002 through DEMOMA-16-011, and the
+          `mkdocs.yml` nav — MUST be checked for agreement with the scenario
+          registry rather than rewritten to defer to it.
+        rationale: >-
+          A requirement that defers its content to code is a weak requirement,
+          and DEMOMA-16-002 through DEMOMA-16-011 exist so that each scenario has
+          a citable spec ID. Generate what is derivable and check what is prose —
+          the split `vultron/metadata/adr/index_gen.py` already makes when it
+          generates the ADR index but only checks the nav, whose labels are
+          hand-written.
+        verification: >-
+          Tests assert that DEMOCI-06-002 names exactly the PR-set scenarios,
+          that DEMOCI-06-003 names exactly the registered set, that
+          DEMOMA-16-002 through DEMOMA-16-011 covers each registered scenario,
+          and that the `mkdocs.yml` nav references every scenario narrative page.
+        adr:
+          - ADR-0098
+        relationships:
+          - rel_type: refines
+            spec_id: DEMOCI-11-001
+        lint_suppress:
+          - missing_story_reference
+
+      - id: DEMOCI-11-008
+        priority: MUST_NOT
+        kind: project
+        statement: >-
+          Long-lived documentation MUST NOT restate the number of demo
+          scenarios. The generated table is the count.
+        rationale: >-
+          `test/ci/README-case-log-ratchet.md` stated "nine" three times in
+          sentences surrounding a nine-row table, so adding a scenario meant four
+          coordinated edits to one page. This is MS-16-001 applied to the
+          scenario set.
+        verification: >-
+          A test asserts no scenario-table consumer restates the registered
+          scenario count in prose.
+        adr:
+          - ADR-0098
+        relationships:
+          - rel_type: refines
+            spec_id: DEMOCI-11-007
+        lint_suppress:
+          - missing_story_reference
