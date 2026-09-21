@@ -16,7 +16,8 @@ You finish with a roster that reflects who is actually working the case.
 - An existing case.
 - The Case Owner role for invitations and removals. Any participant can record
   its own status.
-- The CASE_MANAGER's actor URI, which is where handshake replies go.
+- The CASE_MANAGER's actor Uniform Resource Identifier (URI), which is where
+  handshake replies go.
 
 ---
 
@@ -27,8 +28,11 @@ The two decision diamonds are the loop a long-running case sits in: status
 updates accumulate, and a participant leaves only when `Remove?` is answered yes.
 
 ```mermaid
+---
+title: Case Roster Over the Life of a Case
+---
 flowchart TB
-    subgraph as:Invite 
+    subgraph as:Invite
         RmInviteToCase
     end
     subgraph as:Accept
@@ -54,7 +58,7 @@ flowchart TB
     a -->|y| RmAcceptInviteToCase
     a -->|n| RmRejectInviteToCase
     RmAcceptInviteToCase --> CreateParticipant
-    
+
     CreateParticipantStatus --> AddStatusToParticipant
     CreateParticipant --> AddParticipantToCase
     AddParticipantToCase --> s{Status?}

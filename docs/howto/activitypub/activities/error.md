@@ -13,7 +13,8 @@ act on.
 
 {% include-markdown "./_demo_prerequisites.md" %}
 
-- The message that failed, and the sender's actor URI.
+- The message that failed, and the sender's actor Uniform Resource
+  Identifier (URI).
 - Your own determination of why it failed. The three modes below are mutually
   exclusive.
 
@@ -59,7 +60,7 @@ Read the object and the context before treating a `Reject` as an error.
     alarm.
 
 A `Reject(CaseLedgerEntry)` is a third thing again: it is the ledger negative
-acknowledgement, and it asks the CASE_MANAGER to replay a missing prefix rather
+acknowledgment, and it asks the CASE_MANAGER to replay a missing prefix rather
 than reporting a fault.
 See
 [Faults and Acknowledgements](../../../reference/messages/faults_and_acknowledgements.md).

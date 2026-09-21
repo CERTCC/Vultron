@@ -207,9 +207,14 @@ class or its registered pattern declares. Each guide names the demo scenario tha
 runs the same flow, so a diverged diagram is one `vultron-demo` run from being
 caught.
 
-What no check covers is a diagram whose *ordering* has drifted while every
-activity name and verb stays right. When you touch a scenario, read its guide's
-diagram in the same change.
+What no check covers is a diagram whose *edges* are wrong while every activity
+name and verb stays right — the verb test reads the `subgraph as:Verb` blocks, not
+the arrows between them. `manage_embargo.md` was the instance: its flowchart routed
+`RemoveEmbargoFromCase` back into the `Propose?` loop and left `AnnounceEmbargo`
+with no edges at all, contradicting the page's own warning that termination is not
+a revision. Both survived every check the tree has. When you touch a scenario,
+read its guide's diagram in the same change, and read the arrows, not just the
+node names.
 
 ---
 

@@ -3,7 +3,8 @@
 {% include-markdown "../../../includes/not_normative.md" %}
 
 These guides show how to carry out each Vultron protocol task with
-ActivityStreams 2.0 (AS2) activities.
+ActivityStreams (AS) activities.
+The wire vocabulary is ActivityStreams 2.0 (AS2).
 Each one states its prerequisites, gives the activities to send in order, and
 says how to confirm the task landed.
 They assume you are implementing or operating a Vultron actor, not learning the

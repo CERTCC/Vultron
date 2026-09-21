@@ -24,6 +24,9 @@ The flowchart below places each activity in the RM state it produces.
 Read it as the set of moves available from wherever you are now.
 
 ```mermaid
+---
+title: Report Management Moves and the States They Produce
+---
 flowchart TB
     subgraph RM:RECEIVED
         subgraph as:Offer
@@ -125,8 +128,9 @@ What your closure does to the case depends on whether you are the Case Owner.
 
 !!! warning "An owner closure is refused while an embargo is active"
 
-    If you are the Case Owner and the case still holds an active embargo — the EM
-    state is `ACTIVE` or `REVISE` — the CASE_MANAGER declines your `RmCloseCase`
+    If you are the Case Owner and the case still holds an active embargo — the
+    Embargo Management (EM) state is `ACTIVE` or `REVISE` — the CASE_MANAGER
+    declines your `RmCloseCase`
     with an `as:Reject` and runs no part of the closure sequence (CM-23-011).
     Terminate the embargo first: see
     [How to Revise or Terminate an Embargo](manage_embargo.md).

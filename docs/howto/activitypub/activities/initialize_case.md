@@ -26,6 +26,9 @@ The three `as:Add` activities branch from `CreateCase` because each attaches a
 different kind of object to the new case.
 
 ```mermaid
+---
+title: Case Creation and the Objects Attached to It
+---
 flowchart LR
     subgraph as:Create
         CreateCase

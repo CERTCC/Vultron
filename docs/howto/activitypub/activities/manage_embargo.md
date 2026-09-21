@@ -34,6 +34,9 @@ The `Terminate?` branch is where an active embargo ends; the `Propose?` branch i
 where it changes.
 
 ```mermaid
+---
+title: Revising or Terminating an Active Embargo
+---
 flowchart TB
     subgraph as:Invite
         EmProposeEmbargo
@@ -53,25 +56,26 @@ flowchart TB
     end
     subgraph as:Announce
         AnnounceEmbargo
-    end 
+    end
     start([Start])
     start --> f{Ask first?}
     f -->|n| AddEmbargoToCase
-    v -->|y| t{Terminate?}
-    p{Propose?} -->|y| EmProposeEmbargo
-    EmAcceptEmbargo --> ActivateEmbargo
-    EmProposeEmbargo --> a{Accept?}
-    EmRejectEmbargo --> v
     f -->|y| v{Active?}
+    v -->|y| t{Terminate?}
+    v -->|n| p{Propose?}
+    p -->|y| EmProposeEmbargo
+    p -->|n| v
+    EmProposeEmbargo --> a{Accept?}
     a -->|y| EmAcceptEmbargo
     a -->|n| EmRejectEmbargo
-    t -->|n| p
-    t{Terminate?} -->|y| RemoveEmbargoFromCase
+    EmAcceptEmbargo --> ActivateEmbargo
+    EmRejectEmbargo --> v
     ActivateEmbargo --> t
     AddEmbargoToCase --> t
-    v -->|n| p
-    p -->|n| v
-    RemoveEmbargoFromCase --> p
+    t -->|n| p
+    t -->|y| RemoveEmbargoFromCase
+    RemoveEmbargoFromCase --> AnnounceEmbargo
+    AnnounceEmbargo --> exited([EM.EXITED])
 ```
 
 ---

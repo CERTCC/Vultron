@@ -110,11 +110,11 @@ own store alone does not confirm the update landed.
 - [Case State (CS) Messages](../../../reference/messages/cs.md) — the wire format
   and a rendered example for each status activity, and which dimensions are
   participant-scoped
-- [General (GI) Messages](../../../reference/messages/general.md) — the wire
+- [General Inquiry (GI) Messages](../../../reference/messages/general.md) — the wire
   format for the note lifecycle
 - [Vultron AS Objects](../../../reference/activitypub/objects.md) — the
-  `CaseStatus`, `ParticipantStatus`, and `CaseParticipant` objects these
-  activities carry
+  ActivityStreams (AS) `CaseStatus`, `ParticipantStatus`, and
+  `CaseParticipant` objects these activities carry
 - [Activity Vocabulary Design](../../../topics/activity_vocabulary_design.md) —
   why the `Create` and `Add` split exists, and when an implementation may send
   only the `Add`

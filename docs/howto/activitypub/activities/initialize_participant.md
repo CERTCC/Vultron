@@ -13,7 +13,7 @@ You finish with the actor on the case roster, holding the roles you assigned.
 {% include-markdown "./_demo_prerequisites.md" %}
 
 - An existing case, and the Case Owner role on it.
-- The actor's URI, and its agreement to join. An actor that has not agreed is
+- The actor's Uniform Resource Identifier (URI), and its agreement to join. An actor that has not agreed is
   invited, not seated — see
   [How to Invite an Actor to a Case](invite_actor.md).
 - The set of roles the actor will hold on this case.
@@ -26,6 +26,9 @@ The flowchart below shows the two activities in order.
 The `Create` mints the per-case binding; the `Add` attaches it to the case.
 
 ```mermaid
+---
+title: Seating a Participant on an Existing Case
+---
 flowchart LR
     subgraph as:Create
         CreateParticipant
@@ -91,6 +94,6 @@ the seating appears as a ledger entry on every participant's replica.
 - [Case Management Messages](../../../reference/messages/case_management.md) —
   the wire format and a rendered example for both activities above
 - [Vultron AS Objects](../../../reference/activitypub/objects.md#caseparticipant)
-  — the `CaseParticipant` object these activities carry
+  — the ActivityStreams (AS) `CaseParticipant` object these activities carry
 - [Activity Vocabulary Design](../../../topics/activity_vocabulary_design.md) —
   why the binding is per case, and when to collapse the two activities into one

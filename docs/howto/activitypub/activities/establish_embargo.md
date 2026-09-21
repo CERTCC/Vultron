@@ -33,6 +33,9 @@ The `Ask first?` branch is the choice between negotiating the terms and adding
 them directly.
 
 ```mermaid
+---
+title: Establishing an Embargo: Negotiated and Direct Paths
+---
 flowchart TB
     subgraph as:Invite
         EmProposeEmbargo

@@ -12,7 +12,7 @@ declined.
 {% include-markdown "./_demo_prerequisites.md" %}
 
 - An existing case, and the Case Owner role on it.
-- The actor's URI.
+- The actor's Uniform Resource Identifier (URI).
 - The CASE_MANAGER's actor URI. It sends the invitation and receives the reply.
 
 ---

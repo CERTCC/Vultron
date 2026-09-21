@@ -9,6 +9,7 @@ description: >-
 related_specs:
   - specs/message-semantics-mapping.yaml
   - specs/vultron-as2-mapping.yaml
+  - specs/semantic-extraction.yaml
   - specs/diataxis-requirements.yaml
   - specs/project-documentation.yaml
 related_notes:
@@ -259,11 +260,19 @@ discriminator fields the activity's `ActivityPattern` requires — `object_`,
 `target_`, `context_` — and note that `ActivityPattern` has **no `origin_`
 field**, so `origin` is never consulted for dispatch no matter how well it reads.
 `test/architecture/test_vocab_examples_dispatchable.py` is the ratchet: every
-example activity must match exactly one registered pattern. It found two examples
-that matched none (#3438, #3439), each rendered on a reference page and each
+example activity must match exactly one registered pattern. It found three examples
+that matched none (#3438, #3439, #3433), each rendered on a reference page and each
 committed as a JSON artifact, because the two pre-existing gates ask only whether
 an example *executes* and whether its *filename* is committed — never whether a
 receiver could route it.
+
+Its collector is deliberately permissive about shape, because both narrower rules
+had already hidden a target: requiring zero *parameters* rather than zero
+*required* parameters skipped the four `report.py` examples that take a defaulted
+`verbose` (`submit_report` among them), and requiring `as_TransitiveActivity`
+rather than `as_Activity` skipped `choose_preferred_embargo`, an `as_Question`. A
+gate that silently resolves fewer targets than it claims is the false-clean signal
+DF-09-009 exists to forbid, so the collected count is itself asserted.
 
 The generator's output path is now resolved from the file's own location
 (`Path(__file__).parents[5]`), so it works regardless of the caller's working

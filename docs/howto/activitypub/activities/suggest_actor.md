@@ -14,7 +14,7 @@ declined, and with the outcome reported back to you.
 {% include-markdown "./_demo_prerequisites.md" %}
 
 - A case you participate in. Any participant can suggest an actor.
-- The suggested actor's URI.
+- The suggested actor's Uniform Resource Identifier (URI).
 - The CASE_MANAGER's actor URI.
 
 If you hold the Case Owner role and the decision is yours alone, invite the actor
@@ -123,7 +123,7 @@ CASE_MANAGER and not to the recommender.
 
 ## Further reading
 
-- [General (GI) Messages](../../../reference/messages/general.md) — the wire
+- [General Inquiry (GI) Messages](../../../reference/messages/general.md) — the wire
   format and a rendered example for the recommendation activities
 - [Case Management Messages](../../../reference/messages/case_management.md) —
   the wire format for the forwarded offer and its accept and reject replies

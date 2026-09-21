@@ -2,7 +2,7 @@
 
 Use this guide when you have received a report and want to tell the sender it
 arrived, without yet declaring it valid or invalid.
-The acknowledgement is `RmReadReport`, a subclass of `as:Read`.
+The acknowledgment is `RmReadReport`, a subclass of `as:Read`.
 You finish with the sender informed and your own Report Management (RM) state
 unchanged at `RECEIVED`.
 
@@ -13,13 +13,13 @@ unchanged at `RECEIVED`.
 {% include-markdown "./_demo_prerequisites.md" %}
 
 - A report you have received, at `RM.RECEIVED`.
-- The sender's actor URI.
+- The sender's actor Uniform Resource Identifier (URI).
 
 ---
 
 ## Decide whether to acknowledge at all
 
-An acknowledgement carries no verdict, so it is worth sending only while you have
+An acknowledgment carries no verdict, so it is worth sending only while you have
 no verdict to send.
 
 - If you are still triaging, send `RmReadReport`.
@@ -33,11 +33,11 @@ information.
 
 ---
 
-## Send the acknowledgement
+## Send the acknowledgment
 
 1. Send `RmReadReport` to the sender's inbox, with the original
    `RmSubmitReport` activity as its `object`.
-2. Leave your RM state at `RECEIVED`. Acknowledgement is not a transition.
+2. Leave your RM state at `RECEIVED`. Acknowledgment is not a transition.
 
 !!! warning "The prototype's emit path disagrees about this object"
 
@@ -49,7 +49,7 @@ information.
     `Read(VulnerabilityReport)`, carrying the bare report, which matches no
     pattern.
     Until #3439 settles which shape is authoritative, send the nested form and
-    expect the prototype's emitted acknowledgements to differ.
+    expect the prototype's emitted acknowledgments to differ.
 
 ---
 
@@ -85,9 +85,9 @@ ledger-replicated.
 
 - [Faults and Acknowledgements](../../../reference/messages/faults_and_acknowledgements.md)
   — the wire format, the mapping to the formal `RK` message, and the cumulative
-  hash-chain acknowledgement that covers ledger-replicated state
+  hash-chain acknowledgment that covers ledger-replicated state
 - [Activity Vocabulary Design](../../../topics/activity_vocabulary_design.md) —
   why Vultron uses `as:Read` rather than `as:View` or `as:Listen`, and why
-  acknowledgement and validity are separate claims
+  acknowledgment and validity are separate claims
 - [How to Report a Vulnerability](report_vulnerability.md) — the exchange this
-  acknowledgement sits inside
+  acknowledgment sits inside

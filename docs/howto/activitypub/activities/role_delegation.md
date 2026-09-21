@@ -12,7 +12,8 @@ You finish with the recipient holding the role, or with the roster unchanged.
 
 - An existing case, and the authority to delegate on it. This is normally the
   Case Owner or the Case Manager.
-- The target actor's URI, and its seat on the case.
+- The target actor's Uniform Resource Identifier (URI), and its seat on the
+  case.
 - The specific `CVDRole` you intend to offer.
 
 ---
@@ -23,6 +24,9 @@ The sequence diagram below shows both outcomes.
 The offer names the role; the reply decides whether the role moves.
 
 ```mermaid
+---
+title: Role Delegation: Offer, Accept, and Reject
+---
 sequenceDiagram
     actor O as Offering Actor
     actor T as Target Actor
