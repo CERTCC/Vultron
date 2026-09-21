@@ -533,7 +533,7 @@ itself or from a prior invocation having been authorized.
 CLP-12.*
 
 The CASE_MANAGER commits every case-initialization ledger entry **natively**, in
-`_CommitNativeLedgerEntriesNode` inside
+`CommitNativeLedgerEntriesNode` inside
 `vultron/core/behaviors/case/case_proposal_received_tree.py`, while handling the
 inbound `Create(as_CaseProposal)`.  Causal order:
 

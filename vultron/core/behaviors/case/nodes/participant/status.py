@@ -172,7 +172,7 @@ class CreateParticipantStatusNode(
         ``_actor_id`` is latched from the ``actor_id`` port on the first
         ``initialise`` when the constructor left it empty — the pre-built
         pattern of ``CreateOwnerInitialStatusNode`` and
-        ``_AddCaseActorParticipantNode``, which build the node once in
+        ``AddCaseActorParticipantNode``, which build the node once in
         ``__init__`` and run it through ``BTBridge.execute_with_setup``
         (BTND-10-004, ADR-0089).  Without this reset the first execution's
         actor would persist, so re-using a pre-built node for a second actor

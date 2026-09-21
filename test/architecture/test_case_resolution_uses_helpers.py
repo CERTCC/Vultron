@@ -139,19 +139,39 @@ def _collect_sites() -> "Counter[tuple[str, str]]":
 #   LEN = lenient guard / diagnostic (never fails the tree on absence)
 #   MOD = module-level resolver (bare `dl`, fails via None -> caller FAILURE)
 # ---------------------------------------------------------------------------
-_CPR = "vultron/core/behaviors/case/case_proposal_received_tree.py"
 _NODES = "vultron/core/behaviors/case/nodes"
 
 KNOWN_ALLOWLIST: frozenset[tuple[str, str]] = frozenset(
     {
         # R3 — idempotency probes / audit-best-effort / seeds during the
-        # CaseActor's proposal-received construction flow.
-        (_CPR, "_AddCaseActorParticipantNode.update"),
-        (_CPR, "_AddVendorOwnerParticipantNode.update"),
-        (_CPR, "_AddReporterParticipantNode._already_has_participant"),
-        (_CPR, "_CommitNativeLedgerEntriesNode.update"),
-        (_CPR, "_SeedVendorOwnerSignatoryNode.update"),
-        (_CPR, "_SeedReporterSignatoryNode._resolve_participant"),
+        # CaseActor's proposal-received construction flow. Relocated (not added)
+        # from case_proposal_received_tree.py to nodes/ submodules and renamed
+        # to public names by #3457 (BTND-07-003); the read_case sites are
+        # unchanged.
+        (
+            f"{_NODES}/proposal_participants.py",
+            "AddCaseActorParticipantNode.update",
+        ),
+        (
+            f"{_NODES}/proposal_participants.py",
+            "AddVendorOwnerParticipantNode.update",
+        ),
+        (
+            f"{_NODES}/proposal_reporter.py",
+            "AddReporterParticipantNode._already_has_participant",
+        ),
+        (
+            f"{_NODES}/proposal_ledger.py",
+            "CommitNativeLedgerEntriesNode.update",
+        ),
+        (
+            f"{_NODES}/proposal_consent.py",
+            "SeedVendorOwnerSignatoryNode.update",
+        ),
+        (
+            f"{_NODES}/proposal_consent.py",
+            "SeedReporterSignatoryNode._resolve_participant",
+        ),
         # R3 — optional addressing / stub enrichment; factory tolerates None.
         (f"{_NODES}/actor.py", "EmitInviteActorToCaseNode._call_factory"),
         (

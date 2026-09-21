@@ -23,7 +23,7 @@ AC-3: CLP-13-001 and CLP-13-002 satisfied.
 import pytest
 from py_trees.common import Status
 
-from vultron.core.behaviors.case.accept_invite_tree import (
+from vultron.core.behaviors.case.nodes import (
     CheckInviteeNotAlreadyParticipantNode,
 )
 from vultron.core.behaviors.idempotency import SilentIdempotencyGuardMixin
