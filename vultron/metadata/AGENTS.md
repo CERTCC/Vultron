@@ -4,8 +4,8 @@
 
 This package is the project's own tooling layer: it reads the repository's
 metadata files and validates them. It backs the `spec-dump`, `spec-lint`,
-`spec-coverage`, `adr-index`, `append-history`, and `show-history` console
-entry points, plus several pre-commit hooks.
+`spec-coverage`, `adr-index`, `demo-scenarios`, `append-history`, and
+`show-history` console entry points, plus several pre-commit hooks.
 
 Nothing here is protocol code. The audience for its output is a human or an
 agent who just edited a metadata file and got it wrong, so **error messages
@@ -20,7 +20,36 @@ are the product**.
 | `adr/` | `docs/adr/*.md` frontmatter | `AdrFrontmatter` |
 | `history/` | `plan/history/**/*.md`, `plan/incoming/learnings/*.md` | `HistoryEntryFrontmatter` |
 | `msm/` | a constant mapping table + the wire `SEMANTIC_REGISTRY` | — |
+| `demo_scenarios/` | the `@scenario` registry in `vultron/demo/scenario/` | — |
 | `docs/` | `git log` over `docs/`, for the what's-new page | — |
+
+Shared helpers live in `base.py`: `repo_root()` (every loader needs it and none
+may assume the caller's cwd) and `MkDocsYamlLoader` (a `SafeLoader` that
+tolerates `mkdocs.yml`'s `!ENV` and `!!python/name:` tags). Do not re-derive
+either — `repo_root` had six near-identical copies before #3450. Five were
+private `_find_repo_root`; the sixth, `specs/registry.py:find_repo_root`, was
+public and so survived the first sweep. All six are now aliases of the shared
+helper, kept only because other modules and tests import them by their old
+names. **A grep for the private spelling will not find a public duplicate** —
+search for the behaviour (`pyproject.toml` walked upward), not the name.
+
+## Generate vs. Check
+
+Two subpackages own committed generated artifacts, and both split the same way:
+**generate what is derivable, check what is prose.** `adr/index_gen.py`
+regenerates `docs/adr/index.md` but only checks the MkDocs nav, whose labels are
+hand-written; `demo_scenarios/` regenerates the CI matrix and two scenario
+tables but leaves the spec enumerations and nav to completeness checks. Each is
+wired into pre-commit as a `--check` hook (`adr-index-sync`,
+`demo-scenarios-sync`). A generated file that is committed but ungated is a
+hand-edited file with extra steps.
+
+One trap specific to build-time rendering: MkDocs rewrites `.md` links with a
+treeprocessor on **its own** `Markdown` instance, and `markdown-exec` converts a
+block's output on a child instance that does not carry it. A `.md` target
+printed from an exec block reaches the built HTML verbatim and 404s, and
+`mkdocs build --strict` stays silent because it never saw the link. Emit
+built-site URLs (`fv/`) from a renderer, not source paths.
 
 ## Loader Failure Attribution (MS-17)
 

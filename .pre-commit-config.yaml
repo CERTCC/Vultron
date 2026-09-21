@@ -63,6 +63,26 @@ repos:
         files: ^(docs/adr/.*\.md|mkdocs\.yml)$
         pass_filenames: false
 
+      - id: demo-scenarios-sync
+        name: Demo scenario artifacts in sync
+        # The console script, not `python -m ...`: `__init__.py` re-exports from
+        # `sync`, so `-m` runs the module twice as two distinct objects and
+        # prints a RuntimeWarning on every commit. This also matches the command
+        # every error message, README step and AGENTS.md entry names.
+        entry: uv run demo-scenarios --check
+        language: system
+        # Three kinds of input make the committed artifacts stale, so all three
+        # are watched (DEMOCI-11-005): the @scenario decorators in the scenario
+        # modules, the renderers that turn them into tables and JSON, and the
+        # artifacts themselves — the last so a hand-edit is caught too.
+        #
+        # Not covered: a commit that *only deletes* a scenario module and its
+        # derived files. pre-commit's staged-file list excludes deletions, so no
+        # pattern can match one; test_committed_artifacts_are_in_sync in
+        # test/metadata/test_demo_scenario_artifacts.py is the backstop there.
+        files: ^(vultron/demo/scenario/.*\.py|vultron/metadata/demo_scenarios/.*\.py|\.github/demo-scenarios\.json|test/ci/README-case-log-ratchet\.md|vultron/demo/scenario/README\.md)$
+        pass_filenames: false
+
       - id: flake8
         name: flake8 (with CC gate)
         # Routed through run-if-changed.sh so this whole-tree lint is skipped

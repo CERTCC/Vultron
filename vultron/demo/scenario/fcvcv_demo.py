@@ -116,6 +116,7 @@ from vultron.demo.helpers.workflow import (
     run_direct_path_rm_triage,
     run_invite_path_rm_triage,
 )
+from vultron.demo.scenario.registry import scenario
 
 logger = logging.getLogger(__name__)
 
@@ -1276,6 +1277,13 @@ def run_fcvcv_demo(
 # ---------------------------------------------------------------------------
 
 
+@scenario(
+    name="fcvcv",
+    label="FCVCV",
+    participants="Finder + C1 + V1 + C2 + V2",
+    feature="Actor-suggestion flow (ADR-0026)",
+    in_pr_set=True,
+)
 def main(
     skip_health_check: bool = False,
     finder_url: str | None = None,

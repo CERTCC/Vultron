@@ -93,6 +93,7 @@ from vultron.demo.helpers.workflow import (
     reporter_submits_report,
     run_direct_path_rm_triage,
 )
+from vultron.demo.scenario.registry import scenario
 
 logger = logging.getLogger(__name__)
 
@@ -657,6 +658,13 @@ def run_fcv_reject_demo(
 # ---------------------------------------------------------------------------
 
 
+@scenario(
+    name="fcv-reject",
+    label="FCV-reject",
+    participants="Finder + Coordinator + Vendor (Vendor rejects)",
+    feature="Invite rejection path",
+    in_pr_set=True,
+)
 def main(
     skip_health_check: bool = False,
     finder_url: str | None = None,

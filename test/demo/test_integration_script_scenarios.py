@@ -17,7 +17,9 @@ When a new demo scenario is added to .github/demo-scenarios.json
 (per DEMOCI-02-003), the shell script's VALID_SCENARIOS list must be updated
 in the same PR.  This test catches the drift that triggered issue #1585.
 
-Source of truth: the ``demo`` key in each entry of .github/demo-scenarios.json.
+Source of truth: the ``demo`` key in each entry of .github/demo-scenarios.json,
+which is itself generated from the ``@scenario`` decorators in
+``vultron/demo/scenario/`` (ADR-0098, DEMOCI-11-004).
 Checked artifact: VALID_SCENARIOS in run_multi_actor_integration_test.sh.
 """
 
