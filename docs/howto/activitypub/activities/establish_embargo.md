@@ -156,3 +156,6 @@ adding it outright does not bind anyone who was absent.
   to choose terms other parties will accept
 - [How to Revise or Terminate an Embargo](manage_embargo.md) — what to do once the
   embargo is active
+- [Trigger API Reference](../../../reference/trigger-api.md#embargo-management) —
+  request schema and endpoint details for `propose-embargo`, `accept-embargo`,
+  and `reject-embargo`

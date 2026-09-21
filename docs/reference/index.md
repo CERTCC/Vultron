@@ -17,6 +17,7 @@ protocol with other related standards and protocols, including:
 
 <div class="grid cards" markdown>
 
+- :material-api: [Trigger API](trigger-api.md) — generated reference for the 23 `POST /trigger/{behavior}` call-in endpoints
 - :material-cube-unfolded: A [Formal Protocol](formal_protocol/index.md) specification for the Vultron Protocol
 - :material-message-text: [Message Types](messages/index.md) — the formal shorthand set mapped to the AS2 wire vocabulary
 - :material-file-document-multiple: [Specifications](specs/index.md) — structured requirements by kind (General, Pattern, Domain, Language, Implementation, Dev Process)

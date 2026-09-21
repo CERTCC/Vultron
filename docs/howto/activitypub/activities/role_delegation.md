@@ -99,3 +99,7 @@ case ledger, so accepting it moves real work onto your actor.
 - [ADR-0039 — Resolve Wire Ambiguity Between OFFER\_CASE\_MANAGER\_ROLE
   and OFFER\_CASE\_OWNERSHIP\_TRANSFER via Dedicated Object
   Type](../../../adr/0039-offer-case-participant-role-wire-type.md)
+- [Trigger API Reference](../../../reference/trigger-api.md#actor-participation) —
+  request schema and endpoint details for `offer-case-participant-role`,
+  `offer-case-ownership-transfer`, `accept-actor-recommendation`, and
+  `accept-case-ownership-transfer`

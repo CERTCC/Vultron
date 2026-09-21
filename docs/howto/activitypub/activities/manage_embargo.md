@@ -156,3 +156,6 @@ See
   machine these activities drive
 - [Participant Embargo Consent](../../../topics/process_models/em/participant-embargo-consent.md)
   — how each participant's own commitment is tracked alongside the case EM state
+- [Trigger API Reference](../../../reference/trigger-api.md#embargo-management) —
+  request schema and endpoint details for `propose-embargo-revision` and
+  `terminate-embargo`
