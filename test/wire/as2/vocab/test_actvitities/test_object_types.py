@@ -120,7 +120,10 @@ class TestRmSubmitReportActivity:
 
 
 class TestRmReadReportActivity:
-    from vultron.wire.as2.vocab.activities.report import _RmReadReportActivity
+    from vultron.wire.as2.vocab.activities.report import (
+        _RmReadReportActivity,
+        _RmSubmitReportActivity,
+    )
 
     cls = _RmReadReportActivity
 
@@ -130,8 +133,15 @@ class TestRmReadReportActivity:
     def test_rejects_link(self):
         _assert_rejects_link(self.cls)
 
-    def test_accepts_inline_report(self):
-        _assert_accepts_inline(self.cls, as_VulnerabilityReport())
+    def test_accepts_inline_offer(self):
+        offer = self._RmSubmitReportActivity(
+            actor=ACTOR_ID, object_=as_VulnerabilityReport()
+        )
+        _assert_accepts_inline(self.cls, offer)
+
+    def test_rejects_inline_bare_report(self):
+        with pytest.raises(ValidationError):
+            _make_activity(self.cls, as_VulnerabilityReport())
 
 
 # ---------------------------------------------------------------------------

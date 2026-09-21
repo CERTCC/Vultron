@@ -4,19 +4,19 @@
   "name": "Coordinator LLC",
   "@context": "https://www.w3.org/ns/activitystreams",
   "inbox": {
-    "id": "urn:uuid:ff472d6b-0c35-40bf-9ed1-5035292867fe",
+    "id": "urn:uuid:2b18f868-42cd-4795-86b9-baaa7dd53e4d",
     "type": "OrderedCollection",
-    "published": "2026-09-16T18:38:47+00:00",
-    "updated": "2026-09-16T18:38:47+00:00",
+    "published": "2026-09-21T14:10:27+00:00",
+    "updated": "2026-09-21T14:10:27+00:00",
     "@context": "https://www.w3.org/ns/activitystreams",
     "items": [],
     "current": 0
   },
   "outbox": {
-    "id": "urn:uuid:913746d7-5dc1-4755-a553-5415ebae6f44",
+    "id": "urn:uuid:a31082f9-cc07-44cb-a027-97dfa5990ff8",
     "type": "OrderedCollection",
-    "published": "2026-09-16T18:38:47+00:00",
-    "updated": "2026-09-16T18:38:47+00:00",
+    "published": "2026-09-21T14:10:27+00:00",
+    "updated": "2026-09-21T14:10:27+00:00",
     "@context": "https://www.w3.org/ns/activitystreams",
     "items": [],
     "current": 0

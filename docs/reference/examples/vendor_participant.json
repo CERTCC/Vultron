@@ -1,8 +1,8 @@
 {
-  "id": "urn:uuid:0d4a16ce-9ce4-44c2-a73f-81961d7f3fa5/participants/vendorco",
+  "id": "urn:uuid:5a4de4be-e35f-4167-a9dc-c48fe6ea3774/participants/vendorco",
   "type": "CaseParticipant",
   "name": "VendorCo",
-  "context": "urn:uuid:0d4a16ce-9ce4-44c2-a73f-81961d7f3fa5",
+  "context": "urn:uuid:5a4de4be-e35f-4167-a9dc-c48fe6ea3774",
   "attributedTo": "https://vultron.example/organizations/vendorco",
   "@context": "https://certcc.github.io/Vultron/ns/context.jsonld",
   "caseRoles": [
@@ -10,12 +10,12 @@
   ],
   "participantStatuses": [
     {
-      "id": "urn:uuid:8def8ff2-2711-4afb-bf6d-e0dafa995a74",
+      "id": "urn:uuid:2d6dd64e-088e-4fa0-b9fd-6b7346c9f7b0",
       "type": "ParticipantStatus",
       "name": "RECEIVED Vf",
-      "context": "urn:uuid:0d4a16ce-9ce4-44c2-a73f-81961d7f3fa5",
-      "published": "2026-09-16T18:38:48+00:00",
-      "updated": "2026-09-16T18:38:48+00:00",
+      "context": "urn:uuid:5a4de4be-e35f-4167-a9dc-c48fe6ea3774",
+      "published": "2026-09-21T14:10:28+00:00",
+      "updated": "2026-09-21T14:10:28+00:00",
       "attributedTo": "https://vultron.example/organizations/vendorco",
       "@context": "https://certcc.github.io/Vultron/ns/context.jsonld",
       "rmState": "RECEIVED",

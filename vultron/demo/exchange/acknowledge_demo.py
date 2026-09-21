@@ -95,7 +95,7 @@ def demo_acknowledge_only(
     logger.info("DEMO 1: Acknowledge Only (RmReadReportActivity)")
     logger.info("=" * 80)
 
-    report = None
+    report = offer = None
     with demo_step("Step 1: Finder submits vulnerability report to vendor"):
         report = as_VulnerabilityReport(
             attributed_to=finder.id_,
@@ -115,7 +115,7 @@ def demo_acknowledge_only(
         "Step 2: Vendor acknowledges report (RmReadReportActivity to own inbox)"
     ):
         ack = rm_read_report_activity(
-            report,
+            offer,
             actor=vendor.id_,
             content="We have received your report and will review it shortly.",
         )
@@ -125,7 +125,7 @@ def demo_acknowledge_only(
 
     with demo_step("Step 3: Vendor notifies finder of acknowledgement"):
         ack_to_finder = rm_read_report_activity(
-            report,
+            offer,
             actor=vendor.id_,
             to=[finder.id_],
             content="We have received your report and will review it shortly.",
@@ -183,7 +183,7 @@ def demo_acknowledge_then_validate(
         "Step 2: Vendor acknowledges report (RmReadReportActivity)"
     ):
         ack = rm_read_report_activity(
-            report, actor=vendor.id_, content="Report received — under review."
+            offer, actor=vendor.id_, content="Report received — under review."
         )
         post_to_inbox_and_wait(client, vendor.id_, ack)
         with demo_check("RmReadReportActivity activity stored"):
@@ -266,7 +266,7 @@ def demo_acknowledge_then_invalidate(
         "Step 2: Vendor acknowledges report (RmReadReportActivity)"
     ):
         ack = rm_read_report_activity(
-            report, actor=vendor.id_, content="Report received — under review."
+            offer, actor=vendor.id_, content="Report received — under review."
         )
         post_to_inbox_and_wait(client, vendor.id_, ack)
         with demo_check("RmReadReportActivity activity stored"):

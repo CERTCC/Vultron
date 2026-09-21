@@ -1,10 +1,10 @@
 {
-  "id": "urn:uuid:0d4a16ce-9ce4-44c2-a73f-81961d7f3fa5/embargo_events/2026-12-15T00:00:00+00:00",
+  "id": "urn:uuid:5a4de4be-e35f-4167-a9dc-c48fe6ea3774/embargo_events/2026-12-20T00:00:00+00:00",
   "type": "EmbargoEvent",
-  "name": "Embargo for urn:uuid:0d4a16ce-9ce4-44c2-a73f-81961d7f3fa5 start: 2026-09-16T18:38:00+00:00 end: 2026-12-15T00:00:00+00:00",
-  "context": "urn:uuid:0d4a16ce-9ce4-44c2-a73f-81961d7f3fa5",
-  "startTime": "2026-09-16T18:38:00+00:00",
-  "endTime": "2026-12-15T00:00:00+00:00",
-  "content": "We propose to embargo VendorCo Case #63674360 for 90 days.",
+  "name": "Embargo for urn:uuid:5a4de4be-e35f-4167-a9dc-c48fe6ea3774 start: 2026-09-21T14:10:00+00:00 end: 2026-12-20T00:00:00+00:00",
+  "context": "urn:uuid:5a4de4be-e35f-4167-a9dc-c48fe6ea3774",
+  "startTime": "2026-09-21T14:10:00+00:00",
+  "endTime": "2026-12-20T00:00:00+00:00",
+  "content": "We propose to embargo VendorCo Case #27396413 for 90 days.",
   "@context": "https://certcc.github.io/Vultron/ns/context.jsonld"
 }

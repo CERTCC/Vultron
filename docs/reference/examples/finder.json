@@ -4,19 +4,19 @@
   "name": "Finn der Vul",
   "@context": "https://www.w3.org/ns/activitystreams",
   "inbox": {
-    "id": "urn:uuid:b4f98a06-3d24-4da0-9ffb-c9958c3c7196",
+    "id": "urn:uuid:9ca4b9ed-d3b1-4b3c-ba07-8e4dc8f2e54f",
     "type": "OrderedCollection",
-    "published": "2026-09-16T18:38:47+00:00",
-    "updated": "2026-09-16T18:38:47+00:00",
+    "published": "2026-09-21T14:10:27+00:00",
+    "updated": "2026-09-21T14:10:27+00:00",
     "@context": "https://www.w3.org/ns/activitystreams",
     "items": [],
     "current": 0
   },
   "outbox": {
-    "id": "urn:uuid:0e66d25e-a5a9-4e98-a60d-c8036785153d",
+    "id": "urn:uuid:20156dd1-2e69-4245-9822-e017c4469092",
     "type": "OrderedCollection",
-    "published": "2026-09-16T18:38:47+00:00",
-    "updated": "2026-09-16T18:38:47+00:00",
+    "published": "2026-09-21T14:10:27+00:00",
+    "updated": "2026-09-21T14:10:27+00:00",
     "@context": "https://www.w3.org/ns/activitystreams",
     "items": [],
     "current": 0
