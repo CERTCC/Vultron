@@ -284,6 +284,22 @@ class VultronStatusAssertionRefusedError(VultronError):
     """
 
 
+class DemoScenarioRegistryError(VultronError):
+    """Raised when a demo scenario's self-registration is invalid.
+
+    Raised at import time by the ``@scenario`` decorator in
+    ``vultron.demo.scenario.registry`` — a malformed spec, a name already
+    registered with a different spec, or a declared name that contradicts the
+    module it was declared in — and by ``discover_scenarios()`` when a
+    discovered ``*_demo`` module registered nothing at all.
+
+    Fails fast for the same reason :class:`RegistryOrderError` does: every
+    committed scenario artifact is generated from this registry, so a registry
+    that is quietly wrong yields tables and a CI matrix that look complete and
+    are not.  See ``specs/demo-ci.yaml`` DEMOCI-11 and ADR-0098.
+    """
+
+
 class DemoFailureError(VultronError):
     """Raised when a demo scenario completes with one or more step failures.
 

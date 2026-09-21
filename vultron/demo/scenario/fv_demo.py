@@ -120,6 +120,7 @@ from vultron.demo.helpers.workflow import (  # noqa: F401
     reporter_submits_report,
     run_direct_path_rm_triage,
 )
+from vultron.demo.scenario.registry import scenario
 
 logger = logging.getLogger(__name__)
 
@@ -1006,6 +1007,13 @@ def run_fv_demo(
 # ---------------------------------------------------------------------------
 
 
+@scenario(
+    name="fv",
+    label="FV",
+    participants="Finder + Vendor",
+    feature="Baseline two-actor CVD",
+    in_pr_set=True,
+)
 def main(
     skip_health_check: bool = False,
     finder_url: str | None = None,

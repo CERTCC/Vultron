@@ -22,23 +22,12 @@ from pathlib import Path
 import frontmatter
 from pydantic import ValidationError
 
+from vultron.metadata.base import repo_root as _find_repo_root
 from vultron.metadata.history.models import HistoryEntryFrontmatter
 
 LEARNINGS_DIR = Path("plan") / "incoming" / "learnings"
 
 SKIP_FILES = {"README.md"}
-
-
-def _find_repo_root(start: Path | None = None) -> Path:
-    """Return the repository root by searching upward for ``pyproject.toml``."""
-    origin = start or Path.cwd()
-    for parent in [origin, *origin.parents]:
-        if (parent / "pyproject.toml").exists():
-            return parent
-    raise FileNotFoundError(
-        "Could not locate repository root (pyproject.toml) starting from"
-        f" {origin}"
-    )
 
 
 def _describe(exc: Exception) -> str:

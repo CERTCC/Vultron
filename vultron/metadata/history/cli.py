@@ -54,6 +54,7 @@ from typing import NoReturn
 import yaml
 from pydantic import ValidationError
 
+from vultron.metadata.base import repo_root as _find_repo_root
 from vultron.metadata.history.models import (
     HistoryEntryFrontmatter,
     NewHistoryEntry,
@@ -66,25 +67,6 @@ from vultron.metadata.history.types import (
 )
 
 _UTC = datetime.timezone.utc
-
-
-def _find_repo_root(start: Path | None = None) -> Path:
-    """Return the repository root by searching upward for ``pyproject.toml``.
-
-    Works regardless of the caller's working directory.
-
-    Raises:
-        FileNotFoundError: If ``pyproject.toml`` cannot be found in any
-            parent directory, indicating the tool was invoked outside a
-            Vultron repository.
-    """
-    origin = (start or Path.cwd()).resolve()
-    for parent in [origin, *origin.parents]:
-        if (parent / "pyproject.toml").exists():
-            return parent
-    raise FileNotFoundError(
-        f"Could not locate repository root (pyproject.toml) starting from {origin}"
-    )
 
 
 def _validate_frontmatter(content: str) -> HistoryEntryFrontmatter:
