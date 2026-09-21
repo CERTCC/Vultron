@@ -8,9 +8,12 @@ universal invariant check functions live in
 `test/ci/invariants/common.py`; each scenario has its own test file under
 `test/ci/invariants/`.
 
-The nine scenarios and their harness files are registered in
+The scenarios and their harness files are registered in
 `.github/demo-scenarios.json`, which is the sole registry — the table below
-mirrors it and MUST be kept in step.
+mirrors it and MUST be kept in step. ADR-0098 replaces that arrangement: the
+scenarios will self-register in their demo modules, and both the registry and
+this table become generated artifacts. Until it lands, edit both by hand
+together.
 
 | Scenario | Test file | In PR set |
 |----------|-----------|:---------:|
@@ -25,7 +28,8 @@ mirrors it and MUST be kept in step.
 | FCV | `test/ci/invariants/test_fcv_invariants.py` | |
 
 Scenarios marked *In PR set* run on `pull_request` events (the DEMOCI-06-002
-minimum validation set); all nine run on push-to-main and `workflow_dispatch`.
+minimum validation set); all of them run on push-to-main and
+`workflow_dispatch`.
 
 The other files in `test/ci/invariants/` are not scenario harnesses and need no
 demo artifacts: `test_universal_event_types.py` and `test_diagnostic_map_sync.py`
@@ -126,7 +130,7 @@ pass/fail to CI.
 2. Add a `test_invariant_<N>_<slug>` closure to
    `make_universal_invariant_tests()` in
    `test/ci/invariants/universal_harness.py`, and register it in that
-   function's `result` dict. Do **not** copy the test into the nine scenario
+   function's `result` dict. Do **not** copy the test into the per-scenario
    files — the factory injects it into all of them (ISSUE-2007).
 
 3. Add a row for it to the diagnostic map in

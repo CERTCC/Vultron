@@ -661,6 +661,18 @@ for the minimum set, and workflow implementation notes.
 adding a new scenario and determining whether it changes the minimum set, or
 auditing `full_suite_only` assignments in `demo-integration.yml`.
 
+**`demo-scenario-registry.md`**
+Implementation guidance for the self-registering demo scenario registry
+(ADR-0098): what the `@scenario` decorator carries and which paths are derived by
+convention instead of stored, why discovery must walk the package rather than
+import a list, why `.github/demo-scenarios.json` stays a committed generated
+artifact (the `scenarios` job has no Python), and the generate-vs-check routing
+for each consumer — including why `notes/` and `test/ci/` cannot use
+`{% include-markdown %}`. Normative requirements: `specs/demo-ci.yaml` DEMOCI-11.
+**Load when**: adding a demo scenario, editing any scenario table, working on the
+scenario dumper or its pre-commit hook, or wondering why a scenario table refuses
+to be hand-edited.
+
 **`codebase-structure-fastapi-patterns.md`**
 FastAPI and test infrastructure patterns: router test override pattern
 (`_shared_dl`, `dependency_overrides`), circular import fix pattern
@@ -924,12 +936,15 @@ the expansion inventory (GI, EP, and the `Create`+`Add` split), the fault
 trichotomy (not-understood / declined / needs-explanation), the cumulative
 hash-chain acknowledgement model, the `docs/reference/messages/` page
 architecture, and the MSM-03 post-mortem on `CV`/`CF`/`CD` being mapped to the
-wrong object. Normative requirements:
-`specs/message-semantics-mapping.yaml` MSM-04 through MSM-06. ADR: ADR-0083.
+wrong object. Also carries the authoring rules for the wire examples those pages
+render: why a well-formed example is not necessarily a *dispatchable* one, which
+discriminator fields to set, and that `ActivityPattern` has no `origin_` field.
+Normative requirements: `specs/message-semantics-mapping.yaml` MSM-04 through
+MSM-06; `specs/semantic-extraction.yaml` SE-08. ADR: ADR-0083.
 **Load when**: writing or reviewing anything that claims a protocol shorthand
 maps to an AS2 wire form, working on `docs/reference/messages/`, adding a
-`SEMANTIC_REGISTRY` entry, or reasoning about fault reporting and
-acknowledgement. Source: IDEA-605.
+`SEMANTIC_REGISTRY` entry, authoring or fixing a `vocab_examples` wire example,
+or reasoning about fault reporting and acknowledgment. Source: IDEA-605.
 
 **`spec-authoring-rules.md`**
 Mechanical rules for authoring spec YAML: the exact enums `spec-lint` accepts

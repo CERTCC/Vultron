@@ -83,8 +83,8 @@ Where Vultron adds constraints ActivityPub does not impose:
   types of [§5.2](index.md#52-object-types).
 
 !!! info "See also"
-    - [Vultron AS Activities](../../howto/activitypub/activities/index.md) —
-      worked wire-format examples for each protocol flow
+    - [Vultron AS Activity Guides](../../howto/activitypub/activities/index.md) —
+      how to carry out each protocol flow
 
 ### Annex F — Behavior Trees as an Implementation Pattern [I]
 

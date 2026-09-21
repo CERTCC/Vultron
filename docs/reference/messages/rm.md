@@ -29,7 +29,7 @@ print(render_page("rm", heading=False))
   wire activity has no formal shorthand; it precedes *Report Submission*.
 - **Triggering transition:** none (object construction, not a state change).
 - **Wire activity:** `Create(VulnerabilityReport)`.
-- **How-to:** [Reporting a Vulnerability](../../howto/activitypub/activities/report_vulnerability.md).
+- **How-to:** [How to Report a Vulnerability](../../howto/activitypub/activities/report_vulnerability.md).
 
 ```python exec="true" idprefix=""
 from vultron.wire.as2.vocab.examples.vocab_examples import create_report, json2md
@@ -43,7 +43,7 @@ print(json2md(create_report()))
   containing a vulnerability report.
 - **Triggering transition:** emitted when the sender is Accepted (sender ∈ A).
 - **Wire activity:** `Offer(VulnerabilityReport)`.
-- **How-to:** [Reporting a Vulnerability](../../howto/activitypub/activities/report_vulnerability.md).
+- **How-to:** [How to Report a Vulnerability](../../howto/activitypub/activities/report_vulnerability.md).
 - **Formal definition:** [Message Types](../formal_protocol/messages.md#rm-message-types),
   [Transitions](../formal_protocol/transitions.md).
 
@@ -58,7 +58,7 @@ print(json2md(submit_report()))
 - **Protocol role:** The Participant has designated the report as invalid.
 - **Triggering transition:** Received → Invalid (R → I).
 - **Wire activity:** `TentativeReject(Offer(VulnerabilityReport))`.
-- **How-to:** [Reporting a Vulnerability](../../howto/activitypub/activities/report_vulnerability.md).
+- **How-to:** [How to Report a Vulnerability](../../howto/activitypub/activities/report_vulnerability.md).
 - **Formal definition:** [Message Types](../formal_protocol/messages.md#rm-message-types),
   [Transitions](../formal_protocol/transitions.md).
 
@@ -73,7 +73,7 @@ print(json2md(invalidate_report()))
 - **Protocol role:** The Participant has designated the report as valid.
 - **Triggering transition:** Received or Invalid → Valid ({R,I} → V).
 - **Wire activity:** `Accept(Offer(VulnerabilityReport))`.
-- **How-to:** [Reporting a Vulnerability](../../howto/activitypub/activities/report_vulnerability.md).
+- **How-to:** [How to Report a Vulnerability](../../howto/activitypub/activities/report_vulnerability.md).
 - **Formal definition:** [Message Types](../formal_protocol/messages.md#rm-message-types),
   [Transitions](../formal_protocol/transitions.md).
 
@@ -89,7 +89,7 @@ print(json2md(validate_report()))
 - **Triggering transition:** Valid or Accepted → Deferred ({V,A} → D).
 - **Wire activity:** `Ignore(VulnerabilityCase)` — a case-participation
   decision, not a report-validity judgment (MSM-01-004).
-- **How-to:** [Managing a Case](../../howto/activitypub/activities/manage_case.md).
+- **How-to:** [How to Advance a Case Through Report Management](../../howto/activitypub/activities/manage_case.md).
 - **Formal definition:** [Message Types](../formal_protocol/messages.md#rm-message-types),
   [Transitions](../formal_protocol/transitions.md).
 
@@ -105,7 +105,7 @@ print(json2md(defer_case()))
 - **Triggering transition:** Valid or Deferred → Accepted ({V,D} → A).
 - **Wire activity:** `Join(VulnerabilityCase)` — a case-participation decision,
   not a report-validity judgment (MSM-01-005).
-- **How-to:** [Managing a Case](../../howto/activitypub/activities/manage_case.md).
+- **How-to:** [How to Advance a Case Through Report Management](../../howto/activitypub/activities/manage_case.md).
 - **Formal definition:** [Message Types](../formal_protocol/messages.md#rm-message-types),
   [Transitions](../formal_protocol/transitions.md).
 
@@ -115,6 +115,10 @@ from vultron.wire.as2.vocab.examples.vocab_examples import engage_case, json2md
 print(json2md(engage_case()))
 ```
 
+Re-engaging a deferred case emits the same activity. There is no separate
+re-engagement wire form, because `DEFERRED` → `ACCEPTED` is a forward transition
+rather than a retraction of the earlier deferral.
+
 ## RC — Report Closed
 
 - **Protocol role:** The Participant has closed the report.
@@ -123,7 +127,7 @@ print(json2md(engage_case()))
 - **Wire activity:** `Reject(Offer(VulnerabilityReport))`. This activity also
   appears as an ordinary refusal in the fault-and-acknowledgement mapping
   (MSM-05-003).
-- **How-to:** [Reporting a Vulnerability](../../howto/activitypub/activities/report_vulnerability.md).
+- **How-to:** [How to Report a Vulnerability](../../howto/activitypub/activities/report_vulnerability.md).
 - **Formal definition:** [Message Types](../formal_protocol/messages.md#rm-message-types),
   [Transitions](../formal_protocol/transitions.md).
 
@@ -139,8 +143,10 @@ print(json2md(close_report()))
 - **Triggering transition:** any valid RM message.
 - **Wire activity:** `Read(Offer(VulnerabilityReport))`. `RK` survives as a
   dedicated wire activity because report submission is not ledger-replicated
-  (MSM-01-008).
-- **How-to:** [Reporting a Vulnerability](../../howto/activitypub/activities/report_vulnerability.md).
+  (MSM-01-008). The prototype's `rm_read_report_activity` factory currently builds
+  `Read(VulnerabilityReport)` instead, which `AckReportPattern` does not match, so
+  the example below is not dispatchable as rendered (#3439).
+- **How-to:** [How to Report a Vulnerability](../../howto/activitypub/activities/report_vulnerability.md).
 - **Formal definition:** [Message Types](../formal_protocol/messages.md#rm-message-types).
 
 ```python exec="true" idprefix=""

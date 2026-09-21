@@ -102,6 +102,25 @@ suspenders for edge cases the runtime guard might miss).
 4. Run `test/test_semantic_activity_patterns.py`.
 5. If `RegistryOrderError`, move entry earlier than the conflicting general one.
 
+### A Committed Example Must Be Dispatchable
+
+`ActivityPattern` declares `activity_`, `strict`, `to_`, `object_`, `target_` and
+`context_` — and **no `origin_` field**, so `origin` is never consulted for
+dispatch however well it reads. Set the discriminator fields the pattern actually
+requires. A well-formed example is not necessarily a dispatchable one: an example
+that matches no pattern is silently dropped by a receiver, and the reference page
+rendering it documents a wire form that does not work.
+
+Ratchet: `test/architecture/test_vocab_examples_dispatchable.py` asserts every
+example activity in `vultron/wire/as2/vocab/examples/` matches **exactly one**
+registered pattern — exactly one because two matches is the ambiguity SE-08-001
+forbids. Known exceptions live in its `_KNOWN_UNDISPATCHABLE` map as strict
+`xfail`s, each naming the issue that owns the fix (#3433, #3439); closing one of
+those issues must also delete its entry. Two older gates check these examples and
+neither asks this question — `test_vocab_utils.py` asks only whether an example
+executes, and `test_vocab_examples_current.py` only whether its filename is
+committed. Full write-up: `notes/message-type-reference.md`.
+
 ### Extraction Port Return Type — Return the Discriminated Union, Not the Base
 
 `extract_intent()` / `extract_event()` MUST declare their return type as

@@ -277,6 +277,30 @@ class TriggerActivityPort(Protocol):
         """
         ...
 
+    def reject_case_proposal(
+        self,
+        actor: str,
+        proposal: dict,
+        to: list[str] | None = None,
+        summary: str | None = None,
+    ) -> tuple[str, str]:
+        """Create and persist a ``Reject(as_CaseProposal)`` activity.
+
+        The case actor service sends this when it declines to open and manage a
+        case for the proposal (CP-05-004).  *proposal* is the wire-serialised
+        ``as_CaseProposal`` from the inbound ``Create``; it is embedded inline so
+        the vendor has full context without reading anything from the case actor
+        service's store (AKM-03-001).
+
+        *summary* carries the refusal reason when the service has one to give,
+        which is what the proposer surfaces (CP-06-004).  It is optional: a
+        decline is never blocked on having an explanation.
+
+        Per ``specs/case-proposal.yaml`` CP-05-002, CP-05-004.
+        Returns ``(activity_id, activity_dict)``.
+        """
+        ...
+
     # -----------------------------------------------------------------------
     # Actors (invitations, recommendations)
     # -----------------------------------------------------------------------

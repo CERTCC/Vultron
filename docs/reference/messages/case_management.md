@@ -87,45 +87,73 @@ print(json2md(close_case()))
 
 ## Offer Case Participant Role
 
-- **Protocol role:** A participant offers a role assignment to another actor
-  on the case (e.g. "I want you to join as coordinator").
+- **Protocol role:** An authorized participant offers a specific `CVDRole` on the
+  case to another actor. The object type alone identifies the activity as a role
+  offer rather than an ownership-transfer offer (ADR-0039).
 - **Triggering transition:** none — roster action, not a state-machine event.
-- **Wire activity:** `Offer(CaseParticipant)`.
-- **Example artifact:** [offer_case_ownership_transfer.json](../examples/offer_case_ownership_transfer.json).
+- **Wire activity:** `Offer(CaseParticipantRole)`, with `target` = the Actor
+  receiving the role and `context` = the case.
+- **Pattern:** `OfferCaseParticipantRolePattern` in
+  `vultron/wire/as2/extractor/_instances.py`.
+- **Factory:** `offer_case_participant_role_activity` in
+  `vultron/wire/as2/factories/case.py`, re-exported from
+  `vultron/wire/as2/factories/__init__.py`.
+- **How-to:** [How to Delegate a Role to Another Participant](../../howto/activitypub/activities/role_delegation.md).
+- **Example artifact:** [offer_case_participant_role.json](../examples/offer_case_participant_role.json).
 
 ```python exec="true" idprefix=""
-from vultron.wire.as2.vocab.examples.vocab_examples import offer_case_participant, json2md
+from vultron.wire.as2.vocab.examples.vocab_examples import offer_case_participant_role, json2md
 
-print(json2md(offer_case_participant()))
+print(json2md(offer_case_participant_role()))
 ```
+
+The `as_CaseParticipantRole` object carries the role. This offer is distinct from
+`Offer(CaseParticipant)`, which forwards an actor recommendation to the Case Owner
+and is covered on [General (GI) Messages](general.md).
 
 ---
 
 ## Accept Case Participant Role
 
-- **Protocol role:** The recipient accepts the offered role.
+- **Protocol role:** The target actor accepts the offered role and holds it from
+  that point.
 - **Triggering transition:** none — roster action.
-- **Wire activity:** `Accept(CaseParticipant)`.
+- **Wire activity:** `Accept(Offer(CaseParticipantRole))`.
+- **Pattern:** `AcceptCaseParticipantRolePattern` in
+  `vultron/wire/as2/extractor/_instances.py`.
+- **Factory:** `accept_case_participant_role_activity`.
+- **How-to:** [How to Delegate a Role to Another Participant](../../howto/activitypub/activities/role_delegation.md).
+- **Example artifact:** [accept_case_participant_role.json](../examples/accept_case_participant_role.json).
 
 ```python exec="true" idprefix=""
-from vultron.wire.as2.vocab.examples.vocab_examples import accept_case_participant_offer, json2md
+from vultron.wire.as2.vocab.examples.vocab_examples import accept_case_participant_role, json2md
 
-print(json2md(accept_case_participant_offer()))
+print(json2md(accept_case_participant_role()))
 ```
 
 ---
 
 ## Reject Case Participant Role
 
-- **Protocol role:** The recipient declines the offered role.
+- **Protocol role:** The target actor declines the offered role. The roster is
+  unchanged.
 - **Triggering transition:** none — roster action.
-- **Wire activity:** `Reject(CaseParticipant)`.
+- **Wire activity:** `Reject(Offer(CaseParticipantRole))`.
+- **Pattern:** `RejectCaseParticipantRolePattern` in
+  `vultron/wire/as2/extractor/_instances.py`.
+- **Factory:** `reject_case_participant_role_activity`.
+- **How-to:** [How to Delegate a Role to Another Participant](../../howto/activitypub/activities/role_delegation.md).
+- **Example artifact:** [reject_case_participant_role.json](../examples/reject_case_participant_role.json).
 
 ```python exec="true" idprefix=""
-from vultron.wire.as2.vocab.examples.vocab_examples import reject_case_participant_offer, json2md
+from vultron.wire.as2.vocab.examples.vocab_examples import reject_case_participant_role, json2md
 
-print(json2md(reject_case_participant_offer()))
+print(json2md(reject_case_participant_role()))
 ```
+
+The dedicated object type is required rather than a `target`-field discriminator
+(SE-08-003), and the earlier `OFFER_CASE_MANAGER_ROLE` wire format
+`Offer(VulnerabilityCase, target=CaseParticipant)` has been removed (SE-08-005).
 
 ---
 
@@ -260,12 +288,33 @@ print(json2md(create_participant()))
 - **Protocol role:** Attaches a `CaseParticipant` record to the case.
 - **Triggering transition:** none — roster operation.
 - **Wire activity:** `Add(CaseParticipant)` with `target` = case URI.
+- **How-to:** [How to Seat a Participant on an Existing Case](../../howto/activitypub/activities/initialize_participant.md).
 - **Example artifact:** [add_vendor_participant_to_case.json](../examples/add_vendor_participant_to_case.json).
+
+The wire shape is the same whatever roles the participant holds; only
+`caseRoles` on the attached object differs. A Vendor seating itself:
 
 ```python exec="true" idprefix=""
 from vultron.wire.as2.vocab.examples.vocab_examples import add_vendor_participant_to_case, json2md
 
 print(json2md(add_vendor_participant_to_case()))
+```
+
+A Vendor seating a Coordinator:
+
+```python exec="true" idprefix=""
+from vultron.wire.as2.vocab.examples.vocab_examples import add_coordinator_participant_to_case, json2md
+
+print(json2md(add_coordinator_participant_to_case()))
+```
+
+A Vendor seating the Finder, who is also the Reporter here. A single
+`CaseParticipant` carries as many roles as the actor holds on the case:
+
+```python exec="true" idprefix=""
+from vultron.wire.as2.vocab.examples.vocab_examples import add_finder_participant_to_case, json2md
+
+print(json2md(add_finder_participant_to_case()))
 ```
 
 ---
@@ -274,7 +323,10 @@ print(json2md(add_vendor_participant_to_case()))
 
 - **Protocol role:** Removes a participant from the case roster.
 - **Triggering transition:** none — roster operation.
-- **Wire activity:** `Remove(CaseParticipant)` with `origin` = case URI.
+- **Wire activity:** `Remove(CaseParticipant)` with `target` = case URI.
+  `RemoveCaseParticipantFromCasePattern` discriminates on `target`, and
+  `ActivityPattern` carries no `origin` field, so a `Remove` that names the case
+  in `origin` alone matches no pattern and is never dispatched (#3438).
 - **Example artifact:** [remove_participant_from_case.json](../examples/remove_participant_from_case.json).
 
 ```python exec="true" idprefix=""

@@ -8,6 +8,7 @@ related_specs:
 related_notes:
   - notes/ci-workflow-authoring.md
   - notes/demo-scenario-authoring.md
+  - notes/demo-scenario-registry.md
 ---
 
 # Demo CI Invariant Harness Design

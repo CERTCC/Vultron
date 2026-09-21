@@ -237,8 +237,8 @@ We have:
 - **Read the scenario source** — the scripts are in
   `vultron/demo/scenario/`; shared utilities are in `vultron/demo/utils.py`.
 - **Understand the protocol** — browse
-  [How-to: ActivityPub Activities](../howto/activitypub/activities/index.md)
-  for per-activity walkthroughs of the messages exchanged in these scenarios.
+  [Vultron AS Activity Guides](../howto/activitypub/activities/index.md)
+  for task guides covering the exchanges these scenarios run.
 - **Consult the Docker README** — `docker/README.md` documents port
   mappings, environment variable overrides, and manual seed commands for
   debugging individual containers.

@@ -254,7 +254,7 @@ For convenience, these are collected into the table below.
 
 Message *formats* are implemented using the
 [ActivityStreams 2.0](https://www.w3.org/TR/activitystreams-core/){:target="_blank"} vocabulary.
-See [ActivityPub Activities](../../howto/activitypub/activities/index.md) for details on the wire format.
+See [Vultron AS Activity Guides](../../howto/activitypub/activities/index.md) for details on the wire format.
 
 !!! note "AS2 Implementation Note"
 
@@ -269,7 +269,7 @@ See [ActivityPub Activities](../../howto/activitypub/activities/index.md) for de
     Fault reporting is instead partitioned by **failure mode**: `Create(ProcessingFault)`
     for a message that was not understood, `as:Reject` for one that was understood but
     declined, and `Create(Note)` for a condition requiring narrative explanation.
-    See [Error Handling](../../howto/activitypub/activities/error.md) and
+    See [How to Report a Protocol Fault](../../howto/activitypub/activities/error.md) and
     `specs/message-semantics-mapping.yaml` MSM-05.
 
 !!! note "Acknowledgement shorthands have no direct wire counterpart"

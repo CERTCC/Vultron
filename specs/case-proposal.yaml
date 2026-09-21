@@ -283,8 +283,10 @@ groups:
     kind: protocol
     statement: When rejecting a proposal, the case-actor service MUST send `Reject(as_CaseProposal)` with the `as_CaseProposal`
       embedded inline as `object_`.
-    verification: Unit tests in `test/core/behaviors/case/test_case_proposal_received_tree.py` confirm the reject path emits
-      `Reject(as_CaseProposal)` with the proposal object embedded inline as `object_`.
+    verification: Unit tests in `test/core/behaviors/case/test_case_proposal_admission.py` confirm the reject path emits
+      `Reject(as_CaseProposal)` with the proposal object embedded inline as `object_`, and adapter tests in
+      `test/adapters/driven/trigger_activity_adapter/test_cases.py` confirm the inline object survives the store round-trip
+      rather than dehydrating to a bare URI.
     stories:
     - story_2022_006
     - story_2022_016

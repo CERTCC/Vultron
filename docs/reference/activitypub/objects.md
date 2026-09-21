@@ -15,7 +15,7 @@ The ActivityStreams Vocabulary defines a number of native object types that can 
 ActivityPub protocol. These fall into the following categories:
 
 - **Actors** (see [below](#actors))
-- **Activities** (see the [Activities](../../howto/activitypub/activities/index.md) section for more information)
+- **Activities** (see the [Vultron AS Activity Guides](../../howto/activitypub/activities/index.md) for more information)
 - **Other (non-Activity) Object Types** (see [below](#other-non-activity-object-types))
 
 ### Actors

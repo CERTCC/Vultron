@@ -123,12 +123,12 @@ def test_render_recent_pages_filters_non_navigable():
     """Underscore-prefixed and includes/ paths are excluded from nav."""
     out = render_recent_pages(
         [
-            "docs/howto/activitypub/activities/_create_report.md",
+            "docs/howto/activitypub/activities/_demo_prerequisites.md",
             "docs/includes/curr_ver.md",
             "docs/reference/quick_reference.md",
         ]
     )
-    assert "_create_report" not in out
+    assert "_demo_prerequisites" not in out
     assert "curr_ver" not in out
     assert "quick_reference" in out
 
