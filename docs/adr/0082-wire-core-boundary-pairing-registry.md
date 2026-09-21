@@ -5,7 +5,24 @@ deciders: Allen Householder
 consulted: Claude Code (planning agent for G02 / CONCERN-2830)
 informed: Vultron contributors
 supersedes: 0062-normalise-wire-to-core-at-both-ingress-and-persistence.md
+partially_superseded_by: 0099-one-object-model-as2-is-a-serialization.md
 ---
+
+> **Partially superseded by
+> [ADR-0099](0099-one-object-model-as2-is-a-serialization.md).** The diagnosis
+> in this ADR stands and is the foundation ADR-0099 builds on — the four
+> duplications, the measured evidence, and the finding that "zero wire→core
+> imports" was unreachable are all still accurate and should still be read.
+>
+> What is replaced is the *remedy*. This ADR reconciles two class hierarchies
+> with a declarative pairing registry and one generic adapter-side translator.
+> ADR-0099 removes the second hierarchy instead, so there is nothing to pair
+> and nothing to translate. Measured against the current tree: of 346 fields
+> that differ across the 27 paired classes, none is a semantic disagreement.
+>
+> Item 8 of the Decision Outcome below ("the shared base moves to a neutral
+> bottom layer") is the specific item ADR-0099 reverses, and issue #2933 was
+> its implementation.
 
 # Wire/Core Boundary: One Declarative Pairing Registry, One Translator, and Reject Unknown Keys
 

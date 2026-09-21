@@ -27,6 +27,13 @@ groups:
     kind: architecture
     statement: Core functions MUST accept and return domain types only
   - id: ARCH-01-003
+    note: >-
+      This is the substantive rule that ARCH-22-001 was a proxy for, and ADR-0099
+      keeps it while repealing that proxy. Banning imports forbade the harmless
+      thing — naming a core type in a field annotation — while the harmful
+      coupling passed through undetected as duck-typing: core calling
+      `getattr(obj, "to_core", None)` at three sites, which no import-based test
+      can see. Enforce no domain logic in wire; do not enforce no imports.
     priority: MUST_NOT
     kind: architecture
     statement: The `wire/` layer (AS2 parser, semantic extractor) MUST NOT contain handler logic, case management, or journal
@@ -90,6 +97,12 @@ groups:
   title: Semantic Extractor
   specs:
   - id: ARCH-03-001
+    note: >-
+      ADR-0099 confirms this requirement and cancels the relocation that was
+      planned against it (issue #2942). The semantic extractor was going to move
+      to the adapter side only to evade ARCH-22-001; with that ban repealed it
+      stays in `vultron/wire/`, which is where this requirement already places
+      the single AS2-to-domain mapping seam.
     priority: MUST
     kind: protocol
     statement: 'AS2 vocabulary MUST be mapped to domain concepts in exactly one location: the semantic extractor'
@@ -219,6 +232,13 @@ groups:
     #796.'
   specs:
   - id: ARCH-12-001
+    note: >-
+      ADR-0099 supersedes the direction of this requirement. There is no shared
+      root under one object model: the core classes *are* the model and AS2 is a
+      serialization of them, so `as_Base` inherits nothing from core and there is
+      nothing to relocate to a branch-neutral module. The statement below still
+      describes the current code and stays normative until the migration lands;
+      do NOT implement it as a target state, and do not revive issue #2933.
     priority: MUST
     kind: project
     statement: '`as_Base` MUST inherit from `VultronBase`; `as_Object` MUST inherit from `VultronObject`. `VultronBase` and
@@ -234,6 +254,11 @@ groups:
     - ADR-0082
     verification: '`issubclass(as_Base, VultronBase)` and `issubclass(as_Object, VultronObject)` are both True.'
   - id: ARCH-12-002
+    note: >-
+      ADR-0099 supersedes the direction of this requirement. The leniency rule
+      exists only because one shared ancestor had to serve both a strict core
+      branch and a lenient wire branch. With one model there is no shared
+      ancestor to keep loose, and strictness is set once on the core class.
     priority: MUST
     kind: project
     statement: The shared base (`VultronBase` / `VultronObject`) MUST define all shared fields with the most lenient types
@@ -312,6 +337,13 @@ groups:
     - rel_type: refines
       spec_id: ARCH-12-004
   - id: ARCH-12-010
+    note: >-
+      ADR-0099 removes the class this requirement is scoped to. `VultronObject`
+      is deleted with the shared root, so "`VultronObject`-direct subclasses that
+      do not extend `CoreObject`" names nothing. The underlying need survives:
+      core types that carry domain state and are not `CoreObject` subclasses must
+      still be discoverable by type string. Re-scope to the surviving core object
+      root when the migration lands.
     priority: MUST
     kind: project
     statement: >-
@@ -338,6 +370,12 @@ groups:
     - rel_type: refines
       spec_id: ARCH-12-004
   - id: ARCH-12-005
+    note: >-
+      ADR-0099 supersedes the direction of this requirement. Translation is not
+      relocated, it is removed: measured across the 27 paired classes, none of
+      the 346 differing fields is a semantic disagreement, so Pydantic
+      serialization with field aliases replaces both the pairing registry and
+      the adapter-side translators.
     priority: MUST
     kind: project
     statement: 'Core↔wire translation MUST be performed by the translator modules on the adapter side, driven by the declarative
@@ -780,6 +818,13 @@ groups:
     adr:
     - ADR-0063
   - id: ARCH-20-002
+    note: >-
+      ADR-0099 supersedes the mechanism named here. With no wire counterpart to
+      resolve, the rendering port returns the core object's own
+      `model_dump(by_alias=True, exclude_none=True, mode="json")` plus the
+      delivery-supplied `@context`. Measured byte-identical for
+      `ParticipantStatus`. ADR-0063's decision — that rendering happens behind
+      the port — still stands.
     priority: MUST
     kind: project
     statement: The rendering port's adapter MUST produce its output by resolving the core object's wire counterpart through
@@ -800,6 +845,11 @@ groups:
     - ADR-0063
     - ADR-0082
   - id: ARCH-20-003
+    note: >-
+      ADR-0099 inverts this requirement. Under one object model a missing wire
+      counterpart is the normal case, not an error, so raising on absence would
+      make every core object unrenderable. Amend when the rendering port
+      collapses; until then the statement matches the code.
     priority: MUST
     kind: project
     statement: When no wire counterpart exists for the supplied core object, the rendering port MUST raise `VultronValidationError`.
@@ -946,6 +996,12 @@ groups:
     adr:
     - ADR-0064
   - id: ARCH-21-002
+    note: >-
+      ADR-0099 removes the subject of this requirement. `VultronBase` is deleted
+      along with the shared root, and core gets two roots: a minimal record base
+      and one AS2-object root. The underlying rule survives the rename — the
+      wire branch must stay lenient for inbound data, and enforcement belongs on
+      the core class.
     priority: MUST_NOT
     kind: architecture
     statement: >-
@@ -1022,6 +1078,21 @@ groups:
   title: Wire→Core Import Boundary Enforcement
   specs:
   - id: ARCH-22-001
+    note: >-
+      ADR-0099 repeals this requirement. It is not derived from ADR-0009: that
+      ADR lists six Key Rules and none of them prohibits wire from importing
+      core, and its rule 6 ("the wire layer is replaceable as a unit without
+      touching core") is satisfied *by* wire depending on core. Hexagonal
+      dependency rules are asymmetric by design — outer layers depend inward.
+      The ban is also the cause of the duplication it appears to guard against:
+      wire may not name core types, so wire needs its own copy of each domain
+      type, which needs a pairing table, translators, field alignment, a shared
+      root, and a branch-neutral home for it. The replacement is an allow-list:
+      wire MAY import `vultron/core/models/` and `vultron/core/states/` and
+      nothing else under `vultron/core/`, checked on the importing directory so
+      relocating a file cannot evade it. Measured: wire already imports only
+      those two plus one TYPE_CHECKING port reference, and core imports nothing
+      from wire.
     priority: MUST
     kind: project
     statement: >-
@@ -1066,6 +1137,13 @@ groups:
     adr:
     - ADR-0017
   - id: ARCH-22-003
+    note: >-
+      ADR-0099 replaces the ratchet this requirement governs. The exemption set,
+      the 20-entry KNOWN_VIOLATIONS list, the two-sided tests and the xfail goal
+      test are all replaced by the single allow-list test described in the
+      ARCH-22-001 note. The lesson recorded here — that a goal test asserting an
+      unreachable state invites an implementer to violate a MUST — is worth
+      keeping independently of the rule it was written about.
     priority: SHOULD
     kind: project
     statement: >-
@@ -1117,6 +1195,11 @@ groups:
   title: Core↔Wire Pairing Registry and Translator
   specs:
   - id: ARCH-23-001
+    note: >-
+      ADR-0099 removes the need for this requirement. A pairing registry exists
+      to reconcile two classes that mean the same thing; with one class per
+      concept there is no pair to record. Stays normative until the paired `as_*`
+      domain classes are deleted.
     priority: MUST
     kind: project
     statement: >-
@@ -1241,6 +1324,15 @@ groups:
     - ADR-0056
     - ADR-0082
   - id: ARCH-23-006
+    note: >-
+      ADR-0099 inverts this requirement. Under one object model a wire-branch
+      field annotation MUST name the core class — `object_: VulnerabilityReport`,
+      `target: VulnerabilityCase` — which is exactly what this forbids. The
+      defect that motivated it is real and must be re-handled rather than
+      dropped: `VultronValidationError` is not a `ValueError` subclass, so a
+      core-side guard firing while Pydantic resolves a union escapes the whole
+      operation instead of being absorbed as a failed union branch. Fix that
+      before inverting this rule.
     priority: MUST_NOT
     kind: project
     statement: >-

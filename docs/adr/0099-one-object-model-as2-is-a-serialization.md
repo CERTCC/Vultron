@@ -427,13 +427,25 @@ compatibility.
 
 ### Relationship to other decisions
 
-**Supersedes:**
+**Partially supersedes** — recorded as `partially_superseded_by` on both, which
+annotates them without retiring them, rather than `superseded_by`, which would.
+Both retain `status: accepted` deliberately: this ADR is
+`accepted-provisional`, and retiring two accepted decisions on the strength of a
+provisional one would overstate what has been established. Flip both to
+`superseded` and move them to `docs/adr/archived/` when this ADR reaches
+`accepted` — and note that move rewrites roughly 140 references across `docs/`,
+`specs/`, `notes/` and `test/`, so it wants to happen once.
 
-- ADR-0017 — the shared-base two-branch hierarchy. Its Option B (independent
-  hierarchies) was abandoned for the `from_core()`/`to_core()` protocol, which
-  ADR-0082 then forbade.
-- ADR-0082 — the pairing registry and adapter-side translators. Its problem
-  statement stands; its mechanism is unnecessary once there is one model.
+- **ADR-0017** — the Option D shared root is replaced. Everything Option B
+  contributed and ADR-0017 preserved — `CoreObject`, `CORE_VOCABULARY`, the
+  migrated domain types from the #699 chain — survives as *the* model here. Its
+  domain/wire separation rationale still reads correctly; only the shared-root
+  mechanism does not.
+- **ADR-0082** — the diagnosis stands and is the foundation this ADR builds on:
+  the four duplications, the measured evidence, and the finding that "zero
+  wire→core imports" was unreachable. The *remedy* is replaced — there is
+  nothing to pair and nothing to translate once the second hierarchy is gone.
+  Item 8 of its Decision Outcome is the specific item reversed here.
 
 **Amends:**
 
@@ -461,6 +473,28 @@ and the AS2 vocabulary are different shapes), ADR-0069 (namespace), ADR-0074
 | #2940 `extra="forbid"` on the core branch | re-scoped to the persistence path; inbound is covered by details 7 and 8 |
 | #2947 evaluate `activitypubdantic` | unchanged, still deferred |
 
-Generated spec requirements: to be amended in ARCH-01, ARCH-03, ARCH-12,
-ARCH-20, ARCH-21, ARCH-22 and ARCH-23 (`specs/architecture.yaml`), and in
-`specs/status-dimension-objects.yaml` for detail 5.
+Generated spec requirements: `SDO-01-004` (detail 5, new). `SDO-03-004`'s
+rationale corrected — it claimed dimension fields "serialize as nested dicts",
+which is no longer true.
+
+Thirteen requirements carry a `note:` recording that ADR-0099 supersedes,
+inverts or repeals their *direction*, while their normative statements stay
+true to the current code: `ARCH-01-003`, `ARCH-03-001`, `ARCH-12-001`,
+`ARCH-12-002`, `ARCH-12-005`, `ARCH-12-010`, `ARCH-20-002`, `ARCH-20-003`,
+`ARCH-21-002`, `ARCH-22-001`, `ARCH-22-003`, `ARCH-23-001`, `ARCH-23-006`.
+
+Annotating rather than rewriting is deliberate. The specs are what
+`load-specs` feeds to implementation agents. Rewriting `ARCH-22-001` to permit
+wire→core imports while the ratchet test and its 20-entry violation set are
+still in the tree would make the corpus contradict both the code and itself,
+and would have agents implementing a state that does not exist. Each note says
+plainly: this still describes the code, do not implement it as a target. The
+normative statements are rewritten when the migration lands.
+
+Two of the thirteen are inversions rather than repeals, and both carry a
+prerequisite: `ARCH-20-003` (a missing wire counterpart becomes normal rather
+than an error) and `ARCH-23-006` (wire annotations MUST name core classes). The
+defect behind `ARCH-23-006` is real and must be re-handled before inverting it —
+`VultronValidationError` is not a `ValueError` subclass, so a core-side guard
+firing while Pydantic resolves a union escapes the whole operation instead of
+being absorbed as a failed union branch.

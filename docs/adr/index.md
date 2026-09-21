@@ -87,7 +87,7 @@ General information about architectural decision records is available at <https:
 - [ADR-0013 Unify RM State Tracking into Persisted VultronParticipantStatus Records](0013-unify-rm-state-tracking.md)
 - [ADR-0014 Pin GitHub Actions to Full Commit SHAs with Version Comments](0014-sha-pin-github-actions.md)
 - [ADR-0016 Replace TinyDB with SQLModel/SQLite DataLayer Adapter](0016-sqlmodel-sqlite-datalayer.md)
-- [ADR-0017 Domain/Wire Object Separation: Shared-Base, Two-Branch Hierarchy](0017-domain-wire-object-separation.md)
+- [ADR-0017 Domain/Wire Object Separation: Shared-Base, Two-Branch Hierarchy](0017-domain-wire-object-separation.md) — partially superseded by 0099-one-object-model-as2-is-a-serialization.md
 - [ADR-0018 Canonical Case History Convergence on `CaseLogEntry`](0018-canonical-case-history-convergence.md)
 - [ADR-0019 Separate the Case Ledger from the Per-Actor Process Log](0019-separate-case-ledger-from-process-log.md)
 - [ADR-0021 CaseActor Inbox Routing as the Sole Path to Canonical Ledger Entries](0021-caseactor-inbox-routing-canonical-ledger.md)
@@ -151,7 +151,7 @@ General information about architectural decision records is available at <https:
 - [ADR-0079 CaseLedger Causal Ordering: CaseActor Observation Order Is the Canonical Causal Order](0079-case-ledger-causal-ordering.md)
 - [ADR-0080 Asking Permission Is a Protocol Message, Not a Suspended Behavior](0080-protocol-asks-not-suspended-behaviors.md)
 - [ADR-0081 Peer Knowledge Lives in the Hosted Actor's Own Store, Not as a Hosted Actor](0081-peer-knowledge-in-hosted-actor-store.md)
-- [ADR-0082 Wire/Core Boundary: One Declarative Pairing Registry, One Translator, and Reject Unknown Keys](0082-wire-core-boundary-pairing-registry.md)
+- [ADR-0082 Wire/Core Boundary: One Declarative Pairing Registry, One Translator, and Reject Unknown Keys](0082-wire-core-boundary-pairing-registry.md) — partially superseded by 0099-one-object-model-as2-is-a-serialization.md
 - [ADR-0083 The Formal Message Set and the AS2 Wire Vocabulary Are Deliberately Different Shapes; the Mapping Is the Reconciling Artifact](0083-formal-message-set-and-as2-vocabulary-are-different-shapes.md)
 - [ADR-0084 Participant Status Is Self-Declaratory, With Narrow Externally-Evidenced On-Behalf Exceptions](0084-participant-assertion-authority.md)
 - [ADR-0085 Owner-Close Is a Hard Write Boundary; RM.CLOSED Is Terminal and Rejoin Is Unsupported](0085-case-lifecycle-boundaries.md)
