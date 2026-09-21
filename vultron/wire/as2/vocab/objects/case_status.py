@@ -139,22 +139,28 @@ class as_CaseStatus(VultronAS2Object):
     @model_validator(mode="before")
     @classmethod
     def _migrate_core_dimension_format(cls, data: object) -> object:
-        """Map core dimension-object format (``em: {state: ...}``) to flat wire fields."""
+        """Map the core dimension format to the flat wire fields.
+
+        A core dimension serializes to its bare state value (ADR-0099 detail 5),
+        so ``data["em"]`` is ``"EXITED"``. It was historically a one-key mapping,
+        ``{"state": "EXITED"}``, and callers still construct it that way, so both
+        forms are accepted — the same tolerance ``from_core`` below already has.
+
+        Accepting only the mapping form is silent state loss: the key is left
+        unconsumed, the flat field is never set, and ``em_state`` falls back to
+        ``EM.NONE`` with no error. This path is reached on every persistence
+        write, because ``VulnerabilityCase`` and ``CaseStatus`` are both in
+        ``_NORMALIZE_WIRE_TO_CORE``, so an EM state set by a caller was being
+        dropped between ``DataLayer.update`` and the stored row.
+        """
         if not isinstance(data, dict):
             return data
         data = dict(data)
-        if (
-            "em" in data
-            and isinstance(data["em"], dict)
-            and "em_state" not in data
-        ):
-            data["em_state"] = data.pop("em", {}).get("state")
-        if (
-            "pxa" in data
-            and isinstance(data["pxa"], dict)
-            and "pxa_state" not in data
-        ):
-            data["pxa_state"] = data.pop("pxa", {}).get("state")
+        for nested, flat in (("em", "em_state"), ("pxa", "pxa_state")):
+            if nested not in data or flat in data:
+                continue
+            raw = data.pop(nested)
+            data[flat] = raw.get("state") if isinstance(raw, dict) else raw
         return data
 
     @field_validator("em_state", mode="before")
@@ -261,35 +267,36 @@ class as_ParticipantStatus(VultronAS2Object):
     @model_validator(mode="before")
     @classmethod
     def _migrate_core_dimension_format(cls, data: object) -> object:
-        """Map core dimension-object format back to flat wire fields on round-trip."""
+        """Map core dimension-object format back to flat wire fields on round-trip.
+
+        A core dimension serializes to its bare state value (ADR-0099 detail 5),
+        so ``data["rm"]`` is ``"START"``. It was historically a one-key mapping,
+        ``{"state": "START"}``, and callers still construct it that way, so both
+        forms are accepted — matching what ``as_CaseStatus.from_core`` already
+        does for ``em``/``pxa``.
+
+        Accepting only the mapping form is a silent-state-loss bug: the key is
+        left unconsumed, the flat field is never set, and ``rm_state`` falls back
+        to ``RM.START`` with no error. That is the #2262 failure mode.
+        """
         if not isinstance(data, dict):
             return data
         data = dict(data)
-        if (
-            "rm" in data
-            and isinstance(data["rm"], dict)
-            and "rm_state" not in data
+        for nested, flat, flat_alias in (
+            ("rm", "rm_state", "rmState"),
+            ("vf", "vf_state", "vfState"),
+            ("d", "d_state", "dState"),
+            ("consent", "em_consent_state", "emConsentState"),
         ):
-            data["rm_state"] = data.pop("rm", {}).get("state")
-        if (
-            "vf" in data
-            and isinstance(data["vf"], dict)
-            and "vf_state" not in data
-        ):
-            data["vf_state"] = data.pop("vf", {}).get("state")
-        if (
-            "d" in data
-            and isinstance(data["d"], dict)
-            and "d_state" not in data
-        ):
-            data["d_state"] = data.pop("d", {}).get("state")
-        if (
-            "consent" in data
-            and isinstance(data["consent"], dict)
-            and "emConsentState" not in data
-            and "em_consent_state" not in data
-        ):
-            data["emConsentState"] = data.pop("consent", {}).get("state")
+            if nested not in data:
+                continue
+            # Either spelling of the flat field counts as already supplied.
+            if flat in data or flat_alias in data:
+                continue
+            raw = data.pop(nested)
+            data[flat_alias] = (
+                raw.get("state") if isinstance(raw, dict) else raw
+            )
         return data
 
     @field_serializer("rm_state")

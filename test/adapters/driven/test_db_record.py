@@ -284,9 +284,11 @@ def test_object_to_record_normalizes_wire_class_shadowing_a_core_type():
     statuses = record.data_["participant_statuses"]
     assert statuses, "normalised participant must retain its RM ladder"
     for status in statuses:
-        # Canonical core shape: nested rm dimension, no flat rm_state.
+        # Canonical core shape: the ``rm`` dimension, no flat ``rm_state``.
+        # The dimension serialises to its bare state value (ADR-0099 detail 5),
+        # so the stored form is ``"rm": "START"`` rather than a one-key mapping.
         assert "rm_state" not in status
-        assert status["rm"]["state"] == "START"
+        assert status["rm"] == "START"
 
 
 def test_object_to_record_normalizes_wire_participant_status():
@@ -306,7 +308,7 @@ def test_object_to_record_normalizes_wire_participant_status():
 
     assert record.type_ == "ParticipantStatus"
     assert "rm_state" not in record.data_
-    assert record.data_["rm"]["state"] == "VALID"
+    assert record.data_["rm"] == "VALID"
 
 
 def test_object_to_record_normalizes_wire_participant_nested_in_core_case():
@@ -345,7 +347,7 @@ def test_object_to_record_normalizes_wire_participant_nested_in_core_case():
         "participant_statuses"
     ][0]
     assert "rm_state" not in stored_status
-    assert stored_status["rm"]["state"] == "RECEIVED"
+    assert stored_status["rm"] == "RECEIVED"
 
 
 def test_object_to_record_raises_when_wire_class_has_no_to_core():

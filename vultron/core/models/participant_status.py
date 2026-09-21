@@ -18,6 +18,7 @@
 from typing import Any, Literal
 
 from pydantic import (
+    AliasChoices,
     ConfigDict,
     Field,
     computed_field,
@@ -113,11 +114,33 @@ class ParticipantStatus(CoreObject):
         serialization_alias="type",
     )
     context: NonEmptyString  # pyright: ignore[reportGeneralTypeIssues]
-    rm: RmDimension = Field(default_factory=RmDimension)
-    vf: VfDimension | None = None
-    d: DDimension | None = None
+    # Each dimension serializes to its bare state value (ADR-0099 detail 5), so
+    # the alias alone produces the flat wire shape the AS2 form has always used:
+    # ``rm`` -> ``{"rmState": "START"}``.  ``AliasChoices`` keeps the legacy flat
+    # spellings accepted on input so no caller has to change.
+    rm: RmDimension = Field(
+        default_factory=RmDimension,
+        validation_alias=AliasChoices("rmState", "rm_state", "rm"),
+        serialization_alias="rmState",
+    )
+    vf: VfDimension | None = Field(
+        default=None,
+        validation_alias=AliasChoices("vfState", "vf_state", "vf"),
+        serialization_alias="vfState",
+    )
+    d: DDimension | None = Field(
+        default=None,
+        validation_alias=AliasChoices("dState", "d_state", "d"),
+        serialization_alias="dState",
+    )
     case_engagement: bool = True
-    consent: PecDimension | None = None
+    consent: PecDimension | None = Field(
+        default=None,
+        validation_alias=AliasChoices(
+            "emConsentState", "em_consent_state", "consent"
+        ),
+        serialization_alias="emConsentState",
+    )
 
     @computed_field  # type: ignore[misc]
     @property
@@ -256,6 +279,30 @@ class ParticipantStatus(CoreObject):
     @classmethod
     def _validate_cvd_role(cls, v: object) -> list[CVDRole]:
         return coerce_cvd_roles(v)
+
+    @model_validator(mode="after")
+    def _set_name(self) -> "ParticipantStatus":
+        """Derive the human-readable ``name`` label from the dimension states.
+
+        ``name`` is an optional AS2 property carrying a display label, not
+        protocol data. The object derives its own label from its own state, for
+        the same reason a dimension serializes its own value (ADR-0099 detail
+        5): the fact belongs to the class that holds the state.
+
+        Only set when the caller supplied none, so an explicit ``name`` always
+        wins. ``object.__setattr__`` avoids re-entering validation, since
+        ``validate_assignment`` is in effect on the core branch (ARCH-21-001).
+        """
+        if self.name is None:
+            parts = [self.rm.state.name]
+            if self.vf is not None:
+                parts.append(self.vf.state.name)
+            if self.d is not None:
+                parts.append(self.d.state.name)
+            if self.case_status is not None and self.case_status.name:
+                parts.append(self.case_status.name)
+            object.__setattr__(self, "name", " ".join(parts))
+        return self
 
 
 def participant_status_rm_state(status: object) -> RM:

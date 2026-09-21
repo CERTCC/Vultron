@@ -234,9 +234,21 @@ reader the moment it is closed.
 
 - **Delete 25 of the 27 paired `as_*` domain classes**, and retarget the
   message-shape classes' slots at the core classes.
-- **Delete the remaining 2 pairs** (`as_CaseStatus`, `as_ParticipantStatus`)
-  after detail 5 lands, since they are the only two whose fields differ by name
-  rather than by spelling.
+- **Delete the remaining 2 pairs** (`as_CaseStatus`, `as_ParticipantStatus`).
+  Measured, because it is larger than it looks: `as_ParticipantStatus` is
+  referenced in **20 production files and 43 test files**, and the structural
+  blocker is `as_CaseParticipant.participant_statuses: list[as_ParticipantStatus]`
+  — deleting it forces `as_CaseParticipant` to change, which cascades into its
+  activities, its factories, the FastAPI example routes, and two demo scripts.
+  This is migration work, not a step that fits inside a spike.
+- **Collapse the rendering port.** `As2WireRenderAdapter.render()` currently
+  returns `wire_cls.from_core(obj).model_dump(by_alias=True, exclude_none=True,
+  mode="json")`. Once the wire counterpart is gone it is
+  `obj.model_dump(by_alias=True, exclude_none=True, mode="json")` plus the
+  delivery-supplied `@context` — measured byte-identical for
+  `ParticipantStatus`. This requires amending **ARCH-20-003**, which presently
+  says the port MUST raise when no wire counterpart exists; under one model a
+  missing counterpart is the normal case, not an error.
 - **Collapse the core root stack from three levels to two.** The middle level
   (`VultronObject`) existed only to keep timestamps optional so the wire half
   could stay lenient (ARCH-12-002); `CoreObject` then re-tightened them. With no
@@ -258,16 +270,58 @@ reader the moment it is closed.
 
 ## Validation
 
-The decision is validated by a spike before the migration is planned:
-`ParticipantStatus` end to end — collapse the dimension wrapper, delete
-`as_ParticipantStatus`, point the message-shape classes at the core class. It
-is the hardest of the 27 pairs, being one of only two with genuine field-name
-differences.
+Detail 5 is the part of this decision that could have failed, so it was
+validated before the rest was planned. `ParticipantStatus` is the hardest of the
+27 pairs, being one of only two whose fields differ by name rather than by
+spelling.
 
 **Acceptance test: the serialized AS2 output is byte-identical to today's.**
 
-The status is `accepted-provisional` because that spike has not yet run and
-could invalidate detail 5.
+**Result: passed.** With the dimension wrapper collapsed and four field aliases
+declared, core `ParticipantStatus` produces output identical to
+`as_ParticipantStatus` across six state combinations (default, RM-only, vendor,
+deployer, consent, all-set), modulo timestamps. Only two keys needed anything
+added: a derived display `name`, which moved onto the core class, and
+`@context`, which the delivery step supplies by existing design
+(`CoreObject.context_` is deliberately `exclude=True` because the JSON-LD
+namespace is a transmission concern).
+
+The spike surfaced two things worth recording, both of which are this ADR's own
+argument appearing unprompted.
+
+**First: three inconsistent copies of one rule.** `as_CaseStatus.from_core`
+already tolerated both the bare and the mapping form of a dimension
+(`em_dim.get("state") if isinstance(em_dim, dict) else em_dim`). Its two sibling
+before-validators — `as_CaseStatus._migrate_core_dimension_format` and
+`as_ParticipantStatus._migrate_core_dimension_format` — accepted only the
+mapping form. Given the bare form, the dict-only branch left the key unconsumed,
+never set the flat field, and let the state fall back to its initial value
+(`RM.START`, `EM.NONE`) **with no error** — the #2262 silent-state-loss pattern,
+in two further locations. All three now agree. This is the fourth duplication
+ADR-0082 described, found in a place ADR-0082 did not enumerate.
+
+**Second, and larger: persistence currently round-trips core objects through the
+wire vocabulary.** `_storable_to_record` in
+`vultron/adapters/driven/datalayer_sqlite/crud.py` normalises through
+`_NORMALIZE_WIRE_TO_CORE`, and its docstring says that set is "currently
+`CaseParticipant` and `ParticipantStatus`". It is not. The set holds **15**
+types, including `VulnerabilityCase`, `CaseStatus`, `VulnerabilityReport`,
+`EmbargoPolicy`, `CaseLedgerEntry` and all five actor types. So `DataLayer.update`
+for a case reconstitutes it as `as_VulnerabilityCase`, walks its nested
+`as_CaseStatus` children, and projects back — meaning a plain persistence write
+passes through the wire classes and is exposed to every projection gap in them.
+That is how an EM state set by a caller was being dropped between
+`DataLayer.update` and the stored row.
+
+This is a materially deeper entanglement than the "translation at the boundary"
+picture in ADR-0062 and ADR-0082, and it strengthens the case for one model:
+under one model there is nothing for `_NORMALIZE_WIRE_TO_CORE` to normalise,
+because the stored object and the transmitted object are the same class. The
+stale docstring should be corrected independently of this ADR.
+
+The status remains `accepted-provisional` because detail 5 is the only detail
+validated by code. Details 1 through 4 and 6 through 10 are argued from the
+measured evidence but not yet exercised.
 
 Ongoing validation:
 

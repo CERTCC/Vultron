@@ -23,7 +23,13 @@ self.
 Design: ADR-0036, spec: specs/status-dimension-objects.yaml (SDO-01 to SDO-04).
 """
 
-from pydantic import BaseModel, field_serializer, field_validator
+from pydantic import (
+    BaseModel,
+    field_serializer,
+    field_validator,
+    model_serializer,
+    model_validator,
+)
 
 from vultron.core.models.base import ValidatedAssignmentMixin
 
@@ -146,7 +152,48 @@ def _apply_transition(
     )
 
 
-class EmDimension(ValidatedAssignmentMixin, BaseModel):
+class _ScalarDimension(ValidatedAssignmentMixin, BaseModel):
+    """Common serialized form for the per-machine dimension objects.
+
+    A dimension object holds exactly one data field, ``state``; everything else
+    on it is behaviour (``transition()`` and the guard predicates), and behaviour
+    does not serialize. Its serialized form is therefore the bare state value,
+    not a one-key ``{"state": ...}`` wrapper — the wrapper would put a container
+    on the wire whose only content is the thing it contains, costing every reader
+    a level of nesting for no information.
+
+    So ``rm`` declared with ``serialization_alias="rmState"`` emits
+    ``{"rmState": "START"}``, which is the shape the wire has always carried.
+    This is what removes the need for the two inverse migration validators that
+    previously translated between the flat wire form and the nested core form.
+
+    Subclasses declare ``state`` with their own enum type and a
+    ``field_validator`` that coerces it, plus ``transition()`` and guards.
+
+    ADR-0099 detail 5; ADR-0036 governing principles 1 through 3 are unchanged.
+    """
+
+    @model_validator(mode="before")
+    @classmethod
+    def _accept_bare_state(cls, data: object) -> object:
+        """Accept the bare serialized form as well as the mapping form.
+
+        ``"START"``, ``RM.START`` and ``{"state": "START"}`` are all valid input.
+        The mapping form is retained because callers construct dimensions that
+        way, and because the enclosing models' own before-validators normalise
+        legacy flat fields into it.
+        """
+        if isinstance(data, (dict, _ScalarDimension)):
+            return data
+        return {"state": data}
+
+    @model_serializer
+    def _serialize_bare(self) -> str:
+        """Serialize to the bare state name rather than a one-key mapping."""
+        return str(getattr(self, "state").name)
+
+
+class EmDimension(_ScalarDimension):
     """Embargo Management state dimension object.
 
     Holds the case-level EM state and owns immutable transition validation.
@@ -187,7 +234,7 @@ class EmDimension(ValidatedAssignmentMixin, BaseModel):
         return self.state == EM.NONE
 
 
-class PxaDimension(ValidatedAssignmentMixin, BaseModel):
+class PxaDimension(_ScalarDimension):
     """PXA (public/exploit/attacks) case state dimension object.
 
     Holds the participant-agnostic public state and owns immutable transition
@@ -229,7 +276,7 @@ class PxaDimension(ValidatedAssignmentMixin, BaseModel):
         return self.state == CS_pxa.pxa
 
 
-class RmDimension(ValidatedAssignmentMixin, BaseModel):
+class RmDimension(_ScalarDimension):
     """Report Management state dimension object.
 
     Holds the per-participant RM state and owns immutable transition validation.
@@ -270,7 +317,7 @@ class RmDimension(ValidatedAssignmentMixin, BaseModel):
         return self.state == RM.CLOSED
 
 
-class VfDimension(ValidatedAssignmentMixin, BaseModel):
+class VfDimension(_ScalarDimension):
     """Vendor-path (V+F) dimension object for per-participant ParticipantStatus.
 
     Holds vendor awareness + fix readiness in a 3-state monotone ladder
@@ -305,7 +352,7 @@ class VfDimension(ValidatedAssignmentMixin, BaseModel):
         return self.state in VF_FIX_READY
 
 
-class DDimension(ValidatedAssignmentMixin, BaseModel):
+class DDimension(_ScalarDimension):
     """Deployer-path (D) dimension object for per-participant ParticipantStatus.
 
     Holds fix deployment state in a 2-state monotone ladder (d → D).
@@ -338,7 +385,7 @@ class DDimension(ValidatedAssignmentMixin, BaseModel):
         return self.state in D_FIX_DEPLOYED
 
 
-class PecDimension(ValidatedAssignmentMixin, BaseModel):
+class PecDimension(_ScalarDimension):
     """Participant Embargo Consent dimension object.
 
     Holds a single participant's embargo consent state and owns immutable
