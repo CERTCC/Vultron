@@ -1,18 +1,18 @@
 {
-  "id": "urn:uuid:e85b1062-1073-4fb0-a9ec-0a8fd2cb0bc3",
+  "id": "urn:uuid:762dd413-cb0a-4a54-8401-3aee2880c25c",
   "type": "Create",
   "name": "https://vultron.example/organizations/vendorco Create Coordinator LLC",
-  "context": "urn:uuid:0d4a16ce-9ce4-44c2-a73f-81961d7f3fa5",
+  "context": "urn:uuid:5a4de4be-e35f-4167-a9dc-c48fe6ea3774",
   "content": "We're adding Coordinator LLC to the case.",
   "@context": "https://www.w3.org/ns/activitystreams",
   "actor": "https://vultron.example/organizations/vendorco",
   "object": {
-    "id": "urn:uuid:0d4a16ce-9ce4-44c2-a73f-81961d7f3fa5/participants/https://vultron.example/organizations/coordinator",
+    "id": "urn:uuid:5a4de4be-e35f-4167-a9dc-c48fe6ea3774/participants/https://vultron.example/organizations/coordinator",
     "type": "CaseParticipant",
     "name": "Coordinator LLC",
-    "context": "urn:uuid:0d4a16ce-9ce4-44c2-a73f-81961d7f3fa5",
-    "published": "2026-09-16T18:38:48+00:00",
-    "updated": "2026-09-16T18:38:48+00:00",
+    "context": "urn:uuid:5a4de4be-e35f-4167-a9dc-c48fe6ea3774",
+    "published": "2026-09-21T14:10:28+00:00",
+    "updated": "2026-09-21T14:10:28+00:00",
     "attributedTo": "https://vultron.example/organizations/coordinator",
     "@context": "https://certcc.github.io/Vultron/ns/context.jsonld"
   }

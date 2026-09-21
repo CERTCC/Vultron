@@ -1,10 +1,10 @@
 {
-  "id": "urn:uuid:e182bbf8-19ac-4ab7-b4d7-d98ed8195acb",
+  "id": "urn:uuid:0bee3107-07d3-4c2d-bd82-e733f29e12c0",
   "type": "Add",
-  "name": "https://vultron.example/organizations/vendorco Add NONE pxa to urn:uuid:0d4a16ce-9ce4-44c2-a73f-81961d7f3fa5",
+  "name": "https://vultron.example/organizations/vendorco Add NONE pxa to urn:uuid:5a4de4be-e35f-4167-a9dc-c48fe6ea3774",
   "@context": "https://www.w3.org/ns/activitystreams",
   "actor": "https://vultron.example/organizations/vendorco",
-  "target": "urn:uuid:0d4a16ce-9ce4-44c2-a73f-81961d7f3fa5",
+  "target": "urn:uuid:5a4de4be-e35f-4167-a9dc-c48fe6ea3774",
   "object": {
     "id": "https://vultron.example/cases/1/status/1",
     "type": "CaseStatus",

@@ -16,7 +16,26 @@ import pytest
 from _pytest.monkeypatch import MonkeyPatch
 
 from test.demo._helpers import make_testclient_call
+from vultron.adapters.driving.fastapi.outbox_handler import (
+    configure_default_emitter,
+    get_default_emitter,
+)
 from vultron.demo.exchange import acknowledge_demo as demo
+
+
+class _NoOpEmitter:
+    """Drop BT-emitted outbound deliveries to prevent re-entrant TestClient deadlock.
+
+    When AckReportReceivedUseCase runs its behavior tree, EmitAckReportActivity
+    enqueues an outbound delivery. Without this override, outbox_handler would
+    call _TestClientRouter.emit() → anyio.to_thread.run_sync(client.post(...)),
+    which re-enters the same portal that is already handling the vendor inbox
+    request, deadlocking. The demo steps already cover the explicit notification
+    path, so dropping the BT-emitted delivery loses no coverage.
+    """
+
+    async def emit(self, activity, addressees):
+        pass
 
 
 @pytest.fixture(scope="module")
@@ -24,6 +43,12 @@ def demo_env(client):
     """Sets up the demo environment, patching BASE_URL and DataLayerClient.call."""
     mp = MonkeyPatch()
     base = str(client.base_url).rstrip("/") + "/api/v2"
+    # Replace the module-level default emitter (the path outbox_handler uses when
+    # request.app.state.emitter is None, which is the case for routes served
+    # through the mounted api_app root) with a no-op so BT-emitted outbound
+    # activities are dropped rather than re-POSTed via the same TestClient portal.
+    previous_emitter = get_default_emitter()
+    configure_default_emitter(_NoOpEmitter())  # type: ignore[arg-type]
     try:
         mp.setattr(demo, "BASE_URL", base)
         mp.setattr(
@@ -31,6 +56,7 @@ def demo_env(client):
         )
         yield
     finally:
+        configure_default_emitter(previous_emitter)  # type: ignore[arg-type]
         mp.undo()
         importlib.reload(demo)
 
