@@ -31,8 +31,8 @@ change to the **sender's** report management state
 | `RS` | Report Submission | The sender is sending a report to a new participant | yes |
 | `RI` | Report Invalid | The sender assessed the report as invalid | yes |
 | `RV` | Report Valid | The sender assessed the report as valid | yes |
-| `RD` | Report Deferred | The sender is deferring further action | yes |
-| `RA` | Report Accepted | The sender accepted the report for active work | yes |
+| `RD` | Report/Case Deferred | The sender is deferring further action; a case-participation decision | yes |
+| `RA` | Report/Case Accepted | The sender accepted the report/case for active work; a case-participation decision | yes |
 | `RC` | Report Closed | The sender closed the report | yes |
 | `RK` | Report Acknowledgement | The sender received the report submission | yes |
 | `RE` | Report Error | The sender received an unexpected report message | **no** ([§4.6](index.md#46-error-and-acknowledgement-messages)) |

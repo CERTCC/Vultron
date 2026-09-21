@@ -404,8 +404,8 @@ groups:
       note: 'RV shorthand wire-type mapping'
 
 - id: RMB-04
-  title: Receive RD (Report Deferred)
-  description: Behaviors triggered when a participant receives an RD (Report Deferred) message, updating the sender's RM state model and acknowledging receipt.
+  title: Receive RD (Report/Case Deferred)
+  description: Behaviors triggered when a participant receives an RD (Report/Case Deferred) message, updating the sender's RM state model and acknowledging receipt.
   trigger:
     type: message_received
     value: RD
@@ -492,8 +492,8 @@ groups:
       note: 'RD shorthand wire-type mapping'
 
 - id: RMB-05
-  title: Receive RA (Report Accepted)
-  description: Behaviors triggered when a participant receives an RA (Report Accepted) message, updating the sender's RM state model to Accepted and acknowledging receipt.
+  title: Receive RA (Report/Case Accepted)
+  description: Behaviors triggered when a participant receives an RA (Report/Case Accepted) message, updating the sender's RM state model to Accepted and acknowledging receipt.
   trigger:
     type: message_received
     value: RA

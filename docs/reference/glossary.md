@@ -367,8 +367,8 @@ precisely to keep them distinct from the similarly-named roles they serve
 | **Report Submission (RS)** | The only RM message that directly triggers a state change in receiver (from S → R); all other RM messages announce sender's state | Initial RM message |
 | **Report Received (R)** | Initial RM state when a Report arrives; recipient must validate before transitioning to Invalid or Valid | Received state, intake state |
 | **Report Valid (V)** | RM state indicating validation passed; next decision is whether to Accept or Defer | Validated state, prioritization state |
-| **Report Accepted (A)** | RM state indicating work accepted; prerequisite for sending RS to other parties | In-progress state, active state |
-| **Report Deferred (D)** | RM state indicating work deferred (parking lot); can transition back to Accepted if priorities change | Parked state, backlog state |
+| **Report/Case Accepted (A)** | RM state indicating a Participant has committed to work on the report/case; a case-participation decision (`Join(VulnerabilityCase)`), prerequisite for sending RS to other parties | Report Accepted, in-progress state, active state |
+| **Report/Case Deferred (D)** | RM state indicating a Participant has deferred further action on the report/case (parking lot); a case-participation decision (`Ignore(VulnerabilityCase)`); can transition back to Accepted if priorities change | Report Deferred, parked state, backlog state |
 | **Report Closed (C)** | Final RM state; recipient may ignore all messages on closed reports (no further coordination) | Terminal state, archive state |
 
 ---
@@ -582,7 +582,7 @@ precisely to keep them distinct from the similarly-named roles they serve
 >
 > **Protocol Designer:** "And they coordinate through **Message Types**?"
 >
-> **Formal Spec Expert:** "Yes. When a **Vendor** transitions their RM from Valid to Accepted, they send an **RA** (Report Accepted) **Message Type**. That **Activity** carries the **RA** and is transmitted via the wire protocol. The **Coordinator** receives it and updates their model of the **Vendor**'s **RM State**."
+> **Formal Spec Expert:** "Yes. When a **Vendor** transitions their RM from Valid to Accepted, they send an **RA** (Report/Case Accepted) **Message Type**. That **Activity** carries the **RA** and is transmitted via the wire protocol. The **Coordinator** receives it and updates their model of the **Vendor**'s **RM State**."
 >
 > **Protocol Designer:** "But that doesn't change the **Coordinator**'s own RM state?"
 >
