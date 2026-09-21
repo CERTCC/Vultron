@@ -241,7 +241,12 @@ class TestStatePersistsThroughTheNormalisationRoundTrip:
         assert CaseStatus.model_validate(data).em.state is EM.EXITED
 
     def test_rm_state_survives_the_normalisation_round_trip(self):
-        status = ParticipantStatus(context="urn:case:1", rm_state=RM.ACCEPTED)
+        # Built through ``model_validate`` rather than keyword arguments: the
+        # legacy flat ``rm_state`` spelling is accepted via ``AliasChoices``,
+        # which is a validation-time alias and not a declared parameter name.
+        status = ParticipantStatus.model_validate(
+            {"context": "urn:case:1", "rm_state": RM.ACCEPTED}
+        )
 
         data = self._normalised(status)
 
