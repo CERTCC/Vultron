@@ -178,7 +178,8 @@ spelling, and both are the status classes covered by ADR-0036.
    this kind the project has actually had, including #2262.
 9. **Object slots hold the whole object, not an ID.** Reading resolves an IRI
    reference to the referenced object; an unresolvable reference is deferred or
-   refused.
+   refused. **Something must own that materialisation, and this ADR does not
+   name it** — see the caveat under *Measured evidence*.
 
    **This is a prototype shortcut, recorded as such.** It defers data
    normalization rather than solving it. A production system would be expected
@@ -397,6 +398,45 @@ Only two pairs differ by field name rather than spelling:
 - `as_CaseStatus` / `CaseStatus` — wire `em_state`, `pxa_state`; core `em`, `pxa`
 - `as_ParticipantStatus` / `ParticipantStatus` — wire `rm_state`, `vf_state`,
   `d_state`, `em_consent_state`; core `rm`, `vf`, `d`, `consent`
+
+### Caveat: the measurement covers declared field types, not projection bodies
+
+Stated plainly because the summary above is easy to over-read. The 346-field
+analysis compares the **declared type of each field** on the 27 paired classes.
+It does *not* measure what the `from_core()` / `to_core()` method bodies do, and
+some of them do structural work no alias can express. `as_VulnerabilityCase
+.from_core` fabricates objects:
+
+```python
+data["case_activity"] = [
+    as_Activity(id_=activity_id, actor=core_obj.attributed_to or core_obj.id_)
+    if isinstance(activity_id, str) else activity_id
+    for activity_id in data.get("case_activity", [])
+]
+```
+
+A string ID becomes a stub object with a *synthesized* actor. Counting
+structural operations across the projection overrides — object construction,
+`.to_core()` recursion, ref unwrapping, dimension mapping, list comprehension:
+`vulnerability_case` 20, `case_status` 15, `case_participant` 7,
+`vultron_actor` 5, `vulnerability_report` 4, `case_reference` 4,
+`case_actor` 3, and only `case_ledger_entry` at zero.
+
+Most of it dissolves with the second hierarchy, because it exists only to bridge
+two shapes: `.to_core()` recursion into nested children, and
+`_scalar_ref_id_or_value` unwrapping a wire `object | Link | str` union into a
+core scalar. Both have nothing to do once there is one shape.
+
+**One kind does not dissolve: materialising an object from an ID.** That is
+detail 9's rehydration, and per-class `from_core` code is what implements it
+today. Detail 9 says slots hold whole objects; it does not say what fills them.
+Deleting the projection methods without naming a replacement owner would drop
+the behaviour silently — the same failure shape as the two silent-state-loss
+bugs the spike found. The migration MUST identify that owner explicitly;
+`rehydrate()` (VM-06-001) and the `WireParsePort` (#2938) are the candidates.
+
+Surfaced by #3437, which had been filed as a narrow adapter-consolidation
+cleanup.
 
 **Core is already AS2-shaped.** 234 of 1535 core model fields carry a
 wire-facing alias, including the AS2 backbone: `id`, `type`, `@context`,
