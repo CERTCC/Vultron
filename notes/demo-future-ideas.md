@@ -69,6 +69,7 @@ the design decisions reached in the #1178 planning session.
 | Scenario | Issue | Description | Status |
 |----------|-------|-------------|--------|
 | Deployer role | #1227 | V develops fix; D deploys in their environment | planned — `fcvd` CLI command + CI job (DEMOMA-24); blocked by CSB-15-004 deployer causal-gate |
+| Vendor-as-finder | #2591 | V self-reports and owns the case; C joins as Observer | planned — `vc` CLI command + CI job (DEMOMA-25, DEMOMA-16-015) |
 | Case split/merge | #1229 | Parent/child/sibling case relationships | |
 | Multi-reporter | #1231 | Two Finders, one C consolidates into one case | |
 

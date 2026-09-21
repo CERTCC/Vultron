@@ -661,6 +661,18 @@ for the minimum set, and workflow implementation notes.
 adding a new scenario and determining whether it changes the minimum set, or
 auditing `full_suite_only` assignments in `demo-integration.yml`.
 
+**`demo-scenario-registry.md`**
+Implementation guidance for the self-registering demo scenario registry
+(ADR-0098): what the `@scenario` decorator carries and which paths are derived by
+convention instead of stored, why discovery must walk the package rather than
+import a list, why `.github/demo-scenarios.json` stays a committed generated
+artifact (the `scenarios` job has no Python), and the generate-vs-check routing
+for each consumer — including why `notes/` and `test/ci/` cannot use
+`{% include-markdown %}`. Normative requirements: `specs/demo-ci.yaml` DEMOCI-11.
+**Load when**: adding a demo scenario, editing any scenario table, working on the
+scenario dumper or its pre-commit hook, or wondering why a scenario table refuses
+to be hand-edited.
+
 **`codebase-structure-fastapi-patterns.md`**
 FastAPI and test infrastructure patterns: router test override pattern
 (`_shared_dl`, `dependency_overrides`), circular import fix pattern

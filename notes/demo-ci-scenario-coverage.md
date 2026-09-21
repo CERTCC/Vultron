@@ -6,6 +6,7 @@ related_specs:
   - specs/multi-actor-demo.yaml
 related_notes:
   - notes/ci-workflow-authoring.md
+  - notes/demo-scenario-registry.md
 ---
 
 # Demo CI: Scenario Coverage Matrix and Minimum PR Validation Set
