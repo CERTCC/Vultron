@@ -312,12 +312,28 @@ hostage to the network, invert CLP-10-006's ordering, and raise an unanswerable
 partial-delivery question. What was missing is the *link* from a dead-lettered
 activity to the entry claiming its event happened (OX-14-001).
 
-**`Question` is not the verb for an authorization ask.** `as_Question` exists and
-is used for polls (`choose_preferred_embargo`, `oneOf` over embargo options), but
-it is an `IntransitiveActivity` — it has **no `object`**, as the code comment
-says outright. The thing being asked about has nowhere to live, and
-`find_protocol_pair` keys on an object ID. Use `Offer` for "may I", `Question`
-for "which one".
+**`Question` is not the verb for an authorization ask.** `as_Question` is an
+`IntransitiveActivity` — it has **no `object`**, as the code comment says
+outright. The thing being asked about has nowhere to live, and
+`find_protocol_pair` keys on an object ID. So `Offer` is the verb for "may I".
+
+The old form of this rule finished with "`Question` for *which one*", citing
+`choose_preferred_embargo` as the live instance. **That instance is gone** —
+ADR-0100 retired the multi-candidate embargo poll (#3469), because a `Question`
+pattern can discriminate only on `context` and had no answer form. Do not read
+the surviving half as a licence to reach for `Question` when a choice needs
+making: Vultron resolves competing embargo terms as *sequential* `Invite`s in
+earliest-expiration order (EP-08), and nothing else in the protocol currently
+needs a poll.
+
+One `as_Question` remains — `bootstrap_replay_question_activity` (CBT-03-004),
+asking a peer to resend a missing bootstrap `Create(VulnerabilityCase)`. It is
+**not** a working precedent to copy. It has no `ActivityPattern`, no
+`MessageSemantics` and no received-side handler, so it is emitted and dropped,
+and whether a replay request should be a `Question` at all — rather than
+something that fits the state-change-notification model these notes are built
+on — is open (#3471). If you need a request/response exchange, design it as a
+protocol ask per this file and ADR-0080; do not add a second `Question`.
 
 **Do not relax a gate to make a blocked path proceed** (RSH-07-005).
 `STATUS_AUTHORIZATION_PERMISSIVE` is for trusted-participant and demo

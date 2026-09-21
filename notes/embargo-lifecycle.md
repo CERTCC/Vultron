@@ -4,7 +4,8 @@ status: active
 description: >
   Target architecture for EM state management; the inline-EMAdapter
   instantiation anti-pattern in trigger use cases; P/X/A embargo-eligibility
-  precondition guards in EmbargoLifecycle; and the fragmentation concern that
+  precondition guards in EmbargoLifecycle; the earliest-expiration resolution
+  order for multiple open proposals (EP-08); and the fragmentation concern that
   motivates the EmbargoLifecycle service (see #538).
 related_specs:
   - specs/case-management.yaml
@@ -13,6 +14,7 @@ related_notes:
   - notes/embargo-default-semantics.md
   - notes/participant-embargo-consent.md
   - notes/call-out-configuration.md
+  - notes/activitystreams-semantics.md
 relevant_packages:
   - vultron/core/states/em.py
   - vultron/core/services/embargo_lifecycle.py
@@ -161,5 +163,49 @@ When implementing any code that transitions embargo state:
    guard); it fails when EM is PROPOSED. `reject_proposed_embargo_bt` calls
    `reject_embargo_invite()` which handles PROPOSED → NONE correctly
    (EMB-16-001).
+7. **Several proposals can be open at once, and order is by expiration, not
+   arrival** (EP-08, ADR-0100). See the section below before touching any
+   proposal-selection code.
+
+---
+
+## Open Proposals Resolve Earliest-Expiration First (EP-08)
+
+`EM.PROPOSED` means "one or more embargo proposals under negotiation", and more
+than one is ordinary rather than exceptional: EMB-15-003 routes a counter-proposal
+through the *existing* propose path, which emits a fresh EP while the state stays
+PROPOSED. `VulnerabilityCase.pending_embargo_proposal_index` (embargo id →
+proposal id) therefore routinely holds several entries.
+
+`docs/topics/process_models/em/defaults.md` is normative and says a Participant
+SHOULD accept the **earliest-expiring** open proposal and handle the rest as
+revisions — the *Shortest Embargo Proposed Wins* heuristic. EP-08 states it in
+`specs/` so it is testable. **This is not what the code did**, which is the whole
+reason EP-08 exists:
+
+- `find_embargo_proposal_id` returned the *first recorded* proposal, so after a
+  counter-proposal a default `accept` took the **superseded** terms. Fixed by
+  #3470.
+- Nothing removed a decided entry from `pending_embargo_proposal_index` — one
+  writer, no remover — while the neighbouring `proposed_embargoes` list *was*
+  pruned in `teardown.py` and `reject_proposed.py`. An unpruned record is not a
+  weaker guarantee than a pruned one; it is a different and wrong answer, because
+  a decided proposal stays selectable. Also #3470.
+
+Two rules follow for any new proposal-selection code:
+
+- **Never select by insertion or arrival order.** Resolve candidates' embargo
+  `end_time` and take the earliest. `#3392` needs the same comparison for
+  EP-04-003 shortest-wins at case creation — use one shared comparator, not two.
+- **Prune on decision, wherever you prune `proposed_embargoes`.** Two records of
+  overlapping state with only one of them pruned is exactly the drift EP-08-003
+  closes.
+
+There is **no multi-candidate poll activity** — ADR-0100 retired
+`ChoosePreferredEmbargo` (#3469). Offering alternatives means sending several
+`Invite`s, each individually dispatchable and individually answerable with
+`EA`/`ER`. Automatically re-proposing the remainder as revisions is deliberately
+not automated; `propose_embargo_revision_trigger_bt` exists for callers that want
+it.
 
 ---
