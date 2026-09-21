@@ -65,6 +65,29 @@ If a future scenario genuinely cannot satisfy a convention, change the conventio
 or rename the file. Adding an override field re-opens the drift channel for every
 scenario, not just that one.
 
+## Registration means built; planned scenarios live in the other register
+
+A scenario gets a spec group before anyone writes its demo — that is how its
+expected behaviour is agreed. Four scenarios are in that state today: `rcv-embargo`
+(DEMOMA-20), `rcvv-embargo` (DEMOMA-21), `fcvd` (DEMOMA-24) and `vc` (DEMOMA-25).
+
+**Do not register them.** A registered scenario is one whose module exists, and
+every derived-path check depends on that. A `status="planned"` field in the
+decorator would make the registry the place where both states live and would
+immediately need path checks exempted per entry — the override channel the whole
+design exists to avoid.
+
+Planned scenarios are declared by their spec group plus the table in
+[demo-future-ideas.md](demo-future-ideas.md), which already carries the tracking
+issue and spec IDs per row. DEMOCI-11-010 requires every spec'd scenario to sit in
+exactly one of the two registers, and the partition to be checked.
+
+Write the check in both directions. The registry-to-prose direction alone reports
+agreement while ignoring DEMOMA-16-014 and DEMOMA-16-015, which describe scenarios
+that are *correctly* absent from the registry — the same blind spot that let a `vc`
+row sit in a table of available demos with a spec group, a tracking issue, and no
+implementation.
+
 ## Discovery must walk the package, never an import list
 
 Import-time registration only sees modules that were imported. A hand-written

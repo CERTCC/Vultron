@@ -1530,7 +1530,10 @@ groups:
         statement: >-
           Each demo scenario module under `vultron/demo/scenario/` MUST declare
           itself to the scenario registry at import time, and the registry MUST
-          be the sole declaration point for the set of demo scenarios.
+          be the sole declaration point for the set of demo scenarios that are
+          implemented. A scenario that is specified but not yet built MUST NOT be
+          registered; it is declared by its spec group and the planned-scenario
+          register instead (DEMOCI-11-010).
         rationale: >-
           The demo module is the only artifact that can know a demo exists. Any
           separate list — a data file, an import list, a documentation table —
@@ -1767,5 +1770,43 @@ groups:
         relationships:
           - rel_type: refines
             spec_id: DEMOCI-11-001
+        lint_suppress:
+          - missing_story_reference
+
+      - id: DEMOCI-11-010
+        priority: MUST
+        kind: project
+        statement: >-
+          Every demo scenario that has a spec group MUST appear in exactly one of
+          two places: the scenario registry, if it is implemented, or the
+          planned-scenario register in `notes/demo-future-ideas.md`, if it is
+          specified but not yet built. A planned entry MUST carry its tracking
+          issue and its spec IDs. Neither membership may be inferred from the
+          other, and a scenario MUST NOT be absent from both or present in both.
+        rationale: >-
+          Specifying a scenario before building it is normal and necessary — the
+          spec group is how the scenario's expected behaviour is agreed before
+          anyone writes the demo. What must not happen is the state that produced
+          the `vc` row: a scenario specified (DEMOMA-25) and tracked (ISSUE-2591)
+          but visible nowhere except a table of *available* demos, with nothing
+          able to tell the two conditions apart. Registry membership is therefore
+          defined to mean "built", the planned register carries everything
+          specified but unbuilt, and the partition between them is checked. This
+          also makes the reverse direction checkable: DEMOMA-16-014 and
+          DEMOMA-16-015 describe scenarios that are correctly absent from the
+          registry, so a one-directional registry-to-prose check would report
+          agreement while silently ignoring them.
+        verification: >-
+          A test asserts that the scenarios named by scenario spec groups
+          partition exactly into the registered set and the planned register, with
+          no scenario missing from both and none in both, and that every planned
+          entry names a tracking issue and its spec IDs.
+        adr:
+          - ADR-0098
+        relationships:
+          - rel_type: refines
+            spec_id: DEMOCI-11-001
+          - rel_type: refines
+            spec_id: DEMOCI-11-007
         lint_suppress:
           - missing_story_reference

@@ -102,6 +102,21 @@ would reintroduce the same silent-omission failure this decision removes. This
 is the hazard already recorded for the AS2 vocabulary registry
 (`notes/vocabulary-registry.md`).
 
+**Registration means built.** Specifying a scenario before building it is normal
+— the spec group is how its expected behaviour is agreed before anyone writes the
+demo, and four scenarios are in that state today (DEMOMA-20 `rcv-embargo`,
+DEMOMA-21 `rcvv-embargo`, DEMOMA-24 `fcvd`, DEMOMA-25 `vc`). None of them may be
+registered: a registered scenario is one whose module exists, and the derived-path
+checks depend on that being true. Those scenarios are declared instead by their
+spec group plus the planned-scenario register in `notes/demo-future-ideas.md`,
+which already carries the tracking issue and spec IDs for each. Every scenario
+with a spec group sits in exactly one of the two, and the partition is checked
+(DEMOCI-11-010).
+
+That partition, not the registry alone, is what closes the defect this decision
+started from. The `vc` row was a scenario in the second state rendered as though
+it were in the first, and no check could tell the difference.
+
 Each consumer is then treated according to what it actually is:
 
 | Consumer | Treatment |
@@ -111,6 +126,7 @@ Each consumer is then treated according to what it actually is:
 | `test/ci/README-case-log-ratchet.md` | generated between markers |
 | `vultron/demo/scenario/README.md` | generated between markers |
 | `notes/` scenario tables | generated columns where derivable; completeness-checked where hand-written |
+| `notes/demo-future-ideas.md` planned register | hand-written; checked as the complement of the registry (DEMOCI-11-010) |
 | `.github/workflows/demo-integration.yml` header comment | the prose enumeration is deleted in favour of the code below it; no copy survives to check |
 | `specs/` DEMOCI-06-002/003 and the per-scenario DEMOMA-16 requirements | prose retained, consistency-checked |
 | `mkdocs.yml` nav | completeness-checked |
@@ -149,6 +165,9 @@ derivable; check what is prose.
   rather than merely monitored for it.
 - Good, because a registered scenario missing its harness, script, or narrative
   page fails a check, which is the defect class the `vc` row belonged to.
+- Good, because "specified but not yet built" becomes a state a scenario can be
+  in explicitly, checked as the complement of the registry rather than left to
+  whichever table someone wrote it into (DEMOCI-11-010).
 - Good, because the PR-set membership flag is stated once, next to the demo,
   rather than separately in the README column, the notes minimum-set table, the
   workflow header comment, DEMOCI-06-002 and DEMOCI-06-003.
@@ -168,6 +187,9 @@ derivable; check what is prose.
 - A test asserts `pkgutil` discovery registers every `*_demo.py` module in
   `vultron/demo/scenario/`, so a new demo that forgets the decorator fails.
 - A test asserts each registered scenario's three derived paths resolve on disk.
+- A test asserts the scenarios named by scenario spec groups partition exactly
+  into the registered set and the planned register, so a specified scenario can
+  be neither silently missing nor described as available before it exists.
 - The `--check` mode of the dumper, wired as a pre-commit hook, fails when any
   committed generated artifact is stale.
 - Consistency tests bind DEMOCI-06-002, DEMOCI-06-003, the per-scenario DEMOMA-16
