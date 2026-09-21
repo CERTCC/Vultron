@@ -50,6 +50,20 @@ routing is wrong. See
 Accepting Actor's Replica Updates via the CaseActor's Announce".
 (CONCERN-1635, ISSUE-2719)
 
+### A Scenario Declares Itself Once; Every Table Is Generated
+
+Decorate the scenario's `main()` with `@scenario(name, label, participants,
+feature, in_pr_set)` from `scenario/registry.py` — the *only* declaration. Every
+scenario table and `.github/demo-scenarios.json` are generated (`uv run
+demo-scenarios --write`, gated by the `demo-scenarios-sync` hook): never
+hand-edit one, change the decorator. Script, harness and narrative paths are
+**derived** from `name` (`<name_>_demo.py`, `test_<name_>_invariants.py`,
+`<name>.md`; `<name_>` swaps hyphens for underscores) — rename the file to match,
+never add an override (DEMOCI-11-003). A scenario specified but not yet written
+goes in `notes/demo-future-ideas.md`, never the registry (DEMOCI-11-010). Full
+write-up: [demo-scenario-registry](../../notes/demo-scenario-registry.md).
+DEMOCI-11, ADR-0098. (ISSUE-3450)
+
 ### Extract Before Reuse: No Copy-Paste from Existing Scenario Files
 
 Before the **second** use of a pattern from an existing scenario file, extract it

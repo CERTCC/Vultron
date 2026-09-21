@@ -34,6 +34,7 @@ from vultron.metadata.adr.loader import (
     load_adr_post,
 )
 from vultron.metadata.adr.schema import AdrFrontmatter
+from vultron.metadata.base import MkDocsYamlLoader
 from vultron.metadata.specs.schema import AdrStatus
 
 # Marker after which the status-organised sections begin. Everything before it
@@ -153,22 +154,6 @@ def generate_index(repo_root: Path | None = None) -> str:
     return preamble + sections
 
 
-class _NavTagTolerantLoader(yaml.SafeLoader):
-    """SafeLoader that tolerates mkdocs' custom YAML tags.
-
-    ``mkdocs.yml`` carries ``!ENV`` and ``!!python/name:`` tags that a plain
-    ``yaml.safe_load`` refuses to construct. We only need the ``nav:`` file
-    paths, so we register permissive constructors that discard the tag and
-    keep the underlying scalar/sequence rather than executing anything.
-    """
-
-
-_NavTagTolerantLoader.add_multi_constructor("!", lambda _l, _s, _n: None)
-_NavTagTolerantLoader.add_multi_constructor(
-    "tag:yaml.org,2002:python/name:", lambda _l, _s, _n: None
-)
-
-
 def _iter_nav_paths(nav: object) -> "list[str]":
     """Yield every string file path referenced anywhere in a mkdocs nav tree."""
     found: list[str] = []
@@ -197,7 +182,7 @@ def missing_nav_entries(repo_root: Path | None = None) -> list[str]:
     adr_dir = root / "docs" / "adr"
 
     with (root / "mkdocs.yml").open(encoding="utf-8") as fh:
-        config = yaml.load(fh, Loader=_NavTagTolerantLoader)  # noqa: S506
+        config = yaml.load(fh, Loader=MkDocsYamlLoader)  # noqa: S506
     nav_paths = set(_iter_nav_paths((config or {}).get("nav")))
 
     missing: list[str] = []

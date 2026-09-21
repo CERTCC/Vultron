@@ -219,11 +219,15 @@ Map" rather than a count restated here. That table is ratcheted against the
 factory by `test/ci/invariants/test_diagnostic_map_sync.py`; a count in prose
 is not (ISSUE-3337).
 
-**The scenario→harness registry is the CI matrix**, not a Python module. The
-`demo:` / `test_file:` pairs in `.github/demo-scenarios.json` (read by the
-workflow via `fromJson`) are the sole mapping from a scenario name to its
-harness file; the pairs appear in both the `demo` and `invariant-harness` jobs
-and must be kept in step.
+**The scenario→harness mapping is derived, not written.** Each scenario declares
+itself with `@scenario(...)` on its `main()`
+([demo-scenario-registry](demo-scenario-registry.md), ADR-0098), and its harness
+path is derived from the scenario name by convention rather than stored. The
+`demo:` / `test_file:` pairs in `.github/demo-scenarios.json` — read by the
+workflow via `fromJson` in both the `demo` and `invariant-harness` jobs — are a
+**generated projection** of that registry (DEMOCI-11-004). Do not hand-edit the
+JSON: change the decorator and run `uv run demo-scenarios --write`. The
+`demo-scenarios-sync` pre-commit hook fails on a stale or hand-edited copy.
 
 > **Do not add a `conftest.py` scenario registry.** DEMOMA-19-008 originally
 > required registering the FCVCV harness in `test/ci/invariants/conftest.py`

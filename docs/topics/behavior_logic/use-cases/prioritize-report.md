@@ -16,7 +16,7 @@ The decision resolves into one of two protocol steps, exposed by the reference i
 Engaging moves the Participant to `RM.ACCEPTED`; deferring moves it to `RM.DEFERRED`.
 Neither is terminal: a deferred case can be engaged later when circumstances change, which is the whole reason `RM.DEFERRED` exists as a state rather than as a synonym for closed.
 
-A Participant also runs this behavior **about another actor**, when an inbound `Join(VulnerabilityCase)` — the Report Accepted (RA) message — or `Ignore(VulnerabilityCase)` — Report Deferred (RD) — tells it that a peer engaged or deferred.
+A Participant also runs this behavior **about another actor**, when an inbound `Join(VulnerabilityCase)` — the Report/Case Accepted (RA) message — or `Ignore(VulnerabilityCase)` — Report/Case Deferred (RD) — tells it that a peer engaged or deferred.
 There the actor updates its record of the sender's RM state; its own state does not move (RMB-05-001, RMB-04-001).
 
 ---

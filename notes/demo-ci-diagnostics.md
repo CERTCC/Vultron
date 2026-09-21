@@ -103,14 +103,16 @@ from the `vultron.core.behaviors.sync` logger in the `case-actor` container.
 
 ## Per-Invariant Diagnostic Map
 
-Invariant tests live under `test/ci/invariants/`, one file per scenario.
-`.github/demo-scenarios.json` is the sole scenario→harness registry. Run one
-scenario's tests with the harness file that registry names, for example:
+Invariant tests live under `test/ci/invariants/`, one file per scenario. Each
+harness path is derived from its scenario's registered name
+(`test_<name_>_invariants.py`, hyphens becoming underscores), so the set of
+harness files is the set the generated table in
+`test/ci/README-case-log-ratchet.md` names — read it there rather than from a
+list restated here (ADR-0098, DEMOCI-11-003). Run one scenario's tests with its
+harness file, for example:
 
 ```bash
 uv run pytest test/ci/invariants/test_fv_invariants.py -v --tb=short
-# harness files exist for fv, fvv, fvcv_extension, fvcv_handoff,
-# fccv_extension, fccv_handoff, fcv, fcv_reject, and fcvcv
 ```
 
 ### Invariant Status and Diagnostic Focus

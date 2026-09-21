@@ -106,6 +106,7 @@ from vultron.demo.helpers.workflow import (
     run_direct_path_rm_triage,
     run_invite_path_rm_triage,
 )
+from vultron.demo.scenario.registry import scenario
 
 logger = logging.getLogger(__name__)
 
@@ -1192,6 +1193,13 @@ def run_fccv_handoff_demo(
 # ---------------------------------------------------------------------------
 
 
+@scenario(
+    name="fccv-handoff",
+    label="FCCV-handoff",
+    participants="Finder + C1 → C2 + Vendor",
+    feature="Ownership transfer between two coordinators",
+    in_pr_set=False,
+)
 def main(
     skip_health_check: bool = False,
     finder_url: str | None = None,

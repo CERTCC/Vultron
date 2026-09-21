@@ -83,8 +83,8 @@ Therefore, the RM message types are primarily used to inform other Participants 
 | $RS$         | Report Submission | A message from one Participant to a new Participant containing a vulnerability report. |
 | $RI$         | Report Invalid | A message indicating the Participant has designated the report as invalid.             |
 | $RV$         | Report Valid | A message indicating the Participant has designated the report as valid.               |
-| $RD$         | Report Deferred | A message indicating the Participant is deferring further action on a report.          |
-| $RA$         | Report Accepted | A message indicating the Participant has accepted the report for further action.       |
+| $RD$         | Report/Case Deferred | A message indicating the Participant is deferring further action; a case-participation decision (`Ignore(VulnerabilityCase)`). |
+| $RA$         | Report/Case Accepted | A message indicating the Participant has accepted the report for further action; a case-participation decision (`Join(VulnerabilityCase)`). |
 | $RC$         | Report Closed | A message indicating the Participant has closed the report.                            |
 | $RK$         | Report Acknowledgement | A message acknowledging the receipt of any RM message listed above.           |
 | $RE$         | Report Error | A message indicating a Participant received an unexpected RM message.                  |
@@ -214,8 +214,8 @@ For convenience, these are collected into the table below.
 | RM | $RS$ | Report Submission | sender $\in A$ |
 | RM | $RI$ | Report Invalid | $R \xrightarrow{i} I$ |
 | RM | $RV$ | Report Valid | $\{R,I\} \xrightarrow{v} V$ |
-| RM | $RD$ | Report Deferred | $\{V,A\} \xrightarrow{d} D$ |
-| RM | $RA$ | Report Accepted | $\{V,D\} \xrightarrow{a} A$ |
+| RM | $RD$ | Report/Case Deferred | $\{V,A\} \xrightarrow{d} D$ |
+| RM | $RA$ | Report/Case Accepted | $\{V,D\} \xrightarrow{a} A$ |
 | RM | $RC$ | Report Closed | $\{I,D,A\} \xrightarrow{c} C$ |
 | RM | $RK$ | Report Acknowledgement | any valid RM message |
 | RM | $RE$ | Report Error | any unexpected RM message |
