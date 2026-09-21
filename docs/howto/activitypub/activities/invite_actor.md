@@ -1,9 +1,8 @@
 # How to Invite an Actor to a Case
 
-Use this guide to bring an actor into a case it was not present for.
-An invitation asks rather than asserts, so the actor joins only if it accepts.
-You finish with the actor either seated as a participant or recorded as having
-declined.
+Use this guide to bring an actor into a case it was not present for. An invitation asks
+rather than asserts, so the actor joins only if it accepts. You finish with the actor
+either seated as a participant or recorded as having declined.
 
 ---
 
@@ -19,9 +18,8 @@ declined.
 
 ## The exchange
 
-The sequence diagram below shows both outcomes.
-The Case Owner triggers the invitation, but every message on the wire is between
-the CASE_MANAGER and the invited actor.
+The sequence diagram below shows both outcomes. The Case Owner triggers the invitation,
+but every message on the wire is between the CASE_MANAGER and the invited actor.
 
 ```mermaid
 ---
@@ -54,23 +52,19 @@ sequenceDiagram
 ## Send the invitation
 
 1. Trigger the invitation as Case Owner.
-2. The CASE_MANAGER sends `RmInviteToCase` to the actor's inbox, with itself as
-   the ActivityStreams `actor` and your identity in `attributedTo`
-   (PCR-08-007, PCR-08-008).
-3. Set the reply deadline on the activity's `end_time`.
-   When it is present that value settles precedence over the invitee's local
-   policy window; when it is absent the policy window applies instead
-   (CM-28-002, ADR-0065).
-   Either way the effective deadline is clamped down to the embargo's own
-   `end_time`, so an `end_time` that outlives the embargo does not buy the invitee
-   extra time (EP-07-006).
+2. The CASE_MANAGER sends `Invite(Actor)` to the actor's inbox, with itself as the
+   ActivityStreams `actor` and your identity in `attributedTo` (PCR-08-007, PCR-08-008).
+3. Set the reply deadline on the activity's `end_time`. When it is present that value
+   settles precedence over the invitee's local policy window; when it is absent the
+   policy window applies instead (CM-28-002, ADR-0065). Either way the effective
+   deadline is clamped down to the embargo's own `end_time`, so an `end_time` that
+   outlives the embargo does not buy the invitee extra time (EP-07-006).
 
 !!! warning "The CASE_MANAGER is the sender, not the Case Owner"
 
-    Putting the Case Owner in the `actor` field makes the invitation
-    unrecognizable to a conformant peer, which expects case-management handshakes
-    to come from the CASE_MANAGER.
-    Record who asked for the invitation in `attributedTo` instead.
+    Putting the Case Owner in the `actor` field makes the invitation unrecognizable to a
+    conformant peer, which expects case-management handshakes to come from the
+    CASE_MANAGER. Record who asked for the invitation in `attributedTo` instead.
 
 ---
 
@@ -78,34 +72,32 @@ sequenceDiagram
 
 Send your reply to the CASE_MANAGER, never to the Case Owner.
 
-- If you are joining the case, send `RmAcceptInviteToCase` with the `Invite`
-  activity as its `object`.
-- If you are not joining, send `RmRejectInviteToCase` with the `Invite` as its
+- If you are joining the case, send `Accept(Invite(Actor))` with the `Invite` activity
+  as its `object`.
+- If you are not joining, send `Reject(Invite(Actor))` with the `Invite` as its
   `object`.
 
-On acceptance, the CASE_MANAGER commits the reply to the ledger, seats you at
-Report Management (RM) state `RM.RECEIVED`, signs your embargo consent if an
-embargo is active, sends `AnnounceVulnerabilityCase` to seed your replica, and
-backfills the earlier ledger entries (CM-17-004).
+On acceptance, the CASE_MANAGER commits the reply to the ledger, seats you at Report
+Management (RM) state `RM.RECEIVED`, signs your embargo consent if an embargo is active,
+sends `Announce(VulnerabilityCase)` to seed your replica, and backfills the earlier
+ledger entries (CM-17-004).
 
-Expect `RM.RECEIVED`, not `RM.ACCEPTED`.
-Accepting an invitation says you are willing to join the case; it does not say
-you have validated the report, which you have not yet seen in full
-(CM-11-001).
-Rule on the report afterwards — see
+Expect `RM.RECEIVED`, not `RM.ACCEPTED`. Accepting an invitation says you are willing to
+join the case; it does not say you have validated the report, which you have not yet
+seen in full (CM-11-001). Rule on the report afterwards — see
 [How to Advance a Case Through Report Management](manage_case.md).
 
 ---
 
 ## Choose invitation over seating
 
-Use `as:Invite` for an actor that was absent when the case was created.
-Seat the Case Owner and any already-known participants, such as the Reporter,
-inline on the `as:Create` for the case instead — see
+Use `as:Invite` for an actor that was absent when the case was created. Seat the Case
+Owner and any already-known participants, such as the Reporter, inline on the
+`as:Create` for the case instead — see
 [How to Initialize a Case](initialize_case.md).
 
-If you are not the Case Owner but you know an actor belongs on the case, suggest
-it rather than inviting it: see
+If you are not the Case Owner but you know an actor belongs on the case, suggest it
+rather than inviting it: see
 [How to Suggest an Actor for a Case](suggest_actor.md).
 
 ---
@@ -114,9 +106,9 @@ it rather than inviting it: see
 
 | What you sent | What to confirm |
 |---|---|
-| `RmInviteToCase` | The invitee holds an `Invite` whose `actor` is the CASE_MANAGER. |
-| `RmAcceptInviteToCase` | The case roster holds you, and you have a local case replica. |
-| `RmRejectInviteToCase` | The roster does not list you, and the refusal is on the ledger. |
+| `Invite(Actor)` | The invitee holds an `Invite` whose `actor` is the CASE_MANAGER. |
+| `Accept(Invite(Actor))` | The case roster holds you, and you have a local case replica. |
+| `Reject(Invite(Actor))` | The roster does not list you, and the refusal is on the ledger. |
 
 ---
 
