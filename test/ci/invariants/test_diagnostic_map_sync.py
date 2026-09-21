@@ -298,8 +298,10 @@ def test_diagnostic_map_cites_the_owning_issue(name: str) -> None:
 def _registry_entries() -> list[dict]:
     """The ``.github/demo-scenarios.json`` entries that are JSON objects.
 
-    That file is the sole scenario→harness registry. Do not add a second list
-    of harness files here.
+    That file is a generated projection of the scenario registry in
+    ``vultron/demo/scenario/registry.py`` (ADR-0098, DEMOCI-11-004), and it is
+    what the CI matrix expands, so it is the right list to read here. Do not add
+    a second list of harness files.
     """
     raw = json.loads(_CI_SCENARIOS_JSON.read_text(encoding="utf-8"))
     return [entry for entry in raw if isinstance(entry, dict)]

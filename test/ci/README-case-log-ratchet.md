@@ -8,24 +8,29 @@ universal invariant check functions live in
 `test/ci/invariants/common.py`; each scenario has its own test file under
 `test/ci/invariants/`.
 
-The scenarios and their harness files are registered in
-`.github/demo-scenarios.json`, which is the sole registry — the table below
-mirrors it and MUST be kept in step. ADR-0098 replaces that arrangement: the
-scenarios will self-register in their demo modules, and both the registry and
-this table become generated artifacts. Until it lands, edit both by hand
-together.
+Each scenario declares itself in its own demo module by decorating `main()`
+with `@scenario(...)` from `vultron/demo/scenario/registry.py`; that registry
+is the sole declaration point (ADR-0098, DEMOCI-11-001). Both the table below
+and `.github/demo-scenarios.json` are generated from it, and the harness path
+in each row is derived from the scenario name by convention rather than stored
+(DEMOCI-11-003). Do not hand-edit either — change the decorator and run
+`uv run demo-scenarios --write`.
+
+<!-- BEGIN GENERATED SCENARIO TABLE — do not edit; edit the @scenario decorators and run `uv run demo-scenarios --write` -->
 
 | Scenario | Test file | In PR set |
-|----------|-----------|:---------:|
-| FV | `test/ci/invariants/test_fv_invariants.py` | ✓ |
-| FVCV-handoff | `test/ci/invariants/test_fvcv_handoff_invariants.py` | ✓ |
-| FCVCV | `test/ci/invariants/test_fcvcv_invariants.py` | ✓ |
+|---|---|---|
+| FCCV-extension | `test/ci/invariants/test_fccv_extension_invariants.py` |  |
+| FCCV-handoff | `test/ci/invariants/test_fccv_handoff_invariants.py` |  |
+| FCV | `test/ci/invariants/test_fcv_invariants.py` |  |
 | FCV-reject | `test/ci/invariants/test_fcv_reject_invariants.py` | ✓ |
-| FVV (three-actor) | `test/ci/invariants/test_fvv_invariants.py` | |
-| FVCV-extension | `test/ci/invariants/test_fvcv_extension_invariants.py` | |
-| FCCV-extension | `test/ci/invariants/test_fccv_extension_invariants.py` | |
-| FCCV-handoff | `test/ci/invariants/test_fccv_handoff_invariants.py` | |
-| FCV | `test/ci/invariants/test_fcv_invariants.py` | |
+| FCVCV | `test/ci/invariants/test_fcvcv_invariants.py` | ✓ |
+| FV | `test/ci/invariants/test_fv_invariants.py` | ✓ |
+| FVCV-extension | `test/ci/invariants/test_fvcv_extension_invariants.py` |  |
+| FVCV-handoff | `test/ci/invariants/test_fvcv_handoff_invariants.py` | ✓ |
+| FVV | `test/ci/invariants/test_fvv_invariants.py` |  |
+
+<!-- END GENERATED SCENARIO TABLE -->
 
 Scenarios marked *In PR set* run on `pull_request` events (the DEMOCI-06-002
 minimum validation set); all of them run on push-to-main and
@@ -215,13 +220,21 @@ pass/fail to CI.
    scenario. Import `check_*` helpers from `common.py` for these rather than
    writing the logic inline.
 
-5. Register the `demo:` / `test_file:` pair in `.github/demo-scenarios.json`.
-   That file is the **sole** registry: until the pair is there, the scenario is
-   in no CI matrix and nothing runs it.
-   `test_all_ci_scenarios_have_a_harness_module` pins the scenario count, so it
-   fails until DEMOMA-16 and the `notes/` scenario tables are updated too.
+5. Decorate the demo module's `main()` with `@scenario(...)` from
+   `vultron/demo/scenario/registry.py`. That decoration is the **only** place
+   the scenario is declared: the CI matrix in `.github/demo-scenarios.json`,
+   the table at the top of this document and the sub-command table in
+   `vultron/demo/scenario/README.md` are all generated from it. Name the
+   harness file `test_<scenario>_invariants.py`, where `<scenario>` is the
+   decorator's `name` with hyphens replaced by underscores — the registry
+   derives the path and does not store it, so a mismatched filename fails
+   rather than being silently described (DEMOCI-11-003).
 
-6. Update the scenario table at the top of this document.
+6. Run `uv run demo-scenarios --write` to regenerate the three committed
+   artifacts, and commit them. The `demo-scenarios-sync` pre-commit hook fails
+   if you forget. `test_all_ci_scenarios_have_a_harness_module` still fails
+   until DEMOMA-16 and the `notes/` scenario tables are updated, because those
+   are hand-written prose that is checked rather than generated (#3451).
 
 ---
 

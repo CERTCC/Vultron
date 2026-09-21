@@ -5,7 +5,7 @@ status: stable
 
 # Demo Scenario Narratives
 
-This section contains Explanation-style narratives for the nine multi-actor CVD
+This section contains Explanation-style narratives for the multi-actor CVD
 workflow scenarios exercised by the Vultron demo suite.  Each narrative
 describes a complete case lifecycle in domain terms — the who, what, and why of
 each protocol step — without reference to implementation details such as
@@ -20,17 +20,15 @@ and [ADR-0079](../../adr/0079-case-ledger-causal-ordering.md)).
 
 ## Scenarios
 
-| Short name | Participants | Notable protocol feature |
-|---|---|---|
-| [FV](fv.md) | Finder + Vendor | Baseline two-actor CVD |
-| [FVV](fvv.md) | Finder + Vendor1 + Vendor2 | Direct invitation of a second vendor |
-| [FCV](fcv.md) | Finder + Coordinator + Vendor | Coordinator-mediated report and vendor onboarding |
-| [FCV-reject](fcv-reject.md) | Finder + Coordinator (Vendor rejects) | Invite rejection path |
-| [FCVCV](fcvcv.md) | Finder + C1 + V1 + C2 + V2 | Actor-suggestion flow (ADR-0026) |
-| [FVCV-extension](fvcv-extension.md) | Finder + Vendor1 + Coordinator + Vendor2 | Coordinator-suggested second vendor |
-| [FVCV-handoff](fvcv-handoff.md) | Finder + Vendor1 → Coordinator + Vendor2 | Case-ownership transfer to coordinator |
-| [FCCV-extension](fccv-extension.md) | Finder + C1 + C2 + Vendor | Second coordinator suggests vendor |
-| [FCCV-handoff](fccv-handoff.md) | Finder + C1 → C2 + Vendor | Ownership transfer between two coordinators |
+The table below is rendered at build time from the scenario registry — each
+scenario declares itself in its own demo module (ADR-0098, DEMOCI-11-009), so no
+copy of it is committed here and it cannot drift.
+
+```python exec="true" idprefix=""
+from vultron.metadata.demo_scenarios.render import render_page
+
+print(render_page("narratives"))
+```
 
 ## Machine-readable causal edge schema
 

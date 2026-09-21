@@ -17,9 +17,12 @@ running any demo, that
 1. all nine harnesses named by the CI matrix carry the universal block, and
 2. DEMOMA-16-001 still enumerates exactly the same five types.
 
-Scenario→harness mapping comes from ``.github/demo-scenarios.json``, which is
-the sole registry per ``notes/demo-ci-invariants.md``.  Do not add a second
-list of harness files here.
+Scenario→harness mapping comes from ``.github/demo-scenarios.json``.  That file
+is now a *generated* projection of the scenario registry in
+``vultron/demo/scenario/registry.py`` (ADR-0098, DEMOCI-11-004) rather than the
+declaration point it once was, but it is still the right thing to read here:
+it is what the CI matrix actually expands, so a harness missing from it is a
+harness CI never runs.  Do not add a second list of harness files here.
 """
 
 from __future__ import annotations
