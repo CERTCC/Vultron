@@ -168,6 +168,7 @@ General information about architectural decision records is available at <https:
 - [ADR-0096 A Protocol Default Embargo Replaces the Pre-Case Phase](0096-protocol-default-embargo.md)
 - [ADR-0097 The Capability Layer: Four Call-Out Shapes, Core-Declared Typed-Port Contracts, and Sentinel as a Call-In Pattern](0097-capability-layer-four-shapes-and-core-declared-contracts.md)
 - [ADR-0098 Demo scenarios self-register at import time; every scenario table and the CI matrix become derived artifacts](0098-demo-scenarios-self-register.md)
+- [ADR-0099 One Object Model: AS2 Is a Serialization of the Core Model, Not a Parallel Hierarchy](0099-one-object-model-as2-is-a-serialization.md) *(provisional)*
 
 ## Proposed ADRs
 
