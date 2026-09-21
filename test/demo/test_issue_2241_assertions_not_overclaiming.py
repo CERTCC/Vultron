@@ -50,7 +50,6 @@ from unittest.mock import MagicMock
 
 import pytest
 
-import vultron.demo.helpers.notes as notes_module
 import vultron.demo.utils as demo_utils
 from vultron.core.states.cs import CS_vf
 from vultron.core.states.rm import RM
@@ -98,7 +97,7 @@ def test_participant_adds_note_no_unbound_on_trigger_failure(monkeypatch):
     def _boom(*args, **kwargs):
         raise RuntimeError("simulated add-note-to-case trigger HTTP 500")
 
-    monkeypatch.setattr(notes_module, "post_to_trigger", _boom)
+    monkeypatch.setattr("vultron.demo.actor_session.post_to_trigger", _boom)
 
     poster = MagicMock()
     poster.id_ = _REPORTER_ID

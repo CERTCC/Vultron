@@ -3921,6 +3921,11 @@ groups:
   - id: DEMOMA-26-005
     priority: MUST
     kind: project
+    # actions.py is intentionally deleted by the PR that satisfies this
+    # requirement (#3398), so the path it names no longer exists — the
+    # reference is historical, not a live file (MS-15-001).
+    lint_suppress:
+    - phantom_path_ref
     statement: >-
       `vultron/demo/helpers/actions.py` MUST be deleted when `ActorSession`
       lands. No backward-compatibility shims or re-export stubs for its
@@ -3943,6 +3948,11 @@ groups:
   - id: DEMOMA-26-006
     priority: MUST
     kind: project
+    # This ratchet is intentionally deleted by the PR that satisfies this
+    # requirement (#3398), so the path it names no longer exists — the
+    # reference is historical, not a live file (MS-15-001).
+    lint_suppress:
+    - phantom_path_ref
     statement: >-
       The architecture ratchet test
       `test/architecture/test_demo_trigger_client_matches_actor.py` MUST be

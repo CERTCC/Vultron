@@ -22,9 +22,11 @@ True multi-container isolation is validated by the acceptance test runnable via:
 """
 
 import importlib
+from types import SimpleNamespace
 from unittest.mock import MagicMock, call, patch
 
 import pytest
+from vultron.demo.actor_session import ActorSession
 from _pytest.monkeypatch import MonkeyPatch
 from click.testing import CliRunner
 from fastapi.testclient import TestClient
@@ -418,7 +420,7 @@ class TestCoverageWaitInsideDemoCheck:
         initial_failures = len(utils_module._demo_failures)
 
         with (
-            patch("vultron.demo.scenario.fvv_demo.actor_closes_case"),
+            patch.object(ActorSession, "close_case"),
             patch(
                 "vultron.demo.scenario.fvv_demo.wait_for_all_participants_rm_closed"
             ),
@@ -651,13 +653,13 @@ class TestFvvMilestoneAssertions:
             patch.object(demo, "wait_for_case_participants"),
             patch.object(demo, "wait_for_finder_case"),
             patch.object(
-                demo,
-                "post_to_trigger",
-                return_value={"activity": {"id": invite.id_}},
+                ActorSession,
+                "invite_actor_to_case",
+                return_value=SimpleNamespace(activity=invite),
             ),
+            patch.object(ActorSession, "accept_case_invite"),
             patch.object(demo, "find_case_invite_for_actor"),
             patch.object(demo, "wait_for_case_on_container"),
-            patch.object(demo, "as_TransitiveActivity") as mock_ta,
             patch.object(demo, "as_VulnerabilityCase") as mock_vc,
             patch.object(demo, "run_invite_path_rm_triage"),
             patch.object(demo, "verify_case_active") as mock_m1,
@@ -672,7 +674,6 @@ class TestFvvMilestoneAssertions:
                 side_effect=lambda _: contextlib.nullcontext(),
             ),
         ):
-            mock_ta.model_validate.return_value = invite
             mock_vc.model_validate.return_value = case
             demo._phase_report_submission(
                 finder_client=finder_client,
@@ -699,7 +700,7 @@ class TestFvvMilestoneAssertions:
 
         with (
             patch.object(demo, "wait_for_participant_rm_state"),
-            patch.object(demo, "actor_notifies_fix_ready"),
+            patch.object(ActorSession, "notify_fix_ready"),
             patch.object(demo, "wait_for_participant_vf_state"),
             patch.object(demo, "verify_fix_ready") as mock_m4,
             patch.object(
@@ -743,8 +744,8 @@ class TestFvvMilestoneAssertions:
         with (
             patch.object(demo, "wait_for_participant_rm_state", _rm_wait),
             patch.object(
-                demo,
-                "actor_notifies_fix_ready",
+                ActorSession,
+                "notify_fix_ready",
                 side_effect=lambda *a, **kw: call_order.append("fix_ready"),
             ),
             patch.object(demo, "wait_for_participant_vf_state"),
@@ -789,7 +790,7 @@ class TestFvvMilestoneAssertions:
         case = self._case()
 
         with (
-            patch.object(demo, "actor_notifies_published"),
+            patch.object(ActorSession, "notify_published"),
             patch.object(demo, "wait_for_case_em_terminated"),
             patch.object(demo, "wait_for_participant_vf_state"),
             patch.object(demo, "verify_publicly_disclosed") as mock_m6,
@@ -838,7 +839,7 @@ class TestFvvMilestoneAssertions:
         }
 
         with (
-            patch.object(demo, "actor_closes_case"),
+            patch.object(ActorSession, "close_case"),
             patch.object(demo, "wait_for_all_participants_rm_closed"),
             patch.object(demo, "verify_case_closed") as mock_m7,
             patch.object(demo, "wait_for_event_type_in_ledger"),
@@ -929,17 +930,17 @@ class TestFinderCaseReplicaWaitBeforeVendor2Triage:
             patch.object(demo, "wait_for_case_participants"),
             patch.object(demo, "wait_for_finder_case"),
             patch.object(
-                demo,
-                "post_to_trigger",
-                return_value={"activity": {"id": invite.id_}},
+                ActorSession,
+                "invite_actor_to_case",
+                return_value=SimpleNamespace(activity=invite),
             ),
+            patch.object(ActorSession, "accept_case_invite"),
             patch.object(demo, "find_case_invite_for_actor"),
             patch.object(
                 demo,
                 "wait_for_case_on_container",
                 side_effect=_wait_for_case,
             ),
-            patch.object(demo, "as_TransitiveActivity") as mock_ta,
             patch.object(demo, "as_VulnerabilityCase") as mock_vc,
             patch.object(
                 demo, "run_invite_path_rm_triage", side_effect=_triage
@@ -956,7 +957,6 @@ class TestFinderCaseReplicaWaitBeforeVendor2Triage:
                 side_effect=lambda _: contextlib.nullcontext(),
             ),
         ):
-            mock_ta.model_validate.return_value = invite
             mock_vc.model_validate.return_value = case
             demo._phase_report_submission(
                 finder_client=finder_client,

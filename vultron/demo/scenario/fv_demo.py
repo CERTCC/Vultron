@@ -49,7 +49,6 @@ from vultron.demo.utils import (  # noqa: F401 — re-exported for test monkeypa
     demo_gate,
     demo_step,
     logfmt,
-    post_to_trigger,
     ref_id,
     reset_datalayer,
     reset_demo_failures,
@@ -57,16 +56,7 @@ from vultron.demo.utils import (  # noqa: F401 — re-exported for test monkeypa
     verify_object_stored,
     setup_demo_logging,
 )
-
-# Re-export shared helpers so that existing imports via this module continue to
-# work and the test suite (which patches symbols in this module's namespace)
-# remains unchanged.
-from vultron.demo.helpers.actions import (  # noqa: F401
-    actor_closes_case,
-    actor_notifies_fix_ready,
-    actor_notifies_published,
-    actor_notifies_state_change,
-)
+from vultron.demo.actor_session import ActorSession
 from vultron.demo.helpers.harness import scenario_harness
 from vultron.demo.helpers.ledger_dump import (
     LedgerDumpTarget,
@@ -644,11 +634,10 @@ def _phase_fix_lifecycle(
             actor_id=vendor.id_,
             expected_states={RM.ACCEPTED, RM.DEFERRED, RM.CLOSED},
         )
-        actor_notifies_fix_ready(
-            client=vendor_client,
-            actor=vendor_in_vendor,
-            case_id=case.id_,
-        )
+        with demo_step(f"Actor {ref_id(vendor_in_vendor)} reports fix ready"):
+            ActorSession(
+                client=vendor_client, actor=vendor_in_vendor
+            ).with_case(case).quiet().notify_fix_ready()
 
         with demo_check("Vendor participant vf_state transitions to VF"):
             wait_for_participant_vf_state(
@@ -719,11 +708,12 @@ def _phase_publication(
     )
     logger.info("─" * 80)
 
-    actor_notifies_published(
-        client=vendor_client,
-        actor=vendor_in_vendor,
-        case_id=case.id_,
-    )
+    with demo_step(
+        f"Actor {ref_id(vendor_in_vendor)} reports vulnerability publicly disclosed"
+    ):
+        ActorSession(client=vendor_client, actor=vendor_in_vendor).with_case(
+            case
+        ).quiet().notify_published()
 
     with demo_check(
         "Embargo terminated (EM.EXITED) after Vendor reports published"
@@ -733,11 +723,12 @@ def _phase_publication(
             case_id=case.id_,
         )
 
-    actor_notifies_published(
-        client=finder_client,
-        actor=finder_in_finder,
-        case_id=case.id_,
-    )
+    with demo_step(
+        f"Actor {ref_id(finder_in_finder)} reports vulnerability publicly disclosed"
+    ):
+        ActorSession(client=finder_client, actor=finder_in_finder).with_case(
+            case
+        ).quiet().notify_published()
 
     with demo_check(
         "M6: both replicas CS.VFdPxa, EM.EXITED, vendor participant is "
@@ -781,16 +772,14 @@ def _phase_case_closure(
     logger.info("Phase 6: Case closure — all participants RM.CLOSED")
     logger.info("─" * 80)
 
-    actor_closes_case(
-        client=vendor_client,
-        actor=vendor_in_vendor,
-        case_id=case.id_,
-    )
-    actor_closes_case(
-        client=finder_client,
-        actor=finder_in_finder,
-        case_id=case.id_,
-    )
+    with demo_step(f"Actor {ref_id(vendor_in_vendor)} closes case"):
+        ActorSession(client=vendor_client, actor=vendor_in_vendor).with_case(
+            case
+        ).quiet().close_case()
+    with demo_step(f"Actor {ref_id(finder_in_finder)} closes case"):
+        ActorSession(client=finder_client, actor=finder_in_finder).with_case(
+            case
+        ).quiet().close_case()
 
     with demo_check("M7: all participants RM.CLOSED on both replicas"):
         wait_for_all_participants_rm_closed(
