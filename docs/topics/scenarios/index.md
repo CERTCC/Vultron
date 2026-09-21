@@ -77,12 +77,12 @@ and never cause a failure.
 The causal edges declared in a narrative page and the scenario's invariant test
 file (`test/ci/invariants/test_<name>_invariants.py`) are a **matched pair**.
 
-When you change a scenario's causal flow — by adding a protocol step, reordering
-steps, or removing a participant — you must update **both** the narrative's
-`causal_edges:` list and, if the change adds a new `eventType` that should
+A change to a scenario's causal flow — adding a protocol step, reordering steps,
+or removing a participant — requires updating **both** the narrative's
+`causal_edges:` list and, where the change adds a new `eventType` that should
 always be present, the scenario's `_XXX_EXPECTED_EVENT_TYPES` list in its
-invariant file.  Changing one without the other leaves the conformance oracle
-out of date.
+invariant file (DEMOMA-22-006).  Changing one without the other leaves the
+conformance oracle out of date.
 
 The invariant that reads the narrative (test 16) will catch a stale edge list
 once devlogs exist; the `_XXX_EXPECTED_EVENT_TYPES` list will catch a missing
