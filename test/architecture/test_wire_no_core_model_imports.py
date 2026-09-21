@@ -187,7 +187,7 @@ def test_all_known_violations_still_present() -> None:
         "ADR-0082 established is unreachable: ARCH-12-001, ARCH-20-002 and "
         "ARCH-12-010 each mandate an import it forbids. ARCH-22-003 as amended "
         "targets an enumerated exemption set instead. Retargeting this test and "
-        "retiring the marker is #2944's job; tracked by #2670, #2673."
+        "retiring the marker is #2944's job; tracked by #2670."
     ),
 )
 def test_wire_core_model_import_boundary_goal() -> None:

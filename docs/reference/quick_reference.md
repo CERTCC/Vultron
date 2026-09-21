@@ -49,8 +49,8 @@ back.
 | `RS` | Report Submission | RM | Sender $\in$ Accepted (`A`) sends report to a new Participant | `RK` (+ `CV` if recipient is a Vendor) |
 | `RI` | Report Invalid | RM | `R` $\xrightarrow{i}$ `I` | `RK` |
 | `RV` | Report Valid | RM | `{R,I}` $\xrightarrow{v}$ `V` | `RK` |
-| `RD` | Report Deferred | RM | `{V,A}` $\xrightarrow{d}$ `D` | `RK` |
-| `RA` | Report Accepted | RM | `{V,D}` $\xrightarrow{a}$ `A` | `RK` |
+| `RD` | Report/Case Deferred | RM | `{V,A}` $\xrightarrow{d}$ `D` | `RK` |
+| `RA` | Report/Case Accepted | RM | `{V,D}` $\xrightarrow{a}$ `A` | `RK` |
 | `RC` | Report Closed | RM | `{I,D,A}` $\xrightarrow{c}$ `C` | `RK` |
 | `RK` | Report Acknowledgement | RM | Any valid RM message received | — |
 | `RE` | Report Error | RM | Any unexpected RM message received | `RK` + `GI` |
