@@ -1,27 +1,27 @@
 {
-  "id": "urn:uuid:fcfdd09c-7722-414b-9571-156a75f8a117",
+  "id": "urn:uuid:e8f5b14f-03a0-4f76-bed0-6a4c28e4fa8d",
   "type": "Reject",
   "name": "https://vultron.example/organizations/vendorco Reject https://vultron.example/users/finndervul Offer FDR-8675309",
   "content": "We're closing this report.",
   "@context": "https://www.w3.org/ns/activitystreams",
   "actor": "https://vultron.example/organizations/vendorco",
   "object": {
-    "id": "urn:uuid:87e0ef9e-80dc-42b8-a71b-e29e5bf95e7c",
+    "id": "urn:uuid:5deffe1e-76e7-4637-bdcd-1a43e2613369",
     "type": "Offer",
     "name": "https://vultron.example/users/finndervul Offer FDR-8675309",
-    "published": "2026-09-16T18:38:48+00:00",
-    "updated": "2026-09-16T18:38:48+00:00",
+    "published": "2026-09-21T14:10:28+00:00",
+    "updated": "2026-09-21T14:10:28+00:00",
     "to": [
       "https://vultron.example/organizations/vendorco"
     ],
     "@context": "https://www.w3.org/ns/activitystreams",
     "actor": "https://vultron.example/users/finndervul",
     "object": {
-      "id": "https://demo.vultron.local/VulnerabilityReport/6bc3a1dc-558f-48ba-99d8-bf9dd1b50beb",
+      "id": "https://demo.vultron.local/VulnerabilityReport/73773cf7-ce0b-4349-ae31-7c46d42b7da5",
       "type": "VulnerabilityReport",
       "name": "FDR-8675309",
-      "published": "2026-09-16T18:38:47+00:00",
-      "updated": "2026-09-16T18:38:47+00:00",
+      "published": "2026-09-21T14:10:27+00:00",
+      "updated": "2026-09-21T14:10:27+00:00",
       "content": "I found a vulnerability!",
       "attributedTo": [
         "https://vultron.example/users/finndervul"

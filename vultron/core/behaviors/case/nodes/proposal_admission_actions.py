@@ -220,7 +220,7 @@ class EmitRejectCaseProposalNode(_EmitSingleActivityBase):
     while this store held a half-built case with committed ledger entries, the
     canonical/replica divergence CLP-10-009 exists to prevent.
 
-    Unlike its sibling ``_EmitAcceptCaseProposalNode``, this node routes through
+    Unlike its sibling ``EmitAcceptCaseProposalNode``, this node routes through
     ``_EmitSingleActivityBase`` rather than calling ``outbox_append`` in its own
     ``update()`` (OX-14-001).  That is where the outstanding-ask hook will live
     (ASK-04-008), and a Reject is precisely what *closes* the vendor's proposal.

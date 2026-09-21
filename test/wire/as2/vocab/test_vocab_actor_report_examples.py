@@ -93,7 +93,9 @@ class TestVocabReportExamples(unittest.TestCase):
         self.assertIsInstance(read_report, as_Read)
         self.assertEqual(read_report.type_, "Read")
         self.assertEqual(read_report.actor, vendor.id_)
-        self.assertEqual(read_report.object_, report)
+        self.assertIsInstance(read_report.object_, as_Offer)
+        offer_obj = cast(as_Offer, read_report.object_)
+        self.assertEqual(offer_obj.object_, report)
 
     def test_validate_report(self):
         activity = examples.validate_report(verbose=True)

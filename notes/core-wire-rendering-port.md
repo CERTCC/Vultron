@@ -135,7 +135,7 @@ the re-enumeration warning below.
 
 | # | Site | What it did |
 |---|---|---|
-| 1 | `core/behaviors/case/ledger_snapshots.py` (`obj_to_inline_dict`, `build_add_participant_status_snapshot`) | Dumped core objects `by_alias=True` for CASE_MANAGER-synthesized bootstrap snapshots; hand-patched `consent` → `emConsentState`. Only caller is `case_proposal_received_tree.py`. |
+| 1 | `core/behaviors/case/ledger_snapshots.py` (`obj_to_inline_dict`, `build_add_participant_status_snapshot`) | Dumped core objects `by_alias=True` for CASE_MANAGER-synthesized bootstrap snapshots; hand-patched `consent` → `emConsentState`. Callers are `nodes/proposal_ledger.py` and `nodes/leave/record.py`. |
 | 2 | `core/use_cases/_helpers.py` (`_inline_snapshot_reference_value`) | Dumped `dl.read()` results `by_alias=True` for CLP-07-006 inlining. `dl.read()` returns **core** objects per DL-05-001, so the alias generator was doing the wire projection here too. |
 | 3 | `adapters/driving/fastapi/routers/actors/_routes.py` (`get_actor`, siblings) | `AS2JSONResponse(cls.model_validate(data).model_dump(mode="json", by_alias=True, exclude_none=True))` where `cls` is a **core** actor class — so core aliases shaped an externally-visible AS2 actor document. Must route through `as_*` classes (ARCH-20-006). |
 | 4 | `vultron/demo/utils.py` | Same pattern, demo-only. |

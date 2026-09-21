@@ -188,7 +188,9 @@ _RM_FORCE_QUARANTINE: dict[str, int] = {
     # Bootstrap writes: initial participant status at non-adjacent states
     # (issue #3206 — routed through CreateParticipantStatusNode, bypassing
     # the adjacency rule for the first write as allowed by BTND-10-001).
-    "vultron/core/behaviors/case/case_proposal_received_tree.py": 1,
+    # Relocated (not added) from case_proposal_received_tree.py by #3457, which
+    # moved AddReporterParticipantNode into the nodes/ subpackage (BTND-07-003).
+    "vultron/core/behaviors/case/nodes/proposal_reporter.py": 1,
     "vultron/core/behaviors/case/nodes/participant/owner.py": 1,
     "vultron/core/behaviors/case/nodes/participant/participant_add.py": 1,
 }

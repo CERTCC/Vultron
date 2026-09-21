@@ -102,24 +102,35 @@ def rm_submit_report_activity(
 
 
 def rm_read_report_activity(
-    report: as_VulnerabilityReport,
+    offer: as_Offer,
     **kwargs,
 ) -> as_Read:
-    """Build a Read(as_VulnerabilityReport) — the RK message when no case exists.
+    """Build a Read(Offer(VulnerabilityReport)) — the RK message when no case exists.
+
+    Wire form is ``Read(Offer(VulnerabilityReport))`` per MSM-01-008 and
+    VAM-02-003.  The ``offer`` argument may be an ``_RmSubmitReportActivity``
+    (the typed subclass returned by :func:`rm_submit_report_activity`) or a
+    plain ``as_Offer`` recovered from the datalayer.  Plain offers are coerced
+    to ``_RmSubmitReportActivity`` at runtime; offers whose ``object_`` is
+    not a valid ``as_VulnerabilityReport`` will still fail validation.
 
     Args:
-        report: The ``as_VulnerabilityReport`` that was read.
+        offer: The ``_RmSubmitReportActivity`` offer being acknowledged.
         **kwargs: Optional AS2 fields forwarded to the constructor
             (e.g. ``actor``, ``to``).
 
     Returns:
-        An ``as_Read`` whose ``object_`` is the given report.
+        An ``as_Read`` whose ``object_`` is the given offer.
 
     Raises:
         VultronActivityConstructionError: If Pydantic validation fails.
     """
     try:
-        return _RmReadReportActivity(object_=report, **kwargs)
+        if not isinstance(offer, _RmSubmitReportActivity):
+            offer = _RmSubmitReportActivity.model_validate(
+                offer.model_dump(by_alias=True)
+            )
+        return _RmReadReportActivity(object_=offer, **kwargs)
     except ValidationError as exc:
         raise VultronActivityConstructionError(
             "rm_read_report_activity: invalid arguments"
