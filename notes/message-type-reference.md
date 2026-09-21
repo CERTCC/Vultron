@@ -83,8 +83,9 @@ tracks but that participants need in order to coordinate. The formal protocol
 deliberately did not attempt to enumerate them, so it lumped them together under one
 shorthand. Building this prototype surfaced specific needs inside that category, and
 where a need turned out to be a recognizable communication pattern that existing AS2
-vocabulary could already express, it was split off and given its own activity. Seven
-have been split off so far.
+vocabulary could already express, it was split off and given its own activity. The set
+split off so far is enumerated in MSM-04-001 and MSM-04-002 — read it there rather than
+restating a count here, which would drift the moment another is split off (MS-16-002).
 
 Two consequences follow, and both matter when writing about these activities:
 

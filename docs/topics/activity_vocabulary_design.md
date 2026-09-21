@@ -234,7 +234,8 @@ The widest gap is the General Inquiry (`GI`) shorthand, and the reason is that `
 `GI` is defined negatively: it names information that no formal state machine tracks, but that participants nonetheless need in order to coordinate.
 The formal protocol did not attempt to enumerate those needs, so it lumped them together under one symbol — a placeholder rather than a description.
 Building this prototype surfaced specific needs inside that category, and where a need turned out to be a recognizable communication pattern that existing ActivityStreams vocabulary could already express, it was split off and given its own activity.
-Seven have been split off so far: the note lifecycle (`Create(Note)` and `Add(Note)`, MSM-04-001) and the actor-suggestion exchange (`Offer(Actor)`, `Offer(CaseParticipant)`, and its `Accept` and `Reject`, MSM-04-002).
+Two groups have been split off so far — the note lifecycle (`Create(Note)` and `Add(Note)`, MSM-04-001) and the actor-suggestion exchange (`Offer(Actor)`, `Offer(CaseParticipant)`, and its `Accept` and `Reject`, MSM-04-002).
+MSM-04 is where the live list lives; it is the authority, and this page does not restate its size.
 
 Two consequences follow, and both are easy to get wrong when writing about these activities.
 

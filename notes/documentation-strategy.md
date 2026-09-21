@@ -235,10 +235,11 @@ line against the form derived from the registered `ActivityPattern`: it compares
 the whole object composition rather than the verb alone, catching
 `Read(VulnerabilityReport)` where the pattern requires
 `Read(Offer(VulnerabilityReport))`. A third check covers wire forms stated in
-guide prose, because seven of the thirteen guides draw no diagram at all and would
-otherwise carry hand-typed forms past every gate. Each guide also names the demo
-scenario that runs the same flow, so a diverged diagram is one `vultron-demo` run
-from being caught.
+guide prose, because the guides that draw no diagram would otherwise carry
+hand-typed forms past every gate; it scans the guides directory rather than a list
+of pages, so a guide added later is covered the day it lands. Each guide also
+names the demo scenario that runs the same flow, so a diverged diagram is one
+`vultron-demo` run from being caught.
 
 What no check covers is a diagram whose *edges* are wrong while every activity
 name and verb stays right — the verb test reads the `subgraph as:Verb` blocks, not

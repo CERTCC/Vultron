@@ -46,12 +46,12 @@ flowchart TB
     end
     subgraph RM:ACCEPTED
         subgraph as:Join
-            RmEngageCase["Report Accepted (RA)<br/>Join(VulnerabilityCase)"]
+            RmEngageCase["Report/Case Accepted (RA)<br/>Join(VulnerabilityCase)"]
         end
     end
     subgraph RM:DEFERRED
         subgraph as:Ignore
-            RmDeferCase["Report Deferred (RD)<br/>Ignore(VulnerabilityCase)"]
+            RmDeferCase["Report/Case Deferred (RD)<br/>Ignore(VulnerabilityCase)"]
         end
     end
     subgraph RM:CLOSED
@@ -91,9 +91,9 @@ flowchart TB
 
 Once the report is at `RM.VALID` and a case exists, prioritize it and take one of two moves.
 
-- If you intend to work the case now, send Report Accepted (RA), implemented in ActivityStreams as `Join(VulnerabilityCase)`.
+- If you intend to work the case now, send Report/Case Accepted (RA), implemented in ActivityStreams as `Join(VulnerabilityCase)`.
   You are joining the case; your RM state becomes `ACCEPTED` as a result of joining, not as a separate claim about the report.
-- If you intend to work it later, send Report Deferred (RD), `Ignore(VulnerabilityCase)`.
+- If you intend to work it later, send Report/Case Deferred (RD), `Ignore(VulnerabilityCase)`.
   Deferring is likewise a decision about the case, and your RM state becomes `DEFERRED` as a result (MSM-01-004, MSM-01-005).
 
 Deferring is reversible.
