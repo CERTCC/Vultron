@@ -143,9 +143,8 @@ print(json2md(close_report()))
 - **Triggering transition:** any valid RM message.
 - **Wire activity:** `Read(Offer(VulnerabilityReport))`. `RK` survives as a
   dedicated wire activity because report submission is not ledger-replicated
-  (MSM-01-008). The prototype's `rm_read_report_activity` factory currently builds
-  `Read(VulnerabilityReport)` instead, which `AckReportPattern` does not match, so
-  the example below is not dispatchable as rendered (#3439).
+  (MSM-01-008). The `object` is the report's original `Offer`, not the report
+  itself; a bare `Read(VulnerabilityReport)` matches no pattern.
 - **How-to:** [How to Report a Vulnerability](../../howto/activitypub/activities/report_vulnerability.md).
 - **Formal definition:** [Message Types](../formal_protocol/messages.md#rm-message-types).
 

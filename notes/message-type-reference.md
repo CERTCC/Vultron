@@ -82,7 +82,7 @@ mis-classification.
 tracks but that participants need in order to coordinate. The formal protocol
 deliberately did not attempt to enumerate them, so it lumped them together under one
 shorthand. Building this prototype surfaced specific needs inside that category, and
-where a need turned out to be a recognisable communication pattern that existing AS2
+where a need turned out to be a recognizable communication pattern that existing AS2
 vocabulary could already express, it was split off and given its own activity. Seven
 have been split off so far.
 
@@ -136,8 +136,11 @@ a layer rather than translating one — the mistake #3456 was originally filed t
 
 Reader-facing docs pair the protocol layer with the wire layer and omit the prototype
 layer entirely: **`<semantic name>` is implemented in ActivityStreams as `<wire form>`**,
-then the steps, then the JSON. Which semantic name to use depends on how the shorthand
-relates to the wire form, which `MappingStatus` already records:
+then the steps, then the JSON. This is specified as DF-09-010, and recorded as a
+corollary of ADR-0083 under "Which name the reader gets" — the two vocabularies being
+different shapes is exactly why the reader needs both names. Which semantic name to use
+depends on how the shorthand relates to the wire form, which `MappingStatus` already
+records:
 
 | `MappingStatus` | Semantic name to use |
 |---|---|

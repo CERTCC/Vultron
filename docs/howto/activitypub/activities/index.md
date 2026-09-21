@@ -2,22 +2,17 @@
 
 {% include-markdown "../../../includes/not_normative.md" %}
 
-These guides show how to carry out each Vultron protocol task with ActivityStreams (AS)
-activities. The wire vocabulary is ActivityStreams 2.0 (AS2). Each one states its
-prerequisites, gives the activities to send in order, and says how to confirm the task
-landed. They assume you are implementing or operating a Vultron actor, not learning the
-protocol for the first time.
+These guides show how to carry out each Vultron protocol task with ActivityStreams (AS) activities.
+The wire vocabulary is ActivityStreams 2.0 (AS2).
+Each one states its prerequisites, gives the activities to send in order, and says how to confirm the task landed.
+They assume you are implementing or operating a Vultron actor, not learning the protocol for the first time.
 
-Two neighboring sections carry the material these guides deliberately leave out. The
-wire format of every activity — fields, discriminators, and a rendered
-example — is in [Message Types](../../../reference/messages/index.md).
-The reasoning behind the verb choices is in
-[Activity Vocabulary Design](../../../topics/activity_vocabulary_design.md).
-A full mapping of Vultron to ActivityStreams is in the
-[Vultron ActivityStreams Ontology](../../../reference/ontology/vultron_as.md).
+Two neighboring sections carry the material these guides deliberately leave out.
+The wire format of every activity — fields, discriminators, and a rendered example — is in [Message Types](../../../reference/messages/index.md).
+The reasoning behind the verb choices is in [Activity Vocabulary Design](../../../topics/activity_vocabulary_design.md).
+A full mapping of Vultron to ActivityStreams is in the [Vultron ActivityStreams Ontology](../../../reference/ontology/vultron_as.md).
 
-If you want a guided first pass rather than a task recipe, start with
-[Tutorials](../../../tutorials/index.md).
+If you want a guided first pass rather than a task recipe, start with [Tutorials](../../../tutorials/index.md).
 
 ---
 

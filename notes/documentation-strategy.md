@@ -225,11 +225,20 @@ resynced, because the internal handler choreography they drew is neither task
 content nor something a reader of a how-to guide acts on — the remaining diagrams
 are inter-actor flows, which are what an implementer needs.
 
-Two checks keep the survivors honest. `test_docs_activity_verbs.py` asserts that
-the verb a `subgraph as:Verb` block attributes to an activity is the verb the wire
-class or its registered pattern declares. Each guide names the demo scenario that
-runs the same flow, so a diverged diagram is one `vultron-demo` run from being
-caught.
+Several checks keep the survivors honest, and since #3456 they read the diagram in
+two places. `test_docs_activity_verbs.py` asserts that the verb a
+`subgraph as:Verb` block attributes to an activity is the verb the wire class or
+its registered pattern declares — that check reads the mermaid node **id**, which
+is now only an edge handle and is never rendered. The node **label** carries the
+reader-facing name, so a second and stronger check compares the label's wire-form
+line against the form derived from the registered `ActivityPattern`: it compares
+the whole object composition rather than the verb alone, catching
+`Read(VulnerabilityReport)` where the pattern requires
+`Read(Offer(VulnerabilityReport))`. A third check covers wire forms stated in
+guide prose, because seven of the thirteen guides draw no diagram at all and would
+otherwise carry hand-typed forms past every gate. Each guide also names the demo
+scenario that runs the same flow, so a diverged diagram is one `vultron-demo` run
+from being caught.
 
 What no check covers is a diagram whose *edges* are wrong while every activity
 name and verb stays right — the verb test reads the `subgraph as:Verb` blocks, not
