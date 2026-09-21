@@ -65,7 +65,11 @@ repos:
 
       - id: demo-scenarios-sync
         name: Demo scenario artifacts in sync
-        entry: uv run python -m vultron.metadata.demo_scenarios.sync --check
+        # The console script, not `python -m ...`: `__init__.py` re-exports from
+        # `sync`, so `-m` runs the module twice as two distinct objects and
+        # prints a RuntimeWarning on every commit. This also matches the command
+        # every error message, README step and AGENTS.md entry names.
+        entry: uv run demo-scenarios --check
         language: system
         # Three kinds of input make the committed artifacts stale, so all three
         # are watched (DEMOCI-11-005): the @scenario decorators in the scenario

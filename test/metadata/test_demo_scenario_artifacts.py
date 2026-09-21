@@ -39,7 +39,11 @@ from pathlib import Path
 import pytest
 import yaml
 
-from vultron.demo.scenario.registry import ScenarioSpec, discover_scenarios
+from vultron.demo.scenario.registry import (
+    _NAME_RE,
+    ScenarioSpec,
+    discover_scenarios,
+)
 from vultron.metadata.base import MkDocsYamlLoader
 from vultron.metadata.demo_scenarios.render import (
     MATRIX_KEYS,
@@ -48,6 +52,7 @@ from vultron.metadata.demo_scenarios.render import (
     render_page,
     scenario_matrix_json,
 )
+from vultron.metadata.specs.registry import load_registry
 from vultron.metadata.demo_scenarios.sync import (
     ARTIFACTS,
     BEGIN_MARKER,
@@ -231,6 +236,46 @@ def test_matrix_full_suite_only_is_an_explicit_boolean() -> None:
         assert isinstance(entry["full_suite_only"], bool), entry
 
 
+def test_democi_06_002_names_exactly_the_pr_set_scenarios() -> None:
+    """DEMOCI-06-002's statement names exactly the ``in_pr_set`` scenarios.
+
+    Without this, ``in_pr_set`` is the one registry field nothing outside the
+    registry can contradict.  Flipping one ``True`` to ``False`` regenerates all
+    three artifacts self-consistently, so ``--check`` stays green;
+    ``test_all_ci_scenarios_have_a_harness_module`` only pins the *count*, which
+    does not change; and the scenario silently stops running on ``pull_request``
+    events.  Before ADR-0098 the flag lived in a short committed JSON where a
+    reviewer saw the change in the diff; it now lives in a decorator over a
+    thousand lines into a demo script, so the check has to be structural.
+
+    Scenario names are picked out of the statement by the registry's own name
+    grammar (:data:`vultron.demo.scenario.registry._NAME_RE`), which is what
+    makes this robust: the statement also backticks event types
+    (``invite_actor_to_case``) and a filename (``demo-integration.yml``), and
+    neither can satisfy a grammar that forbids underscores and dots.
+
+    This is the first of DEMOCI-11-007's consistency checks; the rest — the
+    DEMOMA-16 per-scenario requirements, the ``mkdocs.yml`` nav, the ``notes/``
+    tables and the planned-scenario partition — are ISSUE-3451.
+    """
+    statement = (
+        load_registry(_REPO_ROOT / "specs").get("DEMOCI-06-002").statement
+    )
+    named = {
+        token
+        for token in re.findall(r"`([^`]+)`", statement)
+        if _NAME_RE.match(token)
+    }
+    expected = {spec.name for spec in discover_scenarios() if spec.in_pr_set}
+    assert named == expected, (
+        "DEMOCI-06-002 must name exactly the scenarios whose @scenario "
+        f"decorator sets in_pr_set=True. The spec names {sorted(named)}; the "
+        f"registry has {sorted(expected)}. If the PR validation set really "
+        "changed, amend DEMOCI-06-002 in the same PR — its coverage rationale "
+        "is the reason the set is what it is."
+    )
+
+
 def test_matrix_json_is_the_committed_projection_of_the_registry() -> None:
     """The committed JSON's demo/harness pairs are the registry's, exactly."""
     committed = json.loads(
@@ -272,11 +317,36 @@ def test_pre_commit_registers_the_check_mode() -> None:
     Asserted on the entry string because a hook that ran ``--write`` would
     silently *fix* the tree and let a stale commit through green, which is the
     opposite of a gate.
+
+    Matched on the console-script name rather than the dotted module path: the
+    hook invokes ``demo-scenarios`` because ``python -m`` on this package emits
+    a RuntimeWarning (``__init__.py`` re-exports from ``sync``, so the module
+    runs twice), and because the console script is the command every error
+    message and doc tells a developer to run.
     """
     entry = str(_sync_hook().get("entry", ""))
-    assert "vultron.metadata.demo_scenarios.sync" in entry, entry
+    assert "demo-scenarios" in entry, entry
     assert "--check" in entry, entry
     assert "--write" not in entry, entry
+    assert "-m vultron" not in entry, (
+        f"the hook invokes the module form ({entry!r}); use the "
+        "'demo-scenarios' console script, which does not double-import the "
+        "package."
+    )
+
+
+def test_console_script_is_declared() -> None:
+    """``pyproject.toml`` declares the ``demo-scenarios`` console script.
+
+    The pre-commit hook, every error message and three docs pages all name this
+    command, so an undeclared script turns the commit gate into a hard failure
+    for every developer rather than a check.
+    """
+    pyproject = (_REPO_ROOT / "pyproject.toml").read_text(encoding="utf-8")
+    assert "demo-scenarios=" in pyproject.replace(" = ", "="), (
+        "pyproject.toml declares no 'demo-scenarios' console script, but the "
+        "demo-scenarios-sync pre-commit hook invokes it."
+    )
 
 
 @pytest.mark.parametrize(
@@ -327,6 +397,19 @@ def test_index_page_commits_no_scenario_table() -> None:
     )
 
 
+#: Per slug, the cell each row of that consumer must carry, as a callable over
+#: the spec.  Asserted per-slug rather than as "label *or* name anywhere in the
+#: page" because that disjunction is satisfied by every slug for free — the
+#: harness and sub-command tables always contain ``name`` via the derived
+#: harness path or the sub-command cell, and the narrative table always contains
+#: ``label`` — so a renderer that dropped a whole column still passed.
+_REQUIRED_CELL = {
+    "narratives": lambda spec: f"[{spec.label}]",
+    "harnesses": lambda spec: f"`{spec.harness_path}`",
+    "subcommands": lambda spec: f"`{spec.demo_filename}`",
+}
+
+
 @pytest.mark.parametrize("slug", PAGE_SLUGS)
 def test_render_page_renders_every_scenario(slug: str) -> None:
     """Each consumer shape names every registered scenario exactly once."""
@@ -335,8 +418,23 @@ def test_render_page_renders_every_scenario(slug: str) -> None:
     rows = [line for line in rendered.splitlines() if line.startswith("| ")]
     # header + separator are not rows; the separator does not start with "| ".
     assert len(rows) == len(specs) + 1, rendered
+    required = _REQUIRED_CELL[slug]
     for spec in specs:
-        assert spec.label in rendered or spec.name in rendered
+        assert required(spec) in rendered, (
+            f"the {slug} table has no cell {required(spec)!r} for scenario "
+            f"{spec.name!r}:\n{rendered}"
+        )
+
+
+def test_required_cell_covers_every_page_slug() -> None:
+    """``_REQUIRED_CELL`` names every consumer shape.
+
+    A new slug added to ``PAGE_SLUGS`` without an entry here would make
+    ``test_render_page_renders_every_scenario`` raise ``KeyError`` rather than
+    quietly skip the new consumer, but say so with the wrong error; this states
+    the requirement directly.
+    """
+    assert set(_REQUIRED_CELL) == set(PAGE_SLUGS)
 
 
 def test_render_page_rejects_an_unknown_slug() -> None:
@@ -392,6 +490,39 @@ def test_splice_rejects_inverted_markers() -> None:
         splice(f"{END_MARKER}\n\n{BEGIN_MARKER}\n", "| a |", "some/doc.md")
 
 
+@pytest.mark.parametrize("label", ["begin", "end"])
+def test_splice_rejects_duplicated_markers(label: str) -> None:
+    """A doubled marker pair fails rather than splicing into the first block.
+
+    The likeliest way a marker gets duplicated is someone copying the whole
+    block to start a second table, and that is exactly when writing into the
+    first one silently leaves a stale copy below it.  ``index`` finds the first
+    occurrence, so without the count check this would succeed and look right.
+    """
+    doubled = BEGIN_MARKER if label == "begin" else END_MARKER
+    current = (
+        f"{BEGIN_MARKER}\n\n| old |\n\n{END_MARKER}\n\n"
+        f"prose\n\n{doubled}\n"
+    )
+    with pytest.raises(
+        ValueError, match=f"found 2 generated-table {label} markers"
+    ):
+        splice(current, "| a |", "some/doc.md")
+
+
+def test_splice_is_idempotent() -> None:
+    """Splicing the same body twice is a fixed point.
+
+    ``--write`` runs on already-written files every time the hook fires, so a
+    non-idempotent splice would show up as a file that is never in sync.
+    """
+    original = f"head\n\n{BEGIN_MARKER}\n\n| old |\n\n{END_MARKER}\n\ntail\n"
+    once = splice(original, "| a |", "some/doc.md")
+    assert splice(once, "| a |", "some/doc.md") == once
+    assert once.startswith("head\n")
+    assert once.endswith("tail\n")
+
+
 def test_desired_contents_requires_the_marker_files_to_exist(
     tmp_path: Path,
 ) -> None:
@@ -403,3 +534,40 @@ def test_desired_contents_requires_the_marker_files_to_exist(
     """
     with pytest.raises(FileNotFoundError, match=HARNESS_README):
         desired_contents(tmp_path)
+
+
+def test_whole_file_artifacts_are_declared_not_inferred() -> None:
+    """``whole_file`` is a field, so a second such artifact is still writable.
+
+    The distinction that matters is "can this be created from nothing": the
+    matrix JSON can, a marker-block artifact cannot because its surrounding
+    prose is hand-written.  Encoding that as ``path != MATRIX_JSON`` made the
+    property a property of one path, so a second whole-file artifact would hit
+    the missing-file error for a file ``--write`` is supposed to create.
+    """
+    by_path = {artifact.path: artifact for artifact in ARTIFACTS}
+    assert by_path[MATRIX_JSON].whole_file is True
+    assert by_path[HARNESS_README].whole_file is False
+    assert by_path[SCENARIO_README].whole_file is False
+
+
+def test_write_creates_a_missing_whole_file_artifact(
+    artifact_root: Path,
+) -> None:
+    """``--write`` bootstraps the matrix JSON, parent directory included.
+
+    ``write_artifacts`` previously called ``write_text`` with no ``mkdir``, so a
+    checkout (or a caller-supplied root) without ``.github/`` raised
+    ``FileNotFoundError`` for the one artifact that is generated in full.
+    """
+    matrix = artifact_root / MATRIX_JSON
+    matrix.unlink()
+    matrix.parent.rmdir()
+
+    written = write_artifacts(artifact_root)
+
+    assert MATRIX_JSON in written
+    assert json.loads(matrix.read_text(encoding="utf-8")) == json.loads(
+        scenario_matrix_json()
+    )
+    assert stale_artifacts(artifact_root) == []

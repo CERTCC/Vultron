@@ -81,10 +81,17 @@ class Artifact:
         desired: Renders the artifact's desired full contents from the registry
             and the file's current contents (the latter matters only for
             marker-block artifacts, whose hand-written prose is preserved).
+        whole_file: Whether the artifact is generated in its entirety, and so
+            can be created from nothing. A marker-block artifact cannot: its
+            surrounding prose is hand-written and unreconstructable, so an
+            absent file is an error rather than something to write. Declared as
+            a field rather than inferred from ``path`` so that adding a second
+            whole-file artifact does not silently become unwritable.
     """
 
     path: str
     desired: Callable[[tuple[ScenarioSpec, ...], str], str]
+    whole_file: bool = False
 
 
 def splice(current: str, body: str, path: str) -> str:
@@ -132,6 +139,7 @@ ARTIFACTS: tuple[Artifact, ...] = (
     Artifact(
         path=MATRIX_JSON,
         desired=lambda specs, _current: scenario_matrix_json(specs),
+        whole_file=True,
     ),
     _marker_artifact(HARNESS_README, "harnesses"),
     _marker_artifact(SCENARIO_README, "subcommands"),
@@ -164,7 +172,7 @@ def desired_contents(
         current = (
             target.read_text(encoding="utf-8") if target.is_file() else ""
         )
-        if not current and artifact.path != MATRIX_JSON:
+        if not current and not artifact.whole_file:
             raise FileNotFoundError(
                 f"{artifact.path} is missing or empty; its generated table is "
                 "spliced between markers in hand-written prose that cannot be "
@@ -235,6 +243,9 @@ def write_artifacts(
     base = root or repo_root()
     written: list[str] = []
     for target, path, desired in _out_of_date(base, specs):
+        # A whole-file artifact can legitimately not exist yet, and in a
+        # caller-supplied root its parent directory may not either.
+        target.parent.mkdir(parents=True, exist_ok=True)
         target.write_text(desired, encoding="utf-8")
         written.append(path)
     return written
@@ -280,8 +291,18 @@ def main(argv: list[str] | None = None) -> None:
         return
 
     # --check
+    #
+    # Only name --write as the remedy when it would actually run: it
+    # short-circuits on any missing derived path and writes nothing, so
+    # pointing at it while a path problem is outstanding sends the developer to
+    # a command that cannot make progress. Fix the path first, then regenerate.
+    remedy = (
+        f"run '{WRITE_COMMAND}'"
+        if not problems
+        else "fix the derived path above first, then regenerate"
+    )
     problems.extend(
-        f"{path} is stale — run '{WRITE_COMMAND}' (DEMOCI-11-005)."
+        f"{path} is stale — {remedy} (DEMOCI-11-005)."
         for path in stale_artifacts(root, specs)
     )
     if problems:

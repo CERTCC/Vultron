@@ -78,7 +78,11 @@ MODULE_SUFFIX = "_demo"
 #: hyphens. ``name`` is the only field everything else derives from, so a name
 #: that cannot round-trip through a filename or a URL slug is rejected here
 #: rather than producing an unresolvable derived path later.
-_NAME_RE = re.compile(r"^[a-z0-9]+(-[a-z0-9]+)*$")
+#:
+#: Anchored with ``\Z`` rather than ``$``, which also matches before a trailing
+#: newline: ``"fv\n"`` would pass this check and then fail the module-name
+#: comparison in :func:`_register`, pointing the author at the wrong problem.
+_NAME_RE = re.compile(r"^[a-z0-9]+(-[a-z0-9]+)*\Z")
 
 F = TypeVar("F", bound=Callable[..., None])
 
@@ -124,12 +128,42 @@ class ScenarioSpec:
             # consumers, and the result is a *valid* generated file — so
             # --check keeps the corrupted table in sync rather than reporting
             # it. Refuse here, where the value is written.
+            #
+            # Compared against the stripped value rather than by counting
+            # lines: `len("Baseline\n".splitlines())` is 1, so a line-count
+            # test accepts the single likeliest spelling of this mistake — a
+            # value with one trailing newline — and the corrupted row reaches
+            # the artifact anyway.
+            if value != value.strip():
+                raise DemoScenarioRegistryError(
+                    f"scenario {self.name!r} has a {field_name} with leading "
+                    f"or trailing whitespace ({value!r}); a newline splits the "
+                    "markdown row mid-cell and the surrounding whitespace "
+                    "renders inconsistently across the three consumers. Strip "
+                    "it."
+                )
             if len(value.splitlines()) > 1:
                 raise DemoScenarioRegistryError(
                     f"scenario {self.name!r} has a multi-line {field_name} "
                     f"({value!r}); every generated consumer renders it as one "
                     "markdown table cell, which a line break would break in "
                     "half. Keep it to a single line."
+                )
+            # `markdownlint-cli2 --fix` runs ahead of the demo-scenarios-sync
+            # hook and rewrites `_x_` to `*x*` (MD049) and a bare URL to
+            # `<url>` (MD034) *inside* a table cell. Either rewrite makes the
+            # committed artifact disagree with the registry, and neither
+            # command the --check error names can settle it: --write restores
+            # the unlinted spelling and markdownlint re-fixes it. Refuse the
+            # characters here, where the value is written.
+            if any(ch in value for ch in "_<>") or "://" in value:
+                raise DemoScenarioRegistryError(
+                    f"scenario {self.name!r} has a {field_name} containing an "
+                    f"underscore, angle bracket, or URL ({value!r}); "
+                    "`markdownlint-cli2 --fix` rewrites those inside a "
+                    "markdown table cell, which would leave the "
+                    "demo-scenarios-sync hook and markdownlint undoing each "
+                    "other. Use plain prose."
                 )
         if not isinstance(self.in_pr_set, bool):
             raise DemoScenarioRegistryError(
@@ -150,9 +184,19 @@ class ScenarioSpec:
         return f"{SCENARIO_PACKAGE}.{self.module_stem}{MODULE_SUFFIX}"
 
     @property
+    def demo_filename(self) -> str:
+        """Bare filename of the scenario's demo script.
+
+        The single owner of the ``<stem>_demo.py`` spelling, so a renderer that
+        wants only the filename does not re-derive the convention and drift
+        from :attr:`demo_path` — which is what the derived-path check verifies.
+        """
+        return f"{self.module_stem}{MODULE_SUFFIX}.py"
+
+    @property
     def demo_path(self) -> str:
         """Repo-relative path of the scenario's demo script (DEMOCI-11-003)."""
-        return f"{SCENARIO_DIR}/{self.module_stem}{MODULE_SUFFIX}.py"
+        return f"{SCENARIO_DIR}/{self.demo_filename}"
 
     @property
     def harness_path(self) -> str:
@@ -300,6 +344,13 @@ def scenario_module_stems() -> tuple[str, ...]:
 def discover_scenarios() -> tuple[ScenarioSpec, ...]:
     """Import every ``*_demo`` module in the package and return the registry.
 
+    Returns only the specs whose module is one of the discovered stems. The
+    global registry is process-wide, so a spec registered from outside the
+    scenario package — a test fixture module, or a demo run in-process as
+    ``__main__``, both of which :func:`_register` deliberately lets through —
+    would otherwise leak into every later caller and make the generated
+    artifacts order-dependent.
+
     Raises:
         DemoScenarioRegistryError: If a discovered module registered nothing.
             Failing here rather than returning a short tuple is the point: a
@@ -311,9 +362,14 @@ def discover_scenarios() -> tuple[ScenarioSpec, ...]:
     for stem in stems:
         importlib.import_module(f"{SCENARIO_PACKAGE}.{stem}")
 
-    specs = registered_scenarios()
+    stem_set = set(stems)
+    specs = tuple(
+        spec
+        for spec in registered_scenarios()
+        if f"{spec.module_stem}{MODULE_SUFFIX}" in stem_set
+    )
     registered_stems = {f"{spec.module_stem}{MODULE_SUFFIX}" for spec in specs}
-    undeclared = sorted(set(stems) - registered_stems)
+    undeclared = sorted(stem_set - registered_stems)
     if undeclared:
         raise DemoScenarioRegistryError(
             "scenario module(s) imported but not registered: "

@@ -12,6 +12,7 @@ related_specs:
   - specs/multi-actor-demo.yaml
 related_notes:
   - notes/demo-ci-invariants.md
+  - notes/demo-ci-diagnostics.md
   - notes/demo-ci-scenario-coverage.md
   - notes/demo-scenario-authoring.md
   - notes/vocabulary-registry.md

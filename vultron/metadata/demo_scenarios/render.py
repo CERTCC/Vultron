@@ -43,7 +43,6 @@ import json
 from typing import Callable, Iterable, Mapping
 
 from vultron.demo.scenario.registry import (
-    MODULE_SUFFIX,
     ScenarioSpec,
     discover_scenarios,
 )
@@ -152,7 +151,7 @@ def _subcommands_table(specs: tuple[ScenarioSpec, ...]) -> str:
         (
             (
                 f"`{spec.name}`",
-                f"`{spec.module_stem}{MODULE_SUFFIX}.py`",
+                f"`{spec.demo_filename}`",
                 spec.participants,
                 spec.feature,
             )

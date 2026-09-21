@@ -26,7 +26,12 @@ are the product**.
 Shared helpers live in `base.py`: `repo_root()` (every loader needs it and none
 may assume the caller's cwd) and `MkDocsYamlLoader` (a `SafeLoader` that
 tolerates `mkdocs.yml`'s `!ENV` and `!!python/name:` tags). Do not re-derive
-either — `repo_root` had five near-identical private copies before #3450.
+either — `repo_root` had six near-identical copies before #3450. Five were
+private `_find_repo_root`; the sixth, `specs/registry.py:find_repo_root`, was
+public and so survived the first sweep. All six are now aliases of the shared
+helper, kept only because other modules and tests import them by their old
+names. **A grep for the private spelling will not find a public duplicate** —
+search for the behaviour (`pyproject.toml` walked upward), not the name.
 
 ## Generate vs. Check
 

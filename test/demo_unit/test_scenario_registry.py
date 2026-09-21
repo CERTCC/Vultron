@@ -220,15 +220,35 @@ def test_scenario_rejects_a_name_that_contradicts_its_module() -> None:
         ("name", "FV"),
         ("name", "fv_demo"),
         ("name", ""),
+        # `$` matches before a trailing newline, so an `re.match(r"...$")`
+        # would accept this and the failure would surface later, in the
+        # module-name comparison, pointing the author at the wrong thing.
+        ("name", "xy\n"),
         ("label", "  "),
         ("participants", ""),
         ("feature", ""),
+        # A single trailing newline is the likeliest spelling of the
+        # split-the-row mistake, and `len(value.splitlines()) > 1` is 1 for it
+        # — so a line-count guard passes and --check then blesses a table whose
+        # last column has been dropped.
+        ("label", "XY\n"),
+        ("participants", "Finder + Vendor\n"),
+        ("feature", "Something\n"),
+        ("feature", " Something"),
+        # Genuinely multi-line, the case the line-count guard does catch.
+        ("feature", "Something\nelse"),
+        # `markdownlint-cli2 --fix` rewrites each of these inside a table cell
+        # (MD049 for the underscores, MD034 for the URL), which would leave it
+        # and the demo-scenarios-sync hook undoing each other forever.
+        ("feature", "Embargo extension per _RFC 9116_"),
+        ("feature", "See https://example.org/spec"),
+        ("participants", "Finder + <Vendor>"),
     ],
 )
 def test_scenario_spec_rejects_malformed_fields(
     field: str, value: str
 ) -> None:
-    """A spec that would render a broken path or an empty cell is refused."""
+    """A spec that would render a broken path or a broken cell is refused."""
     fields = {
         "name": "xy",
         "label": "XY",

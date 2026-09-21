@@ -10,11 +10,11 @@ scenario harness implements that requirement as the leading entries of its
 DEMOMA-16-008 requires the spec requirement and the test constants to change
 in the same PR.  Nothing enforced that structurally: ``engage_case`` was added
 to ``test_fvcv_handoff_invariants.py`` alone (PR #2018) without amending the
-spec, leaving an engage-case regression silent in the other eight scenarios
+spec, leaving an engage-case regression silent in every other scenario
 (CONCERN-2243, ISSUE-2266).  These tests close that gap by checking, without
 running any demo, that
 
-1. all nine harnesses named by the CI matrix carry the universal block, and
+1. every harness named by the CI matrix carries the universal block, and
 2. DEMOMA-16-001 still enumerates exactly the same five types.
 
 Scenario→harness mapping comes from ``.github/demo-scenarios.json``.  That file
@@ -76,7 +76,7 @@ def _expected_event_types_constant(
     """Return the harness's single expected-event-types constant name + values.
 
     Values are the ``eventType`` strings in declaration order.  Entries may be
-    ``pytest.param(...)`` (the convention in all nine harnesses) or a bare
+    ``pytest.param(...)`` (the convention in every harness) or a bare
     string, which pytest also accepts.
     """
     names = [n for n in vars(module) if _EXPECTED_CONST_RE.match(n)]
@@ -128,7 +128,7 @@ def test_harness_lists_universal_event_types_once(
 def test_all_ci_scenarios_have_a_harness_module() -> None:
     """Every CI-matrix entry names a harness file that exists.
 
-    The count is pinned because the nine scenarios are enumerated by name in
+    The count is pinned because the scenarios are enumerated by name in
     DEMOMA-16-002…-011 and in the tables in ``notes/demo-ci-invariants.md`` and
     ``notes/demo-ci-scenario-coverage.md``.  Adding a scenario means updating
     those too, so it should not pass here silently.
