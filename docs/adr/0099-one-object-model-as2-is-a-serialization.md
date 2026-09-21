@@ -7,6 +7,13 @@ consulted: notes/wire-core-boundary.md, notes/domain-model-separation.md
 
 # One Object Model: AS2 Is a Serialization of the Core Model, Not a Parallel Hierarchy
 
+> **Implementation status as of 2026-09-21: decided, not yet built.**
+> The decision details below are in the present tense because they state the
+> decision, not the state of the code — that is the MADR convention. Nothing in
+> them has been implemented. What has to change to get there is in
+> [Migration](#migration), which is transitional and should be deleted once the
+> work lands. Validation is the spike described under [Validation](#validation).
+
 ## Context and Problem Statement
 
 The project has carried three successive positions on the relationship between
@@ -94,21 +101,49 @@ spelling, and both are the status classes covered by ADR-0036.
 
 ### Decision details
 
-1. **One model.** The classes under `vultron/core/models/` are the object
-   model. AS2 is how they are written down and read back.
-2. **Core field names stay snake_case; AS2 names are aliases.** Core code MUST
-   NOT type an AS2 spelling. The AS2 spelling appears only in a field alias and
-   in serialized output. A parallel core-only naming scheme is explicitly *not*
-   built — YAGNI; aliases already provide the separation.
+1. **One set of classes, serialized two different ways at two different
+   boundaries.** The classes under `vultron/core/models/` are the object model.
+   There is no second set of classes. Those same classes are written out
+   differently depending on where they are going:
+
+   | boundary | call | spelling |
+   |---|---|---|
+   | inter-actor delivery over HTTP | `model_dump_json(by_alias=True)` | AS2 — camelCase plus `@context` |
+   | persistence to the data layer | `model_dump(mode="json")`, no `by_alias` | Python field names (`id_`, `type_`) |
+
+   **AS2 is the HTTP transmission format only.** Stored rows are not AS2-spelled
+   today and this decision does not change that. A received activity is
+   additionally kept verbatim as an unparsed `dict[str, Any]` in the ledger
+   payload snapshot (CLP-07-001); that copy is neither serialization above — it
+   is the bytes as they arrived.
+2. **Core field names follow Python convention; the AS2 spelling lives in a
+   Pydantic alias.** Core models are `pydantic.BaseModel` subclasses and
+   Pydantic's own JSON handling is the mechanism. AS2 is a JSON format and
+   follows JSON naming convention, so the two spellings differ; that difference
+   is carried entirely by `validation_alias` / `serialization_alias` on the
+   field. Core code MUST NOT type an AS2 spelling — it types `in_reply_to`,
+   never `inReplyTo`.
+
+   No parallel core-only naming scheme is built. YAGNI: the aliases already
+   provide the separation. How a core implemented in another language would
+   handle this is out of scope for this decision.
 3. **The 27 paired `as_*` domain classes are deleted.** Message-shape classes
    name core classes in their slots: `object_: VulnerabilityReport`,
    `target: VulnerabilityCase`.
+
+   **Implication, stated deliberately because it is a real new constraint:** a
+   core class that can appear in a message slot MUST be exactly
+   AS2-representable. Every field it carries must have a valid AS2 property
+   spelling, and it MUST NOT carry a field that cannot go on the wire. This
+   constrains future core modelling and is accepted. It does **not** extend to
+   core classes that never appear in a message — the 23 with no wire
+   counterpart (dead-letter records, the role and lifecycle participant
+   subclasses, pending-queue entries) are unconstrained by AS2.
 4. **The shared root is deleted.** `as_Base` gets its own root carrying the AS2
    envelope fields. Core has **two** roots: a minimal record base (`id`,
-   `type`, `name`) for non-AS2 records such as dead letters, and one object
-   root carrying the AS2 object fields, `@context`, and required timestamps.
-   The present three-level stack collapses; its middle level existed only to
-   keep timestamps optional for the wire half (ARCH-12-002).
+   `type`, `name`) for records that are not AS2 objects, such as dead letters,
+   and one object root carrying the AS2 object fields, `@context`, and required
+   timestamps.
 5. **Dimension objects serialize as a bare value.** A dimension object holds
    exactly one data field, `state`; everything else on it is behaviour, and
    behaviour does not serialize. Each dimension gains a whole-model serializer
@@ -143,11 +178,15 @@ spelling, and both are the status classes covered by ADR-0036.
    this kind the project has actually had, including #2262.
 9. **Object slots hold the whole object, not an ID.** Reading resolves an IRI
    reference to the referenced object; an unresolvable reference is deferred or
-   refused. **This is a prototype shortcut, recorded as such**: it defers data
-   normalization rather than solving it. The production direction is normalized
-   references backed by a single store. This decision detail MUST NOT be read
-   as a permanent architectural principle, and MUST be revisited before
-   production.
+   refused.
+
+   **This is a prototype shortcut, recorded as such.** It defers data
+   normalization rather than solving it. A production system would be expected
+   to normalize considerably further — references rather than embedded copies,
+   backed by a single store, with join tables or dedicated join objects where a
+   relationship carries data of its own. We are simply not making that choice
+   in the prototype at this time. This detail MUST NOT be read as a permanent
+   architectural principle, and MUST be revisited before production.
 10. **The AS2 vocabulary and the formal message set stay separate artifacts.**
     AS2 can express more sentences than Vultron needs, and the formal protocol
     over-counts in the other direction — proposing an embargo and proposing a
@@ -185,6 +224,37 @@ spelling, and both are the status classes covered by ADR-0036.
   effort is reversed.
 - Neutral, because the AS2 wire form is unchanged by this decision. The
   dimension-object change is deliberately designed to keep output identical.
+
+## Migration
+
+**This section is transitional. Delete it once the work has landed** — it
+describes the difference between the code as it was when this decision was
+taken and the decision above, and that difference stops being useful to a
+reader the moment it is closed.
+
+- **Delete 25 of the 27 paired `as_*` domain classes**, and retarget the
+  message-shape classes' slots at the core classes.
+- **Delete the remaining 2 pairs** (`as_CaseStatus`, `as_ParticipantStatus`)
+  after detail 5 lands, since they are the only two whose fields differ by name
+  rather than by spelling.
+- **Collapse the core root stack from three levels to two.** The middle level
+  (`VultronObject`) existed only to keep timestamps optional so the wire half
+  could stay lenient (ARCH-12-002); `CoreObject` then re-tightened them. With no
+  wire half sharing the root, the middle level has no job.
+- **Fix the 73 places under `vultron/core/` that type an AS2 spelling**,
+  including the hand-written table at
+  `vultron/core/behaviors/case/nodes/lifecycle.py:98` mapping `"rmState"` to
+  `"rm_state"`, and review the 21 `by_alias=True` call sites there.
+- **Rename the four misnamed wire classes** to `as_*`:
+  `VulnerabilityCaseStub`, `VultronAS2Object`, `VultronAS2Activity`,
+  `VultronActorMixin`. The 47 `_XxxActivity` classes are private and
+  unambiguous, and stay.
+- **Replace the ARCH-22 ratchet** — its 20-entry `KNOWN_VIOLATIONS` set, two
+  two-sided tests, `xfail` goal test and declared exemption set — with the
+  single detail-6 allow-list test.
+- **Retire ADR-0017 and ADR-0082**, including the forward references from
+  `notes/wire-core-boundary.md`, several spec rationales, and the docstring of
+  `test/architecture/test_wire_no_core_model_imports.py`.
 
 ## Validation
 
