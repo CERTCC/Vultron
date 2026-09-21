@@ -242,14 +242,19 @@ def test_example_activity_matches_exactly_one_pattern(example_name: str):
 
 
 @pytest.mark.parametrize(
-    "example_name,reason", sorted(_KNOWN_UNDISPATCHABLE.items())
+    "example_name",
+    [
+        # The mark is built per-parameter rather than applied to the whole test so
+        # that each xfail's own ``reason`` names its issue. A single shared marker
+        # puts the issue number in the parametrize id instead, where the
+        # every-xfail-cites-a-live-issue audit does not read it.
+        pytest.param(name, marks=pytest.mark.xfail(strict=True, reason=reason))
+        for name, reason in sorted(_KNOWN_UNDISPATCHABLE.items())
+    ],
 )
-@pytest.mark.xfail(
-    strict=True, reason="tracked defect; see _KNOWN_UNDISPATCHABLE"
-)
-def test_known_undispatchable_examples_still_fail(
-    example_name: str, reason: str
-):
+def test_known_undispatchable_examples_still_fail(example_name: str):
     """Strict xfail: closing the tracked issue must also remove the exemption."""
     activity = _ACTIVITY_EXAMPLES[example_name]
-    assert len(_matching_pattern_names(activity)) == 1, reason
+    assert len(_matching_pattern_names(activity)) == 1, _KNOWN_UNDISPATCHABLE[
+        example_name
+    ]
