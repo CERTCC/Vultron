@@ -48,16 +48,63 @@ codebase. They care about:
 - Use plain language; briefly explain any necessary technical term
 - Note when something is "in progress" or "partially complete"
 - Be accurate about caveats — do not oversell
+- Scope every claim to what the work actually established. Describe what was
+  done ("fixed a bug that caused X", "added guards for Y"), not the absence of
+  a whole problem class ("eliminated X", "the protocol now rejects all invalid
+  Y"). See [Claim Scoping](#claim-scoping) below.
 
 **Don't**:
 
 - Reference internal module names, class names, or file paths
 - Use unexplained acronyms (BT, EM, RM, AS2, etc.) without a brief gloss
 - Claim something is fully functional if issues were found post-close
+- Generalize a specific fix into a class-wide result. Fixing one bug that
+  produced intermittent failures does not mean intermittent failures were
+  "eliminated"; adding a validation guard on one transition does not mean the
+  system "now rejects invalid state changes" everywhere.
 - Include every commit; focus on the 5–10 most significant changes
 - Use internal shorthand for numbered work items without describing what they are
   (e.g., "Production Collapse 3", "FUZZ-08e", "ADR-0042" all need a plain-language
   gloss or should be replaced with a description of the actual change)
+
+---
+
+## Claim Scoping
+
+Sponsor reports are read as claims about the state of the system, so an
+overstated sentence is a factual error, not just a tone issue. The recurring
+failure is **narrating a specific fix as if it resolved the entire problem
+class**: the work found and fixed one root cause, but the draft says the whole
+category of problem is gone.
+
+The test: a claim must be supported by what the work actually verified, not by
+what it plausibly improved. Fixing a bug proves that bug is gone; it does not
+prove no sibling bugs remain. Absence-of-a-problem-class claims ("eliminated",
+"no longer fails", "always", "all", "fully") require evidence that the class
+was exhaustively addressed (e.g., a CI gate, a full audit) — cite it or drop
+the claim.
+
+Prefer verbs that describe the action taken (`fixed`, `added`, `corrected`,
+`hardened`, `now validates <this transition>`) over verbs that assert a
+completed end-state (`eliminated`, `resolved all`, `now rejects invalid X`,
+`now runs reliably`). When a completeness claim is genuinely warranted, name
+the evidence that backs it in the same sentence.
+
+### Bad/good rewrite examples
+
+❌ "August eliminated intermittent failures in the multi-actor demos."
+✅ "August fixed a bug that was causing intermittent failures in the multi-actor
+demos. This removed the most common source of those failures; it does not rule
+out other intermittent failures that may surface in future runs."
+
+❌ "The protocol now rejects invalid state changes."
+✅ "Validation was added to several state transitions so that these specific
+invalid changes now raise an error rather than being silently accepted."
+
+❌ "Multi-actor demo scenarios now run reliably."
+✅ "A major cause of multi-actor demo failures was fixed" — or, if a CI gate now
+enforces it: "All tracked multi-actor demo scenarios have passed CI since the
+fix, which a new required check now enforces."
 
 ---
 
