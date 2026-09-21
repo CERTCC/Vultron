@@ -355,6 +355,104 @@ class TestCaseProposalRoundTrip:
 
 
 # ---------------------------------------------------------------------------
+# CP-05-002 reject-path round-trip
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.spec("CP-05-002")
+@pytest.mark.spec("CP-05-004")
+@pytest.mark.spec("CP-07-003")
+class TestCaseProposalRejectRoundTrip:
+    """CP-05-002 is "evaluate and **either** accept or reject".
+
+    The accept half is covered above.  This is the other half end to end, and it
+    is worth an integration test rather than only unit coverage for two reasons:
+
+    - The admission bundle is injected by the **adapter**
+      (``inbox_port_factories``), so a unit test that passes a bundle straight to
+      the tree builder cannot show the seam is reachable in a running deployment.
+      Patching the adapter's module-level singleton is what a deployment with an
+      admission policy does.
+    - ``RejectCaseProposalReceivedUseCase`` existed long before anything could
+      emit a ``Reject(as_CaseProposal)``, which is why #3399 described it as
+      unreachable in practice.  Only a round-trip shows it is now reached.
+    """
+
+    def test_declining_case_actor_sends_reject_and_creates_no_case(
+        self, two_app_setup, monkeypatch
+    ):
+        from vultron.core.behaviors.call_out.bundles.case_proposal import (
+            CaseProposalCallOutBundle,
+        )
+        from vultron.core.behaviors.call_out.nodes import AlwaysFail
+
+        vendor_iso, reporter_iso, vendor_tc, reporter_tc = two_app_setup
+
+        # The deployment's admission policy: refuse.  Patched on the adapter
+        # module, which is where a real deployment substitutes its own bundle.
+        declining = CaseProposalCallOutBundle(
+            evaluate_proposal_factory=lambda name: AlwaysFail(name),  # type: ignore[arg-type]
+        )
+        monkeypatch.setattr(
+            importlib.import_module(
+                "vultron.adapters.driving.fastapi.inbox_port_factories"
+            ),
+            "CASE_PROPOSAL_DETERMINISTIC",
+            declining,
+        )
+
+        vendor_base_api = f"{_VENDOR_BASE}/api/v2"
+        reporter_base_api = f"{_REPORTER_BASE}/api/v2"
+
+        vendor_actor_id = _create_actor(
+            vendor_tc, vendor_base_api, _VENDOR_SLUG, "Vendor CP"
+        )
+        reporter_actor_id = _create_actor(
+            reporter_tc, reporter_base_api, _REPORTER_SLUG, "Reporter CP"
+        )
+        _register_peer(
+            vendor_tc, _VENDOR_SLUG, reporter_actor_id, "Reporter CP"
+        )
+
+        report = as_VulnerabilityReport(
+            attributed_to=reporter_actor_id,
+            name="CP-05-002 reject round-trip report",
+            content=(
+                "Verifying that a declining case actor service sends "
+                "Reject(as_CaseProposal) and creates nothing (CP-05-002, "
+                "CP-05-004)."
+            ),
+        )
+        offer = rm_submit_report_activity(
+            report,
+            actor=reporter_actor_id,
+            to=vendor_actor_id,
+        )
+        _create_actor(
+            vendor_tc,
+            vendor_base_api,
+            _actor_slug(case_actor_id_for_report(str(report.id_))),
+            "Case Actor CP",
+        )
+        _post_to_inbox(vendor_tc, _actor_slug(vendor_actor_id), offer)
+
+        reject_activities = vendor_iso.dl.by_type("Reject")
+        assert len(reject_activities) >= 1, (
+            "A declining case actor service MUST send Reject(as_CaseProposal) "
+            "back to the proposer (CP-05-002, CP-05-004).  No Reject reached "
+            "the vendor's store, so the refusal never left the case actor."
+        )
+
+        assert not vendor_iso.dl.by_type(
+            "Accept"
+        ), "the service refused, so it must not also acknowledge the proposal"
+        assert not vendor_iso.dl.by_type("VulnerabilityCase"), (
+            "a refusal creates nothing: no case may be delivered to the "
+            "proposer (CLP-10-009)"
+        )
+
+
+# ---------------------------------------------------------------------------
 # Demo layer exercise (AC-4)
 # ---------------------------------------------------------------------------
 

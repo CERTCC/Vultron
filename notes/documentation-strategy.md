@@ -152,6 +152,29 @@ it is an invaluable reference for:
 3. **Correspondence with documentation**: The simulator trees correspond
    directly to the documentation in `docs/topics/behavior_logic/*.md`.
 
+### Three Views of Behavior, and Which One to Edit
+
+Behavior is documented from three directions. Writing into the wrong one is the
+recurring mistake, because all three describe "what an actor does".
+
+| View | Answers | Quadrant | Source of truth |
+|---|---|---|---|
+| `docs/topics/behavior_logic/*_bt.md` | What behavior does the protocol call for, and why | Explanation | *Designing Vultron* + the `vultron/bt/` simulator |
+| `docs/topics/behavior_logic/use-cases/` | Per use case: what is mechanical, what is delegated, what is emitted | Explanation | `vultron/core/behaviors/` + the RMB/EMB/CSB/CP specs |
+| `docs/reference/behaviors/` | What trees the prototype builds today | Reference | `vultron/core/behaviors/`, rendered at build time |
+
+The `*_bt.md` pages are **historical**: they are the original design and the
+formal behavioral specification, and `index.md` frames them that way. Do not
+update them to track implementation drift — that is what the other two views are
+for. They change only when the *design* changes.
+
+The `use-cases/` pages are the place for conceptual statements about current
+behavior: call-out points and the judgment each represents, the ordering
+constraints and why they are load-bearing, and the conformance obligations a
+participant carries regardless of whether it uses behavior trees. Keep node
+inventories out of them — a list of node names belongs in
+`docs/reference/behaviors/`, which generates it.
+
 ### Current-Implementation Reference
 
 `docs/reference/behaviors/` provides auto-generated reference documentation
@@ -191,26 +214,31 @@ strategy.
 
 ## Sequence Diagrams vs. Demo Scripts
 
-The Mermaid sequence diagrams in `docs/howto/activitypub/activities/*.md` were
-created prior to the demo scripts implementation. The demo scripts are the
-current canonical reference for the workflows, so the diagrams may be stale.
+The demo scripts are the canonical reference for each workflow, so a diagram in
+`docs/howto/activitypub/activities/*.md` that disagrees with its scenario is the
+diagram's defect.
 
-**Required future work**:
+The pre-demo-era diagrams were the concrete instance of this. Six sequence
+diagrams on `report_vulnerability.md` depicted an `APIv1` box and `/api/v1/*`
+handler calls, which ADR-0011 removed. They were retired in #3003 rather than
+resynced, because the internal handler choreography they drew is neither task
+content nor something a reader of a how-to guide acts on — the remaining diagrams
+are inter-actor flows, which are what an implementer needs.
 
-- Review each diagram in `docs/howto/activitypub/activities/*.md` against the
-  corresponding demo script (e.g., `vultron/demo/receive_report_demo.py`,
-  `initialize_case_demo.py`, `invite_actor_demo.py`, etc.).
-- Where diagrams diverge from demos, update the diagrams to match the
-  demo implementations.
-- Add references from each diagram page to the relevant demo script(s) as
-  concrete, executable examples of the workflow.
+Two checks keep the survivors honest. `test_docs_activity_verbs.py` asserts that
+the verb a `subgraph as:Verb` block attributes to an activity is the verb the wire
+class or its registered pattern declares. Each guide names the demo scenario that
+runs the same flow, so a diverged diagram is one `vultron-demo` run from being
+caught.
 
-This will ensure that readers consulting the how-to docs get an accurate,
-runnable picture of each workflow, and that the diagrams stay aligned with
-the authoritative demo implementations.
-
-**Priority**: Low — diagrams are illustrative, not normative. Address before
-the prototype is considered stable documentation.
+What no check covers is a diagram whose *edges* are wrong while every activity
+name and verb stays right — the verb test reads the `subgraph as:Verb` blocks, not
+the arrows between them. `manage_embargo.md` was the instance: its flowchart routed
+`RemoveEmbargoFromCase` back into the `Propose?` loop and left `AnnounceEmbargo`
+with no edges at all, contradicting the page's own warning that termination is not
+a revision. Both survived every check the tree has. When you touch a scenario,
+read its guide's diagram in the same change, and read the arrows, not just the
+node names.
 
 ---
 

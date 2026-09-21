@@ -21,12 +21,12 @@ the naming aligned with the ActivityStreams wire format.
 import logging
 from typing import Optional
 
+from vultron.demo.actor_session import ActorSession
 from vultron.demo.helpers.polling import wait_for_note_in_case
 from vultron.demo.utils import (
     DataLayerClient,
     demo_gate,
     demo_step,
-    post_to_trigger,
     verify_object_stored,
 )
 from vultron.wire.as2.vocab.base.objects.actors import as_Actor
@@ -70,25 +70,15 @@ def participant_adds_note_to_case(
         fails (failures are recorded in the demo accumulator via
         ``demo_step``/``demo_gate``).
     """
-    body: dict[str, object] = {
-        "case_id": case.id_,
-        "note_name": note_name,
-        "note_content": note_content,
-    }
-    if in_reply_to is not None:
-        body["in_reply_to"] = in_reply_to
-
-    result: dict = {}
+    session = ActorSession(client=posting_client, actor=poster).with_case(case)
     note_id: str | None = None
     with demo_step(f"Participant adds note '{note_name}' to case"):
-        result = post_to_trigger(
-            client=posting_client,
-            actor_id=poster.id_,
-            behavior="add-note-to-case",
-            body=body,
-            path_prefix="demo",
+        result = session.quiet().add_note_to_case(
+            note_name=note_name,
+            note_content=note_content,
+            in_reply_to=in_reply_to,
         )
-        note_id = result.get("note", {}).get("id")
+        note_id = (result.note or {}).get("id")
         if note_id is None:
             raise AssertionError(
                 "add-note-to-case trigger did not return a note ID"

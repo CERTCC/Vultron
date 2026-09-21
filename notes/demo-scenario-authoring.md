@@ -17,6 +17,7 @@ related_notes:
   - notes/event-driven-control-flow.md
   - notes/demo-ci-diagnostics.md
   - notes/demo-ci-invariants.md
+  - notes/demo-scenario-registry.md
   - notes/fv-demo.md
   - notes/case-proposal.md
   - notes/ownership-transfer.md

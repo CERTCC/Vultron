@@ -27,12 +27,20 @@ print(render_page("general", heading=False))
   (`Offer(Actor)[target=VulnerabilityCase]`,
   `Offer(CaseParticipant)[target=VulnerabilityCase]`, and its `Accept`/`Reject`).
   Suggesting a Participant is a `GI` inquiry, not a case-management message.
-- **How-to:** [Status Updates and Comments](../../howto/activitypub/activities/status_updates.md)
-  (notes); [Suggesting an Actor for a Case](../../howto/activitypub/activities/suggest_actor.md)
+- **How-to:** [How to Publish a Status Update or a Note](../../howto/activitypub/activities/status_updates.md)
+  (notes); [How to Suggest an Actor for a Case](../../howto/activitypub/activities/suggest_actor.md)
   (actor suggestion).
 - **Formal definition:** [Message Types](../formal_protocol/messages.md#other-message-types).
 
-A note attached to a case:
+A note minted for a case:
+
+```python exec="true" idprefix=""
+from vultron.wire.as2.vocab.examples.vocab_examples import create_note, json2md
+
+print(json2md(create_note()))
+```
+
+The same note attached to the case:
 
 ```python exec="true" idprefix=""
 from vultron.wire.as2.vocab.examples.vocab_examples import add_note_to_case, json2md
@@ -47,6 +55,35 @@ from vultron.wire.as2.vocab.examples.vocab_examples import recommend_actor, json
 
 print(json2md(recommend_actor()))
 ```
+
+The CASE_MANAGER forwards the recommendation to the Case Owner as
+`Offer(CaseParticipant)`, carrying the original recommendation's ID in `origin`
+and the default roles it assigned:
+
+```python exec="true" idprefix=""
+from vultron.wire.as2.vocab.examples.vocab_examples import offer_case_participant, json2md
+
+print(json2md(offer_case_participant()))
+```
+
+The Case Owner's decision goes back to the CASE_MANAGER, which relays the outcome
+to the recommender:
+
+```python exec="true" idprefix=""
+from vultron.wire.as2.vocab.examples.vocab_examples import accept_case_participant_offer, json2md
+
+print(json2md(accept_case_participant_offer()))
+```
+
+```python exec="true" idprefix=""
+from vultron.wire.as2.vocab.examples.vocab_examples import reject_case_participant_offer, json2md
+
+print(json2md(reject_case_participant_offer()))
+```
+
+This handshake is a `GI` inquiry rather than a role offer.
+For the `CVDRole` delegation that uses a dedicated object type, see
+[Case Management Messages](case_management.md).
 
 ## GK — General Acknowledgement
 

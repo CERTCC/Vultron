@@ -94,7 +94,7 @@ are not yet fully specified.
 
 !!! info "See also"
     - [Transferring a Case](../../topics/case_lifecycle/ownership_transfer.md)
-    - [Role Delegation](../../howto/activitypub/activities/role_delegation.md)
-    - [Suggest an Actor for a Case](../../howto/activitypub/activities/suggest_actor.md)
+    - [How to Delegate a Role to Another Participant](../../howto/activitypub/activities/role_delegation.md)
+    - [How to Suggest an Actor for a Case](../../howto/activitypub/activities/suggest_actor.md)
 
 ---

@@ -40,6 +40,10 @@ from vultron.config.actor import ActorConfig
 from vultron.core.behaviors.bridge import BTBridge
 
 if TYPE_CHECKING:
+    from vultron.core.behaviors.call_out.bundles.case_proposal import (
+        CaseProposalCallOutBundle,
+    )
+    from vultron.core.ports.trigger_activity import TriggerActivityPort
     from vultron.core.ports.wire_render import WireRenderPort
 from vultron.core.behaviors.case.accept_case_proposal_received_tree import (
     create_accept_case_proposal_received_tree,
@@ -86,6 +90,8 @@ class CreateCaseProposalReceivedUseCase:
         request: CreateCaseProposalReceivedEvent,
         actor_config: "ActorConfig | None" = None,
         wire_render_port: "WireRenderPort | None" = None,
+        trigger_activity: "TriggerActivityPort | None" = None,
+        call_out: "CaseProposalCallOutBundle | None" = None,
     ) -> None:
         self._dl = dl
         self._request: CreateCaseProposalReceivedEvent = request
@@ -94,6 +100,16 @@ class CreateCaseProposalReceivedUseCase:
         # hard-coded assumption that every report receiver is a vendor.
         self._actor_config = actor_config
         self._wire_render_port = wire_render_port
+        # Needed only on the decline path: _EmitRejectCaseProposalNode builds
+        # Reject(as_CaseProposal) through the shared emit seam (CP-05-004,
+        # OX-14-001).  The accept path does not use it.
+        self._trigger_activity = trigger_activity
+        # Admission policy (CP-05-002).  The adapter chooses the bundle, the
+        # same way it chooses STATUS_AUTHORIZATION_PERMISSIVE for the received-
+        # side status gates: a deployment with an admission policy injects its
+        # own here rather than editing the tree.  `None` means the core
+        # DETERMINISTIC default, which admits (BT-23-001, BT-23-011).
+        self._call_out = call_out
 
     @staticmethod
     def _core_inline_report(
@@ -195,10 +211,12 @@ class CreateCaseProposalReceivedUseCase:
             proposal_dict=proposal_dict,
             actor_config=self._actor_config,
             inline_report=inline_report,
+            call_out=self._call_out,
         )
         result = BTBridge(
             datalayer=self._dl,
             wire_render_port=self._wire_render_port,
+            trigger_activity=self._trigger_activity,
         ).execute_with_setup(
             tree=tree,
             actor_id=receiving_actor_id,

@@ -42,7 +42,6 @@ from vultron.core.states.cs import CS_vf
 from vultron.core.states.rm import RM
 from vultron.wire.as2.vocab.base.objects.activities.transitive import (
     as_Offer,
-    as_TransitiveActivity,
 )
 from vultron.wire.as2.vocab.objects.vulnerability_report import (
     as_VulnerabilityReport,
@@ -53,6 +52,8 @@ from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCase,
 )
 
+from vultron.demo.actor_session import ActorSession
+from vultron.enums.roles import CVDRole
 from vultron.demo.utils import (  # noqa: F401 — re-exported for test monkeypatching
     DataLayerClient,
     assert_demo_success,
@@ -61,16 +62,11 @@ from vultron.demo.utils import (  # noqa: F401 — re-exported for test monkeypa
     demo_gate,
     demo_step,
     post_to_inbox_and_wait,
-    post_to_trigger,
+    ref_id,
     reset_datalayer,
     reset_demo_failures,
     setup_demo_logging,
     verify_object_stored,
-)
-from vultron.demo.helpers.actions import (
-    actor_closes_case,
-    actor_notifies_fix_ready,
-    actor_notifies_published,
 )
 from vultron.demo.helpers.harness import scenario_harness
 from vultron.demo.helpers.ledger_dump import (
@@ -253,19 +249,15 @@ def _phase_report_submission(
         # C1 invites C2 with CVDRole.COORDINATOR (not CASE_MANAGER).
         invite_result = None
         with demo_step("C1 invites C2 with CVDRole.COORDINATOR"):
-            invite_result = post_to_trigger(
-                client=c1_client,
-                actor_id=c1_in_c1.id_,
-                behavior="invite-actor-to-case",
-                body={
-                    "case_id": case.id_,
-                    "invitee_id": c2.id_,
-                    "roles": ["coordinator"],
-                },
+            invite_result = (
+                ActorSession(client=c1_client, actor=c1_in_c1)
+                .with_case(case)
+                .quiet()
+                .invite_actor_to_case(
+                    invitee_id=c2.id_, roles=[CVDRole.COORDINATOR]
+                )
             )
-        invite = as_TransitiveActivity.model_validate(
-            invite_result["activity"]
-        )
+        invite = invite_result.activity
         logger.info("C2 invite created: %s", invite.id_)
 
         # Wait for the CaseActor-routed Invite to appear in C2's DataLayer.
@@ -281,12 +273,9 @@ def _phase_report_submission(
 
             # C2 accepts the invite.
             with demo_step("C2 accepts the case invitation"):
-                post_to_trigger(
-                    client=c2_client,
-                    actor_id=c2_in_c2.id_,
-                    behavior="accept-case-invite",
-                    body={"invite_id": invite_id},
-                )
+                ActorSession(
+                    client=c2_client, actor=c2_in_c2
+                ).quiet().accept_case_invite(invite_id=invite_id)
 
         # Wait for C2's container to replicate the case.
         with demo_check("C2's DataLayer received case replica"):
@@ -361,15 +350,9 @@ def _phase_c2_suggests_vendor(
 
     # Step M3: C2 sends suggest-actor-to-case (Offer(Actor, Case) → CaseActor).
     with demo_step("C2 suggests Vendor to CaseActor"):
-        post_to_trigger(
-            client=c2_client,
-            actor_id=c2_in_c2.id_,
-            behavior="suggest-actor-to-case",
-            body={
-                "case_id": case.id_,
-                "suggested_actor_id": vendor.id_,
-            },
-        )
+        ActorSession(client=c2_client, actor=c2_in_c2).with_case(
+            case
+        ).quiet().suggest_actor_to_case(suggested_actor_id=vendor.id_)
     logger.info("C2 sent suggest-actor-to-case for Vendor (%s)", vendor.id_)
 
     # CaseActor processes Offer(Actor, Case) and forwards Offer(CaseParticipant)
@@ -398,14 +381,11 @@ def _phase_c2_suggests_vendor(
         with demo_step(
             "C1 approves actor recommendation (accept-actor-recommendation)"
         ):
-            post_to_trigger(
-                client=c1_client,
-                actor_id=c1_in_c1.id_,
-                behavior="accept-actor-recommendation",
-                body={
-                    "cp_offer_id": cp_offer_id,
-                    "case_actor_id": case_actor_id,
-                },
+            ActorSession(
+                client=c1_client, actor=c1_in_c1
+            ).quiet().accept_actor_recommendation(
+                cp_offer_id=cp_offer_id,
+                case_actor_id=case_actor_id,
             )
     logger.info("C1 sent Accept(Offer(CaseParticipant)) to CaseActor")
 
@@ -422,12 +402,9 @@ def _phase_c2_suggests_vendor(
     logger.info("Vendor received CaseActor invite: %s", invite_id)
 
     with demo_step("Vendor accepts the CaseActor invitation"):
-        post_to_trigger(
-            client=vendor_client,
-            actor_id=vendor_in_vendor.id_,
-            behavior="accept-case-invite",
-            body={"invite_id": invite_id},
-        )
+        ActorSession(
+            client=vendor_client, actor=vendor_in_vendor
+        ).quiet().accept_case_invite(invite_id=invite_id)
     logger.info("Vendor sent Accept(Invite) to CaseActor")
 
     # Vendor's replica is seeded by the CaseActor's Announce(VulnerabilityCase)
@@ -659,11 +636,10 @@ def _phase_fix_lifecycle(
             actor_id=vendor.id_,
             expected_states={RM.ACCEPTED, RM.DEFERRED, RM.CLOSED},
         )
-        actor_notifies_fix_ready(
-            client=vendor_client,
-            actor=vendor_in_vendor,
-            case_id=case.id_,
-        )
+        with demo_step(f"Actor {ref_id(vendor_in_vendor)} reports fix ready"):
+            ActorSession(
+                client=vendor_client, actor=vendor_in_vendor
+            ).with_case(case).quiet().notify_fix_ready()
 
         with demo_check("Vendor participant vf_state transitions to VF"):
             wait_for_participant_vf_state(
@@ -743,11 +719,12 @@ def _phase_publication(
     logger.info("─" * 80)
 
     # C1 (CASE_OWNER) triggers CS.P per DEMOMA-13-006 / DEMOMA-07-003(4).
-    actor_notifies_published(
-        client=c1_client,
-        actor=c1_in_c1,
-        case_id=case.id_,
-    )
+    with demo_step(
+        f"Actor {ref_id(c1_in_c1)} reports vulnerability publicly disclosed"
+    ):
+        ActorSession(client=c1_client, actor=c1_in_c1).with_case(
+            case
+        ).quiet().notify_published()
 
     with demo_check(
         "Embargo terminated (EM.EXITED) after C1 reports published"
@@ -757,16 +734,18 @@ def _phase_publication(
             case_id=case.id_,
         )
 
-    actor_notifies_published(
-        client=vendor_client,
-        actor=vendor_in_vendor,
-        case_id=case.id_,
-    )
-    actor_notifies_published(
-        client=c2_client,
-        actor=c2_in_c2,
-        case_id=case.id_,
-    )
+    with demo_step(
+        f"Actor {ref_id(vendor_in_vendor)} reports vulnerability publicly disclosed"
+    ):
+        ActorSession(client=vendor_client, actor=vendor_in_vendor).with_case(
+            case
+        ).quiet().notify_published()
+    with demo_step(
+        f"Actor {ref_id(c2_in_c2)} reports vulnerability publicly disclosed"
+    ):
+        ActorSession(client=c2_client, actor=c2_in_c2).with_case(
+            case
+        ).quiet().notify_published()
 
     with demo_check(
         "Embargo terminated (EM.EXITED) propagated to Finder before notify-published"
@@ -776,11 +755,12 @@ def _phase_publication(
             case_id=case.id_,
         )
 
-    actor_notifies_published(
-        client=finder_client,
-        actor=finder_in_finder,
-        case_id=case.id_,
-    )
+    with demo_step(
+        f"Actor {ref_id(finder_in_finder)} reports vulnerability publicly disclosed"
+    ):
+        ActorSession(client=finder_client, actor=finder_in_finder).with_case(
+            case
+        ).quiet().notify_published()
 
     with demo_check(
         "M7: all replicas CS.VFdPxa, EM.EXITED, all participants public-aware"
@@ -819,26 +799,22 @@ def _phase_case_closure(
     logger.info("Phase 7: Case closure — all participants RM.CLOSED")
     logger.info("─" * 80)
 
-    actor_closes_case(
-        client=c1_client,
-        actor=c1_in_c1,
-        case_id=case.id_,
-    )
-    actor_closes_case(
-        client=vendor_client,
-        actor=vendor_in_vendor,
-        case_id=case.id_,
-    )
-    actor_closes_case(
-        client=c2_client,
-        actor=c2_in_c2,
-        case_id=case.id_,
-    )
-    actor_closes_case(
-        client=finder_client,
-        actor=finder_in_finder,
-        case_id=case.id_,
-    )
+    with demo_step(f"Actor {ref_id(c1_in_c1)} closes case"):
+        ActorSession(client=c1_client, actor=c1_in_c1).with_case(
+            case
+        ).quiet().close_case()
+    with demo_step(f"Actor {ref_id(vendor_in_vendor)} closes case"):
+        ActorSession(client=vendor_client, actor=vendor_in_vendor).with_case(
+            case
+        ).quiet().close_case()
+    with demo_step(f"Actor {ref_id(c2_in_c2)} closes case"):
+        ActorSession(client=c2_client, actor=c2_in_c2).with_case(
+            case
+        ).quiet().close_case()
+    with demo_step(f"Actor {ref_id(finder_in_finder)} closes case"):
+        ActorSession(client=finder_client, actor=finder_in_finder).with_case(
+            case
+        ).quiet().close_case()
 
     with demo_check("M8: all participants RM.CLOSED on all replicas"):
         wait_for_all_participants_rm_closed(

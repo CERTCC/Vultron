@@ -27,23 +27,48 @@ ADR-0041 before emitting outbound activities:
   10. Emit ``Create(VulnerabilityCase)`` with inline participants (AC-5)
   11. Clear retry marker on success
 
-Idempotency (CP-05-006):
+Admission (CP-05-002) and idempotency (CP-05-006):
 
-The top-level tree is a Selector with two branches:
+The top-level tree is a Selector with four branches, tried in order:
 
-* **AC-3 guard** — ``_CheckMarkerExistsNode``: if a
+* **Accept in flight** — ``_CheckMarkerExistsNode``: if a
   ``PendingCreateCaseActivity`` marker already exists for this proposal_id,
   Accept was already sent and Create delivery is still pending; the retry
   runner owns recovery, so return SUCCESS immediately (no re-send).
 
-* **Normal / duplicate flow** — a Sequence whose first step is itself a
-  Selector between ``_LoadExistingCaseNode`` (AC-1/AC-2: finds and reuses
-  an existing ``VulnerabilityCase`` for the same report) and
-  ``_CreateCaseFromProposalNode`` (normal path: creates a new case).  The
-  remaining nodes proceed with native initialization and outbound messaging.
+* **Already declined** — ``AlreadyDeclinedArm``: a ``CaseProposalDeclineRecord``
+  exists, so the decision stands and is not re-made.  The arm still ensures the
+  ``Reject`` was queued, because the record is written *before* the emit, and it
+  reads that from ``reject_activity_id`` on the record rather than from the
+  outbox — a delivered ``Reject`` has already left the outbox.
+
+* **Decline** — ``DeclineProposalArm``: the ``EvaluateCaseProposal`` call-out
+  point refused, so record the decline and emit ``Reject(as_CaseProposal)``.
+  Its guards are proposal-keyed: ``report_id`` is supplied by the sender, so a
+  report-keyed guard is one the sender can satisfy in order to skip the gate.
+
+* **Accept** — ``AcceptProposalArm``: ``CheckNoDeclineRecordNode`` then the
+  normal / duplicate flow, a Sequence that first writes the proposal-keyed
+  ``CaseProposalAdmissionRecord`` (so a later delivery can tell that *this*
+  proposal began the accept path) and then resolves the case via a Selector
+  between ``_LoadExistingCaseNode`` (AC-1/AC-2: finds and reuses an existing
+  ``VulnerabilityCase`` for the same report) and ``_CreateCaseFromProposalNode``
+  (normal path: creates a new case).
+
+Why the accept arm carries a guard
+----------------------------------
+A Selector falls through on FAILURE, and ``_EmitSingleActivityBase.update()``
+converts *any* exception into FAILURE.  Without the guard, a decline whose
+``Reject`` could not be built — no wire proposal, no injected
+``TriggerActivityPort``, a store error — would fall through to the accept flow
+and create the case, commit ledger entries, and send ``Accept`` + ``Create``,
+reporting SUCCESS.  A refusal gate whose failure direction is "admit" is worse
+than no gate, so the decline record is persisted first and the accept arm is
+gated on its absence: the tree fails instead of admitting.
 
 Spec: ``specs/case-proposal.yaml`` CP-05-001 through CP-05-006.
-Per: ``docs/adr/0041-caseactor-authoritative-case-initialization.md``.
+Per: ``docs/adr/0041-caseactor-authoritative-case-initialization.md``,
+``docs/adr/0025-call-out-point-abstraction-layer.md``.
 """
 
 #  Copyright (c) 2026 Carnegie Mellon University and Contributors.
@@ -60,7 +85,7 @@ Per: ``docs/adr/0041-caseactor-authoritative-case-initialization.md``.
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
 import logging
-from typing import Any, cast
+from typing import TYPE_CHECKING, Any, cast
 
 import py_trees
 from py_trees.common import Status
@@ -100,6 +125,17 @@ from vultron.core.models.activity import (
     VultronAccept,
     VultronCreateCaseActivity,
 )
+from vultron.core.behaviors.case.nodes.proposal_admission_actions import (
+    EmitRejectCaseProposalNode,
+    RecordProposalAdmissionNode,
+    RecordProposalDeclineNode,
+)
+from vultron.core.behaviors.case.nodes.proposal_admission_conditions import (
+    CheckDeclineRecordExistsNode,
+    CheckNoDeclineRecordNode,
+    CheckProposalAlreadyAnsweredNode,
+    CheckRejectAlreadyAnsweredNode,
+)
 from vultron.core.models.case import VulnerabilityCase, VultronCase
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.case_status import CaseStatus
@@ -116,6 +152,11 @@ from vultron.core.ports.case_persistence import (
 from vultron.core.states.participant_embargo_consent import PEC, PEC_Trigger
 from vultron.core.states.rm import RM
 from vultron.enums.roles import CVDRole
+
+if TYPE_CHECKING:
+    from vultron.core.behaviors.call_out.bundles.case_proposal import (
+        CaseProposalCallOutBundle,
+    )
 
 logger = logging.getLogger(__name__)
 
@@ -1926,10 +1967,13 @@ def create_case_proposal_received_tree(
     proposal_dict: dict | None = None,
     actor_config: ActorConfig | None = None,
     inline_report: VulnerabilityReport | None = None,
+    call_out: "CaseProposalCallOutBundle | None" = None,
 ) -> py_trees.behaviour.Behaviour:
     """Return the received-side BT for processing a ``Create(as_CaseProposal)``.
 
-    The tree is a two-branch Selector implementing CP-05-006 idempotency:
+    The tree is a four-branch Selector: the CP-05-005 in-flight guard, the
+    CP-05-006 already-declined answer, the CP-05-002 admission decision, and the
+    accept flow.
 
     **Branch 1 — AC-3 guard** (``_CheckMarkerExistsNode``):
       If a ``PendingCreateCaseActivity`` marker already exists for this
@@ -1937,8 +1981,46 @@ def create_case_proposal_received_tree(
       ``Create(VulnerabilityCase)`` delivery is still pending.  Return SUCCESS
       immediately — the retry runner owns recovery; do not re-send Accept.
 
-    **Branch 2 — normal / duplicate flow** (Sequence):
-      First, a sub-Selector resolves which ``VulnerabilityCase`` to use:
+    **Branch 2 — already declined** (``AlreadyDeclinedArm``):
+      A ``CaseProposalDeclineRecord`` exists, so the decision stands and the
+      call-out point is not consulted again — a retrying proposer is not sent a
+      fresh ``Reject`` per delivery, and a stateful or stochastic backend cannot
+      accept what it previously refused.  The arm's inner Selector re-emits the
+      ``Reject`` only when the record shows none was ever queued, which recovers
+      the "declined but the emit failed" state the record exists to make visible.
+      It asks the record rather than the outbox because ``outbox_pop`` removes a
+      ``Reject`` on delivery, so an outbox-keyed answer would re-emit forever
+      after the refusal was successfully delivered.
+
+    **Branch 3 — decline** (``DeclineProposalArm``, CP-05-002, CP-05-004):
+      Runs the ``EvaluateCaseProposal`` admission call-out point and, when it
+      refuses, records the decline and emits ``Reject(as_CaseProposal)``.  Four
+      properties are load-bearing:
+
+      * It sits **before** ``ResolveCaseIdSelector``, so a refusal happens ahead
+        of every write.  A Reject emitted after the accept flow's effects would
+        report "declined" while this store held a half-built case with committed
+        ledger entries (CLP-10-009).  ``CheckProposalAlreadyAnsweredNode``
+        extends that to *later* deliveries via the proposal-keyed
+        ``CaseProposalAdmissionRecord`` that ``main_flow`` writes first —
+        ``main_flow`` creates the case before it emits, so neither an Accept-only
+        guard nor the case itself can identify a half-built one as *this*
+        proposal's.
+      * Its guards are keyed on the **proposal**, never the report.  ``report_id``
+        comes from the report the sender embedded, so a report-keyed guard is one
+        a sender can satisfy on purpose and thereby skip the gate entirely.
+      * The decline record is written **before** the emit, so branch 4's guard
+        can stop a failed emit from becoming an accept.
+      * Everything in this arm ahead of the record **raises** instead of
+        returning FAILURE when it cannot do its job.  A Selector falls through
+        on FAILURE, so for a node in a refusal arm "I could not tell" and "no"
+        both mean *admit*; only ``BTBridge`` failing the whole tree is safe.
+
+    **Branch 4 — accept** (``AcceptProposalArm``): ``CheckNoDeclineRecordNode``
+    followed by the normal / duplicate flow (Sequence):
+      First ``RecordProposalAdmissionNode`` stamps the proposal-keyed admission
+      record, before any case exists.  Then a sub-Selector resolves which
+      ``VulnerabilityCase`` to use:
 
       * ``_LoadExistingCaseNode`` (AC-1/AC-2): if a case already exists for
         *report_id*, write its ID to the blackboard and succeed.
@@ -1997,13 +2079,23 @@ def create_case_proposal_received_tree(
             (report-receiving) actor is given alongside ``CVDRole.CASE_OWNER``
             (CFG-07-002, CFG-07-004).  When ``None`` the receiver gets
             ``CVDRole.CASE_OWNER`` only.
+        call_out: Bundle supplying the ``EvaluateCaseProposal`` admission
+            call-out point.  Defaults to ``CASE_PROPOSAL_DETERMINISTIC``, whose
+            backend always succeeds, so an unconfigured deployment admits every
+            well-formed proposal exactly as it did before this seam existed
+            (BT-23-001, BT-23-011).
 
     Returns:
         A py_trees Selector behaviour ready for ``BTBridge.execute_with_setup``.
     """
+    from vultron.core.behaviors.call_out.bundles.case_proposal import (
+        CASE_PROPOSAL_DETERMINISTIC,
+    )
     from vultron.core.behaviors.case.embargo_tree import (
         InitializeDefaultEmbargoNode,
     )
+
+    bundle = call_out if call_out is not None else CASE_PROPOSAL_DETERMINISTIC
 
     offer_id, offer_actor_id = _offer_provenance_from_proposal(proposal_dict)
 
@@ -2017,12 +2109,20 @@ def create_case_proposal_received_tree(
         ],
     )
 
-    # Main flow: resolve case → native init → emit Accept → write marker →
-    # emit Create → clear marker
+    # Main flow: record admission → resolve case → native init → emit Accept →
+    # write marker → emit Create → clear marker
     main_flow = py_trees.composites.Sequence(
         name="CreateCaseProposalReceivedBT",
         memory=False,
         children=[
+            # Ahead of case_resolution deliberately.  This is the proposal-keyed
+            # evidence that the accept path began; without it the only marker of
+            # an in-progress accept is the case itself, which is keyed on a
+            # report the *sender* chose.  See RecordProposalAdmissionNode.
+            RecordProposalAdmissionNode(
+                proposal_id=proposal_id,
+                vendor_uri=vendor_uri,
+            ),
             case_resolution,
             # Store the inline report first: the reporter participant, its ledger
             # entry and the SIGNATORY seed are all derived from it, and each of
@@ -2078,11 +2178,93 @@ def create_case_proposal_received_tree(
         ],
     )
 
+    # A proposal already declined is not re-adjudicated.  The arm still ensures
+    # the Reject went out, because the decline record is written *before* the
+    # emit, so "declined with nothing queued" is a reachable and recoverable
+    # state (the same ordering CP-05-005 uses for the accept side's Create).
+    resend_decline_arm = py_trees.composites.Sequence(
+        name="AlreadyDeclinedArm",
+        memory=False,
+        children=[
+            CheckDeclineRecordExistsNode(proposal_id=proposal_id),
+            py_trees.composites.Selector(
+                name="EnsureRejectQueued",
+                memory=False,
+                children=[
+                    CheckRejectAlreadyAnsweredNode(proposal_id=proposal_id),
+                    EmitRejectCaseProposalNode(
+                        proposal_id=proposal_id,
+                        vendor_uri=vendor_uri,
+                        proposal_dict=proposal_dict,
+                    ),
+                ],
+            ),
+        ],
+    )
+
+    # CP-05-002 / CP-05-004 admission decision.  `Inverter` converts the
+    # call-out point's "declined" FAILURE into the SUCCESS this arm needs to
+    # proceed, so the Evaluator keeps the BT-18-007 contract (a refusal is a
+    # FAILURE return, never a "rejected" value written alongside SUCCESS).
+    decline_arm = py_trees.composites.Sequence(
+        name="DeclineProposalArm",
+        memory=False,
+        children=[
+            # A decision already on record is never re-adjudicated here.  The
+            # resend arm above normally answers that case, but it returns FAILURE
+            # when its own emit fails, and the Selector would then run this arm
+            # and tick the call-out point a second time on the same delivery —
+            # billing a metered policy backend twice for one proposal.  The tree
+            # still fails closed either way (an admitting verdict lands on
+            # CheckNoDeclineRecordNode), so this guard buys the contract the
+            # docstring claims, not the safety.
+            CheckNoDeclineRecordNode(proposal_id=proposal_id),
+            # Keyed on the proposal, not the report: `report_id` is chosen by the
+            # sender, so a report-scoped guard can be skipped by naming a report
+            # this service has already seen.
+            py_trees.decorators.Inverter(
+                name="ProposalNotYetAnswered",
+                child=CheckProposalAlreadyAnsweredNode(
+                    proposal_id=proposal_id, report_id=report_id
+                ),
+            ),
+            py_trees.decorators.Inverter(
+                name="ProposalDeclined",
+                child=bundle.evaluate_proposal_factory("EvaluateCaseProposal"),
+            ),
+            # Before the emit, deliberately — see RecordProposalDeclineNode.
+            RecordProposalDeclineNode(
+                proposal_id=proposal_id,
+                vendor_uri=vendor_uri,
+            ),
+            EmitRejectCaseProposalNode(
+                proposal_id=proposal_id,
+                vendor_uri=vendor_uri,
+                proposal_dict=proposal_dict,
+            ),
+        ],
+    )
+
+    # The decline record is the accept path's precondition, which is what makes
+    # a refusal terminal: if the emit above failed, this Selector tries the
+    # accept arm next and the guard refuses it, so the tree fails instead of
+    # creating the case and sending an Accept the service decided against.
+    accept_arm = py_trees.composites.Sequence(
+        name="AcceptProposalArm",
+        memory=False,
+        children=[
+            CheckNoDeclineRecordNode(proposal_id=proposal_id),
+            main_flow,
+        ],
+    )
+
     return py_trees.composites.Selector(
         name="CreateCaseProposalIdempotencySelector",
         memory=False,
         children=[
             _CheckMarkerExistsNode(proposal_id=proposal_id),
-            main_flow,
+            resend_decline_arm,
+            decline_arm,
+            accept_arm,
         ],
     )
