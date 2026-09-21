@@ -364,6 +364,7 @@ nav:
       - 'Replace flake8, isort and black with ruff, and declare lint exclusions instead of discovering them': 'adr/0094-ruff-replaces-flake8-isort-black.md'
       - "Received-Side HandlerResult Carries a Handler Disposition Across the Dispatcher Boundary": 'adr/0095-received-side-handler-result.md'
       - 'A Protocol Default Embargo Replaces the Pre-Case Phase': 'adr/0096-protocol-default-embargo.md'
+      - 'The Capability Layer: Four Call-Out Shapes, Core-Declared Typed-Port Contracts, and Sentinel as a Call-In Pattern': 'adr/0097-capability-layer-four-shapes-and-core-declared-contracts.md'
   - About:
     - What's New: 'about/whats_new.md'
     - Contributing: 'about/contributing.md'

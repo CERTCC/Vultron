@@ -215,11 +215,14 @@ def _phase_report_submission(
 
     # Wait for Coordinator + Finder + CaseActor (3 participants) before
     # inviting Vendor.
-    wait_for_case_participants(
-        vendor_client=coordinator_client,
-        case_id=case.id_,
-        expected_actor_ids={finder.id_, coordinator.id_},
-    )
+    with demo_check(
+        "Coordinator case reflects Finder + Coordinator participants"
+    ):
+        wait_for_case_participants(
+            vendor_client=coordinator_client,
+            case_id=case.id_,
+            expected_actor_ids={finder.id_, coordinator.id_},
+        )
 
     with demo_check("M1: ≥3 participants, EM.ACTIVE, Finder has replica"):
         verify_case_active(
@@ -306,41 +309,48 @@ def _phase_invite_vendor(
         )
     logger.info("Vendor received case replica")
 
-    # 4 participants: Finder + Coordinator + Vendor + CaseActor
-    wait_for_case_participants(
-        vendor_client=coordinator_client,
-        case_id=case.id_,
-        expected_actor_ids={
-            finder.id_,
-            coordinator_in_coordinator.id_,
-            vendor.id_,
-        },
-        timeout_seconds=PARTICIPANT_JOIN_TIMEOUT,
-    )
-    logger.info("✓ M2: Vendor joined case (4 participants)")
-
-    # Gate: Finder must have the case replica before Vendor's RM triage
-    # broadcasts Announce(CaseLedgerEntry) to all participants (CLP-08-005).
-    with demo_check("Finder's DataLayer received case replica"):
-        wait_for_case_on_container(
-            client=finder_client,
+    # All 4 participants (Finder + Coordinator + Vendor + CaseActor) present is
+    # the causal precondition for Vendor's RM triage below: a demo_gate — not
+    # demo_check — so a timeout skips the doomed triage rather than cascading
+    # (DEMOCI-01-011, vultron/demo/AGENTS.md § "Never Wrap a Causal Wait in
+    # demo_check").
+    with demo_gate(
+        "Coordinator case has all 4 participants before Vendor RM triage"
+    ):
+        wait_for_case_participants(
+            vendor_client=coordinator_client,
             case_id=case.id_,
+            expected_actor_ids={
+                finder.id_,
+                coordinator_in_coordinator.id_,
+                vendor.id_,
+            },
+            timeout_seconds=PARTICIPANT_JOIN_TIMEOUT,
+        )
+        logger.info("✓ M2: Vendor joined case (4 participants)")
+
+        # Gate: Finder must have the case replica before Vendor's RM triage
+        # broadcasts Announce(CaseLedgerEntry) to all participants (CLP-08-005).
+        with demo_check("Finder's DataLayer received case replica"):
+            wait_for_case_on_container(
+                client=finder_client,
+                case_id=case.id_,
+                timeout_seconds=20.0,
+            )
+        logger.info("Finder received case replica")
+
+        # CM-11-002: Vendor joined via invite-accept — run RM triage cycle.
+        run_invite_path_rm_triage(
+            invited_client=vendor_client,
+            invited_actor=vendor_in_vendor,
+            offer=offer,
+            report=report,
+            finder=finder,
+            auth_client=coordinator_client,
+            case=case,
+            invited_obj=vendor,
             timeout_seconds=20.0,
         )
-    logger.info("Finder received case replica")
-
-    # CM-11-002: Vendor joined via invite-accept — run standard RM triage cycle.
-    run_invite_path_rm_triage(
-        invited_client=vendor_client,
-        invited_actor=vendor_in_vendor,
-        offer=offer,
-        report=report,
-        finder=finder,
-        auth_client=coordinator_client,
-        case=case,
-        invited_obj=vendor,
-        timeout_seconds=20.0,
-    )
 
     return vendor_in_vendor
 

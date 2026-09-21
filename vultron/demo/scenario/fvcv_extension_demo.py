@@ -214,59 +214,70 @@ def _phase_report_submission(
         timeout_seconds=60.0,
     )
 
-    # Wait for the initial participants (Finder + Vendor1 + CaseActor) before
-    # inviting Coordinator.
-    wait_for_case_participants(
-        vendor_client=vendor_client,
-        case_id=case.id_,
-        expected_actor_ids={finder.id_, vendor.id_},
-    )
+    # Causal precondition: the initial case (Finder + Vendor1 present on
+    # Vendor1's replica) must exist before Coordinator is invited.  A demo_gate —
+    # not demo_check — so a timeout skips the doomed invite/admit steps rather
+    # than cascading (DEMOCI-01-011, vultron/demo/AGENTS.md § "Never Wrap a
+    # Causal Wait in demo_check").
+    with demo_gate(
+        "Vendor1 case has Finder + Vendor1 before inviting Coordinator"
+    ):
+        wait_for_case_participants(
+            vendor_client=vendor_client,
+            case_id=case.id_,
+            expected_actor_ids={finder.id_, vendor.id_},
+        )
 
-    # Vendor1 invites Coordinator with COORDINATOR role only (not CASE_MANAGER).
-    invite_result = None
-    with demo_step("Vendor1 invites Coordinator with CVDRole.COORDINATOR"):
-        invite_result = (
-            ActorSession(client=vendor_client, actor=vendor_in_vendor)
-            .with_case(case)
-            .quiet()
-            .invite_actor_to_case(
-                invitee_id=coordinator.id_, roles=[CVDRole.COORDINATOR]
+        # Vendor1 invites Coordinator (COORDINATOR role only, not CASE_MANAGER).
+        invite_result = None
+        with demo_step("Vendor1 invites Coordinator with CVDRole.COORDINATOR"):
+            invite_result = (
+                ActorSession(client=vendor_client, actor=vendor_in_vendor)
+                .with_case(case)
+                .quiet()
+                .invite_actor_to_case(
+                    invitee_id=coordinator.id_, roles=[CVDRole.COORDINATOR]
+                )
             )
-        )
-    invite = invite_result.activity
-    logger.info("Coordinator invite created: %s", invite.id_)
+        invite = invite_result.activity
+        logger.info("Coordinator invite created: %s", invite.id_)
 
-    with demo_check("Coordinator invite delivered to Coordinator's DataLayer"):
-        find_case_invite_for_actor(
-            client=coordinator_client,
-            case_id=case.id_,
-            invitee_id=coordinator.id_,
-            timeout_seconds=60.0,
-        )
+        with demo_check(
+            "Coordinator invite delivered to Coordinator's DataLayer"
+        ):
+            find_case_invite_for_actor(
+                client=coordinator_client,
+                case_id=case.id_,
+                invitee_id=coordinator.id_,
+                timeout_seconds=60.0,
+            )
 
-    # Coordinator accepts the invite.
-    with demo_step("Coordinator accepts the case invitation"):
-        ActorSession(
-            client=coordinator_client, actor=coordinator_in_coordinator
-        ).quiet().accept_case_invite(invite_id=invite.id_)
+        # Coordinator accepts the invite.
+        with demo_step("Coordinator accepts the case invitation"):
+            ActorSession(
+                client=coordinator_client, actor=coordinator_in_coordinator
+            ).quiet().accept_case_invite(invite_id=invite.id_)
 
-    # Wait for Coordinator's container to replicate the case.
-    with demo_check("Coordinator's DataLayer received case replica"):
-        wait_for_case_on_container(
-            client=coordinator_client,
-            case_id=case.id_,
-        )
+        # Wait for Coordinator's container to replicate the case.
+        with demo_check("Coordinator's DataLayer received case replica"):
+            wait_for_case_on_container(
+                client=coordinator_client,
+                case_id=case.id_,
+            )
 
-    # 4 participants: Finder + Vendor1 + Coordinator + CaseActor
-    wait_for_case_participants(
-        vendor_client=vendor_client,
-        case_id=case.id_,
-        expected_actor_ids={
-            finder.id_,
-            vendor.id_,
-            coordinator_in_coordinator.id_,
-        },
-    )
+        # 4 participants: Finder + Vendor1 + Coordinator + CaseActor
+        with demo_check(
+            "Vendor1 case reflects Finder + Vendor1 + Coordinator participants"
+        ):
+            wait_for_case_participants(
+                vendor_client=vendor_client,
+                case_id=case.id_,
+                expected_actor_ids={
+                    finder.id_,
+                    vendor.id_,
+                    coordinator_in_coordinator.id_,
+                },
+            )
 
     with demo_check(
         "M1: required participants (≥4), EM.ACTIVE, finder + coordinator have replicas"
@@ -407,44 +418,51 @@ def _phase_coordinator_suggests_vendor2(
         "Vendor2 received case replica via CaseActor Announce (ADR-0026 path)"
     )
 
-    # 5 participants: Finder + Vendor1 + Coordinator + Vendor2 + CaseActor
-    # Vendor2 joins via the CaseActor→Vendor2 invite path (ADR-0026), which
-    # requires an extra propagation hop back to Vendor1; use a longer timeout.
-    wait_for_case_participants(
-        vendor_client=vendor_client,
-        case_id=case.id_,
-        expected_actor_ids={
-            finder.id_,
-            vendor.id_,
-            coordinator_in_coordinator.id_,
-            vendor2.id_,
-        },
-        timeout_seconds=LATE_JOINER_TIMEOUT,
-    )
-    logger.info("✓ M3: Vendor2 joined case (%d participants)", 5)
-
-    # CLP-08-005: ensure Finder's genesis hash is seeded before Announce(CaseLedgerEntry)
-    # is broadcast by the triage cycle below.
-    with demo_check(
-        "Finder's DataLayer received case replica before Vendor2 RM triage"
+    # All 5 participants (Finder + Vendor1 + Coordinator + Vendor2 + CaseActor)
+    # present is the causal precondition for Vendor2's RM triage below.  Vendor2
+    # joins via the CaseActor→Vendor2 invite path (ADR-0026), which requires an
+    # extra propagation hop back to Vendor1; use a longer timeout.  A demo_gate —
+    # not demo_check — so a timeout skips the doomed triage rather than cascading
+    # (DEMOCI-01-011, vultron/demo/AGENTS.md § "Never Wrap a Causal Wait in
+    # demo_check").
+    with demo_gate(
+        "Vendor1 case has all 5 participants before Vendor2 RM triage"
     ):
-        wait_for_case_on_container(
-            client=finder_client,
+        wait_for_case_participants(
+            vendor_client=vendor_client,
             case_id=case.id_,
+            expected_actor_ids={
+                finder.id_,
+                vendor.id_,
+                coordinator_in_coordinator.id_,
+                vendor2.id_,
+            },
+            timeout_seconds=LATE_JOINER_TIMEOUT,
+        )
+        logger.info("✓ M3: Vendor2 joined case (%d participants)", 5)
+
+        # CLP-08-005: ensure Finder's genesis hash is seeded before
+        # Announce(CaseLedgerEntry) is broadcast by the triage cycle below.
+        with demo_check(
+            "Finder's DataLayer received case replica before Vendor2 RM triage"
+        ):
+            wait_for_case_on_container(
+                client=finder_client,
+                case_id=case.id_,
+                timeout_seconds=60.0,
+            )
+
+        run_invite_path_rm_triage(
+            invited_client=vendor2_client,
+            invited_actor=vendor2_in_vendor2,
+            offer=offer,
+            report=report,
+            finder=finder,
+            auth_client=vendor_client,
+            case=case,
+            invited_obj=vendor2,
             timeout_seconds=60.0,
         )
-
-    run_invite_path_rm_triage(
-        invited_client=vendor2_client,
-        invited_actor=vendor2_in_vendor2,
-        offer=offer,
-        report=report,
-        finder=finder,
-        auth_client=vendor_client,
-        case=case,
-        invited_obj=vendor2,
-        timeout_seconds=60.0,
-    )
 
 
 def _phase_sync_verification(

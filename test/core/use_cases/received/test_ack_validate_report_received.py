@@ -502,7 +502,7 @@ class TestValidateReportReceivedGuardedCommit:
         rather than via a Python pre-flight guard.  We verify at the data level
         that no CaseLedgerEntry is written.
         """
-        from vultron.wire.as2.vocab.objects.report_case_link import (
+        from vultron.core.models.report_case_link import (
             VultronReportCaseLink,
         )
 

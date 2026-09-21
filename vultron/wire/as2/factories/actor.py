@@ -22,12 +22,12 @@ imported here and MUST NOT be imported by callers.
 Spec: ``specs/activity-factories.yaml`` AF-01-001 through AF-04-003.
 """
 
+import json
 import logging
 from typing import cast
 
 from pydantic import ValidationError
 
-from vultron.core.models.actor import CoreActor
 from vultron.enums.roles import CVDRole
 from vultron.wire.as2.factories.errors import VultronActivityConstructionError
 from vultron.wire.as2.vocab.activities.actor import (
@@ -53,7 +53,7 @@ logger = logging.getLogger(__name__)
 
 
 def recommend_actor_activity(
-    recommended: CoreActor | as_Actor,
+    recommended: as_Actor | str,
     target: as_VulnerabilityCaseRef | None = None,
     suggested_roles: list[str] | None = None,
     **kwargs,
@@ -78,6 +78,8 @@ def recommend_actor_activity(
     Raises:
         VultronActivityConstructionError: If Pydantic validation fails.
     """
+    if isinstance(recommended, str):
+        recommended = as_Actor(id_=recommended)
     try:
         return _RecommendActorActivity(
             object_=recommended,
@@ -177,7 +179,7 @@ def reject_actor_recommendation_activity(
 
 
 def offer_case_participant_activity(
-    recommended: CoreActor | as_Actor,
+    recommended: as_Actor | str,
     target: as_VulnerabilityCaseRef | None = None,
     roles: list[CVDRole] | None = None,
     **kwargs,
@@ -240,16 +242,16 @@ def accept_case_participant_offer_activity(
     Raises:
         VultronActivityConstructionError: If Pydantic validation fails.
     """
-    # dl.read() returns the base as_Offer; coerce to the typed subclass so
-    # Pydantic accepts it (the subclass requires object_ to be as_CaseParticipant).
-    typed_offer = (
-        _OfferCaseParticipantActivity.model_validate(
-            offer.model_dump(by_alias=True)
-        )
-        if not isinstance(offer, _OfferCaseParticipantActivity)
-        else offer
-    )
+    # Always re-validate to ensure inner objects (e.g. the object_ CaseParticipant
+    # rehydrated from the DataLayer as a core type) are coerced to wire types.
+    # serialize_as_any=True prevents PydanticSerializationUnexpectedValue when the
+    # inner object_ is a core model; json round-trip normalises field aliases.
     try:
+        typed_offer = _OfferCaseParticipantActivity.model_validate(
+            json.loads(
+                offer.model_dump_json(by_alias=True, serialize_as_any=True)
+            )
+        )
         return _AcceptCaseParticipantOfferActivity(
             object_=typed_offer,
             target=target,

@@ -798,11 +798,10 @@ def _invite_naming_a_peer():
     Built through the factory, not the internal vocab class, per the
     AF-05-001 boundary (``test/architecture/test_activity_factory_imports.py``).
     """
-    from vultron.core.models.actor import CoreActor
     from vultron.wire.as2.factories import rm_invite_to_case_activity
 
     return rm_invite_to_case_activity(
-        invitee=CoreActor(id_=_PEER_ACTOR_ID),
+        invitee=_PEER_ACTOR_ID,
         target="urn:uuid:case-dl08003-0000-0000-000000000001",
         id_="urn:uuid:inv-dl08003-0000-0000-000000000001",
         actor=_CASE_ACTOR_ID,
@@ -812,11 +811,10 @@ def _invite_naming_a_peer():
 
 def _recommendation_naming_a_peer():
     """An ``Offer(Actor, Case)`` — the other activity that names a peer."""
-    from vultron.core.models.actor import CoreActor
     from vultron.wire.as2.factories import recommend_actor_activity
 
     return recommend_actor_activity(
-        recommended=CoreActor(id_=_PEER_ACTOR_ID),
+        recommended=_PEER_ACTOR_ID,
         target="urn:uuid:case-dl08003-0000-0000-000000000001",
         id_="urn:uuid:rec-dl08003-0000-0000-000000000001",
         actor=_CASE_ACTOR_ID,

@@ -197,11 +197,14 @@ def _phase_report_submission(
     )
 
     # Wait for Coordinator + Finder + CaseActor (3 participants).
-    wait_for_case_participants(
-        vendor_client=coordinator_client,
-        case_id=case.id_,
-        expected_actor_ids={finder.id_, coordinator.id_},
-    )
+    with demo_check(
+        "Coordinator case reflects Finder + Coordinator participants"
+    ):
+        wait_for_case_participants(
+            vendor_client=coordinator_client,
+            case_id=case.id_,
+            expected_actor_ids={finder.id_, coordinator.id_},
+        )
 
     with demo_check("M1: ≥3 participants, EM.ACTIVE, Finder has replica"):
         verify_case_active(

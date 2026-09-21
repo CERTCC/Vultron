@@ -229,11 +229,12 @@ def _phase_report_submission(
     )
 
     # Wait for initial participants (Finder + C1 + CaseActor).
-    wait_for_case_participants(
-        vendor_client=c1_client,
-        case_id=case.id_,
-        expected_actor_ids={finder.id_, c1.id_},
-    )
+    with demo_check("C1 case reflects Finder + C1 participants"):
+        wait_for_case_participants(
+            vendor_client=c1_client,
+            case_id=case.id_,
+            expected_actor_ids={finder.id_, c1.id_},
+        )
 
     case = as_VulnerabilityCase.model_validate(
         c1_client.get(c1_client.dl_path(case.id_))
@@ -309,58 +310,68 @@ def _phase_ownership_handoff(
             case_id=case.id_,
         )
 
-    # 4 participants: Finder + C1 + C2 + CaseActor
-    wait_for_case_participants(
-        vendor_client=c1_client,
-        case_id=case.id_,
-        expected_actor_ids={finder.id_, c1.id_, c2.id_},
-    )
-    logger.info("C2 has joined the case")
-
-    # C1 offers ownership transfer to C2 (TRIG-11-001).
-    ownership_offer_result = None
-    with demo_step("C1 offers case ownership transfer to C2 (TRIG-11-001)"):
-        ownership_offer_result = (
-            ActorSession(client=c1_client, actor=c1_in_c1)
-            .with_case(case)
-            .quiet()
-            .offer_case_ownership_transfer(
-                transferee_id=c2.id_,
-                content=(
-                    "Transferring case ownership to C2 for CVD management."
-                ),
-            )
-        )
-    ownership_offer = ownership_offer_result.activity
-    logger.info(
-        "C1 sent Offer(VulnerabilityCase) ownership transfer: %s",
-        ownership_offer.id_,
-    )
-
-    ownership_offer_id = None
+    # All 4 participants (Finder + C1 + C2 + CaseActor) present is the causal
+    # precondition for the ownership-transfer offer/accept below: a demo_gate —
+    # not demo_check — so a timeout skips the doomed transfer rather than
+    # cascading (DEMOCI-01-011, vultron/demo/AGENTS.md § "Never Wrap a Causal
+    # Wait in demo_check").
     with demo_gate(
-        "CaseActor-forwarded Offer(VulnerabilityCase) delivered to C2 (TRIG-11-001)"
+        "C1 case has all 4 participants before ownership transfer to C2"
     ):
-        ownership_offer_id = find_ownership_transfer_offer_for_actor(
-            client=c2_client,
+        wait_for_case_participants(
+            vendor_client=c1_client,
             case_id=case.id_,
-            transferee_id=c2.id_,
+            expected_actor_ids={finder.id_, c1.id_, c2.id_},
         )
-    logger.info("Ownership transfer offer ID: %s", ownership_offer_id)
+        logger.info("C2 has joined the case")
 
-    # C2 accepts the ownership transfer (TRIG-11-002).
-    accept_ownership = None
-    with demo_step("C2 accepts case ownership transfer (TRIG-11-002)"):
-        accept_result = (
-            ActorSession(client=c2_client, actor=c2_in_c2)
-            .quiet()
-            .accept_case_ownership_transfer(offer_id=ownership_offer_id)
-        )
-        accept_ownership = accept_result.activity
+        # C1 offers ownership transfer to C2 (TRIG-11-001).
+        ownership_offer_result = None
+        with demo_step(
+            "C1 offers case ownership transfer to C2 (TRIG-11-001)"
+        ):
+            ownership_offer_result = (
+                ActorSession(client=c1_client, actor=c1_in_c1)
+                .with_case(case)
+                .quiet()
+                .offer_case_ownership_transfer(
+                    transferee_id=c2.id_,
+                    content=(
+                        "Transferring case ownership to C2 for CVD"
+                        " management."
+                    ),
+                )
+            )
+        ownership_offer = ownership_offer_result.activity
         logger.info(
-            "C2 sent Accept(Offer(VulnerabilityCase)): %s",
-            accept_ownership.id_,
+            "C1 sent Offer(VulnerabilityCase) ownership transfer: %s",
+            ownership_offer.id_,
         )
+
+        ownership_offer_id = None
+        with demo_gate(
+            "CaseActor-forwarded Offer(VulnerabilityCase) delivered to C2 (TRIG-11-001)"
+        ):
+            ownership_offer_id = find_ownership_transfer_offer_for_actor(
+                client=c2_client,
+                case_id=case.id_,
+                transferee_id=c2.id_,
+            )
+        logger.info("Ownership transfer offer ID: %s", ownership_offer_id)
+
+        # C2 accepts the ownership transfer (TRIG-11-002).
+        accept_ownership = None
+        with demo_step("C2 accepts case ownership transfer (TRIG-11-002)"):
+            accept_result = (
+                ActorSession(client=c2_client, actor=c2_in_c2)
+                .quiet()
+                .accept_case_ownership_transfer(offer_id=ownership_offer_id)
+            )
+            accept_ownership = accept_result.activity
+            logger.info(
+                "C2 sent Accept(Offer(VulnerabilityCase)): %s",
+                accept_ownership.id_,
+            )
 
     # C2's outbox delivers the Accept to the CaseActor automatically (ADR-0042,
     # ADR-0053).  The CaseActor processes it and propagates the change via ledger
@@ -496,43 +507,48 @@ def _phase_c2_invites_vendor(
         )
     logger.info("Vendor received case replica")
 
-    # 5 participants: Finder + C1 + C2 + Vendor + CaseActor
-    wait_for_case_participants(
-        vendor_client=c1_client,
-        case_id=case.id_,
-        expected_actor_ids={
-            finder.id_,
-            c1.id_,
-            c2.id_,
-            vendor.id_,
-        },
-        timeout_seconds=LATE_JOINER_TIMEOUT,
-    )
-    logger.info("✓ Vendor joined case (%d participants)", 5)
-
-    # CLP-08-005: ensure Finder's genesis hash is seeded before Announce(CaseLedgerEntry)
-    # is broadcast by the triage cycle below.
-    with demo_check(
-        "Finder's DataLayer received case replica before Vendor RM triage"
-    ):
-        wait_for_case_on_container(
-            client=finder_client,
+    # All 5 participants (Finder + C1 + C2 + Vendor + CaseActor) present is the
+    # causal precondition for Vendor's RM triage below: a demo_gate — not
+    # demo_check — so a timeout skips the doomed triage rather than cascading
+    # (DEMOCI-01-011, vultron/demo/AGENTS.md § "Never Wrap a Causal Wait in
+    # demo_check").
+    with demo_gate("C1 case has all 5 participants before Vendor RM triage"):
+        wait_for_case_participants(
+            vendor_client=c1_client,
             case_id=case.id_,
+            expected_actor_ids={
+                finder.id_,
+                c1.id_,
+                c2.id_,
+                vendor.id_,
+            },
+            timeout_seconds=LATE_JOINER_TIMEOUT,
+        )
+        logger.info("✓ Vendor joined case (%d participants)", 5)
+
+        # CLP-08-005: ensure Finder's genesis hash is seeded before
+        # Announce(CaseLedgerEntry) is broadcast by the triage cycle below.
+        with demo_check(
+            "Finder's DataLayer received case replica before Vendor RM triage"
+        ):
+            wait_for_case_on_container(
+                client=finder_client,
+                case_id=case.id_,
+                timeout_seconds=90.0,
+            )
+
+        # CM-11-002: Vendor joined via invite-accept — run RM triage cycle.
+        run_invite_path_rm_triage(
+            invited_client=vendor_client,
+            invited_actor=vendor_in_vendor,
+            offer=offer,
+            report=report,
+            finder=finder,
+            auth_client=c1_client,
+            case=case,
+            invited_obj=vendor,
             timeout_seconds=90.0,
         )
-
-    # CM-11-002: Vendor joined via invite-accept — run standard RM triage cycle.
-    run_invite_path_rm_triage(
-        invited_client=vendor_client,
-        invited_actor=vendor_in_vendor,
-        offer=offer,
-        report=report,
-        finder=finder,
-        auth_client=c1_client,
-        case=case,
-        invited_obj=vendor,
-        timeout_seconds=90.0,
-    )
 
 
 def _phase_sync_verification(

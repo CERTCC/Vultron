@@ -1136,3 +1136,120 @@ class TestFvvParticipantWaitTimeout:
         )
         # Finder is an early participant and uses the shorter default budget.
         assert timeouts_by_client_id[id(finder_client)] < 30.0
+
+
+class TestParticipantWaitInsideDemoCheck:
+    """Regression (#3384/#3406): a bare wait_for_participants_on_replicas call in
+    _phase_sync_verification crashed the whole run when a replica participant
+    wait timed out.
+
+    After the fix, wait_for_participants_on_replicas wraps each per-replica poll
+    in a demo_check internally, so a timeout accumulates to _demo_failures and
+    _phase_sync_verification returns normally — the subsequent
+    verify_replica_state demo_check blocks still execute (DEMOCI-01-011).
+    Mirrors TestCoverageWaitInsideDemoCheck, which covers the same failure class
+    for bare ledger-coverage waits.
+    """
+
+    def _actor(self, id_: str = "urn:test:actor"):
+        a = MagicMock()
+        a.id_ = id_
+        return a
+
+    def _case(self, id_: str = "urn:test:case"):
+        c = MagicMock()
+        c.id_ = id_
+        return c
+
+    def _client(self):
+        c = MagicMock()
+        c.get.return_value = {}
+        return c
+
+    def test_replica_participant_timeout_accumulates_and_does_not_propagate(
+        self,
+    ):
+        """A timed-out replica participant wait must NOT crash the phase.
+
+        Patch the low-level wait_for_case_participants (the polling-module
+        global the real wait_for_participants_on_replicas calls) to always
+        raise, then confirm _phase_sync_verification: (a) does not propagate the
+        AssertionError, (b) records the timeout in _demo_failures, and (c) still
+        reaches the downstream verify_replica_state demo_check blocks.
+        """
+        import vultron.demo.helpers.polling as polling_module  # noqa: PLC0415
+        import vultron.demo.utils as utils_module  # noqa: PLC0415
+
+        utils_module.reset_demo_failures()
+
+        finder_client = self._client()
+        vendor_client = self._client()
+        vendor2_client = self._client()
+        finder = self._actor("urn:test:finder")
+        vendor = self._actor("urn:test:vendor")
+        vendor2 = self._actor("urn:test:vendor2")
+        case = self._case()
+
+        def _timeout(*_args, **_kwargs):
+            raise AssertionError("participant propagation timeout")
+
+        verify_calls: list[dict] = []
+
+        initial_failures = len(utils_module._demo_failures)
+
+        with (
+            patch.object(
+                demo,
+                "_get_log_entries_for_case",
+                return_value=[
+                    {"log_index": 5, "entry_hash": "abc123def456789a"}
+                ],
+            ),
+            patch.object(demo, "wait_for_case_on_container"),
+            patch.object(demo, "wait_for_contiguous_ledger_coverage"),
+            # Patch the polling-module global so the real
+            # wait_for_participants_on_replicas runs its internal demo_check
+            # wrap around a raising per-replica poll.
+            patch.object(
+                polling_module, "wait_for_case_participants", _timeout
+            ),
+            patch.object(
+                demo,
+                "verify_replica_state",
+                side_effect=lambda **kw: verify_calls.append(kw),
+            ),
+        ):
+            try:
+                demo._phase_sync_verification(
+                    finder_client=finder_client,
+                    vendor_client=vendor_client,
+                    vendor2_client=vendor2_client,
+                    vendor=vendor,
+                    finder=finder,
+                    vendor2=vendor2,
+                    case=case,
+                )
+            except AssertionError as exc:
+                pytest.fail(
+                    "Replica participant-wait timeout propagated out of "
+                    f"_phase_sync_verification: {exc}"
+                )
+
+        # (b) Both replica timeouts accumulated rather than crashing the run.
+        new_failures = utils_module._demo_failures[initial_failures:]
+        assert len(new_failures) == 2, (
+            "Expected one accumulated failure per replica participant wait; "
+            f"got {new_failures}"
+        )
+        assert all(
+            "reflects all case participants" in f for f in new_failures
+        ), new_failures
+
+        # (c) Downstream verify_replica_state demo_check blocks still ran for
+        # both the Finder and Vendor2 replicas — the timeout did not skip them.
+        assert len(verify_calls) == 2, (
+            "verify_replica_state must still run after a replica participant "
+            f"timeout; got {len(verify_calls)} call(s)"
+        )
+        replica_clients = {kw["replica_client"] for kw in verify_calls}
+        assert replica_clients == {finder_client, vendor2_client}

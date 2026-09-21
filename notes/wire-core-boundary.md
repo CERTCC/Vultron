@@ -94,10 +94,10 @@ inside a wire tree MUST consider wire-branch classes only
 (`issubclass(cls, as_Base)`); an unresolved type is left for the parent field to
 validate. A hit in the core map is a **coincidence of naming**, not a wire
 counterpart — the same disjointness ARCH-23-002 records for `VOCABULARY` and
-`WIRE_TYPE_MAP`. Note this does not mean wire trees hold only wire objects:
-`as_ObjectRef`/`as_ObjectRequiredRef` do admit `CoreObject`. It means the
-*name lookup* is the wrong way to put one there; the parent field is the
-declared authority.
+`WIRE_TYPE_MAP`. Wire-branch field annotations MUST NOT name `CoreObject`
+subclasses (ARCH-23-006; see § "`as_ObjectRef`: The Former Kludge" below for
+the history). The *name lookup* path is the wrong way to place a core object
+in a wire tree; the parent field annotation is the declared authority.
 
 Implementation: `vultron/wire/as2/parser.py::_inline_vocab_class`. ADR-0090.
 The registry gap that makes the core map reachable at all — the AS2 collection
@@ -252,11 +252,18 @@ The round-trip cleanups (ARCH-23-005) are still prerequisites rather than
 follow-ups, because the `@computed_field` half of the problem
 (`embargo_adherence`, 1096 failures) is real and independent.
 
-## `as_ObjectRef`: Which Part Is a Kludge
+## `as_ObjectRef`: The Former Kludge
+
+**Removed in PR #3440** (ARCH-23-006). For context:
 
 ```python
+# FORMER definition (PR #730 through PR #3440):
 as_ObjectRef = ActivityStreamRef[as_Object] | CoreObject | None
-#   expands to:  as_Object | as_Link | str | None | CoreObject
+#   expanded to:  as_Object | as_Link | str | None | CoreObject
+
+# CURRENT definition:
+as_ObjectRef = ActivityStreamRef[as_Object] | None
+#   expands to:  as_Object | as_Link | str | None
 ```
 
 **`as_Object | as_Link | str` is not a kludge.** AS2 explicitly permits a
@@ -264,17 +271,24 @@ property to hold either an embedded object or an IRI reference — that is how y
 avoid shipping a whole case inside every message. `rehydrate()` (VM-06-001)
 resolves it at a defined point.
 
-**`| CoreObject` is the kludge.** Added in PR #730 as a migration convenience, it
-places a core type inside a wire annotation — and therefore inside the `object_`
+**`| CoreObject` was the kludge.** Added in PR #730 as a migration convenience, it
+placed a core type inside a wire annotation — and therefore inside the `object_`
 field of every transitive activity, `as_Collection.items`,
 `as_Relationship.subject`/`.object`, and `as_Profile.describes`.
 
-Beyond violating ARCH-22-001, it makes a core-side guard unsafe to enforce
+Beyond violating ARCH-22-001, it made a core-side guard unsafe to enforce
 loudly: **`VultronValidationError` is not a `ValueError` subclass**, so a guard
-firing while Pydantic resolves that union escapes the entire operation rather
+firing while Pydantic resolved that union escaped the entire operation rather
 than being absorbed as a failed union branch. Any core-branch validator that
 raises must either be removed from union exposure (the chosen path, ARCH-23-006)
 or raise something Pydantic recognises as a validation failure.
+
+PR #3440 removed `| CoreObject` from both `as_ObjectRef` and
+`as_ObjectRequiredRef`, and added the ARCH-23-006 architecture ratchet
+(`test/architecture/test_wire_no_core_object_annotations.py`) to prevent
+re-introduction. Factory functions that previously accepted `CoreActor` now
+accept `as_Actor | str`; the adapter layer converts core objects to their wire
+counterparts before passing them.
 
 ## Related Files
 

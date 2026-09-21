@@ -22,7 +22,6 @@ Case Actor / CASE_MANAGER delegation activities.
 import logging
 from typing import Any, cast
 
-from vultron.core.models.actor import CoreActor
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.ownership_transfer_offer_record import (
     VultronOwnershipTransferOfferRecord,
@@ -112,7 +111,7 @@ class _ActorsMixin:
                 embargo_obj = self._dl.read(active_embargo_uri)
 
         activity = rm_invite_to_case_activity(
-            invitee=CoreActor(id_=invitee_id),
+            invitee=invitee_id,
             target=resolved,
             roles=roles,
             embargo_obj=embargo_obj,
@@ -242,7 +241,7 @@ class _ActorsMixin:
             extra["id_"] = id_
         # The factory accepts a string for target (case ID).
         activity = recommend_actor_activity(
-            recommended=CoreActor(id_=recommended_id),
+            recommended=recommended_id,
             target=case_id,
             suggested_roles=roles,
             **extra,
@@ -282,7 +281,7 @@ class _ActorsMixin:
         if origin is not None:
             extra["origin"] = origin
         activity = offer_case_participant_activity(
-            recommended=CoreActor(id_=recommended_id),
+            recommended=recommended_id,
             target=case_id,
             roles=roles,
             **extra,
@@ -319,7 +318,7 @@ class _ActorsMixin:
         the Offer(as_CaseParticipant) (CM-16-006 step 3).
         """
         recommendation = recommend_actor_activity(
-            recommended=CoreActor(id_=recommended_id),
+            recommended=recommended_id,
             target=case_id,
             id_=recommendation_id,
             actor=recommender_id,
@@ -356,7 +355,7 @@ class _ActorsMixin:
         the Offer(as_CaseParticipant) (CM-16-007 step 3).
         """
         recommendation = recommend_actor_activity(
-            recommended=CoreActor(id_=recommended_id),
+            recommended=recommended_id,
             target=case_id,
             id_=recommendation_id,
             actor=recommender_id,
@@ -394,7 +393,7 @@ class _ActorsMixin:
         accept it, provided they know its deterministic ID.
         """
         recommendation = recommend_actor_activity(
-            recommended=CoreActor(id_=recommended_id),
+            recommended=recommended_id,
             target=case_id,
             id_=recommendation_id,
             actor=recommender_id,
