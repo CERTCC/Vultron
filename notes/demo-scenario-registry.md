@@ -180,10 +180,24 @@ event-type list — not by where its number falls.
   at a time. Non-skipping structural tests in that directory are fine; collecting
   them *together with* a harness defeats the guard.
 - **The registry is not the scenario inventory's only reader.** `vultron/demo/cli.py`
-  still hand-wires one `@main.command` block per scenario. That is a legitimate
-  follow-on consolidation, not part of ADR-0098; until it happens, a scenario can
-  register and still have no CLI sub-command, so keep the CLI in the
-  set-equality check.
+  hand-wires one `@main.command` block per scenario — the last hand-maintained copy
+  of the scenario inventory after ADR-0098. Making the CLI a registry consumer is a
+  legitimate follow-on consolidation, not part of ADR-0098; it is specified by
+  DEMOCI-11-011 and tracked by CONCERN-3465 (blocked on the registry, ISSUE-3450).
+  Until it lands a scenario can register and still have no CLI sub-command, so keep
+  the CLI in the set-equality check. The consolidation follows the `ActorSession`
+  model (DEMOMA-26): the per-scenario container-URL options are **not** carried by
+  the decorator (that would re-open the drift channel DEMOCI-11-001 closes); instead
+  each scenario module declares a role Type Object — a frozen `ActorRole`
+  (`name`, `url_env`, `default_url`, `has_id`, `id_env`) list under
+  `vultron/demo/helpers/` — that a single command factory in `cli.py` consumes, and
+  a ratchet binds that role set to the scenario's `main()` signature. The role
+  declaration also subsumes the module's `*_BASE_URL` constants, so each role is
+  declared once. The env-var bindings are ad hoc per scenario (they key to physical
+  container slots, not roles — e.g. `--c1-url` reads `VULTRON_VENDOR_BASE_URL` in
+  `fccv-handoff`), which is exactly why they cannot be derived from `name` and must
+  be declared; the consolidation reproduces today's bindings verbatim
+  (behavior-neutral).
 - **Import cost is paid per dumper invocation, not per scenario.** Importing one
   demo module costs roughly two seconds, almost all of it the shared `vultron`
   package import, so importing all of them in one process costs about the same.

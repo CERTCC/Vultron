@@ -1810,3 +1810,43 @@ groups:
             spec_id: DEMOCI-11-007
         lint_suppress:
           - missing_story_reference
+
+      - id: DEMOCI-11-011
+        priority: MUST
+        kind: project
+        statement: >-
+          The demo CLI (`vultron/demo/cli.py`) MUST generate its per-scenario
+          sub-commands from the scenario registry: it MUST add exactly one
+          sub-command per registered scenario, iterating the registry rather than
+          declaring a `@main.command` block per scenario. A scenario sub-command
+          MUST NOT be hand-declared, and the CLI MUST NOT be a place a scenario
+          can be omitted from or added to independently of the registry.
+        rationale: >-
+          ADR-0098 made the registry the sole declaration point for the CI
+          matrix, the scenario tables and the narrative index, but the CLI was
+          left hand-wiring one ~80-line `@main.command` block per scenario — the
+          last hand-maintained copy of the scenario inventory (CONCERN-3465). A
+          registered scenario could still have no sub-command, which is a
+          scenario nobody can invoke; DEMOCI-11-001's set-equality intent is only
+          complete once the CLI is a registry consumer like every other reader.
+          The per-scenario container-URL options are genuinely per-scenario and
+          are NOT carried by the registry decorator (DEMOCI-11-001 forbids
+          non-derivable data there); they are declared on each scenario module as
+          a role Type Object and consumed by a single command factory, following
+          the `ActorSession` consolidation model (DEMOMA-26). The role
+          declaration MUST agree with the scenario's `main()` signature, enforced
+          by a ratchet so the two cannot drift.
+        verification: >-
+          A test asserts every registered scenario has exactly one CLI
+          sub-command and that no scenario sub-command is hand-declared, and a
+          ratchet test asserts each scenario's declared role set matches its
+          `main()` keyword parameters.
+        adr:
+          - ADR-0098
+        relationships:
+          - rel_type: refines
+            spec_id: DEMOCI-11-001
+          - rel_type: refines
+            spec_id: DC-01-002
+        lint_suppress:
+          - missing_story_reference
