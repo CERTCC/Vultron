@@ -71,7 +71,7 @@ class CheckProposalAlreadyAnsweredNode(DataLayerAction):
     proposals may name one report. A report-keyed "has a case been created?"
     probe therefore answers SUCCESS for a proposal this service never
     adjudicated, which short-circuits this arm *before* the admission call-out
-    point is ticked and admits the proposal through ``_LoadExistingCaseNode``'s
+    point is ticked and admits the proposal through ``LoadExistingCaseNode``'s
     duplicate-reuse path. A gate that a sender can skip by naming a report it
     has seen is not a gate. So two proposal-keyed things count as answered:
 
@@ -99,7 +99,7 @@ class CheckProposalAlreadyAnsweredNode(DataLayerAction):
 
     Residual gap: a ``report_id=None`` redelivery still creates a duplicate case
     on the accept path, tracked in #2890. The admission record makes that
-    detectable here, but ``_LoadExistingCaseNode`` is the node that would have
+    detectable here, but ``LoadExistingCaseNode`` is the node that would have
     to act on it.
     """
 

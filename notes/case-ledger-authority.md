@@ -533,8 +533,8 @@ itself or from a prior invocation having been authorized.
 CLP-12.*
 
 The CASE_MANAGER commits every case-initialization ledger entry **natively**, in
-`_CommitNativeLedgerEntriesNode` inside
-`vultron/core/behaviors/case/case_proposal_received_tree.py`, while handling the
+`CommitNativeLedgerEntriesNode` inside
+`vultron/core/behaviors/case/nodes/proposal_ledger.py`, while handling the
 inbound `Create(as_CaseProposal)`.  Causal order:
 
 1. `create_case` — `Create(VulnerabilityCase)`, `actor` = CASE_MANAGER
@@ -748,7 +748,7 @@ the final entry and its fan-out — and the enclosing Selector would read the
 failed owner arm as "the sender is not the Case Owner" and report SUCCESS down
 the non-owner path, leaving a half-closed case with no diagnostic. Losing one
 transition's visibility beats losing the case's terminal anchor. `_commit_one`
-in `case_proposal_received_tree.py` makes the same call for the same event type,
+in `nodes/proposal_ledger.py` makes the same call for the same event type,
 reserving hard failure for the load-bearing genesis entry.
 
 **Why this entry is committed synchronously rather than through the loopback.**

@@ -4,19 +4,19 @@
   "name": "VendorCo",
   "@context": "https://www.w3.org/ns/activitystreams",
   "inbox": {
-    "id": "urn:uuid:c1f4bf09-67a3-49e9-8c56-33cd43654777",
+    "id": "urn:uuid:4ec55f58-1691-45d9-b884-794352d04ea2",
     "type": "OrderedCollection",
-    "published": "2026-09-16T18:38:47+00:00",
-    "updated": "2026-09-16T18:38:47+00:00",
+    "published": "2026-09-21T14:10:27+00:00",
+    "updated": "2026-09-21T14:10:27+00:00",
     "@context": "https://www.w3.org/ns/activitystreams",
     "items": [],
     "current": 0
   },
   "outbox": {
-    "id": "urn:uuid:3461dc02-6e39-4e04-8fab-afb8e47ab197",
+    "id": "urn:uuid:f67ca9f2-7989-4ee0-b784-aa88127f6d41",
     "type": "OrderedCollection",
-    "published": "2026-09-16T18:38:47+00:00",
-    "updated": "2026-09-16T18:38:47+00:00",
+    "published": "2026-09-21T14:10:27+00:00",
+    "updated": "2026-09-21T14:10:27+00:00",
     "@context": "https://www.w3.org/ns/activitystreams",
     "items": [],
     "current": 0

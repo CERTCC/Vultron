@@ -52,12 +52,16 @@ class _RmSubmitReportActivity(as_Offer):
 
 
 class _RmReadReportActivity(as_Read):
-    """The actor has read a report.
+    """The actor has read a report (RK acknowledgement).
     This corresponds to the Vultron Message Type RK when no case exists.
-    object_: as_VulnerabilityReport
+    Wire form: Read(Offer(VulnerabilityReport)) per MSM-01-008, VAM-02-003.
+
+    object_: the _RmSubmitReportActivity offer wrapping the as_VulnerabilityReport
+        (inline typed object required — bare string IDs are rejected at
+        construction time)
     """
 
-    object_: as_VulnerabilityReport = Field(
+    object_: _RmSubmitReportActivity = Field(
         ..., validation_alias="object", serialization_alias="object"
     )
 

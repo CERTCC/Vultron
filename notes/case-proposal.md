@@ -405,8 +405,8 @@ no corresponding case announcement.
 
 To recover from this, a `PendingCreateCaseActivity` marker is written to
 the DataLayer **after** `Accept` is sent and **before** `Create` is
-attempted (implemented in `vultron/core/behaviors/case/
-case_proposal_received_tree.py`). The marker captures the proposal ID,
+attempted (implemented in `WriteCreateCaseMarkerNode` in
+`vultron/core/behaviors/case/nodes/proposal_retry_marker.py`). The marker captures the proposal ID,
 case-actor ID, vendor URI, and the pre-constructed
 `Create(VulnerabilityCase)` payload. It is deleted on successful
 `Create` delivery, so only failed deliveries leave a marker.
@@ -454,12 +454,12 @@ decision, and the accept flow. See
 [Admission Decision](#admission-decision-cp-05-002) below for the two refusal
 arms; the two guards that carry duplicate handling on the accept side are:
 
-**AC-3 guard** (`_CheckMarkerExistsNode`): if a
+**AC-3 guard** (`CheckMarkerExistsNode`): if a
 `PendingCreateCaseActivity` marker exists, `Accept` was already sent and
 `Create(VulnerabilityCase)` delivery is still pending. The retry runner
 owns recovery; the duplicate is silently dropped.
 
-**AC-1 / AC-2 flow** (`_LoadExistingCaseNode` → `_EmitAcceptCaseProposalNode`):
+**AC-1 / AC-2 flow** (`LoadExistingCaseNode` → `EmitAcceptCaseProposalNode`):
 if no in-flight marker exists but a `VulnerabilityCase` already exists for
 the same report, the tree reuses the existing case (AC-1). It then sends a
 new `Accept(as_CaseProposal)` (AC-2) with:
@@ -471,7 +471,7 @@ The `result` field is where the duplicate Accept carries the existing-case
 reference so the vendor can correlate it to the already-created case without
 waiting for a second `Create(VulnerabilityCase)`.
 
-For first-time proposals, `_EmitAcceptCaseProposalNode` also sets
+For first-time proposals, `EmitAcceptCaseProposalNode` also sets
 `result=case_id` (the newly-created case URI). This is consistent: the
 `result` of an Accept always names the `VulnerabilityCase` the proposal
 produced (or reused), regardless of whether the proposal is a first send or a
@@ -480,9 +480,9 @@ retry.
 ### Implementation: `VultronAccept.result`
 
 `vultron.core.models.activity.VultronAccept` carries a `result: str | None`
-field. `_EmitAcceptCaseProposalNode` reads `case_id` from the py\_trees
-blackboard (written earlier by `_LoadExistingCaseNode` or
-`_CreateCaseFromProposalNode`) and sets `result=case_id` on the activity
+field. `EmitAcceptCaseProposalNode` reads `case_id` from the py\_trees
+blackboard (written earlier by `LoadExistingCaseNode` or
+`CreateCaseFromProposalNode`) and sets `result=case_id` on the activity
 before persisting it to the DataLayer and outbox.
 
 ---

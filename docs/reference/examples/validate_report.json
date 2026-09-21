@@ -1,27 +1,27 @@
 {
-  "id": "urn:uuid:67ecf00f-caec-4650-9251-d8b86888a458",
+  "id": "urn:uuid:634b3fb2-c169-4a51-a4f2-8ee56c0641e8",
   "type": "Accept",
   "name": "https://vultron.example/organizations/vendorco Accept https://vultron.example/users/finndervul Offer FDR-8675309",
   "content": "We've validated the report. We'll be creating a case shortly.",
   "@context": "https://www.w3.org/ns/activitystreams",
   "actor": "https://vultron.example/organizations/vendorco",
   "object": {
-    "id": "urn:uuid:1bffb4df-a6fa-43c5-bce4-b21bc11fe991",
+    "id": "urn:uuid:4df6a042-d7c3-4740-915a-e43e24a2970e",
     "type": "Offer",
     "name": "https://vultron.example/users/finndervul Offer FDR-8675309",
-    "published": "2026-09-16T18:38:48+00:00",
-    "updated": "2026-09-16T18:38:48+00:00",
+    "published": "2026-09-21T14:10:28+00:00",
+    "updated": "2026-09-21T14:10:28+00:00",
     "to": [
       "https://vultron.example/organizations/vendorco"
     ],
     "@context": "https://www.w3.org/ns/activitystreams",
     "actor": "https://vultron.example/users/finndervul",
     "object": {
-      "id": "https://demo.vultron.local/VulnerabilityReport/6bc3a1dc-558f-48ba-99d8-bf9dd1b50beb",
+      "id": "https://demo.vultron.local/VulnerabilityReport/73773cf7-ce0b-4349-ae31-7c46d42b7da5",
       "type": "VulnerabilityReport",
       "name": "FDR-8675309",
-      "published": "2026-09-16T18:38:47+00:00",
-      "updated": "2026-09-16T18:38:47+00:00",
+      "published": "2026-09-21T14:10:27+00:00",
+      "updated": "2026-09-21T14:10:27+00:00",
       "content": "I found a vulnerability!",
       "attributedTo": [
         "https://vultron.example/users/finndervul"
