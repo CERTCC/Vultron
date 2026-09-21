@@ -10,7 +10,7 @@ correspond one-to-one:
   [Transitions](../formal_protocol/transitions.md).
 - The **AS2 wire vocabulary** is the set of ActivityStreams 2.0 (AS2) activities
   the prototype sends and receives, keyed by `MessageSemantics`. See the
-  [ActivityPub how-to guides](../../howto/activitypub/activities/index.md).
+  [Vultron AS Activity Guides](../../howto/activitypub/activities/index.md).
 
 The mapping between the two is **many-to-many in both directions**, and roughly
 half the wire vocabulary has no formal shorthand at all. A shorthand and a wire

@@ -43,7 +43,16 @@ print(render_page("ledger_replication", heading=False))
   to the log — not a protocol shorthand.
 - **Wire activity:** `Announce(CaseLedgerEntry)`.
 - **Spec:** SYNC-09-002.
+- **Pattern:** `AnnounceLogEntryPattern` in
+  `vultron/wire/as2/extractor/_instances.py`.
+- **Factory:** `announce_log_entry_activity` in
+  `vultron/wire/as2/factories/sync.py`.
 - **Example artifact:** [announce_case_ledger_entry.json](../examples/announce_case_ledger_entry.json).
+
+Each entry carries a content hash and the hash of its predecessor, forming a
+chain. A participant verifies the chain on receipt and holds any entry that
+arrives before its predecessor in the `LedgerGapBuffer`, applying it when the
+predecessor lands (ADR-0037).
 
 ```python exec="true" idprefix=""
 from vultron.wire.as2.vocab.examples.vocab_examples import announce_case_ledger_entry, json2md
@@ -64,6 +73,10 @@ print(json2md(announce_case_ledger_entry()))
   not a protocol shorthand.
 - **Wire activity:** `Reject(CaseLedgerEntry)`.
 - **Spec:** SYNC-03-001, SYNC-03-002.
+- **Pattern:** `RejectLogEntryPattern` in
+  `vultron/wire/as2/extractor/_instances.py`.
+- **Factory:** `reject_log_entry_activity` in
+  `vultron/wire/as2/factories/sync.py`.
 - **Example artifact:** [reject_case_ledger_entry.json](../examples/reject_case_ledger_entry.json).
 
 ```python exec="true" idprefix=""
@@ -71,3 +84,38 @@ from vultron.wire.as2.vocab.examples.vocab_examples import reject_case_ledger_en
 
 print(json2md(reject_case_ledger_entry()))
 ```
+
+Buffering takes priority over rejection (ADR-0037). A `Reject` is sent only for an
+entry genuinely missing from the chain, never for one that is merely out of order,
+so an out-of-order delivery does not start a reject-and-replay cycle.
+
+---
+
+## Case seeding
+
+A participant whose replica is being initialized for the first time — after it
+accepts an `Invite`, or after a `Create(CaseProposal)` is accepted — receives
+`Announce(VulnerabilityCase)` rather than a ledger entry. Any
+`Announce(CaseLedgerEntry)` that arrives before the seed is held in the
+`LedgerGapBuffer`, keyed by `prev_log_hash`, and drained once the genesis hash can
+be computed from the seeded case (ADR-0059).
+
+- **Pattern:** `AnnounceVulnerabilityCasePattern` in
+  `vultron/wire/as2/extractor/_instances.py`.
+- **Factory:** `announce_vulnerability_case_activity` in
+  `vultron/wire/as2/factories/case.py`.
+- **Spec:** SYNC-09-001.
+
+The activity and its rendered example are documented under *Announce
+Vulnerability Case* on
+[Case Management Messages](case_management.md).
+
+---
+
+## See also
+
+- [Case Ledger Synchronization](../../topics/case_lifecycle/case_ledger_sync.md) —
+  why the ledger is ordered this way and what the buffering guarantees
+- [ADR-0037 — Buffer Out-of-Order Ledger Entries](../../adr/0037-buffer-out-of-order-ledger-entries.md)
+- [ADR-0059 — Buffer Pre-Genesis Ledger Entries](../../adr/0059-buffer-pre-genesis-ledger-entries.md)
+- Spec: `specs/sync-ledger-replication.yaml` (SYNC-09, SYNC-10, SYNC-14, SYNC-15)

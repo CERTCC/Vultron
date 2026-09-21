@@ -191,26 +191,31 @@ strategy.
 
 ## Sequence Diagrams vs. Demo Scripts
 
-The Mermaid sequence diagrams in `docs/howto/activitypub/activities/*.md` were
-created prior to the demo scripts implementation. The demo scripts are the
-current canonical reference for the workflows, so the diagrams may be stale.
+The demo scripts are the canonical reference for each workflow, so a diagram in
+`docs/howto/activitypub/activities/*.md` that disagrees with its scenario is the
+diagram's defect.
 
-**Required future work**:
+The pre-demo-era diagrams were the concrete instance of this. Six sequence
+diagrams on `report_vulnerability.md` depicted an `APIv1` box and `/api/v1/*`
+handler calls, which ADR-0011 removed. They were retired in #3003 rather than
+resynced, because the internal handler choreography they drew is neither task
+content nor something a reader of a how-to guide acts on — the remaining diagrams
+are inter-actor flows, which are what an implementer needs.
 
-- Review each diagram in `docs/howto/activitypub/activities/*.md` against the
-  corresponding demo script (e.g., `vultron/demo/receive_report_demo.py`,
-  `initialize_case_demo.py`, `invite_actor_demo.py`, etc.).
-- Where diagrams diverge from demos, update the diagrams to match the
-  demo implementations.
-- Add references from each diagram page to the relevant demo script(s) as
-  concrete, executable examples of the workflow.
+Two checks keep the survivors honest. `test_docs_activity_verbs.py` asserts that
+the verb a `subgraph as:Verb` block attributes to an activity is the verb the wire
+class or its registered pattern declares. Each guide names the demo scenario that
+runs the same flow, so a diverged diagram is one `vultron-demo` run from being
+caught.
 
-This will ensure that readers consulting the how-to docs get an accurate,
-runnable picture of each workflow, and that the diagrams stay aligned with
-the authoritative demo implementations.
-
-**Priority**: Low — diagrams are illustrative, not normative. Address before
-the prototype is considered stable documentation.
+What no check covers is a diagram whose *edges* are wrong while every activity
+name and verb stays right — the verb test reads the `subgraph as:Verb` blocks, not
+the arrows between them. `manage_embargo.md` was the instance: its flowchart routed
+`RemoveEmbargoFromCase` back into the `Propose?` loop and left `AnnounceEmbargo`
+with no edges at all, contradicting the page's own warning that termination is not
+a revision. Both survived every check the tree has. When you touch a scenario,
+read its guide's diagram in the same change, and read the arrows, not just the
+node names.
 
 ---
 

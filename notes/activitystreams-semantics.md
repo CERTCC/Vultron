@@ -373,8 +373,10 @@ the actor in `DEFERRED` emits an `accept` transition to move back to
 `vultron/wire/as2/vocab/examples/case.py` returns `as_Join` (fixed in #2785).
 Re-engagement is correctly implemented as a second `RmEngageCase` (`as:Join`) activity.
 
-**Reference**: `docs/howto/activitypub/activities/manage_case.md` ("Re-Engaging
-a Case" note), `vultron/demo/manage_case_demo.py` (`demo_defer_reengage_path`).
+**Reference**: `docs/howto/activitypub/activities/manage_case.md`
+(§ "Engage or defer a valid report"),
+`docs/reference/messages/rm.md` (§ "RA — Report Accepted"),
+`vultron/demo/manage_case_demo.py` (`demo_defer_reengage_path`).
 
 ---
 

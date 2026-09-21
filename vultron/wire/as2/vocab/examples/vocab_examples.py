@@ -66,6 +66,7 @@ from vultron.wire.as2.vocab.examples.actor import (  # noqa: F401
 )
 from vultron.wire.as2.vocab.examples.case import (  # noqa: F401
     accept_case_ownership_transfer,
+    accept_case_participant_role,
     add_report_to_case,
     announce_case,
     close_case,
@@ -73,9 +74,11 @@ from vultron.wire.as2.vocab.examples.case import (  # noqa: F401
     defer_case,
     engage_case,
     offer_case_ownership_transfer,
+    offer_case_participant_role,
     populated_case,
     reengage_case,
     reject_case_ownership_transfer,
+    reject_case_participant_role,
     update_case,
 )
 from vultron.wire.as2.vocab.examples.case_proposal import (  # noqa: F401
@@ -347,6 +350,15 @@ def main(outdir=None):
     # announce case (ANNOUNCE_VULNERABILITY_CASE — sent after Accept(Invite))
     _announce_case = announce_case()
     obj_to_file(_announce_case, f"{outdir}/announce_case.json")
+
+    # role delegation flow (ADR-0039) — distinct from the GI actor-suggestion
+    # handshake that offer_case_participant covers
+    _offer_role = offer_case_participant_role()
+    obj_to_file(_offer_role, f"{outdir}/offer_case_participant_role.json")
+    _accept_role = accept_case_participant_role()
+    obj_to_file(_accept_role, f"{outdir}/accept_case_participant_role.json")
+    _reject_role = reject_case_participant_role()
+    obj_to_file(_reject_role, f"{outdir}/reject_case_participant_role.json")
 
     # case proposal flow (pre-case bootstrap, ADR-0023)
     _create_case_proposal = create_case_proposal()

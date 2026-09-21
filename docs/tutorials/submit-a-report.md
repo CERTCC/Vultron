@@ -16,7 +16,7 @@ speak to a Vultron actor over the wire.
     [Inbox](../reference/glossary.md), and watch the report land in the
     receiving actor's store.
     We will not cover the full report-management lifecycle here; the
-    [Reporting a Vulnerability](../howto/activitypub/activities/report_vulnerability.md)
+    [How to Report a Vulnerability](../howto/activitypub/activities/report_vulnerability.md)
     how-to guide takes the story further.
 
     The commands and the message on this page are rendered from
@@ -225,7 +225,7 @@ We have:
 ## Next steps
 
 - **Go deeper on report submission** — read
-  [Reporting a Vulnerability](../howto/activitypub/activities/report_vulnerability.md)
+  [How to Report a Vulnerability](../howto/activitypub/activities/report_vulnerability.md)
   to see how a report is validated, accepted, and turned into a Case, and how
   the `Offer(Report)` activity fits alongside `Create(Report)`.
 - **See the full workflow run for you** — follow

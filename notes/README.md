@@ -924,12 +924,15 @@ the expansion inventory (GI, EP, and the `Create`+`Add` split), the fault
 trichotomy (not-understood / declined / needs-explanation), the cumulative
 hash-chain acknowledgement model, the `docs/reference/messages/` page
 architecture, and the MSM-03 post-mortem on `CV`/`CF`/`CD` being mapped to the
-wrong object. Normative requirements:
-`specs/message-semantics-mapping.yaml` MSM-04 through MSM-06. ADR: ADR-0083.
+wrong object. Also carries the authoring rules for the wire examples those pages
+render: why a well-formed example is not necessarily a *dispatchable* one, which
+discriminator fields to set, and that `ActivityPattern` has no `origin_` field.
+Normative requirements: `specs/message-semantics-mapping.yaml` MSM-04 through
+MSM-06; `specs/semantic-extraction.yaml` SE-08. ADR: ADR-0083.
 **Load when**: writing or reviewing anything that claims a protocol shorthand
 maps to an AS2 wire form, working on `docs/reference/messages/`, adding a
-`SEMANTIC_REGISTRY` entry, or reasoning about fault reporting and
-acknowledgement. Source: IDEA-605.
+`SEMANTIC_REGISTRY` entry, authoring or fixing a `vocab_examples` wire example,
+or reasoning about fault reporting and acknowledgment. Source: IDEA-605.
 
 **`spec-authoring-rules.md`**
 Mechanical rules for authoring spec YAML: the exact enums `spec-lint` accepts
