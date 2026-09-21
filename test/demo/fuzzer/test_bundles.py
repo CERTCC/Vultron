@@ -72,53 +72,76 @@ def test_bundle_fields_satisfy_protocol():
 
 
 # ---------------------------------------------------------------------------
+# Roster discovery (AGENTS.md: prefer extracting shared logic over duplicating)
+# ---------------------------------------------------------------------------
+#
+# The roster is discovered, never hand-listed.  Four hard-coded lists used to
+# police it, so adding a bundle took four hand edits and forgetting one of them
+# failed nothing — the roster silently stopped covering the new bundle.  Two of
+# the fourteen modules (``actor_discovery``, ``develop_fix``) were in fact
+# already missing when this was reflective-ised (#3429).  The security-defaults
+# guard already discovers bundles this way; this mirrors it.
+
+
+def _bundle_modules():
+    """Return every non-private module in ``vultron.demo.fuzzer.bundles``."""
+    import importlib
+    import pkgutil
+
+    import vultron.demo.fuzzer.bundles as pkg
+
+    mods = []
+    for info in pkgutil.iter_modules(pkg.__path__):
+        if info.name.startswith("_"):
+            continue
+        mods.append(
+            (
+                f"{pkg.__name__}.{info.name}",
+                importlib.import_module(f"{pkg.__name__}.{info.name}"),
+            )
+        )
+    assert mods, "discovery found no bundle modules — the walk is broken"
+    return mods
+
+
+def _discovered_bundle_classes():
+    """Return ``(module_path, class_name)`` for every bundle dataclass."""
+    from vultron.core.behaviors.call_out.bundles.base import CallOutBundle
+
+    found = []
+    for path, mod in _bundle_modules():
+        for name, obj in vars(mod).items():
+            if (
+                isinstance(obj, type)
+                and issubclass(obj, CallOutBundle)
+                and obj is not CallOutBundle
+                and dataclasses.is_dataclass(obj)
+            ):
+                found.append((path, name))
+    assert found, "discovery found no bundle classes"
+    return sorted(set(found))
+
+
+def _discovered_singletons():
+    """Return ``(module_path, singleton_name)`` for every pre-built bundle."""
+    from vultron.core.behaviors.call_out.bundles.base import CallOutBundle
+
+    found = []
+    for path, mod in _bundle_modules():
+        for name, obj in vars(mod).items():
+            if name.isupper() and isinstance(obj, CallOutBundle):
+                found.append((path, name))
+    assert found, "discovery found no bundle singletons"
+    return sorted(set(found))
+
+
+# ---------------------------------------------------------------------------
 # Frozen dataclass invariants (BT-23-003)
 # ---------------------------------------------------------------------------
 
 
 @pytest.mark.parametrize(
-    "module_path,class_name",
-    [
-        ("vultron.demo.fuzzer.bundles.validation", "ValidationCallOutBundle"),
-        (
-            "vultron.demo.fuzzer.bundles.prioritization",
-            "PrioritizationCallOutBundle",
-        ),
-        ("vultron.demo.fuzzer.bundles.embargo", "EmbargoCallOutBundle"),
-        (
-            "vultron.demo.fuzzer.bundles.publication",
-            "PublicationCallOutBundle",
-        ),
-        ("vultron.demo.fuzzer.bundles.deploy_fix", "DeployFixCallOutBundle"),
-        (
-            "vultron.demo.fuzzer.bundles.deploy_mitigation",
-            "DeployMitigationCallOutBundle",
-        ),
-        (
-            "vultron.demo.fuzzer.bundles.acquire_exploit",
-            "AcquireExploitCallOutBundle",
-        ),
-        (
-            "vultron.demo.fuzzer.bundles.assign_vul_id",
-            "AssignVulIdCallOutBundle",
-        ),
-        (
-            "vultron.demo.fuzzer.bundles.case_proposal",
-            "CaseProposalCallOutBundle",
-        ),
-        (
-            "vultron.demo.fuzzer.bundles.assign_cve_id",
-            "AssignCveIdCallOutBundle",
-        ),
-        (
-            "vultron.demo.fuzzer.bundles.close_report",
-            "CloseReportCallOutBundle",
-        ),
-        (
-            "vultron.demo.fuzzer.bundles.status_authorization",
-            "StatusAuthorizationCallOutBundle",
-        ),
-    ],
+    "module_path,class_name", _discovered_bundle_classes()
 )
 def test_bundle_is_frozen_dataclass(module_path, class_name):
     """Each bundle class is a frozen dataclass (mutation must raise FrozenInstanceError)."""
@@ -147,79 +170,18 @@ def test_bundle_is_frozen_dataclass(module_path, class_name):
 
 
 @pytest.mark.parametrize(
-    "module_path,det_name,sto_name",
-    [
-        (
-            "vultron.demo.fuzzer.bundles.validation",
-            "VALIDATION_DETERMINISTIC",
-            "VALIDATION_STOCHASTIC",
-        ),
-        (
-            "vultron.demo.fuzzer.bundles.prioritization",
-            "PRIORITIZATION_DETERMINISTIC",
-            "PRIORITIZATION_STOCHASTIC",
-        ),
-        (
-            "vultron.demo.fuzzer.bundles.embargo",
-            "EMBARGO_DETERMINISTIC",
-            "EMBARGO_STOCHASTIC",
-        ),
-        (
-            "vultron.demo.fuzzer.bundles.publication",
-            "PUBLICATION_DETERMINISTIC",
-            "PUBLICATION_STOCHASTIC",
-        ),
-        (
-            "vultron.demo.fuzzer.bundles.deploy_fix",
-            "DEPLOY_FIX_DETERMINISTIC",
-            "DEPLOY_FIX_STOCHASTIC",
-        ),
-        (
-            "vultron.demo.fuzzer.bundles.deploy_mitigation",
-            "DEPLOY_MITIGATION_DETERMINISTIC",
-            "DEPLOY_MITIGATION_STOCHASTIC",
-        ),
-        (
-            "vultron.demo.fuzzer.bundles.acquire_exploit",
-            "ACQUIRE_EXPLOIT_DETERMINISTIC",
-            "ACQUIRE_EXPLOIT_STOCHASTIC",
-        ),
-        (
-            "vultron.demo.fuzzer.bundles.assign_vul_id",
-            "ASSIGN_VUL_ID_DETERMINISTIC",
-            "ASSIGN_VUL_ID_STOCHASTIC",
-        ),
-        (
-            "vultron.demo.fuzzer.bundles.case_proposal",
-            "CASE_PROPOSAL_DETERMINISTIC",
-            "CASE_PROPOSAL_STOCHASTIC",
-        ),
-        (
-            "vultron.demo.fuzzer.bundles.assign_cve_id",
-            "ASSIGN_CVE_ID_DETERMINISTIC",
-            "ASSIGN_CVE_ID_STOCHASTIC",
-        ),
-        (
-            "vultron.demo.fuzzer.bundles.close_report",
-            "CLOSE_REPORT_DETERMINISTIC",
-            "CLOSE_REPORT_STOCHASTIC",
-        ),
-        (
-            "vultron.demo.fuzzer.bundles.status_authorization",
-            "STATUS_AUTHORIZATION_DETERMINISTIC",
-            "STATUS_AUTHORIZATION_STOCHASTIC",
-        ),
-    ],
+    "module_path,singleton_name", _discovered_singletons()
 )
-def test_singletons_are_immutable(module_path, det_name, sto_name):
-    """DETERMINISTIC and STOCHASTIC singletons are immutable."""
+def test_singletons_are_immutable(module_path, singleton_name):
+    """Every pre-built bundle singleton is immutable, whatever its mode.
+
+    Discovery covers PERMISSIVE and any future mode as well as DETERMINISTIC and
+    STOCHASTIC, which a two-name-per-module list could not.
+    """
     import importlib
 
     mod = importlib.import_module(module_path)
-    det = getattr(mod, det_name)
-    sto = getattr(mod, sto_name)
-    _assert_frozen(det)
-    _assert_frozen(sto)
+    _assert_frozen(getattr(mod, singleton_name))
 
 
 # ---------------------------------------------------------------------------
@@ -228,50 +190,17 @@ def test_singletons_are_immutable(module_path, det_name, sto_name):
 
 
 def test_bundles_init_re_exports_all_classes_and_singletons():
-    """vultron.demo.fuzzer.bundles re-exports all bundle classes and singletons."""
+    """vultron.demo.fuzzer.bundles re-exports every discovered name (BT-23-005).
+
+    Derived from the modules on disk rather than a literal list, so a bundle
+    added without its ``__init__`` re-export fails here instead of quietly
+    falling outside the roster.
+    """
     import vultron.demo.fuzzer.bundles as bundles_pkg
 
-    expected_classes = [
-        "ValidationCallOutBundle",
-        "PrioritizationCallOutBundle",
-        "EmbargoCallOutBundle",
-        "PublicationCallOutBundle",
-        "DeployFixCallOutBundle",
-        "DeployMitigationCallOutBundle",
-        "AcquireExploitCallOutBundle",
-        "AssignCveIdCallOutBundle",
-        "AssignVulIdCallOutBundle",
-        "CaseProposalCallOutBundle",
-        "CloseReportCallOutBundle",
-        "StatusAuthorizationCallOutBundle",
-    ]
-    expected_singletons = [
-        "VALIDATION_DETERMINISTIC",
-        "VALIDATION_STOCHASTIC",
-        "PRIORITIZATION_DETERMINISTIC",
-        "PRIORITIZATION_STOCHASTIC",
-        "EMBARGO_DETERMINISTIC",
-        "EMBARGO_STOCHASTIC",
-        "PUBLICATION_DETERMINISTIC",
-        "PUBLICATION_STOCHASTIC",
-        "DEPLOY_FIX_DETERMINISTIC",
-        "DEPLOY_FIX_STOCHASTIC",
-        "DEPLOY_MITIGATION_DETERMINISTIC",
-        "DEPLOY_MITIGATION_STOCHASTIC",
-        "ACQUIRE_EXPLOIT_DETERMINISTIC",
-        "ACQUIRE_EXPLOIT_STOCHASTIC",
-        "ASSIGN_CVE_ID_DETERMINISTIC",
-        "ASSIGN_CVE_ID_STOCHASTIC",
-        "ASSIGN_VUL_ID_DETERMINISTIC",
-        "ASSIGN_VUL_ID_STOCHASTIC",
-        "CASE_PROPOSAL_DETERMINISTIC",
-        "CASE_PROPOSAL_STOCHASTIC",
-        "CLOSE_REPORT_DETERMINISTIC",
-        "CLOSE_REPORT_STOCHASTIC",
-        "STATUS_AUTHORIZATION_DETERMINISTIC",
-        "STATUS_AUTHORIZATION_PERMISSIVE",
-        "STATUS_AUTHORIZATION_STOCHASTIC",
-    ]
+    expected_classes = [n for _, n in _discovered_bundle_classes()]
+    expected_singletons = [n for _, n in _discovered_singletons()]
+
     for name in expected_classes + expected_singletons:
         assert hasattr(
             bundles_pkg, name

@@ -27,12 +27,12 @@ Each page answers the same five questions in the same order.
 |---|---|
 | What starts it | The trigger or inbound message that puts the actor on this path, and the state the actor must already be in |
 | The mechanical path | The checks and state changes the protocol settles without asking anyone |
-| Where judgment enters | The call-out points, and the decision each one represents |
+| Where judgment enters | The call-out points — the places an actor must get an answer from outside the protocol — and the decision each one represents |
 | What the case learns | The messages emitted, and who receives them |
 | What conformance requires | The normative requirements a participant must satisfy, independent of behavior trees |
 
 The order is deliberate.
-Preconditions come before actions because a step that runs ahead of its preconditions must do nothing at all rather than half the work.
+Preconditions come before actions because a step that runs ahead of its preconditions does nothing at all rather than half the work.
 Judgment comes before effects because a refusal has to be able to stop the step before anything is written or sent.
 
 ---
@@ -43,10 +43,8 @@ The useful distinction in a use case is not between "simple" and "complex" steps
 It is between decisions the protocol can settle from what it already knows and decisions it cannot.
 
 A **mechanical** decision reads recorded state and applies a rule.
-Is this participant already in the Valid state of the Report Management (RM) machine?
-Does this case exist in this actor's own store?
-Is this transition permitted by the state machine?
-Two conformant implementations must reach the same answer, because the rule and the inputs are both fixed.
+Is this Participant already in the Valid (RV) state of the Report Management (RM) machine, does this case exist in this actor's own store, is this transition permitted by the state machine.
+Two conformant implementations will reach the same answer, because the rule and the inputs are both fixed.
 
 A **delegated** decision has no answer in the record.
 Whether a report is credible, whether embargo terms are acceptable, whether a vulnerability merits a Common Vulnerabilities and Exposures (CVE) identifier — these depend on policy, expertise, or facts held outside the protocol.
@@ -72,7 +70,7 @@ A call-out point returns success or failure and never leaves the tree running (B
 An Evaluator that wants to block the step returns failure rather than reporting a rejection in its output (BT-18-007).
 
 It has a default.
-Every call-out point is injected through a backend factory with a deterministic default, so a deployment that supplies nothing still runs (BT-18-004, BT-23-001).
+Every call-out point is injected through a backend factory with a deterministic default, so a deployment that supplies nothing still runs (BT-18-004, BT-23-001, [ADR-0025](../../../adr/0025-call-out-point-abstraction-layer.md)).
 The default is usually the permissive one, on the reasoning that a stub should not silently withhold progress.
 One class of gate inverts that.
 Where a permissive default would let a party other than the case owner force a case-state change or an embargo teardown, the default is the conservative answer instead (BT-23-012, [ADR-0076](../../../adr/0076-security-significant-gates-default-require-case-owner-approval.md)).
@@ -103,3 +101,4 @@ Both appear in these pages, and confusing them leads to an implementation that w
 - [Capability Model](../../capability_model/index.md) — the five capability shapes and the full catalog of call-out points
 - [Behaviors Reference](../../../reference/behaviors/index.md) — the trees the reference implementation builds today
 - [Behavior Logic](../index.md) — the original behavior tree design these use cases realize
+- [Glossary](../../../reference/glossary.md) — Participant, call-out point, capability shape, case actor service

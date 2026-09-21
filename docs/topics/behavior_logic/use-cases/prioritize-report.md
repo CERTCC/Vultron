@@ -46,6 +46,7 @@ The practical rule for implementers: anything that can *refuse* an inbound asser
 ## Where judgment enters
 
 **EvaluateCasePriority** (Evaluator) is the decision itself: given this case, should this actor engage it or defer it?
+Evaluator is one of the five capability shapes in [ADR-0024](../../../adr/0024-coordination-agent-taxonomy.md); the backend answering it is injected, not compiled in ([ADR-0025](../../../adr/0025-call-out-point-abstraction-layer.md)).
 
 This is the natural home for a Stakeholder-Specific Vulnerability Categorization (SSVC) integration, or for any prioritization scheme an organization already runs.
 The protocol asks for a decision, not for a methodology, and deliberately says nothing about which inputs a Participant should weigh.
@@ -53,7 +54,9 @@ Under the deterministic default the answer is always engage, so an unconfigured 
 
 **OnAccept** and **OnDefer** (Actuators) fire after the respective transition.
 They are hooks, not decisions: an Actuator confirms that a side effect happened in an outside system — a ticket opened, a queue updated, an on-call rotation notified — and produces no content the protocol reads.
-The distinction matters when choosing what to build: if your service records a decision the tree then acts on, it is an Evaluator; if it carries out an effect elsewhere and reports back, it is an Actuator.
+The distinction matters when choosing what to build.
+If your service records a decision the tree then acts on, it is an Evaluator.
+If it carries out an effect elsewhere and reports back, it is an Actuator.
 
 Two further call-out points belong to this use case and are not yet wired: **EnoughPrioritizationInfo** (Evaluator) and **GatherPrioritizationInfo** (Retriever).
 They serve the loop the original design treats as normal — a decision that cannot be made yet, deferred pending information, and revisited when it arrives (RMB-12-002).
@@ -68,7 +71,8 @@ Deferring emits `Ignore(VulnerabilityCase)`, the wire form of RD.
 Both are addressed to the actor holding `CVDRole.CASE_MANAGER`, which commits the canonical ledger entry and replicates it onward (PCR-08-001, CLP-10-001).
 
 Deferral is announced, and this is the design decision worth pausing on.
-Telling the other Participants that you have parked a case is unhelpful to you and useful to them: a coordinator learns not to wait on your fix, and another vendor learns that the timeline it assumed no longer holds.
+Telling the other Participants that you have parked a case is unhelpful to you and useful to them.
+A coordinator learns not to wait on your fix, and another vendor learns that the timeline it assumed no longer holds.
 Announcing it is "Avoid Surprise" applied to the least comfortable state to be in, and it is the reason RD exists as a message rather than as a private flag.
 
 Deferral also does not mean leaving.
@@ -85,7 +89,7 @@ Departing a case is a different step with a different message.
 | [RMB-12-001](../../../reference/specs/protocol.md#rmb-12) | A Participant entering `RM.DEFERRED` SHOULD emit RD |
 | [RMB-12-002](../../../reference/specs/protocol.md#rmb-12) | A Participant in `RM.DEFERRED` SHOULD watch for information justifying reprioritization |
 | [RMB-12-003](../../../reference/specs/protocol.md#rmb-12) | A Participant in `RM.DEFERRED` MAY close the report after a policy period of inactivity |
-| [RMB-13-001](../../../reference/specs/protocol.md#rmb-13) | A Participant MUST be in `RM.ACCEPTED` before sending RS to another Participant |
+| [RMB-13-001](../../../reference/specs/protocol.md#rmb-13) | A Participant MUST be in `RM.ACCEPTED` before sending Report Status (RS) to another Participant |
 | [RMB-13-002](../../../reference/specs/protocol.md#rmb-13) | A Participant entering `RM.ACCEPTED` SHOULD emit RA |
 | [RMB-13-003](../../../reference/specs/protocol.md#rmb-13) | A Participant in `RM.ACCEPTED` SHOULD perform active work on the report |
 | [RMB-15-001](../../../reference/specs/protocol.md#rmb-15) | An RM write MUST validate the transition before persisting |
@@ -102,3 +106,4 @@ A Participant that defers has not merely postponed its own work — it has decli
 - [Validate report](validate-report.md) — the step that obliges this one
 - [Report Management Handlers](../../../reference/behaviors/rm_handlers.md) — the tree the reference implementation builds today
 - [Capability Model](../../capability_model/index.md#report-prioritization) — service contracts for the prioritization call-out points
+- [Glossary](../../../reference/glossary.md) — Participant, call-out point, capability shape, case engagement

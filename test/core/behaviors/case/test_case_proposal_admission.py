@@ -402,6 +402,53 @@ class TestDeclineIsIdempotent:
         assert _types_in_outbox(dl) == ["Reject"]
         assert ticks == [], "the decision stands; do not consult the backend"
 
+    def test_redelivery_after_the_reject_was_delivered_emits_nothing(self, dl):
+        """The bound holds *after* delivery, which is when the outbox empties.
+
+        Delivery is what makes this hard. ``outbox_pop`` removes the ``Reject``
+        while its stored copy remains, so "is one queued?" answers no for a
+        refusal that was successfully delivered — indistinguishable from one
+        that was never sent. A guard reading the outbox therefore re-emits on
+        every later delivery, and nothing bounds that: whoever replays the
+        proposal chooses how many ``Reject`` activities this service mints and
+        stores. The answer has to come from the decline record's
+        ``reject_activity_id``, which survives delivery.
+        """
+        _run_tree(dl, call_out=_declining_bundle([]))
+        assert _types_in_outbox(dl) == ["Reject"]
+
+        first = dl.outbox_pop()
+        assert dl.outbox_list() == [], "the Reject has now been delivered"
+
+        ticks: list[str] = []
+        for _ in range(3):
+            assert (
+                _run_tree(dl, call_out=_declining_bundle(ticks))
+                == Status.SUCCESS
+            )
+            assert _types_in_outbox(dl) == [], (
+                "the proposer was already told; a redelivery must not mint a "
+                "fresh Reject"
+            )
+
+        assert ticks == [], "the decision stands; do not consult the backend"
+        rejects = [
+            a
+            for a in dl.list_objects("Reject")
+            if str(getattr(a, "type_", "")) == "Reject"
+        ]
+        assert len(rejects) == 1, (
+            "exactly one Reject was ever built; three redeliveries produced "
+            "no more"
+        )
+        assert rejects[0].id_ == first
+
+        record = dl.read(CaseProposalDeclineRecord.build_id(_PROPOSAL_URI))
+        assert record.reject_activity_id == first, (
+            "the record names what was queued — this is the fact the outbox "
+            "cannot keep"
+        )
+
     def test_redelivery_emits_a_reject_that_was_never_queued(self, dl):
         """Because the record is written first, a lost Reject is recoverable."""
         _run_tree(dl, call_out=_declining_bundle([]), with_proposal_dict=False)
@@ -630,8 +677,11 @@ class TestAnUnanswerableStoreFailsRatherThanAdmits:
             dl.close()
 
     def test_unrecordable_decline_does_not_admit(self, dl, monkeypatch):
-        """If the refusal cannot be made terminal, the tree fails."""
-        import vultron.core.behaviors.case.case_proposal_received_tree as mod
+        """If the refusal cannot be made terminal, the tree fails.
+
+        The write that cannot happen is ``RecordProposalDeclineNode``'s, in
+        ``vultron.core.behaviors.case.nodes.proposal_admission_actions``.
+        """
 
         def _boom(self, obj):
             if str(getattr(obj, "type_", "")) == "CaseProposalDeclineRecord":
@@ -645,7 +695,6 @@ class TestAnUnanswerableStoreFailsRatherThanAdmits:
         assert status == Status.FAILURE
         assert _cases(dl) == []
         assert "Accept" not in _types_in_outbox(dl)
-        assert mod is not None  # module import is the documentation anchor
 
 
 @pytest.mark.spec("CP-05-004")
@@ -717,3 +766,114 @@ class TestAHalfBuiltCaseIsNotRejected:
         finally:
             dl.clear_all()
             dl.close()
+
+
+@pytest.mark.spec("CP-05-002")
+@pytest.mark.spec("CP-05-006")
+class TestTheGateIsKeyedOnTheProposalNotTheReport:
+    """A sender must not be able to skip admission by naming a known report.
+
+    ``report_id`` reaches this tree as ``request.inner_object_id`` — the id of
+    the report the *sender* embedded in its own proposal. So it is sender-chosen,
+    and two proposals may name one report.
+
+    That makes a report-keyed "has this been answered?" guard worse than useless:
+    it answers SUCCESS for a proposal the service has never adjudicated, which
+    short-circuits the decline arm *before* the admission call-out point is
+    ticked and admits the proposal through the duplicate-reuse path. An actor
+    that knows one report id this service already holds a case for could then
+    obtain CASE_OWNER on that case while the deployment's admission policy was
+    never consulted. A gate a sender can arrange to skip is not a gate.
+    """
+
+    def test_a_second_proposal_on_the_same_report_is_still_adjudicated(self):
+        second_proposal_uri = "https://evil.example.org/proposals/p-002"
+        second_vendor_uri = "https://evil.example.org/actors/attacker"
+
+        _dl = SqliteDataLayer("sqlite:///:memory:", actor_id=_CASE_ACTOR_URI)
+        _dl.clear_all()
+        try:
+            # First proposal is admitted normally: a case now exists for
+            # _REPORT_URI, which is the state the bypass fed on.
+            assert _run_tree(_dl, call_out=_admitting_bundle([])) == (
+                Status.SUCCESS
+            )
+            assert len(_cases(_dl)) == 1
+            _dl.outbox_pop()
+            _dl.outbox_pop()
+            assert _dl.outbox_list() == []
+
+            # A different proposal, from a different actor, naming the same
+            # report. The deployment's policy refuses it.
+            proposal = as_CaseProposal(
+                id_=second_proposal_uri,
+                attributed_to=second_vendor_uri,
+                object_=as_VulnerabilityReport(
+                    id_=_REPORT_URI, attributed_to=_REPORTER_URI
+                ),
+                target=_CASE_ACTOR_URI,
+            )
+            activity = as_Create(
+                actor=second_vendor_uri,
+                object_=proposal,
+                to=[_CASE_ACTOR_URI],
+            )
+            event = extract_event(activity).model_copy(
+                update={"receiving_actor_id": _CASE_ACTOR_URI}
+            )
+            ticks: list[str] = []
+            tree = create_case_proposal_received_tree(
+                report_id=_REPORT_URI,
+                proposal_id=second_proposal_uri,
+                vendor_uri=second_vendor_uri,
+                proposal_dict=proposal.model_dump(
+                    by_alias=True, serialize_as_any=True
+                ),
+                inline_report=VulnerabilityReport(
+                    id_=_REPORT_URI, attributed_to=_REPORTER_URI
+                ),
+                call_out=_declining_bundle(ticks),
+            )
+            status = (
+                BTBridge(
+                    datalayer=_dl,
+                    wire_render_port=As2WireRenderAdapter(),
+                    trigger_activity=TriggerActivityAdapter(_dl),
+                )
+                .execute_with_setup(
+                    tree=tree, actor_id=_CASE_ACTOR_URI, activity=event
+                )
+                .status
+            )
+
+            assert ticks == ["EvaluateCaseProposal"], (
+                "the admission policy MUST be consulted: this proposal has "
+                "never been adjudicated, and an existing case for a "
+                "sender-supplied report id is not an answer to it"
+            )
+            assert status == Status.SUCCESS
+            assert _types_in_outbox(_dl) == ["Reject"], (
+                "the refusal must reach the wire, addressed to the actor that "
+                "proposed"
+            )
+            assert (
+                _dl.read(
+                    CaseProposalDeclineRecord.build_id(second_proposal_uri)
+                )
+                is not None
+            )
+            assert (
+                len(_cases(_dl)) == 1
+            ), "no second case, and the first is untouched"
+            participants = [
+                p
+                for p in _dl.list_objects("CaseParticipant")
+                if second_vendor_uri in str(getattr(p, "actor_id", ""))
+            ]
+            assert participants == [], (
+                "a refused actor must not end up on the roster of the case it "
+                "was refused from"
+            )
+        finally:
+            _dl.clear_all()
+            _dl.close()

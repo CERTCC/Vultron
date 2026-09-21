@@ -216,9 +216,11 @@ _SYNC_AND_TRIGGER_PORT_SEMANTICS = frozenset(
 # guard in make_dispatcher() does not need special-casing.
 _SUBMIT_REPORT_SEMANTICS = frozenset({MessageSemantics.SUBMIT_REPORT})
 
-# CREATE_CASE_PROPOSAL needs only the local actor's ActorConfig (no driven
-# ports) so the CaseActor can assign the proposing actor its configured CVD
-# roles (CFG-07-002, CFG-07-004).  Separate set for the same reason as above.
+# CREATE_CASE_PROPOSAL needs the local actor's ActorConfig so the CaseActor can
+# assign the proposing actor its configured CVD roles (CFG-07-002, CFG-07-004),
+# and — since the admission gate landed — the trigger-activity port plus a
+# CaseProposalCallOutBundle for the decline path (CP-05-002, CP-05-004).  See
+# _case_proposal_port_factory.  Separate set for the same reason as above.
 _CASE_PROPOSAL_SEMANTICS = frozenset({MessageSemantics.CREATE_CASE_PROPOSAL})
 
 # Status-authorization call-out seam (ADR-0076, RSH-07-003):

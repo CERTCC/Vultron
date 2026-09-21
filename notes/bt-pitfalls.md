@@ -1052,11 +1052,48 @@ hardest to be careful was the only unsafe one.
   recorded a decline that blocked the accept arm forever — the case could never
   be completed. Treat "the permissive path has begun" as the question, and probe
   the earliest durable evidence of it.
-- **"Persisted" is not "queued".** A resend guard that checks the object store
-  answers "already told them" for an activity that was written and then failed to
-  enqueue, so the refusal is lost and every later delivery reports success with an
-  empty outbox. Ask the outbox. Adapters commonly persist and *then* enqueue, so
-  the gap between the two is a reachable state, not a theoretical one.
+- **"Persisted" is not "queued" — and "queued" is not "sent".** A resend guard
+  that checks the object store answers "already told them" for an activity that
+  was written and then failed to enqueue, so the refusal is lost and every later
+  delivery reports success with an empty outbox. Asking the *outbox* instead
+  fixes that and breaks the other end: `outbox_pop` removes the activity on
+  delivery while its stored copy remains, so a refusal that was successfully
+  **delivered** is indistinguishable from one never queued — and the guard then
+  mints a fresh one on every later delivery, unbounded, driven by whoever replays
+  the trigger. Neither store nor queue can answer this, because the question is
+  historical and both are current-state. **Record the id of what you sent on the
+  decision record.** Three states, not two: undecided, decided-but-unanswered
+  (recoverable, re-emit), decided-and-answered (terminal, emit nothing).
+
+### The guard's key must not be an input the sender controls
+
+Distinct from the status trap above, and it cost a second adversarial pass. A
+guard can be perfectly fail-closed and still be *bypassable* if it keys on the
+wrong thing — here, a guard returning **SUCCESS** short-circuited the whole
+refusal arm before the call-out point was ever ticked.
+
+The admission gate's "has this already been answered?" probe keyed partly on
+`report_id`, which arrives from the report the **sender** embedded in its own
+proposal. Two proposals may name one report, so a second actor naming a report
+the service already held a case for got SUCCESS from that probe, skipped the
+decline arm entirely, and was admitted through the duplicate-reuse path — with
+the deployment's policy never consulted and no decline record written.
+
+> A gate keyed on a value the requester chooses is a gate the requester can
+> arrange to skip. Key every guard on the identity of the **request** being
+> adjudicated, and write your own durable evidence for it rather than inferring
+> the answer from state that some other request could have created.
+
+Two corollaries worth keeping:
+
+- The evidence must be written **before** the first effect, or it cannot cover
+  the window the previous trap is about. Writing an "admitted" record as the
+  permissive arm's first step is what makes "the permissive path has begun"
+  answerable per-request.
+- It is also the cheap answer. The report-keyed probe was reached first because
+  it was an indexed read while the proposal-keyed one scanned a table; once the
+  per-request record exists, the indexed read *is* the correct probe, and the
+  scan degrades to a legacy fallback that a negative indexed prefilter can skip.
 
 *Source: ISSUE-3399, found by two pre-PR review passes on #1315 — the second
 pass broke the first pass's fix.*

@@ -18,7 +18,10 @@
 import logging
 from typing import Any, cast
 
+from pydantic import ValidationError
+
 from vultron.core.ports.case_persistence import CaseOutboxPersistence
+from vultron.errors import VultronActivityConstructionError
 from vultron.wire.as2.factories import (
     create_case_activity,
     rm_defer_case_activity,
@@ -360,7 +363,20 @@ class _CasesMixin:
         # `attributed_to` is a required `NonEmptyString` (CP-01-003), so a
         # proposal with no proposer is refused here rather than needing a
         # downstream guard for a case that cannot reach one.
-        wire_proposal = as_CaseProposal.model_validate(proposal)
+        #
+        # Wrapped as a VultronError, the way the sibling factory wraps its own
+        # construction failures: the proposal is peer-supplied, so a malformed
+        # one is a protocol outcome.  A bare ValidationError crosses the port
+        # boundary as a non-VultronError, which BTBridge classifies as
+        # internal_error=True — reporting someone else's bad message as a fault
+        # in this service.
+        try:
+            wire_proposal = as_CaseProposal.model_validate(proposal)
+        except ValidationError as exc:
+            raise VultronActivityConstructionError(
+                "reject_case_proposal: the proposal to embed is not a valid"
+                " as_CaseProposal"
+            ) from exc
         try:
             self._dl.create(wire_proposal)
         except ValueError:

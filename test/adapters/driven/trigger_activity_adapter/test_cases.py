@@ -16,7 +16,7 @@
 import json
 
 import pytest
-from pydantic import ValidationError
+from vultron.errors import VultronActivityConstructionError
 from vultron.wire.as2.vocab.base.objects.object_types import as_Note
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCase,
@@ -231,12 +231,20 @@ class TestRejectCaseProposal:
         CP-01-003 makes the field mandatory on the wire model, which is why the
         adapter needs no separate "no recipient" guard: a proposal that could not
         be addressed never validates.
+
+        The refusal surfaces as a ``VultronError``, not a raw
+        ``ValidationError``. The proposal is peer-supplied, so a malformed one is
+        a protocol outcome; ``BTBridge`` classifies any non-``VultronError``
+        escaping a node as ``internal_error=True``, which would report another
+        actor's bad message as a fault in this service.
         """
         proposal = self._proposal_dict()
         proposal.pop("attributedTo", None)
         proposal.pop("attributed_to", None)
 
-        with pytest.raises(ValidationError, match="attributedTo"):
+        with pytest.raises(
+            VultronActivityConstructionError, match="as_CaseProposal"
+        ):
             adapter.reject_case_proposal(actor=_ACTOR, proposal=proposal)
 
     def test_duplicate_proposal_does_not_abort_the_reject(self, adapter, dl):

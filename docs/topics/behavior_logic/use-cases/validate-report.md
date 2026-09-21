@@ -14,7 +14,7 @@ Two paths reach this behavior, and they differ only in whose state moves.
 A Participant runs it **for itself** when it decides a report it holds is valid.
 The reference implementation exposes this as the `validate_report` trigger.
 
-A Participant runs it **about another actor** when an inbound `Accept(Offer(VulnerabilityReport))` arrives — the wire form of the RV message — telling it that the sender has validated the report.
+A Participant runs it **about another actor** when an inbound `Accept(Offer(VulnerabilityReport))` arrives — the wire form of the Report Valid (RV) message — telling it that the sender has validated the report.
 The receiving actor then records the *sender's* Report Management (RM) transition, not its own.
 The behavior runs in the receiving actor's own store, and the actor whose state advances is named by the message rather than inferred from which store is executing (CLP-10-015).
 
@@ -47,7 +47,7 @@ Five things are decided from recorded state alone.
 Every one of those precedes the first write.
 That ordering is load-bearing rather than tidy.
 `RM.VALID` is case-scoped, and the case reaches a Participant only as a replica the case manager sends it ([ADR-0073](../../../adr/0073-per-actor-storage-isolation.md), PCR-01-003).
-An actor that validates before its replica has arrived must therefore do *nothing*, not half of the transition.
+An actor that validates before its replica has arrived therefore does *nothing*, not half of the transition (RMB-15-001, DUR-07-004).
 Suppose it writes the state latch and then fails the embargo check.
 The latch now makes every later attempt take the early exit, and the two halves can never reconverge.
 
@@ -56,6 +56,7 @@ The latch now makes every later attempt take the early exit, and the two halves 
 ## Where judgment enters
 
 Two call-out points sit between the preconditions and the effects, and they ask different questions.
+Both are Evaluators in the [ADR-0024](../../../adr/0024-coordination-agent-taxonomy.md) capability-shape taxonomy, and both are injected as swappable backends rather than hard-coded ([ADR-0025](../../../adr/0025-call-out-point-abstraction-layer.md)).
 
 **EvaluateReportCredibility** (Evaluator) asks whether the source and the claim are believable enough to spend effort on.
 This is a judgment about the *report*, not the vulnerability.
@@ -106,7 +107,7 @@ It must satisfy the RMB requirements for this step.
 | [RMB-10-001](../../../reference/specs/protocol.md#rmb-10) | A Participant entering `RM.VALID` MUST start a prioritization evaluation |
 | [RMB-10-002](../../../reference/specs/protocol.md#rmb-10) | A Participant MUST NOT close a report directly from `RM.VALID` |
 | [RMB-10-003](../../../reference/specs/protocol.md#rmb-10) | A Participant entering `RM.VALID` SHOULD emit RV |
-| [RMB-11-001](../../../reference/specs/protocol.md#rmb-11) | A Participant entering `RM.INVALID` SHOULD emit RI |
+| [RMB-11-001](../../../reference/specs/protocol.md#rmb-11) | A Participant entering `RM.INVALID` SHOULD emit Report Invalid (RI) |
 | [RMB-11-002](../../../reference/specs/protocol.md#rmb-11) | Duplicate reports SHOULD NOT be marked invalid |
 | [RMB-15-001](../../../reference/specs/protocol.md#rmb-15) | An RM write MUST validate the transition before persisting |
 
@@ -124,3 +125,4 @@ Marking it invalid tells other Participants something false about the vulnerabil
 - [Prioritize report](prioritize-report.md) — the step RMB-10-001 requires next
 - [Report Management Handlers](../../../reference/behaviors/rm_handlers.md) — the tree the reference implementation builds today
 - [The Received (R) state](../../process_models/rm/index.md#the-received-r-state) — where the credibility-then-validity ordering comes from
+- [Glossary](../../../reference/glossary.md) — Participant, call-out point, capability shape, report validity

@@ -166,9 +166,11 @@ Capabilities marked with a shape label are call-out points — Vultron calls you
 
 - **EvaluateCaseProposal** (Evaluator) — should this service open and manage a case for this proposal?
 
-This is the admission decision a case actor service makes on an inbound `Create(CaseProposal)`. It is the only place admission policy lives: whether the proposing actor is one you will work for, how many open cases one actor may hold, whether the inline report is substantive enough to coordinate. Returning FAILURE sends `Reject(CaseProposal)`; the default admits.
+This is the admission decision a case actor service makes on an inbound `Create(as_CaseProposal)`, and the only place admission policy lives.
+Returning FAILURE sends `Reject(as_CaseProposal)`; the default admits.
 
-Build this one if you run a case actor service for others. The decision is made before any case state is written, so a refusal leaves nothing behind.
+Build this one if you run a case actor service for others.
+The [Propose case](../behavior_logic/use-cases/propose-case.md#where-judgment-enters) page carries the full reasoning — what the policy decides, why the decision sits ahead of every write, and the two ways a refusal gate can be defeated.
 
 ### Embargo Management
 

@@ -1,13 +1,13 @@
 # Modeling an MPCVD AI Using Behavior Trees
 
-These pages document the original Vultron Protocol behavior tree design.
+These pages document the original Vultron Protocol behavior tree design for Multi-Party Coordinated Vulnerability Disclosure (MPCVD).
 They are retained for two reasons.
 They are the formal behavioral specification of what a Participant does at each step, and they record the design reasoning the protocol rests on.
 They are not a walkthrough of the reference implementation, which realizes this design in `vultron/core/behaviors/`.
 
 ## Three views of the same behavior
 
-Behavior is documented from three directions, and each answers a different question.
+We document behavior from three directions, and each direction answers a different question.
 
 | View | Question it answers | Where |
 |---|---|---|
@@ -15,9 +15,9 @@ Behavior is documented from three directions, and each answers a different quest
 | Use-case behavior structure | For one coordination use case, what is decided mechanically, what is delegated outside the protocol, and what messages result? | [Use-Case Behavior](use-cases/index.md) |
 | Current implementation | What trees does the reference implementation build today? | [Behaviors Reference](../../reference/behaviors/index.md) |
 
-Read the design pages for intent.
-Read the use-case pages to understand the shape of a single coordination step.
-Read the reference pages when you need the tree the prototype actually runs.
+The design pages carry the intent.
+The use-case pages give the shape of a single coordination step.
+The reference pages give the tree the prototype actually runs.
 
 ## Where judgment enters
 
