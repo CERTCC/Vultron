@@ -14,10 +14,10 @@ description: >
 
 0. Sync the worktree to `origin/main` before loading any context.
 1. Invoke `orient-agent` to load baseline context.
-2. Select a single target issue (auto or explicit) and fail fast on blockers.
-3. Claim the issue.
-4. Invoke `deepen-context` with hints from the issue.
-5. Implement, validate, code-review, open PR, archive.
+2. Select the target issue or bundle (auto or explicit) and fail fast on blockers.
+3. Claim every member.
+4. Invoke `deepen-context` with hints from the issue(s).
+5. Implement, validate, code-review, open one PR closing every member, archive.
 
 ## Workflow
 
@@ -43,8 +43,10 @@ Invoke the `orient-agent` skill.
 0. Determine the target issue mode:
 
    - If the user passed multiple issue numbers (for example `build 123 456`),
-     ask whether to start with the first issue only (recommended). This skill
-     executes one issue per run.
+     that is a **bundle**: implement all of them in one PR that closes every
+     member. Follow `.agents/skills/shared/bundling.md` § "Executing a bundle".
+     Do not ask whether to take only the first, and do not drop members —
+     bundling exists to get more than one issue done in a PR.
    - If the user passed one explicit issue number, use that issue.
    - If no explicit issue was passed, auto-select from the top-priority
      unblocked Now-Epic flow below.
@@ -58,16 +60,24 @@ Invoke the `orient-agent` skill.
    The top-priority group is the first Epic with at least one unblocked
    open leaf sub-issue.
 
-2. Query leaf Issues of that Epic:
+2. Query leaf Issues of that Epic and apply eligibility **and** fit:
 
    ```bash
-   bash .agents/skills/shared/query-epic-subissues.sh <EPIC_NUMBER>
+   bash .agents/skills/shared/query-epic-subissues.sh <EPIC_NUMBER> \
+     | PYTHONPATH= uv run bundle-fit --workflow build
    ```
 
-   A candidate issue must: `state=OPEN`, no assignees, no `stale-claim`
-   label, all `blockedBy` entries `CLOSED`, `subIssues.totalCount==0`.
+   Eligibility alone (`state=OPEN`, no assignees, no `stale-claim`, all
+   `blockedBy` `CLOSED`, `subIssues.totalCount==0`) is not sufficient: an
+   `Idea` or `Concern` leaf clears every one of those gates and still must not
+   be built — it belongs to `plan-issue`, and a `Bug` belongs to `bugfix`.
+   `bundle-fit` enforces that routing, orders candidates by the authoritative
+   Project #24 `Schedule` tier rather than sub-issue list order (PAD-03-001),
+   and respects the size budget. See `bundling.md` for the rule table.
 
-3. Pick the highest-priority candidate.
+3. Take the tool's proposed bundle. Auto-selection may return several members;
+   confirm they share one design idea in a single sentence (`bundling.md`
+   § "Selecting a bundle") and drop any member that needs a different one.
 
 4. **Empty-Epic gate** — applies to both auto-selected and explicit issues:
 
@@ -96,11 +106,15 @@ Invoke the `orient-agent` skill.
    3. Tell the user: "Epic #N has no sub-issues and cannot be built yet. Run `/plan-issue N` to decompose it into Tasks first."
    4. **Stop.** Do not claim, branch, or proceed.
 
-5. Fail-fast blocker gate on the selected issue (auto-selected or explicit):
+5. Fail-fast blocker gate on every selected issue (auto-selected or explicit),
+   and, for an explicit bundle, a homogeneity gate:
 
-   - Query `blockedBy` for the issue and filter to `state=OPEN`.
+   - Query `blockedBy` for each issue and filter to `state=OPEN`.
    - If any OPEN blockers exist, print blocker numbers/titles and stop.
    - Do not claim, branch, or deepen context when blocked.
+   - Query each member's `issueType`. If a member is not a `Task` or `Feature`,
+     stop and name the skill it belongs to (`bugfix` for a Bug; `plan-issue`
+     for an Idea, Concern, or Epic). Do not silently work or drop it.
 
 6. **Pre-claim AC verification gate** — fetch the issue body and verify
    each acceptance criterion against `origin/main` HEAD before claiming:
@@ -136,15 +150,16 @@ Invoke the `orient-agent` skill.
 
    If any AC is unconfirmed, proceed to step 7 and claim normally.
 
-7. **Claim the Issue**:
+7. **Claim the Issue** — or every bundle member, onto one branch named for the
+   first member:
 
    ```bash
-   bash .agents/skills/shared/claim-issue.sh <N> task <slug>
+   bash .agents/skills/shared/claim-issue.sh <N> task <slug> [<OTHER_MEMBERS>...]
    ```
 
    Abort immediately if this exits non-zero.
 
-8. Fetch the issue body and comments (including any comments not yet
+8. Fetch each issue's body and comments (including any comments not yet
    loaded in step 6). Use the full content as implementation context
    throughout Phases 3–5.
 
@@ -320,17 +335,21 @@ draft commit and use `git diff main...HEAD` normally.
 
 ### Phase 8 — Open PR and Finalize
 
-1. Compute diff size: ≤50 lines → `size:S`; 51–300 → `size:M`; 301+ → `size:L`.
-   Update the `size:` label on the Issue.
+1. Compute diff size over the whole PR: ≤50 lines → `size:S`; 51–300 →
+   `size:M`; 301+ → `size:L`. Update the `size:` label on the Issue — on every
+   member for a bundle, each carrying the whole-PR size (PAD-05-002).
 
-2. Invoke the `create-pr` skill to push and open the PR:
+2. Invoke the `create-pr` skill to push and open the PR. One bundle is one PR:
+   the body carries `- Closes #N` **once per member, in bundle order**, and the
+   Changes section names each member's change so a reviewer can map every hunk
+   to a closed issue (`pr-body-guide.md`; `bundling.md` § "Executing a bundle").
 
    ```text
    type:         implementation
    title:        <short title>
    body:         <composed per pr-body-guide.md implementation template>
    labels:       size:<X>
-   issue_number: <N>
+   issue_number: <N>        # the first bundle member
    ```
 
    `create-pr` performs the rebase on `origin/main`, validates, pushes, and
@@ -346,7 +365,8 @@ draft commit and use `git diff main...HEAD` normally.
 
 4. Post `[ADVISORY]` findings as a PR comment (if any).
 
-5. Invoke `archive-history`:
+5. Invoke `archive-history` — once per bundle member, each entry carrying the
+   same PR URL:
 
    ```text
    TYPE    = implementation
@@ -366,8 +386,12 @@ draft commit and use `git diff main...HEAD` normally.
 
 ## Constraints
 
-- One issue is executed per run.
-- Multi-issue input may be accepted for user guidance, but this skill should
-  ask how to proceed and then continue with one issue only.
+- One run produces one PR. That PR closes one issue, or every member of a
+  bundle — see `.agents/skills/shared/bundling.md`.
+- Multi-issue input is a bundle, not a menu: implement every member. If the
+  bundle cannot be finished, finish what you can, close only those members, and
+  say which you left and why.
+- Every member is implemented to the standard it would get alone — its own
+  tests, its own acceptance criteria. A bundle amortizes context, never rigor.
 - Do not skip validation or the pre-PR code review.
 - Do not commit directly to `main`. All work goes through a PR.

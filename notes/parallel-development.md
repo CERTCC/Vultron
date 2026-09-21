@@ -43,6 +43,9 @@ building Vultron.
 | Diff-size thresholds | ≤50 lines = S, 51–300 = M, 301+ = L | Common open-source convention; aligns with maintainability expectations |
 | Two-pass code review? | Single-pass with [BLOCKING]/[ADVISORY] tags | Same signal, less process theater; build agent acts on tags |
 | Where do `update-plan` gap findings go? | GitHub Issues (added to Project #24) | Consistent with the GitHub Issues model |
+| Is a bundle one PR or several? | One PR closing every member | Getting more than one issue done per PR *is* the point of bundling; amortizes one context load, one branch, one review |
+| How are bundle members chosen? | Eligibility, then fit: `issueType`, `Schedule` tier, `size:` budget | Eligibility answers "can this be worked at all", not "does it belong with these" (PAD-15) |
+| Is thematic coherence scored? | No — stated as one sentence by the agent; the tool emits hints only | Cutting by superficial theme rather than design grain produces plausible-but-wrong work units (`calve-epics`) |
 
 ---
 
@@ -65,6 +68,7 @@ Use minimum depth. Many Epics will have leaf Tasks with no Subtasks.
 | `size:S` | Agent at issue creation + PR open | ≤2 ACs or ≤50 diff lines |
 | `size:M` | Agent at issue creation + PR open | 3–6 ACs or 51–300 diff lines |
 | `size:L` | Agent at issue creation + PR open | 7+ ACs or 301+ diff lines |
+| *(no `size:` label)* | — | **Unmeasured, not small.** Bundle selection weights it as the largest size: `size:L` is unbounded above, so guessing small fails open (PAD-15-005) |
 | `stale-claim` | Stale-claim sweeper (GH Actions) | Orphaned claim; skip until human clears |
 | `needs-rebase` | Build agent | PR or task branch has merge conflicts that must be rebased |
 | `specs-notes` | ingest-idea, learn | Docs-only PR containing only specs/ and notes/ changes |
@@ -76,13 +80,35 @@ and Epic sub-issue relationships instead of labels.
 
 ---
 
+## Bundle Selection and Execution
+
+A **bundle** is 1–5 issues worked in one PR that closes every member. The
+normative contract — the two selection stages, the three fit signals and their
+authorities, and the execution rules — lives in
+[`.agents/skills/shared/bundling.md`](../.agents/skills/shared/bundling.md), and
+the requirements are PAD-15. Mechanics are in `vultron/metadata/planning/`
+(`uv run bundle-fit`), so no skill re-derives the rules in prose.
+
+The trap this replaced (ISSUE-3482): eligibility filters answer *can this issue
+be worked at all*, which is a different question from *does it belong with these
+four*. Selecting on eligibility alone proposed an `Idea`, a `Someday` `Concern`
+and two `size:L` Tasks as one bundle, because all four were open, unassigned,
+unblocked leaves. Two of the three missing signals were already spec-mandated
+authorities — `issueType` and the Project #24 `Schedule` field — and the third
+(`size:`) was on 91% of open Tasks. **A selector that reads only its filter
+predicates ignores the authorities its own project already established.**
+
+Sub-issue list order is manual drag-order. It is a tie-breaker, never a
+priority signal — PAD-03-001 puts priority on the `Schedule` field, on the Epic
+**or** the leaf, so a leaf without a tier inherits its Epic's.
+
 ## Task Claiming Protocol
 
 ```text
 1. Query Project #24 → identify first Epic in Now tier
 2. Query GitHub: open leaf Issues that are sub-issues of that Epic,
    no stale-claim, unassigned
-3. Pick the highest-priority unblocked leaf Issue
+3. Apply fit (type / Schedule tier / size budget) → pick the member or bundle
 4. git switch -c task/<issue-number>-<slug>
    → if branch already exists: abort (task is taken)
 5. gh issue edit <N> --add-assignee @me
@@ -240,6 +266,8 @@ Load this file when:
 
 - Adding or modifying skill SKILL.md files (`build`, `ingest-idea`,
   `review-priorities`, `update-plan`, `study-project-docs`)
+- Changing how work is selected or bundled (`propose-bundle`, `bundle-fit`,
+  `.agents/skills/shared/bundling.md`)
 - Creating GitHub Issues for new work items
 - Implementing or modifying the stale-claim sweeper GitHub Actions workflow
 - Debugging task-selection or claiming behavior in the `build` skill

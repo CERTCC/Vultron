@@ -1,8 +1,8 @@
 ---
 name: plan-issue
 description: >
-  Convert a single open GitHub Idea, Concern, or Epic issue into a concrete
-  implementation plan. Deepens context from the issue first, then runs a
+  Convert an open GitHub Idea, Concern, or Epic issue — or a bundle of them —
+  into a concrete implementation plan. Deepens context from the issue first, then runs a
   grill-me interview to understand scope, creates implementation issues,
   optionally updates specs/notes, and closes or annotates the source issue
   appropriately. Auto-detects type from the GitHub issue type. Use when the
@@ -36,7 +36,12 @@ See `.agents/skills/shared/README.md` for project IDs and issue type IDs.
 
 ### Phase 0 — Select the Issue
 
-If the user provided a GitHub issue number, skip to Phase 1.
+If the user provided a GitHub issue number, skip to Phase 1. **Several numbers
+is a bundle**: plan all of them in one PR that closes every member, per
+`.agents/skills/shared/bundling.md` § "Executing a bundle". Every member must be
+an Idea, Concern, or Epic (name the right skill for any that is not), one
+grill-me interview covers the whole bundle, and each member still gets its own
+implementation issues and its own disposition in Phase 9.
 
 Otherwise, query open issues of all three types and present as a combined
 multiple-choice list via `ask_user`:
@@ -133,7 +138,8 @@ Delegate to `claim-issue.sh` for idempotency guard, branch creation,
 assignee, and claim comment — exactly as `build` and `bugfix` do:
 
 ```bash
-bash .agents/skills/shared/claim-issue.sh "${ISSUE_NUMBER}" plan "<slug>"
+bash .agents/skills/shared/claim-issue.sh "${ISSUE_NUMBER}" plan "<slug>" \
+  ${OTHER_MEMBERS[@]+"${OTHER_MEMBERS[@]}"}
 ```
 
 ### Phase 2 — Orient (invoke `orient-agent`)
@@ -252,6 +258,11 @@ returns the PR URL. Use the returned URL in the `archive-history` call (Phase 9)
 > For Ideas and Concerns, include `issue_number` so the PR body contains
 > `Closes #N`. For Epics, omit `issue_number` — the Epic must not be closed
 > by the docs PR.
+>
+> For a bundle, pass the first member as `issue_number` and put one
+> `- Closes #N` line per **non-Epic** member at the top of the body, in bundle
+> order (`bundling.md` § "Executing a bundle"). An Epic member never gets a
+> `Closes` line, even inside a bundle.
 >
 > Even when Phase 5 produced no doc changes the PR must still be opened — the
 > history entry (Phase 9) will be committed to this branch and ride along with
