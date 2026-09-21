@@ -20,11 +20,13 @@ related_notes:
 
 # Demo Scenario Registry — Self-Registration, Derived Paths, and the Generate-vs-Check Split
 
-The set of demo scenarios was restated by hand in eight-plus places with nothing
-enforcing agreement. ADR-0098 replaced those copies with one self-registering
-source: each demo module declares itself, and every table and the CI matrix are
-derived. This note records the parts a future implementer or reviewer will get
-wrong from the ADR alone.
+The set of demo scenarios is restated by hand in many places with nothing
+enforcing agreement. ADR-0098 decided to replace those copies with one
+self-registering source: each demo module declares itself, and every table and
+the CI matrix derive from it. **None of this is built yet** — the registry and
+the generators are tracked by ISSUE-3450, and the checks over the remaining
+hand-written prose by ISSUE-3451. This note records the parts a future
+implementer or reviewer will get wrong from the ADR alone.
 
 Design rationale and the options rejected: `docs/adr/0098-demo-scenarios-self-register.md`.
 Normative requirements: `specs/demo-ci.yaml` DEMOCI-11.
@@ -53,10 +55,11 @@ docs/topics/scenarios/<name>.md
 
 where `<name_>` is `name` with hyphens replaced by underscores. Every registered
 scenario satisfies all three conventions, verified at the time ADR-0098 was
-written, so there is no exception list and none should be introduced. A stored
-path is a path that can be wrong about itself; a derived path either resolves or
-fails a check. That distinction is the whole reason the phantom `vc` row was
-possible — a hand-written table named a script that had never existed.
+written, as do the paths the specs already mandate for scenarios not yet built
+(DEMOMA-20-001, DEMOMA-21-001), so there is no exception list and none should be
+introduced. A stored path is a path that can be wrong about itself; a derived path
+either resolves or fails a check. That distinction is why the `vc` row was
+possible — a hand-written table named a script that did not exist.
 
 If a future scenario genuinely cannot satisfy a convention, change the convention
 or rename the file. Adding an override field re-opens the drift channel for every
@@ -114,12 +117,13 @@ checking it. Route each consumer by what it is:
 
 | Consumer | Treatment | Why |
 |---|---|---|
-| `docs/topics/scenarios/index.md` | build-time render | Inside the mkdocs tree, so `markdown-exec` can call the dumper; no table is committed and drift is impossible |
+| `docs/topics/scenarios/index.md` | build-time render (DEMOCI-11-009) | Inside the mkdocs tree, so `markdown-exec` can call the dumper; no table is committed and drift is impossible |
 | `.github/demo-scenarios.json` | generate + `--check` | CI needs it before Python exists |
 | `test/ci/README-case-log-ratchet.md` | generate + `--check` | Outside the mkdocs tree — read raw on GitHub and by agents, so an include directive would render literally |
 | `vultron/demo/scenario/README.md` | generate + `--check` | Same |
 | `notes/` scenario tables | generate derivable columns; check the rest | Their tables interleave hand-written columns (PR-set Rationale, per-scenario event-type coverage) that the registry does not and should not hold |
-| `specs/` DEMOCI-06-002/003, DEMOMA-16-002…011 | check only | Prose requirements; see below |
+| `.github/workflows/demo-integration.yml` header comment | delete the prose enumeration | It restates both scenario sets in a comment above the code that computes them; nothing is lost by removing it, so there is no copy left to generate or check |
+| `specs/` DEMOCI-06-002/003 and the per-scenario DEMOMA-16 requirements | check only | Prose requirements; see below |
 | `mkdocs.yml` nav | check completeness | Hand-written short labels |
 
 **The mkdocs-tree boundary is the load-bearing distinction.** The
@@ -129,11 +133,18 @@ time, and nothing in `mkdocs.yml` references `notes/` or `test/ci/`. An
 every reader. Only `docs/` pages can use the zero-drift treatment.
 
 **Specs keep their prose.** A requirement that defers its content to code is a
-weak requirement, and DEMOMA-16-002 through DEMOMA-16-011 exist so each scenario
-has a citable spec ID. Check that the enumerations agree with the registry;
-do not rewrite them into pointers. The precedent is
+weak requirement, and the per-scenario DEMOMA-16 requirements exist so each
+scenario has a citable spec ID. Check that the enumerations agree with the
+registry; do not rewrite them into pointers. The precedent is
 `vultron/metadata/adr/index_gen.py`, which generates `docs/adr/index.md` but only
 checks the mkdocs nav, because the nav's labels are hand-written prose.
+
+**Do not select the per-scenario DEMOMA-16 requirements by ID range.** "DEMOMA-16-002
+through DEMOMA-16-011" looks like the set and is not: DEMOMA-16-008 inside that
+span is the spec↔test sync rule, DEMOMA-16-012 and -013 are FCVCV event-count
+requirements, and DEMOMA-16-014 and -015 are per-scenario requirements sitting
+outside it. Select by what the requirement is — one scenario's expected
+event-type list — not by where its number falls.
 
 ## Pitfalls
 

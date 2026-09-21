@@ -10,38 +10,46 @@ informed: Vultron contributors
 
 ## Context and Problem Statement
 
-The set of demo scenarios is restated by hand in at least eight places: the CI
-matrix registry (`.github/demo-scenarios.json`), a scenario→harness table in
+The set of demo scenarios is restated by hand in all of the following places: the
+CI matrix registry (`.github/demo-scenarios.json`), a scenario→harness table in
 `test/ci/README-case-log-ratchet.md`, two tables in
 `notes/demo-ci-scenario-coverage.md`, one in `notes/demo-ci-invariants.md`, a
 sub-command table in `vultron/demo/scenario/README.md`, a narrative index in
-`docs/topics/scenarios/index.md`, the `mkdocs.yml` nav, and prose statements in
-`specs/demo-ci.yaml` (DEMOCI-06-002, DEMOCI-06-003) and
-`specs/multi-actor-demo.yaml` (DEMOMA-16-002 through DEMOMA-16-011). Nothing
-enforces agreement between any of them.
+`docs/topics/scenarios/index.md`, the `mkdocs.yml` nav, the header comment of
+`.github/workflows/demo-integration.yml` (which names both the PR set and the
+full set in prose), and prose statements in `specs/demo-ci.yaml` (DEMOCI-06-002,
+DEMOCI-06-003) and `specs/multi-actor-demo.yaml` (one requirement per scenario in
+the DEMOMA-16 group). Nothing enforces agreement between any of them.
 
-They have already drifted. `vultron/demo/scenario/README.md` documents a `vc`
-sub-command backed by `vc_demo.py`; that file has never existed in the history of
-the repository, is absent from `vultron/demo/cli.py`, and the README row is its
-only mention anywhere. A reader following that table runs a command that does not
-exist.
+They have already disagreed. `vultron/demo/scenario/README.md` lists a `vc`
+sub-command backed by `vc_demo.py` in a table headed "Available scenario demos".
+That file has never existed in the repository and is absent from
+`vultron/demo/cli.py`, so a reader following the table runs a command that does
+not exist — but the row was not a typo or a stale leftover. It was added
+deliberately, in the same commit that added the VC scenario's spec group
+(DEMOMA-25), as forward documentation of work that is specified, tracked by an
+open issue, and not yet built. The defect is that a table of *available* demos
+was the place it landed, and that nothing could tell the difference between a
+scenario that exists and one that is merely intended.
 
-This is the third instance of one failure shape. ISSUE-3337 found two tables
-mirroring the case-ledger invariant inventory, both stale, and its learning
-entry records the rule: sort a mirrored table's columns into ratchetable and
-not, keep and ratchet the former, delete the latter. ISSUE-3386 then proposed
-ratcheting the scenario→harness table the same way. Applying that rule
-scenario-wide raises a prior question — whether these tables should be
+That distinction is the one a registry must make, and it generalises. ISSUE-3337
+found two tables mirroring the case-ledger invariant inventory, both stale, and
+its learning entry records the rule: sort a mirrored table's columns into
+ratchetable and not, keep and ratchet the former, delete the latter. ISSUE-3386
+then proposed ratcheting the scenario→harness table the same way. Applying that
+rule scenario-wide raises a prior question — whether these tables should be
 *checked* against a source of truth, or *stop being independent copies at all*.
 
 ## Decision Drivers
 
 - A table nothing can check is a table nobody does check; an unratcheted doc
   decays into confident wrong answers, not into silence (ISSUE-3337).
-- Adding a scenario currently means editing eight-plus places correctly, with no
-  failure if one is missed. The cost falls on every future scenario author.
+- Adding a scenario currently means editing every one of those places correctly,
+  with no failure if one is missed. The cost falls on every future scenario
+  author.
 - Per-table ratchets would enforce agreement but leave the editing burden
-  intact — eight hand-maintained copies that now fail loudly instead of quietly.
+  intact — the same hand-maintained copies, now failing loudly instead of
+  quietly.
 - The GitHub Actions `scenarios` job resolves the matrix with `jq` immediately
   after checkout, in a job with no Python environment, so the CI matrix cannot
   be computed at run time.
@@ -83,9 +91,10 @@ derived by convention from `name` and asserted to resolve:
 | Invariant harness | `test/ci/invariants/test_<name_>_invariants.py` |
 | Narrative page | `docs/topics/scenarios/<name>.md` |
 
-(`<name_>` is `name` with hyphens replaced by underscores.) All nine registered
-scenarios satisfy all three conventions today, so no path data is carried and no
-exception list is needed.
+(`<name_>` is `name` with hyphens replaced by underscores.) Every registered
+scenario satisfies all three conventions today, as do the paths the specs already
+mandate for scenarios not yet built (DEMOMA-20-001, DEMOMA-21-001), so no path
+data is carried and no exception list is needed.
 
 Discovery walks the package with `pkgutil.iter_modules`, **not** a hand-written
 import list: auto-registration only sees what is imported, so an import list
@@ -102,7 +111,8 @@ Each consumer is then treated according to what it actually is:
 | `test/ci/README-case-log-ratchet.md` | generated between markers |
 | `vultron/demo/scenario/README.md` | generated between markers |
 | `notes/` scenario tables | generated columns where derivable; completeness-checked where hand-written |
-| `specs/` DEMOCI-06-002/003, DEMOMA-16-002…011 | prose retained, consistency-checked |
+| `.github/workflows/demo-integration.yml` header comment | the prose enumeration is deleted in favour of the code below it; no copy survives to check |
+| `specs/` DEMOCI-06-002/003 and the per-scenario DEMOMA-16 requirements | prose retained, consistency-checked |
 | `mkdocs.yml` nav | completeness-checked |
 
 Committed generated files are gated by a `--check` mode in a pre-commit hook,
@@ -121,8 +131,12 @@ context gains no new variables.
 
 **Specs keep enumerating scenarios in prose, and are checked rather than
 rewritten.** A requirement that defers its content to code is a weak
-requirement, and DEMOMA-16-002 through DEMOMA-16-011 exist precisely so each
-scenario has a citable spec ID. This mirrors `vultron/metadata/adr/index_gen.py`,
+requirement, and the per-scenario DEMOMA-16 requirements exist precisely so each
+scenario has a citable spec ID. (Those requirements are not a contiguous ID
+range: DEMOMA-16-008 is the spec↔test sync rule, DEMOMA-16-012 and -013 are
+FCVCV event-count requirements, and the per-scenario requirements for scenarios
+not yet built are DEMOMA-16-014 and -015. A check must select them by what they
+are, not by a numeric span.) This mirrors `vultron/metadata/adr/index_gen.py`,
 which generates `docs/adr/index.md` but only checks the mkdocs nav for
 completeness because the nav's labels are hand-written. Generate what is
 derivable; check what is prose.
@@ -134,17 +148,16 @@ derivable; check what is prose.
 - Good, because `docs/topics/scenarios/index.md` becomes incapable of drifting
   rather than merely monitored for it.
 - Good, because a registered scenario missing its harness, script, or narrative
-  page fails a check, which is the defect class that produced the phantom `vc`
-  row.
+  page fails a check, which is the defect class the `vc` row belonged to.
 - Good, because the PR-set membership flag is stated once, next to the demo,
-  instead of in five places (README column, notes minimum-set table, workflow
-  header comment, DEMOCI-06-002, DEMOCI-06-003).
+  rather than separately in the README column, the notes minimum-set table, the
+  workflow header comment, DEMOCI-06-002 and DEMOCI-06-003.
 - Bad, because a generated table cannot be hand-edited for a one-off wording
   fix; the fix must go to the decorator or the renderer.
 - Bad, because the dumper imports every demo module, coupling docs builds and the
-  pre-commit hook to demo-module import health. Mitigated by those modules being
-  import-safe today: module scope holds only `logging.getLogger`,
-  `os.environ.get` defaults, and string constants.
+  pre-commit hook to demo-module import health. Mitigated by those modules having
+  no import-time side effects today — module scope holds only logger acquisition,
+  environment-variable defaults, constants, aliases, and the `__main__` guard.
 - Neutral, because scenario metadata is prose (participants, one-line feature)
   living in Python decorators rather than a data file. This follows
   `vultron/metadata/msm/`, where one data model already feeds many rendered
@@ -157,8 +170,8 @@ derivable; check what is prose.
 - A test asserts each registered scenario's three derived paths resolve on disk.
 - The `--check` mode of the dumper, wired as a pre-commit hook, fails when any
   committed generated artifact is stale.
-- Consistency tests bind DEMOCI-06-002, DEMOCI-06-003, DEMOMA-16-002…011 and the
-  `mkdocs.yml` nav to the registry.
+- Consistency tests bind DEMOCI-06-002, DEMOCI-06-003, the per-scenario DEMOMA-16
+  requirements and the `mkdocs.yml` nav to the registry.
 
 ## Pros and Cons of the Options
 
@@ -169,10 +182,10 @@ The shape ISSUE-3386 proposed, applied per table.
 - Good, because it is the smallest change and needs no new module.
 - Good, because it follows an established in-repo pattern
   (`test/ci/invariants/test_diagnostic_map_sync.py`).
-- Bad, because it enforces agreement without reducing the editing burden: eight
-  copies still need hand-editing, and a red test is the reward for forgetting
+- Bad, because it enforces agreement without reducing the editing burden: every
+  copy still needs hand-editing, and a red test is the reward for forgetting
   one.
-- Bad, because it cannot catch the phantom `vc` row: that row is in the *demo
+- Bad, because it cannot catch the `vc` row: that row is in the *demo
   inventory*, a population the CI matrix registry does not describe.
 
 ### A new hand-maintained rich registry file
@@ -184,7 +197,7 @@ flags, with every table generated from it.
 - Good, because prose cells stay diffable in one place.
 - Bad, because it adds a file that must be kept in step with the demo modules —
   moving the drift boundary rather than removing it, and preserving exactly the
-  failure that produced the phantom `vc` row.
+  failure the `vc` row belonged to.
 
 ### Scenarios self-register at import time
 
@@ -199,8 +212,11 @@ flags, with every table generated from it.
 ## More Information
 
 Source: ISSUE-3386, which proposed the narrower per-table ratchet. The
-column-triage rule this decision generalises comes from ISSUE-3337. The phantom
-`vc` row is tracked separately.
+column-triage rule this decision generalises comes from ISSUE-3337. The `vc` row
+this decision's Context section describes was removed in the PR that recorded
+this ADR; the VC scenario it documented remains specified by DEMOMA-25 and
+DEMOMA-16-015 and tracked by ISSUE-2591, and is listed among the planned
+scenarios in `notes/demo-future-ideas.md`.
 
 Prior art in this repository, all of it load-bearing for the design above:
 `vultron/metadata/msm/render.py` (one data model, many rendered tables),

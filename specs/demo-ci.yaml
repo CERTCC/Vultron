@@ -741,8 +741,11 @@ groups:
           The validated coverage matrix MUST be recorded in
           `notes/demo-ci-scenario-coverage.md`.
         rationale: >-
-          Recording the matrix in a notes file makes it the authoritative
-          reference for the minimum PR validation set defined in DEMOCI-06-002.
+          Recording the matrix in a notes file puts the coverage analysis where
+          scenario authors will read it. Since ADR-0098 the matrix is a checked
+          copy rather than an authority: the normative statement of the minimum
+          PR validation set is DEMOCI-06-002, and the scenario set itself is
+          declared by the registry (DEMOCI-11-001).
 
       - id: DEMOCI-06-002
         priority: MUST
@@ -833,13 +836,18 @@ groups:
         priority: MUST
         kind: project
         statement: >-
-          The scenario list MUST reside in a single declarative source of truth
+          CI MUST resolve the scenario list from a single declarative file
           (`.github/demo-scenarios.json`), with each entry carrying a boolean
           `full_suite_only` field.
         rationale: >-
-          A single source of truth prevents the PR and post-merge scenario
-          lists from drifting apart and makes the `full_suite_only` flag the
-          canonical mechanism for per-event filtering.
+          Resolving both matrices from one file prevents the PR and post-merge
+          scenario lists from drifting apart and makes the `full_suite_only` flag
+          the canonical mechanism for per-event filtering. Since ADR-0098 that
+          file is generated from the scenario registry (DEMOCI-11-004) rather
+          than hand-maintained, and the authority for which scenarios exist rests
+          with the demo modules (DEMOCI-11-001); this requirement governs only
+          what CI reads the matrix from, which must remain a committed file
+          because the `scenarios` job has no Python.
 
       - id: DEMOCI-06-008
         priority: MUST
@@ -1526,9 +1534,13 @@ groups:
         rationale: >-
           The demo module is the only artifact that can know a demo exists. Any
           separate list — a data file, an import list, a documentation table —
-          can omit a scenario without failing, which is how
-          `vultron/demo/scenario/README.md` came to document a `vc` sub-command
-          backed by a `vc_demo.py` that has never existed in the repository.
+          can omit a scenario, or claim one that does not exist, without failing.
+          `vultron/demo/scenario/README.md` listed a `vc` sub-command backed by a
+          `vc_demo.py` that has never existed in the repository under a heading
+          reading "Available scenario demos"; the row was deliberate forward
+          documentation of a specified but unbuilt scenario (DEMOMA-25,
+          ISSUE-2591), and nothing could distinguish it from a scenario that was
+          actually available.
         verification: >-
           A test asserts the registered scenario set equals the set of
           `*_demo.py` modules present in `vultron/demo/scenario/`, so a module
@@ -1617,6 +1629,8 @@ groups:
           - ADR-0098
         relationships:
           - rel_type: refines
+            spec_id: DEMOCI-06-007
+          - rel_type: refines
             spec_id: DEMOCI-06-004
         lint_suppress:
           - missing_story_reference
@@ -1648,9 +1662,10 @@ groups:
         kind: project
         statement: >-
           Documentation outside the MkDocs tree MUST NOT use
-          `{% include-markdown %}` to source a scenario table. Such tables MUST
-          be generated into the file, and `docs/` pages MAY instead render the
-          table at build time.
+          `{% include-markdown %}` to source a scenario table. Such a table MUST
+          instead be generated into the file, or — where it interleaves
+          hand-written columns the registry does not hold — checked in place
+          against the registry (DEMOCI-11-007).
         rationale: >-
           The `include-markdown` plugin expands only during a MkDocs build, and
           `mkdocs.yml` references neither `notes/` nor `test/ci/`. An include
@@ -1671,21 +1686,29 @@ groups:
         kind: project
         statement: >-
           Hand-written prose that enumerates scenarios — including DEMOCI-06-002,
-          DEMOCI-06-003, DEMOMA-16-002 through DEMOMA-16-011, and the
+          DEMOCI-06-003, the per-scenario requirements of the DEMOMA-16 group,
+          the hand-written columns of the `notes/` scenario tables, and the
           `mkdocs.yml` nav — MUST be checked for agreement with the scenario
           registry rather than rewritten to defer to it.
         rationale: >-
           A requirement that defers its content to code is a weak requirement,
-          and DEMOMA-16-002 through DEMOMA-16-011 exist so that each scenario has
-          a citable spec ID. Generate what is derivable and check what is prose —
-          the split `vultron/metadata/adr/index_gen.py` already makes when it
-          generates the ADR index but only checks the nav, whose labels are
-          hand-written.
+          and the per-scenario DEMOMA-16 requirements exist so that each scenario
+          has a citable spec ID. Generate what is derivable and check what is
+          prose — the split `vultron/metadata/adr/index_gen.py` already makes when
+          it generates the ADR index but only checks the nav, whose labels are
+          hand-written. The per-scenario DEMOMA-16 requirements are not a
+          contiguous ID range and MUST NOT be selected as one: DEMOMA-16-008 is
+          the spec-to-test sync rule, DEMOMA-16-012 and DEMOMA-16-013 are FCVCV
+          event-count requirements, and DEMOMA-16-014 and DEMOMA-16-015 are
+          per-scenario requirements for scenarios that are specified but not yet
+          built.
         verification: >-
           Tests assert that DEMOCI-06-002 names exactly the PR-set scenarios,
-          that DEMOCI-06-003 names exactly the registered set, that
-          DEMOMA-16-002 through DEMOMA-16-011 covers each registered scenario,
-          and that the `mkdocs.yml` nav references every scenario narrative page.
+          that DEMOCI-06-003 names exactly the registered set, that every
+          registered scenario has a per-scenario DEMOMA-16 requirement, that the
+          hand-written columns of the `notes/` scenario tables cover every
+          registered scenario, and that the `mkdocs.yml` nav references every
+          scenario narrative page.
         adr:
           - ADR-0098
         relationships:
@@ -1698,13 +1721,17 @@ groups:
         priority: MUST_NOT
         kind: project
         statement: >-
-          Long-lived documentation MUST NOT restate the number of demo
-          scenarios. The generated table is the count.
+          A consumer of a scenario table MUST NOT restate the number of demo
+          scenarios in prose. The table is the count.
         rationale: >-
           `test/ci/README-case-log-ratchet.md` stated "nine" three times in
           sentences surrounding a nine-row table, so adding a scenario meant four
           coordinated edits to one page. This is MS-16-001 applied to the
-          scenario set.
+          scenario set. Other consumers still carry the same restatement and must
+          be cleaned up when the check lands: `docs/topics/scenarios/index.md`,
+          the coverage table in `notes/demo-ci-scenario-coverage.md`, and the
+          header comment of `.github/workflows/demo-integration.yml`, which states
+          a count for both the PR set and the full set.
         verification: >-
           A test asserts no scenario-table consumer restates the registered
           scenario count in prose.
@@ -1713,5 +1740,32 @@ groups:
         relationships:
           - rel_type: refines
             spec_id: DEMOCI-11-007
+        lint_suppress:
+          - missing_story_reference
+
+      - id: DEMOCI-11-009
+        priority: MUST
+        kind: project
+        statement: >-
+          `docs/topics/scenarios/index.md` MUST render its scenario table at
+          build time from the registry. No scenario table may be committed in
+          that page.
+        rationale: >-
+          The page sits inside the MkDocs tree, so `markdown-exec` can call the
+          dumper during the build. That is a stronger guarantee than generation
+          plus a `--check` hook (DEMOCI-11-005): with no committed table there is
+          nothing to go stale, so drift is not detected but impossible. The
+          weaker arrangement is used elsewhere only because CI and raw-file
+          readers cannot run a MkDocs build. Stating this as a requirement is
+          what makes the zero-drift claim ADR-0098 records for this page true
+          rather than aspirational.
+        verification: >-
+          `mkdocs build --strict` renders the table, and a test asserts the
+          committed page contains no scenario table.
+        adr:
+          - ADR-0098
+        relationships:
+          - rel_type: refines
+            spec_id: DEMOCI-11-001
         lint_suppress:
           - missing_story_reference

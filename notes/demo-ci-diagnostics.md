@@ -16,6 +16,7 @@ related_notes:
   - notes/sync-ledger-replication.md
   - notes/ci-workflow-authoring.md
   - notes/demo-scenario-authoring.md
+  - notes/demo-scenario-registry.md
 relevant_packages:
   - vultron/adapters/driven
   - vultron/adapters/driving/fastapi/routers
@@ -36,10 +37,12 @@ root cause with this guide.
 The Demo Integration CI workflow runs each demo scenario as an independent
 matrix job inside Docker, collects JSONL case-ledger replica files, and then
 runs that scenario's invariant test file against them. The scenario set and its
-harness files come from `.github/demo-scenarios.json` — the sole registry; a
-pull request runs the DEMOCI-06-002 minimum validation subset and push-to-main
-runs all of them. Failures come from one of three layers, each with its own
-diagnostic surface.
+harness files come from `.github/demo-scenarios.json`, which CI resolves the
+matrix from; a pull request runs the DEMOCI-06-002 minimum validation subset and
+push-to-main runs all of them. ADR-0098 moves the declaration of which scenarios
+exist into the demo modules themselves and makes that JSON a generated
+projection — until it lands, the JSON is still hand-maintained. Failures come
+from one of three layers, each with its own diagnostic surface.
 
 ---
 
