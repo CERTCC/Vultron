@@ -45,3 +45,5 @@ artifact stops mirroring the built site; and add a ratchet test that fails if
 the file is tracked again (per the #3337 learning — ratchet the ratchetable in
 the same PR). No spec/notes/ADR changes: the fix is self-documenting via code
 and test, and the governing principle already lives in the #3337 learning.
+
+Docs PR: <https://github.com/CERTCC/Vultron/pull/3453>.
