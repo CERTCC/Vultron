@@ -25,6 +25,13 @@ dependencies.
 Per ``docs/adr/0031-vultron-enums-neutral-layer.md``.
 """
 
+from vultron.enums.object_types import VultronActorType, VultronObjectType
 from vultron.enums.roles import CVDRole, serialize_roles, validate_roles
 
-__all__ = ["CVDRole", "serialize_roles", "validate_roles"]
+__all__ = [
+    "CVDRole",
+    "serialize_roles",
+    "validate_roles",
+    "VultronObjectType",
+    "VultronActorType",
+]

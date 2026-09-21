@@ -150,8 +150,8 @@ Available scenarios and their DEMO values are listed in the
 
 ## Step 4 — Read the output
 
-Each demo step is wrapped in a `demo_step` or `demo_check` context manager
-that prints structured lifecycle markers:
+Each demo step is wrapped in a `demo_step`, `demo_check`, or `demo_gate`
+context manager that prints structured lifecycle markers:
 
 | Symbol | Meaning                                  |
 |:-------|:-----------------------------------------|
@@ -161,6 +161,9 @@ that prints structured lifecycle markers:
 | 📋    | A verification check has started         |
 | ✅    | The verification check passed            |
 | ❌    | The verification check failed            |
+| 🚧    | A causal gate (precondition) has started |
+| 🔓    | The gate's precondition held             |
+| 🔒    | The gate failed; its dependent steps were skipped |
 
 Watch for `🔴` or `❌` markers to diagnose failures. The compose
 `--abort-on-container-exit` flag stops the entire stack when `demo-runner`

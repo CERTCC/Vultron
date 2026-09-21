@@ -850,12 +850,15 @@ CM-21-006, CM-21-007), auditing transfer routing in demos, or understanding
 why the CASE_MANAGER must be the intermediary for ownership transfers.
 
 **`coordination-agents.md`**
-Design guidance for capability shapes — the five abstract interface contracts
-(Sentinel, Evaluator, Retriever, Composer, Actuator) that answer Vultron
+Design guidance for capability shapes — the four abstract interface contracts
+(Evaluator, Retriever, Composer, Actuator) that answer Vultron
 call-out points. Covers the two-surface integration model (trigger endpoints =
-call-in; call-out points = call-out), the three-level taxonomy (shape /
-capability / capability implementation), the trust/execution-authority axis,
-composite capability design, and the fuzzer-node discovery methodology.
+call-in; call-out points = call-out), the three-surface routing table
+(call-out vs. protocol ask vs. call-in), the three-level taxonomy (shape /
+capability / capability implementation), the core-declared typed-port contract,
+the trust/execution-authority axis,
+composite capability design, and the fuzzer-node discovery methodology. Records
+why the **Sentinel** pattern is call-in rather than a fifth shape (ADR-0097).
 **Load when**: designing a new capability or call-out point integration,
 working on the fuzzer-to-capability replacement roadmap, or explaining the
 capability shape concept to new contributors.
@@ -899,6 +902,18 @@ configuration and its three silent hazards (ADR-0092, #3318).
 **Load when**: evaluating where new documentation belongs, cross-referencing
 Vultron docs to ISO/CVD process standards, or changing the target set, exemption
 list, or auto-fix behavior of `lint-docs`.
+
+**`documentation-sweeps.md`**
+Why relocating a documentation claim is not verifying it: the "re-reading in a
+new context" insight, the two witness sessions (#3342 over `specs/`, #3002 over
+`docs/`), and what agents must do when moving or republishing content (verify
+every claim against its authority; prefer `{% include-markdown %}` over copying).
+Records the three fragment mechanics that bite — placement beside the host pages,
+include paths relative to the including file, and the fact that extraction moves
+prose out of `lint-docs`' target set until #3318 lands.
+Normative anchors: DF-10-001, DF-10-002.
+**Load when**: performing any documentation sweep (naming, Diátaxis extraction,
+page split), or deciding how to share content across two docs/ locations.
 
 **`message-type-reference.md`**
 Why the formal message set (shorthands partitioned by state machine) and the

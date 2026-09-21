@@ -746,11 +746,15 @@ groups:
   - id: BT-18-001
     priority: MUST
     kind: project
-    statement: 'Every call-out point node MUST declare its blackboard contract in its class docstring: the set of input keys
-      read before dispatch and the set of output keys (with types) written to the blackboard on SUCCESS.'
+    statement: 'Every call-out point node MUST describe its blackboard contract in its class docstring: the set of input keys
+      read before dispatch and the set of output keys (with types) written to the blackboard on SUCCESS. The docstring describes
+      the contract for a human reader; the authoritative, machine-readable declaration is the typed-port declaration required
+      by BT-18-012, and the two MUST agree.'
     rationale: The blackboard contract is the integration seam between the tree and the backend. Without an explicit contract,
       swapping from a fuzzer backend to a real implementation is a guess — the real backend may omit writing a key that a
-      downstream node expects, causing silent failures.
+      downstream node expects, causing silent failures. The docstring earns its place alongside the typed-port declaration
+      because a reader deciding whether a capability fits their system should not have to reconstruct intent from port
+      metadata; the declaration is what a test enforces, and the prose is what makes the seam legible.
     relationships:
     - rel_type: implements
       spec_id: BT-16-003
@@ -806,16 +810,17 @@ groups:
     statement: The call-out point shape of a fuzzer node MUST be determined solely by the ADR-0024 seam-structure decision
       tree (how external input enters and output exits the call-out point). Automation potential MUST NOT be used as a criterion
       for assigning shape = ProtocolInternal. A node whose automation potential is High but whose inputs arrive from an external
-      source or whose outputs affect an external system is a Retriever, Sentinel, Evaluator, Composer, or Actuator — not ProtocolInternal
+      source or whose outputs affect an external system is a Retriever, Evaluator, Composer, or Actuator — not ProtocolInternal
       — regardless of how automated the implementation may be.
     rationale: 'Automation potential and call-out point shape are orthogonal dimensions. Automation potential describes whether
       the call-out point logic can be executed without human involvement; shape describes the structural pattern of the seam
       (what flows in, what flows out, and in what direction). A Retriever backed by a REST API is still a Retriever; the automation
       just means the Retriever implementation does not require human action. Conflating the two dimensions caused the FUZZ-08a
       misclassification tracked in issue #1188, where ~38 nodes with High automation potential were incorrectly assigned ProtocolInternal
-      shape, causing downstream work (FUZZ-08a-bis, FUZZ-08d through FUZZ-08g) to build wrong seams. The five canonical shapes
-      are: Sentinel, Evaluator, Retriever, Composer, and Actuator (added in issue #1239). Nodes that invoke external systems
-      to cause side effects without producing a content artifact MUST be classified as Actuator, not Composer.'
+      shape, causing downstream work (FUZZ-08a-bis, FUZZ-08d through FUZZ-08g) to build wrong seams. The canonical call-out
+      shapes are enumerated by BT-18-013 (Actuator added in issue #1239; Sentinel removed as a shape by ADR-0097). Nodes that
+      invoke external systems to cause side effects without producing a content artifact MUST be classified as Actuator, not
+      Composer.'
     relationships:
     - rel_type: implements
       spec_id: BT-16-005
@@ -825,7 +830,8 @@ groups:
     priority: MUST
     kind: project
     statement: A node that queries an external system synchronously and returns only a binary (SUCCESS/FAILURE) result MUST
-      be classified as a Retriever, not a Sentinel. The defining criterion for Retriever shape is the synchronous on-demand
+      be classified as a Retriever, not a Sentinel — and per BT-18-013 Sentinel is not a call-out capability shape at all,
+      so Retriever is the only available classification. The defining criterion for Retriever shape is the synchronous on-demand
       query pattern, not the richness of the returned data; a boolean is the simplest possible structured fact a Retriever
       may return. A Sentinel, by contrast, monitors a condition continuously or is triggered by an external event and calls
       a trigger endpoint when the condition becomes true — the flow direction is Sentinel → trigger endpoint → protocol, not
@@ -844,11 +850,21 @@ groups:
   - id: BT-18-010
     priority: MUST
     kind: project
-    statement: A binary-result Retriever MUST declare an empty blackboard output-key set in the node docstring; the structured
-      fact is expressed as the BT return value (SUCCESS/FAILURE), not as a blackboard write.
+    statement: A binary-result Retriever MUST declare an empty output-port set; the structured fact is expressed as the BT
+      return value (SUCCESS/FAILURE), not as a blackboard write. As with every capability contract, the authoritative
+      declaration is the typed-port declaration required by BT-18-012 and the node docstring describes it (BT-18-001).
     rationale: BT-18-001 through BT-18-003 require every call-out point to declare its complete blackboard contract. A
       binary-result Retriever has an empty output-key set; that empty set MUST still be explicitly declared so that the
-      absence of output keys is documented as intentional rather than an oversight, and backend swaps remain transparent.
+      absence of output keys is documented as intentional rather than an oversight, and backend swaps remain transparent. An
+      empty declaration is also what makes the BT-23-013 check decidable, because a capability that declares no output ports
+      is not data-producing, so a bare constant-status default is a conforming default for it.
+    relationships:
+    - rel_type: refines
+      spec_id: BT-18-012
+      note: >
+        BT-18-012 makes the typed-port declaration the authority for every
+        capability contract; BT-18-010 states what that declaration contains for
+        a binary-result Retriever — the empty set, declared rather than omitted.
   - id: BT-18-007
     priority: MUST
     kind: project
@@ -895,6 +911,179 @@ groups:
       spec_id: BT-18-002
       note: BT-18-002 requires SUCCESS to accompany all declared output writes and BT-18-007 requires FAILURE to block;
         BT-18-011 closes the trichotomy by forbidding the third py_trees status, RUNNING, at the call-out seam.
+  - id: BT-18-012
+    priority: MUST
+    kind: project
+    statement: >
+      A named capability MUST declare its blackboard contract as py_trees typed
+      ports (ADR-0044 input_ports() / output_ports()) on a declaration owned by
+      the core layer. The typed-port declaration is the authoritative contract;
+      the class docstring required by BT-18-001 describes it but is not the
+      authority. A capability declaration MUST NOT live in vultron/demo/.
+      Because a shape base class is shared by many capabilities, it cannot carry
+      a per-capability contract: the declaration MUST therefore be a core-owned
+      per-capability artifact carrying that capability's own ports, and the
+      probabilistic simulation node that stands in for it stays in
+      vultron/demo/fuzzer/ (BT-16-001) and binds to the core declaration rather
+      than restating the contract.
+    rationale: >
+      BT-18-002 is enforceable only if the contract is machine-readable from the
+      layer that must satisfy it. A contract expressed as docstring prose cannot
+      be checked, and one expressed in vultron/demo/ cannot be read by core at
+      all (BTND-04-002 forbids the import; BT-16-001 is why the probabilistic
+      nodes are there) — which leaves the DETERMINISTIC default unable to write
+      outputs it has no way to enumerate. Splitting the declaration from the
+      simulation node is what lets both rules hold at once: core owns what the
+      capability promises, demo owns one way of pretending to keep it. Typed ports are the mechanism ADR-0044
+      already mandates for every node in vultron/core/behaviors/, and they carry
+      runtime type checks on both read and write, so reusing them makes the
+      capability contract enforceable without a second registry for a problem
+      already solved. Source: CONCERN-2835 (planning group G07), IDEA-2452.
+    adr:
+    - ADR-0097
+    - ADR-0044
+    verification: >
+      A test reads a capability's declared output ports (not its docstring) and
+      asserts each declared port is written when the backend returns SUCCESS; an
+      architecture check asserts no capability declaration is imported into
+      vultron/core/ from vultron/demo/.
+    relationships:
+    - rel_type: refines
+      spec_id: BT-18-001
+      note: >
+        BT-18-001 governs the human-readable description of the contract;
+        BT-18-012 governs the authoritative machine-readable declaration. The two
+        describe one contract in two registers and must agree.
+    - rel_type: implements
+      spec_id: BT-18-002
+      note: >
+        BT-18-002's "declared output keys" are the declared output ports, which
+        is what makes the requirement checkable rather than reviewable.
+  - id: BT-18-013
+    priority: MUST
+    kind: project
+    statement: >
+      There are exactly four call-out capability shapes: Evaluator, Retriever,
+      Composer, and Actuator. Sentinel MUST NOT be classified as a call-out
+      capability shape; it is a call-in integration pattern in which a process
+      monitors a condition and acts on its own initiative rather than being
+      consulted by the protocol. A Sentinel therefore has no call-out point node,
+      no blackboard contract, no domain bundle field, and no backend factory. The
+      classifying criterion is which party initiates, not whether the monitored
+      information originates outside the case: a Sentinel MAY be a case
+      participant that observes case state through ledger replication and acts by
+      emitting protocol messages.
+    rationale: >
+      A capability shape is defined by the call-out machinery it participates in:
+      a backend factory, a domain bundle field, a blackboard contract, the
+      synchronous-answer guard (BT-18-011), and a ceiling/floor default
+      (BT-23-002). None of that applies to a monitor, because the protocol never
+      invokes it — the flow runs monitor to trigger endpoint to protocol, the
+      reverse of a call-out. Classifying a monitor as a capability shape
+      therefore asserts a contract it cannot have, and invites the specific
+      misclassification BT-18-006 exists to refuse. Naming it a call-in pattern
+      states the flow direction that actually distinguishes it, and places it
+      with the concerns an independently-acting process brings: its own schedule,
+      its own credentials, and possibly its own protocol identity. Defining it by
+      information source instead would misclassify a participant monitor, which
+      reads the case's own replicated state and is nonetheless never consulted.
+      Source: CONCERN-2835 (planning group G07).
+    adr:
+    - ADR-0097
+    verification: >
+      No class in the call-out taxonomy is named as a Sentinel shape base or
+      subclass; no domain bundle exposes a Sentinel factory field; no blackboard
+      key is documented as written by a Sentinel.
+    relationships:
+    - rel_type: refines
+      spec_id: BT-18-006
+      note: >
+        BT-18-006 classifies a synchronous on-demand external query as a
+        Retriever; BT-18-013 is why Retriever is the only available answer, since
+        Sentinel is not a call-out shape.
+  - id: BT-18-014
+    priority: MUST
+    kind: project
+    statement: >
+      A question that a service the actor itself operates can answer within a
+      single BT tick MUST be modelled as a call-out point. A question requiring a
+      decision from another actor in the case MUST NOT be modelled as a call-out
+      point; it is a protocol ask, in which the actor emits the request,
+      terminates successfully, and acts on the reply when it arrives (ADR-0080).
+      An action with no representable not-yet state MUST be refused rather than
+      asked about.
+    rationale: >
+      A call-out point is answered within the tick that asks, so it can only be
+      used where an answer already exists to be fetched. A decision belonging to
+      another actor does not exist at the moment of asking, so a gate modelled as
+      a call-out point can only ever answer no — the condition ADR-0080
+      identified in the Case Owner approval gates. The two mechanisms are not
+      interchangeable and the choice is forced by who holds the answer, not by
+      convenience, so the criterion is normative rather than advisory.
+      Source: CONCERN-2835 (planning group G07), IDEA-2453.
+    adr:
+    - ADR-0097
+    - ADR-0080
+    verification: >
+      No call-out point's declared semantics require a reply from another case
+      participant; gates that do are implemented as conversation-state routing
+      subtrees per ADR-0080.
+    relationships:
+    - rel_type: refines
+      spec_id: RSH-07-004
+      note: >
+        RSH-07-004 replaced the two status gates' call-out mechanism with a
+        routing subtree; BT-18-014 generalises the criterion that forced it.
+    - rel_type: constrains
+      spec_id: BT-18-005
+      note: >
+        BT-18-005 assigns shape by seam structure once a seam is known to be a
+        call-out point; BT-18-014 decides whether it is one at all.
+  - id: BT-18-015
+    priority: MUST
+    kind: project
+    statement: >
+      A call-out point backend MUST answer within a bounded time budget and MUST
+      NOT perform unbounded blocking I/O in update(). The budget MUST be
+      configurable per actor rather than fixed by this specification or hard-coded
+      in an implementation, and a backend that exceeds it MUST surface as an
+      internal error naming the offending node, not as a protocol FAILURE.
+    rationale: >
+      A backend runs on the ticking thread under FastAPI BackgroundTasks, so
+      unbounded blocking I/O in update() stalls a worker with no diagnostic while
+      the bridge ticks toward max_iterations and then fails without naming the
+      node — the same opaque failure BT-18-011 refuses, reached by blocking rather
+      than by suspending. Answering synchronously is therefore necessary but not
+      sufficient; the answer must also be prompt. The duration is not protocol
+      because it is local to one actor and observable by no peer, so two
+      deployments choosing different values is not divergence. An ask deadline is
+      the opposite case in the respect that matters: it travels on the wire in the
+      AS2 endTime field, so both parties read the same number (ASK-03-004). Both
+      durations are actor configuration (compare ASK-03-005) — what separates them
+      is wire visibility, not configurability.
+      Source: CONCERN-2835 (planning group G07), IDEA-2453.
+    adr:
+    - ADR-0097
+    verification: >
+      A test configures a short budget, injects a backend that exceeds it, and
+      asserts an internal error naming the node; a test asserts the budget is read
+      from actor configuration and that no literal duration appears at the seam.
+      Note the limit of what this verifies: a py_trees tick is synchronous, so a
+      guard at the seam detects an overrun and names the node but does not by
+      itself interrupt the offending backend. Interrupting one requires running it
+      off the ticking thread, and an implementation MUST state which of the two it
+      provides (ADR-0097#bounded-configurable-call-out-latency).
+    relationships:
+    - rel_type: refines
+      spec_id: BT-18-011
+      note: >
+        BT-18-011 forbids suspending; BT-18-015 closes the remaining way a
+        call-out can stall a worker — answering synchronously but too slowly.
+    - rel_type: refines
+      spec_id: BT-18-014
+      note: >
+        Work that cannot meet the budget is not a call-out point; BT-18-014 says
+        what it is instead.
 - id: BT-19
   title: Routing-Gated State Mutation in Lifecycle BT Sequences
   specs:
@@ -1012,7 +1201,8 @@ groups:
   - id: BT-20-003
     priority: SHOULD
     kind: project
-    statement: The production report-to-others workflow SHOULD be driven by a Sentinel capability that proactively
+    statement: The production report-to-others workflow SHOULD be driven by an external call-in monitor (the Sentinel
+      pattern, BT-18-013 — not a call-out capability) that proactively
       queries the case for actors who are not yet participants but should be (party discovery), then fires `suggest-actor-to-case`
       for each candidate. The `suggest-actor-to-case` protocol (Offer → CASE_MANAGER → CaseOwner → Invite → Accept → Record
       cascade) handles the downstream flow; no inline tick-driven BT loop is needed at the outer level. If an inline subtree
@@ -1022,9 +1212,10 @@ groups:
     rationale: >
       The original Production Collapse 3 design (#1311, ADR-0029) retained a three-typed-sub-loop BT structure whose
       inner blackboard queues (identified_vendors, identified_coordinators, identified_others) had no production
-      mechanism to populate them. Planning of #1252 surfaced that the identification step belongs in a Sentinel
-      capability (see #1147/#1143) that periodically or event-triggered inspects the case and asynchronously
-      fires suggest-actor-to-case for each uninvited candidate. The downstream accept/invite/bootstrap cascade already
+      mechanism to populate them. The identification step belongs in an external call-in monitor (see #2450) that
+      periodically or event-triggered inspects the case and asynchronously fires suggest-actor-to-case for each
+      uninvited candidate. Because that monitor is on the call-in surface rather than a call-out capability
+      (BT-18-013), its seam is a trigger endpoint and not a bundle field. The downstream accept/invite/bootstrap cascade already
       works; no inline BT loop is required. The tick-driven `create_report_to_others_tree` module from #1311 was an
       implementation artifact of the intermediate design and has been removed (see issue #1848, ADR-0047, and
       notes/bt-fuzzer-rm-reporting.md § "Sentinel supersession note").
@@ -1032,6 +1223,7 @@ groups:
     adr:
     - ADR-0029
     - ADR-0047
+    - ADR-0097
   - id: BT-20-004
     priority: SHOULD
     kind: project
@@ -1388,3 +1580,64 @@ groups:
     - ADR-0080
     lint_suppress:
     - missing_story_reference
+  - id: BT-23-013
+    priority: MUST
+    kind: project
+    statement: >
+      For a capability that declares one or more output ports, the DETERMINISTIC
+      backend MUST write type-conformant values to every declared output port
+      when it returns SUCCESS — notwithstanding BT-23-002 and BT-23-007, which
+      name AlwaysSucceed by class. Where this requirement and those apply to the
+      same capability, this one governs: a bare constant SUCCESS backend MUST NOT
+      be used as the DETERMINISTIC default for a capability that declares output
+      ports. BT-23-002 and BT-23-007 remain authoritative for the SUCCESS/FAILURE
+      direction, which this requirement does not change.
+    rationale: >
+      BT-23-002 and BT-23-007 select the deterministic backend so that
+      deterministic demo scenarios make forward protocol progress. For a
+      capability that
+      produces data, a bare constant SUCCESS defeats that goal instead of serving
+      it: the capability reports success, the downstream gate reads an absent key,
+      and the arm silently no-ops. Forward progress through a data-gated arm
+      requires the data, so the status direction alone is not a sufficient
+      specification of the default. The failure mode is silent rather than loud,
+      because a downstream read declared optional yields FAILURE rather than an
+      error, which is why the obligation is stated as a requirement on the default
+      rather than left to be noticed. BT-18-012 makes the declared contract
+      readable from core, which is what makes a conforming default possible. The
+      same obligation binds a STOCHASTIC backend under BT-18-003, including the
+      generic WeightedBehavior backends used for production-only domains that have
+      no named fuzzer node. Source: CONCERN-2835 (planning group G07).
+    adr:
+    - ADR-0097
+    verification: >
+      A ratchet enumerates every domain bundle field, resolves its DETERMINISTIC
+      default, and fails if the capability declares output ports that the default
+      does not write; the equivalent check covers the STOCHASTIC singletons.
+    relationships:
+    - rel_type: constrains
+      spec_id: BT-23-002
+      note: >
+        BT-23-002 names AlwaysSucceed by class; for a data-producing capability
+        BT-23-013 substitutes a contract-honouring backend in the same
+        SUCCESS direction. The same constraint applies to BT-23-007.
+    - rel_type: constrains
+      spec_id: BT-23-012
+      note: >
+        BT-23-012 and BT-23-013 are the two constraints on the ceiling/floor
+        rule, and they do not overlap: BT-23-012 overrides the status direction
+        for a security-significant gate, BT-23-013 overrides the backend class
+        for a data-producing capability while leaving the direction intact. A
+        gate covered by BT-23-012 declares no output ports, so BT-23-013 does
+        not reach it.
+    - rel_type: implements
+      spec_id: BT-18-002
+      note: >
+        BT-23-013 applies BT-18-002 to the specific backend that BT-23-001 makes
+        the default everywhere.
+    - rel_type: refines
+      spec_id: BT-18-003
+      note: >
+        BT-18-003 requires type-conformant synthetic writes from a fuzzer
+        backend; BT-23-013 extends the same obligation to the DETERMINISTIC
+        default and to generic stochastic backends with no named fuzzer node.

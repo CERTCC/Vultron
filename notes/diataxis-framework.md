@@ -7,6 +7,7 @@ description: >
 related_specs:
   - specs/diataxis-requirements.yaml
 related_notes:
+  - notes/documentation-sweeps.md
   - notes/message-type-reference.md
 ---
 

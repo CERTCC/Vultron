@@ -315,78 +315,86 @@ def _phase_ownership_handoff(
             case_id=case.id_,
         )
 
-    # 4 participants: Finder + Vendor1 + Coordinator + CaseActor
-    wait_for_case_participants(
-        vendor_client=vendor_client,
-        case_id=case.id_,
-        expected_actor_ids={
-            finder.id_,
-            vendor.id_,
-            coordinator.id_,
-        },
-    )
-    logger.info("Coordinator has joined the case")
-
-    # Vendor1 offers ownership transfer to Coordinator (TRIG-11-001).
-    ownership_offer_result = None
-    with demo_step(
-        "Vendor1 offers case ownership transfer to Coordinator (TRIG-11-001)"
+    # All 4 participants (Finder + Vendor1 + Coordinator + CaseActor) present is
+    # the causal precondition for the ownership-transfer offer/accept below: a
+    # demo_gate — not demo_check — so a timeout skips the doomed transfer rather
+    # than cascading (DEMOCI-01-011, vultron/demo/AGENTS.md § "Never Wrap a
+    # Causal Wait in demo_check").
+    with demo_gate(
+        "Vendor1 case has all 4 participants before ownership transfer"
     ):
-        ownership_offer_result = post_to_trigger(
-            client=vendor_client,
-            actor_id=vendor_in_vendor.id_,
-            behavior="offer-case-ownership-transfer",
-            body={
-                "case_id": case.id_,
-                "transferee_id": coordinator.id_,
-                "content": "Transferring case ownership to Coordinator for CVD management.",
+        wait_for_case_participants(
+            vendor_client=vendor_client,
+            case_id=case.id_,
+            expected_actor_ids={
+                finder.id_,
+                vendor.id_,
+                coordinator.id_,
             },
         )
-    ownership_offer = as_TransitiveActivity.model_validate(
-        ownership_offer_result["activity"]
-    )
-    logger.info(
-        "Vendor1 sent Offer(VulnerabilityCase) ownership transfer: %s",
-        ownership_offer.id_,
-    )
+        logger.info("Coordinator has joined the case")
 
-    # Wait for the FORWARDED offer (CM-21-005).
-    # OfferCaseOwnershipTransferReceivedUseCase creates a NEW Offer (forwarded_id)
-    # when the CaseActor processes Vendor1's Offer.  The forwarded Offer lands in
-    # Coordinator's DataLayer under a different ID; the original Offer only exists
-    # in the CaseActor's DataLayer.  Polling for the original ID would never match.
-    ownership_offer_id: str = ""
-    with demo_check(
-        "Forwarded Offer(VulnerabilityCase) delivered to Coordinator's DataLayer (CM-21-005)"
-    ):
-        ownership_offer_id = find_ownership_transfer_offer_for_actor(
-            client=coordinator_client,
-            case_id=case.id_,
-            transferee_id=coordinator.id_,
-            timeout_seconds=90.0,
-        )
-    logger.info(
-        "Forwarded ownership transfer offer ID: %s", ownership_offer_id
-    )
-
-    # Coordinator accepts the ownership transfer (TRIG-11-002).
-    accept_ownership = None
-    with demo_step(
-        "Coordinator accepts case ownership transfer (TRIG-11-002)"
-    ):
-        accept_result = post_to_trigger(
-            client=coordinator_client,
-            actor_id=coordinator_in_coordinator.id_,
-            behavior="accept-case-ownership-transfer",
-            body={"offer_id": ownership_offer_id},
-        )
-        accept_ownership = as_TransitiveActivity.model_validate(
-            accept_result["activity"]
+        # Vendor1 offers ownership transfer to Coordinator (TRIG-11-001).
+        ownership_offer_result = None
+        with demo_step(
+            "Vendor1 offers case ownership transfer to Coordinator (TRIG-11-001)"
+        ):
+            ownership_offer_result = post_to_trigger(
+                client=vendor_client,
+                actor_id=vendor_in_vendor.id_,
+                behavior="offer-case-ownership-transfer",
+                body={
+                    "case_id": case.id_,
+                    "transferee_id": coordinator.id_,
+                    "content": "Transferring case ownership to Coordinator for CVD management.",
+                },
+            )
+        ownership_offer = as_TransitiveActivity.model_validate(
+            ownership_offer_result["activity"]
         )
         logger.info(
-            "Coordinator sent Accept(Offer(VulnerabilityCase)): %s",
-            accept_ownership.id_,
+            "Vendor1 sent Offer(VulnerabilityCase) ownership transfer: %s",
+            ownership_offer.id_,
         )
+
+        # Wait for the FORWARDED offer (CM-21-005).
+        # OfferCaseOwnershipTransferReceivedUseCase creates a NEW Offer
+        # (forwarded_id) when the CaseActor processes Vendor1's Offer.  The
+        # forwarded Offer lands in Coordinator's DataLayer under a different ID;
+        # the original Offer only exists in the CaseActor's DataLayer.  Polling
+        # for the original ID would never match.
+        ownership_offer_id: str = ""
+        with demo_check(
+            "Forwarded Offer(VulnerabilityCase) delivered to Coordinator's DataLayer (CM-21-005)"
+        ):
+            ownership_offer_id = find_ownership_transfer_offer_for_actor(
+                client=coordinator_client,
+                case_id=case.id_,
+                transferee_id=coordinator.id_,
+                timeout_seconds=90.0,
+            )
+        logger.info(
+            "Forwarded ownership transfer offer ID: %s", ownership_offer_id
+        )
+
+        # Coordinator accepts the ownership transfer (TRIG-11-002).
+        accept_ownership = None
+        with demo_step(
+            "Coordinator accepts case ownership transfer (TRIG-11-002)"
+        ):
+            accept_result = post_to_trigger(
+                client=coordinator_client,
+                actor_id=coordinator_in_coordinator.id_,
+                behavior="accept-case-ownership-transfer",
+                body={"offer_id": ownership_offer_id},
+            )
+            accept_ownership = as_TransitiveActivity.model_validate(
+                accept_result["activity"]
+            )
+            logger.info(
+                "Coordinator sent Accept(Offer(VulnerabilityCase)): %s",
+                accept_ownership.id_,
+            )
 
     # Verify Vendor1's case now shows Coordinator as attributed_to.
     with demo_check(
@@ -525,41 +533,48 @@ def _phase_coordinator_invites_vendor2(
         )
     logger.info("Vendor2 received case replica")
 
-    # 5 participants: Finder + Vendor1 + Coordinator + Vendor2 + CaseActor
-    wait_for_case_participants(
-        vendor_client=vendor_client,
-        case_id=case.id_,
-        expected_actor_ids={
-            finder.id_,
-            vendor.id_,
-            coordinator.id_,
-            vendor2.id_,
-        },
-        timeout_seconds=LATE_JOINER_TIMEOUT,
-    )
-    logger.info("✓ Vendor2 joined case (%d participants)", 5)
-
-    with demo_check(
-        "Finder's DataLayer received case replica before Vendor2 RM triage"
+    # All 5 participants (Finder + Vendor1 + Coordinator + Vendor2 + CaseActor)
+    # present is the causal precondition for Vendor2's RM triage below: a
+    # demo_gate — not demo_check — so a timeout skips the doomed triage rather
+    # than cascading (DEMOCI-01-011, vultron/demo/AGENTS.md § "Never Wrap a
+    # Causal Wait in demo_check").
+    with demo_gate(
+        "Vendor1 case has all 5 participants before Vendor2 RM triage"
     ):
-        wait_for_case_on_container(
-            client=finder_client,
+        wait_for_case_participants(
+            vendor_client=vendor_client,
             case_id=case.id_,
+            expected_actor_ids={
+                finder.id_,
+                vendor.id_,
+                coordinator.id_,
+                vendor2.id_,
+            },
+            timeout_seconds=LATE_JOINER_TIMEOUT,
+        )
+        logger.info("✓ Vendor2 joined case (%d participants)", 5)
+
+        with demo_check(
+            "Finder's DataLayer received case replica before Vendor2 RM triage"
+        ):
+            wait_for_case_on_container(
+                client=finder_client,
+                case_id=case.id_,
+                timeout_seconds=90.0,
+            )
+
+        # CM-11-002: Vendor2 joined via invite-accept — run RM triage cycle.
+        run_invite_path_rm_triage(
+            invited_client=vendor2_client,
+            invited_actor=vendor2_in_vendor2,
+            offer=offer,
+            report=report,
+            finder=finder,
+            auth_client=vendor_client,
+            case=case,
+            invited_obj=vendor2,
             timeout_seconds=90.0,
         )
-
-    # CM-11-002: Vendor2 joined via invite-accept — run standard RM triage cycle.
-    run_invite_path_rm_triage(
-        invited_client=vendor2_client,
-        invited_actor=vendor2_in_vendor2,
-        offer=offer,
-        report=report,
-        finder=finder,
-        auth_client=vendor_client,
-        case=case,
-        invited_obj=vendor2,
-        timeout_seconds=90.0,
-    )
 
 
 def _phase_sync_verification(

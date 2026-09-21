@@ -23,7 +23,12 @@ import time
 from typing import Callable, Sequence
 
 from vultron.adapters.utils import parse_id, strip_id_prefix
-from vultron.demo.utils import CASE_ACTOR_SLUG, DataLayerClient, logfmt
+from vultron.demo.utils import (
+    CASE_ACTOR_SLUG,
+    DataLayerClient,
+    demo_check,
+    logfmt,
+)
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCase,
 )
@@ -234,8 +239,17 @@ def wait_for_participants_on_replicas(
     sync-verification hardening).
 
     Each replica is polled independently via :func:`wait_for_case_participants`,
-    so the identity-based participant check (EDF-06-002) and the
-    raise-on-timeout semantics apply unchanged.
+    so the identity-based participant check (EDF-06-002) applies unchanged.
+
+    Each per-replica poll runs inside its own ``demo_check`` context
+    (DEMOCI-01-011): :func:`wait_for_case_participants` raises ``AssertionError``
+    on timeout, and a bare raise from scenario ``_phase_*`` code would crash the
+    whole run at the first failure — defeating the failure-accumulation model
+    (DEMOCI-01-003/004).  Wrapping here, in the shared helper, means all seven
+    scenario callers inherit the fix (DRY) and one replica's timeout no longer
+    hides another's: the failure is recorded and the loop continues to the next
+    replica rather than propagating.  This mirrors :func:`drain_phase1_ledger`,
+    which wraps its per-replica coverage poll internally (#2819, #3384).
 
     Args:
         replica_clients: Replica containers to poll, in order.
@@ -246,20 +260,24 @@ def wait_for_participants_on_replicas(
         late_joiner_timeout: Timeout for late joiners.
         default_timeout: Timeout for early participants.
 
-    Raises:
-        AssertionError: If any replica lacks an expected actor after its
-            timeout elapses.
+    Note:
+        Does not raise on a replica timeout — the accumulating ``demo_check``
+        records it and lets the scenario continue.  The low-level
+        :func:`wait_for_case_participants` primitive keeps its raise-on-timeout
+        contract for the unit tests that depend on it.
     """
     for replica_client in replica_clients:
         is_late = any(replica_client is lj for lj in late_joiners)
-        wait_for_case_participants(
-            vendor_client=replica_client,
-            case_id=case_id,
-            expected_actor_ids=expected_actor_ids,
-            timeout_seconds=(
-                late_joiner_timeout if is_late else default_timeout
-            ),
-        )
+        label = replica_client.actor_id or replica_client.base_url
+        with demo_check(f"replica {label!r} reflects all case participants"):
+            wait_for_case_participants(
+                vendor_client=replica_client,
+                case_id=case_id,
+                expected_actor_ids=expected_actor_ids,
+                timeout_seconds=(
+                    late_joiner_timeout if is_late else default_timeout
+                ),
+            )
 
 
 def wait_for_note_in_case(
