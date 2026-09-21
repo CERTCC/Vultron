@@ -393,7 +393,7 @@ class TestRetryFullScenario:
     def test_full_retry_scenario(self, dl):
         """Simulates the complete CP-05-005 failure-and-recovery path."""
         # 1. Simulate the BT tree: Accept was sent successfully.
-        #    The _WriteCreateCaseMarkerNode wrote the marker.
+        #    The WriteCreateCaseMarkerNode wrote the marker.
         activity = _build_activity()
         marker = PendingCreateCaseActivity(
             proposal_id=_PROPOSAL_ID,
@@ -404,7 +404,7 @@ class TestRetryFullScenario:
         dl.save(marker)
 
         # 2. Simulate Create(VulnerabilityCase) delivery failing:
-        #    the marker was written but _EmitCreateVulnerabilityCaseNode failed,
+        #    the marker was written but EmitCreateVulnerabilityCaseNode failed,
         #    so the marker was NOT cleared. The activity is also not in the DL.
         assert (
             dl.read(activity.id_) is None

@@ -21,7 +21,7 @@ from typing import cast
 
 import pytest
 
-from vultron.core.behaviors.case.accept_invite_tree import (
+from vultron.core.behaviors.case.nodes.invite_embargo_consent import (
     _SignEmbargoConsentLeafNode,
 )
 from vultron.core.models.case_participant import CaseParticipant

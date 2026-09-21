@@ -105,11 +105,11 @@ def _collect_violations() -> frozenset[str]:
 # ---------------------------------------------------------------------------
 KNOWN_VIOLATIONS: frozenset[str] = frozenset(
     {
-        # case/accept_invite_tree.py
+        # case/nodes/invite_ledger_backfill.py
         "EmitAnnounceCaseToInviteeNode",
-        # case/case_proposal_received_tree.py
-        "_EmitAcceptCaseProposalNode",
-        "_EmitCreateVulnerabilityCaseNode",
+        # case/nodes/proposal_emits.py
+        "EmitAcceptCaseProposalNode",
+        "EmitCreateVulnerabilityCaseNode",
         # case/nodes/proposal.py
         "ProposeReportCaseToActorNode",
         # case/nodes/suggest_actor/emit.py

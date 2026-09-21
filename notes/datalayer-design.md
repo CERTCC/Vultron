@@ -287,7 +287,7 @@ delivery happened to store the value; that hidden dependency on delivery order
 is a latent race, not a safety net.
 
 `_read_invite_roles()` in
-`vultron/core/behaviors/case/accept_invite_tree.py` (ISSUE-2719) read invite
+`vultron/core/behaviors/case/nodes/invite_participant.py` (ISSUE-2719) read invite
 roles from the DataLayer rather than from the received activity. A protocol field
 that is *present in the message* must be read from the message; treating the
 DataLayer as a substitute source silently tolerates a message that never carried

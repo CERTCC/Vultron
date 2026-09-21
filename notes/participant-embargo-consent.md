@@ -186,10 +186,10 @@ Consent-write sites (all ten route through `apply_pec_transition()`):
 
 | Site | Uses `apply_pec_transition()`? | Syncs status? |
 |---|---|---|
-| `case/case_proposal_received_tree.py` | yes | yes |
+| `case/nodes/proposal_consent.py` | yes | yes |
 | `case/nodes/embargo.py` | yes | yes |
 | `case/nodes/participant/participant_add.py` | yes | yes |
-| `case/accept_invite_tree.py` | yes | yes |
+| `case/nodes/invite_embargo_consent.py` | yes | yes |
 | `embargo/nodes/proposal.py` | yes | yes |
 | `use_cases/_helpers.py` | yes | yes |
 | `services/embargo_lifecycle.py` (6 sites) | yes | yes |

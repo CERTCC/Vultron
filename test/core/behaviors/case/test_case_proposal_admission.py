@@ -503,7 +503,7 @@ class TestAnsweredProposalsAreNotReAdjudicated:
             dl.read(CaseProposalDeclineRecord.build_id(_PROPOSAL_URI)) is None
         )
         # The duplicate case below is pre-existing and NOT what this test
-        # guards: `_LoadExistingCaseNode(report_id=None)` cannot resolve the
+        # guards: `LoadExistingCaseNode(report_id=None)` cannot resolve the
         # existing case, so the accept path creates a second one. Asserted so a
         # reader is not misled into thinking `report_id=None` is fully handled —
         # that gap is #2890 / the ASK-08-002 xfail.
