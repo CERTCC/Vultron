@@ -405,8 +405,8 @@ no corresponding case announcement.
 
 To recover from this, a `PendingCreateCaseActivity` marker is written to
 the DataLayer **after** `Accept` is sent and **before** `Create` is
-attempted (implemented in `vultron/core/behaviors/case/
-case_proposal_received_tree.py`). The marker captures the proposal ID,
+attempted (implemented in `WriteCreateCaseMarkerNode` in
+`vultron/core/behaviors/case/nodes/proposal_retry_marker.py`). The marker captures the proposal ID,
 case-actor ID, vendor URI, and the pre-constructed
 `Create(VulnerabilityCase)` payload. It is deleted on successful
 `Create` delivery, so only failed deliveries leave a marker.
