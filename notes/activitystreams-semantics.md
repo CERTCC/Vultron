@@ -375,7 +375,7 @@ Re-engagement is correctly implemented as a second `RmEngageCase` (`as:Join`) ac
 
 **Reference**: `docs/howto/activitypub/activities/manage_case.md`
 (§ "Engage or defer a valid report"),
-`docs/reference/messages/rm.md` (§ "RA — Report Accepted"),
+`docs/reference/messages/rm.md` (§ "RA — Report/Case Accepted"),
 `vultron/demo/manage_case_demo.py` (`demo_defer_reengage_path`).
 
 ---
