@@ -29,7 +29,7 @@ DOMAIN_GROUPS: list[dict] = [
             "reject-report",
             "close-report",
         ],
-        "howto_link": "../../howto/activitypub/activities/report_vulnerability.md",
+        "howto_link": "../../howto/activitypub/activities/report_vulnerability/",
         "howto_label": "How to Report a Vulnerability",
     },
     {
@@ -41,7 +41,7 @@ DOMAIN_GROUPS: list[dict] = [
             "add-report-to-case",
             "add-object-to-case",
         ],
-        "howto_link": "../../howto/activitypub/activities/manage_case.md",
+        "howto_link": "../../howto/activitypub/activities/manage_case/",
         "howto_label": "How to Manage a Case",
     },
     {
@@ -53,7 +53,7 @@ DOMAIN_GROUPS: list[dict] = [
             "propose-embargo-revision",
             "terminate-embargo",
         ],
-        "howto_link": "../../howto/activitypub/activities/establish_embargo.md",
+        "howto_link": "../../howto/activitypub/activities/establish_embargo/",
         "howto_label": "How to Establish an Embargo",
     },
     {
@@ -68,7 +68,7 @@ DOMAIN_GROUPS: list[dict] = [
             "offer-case-ownership-transfer",
             "accept-case-ownership-transfer",
         ],
-        "howto_link": "../../howto/activitypub/activities/manage_participants.md",
+        "howto_link": "../../howto/activitypub/activities/manage_participants/",
         "howto_label": "How to Manage Case Participants",
     },
 ]
