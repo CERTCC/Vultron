@@ -14,8 +14,8 @@ its genesis entry.
 
 - A report at Report Management (RM) state `RM.VALID`. See
   [How to Report a Vulnerability](report_vulnerability.md).
-- The actor URIs of any participants you already know about, such as the
-  Reporter.
+- The actor Uniform Resource Identifiers (URIs) of any participants you already
+  know about, such as the Reporter.
 
 ---
 
