@@ -72,6 +72,24 @@ The Vendor constructs a `CaseProposal` object containing:
 The Vendor sends `Create(CaseProposal)` to the Case Actor service's inbox,
 with `actor=vendor_uri`.
 
+### Step 2: the admission decision
+
+Before either branch below, the Case Actor decides whether to take the
+case at all. That decision is a call-out point, `EvaluateCaseProposal`,
+and it is the only place a deployment expresses admission policy
+(CP-05-002). The default admits, so a service that has wired nothing
+behaves as it always did. See the
+[Capability Model](../capability_model/index.md#case-admission) for the
+service contract, and
+[Propose case](../behavior_logic/use-cases/propose-case.md#where-judgment-enters)
+for what the decision weighs and why its placement matters.
+
+The decision runs **before** every step in Step 2a, so a declined
+proposal leaves no case, no participants, and no ledger entries behind,
+and the refusal is recorded before it is sent — a decline the Case Actor
+could not deliver reports a processing failure and is retried on the next
+delivery rather than becoming an acceptance.
+
 ### Step 2a: Case Actor accepts
 
 When the Case Actor accepts the proposal, it performs the full case
@@ -106,6 +124,10 @@ When the Case Actor declines, it sends `Reject(CaseProposal)` with
 `object_` embedding the `as_CaseProposal` inline. Embedding the proposal
 inline (rather than referencing it by URI) gives the Vendor the full
 proposal context without requiring a separate fetch.
+
+The Vendor records the refusal (CP-06-004). The `Reject` carries no
+reason today — nothing yet carries one from the decision onto the wire
+(see [#3446](https://github.com/CERTCC/Vultron/issues/3446)).
 
 ---
 
