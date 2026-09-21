@@ -59,10 +59,14 @@ Three facts found while measuring it, none of which were in the issue, decided i
    construct that heuristic replaces, and EMB-15-003 independently forbids
    introducing a new mechanism for competing terms.
 
-A pattern for the poll would also have had to discriminate on `context` alone (a
-`Question` has no `object`; `ActivityPattern` has no `anyOf_`/`oneOf_` field), and
-`Question[context=VulnerabilityCase]` is already occupied by CBT-03-004's
-bootstrap-replay request — the ambiguity SE-08-001 forbids.
+A pattern for the poll would also have been the *first* `as_Question` pattern in
+the registry — `_instances.py` has none — and would have arrived alongside the one
+CBT-03-004's bootstrap-replay request still needs (#3471). That is a cost, not an
+impossibility: SE-08-001 permits patterns sharing a verb given a discriminator,
+and CBT-03-004 requires the replay request's `target` be the `case_actor_id`, so
+`target_` with `strict=True` (SE-08-004) would separate them. A first draft of
+this entry and of the ADR claimed the shape was *already occupied* and that
+SE-08-001 *forbids* two patterns per activity; PR triage corrected both.
 
 ## Two findings that outlived the issue
 
@@ -73,8 +77,12 @@ proposals." The data model does; the resolution path did not.
 `find_embargo_proposal_id` returned the *first recorded* proposal, so after a
 counter-proposal a default `accept` took the superseded terms — and that was
 asserted as intended by an existing test. Nothing anywhere pruned the index (one
-writer, no remover), while the neighbouring `proposed_embargoes` list *was* pruned
-in two places. Had that not been checked, the how-to would have been rewritten to
+writer, no remover), and the neighbouring `proposed_embargoes` list turned out to
+be pruned only on *teardown* — `reject_proposed_embargo_bt` omits the pruning
+node, so a rejected proposal survives in both records. (The first draft of this
+entry, the ADR and EP-08-003 all claimed `proposed_embargoes` was pruned on
+rejection too; PR triage caught that it is not, which widened #3470 rather than
+narrowing it.) Had that not been checked, the how-to would have been rewritten to
 recommend "propose several sets of terms, each answered independently" — swapping a
 true caveat for a false one. Instead the page keeps its existing advice with a new
 reason, and EP-08 now states the ordering rule with a ratchet. The ordering rule
@@ -87,11 +95,15 @@ Filed as #3471. `bootstrap_replay_question_activity` (CBT-03-004, a `SHOULD`) is
 emitted for real from `vultron/adapters/driving/fastapi/inbox_pending_queue.py`
 when a pre-bootstrap queue expires, and no recipient can route it; the sender logs
 success and waits for a reply that cannot come. `test_vocab_examples_dispatchable.py`
-caught the poll but structurally cannot catch this one — its collector walks
-zero-required-argument example factories, and this factory takes three. **A gate
-scoped to the example corpus does not cover factories only production code calls,
-so "every example is dispatchable" is not "every activity we emit is
-dispatchable".** Whether `Question` is even the right vocabulary for a
+caught the poll but structurally cannot catch this one — its collector scans the
+`vocab_examples` module (plus `submit_report_tutorial`), and there is no bootstrap
+`Question` example in that corpus at all; the factory lives in
+`vultron/wire/as2/factories/case.py`, outside the scanned package. **A gate scoped
+to the example corpus does not cover factories only production code calls, so
+"every example is dispatchable" is not "every activity we emit is dispatchable".**
+Note the near-miss diagnosis: the obvious explanation is the collector's
+"no *required* arguments" rule and this factory's three required arguments, but
+relaxing that rule would not reach a factory the collector never walks. Whether `Question` is even the right vocabulary for a
 request/response exchange, when activities here are state-change notifications, is
 open in that issue.
 

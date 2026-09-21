@@ -40,9 +40,6 @@ flowchart TB
     subgraph as:Invite
         EmProposeEmbargo
     end
-    subgraph as:Question
-        ChoosePreferredEmbargo
-    end
     subgraph as:Accept
         EmAcceptEmbargo
     end
@@ -62,8 +59,6 @@ flowchart TB
     EmProposeEmbargo --> a{Accept?}
     a -->|y| EmAcceptEmbargo
     a -->|n| EmRejectEmbargo
-    EmProposeEmbargo --> ChoosePreferredEmbargo
-    ChoosePreferredEmbargo --> a
     EmAcceptEmbargo --> ActivateEmbargo
     AddEmbargoToCase --> AnnounceEmbargo
     ActivateEmbargo --> AnnounceEmbargo

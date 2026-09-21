@@ -15,6 +15,7 @@ related_notes:
   - notes/participant-embargo-consent.md
   - notes/call-out-configuration.md
   - notes/activitystreams-semantics.md
+  - notes/protocol-asks.md
 relevant_packages:
   - vultron/core/states/em.py
   - vultron/core/services/embargo_lifecycle.py
@@ -186,20 +187,25 @@ reason EP-08 exists:
 - `find_embargo_proposal_id` returned the *first recorded* proposal, so after a
   counter-proposal a default `accept` took the **superseded** terms. Fixed by
   #3470.
-- Nothing removed a decided entry from `pending_embargo_proposal_index` — one
-  writer, no remover — while the neighbouring `proposed_embargoes` list *was*
-  pruned in `teardown.py` and `reject_proposed.py`. An unpruned record is not a
-  weaker guarantee than a pruned one; it is a different and wrong answer, because
-  a decided proposal stays selectable. Also #3470.
+- **Neither record of open proposals is fully pruned.** Nothing at all removes a
+  decided entry from `pending_embargo_proposal_index` — one writer, no remover.
+  The neighbouring `proposed_embargoes` list is pruned *only on teardown*, by
+  `RemoveFromProposedEmbargoesNode`, which is wired into
+  `remove_embargo_from_case_tree` and nowhere else; `reject_proposed_embargo_bt`
+  omits it, so a **rejected** proposal survives in both records.
+  `reject_proposed.py` only reads the list. An unpruned record is not a weaker
+  guarantee than a pruned one; it is a different and wrong answer, because a
+  decided proposal stays selectable. Both records are #3470's job.
 
 Two rules follow for any new proposal-selection code:
 
 - **Never select by insertion or arrival order.** Resolve candidates' embargo
   `end_time` and take the earliest. `#3392` needs the same comparison for
   EP-04-003 shortest-wins at case creation — use one shared comparator, not two.
-- **Prune on decision, wherever you prune `proposed_embargoes`.** Two records of
-  overlapping state with only one of them pruned is exactly the drift EP-08-003
-  closes.
+- **Prune on decision, in both records and on every decision path.** Teardown is
+  the only path that prunes anything today; accept and reject prune nothing. Two
+  records of overlapping state, each pruned on a different subset of the decision
+  paths, is exactly the drift EP-08-003 closes.
 
 There is **no multi-candidate poll activity** — ADR-0100 retired
 `ChoosePreferredEmbargo` (#3469). Offering alternatives means sending several

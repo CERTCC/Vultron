@@ -287,12 +287,18 @@ at once is the construct that heuristic replaces.
 Three facts make the poll unworkable rather than merely unbuilt, and they are
 worth keeping because each is a trap in its own right:
 
-- **A `Question` has no `object`.** So an `ActivityPattern` for one can
-  discriminate only on `context`, and
-  `Question[context=VulnerabilityCase]` is already occupied by
-  `bootstrap_replay_question_activity` (CBT-03-004). Two patterns matching one
-  activity is what SE-08-001 forbids, and `ActivityPattern` has no
-  `anyOf_`/`oneOf_` field to separate them.
+- **A `Question` has no `object`, and no `Question` pattern exists to copy.**
+  `_instances.py` registers **zero** `as_Question` patterns, so a poll pattern
+  would be the first — alongside the one CBT-03-004's
+  `bootstrap_replay_question_activity` still needs (#3471). Two `Question`
+  semantics are separable: SE-08-001 permits patterns sharing a verb provided the
+  more specific one carries an extra discriminator and is ordered first, and
+  CBT-03-004 requires the replay request's `target` be the `case_actor_id`, so
+  `target_` (with `strict=True` per SE-08-004) is that discriminator. The cost is
+  not impossibility — it is designing two `Question` semantics and their registry
+  ordering to gain nothing the sequential `Invite` path does not already give.
+  `ActivityPattern` has no `anyOf_`/`oneOf_` field either, so the candidate list
+  itself is unmatchable.
 - **There was no answer form.** `_EmAcceptEmbargoActivity.object_` is a required,
   inline-typed `Invite`. A candidate `EmbargoEvent` inside a `oneOf` is not one,
   so registering a pattern would have left the poll askable and unanswerable.

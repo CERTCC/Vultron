@@ -26,6 +26,14 @@ survive the signature change the fix requires (the helper needs DataLayer access
 to read each candidate's ``end_time``).  They auto-promote to passing when #3470
 lands.
 
+Each drives the path EP-08 actually governs: a *default* selection for
+EP-08-001/002 (no ``proposal_id`` on the request), and an *owner* accept that
+moves EM PROPOSED -> ACTIVE for EP-08-003.  A participant-consent accept against
+an already-active embargo decides nothing, so it cannot witness either rule.
+Note that #3470's remit covers both records of open proposals:
+``pending_embargo_proposal_index`` has no remover at all, and
+``proposed_embargoes`` is pruned only on teardown.
+
 Spec: EP-08-001, EP-08-002, EP-08-003.  ADR-0100.
 """
 
@@ -55,7 +63,7 @@ from vultron.wire.as2.vocab.objects.case_participant import (
 )
 from vultron.wire.as2.vocab.objects.embargo_event import as_EmbargoEvent
 
-from .conftest import _build_active_embargo_case, _persist_actor
+from .conftest import _persist_actor
 
 
 def _build_case_with_two_open_proposals(
@@ -176,41 +184,104 @@ def test_default_selection_picks_the_earliest_expiring_proposal(
     assert resolved == earlier_proposal_id
 
 
+def _build_case_with_one_open_proposal(
+    dl: SqliteDataLayer, owner_id: str, participant_id: str
+) -> tuple[VulnerabilityCase, str]:
+    """Build a PROPOSED case with exactly one open proposal, owned by *owner_id*.
+
+    EM must be PROPOSED and the accepting actor must be the case owner, or the
+    accept takes the participant-consent branch
+    (``SvcAcceptEmbargoUseCase._log_lifecycle_result`` else-arm) and decides
+    nothing — which is the shape ``_build_active_embargo_case`` produces and
+    ``test_accept.py`` already covers.  EP-08-003 is about the *decision* path.
+    """
+    case = VulnerabilityCase(
+        name="One open embargo proposal",
+        attributed_to=owner_id,
+    )
+
+    start = now_utc()
+    embargo = as_EmbargoEvent(
+        context=case.id_,
+        start_time=start,
+        end_time=start + timedelta(days=30),
+    )
+    proposal = em_propose_embargo_activity(
+        embargo, context=case.id_, actor=owner_id
+    )
+
+    owner_participant = VendorParticipant(
+        attributed_to=owner_id,
+        context=case.id_,
+        embargo_consent_state=PEC.UNBOUND,
+    )
+    owner_participant.add_role(CVDRole.CASE_MANAGER)
+    participant = FinderParticipant(
+        attributed_to=participant_id,
+        context=case.id_,
+        embargo_consent_state=PEC.INVITED,
+    )
+
+    case.case_participants = [owner_participant.id_, participant.id_]
+    case.actor_participant_index = {
+        owner_id: owner_participant.id_,
+        participant_id: participant.id_,
+    }
+    case.append_case_status(em_state=EM.PROPOSED)
+    case.proposed_embargoes.append(embargo.id_)
+    case.pending_embargo_proposal_index[embargo.id_] = proposal.id_
+
+    dl.create(case)
+    for obj in (embargo, proposal, owner_participant, participant):
+        dl.create(obj)
+
+    return case, proposal.id_
+
+
 @pytest.mark.xfail(
     strict=True,
     reason=(
         "EP-08-003: nothing removes an entry from "
-        "pending_embargo_proposal_index once its proposal is decided. "
-        "Tracked by #3470."
+        "pending_embargo_proposal_index once its proposal is decided, and "
+        "proposed_embargoes is pruned only on teardown. Tracked by #3470."
     ),
 )
 @pytest.mark.spec("EP-08-003")
 def test_accepting_a_proposal_removes_it_from_the_open_proposal_record(
-    finder_actor_and_dl: tuple[as_Service, SqliteDataLayer],
+    owner_actor_and_dl: tuple[as_Service, SqliteDataLayer],
 ) -> None:
     """A decided proposal must not remain in the open-proposal record.
 
     EP-08-002 orders that record, so a retained decided entry is a candidate the
     resolver can still select.
+
+    The owner accepts here, and the EM assertion below runs *first* on purpose:
+    it proves the harness actually produced a decision (PROPOSED -> ACTIVE)
+    before the record is checked, so this cannot pass or fail vacuously.  A
+    participant-consent accept against an already-ACTIVE embargo decides nothing
+    and would leave the entry stale for a reason EP-08-003 does not govern.
     """
-    finder, finder_dl = finder_actor_and_dl
-    owner = _persist_actor(finder_dl, "Vendor Co")
-    case, proposal, _ = _build_active_embargo_case(
-        finder_dl, owner.id_, finder.id_
+    owner, owner_dl = owner_actor_and_dl
+    finder = _persist_actor(owner_dl, "Finder Co")
+    case, proposal_id = _build_case_with_one_open_proposal(
+        owner_dl, owner.id_, finder.id_
     )
-    assert proposal.id_ in case.pending_embargo_proposal_index.values()
+    assert proposal_id in case.pending_embargo_proposal_index.values()
 
     request = AcceptEmbargoTriggerRequest(
-        actor_id=finder.id_,
+        actor_id=owner.id_,
         case_id=case.id_,
-        proposal_id=proposal.id_,
+        proposal_id=proposal_id,
     )
     SvcAcceptEmbargoUseCase(
-        finder_dl, request, trigger_activity=TriggerActivityAdapter(finder_dl)
+        owner_dl, request, trigger_activity=TriggerActivityAdapter(owner_dl)
     ).execute()
 
-    updated_case = cast(VulnerabilityCase, finder_dl.read(case.id_))
+    updated_case = cast(VulnerabilityCase, owner_dl.read(case.id_))
+    assert updated_case.current_status.em.state == EM.ACTIVE, (
+        "the owner's accept did not activate the embargo, so no proposal was "
+        "decided and this test cannot speak to EP-08-003"
+    )
     assert (
-        proposal.id_
-        not in updated_case.pending_embargo_proposal_index.values()
+        proposal_id not in updated_case.pending_embargo_proposal_index.values()
     )

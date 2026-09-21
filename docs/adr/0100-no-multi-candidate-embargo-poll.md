@@ -55,9 +55,12 @@ one" poll is the construct that heuristic exists to replace.
 ## Decision Drivers
 
 - A multi-candidate poll must be answerable, and no answer activity exists.
-- `as:Question` has no `object`, so a pattern for it can discriminate only on
-  `context`. That shape is already occupied (see below), and SE-08-001 forbids
-  two patterns matching one activity.
+- A poll pattern would have to share the `Question` verb with CBT-03-004's
+  bootstrap-replay request, which is the only other `as:Question` Vultron sends.
+  Nothing registers a `Question` pattern today (see below), so this is a claim on
+  a shape rather than a present collision — but it is the shape #3471 has to
+  register, and two `Question` semantics is a discrimination problem the poll
+  would create for no gain.
 - The EM state machine carries no exclusivity: `EM.PROPOSED` is a single scalar
   and `pending_embargo_proposal_index` is an ungrouped map, so "these are
   mutually exclusive alternatives" has nowhere to live.
@@ -143,10 +146,15 @@ Concretely:
 - Good, because a single message offering N alternatives is fewer round trips.
 - Bad, because it requires a new answer activity: `EA`/`ER` take an `Invite` as
   their object and a `oneOf` candidate is not one.
-- Bad, because the only available discriminator for a `Question` pattern is
-  `context`, which `bootstrap_replay_question_activity` already occupies.
-  Distinguishing them needs a field `ActivityPattern` does not have.
-- Bad, because `oneOf` exclusivity has no representation in EM state.
+- Neutral, because discriminating a poll pattern from CBT-03-004's replay request
+  is possible but buys nothing. `ActivityPattern` has `target_`, and CBT-03-004
+  requires the replay request's `target` be the recorded `case_actor_id`, so
+  SE-08-001's discriminator requirement could be met — with `strict=True` per
+  SE-08-004. Neither `Question` has a pattern registered yet, so building the
+  poll means designing *two* `Question` semantics and their ordering at once,
+  where the sequential `Invite` path needs none.
+- Bad, because `oneOf` exclusivity has no representation in EM state, and
+  `ActivityPattern` has no `anyOf_`/`oneOf_` field to match candidates on.
 - Bad, because it duplicates a resolution mechanism the protocol already
   specifies, against EMB-15-003's "MUST NOT introduce a new mechanism".
 
@@ -172,8 +180,11 @@ this ADR: `as:Question` has no dispatch path at all, and
 by any recipient. Whether `Question` is even the right vocabulary for a replay
 request — as opposed to overloading AS2 into a request/response pattern, where
 Vultron otherwise uses activities as state-change notifications — is an open
-question tracked with it. This ADR deliberately does not decide it; it only
-relies on the fact that `Question[context=VulnerabilityCase]` is occupied.
+question tracked with it. This ADR deliberately does not decide it. Note what
+follows for this decision: because no `Question` pattern is registered at all,
+the poll's discrimination problem is *prospective* — it is the cost of having two
+`Question` semantics to register rather than one, not a collision that exists
+today.
 
 Automatically re-proposing the remaining proposals as revisions is out of scope.
 `defaults.md` makes it a `SHOULD` for Participants and

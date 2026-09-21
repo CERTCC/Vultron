@@ -249,6 +249,9 @@ groups:
       A unit test confirms that `InitializeDefaultEmbargoNode` sets `em_state` to
       `EM.ACTIVE` for the shorter duration and records the longer as `EM.REVISE`
       when both parties carry a proposal at case creation.
+    relationships:
+    - rel_type: refines
+      spec_id: EP-08-001
     stories:
     - story_2022_014
     - story_2022_079
@@ -731,8 +734,12 @@ groups:
       `end_time` values, the proposal selected for acceptance is the earliest-expiring
       one.
     relationships:
-    - rel_type: refines
+    - rel_type: constrains
       spec_id: EP-04-003
+      note: >-
+        EP-04-003 is the two-party case-creation instance of this ordering rule, so
+        it refines EP-08-001 rather than the reverse. Both MUST resolve
+        earliest-end-date first, and both MUST share one comparator (#3392).
     adr:
     - ADR-0100
     stories:
@@ -779,10 +786,14 @@ groups:
       answer, which is why the retention rule is stated alongside the ordering rule
       rather than left as hygiene.
     note: >-
-      `VulnerabilityCase.proposed_embargoes` is already pruned on teardown and on
-      rejection; `pending_embargo_proposal_index` had one writer and no remover, so
-      it grew without bound. Two records of overlapping state with only one of them
-      pruned is the drift this requirement closes.
+      Two records of overlapping state are involved and **neither** is fully
+      pruned. `pending_embargo_proposal_index` has one writer and no remover at
+      all, so it grows without bound.
+      `VulnerabilityCase.proposed_embargoes` is pruned only on teardown, by
+      `RemoveFromProposedEmbargoesNode` in `remove_embargo_from_case_tree`;
+      `reject_proposed_embargo_bt` does not include that node, so a rejected
+      proposal stays in both records. This requirement therefore covers every
+      record of open proposals, not just the index.
     verification: >-
       A unit test asserts that accepting a proposal, rejecting a proposal, and
       tearing down an embargo each leave no corresponding entry in the open-proposal

@@ -10,6 +10,7 @@ related_specs:
   - specs/case-ledger-processing.yaml
   - specs/event-driven-control-flow.yaml
   - specs/received-status-handling.yaml
+  - specs/embargo-policy.yaml
 related_notes:
   - notes/bt-integration.md
   - notes/bt-pitfalls.md
@@ -17,6 +18,8 @@ related_notes:
   - notes/received-status-authorization.md
   - notes/case-communication-model.md
   - notes/coordination-agents.md
+  - notes/activitystreams-semantics.md
+  - notes/embargo-lifecycle.md
 relevant_packages:
   - vultron/core/behaviors
   - vultron/core/models

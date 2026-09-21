@@ -274,15 +274,19 @@ rather than `as_Activity` skipped `choose_preferred_embargo`, an `as_Question`. 
 gate that silently resolves fewer targets than it claims is the false-clean signal
 DF-09-009 exists to forbid, so the collected count is itself asserted.
 
-**Its reach still stops at the example corpus, and that hid a live defect.** The
-collector walks example factories that take no *required* arguments, so a factory
-only production code calls is invisible to it. That is how
-`bootstrap_replay_question_activity` (three required arguments) stayed
-undispatchable without the gate noticing, while the poll beside it was caught —
-and unlike the poll, the replay request is actually emitted (#3471). Widening the
-gate past zero-required-argument examples means inventing arguments, which is why
-it was scoped this way; the cost is that "every example is dispatchable" is not
-"every activity we emit is dispatchable". Do not read a green run as the latter.
+**Its reach stops at the example corpus, and that hid a live defect.** The
+collector scans the `vocab_examples` module plus `submit_report_tutorial` — so a
+factory that is never exported as an example is invisible to it, no matter what
+its signature looks like. That is how `bootstrap_replay_question_activity` stayed
+undispatchable without the gate noticing, while the poll beside it was caught: the
+poll had an example, and unlike the poll the replay request is actually emitted
+(#3471). The near-miss diagnosis to avoid: the collector also skips anything with
+*required* arguments, and this factory takes three, so "widen the gate past
+zero-required-argument examples" looks like the fix. It is not — that factory
+lives in `vultron/wire/as2/factories/case.py` and the collector never walks it, so
+relaxing the argument rule would not reach it. Adding an example would. The
+standing cost is that "every example is dispatchable" is not "every activity we
+emit is dispatchable"; do not read a green run as the latter.
 
 Of the three defects this gate first found, two are now closed by repair
 (#3438, #3439) and the third is closed by **retirement**: ADR-0100 removes the
