@@ -194,7 +194,7 @@ sequenceDiagram
 
     Vendor ->> Vendor: Receive, Validate, Prioritize
     Vendor ->> Reporter: RA
-    note right of Vendor: Report Accepted
+    note right of Vendor: Report/Case Accepted
     Reporter -->> Vendor: RK
 ```
 
@@ -213,7 +213,7 @@ sequenceDiagram
     
     Vendor ->> Vendor: Receive, Validate, Prioritize
     Vendor ->> Reporter: RD
-    note right of Vendor: Report Deferred
+    note right of Vendor: Report/Case Deferred
     Reporter -->> Vendor: RK
 ```
 
@@ -248,7 +248,7 @@ sequenceDiagram
     note right of Coordinator: Report Valid
     Reporter -->> Coordinator: RK
     Coordinator ->> Reporter: RA
-    note right of Coordinator: Report Accepted
+    note right of Coordinator: Report/Case Accepted
     Reporter -->> Coordinator: RK
     deactivate Coordinator
     deactivate Reporter
@@ -298,7 +298,7 @@ sequenceDiagram
     Vendor --> Vendor: Prioritize Report
     Coordinator -->> Vendor: RK
 
-    note right of Vendor: Report Accepted
+    note right of Vendor: Report/Case Accepted
     Vendor ->> Coordinator: RA
     Vendor --> Vendor: Create Fix
     Coordinator -->> Vendor: RK

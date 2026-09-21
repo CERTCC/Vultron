@@ -169,9 +169,9 @@ sense the docs actually use.
 *[PSIRTs]: Product Security Incident Response Teams
 *[PXA]: Public aware, eXploit public, Attacks observed — the public-path case state dimensions
 
-*[RA]: Report Accepted (RM message)
+*[RA]: Report/Case Accepted (RM message)
 *[RC]: Report Closed (RM message)
-*[RD]: Report Deferred (RM message)
+*[RD]: Report/Case Deferred (RM message)
 *[RE]: Report Error (RM message)
 *[REST]: Representational State Transfer
 *[RFC]: Request for Comments

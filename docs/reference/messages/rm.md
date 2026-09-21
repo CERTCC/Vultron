@@ -7,8 +7,8 @@ sender's status.
 
 The RM state ladder has **two** wire expressions: the dedicated report-scoped
 activities listed below, and the `rm_state` field of an
-`Add(ParticipantStatus)` broadcast (see [Case State (CS)](cs.md)). *Report
-Accepted* (`RA`) and *Report Deferred* (`RD`) additionally take case-scoped
+`Add(ParticipantStatus)` broadcast (see [Case State (CS)](cs.md)). *Report/Case
+Accepted* (`RA`) and *Report/Case Deferred* (`RD`) additionally take case-scoped
 verbs — `Join(VulnerabilityCase)` and `Ignore(VulnerabilityCase)` — because
 engaging or deferring is a case-participation decision rather than a
 report-validity judgment (MSM-01-004, MSM-01-005).
@@ -83,7 +83,7 @@ from vultron.wire.as2.vocab.examples.vocab_examples import validate_report, json
 print(json2md(validate_report()))
 ```
 
-## RD — Report Deferred
+## RD — Report/Case Deferred
 
 - **Protocol role:** The Participant is deferring further action on a report.
 - **Triggering transition:** Valid or Accepted → Deferred ({V,A} → D).
@@ -99,7 +99,7 @@ from vultron.wire.as2.vocab.examples.vocab_examples import defer_case, json2md
 print(json2md(defer_case()))
 ```
 
-## RA — Report Accepted
+## RA — Report/Case Accepted
 
 - **Protocol role:** The Participant has accepted the report for further action.
 - **Triggering transition:** Valid or Deferred → Accepted ({V,D} → A).
