@@ -691,7 +691,7 @@ groups:
     - tooling
 
 - id: MS-16
-  title: Long-Lived Docs Must Not State Ephemeral Counts
+  title: Long-Lived Docs Must Not State Unverifiable, Drift-Prone Facts
   specs:
   - id: MS-16-001
     priority: MUST
@@ -723,6 +723,41 @@ groups:
     - rel_type: derives_from
       spec_id: MS-04-001
       note: extends spec-authoring rules with a count-drift prohibition
+    tags:
+    - documentation
+  - id: MS-16-002
+    priority: MUST
+    kind: process
+    statement: >-
+      A long-lived document — a spec, a notes file, AGENTS.md, or a `docs/`
+      table that mirrors a code, spec, or config inventory — MUST NOT state a
+      fact that no automated check could falsify and that drifts independently
+      of its source. The governing test is "could a test fail on this
+      sentence?": a restated count (MS-16-001) is one instance; a per-item
+      runtime outcome ("✅ passes"), a forecast ("resolved by #789"), or a
+      free-prose claim copied from source are others. Each such fact MUST
+      either be made verifiable — derived from, or ratcheted against, its
+      source — or removed in favour of a pointer to where the live answer
+      lives.
+    rationale: >-
+      A fact nothing can check is a fact nobody does check, so it rots first,
+      and it rots into a confident wrong answer rather than into silence —
+      which costs more than no doc at all. MS-16-001 caught the most common
+      instance (counts); this entry generalises it from "is this a number?"
+      to "could a test fail on this sentence?". Witnessed twice: the
+      case-ledger invariant tables (ISSUE-3337), where the two columns no
+      test could hold were 100% wrong while every source-derivable column
+      stayed right; and the scenario table (the `fcvcv` and `vc` rows of
+      `vultron/demo/scenario/README.md`, ISSUE-3450 / CONCERN-3466), where a
+      free-prose column named four actors for a five-actor scenario. Before
+      concluding a column is unverifiable, check whether it conflates more
+      than one fact — a column answering two questions at once is unverifiable
+      as a unit while each part may be individually derivable; the procedure
+      for that triage lives in `notes/documentation-sweeps.md`.
+    relationships:
+    - rel_type: derives_from
+      spec_id: MS-16-001
+      note: generalises the count-drift prohibition to any unverifiable, drift-prone fact
     tags:
     - documentation
 - id: MS-17

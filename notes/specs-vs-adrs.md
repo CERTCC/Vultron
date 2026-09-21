@@ -241,10 +241,14 @@ Generated spec requirements: `datalayer.yaml` DL-01 through DL-03.
 
 ---
 
-## Never State Ephemeral Counts in Long-Lived Docs
+## Never State Unverifiable, Drift-Prone Facts in Long-Lived Docs
 
 Long-lived documents — specs, notes files, AGENTS.md — **MUST NOT state
-counts that will drift independently of their authoritative source** (MS-16-001).
+counts that will drift independently of their authoritative source**
+(MS-16-001), and more generally **MUST NOT state any fact that no automated
+check could falsify and that drifts independently of its source** (MS-16-002).
+A restated count is only the most common instance; the governing test is
+"could a test fail on this sentence?" — not "is this a number?".
 
 ### The problem
 
@@ -259,6 +263,17 @@ gets a false picture of the system. The count adds no normative force.
 The same applies to any long-lived doc: writing "there are 4 unimplemented
 nodes" or "15 xfails" is a snapshot virtually guaranteed to be wrong when read
 later.
+
+The failure is sharpest in a **doc table that mirrors a code, spec, or config
+inventory**. Such tables drift unevenly: the columns a test could check stay
+roughly right, while the columns no test could hold go wholly wrong — and rot
+into confident wrong answers, not into silence. Before syncing such a table,
+sort its columns into verifiable and not, *disaggregating any column that packs
+two facts into one heading first* — a column may look unverifiable only because
+it answers two questions at once, and splitting it can make one part derivable.
+The full triage procedure is in `notes/documentation-sweeps.md` §
+"Mirrored tables rot in the column no test can hold" (witnesses ISSUE-3337 and
+the scenario table, CONCERN-3466).
 
 ### The fix
 
