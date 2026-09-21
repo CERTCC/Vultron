@@ -65,6 +65,15 @@ unverifiable columns are the wrong ones — or, as a negative witness, one where
 a ratchetable column rotted while an unratchetable one stayed accurate, which
 would falsify the ordering claim.
 
+**Corroborated — see ISSUE-3466.** ISSUE-3450 found the predicted ordering in
+`vultron/demo/scenario/README.md`: the Sub-command and Script columns were
+correct for all nine rows while the free-prose "What it demonstrates" column
+named four actors for the five-actor `fcvcv` scenario. That issue also records a
+refinement to the remedy above — the prose column was unratchetable because it
+conflated *participants* with *feature*, so disaggregating it made one half
+derivable. Check whether a column is one fact or several before concluding it
+cannot be held.
+
 Related: neither queued entry covers this.
 [[20260916-3192-tightening-a-resolver-wakes-dormant-checks]] is about a dormant
 *check* that had never run; this is about a dormant *claim* that no check could

@@ -12,6 +12,7 @@ related_specs:
   - specs/multi-actor-demo.yaml
 related_notes:
   - notes/demo-ci-invariants.md
+  - notes/demo-ci-diagnostics.md
   - notes/demo-ci-scenario-coverage.md
   - notes/demo-scenario-authoring.md
   - notes/vocabulary-registry.md
@@ -20,13 +21,21 @@ related_notes:
 
 # Demo Scenario Registry — Self-Registration, Derived Paths, and the Generate-vs-Check Split
 
-The set of demo scenarios is restated by hand in many places with nothing
+The set of demo scenarios was restated by hand in many places with nothing
 enforcing agreement. ADR-0098 decided to replace those copies with one
 self-registering source: each demo module declares itself, and every table and
-the CI matrix derive from it. **None of this is built yet** — the registry and
-the generators are tracked by ISSUE-3450, and the checks over the remaining
-hand-written prose by ISSUE-3451. This note records the parts a future
-implementer or reviewer will get wrong from the ADR alone.
+the CI matrix derive from it. This note records the parts a future implementer or
+reviewer will get wrong from the ADR alone.
+
+**Built by ISSUE-3450:** the registry
+(`vultron/demo/scenario/registry.py` — the `@scenario` decorator, `ScenarioSpec`
+and `pkgutil` discovery), the renderers and the `--check`/`--write` dumper
+(`vultron/metadata/demo_scenarios/`, console script `uv run demo-scenarios`),
+the `demo-scenarios-sync` pre-commit hook, and the three generated consumers.
+**Still pending (ISSUE-3451):** the completeness checks over the remaining
+hand-written prose — DEMOCI-06-002/003, the per-scenario DEMOMA-16 requirements,
+the `mkdocs.yml` nav, the `notes/` tables, and the planned-scenario partition
+(DEMOCI-11-010).
 
 Design rationale and the options rejected: `docs/adr/0098-demo-scenarios-self-register.md`.
 Normative requirements: `specs/demo-ci.yaml` DEMOCI-11.
@@ -140,7 +149,7 @@ checking it. Route each consumer by what it is:
 
 | Consumer | Treatment | Why |
 |---|---|---|
-| `docs/topics/scenarios/index.md` | build-time render (DEMOCI-11-009) | Inside the mkdocs tree, so `markdown-exec` can call the dumper; no table is committed and drift is impossible |
+| `docs/topics/scenarios/index.md` | build-time render (DEMOCI-11-009) | Inside the mkdocs tree, so `markdown-exec` can call the renderer; no table is committed and drift is impossible. Mind the link form — see above |
 | `.github/demo-scenarios.json` | generate + `--check` | CI needs it before Python exists |
 | `test/ci/README-case-log-ratchet.md` | generate + `--check` | Outside the mkdocs tree — read raw on GitHub and by agents, so an include directive would render literally |
 | `vultron/demo/scenario/README.md` | generate + `--check` | Same |
@@ -169,6 +178,35 @@ requirements, and DEMOMA-16-014 and -015 are per-scenario requirements sitting
 outside it. Select by what the requirement is — one scenario's expected
 event-type list — not by where its number falls.
 
+## Name order is the canonical order, everywhere
+
+The registry is one sequence and the consumers previously had three different
+ones: the narrative index read pedagogically (FV, FVV, FCV, …), the harness table
+put the PR set first, and the sub-command table followed neither. Only one can
+survive generation, so `registered_scenarios()` sorts by `name` and every
+consumer takes that order. It is not a taste call — it is the one ordering rule no
+consumer has to agree to, and it happens to match `pkgutil` discovery order, so
+registration order and render order cannot diverge.
+
+PR-set membership therefore reads off the `In PR set` column rather than off
+position. Do not reintroduce a grouped order to make the PR set contiguous: the
+grouping would then be a second, unratcheted fact about the same rows.
+
+## A rendered link is not a MkDocs link
+
+`docs/topics/scenarios/index.md` renders its table from an exec block, and a
+`[FV](fv.md)` target printed from one **does not get rewritten**. MkDocs rewrites
+relative `.md` links with a treeprocessor registered on its own `Markdown`
+instance; `markdown-exec` converts the block's output on a *child* instance built
+from the parent's extensions, which does not include that treeprocessor. The
+`.md` href survives into the built HTML and 404s.
+
+`mkdocs build --strict` does not catch it, because it never saw the link as an
+internal one to validate — so the page builds green and every row is broken. The
+renderer emits built-site URLs (`fv/`) instead, which assumes
+`use_directory_urls`; that assumption is pinned by a test rather than a comment,
+because flipping the setting would break every link without failing the build.
+
 ## Pitfalls
 
 - **A count restated in prose is another copy.** `test/ci/README-case-log-ratchet.md`
@@ -179,27 +217,47 @@ event-type list — not by where its number falls.
   session, so it only catches a vacuous green because CI invokes one harness file
   at a time. Non-skipping structural tests in that directory are fine; collecting
   them *together with* a harness defeats the guard.
-- **The registry is not the scenario inventory's only reader.** `vultron/demo/cli.py`
-  hand-wires one `@main.command` block per scenario — the last hand-maintained copy
-  of the scenario inventory after ADR-0098. Making the CLI a registry consumer is a
-  legitimate follow-on consolidation, not part of ADR-0098; it is specified by
-  DEMOCI-11-011 and tracked by CONCERN-3465 (blocked on the registry, ISSUE-3450).
-  Until it lands a scenario can register and still have no CLI sub-command, so keep
-  the CLI in the set-equality check. The consolidation follows the `ActorSession`
-  model (DEMOMA-26): the per-scenario container-URL options are **not** carried by
-  the decorator (that would re-open the drift channel DEMOCI-11-001 closes); instead
-  each scenario module declares a role Type Object — a frozen `ActorRole`
-  (`name`, `url_env`, `default_url`, `has_id`, `id_env`) list under
-  `vultron/demo/helpers/` — that a single command factory in `cli.py` consumes, and
-  a ratchet binds that role set to the scenario's `main()` signature. The role
-  declaration also subsumes the module's `*_BASE_URL` constants, so each role is
-  declared once. The env-var bindings are ad hoc per scenario (they key to physical
-  container slots, not roles — e.g. `--c1-url` reads `VULTRON_VENDOR_BASE_URL` in
-  `fccv-handoff`), which is exactly why they cannot be derived from `name` and must
-  be declared; the consolidation reproduces today's bindings verbatim
-  (behavior-neutral).
+  still hand-wires one `@main.command` block per scenario — the last hand-maintained
+  copy of the scenario inventory after ADR-0098. Making the CLI a registry consumer is
+  a legitimate follow-on consolidation, not part of ADR-0098; it is specified by
+  DEMOCI-11-011 and tracked by CONCERN-3465 (implementation ISSUE-3475). The registry
+  it consumes has landed (ISSUE-3450); until the consolidation itself lands a scenario
+  can register and still have no CLI sub-command, so keep the CLI in the set-equality
+  check — `test_every_scenario_has_a_cli_subcommand` in
+  `test/demo_unit/test_scenario_registry.py` asserts every registered name is a
+  `vultron-demo` sub-command. The consolidation follows the `ActorSession` model
+  (DEMOMA-26): the per-scenario container-URL options are **not** carried by the
+  decorator (that would re-open the drift channel DEMOCI-11-001 closes); instead each
+  scenario module declares a role Type Object — a frozen `ActorRole`
+  (`name`, `url_env`, `default_url`, `has_id`, `id_env`, plus the option's `help`
+  label) list under `vultron/demo/helpers/` — that a single command factory in
+  `cli.py` consumes, and a ratchet binds that role set to the scenario's `main()`
+  signature. The role declaration also subsumes the module's `*_BASE_URL` constants,
+  so each role is declared once. The env-var bindings and the `--help` text are ad hoc
+  per scenario (the URL options key to physical container slots, not roles — e.g.
+  `--c1-url` reads `VULTRON_VENDOR_BASE_URL` in `fccv-handoff` — and each option's help
+  string names that slot), which is exactly why they cannot be derived from `name` and
+  must be declared; the consolidation reproduces today's bindings and help text
+  verbatim (behavior-neutral).
 - **Import cost is paid per dumper invocation, not per scenario.** Importing one
   demo module costs roughly two seconds, almost all of it the shared `vultron`
   package import, so importing all of them in one process costs about the same.
   Do not "optimise" this into lazy per-scenario imports and lose whole-package
   discovery.
+- **Discovery fails closed, and that is the whole point.**
+  `discover_scenarios()` raises when a discovered `*_demo` module registered
+  nothing, rather than returning a short tuple. A generator that quietly omits a
+  scenario emits a table that looks complete — the exact defect class ADR-0098
+  exists to remove — so the failure has to happen at generation time, not only in
+  a test.
+- **A copy-pasted decorator is the one drift no path check sees.** Copy
+  `@scenario(name="fv", …)` into `fvv_demo.py` and all three derived paths still
+  resolve, because they point at the module it was copied *from*. The registry
+  therefore compares the declared `name` against the declaring module's
+  `__module__` and refuses a mismatch. That check is skipped when `__module__` is
+  not in the scenario package, so running a demo as a script (`__main__`) still
+  works.
+- **Splicing refuses a file with no markers.** Appending the table instead would
+  leave the stale copy above the new one — two tables on one subject, which is
+  what this mechanism exists to prevent. The markdown consumers are mostly
+  hand-written prose, so `--write` also refuses to create one from nothing.

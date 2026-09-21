@@ -37,18 +37,20 @@ not exist. That test is what makes this debt rather than a bug.
 
 ## Resolution
 
-**Resolved**: 2026-09-21 — implementation tracked in #3475 (blocked on the
-registry landing, #3450 / PR #3464).
+**Resolved**: 2026-09-21 — implementation tracked in #3475. The registry it
+depends on has since landed (#3450 / PR #3464, merged 2026-09-21), so #3475 is
+unblocked.
 
 The plan follows the `ActorSession` (DEMOMA-26) consolidation model: a frozen
-`ActorRole` Type Object (`name`, `url_env`, `default_url`, `has_id`, `id_env`)
-declared per scenario module and consumed by a single command factory in
-`cli.py` that iterates `registered_scenarios()`; the nine hand-wired blocks are
-deleted (no shims). A ratchet binds each scenario's role set to its `main()`
-signature. The env-var bindings are ad hoc per scenario (they key to physical
-container slots, not roles — e.g. `--c1-url` reads `VULTRON_VENDOR_BASE_URL` in
-`fccv-handoff`), which is why they cannot derive from `name` and must be
-declared; the refactor reproduces today's bindings verbatim (behavior-neutral).
+`ActorRole` Type Object (`name`, `url_env`, `default_url`, `has_id`, `id_env`,
+plus the option's `help` label) declared per scenario module and consumed by a
+single command factory in `cli.py` that iterates `registered_scenarios()`; the
+nine hand-wired blocks are deleted (no shims). A ratchet binds each scenario's
+role set to its `main()` signature. The env-var bindings and `--help` text are
+ad hoc per scenario (the URL options key to physical container slots, not
+roles — e.g. `--c1-url` reads `VULTRON_VENDOR_BASE_URL` in `fccv-handoff`),
+which is why they cannot derive from `name` and must be declared; the refactor
+reproduces today's bindings and help text verbatim (behavior-neutral).
 
 Docs PR: <https://github.com/CERTCC/Vultron/pull/3474>.
 Spec: `specs/demo-ci.yaml` (DEMOCI-11-011).

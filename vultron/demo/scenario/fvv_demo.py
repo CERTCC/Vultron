@@ -99,6 +99,7 @@ from vultron.demo.helpers.workflow import (
     run_direct_path_rm_triage,
     run_invite_path_rm_triage,
 )
+from vultron.demo.scenario.registry import scenario
 
 logger = logging.getLogger(__name__)
 
@@ -874,6 +875,13 @@ def run_fvv_demo(
 # ---------------------------------------------------------------------------
 
 
+@scenario(
+    name="fvv",
+    label="FVV",
+    participants="Finder + Vendor1 + Vendor2",
+    feature="Direct invitation of a second vendor",
+    in_pr_set=False,
+)
 def main(
     skip_health_check: bool = False,
     finder_url: str | None = None,

@@ -39,6 +39,7 @@
   - `spec-dump` / `spec-dump-llm-json` → `vultron.metadata.specs.render:main_llm_json`
   - `spec-lint` → `vultron.metadata.specs.lint:main`; `spec-coverage` → `vultron.metadata.specs.coverage:main`
   - `adr-index` → `vultron.metadata.adr.index_gen:main`
+  - `demo-scenarios` → `vultron.metadata.demo_scenarios.sync:main` (generates and `--check`s the artifacts derived from the demo scenario registry)
   - `append-history` → `vultron.metadata.history.cli:main`; `show-history` → `vultron.metadata.history.show_history_cli:main`; `backfill-implementation-history` → `vultron.metadata.history.backfill_implementation:main`
 - **How entry is selected**: via `[project.scripts]` in `pyproject.toml`; uvicorn deployment uses `vultron.adapters.driving.fastapi.main:app`
 

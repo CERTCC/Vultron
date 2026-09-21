@@ -10,6 +10,7 @@ from pathlib import Path
 import networkx as nx
 from pydantic import BaseModel, PrivateAttr
 
+from vultron.metadata.base import repo_root
 from vultron.metadata.specs.schema import (
     BehavioralSpec,
     Scope,
@@ -199,17 +200,13 @@ class SpecRegistry(BaseModel):
         return dict(self._group_index)
 
 
-def find_repo_root(start: Path | None = None) -> Path:
-    """Return the repository root by searching upward for ``pyproject.toml``
-    (SR-03-007)."""
-    origin = start or Path.cwd()
-    for parent in [origin, *origin.parents]:
-        if (parent / "pyproject.toml").exists():
-            return parent
-    raise FileNotFoundError(
-        f"Could not locate repository root (pyproject.toml) "
-        f"starting from {origin}"
-    )
+#: Re-exported under this module's historical public name (SR-03-007). The
+#: implementation is the shared one in ``vultron.metadata.base``; this was the
+#: sixth copy, and the only public one, so the sweep that consolidated the five
+#: private ``_find_repo_root`` copies did not name it. Kept as an alias because
+#: ``specs/coverage.py`` and ``test/metadata/specs/test_coverage.py`` import it
+#: from here.
+find_repo_root = repo_root
 
 
 def load_registry(
