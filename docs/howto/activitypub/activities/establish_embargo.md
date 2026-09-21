@@ -84,13 +84,21 @@ If the proposal is rejected, the case returns to `EM.NONE` and the negotiation i
 open again.
 Propose revised terms with another `EmProposeEmbargo`.
 
-!!! warning "`ChoosePreferredEmbargo` does not round-trip yet"
+!!! warning "`ChoosePreferredEmbargo` is being retired"
 
-    The vocabulary carries a `ChoosePreferredEmbargo` (`as:Question`) activity for
-    polling participants across several candidate embargoes.
-    It has a factory but no registered pattern and no `MessageSemantics` value, so
-    a receiving Vultron actor does not dispatch it (#3433).
-    Propose one set of terms at a time until that gap is closed.
+    The vocabulary still carries a `ChoosePreferredEmbargo` (`as:Question`) activity
+    for polling participants across several candidate embargoes.
+    Do not use it.
+    It has no registered pattern and no `MessageSemantics` value, so no recipient
+    can act on it, and it is being removed rather than completed
+    ([ADR-0100](../../../adr/0100-no-multi-candidate-embargo-poll.md)).
+
+    Propose one set of terms at a time.
+    That is not a workaround — it is how the protocol resolves competing terms.
+    You may put several sets of terms on the table by sending a separate
+    `EmProposeEmbargo` for each, and each is then accepted or rejected on its own;
+    Participants take the proposal with the earliest end date first.
+    See [Default Embargoes](../../../topics/process_models/em/defaults.md).
 
 ---
 

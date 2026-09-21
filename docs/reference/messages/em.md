@@ -73,13 +73,19 @@ print(json2md(announce_embargo()))
 ### Choose Preferred Embargo
 
 `as:Question` offers a set of candidate embargoes and asks participants which one
-they prefer. It carries no EM state change of its own; the answer arrives as an
-`EA` or `ER` against whichever candidate is proposed.
+they prefer. It carries no EM state change of its own, and **there is no wire form
+for the answer**: `EA` and `ER` take the `Invite` being answered as their `object`,
+and a candidate embargo listed inside a `oneOf` is not one. So the question cannot
+be answered as posed.
 
-This activity has a factory and a wire class but no registered `ActivityPattern`
-and no `MessageSemantics` value, so it does not appear in the mapping table above
-and a receiving Vultron actor does not dispatch it. Treat it as emit-only until
-that gap is closed (#3433).
+This activity is **being retired** and is not part of the supported message set.
+It has a factory and a wire class but no registered `ActivityPattern` and no
+`MessageSemantics` value, so it does not appear in the mapping table above and no
+recipient can act on it. It is being removed rather than completed, because the
+protocol resolves competing embargo terms as sequential `EP` proposals taken in
+earliest-end-date order rather than as a poll
+([ADR-0100](../../adr/0100-no-multi-candidate-embargo-poll.md),
+[Default Embargoes](../../topics/process_models/em/defaults.md)).
 
 ```python exec="true" idprefix=""
 from vultron.wire.as2.vocab.examples.vocab_examples import choose_preferred_embargo, json2md
