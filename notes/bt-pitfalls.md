@@ -3,13 +3,15 @@ title: BT Cross-Cutting Mechanics
 status: active
 description: >
   Cross-cutting mechanics for py_trees BT integration: failure reason
-  propagation, blackboard key semantics, idempotency patterns,
+  propagation, blackboard key semantics, execution-scoped key lifetime and
+  the BTBridge exception-handler contract, idempotency patterns,
   memory=False partial-write behavior, key namespacing, and other
   mechanics that apply to any BT node or domain.
 related_specs:
   - specs/behavior-tree-integration.yaml
   - specs/behavior-tree-node-design.yaml
   - specs/case-proposal.yaml
+  - specs/code-style.yaml
 related_notes:
   - notes/bt-integration.md
   - notes/call-out-configuration.md
@@ -310,24 +312,38 @@ For the note-domain worked example, see
 BT-17-004)
 
 `py_trees.blackboard.Blackboard.storage` is process-global. `execute_with_setup`
-cleans only the `datalayer` and `trigger_activity_factory` keys on exit — it
-does NOT clean domain-specific output keys such as `broadcast_activity_id`.
+resets only the keys named in its `managed_keys` allowlist on exit. A
+domain-specific **output** key a node writes mid-tree is not on that list and is
+NOT cleaned — `create_case_addressees` (written by `CollectCaseAddresseesNode`,
+read by `CreateAndPersistCaseActivityNode`, both in
+`case/nodes/communication.py`) is the shape to have in mind. Listing such a key
+there is an explicit opt-in, described in the section below.
+
+Note the discriminator, because it is easy to get backwards: a key the *caller*
+passes as a `context_data` kwarg **is** managed and restored, even when a node
+also writes it. `suggested_roles` is that case, so it is not an example of this
+rule.
 
 **Rule**: When a BT node takes a no-op path (empty recipient list, guard
-condition not met, etc.), it MUST explicitly write `None` to any output
-blackboard key it would normally set. Leaving the key at its stale value from
-a prior execution contaminates the next execution.
+condition not met, etc.), it MUST explicitly clear any output blackboard key it
+would normally set — `None` for a scalar, the empty collection for a
+collection-typed port. Leaving the key at its stale value from a prior execution
+contaminates the next execution.
 
 ```python
 # ✅ Correct — clear the key on no-op path
 if not recipients:
-    self.blackboard.broadcast_activity_id = None
+    self._set_output("create_case_addressees", [])
     return Status.SUCCESS
 
 # ❌ Wrong — stale value visible to next execution
 if not recipients:
     return Status.SUCCESS
 ```
+
+A namespaced handoff key (`suggested_roles_{id_segment}` and friends, see
+"Namespaced Inter-Node Handoff Keys" below) is cleared the same way, through its
+port — never by assigning the flat name.
 
 **Consumer side**: Any node that reads an output key from a peer node MUST
 treat both `KeyError` (key never written) and `None` (key explicitly cleared
@@ -359,24 +375,89 @@ node-owned. List it in `BTBridge.execute_with_setup`'s `managed_keys` so the
 bridge resets it to its pre-execution state in the `finally` block on **every**
 outcome. Whatever execution wrote the key has it reset at its own teardown, so
 no execution leaks it forward regardless of which node short-circuited. (This is
-the exception to "`execute_with_setup` cleans only `datalayer` and
-`trigger_activity_factory`" above — the managed-keys set is the allowlist of
-execution-scoped keys the bridge also resets.)
+the exception to "a domain-specific output key is not cleaned" above — listing a
+key in `managed_keys` is how a node-written key opts *in* to bridge teardown.)
 
 **Do NOT** instead zero the key from an unrelated node's `_clear()`: a node must
 not clear a blackboard key it does not own (CONCERN-2711), because a peer that
 legitimately owns the key would see it corrupted. Ownership stays with the
 producer; *lifetime* is enforced by the bridge.
 
-**`activity` and `context_data` keys are also managed** (#3161, pending #3510): `setup_tree`
+**`activity` and `context_data` keys are also managed** (#3161): `setup_tree`
 writes the `activity` key (when provided) and all `**context_data` keyword
 arguments to the blackboard. These keys are added to `managed_keys`
 dynamically at the start of `execute_with_setup`, before `previous_values` is
 snapshotted. A nested `execute_with_setup` call that passes the same key
 therefore restores the outer execution's value when it returns — no stale
-value leaks forward. (`actor_id` is intentionally excluded: the outer execution
-holds its own actor id as a Python local, not from the blackboard, and the two
-executions may legitimately use different actors.)
+value leaks forward.
+
+The corollary is that **none of these keys can carry a result back out**: they
+are restored on every outcome, so a caller that reads one after
+`execute_with_setup` returns sees its pre-execution value, not whatever a node
+wrote. Pass a mutable `result_out` dict instead — it is shared by reference and
+unaffected by the restore.
+
+### `/actor_id` Is Restored Too, Because Nodes Re-Read It Every Tick
+
+`actor_id` was excluded from `managed_keys` until #3516, on the reasoning that
+the outer execution holds its own actor id as a Python local. That is true of
+`execute_with_setup` and false of **every node**, so the exclusion leaked:
+
+> A node base does not capture `/actor_id` once. `DataLayerCondition`,
+> `DataLayerAction`, `DataLayerConditionWithPorts` and `DataLayerActionWithPorts`
+> all read it into `self.actor_id` in **`initialise()`**, not `setup()` — and
+> py_trees calls `initialise()` on every tick in which the node was not
+> `RUNNING`.
+
+So a nested `execute_with_setup` running as a different actor — the ordinary
+delegated-emit shape (CM-24-001) — left that actor on the blackboard, and every
+**later sibling** of the node that made the nested call resolved the inner actor
+instead of the one its own tree is executing as. In `OwnerLeaveSeq`
+(`case/receive_close_case_tree.py`) the siblings downstream of
+`AdvanceParticipantToRMClosedNode` include the node that commits a ledger entry,
+so the leak reached `payloadSnapshot.actor` — a CLP-07-003 identity fault. It
+required `self.datalayer.actor_id` to differ from the blackboard actor, which is
+exactly `_store_for_actor`'s documented foreign-authority fall-through (a case
+whose CASE_MANAGER sits on another container after a handoff, CP-08-003), so it
+was narrow rather than absent.
+
+Restoring is safe rather than merely safer, which is the part worth
+internalising: the restore runs in the **inner** call's own `finally`, after its
+tree has finished, and puts back exactly the value that same call snapshotted.
+It cannot overwrite a live execution. The guards are
+`test_an_inner_actor_id_does_not_clobber_the_outer_one` and
+`test_a_later_sibling_reads_its_own_trees_actor` in `test_bridge.py` — the second
+asserts what a sibling *node* resolves, because asserting on raw blackboard
+storage does not exercise the `initialise()` re-read that made this reachable.
+
+**Generalisation.** When reasoning about whether a blackboard key is safe to
+leave un-restored, the question is never "does the bridge read it late?" — it is
+"does any **node** re-read it, and when?" For every `helpers.py` base that is
+once per tick, not once per execution.
+
+### Every Classifying Exception Handler Is One Helper (#3084, #3085)
+
+`BTBridge` catches at three boundaries — the ticks inside `execute_tree`, and
+`setup_tree` and `execute_tree` as called from `execute_with_setup` — each split
+by whether the exception is a `VultronError`, so six handlers, and all six go
+through `BTBridge._exception_result(e, *, prefix, internal_error=False)`. (The
+`bt.shutdown()` guard in `execute_tree`'s `finally` is the one broad catch that
+does not: it builds no result, because its job is to preserve the one already
+returned.) The helper
+derives the message, the log level, and the `internal_error` flag from that one
+`internal_error` input, so the three cannot drift apart: `internal_error=False`
+is WARNING with no traceback and a bare `"<prefix>: <Type>: <msg>"` message,
+`True` is `logger.exception` (ERROR + traceback, which requires calling the
+helper from inside the `except` block) and a `"<prefix> with internal error: …"`
+message. A log-level divergence between two of these copies was #3080.
+
+`execute_with_setup` uses **two** try blocks rather than one, so the `prefix`
+always names the phase that actually failed — a combined block reported an
+error raised during the ticks as `"BT setup failed"`, sending a reader to the
+wiring when the bug was in a node (#3085). `execute_tree`'s own catch-all means
+nothing currently reaches the execution-phase handlers; they are the guarantee
+("a BT execution never escapes the bridge") rather than the mechanism, and stay
+correct if that catch-all is ever narrowed.
 
 ---
 
