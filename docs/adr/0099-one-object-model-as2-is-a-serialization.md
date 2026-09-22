@@ -258,13 +258,27 @@ reader the moment it is closed.
   including the hand-written table at
   `vultron/core/behaviors/case/nodes/lifecycle.py:98` mapping `"rmState"` to
   `"rm_state"`, and review the 21 `by_alias=True` call sites there.
-- **Rename the four misnamed wire classes** to `as_*`:
-  `VulnerabilityCaseStub`, `VultronAS2Object`, `VultronAS2Activity`,
-  `VultronActorMixin`. The 47 `_XxxActivity` classes are private and
-  unambiguous, and stay.
-- **Replace the ARCH-22 ratchet** — its 20-entry `KNOWN_VIOLATIONS` set, two
+- ~~**Rename the four misnamed wire classes** to `as_*`.~~ **Done (#3484.)**
+  `as_VultronObject`, `as_VultronActivity`, `as_VulnerabilityCaseStub`,
+  `as_VultronActorMixin`. The 47 `_XxxActivity` classes are private and
+  unambiguous, and stayed.
+
+  Two things worth carrying forward. `WIRE_TYPE_MAP` is keyed on
+  `cls.__name__.removeprefix("as_")`, so *adding* the prefix is registry-neutral
+  while changing the stem is not — and `VulnerabilityCaseStub` is both a live
+  registry key and a published JSON-LD term in `docs/ns/context.jsonld`. And
+  `VultronActorMixin` named two different things: the wire class, and the core
+  alias `VultronActorMixin = CoreActor`. `test_wire_vocab_naming.py` reported
+  zero collisions throughout, because it scans `class` statements and a name
+  introduced by assignment is invisible to it. That hole is now closed.
+- ~~**Replace the ARCH-22 ratchet** — its 20-entry `KNOWN_VIOLATIONS` set, two
   two-sided tests, `xfail` goal test and declared exemption set — with the
-  single detail-6 allow-list test.
+  single detail-6 allow-list test.~~ **Done (#3483.)** `case_states/` and
+  `participants/` were classified **forbidden**: despite its name the former
+  holds graph-walking and validation behaviour rather than state definitions,
+  and the bare enumerations wire legitimately needs already live in
+  `vultron/core/states/`. `TYPE_CHECKING`-only imports are exempt generally,
+  not by carving out the one file that needed it.
 - **Retire ADR-0017 and ADR-0082**, including the forward references from
   `notes/wire-core-boundary.md`, several spec rationales, and the docstring of
   `test/architecture/test_wire_no_core_model_imports.py`.
