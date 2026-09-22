@@ -27,7 +27,7 @@ print(render_page("general", heading=False))
   (`Offer(Actor)[target=VulnerabilityCase]`,
   `Offer(CaseParticipant)[target=VulnerabilityCase]`, and its `Accept`/`Reject`).
   Suggesting a Participant is a `GI` inquiry, not a case-management message.
-- **How-to:** [How to Publish a Status Update or a Note](../../howto/activitypub/activities/status_updates.md)
+- **How-to:** [How to Post a Status Update or a Case Note](../../howto/activitypub/activities/status_updates.md)
   (notes); [How to Suggest an Actor for a Case](../../howto/activitypub/activities/suggest_actor.md)
   (actor suggestion).
 - **Formal definition:** [Message Types](../formal_protocol/messages.md#other-message-types).

@@ -341,7 +341,7 @@ This demo shows three types of case record updates:
    it to a case participant.
 
 See
-[How to Publish a Status Update or a Note](../howto/activitypub/activities/status_updates.md)
+[How to Post a Status Update or a Case Note](../howto/activitypub/activities/status_updates.md)
 for details.
 
 ---

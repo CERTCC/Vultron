@@ -7,7 +7,9 @@ description: >
   competes under shortest-wins; default embargo duration and expiry semantics;
   the published-default / tacit-acceptance model that explains why the
   happy-path embargo requires no explicit negotiation exchange; why there is no
-  pre-case embargo phase; and why an RSVP deadline may not outlive its embargo.
+  pre-case embargo phase; why an RSVP deadline may not outlive its embargo; and
+  how EP-04-003's two-party shortest-wins relates to EP-08's general
+  earliest-expiration ordering for N open proposals.
 related_specs:
   - specs/case-management.yaml
   - specs/embargo-policy.yaml
@@ -83,6 +85,24 @@ The **negotiated path** requires that mechanism. EP-04-004 now specifies it
 (a proposed `EmbargoEvent` embedded on the report offer), which makes
 EP-04-003's shortest-wins comparison reachable; until the Tasks land, only
 EP-04-001 and EP-04-005 apply at case creation.
+
+**EP-04-003 is the two-party instance of a general rule.** Shortest-wins at case
+creation is the same comparison **EP-08-001** states for *N* simultaneously open
+proposals: resolve earliest `end_time` first and handle the remainder as
+revisions (ADR-0100). EP-04-003 `refines` EP-08-001 accordingly. Two consequences
+for implementers:
+
+- **One comparator, not two.** #3392 builds EP-04-003's comparison and #3470
+  builds EP-08's; they MUST share a single earliest-end-date comparator rather
+  than growing separate ones that can disagree.
+- There is **no multi-candidate poll** to reach for when more than two sets of
+  terms are on the table — ADR-0100 retired `ChoosePreferredEmbargo` (#3469).
+  Send one `Invite` per candidate and answer each on its own.
+
+Mechanics of the N-proposal case, including why neither record of open proposals
+is currently pruned, are in
+[`embargo-lifecycle.md`](embargo-lifecycle.md) § "Open Proposals Resolve
+Earliest-Expiration First (EP-08)".
 
 ### Implications for demos and implementers
 
