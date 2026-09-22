@@ -84,7 +84,7 @@ class _ActorsMixin:
 
         ``roles`` carries the intended CVD roles for the invitee (CM-17-003).
         ``target`` may be a core ``as_VulnerabilityCase`` (projected to an enriched
-        stub by the factory), a pre-built ``VulnerabilityCaseStub``, or a bare
+        stub by the factory), a pre-built ``as_VulnerabilityCaseStub``, or a bare
         URI string.  When ``None``, the case is read from the DataLayer by
         ``case_id`` and passed to the factory with any active embargo entity for
         CM-17-002 enrichment.

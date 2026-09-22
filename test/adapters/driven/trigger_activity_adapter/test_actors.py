@@ -29,7 +29,7 @@ from vultron.wire.as2.vocab.base.objects.actors import as_Service
 from vultron.wire.as2.vocab.objects.case_participant import as_CaseParticipant
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCase,
-    VulnerabilityCaseStub,
+    as_VulnerabilityCaseStub,
 )
 
 _ACTOR = "https://example.org/actors/coordinator"
@@ -95,7 +95,7 @@ class TestAcceptCaseInvite:
         dl.create(invitee)
         invite = rm_invite_to_case_activity(
             invitee,
-            target=VulnerabilityCaseStub(id_=_CASE_ID),
+            target=as_VulnerabilityCaseStub(id_=_CASE_ID),
             actor=_ACTOR,
             to=[_INVITEE],
         )

@@ -17,11 +17,11 @@ groups:
   - id: CP-01-001
     priority: MUST
     kind: protocol
-    statement: The wire layer MUST define an `as_CaseProposal` object type that extends `VultronAS2Object`.
+    statement: The wire layer MUST define an `as_CaseProposal` object type that extends `as_VultronObject`.
     rationale: A dedicated object type enables pattern-discriminated routing in the semantic extractor and preserves AS2 semantics
       by separating the proposal object from the eventual `VulnerabilityCase`.
     verification: Inspection of `vultron/wire/as2/vocab/objects/case_proposal.py` confirms `as_CaseProposal` is declared as
-      a class that extends `VultronAS2Object`.
+      a class that extends `as_VultronObject`.
     lint_suppress:
     - missing_story_reference
   - id: CP-01-002
@@ -29,7 +29,7 @@ groups:
     kind: protocol
     statement: '`as_CaseProposal` MUST include an `id_` field containing a full URI that uniquely identifies the proposal.'
     verification: Inspection of `vultron/wire/as2/vocab/objects/case_proposal.py` confirms `id_` is inherited from
-      `VultronAS2Object` as a required URI field on every `as_CaseProposal` instance.
+      `as_VultronObject` as a required URI field on every `as_CaseProposal` instance.
     lint_suppress:
     - missing_story_reference
   - id: CP-01-003

@@ -63,7 +63,7 @@ def _assert_wire_dict(result: dict, expected_type: str) -> None:
         result.get("type") == expected_type
     ), f"Expected type={expected_type!r}, got {result.get('type')!r}"
     # camelCase key present (not snake_case)
-    # The 'id' field is always emitted by VultronAS2Object
+    # The 'id' field is always emitted by as_VultronObject
     assert "id" in result, f"Missing 'id' key in wire dict for {expected_type}"
     # AC-5 / CLP-07-001: output must be receiver-reconstitutable
     try:
@@ -179,14 +179,14 @@ def test_render_excludes_none_fields(adapter):
 
 
 def test_render_raises_for_case_actor(adapter):
-    """CaseActor has no VultronAS2Object wire counterpart — must raise."""
+    """CaseActor has no as_VultronObject wire counterpart — must raise."""
     obj = CaseActor()
     with pytest.raises(VultronValidationError, match="CaseActor"):
         adapter.render(obj)
 
 
 def test_render_raises_for_vultron_person(adapter):
-    """VultronPerson wire class is NOT VultronAS2Object — must raise."""
+    """VultronPerson wire class is NOT as_VultronObject — must raise."""
     obj = VultronPerson()
     with pytest.raises(VultronValidationError, match="VultronPerson"):
         adapter.render(obj)

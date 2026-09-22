@@ -32,12 +32,12 @@ from vultron.core.models.embargo_policy import (
 from vultron.core.models.enums import VultronObjectType as VO_type
 from vultron.wire.as2.vocab.base.links import ActivityStreamRef
 from vultron.wire.as2.vocab.objects.base import (
-    VultronAS2Object,
+    as_VultronObject,
     _strip_core_context,
 )
 
 
-class as_EmbargoPolicy(VultronAS2Object):
+class as_EmbargoPolicy(as_VultronObject):
     """Wire projection of the core EmbargoPolicy domain object.
 
     Represents an Actor's stated embargo preferences for AS2 wire exchange.

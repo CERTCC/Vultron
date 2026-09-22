@@ -309,7 +309,7 @@ groups:
       `notes/stub-objects.md`.
     verification: >-
       A unit test confirms that a `VulnerabilityCase` inline object carrying only
-      `id`/`type`(+`summary`) resolves to `VulnerabilityCaseStub`, and that a partial
+      `id`/`type`(+`summary`) resolves to `as_VulnerabilityCaseStub`, and that a partial
       inline object of any other recognised wire type is refused under MV-04-003 rather
       than degraded. Bare URI references and `Link` objects remain accepted in all four
       positions named by MV-10-002.

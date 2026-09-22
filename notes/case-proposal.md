@@ -191,7 +191,7 @@ the emit in `.../proposal_admission_actions.py` (BTND-07-003).
 ## Wire Vocabulary: `as_CaseProposal`
 
 `as_CaseProposal` is a new AS2 **Object** type (not an Activity) that extends
-`VultronAS2Object`. Required fields:
+`as_VultronObject`. Required fields:
 
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|

@@ -13,7 +13,7 @@
 
 """
 Tests for as_VultronPerson, as_VultronOrganization, as_VultronService, and
-VultronActorMixin (EP-01-001).
+as_VultronActorMixin (EP-01-001).
 """
 
 import unittest
@@ -32,7 +32,7 @@ from vultron.wire.as2.vocab.base.objects.actors import as_Actor
 from vultron.wire.as2.vocab.base.registry import WIRE_TYPE_MAP
 from vultron.wire.as2.vocab.objects.embargo_policy import as_EmbargoPolicy
 from vultron.wire.as2.vocab.objects.vultron_actor import (
-    VultronActorMixin,
+    as_VultronActorMixin,
     as_VultronApplication,
     as_VultronGroup,
     as_VultronOrganization,
@@ -88,7 +88,7 @@ class TestVultronPersonBasics(unittest.TestCase):
 
     def test_is_instance_of_mixin(self):
         p = as_VultronPerson()
-        self.assertIsInstance(p, VultronActorMixin)
+        self.assertIsInstance(p, as_VultronActorMixin)
         self.assertIsInstance(p, as_Actor)
 
     def test_json_round_trip_no_policy(self):
@@ -137,7 +137,7 @@ class TestVultronOrganizationBasics(unittest.TestCase):
 
     def test_is_instance_of_mixin(self):
         org = as_VultronOrganization()
-        self.assertIsInstance(org, VultronActorMixin)
+        self.assertIsInstance(org, as_VultronActorMixin)
 
 
 class TestVultronServiceBasics(unittest.TestCase):
@@ -153,7 +153,7 @@ class TestVultronServiceBasics(unittest.TestCase):
 
     def test_is_instance_of_mixin(self):
         svc = as_VultronService()
-        self.assertIsInstance(svc, VultronActorMixin)
+        self.assertIsInstance(svc, as_VultronActorMixin)
 
 
 class TestVultronActorTypePreservation(unittest.TestCase):
@@ -211,7 +211,7 @@ class TestWireActorVocabularyAndRoundTrip(unittest.TestCase):
 
 
 class TestVultronActorToCore(unittest.TestCase):
-    """VultronActorMixin.to_core() projects to the correct core subtype."""
+    """as_VultronActorMixin.to_core() projects to the correct core subtype."""
 
     def test_person_to_core_type(self):
         wire = as_VultronPerson(

@@ -28,13 +28,13 @@ from vultron.core.models.case_reference import (
 from vultron.core.models.enums import VultronObjectType as VO_type
 from vultron.wire.as2.vocab.base.links import ActivityStreamRef
 from vultron.wire.as2.vocab.objects.base import (
-    VultronAS2Object,
+    as_VultronObject,
     _scalar_ref_id_or_value,
     _strip_core_context,
 )
 
 
-class as_CaseReference(VultronAS2Object):
+class as_CaseReference(as_VultronObject):
     """
     Represents a typed external reference associated with a case.
 

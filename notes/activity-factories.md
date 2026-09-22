@@ -36,7 +36,7 @@ Spec: `specs/activity-factories.yaml` (AF-01 through AF-08).
 | Error handling? | Catch `ValidationError`, raise `VultronActivityConstructionError` (chains `__cause__`) | Keeps internal class names out of public error messages. |
 | Import boundary enforcement? | pytest `test/architecture/test_activity_factory_imports.py` + AGENTS guidance | Lightweight, CI-enforced boundary rule. |
 | TypeAlias cleanup? | Remove unused `OfferRef` and `RmInviteToCaseRef`; rename `EmProposeEmbargoRef` to `_EmProposeEmbargoRef` | Reduces public API surface. |
-| `from_core()` on `VultronAS2Activity`? | Keep; it is a separate concern | Factories build from primitives; `from_core()` converts an existing domain object. |
+| `from_core()` on `as_VultronActivity`? | Keep; it is a separate concern | Factories build from primitives; `from_core()` converts an existing domain object. |
 | Architecture violation in `sync.py`? | Track separately | `vultron/core/use_cases/*/sync.py` calling `from_core()` is a different layer violation. |
 
 ## Key Patterns
@@ -201,7 +201,7 @@ and `list[as_Activity]` on the other. `_field_map`, `_strip_core_context`, and
 the per-field conversion logic are what supply that.
 
 **Where that mechanism lives is changing.** Today it is
-`from_core()` on `VultronAS2Object` (overridden on specific wire classes). Under
+`from_core()` on `as_VultronObject` (overridden on specific wire classes). Under
 ADR-0082, ARCH-12-005 as amended **forbids** `from_core()`/`to_core()` on wire
 vocabulary classes: projection moves to a generic bidirectional translator on the
 adapter side, driven by a declarative core↔wire pairing registry (ARCH-23-001),
@@ -266,14 +266,14 @@ def test_no_direct_activity_class_imports():
 
 ## Anti-pattern: Projection Logic in the Adapter
 
-**Problem:** An adapter method builds a partial wire object (e.g. `VulnerabilityCaseStub`)
+**Problem:** An adapter method builds a partial wire object (e.g. `as_VulnerabilityCaseStub`)
 and passes it to a factory function, rather than passing the core domain object and letting
 the factory project it.
 
 This pattern appeared in PR #1346, where `_ActorsMixin._build_enriched_case_stub()` was
-added to the adapter layer to construct an enriched `VulnerabilityCaseStub` before calling
+added to the adapter layer to construct an enriched `as_VulnerabilityCaseStub` before calling
 `rm_invite_to_case_activity()`. The stated reason was that building wire types
-(`VulnerabilityCaseStub`, `EmbargoEvent`, `CaseStatus`) in core would violate ARCH-01-001.
+(`as_VulnerabilityCaseStub`, `EmbargoEvent`, `CaseStatus`) in core would violate ARCH-01-001.
 That reasoning is wrong — the *factory* is the correct home for this projection, and
 factories are already allowed to import both core and wire types.
 
@@ -291,10 +291,10 @@ factory could accept `VulnerabilityCase` + `EmbargoEvent` directly.
 ```python
 # WRONG — adapter pre-builds partial wire stub
 class _ActorsMixin:
-    def _build_enriched_case_stub(self, case_id: str) -> VulnerabilityCaseStub:
+    def _build_enriched_case_stub(self, case_id: str) -> as_VulnerabilityCaseStub:
         case = self._dl.read(case_id)
         ...  # projection logic here, risks being incomplete
-        return VulnerabilityCaseStub(id_=case_id, active_embargo=embargo_ref, ...)
+        return as_VulnerabilityCaseStub(id_=case_id, active_embargo=embargo_ref, ...)
 
     def invite_actor_to_case(self, ..., case_id: str, ...) -> ...:
         target = self._build_enriched_case_stub(case_id)   # ← passes wire stub to factory
@@ -309,7 +309,7 @@ class _ActorsMixin:
 # In factories/case.py:
 def rm_invite_to_case_activity(
     invitee: CoreActor | as_Actor,
-    target: VulnerabilityCase | VulnerabilityCaseStub | str | None = None,
+    target: VulnerabilityCase | as_VulnerabilityCaseStub | str | None = None,
     ...
 ) -> as_Invite:
     if isinstance(target, VulnerabilityCase):

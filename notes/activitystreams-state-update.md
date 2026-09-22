@@ -186,7 +186,7 @@ of sync with the stricter typed subclasses.
   includes `None`, so type-level and runtime contracts diverge unless required
   fields use the stricter alias.
 - Wire/domain translation tests must reflect the stricter contract too:
-  `VultronAS2Activity.from_core()` should reject objectless transitive domain
+  `as_VultronActivity.from_core()` should reject objectless transitive domain
   activities rather than silently materializing invalid wire objects.
 - A backlog bug may already be fixed; close it with concrete code-search and
   regression-test evidence (see also `.claude/skills/bugfix/SKILL.md` § Phase 2a prior-fix check).
@@ -224,11 +224,11 @@ into fields of the nested dict, the `Invite`'s own `actor` and `object_`
 (typically a case stub) are left as raw dicts, breaking `ActivityPattern`
 matching that relies on typed subtype information.
 
-**Lesson 2 — Minimal case dicts must expand to `VulnerabilityCaseStub`.**
+**Lesson 2 — Minimal case dicts must expand to `as_VulnerabilityCaseStub`.**
 
 Minimal `{"id": "...", "type": "VulnerabilityCase"}` dicts received in
 inbound activities (e.g., as the `object_` of an `Invite`) should be expanded
-as `VulnerabilityCaseStub`, not full `VulnerabilityCase`. This preserves
+as `as_VulnerabilityCaseStub`, not full `VulnerabilityCase`. This preserves
 selective-disclosure semantics: the invitee has not yet accepted the embargo,
 so they should only see the stub. Expanding to full `VulnerabilityCase` would
 incorrectly materialize fields the invitee has not yet earned access to.

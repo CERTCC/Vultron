@@ -45,7 +45,7 @@ from vultron.core.models.base import NonEmptyString
 from vultron.core.models.enums import VultronObjectType as VO_type
 from vultron.wire.as2.vocab.base.links import ActivityStreamRef, as_Link
 from vultron.wire.as2.vocab.objects.base import (
-    VultronAS2Object,
+    as_VultronObject,
     _scalar_ref_id_or_value,
 )
 from vultron.wire.as2.vocab.objects.case_status import (
@@ -74,7 +74,7 @@ as_ParticipantStatus = WireParticipantStatus
 logger = logging.getLogger(__name__)
 
 
-class as_CaseParticipant(VultronAS2Object):
+class as_CaseParticipant(as_VultronObject):
     """
     A CaseParticipant is a wrapper around an Actor in a VulnerabilityCase.
     It is used to track the status of the participant within the context of a specific case, as well as the roles they

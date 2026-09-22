@@ -28,10 +28,10 @@ from pydantic import Field
 
 from vultron.core.models.base import NonEmptyString
 from vultron.core.models.enums import VultronObjectType as VO_type
-from vultron.wire.as2.vocab.objects.base import VultronAS2Object
+from vultron.wire.as2.vocab.objects.base import as_VultronObject
 
 
-class as_ProcessingFault(VultronAS2Object):
+class as_ProcessingFault(as_VultronObject):
     """Wire representation of a ProcessingFault NACK object (ASK-07-001).
 
     Emitted by a receiver toward an authenticated sender when a status

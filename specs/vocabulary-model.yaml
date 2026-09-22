@@ -293,7 +293,7 @@ groups:
       serialization boundary. Omitting `serialize_as_any=True` at either boundary causes the serializer to use the declared
       (base) type''s schema, silently dropping all subtype-specific fields.'
     rationale: Pydantic v2 uses the declared field type for serialization by default. A field typed as `VulnerabilityCase`
-      but holding a `VulnerabilityCaseStub` at runtime will serialize using `VulnerabilityCase`'s schema, dropping `stub_*`
+      but holding a `as_VulnerabilityCaseStub` at runtime will serialize using `VulnerabilityCase`'s schema, dropping `stub_*`
       fields entirely with no error. Root causes of BUG-26042201 and BUG-26051902. Both persistence and delivery boundaries
       are required because a correct write-path can still produce incorrect wire output if the delivery serializer also lacks
       this flag.
@@ -406,10 +406,10 @@ groups:
       `context_` to the Vultron context URI (`https://certcc.github.io/Vultron/ns/context.jsonld`)
       rather than the ActivityStreams namespace URI.
     rationale: >-
-      `VultronAS2Object` is the base class for all Vultron-specific wire types. Overriding
+      `as_VultronObject` is the base class for all Vultron-specific wire types. Overriding
       `context_` there ensures that every Vultron object serializes with the correct
       `@context` without requiring call-site changes.
-    verification: Inspection of `vultron/wire/as2/vocab/objects/base.py` confirms that `VultronAS2Object` (with
+    verification: Inspection of `vultron/wire/as2/vocab/objects/base.py` confirms that `as_VultronObject` (with
       `_vocab_ns = VocabNamespace.VULTRON`) overrides `context_` to
       `"https://certcc.github.io/Vultron/ns/context.jsonld"`, so every concrete Vultron wire type serializes with the
       correct `@context` without call-site changes.

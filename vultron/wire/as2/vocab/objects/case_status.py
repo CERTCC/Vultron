@@ -46,7 +46,7 @@ from vultron.core.models.enums import VultronObjectType as VO_type
 from vultron.wire.as2.vocab.base.links import ActivityStreamRef, as_Link
 from vultron.wire.as2.vocab.base.objects.base import as_Object
 from vultron.wire.as2.vocab.objects.base import (
-    VultronAS2Object,
+    as_VultronObject,
     _scalar_ref_id_or_value,
     _strip_core_context,
 )
@@ -113,7 +113,7 @@ def _coerce_pec_or_none(v: object) -> PEC | None:
     return None
 
 
-class as_CaseStatus(VultronAS2Object):
+class as_CaseStatus(as_VultronObject):
     """
     Represents the case-level (global, participant-agnostic) status of a VulnerabilityCase.
     """
@@ -215,7 +215,7 @@ class as_CaseStatus(VultronAS2Object):
 as_CaseStatusRef: TypeAlias = ActivityStreamRef[as_CaseStatus]
 
 
-class as_ParticipantStatus(VultronAS2Object):
+class as_ParticipantStatus(as_VultronObject):
     """
     Represents the status of a participant with respect to a VulnerabilityCase (participant-specific).
     """
