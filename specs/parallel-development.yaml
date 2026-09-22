@@ -537,8 +537,13 @@ groups:
           authoritative field.
         verification: >-
           `test/metadata/test_bundle_fit.py::TestScheduleTier` asserts tier
-          ordering, Epic-tier inheritance, explicit-leaf precedence, and that
-          ties fall back to list order.
+          ordering (including that `Focus` outranks `Now`), that inheritance
+          reaches the sort inside `select_bundle` and not only
+          `effective_schedule`, that an explicit leaf tier beats the Epic's, and
+          that ties fall back to list order.
+          `test_every_board_tier_is_ranked_or_excluded` ratchets the tier list
+          against `.agents/skills/shared/board-ids.json`, because a tier in
+          neither set ranks last rather than failing.
       - id: PAD-15-004
         priority: MUST_NOT
         kind: process
@@ -564,8 +569,9 @@ groups:
           unbounded above, so counting it as the largest size fails safe.
         verification: >-
           `test/metadata/test_bundle_fit.py::TestSizeBudget` asserts the weights,
-          the unsized-as-largest rule, the budget and member ceilings, and that a
-          refused oversized candidate does not end the scan.
+          the unsized-as-largest rule, that the largest of several `size:` labels
+          is both the weight and the label reported, the budget and member
+          ceilings, and that a refused oversized candidate does not end the scan.
       - id: PAD-15-006
         priority: MUST
         kind: process
@@ -623,4 +629,7 @@ groups:
           lock. A bundle amortises context loading, never rigor.
         verification: >-
           `.agents/skills/shared/claim-issue.sh` assigns and comments on every
-          member of the bundle it is given while creating exactly one branch.
+          member of the bundle it is given while creating exactly one branch. It
+          validates every member number before mutating anything, rejects a
+          repeated member, and on a mid-bundle failure names the members already
+          claimed and deletes the branch so the claim can be retried.

@@ -7,18 +7,27 @@ these stay in the default suite.
 
 from __future__ import annotations
 
+import io
+import json
+import re
 from pathlib import Path
 
 import pytest
 
 from vultron.metadata.planning.bundle_fit import (
     DEFAULT_BUDGET,
+    EXCLUDED_TIERS,
+    KNOWN_TIERS,
+    SCHEDULE_ORDER,
     Candidate,
     _render,
     coherence_hints,
     effective_schedule,
     eligibility,
+    graphql_errors,
+    main,
     parse_graphql,
+    schedule_rank,
     select_bundle,
 )
 
@@ -163,6 +172,88 @@ class TestScheduleTier:
         )
         assert [c.number for c in bundle.members] == [7, 3]
 
+    def test_focus_is_the_best_tier_not_the_worst(self):
+        """`Focus` is the board's top tier, but was absent from SCHEDULE_ORDER,
+        so it fell through to the unknown-tier rank and sorted below `Someday`.
+        """
+        assert schedule_rank("Focus") < schedule_rank("Now")
+        bundle = select_bundle(
+            [
+                task(1, size="size:S", schedule="Later"),
+                task(2, schedule="Focus"),
+            ]
+        )
+        assert [c.number for c in bundle.members] == [2, 1]
+
+    def test_every_board_tier_is_ranked_or_excluded(self):
+        """Ratchet: a tier in neither set ranks *last*, silently — which is how
+        `Focus` came to sort below `Someday`.
+
+        The authority is `board-id.sh`, whose usage block enumerates the Schedule
+        options it can resolve. `board-ids.json` holds the live values but is a
+        gitignored TTL cache, so it is absent in CI and cannot be the ratchet.
+        """
+        usage = (
+            Path(__file__).parents[2] / ".agents/skills/shared/board-id.sh"
+        ).read_text()
+        match = re.search(r"Schedule option ID \(([^)]+)\)", usage)
+        assert match, "board-id.sh no longer documents the Schedule options"
+        documented = {name.strip() for name in match.group(1).split("|")}
+        assert documented == KNOWN_TIERS, (
+            "SCHEDULE_ORDER/EXCLUDED_TIERS are out of step with the board: "
+            f"{documented ^ KNOWN_TIERS}"
+        )
+        # Anything not deliberately excluded must be *ranked*, not merely known.
+        # (`Someday` is in both sets: it has a rank and is never bundled.)
+        assert documented - EXCLUDED_TIERS <= set(SCHEDULE_ORDER)
+
+    def test_a_focus_bug_is_not_evicted_by_a_later_task(self):
+        """The workflow is chosen by the top-ranked candidate, so mis-ranking
+        `Focus` handed the bundle to a `Later` item and rejected the `Focus` one.
+        """
+        bundle = select_bundle(
+            [
+                task(1, size="size:S", schedule="Later"),
+                task(2, size="size:S", issue_type="Bug", schedule="Focus"),
+            ]
+        )
+        assert bundle.workflow == "bugfix"
+        assert [c.number for c in bundle.members] == [2]
+
+    def test_completed_is_never_bundled(self):
+        bundle = select_bundle([task(1, schedule="Completed")])
+        assert bundle.members == []
+        assert "tier" in next(iter(bundle.rejected)).reason.lower()
+
+    def test_an_unrecognised_tier_is_reported_not_ranked(self):
+        """Board options are server-generated and mutable, so a renamed or
+        case-slipped tier must be loud rather than sorted as if unset."""
+        bundle = select_bundle([task(1, size="size:S", schedule="someday")])
+        assert bundle.members == []
+        (rej,) = bundle.rejected
+        assert rej.stage == "fit"
+        assert "unrecognised" in rej.reason.lower()
+
+    def test_inheritance_drives_ordering_inside_select_bundle(self):
+        """`effective_schedule` is unit-tested directly, but nothing asserted
+        that inheritance reaches the *sort* — a worse explicit leaf tier must
+        lose to a sibling that inherits a better Epic tier."""
+        bundle = select_bundle(
+            [
+                task(1, size="size:S", schedule="Later"),
+                task(2, size="size:S", schedule=None),
+            ],
+            epic_schedule="Now",
+        )
+        assert [c.number for c in bundle.members] == [2, 1]
+
+    def test_an_excluded_epic_tier_is_inherited_too(self):
+        bundle = select_bundle(
+            [task(1, size="size:S")], epic_schedule="Someday"
+        )
+        assert bundle.members == []
+        assert "Someday" in next(iter(bundle.rejected)).reason
+
 
 class TestSizeBudget:
     """The headline defect: five size:L issues bundled as readily as five S."""
@@ -175,6 +266,14 @@ class TestSizeBudget:
     def test_unsized_candidate_is_weighted_as_largest(self):
         """#3340 carried no size: label and was bundled with no accounting."""
         assert task(1, size=None).weight == 3
+
+    def test_the_largest_size_label_wins_and_is_the_one_reported(self):
+        """Two size labels resolved by `max` for the weight but by list order
+        for the report, so a row could read `size:S ... weight=3`."""
+        c = Candidate(number=1, issue_type="Task", labels=["size:S", "size:L"])
+        assert c.weight == 3
+        assert c.size_label == "size:L"
+        assert Candidate(number=2).size_label == "unsized"
 
     def test_budget_stops_the_bundle(self):
         bundle = select_bundle(
@@ -272,6 +371,37 @@ class TestCoherenceHints:
         assert any("concern" in h for h in hints)
         assert not any("size:" in h for h in hints)
 
+    def test_shared_file_path_is_surfaced(self):
+        """Path overlap is advertised in the module docstring, `bundling.md` and
+        PAD-15-007, but the `_PATH_RE` branch had no test at all."""
+        members = [
+            task(1, title="Harden specs/outbox.yaml retry caps"),
+            task(2, title="Document specs/outbox.yaml in notes/outbox.md"),
+        ]
+        hints = coherence_hints(members)
+        assert any(
+            "path specs/outbox.yaml" in h for h in hints
+        ), f"no path hint in {hints}"
+
+    def test_process_labels_are_not_coherence_evidence(self):
+        """`needs-rebase` on two members says nothing about subject matter."""
+        members = [
+            task(1, labels=["needs-rebase", "needs-triage"]),
+            task(2, labels=["needs-rebase", "needs-triage"]),
+        ]
+        assert coherence_hints(members) == []
+
+    def test_one_member_citing_a_token_twice_is_not_two_members(self):
+        """Counts are per member, so a repeated citation must not forge a hint."""
+        members = [
+            task(1, title="CS-23-001 blocks CS-23-001 in adapters"),
+            task(2, title="unrelated work"),
+        ]
+        assert coherence_hints(members) == []
+
+    def test_a_single_member_has_no_hints(self):
+        assert coherence_hints([task(1, title="CS-23-001")]) == []
+
 
 class TestBundleRendering:
     def test_closed_candidates_are_not_listed_as_not_workable(self):
@@ -315,19 +445,71 @@ class TestSharedQueryContract:
     but dropping the ``Schedule`` field fails **silently**: every tier reads as
     unset, so ordering quietly degrades back to sub-issue list order — the exact
     defect ISSUE-3482 fixed. These assertions keep both fields requested.
+
+    Both guards read the GraphQL document only, never the whole script. The
+    script's header comment *names* both fields it requests, so a bare substring
+    search over the file stays green with the query body gutted — the trap
+    ``vultron/metadata/AGENTS.md`` § "Changing a Linter Check" describes, where
+    naming a symbol in the check's own text puts that token back into the
+    scanned corpus.
     """
 
     QUERY = (
         Path(__file__).parents[2]
         / ".agents/skills/shared/query-epic-subissues.sh"
     )
+    SCHEDULE_FIELD = 'fieldValueByName(name: \\"Schedule\\")'
+
+    @classmethod
+    def _graphql(cls) -> str:
+        """The GraphQL document, with the script's comments excluded."""
+        _, sep, query = cls.QUERY.read_text().partition("gh api graphql")
+        assert sep, "query-epic-subissues.sh no longer calls `gh api graphql`"
+        return "\n".join(
+            line
+            for line in query.splitlines()
+            if not line.lstrip().startswith("#")
+        )
+
+    @classmethod
+    def _epic_and_leaf_scopes(cls) -> tuple[str, str]:
+        """The query split at the sub-issue block: (Epic fields, leaf fields).
+
+        Counting occurrences cannot tell the two nesting levels apart, so
+        deleting the Epic-level block and duplicating the leaf one keeps the
+        count right while Epic-tier inheritance dies. Splitting pins each level
+        to its own assertion.
+        """
+        epic, sep, leaves = cls._graphql().partition("subIssues(first:")
+        assert sep, "the query no longer requests the Epic's sub-issues"
+        return epic, leaves
 
     def test_query_requests_issue_type(self):
-        assert "issueType" in self.QUERY.read_text()
+        assert "issueType { name }" in self._graphql()
 
-    def test_query_requests_the_schedule_field_for_epic_and_leaves(self):
-        text = self.QUERY.read_text()
-        assert text.count('fieldValueByName(name: \\"Schedule\\")') == 2
+    def test_query_requests_the_schedule_field_for_the_epic(self):
+        """Without this, `epic_schedule` is always None and no leaf inherits."""
+        epic_scope, _ = self._epic_and_leaf_scopes()
+        assert self.SCHEDULE_FIELD in epic_scope
+
+    def test_query_requests_the_schedule_field_for_every_leaf(self):
+        _, leaf_scope = self._epic_and_leaf_scopes()
+        assert self.SCHEDULE_FIELD in leaf_scope
+
+    def test_the_guards_ignore_the_scripts_own_documentation(self):
+        """Ratchet on the ratchets above: prove they read the query, not prose.
+
+        Both field names appear in the header comment. If ``_graphql()`` ever
+        stops excluding it, the three guards above become unfalsifiable without
+        any of them failing — so assert the header is really out of scope.
+        """
+        header, _, _ = self.QUERY.read_text().partition("gh api graphql")
+        # A naive `"issueType" in read_text()` would be satisfied by this alone.
+        assert "issueType" in header, "header no longer documents issueType"
+        assert "Schedule" in header, "header no longer documents Schedule"
+        # The tokens the guards actually require appear only in the query body.
+        assert "issueType { name }" not in header
+        assert self.SCHEDULE_FIELD not in header
 
 
 class TestParseGraphQL:
@@ -413,3 +595,177 @@ class TestParseGraphQL:
         by_number = {c.number: c for c in cands}
         assert by_number[3326].schedule is None
         assert by_number[3355].schedule == "Now"
+
+    @pytest.mark.parametrize(
+        "blocker,expected",
+        [
+            ({"number": 7, "state": "CLOSED"}, []),
+            ({"number": 7, "state": "OPEN"}, [7]),
+            # Fail closed: an absent or null state must not read as unblocked.
+            ({"number": 7}, [7]),
+            ({"number": 7, "state": None}, [7]),
+        ],
+    )
+    def test_only_a_closed_blocker_stops_blocking(self, blocker, expected):
+        payload = {
+            "data": {
+                "repository": {
+                    "issue": {
+                        "number": 1,
+                        "subIssues": {
+                            "nodes": [
+                                {
+                                    "number": 5,
+                                    "state": "OPEN",
+                                    "issueType": {"name": "Task"},
+                                    "blockedBy": {"nodes": [blocker]},
+                                }
+                            ]
+                        },
+                    }
+                }
+            }
+        }
+        _, _, cands = parse_graphql(payload)
+        assert cands[0].open_blockers == expected
+
+    def test_a_graphql_error_payload_is_surfaced_not_swallowed(self):
+        assert graphql_errors({"errors": [{"message": "boom"}]}) == ["boom"]
+        assert graphql_errors({"data": {}}) == []
+        assert graphql_errors({}) == []
+
+
+class TestCLI:
+    """`bundle-fit` is the console script every skill invokes, and `main` had
+    no tests: the JSON contract, the exit codes and the diagnostics were all
+    unverified."""
+
+    @staticmethod
+    def _payload(*leaves, epic_schedule="Now"):
+        return {
+            "data": {
+                "repository": {
+                    "issue": {
+                        "number": 3329,
+                        "title": "Epic",
+                        "projectItems": {
+                            "nodes": [
+                                {
+                                    "project": {"number": 24},
+                                    "fieldValueByName": {
+                                        "name": epic_schedule
+                                    },
+                                }
+                            ]
+                        },
+                        "subIssues": {"nodes": list(leaves)},
+                    }
+                }
+            }
+        }
+
+    @staticmethod
+    def _leaf(number, *, size="size:S", issue_type="Task", title="t"):
+        return {
+            "number": number,
+            "title": title,
+            "state": "OPEN",
+            "issueType": {"name": issue_type},
+            "assignees": {"nodes": []},
+            "blockedBy": {"nodes": []},
+            "subIssues": {"totalCount": 0},
+            "labels": {"nodes": [{"name": size}]},
+            "projectItems": {"nodes": []},
+        }
+
+    def _run(self, monkeypatch, payload, argv=None):
+        monkeypatch.setattr(
+            "sys.stdin",
+            io.StringIO(
+                payload if isinstance(payload, str) else json.dumps(payload)
+            ),
+        )
+        return main(argv or [])
+
+    def test_text_report_names_the_command(self, monkeypatch, capsys):
+        rc = self._run(
+            monkeypatch, self._payload(self._leaf(1), self._leaf(2))
+        )
+        assert rc == 0
+        assert "Run: /build 1 2" in capsys.readouterr().out
+
+    def test_json_output_is_machine_readable(self, monkeypatch, capsys):
+        rc = self._run(
+            monkeypatch,
+            self._payload(self._leaf(1), self._leaf(2, size="size:L")),
+            ["--json"],
+        )
+        assert rc == 0
+        data = json.loads(capsys.readouterr().out)
+        assert data["epic"] == 3329
+        assert data["workflow"] == "build"
+        assert data["command"] == "/build 1 2"
+        assert data["weight"] == 4
+        assert data["budget"] == DEFAULT_BUDGET
+        # The effective tier is resolved per member, not echoed as the raw leaf
+        # value, so an inheriting member reports the tier that governed it.
+        assert [m["schedule"] for m in data["members"]] == ["Now", "Now"]
+        assert data["rejected"] == []
+
+    def test_budget_and_workflow_flags_are_plumbed(self, monkeypatch, capsys):
+        rc = self._run(
+            monkeypatch,
+            self._payload(
+                self._leaf(1, size="size:L"), self._leaf(2, size="size:L")
+            ),
+            ["--json", "--budget", "3"],
+        )
+        assert rc == 0
+        data = json.loads(capsys.readouterr().out)
+        assert [m["number"] for m in data["members"]] == [1]
+        assert "budget" in data["rejected"][0]["reason"]
+
+    def test_max_members_flag_is_plumbed(self, monkeypatch, capsys):
+        rc = self._run(
+            monkeypatch,
+            self._payload(self._leaf(1), self._leaf(2)),
+            ["--json", "--max-members", "1"],
+        )
+        assert rc == 0
+        data = json.loads(capsys.readouterr().out)
+        assert [m["number"] for m in data["members"]] == [1]
+
+    def test_project_number_flag_is_plumbed(self, monkeypatch, capsys):
+        """Pointing at another board must yield no tier, not board #24's."""
+        rc = self._run(
+            monkeypatch,
+            self._payload(self._leaf(1)),
+            ["--json", "--project-number", "99"],
+        )
+        assert rc == 0
+        assert json.loads(capsys.readouterr().out)["epic_schedule"] is None
+
+    def test_invalid_json_on_stdin_exits_two(self, monkeypatch, capsys):
+        assert self._run(monkeypatch, "not json") == 2
+        assert "not valid JSON" in capsys.readouterr().err
+
+    def test_a_graphql_error_names_the_real_cause(self, monkeypatch, capsys):
+        rc = self._run(
+            monkeypatch,
+            {"errors": [{"message": "Could not resolve to an Issue"}]},
+        )
+        err = capsys.readouterr().err
+        assert rc == 2
+        assert "Could not resolve to an Issue" in err
+        # The old code guessed at the cause and leaked `None` into the message.
+        assert "#None" not in err
+        assert "read:project" in err
+
+    def test_a_missing_issue_is_distinguished_from_an_empty_epic(
+        self, monkeypatch, capsys
+    ):
+        assert self._run(monkeypatch, {"data": {"repository": {}}}) == 1
+        assert "#None" not in capsys.readouterr().err
+
+        assert self._run(monkeypatch, self._payload()) == 1
+        assert "Epic #3329 has no sub-issues" in capsys.readouterr().err
