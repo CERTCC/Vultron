@@ -4,8 +4,15 @@
 
 This package is the project's own tooling layer: it reads the repository's
 metadata files and validates them. It backs the `spec-dump`, `spec-lint`,
-`spec-coverage`, `adr-index`, `demo-scenarios`, `append-history`, and
-`show-history` console entry points, plus several pre-commit hooks.
+`spec-coverage`, `adr-index`, `demo-scenarios`, `append-history`,
+`show-history`, and `bundle-fit` console entry points, plus several pre-commit
+hooks.
+
+One exception to "reads the repository's metadata files": `planning/` reads a
+GitHub GraphQL payload piped in on **stdin** rather than files on disk, so its
+selection logic stays pure and testable without the network. The shell script
+that fetches the payload owns the query
+(`.agents/skills/shared/query-epic-subissues.sh`).
 
 Nothing here is protocol code. The audience for its output is a human or an
 agent who just edited a metadata file and got it wrong, so **error messages
@@ -22,6 +29,7 @@ are the product**.
 | `msm/` | a constant mapping table + the wire `SEMANTIC_REGISTRY` | — |
 | `demo_scenarios/` | the `@scenario` registry in `vultron/demo/scenario/` | — |
 | `docs/` | `git log` over `docs/`, for the what's-new page | — |
+| `planning/` | an Epic's sub-issue GraphQL payload on stdin | — (selection rules: PAD-15) |
 
 Shared helpers live in `base.py`: `repo_root()` (every loader needs it and none
 may assume the caller's cwd) and `MkDocsYamlLoader` (a `SafeLoader` that

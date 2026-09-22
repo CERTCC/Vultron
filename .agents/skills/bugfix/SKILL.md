@@ -30,7 +30,12 @@ If this fails, stop and investigate before proceeding.
 
 ## Phase 1 — Identify and Claim
 
-1. If the user specified a GitHub issue number, skip to step 3.
+1. If the user specified a GitHub issue number, skip to step 3. **Several
+   numbers is a bundle**: fix all of them in one PR that closes every member.
+   Follow `.agents/skills/shared/bundling.md` § "Executing a bundle" — every
+   member must be a Bug (name the right skill for any that is not), each gets
+   its own failing test, and Phase 3 presents one briefing covering all members
+   plus the single design idea they share.
 2. Query open Bug-type issues and present via `ask_user`. Include a
    **"Create a new bug"** option at the end:
 
@@ -105,7 +110,7 @@ If this fails, stop and investigate before proceeding.
 5. Claim the issue:
 
    ```bash
-   bash .agents/skills/shared/claim-issue.sh <N> bug <slug>
+   bash .agents/skills/shared/claim-issue.sh <N> bug <slug> [<OTHER_MEMBERS>...]
    ```
 
    Abort immediately if this exits non-zero.
@@ -231,23 +236,26 @@ Once the plan is confirmed:
 5. **Finalize** — in this order. `archive-history` comes *after* `create-pr`
    because its entry body carries the PR URL, which does not exist until the PR
    is open (see that skill's "Always invoke AFTER the PR is opened").
-   - Compute diff size: ≤50 → `size:S`; 51–300 → `size:M`; 301+ → `size:L`.
-     Update the `size:` label.
-   - Invoke `create-pr`:
+   - Compute diff size over the whole PR: ≤50 → `size:S`; 51–300 → `size:M`;
+     301+ → `size:L`. Update the `size:` label on every member.
+   - Invoke `create-pr`. One bundle is one PR: the body carries `- Closes #N`
+     once per member, in bundle order, and the Changes section names each
+     member's fix (`bundling.md` § "Executing a bundle").
 
      ```text
      type:         implementation
      title:        fix: <short title>
      body:         <per pr-body-guide.md implementation template>
      labels:       size:<X>
-     issue_number: <N>
+     issue_number: <N>        # the first bundle member
      ```
 
    - Invoke `check-docs-sync` while CI runs in the cloud to identify any
      `docs/` updates required by the fix (PD-03-007). Apply small updates
      inline and commit them; file a `type:Concern` issue for large updates.
      Do not block the PR on large updates.
-   - Invoke `archive-history`:
+   - Invoke `archive-history` — once per bundle member, each entry carrying the
+     same PR URL:
 
      ```text
      TYPE    = implementation
@@ -267,5 +275,7 @@ Once the plan is confirmed:
 
 - Implementation is blocked until the user confirms the Phase 3 plan.
 - Follow test-first discipline; never fix before the failing test exists.
+- Several issue numbers is a bundle, not a menu: fix every member in one PR
+  (`.agents/skills/shared/bundling.md`). Each member keeps its own failing test.
 - **If the session is interrupted**: invoke `bugfix-handoff` immediately.
   Do not attempt further resolution.
