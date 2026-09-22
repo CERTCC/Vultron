@@ -233,6 +233,7 @@ checking it. Route each consumer by what it is:
 | The coverage matrix's event-type ticks, and `Additional required` | check against the **harness constants** (ISSUE-3505) | Not registry-derived at all: the source is each scenario's `_XXX_EXPECTED_EVENT_TYPES`, which is what Invariant 5 asserts. Checked rather than generated for the same row-splicing reason as the columns beside them, and read by AST so the pre-commit hook never imports a test module |
 | The minimum set's `Covered by minimum set` membership mark | check against `in_pr_set` | Membership is derivable; *which* scenario covers a non-member is a coverage judgement and stays hand-written |
 | `notes/demo-future-ideas.md` planned register | check as the registry's complement | Hand-written; DEMOCI-11-010's second register |
+| `vultron/demo/cli.py` scenario sub-commands | build at import time (DEMOCI-11-011) | Not a table but an inventory all the same — it used to hold one `@main.command` block per scenario. The strongest treatment available outside the mkdocs tree: the commands are built from `discover_scenarios()` on import (**not** `registered_scenarios()`, which sees only the modules something else happened to import — DEMOCI-11-002), so there is no committed copy to check. See below for why the *options* could not move to the decorator |
 | `.github/workflows/demo-integration.yml` header comment | delete the prose enumeration | It restated both scenario sets in a comment above the code that computes them; nothing is lost by removing it, so there is no copy left to generate or check |
 | `specs/` DEMOCI-06-002/003 and the per-scenario DEMOMA-16 requirements | check only | Prose requirements; see below |
 | `mkdocs.yml` nav | check completeness | Hand-written short labels |
@@ -291,6 +292,85 @@ requirements, and DEMOMA-16-014 and -015 are per-scenario requirements sitting
 outside it. Select by what the requirement is — one scenario's expected
 event-type list — not by where its number falls.
 
+## The CLI is a registry consumer, and `ActorRole` is what lets it be one
+
+`vultron/demo/cli.py` was the last hand-maintained copy of the scenario
+inventory after ADR-0098: one ~80-line `@main.command` block per scenario, which
+was most of the file.
+A registered scenario could still have no sub-command — a scenario nobody can
+invoke — so DEMOCI-11-001's set-equality intent was only half true.
+ISSUE-3475 made the CLI generate one sub-command per registered scenario
+(DEMOCI-11-011), which took the file to ~430 lines and back inside CS-18-001.
+
+The obstacle was never the command; it was the **options**.
+Each scenario takes one `--<role>-url` per actor and, for most actors, a
+`--<role>-id`, and none of that is derivable from the scenario name:
+
+- The URL options key to **physical container slots, not roles.** `fccv-handoff`'s
+  `--c1-url` reads `VULTRON_VENDOR_BASE_URL` while `fccv-extension`'s reads
+  `VULTRON_COORDINATOR_BASE_URL`, because compose service names are routing
+  labels (see [demo-scenario-authoring.md](demo-scenario-authoring.md)).
+  Each option's `--help` names its slot, so the help text is ad hoc too.
+- Which actors take an id is a per-scenario judgement: `--case-actor-id` exists
+  only on the ownership-handoff scenarios, which assert on the CaseActor's own
+  replica after the transfer.
+- Only `fcvcv` binds its `--*-id` options to env vars.
+- `fv` colocates the CaseActor on 7903; every other scenario with one uses 7905.
+
+**Do not move any of that onto the `@scenario` decorator.** DEMOCI-11-001 confines
+the decorator to facts every derived artifact can be built from, and per-scenario
+option metadata would re-open exactly the drift channel it closes — with the
+added cost that every table renderer would then carry option data it has no use
+for.
+
+The declaration goes on the scenario module instead, following the `ActorSession`
+consolidation model (DEMOMA-26) — a frozen value object pinned to its call site
+by a ratchet:
+
+| Declared on the module | Read by |
+|---|---|
+| `ROLES: list[ActorRole]`, in `main()` parameter order | the CLI factory, and the module's own `*_BASE_URL` constants |
+| `CLI_HELP: str` | the generated sub-command's `--help` body |
+
+`ActorRole` (`vultron/demo/helpers/actor_roles.py`) carries `name`, `url_env`,
+`default_url`, `url_help`, `has_id`, `id_help` and `id_env`; everything else —
+both flags, both `main()` parameter names, and the resolved `url` — derives from
+those.
+**The role declaration subsumes the module's `*_BASE_URL` constants**
+(`FINDER_BASE_URL = _ROLES["finder"].url`), so each env-var/default pair is
+written once rather than once for the constant and again in a click `default=`.
+
+Three things about this are load-bearing:
+
+- **Order is stated once, in `role_kwarg_names()`.** All URLs in role order, then
+  all ids in role order — the order every scenario `main()` already declared them
+  in. Both consumers *read* it rather than reproduce it: the factory builds a
+  `{param: click.option}` map and then applies it in `role_kwarg_names()` order,
+  and `test/architecture/test_scenario_roles_match_main_kwargs.py` asserts the
+  signature against the same call. Do not re-derive the order in either place —
+  the ratchet would then be checking a second copy of the rule for agreement with
+  a third, and all three could drift together.
+- **The ratchet has to check both directions.** A role whose `url_param` `main()`
+  does not accept raises `TypeError`, but only when that scenario runs in CI. A
+  `main()` keyword no role declares gets *no option at all*, so the parameter
+  keeps its `None` default and the scenario silently runs against its fallback
+  constant — a working-looking demo pointed at the wrong container. Only the
+  second one is quiet, and it is the likelier edit.
+- **Absence of hand-wiring is a source-level claim.** A factory-built command and
+  a hand-declared one are the same `click.Command` at runtime, and a stray
+  `@main.command(name="fv")` would simply shadow the generated one in
+  `main.commands` with every other check still green. `test_no_scenario_subcommand_is_hand_declared`
+  asserts it over the AST, and a sibling test asserts `cli.py` imports no
+  `*_demo` module by name — the DEMOCI-11-002 hazard one layer up.
+
+The self-consistency checks pass just as happily if a careless edit gives every
+scenario the same options, so each asymmetry listed above is **pinned by name** in
+`test/demo_unit/test_scenario_cli_factory.py` § `TestDeclaredDivergences` — the
+slot-not-role env bindings included, since regularising those is the tidy-up most
+likely to look like an improvement. That is a deliberate small copy; a literal
+table of every scenario's options would be a fresh hand-maintained inventory,
+which is what this consolidation deleted.
+
 ## Name order is the canonical order, everywhere
 
 The registry is one sequence and the consumers previously had three different
@@ -330,28 +410,6 @@ because flipping the setting would break every link without failing the build.
   session, so it only catches a vacuous green because CI invokes one harness file
   at a time. Non-skipping structural tests in that directory are fine; collecting
   them *together with* a harness defeats the guard.
-  still hand-wires one `@main.command` block per scenario — the last hand-maintained
-  copy of the scenario inventory after ADR-0098. Making the CLI a registry consumer is
-  a legitimate follow-on consolidation, not part of ADR-0098; it is specified by
-  DEMOCI-11-011 and tracked by CONCERN-3465 (implementation ISSUE-3475). The registry
-  it consumes has landed (ISSUE-3450); until the consolidation itself lands a scenario
-  can register and still have no CLI sub-command, so keep the CLI in the set-equality
-  check — `test_every_scenario_has_a_cli_subcommand` in
-  `test/demo_unit/test_scenario_registry.py` asserts every registered name is a
-  `vultron-demo` sub-command. The consolidation follows the `ActorSession` model
-  (DEMOMA-26): the per-scenario container-URL options are **not** carried by the
-  decorator (that would re-open the drift channel DEMOCI-11-001 closes); instead each
-  scenario module declares a role Type Object — a frozen `ActorRole`
-  (`name`, `url_env`, `default_url`, `has_id`, `id_env`, plus the option's `help`
-  label) list under `vultron/demo/helpers/` — that a single command factory in
-  `cli.py` consumes, and a ratchet binds that role set to the scenario's `main()`
-  signature. The role declaration also subsumes the module's `*_BASE_URL` constants,
-  so each role is declared once. The env-var bindings and the `--help` text are ad hoc
-  per scenario (the URL options key to physical container slots, not roles — e.g.
-  `--c1-url` reads `VULTRON_VENDOR_BASE_URL` in `fccv-handoff` — and each option's help
-  string names that slot), which is exactly why they cannot be derived from `name` and
-  must be declared; the consolidation reproduces today's bindings and help text
-  verbatim (behavior-neutral).
 - **Import cost is paid per dumper invocation, not per scenario.** Importing one
   demo module costs roughly two seconds, almost all of it the shared `vultron`
   package import, so importing all of them in one process costs about the same.

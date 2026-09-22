@@ -24,7 +24,6 @@ Spec: D5-6 (GitHub issue #1535).
 """
 
 import logging
-import os
 import sys
 
 from vultron.core.states.cs import CS_vf
@@ -42,6 +41,7 @@ from vultron.wire.as2.vocab.objects.vulnerability_report import (
 )
 
 from vultron.demo.actor_session import ActorSession
+from vultron.demo.helpers.actor_roles import ActorRole, role_map
 from vultron.enums.roles import CVDRole
 from vultron.demo.utils import (  # noqa: F401 — re-exported for test monkeypatching
     BASE_URL,
@@ -106,18 +106,76 @@ from vultron.demo.scenario.registry import scenario
 logger = logging.getLogger(__name__)
 
 # Default container base URLs — override via environment variables.
-FINDER_BASE_URL = os.environ.get(
-    "VULTRON_FINDER_BASE_URL", "http://localhost:7901/api/v2"
-)
-VENDOR_BASE_URL = os.environ.get(
-    "VULTRON_VENDOR_BASE_URL", "http://localhost:7902/api/v2"
-)
-COORDINATOR_BASE_URL = os.environ.get(
-    "VULTRON_COORDINATOR_BASE_URL", "http://localhost:7903/api/v2"
-)
-VENDOR2_BASE_URL = os.environ.get(
-    "VULTRON_VENDOR2_BASE_URL", "http://localhost:7904/api/v2"
-)
+ROLES: list[ActorRole] = [
+    ActorRole(
+        name="finder",
+        url_env="VULTRON_FINDER_BASE_URL",
+        default_url="http://localhost:7901/api/v2",
+        url_help="Base URL of the Finder container API "
+        "(env: VULTRON_FINDER_BASE_URL).",
+        has_id=True,
+        id_help="Deterministic full URI for the Finder actor (optional).",
+    ),
+    ActorRole(
+        name="vendor",
+        url_env="VULTRON_VENDOR_BASE_URL",
+        default_url="http://localhost:7902/api/v2",
+        url_help="Base URL of the Vendor1 container API "
+        "(env: VULTRON_VENDOR_BASE_URL).",
+        has_id=True,
+        id_help="Deterministic full URI for the Vendor1 actor (optional).",
+    ),
+    ActorRole(
+        name="coordinator",
+        url_env="VULTRON_COORDINATOR_BASE_URL",
+        default_url="http://localhost:7903/api/v2",
+        url_help="Base URL of the Coordinator container API "
+        "(env: VULTRON_COORDINATOR_BASE_URL).",
+        has_id=True,
+        id_help="Deterministic full URI for the Coordinator actor (optional).",
+    ),
+    ActorRole(
+        name="vendor2",
+        url_env="VULTRON_VENDOR2_BASE_URL",
+        default_url="http://localhost:7904/api/v2",
+        url_help="Base URL of the Vendor2 container API "
+        "(env: VULTRON_VENDOR2_BASE_URL).",
+        has_id=True,
+        id_help="Deterministic full URI for the Vendor2 actor (optional).",
+    ),
+]
+_ROLES = role_map(ROLES)
+
+FINDER_BASE_URL = _ROLES["finder"].url
+VENDOR_BASE_URL = _ROLES["vendor"].url
+COORDINATOR_BASE_URL = _ROLES["coordinator"].url
+VENDOR2_BASE_URL = _ROLES["vendor2"].url
+
+#: ``vultron-demo fvcv-extension --help`` text. Lives here rather than in
+#: ``cli.py`` because the sub-command is generated from the registry and the
+#: scenario module is the only place that knows what its own workflow does.
+CLI_HELP = """Run the FVCV-extension (Finder + Vendor1 + Coordinator + Vendor2) demo (D5-6).
+
+Vendor1 retains CASE_OWNER throughout.  Coordinator holds CVDRole.COORDINATOR
+(not CASE_MANAGER).  Coordinator suggests Vendor2 via the ADR-0026
+CaseActor-routed suggest-actor flow; Vendor1 approves; CaseActor invites
+Vendor2.  Both vendors then independently advance through the full fix and
+publication lifecycle.
+
+\b
+Workflow:
+  1. Seed all four containers (actor records + peer registration).
+  2. Finder submits a vulnerability report to Vendor1's inbox.
+  3. Vendor1 validates and engages the case.
+  4. Vendor1 invites Coordinator with CVDRole.COORDINATOR.
+  5. Coordinator accepts; Coordinator suggests Vendor2 (ADR-0026).
+  6. Vendor1 approves the actor recommendation.
+  7. CaseActor invites Vendor2; Vendor2 accepts.
+  8. Verify LedgerFanout replication on all replicas.
+  9. Both vendors independently advance through fix-ready → fix-deployed.
+ 10. All participants report publication; embargo terminates.
+ 11. All participants close the case.
+"""
 
 # Deterministic actor IDs from docker-compose-multi-actor.yml (D5-1-G3).
 FINDER_ACTOR_ID = "http://finder:7999/api/v2/actors/finder"

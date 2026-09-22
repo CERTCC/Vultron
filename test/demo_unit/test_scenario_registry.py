@@ -176,16 +176,24 @@ def test_derived_paths_resolve(spec: ScenarioSpec) -> None:
 def test_every_scenario_has_a_cli_subcommand(spec: ScenarioSpec) -> None:
     """Each registered scenario is reachable from ``vultron-demo``.
 
-    ``vultron/demo/cli.py`` still hand-wires one ``@main.command`` block per
-    scenario — a legitimate follow-on consolidation, not part of ADR-0098 — so
-    until it derives its sub-commands from the registry a scenario can register
-    and still have no way to run it.  Checking it here is what makes that gap
-    loud instead of latent.
+    Since ISSUE-3475 ``vultron/demo/cli.py`` generates one sub-command per
+    registered scenario rather than hand-wiring a ``@main.command`` block each
+    (DEMOCI-11-011), so this can no longer fail by someone forgetting a block —
+    it fails if discovery and command registration disagree.
+
+    DEMOCI-11-011's "exactly one" has two further halves, neither of which
+    ``main.commands`` can answer, because it is a dict keyed by command name: a
+    scenario *cannot* resolve to two entries, and a hand-declared block would
+    silently replace the generated one rather than coexist with it. Those are
+    ``test_no_scenario_subcommand_is_hand_declared`` (source-level) and
+    ``test_scenario_subcommands_are_exactly_the_registered_set`` (the reverse
+    direction), both in ``test_scenario_cli_factory.py``.
     """
     assert spec.name in cli.main.commands, (
-        f"scenario {spec.name!r} is registered but vultron/demo/cli.py has no "
-        f"'{spec.name}' sub-command, so nothing can run it. Add the "
-        "@main.command block alongside the others."
+        f"scenario {spec.name!r} is registered but vultron/demo/cli.py exposes "
+        f"no '{spec.name}' sub-command, so nothing can run it. The CLI builds "
+        "one per registered scenario; check discover_scenarios() and "
+        "_make_scenario_command()."
     )
 
 

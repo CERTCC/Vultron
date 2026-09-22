@@ -29,7 +29,6 @@ Spec: GitHub issue #1216 (DEMOMA-14).
 """
 
 import logging
-import os
 import sys
 
 from vultron.core.states.cs import CS_vf
@@ -48,6 +47,7 @@ from vultron.wire.as2.vocab.objects.vulnerability_report import (
 )
 
 from vultron.demo.actor_session import ActorSession
+from vultron.demo.helpers.actor_roles import ActorRole, role_map
 from vultron.enums.roles import CVDRole
 from vultron.demo.utils import (  # noqa: F401 — re-exported for test monkeypatching
     DataLayerClient,
@@ -118,21 +118,88 @@ logger = logging.getLogger(__name__)
 # Default container base URLs.
 # C1 reuses the docker-compose "vendor" container; C2 reuses "coordinator";
 # Vendor reuses "vendor2".  Override via environment variables.
-FINDER_BASE_URL = os.environ.get(
-    "VULTRON_FINDER_BASE_URL", "http://localhost:7901/api/v2"
-)
-C1_BASE_URL = os.environ.get(
-    "VULTRON_VENDOR_BASE_URL", "http://localhost:7902/api/v2"
-)
-C2_BASE_URL = os.environ.get(
-    "VULTRON_COORDINATOR_BASE_URL", "http://localhost:7903/api/v2"
-)
-CASE_ACTOR_BASE_URL = os.environ.get(
-    "VULTRON_CASE_ACTOR_BASE_URL", "http://localhost:7905/api/v2"
-)
-VENDOR_BASE_URL = os.environ.get(
-    "VULTRON_VENDOR2_BASE_URL", "http://localhost:7904/api/v2"
-)
+ROLES: list[ActorRole] = [
+    ActorRole(
+        name="finder",
+        url_env="VULTRON_FINDER_BASE_URL",
+        default_url="http://localhost:7901/api/v2",
+        url_help="Base URL of the Finder container API "
+        "(env: VULTRON_FINDER_BASE_URL).",
+        has_id=True,
+        id_help="Deterministic full URI for the Finder actor (optional).",
+    ),
+    ActorRole(
+        name="c1",
+        url_env="VULTRON_VENDOR_BASE_URL",
+        default_url="http://localhost:7902/api/v2",
+        url_help="Base URL of the C1 (Coordinator1) container API "
+        "(env: VULTRON_VENDOR_BASE_URL).",
+        has_id=True,
+        id_help="Deterministic full URI for the C1 (Coordinator1) actor "
+        "(optional).",
+    ),
+    ActorRole(
+        name="c2",
+        url_env="VULTRON_COORDINATOR_BASE_URL",
+        default_url="http://localhost:7903/api/v2",
+        url_help="Base URL of the C2 (Coordinator2) container API "
+        "(env: VULTRON_COORDINATOR_BASE_URL).",
+        has_id=True,
+        id_help="Deterministic full URI for the C2 (Coordinator2) actor "
+        "(optional).",
+    ),
+    ActorRole(
+        name="case-actor",
+        url_env="VULTRON_CASE_ACTOR_BASE_URL",
+        default_url="http://localhost:7905/api/v2",
+        url_help="Base URL of the CaseActor container API "
+        "(env: VULTRON_CASE_ACTOR_BASE_URL).",
+        has_id=True,
+        id_help="Deterministic full URI for the CaseActor actor (optional).",
+    ),
+    ActorRole(
+        name="vendor",
+        url_env="VULTRON_VENDOR2_BASE_URL",
+        default_url="http://localhost:7904/api/v2",
+        url_help="Base URL of the Vendor container API "
+        "(env: VULTRON_VENDOR2_BASE_URL).",
+        has_id=True,
+        id_help="Deterministic full URI for the Vendor actor (optional).",
+    ),
+]
+_ROLES = role_map(ROLES)
+
+FINDER_BASE_URL = _ROLES["finder"].url
+C1_BASE_URL = _ROLES["c1"].url
+C2_BASE_URL = _ROLES["c2"].url
+CASE_ACTOR_BASE_URL = _ROLES["case-actor"].url
+VENDOR_BASE_URL = _ROLES["vendor"].url
+
+#: ``vultron-demo fccv-handoff --help`` text. Lives here rather than in
+#: ``cli.py`` because the sub-command is generated from the registry and the
+#: scenario module is the only place that knows what its own workflow does.
+CLI_HELP = """Run the FCCV-handoff (C1 → C2 ownership transfer) demo (DEMOMA-14).
+
+C1 (Coordinator1) creates the case as CASE_OWNER and invites C2
+(Coordinator2).  C1 then transfers case ownership to C2 via the trigger
+endpoints (TRIG-11-001/002).  C2 (now CASE_OWNER) invites Vendor.  All
+four actors coordinate to closure.
+
+\b
+Workflow:
+  1. Seed all five containers (actor records + peer registration).
+  2. Finder submits a vulnerability report to C1's inbox.
+  3. C1 validates and engages the case (retains CASE_OWNER for now).
+  4. C1 invites C2 (Coordinator); C2 accepts.
+  5. C1 offers case ownership transfer to C2 (TRIG-11-001).
+  6. C2 accepts the ownership transfer (TRIG-11-002).
+  7. Verify case attributed_to updated to C2 on both C1 and C2 replicas.
+  8. C2 invites Vendor; Vendor accepts and Accept routed to CaseActor.
+  9. Verify LedgerFanout replication on all replicas.
+ 10. Vendor advances through fix-ready → fix-deployed.
+ 11. All participants report publication; embargo terminates.
+ 12. All participants close the case.
+"""
 
 # Deterministic actor IDs — match docker-compose-multi-actor.yml service names
 # (D5-1-G3) remapped for FCCV roles.
