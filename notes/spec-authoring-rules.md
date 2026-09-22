@@ -101,6 +101,76 @@ Source: ISSUE-2237
 
 ---
 
+## Spec Item Format Is Field Presence, Not a Class You Pick
+
+(ADR-0101, CONCERN-3506)
+
+`BehavioralSpec` subclasses `StatementSpec` and the fields it adds —
+`preconditions`, `steps`, `postconditions` — are all optional, so under Pydantic's
+smart union a spec item carrying none of them satisfied the `BehavioralSpec`
+branch. Every one of the corpus's items loaded as a `BehavioralSpec`, the large
+majority of them with no behavioral field at all. MS-13-001 and MS-13-002 were
+therefore phrased over a distinction the loaded model did not preserve.
+
+**What this cost.** `_is_behavioral_file()` in
+[`vultron/metadata/specs/docs_render.py`](../vultron/metadata/specs/docs_render.py)
+is a bare `isinstance` test, so it classified every spec file as behavioral even
+though only three carry the `behavioral` tag: every published spec page opened
+with a `## Behavioral Specifications` heading and its ECA blurb, applied to the
+whole corpus, and the non-behavioral bucket was always empty. The linter's two
+behavioral guards were vacuous — they worked only because each is `and`-ed with
+`bool(spec.steps)` — and the requirements graph labelled every node
+`type: "behavioral"`.
+
+**How to apply.** Read the format off the fields, never off the class name in
+your head, and write new checks over field presence. A `BehavioralSpec` now
+requires at least one of `preconditions`, `steps`, or `postconditions`; supply
+none and the item is a `StatementSpec`, silently and correctly, because nothing
+downstream can tell the difference. When you add a consumer that branches on
+behavioral-ness, assert the negative directly — a fixture item with no behavioral
+field must come back as a `StatementSpec` — rather than trusting that the union
+resolves the way the class hierarchy suggests.
+
+### `steps` Carries the Action of an ECA Rule, Not a Claim About Ordering
+
+MS-13-002 used to require `StatementSpec` for any requirement that "does not
+depend on step ordering". Read literally that condemns the house idiom of the
+behavioral conformance corpus: dozens of `RMB`/`EMB`/`CSB` items are single-step
+`BehavioralSpec`s whose one step *is* the required action ("emit CV to announce
+the transition"), and a one-element sequence asserts no order. The same applies
+to the many items carrying typed `preconditions` and no `steps`: that is the
+condition half of an ECA rule, not a format choice half-made.
+
+So do not flag `preconditions`-without-`steps` as a defect. The only shape that
+is reliably wrong is the inverse — an *ordered sequence flattened into `statement`
+prose* (`MUST execute the following sequence: (1) … (2) …`), which MS-05-001
+already forbids and which hides the start state, the ordering and the terminal
+conditions from conformance tooling. Note the residual judgement: an inline
+`(1) … (2) …` list is sometimes genuinely unordered (three trees a subtree must
+compose, a set of assertions a test file must make), and converting one of those
+to `steps` would assert an order the requirement does not have. Dispose of such a
+hit with `lint_suppress`, not by inventing a sequence.
+
+### An Advisory Warning Is Not Enforcement Once the Corpus Outgrows It
+
+`spec-lint`'s `must_without_verification` names exactly the "MUST with nothing
+checking it" defect — and fired on MS-13-001 and MS-13-002 themselves for as long
+as they went unenforced. It did not help, because well over half the corpus's
+MUST items have no `verification:` field, so that one warning produced the large
+majority of the run's `[WARN]` lines. A defect class at that volume is
+indistinguishable from background noise, and a newly-introduced instance is
+invisible.
+
+When you add a per-item advisory, decide up front what happens when it is
+routinely true: collapse it to a count plus an opt-in listing, put a never-raise
+ceiling on the count (the `MAX_UNCOVERED_PROTOCOL_SPECS` pattern in
+`test/architecture/test_spec_coverage_ratchet.py`), or make it a hard error and
+dispose of every existing hit. Do not ship a rule at partial adoption: per the
+ISSUE-3480 learning, a requirement half-adopted reads as *no rule here*, which is
+worse than one nobody has started.
+
+---
+
 ## Protocol Coverage Ratchet
 
 ### Adding or Modifying a `kind: protocol` Entry Requires a Same-PR Marker Test
