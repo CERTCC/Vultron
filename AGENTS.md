@@ -25,8 +25,8 @@ documentation structure guidance.
   to return `UseCaseResult` subtypes — designed in ADR-0040/ADR-0095, **not yet
   built** (#1769, #3354). Do not assume the envelope exists.
 - ASGI entrypoint: `vultron.adapters.driving.fastapi.main:app`.
-- Tests: `uv run pytest --tb=short 2>&1 | tee /tmp/last-test-run.log | tail -5` — run once. See
-  `.agents/skills/run-tests/SKILL.md`.
+- Tests: `uv run pytest --tb=short > /tmp/last-test-run.log 2>&1; echo "exit: $?"; tail -5 /tmp/last-test-run.log` — run
+  once; never use `tee | tail` (hides killed-run exit codes). See `.agents/skills/run-tests/SKILL.md` (update pending — #3518).
 
 Quick gotchas: specific patterns before general; always `rehydrate()` before
 pattern matching; persist with `dl.save(obj)`; return 202 immediately
