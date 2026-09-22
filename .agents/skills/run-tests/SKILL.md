@@ -8,7 +8,7 @@ tags:
   - ci
 shell: "zsh"
 commands:
-  - "uv run pytest --tb=short 2>&1 | tee /tmp/last-test-run.log | tail -5"
+  - "uv run pytest --tb=short > /tmp/last-test-run.log 2>&1; echo \"exit: $?\"; tail -5 /tmp/last-test-run.log"
 inputs:
   - name: repo_root
     description: "Repository root"
@@ -22,17 +22,17 @@ outputs:
 
 | Suite | Command |
 |---|---|
-| Unit (default) | `uv run pytest --tb=short 2>&1 \| tee /tmp/last-test-run.log \| tail -5` |
-| Integration | `uv run pytest -m integration --tb=short 2>&1 \| tee /tmp/last-test-run.log \| tail -5` |
-| All | `uv run pytest -m "" --tb=short 2>&1 \| tee /tmp/last-test-run.log \| tail -5` |
+| Unit (default) | `uv run pytest --tb=short > /tmp/last-test-run.log 2>&1; echo "exit: $?"; tail -5 /tmp/last-test-run.log` |
+| Integration | `uv run pytest -m integration --tb=short > /tmp/last-test-run.log 2>&1; echo "exit: $?"; tail -5 /tmp/last-test-run.log` |
+| All | `uv run pytest -m "" --tb=short > /tmp/last-test-run.log 2>&1; echo "exit: $?"; tail -5 /tmp/last-test-run.log` |
 
 ## Pre-PR Validation (build and create-pr)
 
 Run **both** suites before opening a PR:
 
 ```bash
-uv run pytest --tb=short 2>&1 | tee /tmp/pytest-unit.log | tail -5
-uv run pytest -m integration --tb=short 2>&1 | tee /tmp/pytest-integration.log | tail -5
+uv run pytest --tb=short > /tmp/pytest-unit.log 2>&1; echo "exit: $?"; tail -5 /tmp/pytest-unit.log
+uv run pytest -m integration --tb=short > /tmp/pytest-integration.log 2>&1; echo "exit: $?"; tail -5 /tmp/pytest-integration.log
 ```
 
 The first command covers the unit suite (integration tests excluded by
@@ -44,6 +44,9 @@ tests must not reach a non-draft PR.
 
 - Run exactly once per validation cycle; do not use `-q` or change output formatting.
 - Do not change `tail -5`.
+- **Never use `tee | tail`**: the pipeline returns `tail`'s exit code (0),
+  masking a killed pytest run as success. Always redirect to a file and check
+  pytest's own exit code (`> file 2>&1; echo "exit: $?"; tail -5 file`).
 - `filterwarnings = ["error"]` in `pyproject.toml` — warnings are test errors; fix root cause, do not suppress.
 - Integration tests are excluded from the default interactive run; always run `-m integration` explicitly in pre-PR validation.
 - Treat all failures as branch-owned by default; clean-base proof is required before classifying as pre-existing.
