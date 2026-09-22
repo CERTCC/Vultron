@@ -261,7 +261,7 @@ directly from the latter. It has now bitten the project twice:
   calls crashed sync-verification; fixed by wrapping them at the call site in
   `demo_gate` (see `test/demo/test_fvv_demo.py::TestCoverageWaitInsideDemoCheck`).
 - **Participant waits (#3384):** the `wait_for_participants_on_replicas` calls in
-  the seven replica-sync scenarios' `_phase_sync_verification` were bare, so a
+  every replica-sync scenario's `_phase_sync_verification` were bare, so a
   replica participant-index propagation timeout aborted the entire run.
 
 **How to apply:**

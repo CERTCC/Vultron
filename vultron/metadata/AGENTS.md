@@ -31,15 +31,32 @@ are the product**.
 | `docs/` | `git log` over `docs/`, for the what's-new page | — |
 | `planning/` | an Epic's sub-issue GraphQL payload on stdin | — (selection rules: PAD-15) |
 
-Shared helpers live in `base.py`: `repo_root()` (every loader needs it and none
-may assume the caller's cwd) and `MkDocsYamlLoader` (a `SafeLoader` that
-tolerates `mkdocs.yml`'s `!ENV` and `!!python/name:` tags). Do not re-derive
-either — `repo_root` had six near-identical copies before #3450. Five were
-private `_find_repo_root`; the sixth, `specs/registry.py:find_repo_root`, was
-public and so survived the first sweep. All six are now aliases of the shared
-helper, kept only because other modules and tests import them by their old
-names. **A grep for the private spelling will not find a public duplicate** —
-search for the behaviour (`pyproject.toml` walked upward), not the name.
+Shared helpers live in two places. **Do not re-derive any of them** — see the
+`repo_root` history below for what that costs.
+
+`base.py` — cross-subpackage primitives:
+
+| Helper | What it is |
+|---|---|
+| `repo_root()` | every loader needs it and none may assume the caller's cwd |
+| `MkDocsYamlLoader` | a `SafeLoader` tolerating `mkdocs.yml`'s `!ENV` and `!!python/name:` tags |
+| `mkdocs_config()` | the parsed `mkdocs.yml` |
+| `nav_paths()` | every document path reachable from the nav, flattened. Both the ADR nav check and the scenario-narrative nav check read it; it was `adr/index_gen._iter_nav_paths` until #3451 |
+
+`markdown_tables.py` — the structural reader for every ratchet over
+hand-written markdown: `iter_sections()` (heading-scoped, so a rule can exempt a
+change-history section) and `iter_tables()` (pipe tables with their heading and
+line number). It absorbs the hazards a hand-rolled regex gets wrong — fenced code
+including *indented* fences, delimiter rows, escaped pipes. Three consumers grew
+their own regex before #3451; if you are about to write `re.compile(r"^\|")`,
+use this instead.
+
+`repo_root` had six near-identical copies before #3450. Five were private
+`_find_repo_root`; the sixth, `specs/registry.py:find_repo_root`, was public and
+so survived the first sweep. All six are now aliases of the shared helper, kept
+only because other modules and tests import them by their old names. **A grep for
+the private spelling will not find a public duplicate** — search for the behaviour
+(`pyproject.toml` walked upward), not the name.
 
 ## Generate vs. Check
 

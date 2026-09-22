@@ -40,9 +40,9 @@ import pytest
 import yaml
 
 from vultron.demo.scenario.registry import (
-    _NAME_RE,
     ScenarioSpec,
     discover_scenarios,
+    is_scenario_name,
 )
 from vultron.metadata.base import MkDocsYamlLoader
 from vultron.metadata.demo_scenarios.render import (
@@ -249,14 +249,15 @@ def test_democi_06_002_names_exactly_the_pr_set_scenarios() -> None:
     thousand lines into a demo script, so the check has to be structural.
 
     Scenario names are picked out of the statement by the registry's own name
-    grammar (:data:`vultron.demo.scenario.registry._NAME_RE`), which is what
+    grammar (:func:`vultron.demo.scenario.registry.is_scenario_name`), which is what
     makes this robust: the statement also backticks event types
     (``invite_actor_to_case``) and a filename (``demo-integration.yml``), and
     neither can satisfy a grammar that forbids underscores and dots.
 
-    This is the first of DEMOCI-11-007's consistency checks; the rest — the
-    DEMOMA-16 per-scenario requirements, the ``mkdocs.yml`` nav, the ``notes/``
-    tables and the planned-scenario partition — are ISSUE-3451.
+    The sibling check for DEMOCI-06-003 is below; the rest of DEMOCI-11-007's
+    consistency checks — the DEMOMA-16 per-scenario requirements, the
+    ``mkdocs.yml`` nav, the ``notes/`` tables and the planned-scenario partition
+    — live in ``test_demo_scenario_consistency.py``.
     """
     statement = (
         load_registry(_REPO_ROOT / "specs").get("DEMOCI-06-002").statement
@@ -264,7 +265,7 @@ def test_democi_06_002_names_exactly_the_pr_set_scenarios() -> None:
     named = {
         token
         for token in re.findall(r"`([^`]+)`", statement)
-        if _NAME_RE.match(token)
+        if is_scenario_name(token)
     }
     expected = {spec.name for spec in discover_scenarios() if spec.in_pr_set}
     assert named == expected, (
@@ -273,6 +274,39 @@ def test_democi_06_002_names_exactly_the_pr_set_scenarios() -> None:
         f"registry has {sorted(expected)}. If the PR validation set really "
         "changed, amend DEMOCI-06-002 in the same PR — its coverage rationale "
         "is the reason the set is what it is."
+    )
+
+
+def test_democi_06_003_names_exactly_the_registered_scenarios() -> None:
+    """DEMOCI-06-003's statement names exactly the registered scenarios.
+
+    The twin of ``test_democi_06_002_names_exactly_the_pr_set_scenarios``, and
+    the reason both are needed: -002 enumerates the PR subset and -003 the whole
+    suite, so a scenario added to the registry without amending -003 leaves the
+    spec describing a post-merge suite that is one scenario short — a statement
+    no other check reads.
+
+    Names are picked out with the registry's own grammar
+    (:func:`vultron.demo.scenario.registry.is_scenario_name`), which is what makes this
+    robust against the statement's other backticked spans: ``demo-integration.yml``
+    carries a dot and ``push: branches: ["main"]`` carries spaces and brackets,
+    and the grammar admits neither.
+    """
+    statement = (
+        load_registry(_REPO_ROOT / "specs").get("DEMOCI-06-003").statement
+    )
+    named = {
+        token
+        for token in re.findall(r"`([^`]+)`", statement)
+        if is_scenario_name(token)
+    }
+    expected = {spec.name for spec in discover_scenarios()}
+    assert named == expected, (
+        "DEMOCI-06-003 must name exactly the registered scenarios, because it "
+        "states which suite runs on push to main. The spec names "
+        f"{sorted(named)}; the registry has {sorted(expected)}. Amend "
+        "DEMOCI-06-003 in the same PR as the registry change "
+        "(DEMOCI-11-007)."
     )
 
 

@@ -272,12 +272,23 @@ into `BehavioralSpec.steps[]` instead.
 
 ### Demo scenario groups
 
-Demo scenario workflow groups (e.g., `DEMOMA-06`, `-09`, `-10`, `-11`) follow the
-`BehavioralSpec` pattern established in `DEMOMA-12`. The group carries
+Every demo scenario workflow group follows the `BehavioralSpec` pattern
+established in `DEMOMA-12`. The group carries
 `trigger: {type: scenario_start, value: <scenario-name>}` (per MS-13-003). Individual
 items describing ordered protocol exchanges use `BehavioralSpec`; items expressing
 terminal-state requirements or infrastructure constraints (`MUST reach final state X`,
 `MUST add a CI job`) remain `StatementSpec`.
+
+**The marker is not a formatting convention — it is the registry declaration.**
+Since ISSUE-3480, `trigger: {type: scenario_start, value: <name>}` is the *only*
+mechanical answer to "which spec groups specify a demo scenario"
+(`vultron/metadata/demo_scenarios/scenario_groups.py::scenario_spec_groups()`),
+and DEMOCI-11-010's two-register partition is computed from it. So omitting the
+marker no longer merely skips a lint rule: it removes the group from the
+partition, and the scenario it specifies silently belongs to neither the scenario
+registry nor the planned register. Two title-based selection rules were tried and
+rejected — see `notes/demo-scenario-registry.md` § "Which spec groups specify a
+scenario" so neither is re-proposed.
 
 Since MS-13-004 (CONCERN-1650), `spec-lint` hard-errors when a `scenario_start`
 group contains no `BehavioralSpec` item with non-empty `steps`. The
@@ -285,6 +296,14 @@ group contains no `BehavioralSpec` item with non-empty `steps`. The
 change. New scenario spec authors should ensure at least one `BehavioralSpec`
 item with a non-empty `steps` list is present, or the spec-lint CI check will
 fail.
+
+Keep a `steps` block a *projection* of the group's own statements. Its `expected`
+and `postconditions` fields are not a place to record a requirement that lives
+nowhere else: a state asserted only inside an ECA block is a MUST no other entry
+carries, which is the copy-without-an-authority MS-16-002 forbids. Where a block
+must name a state its group does not state, cite the check that owns it —
+DEMOMA-19-014's postcondition points at the universal Invariant 7 rather than
+restating RM closure.
 
 ### Protocol behavioral groups
 

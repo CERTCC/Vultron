@@ -28,7 +28,18 @@ markers is the treatment for that case;
 instead, committing no table at all (DEMOCI-11-009).
 
 ``--check`` is wired into pre-commit as ``demo-scenarios-sync``, exactly as
-``docs/adr/index.md`` is gated by ``adr-index-sync``.
+``docs/adr/index.md`` is gated by ``adr-index-sync``.  It also reports the
+*checked* consumers — the ``mkdocs.yml`` nav, the ``notes/`` scenario tables and
+their harness-derived event-type columns, the DEMOCI-06-002/003 spec
+enumerations, the planned-scenario register, restated counts and stray include
+directives — via :func:`prose_checks.consistency_problems`, so one command covers
+both halves of ADR-0098's generate-vs-check split.  Those findings are reported
+only: ``--write`` cannot fix prose.
+
+Anything ``consistency_problems`` does not aggregate is *not* covered by the
+hook, whatever a pytest module also asserts about it.  Keep the two in step: a
+check that exists only as a test lets a stale artifact through the hook and fails
+later in CI, which is the gap ISSUE-3451 left on DEMOCI-06-003.
 
 CLI (``uv run demo-scenarios``):
     --check   exit 1 if any committed artifact is stale
@@ -48,6 +59,7 @@ from vultron.demo.scenario.registry import (
     discover_scenarios,
 )
 from vultron.metadata.base import repo_root
+from vultron.metadata.demo_scenarios.prose_checks import consistency_problems
 from vultron.metadata.demo_scenarios.render import (
     render_page,
     scenario_matrix_json,
@@ -305,6 +317,10 @@ def main(argv: list[str] | None = None) -> None:
         f"{path} is stale — {remedy} (DEMOCI-11-005)."
         for path in stale_artifacts(root, specs)
     )
+    # The checked half of the generate-vs-check split (ADR-0098). Reported by
+    # the same command as the generated half so the hook that names one names
+    # both; --write cannot fix these, which is why they are --check-only.
+    problems.extend(consistency_problems(root, specs))
     if problems:
         for problem in problems:
             print(f"[ERROR] {problem}", file=sys.stderr)

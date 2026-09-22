@@ -58,6 +58,18 @@ _FVCV_HANDOFF_EXPECTED_EVENT_TYPES = [
     pytest.param(
         "accept_invite_actor_to_case", id="accept_invite_actor_to_case"
     ),
+    # DEMOMA-16-005: the Coordinator accepts the ownership transfer and becomes
+    # CASE_OWNER (TRIG-11-002, CM-21-007). The scenario already blocks on this
+    # entry reaching the *Finder's* replica — ADR-0053's own validation
+    # criterion — so Invariant 5 is asserting behaviour the demo guarantees, not
+    # adding a new requirement. It was missing here while
+    # test_fccv_handoff_invariants.py asserted the same type, which is the
+    # one-harness-only divergence DEMOMA-16-008 exists to prevent
+    # (ISSUE-3514; the mirror of CONCERN-2243's engage_case case).
+    pytest.param(
+        "accept_case_ownership_transfer",
+        id="accept_case_ownership_transfer",
+    ),
 ]
 
 #: Actors with per-actor chain / contiguity / completeness checks.

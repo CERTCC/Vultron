@@ -592,6 +592,6 @@ file — or even all of `vultron/demo/scenario/` — finds nothing and invites t
 false conclusion that no code emits the event. Search the helper and
 semantic-registry layers, and confirm against `graphify explain "<function>"`
 call edges, before asserting absence. CONCERN-2243 filed a Concern on this basis
-for an event emitted by all nine scenarios.
+for an event emitted by every scenario.
 
 Source: CONCERN-2243

@@ -25,8 +25,6 @@ import re
 import sys
 from pathlib import Path
 
-import yaml
-
 from vultron.metadata.adr.loader import (
     SKIP_FILES,
     _find_repo_root,
@@ -34,7 +32,7 @@ from vultron.metadata.adr.loader import (
     load_adr_post,
 )
 from vultron.metadata.adr.schema import AdrFrontmatter
-from vultron.metadata.base import MkDocsYamlLoader
+from vultron.metadata.base import nav_paths
 from vultron.metadata.specs.schema import AdrStatus
 
 # Marker after which the status-organised sections begin. Everything before it
@@ -154,20 +152,6 @@ def generate_index(repo_root: Path | None = None) -> str:
     return preamble + sections
 
 
-def _iter_nav_paths(nav: object) -> "list[str]":
-    """Yield every string file path referenced anywhere in a mkdocs nav tree."""
-    found: list[str] = []
-    if isinstance(nav, str):
-        found.append(nav)
-    elif isinstance(nav, list):
-        for item in nav:
-            found.extend(_iter_nav_paths(item))
-    elif isinstance(nav, dict):
-        for value in nav.values():
-            found.extend(_iter_nav_paths(value))
-    return found
-
-
 def missing_nav_entries(repo_root: Path | None = None) -> list[str]:
     """Return ADR file paths (relative to docs/) absent from the mkdocs nav.
 
@@ -180,10 +164,7 @@ def missing_nav_entries(repo_root: Path | None = None) -> list[str]:
     """
     root = repo_root or _find_repo_root()
     adr_dir = root / "docs" / "adr"
-
-    with (root / "mkdocs.yml").open(encoding="utf-8") as fh:
-        config = yaml.load(fh, Loader=MkDocsYamlLoader)  # noqa: S506
-    nav_paths = set(_iter_nav_paths((config or {}).get("nav")))
+    navved = nav_paths(root)
 
     missing: list[str] = []
     for path in _iter_adr_paths(adr_dir):
@@ -191,7 +172,7 @@ def missing_nav_entries(repo_root: Path | None = None) -> list[str]:
         # archived ADRs are intentionally excluded from nav.
         if rel_to_docs.startswith("adr/archived/"):
             continue
-        if rel_to_docs not in nav_paths:
+        if rel_to_docs not in navved:
             missing.append(rel_to_docs)
     return missing
 

@@ -189,19 +189,30 @@ def load_notes_registry(
 
 ### Package layout
 
+This note recorded the layout *as planned*; `vultron/metadata/AGENTS.md` is the
+current description and is where new shared helpers are announced. The shape the
+frontmatter work assumed:
+
 ```text
 vultron/metadata/
     __init__.py
-    base.py              # shared NonEmptyStr, NonEmptyStrList
+    base.py              # shared NonEmptyStr, NonEmptyStrList — and, since #3450
+                         # and #3451, repo_root(), MkDocsYamlLoader,
+                         # mkdocs_config(), nav_paths()
+    markdown_tables.py   # added #3451 — the shared reader for markdown ratchets
     notes/
         __init__.py
         schema.py        # NoteStatus, NotesFrontmatter
         loader.py        # load_notes_registry()
-    specs/               # future — IDEA-26042402
+    specs/               # shipped; also adr/, demo_scenarios/, history/, msm/
         __init__.py
         schema.py
         loader.py
 ```
+
+`base.py` is therefore no longer only "shared base vocabulary" (NF-02-003): it is
+also the shared `mkdocs.yml` accessor for two subpackages. Check
+`vultron/metadata/AGENTS.md` before adding a helper anywhere else.
 
 ---
 
