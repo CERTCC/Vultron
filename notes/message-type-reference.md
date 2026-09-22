@@ -77,6 +77,25 @@ Participant to be added to a case", so actor suggestion is a `GI` expansion —
 **not** case management. Filing it under case management is a recurring
 mis-classification.
 
+**Why `GI` expands at all, which nothing recorded before #3456.** `GI` was a
+*placeholder*, and it is defined negatively: messages that no formal state machine
+tracks but that participants need in order to coordinate. The formal protocol
+deliberately did not attempt to enumerate them, so it lumped them together under one
+shorthand. Building this prototype surfaced specific needs inside that category, and
+where a need turned out to be a recognizable communication pattern that existing AS2
+vocabulary could already express, it was split off and given its own activity. The set
+split off so far is enumerated in MSM-04-001 and MSM-04-002 — read it there rather than
+restating a count here, which would drift the moment another is split off (MS-16-002).
+
+Two consequences follow, and both matter when writing about these activities:
+
+- **The list is open, not a finished decomposition.** A further coordination need that
+  matches available AS2 vocabulary can be split off the same way. Do not write as though
+  the current set is complete.
+- **Citing `(GI)` does not identify an activity.** It says only "this is one of the
+  non-state-change messages", which is equally true of six others. Name the act in plain
+  language and cite `GI` once per page as the umbrella, rather than after each activity.
+
 **The `Create(X)` + `Add(X → Y)` split is itself an expansion with no formal
 counterpart.** Every object gains two activities: one to mint it, one to attach
 it. The formal protocol models neither, so an implementation that collapses the
@@ -100,7 +119,45 @@ should not be documented as such:
 `unknown` and `unknown_unresolvable_object` are dispatcher fallbacks, not
 message types. Exclude them from message-type reference material.
 
-### An activity has two names, and docs use both
+### Three names, and which one the reader gets
+
+Any given activity can be named three ways, and they are not interchangeable:
+
+| Layer | Example | Answers |
+|---|---|---|
+| Formal protocol message | `RV` — "Report Valid" | *What protocol act is this?* |
+| Prototype class or pattern | `RmValidateReport` | implementation-level restatement of the same act |
+| AS2 wire form | `Accept(Offer(VulnerabilityReport))` | *What JSON goes on the wire?* |
+
+**The semantics are not recoverable from the wire form.**
+`Accept(Offer(VulnerabilityReport))`, `TentativeReject(Offer(VulnerabilityReport))` and
+`Reject(Offer(VulnerabilityReport))` are *valid*, *invalid* and *closed*, and nothing in
+the wire form says which. Replacing a protocol name with its wire form therefore deletes
+a layer rather than translating one — the mistake #3456 was originally filed to make.
+
+Reader-facing docs pair the protocol layer with the wire layer and omit the prototype
+layer entirely: **`<semantic name>` is implemented in ActivityStreams as `<wire form>`**,
+then the steps, then the JSON. This is specified as DF-09-010, and recorded as a
+corollary of ADR-0083 under "Which name the reader gets" — the two vocabularies being
+different shapes is exactly why the reader needs both names. Which semantic name to use
+depends on how the shorthand relates to the wire form, which `MappingStatus` already
+records:
+
+| `MappingStatus` | Semantic name to use |
+|---|---|
+| `direct` | The formal message name and its code — "Report Valid (RV)" |
+| `collapse` | All the formal names the wire form carries, stated together once, plus the field that selects between them |
+| `expansion` | Plain language per act; cite the umbrella code once per page, never per activity |
+| `none` | Plain language, taken from the heading `docs/reference/messages/` already gives it |
+
+Two shapes need care beyond the table. `RA`/`RD` name the *report* while their wire verbs
+(`Join`/`Ignore(VulnerabilityCase)`) name the *case*: state the act and its consequence
+separately, because joining the case is what you do and the RM transition is what follows
+(MSM-01-004, MSM-01-005). And `Leave(VulnerabilityCase)` is the canonical RM closure per
+ADR-0050 yet has no formal name at all, while `RC` is bound to
+`Reject(Offer(VulnerabilityReport))` — say so rather than presenting the pair as tidy.
+
+### The prototype name survives as an identifier, not as prose
 
 An activity is declared twice — as a class in `vultron/wire/as2/vocab/activities/`
 and as an `ActivityPattern` in `vultron/wire/as2/extractor/_instances.py` — and
@@ -109,12 +166,15 @@ the two names often differ. `_CreateStatusForParticipantActivity` is
 `CreateNote` is a pattern with no class, because a note is minted with a bare
 `as:Create` rather than a Vultron subclass. Neither list is a superset.
 
-When naming an activity in docs, use a name from one of those two lists. The
-pairing ratchet (`test/architecture/test_docs_activity_verbs.py`) reads both and
-rejects a name in neither, which is how `CreateStatus` — a plausible-looking
-name belonging to no system — was caught. Prose that merely mentions a name is
-left alone; only a `subgraph as:Verb` membership claim is checked, because
-declaring a name there asserts the activity exists.
+Those names are still what identifies an activity to the tooling, so they remain the
+mermaid **node id** — an edge handle that is never rendered — while the node *label*
+carries the reader-facing pair. The pairing ratchet
+(`test/architecture/test_docs_activity_verbs.py`) reads the id and rejects a name in
+neither list, which is how `CreateStatus` — a plausible-looking name belonging to no
+system — was caught. It also checks that the label's wire-form line is the form the
+registered pattern actually produces. Prose that merely mentions a name is left alone;
+only a `subgraph as:Verb` membership claim is checked, because declaring a name there
+asserts the activity exists.
 
 ## The mechanisms that evolved rather than went missing
 

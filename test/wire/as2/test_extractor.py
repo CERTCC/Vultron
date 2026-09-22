@@ -669,3 +669,42 @@ def test_coerce_pec_or_none_maps_no_embargo_to_unbound():
     from vultron.wire.as2.extractor._builders import _coerce_pec_or_none
 
     assert _coerce_pec_or_none("NO_EMBARGO") == PEC.UNBOUND
+
+
+def test_coerce_pec_or_none_is_single_shared_helper():
+    """The extractor and wire vocab must reference one shared _coerce_pec_or_none (issue #3346).
+
+    Two private copies with different lookup strategies (name-lookup PEC[v] vs
+    value-lookup PEC(v)) previously coexisted; they could silently diverge once
+    any PEC member's wire value differed from its name. Consolidation is only
+    real if both import sites resolve to the same function object — this test is
+    the ratchet against re-divergence.
+    """
+    from vultron.wire.as2.extractor import _builders
+    from vultron.wire.as2.vocab.objects import base, case_status
+
+    assert _builders._coerce_pec_or_none is base._coerce_pec_or_none
+    assert case_status._coerce_pec_or_none is base._coerce_pec_or_none
+
+
+def test_coerce_pec_or_none_unknown_string_raises_value_error():
+    """Unknown PEC strings raise ValueError, never KeyError (#2964, #3346).
+
+    The consolidated helper uses value-lookup PEC(v), so pydantic field
+    validators surface a clean ValidationError instead of an uncaught,
+    500-class KeyError from name-lookup PEC[v].
+    """
+    from vultron.wire.as2.vocab.objects.base import _coerce_pec_or_none
+
+    with pytest.raises(ValueError):
+        _coerce_pec_or_none("BOGUS_PEC")
+
+
+def test_coerce_pec_or_none_passthrough_and_none():
+    """PEC members pass through unchanged and None maps to None (issue #3346)."""
+    from vultron.core.states.participant_embargo_consent import PEC
+    from vultron.wire.as2.vocab.objects.base import _coerce_pec_or_none
+
+    assert _coerce_pec_or_none(None) is None
+    assert _coerce_pec_or_none(PEC.SIGNATORY) is PEC.SIGNATORY
+    assert _coerce_pec_or_none("INVITED") == PEC.INVITED

@@ -229,6 +229,23 @@ Design rationale, the full collapse and expansion inventory, the page
 architecture, and the MSM-03 post-mortem are in `notes/message-type-reference.md`
 (repository-only; not published to the docs site).
 
+### Which name the reader gets (added by #3456)
+
+This decision says the two vocabularies are different shapes. A corollary it did
+not draw is *which* shape reader-facing documentation should use, and answering it
+wrongly is easy: there are **three** names for every activity — the formal message
+(`RV`, "Report Valid"), the prototype class (`RmValidateReport`), and the wire form
+(`Accept(Offer(VulnerabilityReport))`) — and treating the choice as a two-way one
+between the last two loses the protocol layer entirely. `Accept(Offer(…))`,
+`TentativeReject(Offer(…))` and `Reject(Offer(…))` are *valid*, *invalid* and
+*closed*, and nothing in the wire form says which, so the mapping this ADR makes
+first-class is exactly what a reader cannot reconstruct unaided.
+
+The resolution, specified as DF-09-010: reader-facing `docs/` pair the formal
+message name and code with the wire form, and drop the prototype class name, which
+survives only as a non-rendered identifier. The rejected alternative — substituting
+the wire form for the protocol name — was attempted in #3458 and reverted.
+
 Related decisions: [ADR-0075](0075-split-vfd-state-machine.md) (the V/F/D split
 that MSM-03 predated), [ADR-0036](0036-status-dimension-objects.md) (dimension
 objects), [ADR-0039](0039-offer-case-participant-role-wire-type.md)
@@ -240,4 +257,6 @@ Source: IDEA-605.
 
 Generated spec requirements: `message-semantics-mapping.yaml` MSM-04 through
 MSM-06, and the corrections to MSM-01-007, MSM-02-008, MSM-02-009, MSM-03-001
-through MSM-03-003, MSM-03-007, and MSM-03-008.
+through MSM-03-003, MSM-03-007, and MSM-03-008. Also
+`diataxis-requirements.yaml` DF-09-010 (#3456), the documentation-naming
+corollary above.
