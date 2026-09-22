@@ -38,7 +38,7 @@ class TestCaseReferenceBasics:
 
     def test_url_required(self):
         with pytest.raises(ValidationError):
-            CaseReference()
+            CaseReference()  # pyright: ignore[reportCallIssue]
 
     def test_url_must_be_non_empty(self):
         with pytest.raises(ValidationError):

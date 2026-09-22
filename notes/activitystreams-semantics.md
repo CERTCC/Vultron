@@ -9,11 +9,14 @@ related_specs:
   - specs/semantic-extraction.yaml
   - specs/response-format.yaml
   - specs/case-management.yaml
+  - specs/embargo-policy.yaml
 related_notes:
   - notes/activitystreams-state-update.md
   - notes/bt-integration.md
   - notes/demo-scenario-authoring.md
   - notes/message-type-reference.md
+  - notes/embargo-lifecycle.md
+  - notes/protocol-asks.md
 relevant_packages:
   - pydantic
   - vultron/wire/as2
@@ -267,14 +270,49 @@ negotiating, working_with_others, early_termination, split_merge).
 
 ---
 
-## ChoosePreferredEmbargo Is a Corner Case
+## There Is No Multi-Candidate Embargo Poll (ADR-0100)
 
-`ChoosePreferredEmbargo` (a Question type) is only relevant when **multiple
-simultaneous embargo proposals** exist from different actors. In practice,
-most cases will have at most one active proposal at a time (0 or 1 active
-embargo, 0 or 1 pending proposal). The `ChoosePreferredEmbargo` activity
-is therefore a low-priority edge case; implement it only after the core
-propose/accept/reject flow is fully working and tested.
+This section previously recorded `ChoosePreferredEmbargo` as a low-priority
+corner case to implement after the core propose/accept/reject flow. ADR-0100
+settled it the other way: the poll is **retired**, not deferred (#3469).
+
+Multiple simultaneously open embargo proposals are not the corner case — the
+glossary defines `EM.PROPOSED` as "one or more embargo proposals under
+negotiation", and a counter-proposal produces exactly that (EMB-15-003 emits a
+fresh EP while the state stays PROPOSED). What is settled is *how* they resolve:
+**sequentially, earliest expiration first** (EP-08), per the normative heuristic
+in `docs/topics/process_models/em/defaults.md`. A poll that presents N candidates
+at once is the construct that heuristic replaces.
+
+Three facts make the poll unworkable rather than merely unbuilt, and they are
+worth keeping because each is a trap in its own right:
+
+- **A `Question` has no `object`, and no `Question` pattern exists to copy.**
+  `_instances.py` registers **zero** `as_Question` patterns, so a poll pattern
+  would be the first — alongside the one CBT-03-004's
+  `bootstrap_replay_question_activity` still needs (#3471). Two `Question`
+  semantics are separable: SE-08-001 permits patterns sharing a verb provided the
+  more specific one carries an extra discriminator and is ordered first, and
+  CBT-03-004 requires the replay request's `target` be the `case_actor_id`, so
+  `target_` (with `strict=True` per SE-08-004) is that discriminator. The cost is
+  not impossibility — it is designing two `Question` semantics and their registry
+  ordering to gain nothing the sequential `Invite` path does not already give.
+  `ActivityPattern` has no `anyOf_`/`oneOf_` field either, so the candidate list
+  itself is unmatchable.
+- **There was no answer form.** `_EmAcceptEmbargoActivity.object_` is a required,
+  inline-typed `Invite`. A candidate `EmbargoEvent` inside a `oneOf` is not one,
+  so registering a pattern would have left the poll askable and unanswerable.
+- **It could not parse its own output.** `as_Question` declares `anyOf`/`oneOf`
+  as a single value where AS2 defines a collection, and the retired subclass
+  added `any_of`/`one_of` beside them — four fields, two wire aliases.
+  Serialization resolved the collision last-writer-wins; validation bound the
+  inherited singular field. The general lesson: **a subclass field whose alias
+  collides with an inherited one is write-only**, because serialization and
+  validation resolve the collision in opposite directions.
+
+`as_Question` itself stays, for the bootstrap-replay request — though whether
+`Question` is even the right vocabulary for a request/response exchange, given
+that activities here are state-change notifications, is open (#3471).
 
 ---
 

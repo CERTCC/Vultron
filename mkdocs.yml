@@ -373,6 +373,7 @@ nav:
       - 'A Protocol Default Embargo Replaces the Pre-Case Phase': 'adr/0096-protocol-default-embargo.md'
       - 'The Capability Layer: Four Call-Out Shapes, Core-Declared Typed-Port Contracts, and Sentinel as a Call-In Pattern': 'adr/0097-capability-layer-four-shapes-and-core-declared-contracts.md'
       - 'Demo Scenarios Self-Register; Scenario Tables Become Derived Artifacts': 'adr/0098-demo-scenarios-self-register.md'
+      - 'No Multi-Candidate Embargo Poll; Open Proposals Resolve Earliest-Expiration First': 'adr/0100-no-multi-candidate-embargo-poll.md'
   - About:
     - What's New: 'about/whats_new.md'
     - Contributing: 'about/contributing.md'
