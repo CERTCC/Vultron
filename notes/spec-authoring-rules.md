@@ -301,5 +301,5 @@ Source: MSM-03-001/002/003 (promoted from notes/message-type-reference.md)
 
 ### Never Restate Counts in Cross-References
 
-See [notes/specs-vs-adrs.md](specs-vs-adrs.md) § "Never State Ephemeral Counts
-in Long-Lived Docs" (MS-16-001).
+See [notes/specs-vs-adrs.md](specs-vs-adrs.md) § "Never State Unverifiable,
+Drift-Prone Facts in Long-Lived Docs" (MS-16-001, generalised by MS-16-002).

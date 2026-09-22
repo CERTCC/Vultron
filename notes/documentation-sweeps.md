@@ -10,6 +10,7 @@ related_notes:
   - notes/documentation-strategy.md
 related_specs:
   - specs/diataxis-requirements.yaml
+  - specs/meta-specifications.yaml
 ---
 
 # Documentation Sweeps — Verification Budget
@@ -102,6 +103,59 @@ only where the page writes them in one of two recognised shapes.
 A ratchet for the claim class you just moved is the best possible outcome of a
 sweep; it is not a substitute for reading.
 
+## Mirrored tables rot in the column no test can hold
+
+The witnesses above are about *moving* content. A related failure appears when
+a doc table *mirrors* a code, spec, or config inventory and nobody keeps it in
+sync: it drifts, and it drifts unevenly. The columns a test could check stay
+roughly right; the columns no test could ever check go wholly wrong. A fact
+nothing can check is a fact nobody does check.
+
+This too has two witnesses:
+
+- **ISSUE-3337** — two tables mirroring the case-ledger invariant harness. In
+  both, the source-derivable columns (test-function name, `xfail` marker, the
+  fixed "which layer to check first" rule) stayed roughly right, while the two
+  columns no test could hold — a per-actor ✅/⚠️ pass/fail and a "resolving
+  issue" forecast — were 100% wrong. The stale rows did not read as uncertain:
+  each named a specific, long-closed issue number, so an agent triaging a red
+  job was routed to a dead issue rather than to the layer that broke. An
+  unratcheted claim decays into confident wrong answers, not into silence.
+- **The scenario table** (`vultron/demo/scenario/README.md`, ISSUE-3450 /
+  CONCERN-3466) — its free-prose "what it demonstrates" column read "Finder +
+  Coordinator + Vendor + Coordinator2" for the `fcvcv` row: four actors for a
+  five-actor scenario. Same table's `vc` row (ADR-0098 Context) had earlier
+  described a `vc_demo.py` that never existed. Two rot events, same table, same
+  root cause — always in the column no test could hold.
+
+### The column-triage procedure
+
+When you are about to sync a mirrored table against its source, sort its
+columns *before* editing:
+
+1. **Disaggregate first.** Before judging a column verifiable or not, check
+   whether it is one fact or several wearing one heading. A column that answers
+   two questions at once — "participants *and* notable feature" in the scenario
+   table — is unverifiable *as a unit* while each part may be individually
+   derivable. Split it, then re-sort each part. This is the step the ISSUE-3337
+   entry's original keep-or-delete binary missed: the `fcvcv` column looked
+   unratchetable, but splitting it made the participants half derivable, and
+   #3464 then moved both halves into the `@scenario` decorator so the whole
+   table is generated. Skipping this step discards information the registry
+   could have held.
+2. **Ratchetable** (derivable from source, specs, or config): keep it, and add
+   the ratchet in the same PR. Writing the table without the test is what let it
+   rot in the first place; the repo already has the pattern to copy
+   (`test_universal_event_types.py`, `test_codebase_docs_paths.py`).
+3. **Not ratchetable** (a runtime outcome, a schedule, a forecast, a count that
+   changes under you): remove it and point at whatever holds the live answer. If
+   you cannot bring yourself to delete it, that is a signal the doc is trying to
+   be a dashboard, and a dashboard in git is always stale.
+
+The general form of the discriminator is MS-16-002: could a test fail on this
+sentence? A restated count (MS-16-001) is only the most common instance. See
+`notes/specs-vs-adrs.md` § "Never State Unverifiable, Drift-Prone Facts".
+
 ## What agents must do when moving content
 
 ### Verify claims; do not just copy them
@@ -171,9 +225,15 @@ whatever was wrong in the source.
 
 - DF-10-001 (MUST): verify moved claims — `specs/diataxis-requirements.yaml`
 - DF-10-002 (SHOULD): use `{% include-markdown %}` for shared content — `specs/diataxis-requirements.yaml`
+- MS-16-002 (MUST): long-lived docs must not state unverifiable, drift-prone
+  facts — `specs/meta-specifications.yaml`
 
 ## Reference
 
-Source: CONCERN-3403 (second witness).
+Source: CONCERN-3403 (second witness for the moving-content rule); CONCERN-3466
+(promotes the mirrored-table column-triage rule, second witness ISSUE-3450 /
+PR #3464).
 Related: #3395 (AS2 verb defects surfaced by witness 2), #3402 (automated
-AS2 verb-pairing checks), #3414 (implementation issue).
+AS2 verb-pairing checks), #3414 (implementation issue); ISSUE-3337 (first
+witness for the mirrored-table rule), ADR-0098 (scenario tables made derived
+artifacts).
