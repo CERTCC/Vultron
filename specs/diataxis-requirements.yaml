@@ -416,6 +416,34 @@ groups:
       Invoking the gate on a path with no lintable targets reports the empty target set and does
       not report success.
 
+  - id: DF-09-010
+    priority: MUST
+    kind: process
+    statement: >-
+      Reader-facing `docs/` MUST name a protocol activity by its formal protocol message name and
+      code paired with its AS2 wire form — "Report Valid (RV) is implemented in ActivityStreams as
+      `Accept(Offer(VulnerabilityReport))`" — and MUST NOT name it by its prototype class name.
+      Where a shorthand has no formal name, or one shorthand expands across several activities, the
+      plain-English name from the corresponding `docs/reference/messages/` heading stands in for the
+      formal name. The prototype class name MAY survive only as a non-rendered identifier, such as a
+      mermaid node id.
+    rationale: >-
+      Three layers name every activity — the formal protocol message, the prototype class, and the
+      AS2 wire form — and only the first and last are reader-facing. The protocol semantics are not
+      recoverable from the wire form: `Accept(Offer(VulnerabilityReport))`,
+      `TentativeReject(Offer(VulnerabilityReport))` and `Reject(Offer(VulnerabilityReport))` are
+      valid, invalid and closed, and nothing in the wire form says which. So substituting the wire
+      form for the protocol name deletes a layer rather than translating one — the premise #3456 was
+      originally filed on, and rejected. The prototype class name is dropped instead, because an
+      implementer building a conformant peer in another language has no `RmValidateReport`. Naming
+      the pairing here gives the ratchet in `test/architecture/test_docs_activity_verbs.py` a spec ID
+      to cite, the same anchoring DF-09-001 provides for the style guide.
+    verification: >-
+      `test/architecture/test_docs_activity_verbs.py` derives each activity's wire form from the
+      registered `ActivityPattern` and fails when a guide's mermaid label or prose states a form no
+      pattern produces, when a labelled node resolves to no known activity, or when the scan
+      resolves fewer targets than the corpus carries.
+
 - id: DF-10
   title: Sweep verification
   description: >-
