@@ -286,10 +286,11 @@ states, ordering, and terminal conditions from conformance tooling. Extract thos
 into `BehavioralSpec.steps[]` instead.
 
 One caveat when clearing such a hit: an inline `(1) … (2) …` list is sometimes a
-genuine *set* rather than a sequence — three subtrees a node must compose, the
-assertions one test file must make — and moving it into `steps[]` would assert an
-order the requirement does not have. Reword or suppress those; only convert the
-ones that really are ordered.
+genuine *set* rather than a sequence — the three separate top-level trees
+`SBT-01-002` requires, one per message-type use case; the assertions one test file
+must make — and moving it into `steps[]` would assert an order the requirement
+does not have. Reword or suppress those; only convert the ones that really are
+ordered.
 
 ### Demo scenario groups
 
@@ -328,8 +329,17 @@ restating RM closure.
 
 ### Protocol behavioral groups
 
-Protocol behavioral groups (RMB, EMB, CSB) always use `BehavioralSpec`. See the
-`cs-behavior.yaml` reference for the trigger-at-group / ECA-at-item pattern with
-typed `Precondition` fields (`rm_state`, `em_state`, `cs_pattern`, `role`).
+Protocol behavioral groups (RMB, EMB, CSB) are authored in the ECA idiom: the
+condition goes in typed `Precondition` fields, and `steps` is reserved for the
+cases where the action is itself normative — often a single step, which is the
+action and not an ordering claim. See the `cs-behavior.yaml` reference for the
+trigger-at-group / ECA-at-item pattern and its precondition types (`rm_state`,
+`em_state`, `cs_pattern`, `role`).
+
+Do not read "these groups are behavioral" as "every item in them is a
+`BehavioralSpec`". Under ADR-0101 the class follows the fields, and a substantial
+minority of CSB and EMB items — bare invariants with none of `preconditions`,
+`steps`, or `postconditions` — are `StatementSpec`s. An `isinstance` check over a
+CSB or EMB group will not match all of it.
 
 ---
