@@ -178,8 +178,21 @@ spelling, and both are the status classes covered by ADR-0036.
    this kind the project has actually had, including #2262.
 9. **Object slots hold the whole object, not an ID.** Reading resolves an IRI
    reference to the referenced object; an unresolvable reference is deferred or
-   refused. **Something must own that materialisation, and this ADR does not
-   name it** — see the caveat under *Measured evidence*.
+   refused. **`rehydrate()` owns that materialisation** — VM-06-007, in
+   `vultron/wire/as2/rehydration.py`. It already holds the `DataLayer` the
+   resolution needs (VM-06-002), so it resolves the *real* object rather than
+   standing a placeholder in for it. Which of *deferred* and *refused* applies
+   is read off the declared field type: a slot that admits `str` — every
+   `ActivityStreamRef[T]` — can legally hold the IRI, so an unresolvable
+   reference is deferred there (VM-06-004); a slot that admits a model and no
+   `str` cannot, so an unresolvable reference is refused. The `WireParsePort`
+   (#2938) was the other candidate and is rejected: it does not exist, its
+   prerequisite #2937 is cancelled below, and its single-method wire→core shape
+   carries no store access, so it could only have fabricated placeholders —
+   which is the defect, not the fix. Per-class `from_core` fabricated a stub
+   `as_Activity` with a *synthesized* actor; that is not reproduced, and the
+   reasoning is recorded in `materialise_object_slots` and VM-06-007. See the
+   caveat under *Measured evidence*.
 
    **This is a prototype shortcut, recorded as such.** It defers data
    normalization rather than solving it. A production system would be expected
@@ -446,8 +459,9 @@ detail 9's rehydration, and per-class `from_core` code is what implements it
 today. Detail 9 says slots hold whole objects; it does not say what fills them.
 Deleting the projection methods without naming a replacement owner would drop
 the behaviour silently — the same failure shape as the two silent-state-loss
-bugs the spike found. The migration MUST identify that owner explicitly;
-`rehydrate()` (VM-06-001) and the `WireParsePort` (#2938) are the candidates.
+bugs the spike found. The candidates were `rehydrate()` (VM-06-001) and the
+`WireParsePort` (#2938); **detail 9 above names `rehydrate()`** and VM-06-007
+records it.
 
 Surfaced by #3437, which had been filed as a narrow adapter-consolidation
 cleanup.
