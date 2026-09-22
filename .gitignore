@@ -170,3 +170,7 @@ plan/data/
 # graphify knowledge graph output
 graphify-out/
 .DS_Store
+
+# Agent worktrees (created by the Agent tool's worktree isolation).
+# Untracked and machine-local; never part of a commit.
+.claude/worktrees/
