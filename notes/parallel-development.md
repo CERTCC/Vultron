@@ -40,7 +40,11 @@ building Vultron.
 | How are tasks claimed? | Branch creation (`task/<N>-slug`) | Git branch creation is atomic — ideal distributed lock |
 | Should there be a `claimed` label? | No | Adds a second source of truth that can drift from branch state |
 | Stale-claim threshold | 3 days since last branch commit | Short enough to keep the queue clean; tune if agent sessions are longer |
-| Diff-size thresholds | ≤50 lines = S, 51–300 = M, 301+ = L | Common open-source convention; aligns with maintainability expectations |
+| Diff-size thresholds | Calibrated to this repo's own merged-PR distribution, not convention — see `pr-size --table` | The borrowed ≤50/51–300/301+ convention put 46% of merged PRs in `size:L` across two orders of magnitude, and `size:S` was correct 24% of the time. Merged diff size here is lognormal, median 258 lines, **no natural clusters** — so the cuts are a review-budget policy, not a discovered boundary |
+| Why a fourth band? | `size:XL` above 1200 lines | Review findings hold at ~4.5 per 1000 diff lines from 200 through 1000, then fall to 3.5 / 2.7 / 1.5. Defect density does not drop threefold in big PRs, so the falling detection rate is **review saturation** — XL means "review probably did not cover this" |
+| Does `size:XL` exist as an AC estimate? | No — measurement only | An issue predicted bigger than L is a decomposition signal. XL is a retrospective finding, and "estimated L, landed XL" is the signal worth keeping |
+| Who applies the measured label? | The `pr-size-label` workflow, not an agent | The rule lived in skill prose alone and 40% of merged PRs carried no `size:` label. A prose-only rule degrades at that rate |
+| Where do the band values live? | One table in `vultron/metadata/planning/size_bands.py` | They were restated in prose in eight places and computed in none. A threshold a reader can retype is a threshold that drifts |
 | Two-pass code review? | Single-pass with [BLOCKING]/[ADVISORY] tags | Same signal, less process theater; build agent acts on tags |
 | Where do `update-plan` gap findings go? | GitHub Issues (added to Project #24) | Consistent with the GitHub Issues model |
 | Is a bundle one PR or several? | One PR closing every member | Getting more than one issue done per PR *is* the point of bundling; amortizes one context load, one branch, one review |
@@ -65,10 +69,9 @@ Use minimum depth. Many Epics will have leaf Tasks with no Subtasks.
 
 | Label | Applied by | Meaning |
 |---|---|---|
-| `size:S` | Agent at issue creation + PR open | ≤2 ACs or ≤50 diff lines |
-| `size:M` | Agent at issue creation + PR open | 3–6 ACs or 51–300 diff lines |
-| `size:L` | Agent at issue creation + PR open | 7+ ACs or 301+ diff lines |
-| *(no `size:` label)* | — | **Unmeasured, not small.** Bundle selection weights it as the largest size: `size:L` is unbounded above, so guessing small fails open (PAD-15-005) |
+| `size:S` / `size:M` / `size:L` | Agent at issue creation (AC estimate); `pr-size-label` CI at PR open (measured diff) | Bands live in one table — `pr-size --table`; semantics in `.agents/skills/shared/sizing.md` |
+| `size:XL` | `pr-size-label` CI only | **Measurement-only.** Review findings per 1000 diff lines halve above this floor, so it marks a PR review could not cover, not merely a big one. No AC count reaches it — an issue that large is decomposed (PAD-05-012) |
+| *(no `size:` label)* | — | **Unmeasured, not small.** Bundle selection weights it as the largest *bundlable* size, so guessing small cannot fail open (PAD-15-005). `size:XL` is refused outright instead of weighted (PAD-15-011) |
 | `stale-claim` | Stale-claim sweeper (GH Actions) | Orphaned claim; skip until human clears |
 | `needs-rebase` | Build agent | PR or task branch has merge conflicts that must be rebased |
 | `specs-notes` | ingest-idea, learn | Docs-only PR containing only specs/ and notes/ changes |
@@ -114,10 +117,10 @@ priority signal — PAD-03-001 puts priority on the `Schedule` field, on the Epi
 5. gh issue edit <N> --add-assignee @me
 6. gh issue comment <N> --body "Claimed by <agent-session> on branch task/<N>-<slug>"
 7. Implement, validate, code-review (address [BLOCKING] findings)
-8. Compute diff size → update size label on Issue and future PR
-9. git fetch origin main && git rebase origin/main
-10. git push -u origin task/<N>-<slug>
-11. gh pr create --title "..." --body "Closes #<N>\n\n..." --label size:X
+8. git fetch origin main && git rebase origin/main
+9. git push -u origin task/<N>-<slug>
+10. gh pr create --title "..." --body "Closes #<N>\n\n..."
+    → the pr-size-label workflow measures the diff and labels the PR
 ```
 
 ---
@@ -269,5 +272,8 @@ Load this file when:
 - Changing how work is selected or bundled (`propose-bundle`, `bundle-fit`,
   `.agents/skills/shared/bundling.md`)
 - Creating GitHub Issues for new work items
+- Recalibrating the `size:` bands, or touching anything that reads them
+  (`vultron/metadata/planning/size_bands.py`,
+  `.agents/skills/shared/sizing.md`, `.github/workflows/pr-size-label.yml`)
 - Implementing or modifying the stale-claim sweeper GitHub Actions workflow
 - Debugging task-selection or claiming behavior in the `build` skill
