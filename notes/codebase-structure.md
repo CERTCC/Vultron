@@ -257,7 +257,8 @@ All demo scripts are located in `vultron/demo/` (migration from
 - **`vultron/scripts/`** — standalone utilities run directly (data migration,
   maintenance, one-off tooling), including `vocab_examples.py`
 - **`vultron/demo/`** — end-to-end workflow demonstrations, CLI entry point,
-  shared utilities, and all 12 `*_demo.py` scripts
+  shared utilities, and the `*_demo.py` scripts under `scenario/` and `exchange/`
+  (no count: the directories are the count, MS-16-001)
 - **`vultron/demo/utils.py`** — shared demo utilities (`demo_step`,
   `demo_check`, `DataLayerClient`, HTTP helpers, `demo_environment` context
   manager)
