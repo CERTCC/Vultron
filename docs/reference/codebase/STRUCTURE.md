@@ -39,7 +39,7 @@
   - `spec-dump` / `spec-dump-llm-json` → `vultron.metadata.specs.render:main_llm_json`
   - `spec-lint` → `vultron.metadata.specs.lint:main`; `spec-coverage` → `vultron.metadata.specs.coverage:main`
   - `adr-index` → `vultron.metadata.adr.index_gen:main`
-  - `demo-scenarios` → `vultron.metadata.demo_scenarios.sync:main` (generates and `--check`s the artifacts derived from the demo scenario registry)
+  - `demo-scenarios` → `vultron.metadata.demo_scenarios.sync:main`. `--write` regenerates the artifacts derived from the demo scenario registry. `--check` verifies those, and also the consumers that are checked rather than generated: the `mkdocs.yml` nav, the `notes/` scenario tables, and the register of scenarios that are specified but not yet built. It also rejects a restated scenario count and a stray `include-markdown` directive.
   - `append-history` → `vultron.metadata.history.cli:main`; `show-history` → `vultron.metadata.history.show_history_cli:main`; `backfill-implementation-history` → `vultron.metadata.history.backfill_implementation:main`
 - **How entry is selected**: via `[project.scripts]` in `pyproject.toml`; uvicorn deployment uses `vultron.adapters.driving.fastapi.main:app`
 
