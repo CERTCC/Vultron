@@ -368,6 +368,16 @@ not clear a blackboard key it does not own (CONCERN-2711), because a peer that
 legitimately owns the key would see it corrupted. Ownership stays with the
 producer; *lifetime* is enforced by the bridge.
 
+**`activity` and `context_data` keys are also managed** (#3161): `setup_tree`
+writes the `activity` key (when provided) and all `**context_data` keyword
+arguments to the blackboard. These keys are added to `managed_keys`
+dynamically at the start of `execute_with_setup`, before `previous_values` is
+snapshotted. A nested `execute_with_setup` call that passes the same key
+therefore restores the outer execution's value when it returns — no stale
+value leaks forward. (`actor_id` is intentionally excluded: the outer execution
+holds its own actor id as a Python local, not from the blackboard, and the two
+executions may legitimately use different actors.)
+
 ---
 
 ## Namespaced Inter-Node Handoff Keys
