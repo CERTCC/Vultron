@@ -33,6 +33,7 @@ from vultron.core.behaviors.helpers import (
     DataLayerAction,
     DataLayerActionWithPorts,
 )
+from vultron.core.models._helpers import project_wire_snapshot_to_core
 from vultron.core.models.case import VultronCase
 from vultron.core.models.report import VulnerabilityReport
 
@@ -170,7 +171,9 @@ class StoreProposalReportNode(DataLayerAction):
             )
             return None
         try:
-            return VulnerabilityReport.model_validate(raw)
+            return VulnerabilityReport.model_validate(
+                project_wire_snapshot_to_core(VulnerabilityReport, raw)
+            )
         except ValidationError as exc:
             # A malformed inline report cannot be reconstructed; stay lenient
             # and fall back to the reference-only path.  A non-validation error

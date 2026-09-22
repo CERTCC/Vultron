@@ -19,6 +19,9 @@ import uuid
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
+from pydantic import BaseModel
+from pydantic.alias_generators import to_camel
+
 # Frozen reference to the real datetime type used for isinstance guards.
 # `now_utc` looks up `datetime` by name at call time so that tests can
 # monkeypatch `_helpers.datetime` to control the clock; those patches must not
@@ -126,6 +129,39 @@ def status_recency_key(
     in one place.
     """
     return as_utc(updated) or as_utc(published) or _MIN_UTC
+
+
+def project_wire_snapshot_to_core(cls: type[BaseModel], data: Any) -> Any:
+    """Rename a wire-rendered snapshot's camelCase keys to *cls*'s field names.
+
+    A ledger ``payloadSnapshot`` embeds objects in AS2 wire shape (camelCase,
+    e.g. ``attributedTo``).  Reconstructing a core object from one is a
+    *deliberate* wire→core crossing, distinct from the accidental
+    wire-shaped-input that ``extra="forbid"`` exists to reject (ARCH-12-003):
+    the crossing must project the spellings first.  Core fields that carry an
+    explicit ``validation_alias`` (``id``, ``type``, ``@context``,
+    ``inReplyTo``) already accept their wire form; this maps the remaining
+    ``to_camel`` spellings (``attributedTo`` → ``attributed_to``) back to the
+    field name so the core type validates without loosening its guard.
+
+    Interim helper for the handful of core sync/effect nodes that rebuild core
+    objects from inline snapshots.  It becomes redundant once the wire→core
+    ``WireParsePort`` designed in ADR-0082 (#2938) lands and owns wire→core
+    projection centrally; this is not a reintroduction of the retired
+    persistence-boundary normalisation (#2940).
+    """
+    if not isinstance(data, dict):
+        return data
+    remap: dict[str, str] = {}
+    for name, field in cls.model_fields.items():
+        if isinstance(field.validation_alias, str):
+            continue  # an explicit alias already accepts the wire spelling
+        camel = to_camel(name)
+        if camel != name:
+            remap[camel] = name
+    if not remap:
+        return data
+    return {remap.get(key, key): value for key, value in data.items()}
 
 
 def _new_urn() -> str:

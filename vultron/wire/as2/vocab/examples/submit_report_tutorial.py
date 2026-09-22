@@ -102,7 +102,13 @@ STORED_REPORT_RESPONSE: dict[str, dict[str, Any]] = {
         "published": _FIXED_TS.isoformat(),
         "updated": _FIXED_TS.isoformat(),
         "content": REPORT_CONTENT,
-        "attributedTo": FINDER_ID,
+        # The submitted report carries ``attributed_to`` as a single-element
+        # list (AS2 permits an array), and since #2940 removed the write-side
+        # wire→core normalisation the datalayer stores that wire shape verbatim
+        # rather than collapsing it to a scalar.  ``dl.read()`` still projects
+        # it to a core scalar; only this raw ``/datalayer/Reports/`` listing
+        # shows the stored wire form.
+        "attributedTo": [FINDER_ID],
         "@context": "https://certcc.github.io/Vultron/ns/context.jsonld",
     }
 }

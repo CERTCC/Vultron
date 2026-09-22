@@ -323,16 +323,35 @@ counterparts before passing them.
   name-collision lookup ARCH-23-001 replaces
 - `test/architecture/test_wire_core_import_allowlist.py` — the ARCH-22 allow-list, which replaced the ratchet (#3483). The ratchet file is deleted
 
-## Deleting a Wire-Spelling Shim Without a Reject-Guard Is Silent Data Loss
+## `extra="forbid"` Is the Boundary Contract (landed, #2940)
 
-Pydantic v2 defaults to `extra="ignore"`, so removing a validator that accepted a
-legacy camelCase key makes that key *silently dropped* and the field default to
-its start value — a lost RM ladder, not an error. Until `extra="forbid"` lands
-everywhere, always pair the deletion with a `model_validator(mode="before")`
-built on `reject_wire_spelled_keys` (`vultron/core/models/_wire_spelling.py`).
-See SDO-03-005, ARCH-15-002.
+Pydantic v2 defaults to `extra="ignore"`, so historically removing a validator
+that accepted a legacy camelCase key silently dropped that key and reset the
+field to its start value — a lost RM ladder, not an error (the #2232 defect).
 
-**Superseded direction (ADR-0082)**: ARCH-12-003 now requires `extra="forbid"` on
-all core-branch types, which subsumes this guard — it rejects any unknown key, not
-only camelCase ones. Once that lands, `_wire_spelling.py` and the per-class guards
-are deleted. Until then this pitfall still applies.
+`CoreObject` now sets `extra="forbid"` (ARCH-12-003): any unknown key on a core
+type raises rather than being dropped, so a wire-shaped payload handed to a core
+type fails loudly. This **subsumed and retired** the per-class camelCase
+reject-guards and `vultron/core/models/_wire_spelling.py`, and the
+persistence-boundary normalisation gate (`_normalize_to_core`,
+`_NORMALIZE_WIRE_TO_CORE`, `_project_shadowing_wire_obj`) — all deleted in #2940.
+A wire-shaped row that is nonetheless persisted is projected to its core
+counterpart on **read** (`hydration.project_wire_row_to_core`).
+
+Two invariants keep `extra="forbid"` self-consistent, both enforced on
+`CoreObject` as `mode="before"` validators (see `_drop_computed_field_inputs`
+and `_drop_alias_shadowed_field_names`):
+
+- **Strip computed fields before re-validation.** A `@computed_field`
+  (`embargo_adherence`, ADR-0056) appears in `model_dump()` output but is not
+  settable, so a round-trip must drop it first.
+- **Never leave an alias key beside its field-name twin.** A `mode="before"`
+  validator that derives a field and writes it under the alias (`id`) beside a
+  dumped field-name key (`id_`) leaves an unconsumed twin that `extra="forbid"`
+  rejects; the base de-dup validator drops the field-name twin (alias wins).
+
+Ratchet: `test/architecture/test_core_extra_forbid.py` (every `CoreObject`
+forbids extras with no exemption list; a dump round-trips exactly; the retired
+mechanisms cannot be reintroduced). Deliberate wire→core snapshot
+reconstruction in core nodes projects camelCase spellings via
+`project_wire_snapshot_to_core` until the `WireParsePort` (#2938) owns it.

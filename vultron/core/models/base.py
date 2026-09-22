@@ -26,6 +26,7 @@ from pydantic import (
     Field,
     model_validator,
 )
+from pydantic.alias_generators import to_camel
 
 from vultron.core.models._helpers import _new_urn, now_utc
 from vultron.core.models.registry import CORE_TYPE_MAP, CORE_VOCABULARY
@@ -177,6 +178,15 @@ class CoreObject(VultronObject):
     architectural direction (tracked by issue #699).
     """
 
+    # No unknown key may enter a core object: a wire-shaped payload handed to a
+    # core type is rejected loudly rather than silently dropping every
+    # snake_case-only key (the #2232 defect).  This subsumes the retired
+    # per-class camelCase reject-guards and the wire→core normalisation gate
+    # (ARCH-12-003, ADR-0082; closes the strong form of #2262).  Merged with
+    # VultronBase.populate_by_name and ValidatedAssignmentMixin
+    # validate_assignment across the MRO.
+    model_config = ConfigDict(extra="forbid")
+
     context_: NonEmptyString | None = Field(
         default=None,
         validation_alias="@context",
@@ -189,6 +199,61 @@ class CoreObject(VultronObject):
     # (per ARCH-12-002: shared base must be lenient for the wire branch).
     published: datetime = Field(default_factory=now_utc)
     updated: datetime = Field(default_factory=now_utc)
+
+    @model_validator(mode="before")
+    @classmethod
+    def _drop_computed_field_inputs(cls, data: Any) -> Any:
+        """Strip read-only computed-field values so a dump round-trips.
+
+        A ``@computed_field`` (e.g. ``ParticipantStatus.embargo_adherence``,
+        ADR-0056) appears in ``model_dump()`` output but is not settable, so
+        ``model_validate(model_dump(x))`` would reject it as an unknown key
+        under ``extra="forbid"``.  Dropping the computed keys before field
+        validation makes the round-trip exact (ARCH-23-005).  See
+        ``notes/wire-core-boundary.md`` § "Measured Evidence".
+        """
+        computed = cls.model_computed_fields
+        if not isinstance(data, dict) or not computed:
+            return data
+        drop: set[str] = set()
+        for name, info in computed.items():
+            drop.add(name)
+            alias = getattr(info, "alias", None)
+            if isinstance(alias, str):
+                drop.add(alias)
+            drop.add(to_camel(name))
+        if drop & data.keys():
+            data = {k: v for k, v in data.items() if k not in drop}
+        return data
+
+    @model_validator(mode="before")
+    @classmethod
+    def _drop_alias_shadowed_field_names(cls, data: Any) -> Any:
+        """Drop a field-name key when its validation alias is also present.
+
+        An earlier ``mode="before"`` validator may derive a field and write it
+        under the alias — ``_set_id_from_case`` writes ``"id"`` — beside the
+        serialized field-name key (``"id_"``) already in the payload.  Under
+        ``extra="forbid"`` the un-consumed twin is an unknown key.  The alias
+        (wire-canonical, and the key carrying the freshly derived value) wins.
+        This runs after subclass ``mode="before"`` validators, so it cleans up
+        every such injection in one place rather than each site guarding
+        itself (see ``notes/wire-core-boundary.md`` § "The ``id_`` Failures Are
+        an Alias-Injection Bug").
+        """
+        if not isinstance(data, dict):
+            return data
+        drop = [
+            name
+            for name, field in cls.model_fields.items()
+            if isinstance(field.validation_alias, str)
+            and field.validation_alias != name
+            and field.validation_alias in data
+            and name in data
+        ]
+        if drop:
+            data = {k: v for k, v in data.items() if k not in drop}
+        return data
 
     def __init_subclass__(cls, **kwargs: object) -> None:
         super().__init_subclass__(**kwargs)  # type: ignore[arg-type]

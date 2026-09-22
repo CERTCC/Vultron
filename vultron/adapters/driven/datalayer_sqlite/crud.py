@@ -22,7 +22,6 @@ from sqlmodel import Session, select
 
 from vultron.adapters.driven.db_record import (
     Record,
-    _NORMALIZE_WIRE_TO_CORE,
     object_to_record,
 )
 from vultron.adapters.utils import _URN_UUID_PREFIX, _UUID_RE
@@ -35,37 +34,18 @@ logger = logging.getLogger(__name__)
 
 
 def _storable_to_record(record: StorableRecord) -> Record:
-    """Normalise a StorableRecord through the full wire→core path.
+    """Wrap a StorableRecord's fields as a :class:`Record`, verbatim.
 
-    Only types in :data:`_NORMALIZE_WIRE_TO_CORE` require a round-trip.  For all
-    other types the ``data_`` is preserved verbatim — the vocabulary round-trip
-    would deserialise against the *base* wire class and silently lose
-    subtype-specific fields (e.g. ``embargo_policy`` on ``VultronPerson``).
-
-    Read the membership from that frozenset rather than from a list quoted here
-    (MS-16-001).  It is worth knowing how wide it is: it holds **all fifteen**
-    shadowing types, including ``VulnerabilityCase``, ``CaseStatus`` and every
-    actor type — not the two it once did.  So an ordinary ``DataLayer.update``
-    for a case reconstitutes it as ``as_VulnerabilityCase``, walks its nested
-    ``as_CaseStatus`` children and projects back, which means a plain persistence
-    write is exposed to every projection gap in the wire classes.  That is a
-    materially deeper entanglement than "translation at the boundary" (ADR-0062,
-    ADR-0082) describes, and it is how an EM state set by a caller was dropped
-    between ``DataLayer.update`` and the stored row.  Under ADR-0099's one object
-    model there is nothing left for this function to normalise, because the
-    stored object and the transmitted object are the same class.
+    Write-side wire→core normalisation was removed with ``extra="forbid"``
+    (ADR-0082, #2940): a core type now rejects a wire-shaped payload loudly
+    rather than silently mis-storing it, and any row that is nonetheless
+    persisted in a wire shape is projected to its core counterpart on read by
+    :func:`~vultron.adapters.driven.datalayer_sqlite.hydration.project_wire_row_to_core`.
+    So this preserves ``data_`` unchanged; the vocabulary round-trip it used
+    to run for the shadowing types is no longer needed and would have
+    deserialised against the *base* wire class, losing subtype-specific fields.
     """
-    tmp = Record(id_=record.id_, type_=record.type_, data_=record.data_)
-    if record.type_ not in _NORMALIZE_WIRE_TO_CORE:
-        return tmp
-    try:
-        return Record.from_obj(cast(PersistableModel, tmp.to_obj()))
-    except (ValueError, KeyError):
-        logger.warning(
-            "DataLayer _storable_to_record: normalisation failed for %s, persisting verbatim",
-            record.type_,
-        )
-        return tmp
+    return Record(id_=record.id_, type_=record.type_, data_=record.data_)
 
 
 def create(

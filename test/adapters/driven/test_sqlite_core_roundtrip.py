@@ -43,6 +43,8 @@ from vultron.core.models.report import VulnerabilityReport
 from vultron.core.models.vulnerability_record import VulnerabilityRecord
 from vultron.core.states import RM
 from vultron.enums.roles import CVDRole
+from pydantic import ValidationError
+
 from vultron.errors import VultronValidationError
 from vultron.wire.as2.vocab.base.objects.object_types import as_Note
 from vultron.wire.as2.vocab.objects.case_participant import as_CaseParticipant
@@ -254,7 +256,9 @@ def test_mixed_spelling_row_fails_core_validation():
     a row that validates cleanly never exercises the fallback at all.
     """
     case_id = "urn:uuid:case-2232-premise"
-    with pytest.raises(VultronValidationError):
+    # extra="forbid" (#2940) makes the wire-shaped row fail with a pydantic
+    # ValidationError; the retired shape guard raised VultronValidationError.
+    with pytest.raises((ValidationError, VultronValidationError)):
         VulnerabilityCase.model_validate(_mixed_spelling_case_row(case_id))
 
 

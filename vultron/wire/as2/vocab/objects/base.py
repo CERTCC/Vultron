@@ -191,12 +191,33 @@ class as_VultronObject(as_Object):
             "Override this method in the subclass."
         )
 
+    #: Trailing-underscore Python field names and the wire-facing names a core
+    #: type accepts through its ``validation_alias``.  ``_to_core_data`` emits
+    #: the wire spelling so a core ``model_validate`` never receives an
+    #: un-aliased Python name that ``extra="forbid"`` would reject (#2940,
+    #: ARCH-23-005).
+    _CORE_WIRE_NAMES: ClassVar[tuple[tuple[str, str], ...]] = (
+        ("id_", "id"),
+        ("type_", "type"),
+        ("context_", "@context"),
+    )
+
     def _to_core_data(self) -> dict[str, Any]:
-        """Dump wire data and reverse any ``_field_map`` renames for core use."""
+        """Dump wire data with wire-facing names for core reconstruction.
+
+        Reverses any ``_field_map`` renames and rewrites the trailing-underscore
+        identity fields (``id_``/``type_``/``context_``) to their wire spellings
+        (``id``/``type``/``@context``), which a core type accepts via its
+        ``validation_alias`` — so the dict validates under ``extra="forbid"``
+        rather than tripping on a Python field-name spelling (#2940).
+        """
         data = self.model_dump(mode="python", round_trip=True)
         for domain_field, wire_field in self._field_map.items():
             if wire_field in data:
                 data[domain_field] = data.pop(wire_field)
+        for py_name, wire_name in self._CORE_WIRE_NAMES:
+            if py_name in data:
+                data[wire_name] = data.pop(py_name)
         return data
 
 

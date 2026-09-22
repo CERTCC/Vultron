@@ -77,9 +77,9 @@ class VulnerabilityCase(CoreObject):
     # Admits the object, not only a reference, for the same reason
     # `case_participants` does: a recipient cannot dereference a URI it does not
     # hold, and no dereferencing mechanism is specified (AKM-03-001). While this
-    # was `str | None` the object could not survive `_normalize_to_core`, so
-    # every store round-trip — including the one `outbox_delivery` performs when
-    # it re-serialises a queued activity — reduced a carried embargo back to a
+    # was `str | None` the object could not survive a store round-trip — so
+    # every round-trip, including the one `outbox_delivery` performs when
+    # it re-serialises a queued activity, reduced a carried embargo back to a
     # bare id and the recipient was handed a reference it could never resolve.
     # Readers wanting the id should use `_as_id`/`active_embargo_id`.
     active_embargo: str | EmbargoEvent | None = None

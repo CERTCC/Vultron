@@ -83,6 +83,20 @@ repos:
         files: ^(vultron/demo/scenario/.*\.py|vultron/metadata/demo_scenarios/.*\.py|\.github/demo-scenarios\.json|test/ci/README-case-log-ratchet\.md|vultron/demo/scenario/README\.md)$
         pass_filenames: false
 
+      - id: wire-context-sync
+        name: JSON-LD @context in sync with wire vocabulary
+        # Console script, not `python -m ...`: the package re-exports from
+        # `sync`, so `-m` would run the module twice and print a RuntimeWarning.
+        entry: uv run wire-context --check
+        language: system
+        # Two kinds of input make the artifact stale (VM-10-001/002): the wire
+        # vocabulary classes (a new/renamed Vultron-namespace type, or a
+        # changed _vocab_ns) and the committed file itself (a hand-edit).
+        # test_committed_context_is_not_stale is the backstop for a deletion,
+        # which pre-commit's staged-file list cannot match.
+        files: ^(vultron/wire/as2/vocab/.*\.py|vultron/metadata/wire_context/.*\.py|docs/ns/context\.jsonld)$
+        pass_filenames: false
+
       - id: flake8
         name: flake8 (with CC gate)
         # Routed through run-if-changed.sh so this whole-tree lint is skipped

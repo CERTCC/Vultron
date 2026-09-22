@@ -136,7 +136,7 @@ class as_CaseLedgerEntry(as_VultronObject):
 
     def to_core(self) -> CoreCaseLedgerEntry:
         data = self._to_core_data()
-        data.pop("context_", None)  # context_ is a wire/JSON-LD concern
+        data.pop("@context", None)  # @context is a wire/JSON-LD concern
         return CoreCaseLedgerEntry.model_validate(data)
 
 

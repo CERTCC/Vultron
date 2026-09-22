@@ -36,7 +36,7 @@ from pydantic import BaseModel, ValidationError
 from vultron.adapters.driven.db_record import (
     Record,
     _AS_LIST_REF_FIELDS,
-    _AS_OBJECT_REF_FIELDS,
+    object_ref_fields,
     record_to_object,
 )
 from vultron.core.models import find_in_core_vocabulary
@@ -62,7 +62,7 @@ logger = logging.getLogger(__name__)
 def field_admits_object(obj: Any, field_name: str) -> bool:
     """True when *field_name* on *obj* can legitimately hold a nested object.
 
-    ``_AS_OBJECT_REF_FIELDS`` names fields that are *usually* references, but the
+    :func:`object_ref_fields` names fields that are *usually* references, but the
     same name can be declared as a plain URI on a particular model (for instance
     ``as_CaseProposal.target``, required by CP-01-005 to be the case-actor's URI).
     Expanding such a field yields a model that violates its own annotation —
@@ -140,39 +140,21 @@ def from_row(
     else:
         try:
             obj = cast(PersistableModel, core_cls.model_validate(row.data))
-        except ValidationError as exc:
-            # Stored data came from a wire object whose schema differs from
-            # the core class (e.g. as_EmbargoEvent lacks context).  Return
-            # the wire object un-projected: that is the long-standing
-            # behaviour the KNOWN_WIRE_ESCAPES ratchet in
-            # test/architecture/test_dl_read_returns_core_objects.py
-            # measures, and projecting here would dehydrate inline nested
-            # objects that callers of these rows still expect inline.
+        except (ValidationError, VultronValidationError) as exc:
+            # The row's stored shape does not validate against the core class.
+            # Under extra="forbid" (ARCH-12-003, #2940) a wire-shaped copy of a
+            # core type (flat ``rm_state``, camelCase keys) now raises here
+            # rather than the retired per-class shape guard, so this is the sole
+            # shape-mismatch signal and it must attempt the wire→core
+            # projection: handing back a wire object makes every core-typed
+            # caller fail (``resolve_case`` raises "Expected VulnerabilityCase,
+            # got as_VulnerabilityCase").  ``project_wire_row_to_core`` falls
+            # back to the un-projected wire object when the type has no working
+            # ``to_core()`` — the residual KNOWN_WIRE_ESCAPES actor types
+            # (DL-05-002, DL-05-004).
             logger.debug(
                 "from_row: core_cls.model_validate failed for type %r"
-                " (row %r): %s; using wire fallback",
-                row.type_,
-                row.id_,
-                exc,
-            )
-            wire_obj = wire_object_from_row(row)
-            if wire_obj is None:
-                return None
-            obj = wire_obj
-        except VultronValidationError as exc:
-            # A core type's own shape guard rejected the row — e.g.
-            # CaseParticipant's wire-spelled-key guard (#2232).  It is not a
-            # ValueError subclass, so without naming it here it would escape
-            # this ladder entirely instead of falling back like every other
-            # shape mismatch (DL-05-002).
-            #
-            # Unlike the ValidationError case above, the row *is* a
-            # wire-spelled copy of a core type, so project it: handing back
-            # a wire object makes every core-typed caller fail (resolve_case
-            # raises "Expected VulnerabilityCase, got as_VulnerabilityCase").
-            logger.debug(
-                "from_row: VultronValidationError for type %r (row %r):"
-                " %s; projecting wire row to core",
+                " (row %r): %s; attempting wire→core projection",
                 row.type_,
                 row.id_,
                 exc,
@@ -212,12 +194,13 @@ def project_wire_row_to_core(
     reaching ``resolve_case`` raises "Expected VulnerabilityCase, got
     as_VulnerabilityCase" rather than reading the case (issue #2232).
 
-    ``to_core()`` is the same projection the write path applies in
-    ``_normalize_to_core`` — the persistence-boundary half of ADR-0062,
-    applied on the way out as well as on the way in.  Wire types are looser
-    than core types, so a row that fails core validation directly can still
-    project cleanly: ``to_core()`` maps flat wire spellings onto the nested
-    core shape instead of dropping them.
+    ``to_core()`` is the read-side wire→core projection: since #2940 removed
+    the write-side normalisation gate (``extra="forbid"`` now rejects a
+    wire-shaped payload handed to a core type rather than silently storing it),
+    a row nonetheless persisted in a wire shape is projected here on the way
+    out.  Wire types are looser than core types, so a row that fails core
+    validation directly can still project cleanly: ``to_core()`` maps flat wire
+    spellings onto the nested core shape instead of dropping them.
 
     When the projection also fails, *wire_obj* is returned unchanged — that
     is the pre-#2232 behaviour for these rows, and degrading it to ``None``
@@ -273,7 +256,7 @@ def rehydrate_fields(
 ) -> PersistableModel:
     """Expand dehydrated object-reference fields back to typed objects.
 
-    Fields listed in ``_AS_OBJECT_REF_FIELDS`` (``object_``, ``target``,
+    The object's :func:`object_ref_fields` (``object_``, ``target``,
     ``origin``, ``result``, ``instrument``) are dehydrated to ID strings
     by the storage layer.  This function resolves each string ID via
     ``dl.read()`` and replaces it with the full domain object.  If a
@@ -288,8 +271,8 @@ def rehydrate_fields(
     that relies on the resolved type (e.g. Organisation ≠ CaseParticipant
     for ``OfferCaseManagerRolePattern`` vs ``OfferCaseOwnershipTransfer``).
 
-    Expansion respects the field's **declared type**.  ``_AS_OBJECT_REF_FIELDS``
-    is a flat list applied to every object, but some models declare one of
+    Expansion respects the field's **declared type**.  :func:`object_ref_fields`
+    keys on field *names*, but some models declare one of
     those names as a plain URI rather than a reference — ``as_CaseProposal
     .target`` is required by CP-01-005 to be the case-actor's URI, not an
     inline actor.  Expanding it produced a model whose ``target`` was a dict,
@@ -300,7 +283,7 @@ def rehydrate_fields(
     point of damage.
     """
     updates: dict[str, object] = {}
-    for field_name in _AS_OBJECT_REF_FIELDS:
+    for field_name in object_ref_fields(type(obj)):
         value = getattr(obj, field_name, None)
         if value is None:
             continue

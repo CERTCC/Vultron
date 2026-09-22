@@ -37,6 +37,7 @@ modes raise.  Related: #2264 (RM.START substitution sites).
 """
 
 import pytest
+from pydantic import ValidationError
 
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.dimensions import (
@@ -94,9 +95,9 @@ class TestCaseParticipantRejectsWireSpelledKeys:
         data = _core_participant_with_ladder().model_dump(mode="json")
         data["participantStatuses"] = data.pop("participant_statuses")
 
-        with pytest.raises(
-            VultronValidationError, match="participantStatuses"
-        ):
+        # extra="forbid" (#2940) rejects the unknown camelCase key with a
+        # pydantic ValidationError, superseding the retired per-class guard.
+        with pytest.raises(ValidationError, match="participantStatuses"):
             CaseParticipant.model_validate(data)
 
     def test_camel_case_case_roles_raises(self):
@@ -104,7 +105,7 @@ class TestCaseParticipantRejectsWireSpelledKeys:
         data = _core_participant_with_ladder().model_dump(mode="json")
         data["caseRoles"] = data.pop("case_roles")
 
-        with pytest.raises(VultronValidationError, match="caseRoles"):
+        with pytest.raises(ValidationError, match="caseRoles"):
             CaseParticipant.model_validate(data)
 
     def test_snake_case_round_trip_is_unaffected(self):

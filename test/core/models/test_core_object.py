@@ -255,3 +255,68 @@ def test_vultron_case_alias_is_vulnerability_case():
     from vultron.core.models.case import VulnerabilityCase
 
     assert VultronCase is VulnerabilityCase
+
+
+# ---------------------------------------------------------------------------
+# #2940 cleanup #1 — strip computed-field inputs before re-validation
+# ---------------------------------------------------------------------------
+
+
+def test_core_object_strips_computed_field_input():
+    """Cleanup #1: a ``@computed_field`` value in the payload is dropped.
+
+    ``ParticipantStatus.embargo_adherence`` is computed (ADR-0056) and appears
+    in ``model_dump()`` output but is not settable.  Under ``extra="forbid"``
+    it would be rejected on re-validation unless stripped first; the value is
+    re-derived from ``consent``, never taken from the injected key.
+    """
+    from vultron.core.models.dimensions import PecDimension
+    from vultron.core.models.participant_status import ParticipantStatus
+    from vultron.core.states.participant_embargo_consent import PEC
+
+    # embargo_adherence is read-only and would trip extra="forbid"; the lie
+    # (True) must be ignored and the real value derived from consent (UNBOUND
+    # → not signatory → False).
+    status = ParticipantStatus.model_validate(
+        {
+            "context": "urn:uuid:case-computed-strip",
+            "consent": PecDimension(state=PEC.UNBOUND).model_dump(mode="json"),
+            "embargo_adherence": True,
+        }
+    )
+    assert status.embargo_adherence is False
+
+    # And a full dump round-trips (the computed key in the dump is stripped).
+    assert ParticipantStatus.model_validate(
+        status.model_dump(mode="json")
+    ) == (status)
+
+
+# ---------------------------------------------------------------------------
+# #2940 cleanup #3 — drop an alias key's field-name twin
+# ---------------------------------------------------------------------------
+
+
+def test_core_object_drops_alias_shadowed_field_name_twin():
+    """Cleanup #3: an alias key beside its field-name twin does not trip forbid.
+
+    ``CaseLedgerEntry._set_id_from_case`` injects the ``id`` alias into a
+    payload that already carries the ``id_`` field-name key (from a dump).
+    Without the de-dup validator the leftover ``id_`` is an unknown key under
+    ``extra="forbid"``; the alias (carrying the derived value) must win.
+    """
+    entry = CoreCaseLedgerEntry(
+        case_id="urn:uuid:case-dedup",
+        log_object_id="urn:uuid:logobj-dedup",
+        event_type="RS",
+    )
+    dumped = entry.model_dump(mode="json")
+    assert "id_" in dumped  # the dump uses the Python field name
+    # Re-validating triggers _set_id_from_case (injects "id") beside "id_".
+    restored = CoreCaseLedgerEntry.model_validate(dumped)
+    assert restored == entry
+
+    # Direct both-keys payload: the field-name twin is dropped, alias wins.
+    both = dict(dumped)
+    both["id"] = dumped["id_"]
+    assert CoreCaseLedgerEntry.model_validate(both) == entry
