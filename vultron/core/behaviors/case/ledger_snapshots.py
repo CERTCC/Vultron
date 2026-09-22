@@ -45,6 +45,10 @@ from vultron.core.models._helpers import now_utc
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.case_status import CaseStatus
+from vultron.core.models.offer_record import (
+    SNAPSHOT_OFFER_ACTOR_ID_KEY,
+    SNAPSHOT_OFFER_ID_KEY,
+)
 from vultron.core.models.participant_status import ParticipantStatus
 from vultron.core.models.report import VulnerabilityReport
 
@@ -98,9 +102,9 @@ def build_add_report_to_case_snapshot(
         "context": case_id,
     }
     if offer_id:
-        snapshot["offerId"] = offer_id
+        snapshot[SNAPSHOT_OFFER_ID_KEY] = offer_id
     if offer_actor_id:
-        snapshot["offerActorId"] = offer_actor_id
+        snapshot[SNAPSHOT_OFFER_ACTOR_ID_KEY] = offer_actor_id
     return snapshot
 
 

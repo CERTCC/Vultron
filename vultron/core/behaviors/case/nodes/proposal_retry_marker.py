@@ -267,6 +267,14 @@ class WriteCreateCaseMarkerNode(DataLayerActionWithPorts):
             in_reply_to=accept_activity_id,
             to=[self._vendor_uri] + reporter_uris,
         )
+        # ARCH-20-001, honestly: ``create_activity`` is a *core-branch* object, so
+        # this is the one remaining call site whose subject is not already
+        # wire-shaped.  It stands because the marker's payload is not a core
+        # representation at all — it is the AS2 document the retry runner will
+        # re-send over HTTP (#1139), and AS2 is the HTTP transmission format
+        # (ADR-0099 detail 1).  It should move behind ``WireRenderPort`` with the
+        # rest of the rendering collapse; the port is not injected into this node
+        # today.
         payload = create_activity.model_dump(by_alias=True)
 
         marker = PendingCreateCaseActivity(

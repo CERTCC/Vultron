@@ -426,7 +426,11 @@ class TestPayloadObjectOverrideContract:
     """AC-2, AC-3, AC-4: producer/consumer contract for ledger_payload_object_override."""
 
     def test_hard_fail_on_unrecognized_alias(self, bridge):
-        """AC-2/AC-4a: FAILURE when fields contains a key not in _SNAKE_TWINS (RSH-05-013)."""
+        """AC-2/AC-4a: FAILURE when fields names a key outside the patchable set.
+
+        The patchable set is
+        :data:`vultron.core.behaviors.ledger_patch.PATCH_KEY_TWINS` (RSH-05-013).
+        """
         status = _run_with_override(
             bridge,
             fields={"rmState": "VALID", "unknownAlias": "oops"},

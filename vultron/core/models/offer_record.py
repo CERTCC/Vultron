@@ -38,6 +38,7 @@ from typing import Any, Literal
 from pydantic import Field, model_validator
 
 from vultron.core.models.base import UriString, VultronObject
+from vultron.core.models.wire_keys import wire_key
 
 
 class VultronOfferRecord(VultronObject):
@@ -81,3 +82,17 @@ class VultronOfferRecord(VultronObject):
                 data = dict(data)
                 data["id"] = cls.build_id(offer_id)
         return data
+
+
+#: The AS2 keys under which a canonical ``add_report_to_case`` payload snapshot
+#: carries the two Offer provenance facts an invited actor needs to rebuild a
+#: :class:`VultronOfferRecord` from a SYNC backfill (ISSUE-2134, SYNC-02-002).
+#:
+#: A payload snapshot is a *wire object*: CLP-07-001 makes it the AS2
+#: serialization of the inbound activity, so its keys are AS2-spelled by
+#: definition.  These two are snapshot-only extension properties with no core
+#: model of their own to carry a field alias, so they are derived here from this
+#: record's field names — core code names the core field and never types the
+#: camelCase (ADR-0099 detail 2).
+SNAPSHOT_OFFER_ID_KEY = wire_key("offer_id", VultronOfferRecord)
+SNAPSHOT_OFFER_ACTOR_ID_KEY = wire_key("offer_actor_id", VultronOfferRecord)

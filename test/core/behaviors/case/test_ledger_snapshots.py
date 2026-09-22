@@ -257,20 +257,17 @@ class TestSnapshotObjectWireReconstitutable:
         wire_cls.model_validate(obj)
 
 
-# Allow-listed camelCase dict-literal keys in vultron/core/ that are
-# documented as intentional (not snapshot construction):
-#   _SNAKE_TWINS in lifecycle.py — wire→snake reverse-lookup table
-#   case_states/patterns/ — state pattern strings, not wire keys
+# Allow-listed camelCase-looking dict-literal keys in vultron/core/.  The seven
+# wire aliases this list used to carry belonged to ``_SNAKE_TWINS`` in
+# lifecycle.py and are gone: the patch keys are now derived from the fields' own
+# aliases (#3485, ADR-0099 detail 2).  What remains is the case-state pattern
+# strings, which contain capitals but are not wire keys.
+#
+# The general form of this narrow scan now lives in
+# ``test/architecture/test_core_no_as2_spellings.py``, which covers every string
+# literal rather than only dict keys, and tells an alias declaration from a use.
 _AC8_ALLOW_LISTED: frozenset[str] = frozenset(
     {
-        "rmState",
-        "vfState",
-        "dState",
-        "vfdState",
-        "emState",
-        "pxaState",
-        "emConsentState",
-        "caseStatus",
         # case_states pattern strings (contain uppercase but are not wire keys)
         "v..P..",
         "v..pX.",
