@@ -334,6 +334,29 @@ rather than `as_Activity` skipped `choose_preferred_embargo`, an `as_Question`. 
 gate that silently resolves fewer targets than it claims is the false-clean signal
 DF-09-009 exists to forbid, so the collected count is itself asserted.
 
+**Its reach stops at the example corpus, and that hid a live defect.** The
+collector scans the `vocab_examples` module plus `submit_report_tutorial` — so a
+factory that is never exported as an example is invisible to it, no matter what
+its signature looks like. That is how `bootstrap_replay_question_activity` stayed
+undispatchable without the gate noticing, while the poll beside it was caught: the
+poll had an example, and unlike the poll the replay request is actually emitted
+(#3471). The near-miss diagnosis to avoid: the collector also skips anything with
+*required* arguments, and this factory takes three, so "widen the gate past
+zero-required-argument examples" looks like the fix. It is not — that factory
+lives in `vultron/wire/as2/factories/case.py` and the collector never walks it, so
+relaxing the argument rule would not reach it. Adding an example would. The
+standing cost is that "every example is dispatchable" is not "every activity we
+emit is dispatchable"; do not read a green run as the latter.
+
+Of the three defects this gate first found, two are now closed by repair
+(#3438, #3439) and the third is closed by **retirement**: ADR-0100 removes the
+multi-candidate embargo poll (#3469), so its entry goes away with the example
+itself rather than being fixed into a passing case. That leaves
+`_KNOWN_UNDISPATCHABLE` **empty** once #3469 lands — the first time this gate has
+had no exemptions. An empty exemption map is the goal state, not a signal the map
+is unused: keep it and its two guard tests, because the next undispatchable
+example is what they exist to catch.
+
 The generator's output path is now resolved from the file's own location
 (`Path(__file__).parents[5]`), so it works regardless of the caller's working
 directory. A drift check in `test/architecture/test_vocab_examples_current.py`

@@ -36,9 +36,6 @@ flowchart TB
     subgraph as:Invite
         EmProposeEmbargo["Embargo Proposal (EP) / Embargo Revision Proposal (EV)<br/>Invite(Event)"]
     end
-    subgraph as:Question
-        ChoosePreferredEmbargo
-    end
     subgraph as:Accept
         EmAcceptEmbargo["Embargo Proposal Acceptance (EA) / Embargo Revision Acceptance (EC)<br/>Accept(Invite(Event))"]
     end
@@ -58,8 +55,6 @@ flowchart TB
     EmProposeEmbargo --> a{Accept?}
     a -->|y| EmAcceptEmbargo
     a -->|n| EmRejectEmbargo
-    EmProposeEmbargo --> ChoosePreferredEmbargo
-    ChoosePreferredEmbargo --> a
     EmAcceptEmbargo --> ActivateEmbargo
     AddEmbargoToCase --> AnnounceEmbargo
     ActivateEmbargo --> AnnounceEmbargo
@@ -82,11 +77,16 @@ The same activity carries a revision, Embargo Revision Proposal (EV); a receiver
 If the proposal is rejected, the case returns to `EM.NONE` and the negotiation is open again.
 Propose revised terms with another `Invite(Event)`.
 
-!!! warning "Polling across candidate embargoes does not round-trip yet"
+!!! warning "Polling across candidate embargoes is being retired"
 
-    The vocabulary carries a `Question(anyOf=[Event])` activity for polling participants across several candidate embargoes.
-    No registered pattern claims that form and no `MessageSemantics` value maps to it, so a receiving Vultron actor does not dispatch it (#3433).
-    Propose one set of terms at a time until that gap is closed.
+    The vocabulary still carries a `Question(anyOf=[Event])` activity for polling participants across several candidate embargoes.
+    Do not use it.
+    No registered pattern claims that form and no `MessageSemantics` value maps to it, so no recipient can act on it, and it is being removed rather than completed ([ADR-0100](../../../adr/0100-no-multi-candidate-embargo-poll.md)).
+
+    Propose one set of terms at a time.
+    That is not a workaround — it is how the protocol resolves competing terms.
+    You may put several sets of terms on the table by sending a separate `Invite(Event)` for each, and each is then accepted or rejected on its own; Participants take the proposal with the earliest end date first.
+    See [Default Embargoes](../../../topics/process_models/em/defaults.md).
 
 ---
 
