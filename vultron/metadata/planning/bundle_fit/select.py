@@ -122,6 +122,41 @@ def coherence_hints(members: list[Candidate]) -> list[str]:
     return hints
 
 
+def _disqualifier(candidate: Candidate, tier: str | None) -> str | None:
+    """Why ``candidate`` belongs in no bundle at all, or ``None`` if it may.
+
+    Every reason here is disqualifying regardless of which workflow the bundle
+    settles on, which is why they are decided before priority ordering rather
+    than inside the budget loop.
+    """
+    if candidate.workflow is None:
+        return (
+            f"unroutable issue type {candidate.issue_type or '(none)'} — "
+            "no skill executes it"
+        )
+    if tier is not None and tier not in KNOWN_TIERS:
+        # Ranking an unrecognised tier would make it indistinguishable from an
+        # unset one, which is how a renamed board option turns into a silent
+        # ordering change.
+        return (
+            f"unrecognised Schedule tier {tier!r} — Project "
+            f"#{PLANNING_PROJECT_NUMBER}'s options may have changed; "
+            "refresh board-ids.json and update SCHEDULE_ORDER"
+        )
+    if tier in EXCLUDED_TIERS:
+        return f"below tier (Schedule={tier})"
+    if candidate.unbundlable:
+        # Refused outright rather than weighted. A weight says "fits alongside
+        # something smaller", and this band exists precisely because a PR that
+        # size already exhausts the review budget on its own — findings per
+        # 1000 diff lines fall by half above it.
+        return (
+            f"{candidate.size_label} is at the review ceiling on its own — "
+            "work it alone, or decompose it first"
+        )
+    return None
+
+
 def select_bundle(
     candidates: list[Candidate],
     *,
@@ -145,32 +180,9 @@ def select_bundle(
     routable: list[tuple[Candidate, str | None]] = []
     for c in eligible:
         tier = effective_schedule(c, epic_schedule)
-        if c.workflow is None:
-            bundle.rejected.append(
-                Rejection(
-                    c.number,
-                    "fit",
-                    f"unroutable issue type {c.issue_type or '(none)'} — "
-                    "no skill executes it",
-                )
-            )
-        elif tier is not None and tier not in KNOWN_TIERS:
-            # Ranking an unrecognised tier would make it indistinguishable from
-            # an unset one, which is how a renamed board option turns into a
-            # silent ordering change.
-            bundle.rejected.append(
-                Rejection(
-                    c.number,
-                    "fit",
-                    f"unrecognised Schedule tier {tier!r} — Project "
-                    f"#{PLANNING_PROJECT_NUMBER}'s options may have changed; "
-                    "refresh board-ids.json and update SCHEDULE_ORDER",
-                )
-            )
-        elif tier in EXCLUDED_TIERS:
-            bundle.rejected.append(
-                Rejection(c.number, "fit", f"below tier (Schedule={tier})")
-            )
+        reason = _disqualifier(c, tier)
+        if reason is not None:
+            bundle.rejected.append(Rejection(c.number, "fit", reason))
         else:
             routable.append((c, tier))
 
