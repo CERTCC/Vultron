@@ -267,10 +267,60 @@ reader the moment it is closed.
   (`VultronObject`) existed only to keep timestamps optional so the wire half
   could stay lenient (ARCH-12-002); `CoreObject` then re-tightened them. With no
   wire half sharing the root, the middle level has no job.
-- **Fix the 73 places under `vultron/core/` that type an AS2 spelling**,
-  including the hand-written table at
-  `vultron/core/behaviors/case/nodes/lifecycle.py:98` mapping `"rmState"` to
-  `"rm_state"`, and review the 21 `by_alias=True` call sites there.
+- ~~**Fix the 73 places under `vultron/core/` that type an AS2 spelling.**~~
+  **Done (#3485.)** The real figure is **39** core-*logic* sites across 11 files;
+  the rest of the 73 grep hits were alias declarations and prose, which are
+  correct and stayed. The fix is a derivation rather than a table:
+  `vultron/core/models/wire_keys.py` reads the wire spelling off the field's
+  declared alias, so core names the core field and the camelCase is never typed
+  and cannot drift.
+
+  `_SNAKE_TWINS` was reduced, not deleted — deleting it would have broken the
+  adjudication-patch path (RSH-05-009, CM-18-006). It was two contracts fused
+  together, now separated in `vultron/core/behaviors/ledger_patch.py`: the
+  RSH-05-013 allow-list of patchable keys, and the stale-twin map that stops a
+  consumer reading a value the receiver refused.
+
+  Two behaviour deltas, both in the strict direction and both deliberate.
+  `emConsentState` is dropped from the patch allow-list, so an override naming it
+  is now refused — no producer emits it and nothing adjudicates consent
+  (ADR-0046). And an explicit `{"rmState": None}` now raises instead of falling
+  back to the dimension default, which is detail 7's fail-loudly rule; nothing in
+  the suite relied on the fallback.
+
+  One convergence worth noting: `CaseStatus.em`/`pxa` now declare
+  `serialization_alias="emState"`/`"pxaState"`, so core and `as_CaseStatus` emit
+  **identical key sets**. One path changes — `behaviors/status/nodes/case_status.py`
+  hand-builds a snapshot by dumping a core `CaseStatus` directly rather than
+  through `WireRenderPort`, and that snapshot was carrying the core spelling. It
+  was the odd one out among ledger snapshots; it now matches. Every
+  port-rendered snapshot is unchanged.
+- ~~**Name the owner of ID-to-object materialisation**~~ **Done (#3486.)**
+  `rehydrate()` owns it (VM-06-007); detail 9 and the caveat under *Measured
+  evidence* both name it. `WireParsePort` (#2938) was rejected on three grounds:
+  it does not exist, its own AC-2 requires resolving a counterpart *through the
+  pairing registry* — which this ADR cancels — and its single-method shape has no
+  store access, so it could only have fabricated placeholders, which is the
+  defect rather than the fix.
+
+  The synthesized actor is **declared unnecessary, and was actively wrong.**
+  `as_Activity.actor` is required with no default, so a stub built from a bare ID
+  had to supply something, and `from_core` had no data layer to ask — so it
+  invented `attributed_to or id_`. But `record_activity` records activity by *any*
+  participant, so that misattributes every activity the case owner did not
+  perform, and the fallback attributes an activity to a *case*, which is not an
+  actor at all. `actor` is what semantic dispatch and the AKM-03-001 outbox gate
+  both key on. Corroborating: `as_VulnerabilityCase.model_validate({"case_activity":
+  ["urn:uuid:a1"]})` raises today, which shows the stub was the only way a case
+  with recorded activity could become a wire object — a type-mismatch workaround,
+  not a behaviour. The argument is recorded in the `materialise_object_slots`
+  docstring, in VM-06-007, and in a test asserting the resolved actor is neither
+  the case owner nor the case URI.
+
+  `as_Collection` endpoint slots (`inbox`, `outbox`, `followers`, …) are excluded:
+  an actor's inbox is an address, ActivityPub publishes it as a URI, it usually
+  belongs to a remote actor, and `as_Actor` already declares a `mode="before"`
+  coercion for it.
 - ~~**Rename the four misnamed wire classes** to `as_*`.~~ **Done (#3484.)**
   `as_VultronObject`, `as_VultronActivity`, `as_VulnerabilityCaseStub`,
   `as_VultronActorMixin`. The 47 `_XxxActivity` classes are private and
