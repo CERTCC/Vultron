@@ -48,7 +48,7 @@ groups:
       entity already projected into its complete wire counterpart and MUST derive the enrichment from that wire object's own
       fields. The core→wire projection MUST be delegated to the adapter-side translator (ARCH-12-005) and performed before
       the factory is called; factories MUST NOT import a core domain type or perform the projection themselves. Callers MUST
-      NOT hand a factory a hand-built *partial* wire object (e.g. a `as_VulnerabilityCaseStub` assembled field-by-field) — an
+      NOT hand a factory a hand-built *partial* wire object (e.g. an `as_VulnerabilityCaseStub` assembled field-by-field) — an
       incompletely projected argument risks omitting fields the translator would have included (e.g. `end_time` on an embargo
       event).
     rationale: 'ADR-0082 gives the adapter-side translator sole ownership of core→wire projection. A factory that projects

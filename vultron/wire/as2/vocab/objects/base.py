@@ -169,4 +169,4 @@ class as_VultronObject(as_Object):
         return data
 
 
-VultronObjectRef: TypeAlias = ActivityStreamRef[as_VultronObject]
+as_VultronObjectRef: TypeAlias = ActivityStreamRef[as_VultronObject]

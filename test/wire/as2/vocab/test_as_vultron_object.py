@@ -43,7 +43,7 @@ class _MappedWireObj(as_VultronObject):
     _field_map = {"domain_label": "name"}
 
 
-class TestVultronAS2ObjectFieldMap:
+class TestAsVultronObjectFieldMap:
     def test_default_field_map_is_empty(self):
         assert as_VultronObject._field_map == {}
 
@@ -51,7 +51,7 @@ class TestVultronAS2ObjectFieldMap:
         assert _MappedWireObj._field_map == {"domain_label": "name"}
 
 
-class TestVultronAS2ObjectFromCore:
+class TestAsVultronObjectFromCore:
     def test_from_core_returns_wire_instance(self):
         core = _SimpleCoreObj()
         wire = as_VultronObject.from_core(core)
@@ -96,7 +96,7 @@ class TestVultronAS2ObjectFromCore:
         assert core.domain_label == "original"
 
 
-class TestVultronAS2ObjectToCore:
+class TestAsVultronObjectToCore:
     def test_to_core_raises_not_implemented(self):
         wire = as_VultronObject()
         with pytest.raises(NotImplementedError):
@@ -113,7 +113,7 @@ class TestVultronAS2ObjectToCore:
             wire.to_core()
 
 
-class TestVultronAS2ObjectNoShim:
+class TestAsVultronObjectNoShim:
     """Ensure the backward-compatibility alias was removed (WIRE-TRANS-01)."""
 
     def test_VultronObject_not_exported_from_wire_base(self):

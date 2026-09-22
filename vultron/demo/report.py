@@ -163,8 +163,12 @@ def _dimension_state(
 ) -> str | None:
     """Extract a single state-machine dimension value from candidate dicts.
 
-    Handles both the ADR-0036 dimension-object shape (``{"rm": {"state":
-    "..."}}``) and the legacy flat wire shape (``{"rmState": "..."}``).
+    Handles all three live shapes: the bare state value a dimension serializes
+    to since ADR-0099 detail 5 / SDO-01-004 (``{"rm": "..."}``), the ADR-0036
+    one-key mapping (``{"rm": {"state": "..."}}``), and the legacy flat wire
+    spelling (``{"rmState": "..."}``).  Missing one of them makes every affected
+    row report ``None``, which is the #2232 / #2262 failure shape — see
+    ``notes/case-ledger-parsing.md``.
     """
     for candidate in candidates:
         dim = candidate.get(dimension_key)
@@ -172,6 +176,8 @@ def _dimension_state(
             state = dim.get("state")
             if state:
                 return str(state)
+        elif isinstance(dim, str) and dim:
+            return str(dim)
         for flat in flat_names:
             value = candidate.get(flat)
             if value:

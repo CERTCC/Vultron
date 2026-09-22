@@ -62,10 +62,26 @@ def wire_key(field_name: str, model: type[BaseModel] | None = None) -> str:
     Returns:
         The AS2 key, e.g. ``"caseParticipants"`` for ``"case_participants"``
         and ``"rmState"`` for ``ParticipantStatus.rm``.
+
+    Raises:
+        KeyError: If *model* is given and does not declare *field_name*.  Falling
+            back to ``to_camel`` there would invent a plausible-looking key for a
+            field that does not exist, which is worse than failing: the callers
+            build patch-key and twin tables from string field names
+            (:mod:`vultron.core.behaviors.ledger_patch`) and filter a rendered
+            snapshot with ``if key in rendered``, so a wrong key silently drops
+            the dimension it was supposed to carry.  A core field rename must
+            break loudly here rather than quietly downstream.
     """
     if model is not None:
         field = model.model_fields.get(field_name)
-        alias = None if field is None else field.serialization_alias
+        if field is None:
+            raise KeyError(
+                f"{model.__name__} declares no field '{field_name}', so its AS2"
+                " spelling cannot be derived. Pass model=None to camel-case a"
+                " bare name."
+            )
+        alias = field.serialization_alias
         if isinstance(alias, str) and alias:
             return alias
     return to_camel(field_name)
@@ -85,10 +101,24 @@ def input_keys(model: type[BaseModel], field_name: str) -> tuple[str, ...]:
     Python field name last.  For a ``mode="before"`` validator that has to look
     at raw input keys, this is how it asks the field which keys are its own
     instead of listing them again (ADR-0099 detail 2).
+
+    Note the ordering is significant to callers that take the *first* key
+    present: the AS2 spelling wins over the Python field name.  That is
+    deliberate — these keys are read off wire-shaped input, where the AS2
+    spelling is the authoritative one.
+
+    Raises:
+        KeyError: If *model* does not declare *field_name*.  See :func:`wire_key`
+            for why a silent fallback is the wrong behaviour here.
     """
     keys: list[str] = []
     field = model.model_fields.get(field_name)
-    declared = None if field is None else field.validation_alias
+    if field is None:
+        raise KeyError(
+            f"{model.__name__} declares no field '{field_name}', so its input"
+            " spellings cannot be derived."
+        )
+    declared = field.validation_alias
     if isinstance(declared, str):
         keys.append(declared)
     elif isinstance(declared, AliasChoices):

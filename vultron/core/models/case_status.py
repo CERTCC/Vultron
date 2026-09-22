@@ -17,7 +17,7 @@
 
 from typing import Literal
 
-from pydantic import AliasChoices, ConfigDict, Field
+from pydantic import AliasChoices, ConfigDict, Field, model_validator
 from pydantic.alias_generators import to_camel
 
 from vultron.core.models.base import CoreObject, NonEmptyString
@@ -78,3 +78,29 @@ class CaseStatus(CoreObject):
     # now cover its whole job with nothing hand-written: the ``AliasChoices``
     # above accept all three spellings, and ``_ScalarDimension``'s
     # ``_accept_bare_state`` accepts the bare state value the flat form carries.
+
+    @model_validator(mode="after")
+    def _set_name(self) -> "CaseStatus":
+        """Derive the display ``name`` label from the dimension states.
+
+        Mirrors ``as_CaseStatus.set_name`` exactly, and must keep mirroring it.
+        ``ParticipantStatus._set_name`` appends ``case_status.name`` to its own
+        label, so a core ``CaseStatus`` that left ``name`` unset silently
+        shortened the enclosing participant status's label — making core and
+        ``as_ParticipantStatus`` disagree on an AS2 property for the one input
+        shape that sets ``case_status``, which is exactly the parity ADR-0099
+        detail 5 claims.  ``name`` reaches the wire through
+        ``CaseLedgerEntry.payloadSnapshot``, so the disagreement is
+        protocol-visible.
+
+        Only set when the caller supplied none, so an explicit ``name`` wins.
+        ``object.__setattr__`` avoids re-entering validation, since
+        ``validate_assignment`` is in effect on the core branch (ARCH-21-001).
+        """
+        if self.name is None:
+            object.__setattr__(
+                self,
+                "name",
+                " ".join([self.em.state.name, self.pxa.state.name]),
+            )
+        return self

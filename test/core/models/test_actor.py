@@ -4,7 +4,6 @@ from typing import Literal
 
 from vultron.core.models.actor import (
     CoreActor,
-    VultronActorMixin,
     VultronApplication,
     VultronGroup,
     VultronOrganization,
@@ -20,8 +19,21 @@ def test_core_actor_inherits_core_object():
     assert issubclass(CoreActor, CoreObject)
 
 
-def test_vultron_actor_mixin_aliases_core_actor():
-    assert VultronActorMixin is CoreActor
+def test_retired_vultron_actor_mixin_alias_is_gone():
+    """``VultronActorMixin = CoreActor`` is removed (#3484 AC-2).
+
+    It was a backward-compatibility alias with no production consumer, and it
+    collided by name with the wire class now called ``as_VultronActorMixin``.
+    Because it was introduced by *assignment* rather than a ``class`` statement,
+    ``test_wire_vocab_naming.py`` could not see the collision at all — which is
+    the hole ``test_no_wire_class_name_is_also_a_core_name`` now closes. Keeping
+    the alias would keep that collision alive under a name nothing reads.
+    """
+    import vultron.core.models.actor as actor_module
+    import vultron.core.models as models_package
+
+    assert not hasattr(actor_module, "VultronActorMixin")
+    assert not hasattr(models_package, "VultronActorMixin")
 
 
 def test_core_actor_has_embargo_policy_field():

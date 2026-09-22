@@ -27,6 +27,7 @@ demonstrated.
 """
 
 import pytest
+from pydantic import ValidationError
 
 from vultron.core.models.case_status import CaseStatus
 from vultron.core.models.dimensions import (
@@ -43,7 +44,10 @@ from vultron.core.states.em import EM
 from vultron.core.states.participant_embargo_consent import PEC
 from vultron.core.states.rm import RM
 from vultron.enums.roles import CVDRole
-from vultron.wire.as2.vocab.objects.case_status import as_ParticipantStatus
+from vultron.wire.as2.vocab.objects.case_status import (
+    as_CaseStatus,
+    as_ParticipantStatus,
+)
 
 #: Fields whose value is a timestamp taken at construction time, so two objects
 #: built in separate statements legitimately differ.
@@ -169,6 +173,29 @@ _EQUIVALENT_STATES = [
             "embargo_adherence": True,
         },
     ),
+    # The nested-CaseStatus case. Kept because it is the only one of these that
+    # ever actually diverged: ``ParticipantStatus._set_name`` appends
+    # ``case_status.name``, so while core ``CaseStatus`` had no ``_set_name`` of
+    # its own the core label was ``"VALID"`` where the wire label was
+    # ``"VALID NONE pxa"`` — and ``caseStatus.name`` was absent from the core
+    # payload entirely. Every other case leaves ``case_status`` unset, which is
+    # exactly why the omission survived the original six.
+    (
+        "nested_case_status",
+        {
+            "rm_state": RM.VALID,
+            "case_status": {
+                "id": "urn:uuid:cs-nested",
+                "context": "urn:case:1",
+            },
+        },
+        {
+            "rm_state": RM.VALID,
+            "case_status": as_CaseStatus(
+                id_="urn:uuid:cs-nested", context="urn:case:1"
+            ),
+        },
+    ),
 ]
 
 
@@ -196,13 +223,32 @@ def test_core_participant_status_as2_output_matches_wire(
         id_=object_id, context="urn:case:1", **wire_kwargs
     )
 
+    def strip(value):
+        """Drop timestamps and ``@context`` at every depth, not just the top.
+
+        Nested objects have to be stripped too, or a nested ``caseStatus``
+        compares unequal on its own construction timestamps and the case is
+        vacuously skipped rather than checked.
+        """
+        if isinstance(value, dict):
+            return {
+                k: strip(v)
+                for k, v in value.items()
+                if k not in _TIMESTAMPS and k != "@context"
+            }
+        if isinstance(value, list):
+            return [strip(item) for item in value]
+        return value
+
     def payload(obj):
-        dumped = obj.model_dump(mode="json", by_alias=True, exclude_none=True)
-        return {
-            k: v
-            for k, v in dumped.items()
-            if k not in _TIMESTAMPS and k != "@context"
-        }
+        return strip(
+            obj.model_dump(
+                mode="json",
+                by_alias=True,
+                exclude_none=True,
+                serialize_as_any=True,
+            )
+        )
 
     assert payload(core) == payload(wire)
 
@@ -255,3 +301,40 @@ class TestStatePersistsThroughTheNormalisationRoundTrip:
             f" RM.START; got {data.get('rm')!r}"
         )
         assert ParticipantStatus.model_validate(data).rm.state is RM.ACCEPTED
+
+
+class TestExplicitNullIsRefused:
+    """An explicit ``null`` for a dimension raises; absence gets the default.
+
+    The removed ``_migrate_flat_fields`` before-validator guarded on
+    ``raw is not None`` and fell back to the field default, so
+    ``{"rmState": None}`` quietly produced ``RM.START``. ADR-0099 detail 7's
+    fail-loudly rule refuses it instead: naming a dimension and supplying no
+    state is a statement the caller cannot back, and it is a different input from
+    not naming it at all.
+    """
+
+    @pytest.mark.parametrize(
+        "cls, payload",
+        [
+            (CaseStatus, {"context": "urn:case:1", "emState": None}),
+            (CaseStatus, {"context": "urn:case:1", "pxaState": None}),
+            (ParticipantStatus, {"context": "urn:case:1", "rmState": None}),
+        ],
+    )
+    def test_explicit_null_dimension_raises(self, cls, payload):
+        with pytest.raises(ValidationError):
+            cls.model_validate(payload)
+
+    @pytest.mark.parametrize(
+        "cls, expected_field, expected_state",
+        [
+            (CaseStatus, "em", EM.NONE),
+            (ParticipantStatus, "rm", RM.START),
+        ],
+    )
+    def test_absence_still_gets_the_default(
+        self, cls, expected_field, expected_state
+    ):
+        obj = cls.model_validate({"context": "urn:case:1"})
+        assert getattr(obj, expected_field).state is expected_state

@@ -84,12 +84,23 @@ def test_has_as_type(cls):
     assert obj.type_
 
 
+#: Classes that derive a display ``name`` from their own state when the caller
+#: supplies none, so ``name`` is legitimately non-None on a bare instance.
+#: ADR-0099 detail 5 moved that derivation from the wire class onto the core
+#: class, which is what makes these the exception — the label is a function of
+#: the object's state, and the class that holds the state owns it.
+DERIVES_ITS_OWN_NAME = frozenset({CaseStatus})
+
+
 @pytest.mark.parametrize("cls", DOMAIN_OBJECT_CLASSES)
 def test_has_name_field(cls):
     obj = make_instance(cls)
-    assert obj.name is None
+    if cls in DERIVES_ITS_OWN_NAME:
+        assert obj.name, f"{cls.__name__} should derive a display name"
+    else:
+        assert obj.name is None
     named = make_instance(cls, name="test")
-    assert named.name == "test"
+    assert named.name == "test", "an explicit name must always win"
 
 
 def test_vultron_participant_status_context_required():

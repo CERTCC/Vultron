@@ -559,12 +559,12 @@ groups:
   - id: ARCH-14-002
     priority: MUST
     kind: project
-    statement: The wire-layer base class for all Vultron-specific AS2 objects (currently `as_VultronObject`) MUST be renamed
-      `as_VultronObject`. This eliminates the redundant "AS2" qualifier (the `as_` prefix already connotes the wire layer)
-      and aligns the base class name with ARCH-14-001.
-    rationale: '`as_VultronObject` does not follow the `as_` prefix convention. The "AS2" suffix is redundant when the `as_`
-      prefix already signals the wire layer. Renaming to `as_VultronObject` makes the base class consistent with all subclasses.'
-    verification: '`vultron/wire/as2/vocab/objects/base.py` exports `as_VultronObject`; no class named `as_VultronObject`
+    statement: The wire-layer base class for all Vultron-specific AS2 objects MUST be named `as_VultronObject`. This carries
+      the `as_` prefix ARCH-14-001 requires and drops the redundant "AS2" qualifier, since the prefix already connotes the
+      wire layer.
+    rationale: 'The former name `VultronAS2Object` did not follow the `as_` prefix convention, and its "AS2" suffix was redundant
+      once the prefix signalled the wire layer. Naming the base class `as_VultronObject` makes it consistent with every subclass.'
+    verification: '`vultron/wire/as2/vocab/objects/base.py` exports `as_VultronObject`; no class named `VultronAS2Object`
       exists anywhere in the codebase.'
   - id: ARCH-14-003
     priority: MUST

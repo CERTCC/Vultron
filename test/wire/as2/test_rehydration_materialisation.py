@@ -33,7 +33,9 @@ from typing import Any, cast
 import pytest
 from pydantic import ValidationError
 
+from vultron.core.models.case_status import CaseStatus as CoreCaseStatus
 from vultron.core.ports.datalayer import DataLayer
+from vultron.errors import VultronReferenceResolutionError
 from vultron.enums.roles import CVDRole
 from vultron.wire.as2.rehydration import (
     materialise,
@@ -382,3 +384,114 @@ def test_nested_object_list_slot_is_covered_too() -> None:
         dl.as_port(),
     )
     assert participant.participant_statuses[0].id_ == status.id_
+
+
+# ---------------------------------------------------------------------------
+# The DL-05-004 contract: `dl.read()` returns *core* objects for paired types
+# ---------------------------------------------------------------------------
+
+
+def test_reference_resolving_to_a_core_object_is_refused() -> None:
+    """A core object cannot occupy a wire slot, so refuse rather than substitute.
+
+    This is the real `DataLayer` contract, not a hypothetical. DL-05-004 /
+    ADR-0034 make ``dl.read()`` return **core** objects for every
+    ``CORE_VOCABULARY`` type; AS2 activities are the exemption that still comes
+    back wire-shaped. So of the three object-only slots, only
+    ``as_VulnerabilityCase.case_activity`` can be materialised today —
+    ``as_ParticipantStatus.case_status`` and
+    ``as_CaseParticipant.participant_statuses`` get a core object back.
+
+    Substituting it produces an opaque Pydantic error three frames away, which is
+    how this went unnoticed: the other tests here stock the fake with ``as_*``
+    instances and so assert a contract the real port does not honour.
+    """
+    core_status = CoreCaseStatus(
+        id_="https://example.org/statuses/cs-1", context=CASE_ID
+    )
+    dl = FakeDataLayer({core_status.id_: core_status})
+
+    with pytest.raises(
+        VultronReferenceResolutionError, match="not an AS2 object"
+    ):
+        materialise_object_slots(
+            as_ParticipantStatus,
+            {
+                "id": "https://example.org/statuses/ps-1",
+                "case_status": core_status.id_,
+            },
+            dl.as_port(),
+        )
+    assert dl.reads == [
+        core_status.id_
+    ], "the reference must still be looked up"
+
+
+def test_the_refusal_is_absorbable_by_pydantic() -> None:
+    """``VultronReferenceResolutionError`` subclasses ``ValueError`` on purpose.
+
+    ARCH-23-006's note records what goes wrong otherwise: a guard that is not a
+    ``ValueError`` escapes the whole operation instead of being absorbed as a
+    failed union branch. Nothing calls this from inside a validator today, and
+    this test is what keeps that option open.
+    """
+    assert issubclass(VultronReferenceResolutionError, ValueError)
+
+
+# ---------------------------------------------------------------------------
+# A slot supplied under its AS2 alias must not be silently skipped
+# ---------------------------------------------------------------------------
+
+
+def test_slot_supplied_under_its_as2_alias_is_materialised(
+    dl: FakeDataLayer, recorded_activity: as_Activity
+) -> None:
+    """Callers hand over either spelling, so both must be looked for.
+
+    Keying only on the Python field name made ``{"caseActivity": [...]}`` a
+    silent no-op: the slot was skipped, no ``dl.read()`` fired, and
+    ``model_validate`` then failed on a bare string in a ``list[as_Activity]``
+    slot — a failure that names neither the cause nor the field that caused it.
+    """
+    data = {"id": CASE_ID, "caseActivity": [recorded_activity.id_]}
+
+    out = materialise_object_slots(as_VulnerabilityCase, data, dl.as_port())
+
+    assert dl.reads == [recorded_activity.id_]
+    # Resolved in place, under the key it arrived on.
+    assert out["caseActivity"] == [recorded_activity]
+    assert "case_activity" not in out
+    # And the result is what the class will actually accept.
+    case = as_VulnerabilityCase.model_validate(out)
+    assert case.case_activity[0].actor == OTHER_PARTICIPANT
+
+
+# ---------------------------------------------------------------------------
+# A core dimension slot is not a reference slot (SDO-01-004)
+# ---------------------------------------------------------------------------
+
+
+def test_core_dimension_slots_are_not_treated_as_references() -> None:
+    """A bare state value is a value, not an IRI to resolve.
+
+    ``CaseStatus.em`` is annotated ``EmDimension`` — a ``BaseModel`` that admits
+    no ``str`` branch — so the "admits a model but not ``str``" rule would
+    classify it as an object-only slot. Since ADR-0099 detail 5 a dimension
+    *serializes to a bare state value*, so classifying it that way sends
+    ``dl.read("NONE")`` and refuses a perfectly good core object. Only
+    ``as_Object`` slots are in scope.
+
+    Not reachable from production today, because the wire classes shadow
+    ``CaseStatus`` in ``WIRE_TYPE_MAP`` — but ``materialise()``'s own docstring
+    advertises exactly this call shape as the ``from_core`` replacement for
+    #3487/#3488.
+    """
+    core_status = CoreCaseStatus(context=CASE_ID)
+    dumped = core_status.model_dump(mode="json")
+    assert dumped["em"] == "NONE", "precondition: the dimension dumps bare"
+
+    dl = FakeDataLayer()
+    out = materialise_object_slots(CoreCaseStatus, dumped, dl.as_port())
+
+    assert dl.reads == [], "a bare state value must not be looked up"
+    assert out is dumped

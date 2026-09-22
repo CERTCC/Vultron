@@ -14,7 +14,7 @@
   Examples: `as_Activity`, `as_Actor`, `as_VulnerabilityCase`,
   `as_CaseParticipant`, `as_CaseStatus`. See ARCH-14-001.
   - The wire base class is `as_VultronObject` (in `vocab/objects/base.py`).
-    Do NOT use `as_VultronObject` — that name is retired. See ARCH-14-002.
+    Do NOT use `VultronAS2Object` — that name is retired. See ARCH-14-002.
   - `TypeAlias` companion types also use the `as_` prefix:
     `as_VulnerabilityCaseRef`, `as_CaseParticipantRef`, etc. See ARCH-14-003.
   - **IMPORTANT**: Core domain models (`vultron/core/models/`) do NOT use the

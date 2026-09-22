@@ -20,28 +20,42 @@ related_adrs:
   - ADR-0062
   - ADR-0063
   - ADR-0082
+  - ADR-0099
 ---
 
 # Core-to-Wire Rendering Port
 
 Source: CONCERN-2260. Supersedes the known-deviation posture of #1991.
 
-> **Mechanism revised by ADR-0082.** The decision recorded here — render core
-> objects through a driven port rather than by aliasing core types — stands
-> unchanged. Two things about the *implementation* change:
+> **The decision stands; the ADR-0082 mechanism it named is superseded by
+> [ADR-0099](../docs/adr/0099-one-object-model-as2-is-a-serialization.md).**
+> Rendering core objects through a driven port rather than by aliasing core types
+> is unchanged and still correct. What changed is what the adapter does behind the
+> port:
 >
-> 1. The adapter no longer resolves the wire counterpart with
->    `VOCABULARY.get(type(obj).__name__)`. That lookup depended on the bare-name
->    collision between the wire and core registries; it now goes through the
->    declarative pairing registry (ARCH-23-001).
-> 2. The adapter no longer calls `wire_cls.from_core(obj)`. Projection moves off
->    the wire classes into translator modules on the adapter side (ARCH-12-005 as
->    amended), so that wire classes carry no domain knowledge.
+> 1. **The pairing registry is cancelled.** ADR-0082 was going to replace
+>    `VOCABULARY.get(type(obj).__name__)` with a declarative pairing registry
+>    (ARCH-23-001, #2937). ADR-0099 removes the second hierarchy instead, so there
+>    is no counterpart to resolve. The port collapses to the core object's own
+>    `model_dump(by_alias=True, exclude_none=True, mode="json")` plus the
+>    delivery-supplied `@context` — measured byte-identical for
+>    `ParticipantStatus`. This requires amending **ARCH-20-003**, which today says
+>    the port MUST raise when no wire counterpart exists; under one model a missing
+>    counterpart is the normal case, not an error.
+> 2. **The adapter-side translators are cancelled too.** ARCH-12-005's relocation
+>    of `from_core`/`to_core` off the wire classes has nothing to relocate to.
+>    Projection stays where it is until the paired classes are deleted, then goes
+>    away with them.
+> 3. **`WireParsePort` (#2938) was rejected, not deferred.** This port only ever
+>    addressed the **core→wire** direction of ARCH-01-001, and ADR-0082 proposed a
+>    mirror-image `WireParsePort` for wire→core. ADR-0099 rejected it on three
+>    grounds: it does not exist, its own AC-2 requires the pairing registry above,
+>    and its single-method shape has no store access, so it could only fabricate
+>    placeholders. `rehydrate()` owns ID-to-object materialisation instead
+>    (VM-06-007).
 >
-> Note also that this port only ever addressed the **core→wire** direction of
-> ARCH-01-001. The wire→core direction was still being served by core
-> duck-typing `getattr(obj, "to_core", None)`; ADR-0082 adds the mirror-image
-> `WireParsePort`. See [notes/wire-core-boundary.md](wire-core-boundary.md).
+> ADR-0082's *diagnosis* is still worth reading; only its remedy is replaced. See
+> [notes/wire-core-boundary.md](wire-core-boundary.md).
 
 ## The legitimate need
 

@@ -3,10 +3,11 @@ title: "Wire/Core Boundary — Pairing Registry, Translator, and Unknown-Key Rej
 status: active
 tags: [wire, core, boundary, vocabulary, pairing, translation, pydantic]
 description: >
-  Design rationale for the wire/core boundary contract: one declarative pairing
-  registry, one generic bidirectional translator on the adapter side, and
-  extra="forbid" on the core branch as the structural guarantee. Records the
-  four duplications this replaces and the measured evidence behind the choice.
+  Diagnosis of the wire/core boundary problem: the four duplications, the measured
+  evidence, and why "zero wire->core imports" was unreachable. The remedy it
+  proposed (one declarative pairing registry, one adapter-side translator,
+  extra="forbid" on the core branch) is superseded by ADR-0099, which removes the
+  second hierarchy instead. Read it for the problem, not the mechanism.
 related_specs:
   - specs/architecture.yaml
   - specs/vocabulary-model.yaml

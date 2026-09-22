@@ -23,9 +23,10 @@ self.
 Design: ADR-0036, spec: specs/status-dimension-objects.yaml (SDO-01 to SDO-04).
 """
 
+from typing import Any
+
 from pydantic import (
     BaseModel,
-    field_serializer,
     field_validator,
     model_serializer,
     model_validator,
@@ -182,15 +183,38 @@ class _ScalarDimension(ValidatedAssignmentMixin, BaseModel):
         The mapping form is retained because callers construct dimensions that
         way, and because the enclosing models' own before-validators normalise
         legacy flat fields into it.
+
+        An **explicit ``None`` raises** rather than falling back to the field
+        default.  That is a deliberate behaviour change: the ``_migrate_flat_fields``
+        validator this replaces guarded on ``raw is not None`` and silently
+        substituted the initial state, so ``{"rmState": None}`` produced
+        ``RM.START`` with no error.  A caller that names a dimension and supplies
+        no state is making a statement it cannot back, and detail 7's fail-loudly
+        rule says to refuse it.  Absence and explicit-null are different inputs
+        and only absence gets the default.
         """
         if isinstance(data, (dict, _ScalarDimension)):
             return data
         return {"state": data}
 
+    #: Declared here so the whole-model serializer below can read it directly.
+    #: Each subclass narrows it to its own enum with its own default; this
+    #: annotation exists to make ``state`` part of the base contract rather than
+    #: something ``_serialize_bare`` reaches for with ``getattr`` and hopes is
+    #: present.
+    state: Any
+
     @model_serializer
     def _serialize_bare(self) -> str:
-        """Serialize to the bare state name rather than a one-key mapping."""
-        return str(getattr(self, "state").name)
+        """Serialize to the bare state name rather than a one-key mapping.
+
+        This is a **whole-model** serializer, so it wholly replaces the model's
+        normal dict output.  A per-field ``@field_serializer("state")`` on a
+        subclass is therefore unreachable and must not be added back — the six
+        that existed were dead code, because this method never consults the
+        field serializers.
+        """
+        return str(self.state.name)
 
 
 class EmDimension(_ScalarDimension):
@@ -206,10 +230,6 @@ class EmDimension(_ScalarDimension):
     @classmethod
     def validate_state(cls, v: object) -> EM:
         return _coerce_em(v)
-
-    @field_serializer("state")
-    def serialize_state(self, v: EM) -> str:
-        return v.name
 
     def transition(self, trigger: EM_Trigger) -> "EmDimension":
         """Return a new EmDimension with the state after applying *trigger*.
@@ -247,10 +267,6 @@ class PxaDimension(_ScalarDimension):
     @classmethod
     def validate_state(cls, v: object) -> CS_pxa:
         return _coerce_pxa(v)
-
-    @field_serializer("state")
-    def serialize_state(self, v: CS_pxa) -> str:
-        return v.name
 
     def transition(self, trigger: PXA_Trigger) -> "PxaDimension":
         """Return a new PxaDimension with the state after applying *trigger*.
@@ -290,10 +306,6 @@ class RmDimension(_ScalarDimension):
     def validate_state(cls, v: object) -> RM:
         return _coerce_rm(v)
 
-    @field_serializer("state")
-    def serialize_state(self, v: RM) -> str:
-        return v.name
-
     def transition(self, trigger: RM_Trigger) -> "RmDimension":
         """Return a new RmDimension with the state after applying *trigger*.
 
@@ -331,10 +343,6 @@ class VfDimension(_ScalarDimension):
     def validate_state(cls, v: object) -> CS_vf:
         return _coerce_vf(v)
 
-    @field_serializer("state")
-    def serialize_state(self, v: CS_vf) -> str:
-        return v.name
-
     def transition(self, trigger: VF_Trigger) -> "VfDimension":
         """Return a new VfDimension with the state after applying *trigger*.
 
@@ -367,10 +375,6 @@ class DDimension(_ScalarDimension):
     def validate_state(cls, v: object) -> CS_d:
         return _coerce_d(v)
 
-    @field_serializer("state")
-    def serialize_state(self, v: CS_d) -> str:
-        return v.name
-
     def transition(self, trigger: D_Trigger) -> "DDimension":
         """Return a new DDimension with the state after applying *trigger*.
 
@@ -399,10 +403,6 @@ class PecDimension(_ScalarDimension):
     @classmethod
     def validate_state(cls, v: object) -> PEC:
         return _coerce_pec(v)
-
-    @field_serializer("state")
-    def serialize_state(self, v: PEC) -> str:
-        return v.name
 
     def transition(self, trigger: PEC_Trigger) -> "PecDimension":
         """Return a new PecDimension with the state after applying *trigger*.

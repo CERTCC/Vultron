@@ -38,12 +38,23 @@ order to make it pass, which is worse than having no goal test.  The allow-list
 below is satisfied by the tree as it stands, so it is an invariant rather than
 a target, and needs no goal test at all.
 
-Known limit: imports resolved from a string at runtime
-(``importlib.import_module("vultron.core.behaviors")``) are invisible to an
-AST scan, as they were to the ratchet this replaces.  So is a capability
-reached by duck-typing rather than by import — the coupling ADR-0099 found the
-old rule had missed entirely.  ARCH-01-003 ("no domain logic in wire") is the
-requirement that covers those; this test covers imports.
+Known limits, in descending order of how much they matter:
+
+1. **A ``TYPE_CHECKING``-guarded import of a forbidden package passes.** The
+   exemption is general rather than per-file, and is stated in ARCH-22-001
+   itself: the import is erased at runtime, so it can only appear in an
+   annotation and cannot create a runtime dependency.  The cost is that
+   ``if TYPE_CHECKING: from vultron.core.behaviors import X`` is not caught here.
+   Exempting generally rather than carving out the one file that needed it is
+   deliberate — a one-entry exemption list is what ADR-0099 removed.
+2. **Imports resolved from a string at runtime**
+   (``importlib.import_module("vultron.core.behaviors")``) are invisible to an
+   AST scan, as they were to the ratchet this replaces.
+3. **A capability reached by duck-typing** rather than by import — the coupling
+   ADR-0099 found the old rule had missed entirely.
+
+ARCH-01-003 ("no domain logic in wire") is the requirement that covers 2 and 3;
+this test covers imports.
 """
 
 import ast

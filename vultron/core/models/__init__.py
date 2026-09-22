@@ -2,7 +2,6 @@
 
 from vultron.core.models.actor import (
     CoreActor,
-    VultronActorMixin,
     VultronApplication,
     VultronGroup,
     VultronOrganization,
@@ -24,7 +23,6 @@ __all__ = [
     "CoreActor",
     "CoreObject",
     "ValidatedAssignmentMixin",
-    "VultronActorMixin",
     "VultronApplication",
     "VultronGroup",
     "VultronOrganization",

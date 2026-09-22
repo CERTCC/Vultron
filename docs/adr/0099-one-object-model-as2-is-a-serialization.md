@@ -7,12 +7,24 @@ consulted: notes/wire-core-boundary.md, notes/domain-model-separation.md
 
 # One Object Model: AS2 Is a Serialization of the Core Model, Not a Parallel Hierarchy
 
-> **Implementation status as of 2026-09-21: decided, not yet built.**
+> **Implementation status as of 2026-09-22: decided, partially built.**
 > The decision details below are in the present tense because they state the
-> decision, not the state of the code — that is the MADR convention. Nothing in
-> them has been implemented. What has to change to get there is in
-> [Migration](#migration), which is transitional and should be deleted once the
-> work lands. Validation is the spike described under [Validation](#validation).
+> decision, not the state of the code — that is the MADR convention. Four pieces
+> have landed, each with a test that holds it:
+>
+> | detail | what landed | issue |
+> |---|---|---|
+> | 2 | AS2 spellings are out of core logic; the spelling is derived from the field alias | #3485 |
+> | 5 | dimension objects serialize to a bare state value — validated by the spike under [Validation](#validation) | — |
+> | 6 | ARCH-22-001 replaced by the wire→core allow-list | #3483 |
+> | 9 | `rehydrate()` named and implemented as the owner of ID-to-object materialisation (VM-06-007) | #3486 |
+>
+> The four misnamed wire classes were also renamed to `as_*` (#3484).
+>
+> **Details 1, 3, 4, 7, 8 and 10 are not built**, and detail 9's other half — the
+> object slots themselves holding whole objects — waits on detail 3. Item-by-item
+> status is in [Migration](#migration), which is transitional and should be
+> deleted once the work lands.
 
 ## Context and Problem Statement
 
@@ -249,8 +261,9 @@ reader the moment it is closed.
 - **Delete 25 of the 27 paired `as_*` domain classes**, and retarget the
   message-shape classes' slots at the core classes.
 - **Delete the remaining 2 pairs** (`as_CaseStatus`, `as_ParticipantStatus`).
-  Measured, because it is larger than it looks: `as_ParticipantStatus` is
-  referenced in **20 production files and 43 test files**, and the structural
+  Larger than it looks: `as_ParticipantStatus` is referenced across dozens of
+  production and test modules — re-measure before scoping rather than trusting a
+  figure quoted here (MS-16-001) — and the structural
   blocker is `as_CaseParticipant.participant_statuses: list[as_ParticipantStatus]`
   — deleting it forces `as_CaseParticipant` to change, which cascades into its
   activities, its factories, the FastAPI example routes, and two demo scripts.
@@ -343,8 +356,10 @@ reader the moment it is closed.
   `vultron/core/states/`. `TYPE_CHECKING`-only imports are exempt generally,
   not by carving out the one file that needed it.
 - **Retire ADR-0017 and ADR-0082**, including the forward references from
-  `notes/wire-core-boundary.md`, several spec rationales, and the docstring of
-  `test/architecture/test_wire_no_core_model_imports.py`.
+  `notes/wire-core-boundary.md`, `notes/vocabulary-registry.md`,
+  `notes/core-wire-rendering-port.md`, `docs/reference/glossary.md` and several
+  spec rationales. (The ratchet test that also cited them is already deleted with
+  detail 6.)
 
 ## Validation
 
@@ -397,17 +412,24 @@ under one model there is nothing for `_NORMALIZE_WIRE_TO_CORE` to normalise,
 because the stored object and the transmitted object are the same class. The
 stale docstring should be corrected independently of this ADR.
 
-The status remains `accepted-provisional` because detail 5 is the only detail
-validated by code. Details 1 through 4 and 6 through 10 are argued from the
-measured evidence but not yet exercised.
+The status remains `accepted-provisional` because the details carrying the most
+risk are still argued from the measured evidence rather than exercised. Detail 5
+was validated by the spike above, and details 2, 6 and 9 gained enforcing tests
+when they landed. Details 1, 3, 4, 7, 8 and 10 are not yet exercised — and
+detail 3, the deletion of the paired classes, is both the largest remaining piece
+and the one the rest depends on.
 
 Ongoing validation:
 
-- one architecture test enforcing the detail-6 allow-list, replacing
-  `test/architecture/test_wire_no_core_model_imports.py`
+- `test/architecture/test_wire_core_import_allowlist.py` enforces the detail-6
+  allow-list, replacing the deleted wire→core ratchet
 - the existing `test/architecture/test_core_no_wire_imports.py`, unchanged
-- a test asserting no module under `vultron/core/` contains an AS2 spelling,
-  covering detail 2
+- `test/architecture/test_core_no_as2_spellings.py` asserts no module under
+  `vultron/core/` contains an AS2 spelling, covering detail 2
+- `test/core/models/test_dimension_bare_serialization.py` holds detail 5,
+  including the parity of core and wire AS2 output
+- `test/wire/as2/test_rehydration_materialisation.py` holds detail 9's
+  materialisation owner
 
 ## Pros and Cons of the Options
 

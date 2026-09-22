@@ -178,14 +178,9 @@ class VultronGroup(CoreActor):
     )
 
 
-# Backward-compatibility alias; the new core base is the canonical home.
-VultronActorMixin = CoreActor
-
-
 __all__ = [
     "CoreActor",
     "CoreActorCollection",
-    "VultronActorMixin",
     "VultronApplication",
     "VultronGroup",
     "VultronOrganization",

@@ -33,6 +33,8 @@ from typing import TYPE_CHECKING, Any, TypeVar, cast, get_args, get_origin
 
 from pydantic import BaseModel, ValidationError
 
+from vultron.core.models.wire_keys import input_keys
+from vultron.errors import VultronReferenceResolutionError
 from vultron.wire.as2.vocab.base.objects.base import as_Object
 from vultron.wire.as2.vocab.base.objects.collections import as_Collection
 from vultron.wire.as2.vocab.base.registry import find_in_vocabulary
@@ -85,6 +87,16 @@ def _slot_requires_object(annotation: Any) -> bool:
     ``set_collections`` derives it from ``id_`` when absent.  Materialising
     would pre-empt a coercion the class has already specified, and would send a
     ``dl.read()`` after a remote URL that can only come back empty.
+
+    Slots that are **not** on the wire branch are excluded too, and that
+    exclusion is load-bearing rather than defensive.  A core dimension field is
+    annotated ``EmDimension`` — a ``BaseModel`` that is not an ``as_Object`` and
+    admits no ``str`` branch — so the rule above would classify it as an
+    ID-reference slot.  Since ADR-0099 detail 5 a dimension *serializes to a bare
+    state value*, so ``materialise_object_slots(CaseStatus, core_cs.model_dump(),
+    dl)`` would read ``"NONE"`` as a reference and try to resolve it.  Only
+    ``as_Object`` slots can hold a materialised AS2 object, so only they are in
+    scope.
     """
     branches = _annotation_branches(annotation)
     if not branches:
@@ -95,6 +107,8 @@ def _slot_requires_object(annotation: Any) -> bool:
         if isinstance(branch, type) and issubclass(branch, BaseModel)
     ]
     if not model_branches:
+        return False
+    if not all(issubclass(branch, as_Object) for branch in model_branches):
         return False
     if all(issubclass(branch, as_Collection) for branch in model_branches):
         return False
@@ -117,18 +131,38 @@ def _materialise_one(
 ) -> Any:
     """Resolve a single bare URI held in an object-only slot, or refuse.
 
+    Both failure modes refuse rather than degrade, which is the whole point of
+    this module owning the behaviour — see :func:`materialise_object_slots`.
+
+    The second guard is not hypothetical.  ``dl.read()`` returns **core** objects
+    for every ``CORE_VOCABULARY`` type (DL-05-004, ADR-0034); AS2 activities are
+    the exemption that still comes back wire-shaped.  So a slot typed
+    ``as_CaseStatus`` or ``list[as_ParticipantStatus]`` gets a core object back
+    today, which cannot go into a wire slot.  Refusing here names the cause;
+    substituting it would surface as an opaque Pydantic ``ValidationError`` three
+    frames away.  Those two slots become materialisable when ADR-0099 detail 3
+    deletes the paired classes and the slots name the core types directly.
+
     Raises:
-        ValueError: If *obj_id* cannot be resolved.  Refusal is deliberate and
-            is the whole point of this module owning the behaviour — see
-            :func:`materialise_object_slots`.
+        VultronReferenceResolutionError: If *obj_id* resolves to nothing, or to
+            something that is not an AS2 object.
     """
     resolved = dl.read(obj_id)
     if resolved is None:
-        raise ValueError(
+        raise VultronReferenceResolutionError(
             f"{cls_name}.{field_name}: reference '{obj_id}' could not be "
             "resolved in the data layer, and the slot is declared to hold an "
             "object rather than a URI. Refusing rather than fabricating a "
             "placeholder (VM-06-007)."
+        )
+    if not isinstance(resolved, as_Object):
+        raise VultronReferenceResolutionError(
+            f"{cls_name}.{field_name}: reference '{obj_id}' resolved to "
+            f"{type(resolved).__name__}, which is not an AS2 object and cannot "
+            "be placed in a wire slot. `dl.read()` returns core objects for "
+            "paired types (DL-05-004); this slot is materialisable only once "
+            "ADR-0099 detail 3 retargets it at the core class. Refusing rather "
+            "than substituting a shape the slot cannot hold (VM-06-007)."
         )
     logger.debug(
         "Materialised %s.%s reference '%s' as %s.",
@@ -159,7 +193,7 @@ def materialise_object_slots(
     * A slot that admits a model but **not** ``str`` — ``as_Activity``,
       ``list[as_Activity]`` — cannot legally hold a URI.  A bare string found
       there is resolved through *dl*, and an unresolvable one is **refused**
-      with a ``ValueError``.
+      with a :exc:`~vultron.errors.VultronReferenceResolutionError`.
 
     Operating on the pre-validation ``dict`` rather than a constructed model is
     forced, not stylistic: Pydantic rejects a bare string in a
@@ -193,33 +227,41 @@ def materialise_object_slots(
 
     Args:
         model_cls: The class *data* is about to be validated against.
-        data: Field data, keyed by python field name.  Not mutated.
+        data: Field data, keyed by python field name **or** by the field's AS2
+            alias — both are looked for, via :func:`input_keys`, because callers
+            legitimately hand over either spelling and a slot silently skipped
+            for being spelled ``caseActivity`` fails later and further away.
+            Not mutated.
         dl: DataLayer used to resolve references.
 
     Returns:
         *data* unchanged when nothing needed materialising, otherwise a shallow
-        copy with the resolved objects substituted.
+        copy with the resolved objects substituted under the key they arrived on.
 
     Raises:
-        ValueError: If a reference in an object-only slot cannot be resolved.
+        VultronReferenceResolutionError: If a reference in an object-only slot
+            cannot be resolved, or resolves to a non-AS2 object.
     """
     model_fields = getattr(model_cls, "model_fields", None)
     if not model_fields:
         return data
     updates: dict[str, Any] = {}
     for field_name, field in model_fields.items():
-        if field_name not in data:
-            continue
         annotation = field.annotation
         if annotation is None or not _slot_requires_object(annotation):
             continue
-        value = data[field_name]
+        key = next(
+            (k for k in input_keys(model_cls, field_name) if k in data), None
+        )
+        if key is None:
+            continue
+        value = data[key]
         if _is_list_slot(annotation):
             if not isinstance(value, list):
                 continue
             if not any(isinstance(item, str) and item for item in value):
                 continue
-            updates[field_name] = [
+            updates[key] = [
                 (
                     _materialise_one(item, dl, field_name, model_cls.__name__)
                     if isinstance(item, str) and item
@@ -228,7 +270,7 @@ def materialise_object_slots(
                 for item in value
             ]
         elif isinstance(value, str) and value:
-            updates[field_name] = _materialise_one(
+            updates[key] = _materialise_one(
                 value, dl, field_name, model_cls.__name__
             )
     if not updates:
@@ -249,7 +291,8 @@ def materialise(
         materialise(as_VulnerabilityCase, core_case.model_dump(mode="json"), dl)
 
     Raises:
-        ValueError: If a reference in an object-only slot cannot be resolved.
+        VultronReferenceResolutionError: If a reference in an object-only slot
+            cannot be resolved, or resolves to a non-AS2 object.
         ValidationError: If Pydantic validation of the result fails.
     """
     return model_cls.model_validate(
