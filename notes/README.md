@@ -915,6 +915,23 @@ compass and a workflow for authoring new technical docs.
 **Load when**: writing new user-facing docs in `docs/`, or deciding which doc
 type (tutorial / how-to / reference / explanation) a new page should be.
 
+**`site-information-architecture.md`**
+How reader-facing documentation is organized (ADR-0101): the argument the site
+must win and the protocol-not-a-platform analogy that answers it, why "Vultron
+doesn't do X" is answered by call-out points rather than denied, the three
+audience tracks, the invisible 100–500 prerequisite levels and the rule that no
+page may depend above its own level, why the project working record carries no
+level at all, the routing rule (nav enumerates groups, routing pages carry leaf
+sets, landing pages are generated), and the two remediation rules — audit
+routes while the fix decides, and analysis fans out by dimension while
+remediation partitions by page. Records the SG-07 / `write-docs` Phase 6 premise
+conflict and how both survive scoped, plus a measured page-count baseline.
+Normative requirements: `specs/diataxis-requirements.yaml` DF-11.
+**Load when**: deciding where a `docs/` page belongs, assigning or checking a
+page's track or level, changing `mkdocs.yml` nav structure, building or editing a
+section landing page, or planning any documentation reorganization.
+Source: CONCERN-3512.
+
 **`documentation-strategy.md`**
 Docs chronology and trust levels, process models, formal protocol reference,
 behavior simulator reference, Do Work behaviors, and ISO crosswalks. Also the

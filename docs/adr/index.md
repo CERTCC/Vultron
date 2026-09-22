@@ -170,6 +170,7 @@ General information about architectural decision records is available at <https:
 - [ADR-0098 Demo scenarios self-register at import time; every scenario table and the CI matrix become derived artifacts](0098-demo-scenarios-self-register.md)
 - [ADR-0099 One Object Model: AS2 Is a Serialization of the Core Model, Not a Parallel Hierarchy](0099-one-object-model-as2-is-a-serialization.md) *(provisional)*
 - [ADR-0100 There Is No Multi-Candidate Embargo Poll; Open Proposals Resolve in Earliest-Expiration Order](0100-no-multi-candidate-embargo-poll.md)
+- [ADR-0101 Organize reader-facing documentation by track and invisible prerequisite level](0101-docs-tracks-and-invisible-prerequisite-levels.md)
 
 ## Proposed ADRs
 

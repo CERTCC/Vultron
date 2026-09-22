@@ -2,7 +2,7 @@ id: DF
 title: Diátaxis documentation requirements
 description: >-
   Brief requirements for organizing project documentation according to the Diátaxis framework.
-version: 1.3.0
+version: 1.4.0
 scope:
 - prototype
 - production
@@ -490,3 +490,140 @@ groups:
       Inspection confirms that content appearing on more than one page either (a) uses
       `{% include-markdown %}` with a path relative to each including file or (b) has a documented
       reason why a shared fragment is inappropriate for that case.
+- id: DF-11
+  title: Site information architecture — tracks, levels, and routing
+  specs:
+  - id: DF-11-001
+    priority: MUST
+    kind: process
+    adr:
+      - ADR-0101
+    statement: >-
+      Every reader-facing `docs/` page MUST declare an audience `track` and a prerequisite
+      `level` in its YAML frontmatter, where `track` is one of adopter-implementer,
+      project-developer, or process-researcher, and `level` is one of 100, 200, 300, 400,
+      or 500.
+    rationale: >-
+      Track and level are the two axes the site is organized on, and both must be machine
+      readable so that ordering can be checked and landing pages generated rather than
+      hand-maintained. Declaring them per page rather than deriving them from directory
+      position keeps a page's classification intact when it moves. Definitions of each
+      track and level: `notes/site-information-architecture.md`.
+    verification: >-
+      A frontmatter validator resolves every reader-facing page under `docs/` and confirms
+      each declares both keys with a permitted value. Pages belonging to the project
+      working record are exempt per DF-11-003 and are confirmed to declare no `level`.
+  - id: DF-11-002
+    priority: MUST
+    kind: process
+    adr:
+      - ADR-0101
+    statement: >-
+      A `docs/` page MUST NOT depend on a page whose declared `level` is higher than its
+      own, where depending means using a concept the higher-level page introduces without
+      introducing, defining, or linking out for it.
+    rationale: >-
+      This is the rule levels exist to support, and the reviewable ordering rationale that
+      was previously absent: before it, no ordering decision could be shown to be wrong,
+      so none could be reviewed and drift was undetectable. A violation means the page is
+      misplaced, its prerequisites are unstated, or it is doing two jobs. It extends
+      DF-09-005 from within a page to between pages, and SG-11's rule that a cross-page
+      concept edge is a hyperlink supplies the escape: linking out satisfies the rule.
+    verification: >-
+      A check compares each page's declared `level` against the levels of the pages it
+      depends on and fails on any dependency whose level is higher.
+  - id: DF-11-003
+    priority: MUST
+    kind: process
+    adr:
+      - ADR-0101
+    statement: >-
+      Project working-record pages — decision records, generated code documentation,
+      exhaustively enumerated state pages, and retained design-history pages — MUST be
+      excluded from the reader-facing navigation and MUST NOT be assigned a `level`, while
+      remaining published and reachable.
+    rationale: >-
+      The working record is a different kind of content rather than a greater depth of the
+      same content, so assigning it a level is a category error. It is also the bulk of the
+      site: roughly 200 of 333 navigated pages are written by the team for the team or for
+      the record, which is what makes the tree read as accretion. Exclusion is demotion and
+      not retirement — #3281 decided deliberately to retain the design-history pages as the
+      design-intent view, and nothing here reopens that.
+    verification: >-
+      Inspection of `mkdocs.yml` confirms no working-record page appears in the
+      reader-facing navigation, and that each remains reachable through a routing page or a
+      `not_in_nav` entry rather than being unreferenced.
+  - id: DF-11-004
+    priority: MUST_NOT
+    kind: process
+    adr:
+      - ADR-0101
+    statement: >-
+      The `level` of a `docs/` page MUST NOT appear in rendered page content or in the
+      site navigation.
+    rationale: >-
+      Levels describe prerequisite depth, which is a property of the content, while readers
+      sort themselves by goal: someone wiring a scanner into report validation thinks "how
+      do I plug this in", not "I need a 300-level page". Exposing levels would ask a
+      newcomer to rank their own knowledge before their first click, which is the same
+      self-classification problem the Study/Work split already has. The reader sees a linear
+      flow; the hierarchy that produced it belongs to the author.
+    verification: >-
+      Inspection of rendered output and of `mkdocs.yml` confirms no level value or
+      level-derived label is presented to readers.
+  - id: DF-11-005
+    priority: MUST
+    kind: process
+    adr:
+      - ADR-0101
+    statement: >-
+      Section landing pages that enumerate their section's contents MUST be generated from
+      page frontmatter and gated by a check mode, and MUST NOT be hand-maintained.
+    rationale: >-
+      Every section landing page was a hand-written duplicate of the navigation and every
+      one had drifted from it — children missing, order disagreeing, and one describing a
+      retired taxonomy to readers. The defect class is the duplication, so correcting
+      individual omissions does not prevent recurrence. Two existing tools supply the
+      pattern: `vultron/metadata/adr/index_gen.py` and `demo-scenarios-sync` (ADR-0098).
+    verification: >-
+      The generator's `--check` mode runs as a pre-commit hook and in CI, failing when a
+      generated landing page differs from what frontmatter implies. Per DF-09-009 the check
+      fails rather than passes when it resolves no targets.
+  - id: DF-11-006
+    priority: SHOULD
+    kind: process
+    adr:
+      - ADR-0101
+    statement: >-
+      A set of sibling leaf pages that is too large to browse SHOULD be reached through a
+      routing page that links each member, with the navigation carrying the group rather
+      than enumerating the members.
+    rationale: >-
+      The pattern is already proven here and applied inconsistently:
+      `docs/reference/user_stories/` holds 111 story pages kept out of the navigation
+      entirely and reached through `traceability.md`, so two nav entries carry 111 pages.
+      The same navigation meanwhile enumerates 100 decision records, 33 enumerated case
+      states, and 22 generated code pages inline. Same shape of content, opposite treatment;
+      the routing-page treatment is the one to generalize.
+    verification: >-
+      Inspection of `mkdocs.yml` confirms large sibling leaf sets appear as a single group
+      entry, and that a routing page links every member so no page becomes unreachable.
+  - id: DF-11-007
+    priority: MUST
+    kind: process
+    adr:
+      - ADR-0101
+    statement: >-
+      A `docs/` page MUST remain self-sufficient for a reader arriving directly at it;
+      repeated openings, restated prerequisites, and re-expanded acronyms on adjacent pages
+      MUST NOT be removed in order to make those pages read as a continuous sequence.
+    rationale: >-
+      Readers arrive from search results and deep links rather than in navigation order,
+      which is why DF-09-003 resets acronym first use per page and SG-12 requires stated
+      rather than inherited prerequisites. Content that looks duplicated between neighbors
+      is therefore usually the rule working, not accretion damage, and removing it degrades
+      every deep-link arrival. Nav order carries dependency and prominence, not narrative.
+    verification: >-
+      Inspection of any change that removes an opening, a prerequisite statement, or an
+      acronym expansion from a page confirms the page still stands alone for a reader who
+      did not read its predecessor.
