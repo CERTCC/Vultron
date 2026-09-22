@@ -69,6 +69,12 @@ from vultron.metadata.specs.registry import SpecRegistry
 _BY_NAME: Literal["name"] = "name"
 _BY_LABEL: Literal["label"] = "label"
 
+#: How a table cell marks PR-set membership. Shared with the renderer's
+#: ``_IN_SET``, but not imported from it: that one is the *generated* tables'
+#: mark, and coupling a hand-written table's spelling to a generated one would
+#: make a renderer change silently reclassify every row here.
+_IN_PR_SET_MARK = "✓"
+
 
 @dataclass(frozen=True, slots=True)
 class ScenarioTable:
@@ -84,12 +90,20 @@ class ScenarioTable:
             requirement IDs, or ``None``. Derived from the **spec corpus**, not
             the registry — ``ScenarioSpec`` carries no spec IDs; each DEMOMA-16
             statement names its own scenario.
+        pr_set_column: Header of a column whose cell marks PR-set membership
+            with a leading ``✓``, or ``None``. Derived from ``in_pr_set``
+            (MS-16-002): the membership half of that cell drifts independently
+            of the decorator, and a test can falsify it, so it is ratcheted
+            rather than left as prose. The rest of the cell stays hand-written —
+            *which* scenario covers a non-member is a coverage judgement the
+            registry does not hold.
     """
 
     path: str
     heading: str
     spelling: Literal["name", "label"]
     spec_column: str | None = None
+    pr_set_column: str | None = None
 
 
 #: Every ``notes/`` table whose rows are the scenarios.  Adding a table here is
@@ -105,6 +119,7 @@ SCENARIO_TABLES: tuple[ScenarioTable, ...] = (
         path="notes/demo-ci-scenario-coverage.md",
         heading="Minimum PR Validation Set (DEMOCI-06-002)",
         spelling=_BY_NAME,
+        pr_set_column="Covered by minimum set",
     ),
     ScenarioTable(
         path="notes/demo-ci-invariants.md",
@@ -286,7 +301,11 @@ def scenario_table_problems(
       rows;
     - where the table carries a ``Spec`` column, each row names exactly the
       per-scenario DEMOMA-16 requirements for that scenario, resolved from the
-      spec corpus.
+      spec corpus;
+    - where it carries a PR-set column, the rows marked ``✓`` are exactly the
+      ``in_pr_set`` scenarios. MS-16-002 requires a drift-prone fact to be
+      derived or ratcheted rather than left as prose, and membership is
+      derivable even though the rest of that cell is not.
     """
     base = root or repo_root()
     resolved = discover_scenarios() if specs is None else specs
@@ -310,18 +329,31 @@ def scenario_table_problems(
             )
             continue
 
-        if table.spec_column is None:
-            continue
-        for spec, cell in zip(resolved, parsed.column(table.spec_column)):
-            named = set(SPEC_ID_RE.findall(cell))
-            wanted = set(per_scenario.get(spec.name, ()))
-            if named != wanted:
-                problems.append(
-                    f"{table.path}:{parsed.line} row {spec.label!r} names "
-                    f"{sorted(named)} in its {table.spec_column} column; the "
-                    f"spec corpus has {sorted(wanted)} for that scenario "
-                    "(DEMOCI-11-007)."
-                )
+        if table.spec_column is not None:
+            for spec, cell in zip(resolved, parsed.column(table.spec_column)):
+                named = set(SPEC_ID_RE.findall(cell))
+                wanted = set(per_scenario.get(spec.name, ()))
+                if named != wanted:
+                    problems.append(
+                        f"{table.path}:{parsed.line} row {spec.label!r} names "
+                        f"{sorted(named)} in its {table.spec_column} column; "
+                        f"the spec corpus has {sorted(wanted)} for that "
+                        "scenario (DEMOCI-11-007)."
+                    )
+
+        if table.pr_set_column is not None:
+            for spec, cell in zip(
+                resolved, parsed.column(table.pr_set_column)
+            ):
+                marked = cell.strip().startswith(_IN_PR_SET_MARK)
+                if marked != spec.in_pr_set:
+                    problems.append(
+                        f"{table.path}:{parsed.line} row {spec.name!r} marks "
+                        f"{table.pr_set_column} as "
+                        f"{'a member' if marked else 'not a member'}; the "
+                        f"@scenario decorator sets in_pr_set="
+                        f"{spec.in_pr_set} (MS-16-002, DEMOCI-11-007)."
+                    )
     return problems
 
 

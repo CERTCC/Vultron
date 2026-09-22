@@ -583,6 +583,33 @@ def test_count_check_exempts_a_history_section(
     assert not restated_counts(prose_root)
 
 
+def test_scenario_table_check_reports_a_wrong_pr_set_mark(
+    prose_root: Path,
+) -> None:
+    """PR-set membership is ratcheted against ``in_pr_set`` (MS-16-002).
+
+    Flipping a member to "covered by" is the drift this closes: the table would
+    then disagree with the decorator that actually selects the CI matrix, and
+    nothing else in the file could tell.
+    """
+    table = next(
+        candidate
+        for candidate in SCENARIO_TABLES
+        if candidate.pr_set_column is not None
+    )
+    target = prose_root / table.path
+    target.write_text(
+        target.read_text().replace(
+            "| fv | ✓ (member) |", "| fv | covered by fvcv-handoff |", 1
+        )
+    )
+    problems = scenario_table_problems(prose_root)
+    assert any(
+        "'fv'" in problem and "in_pr_set=True" in problem
+        for problem in problems
+    )
+
+
 @pytest.mark.parametrize(
     "prose",
     [
