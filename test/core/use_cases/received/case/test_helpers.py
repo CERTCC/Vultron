@@ -38,6 +38,9 @@ from vultron.core.use_cases.received.case.create import (
     CreateCaseReceivedUseCase,
 )
 from vultron.wire.as2.factories import create_case_activity
+from vultron.core.models.case_participant import (
+    CaseParticipant as CoreCaseParticipant,
+)
 from vultron.wire.as2.vocab.objects.case_participant import as_CaseParticipant
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCase,
@@ -59,7 +62,8 @@ def test_reporter_participant_stored_at_accepted_when_inline(make_payload):
     _store_embedded_participants so subsequent Add(ParticipantStatus) calls can
     read it at RM.ACCEPTED.
     """
-    from vultron.wire.as2.vocab.objects.case_status import as_ParticipantStatus
+    from vultron.core.models.case_participant import CaseParticipant
+    from vultron.core.models.participant_status import ParticipantStatus as PS
 
     _VENDOR_ID = "https://vendor.example.org/actors/vendor-cbt05007"
     _FINDER_ID = "https://finder.example.org/actors/finder-cbt05007"
@@ -76,21 +80,21 @@ def test_reporter_participant_stored_at_accepted_when_inline(make_payload):
         trusted_case_creator_id=_VENDOR_ID,
     )
     dl.save(link)
-    vendor_participant = as_CaseParticipant(
+    vendor_participant = CaseParticipant(
         case_roles=[CVDRole.CASE_MANAGER],
         id_=_VENDOR_PARTICIPANT_ID,
         attributed_to=_VENDOR_ID,
         context=_CASE_ID,
     )
-    finder_participant = as_CaseParticipant(
+    finder_participant = CaseParticipant(
         id_=_FINDER_PARTICIPANT_ID,
         attributed_to=_FINDER_ID,
         context=_CASE_ID,
         participant_statuses=[
-            as_ParticipantStatus(
+            PS(
                 context=_CASE_ID,
                 attributed_to=_FINDER_ID,
-                rm_state=RM.ACCEPTED,
+                rm_state=RM.ACCEPTED,  # type: ignore[call-arg]
             )
         ],
     )
@@ -236,7 +240,7 @@ class TestStoreEmbeddedParticipantsProjectsWireIngress:
             getattr(wire_participant.participant_statuses[-1], "rm", None)
             is None
         )
-        return as_VulnerabilityCase(
+        return as_VulnerabilityCase.model_construct(
             id_=self._CASE_ID,
             name="Bug #2232 ingress case",
             case_participants=[wire_participant],
@@ -376,7 +380,7 @@ def test_bootstrap_bare_uri_participant_raises_protocol_error(make_payload):
         trusted_case_creator_id=_VENDOR_ID,
     )
     dl.save(link)
-    case_actor_participant = as_CaseParticipant(
+    case_actor_participant = CoreCaseParticipant(
         case_roles=[CVDRole.CASE_MANAGER],
         id_=_VENDOR_PARTICIPANT_ID,
         attributed_to=_VENDOR_ID,

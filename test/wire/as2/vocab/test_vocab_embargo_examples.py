@@ -31,15 +31,13 @@ from vultron.wire.as2.vocab.base.objects.activities.transitive import (
     as_Reject,
     as_Remove,
 )
-from vultron.wire.as2.vocab.base.objects.base import as_Object
-from vultron.wire.as2.vocab.base.objects.object_types import as_Event
+from vultron.core.models.embargo_event import EmbargoEvent
 
 
 class TestVocabEmbargoExamples(unittest.TestCase):
     def test_embargo_event(self):
         obj = examples.embargo_event()
-        self.assertIsInstance(obj, as_Object)
-        self.assertIsInstance(obj, as_Event)
+        self.assertIsInstance(obj, EmbargoEvent)
 
         self.assertIsNotNone(obj.id_)
         self.assertIsNotNone(obj.name)
@@ -87,7 +85,7 @@ class TestVocabEmbargoExamples(unittest.TestCase):
         self.assertIsInstance(activity.one_of, Sequence)
         self.assertGreaterEqual(len(activity.one_of), 1)
         for obj in activity.one_of:
-            self.assertIsInstance(obj, as_Event)
+            self.assertIsInstance(obj, EmbargoEvent)
 
     def test_accept_embargo(self):
         activity = examples.accept_embargo()
@@ -179,8 +177,8 @@ class TestVocabEmbargoExamples(unittest.TestCase):
         # ID generation (BUG-FLAKY-1).
         embargo_raw = activity.object_
         self.assertIsNotNone(embargo_raw)
-        self.assertIsInstance(embargo_raw, as_Object)
-        embargo = cast(as_Object, embargo_raw)
+        self.assertIsInstance(embargo_raw, EmbargoEvent)
+        embargo = cast(EmbargoEvent, embargo_raw)
         self.assertEqual(embargo.context, case.id_)
 
 

@@ -53,11 +53,6 @@ _NORMALIZED_AS_OF_2402: frozenset[str] = frozenset(
     {
         "CaseParticipant",
         "ParticipantStatus",
-        "VultronApplication",
-        "VultronGroup",
-        "VultronOrganization",
-        "VultronPerson",
-        "VultronService",
     }
 )
 

@@ -22,6 +22,8 @@ from pydantic.alias_generators import to_camel
 
 from vultron.core.models.base import CoreObject, NonEmptyString
 from vultron.core.models.dimensions import EmDimension, PxaDimension
+from vultron.core.states.cs import CS_pxa
+from vultron.core.states.em import EM
 
 
 class CaseStatus(CoreObject):
@@ -78,6 +80,16 @@ class CaseStatus(CoreObject):
     # now cover its whole job with nothing hand-written: the ``AliasChoices``
     # above accept all three spellings, and ``_ScalarDimension``'s
     # ``_accept_bare_state`` accepts the bare state value the flat form carries.
+
+    @property
+    def em_state(self) -> EM:
+        """Return the EM state value. Alias for ``em.state``."""
+        return self.em.state
+
+    @property
+    def pxa_state(self) -> CS_pxa:
+        """Return the PXA state value. Alias for ``pxa.state``."""
+        return self.pxa.state
 
     @model_validator(mode="after")
     def _set_name(self) -> "CaseStatus":

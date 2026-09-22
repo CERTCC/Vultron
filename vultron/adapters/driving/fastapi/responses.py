@@ -23,6 +23,7 @@ HTTP-09-003: Serializes with model_dump(mode="json", by_alias=True,
 from typing import Any
 
 from fastapi.responses import JSONResponse
+from pydantic import BaseModel
 
 from vultron.wire.as2.vocab.base.base import as_Base
 
@@ -48,7 +49,7 @@ class AS2JSONResponse(JSONResponse):
     media_type = AS2_CONTENT_TYPE
 
     def __init__(self, content: "as_Base | Any", **kwargs: Any) -> None:
-        if isinstance(content, as_Base):
+        if isinstance(content, BaseModel):
             body = content.model_dump(
                 mode="json", by_alias=True, exclude_none=True
             )

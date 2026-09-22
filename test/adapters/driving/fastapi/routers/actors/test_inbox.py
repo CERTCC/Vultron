@@ -164,7 +164,7 @@ def test_reparse_as_specific_type_returns_same_object_when_already_specific_clas
         name="Already Specific",
     )
     raw_obj = case.model_dump(mode="json", by_alias=True, exclude_none=True)
-    result = _reparse_as_specific_type(case, raw_obj)
+    result = _reparse_as_specific_type(case, raw_obj)  # type: ignore[arg-type]
     assert result is case
 
 

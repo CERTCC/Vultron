@@ -78,43 +78,42 @@ class TestCaseActorBackwardCompatAlias:
 
 
 class TestCaseActorWireRoundTrip:
-    """Wire CaseActor.from_core / .to_core must preserve identity."""
+    """as_CaseActor IS CaseActor (ADR-0099 detail 3, issue #3487)."""
 
     def test_from_core_preserves_id(self):
         from vultron.wire.as2.vocab.objects.case_actor import (
             as_CaseActor as WireCaseActor,
         )
 
+        assert WireCaseActor is CaseActor
         core_actor = CaseActor(
             id_="urn:uuid:actor-test",
             attributed_to="https://example.org/owner",
         )
-        wire_actor = WireCaseActor.from_core(core_actor)
-        assert wire_actor.id_ == "urn:uuid:actor-test"
+        assert core_actor.id_ == "urn:uuid:actor-test"
 
     def test_to_core_preserves_attributed_to(self):
         from vultron.wire.as2.vocab.objects.case_actor import (
             as_CaseActor as WireCaseActor,
         )
 
+        assert WireCaseActor is CaseActor
         wire_actor = WireCaseActor(
             id_="urn:uuid:actor-test",
             attributed_to="https://example.org/owner",
         )
-        core_actor = wire_actor.to_core()
-        assert isinstance(core_actor, CaseActor)
-        assert core_actor.attributed_to == "https://example.org/owner"
+        assert isinstance(wire_actor, CaseActor)
+        assert wire_actor.attributed_to == "https://example.org/owner"
 
     def test_round_trip_preserves_id(self):
         from vultron.wire.as2.vocab.objects.case_actor import (
             as_CaseActor as WireCaseActor,
         )
 
+        assert WireCaseActor is CaseActor
         core_actor = CaseActor(
             id_="urn:uuid:actor-roundtrip",
             attributed_to="https://example.org/owner",
         )
-        wire_actor = WireCaseActor.from_core(core_actor)
-        restored = wire_actor.to_core()
-        assert restored.id_ == "urn:uuid:actor-roundtrip"
-        assert isinstance(restored, CaseActor)
+        assert core_actor.id_ == "urn:uuid:actor-roundtrip"
+        assert isinstance(core_actor, CaseActor)

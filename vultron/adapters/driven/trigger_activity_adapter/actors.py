@@ -693,11 +693,9 @@ class _ActorsMixin:
         case = self._dl.read(record.case_id)
         if case is None:
             raise VultronNotFoundError("VulnerabilityCase", record.case_id)
-        wire_case = (
-            case
-            if isinstance(case, as_VulnerabilityCase)
-            else as_VulnerabilityCase.from_core(cast(Any, case))
-        )
+        if not isinstance(case, as_VulnerabilityCase):
+            raise VultronNotFoundError("VulnerabilityCase", record.case_id)
+        wire_case = case
         # Reuse the same factory the offering side calls, so the rebuilt Offer
         # is constructed exactly the way the wire path would have built it
         # (test/architecture/test_activity_factory_imports.py forbids adapters

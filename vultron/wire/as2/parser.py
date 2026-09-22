@@ -12,7 +12,10 @@ from typing import Any, cast
 from pydantic import BaseModel
 
 from vultron.wire.as2.vocab.base.objects.activities.base import as_Activity
-from vultron.wire.as2.vocab.base.registry import find_in_vocabulary
+from vultron.wire.as2.vocab.base.registry import (
+    WIRE_TYPE_MAP,
+    find_in_vocabulary,
+)
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCaseStub,
 )
@@ -81,7 +84,13 @@ def _inline_vocab_class(value: dict[str, Any]) -> type[BaseModel] | None:
     except KeyError:
         return None
 
-    return cls if issubclass(cls, as_Base) else None
+    # Allow classes that are native wire types (as_Base subclasses) OR that are
+    # explicitly registered in WIRE_TYPE_MAP (covers core aliases per ADR-0099
+    # detail 3).  Classes found only via the core-map fallback are rejected to
+    # avoid ISSUE-3217 (e.g. OrderedCollection mis-inserted into a wire tree).
+    if issubclass(cls, as_Base) or obj_type in WIRE_TYPE_MAP:
+        return cls
+    return None
 
 
 def _expand_inline_value(value: object, path: str = "") -> object:

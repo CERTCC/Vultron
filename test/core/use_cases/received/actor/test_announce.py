@@ -474,18 +474,18 @@ class TestAnnounceStoresEmbeddedParticipants:
             attributed_to=_VENDOR_ID,
             context=_CASE_ID,
         )
-        case = as_VulnerabilityCase(
+        case = as_VulnerabilityCase.model_construct(
             id_=_CASE_ID,
             name="DR-10 Announce Case with Participants",
             case_participants=[
                 case_actor_p,
                 vendor_p,
             ],
+            actor_participant_index={
+                _CASE_ACTOR_ID: _CASE_ACTOR_PARTICIPANT_ID,
+                _VENDOR_ID: _VENDOR_PARTICIPANT_ID,
+            },
         )
-        case.actor_participant_index[_CASE_ACTOR_ID] = (
-            _CASE_ACTOR_PARTICIPANT_ID
-        )
-        case.actor_participant_index[_VENDOR_ID] = _VENDOR_PARTICIPANT_ID
         return case, case_actor_p, vendor_p
 
     @pytest.fixture()

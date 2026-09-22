@@ -18,12 +18,13 @@
 import logging
 from typing import TYPE_CHECKING, Any, TypeVar
 
+from pydantic import BaseModel
+
 from vultron.core.ports.case_persistence import (
     CaseOutboxPersistence,
     CasePersistence,
 )
 from vultron.errors import VultronNotFoundError
-from vultron.wire.as2.vocab.base.base import as_Base
 
 if TYPE_CHECKING:  # pragma: no cover - deferred to avoid a wire import cycle
     from vultron.wire.as2.vocab.objects.vulnerability_case import (
@@ -52,7 +53,7 @@ _DUMP_KWARGS: dict[str, Any] = {
 
 logger = logging.getLogger(__name__)
 
-_BM = TypeVar("_BM", bound=as_Base)
+_BM = TypeVar("_BM", bound=BaseModel)
 
 
 def _to_wire(core_obj: Any, wire_cls: type[_BM]) -> _BM:

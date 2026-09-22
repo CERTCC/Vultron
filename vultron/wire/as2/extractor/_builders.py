@@ -219,6 +219,11 @@ def _participant_ref_to_domain(ref: object) -> str | VultronParticipant | None:
     if not participant_id:
         return None
 
+    # Core VultronParticipant objects are already in the canonical shape —
+    # return them directly to preserve participant_statuses (including RM state).
+    if isinstance(ref, VultronParticipant):
+        return ref
+
     to_core = getattr(ref, "to_core", None)
     if callable(to_core):
         try:
@@ -295,7 +300,7 @@ def _build_case_object(obj: object) -> dict[str, Any]:
 
 
 def _build_embargo_event_object(
-    obj: as_Event, context: object, target: object
+    obj: "as_Event | EmbargoEvent", context: object, target: object
 ) -> dict[str, Any]:
     end_time = getattr(obj, "end_time", None)
     object_id = _get_id(obj)
@@ -574,7 +579,7 @@ def _build_object_kwargs(
         kw.update(_build_report_object(obj))
     elif _obj_type == str(VOtype.VULNERABILITY_CASE):
         kw.update(_build_case_object(obj))
-    elif isinstance(obj, as_Event):
+    elif isinstance(obj, (as_Event, EmbargoEvent)):
         kw.update(_build_embargo_event_object(obj, context, target))
     elif builder := _OBJ_BUILDERS.get(_obj_type):
         kw.update(builder(obj))

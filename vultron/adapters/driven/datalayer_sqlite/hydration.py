@@ -104,6 +104,47 @@ def to_row(obj: PersistableModel) -> VultronObjectRecord:
     )
 
 
+def _recover_vve_row(
+    row: VultronObjectRecord,
+    core_cls: type[BaseModel],
+    exc: VultronValidationError,
+) -> PersistableModel | None:
+    """Recover a row that failed core validation with a VultronValidationError.
+
+    Tries two strategies in order:
+    1. Wire-vocabulary projection (``project_wire_row_to_core``).
+    2. Nested-object normalisation (camelCase → snake_case) and re-validate.
+
+    Returns the recovered object, or ``None`` if both strategies fail.
+    """
+    logger.debug(
+        "from_row: VultronValidationError for type %r (row %r):"
+        " %s; projecting wire row to core",
+        row.type_,
+        row.id_,
+        exc,
+    )
+    wire_obj = wire_object_from_row(row)
+    if wire_obj is not None:
+        return project_wire_row_to_core(row, wire_obj, exc)
+    # Wire fallback also failed (e.g. VulnerabilityCase with camelCase
+    # participant data). Try normalising nested wire fields and retrying
+    # core validation (ADR-0099 backward compat).
+    normalized = _normalize_wire_nested_objects(row.data)
+    if normalized is None:
+        return None
+    try:
+        obj = cast(PersistableModel, core_cls.model_validate(normalized))
+        logger.debug(
+            "from_row: recovered %r (row %r) via nested-object normalization",
+            row.type_,
+            row.id_,
+        )
+        return obj
+    except (ValidationError, VultronValidationError):
+        return None
+
+
 def from_row(
     dl: "SqliteDataLayer", row: VultronObjectRecord
 ) -> PersistableModel | None:
@@ -170,21 +211,57 @@ def from_row(
             # wire-spelled copy of a core type, so project it: handing back
             # a wire object makes every core-typed caller fail (resolve_case
             # raises "Expected VulnerabilityCase, got as_VulnerabilityCase").
-            logger.debug(
-                "from_row: VultronValidationError for type %r (row %r):"
-                " %s; projecting wire row to core",
-                row.type_,
-                row.id_,
-                exc,
-            )
-            wire_obj = wire_object_from_row(row)
-            if wire_obj is None:
+            recovered = _recover_vve_row(row, core_cls, exc)
+            if recovered is None:
                 return None
-            obj = project_wire_row_to_core(row, wire_obj, exc)
+            obj = recovered
     if obj is None:
         return None
     obj = rehydrate_fields(dl, obj)
     return coerce_to_semantic_class(obj)
+
+
+def _normalize_wire_nested_objects(
+    data: dict[str, Any],
+) -> dict[str, Any] | None:
+    """Normalize wire-spelled (camelCase) nested dicts back to snake_case.
+
+    Called only when the wire-vocabulary fallback (``wire_object_from_row``)
+    also fails — i.e. the stored row contains nested objects whose keys use
+    camelCase wire spellings that neither the core nor the wire path can parse.
+    The canonical example is a ``VulnerabilityCase`` row whose
+    ``case_participants`` entries were serialised with ``by_alias=True`` before
+    ADR-0099 normalised all storage to snake_case.
+
+    Uses ``as_CaseParticipant.model_validate()`` (which accepts camelCase) +
+    ``to_core()`` (which emits snake_case) to normalize each participant dict.
+    Returns the patched data dict if any normalisation was applied, else None.
+    """
+    from vultron.wire.as2.vocab.objects.case_participant import (
+        as_CaseParticipant,
+    )
+
+    normalized = dict(data)
+    changed = False
+
+    participants = normalized.get("case_participants")
+    if isinstance(participants, list):
+        patched: list[Any] = []
+        for p in participants:
+            if isinstance(p, dict):
+                try:
+                    wire_p = as_CaseParticipant.model_validate(p)
+                    core_p = wire_p.to_core()
+                    patched.append(core_p.model_dump(mode="json"))
+                    changed = True
+                    continue
+                except Exception:
+                    pass
+            patched.append(p)
+        if changed:
+            normalized["case_participants"] = patched
+
+    return normalized if changed else None
 
 
 def wire_object_from_row(

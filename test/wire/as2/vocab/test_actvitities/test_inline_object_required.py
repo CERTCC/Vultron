@@ -125,7 +125,7 @@ _REPORT = as_VulnerabilityReport(name="CVE-TEST-001")
 _NOTE = as_Note(name="Test Note")
 _STATUS = as_CaseStatus()
 _PARTICIPANT_STATUS = as_ParticipantStatus(context=_CASE.id_)
-_EMBARGO = as_EmbargoEvent(name="Embargo Event")
+_EMBARGO = as_EmbargoEvent(name="Embargo Event", context="urn:uuid:case-123")
 _PARTICIPANT = as_CaseParticipant(attributed_to=_ACTOR.id_)
 _LOG_ENTRY = as_CaseLedgerEntry(
     case_id=_CASE.id_,
@@ -139,7 +139,7 @@ _INVITE = _RmInviteToCaseActivity(actor=_ACTOR, object_=_ACTOR, target=_STUB)
 _LEAVE = _RmCloseCaseActivity(actor=_ACTOR, object_=_CASE)
 _PROPOSE = _EmProposeEmbargoActivity(
     actor=_ACTOR,
-    object_=as_EmbargoEvent(name="Embargo Event"),
+    object_=as_EmbargoEvent(name="Embargo Event", context=_CASE.id_),
     context=_CASE.id_,
 )
 _RECOMMEND = _RecommendActorActivity(

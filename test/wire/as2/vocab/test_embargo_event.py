@@ -11,8 +11,9 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-"""Tests for wire as_EmbargoEvent domain boundary methods — ADR-0017."""
+"""Tests for as_EmbargoEvent / EmbargoEvent — ADR-0099 detail 3 identity."""
 
+import json
 from datetime import datetime, timezone
 
 from vultron.core.models.embargo_event import EmbargoEvent as CoreEmbargoEvent
@@ -26,84 +27,81 @@ _START = datetime(2099, 1, 1, tzinfo=timezone.utc)
 
 
 class TestWireEmbargoEventBasics:
-    """Wire as_EmbargoEvent is an as_Event projection."""
+    """Wire as_EmbargoEvent IS the core EmbargoEvent (ADR-0099 detail 3)."""
+
+    def test_wire_is_core_identity(self):
+        assert WireEmbargoEvent is CoreEmbargoEvent
 
     def test_default_type(self):
-        e = WireEmbargoEvent()
+        e = WireEmbargoEvent(context=_CONTEXT, end_time=_FUTURE)
         assert e.type_ == "EmbargoEvent"
 
-    def test_to_json_has_camelcase_keys(self):
-        import json
-
+    def test_json_has_camelcase_keys(self):
         e = WireEmbargoEvent(context=_CONTEXT, end_time=_FUTURE)
-        data = json.loads(e.to_json())
+        data = json.loads(e.model_dump_json(exclude_none=True, by_alias=True))
         assert "endTime" in data
         assert "startTime" in data
 
-    def test_set_name_populated(self):
+    def test_name_defaults_to_none(self):
+        """Core EmbargoEvent does not auto-populate name."""
         e = WireEmbargoEvent(context=_CONTEXT, end_time=_FUTURE)
-        assert e.name is not None
-        assert "Embargo for" in e.name
+        assert e.name is None
+
+    def test_fields_accessible(self):
+        e = WireEmbargoEvent(context=_CONTEXT, end_time=_FUTURE)
+        assert e.end_time == _FUTURE
+        assert e.context == _CONTEXT
 
 
 class TestWireEmbargoEventFromCore:
-    """from_core() creates a valid wire projection — ADR-0017."""
+    """Wire class IS the core class — direct instantiation replaces from_core()."""
 
-    def test_from_core_produces_wire_instance(self):
-        core = CoreEmbargoEvent(context=_CONTEXT, end_time=_FUTURE)
-        wire = WireEmbargoEvent.from_core(core)
-        assert isinstance(wire, WireEmbargoEvent)
+    def test_wire_is_core_identity(self):
+        assert WireEmbargoEvent is CoreEmbargoEvent
 
-    def test_from_core_preserves_times(self):
-        core = CoreEmbargoEvent(
+    def test_direct_instantiation_preserves_times(self):
+        e = WireEmbargoEvent(
             context=_CONTEXT,
             start_time=_START,
             end_time=_FUTURE,
         )
-        wire = WireEmbargoEvent.from_core(core)
-        assert wire.end_time == _FUTURE
-        assert wire.start_time == _START
+        assert e.end_time == _FUTURE
+        assert e.start_time == _START
 
-    def test_from_core_sets_name(self):
+    def test_core_instance_is_wire_instance(self):
         core = CoreEmbargoEvent(context=_CONTEXT, end_time=_FUTURE)
-        wire = WireEmbargoEvent.from_core(core)
-        assert wire.name is not None
-        assert "Embargo for" in wire.name
+        assert isinstance(core, WireEmbargoEvent)
 
 
 class TestWireEmbargoEventToCore:
-    """to_core() converts wire projection back to core domain object."""
+    """Wire instances ARE core instances — no to_core() conversion needed."""
 
-    def test_to_core_produces_core_instance(self):
+    def test_wire_instance_is_core_instance(self):
         wire = WireEmbargoEvent(context=_CONTEXT, end_time=_FUTURE)
-        core = wire.to_core()
-        assert isinstance(core, CoreEmbargoEvent)
+        assert isinstance(wire, CoreEmbargoEvent)
 
-    def test_to_core_preserves_times(self):
+    def test_fields_directly_accessible(self):
         wire = WireEmbargoEvent(
             context=_CONTEXT,
             start_time=_START,
             end_time=_FUTURE,
         )
-        core = wire.to_core()
-        assert core.end_time == _FUTURE
-        assert core.start_time == _START
+        assert wire.end_time == _FUTURE
+        assert wire.start_time == _START
 
-    def test_to_core_preserves_context(self):
+    def test_context_directly_accessible(self):
         wire = WireEmbargoEvent(context=_CONTEXT, end_time=_FUTURE)
-        core = wire.to_core()
-        assert core.context == _CONTEXT
+        assert wire.context == _CONTEXT
 
-    def test_roundtrip_core_wire_core(self):
+    def test_roundtrip_model_dump_validate(self):
         core1 = CoreEmbargoEvent(
             context=_CONTEXT,
             start_time=_START,
             end_time=_FUTURE,
         )
-        wire = WireEmbargoEvent.from_core(core1)
-        core2 = wire.to_core()
+        data = core1.model_dump(by_alias=True, exclude_none=True, mode="json")
+        core2 = CoreEmbargoEvent.model_validate(data)
         assert core2.context == core1.context
         assert core2.end_time == core1.end_time
         assert core2.start_time == core1.start_time
-        # Wire-synthesized name must not bleed into the core round-trip result.
         assert core2.name == core1.name

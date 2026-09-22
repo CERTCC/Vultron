@@ -19,9 +19,10 @@ from __future__ import annotations
 
 import logging
 from datetime import datetime, timedelta, timezone
-from typing import Any, Literal
+from typing import Any, ClassVar, Literal
 
-from pydantic import Field, model_validator
+from pydantic import ConfigDict, Field, model_validator
+from pydantic.alias_generators import to_camel
 
 from vultron.core.models._helpers import (
     _new_urn,
@@ -33,6 +34,7 @@ from vultron.core.models.case_ledger import compute_genesis_hash
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.case_status import CaseStatus
 from vultron.core.models.embargo_event import EmbargoEvent
+from vultron.core.models.report import VulnerabilityReport
 from vultron.errors import VultronValidationError
 
 logger = logging.getLogger(__name__)
@@ -62,16 +64,25 @@ class VulnerabilityCase(CoreObject):
     for the rationale.
     """
 
+    model_config = ConfigDict(alias_generator=to_camel)
+
     type_: Literal["VulnerabilityCase"] = Field(
         default="VulnerabilityCase",
         validation_alias="type",
         serialization_alias="type",
     )
+    # DL-08-002: active_embargo must be stored inline so recipients can read it
+    # back without a dereference mechanism (AKM-03-001).
+    inline_required_refs: ClassVar[frozenset[str]] = frozenset(
+        {"active_embargo"}
+    )
     case_participants: list[str | CaseParticipant] = Field(
         default_factory=list
     )
     actor_participant_index: dict[str, str] = Field(default_factory=dict)
-    vulnerability_reports: list[str] = Field(default_factory=list)
+    vulnerability_reports: list[str | VulnerabilityReport] = Field(
+        default_factory=list
+    )
     case_statuses: list[str | CaseStatus] = Field(default_factory=list)
     notes: list[str] = Field(default_factory=list)
     # Admits the object, not only a reference, for the same reason

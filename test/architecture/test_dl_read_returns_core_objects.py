@@ -121,16 +121,7 @@ ACTIVITY_TYPE_EXEMPTIONS: frozenset[str] = frozenset(
 #
 # Remove an entry from this set when the round-trip regression is fixed.
 # ---------------------------------------------------------------------------
-KNOWN_WIRE_ESCAPES: frozenset[str] = frozenset(
-    {
-        "CaseActor",
-        "VultronApplication",
-        "VultronGroup",
-        "VultronOrganization",
-        "VultronPerson",
-        "VultronService",
-    }
-)
+KNOWN_WIRE_ESCAPES: frozenset[str] = frozenset()
 
 
 def _minimal_kwargs(cls: type[CoreObject]) -> dict:

@@ -58,9 +58,13 @@ ACTIVITY_STREAMS_NS = "https://www.w3.org/ns/activitystreams"
 # ---------------------------------------------------------------------------
 _TO_CAMEL_BACKLOG_1991: frozenset[str] = frozenset(
     {
+        "CaseLedgerEntry",
         "CaseStatus",
         "CoreActorCollection",
+        "EmbargoEvent",
+        "EmbargoPolicy",
         "ParticipantStatus",
+        "VulnerabilityCase",
         "VultronApplication",
         "VultronGroup",
         "VultronOrganization",
@@ -135,7 +139,7 @@ class TestCoreVocabularyHierarchy:
         strict=True,
         reason="Goal state tracked in #2288 and #2289 (supersedes closed #1991): "
         "no CoreObject subclass inherits alias_generator=to_camel from as_Base. "
-        "8 known classes remain, enumerated in _TO_CAMEL_BACKLOG_1991. "
+        "12 known classes remain, enumerated in _TO_CAMEL_BACKLOG_1991. "
         "When the last is fixed this test XPASSes and fails the build — "
         "delete the marker and the backlog then.",
     )

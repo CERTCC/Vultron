@@ -203,7 +203,7 @@ class TestExtractCaseIdRaisesUnroutableActivityError:
         event = AddNoteToCaseReceivedEvent(
             activity_id=ACTIVITY_ID,
             actor_id=ACTOR_ID,
-            target=as_VulnerabilityCase(id_=""),
+            target=as_VulnerabilityCase.model_construct(id_=""),
         )
 
         # dispatch() must not raise — unroutable events are dropped at _handle
@@ -220,7 +220,7 @@ class TestExtractCaseIdRaisesUnroutableActivityError:
         event = AddNoteToCaseReceivedEvent(
             activity_id=ACTIVITY_ID,
             actor_id=ACTOR_ID,
-            target=as_VulnerabilityCase(id_=""),
+            target=as_VulnerabilityCase.model_construct(id_=""),
         )
 
         with pytest.raises(UnroutableActivityError) as exc_info:

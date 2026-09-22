@@ -32,6 +32,7 @@ from vultron.core.ports.case_persistence import CaseOutboxPersistence
 from vultron.core.ports.datalayer import DataLayer
 from vultron.wire.as2.rehydration import rehydrate
 from vultron.wire.as2.vocab.base.objects.activities.transitive import as_Offer
+from vultron.core.models.actor import CoreActor
 from vultron.wire.as2.vocab.base.objects.actors import as_Actor
 from vultron.wire.as2.vocab.base.objects.collections import (
     as_OrderedCollection,
@@ -220,7 +221,7 @@ def get_reports(
     )
 
 
-_DATALAYER_ACTOR_TYPE_MAP: dict[str, type[as_Actor]] = {
+_DATALAYER_ACTOR_TYPE_MAP: dict[str, type[as_Actor | CoreActor]] = {
     "Person": as_VultronPerson,
     "Organization": as_VultronOrganization,
     "Service": as_VultronService,
@@ -231,7 +232,7 @@ _DATALAYER_ACTOR_TYPE_MAP: dict[str, type[as_Actor]] = {
 
 def _actor_class_for_payload(
     payload: dict[str, Any],
-) -> type[as_Actor]:
+) -> type[as_Actor | CoreActor]:
     payload_type = payload.get("type_") or payload.get("type")
     if isinstance(payload_type, str):
         return _DATALAYER_ACTOR_TYPE_MAP.get(payload_type, as_Actor)

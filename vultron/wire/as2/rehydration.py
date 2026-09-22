@@ -33,6 +33,7 @@ from typing import TYPE_CHECKING, Any, TypeVar, cast, get_args, get_origin
 
 from pydantic import BaseModel, ValidationError
 
+from vultron.core.models.base import CoreObject
 from vultron.core.models.wire_keys import input_keys
 from vultron.errors import VultronReferenceResolutionError
 from vultron.wire.as2.vocab.base.objects.base import as_Object
@@ -317,13 +318,13 @@ def _resolve_string_id(obj_id: str, dl: DataLayer) -> as_Object:
     resolved = dl.read(obj_id)
     if resolved is None:
         raise ValueError(f"Object '{obj_id}' not found in data layer")
-    if not isinstance(resolved, as_Object):
+    if not isinstance(resolved, (as_Object, CoreObject)):
         raise ValueError(
             f"Object '{obj_id}' resolved to unsupported type "
             f"{type(resolved).__name__}"
         )
     logger.debug("String ID '%s' resolved to %s.", obj_id, type(resolved))
-    return resolved
+    return resolved  # type: ignore[return-value]
 
 
 def _rehydrate_nested_object_field(
@@ -417,12 +418,12 @@ def _cast_to_vocabulary_type(obj: as_Object, dl: DataLayer) -> as_Object:
     except ValidationError:
         logger.error("%s validation failed on %s.", cls.__name__, obj)
         raise
-    if not isinstance(rehydrated, as_Object):
+    if not isinstance(rehydrated, (as_Object, CoreObject)):
         raise ValueError(
             f"Rehydration of {obj.type_} produced unsupported type "
             f"{type(rehydrated).__name__}"
         )
-    return cast(as_Object, rehydrated)
+    return cast(as_Object, rehydrated)  # type: ignore[return-value]
 
 
 def rehydrate(

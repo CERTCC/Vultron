@@ -573,7 +573,7 @@ class TestAddCaseStatusTree:
             context=CASE_ID,
             em_state=EM.NONE,
         )
-        case.case_statuses.append(initial)
+        case.case_statuses.append(initial)  # type: ignore[arg-type]
         dl.create(case)
 
         bad_status = as_CaseStatus(
@@ -804,7 +804,7 @@ class TestAddCaseStatusToCaseReceivedUseCase:
         )
         case = as_VulnerabilityCase(id_=CASE_ID, name="Idempotent Case")
         status_obj = as_CaseStatus(id_=STATUS_ID, context=CASE_ID)
-        case.case_statuses.append(status_obj)
+        case.case_statuses.append(status_obj)  # type: ignore[arg-type]
         dl.create(case)
         dl.create(status_obj)
 
@@ -844,7 +844,7 @@ class TestAddCaseStatusToCaseReceivedUseCase:
             context=CASE_ID,
             em_state=EM.NONE,
         )
-        case.case_statuses.append(initial)
+        case.case_statuses.append(initial)  # type: ignore[arg-type]
         dl.create(case)
 
         bad_status = as_CaseStatus(

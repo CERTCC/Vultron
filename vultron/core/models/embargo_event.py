@@ -18,7 +18,8 @@
 from datetime import datetime
 from typing import Literal
 
-from pydantic import Field
+from pydantic import ConfigDict, Field
+from pydantic.alias_generators import to_camel
 
 from vultron.core.models._helpers import days_from_now_utc, now_utc
 from vultron.core.models.base import CoreObject, NonEmptyString
@@ -37,6 +38,8 @@ class EmbargoEvent(CoreObject):
     proper DataLayer round-trips via ``dl.read()`` and ``dl.list_objects()``,
     and to auto-register this class in :data:`CORE_VOCABULARY`.
     """
+
+    model_config = ConfigDict(alias_generator=to_camel)
 
     type_: Literal["EmbargoEvent"] = Field(
         default="EmbargoEvent",

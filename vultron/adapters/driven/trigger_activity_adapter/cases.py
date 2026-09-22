@@ -18,7 +18,7 @@
 import logging
 from typing import Any, cast
 
-from pydantic import ValidationError
+from pydantic import BaseModel, ValidationError
 
 from vultron.core.ports.case_persistence import CaseOutboxPersistence
 from vultron.errors import VultronActivityConstructionError
@@ -45,6 +45,42 @@ from vultron.wire.as2.vocab.objects.vulnerability_report import (
 from ._base import _DUMP_KWARGS, _case_for_wire, _to_wire
 
 logger = logging.getLogger(__name__)
+
+
+def _resolve_to_wire_object(obj: Any) -> Any:
+    """Coerce *obj* to its wire vocabulary counterpart when needed.
+
+    Returns *obj* unchanged if it is already an ``as_Object``.
+    Raises ``ValueError`` when no wire class is registered or conversion fails.
+    """
+    if isinstance(obj, as_Object):
+        return obj
+    try:
+        wire_cls = find_in_vocabulary(obj.__class__.__name__)
+    except KeyError:
+        raise ValueError(
+            f"add_object_to_case: no wire class registered for"
+            f" {obj.__class__.__name__!r}"
+        )
+    if issubclass(wire_cls, as_VultronObject):
+        if not isinstance(obj, BaseModel):
+            raise ValueError(
+                f"add_object_to_case: {obj.__class__.__name__!r} is not a"
+                " Pydantic model and cannot be used in an AS2 activity"
+            )
+        try:
+            return wire_cls.from_core(obj)
+        except Exception as exc:
+            raise ValueError(
+                f"add_object_to_case: from_core failed for"
+                f" {obj.__class__.__name__!r}: {exc}"
+            ) from exc
+    if wire_cls is obj.__class__:
+        return obj  # promoted core class IS the wire class (ADR-0099 detail 3)
+    raise ValueError(
+        f"add_object_to_case: {obj.__class__.__name__!r} has no"
+        f" as_VultronObject wire counterpart"
+    )
 
 
 class _CasesMixin:
@@ -171,29 +207,8 @@ class _CasesMixin:
     ) -> tuple[str, str]:
         """Create and persist an ``Add(object, Case)`` activity."""
         case = _case_for_wire(self._dl, case_id)
-        obj = cast(Any, self._dl.read(object_id))
-        if not isinstance(obj, as_Object):
-            try:
-                wire_cls = find_in_vocabulary(obj.__class__.__name__)
-            except KeyError:
-                raise ValueError(
-                    f"add_object_to_case: no wire class registered for"
-                    f" {obj.__class__.__name__!r}"
-                )
-            if issubclass(wire_cls, as_VultronObject):
-                try:
-                    obj = wire_cls.from_core(obj)
-                except Exception as exc:
-                    raise ValueError(
-                        f"add_object_to_case: from_core failed for"
-                        f" {obj.__class__.__name__!r}: {exc}"
-                    ) from exc
-            else:
-                raise ValueError(
-                    f"add_object_to_case: {obj.__class__.__name__!r} has no"
-                    f" as_VultronObject wire counterpart"
-                )
-        activity = as_Add(actor=actor, object_=obj, target=case)
+        obj = _resolve_to_wire_object(cast(Any, self._dl.read(object_id)))
+        activity = as_Add(actor=actor, object_=obj, target=case.id_)
         try:
             self._dl.create(activity)
         except ValueError:

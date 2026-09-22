@@ -44,6 +44,7 @@ from vultron.wire.as2.factories import rm_create_report_activity
 from vultron.wire.as2.vocab.base.objects.activities.transitive import as_Create
 from vultron.wire.as2.vocab.examples._base import (
     _strip_published_udpated,
+    _to_json,
 )
 from vultron.wire.as2.vocab.objects.vulnerability_report import (
     as_VulnerabilityReport,
@@ -161,7 +162,7 @@ def create_report_activity() -> as_Create:
         id_=REPORT_ID,
         name=REPORT_NAME,
         content=REPORT_CONTENT,
-        attributed_to=[FINDER_ID],
+        attributed_to=FINDER_ID,
         published=_FIXED_TS,
         updated=_FIXED_TS,
     )
@@ -191,7 +192,7 @@ def create_report_activity_body() -> dict[str, Any]:
     check (CLP-14-008).
     """
     activity = _strip_published_udpated(create_report_activity())
-    body: dict[str, Any] = json.loads(activity.to_json())
+    body: dict[str, Any] = json.loads(_to_json(activity))
     body["published"] = _FIXED_TS.isoformat()
     return body
 

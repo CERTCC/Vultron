@@ -51,6 +51,9 @@ from vultron.wire.as2.vocab.objects.vulnerability_report import (
 
 
 def test_vulnerability_report_round_trips_between_core_and_wire():
+    """ADR-0099 detail 3: as_VulnerabilityReport is VulnerabilityReport (identity)."""
+    assert as_VulnerabilityReport is VultronReport
+
     core = VultronReport(
         id_="https://example.org/reports/1",
         attributed_to="https://example.org/actors/finder",
@@ -59,11 +62,10 @@ def test_vulnerability_report_round_trips_between_core_and_wire():
         content="report body",
     )
 
-    wire = as_VulnerabilityReport.from_core(core)
-
-    assert isinstance(wire, as_VulnerabilityReport)
-    assert wire.id_ == core.id_
-    assert wire.to_core() == core
+    assert isinstance(core, as_VulnerabilityReport)
+    data = core.model_dump(by_alias=True, exclude_none=True, mode="json")
+    restored = as_VulnerabilityReport.model_validate(data)
+    assert restored.id_ == core.id_
 
 
 def test_case_status_round_trips_between_core_and_wire():
@@ -172,6 +174,9 @@ def test_case_participant_round_trips_between_core_and_wire():
 
 
 def test_vulnerability_case_round_trips_between_core_and_wire():
+    """ADR-0099 detail 3: as_VulnerabilityCase is VulnerabilityCase (identity)."""
+    assert as_VulnerabilityCase is VultronCase
+
     case_status = CoreCaseStatus(
         id_="https://example.org/cases/1/status/1",
         attributed_to="https://example.org/actors/vendor",
@@ -201,26 +206,27 @@ def test_vulnerability_case_round_trips_between_core_and_wire():
         sibling_cases=["https://example.org/cases/sibling"],
     )
 
-    wire = as_VulnerabilityCase.from_core(core)
-
-    assert isinstance(wire, as_VulnerabilityCase)
-    assert wire.id_ == core.id_
-    round_tripped = wire.to_core()
-    assert round_tripped.id_ == core.id_
-    assert round_tripped.vulnerability_reports == core.vulnerability_reports
-    assert round_tripped.notes == core.notes
-    assert round_tripped.active_embargo == core.active_embargo
-    assert round_tripped.proposed_embargoes == core.proposed_embargoes
-    assert round_tripped.case_activity == core.case_activity
-    assert round_tripped.parent_cases == core.parent_cases
-    assert round_tripped.child_cases == core.child_cases
-    assert round_tripped.sibling_cases == core.sibling_cases
-    assert isinstance(round_tripped.case_statuses[0], CoreCaseStatus)
-    assert round_tripped.case_statuses[0].id_ == case_status.id_
+    assert isinstance(core, as_VulnerabilityCase)
+    data = core.model_dump(by_alias=True, exclude_none=True, mode="json")
+    restored = as_VulnerabilityCase.model_validate(data)
+    assert restored.id_ == core.id_
+    assert restored.vulnerability_reports == core.vulnerability_reports
+    assert restored.notes == core.notes
+    assert restored.active_embargo == core.active_embargo
+    assert restored.proposed_embargoes == core.proposed_embargoes
+    assert restored.case_activity == core.case_activity
+    assert restored.parent_cases == core.parent_cases
+    assert restored.child_cases == core.child_cases
+    assert restored.sibling_cases == core.sibling_cases
+    assert isinstance(restored.case_statuses[0], CoreCaseStatus)
+    assert restored.case_statuses[0].id_ == case_status.id_
 
 
 def test_case_ledger_entry_to_core_returns_domain_model():
-    wire = as_CaseLedgerEntry(
+    """ADR-0099 detail 3: as_CaseLedgerEntry is CaseLedgerEntry (identity)."""
+    assert as_CaseLedgerEntry is VultronCaseLedgerEntry
+
+    entry = as_CaseLedgerEntry(
         case_id="https://example.org/cases/1",
         log_index=1,
         log_object_id="https://example.org/activities/1",
@@ -228,14 +234,15 @@ def test_case_ledger_entry_to_core_returns_domain_model():
         payload_snapshot={"id": "https://example.org/activities/1"},
     )
 
-    core = wire.to_core()
-
-    assert isinstance(core, VultronCaseLedgerEntry)
-    assert core.case_id == wire.case_id
-    assert core.entry_hash == wire.entry_hash
+    assert isinstance(entry, VultronCaseLedgerEntry)
+    assert entry.case_id == "https://example.org/cases/1"
+    assert entry.entry_hash is not None
 
 
 def test_case_actor_round_trips_between_core_and_wire():
+    """ADR-0099 detail 3: as_CaseActor is CaseActor (identity)."""
+    assert as_CaseActor is VultronCaseActor
+
     core = VultronCaseActor(
         id_="https://example.org/actors/case-actor",
         name="Case Actor",
@@ -243,14 +250,12 @@ def test_case_actor_round_trips_between_core_and_wire():
         context="https://example.org/cases/1",
     )
 
-    wire = as_CaseActor.from_core(core)
-
-    assert isinstance(wire, as_CaseActor)
-    assert wire.id_ == core.id_
-    round_tripped = wire.to_core()
-    assert round_tripped.id_ == core.id_
-    assert round_tripped.attributed_to == core.attributed_to
-    assert round_tripped.context == core.context
+    assert isinstance(core, as_CaseActor)
+    data = core.model_dump(by_alias=True, exclude_none=True, mode="json")
+    restored = as_CaseActor.model_validate(data)
+    assert restored.id_ == core.id_
+    assert restored.attributed_to == core.attributed_to
+    assert restored.context == core.context
 
 
 # ============================================================================

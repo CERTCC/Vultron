@@ -180,8 +180,13 @@ class CommitNativeLedgerEntriesNode(DataLayerActionWithPorts):
         assert self.datalayer is not None
         assert self.actor_id is not None
         assert self.wire_render_port is not None
-        for report_id in case.vulnerability_reports:
-            raw_report = self.datalayer.read(report_id)
+        for report_ref in case.vulnerability_reports:
+            if isinstance(report_ref, VulnerabilityReport):
+                raw_report = report_ref
+                report_id: str = report_ref.id_ or ""
+            else:
+                report_id = report_ref
+                raw_report = self.datalayer.read(report_id)  # type: ignore[assignment]
             if not isinstance(raw_report, VulnerabilityReport):
                 logger.warning(
                     "%s: report '%s' not found — skipping"

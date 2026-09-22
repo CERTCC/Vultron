@@ -109,7 +109,7 @@ def test_get_vulnerability_case_includes_vulnerability_reports_field(
     # Create a case with the report
     case = as_VulnerabilityCase(
         name=f"Case for Report {report.id_}",
-        vulnerability_reports=[report],
+        vulnerability_reports=[report.id_],
         attributed_to="https://example.org/actor",
     )
 

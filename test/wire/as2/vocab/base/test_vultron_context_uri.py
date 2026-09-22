@@ -93,10 +93,18 @@ def test_vultron_subclass_serializes_vultron_context():
 
 @pytest.mark.spec("VM-10-001")
 def test_embargo_event_serializes_vultron_context():
-    """AC-3: as_EmbargoEvent (Vultron type extending as_Event) serializes Vultron @context."""
-    obj = as_EmbargoEvent()
-    data = json.loads(obj.to_json())
-    assert data["@context"] == VULTRON_CONTEXT_URI
+    """AC-3: as_EmbargoEvent is now a core class (ADR-0099 detail 3, issue #3487).
+
+    The paired wire class was deleted; as_EmbargoEvent IS EmbargoEvent (core).
+    Core objects do not carry @context — that is a wire-layer serialization concern.
+    Verify the identity and that model_dump_json produces the expected type_ field.
+    """
+    from vultron.core.models.embargo_event import EmbargoEvent
+
+    assert as_EmbargoEvent is EmbargoEvent
+    obj = as_EmbargoEvent(context="urn:uuid:case-123")
+    data = json.loads(obj.model_dump_json(exclude_none=True, by_alias=True))
+    assert data["type"] == "EmbargoEvent"
 
 
 @pytest.mark.spec("VM-10-002")
@@ -123,10 +131,15 @@ def test_as_vultron_object_roundtrip_preserves_context():
 
 @pytest.mark.spec("VM-10-001")
 def test_embargo_event_roundtrip_preserves_context():
-    """AC-4: as_EmbargoEvent round-trip preserves the Vultron @context."""
-    obj = as_EmbargoEvent()
-    restored = as_EmbargoEvent.from_json(obj.to_json())
-    assert restored.context_ == VULTRON_CONTEXT_URI
+    """AC-4: as_EmbargoEvent is now a core class (ADR-0099 detail 3, issue #3487).
+
+    Round-trip via model_dump/model_validate preserves the context field.
+    (Core ``context`` stores the case URI, not a @context namespace URI.)
+    """
+    obj = as_EmbargoEvent(context="urn:uuid:case-123")
+    data = obj.model_dump(mode="json", by_alias=True, exclude_none=True)
+    restored = as_EmbargoEvent.model_validate(data)
+    assert restored.context == obj.context
 
 
 # --- as_EmbargoEvent namespace annotation -------------------------------------
@@ -134,8 +147,15 @@ def test_embargo_event_roundtrip_preserves_context():
 
 @pytest.mark.spec("VM-10-002")
 def test_embargo_event_vocab_namespace_is_vultron():
-    """as_EmbargoEvent._vocab_ns must be VULTRON (EmbargoEvent is a Vultron term)."""
-    assert as_EmbargoEvent._vocab_ns == VocabNamespace.VULTRON
+    """as_EmbargoEvent is now a core class (ADR-0099 detail 3, issue #3487).
+
+    The paired wire class was deleted; _vocab_ns is a wire-layer concept and
+    does not exist on the core EmbargoEvent.  Verify the class identity instead.
+    """
+    from vultron.core.models.embargo_event import EmbargoEvent
+
+    assert as_EmbargoEvent is EmbargoEvent
+    assert not hasattr(as_EmbargoEvent, "_vocab_ns")
 
 
 # --- AC-6: Structural check — every non-AS2 type must be annotated VULTRON ----

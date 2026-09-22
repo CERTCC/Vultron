@@ -74,7 +74,7 @@ def test_subclass_fields_not_stripped():
     case = as_VulnerabilityCase(
         name="Test Case",
         attributed_to="https://example.org/actor",
-        vulnerability_reports=[report],
+        vulnerability_reports=[report.id_],
         case_participants=[],
         proposed_embargoes=[],
         case_activity=[],

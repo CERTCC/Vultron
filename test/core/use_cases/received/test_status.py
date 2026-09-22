@@ -150,7 +150,7 @@ class TestStatusUseCases:
             context=case.id_,
             em_state=EM.NONE,
         )
-        case.case_statuses.append(initial_status)
+        case.case_statuses.append(initial_status)  # type: ignore[arg-type]
         dl.create(case)
 
         # Try to add a status with EM.ACTIVE — invalid: NONE → ACTIVE
@@ -196,7 +196,7 @@ class TestStatusUseCases:
             context=case.id_,
             em_state=EM.NONE,
         )
-        case.case_statuses.append(initial_status)
+        case.case_statuses.append(initial_status)  # type: ignore[arg-type]
         dl.create(case)
 
         bad_status = as_CaseStatus(
@@ -242,7 +242,7 @@ class TestStatusUseCases:
             context=case.id_,
             em_state=EM.NONE,
         )
-        case.case_statuses.append(initial_status)
+        case.case_statuses.append(initial_status)  # type: ignore[arg-type]
         dl.create(case)
 
         bad_status = as_CaseStatus(
@@ -412,7 +412,7 @@ class TestStatusUseCases:
             context=case.id_,
             em_state=EM.NONE,
         )
-        case.case_statuses.append(initial_status)
+        case.case_statuses.append(initial_status)  # type: ignore[arg-type]
         dl.create(case)
 
         # NONE → PROPOSED is a valid transition

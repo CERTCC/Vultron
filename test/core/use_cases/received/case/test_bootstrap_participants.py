@@ -109,14 +109,16 @@ def case_with_two_participants():
         attributed_to=_VENDOR_ID,
         context=_CASE_ID,
     )
-    case = as_VulnerabilityCase(
+    case = as_VulnerabilityCase.model_construct(
         id_=_CASE_ID,
         name="CBT-05-005/006 participant storage case",
         attributed_to=_CASE_ACTOR_ID,
         case_participants=[case_actor_p, vendor_p],
+        actor_participant_index={
+            _CASE_ACTOR_ID: _PARTICIPANT_ID,
+            _VENDOR_ID: _VENDOR_PARTICIPANT_ID,
+        },
     )
-    case.actor_participant_index[_CASE_ACTOR_ID] = _PARTICIPANT_ID
-    case.actor_participant_index[_VENDOR_ID] = _VENDOR_PARTICIPANT_ID
     return case, case_actor_p, vendor_p
 
 

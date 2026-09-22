@@ -1,6 +1,9 @@
 #!/usr/bin/env python
 """
-Defines a CaseActor class for the Vultron ActivityStreams Vocabulary.
+Wire-layer alias for CaseActor.
+
+Per ADR-0099 detail 3: the core class is the canonical form.
+The as_-prefixed name is retained for backward compatibility.
 """
 
 #  Copyright (c) 2025 Carnegie Mellon University and Contributors.
@@ -12,52 +15,15 @@ Defines a CaseActor class for the Vultron ActivityStreams Vocabulary.
 #  Created, in part, with funding and support from the United States Government
 #  (see Acknowledgments file). This program may include and/or can make use of
 #  certain third party source code, object code, documentation and other files
-#  (“Third Party Software”). See LICENSE.md for more details.
+#  ("Third Party Software"). See LICENSE.md for more details.
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-from vultron.core.models.case_actor import CaseActor as CoreCaseActor
-from vultron.wire.as2.vocab.base.objects.actors import as_Service
-from vultron.wire.as2.vocab.objects.base import (
-    _scalar_ref_id_or_value,
-    _strip_core_context,
-)
+from vultron.core.models.case_actor import CaseActor
+from vultron.wire.as2.vocab.base.registry import WIRE_TYPE_MAP
 
+# Backward-compatibility alias (ADR-0099 detail 3)
+as_CaseActor = CaseActor
 
-class as_CaseActor(as_Service):
-    """
-    A CaseActor is a software service wrapper around a VulnerabilityCase object.
-    It provides an inbox/outbox for the case to manage communications related to the case.
-    """
-
-    # note: as_CaseActor doesn't need its own type_, the value inherited from as_Service is sufficient
-
-    # attributed_to: (Actor) Case Owner
-    # context: (VulnerabilityCase) The case this actor is associated with
-
-    @classmethod
-    def from_core(cls, core_obj: CoreCaseActor) -> "as_CaseActor":
-        data = core_obj.model_dump(mode="json")
-        _strip_core_context(data)
-        # VultronOutbox is core-internal tracking; as_Actor.outbox expects
-        # an as_OrderedCollection — drop it so the actor's inbox/outbox URIs
-        # are auto-derived from id_ by the as_Actor model validator instead.
-        data.pop("outbox", None)
-        return cls.model_validate(data)
-
-    def to_core(self) -> CoreCaseActor:
-        return CoreCaseActor.model_validate(
-            {
-                "id_": self.id_,
-                "type_": self.type_,
-                "name": self.name,
-                "attributed_to": _scalar_ref_id_or_value(self.attributed_to),
-                "context": _scalar_ref_id_or_value(self.context),
-            }
-        )
-
-
-if __name__ == "__main__":
-    print("This module is intended to be imported, not run directly.")
-
-    print(as_CaseActor().model_dump_json(indent=2))
+# Register core class in WIRE_TYPE_MAP so the parser admits it inline
+WIRE_TYPE_MAP["CaseActor"] = CaseActor

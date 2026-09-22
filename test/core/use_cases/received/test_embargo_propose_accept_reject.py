@@ -74,6 +74,7 @@ class TestEmbargoProposalLifecycle:
         embargo = as_EmbargoEvent(
             id_="https://example.org/cases/case_cem1/embargo_events/embargo1",
             content="Proposed embargo",
+            context="https://example.org/cases/case_cem1",
         )
         activity = as_Create(
             actor="https://example.org/users/vendor",
@@ -113,6 +114,7 @@ class TestEmbargoProposalLifecycle:
         embargo = as_EmbargoEvent(
             id_="https://example.org/cases/case_cem2/embargo_events/embargo2",
             content="Proposed embargo",
+            context="https://example.org/cases/case_cem2",
         )
         activity = as_Create(
             actor="https://example.org/users/vendor",
@@ -146,6 +148,7 @@ class TestEmbargoProposalLifecycle:
         embargo = as_EmbargoEvent(
             id_="https://example.org/cases/case_em2/embargo_events/e2",
             content="Proposed embargo",
+            context="https://example.org/cases/case_em2",
         )
         proposal = em_propose_embargo_activity(
             embargo,
@@ -395,6 +398,7 @@ class TestEmbargoProposalLifecycle:
         embargo = as_EmbargoEvent(
             id_="https://example.org/cases/case_em4/embargo_events/e4",
             content="Embargo",
+            context="https://example.org/cases/case_em4",
         )
         proposal = em_propose_embargo_activity(
             embargo,

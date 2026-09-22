@@ -41,11 +41,9 @@ from vultron.core.states.em import EM
 class TestVocabCaseObjectExamples(unittest.TestCase):
     def test_case(self):
         case = examples.case()
-        self.assertIsInstance(case, as_Object)
         self.assertIsInstance(case, as_VulnerabilityCase)
 
-        self.assertTrue(hasattr(case, "to_json"))
-        json = case.to_json()
+        json = case.model_dump_json(exclude_none=True, by_alias=True)
         self.assertIsInstance(json, str)
 
     def test_case_has_genesis_hash(self):
@@ -81,10 +79,9 @@ class TestVocabCaseObjectExamples(unittest.TestCase):
         self.assertEqual(
             case_from_activity.vulnerability_reports[0], report.id_
         )
-        participant = cast(
-            as_CaseParticipant, case_from_activity.case_participants[0]
-        )
-        self.assertEqual(participant.attributed_to, vendor.id_)
+        # case_participants stores participant IDs (strings) per ADR-0099
+        self.assertTrue(len(case_from_activity.case_participants) > 0)
+        self.assertIsInstance(case_from_activity.case_participants[0], str)
 
     def test_create_case_multiple_calls_do_not_raise(self):
         # Regression: create_case() must not raise VultronValidationError when
@@ -282,10 +279,10 @@ class TestVocabCaseOwnershipExamples(unittest.TestCase):
         self.assertEqual(activity.target, coordinator.id_)
 
         transfer_case = cast(as_VulnerabilityCase, activity.object_)
-        for k, v in transfer_case.to_dict().items():
+        for k, v in transfer_case.model_dump().items():
             if isinstance(v, list):
                 continue
-            self.assertEqual(v, case.to_dict()[k])
+            self.assertEqual(v, case.model_dump()[k])
 
     def test_accept_case_ownership_transfer(self):
         activity = examples.accept_case_ownership_transfer()

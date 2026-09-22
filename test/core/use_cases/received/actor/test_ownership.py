@@ -101,7 +101,7 @@ class TestOwnershipTransferUseCases:
 
         AcceptCaseOwnershipTransferReceivedUseCase(dl, event).execute()
 
-        updated_record = dl.get(case.type_.value, case.id_)
+        updated_record = dl.get(case.type_, case.id_)
         assert updated_record is not None
         data = cast(Any, updated_record).get("data_", updated_record)
         assert (
@@ -610,7 +610,7 @@ class TestOwnershipTransferUseCases:
 
             AcceptCaseOwnershipTransferReceivedUseCase(dl, event).execute()
 
-            updated = dl.get(case.type_.value, case.id_)
+            updated = dl.get(case.type_, case.id_)
             assert updated is not None
             from typing import cast, Any
 

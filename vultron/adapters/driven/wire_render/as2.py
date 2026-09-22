@@ -41,6 +41,8 @@ Per ``specs/architecture.yaml`` ARCH-20-001 through ARCH-20-004.
 
 from typing import Any
 
+from pydantic import BaseModel
+
 from vultron.errors import VultronValidationError
 from vultron.wire.as2.vocab.base.registry import WIRE_TYPE_MAP
 from vultron.wire.as2.vocab.objects.base import as_VultronObject
@@ -81,11 +83,15 @@ class As2WireRenderAdapter:
         type_name = type(obj).__name__
         wire_cls = WIRE_TYPE_MAP.get(type_name)
 
-        if wire_cls is None or not issubclass(wire_cls, as_VultronObject):
+        if wire_cls is not None and issubclass(wire_cls, as_VultronObject):
+            return wire_cls.from_core(obj).model_dump(
+                by_alias=True, exclude_none=True, mode="json"
+            )
+
+        # Core types that have no wire wrapper (ADR-0099 detail 3): render
+        # the domain object directly.  Unknown non-Pydantic objects still raise.
+        if not isinstance(obj, BaseModel):
             raise VultronValidationError(
                 f"No wire counterpart for core type {type_name!r}."
             )
-
-        return wire_cls.from_core(obj).model_dump(
-            by_alias=True, exclude_none=True, mode="json"
-        )
+        return obj.model_dump(by_alias=True, exclude_none=True, mode="json")

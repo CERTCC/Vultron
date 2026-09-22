@@ -66,7 +66,7 @@ def create_case() -> as_Create:
     _case = case(
         random_id=True,
         vulnerability_reports=[_REPORT.id_],
-        case_participants=[participant],
+        case_participants=[participant.id_],
     )
 
     activity = create_case_activity(
@@ -91,8 +91,8 @@ def populated_case() -> as_VulnerabilityCase:
     """
     participants = [finder_participant(), vendor_participant()]
     return case(
-        vulnerability_reports=[gen_report()],
-        case_participants=participants,
+        vulnerability_reports=[gen_report().id_],
+        case_participants=[p.id_ for p in participants],
         actor_participant_index={p.attributed_to: p.id_ for p in participants},
     )
 

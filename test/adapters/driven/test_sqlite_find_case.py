@@ -104,7 +104,11 @@ def test_find_case_by_report_id_returns_case_when_report_stored_as_string(dl):
     assert result.id_ == case.id_
 
 
-def test_find_case_by_report_id_returns_case_when_report_stored_as_object(dl):
+def test_find_case_by_report_id_returns_case_when_report_id_in_list(dl):
+    """find_case_by_report_id finds the case when the report ID is in vulnerability_reports.
+
+    After ADR-0099 detail 3, vulnerability_reports holds string IDs only.
+    """
     from vultron.wire.as2.vocab.objects.vulnerability_case import (
         as_VulnerabilityCase,
     )
@@ -117,8 +121,7 @@ def test_find_case_by_report_id_returns_case_when_report_stored_as_object(dl):
         content="Another vulnerability",
         attributed_to="https://example.org/finder",
     )
-    case = as_VulnerabilityCase()
-    case.vulnerability_reports.append(report)
+    case = as_VulnerabilityCase(vulnerability_reports=[report.id_])
 
     dl.create(report)
     dl.save(case)

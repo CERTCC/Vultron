@@ -16,6 +16,7 @@
 
 from pydantic import Field
 
+from vultron.core.models.actor import CoreActor
 from vultron.wire.as2.vocab.base.links import as_Link
 from vultron.wire.as2.vocab.base.objects.actors import as_ActorRef
 from vultron.wire.as2.vocab.base.objects.base import as_Object
@@ -39,7 +40,7 @@ class as_Activity(as_Object):
         serialization_alias="type",
     )
 
-    actor: as_ActorRef
+    actor: as_ActorRef | CoreActor
     target: as_Object | as_Link | str | None = None
     origin: as_Object | as_Link | str | None = None
     instrument: as_Object | as_Link | str | None = None

@@ -126,7 +126,9 @@ def _project_case_to_stub(
         if end_time is not None:
             try:
                 embargo_ref = WireEmbargoEvent(
-                    id_=active_embargo_uri, end_time=end_time
+                    id_=active_embargo_uri,
+                    end_time=end_time,
+                    context=case_id,
                 )
             except ValidationError as exc:
                 logger.warning(

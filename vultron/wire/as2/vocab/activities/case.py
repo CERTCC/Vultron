@@ -63,7 +63,7 @@ class _AddReportToCaseActivity(as_Add):
     object_: as_VulnerabilityReport = Field(
         ..., validation_alias="object", serialization_alias="object"
     )
-    target: as_VulnerabilityCaseRef = None
+    target: as_VulnerabilityCaseRef = None  # type: ignore[assignment]
 
 
 # add CaseParticipant to VulnerabilityCase
@@ -83,7 +83,7 @@ class _AddStatusToCaseActivity(as_Add):
     object_: as_CaseStatus = Field(
         ..., validation_alias="object", serialization_alias="object"
     )
-    target: as_VulnerabilityCaseRef = None
+    target: as_VulnerabilityCaseRef = None  # type: ignore[assignment]
 
 
 ########################################################################################
@@ -122,7 +122,7 @@ class _AddNoteToCaseActivity(as_Add):
     object_: as_Note = Field(
         ..., validation_alias="object", serialization_alias="object"
     )
-    target: as_VulnerabilityCaseRef = None
+    target: as_VulnerabilityCaseRef = None  # type: ignore[assignment]
 
 
 # update a VulnerabilityCase

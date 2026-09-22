@@ -44,7 +44,7 @@ class _RecommendActorActivity(as_Offer):
     object_: as_Actor = Field(
         ..., validation_alias="object", serialization_alias="object"
     )
-    target: as_VulnerabilityCaseRef = None
+    target: as_VulnerabilityCaseRef = None  # type: ignore[assignment]
     # suggested_roles is inherited from as_Offer, aliased there; redeclaring it
     # here would shadow the base field and drop the camelCase alias (#1990).
 
@@ -62,7 +62,7 @@ class _AcceptActorRecommendationActivity(as_Accept):
     object_: _RecommendActorActivity = Field(
         ..., validation_alias="object", serialization_alias="object"
     )
-    target: as_VulnerabilityCaseRef = None
+    target: as_VulnerabilityCaseRef = None  # type: ignore[assignment]
 
 
 class _RejectActorRecommendationActivity(as_Reject):
@@ -75,7 +75,7 @@ class _RejectActorRecommendationActivity(as_Reject):
     object_: _RecommendActorActivity = Field(
         ..., validation_alias="object", serialization_alias="object"
     )
-    target: as_VulnerabilityCaseRef = None
+    target: as_VulnerabilityCaseRef = None  # type: ignore[assignment]
 
 
 class _OfferCaseParticipantActivity(as_Offer):
@@ -90,7 +90,7 @@ class _OfferCaseParticipantActivity(as_Offer):
     object_: as_CaseParticipant = Field(
         ..., validation_alias="object", serialization_alias="object"
     )
-    target: as_VulnerabilityCaseRef = None
+    target: as_VulnerabilityCaseRef = None  # type: ignore[assignment]
 
 
 class _AcceptCaseParticipantOfferActivity(as_Accept):
@@ -102,7 +102,7 @@ class _AcceptCaseParticipantOfferActivity(as_Accept):
     object_: _OfferCaseParticipantActivity = Field(
         ..., validation_alias="object", serialization_alias="object"
     )
-    target: as_VulnerabilityCaseRef = None
+    target: as_VulnerabilityCaseRef = None  # type: ignore[assignment]
 
 
 class _RejectCaseParticipantOfferActivity(as_Reject):
@@ -114,7 +114,7 @@ class _RejectCaseParticipantOfferActivity(as_Reject):
     object_: _OfferCaseParticipantActivity = Field(
         ..., validation_alias="object", serialization_alias="object"
     )
-    target: as_VulnerabilityCaseRef = None
+    target: as_VulnerabilityCaseRef = None  # type: ignore[assignment]
 
 
 # NOTE: Old non-suffixed names were removed intentionally. Use the

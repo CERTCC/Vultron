@@ -29,11 +29,9 @@ from vultron.core.use_cases.query.action_rules import (
     GetActionRulesUseCase,
 )
 from vultron.errors import VultronNotFoundError, VultronValidationError
+from vultron.core.models.case_status import CaseStatus
 from vultron.wire.as2.vocab.objects.case_participant import as_CaseParticipant
-from vultron.wire.as2.vocab.objects.case_status import (
-    as_CaseStatus,
-    as_ParticipantStatus,
-)
+from vultron.wire.as2.vocab.objects.case_status import as_ParticipantStatus
 from vultron.wire.as2.vocab.base.objects.object_types import as_Note
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCase,
@@ -58,8 +56,10 @@ def dl():
         name="Test Case",
         case_participants=[PARTICIPANT_ID],
         actor_participant_index={ACTOR_ID: PARTICIPANT_ID},
-        case_statuses=[
-            as_CaseStatus(em_state=EM.ACTIVE, pxa_state=CS_pxa.Pxa)
+        case_statuses=[  # type: ignore[arg-type]
+            CaseStatus(
+                em_state=EM.ACTIVE, pxa_state=CS_pxa.Pxa, context=CASE_ID  # type: ignore[call-arg]
+            )
         ],
     )
     layer.create(case)
@@ -198,9 +198,7 @@ class TestGetActionRulesUseCase:
             case_roles=[CVDRole.REPORTER],
             participant_statuses=[
                 as_ParticipantStatus(
-                    context=CASE_ID,
-                    rm_state=RM.RECEIVED,
-                    vf_state=CS_vf.Vf,
+                    context=CASE_ID, rm_state=RM.RECEIVED, vf_state=CS_vf.Vf
                 )
             ],
         )
@@ -229,7 +227,7 @@ class TestGetActionRulesUseCase:
             name="Default Participant Status Case",
             case_participants=[PARTICIPANT_ID],
             actor_participant_index={ACTOR_ID: PARTICIPANT_ID},
-            case_statuses=[as_CaseStatus(em_state=EM.NONE)],
+            case_statuses=[CaseStatus(em_state=EM.NONE, context=CASE_ID)],  # type: ignore[arg-type,call-arg]
         )
         layer.create(case)
         participant = as_CaseParticipant(
@@ -272,8 +270,10 @@ class TestGetActionRulesUseCase:
                 id_=CASE_ID,
                 case_participants=[PARTICIPANT_ID],
                 actor_participant_index={ACTOR_ID: PARTICIPANT_ID},
-                case_statuses=[
-                    as_CaseStatus(em_state=em, pxa_state=CS_pxa.pxa)
+                case_statuses=[  # type: ignore[arg-type]
+                    CaseStatus(
+                        em_state=em, pxa_state=CS_pxa.pxa, context=CASE_ID  # type: ignore[call-arg]
+                    )
                 ],
             )
             layer.create(case)
@@ -312,7 +312,7 @@ class TestGetActionRulesUseCase:
             id_=CASE_ID,
             case_participants=[PARTICIPANT_ID],
             actor_participant_index={ACTOR_ID: "https://example.org/p/wrong"},
-            case_statuses=[as_CaseStatus()],
+            case_statuses=[CaseStatus(context=CASE_ID)],
         )
         layer.create(case)
 
@@ -339,7 +339,7 @@ class TestGetActionRulesUseCase:
             id_=CASE_ID,
             case_participants=[PARTICIPANT_ID],
             actor_participant_index={},
-            case_statuses=[as_CaseStatus()],
+            case_statuses=[CaseStatus(context=CASE_ID)],
         )
         layer.create(case)
 

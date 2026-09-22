@@ -76,7 +76,7 @@ class MyTestCase(unittest.TestCase):
             _recommendation = actor._RecommendActorActivity(
                 actor=_actor, object_=_actor, target=_case
             )
-            _object = cls(actor=_actor, object_=_recommendation, target=_case)
+            _object = cls(actor=_actor, object_=_recommendation, target=_case)  # type: ignore[arg-type]
 
             # check activity is correct type
             self.assertIsInstance(_object, as_Activity)
@@ -106,7 +106,7 @@ class MyTestCase(unittest.TestCase):
         for actor_class in ACTOR_CLASSES:
             _actor = actor_class(name=actor_class.__name__)
             _case = as_VulnerabilityCase(name=f"{actor_class.__name__} Case")
-            _object = cls(actor=_actor, object_=_actor, target=_case)
+            _object = cls(actor=_actor, object_=_actor, target=_case)  # type: ignore[arg-type]
 
             # check activity is correct type
             self.assertIsInstance(_object, as_Activity)

@@ -27,7 +27,6 @@ from vultron.wire.as2.vocab.base.objects.actors import (
     as_Actor,
     as_Organization,
 )
-from vultron.wire.as2.vocab.base.objects.base import as_Object
 from vultron.wire.as2.vocab.objects.vulnerability_report import (
     as_VulnerabilityReport,
 )
@@ -55,11 +54,9 @@ class TestVocabActorExamples(unittest.TestCase):
 class TestVocabReportExamples(unittest.TestCase):
     def test_report(self):
         report = examples.gen_report()
-        self.assertIsInstance(report, as_Object)
         self.assertIsInstance(report, as_VulnerabilityReport)
 
-        self.assertTrue(hasattr(report, "to_json"))
-        json = report.to_json()
+        json = report.model_dump_json(exclude_none=True, by_alias=True)
         self.assertIsInstance(json, str)
 
     def test_create_report(self):

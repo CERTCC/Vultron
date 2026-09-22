@@ -178,18 +178,20 @@ def test_render_excludes_none_fields(adapter):
 # ---------------------------------------------------------------------------
 
 
-def test_render_raises_for_case_actor(adapter):
-    """CaseActor has no as_VultronObject wire counterpart — must raise."""
+def test_render_succeeds_for_case_actor(adapter):
+    """CaseActor IS the wire counterpart after ADR-0099 detail 3 (#3487)."""
     obj = CaseActor()
-    with pytest.raises(VultronValidationError, match="CaseActor"):
-        adapter.render(obj)
+    result = adapter.render(obj)
+    assert isinstance(result, dict)
+    assert result.get("type") == "Service"
 
 
-def test_render_raises_for_vultron_person(adapter):
-    """VultronPerson wire class is NOT as_VultronObject — must raise."""
+def test_render_succeeds_for_vultron_person(adapter):
+    """VultronPerson IS the wire counterpart after ADR-0099 detail 3 (#3487)."""
     obj = VultronPerson()
-    with pytest.raises(VultronValidationError, match="VultronPerson"):
-        adapter.render(obj)
+    result = adapter.render(obj)
+    assert isinstance(result, dict)
+    assert result.get("type") == "Person"
 
 
 def test_render_raises_for_unknown_type(adapter):
