@@ -53,9 +53,9 @@ Monitoring), and it is absent from its own section's landing page. It is also
 stale: it says "The five shapes" and counts Sentinel among them, where ADR-0097
 and the glossary say four and name "the five shapes" as a phrase to avoid.
 
-**Four of the concern's evidence bullets had gone stale.** #607 is closed.
-# 3281 closed `NOT_PLANNED` — the ~23 design-history behavior pages are retained
-deliberately as the design-intent view (78 inbound link occurrences), so
+**Four of the concern's evidence bullets had gone stale.** #607 is closed, and
+issue #3281 closed `NOT_PLANNED` — the ~23 design-history behavior pages are
+retained deliberately as the design-intent view (78 inbound link occurrences), so
 demotion is not a step toward deletion. `howto/case_object.md` is now a 10-line
 redirect stub rather than a Gen-1 UML design doc. `howto/process_implementation.md`
 has been rescoped into a legitimate integration guide.
@@ -132,8 +132,15 @@ as the intended test rather than as an acceptance criterion.
 
 ## Outcome
 
-**Resolved**: 2026-09-22 — implementation tracked in #3524, #3525, #3526,
-# 3527, #3528, #3529, #3530.
+**Resolved**: 2026-09-22 — implementation tracked in seven issues:
+
+- #3524 — front door: what Vultron is, and where your tools plug in
+- #3525 — declare `track` and `level` in docs frontmatter, with a validator
+- #3526 — five-lens reader-facing content audit (Concern)
+- #3527 — generate section landing pages from frontmatter
+- #3528 — move the working record out of the reader-facing nav
+- #3529 — check that no page depends above its own level
+- #3530 — teach `write-docs` and `lint-docs` the architecture
 
 Docs PR: <https://github.com/CERTCC/Vultron/pull/3523>
 Spec: `specs/diataxis-requirements.yaml` DF-11-001 through DF-11-007 (v1.4.0).
