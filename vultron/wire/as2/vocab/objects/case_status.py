@@ -47,6 +47,7 @@ from vultron.wire.as2.vocab.base.links import ActivityStreamRef, as_Link
 from vultron.wire.as2.vocab.base.objects.base import as_Object
 from vultron.wire.as2.vocab.objects.base import (
     as_VultronObject,
+    _coerce_pec_or_none,
     _scalar_ref_id_or_value,
     _strip_core_context,
 )
@@ -98,18 +99,6 @@ def _coerce_d_or_none(v: object) -> CS_d | None:
         return v
     if isinstance(v, str):
         return CS_d(v)
-    return None
-
-
-def _coerce_pec_or_none(v: object) -> PEC | None:
-    if v is None:
-        return None
-    if isinstance(v, PEC):
-        return v
-    if isinstance(v, str):
-        if v == "NO_EMBARGO":
-            return PEC.UNBOUND
-        return PEC(v)
     return None
 
 

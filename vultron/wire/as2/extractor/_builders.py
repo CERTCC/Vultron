@@ -26,7 +26,6 @@ from vultron.core.models.enums import VultronObjectType as VOtype
 from vultron.core.models.participant_status import coerce_cvd_roles
 from vultron.core.states.cs import CS_d, CS_pxa, CS_vf
 from vultron.core.states.em import EM
-from vultron.core.states.participant_embargo_consent import PEC
 from vultron.core.states.rm import RM
 from vultron.core.models.vultron_types import (
     CaseStatus,
@@ -41,6 +40,7 @@ from vultron.core.models.vultron_types import (
 from vultron.wire.as2.enums import as_ObjectType as AOtype
 from vultron.wire.as2.vocab.base.objects.activities.base import as_Activity
 from vultron.wire.as2.vocab.base.objects.object_types import as_Event
+from vultron.wire.as2.vocab.objects.base import _coerce_pec_or_none
 
 logger = logging.getLogger(__name__)
 
@@ -437,18 +437,6 @@ def _coerce_d(raw: object) -> CS_d | None:
             return CS_d[raw]
         except KeyError:
             raise ValueError(f"Unknown CS_d value: {raw!r}") from None
-    return None
-
-
-def _coerce_pec_or_none(raw: object) -> PEC | None:
-    if raw is None:
-        return None
-    if isinstance(raw, PEC):
-        return raw
-    if isinstance(raw, str):
-        if raw == "NO_EMBARGO":
-            return PEC.UNBOUND
-        return PEC[raw] if raw in PEC.__members__ else None
     return None
 
 

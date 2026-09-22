@@ -4,7 +4,7 @@ description: >-
   Requirements for a standardized embargo policy record associated with an Actor profile.
   Allows actors to declare their default embargo preferences so that coordinators can evaluate
   compatibility before proposing an embargo or inviting an actor to a case.
-version: 1.1.0
+version: 1.2.0
 scope:
 - prototype
 - production
@@ -249,6 +249,9 @@ groups:
       A unit test confirms that `InitializeDefaultEmbargoNode` sets `em_state` to
       `EM.ACTIVE` for the shorter duration and records the longer as `EM.REVISE`
       when both parties carry a proposal at case creation.
+    relationships:
+    - rel_type: refines
+      spec_id: EP-08-001
     stories:
     - story_2022_014
     - story_2022_079
@@ -694,3 +697,111 @@ groups:
     - ADR-0096
     stories:
     - story_2022_074
+- id: EP-08
+  title: Open Proposal Resolution Order
+  description: >-
+    How a Participant resolves two or more simultaneously open embargo proposals:
+    earliest expiration first, with the remainder handled as revisions. Codified by
+    ADR-0100, which also records why there is no multi-candidate poll activity. The
+    heuristic itself predates this group as normative prose in
+    `docs/topics/process_models/em/defaults.md`; stating it here is what makes it
+    testable. Source: CONCERN-3433.
+  specs:
+  - id: EP-08-001
+    priority: SHOULD
+    kind: protocol
+    statement: >-
+      When two or more embargo proposals are open for a case and none has been
+      accepted, a Participant SHOULD accept the proposal whose embargo `end_time` is
+      earliest and propose the remainder as revisions. When two or more revisions are
+      open against an active embargo, a Participant SHOULD accept or reject them
+      individually in earliest-to-latest `end_time` order.
+    rationale: >-
+      Two parties proposing 30 and 60 days agree on days 1–30 and disagree only
+      beyond that, so accepting the shorter proposal captures all mutual agreement
+      immediately and leaves the contested remainder to negotiate as a revision. This
+      is the *Shortest Embargo Proposed Wins* heuristic derived in
+      `docs/topics/process_models/em/defaults.md` and applied to case growth in
+      `docs/topics/process_models/em/working_with_others.md`.
+    note: >-
+      This requirement restates guidance that was already normative in
+      `docs/topics/process_models/em/defaults.md` but existed nowhere in `specs/`.
+      Because `spec-dump` is the corpus agents read, the rule was invisible to
+      implementation and the code diverged from it — `find_embargo_proposal_id`
+      selected by arrival order instead. Recording it here is the correction.
+    verification: >-
+      A unit test asserts that, given three open proposals with distinct embargo
+      `end_time` values, the proposal selected for acceptance is the earliest-expiring
+      one.
+    relationships:
+    - rel_type: constrains
+      spec_id: EP-04-003
+      note: >-
+        EP-04-003 is the two-party case-creation instance of this ordering rule, so
+        it refines EP-08-001 rather than the reverse. Both MUST resolve
+        earliest-end-date first, and both MUST share one comparator (#3392).
+    adr:
+    - ADR-0100
+    stories:
+    - story_2022_014
+  - id: EP-08-002
+    priority: MUST
+    kind: protocol
+    statement: >-
+      When an implementation must select among two or more open embargo proposals and
+      the caller supplied no proposal identifier, it MUST select the earliest-expiring
+      open proposal. It MUST NOT select by insertion or arrival order.
+    rationale: >-
+      A counter-proposal is emitted while the EM state remains PROPOSED (EMB-15-003),
+      so arrival order places the superseded terms first. Selecting by arrival
+      therefore accepts the terms the counter-proposal was sent to replace, which
+      inverts EP-08-001 in exactly the situation that makes a default selection
+      necessary.
+    note: >-
+      The default-selection path is the one that carries the risk. An explicit
+      proposal identifier is unambiguous; the ambiguity only arises when the caller
+      does not name one, and that is where the ordering rule must be enforced.
+    verification: >-
+      A unit test asserts that an accept request omitting the proposal identifier
+      resolves to the earliest-expiring open proposal, including the case where a
+      later-arriving counter-proposal expires sooner than the original.
+    relationships:
+    - rel_type: refines
+      spec_id: EP-08-001
+    adr:
+    - ADR-0100
+    stories:
+    - story_2022_014
+  - id: EP-08-003
+    priority: MUST
+    kind: project
+    statement: >-
+      The record of open embargo proposals MUST NOT retain a proposal that has been
+      accepted or rejected, or whose embargo has terminated. An implementation that
+      records open proposals MUST remove an entry when the proposal is decided.
+    rationale: >-
+      EP-08-002 orders the set of open proposals, so a set that retains decided
+      proposals can select one that is no longer open. Ordering an unpruned record is
+      not a weaker guarantee than ordering a pruned one — it is a different and wrong
+      answer, which is why the retention rule is stated alongside the ordering rule
+      rather than left as hygiene.
+    note: >-
+      Two records of overlapping state are involved and **neither** is fully
+      pruned. `pending_embargo_proposal_index` has one writer and no remover at
+      all, so it grows without bound.
+      `VulnerabilityCase.proposed_embargoes` is pruned only on teardown, by
+      `RemoveFromProposedEmbargoesNode` in `remove_embargo_from_case_tree`;
+      `reject_proposed_embargo_bt` does not include that node, so a rejected
+      proposal stays in both records. This requirement therefore covers every
+      record of open proposals, not just the index.
+    verification: >-
+      A unit test asserts that accepting a proposal, rejecting a proposal, and
+      tearing down an embargo each leave no corresponding entry in the open-proposal
+      record.
+    relationships:
+    - rel_type: constrains
+      spec_id: EP-08-002
+    adr:
+    - ADR-0100
+    stories:
+    - story_2022_014

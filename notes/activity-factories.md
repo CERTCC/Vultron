@@ -150,7 +150,7 @@ __all__ = [
 | `em_propose_embargo_activity` | `as_Invite` | `EmProposeEmbargoActivity` |
 | `em_accept_embargo_activity` | `as_Accept` | `EmAcceptEmbargoActivity` |
 | `em_reject_embargo_activity` | `as_Reject` | `EmRejectEmbargoActivity` |
-| `choose_preferred_embargo_activity` | `as_Question` | `ChoosePreferredEmbargoActivity` |
+| `choose_preferred_embargo_activity` | `as_Question` | `ChoosePreferredEmbargoActivity` — **retiring**, ADR-0100 / #3469; delete this row with the factory |
 | `activate_embargo_activity` | `as_Add` | `ActivateEmbargoActivity` |
 | `add_embargo_to_case_activity` | `as_Add` | `AddEmbargoToCaseActivity` |
 | `announce_embargo_activity` | `as_Announce` | `AnnounceEmbargoActivity` |

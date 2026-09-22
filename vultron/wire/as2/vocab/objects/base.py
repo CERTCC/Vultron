@@ -20,6 +20,7 @@ from typing import Any, ClassVar, TypeAlias
 
 from pydantic import Field
 
+from vultron.core.states.participant_embargo_consent import PEC
 from vultron.wire.as2.vocab.base.base import VULTRON_CONTEXT_URI
 from vultron.wire.as2.vocab.base.enums import VocabNamespace
 from vultron.wire.as2.vocab.base.links import ActivityStreamRef
@@ -60,6 +61,36 @@ def _strip_core_context(data: dict[str, Any]) -> None:
             for item in value:
                 if isinstance(item, dict):
                     _strip_core_context(item)
+
+
+def _coerce_pec_or_none(v: object) -> PEC | None:
+    """Coerce a raw wire value to a ``PEC`` member, or ``None``.
+
+    The single PEC coercion for the AS2 wire layer (issue #3346): both the
+    extractor (`extractor/_builders.py`) and the wire vocab
+    (`vocab/objects/case_status.py`) import this rather than keeping private
+    copies that could silently diverge.
+
+    Strategy — one lookup, applied uniformly. Unknown strings are resolved with
+    value-lookup ``PEC(v)`` so an unrecognised value raises ``ValueError``,
+    which pydantic field validators convert to a clean ``ValidationError``.
+    Name-lookup ``PEC[v]`` would raise ``KeyError`` instead — uncaught by
+    pydantic and surfaced as a 500-class error (#2964). ``PEC`` is a
+    ``StrEnum`` with ``name == value`` for every member, so value-lookup
+    accepts all current member names unchanged.
+
+    Legacy ``"NO_EMBARGO"`` is migrated to ``PEC.UNBOUND`` (ADR-0091, #3376)
+    before the lookup, so stored pre-rename wire values still round-trip.
+    """
+    if v is None:
+        return None
+    if isinstance(v, PEC):
+        return v
+    if isinstance(v, str):
+        if v == "NO_EMBARGO":
+            return PEC.UNBOUND
+        return PEC(v)
+    return None
 
 
 class as_VultronObject(as_Object):

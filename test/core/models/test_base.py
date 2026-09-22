@@ -115,7 +115,9 @@ def test_vultron_participant_status_context_required():
 
 def test_vultron_activity_as_type_required():
     with pytest.raises(ValidationError):
-        VultronActivity(actor="https://example.org/actors/test")
+        VultronActivity(  # pyright: ignore[reportCallIssue]
+            actor="https://example.org/actors/test"
+        )
     act = VultronActivity(
         type_="Offer", actor="https://example.org/actors/test"
     )

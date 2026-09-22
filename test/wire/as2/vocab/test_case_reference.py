@@ -45,7 +45,7 @@ class TestCaseReference(unittest.TestCase):
     def test_case_reference_url_required(self):
         """Test that url field is required."""
         with pytest.raises(ValidationError):
-            cr.as_CaseReference()
+            cr.as_CaseReference()  # pyright: ignore[reportCallIssue]
 
     def test_case_reference_url_not_empty(self):
         """Test that url must be non-empty string."""
