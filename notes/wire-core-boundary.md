@@ -26,6 +26,27 @@ relevant_packages:
 
 # Wire/Core Boundary — Pairing Registry, Translator, and Unknown-Key Rejection
 
+> **Status: the diagnosis here stands; the remedy is superseded by
+> [ADR-0099](../docs/adr/0099-one-object-model-as2-is-a-serialization.md).**
+>
+> Everything this note establishes about the *problem* is still accurate and
+> still worth reading: the four duplications, the measured evidence, and the
+> finding that "zero wire→core imports" was unreachable. Two things have since
+> changed underneath it.
+>
+> The unreachability finding was correct but drew the wrong conclusion. Three
+> MUSTs made zero impossible — so the rule was wrong, not the target. ARCH-22-001
+> is repealed: it is not among ADR-0009's six Key Rules, it inverts the inward
+> dependency direction hexagonal architecture prescribes, and it was itself the
+> cause of the duplicate `as_*` classes it appeared to guard against.
+>
+> And the remedy — reconciling two hierarchies with a pairing registry and a
+> generic translator — is replaced by removing the second hierarchy. Measured
+> across the 27 paired classes, none of the 346 differing fields is a semantic
+> disagreement. So the sections below that describe the ratchet, its
+> `KNOWN_VIOLATIONS` inventory, the exemption set, and the pairing registry
+> describe a plan that was cancelled. The migration is epic #2670.
+
 ADR: `docs/adr/0082-wire-core-boundary-pairing-registry.md`.
 Specs: ARCH-12-001 through ARCH-12-005, ARCH-22, ARCH-23, VM-01-004.
 Source: planning group G02 (#2830).
@@ -37,7 +58,7 @@ It is easy to conflate these, and doing so wastes a lot of time:
 | Rule | Direction | Remedy |
 |---|---|---|
 | ARCH-01-001 | core MUST NOT import wire | `WireRenderPort` (ADR-0063) for rendering; `WireParsePort` (ADR-0082) for parsing |
-| ARCH-22-001 | wire MUST NOT import core | move projection to the adapter side (ADR-0082) |
+| ARCH-22-001 | ~~wire MUST NOT import core~~ — **repealed** (ADR-0099) | replaced by an allow-list: wire MAY import `core/models/` and `core/states/` only (#3483) |
 
 ADR-0063 solved the *rendering* half of the first rule. It did **not** touch the
 second: its adapter is a thin dispatcher that still calls
@@ -299,7 +320,7 @@ counterparts before passing them.
   ARCH-12-003's `extra="forbid"` clause
 - `vultron/adapters/driven/wire_render/as2.py` — the render adapter whose
   name-collision lookup ARCH-23-001 replaces
-- `test/architecture/test_wire_no_core_model_imports.py` — the ARCH-22 ratchet
+- `test/architecture/test_wire_core_import_allowlist.py` — the ARCH-22 allow-list, which replaced the ratchet (#3483). The ratchet file is deleted
 
 ## Deleting a Wire-Spelling Shim Without a Reject-Guard Is Silent Data Loss
 

@@ -321,7 +321,9 @@ def test_parse_activity_keeps_inline_actor_subtype_with_core_only_collections():
     ``CoreActorCollection``; ``as_VultronOrganization.inbox`` rejects a core
     instance, and the swallowed failure degraded the whole actor to an
     ``as_Link``.  Nested expansion inside a wire tree resolves wire classes
-    only (ARCH-22-001), so the mismatch cannot arise.
+    only (MV-04-003), so the mismatch cannot arise.  The rule is MV-04-003, not
+    ARCH-22-001 as this previously cited: it is about which registry an inline
+    type string resolves against, not about which modules may import which.
     """
     actor = {
         "type": "Organization",
