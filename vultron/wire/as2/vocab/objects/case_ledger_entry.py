@@ -52,10 +52,10 @@ from vultron.core.models.case_ledger_entry import (
     VultronCaseLedgerEntry,
     VultronCaseLedgerEntryRef,
 )
-from vultron.wire.as2.vocab.objects.base import VultronAS2Object
+from vultron.wire.as2.vocab.objects.base import as_VultronObject
 
 
-class as_CaseLedgerEntry(VultronAS2Object):
+class as_CaseLedgerEntry(as_VultronObject):
     """Wire-layer representation of a canonical case ledger entry.
 
     All fields mirror

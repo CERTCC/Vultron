@@ -89,7 +89,7 @@ class EmitInviteActorToCaseNode(_EmitSingleActivityBase):
 
     Reads the ``VulnerabilityCase`` from the DataLayer and passes it as
     ``target`` to ``TriggerActivityPort.invite_actor_to_case()``.  The adapter
-    and factory project it to an enriched ``VulnerabilityCaseStub`` — including
+    and factory project it to an enriched ``as_VulnerabilityCaseStub`` — including
     ``end_time`` when ``em_state == EM.ACTIVE`` — without violating the
     core→wire import boundary (ARCH-01-001, CM-17-002).
     """

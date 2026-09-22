@@ -99,15 +99,21 @@ _EXTRA_SOURCES = {
     ),
 }
 
-# Examples whose shape is known-wrong, each with the issue that owns the fix.
-# Remove the entry when the issue closes.  Two things keep an entry honest: the
-# ``strict`` xfail below fails if one starts passing, and
+# Examples that are not dispatchable, each with the reason that owns it.  An entry
+# whose reason is an open issue is debt and goes when the issue closes; an entry
+# whose reason is a *decision* is permanent and stays.  Two things keep an entry
+# honest: the ``strict`` xfail below fails if one starts passing, and
 # ``test_known_undispatchable_names_are_collected`` fails if one stops being
 # collected at all — without that second check a renamed or deleted example would
 # turn its exemption into a permanent ``KeyError``, which ``xfail`` records as a
 # pass.
 _KNOWN_UNDISPATCHABLE = {
-    "choose_preferred_embargo": "#3433 — factory and wire class exist, but no ActivityPattern and no MessageSemantics",
+    # Permanent, not debt: ADR-0100 retired the multi-candidate embargo poll
+    # rather than building it, so this example is deliberately emit-only and will
+    # never gain an ActivityPattern or a MessageSemantics member.  (Was #3433,
+    # closed by that decision — cite the ADR, not the issue, so this does not read
+    # as a dead tracking reference.)
+    "choose_preferred_embargo": "ADR-0100 — the multi-candidate embargo poll is retired, so this example is emit-only by decision: no ActivityPattern and no MessageSemantics",
 }
 
 

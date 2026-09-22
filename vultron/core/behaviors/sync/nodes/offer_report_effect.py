@@ -45,9 +45,9 @@ class ApplyOfferReportFromLedgerNode(DataLayerActionWithPorts):
 
     The record is derived from the ledger entry's ``payload_snapshot``:
 
-    - ``payload_snapshot["offerId"]`` → ``offer_id``
+    - the snapshot's ``offer_id`` key → ``offer_id``
     - ``payload_snapshot["object"]["id"]`` → ``report_id``
-    - ``payload_snapshot["offerActorId"]`` (or ``"actor"``) → ``offer_actor_id``
+    - the snapshot's ``offer_actor_id`` key (or ``"actor"``) → ``offer_actor_id``
 
     Idempotent: if the record already exists the node returns SUCCESS without
     overwriting.  Lenient on missing data — if the snapshot is incomplete the
@@ -82,7 +82,11 @@ class ApplyOfferReportFromLedgerNode(DataLayerActionWithPorts):
         from vultron.core.behaviors.sync.nodes.conditions import (
             _require_log_entry,
         )
-        from vultron.core.models.offer_record import VultronOfferRecord
+        from vultron.core.models.offer_record import (
+            SNAPSHOT_OFFER_ACTOR_ID_KEY,
+            SNAPSHOT_OFFER_ID_KEY,
+            VultronOfferRecord,
+        )
 
         entry = _require_log_entry(self.activity, self.name)
 
@@ -95,11 +99,13 @@ class ApplyOfferReportFromLedgerNode(DataLayerActionWithPorts):
             if isinstance(entry.payload_snapshot, dict)
             else {}
         )
-        offer_id = snapshot.get("offerId")
+        offer_id = snapshot.get(SNAPSHOT_OFFER_ID_KEY)
         if not offer_id:
             self.logger.debug(
-                "%s: add_report_to_case entry has no offerId — skipping (non-fatal)",
+                "%s: add_report_to_case entry carries no '%s' —"
+                " skipping (non-fatal)",
                 self.name,
+                SNAPSHOT_OFFER_ID_KEY,
             )
             return Status.SUCCESS
 
@@ -112,9 +118,10 @@ class ApplyOfferReportFromLedgerNode(DataLayerActionWithPorts):
             )
             return Status.SUCCESS
 
-        # offerActorId is the original Offer sender; "actor" is the CaseActor.
+        # The offer-actor key names the original Offer sender; "actor" is the
+        # CaseActor.
         offer_actor_id = _extract_id_from_field(
-            snapshot.get("offerActorId") or snapshot.get("actor")
+            snapshot.get(SNAPSHOT_OFFER_ACTOR_ID_KEY) or snapshot.get("actor")
         )
         object_data = snapshot.get("object")
         report_id = (

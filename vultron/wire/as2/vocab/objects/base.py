@@ -93,7 +93,7 @@ def _coerce_pec_or_none(v: object) -> PEC | None:
     return None
 
 
-class VultronAS2Object(as_Object):
+class as_VultronObject(as_Object):
     """Base class for all Vultron ActivityStreams Objects.
 
     Subclasses represent specific Vultron wire-format object types and MUST
@@ -144,7 +144,7 @@ class VultronAS2Object(as_Object):
     inline_required_refs: ClassVar[frozenset[str]] = frozenset()
 
     @classmethod
-    def from_core(cls, core_obj: Any) -> "VultronAS2Object":
+    def from_core(cls, core_obj: Any) -> "as_VultronObject":
         """Create a wire object from a core domain object.
 
         The default implementation performs a JSON round-trip::
@@ -200,4 +200,4 @@ class VultronAS2Object(as_Object):
         return data
 
 
-VultronObjectRef: TypeAlias = ActivityStreamRef[VultronAS2Object]
+as_VultronObjectRef: TypeAlias = ActivityStreamRef[as_VultronObject]

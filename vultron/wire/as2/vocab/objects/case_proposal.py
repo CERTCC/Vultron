@@ -34,13 +34,13 @@ from vultron.enums.object_types import VultronObjectType as VO_type
 from vultron.primitives import NonEmptyString
 from vultron.wire.as2.vocab.base.links import ActivityStreamRef
 from vultron.wire.as2.vocab.base.objects.base import ActivityStreamRequiredRef
-from vultron.wire.as2.vocab.objects.base import VultronAS2Object
+from vultron.wire.as2.vocab.objects.base import as_VultronObject
 from vultron.wire.as2.vocab.objects.vulnerability_report import (
     as_VulnerabilityReport,
 )
 
 
-class as_CaseProposal(VultronAS2Object):
+class as_CaseProposal(as_VultronObject):
     """Wire representation of a CaseProposal object (CP-01-001).
 
     Declares ``object_`` in :attr:`inline_required_refs`, so persistence keeps
@@ -74,7 +74,7 @@ class as_CaseProposal(VultronAS2Object):
     """
 
     # CP-01-004 / AKM-03-001: the report is carried, not referenced. Declared
-    # here so persistence keeps it inline; see VultronAS2Object's docstring.
+    # here so persistence keeps it inline; see as_VultronObject's docstring.
     inline_required_refs: ClassVar[frozenset[str]] = frozenset({"object_"})
 
     type_: VO_type = Field(

@@ -182,6 +182,27 @@ class VultronProtocolViolationError(VultronError, ValueError):
     """
 
 
+class VultronReferenceResolutionError(VultronError, ValueError):
+    """Raised when an IRI reference in an object-only slot cannot be materialised.
+
+    VM-06-007 makes ``rehydrate()`` the sole owner of ID-to-object
+    materialisation and requires it to *refuse* rather than fabricate a
+    placeholder.  This is that refusal.  It fires for two distinct causes, both
+    of which mean the slot cannot legally be filled:
+
+    * the reference resolved to nothing in the data layer, or
+    * it resolved to something that is not an AS2 object, so it cannot go into a
+      wire slot.
+
+    ``ValueError`` is included in the base classes for the same reason as
+    :exc:`VultronProtocolViolationError`: so Pydantic absorbs the error and
+    wraps it in a ``ValidationError`` if it is ever raised inside a validator,
+    rather than escaping the whole ``model_validate()`` call.  ARCH-23-006's
+    note records what goes wrong when a core-side guard is *not* absorbable that
+    way.
+    """
+
+
 class CvdStateModelError(VultronError):
     """Base class for errors in the CVD state model."""
 

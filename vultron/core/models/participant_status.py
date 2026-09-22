@@ -18,6 +18,7 @@
 from typing import Any, Literal
 
 from pydantic import (
+    AliasChoices,
     ConfigDict,
     Field,
     computed_field,
@@ -43,6 +44,7 @@ from vultron.core.models.dimensions import (
     RmDimension,
     VfDimension,
 )
+from vultron.core.models.wire_keys import input_keys
 
 
 def coerce_em_consent_state(value: object) -> PEC | None:
@@ -113,11 +115,33 @@ class ParticipantStatus(CoreObject):
         serialization_alias="type",
     )
     context: NonEmptyString  # pyright: ignore[reportGeneralTypeIssues]
-    rm: RmDimension = Field(default_factory=RmDimension)
-    vf: VfDimension | None = None
-    d: DDimension | None = None
+    # Each dimension serializes to its bare state value (ADR-0099 detail 5), so
+    # the alias alone produces the flat wire shape the AS2 form has always used:
+    # ``rm`` -> ``{"rmState": "START"}``.  ``AliasChoices`` keeps the legacy flat
+    # spellings accepted on input so no caller has to change.
+    rm: RmDimension = Field(
+        default_factory=RmDimension,
+        validation_alias=AliasChoices("rmState", "rm_state", "rm"),
+        serialization_alias="rmState",
+    )
+    vf: VfDimension | None = Field(
+        default=None,
+        validation_alias=AliasChoices("vfState", "vf_state", "vf"),
+        serialization_alias="vfState",
+    )
+    d: DDimension | None = Field(
+        default=None,
+        validation_alias=AliasChoices("dState", "d_state", "d"),
+        serialization_alias="dState",
+    )
     case_engagement: bool = True
-    consent: PecDimension | None = None
+    consent: PecDimension | None = Field(
+        default=None,
+        validation_alias=AliasChoices(
+            "emConsentState", "em_consent_state", "consent"
+        ),
+        serialization_alias="emConsentState",
+    )
 
     @computed_field  # type: ignore[misc]
     @property
@@ -149,78 +173,53 @@ class ParticipantStatus(CoreObject):
         ),
     )
 
-    @model_validator(mode="before")
-    @classmethod
-    def _migrate_flat_fields(cls, data: Any) -> Any:
-        """Accept legacy flat ``rm_state``/``vf_state``/``d_state``/``em_consent_state`` inputs.
-
-        Handles both snake_case and camelCase alias keys since this runs before
-        alias normalization.
-        """
-        if not isinstance(data, dict):
-            return data
-        data = dict(data)
-        _SENTINEL = object()
-        rm_raw = data.pop("rm_state", _SENTINEL)
-        if rm_raw is _SENTINEL:
-            rm_raw = data.pop("rmState", _SENTINEL)
-        if rm_raw is not _SENTINEL and rm_raw is not None and "rm" not in data:
-            data["rm"] = {"state": rm_raw}
-        vf_raw = data.pop("vf_state", _SENTINEL)
-        if vf_raw is _SENTINEL:
-            vf_raw = data.pop("vfState", _SENTINEL)
-        if vf_raw is not _SENTINEL and vf_raw is not None and "vf" not in data:
-            data["vf"] = {"state": vf_raw}
-        d_raw = data.pop("d_state", _SENTINEL)
-        if d_raw is _SENTINEL:
-            d_raw = data.pop("dState", _SENTINEL)
-        if d_raw is not _SENTINEL and d_raw is not None and "d" not in data:
-            data["d"] = {"state": d_raw}
-        pec_raw = data.pop("em_consent_state", _SENTINEL)
-        if pec_raw is _SENTINEL:
-            pec_raw = data.pop("emConsentState", _SENTINEL)
-        if pec_raw is not _SENTINEL and "consent" not in data:
-            data["consent"] = (
-                {"state": pec_raw} if pec_raw is not None else None
-            )
-        return data
+    # There is deliberately no ``_migrate_flat_fields`` before-validator any
+    # more.  It hand-translated the flat ``rm_state`` / ``rmState`` spellings
+    # into the nested ``{"state": ...}`` form, and was the only AS2 spelling in
+    # this module outside an alias.  Both mechanisms ADR-0099 detail 5 introduced
+    # now cover its whole job with nothing hand-written: the ``AliasChoices``
+    # above accept all three spellings, and ``_ScalarDimension``'s
+    # ``_accept_bare_state`` accepts the bare state value the flat form carries.
 
     @model_validator(mode="before")
     @classmethod
     def _enforce_role_dimension_invariant(cls, data: Any) -> Any:
         """Auto-initialise vf/d dimensions based on cvd_role (ADR-0075).
 
-        Pydantic v2 runs mode='before' validators in reverse definition order,
-        so this validator fires *before* _migrate_flat_fields.  Flat keys
-        (``vf_state``/``vfState``, ``d_state``/``dState``) are therefore
-        detected here and excluded from the empty-dict seed; _migrate_flat_fields
-        will hydrate them on its subsequent pass.  Uses ``mode="before"``
-        (ADR-0064) to avoid recursive validation under ``validate_assignment=True``.
+        Uses ``mode="before"`` (ADR-0064) to avoid recursive validation under
+        ``validate_assignment=True``.
 
         VENDOR role → vf must be non-None (auto-set to initial state when absent).
         DEPLOYER role → d must be non-None (auto-set to initial state when absent).
+
+        The raw input may spell a dimension any of the ways its
+        ``validation_alias`` accepts, so "is it absent?" asks the field for its
+        own input spellings via :func:`input_keys` rather than listing them here
+        — core code must not type an AS2 spelling (ADR-0099 detail 2).  The
+        empty-dict seed is only a *default*: it is written under the Python field
+        name, which is the last choice in each field's ``AliasChoices``, so a
+        spelling actually present in the input still wins.
         """
         if not isinstance(data, dict):
             return data
-        roles_raw = data.get("cvd_role") or data.get("cvdRole") or []
+        roles_raw: Any = next(
+            (
+                data[key]
+                for key in input_keys(cls, "cvd_role")
+                if data.get(key)
+            ),
+            [],
+        )
         roles = coerce_cvd_roles(roles_raw)
-        # Pydantic v2 runs mode='before' validators in reverse definition order,
-        # so this validator fires before _migrate_flat_fields. Skip seeding when
-        # a flat key is already present — _migrate_flat_fields will hydrate it.
-        vf_absent = (
-            data.get("vf") is None
-            and data.get("vf_state") is None
-            and data.get("vfState") is None
-        )
-        if CVDRole.VENDOR in roles and vf_absent:
-            data["vf"] = {}
-        d_absent = (
-            data.get("d") is None
-            and data.get("d_state") is None
-            and data.get("dState") is None
-        )
-        if CVDRole.DEPLOYER in roles and d_absent:
-            data["d"] = {}
+        for role, dimension in (
+            (CVDRole.VENDOR, "vf"),
+            (CVDRole.DEPLOYER, "d"),
+        ):
+            absent = all(
+                data.get(key) is None for key in input_keys(cls, dimension)
+            )
+            if role in roles and absent:
+                data[dimension] = {}
         return data
 
     @model_validator(mode="after")
@@ -256,6 +255,30 @@ class ParticipantStatus(CoreObject):
     @classmethod
     def _validate_cvd_role(cls, v: object) -> list[CVDRole]:
         return coerce_cvd_roles(v)
+
+    @model_validator(mode="after")
+    def _set_name(self) -> "ParticipantStatus":
+        """Derive the human-readable ``name`` label from the dimension states.
+
+        ``name`` is an optional AS2 property carrying a display label, not
+        protocol data. The object derives its own label from its own state, for
+        the same reason a dimension serializes its own value (ADR-0099 detail
+        5): the fact belongs to the class that holds the state.
+
+        Only set when the caller supplied none, so an explicit ``name`` always
+        wins. ``object.__setattr__`` avoids re-entering validation, since
+        ``validate_assignment`` is in effect on the core branch (ARCH-21-001).
+        """
+        if self.name is None:
+            parts = [self.rm.state.name]
+            if self.vf is not None:
+                parts.append(self.vf.state.name)
+            if self.d is not None:
+                parts.append(self.d.state.name)
+            if self.case_status is not None and self.case_status.name:
+                parts.append(self.case_status.name)
+            object.__setattr__(self, "name", " ".join(parts))
+        return self
 
 
 def participant_status_rm_state(status: object) -> RM:

@@ -59,7 +59,7 @@ from vultron.wire.as2.vocab.base.objects.activities.transitive import as_Invite
 from vultron.wire.as2.vocab.base.objects.actors import as_Service
 from vultron.wire.as2.vocab.objects.case_participant import as_CaseParticipant
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
-    VulnerabilityCaseStub,
+    as_VulnerabilityCaseStub,
     as_VulnerabilityCase,
 )
 
@@ -791,7 +791,7 @@ class TestSvcAcceptCaseInviteUseCase:
 
         invite = rm_invite_to_case_activity(
             invitee,
-            target=VulnerabilityCaseStub(id_=case.id_),
+            target=as_VulnerabilityCaseStub(id_=case.id_),
             actor=inviter.id_,
             to=[invitee.id_],
         )
@@ -850,7 +850,7 @@ class TestSvcAcceptCaseInviteUseCase:
 
         invite = rm_invite_to_case_activity(
             invitee,
-            target=VulnerabilityCaseStub(id_=case.id_),
+            target=as_VulnerabilityCaseStub(id_=case.id_),
             actor=inviter.id_,
             to=[invitee.id_],
         )
@@ -884,7 +884,7 @@ class TestSvcAcceptCaseInviteUseCase:
 
         invite = rm_invite_to_case_activity(
             invitee,
-            target=VulnerabilityCaseStub(id_=case.id_),
+            target=as_VulnerabilityCaseStub(id_=case.id_),
             actor=inviter.id_,
             to=[invitee.id_],
         )
@@ -920,7 +920,7 @@ class TestSvcRejectCaseInviteUseCase:
 
         invite = rm_invite_to_case_activity(
             invitee,
-            target=VulnerabilityCaseStub(id_=case.id_),
+            target=as_VulnerabilityCaseStub(id_=case.id_),
             actor=inviter.id_,
             to=[invitee.id_],
         )
@@ -970,7 +970,7 @@ class TestSvcRejectCaseInviteUseCase:
 
         invite = rm_invite_to_case_activity(
             invitee,
-            target=VulnerabilityCaseStub(id_=case.id_),
+            target=as_VulnerabilityCaseStub(id_=case.id_),
             actor=inviter.id_,
             to=[invitee.id_],
         )

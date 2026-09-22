@@ -37,11 +37,23 @@ logger = logging.getLogger(__name__)
 def _storable_to_record(record: StorableRecord) -> Record:
     """Normalise a StorableRecord through the full wire→core path.
 
-    Only types in :data:`_NORMALIZE_WIRE_TO_CORE` require a round-trip
-    (currently ``CaseParticipant`` and ``ParticipantStatus``).  For all other
-    types the ``data_`` is preserved verbatim — the vocabulary round-trip
+    Only types in :data:`_NORMALIZE_WIRE_TO_CORE` require a round-trip.  For all
+    other types the ``data_`` is preserved verbatim — the vocabulary round-trip
     would deserialise against the *base* wire class and silently lose
     subtype-specific fields (e.g. ``embargo_policy`` on ``VultronPerson``).
+
+    Read the membership from that frozenset rather than from a list quoted here
+    (MS-16-001).  It is worth knowing how wide it is: it holds **all fifteen**
+    shadowing types, including ``VulnerabilityCase``, ``CaseStatus`` and every
+    actor type — not the two it once did.  So an ordinary ``DataLayer.update``
+    for a case reconstitutes it as ``as_VulnerabilityCase``, walks its nested
+    ``as_CaseStatus`` children and projects back, which means a plain persistence
+    write is exposed to every projection gap in the wire classes.  That is a
+    materially deeper entanglement than "translation at the boundary" (ADR-0062,
+    ADR-0082) describes, and it is how an EM state set by a caller was dropped
+    between ``DataLayer.update`` and the stored row.  Under ADR-0099's one object
+    model there is nothing left for this function to normalise, because the
+    stored object and the transmitted object are the same class.
     """
     tmp = Record(id_=record.id_, type_=record.type_, data_=record.data_)
     if record.type_ not in _NORMALIZE_WIRE_TO_CORE:

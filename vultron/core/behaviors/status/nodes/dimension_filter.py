@@ -53,6 +53,7 @@ from vultron.core.behaviors.helpers import (
     DataLayerConditionWithPorts,
     PortInformation,
 )
+from vultron.core.behaviors.ledger_patch import PARTICIPANT_STATUS_PATCH_KEYS
 from vultron.core.models._helpers import _as_id
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.participant_status import ParticipantStatus
@@ -88,19 +89,17 @@ def _accepted_wire_patch(
     """Return the adjudicated dimension values keyed by their wire aliases.
 
     The canonical ledger's ``payload_snapshot['object']`` is the *sender's*
-    wire-shaped ``ParticipantStatus`` — flat ``rmState``/``vfState``/``dState``,
-    nested ``caseStatus``, plus ``@context``, ``emConsentState`` and ``cvdRole``.  The
-    override is therefore published as a **patch** rather than a replacement
-    object: patching leaves the snapshot's shape exactly as the non-override
-    path produces it and rewrites only what was adjudicated (RSH-05-004,
-    RSH-05-009).  Wire key names are obtained from the port rather than
-    hardcoded here (CLP-07-009, CLP-07-010, ADR-0063).
+    wire-shaped ``ParticipantStatus``.  The override is therefore published as a
+    **patch** rather than a replacement object, so the snapshot keeps exactly the
+    shape the non-override path produces and only what was adjudicated is
+    rewritten (RSH-05-004, RSH-05-009).  The *values* come from the port rather
+    than being re-serialized here (CLP-07-009, CLP-07-010, ADR-0063); the *keys*
+    come from the core fields' own aliases (ADR-0099 detail 2) — see
+    :mod:`vultron.core.behaviors.ledger_patch`.
     """
     rendered = port.render(filtered)
     return {
-        k: rendered[k]
-        for k in ("rmState", "vfState", "dState", "caseStatus")
-        if k in rendered
+        k: rendered[k] for k in PARTICIPANT_STATUS_PATCH_KEYS if k in rendered
     }
 
 

@@ -40,7 +40,7 @@ _WIRE_ACTOR_TO_CORE: dict[str, Type[CoreActor]] = {
 }
 
 
-class VultronActorMixin(as_Actor):
+class as_VultronActorMixin(as_Actor):
     """Wire actor base with Vultron-specific actor extension fields."""
 
     embargo_policy: Any | None = Field(
@@ -60,7 +60,7 @@ class VultronActorMixin(as_Actor):
         return core_cls.model_validate(self.model_dump(mode="json"))
 
 
-class as_VultronPerson(VultronActorMixin):
+class as_VultronPerson(as_VultronActorMixin):
     type_: Literal[as_ActorType.PERSON] = Field(
         default=as_ActorType.PERSON,
         validation_alias="type",
@@ -68,7 +68,7 @@ class as_VultronPerson(VultronActorMixin):
     )
 
 
-class as_VultronOrganization(VultronActorMixin):
+class as_VultronOrganization(as_VultronActorMixin):
     type_: Literal[as_ActorType.ORGANIZATION] = Field(
         default=as_ActorType.ORGANIZATION,
         validation_alias="type",
@@ -76,7 +76,7 @@ class as_VultronOrganization(VultronActorMixin):
     )
 
 
-class as_VultronService(VultronActorMixin):
+class as_VultronService(as_VultronActorMixin):
     type_: Literal[as_ActorType.SERVICE] = Field(
         default=as_ActorType.SERVICE,
         validation_alias="type",
@@ -84,7 +84,7 @@ class as_VultronService(VultronActorMixin):
     )
 
 
-class as_VultronApplication(VultronActorMixin):
+class as_VultronApplication(as_VultronActorMixin):
     type_: Literal[as_ActorType.APPLICATION] = Field(
         default=as_ActorType.APPLICATION,
         validation_alias="type",
@@ -92,7 +92,7 @@ class as_VultronApplication(VultronActorMixin):
     )
 
 
-class as_VultronGroup(VultronActorMixin):
+class as_VultronGroup(as_VultronActorMixin):
     type_: Literal[as_ActorType.GROUP] = Field(
         default=as_ActorType.GROUP,
         validation_alias="type",
@@ -133,7 +133,7 @@ ActorUnion: TypeAlias = Annotated[
 __all__ = [
     "ActorUnion",
     "CoreActor",
-    "VultronActorMixin",
+    "as_VultronActorMixin",
     "as_VultronApplication",
     "as_VultronApplicationRef",
     "as_VultronGroup",

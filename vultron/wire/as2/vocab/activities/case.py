@@ -43,7 +43,7 @@ from vultron.wire.as2.vocab.objects.case_status import as_CaseStatus
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCase,
     as_VulnerabilityCaseRef,
-    VulnerabilityCaseStub,
+    as_VulnerabilityCaseStub,
 )
 from vultron.wire.as2.vocab.objects.vulnerability_report import (
     as_VulnerabilityReport,
@@ -321,7 +321,7 @@ class _RmInviteToCaseActivity(as_Invite):
     object_: as_Actor = Field(
         ..., validation_alias="object", serialization_alias="object"
     )
-    target: VulnerabilityCaseStub | str | None = None
+    target: as_VulnerabilityCaseStub | str | None = None
 
     inline_required_refs: ClassVar[frozenset[str]] = frozenset({"object_"})
 

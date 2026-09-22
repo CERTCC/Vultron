@@ -36,7 +36,7 @@ from vultron.wire.as2.factories.case import (
 from vultron.wire.as2.vocab.base.objects.activities.transitive import as_Add
 from vultron.wire.as2.vocab.base.objects.base import as_Object
 from vultron.wire.as2.vocab.base.registry import find_in_vocabulary
-from vultron.wire.as2.vocab.objects.base import VultronAS2Object
+from vultron.wire.as2.vocab.objects.base import as_VultronObject
 from vultron.wire.as2.vocab.objects.case_status import as_CaseStatus
 from vultron.wire.as2.vocab.objects.vulnerability_report import (
     as_VulnerabilityReport,
@@ -180,7 +180,7 @@ class _CasesMixin:
                     f"add_object_to_case: no wire class registered for"
                     f" {obj.__class__.__name__!r}"
                 )
-            if issubclass(wire_cls, VultronAS2Object):
+            if issubclass(wire_cls, as_VultronObject):
                 try:
                     obj = wire_cls.from_core(obj)
                 except Exception as exc:
@@ -191,7 +191,7 @@ class _CasesMixin:
             else:
                 raise ValueError(
                     f"add_object_to_case: {obj.__class__.__name__!r} has no"
-                    f" VultronAS2Object wire counterpart"
+                    f" as_VultronObject wire counterpart"
                 )
         activity = as_Add(actor=actor, object_=obj, target=case)
         try:

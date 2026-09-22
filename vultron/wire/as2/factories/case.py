@@ -81,7 +81,7 @@ from vultron.wire.as2.vocab.objects.embargo_event import (
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCase,
     as_VulnerabilityCaseRef,
-    VulnerabilityCaseStub,
+    as_VulnerabilityCaseStub,
 )
 from vultron.wire.as2.vocab.objects.case_proposal import as_CaseProposal
 from vultron.wire.as2.vocab.objects.vulnerability_report import (
@@ -94,8 +94,8 @@ logger = logging.getLogger(__name__)
 def _project_case_to_stub(
     case: Any,
     embargo_obj: Any,
-) -> VulnerabilityCaseStub:
-    """Project a ``as_VulnerabilityCase`` (core or wire) to a ``VulnerabilityCaseStub``.
+) -> as_VulnerabilityCaseStub:
+    """Project a ``as_VulnerabilityCase`` (core or wire) to a ``as_VulnerabilityCaseStub``.
 
     When ``em_state == EM.ACTIVE`` and *embargo_obj* is provided, the stub
     carries ``active_embargo`` (ID + ``end_time``) and ``case_status``
@@ -110,7 +110,7 @@ def _project_case_to_stub(
     try:
         current_status = case.current_status
     except (ValueError, AttributeError):
-        return VulnerabilityCaseStub(id_=case_id)
+        return as_VulnerabilityCaseStub(id_=case_id)
     # Support both core CaseStatus (.em.state) and wire as_CaseStatus (.em_state)
     if hasattr(current_status, "em") and hasattr(current_status.em, "state"):
         em_state = current_status.em.state
@@ -118,7 +118,7 @@ def _project_case_to_stub(
         em_state = getattr(current_status, "em_state", None)
     active_embargo_uri = getattr(case, "active_embargo", None)
     if em_state != EM.ACTIVE or active_embargo_uri is None:
-        return VulnerabilityCaseStub(id_=case_id)
+        return as_VulnerabilityCaseStub(id_=case_id)
     wire_status = as_CaseStatus(em_state=em_state)
     embargo_ref: WireEmbargoEvent | str = active_embargo_uri
     if embargo_obj is not None:
@@ -135,7 +135,7 @@ def _project_case_to_stub(
                     active_embargo_uri,
                     exc,
                 )
-    return VulnerabilityCaseStub(
+    return as_VulnerabilityCaseStub(
         id_=case_id,
         active_embargo=embargo_ref,
         case_status=wire_status,
@@ -652,8 +652,8 @@ def rm_invite_to_case_activity(
     Args:
         invitee: The ``as_Actor`` (or actor URI) being invited.
         target: The case to join — either a ``as_VulnerabilityCase`` (core or wire;
-            projected to an enriched ``VulnerabilityCaseStub`` via
-            :func:`_project_case_to_stub`), a pre-built ``VulnerabilityCaseStub``,
+            projected to an enriched ``as_VulnerabilityCaseStub`` via
+            :func:`_project_case_to_stub`), a pre-built ``as_VulnerabilityCaseStub``,
             or a bare URI string.
         roles: Optional list of intended CVD role strings for the invitee
             (CM-17-003).  When provided the Invite carries the intended

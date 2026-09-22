@@ -17,10 +17,17 @@
 Spec: ARCH-23-006
 
 ``as_ObjectRef`` carried ``| CoreObject``, added in PR #730 as a migration
-convenience.  Beyond violating ARCH-22-001, it made a core-side validation guard
-unsafe to enforce loudly: ``VultronValidationError`` is not a ``ValueError``
-subclass, so a guard firing while Pydantic resolves that union escapes the whole
-operation rather than being absorbed as a failed union branch.
+convenience.  It made a core-side validation guard unsafe to enforce loudly:
+``VultronValidationError`` is not a ``ValueError`` subclass, so a guard firing
+while Pydantic resolves that union escapes the whole operation rather than being
+absorbed as a failed union branch.
+
+That union-escape defect is the whole of the remaining justification. This test
+also cited ARCH-22-001 ("wire MUST NOT import core"), which ADR-0099 repealed —
+and ADR-0099 goes further and *inverts* this rule, since under one object model a
+wire field annotation is supposed to name the core class. Fixing the union-escape
+defect is therefore the prerequisite for inverting this test, tracked as AC-2 of
+#3491. Do not invert it first.
 
 This test asserts that no wire-branch class (``as_Base`` subclass registered in
 ``VOCABULARY``) has a field annotation that names a ``CoreObject`` subclass.

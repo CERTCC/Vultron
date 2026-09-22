@@ -97,19 +97,31 @@ def matches_short_id(full_id: str, short_id: str) -> bool:
 
 
 def _dimension_state(status: dict[str, Any], dimension: str) -> Any:
-    """Return a status dict's state for *dimension* in either persisted shape.
+    """Return a status dict's state for *dimension* in any persisted shape.
 
-    The canonical core shape nests the state (``{"rm": {"state": "RECEIVED"}}``,
-    ADR-0036); the wire shape carries it flat (``{"rm_state": "RECEIVED"}``),
-    optionally camelCased.  Reading only the flat spellings made this summary
-    report ``rm=None`` for every canonical row — removing the observability
-    that exists precisely to make shape migrations diagnosable (issue #2232).
+    Three shapes are live and all three must be read:
+
+    * the **bare state value** a dimension serializes to since ADR-0099 detail 5
+      / SDO-01-004 — ``{"rm": "RECEIVED"}``;
+    * the **one-key mapping** of ADR-0036 — ``{"rm": {"state": "RECEIVED"}}``,
+      still accepted on input and still present in rows written before that
+      change;
+    * the **flat legacy wire spelling** — ``{"rm_state": "RECEIVED"}``,
+      optionally camelCased.
+
+    Reading only a subset makes this summary report ``rm=None`` for every row it
+    misses, removing the observability that exists precisely to make shape
+    migrations diagnosable (issues #2232, #2262).  That is why a new
+    serialization shape has to be added here in the same change that introduces
+    it, not afterwards.
     """
     nested = status.get(dimension)
     if isinstance(nested, dict):
         state = nested.get("state")
         if state is not None:
             return state
+    elif isinstance(nested, str) and nested:
+        return nested
     return status.get(f"{dimension}_state") or status.get(f"{dimension}State")
 
 

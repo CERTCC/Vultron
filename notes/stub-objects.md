@@ -104,7 +104,7 @@ by ADR-0090). It is not a general substitute for a full object.
 | Situation | Use |
 |---|---|
 | Normal protocol operation (Create, Offer, Invite, Announce) | Full inline typed object (AKM-03-001) |
-| Inviting a participant before embargo acceptance | `VulnerabilityCaseStub` (type + id + summary only) |
+| Inviting a participant before embargo acceptance | `as_VulnerabilityCaseStub` (type + id + summary only) |
 | Large object already known to recipient | Bare URI, or an AS2 `Link` |
 | Privacy-sensitive fields must be withheld | Omit the object; send a URI reference |
 
@@ -115,7 +115,7 @@ nothing else can: an invitee must evaluate a case *before* accepting, and the
 case cannot be shared until they accept (MV-10-005). The stub is therefore
 **transient** — a placeholder that rehydrates into the full object once the
 invitee is admitted. It is the only stub type implemented:
-`VulnerabilityCaseStub` has a class, a factory (`_project_case_to_stub`), and an
+`as_VulnerabilityCaseStub` has a class, a factory (`_project_case_to_stub`), and an
 explicit key-set check in `parser._inline_vocab_class`.
 
 Partial inline objects of other types were never designed. They appeared to work
@@ -208,7 +208,7 @@ The formal stub object requirements are now specified in
 
 **Implementation notes (2026-04-21)**:
 
-- `VulnerabilityCaseStub` MUST override the inherited `published` and
+- `as_VulnerabilityCaseStub` MUST override the inherited `published` and
   `updated` defaults from `as_Object`. Otherwise `model_dump(exclude_none=True)`
   leaks timestamps and violates the "stub carries only id/type(+summary)"
   selective-disclosure rule.

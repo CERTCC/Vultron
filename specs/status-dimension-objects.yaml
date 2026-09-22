@@ -41,6 +41,33 @@ groups:
       See ADR-0036.
     adr:
     - ADR-0036
+  - id: SDO-01-004
+    priority: MUST
+    kind: project
+    statement: >-
+      A dimension object MUST serialize to its bare state value, not to a one-key
+      `{"state": ...}` mapping, and MUST accept both forms on input. The enclosing
+      model carries the wire spelling as a field alias — `rm` with
+      `serialization_alias="rmState"` — so the serialized result is
+      `{"rmState": "START"}`.
+    rationale: >-
+      A dimension holds one data field, `state`; the rest is behaviour, and behaviour
+      does not serialize. The mapping form would put a container on the wire whose
+      only content is the thing it contains. Accepting both forms keeps callers that
+      construct `{"state": ...}` working and rows stored either way readable. This is
+      what lets the core class emit the payload the wire class emitted, so the wire
+      form is unchanged.
+    verification: >-
+      `RmDimension().model_dump(mode="json") == "START"`; `RmDimension.model_validate("ACCEPTED")`
+      and `RmDimension.model_validate({"state": "ACCEPTED"})` both succeed; and core
+      `ParticipantStatus` serializes to the same AS2 payload as `as_ParticipantStatus`.
+      Covered by `test/core/models/test_dimension_bare_serialization.py`.
+    relationships:
+    - rel_type: refines
+      spec_id: SDO-01-001
+    adr:
+    - ADR-0036
+    - ADR-0099
 - id: SDO-02
   title: transition() Contract
   specs:
@@ -156,8 +183,10 @@ groups:
     kind: project
     statement: 'CaseStatus and ParticipantStatus MUST remain round-trippable through the DataLayer after the dimension-object
       migration: a persisted record MUST rehydrate correctly to the new dimension-object shape.'
-    rationale: DataLayer round-trip compatibility is a binding design constraint per LST-05-003 and ADR-0033. The dimension
-      fields serialize as nested dicts that rehydrate via Pydantic model_validate. See ADR-0036.
+    rationale: DataLayer round-trip compatibility is a binding design constraint per LST-05-003 and ADR-0033. A dimension
+      field serializes as its bare state value and rehydrates via Pydantic model_validate (SDO-01-004, ADR-0099). It previously
+      serialized as a nested one-key mapping; both forms are accepted on input so stored rows written either way rehydrate.
+      See ADR-0036.
     relationships:
     - rel_type: depends_on
       spec_id: LST-05-003

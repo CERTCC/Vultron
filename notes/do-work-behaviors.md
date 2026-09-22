@@ -195,7 +195,7 @@ Key design considerations:
   under a Vultron namespace (e.g., `vultron:disclosurePolicy`) so that
   external ActivityPub clients can safely ignore or process the custom field
 - The wrapper would sit in an actor's ActivityPub profile alongside the
-  existing `embargo_policy` field currently provided by `VultronActorMixin`
+  existing `embargo_policy` field currently provided by `as_VultronActorMixin`
 
 **Design Decision**: Defer `VulnerabilityDisclosurePolicy` until there is a
 formal CVD policy schema standard to align with. Track as a follow-on to EP-01
@@ -206,7 +206,7 @@ directly or define a new Vultron-specific schema. DIOSTS is the preferred
 basis if Vultron aims for interoperability with the broader security community.
 
 **Cross-reference**: `specs/embargo-policy.yaml` EP-01; `vultron/wire/as2/vocab/
-objects/vultron_actor.py` (`VultronActorMixin.embargo_policy`).
+objects/vultron_actor.py` (`as_VultronActorMixin.embargo_policy`).
 
 ---
 

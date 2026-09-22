@@ -16,9 +16,14 @@
 """Vultron protocol object-type enumerations — bottom-of-stack neutral layer.
 
 ``VultronObjectType`` and ``VultronActorType`` are cross-cutting primitives
-used by both ``vultron/core/`` and ``vultron/wire/``.  They live here so
-that wire-layer modules can import them without creating ``vultron.core.models``
-imports (ARCH-22-001).
+used by both ``vultron/core/`` and ``vultron/wire/``.  They live here because a
+cross-cutting enumeration is not a domain model and belongs below both branches
+(ADR-0031).
+
+Note the original reason has expired. They were relocated to avoid creating
+``vultron.core.models`` imports from wire, which ARCH-22-001 then forbade; that
+prohibition is repealed by ADR-0099. The relocation still stands on the reason
+above.
 
 This module MUST NOT import from ``vultron.core``, ``vultron.config``,
 ``vultron.wire``, or ``vultron.adapters``.

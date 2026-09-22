@@ -14,7 +14,7 @@ from pydantic import BaseModel
 from vultron.wire.as2.vocab.base.objects.activities.base import as_Activity
 from vultron.wire.as2.vocab.base.registry import find_in_vocabulary
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
-    VulnerabilityCaseStub,
+    as_VulnerabilityCaseStub,
 )
 from vultron.wire.as2.vocab.base.base import as_Base
 from vultron.wire.as2.vocab.base.utils import is_blank
@@ -74,7 +74,7 @@ def _inline_vocab_class(value: dict[str, Any]) -> type[BaseModel] | None:
         obj_type == "VulnerabilityCase"
         and value.keys() <= _VULNERABILITY_CASE_STUB_KEYS
     ):
-        return VulnerabilityCaseStub
+        return as_VulnerabilityCaseStub
 
     try:
         cls = find_in_vocabulary(obj_type)

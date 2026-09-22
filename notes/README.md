@@ -33,11 +33,12 @@ was both an ARCH-12-003 violation and structurally insufficient, and the
 `WireRenderPort` driven seam that replaces it. Lists the five consumers of the
 old core-side aliasing, the reject-guard that MUST accompany deletion of any
 flat-field shim (SDO-03-005), and why persisted rows are unaffected.
-The decision stands but its **mechanism is revised by ADR-0082**: the adapter
-resolves the counterpart through the pairing registry and delegates to the
-adapter-side translator rather than calling `wire_cls.from_core()`. This port
-covers only the **core→wire** half of ARCH-01-001; the mirror-image
-`WireParsePort` (ADR-0082) covers wire→core. Design rationale for both:
+The decision stands; the ADR-0082 mechanism it named is **superseded by
+ADR-0099**. The pairing registry and the adapter-side translators are cancelled,
+so the port collapses to the core object's own `model_dump(by_alias=True)` plus
+the delivery-supplied `@context` — which requires amending ARCH-20-003. The
+mirror-image `WireParsePort` (#2938) was **rejected**, not deferred:
+`rehydrate()` owns ID-to-object materialisation (VM-06-007). Design rationale:
 `notes/wire-core-boundary.md`.
 Normative requirements: `specs/architecture.yaml` ARCH-20,
 `specs/case-ledger-processing.yaml` CLP-07-009/010.
@@ -125,17 +126,18 @@ point), outbound factory/port interfaces (`TriggerActivityPort`,
 auditing `outbox_delivery.py` for enrichment mutations. Source: CONCERN-2545.
 
 **`wire-core-boundary.md`**
-The wire/core boundary contract (ADR-0082): one declarative core↔wire pairing
-registry, one generic bidirectional translator on the adapter side, and
-`extra="forbid"` on the core branch as the structural guarantee. Explains why
-ARCH-01-001 (core→wire) and ARCH-22-001 (wire→core) are *different* rules and
-why ADR-0063 solved only the first; why "zero wire→core imports" was
-unreachable; the four duplications the pairing registry replaces; and the
-measured blast radii (25 vs 570 failures) with the `embargo_adherence`
-computed-field and `id_` round-trip findings. Also records which half of
-`as_ObjectRef` is AS2-faithful and which half is a kludge.
+The wire/core boundary *diagnosis* (ADR-0082) — still the foundation, but its
+**remedy is superseded by ADR-0099**, which deletes the second hierarchy instead
+of reconciling it, so the pairing registry, the adapter-side translator and the
+ARCH-22 ratchet it describes are all cancelled. What still holds: why ARCH-01-001
+(core→wire) and ARCH-22-001 (wire→core) are *different* rules and why ADR-0063
+solved only the first; why "zero wire→core imports" was unreachable (and why that
+meant the rule was wrong, not the target); the four duplications; and the measured
+blast radii (25 vs 570 failures) with the `embargo_adherence` computed-field and
+`id_` round-trip findings. Also records which half of `as_ObjectRef` is
+AS2-faithful and which half is a kludge.
 **Load when**: touching core↔wire translation, the vocabulary registries,
-`_field_map`/`from_core`/`to_core`, the ARCH-22 import ratchet, or adding a
+`_field_map`/`from_core`/`to_core`, the wire→core import allow-list, or adding a
 validator that raises on a core-branch type. Source: G02 / CONCERN-2830.
 
 **`vultron/wire/as2/factories/AGENTS.md`**
@@ -288,7 +290,8 @@ rules are in `vultron/wire/as2/vocab/AGENTS.md`. `VOCABULARY` (keyed by full
 `as_*` class name) and `WIRE_TYPE_MAP` (keyed by wire `type_` value) are
 disjoint, so a core type's wire counterpart is resolved through `WIRE_TYPE_MAP`,
 never by name coincidence (ARCH-23-002). The declarative pairing registry that
-supersedes both lookups (ARCH-23-001) is still pending — issue #2937.
+was to supersede both lookups (ARCH-23-001, issue #2937) is **cancelled by
+ADR-0099** — with one class per concept there is no pair to record.
 **Load when**: adding new vocabulary classes, debugging deserialization failures,
 resolving a core type's wire counterpart, or planning the
 `@activitystreams_object` decorator removal migration.
@@ -515,8 +518,11 @@ configuration.
 **`status-dimension-objects.md`**
 Design guidance for per-machine dimension objects decomposed from `CaseStatus`
 and `ParticipantStatus` (ADR-0036): naming table, `BaseModel`-not-`CoreObject`
-rationale, immutable `transition()` pattern, wire projection notes, call-site
-migration mapping (~308 active sites), and `EmbargoLifecycle` migration priority.
+rationale, immutable `transition()` pattern, call-site migration mapping
+(~308 active sites), and `EmbargoLifecycle` migration priority. The Wire
+Projection section now records ADR-0099 detail 5 / SDO-01-004: a dimension
+serializes to its **bare state value**, both input forms are accepted, and any
+reader of a persisted dimension must handle all three shapes.
 **Load when**: implementing or reviewing dimension-object migration, working on
 `specs/status-dimension-objects.yaml` (SDO) requirements, or understanding how
 `EmDimension`/`RmDimension`/etc. embed inside status objects.

@@ -61,7 +61,7 @@ HTTP POST /inbox  (wire: AS2 JSON)
 ### 5) Known Architectural Risks
 
 - **Core-boundary ratchets fully passing**: `KNOWN_VIOLATIONS` is `frozenset()` in both `test_core_no_adapter_imports.py` and `test_core_no_wire_imports.py` — all prior core-boundary violations resolved
-- **Wire→core model imports**: `test_wire_no_core_model_imports.py` tracks the wire modules that still import `vultron.core.models.*` directly (ARCH-22-001). Read the current inventory from `KNOWN_VIOLATIONS` in that file rather than from a count quoted here (MS-16-001). Note that migrating these to the `as_Foo.from_core()` seam is **no longer the remedy**: ADR-0082 moves projection off the wire classes into adapter-side translator modules, because `from_core()`/`to_core()` are themselves core imports. ARCH-22-003 now targets a declared structural exemption set rather than empty — reaching zero was impossible while ARCH-12-001 (shared-base inheritance) and ARCH-12-010 (core type-map fallback) stand. Decomposition and per-file classification: #2670
+- **Wire→core imports are governed by an allow-list, not a ratchet**: `test_wire_core_import_allowlist.py` enforces that wire MAY import `vultron/core/models/` and `vultron/core/states/`, and nothing else under `vultron/core/` (ARCH-22-001, ARCH-22-002 as amended by ADR-0099). `behaviors/`, `use_cases/`, `ports/`, `services/`, `predicates/`, `scoring/`, `participants/` and `case_states/` are forbidden. There is no violations inventory to read, because the previous prohibition on *all* wire→core imports was repealed: it is not among ADR-0009's six Key Rules, it inverts the inward dependency direction hexagonal architecture prescribes, and it was itself the cause of the duplicate `as_*` domain classes ADR-0099 removes. The substantive rule it was a poor proxy for is ARCH-01-003 — no handler, case or journal logic in wire. Migration epic: #2670
 - **State machine leakage via transitions library**: `vultron/core/states/` wraps `transitions`; coupling to a third-party state machine library in core
 - **BT nodes hold mutable context via `blackboard`**: py-trees blackboard shared state can create implicit coupling between unrelated BT sub-trees
 - **Demo layer mixed into `vultron/demo/`**: some demo code imports from adapters, which is appropriate, but the boundary between "demo" and "production use case" is not always clear
@@ -78,5 +78,5 @@ HTTP POST /inbox  (wire: AS2 JSON)
 - `vultron/adapters/driven/wire_render/as2.py`
 - `test/architecture/test_core_no_adapter_imports.py`
 - `test/architecture/test_core_no_wire_imports.py`
-- `test/architecture/test_wire_no_core_model_imports.py`
+- `test/architecture/test_wire_core_import_allowlist.py`
 - `test/architecture/test_no_bare_register_key_datalayer_nodes.py`

@@ -59,8 +59,9 @@ def is_blank(value: Any) -> bool:
     A required field that is present but empty carries nothing, so it is
     absence rather than a malformed value — CS-08-001's "if present, then
     non-empty".  Whitespace-only counts as blank, matching the project's
-    canonical predicate (``core.models.base._non_empty``), which the wire layer
-    cannot import directly (ARCH-22-001).
+    canonical predicate (``core.models.base._non_empty``). That predicate is
+    private, which is why it is restated rather than imported — not because wire
+    may not reach core, which ARCH-22-001 once forbade and ADR-0099 repealed.
 
     Deliberately narrower than a bare falsy test: ``0``, ``[]`` and ``{}`` are
     *malformed* values for the fields this guards, not omitted ones, and

@@ -20,7 +20,7 @@ import pytest
 
 from vultron.errors import VultronActivityConstructionError
 from vultron.wire.as2.vocab.base.objects.object_types import as_Note
-from vultron.wire.as2.vocab.objects.base import VultronAS2Object
+from vultron.wire.as2.vocab.objects.base import as_VultronObject
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCase,
 )
@@ -205,7 +205,7 @@ class TestAddObjectToCaseConversionBranch:
         fake_id = "urn:test:core-vuln-case-2"
         core_obj = VulnerabilityCase(attributed_to=_ACTOR)
 
-        class _BrokenWireClass(VultronAS2Object):
+        class _BrokenWireClass(as_VultronObject):
             type_: str = "VulnerabilityCase"
 
             @classmethod
@@ -228,7 +228,7 @@ class TestAddObjectToCaseConversionBranch:
                 )
 
     def test_non_vultron_wire_class_raises_value_error(self, adapter, dl):
-        """Wire class that is not VultronAS2Object raises ValueError."""
+        """Wire class that is not as_VultronObject raises ValueError."""
         case = _make_case(dl)
         fake_id = "urn:test:non-as2-obj-1"
 
@@ -246,7 +246,7 @@ class TestAddObjectToCaseConversionBranch:
             patch(_VOCAB_PATH, return_value=as_Note),
         ):
             with pytest.raises(
-                ValueError, match="no VultronAS2Object wire counterpart"
+                ValueError, match="no as_VultronObject wire counterpart"
             ):
                 adapter.add_object_to_case(
                     actor=_ACTOR,

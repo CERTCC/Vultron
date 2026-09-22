@@ -44,6 +44,10 @@ from vultron.core.behaviors.helpers import (
     DataLayerConditionWithPorts,
     PortInformation,
 )
+from vultron.core.behaviors.ledger_patch import (
+    CASE_STATUS_PATCH_FIELDS,
+    CASE_STATUS_PATCH_KEYS,
+)
 from vultron.core.models.case_status import CaseStatus
 from vultron.core.models.dimensions import EmDimension, PxaDimension
 from vultron.core.models.protocols import PersistableModel
@@ -388,9 +392,14 @@ class FinalizeCsFilterNode(DataLayerConditionWithPorts):
             {
                 "object_id": status_id,
                 "producer_type": self.__class__.__name__,
+                # Keyed by the core fields' own AS2 aliases, because the
+                # snapshot ``object`` this patches is wire-shaped (RSH-05-009,
+                # CLP-07-001) — ADR-0099 detail 2.
                 "fields": {
-                    "emState": filtered.em.state.name,
-                    "pxaState": filtered.pxa.state.name,
+                    key: getattr(filtered, field).state.name
+                    for key, field in zip(
+                        CASE_STATUS_PATCH_KEYS, CASE_STATUS_PATCH_FIELDS
+                    )
                 },
             },
         )

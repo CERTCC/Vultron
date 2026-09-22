@@ -260,6 +260,47 @@ groups:
       spec_id: VM-06-001
     lint_suppress:
     - missing_story_reference
+  - id: VM-06-007
+    priority: MUST
+    kind: protocol
+    statement: >-
+      `rehydrate()` in `vultron/wire/as2/rehydration.py` is the sole owner of ID-to-object
+      materialisation. When a slot's declared type admits a model but admits no `str` branch —
+      `as_CaseStatus`, `list[as_Activity]` — a bare IRI is not a value it can hold, so
+      `rehydrate()` MUST resolve that IRI through the supplied `DataLayer` and MUST refuse with
+      a `VultronReferenceResolutionError` (a `ValueError` subclass) naming the field and the IRI
+      when it cannot. Refusal covers both failure modes: the IRI resolving to nothing, and the
+      IRI resolving to an object that is not an AS2 object and therefore cannot occupy a wire
+      slot — which is the normal `dl.read()` result for a paired type while DL-05-004 returns
+      core objects. It MUST NOT fabricate a placeholder object, MUST NOT synthesize a value for
+      any field the placeholder would have required, and MUST NOT substitute a shape the slot
+      cannot hold. Only slots whose declared type is an `as_Object` subclass are in scope: a core
+      dimension field admits no `str` either but serializes to a bare state value (SDO-01-004),
+      not to a reference. Slots that do admit `str` (every `ActivityStreamRef[T]`) are out of
+      scope here and keep VM-06-004's defer behaviour.
+    rationale: >-
+      ADR-0099 detail 9 requires object slots to hold whole objects but named nothing to fill
+      them. Per-class `from_core` did it by fabricating a stub with an invented `actor` — the
+      case owner, or the case's own URI — which misattributes every activity the owner did not
+      perform. `rehydrate()` already holds the `DataLayer` (VM-06-002), so it can resolve the
+      real object and read the real actor off it. Naming it keeps the behaviour alive when the
+      projection methods are deleted.
+    verification: Unit tests in `test/wire/as2/test_rehydration_materialisation.py` confirm that a bare ID in an
+      object-only slot ends up holding the resolved object, that an unresolvable reference raises rather than leaving a
+      bare string or a stub, that a reference resolving to a non-AS2 object is refused rather than substituted, that a
+      slot supplied under its AS2 alias is materialised rather than skipped, that a URI-admitting slot and a core
+      dimension slot are both untouched, and that the materialised activity carries its own actor rather than a
+      synthesized one.
+    adr:
+    - ADR-0099
+    relationships:
+    - rel_type: refines
+      spec_id: VM-06-001
+    - rel_type: depends_on
+      spec_id: VM-06-002
+      note: Materialisation needs the `dl` parameter that requirement mandates.
+    lint_suppress:
+    - missing_story_reference
 - id: VM-07
   title: Serialization Rules
   specs:
@@ -293,7 +334,7 @@ groups:
       serialization boundary. Omitting `serialize_as_any=True` at either boundary causes the serializer to use the declared
       (base) type''s schema, silently dropping all subtype-specific fields.'
     rationale: Pydantic v2 uses the declared field type for serialization by default. A field typed as `VulnerabilityCase`
-      but holding a `VulnerabilityCaseStub` at runtime will serialize using `VulnerabilityCase`'s schema, dropping `stub_*`
+      but holding an `as_VulnerabilityCaseStub` at runtime will serialize using `VulnerabilityCase`'s schema, dropping `stub_*`
       fields entirely with no error. Root causes of BUG-26042201 and BUG-26051902. Both persistence and delivery boundaries
       are required because a correct write-path can still produce incorrect wire output if the delivery serializer also lacks
       this flag.
@@ -406,10 +447,10 @@ groups:
       `context_` to the Vultron context URI (`https://certcc.github.io/Vultron/ns/context.jsonld`)
       rather than the ActivityStreams namespace URI.
     rationale: >-
-      `VultronAS2Object` is the base class for all Vultron-specific wire types. Overriding
+      `as_VultronObject` is the base class for all Vultron-specific wire types. Overriding
       `context_` there ensures that every Vultron object serializes with the correct
       `@context` without requiring call-site changes.
-    verification: Inspection of `vultron/wire/as2/vocab/objects/base.py` confirms that `VultronAS2Object` (with
+    verification: Inspection of `vultron/wire/as2/vocab/objects/base.py` confirms that `as_VultronObject` (with
       `_vocab_ns = VocabNamespace.VULTRON`) overrides `context_` to
       `"https://certcc.github.io/Vultron/ns/context.jsonld"`, so every concrete Vultron wire type serializes with the
       correct `@context` without call-site changes.

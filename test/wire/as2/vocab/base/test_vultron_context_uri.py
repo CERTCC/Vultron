@@ -1,11 +1,11 @@
 #!/usr/bin/env python
-"""Tests for VM-10-001 and VM-10-002: VultronAS2Object context_ defaults to the
+"""Tests for VM-10-001 and VM-10-002: as_VultronObject context_ defaults to the
 Vultron namespace URI, and every wire type whose type_ value is not an AS2
 vocabulary term carries VocabNamespace.VULTRON.
 
-AC-1: VultronAS2Object.context_ defaults to VULTRON_CONTEXT_URI.
+AC-1: as_VultronObject.context_ defaults to VULTRON_CONTEXT_URI.
 AC-2: as_Base.context_ retains ACTIVITY_STREAMS_NS (tested in test_wire_base_hierarchy.py).
-AC-3: Serialization emits the Vultron URI in @context for VultronAS2Object subclasses.
+AC-3: Serialization emits the Vultron URI in @context for as_VultronObject subclasses.
 AC-4: Round-trip from_json(obj.to_json()) preserves the Vultron @context.
 AC-5: test_as_base_context_is_as2_namespace passes unmodified (in test_wire_base_hierarchy.py).
 AC-6: Every wire type with a non-AS2 type_ value annotates _vocab_ns=VULTRON.
@@ -40,7 +40,7 @@ from vultron.wire.as2.vocab.base.base import (
 )
 from vultron.wire.as2.vocab.base.enums import VocabNamespace
 from vultron.wire.as2.vocab.base.registry import VOCABULARY
-from vultron.wire.as2.vocab.objects.base import VultronAS2Object
+from vultron.wire.as2.vocab.objects.base import as_VultronObject
 from vultron.wire.as2.vocab.objects.embargo_event import as_EmbargoEvent
 
 # Ensure all registered vocab types are loaded for AC-6.
@@ -62,20 +62,20 @@ _AS2_VOCAB_TERMS = frozenset({m.value for m in as_AllObjectTypes}) | {
 }
 
 
-# --- AC-1: VultronAS2Object default context_ -----------------------------------
+# --- AC-1: as_VultronObject default context_ -----------------------------------
 
 
 @pytest.mark.spec("VM-10-002")
-def test_vultron_as2_object_context_defaults_to_vultron_uri():
-    """AC-1: VultronAS2Object.context_ defaults to the Vultron context URI."""
-    obj = VultronAS2Object()
+def test_as_vultron_object_context_defaults_to_vultron_uri():
+    """AC-1: as_VultronObject.context_ defaults to the Vultron context URI."""
+    obj = as_VultronObject()
     assert obj.context_ == VULTRON_CONTEXT_URI
 
 
 @pytest.mark.spec("VM-10-002")
-def test_vultron_as2_object_context_is_not_as2_namespace():
-    """AC-1: VultronAS2Object.context_ does NOT default to the AS2 namespace."""
-    obj = VultronAS2Object()
+def test_as_vultron_object_context_is_not_as2_namespace():
+    """AC-1: as_VultronObject.context_ does NOT default to the AS2 namespace."""
+    obj = as_VultronObject()
     assert obj.context_ != ACTIVITY_STREAMS_NS
 
 
@@ -85,8 +85,8 @@ def test_vultron_as2_object_context_is_not_as2_namespace():
 @pytest.mark.spec("VM-10-001")
 @pytest.mark.spec("VM-10-002")
 def test_vultron_subclass_serializes_vultron_context():
-    """AC-3: A VultronAS2Object subclass serializes @context as the Vultron URI."""
-    obj = VultronAS2Object()
+    """AC-3: A as_VultronObject subclass serializes @context as the Vultron URI."""
+    obj = as_VultronObject()
     data = json.loads(obj.to_json())
     assert data["@context"] == VULTRON_CONTEXT_URI
 
@@ -101,7 +101,7 @@ def test_embargo_event_serializes_vultron_context():
 
 @pytest.mark.spec("VM-10-002")
 def test_as_base_subclass_without_override_retains_as2_context():
-    """AC-3: A plain as_Base subclass (not VultronAS2Object) still uses the AS2 namespace."""
+    """AC-3: A plain as_Base subclass (not as_VultronObject) still uses the AS2 namespace."""
     from vultron.wire.as2.vocab.base.base import as_Base
 
     obj = as_Base()
@@ -114,10 +114,10 @@ def test_as_base_subclass_without_override_retains_as2_context():
 
 @pytest.mark.spec("VM-10-001")
 @pytest.mark.spec("VM-10-002")
-def test_vultron_as2_object_roundtrip_preserves_context():
+def test_as_vultron_object_roundtrip_preserves_context():
     """AC-4: from_json(obj.to_json()) preserves the Vultron @context."""
-    obj = VultronAS2Object()
-    restored = VultronAS2Object.from_json(obj.to_json())
+    obj = as_VultronObject()
+    restored = as_VultronObject.from_json(obj.to_json())
     assert restored.context_ == VULTRON_CONTEXT_URI
 
 

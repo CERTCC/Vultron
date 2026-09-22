@@ -12,12 +12,12 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-"""Tests for VultronAS2Object.from_core / to_core / _field_map — WIRE-TRANS-02."""
+"""Tests for as_VultronObject.from_core / to_core / _field_map — WIRE-TRANS-02."""
 
 import pytest
 from pydantic import BaseModel
 
-from vultron.wire.as2.vocab.objects.base import VultronAS2Object
+from vultron.wire.as2.vocab.objects.base import as_VultronObject
 
 
 class _SimpleCoreObj(BaseModel):
@@ -37,39 +37,39 @@ class _RenamedCoreObj(BaseModel):
     domain_label: str | None = "hello"
 
 
-class _MappedWireObj(VultronAS2Object):
+class _MappedWireObj(as_VultronObject):
     """Wire type with a _field_map translating domain_label → wire_label."""
 
     _field_map = {"domain_label": "name"}
 
 
-class TestVultronAS2ObjectFieldMap:
+class TestAsVultronObjectFieldMap:
     def test_default_field_map_is_empty(self):
-        assert VultronAS2Object._field_map == {}
+        assert as_VultronObject._field_map == {}
 
     def test_subclass_can_override_field_map(self):
         assert _MappedWireObj._field_map == {"domain_label": "name"}
 
 
-class TestVultronAS2ObjectFromCore:
+class TestAsVultronObjectFromCore:
     def test_from_core_returns_wire_instance(self):
         core = _SimpleCoreObj()
-        wire = VultronAS2Object.from_core(core)
-        assert isinstance(wire, VultronAS2Object)
+        wire = as_VultronObject.from_core(core)
+        assert isinstance(wire, as_VultronObject)
 
     def test_from_core_preserves_id(self):
         core = _SimpleCoreObj(id_="urn:uuid:abc-123")
-        wire = VultronAS2Object.from_core(core)
+        wire = as_VultronObject.from_core(core)
         assert wire.id_ == "urn:uuid:abc-123"
 
     def test_from_core_preserves_name(self):
         core = _SimpleCoreObj(name="Test Object")
-        wire = VultronAS2Object.from_core(core)
+        wire = as_VultronObject.from_core(core)
         assert wire.name == "Test Object"
 
     def test_from_core_preserves_content(self):
         core = _SimpleCoreObj(content="some content")
-        wire = VultronAS2Object.from_core(core)
+        wire = as_VultronObject.from_core(core)
         assert wire.content == "some content"
 
     def test_from_core_with_field_map_renames_field(self):
@@ -96,9 +96,9 @@ class TestVultronAS2ObjectFromCore:
         assert core.domain_label == "original"
 
 
-class TestVultronAS2ObjectToCore:
+class TestAsVultronObjectToCore:
     def test_to_core_raises_not_implemented(self):
-        wire = VultronAS2Object()
+        wire = as_VultronObject()
         with pytest.raises(NotImplementedError):
             wire.to_core()
 
@@ -113,7 +113,7 @@ class TestVultronAS2ObjectToCore:
             wire.to_core()
 
 
-class TestVultronAS2ObjectNoShim:
+class TestAsVultronObjectNoShim:
     """Ensure the backward-compatibility alias was removed (WIRE-TRANS-01)."""
 
     def test_VultronObject_not_exported_from_wire_base(self):

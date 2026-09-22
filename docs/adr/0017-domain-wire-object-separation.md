@@ -6,7 +6,22 @@ consulted: notes/domain-model-separation.md
 amended: >-
   2026-06-05 — Changed decision from Option B to Option D
   (shared-base, two-branch hierarchy); see concern #796.
+partially_superseded_by: 0099-one-object-model-as2-is-a-serialization.md
 ---
+
+> **Partially superseded by
+> [ADR-0099](0099-one-object-model-as2-is-a-serialization.md).** The Option D
+> shared root — `VultronBase` / `VultronObject` connecting a core branch and a
+> wire branch — is replaced by a single object model in which AS2 is a
+> serialization. The reason Option D was chosen over Option B in the first
+> place was that independent hierarchies "block the `from_core()`/`to_core()`
+> translation protocol"; ADR-0082 then forbade that protocol, which removed
+> the justification.
+>
+> What survives is everything Option B contributed and this ADR preserved:
+> `CoreObject`, `CORE_VOCABULARY`, and the migrated domain types from the #699
+> chain. ADR-0099 keeps those as *the* model. So read this ADR for the
+> domain/wire separation rationale, not for the shared-root mechanism.
 
 # Domain/Wire Object Separation: Shared-Base, Two-Branch Hierarchy
 

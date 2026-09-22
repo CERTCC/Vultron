@@ -205,23 +205,32 @@ the `CORE_TYPE_MAP` fallback.
 
 ---
 
-## Pending: Declarative Pairing Registry (ADR-0082, ARCH-23-001)
+## Cancelled: Declarative Pairing Registry (ARCH-23-001)
 
-A single declarative core↔wire **pairing registry** is to become the
-authoritative statement of type correspondence (ARCH-23-001). It is **not yet
-implemented** — tracked by issue #2937.
+> **Cancelled by [ADR-0099](../docs/adr/0099-one-object-model-as2-is-a-serialization.md).**
+> Do not implement this, and do not revive issue #2937.
 
-The other half of ADR-0082 has landed: `VOCABULARY` and `CORE_VOCABULARY` no
-longer share bare-name keys, and nothing resolves a counterpart by name
-coincidence (ARCH-23-002). See § "Registry Keys Are Disjoint" below for the key
-forms and the lookup to use.
+A single declarative core↔wire **pairing registry** was to become the
+authoritative statement of type correspondence (ARCH-23-001), tracked by
+issue #2937. **A pairing registry exists to reconcile two classes that mean the
+same thing.** ADR-0099 deletes the second hierarchy instead — measured across the
+27 paired classes, none of the 346 differing fields is a semantic disagreement —
+so there is no pair left to record. ARCH-23-001 stays normative until the paired
+`as_*` domain classes are actually gone, but it is not a target to build.
 
-When the pairing registry lands it also retires `_NORMALIZE_WIRE_TO_CORE`
-(`vultron/adapters/driven/db_record.py`) and `_WIRE_ACTOR_TO_CORE`
-(`vultron/wire/as2/vocab/objects/vultron_actor.py`) — both still live, and
-documented below.
+The other half of ADR-0082 has landed and still stands: `VOCABULARY` and
+`CORE_VOCABULARY` no longer share bare-name keys, and nothing resolves a
+counterpart by name coincidence (ARCH-23-002). See § "Registry Keys Are Disjoint"
+below for the key forms and the lookup to use.
 
-Design rationale: [notes/wire-core-boundary.md](wire-core-boundary.md).
+`_NORMALIZE_WIRE_TO_CORE` (`vultron/adapters/driven/db_record.py`) and
+`_WIRE_ACTOR_TO_CORE` (`vultron/wire/as2/vocab/objects/vultron_actor.py`) are both
+still live and documented below. They are retired by the deletion of the paired
+classes rather than by a pairing registry: under one object model the stored object
+and the transmitted object are the same class, so there is nothing to normalise.
+
+Design rationale: [notes/wire-core-boundary.md](wire-core-boundary.md), whose
+diagnosis ADR-0099 builds on and whose remedy it replaces.
 
 ## StorableRecord Normalization Gate (`_NORMALIZE_WIRE_TO_CORE`)
 
@@ -281,7 +290,8 @@ The render adapter resolves a core class to its wire counterpart with
 `WIRE_TYPE_MAP.get(type(obj).__name__)`. Never resolve a core type's wire
 counterpart by name coincidence — use `WIRE_TYPE_MAP` (for `type_` values) or
 `VOCABULARY` (for wire class-name lookups). The full pairing registry
-(ARCH-23-001) is tracked by issue #2937.
+(ARCH-23-001) is **cancelled** by ADR-0099 — see § "Cancelled: Declarative Pairing
+Registry" above.
 
 Disjointness is enforced, not assumed: the verification test asserts
 `set(VOCABULARY) & set(CORE_VOCABULARY) == set()` after forcing full

@@ -16,9 +16,14 @@
 """Branch-neutral string primitive types for Vultron.
 
 ``NonEmptyString`` and ``UriString`` are Pydantic annotated type aliases used
-by both ``vultron/core/`` and ``vultron/wire/``.  They live here so that
-wire-layer modules can import them without creating ``vultron.core.models``
-imports (ARCH-22-001).
+by both ``vultron/core/`` and ``vultron/wire/``.  They live here because they
+are not domain models: they are shared string primitives, and a module that both
+branches need belongs below both.
+
+Note the original reason has expired. They were relocated to avoid creating
+``vultron.core.models`` imports from wire, which ARCH-22-001 then forbade; that
+prohibition is repealed by ADR-0099 and wire may now name core model types
+directly. The relocation still stands on the reason above.
 
 This module MUST NOT import from ``vultron.core``, ``vultron.config``,
 ``vultron.wire``, or ``vultron.adapters``.

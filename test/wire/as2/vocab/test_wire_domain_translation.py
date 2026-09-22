@@ -254,14 +254,14 @@ def test_case_actor_round_trips_between_core_and_wire():
 
 
 # ============================================================================
-# WIRE-TRANS-04: VultronAS2Activity.from_core()
+# WIRE-TRANS-04: as_VultronActivity.from_core()
 # ============================================================================
 
 
 def test_vultron_as2_activity_from_core_with_string_fields():
-    """VultronAS2Activity.from_core() round-trips a simple activity."""
+    """as_VultronActivity.from_core() round-trips a simple activity."""
     from vultron.core.models.activity import VultronActivity
-    from vultron.wire.as2.vocab.activities.base import VultronAS2Activity
+    from vultron.wire.as2.vocab.activities.base import as_VultronActivity
 
     core = VultronActivity(
         id_="https://example.org/activities/1",
@@ -270,9 +270,9 @@ def test_vultron_as2_activity_from_core_with_string_fields():
         object_="https://example.org/reports/1",
     )
 
-    wire = VultronAS2Activity.from_core(core)
+    wire = as_VultronActivity.from_core(core)
 
-    assert isinstance(wire, VultronAS2Activity)
+    assert isinstance(wire, as_VultronActivity)
     assert wire.id_ == core.id_
     assert wire.actor == core.actor
     assert wire.object_ == core.object_
@@ -281,7 +281,7 @@ def test_vultron_as2_activity_from_core_with_string_fields():
 def test_vultron_as2_activity_from_core_with_no_object():
     """from_core() rejects objectless transitive activities."""
     from vultron.core.models.activity import VultronActivity
-    from vultron.wire.as2.vocab.activities.base import VultronAS2Activity
+    from vultron.wire.as2.vocab.activities.base import as_VultronActivity
 
     core = VultronActivity(
         id_="https://example.org/activities/2",
@@ -290,7 +290,7 @@ def test_vultron_as2_activity_from_core_with_no_object():
     )
 
     with pytest.raises(ValidationError):
-        VultronAS2Activity.from_core(core)
+        as_VultronActivity.from_core(core)
 
 
 def test_vultron_as2_activity_subclass_field_map_renames():
@@ -298,9 +298,9 @@ def test_vultron_as2_activity_subclass_field_map_renames():
     from typing import ClassVar
 
     from vultron.core.models.activity import VultronActivity
-    from vultron.wire.as2.vocab.activities.base import VultronAS2Activity
+    from vultron.wire.as2.vocab.activities.base import as_VultronActivity
 
-    class _AliasMappedActivity(VultronAS2Activity):
+    class _AliasMappedActivity(as_VultronActivity):
         _field_map: ClassVar[dict[str, str]] = {"origin": "target"}
 
     core = VultronActivity(
@@ -320,7 +320,7 @@ def test_vultron_as2_activity_subclass_field_map_renames():
 def test_vultron_as2_activity_from_core_accept_subtype():
     """from_core() works for a VultronAccept domain sub-type."""
     from vultron.core.models.activity import VultronAccept
-    from vultron.wire.as2.vocab.activities.base import VultronAS2Activity
+    from vultron.wire.as2.vocab.activities.base import as_VultronActivity
 
     core = VultronAccept(
         id_="https://example.org/activities/4",
@@ -328,9 +328,9 @@ def test_vultron_as2_activity_from_core_accept_subtype():
         object_="https://example.org/activities/offer-1",
     )
 
-    wire = VultronAS2Activity.from_core(core)
+    wire = as_VultronActivity.from_core(core)
 
-    assert isinstance(wire, VultronAS2Activity)
+    assert isinstance(wire, as_VultronActivity)
     assert wire.id_ == core.id_
     assert wire.actor == core.actor
     assert wire.object_ == core.object_

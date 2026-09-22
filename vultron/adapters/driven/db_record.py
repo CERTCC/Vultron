@@ -355,7 +355,7 @@ def _normalize_to_core(obj: PersistableModel) -> PersistableModel:
             # These fields are dehydrated to ID strings by _dehydrate_data; their
             # in-memory shape is irrelevant to the stored row.  Skipping them
             # prevents spurious to_core() calls on stub/reference objects (e.g.
-            # VulnerabilityCaseStub in Invite.target) that are never stored
+            # as_VulnerabilityCaseStub in Invite.target) that are never stored
             # standalone and have no full core projection.
             continue
         value = getattr(model, field_name, None)
