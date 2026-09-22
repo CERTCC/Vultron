@@ -368,7 +368,7 @@ not clear a blackboard key it does not own (CONCERN-2711), because a peer that
 legitimately owns the key would see it corrupted. Ownership stays with the
 producer; *lifetime* is enforced by the bridge.
 
-**`activity` and `context_data` keys are also managed** (#3161): `setup_tree`
+**`activity` and `context_data` keys are also managed** (#3161, pending #3510): `setup_tree`
 writes the `activity` key (when provided) and all `**context_data` keyword
 arguments to the blackboard. These keys are added to `managed_keys`
 dynamically at the start of `execute_with_setup`, before `previous_values` is
