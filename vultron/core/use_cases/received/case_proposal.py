@@ -198,6 +198,12 @@ class CreateCaseProposalReceivedUseCase:
                 # actor. That expansion was itself the bug and is fixed at source
                 # (rehydration now respects the field's declared type), so the
                 # workaround is gone.
+                #
+                # ARCH-20-001 permits this ``by_alias=True``: the subject is a
+                # *wire object*, not a core-branch one — ``raw_proposal`` is the
+                # inbound activity's own ``object_``, the as_CaseProposal as it
+                # arrived. Dumping it reproduces the bytes the vendor sent; it
+                # does not synthesise a wire shape for a core object.
                 proposal_dict = raw_proposal.model_dump(
                     by_alias=True, serialize_as_any=True
                 )

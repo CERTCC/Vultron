@@ -127,6 +127,11 @@ class EmitAddCaseParticipantNode(_EmitSingleActivityBase):
                 f"Add(CaseParticipant) activity '{activity_id}' not found in"
                 " DataLayer; cannot build payload snapshot (ARCH-15-001)"
             )
+        # ARCH-20-001 permits this ``by_alias=True``: the subject is the stored
+        # ``Add(CaseParticipant)`` activity read straight back out of the
+        # DataLayer, which hands it back already wire-shaped, and the result is a
+        # ledger payload snapshot — AS2-shaped by definition (CLP-07-001).  No
+        # wire shape is being synthesised for a core-branch object here.
         raw: dict = stored.model_dump(
             mode="json",
             by_alias=True,

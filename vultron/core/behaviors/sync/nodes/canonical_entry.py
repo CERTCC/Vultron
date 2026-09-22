@@ -33,9 +33,16 @@ from datetime import datetime, timedelta, timezone
 from typing import Any
 
 from vultron.core.models._helpers import as_utc, parse_published
+from vultron.core.models.case_ledger_entry import VultronCaseLedgerEntry
+from vultron.core.models.wire_keys import wire_key
 from vultron.errors import VultronCanonicalEntryError
 
 logger = logging.getLogger(__name__)
+
+#: How CLP-07 spells ``CaseLedgerEntry.payload_snapshot`` in every requirement it
+#: states, read from the field's own alias so the diagnostics below can quote the
+#: spec's spelling without core logic typing an AS2 name (ADR-0099 detail 2).
+_PAYLOAD_SNAPSHOT = wire_key("payload_snapshot", VultronCaseLedgerEntry)
 
 # Every ``(activity_type, object_type)`` pair that may appear as a canonical
 # ledger ``payloadSnapshot``.  Audited against the CaseActor-authoritative
@@ -141,7 +148,7 @@ def _snapshot_object_type(snapshot: dict[str, Any]) -> str | None:
 
 
 def _bare_inline_object_path(
-    value: Any, path: str = "payloadSnapshot"
+    value: Any, path: str = _PAYLOAD_SNAPSHOT
 ) -> str | None:
     if isinstance(value, dict):
         for key, child in value.items():
@@ -319,8 +326,8 @@ def _validate_canonical_entry(
     # equivalence lookup (CLP-07).
     if not payload_snapshot:
         raise VultronCanonicalEntryError(
-            f"{event_type}: recorded canonical entries require a non-empty "
-            "payloadSnapshot"
+            f"{event_type}: recorded canonical entries require a non-empty"
+            f" {_PAYLOAD_SNAPSHOT}"
         )
 
     snapshot_actor = payload_snapshot.get("actor")

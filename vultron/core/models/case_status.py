@@ -15,9 +15,9 @@
 
 """Domain representation of a case status snapshot."""
 
-from typing import Any, Literal
+from typing import Literal
 
-from pydantic import ConfigDict, Field, model_validator
+from pydantic import AliasChoices, ConfigDict, Field
 from pydantic.alias_generators import to_camel
 
 from vultron.core.models.base import CoreObject, NonEmptyString
@@ -50,41 +50,31 @@ class CaseStatus(CoreObject):
     attributed_to: NonEmptyString | None = (
         None  # pyright: ignore[reportGeneralTypeIssues]
     )
-    em: EmDimension = Field(default_factory=EmDimension)
-    pxa: PxaDimension = Field(default_factory=PxaDimension)
+    # Each dimension serializes to its bare state value (ADR-0099 detail 5), so
+    # the alias alone produces the flat wire shape the AS2 form has always used:
+    # ``em`` -> ``{"emState": "NONE"}``.  ``AliasChoices`` keeps the legacy flat
+    # spellings accepted on input so no caller has to change.  Declared for the
+    # same reason ``ParticipantStatus`` declares its own: the AS2 spelling of a
+    # core field belongs in the field's alias and nowhere else (ADR-0099 detail
+    # 2), which is also where core code that must key an AS2-shaped snapshot
+    # reads it from (:mod:`vultron.core.models.wire_keys`).  Adding them here
+    # made this class's own ``by_alias`` dump agree with the wire form that
+    # ``as_CaseStatus`` — and therefore every replica — has always produced.
+    em: EmDimension = Field(
+        default_factory=EmDimension,
+        validation_alias=AliasChoices("emState", "em_state", "em"),
+        serialization_alias="emState",
+    )
+    pxa: PxaDimension = Field(
+        default_factory=PxaDimension,
+        validation_alias=AliasChoices("pxaState", "pxa_state", "pxa"),
+        serialization_alias="pxaState",
+    )
 
-    @model_validator(mode="before")
-    @classmethod
-    def _migrate_flat_fields(cls, data: Any) -> Any:
-        """Accept legacy flat ``em_state``/``pxa_state`` wire-format inputs.
-
-        Wire-layer ``as_CaseStatus`` serialises these as flat string fields.
-        When the DataLayer reconstitutes a stored ``VulnerabilityCase``, the
-        nested ``case_statuses`` dicts may still carry these keys.  Map them
-        to the dimension-object keys so ``model_validate`` succeeds.
-        Handles both snake_case and camelCase alias forms.
-        """
-        if not isinstance(data, dict):
-            return data
-        _SENTINEL = object()
-        em_raw = data.get("em_state", _SENTINEL)
-        if em_raw is _SENTINEL:
-            em_raw = data.get("emState", _SENTINEL)
-        if em_raw is not _SENTINEL and em_raw is not None and "em" not in data:
-            data = dict(data)
-            data.pop("em_state", None)
-            data.pop("emState", None)
-            data["em"] = {"state": em_raw}
-        pxa_raw = data.get("pxa_state", _SENTINEL)
-        if pxa_raw is _SENTINEL:
-            pxa_raw = data.get("pxaState", _SENTINEL)
-        if (
-            pxa_raw is not _SENTINEL
-            and pxa_raw is not None
-            and "pxa" not in data
-        ):
-            data = dict(data)
-            data.pop("pxa_state", None)
-            data.pop("pxaState", None)
-            data["pxa"] = {"state": pxa_raw}
-        return data
+    # There is deliberately no ``_migrate_flat_fields`` before-validator any
+    # more.  It hand-translated the flat ``em_state`` / ``emState`` spellings
+    # into the nested ``{"state": ...}`` form, and was the only AS2 spelling in
+    # this module outside an alias.  Both mechanisms ADR-0099 detail 5 introduced
+    # now cover its whole job with nothing hand-written: the ``AliasChoices``
+    # above accept all three spellings, and ``_ScalarDimension``'s
+    # ``_accept_bare_state`` accepts the bare state value the flat form carries.

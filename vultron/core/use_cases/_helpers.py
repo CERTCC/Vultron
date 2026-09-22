@@ -18,6 +18,7 @@ from vultron.core.models.participant_status import (
     participant_status_rm_state,
 )
 from vultron.core.models.report_case_link import VultronReportCaseLink
+from vultron.core.models.wire_keys import wire_keys
 from vultron.core.ports.case_persistence import (
     CasePersistence,
     CaseOutboxPersistence,
@@ -32,22 +33,28 @@ from vultron.errors import VultronNotFoundError, VultronValidationError
 
 logger = logging.getLogger(__name__)
 
-_SNAPSHOT_REFERENCE_FIELDS = {
+#: Core field names whose values are object references that a canonical payload
+#: snapshot inlines (CLP-07-006).
+_SNAPSHOT_REFERENCE_CORE_FIELDS = (
     "object",
     "object_",
     "target",
     "active_embargo",
-    "activeEmbargo",
     "proposed_embargoes",
-    "proposedEmbargoes",
     "vulnerability_reports",
-    "vulnerabilityReports",
     "notes",
     "case_participants",
-    "caseParticipants",
     "case_statuses",
-    "caseStatuses",
-}
+)
+
+#: The same fields under both spellings, because the snapshot being walked may
+#: have come from either serialization: the wire render port produces AS2 keys,
+#: a plain core ``model_dump`` produces Python field names.  The AS2 spelling is
+#: *derived* from the core name by :func:`wire_key` rather than written out
+#: here — core code must not type an AS2 spelling (ADR-0099 detail 2).
+_SNAPSHOT_REFERENCE_FIELDS = set(_SNAPSHOT_REFERENCE_CORE_FIELDS) | set(
+    wire_keys(_SNAPSHOT_REFERENCE_CORE_FIELDS)
+)
 _SNAPSHOT_INLINE_DEPTH_LIMIT = 8
 
 
@@ -117,6 +124,15 @@ def _inline_snapshot_reference_value(
         if wire_render_port is not None:
             dumped = wire_render_port.render(resolved)
         else:
+            # ARCH-20-001: the port is the sanctioned route and is used whenever
+            # it is injected.  This fallback runs only when no port was supplied
+            # — CLI and replay paths — and the object being dumped is being
+            # inlined into a payload snapshot, which CLP-07-001 defines as
+            # AS2-shaped.  It is the weakest of the seven remaining call sites:
+            # ``resolved`` comes from the DataLayer and may be a core-branch
+            # object, in which case this *is* core producing a wire shape for
+            # one.  It survives only because there is no port to ask; collapsing
+            # the rendering port (ADR-0099 Migration) removes the branch.
             dumped = resolved.model_dump(
                 mode="json",
                 by_alias=True,
@@ -150,6 +166,10 @@ def build_activity_payload_snapshot(
     if activity is None or not hasattr(activity, "model_dump"):
         return {}
 
+    # ARCH-20-001 permits this ``by_alias=True``: *activity* is the inbound
+    # activity being captured, and the result is the ledger payload snapshot,
+    # which CLP-07-001 defines as the AS2 serialization of what arrived.  The
+    # AS2 shape is the requirement here, not an accident of the dump.
     snapshot: dict[str, Any] = activity.model_dump(
         mode="json",
         by_alias=True,

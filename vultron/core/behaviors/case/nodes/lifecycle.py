@@ -34,6 +34,10 @@ from vultron.core.behaviors.helpers import DataLayerActionWithPorts
 from vultron.core.behaviors.sync.commit_tree import (
     create_commit_log_entry_tree,
 )
+from vultron.core.behaviors.ledger_patch import (
+    PATCH_KEY_TWINS,
+    drop_stale_twins,
+)
 from vultron.core.ports.case_persistence import (
     CaseOutboxPersistence,
     CasePersistence,
@@ -90,20 +94,6 @@ def _extract_payload_snapshot(
     return snapshot
 
 
-#: snake_case spellings of the patchable flat status fields.  A snapshot is
-#: normally serialized ``by_alias`` (camelCase), but a stale snake_case twin
-#: left alongside a patched alias would let a consumer that prefers the
-#: snake_case spelling read the value the receiver just refused.
-_SNAKE_TWINS: dict[str, str] = {
-    "rmState": "rm_state",
-    "vfState": "vf_state",
-    "dState": "d_state",
-    "emState": "em_state",
-    "pxaState": "pxa_state",
-    "emConsentState": "em_consent_state",
-    "caseStatus": "case_status",
-}
-
 #: Producer class names recognized by the override consumer.  An override with
 #: an unrecognized ``producer_type`` still applies (RSH-05-014 is a warning,
 #: not a block); this set is an audit allowlist, not a security gate.
@@ -136,11 +126,11 @@ def _merge_snapshot_object_fields(
             nested = dict(existing)
             for nested_key, nested_value in value.items():
                 nested[nested_key] = nested_value
-                nested.pop(_SNAKE_TWINS.get(nested_key, ""), None)
+                drop_stale_twins(nested, nested_key)
             merged[key] = nested
             continue
         merged[key] = value
-        merged.pop(_SNAKE_TWINS.get(key, ""), None)
+        drop_stale_twins(merged, key)
     merged.pop("name", None)
     return merged
 
@@ -269,12 +259,15 @@ class CommitCaseLedgerEntryNode(DataLayerActionWithPorts):
         The override is a **patch**, not a replacement object: the guard names
         only the fields it adjudicated and they are merged onto the snapshot's
         existing ``object``.  That keeps the snapshot in the same wire shape the
-        un-adjudicated path produces — flat ``rmState``/``vfdState``, nested
-        ``caseStatus``, ``@context``, ``emConsentState``, ``cvdRole`` — which
-        every replica and the invariant harness rely on (RSH-05-009,
-        CLP-07-001, CM-18-006).  A whole-object replacement built in core would
-        instead emit core dimension objects, since core must not import the wire
-        layer to convert (ADR-0009, ADR-0017).
+        un-adjudicated path produces — flat dimension values, a nested case
+        status, ``@context``, the consent state and the CVD roles, each under its
+        AS2 alias — which every replica and the invariant harness rely on
+        (RSH-05-009, CLP-07-001, CM-18-006).  A whole-object replacement built in
+        core would instead emit core dimension objects, since core must not
+        import the wire layer to convert (ADR-0009, ADR-0017).
+
+        Which keys a patch may name is
+        :data:`~vultron.core.behaviors.ledger_patch.PATCH_KEY_TWINS`.
 
         The override names the object ID it applies to and is honoured only
         when the snapshot's ``object`` refers to the same ID: the py_trees
@@ -300,7 +293,7 @@ class CommitCaseLedgerEntryNode(DataLayerActionWithPorts):
                 producer_type,
             )
         # RSH-05-013: hard-fail on any unrecognized wire alias in fields.
-        unknown = set(fields) - set(_SNAKE_TWINS)
+        unknown = set(fields) - set(PATCH_KEY_TWINS)
         if unknown:
             raise VultronValidationError(
                 f"ledger_payload_object_override contains unrecognized wire"

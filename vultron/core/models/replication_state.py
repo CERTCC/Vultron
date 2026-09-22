@@ -26,6 +26,7 @@ from pydantic import Field, model_validator
 
 from vultron.core.models._helpers import now_utc
 from vultron.core.models.base import VultronObject
+from vultron.core.models.wire_keys import input_keys
 
 
 class VultronReplicationState(VultronObject):
@@ -124,15 +125,20 @@ class VultronReplicationState(VultronObject):
             slug = urllib.parse.quote(peer_id, safe="")
             data = dict(data)
             data["id"] = f"{case_id}/replication/{slug}"
-        last_sent = data.get("join_backfill_last_sent_index")
-        if last_sent is None:
-            last_sent = data.get("joinBackfillLastSentIndex", -1)
-        target = data.get("join_backfill_target_index")
-        if target is None:
-            target = data.get("joinBackfillTargetIndex", -1)
-        complete = data.get("join_backfill_complete")
-        if complete is None:
-            complete = data.get("joinBackfillComplete", True)
+
+        # The input may spell a backfill field either way, so read each one
+        # under every spelling its own ``validation_alias`` accepts instead of
+        # writing the AS2 spelling out here (ADR-0099 detail 2).
+        def _stated(field_name: str, default: Any) -> Any:
+            for key in input_keys(cls, field_name):
+                value = data.get(key)
+                if value is not None:
+                    return value
+            return default
+
+        last_sent = _stated("join_backfill_last_sent_index", -1)
+        target = _stated("join_backfill_target_index", -1)
+        complete = _stated("join_backfill_complete", True)
         if last_sent > target:
             raise ValueError(
                 "join_backfill_last_sent_index cannot exceed "

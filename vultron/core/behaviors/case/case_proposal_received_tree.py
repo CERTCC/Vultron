@@ -129,7 +129,9 @@ from vultron.core.behaviors.case.nodes.proposal_retry_marker import (
     ClearCreateCaseMarkerNode,
     WriteCreateCaseMarkerNode,
 )
+from vultron.core.models.offer_record import VultronOfferRecord
 from vultron.core.models.report import VulnerabilityReport
+from vultron.core.models.wire_keys import wire_key
 
 if TYPE_CHECKING:
     from vultron.core.behaviors.call_out.bundles.case_proposal import (
@@ -149,15 +151,15 @@ def _offer_provenance_from_proposal(
     one a caller has depends on whether its dump used ``by_alias``.
     """
 
-    def _pick(alias: str, field: str) -> str | None:
-        raw = (proposal_dict or {}).get(alias)
+    def _pick(field: str) -> str | None:
+        # The AS2 spelling of the snapshot key is derived from the core field
+        # name, not typed here (ADR-0099 detail 2).
+        raw = (proposal_dict or {}).get(wire_key(field, VultronOfferRecord))
         if not isinstance(raw, str):
             raw = (proposal_dict or {}).get(field)
         return raw if isinstance(raw, str) and raw else None
 
-    return _pick("offerId", "offer_id"), _pick(
-        "offerActorId", "offer_actor_id"
-    )
+    return _pick("offer_id"), _pick("offer_actor_id")
 
 
 def create_case_proposal_received_tree(
