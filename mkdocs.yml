@@ -141,7 +141,7 @@ nav:
             - How to Acknowledge a Report: 'howto/activitypub/activities/acknowledge.md'
             - How to Initialize a Case: 'howto/activitypub/activities/initialize_case.md'
             - How to Advance a Case Through Report Management: 'howto/activitypub/activities/manage_case.md'
-            - How to Publish a Status Update or a Note: 'howto/activitypub/activities/status_updates.md'
+            - How to Post a Status Update or a Case Note: 'howto/activitypub/activities/status_updates.md'
             - How to Suggest an Actor for a Case: 'howto/activitypub/activities/suggest_actor.md'
             - How to Invite an Actor to a Case: 'howto/activitypub/activities/invite_actor.md'
             - How to Seat a Participant on an Existing Case: 'howto/activitypub/activities/initialize_participant.md'

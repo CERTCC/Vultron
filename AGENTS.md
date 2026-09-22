@@ -113,9 +113,15 @@ and dispatcher routing.
 
 ### Markdown Formatting
 
-- **Line length**: 88 chars max (exceptions: tables, code blocks, long URLs)
+- **Under `docs/`**: SG-38 governs — one sentence per line, **no mid-sentence hard
+  wrap**, and no line-length limit (`markdownlint` MD013 is disabled). Do **not**
+  reflow docs prose to a column width: it destroys the per-sentence diff SG-38
+  exists to give, which is how a doubled-list-marker defect reached green CI in
+  #3458. See `.claude/skills/shared/docs-style-guide.md`.
+- **Everywhere else** (`notes/`, `specs/`, `plan/`, READMEs): 88 chars max
+  (exceptions: tables, code blocks, long URLs); break long sentences at natural
+  points.
 - Use `markdownlint-cli2` for linting; see Miscellaneous tips for commands
-- Break long sentences at natural points
 
 ### Logging Requirements
 
