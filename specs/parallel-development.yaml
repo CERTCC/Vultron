@@ -542,8 +542,9 @@ groups:
           `effective_schedule`, that an explicit leaf tier beats the Epic's, and
           that ties fall back to list order.
           `test_every_board_tier_is_ranked_or_excluded` ratchets the tier list
-          against `.agents/skills/shared/board-ids.json`, because a tier in
-          neither set ranks last rather than failing.
+          against the Schedule options documented in
+          `.agents/skills/shared/board-id.sh`, because a tier in neither set
+          ranks last rather than failing.
       - id: PAD-15-004
         priority: MUST_NOT
         kind: process
