@@ -42,6 +42,14 @@ hand-rolled predecessors:
 - **A pipe table inside a fence is an example, not a table.**  A caller that
   requires exactly one table under a heading would otherwise break the moment
   someone documents that table's shape in a code block beneath it.
+- **A fence may be indented.**  CommonMark allows 1–3 leading spaces, which is
+  the normal form inside a list item and the form mkdocs-material admonitions
+  require; a reader anchored at column 0 tracks none of them and so silently
+  loses both guarantees above.  See :data:`_FENCE_RE`.
+- **A delimiter row ends the table above it.**  Two tables with no blank line
+  between them are two tables, not one with the second's header as a data row.
+- **``\\|`` is a literal pipe, not a separator.**  Splitting on every pipe
+  shifts every later column, so a ratchet fails while naming the wrong one.
 
 A ``#`` in a *non-markdown* file opens a comment, not a heading, so do not
 section one: see ``prose_checks.restated_counts`` for what that costs.
@@ -57,7 +65,16 @@ _HEADING_RE = re.compile(r"^(?P<hashes>#{1,6})\s+(?P<text>.*?)\s*$")
 
 #: A fence opener or closer. The info string after the ticks is ignored; only
 #: the run length matters, because a longer run closes a shorter one.
-_FENCE_RE = re.compile(r"^(?P<fence>`{3,}|~{3,})")
+#:
+#: The 1–3 leading spaces CommonMark permits are matched deliberately, not
+#: incidentally. An indented fence is the normal form inside a list item, and
+#: this repository uses them in the files this module parses — ``MD046`` is
+#: switched off in ``.markdownlint-cli2.yaml`` precisely because mkdocs-material
+#: admonitions need indented blocks. Anchoring hard at column 0 would leave
+#: every one of those fences untracked, so a ``#`` or a pipe table inside one
+#: would be read as real content: the exact hazard the module docstring below
+#: claims to absorb, failing silently in the most common case.
+_FENCE_RE = re.compile(r"^ {0,3}(?P<fence>`{3,}|~{3,})")
 
 #: A table's delimiter row: ``|---|:---:|---|``. Its presence is what promotes
 #: the line above it from prose-containing-pipes to a table header.
@@ -68,11 +85,32 @@ _FENCE_RE = re.compile(r"^(?P<fence>`{3,}|~{3,})")
 #: a scenario table nothing ratchets.
 _DELIMITER_RE = re.compile(r"^\|(?:\s*:?-+:?\s*\|)+\s*$")
 
+#: A cell separator: a pipe that is not escaped as ``\|``. GFM's escape is the
+#: only way to put a literal pipe in a cell, so splitting on every pipe shifts
+#: every column after the escape and makes :meth:`MarkdownTable.column` return a
+#: neighbour's text — a ratchet failing while pointing at the wrong column.
+_SEPARATOR_RE = re.compile(r"(?<!\\)\|")
+
 
 def _is_row(line: str) -> bool:
-    """Whether *line* is shaped like a pipe-table row."""
+    """Whether *line* is shaped like a pipe-table row.
+
+    Both outer pipes are required. GFM makes them optional, so this is a
+    deliberate narrowing of the dialect rather than an oversight: accepting
+    bare ``a | b`` would make any prose line containing a pipe eligible to
+    extend a table past its last row, which is a worse failure than rejecting
+    a spelling nothing in this repository uses. The narrowing is *enforced*
+    rather than assumed — ``MD055: leading_and_trailing`` in
+    ``.markdownlint-cli2.yaml`` fails a table written without them, so a file
+    that would parse wrong here cannot be committed.
+    """
     stripped = line.strip()
-    return stripped.startswith("|") and stripped.endswith("|")
+    return (
+        len(stripped) > 1
+        and stripped.startswith("|")
+        and stripped.endswith("|")
+        and not stripped.endswith(r"\|")
+    )
 
 
 def split_row(line: str) -> tuple[str, ...]:
@@ -81,9 +119,20 @@ def split_row(line: str) -> tuple[str, ...]:
     The outer pipes delimit rather than separate, so they are removed before
     splitting; otherwise every row gains a leading and trailing empty cell and
     the column count is two more than the table shows.
+
+    ``\\|`` is a literal pipe, not a separator, and is unescaped in the value
+    that is returned: a caller comparing a cell against a registry name wants
+    the text the reader sees.
     """
     stripped = line.strip()
-    return tuple(cell.strip() for cell in stripped[1:-1].split("|"))
+    if stripped.startswith("|"):
+        stripped = stripped[1:]
+    if stripped.endswith("|") and not stripped.endswith(r"\|"):
+        stripped = stripped[:-1]
+    return tuple(
+        cell.strip().replace(r"\|", "|")
+        for cell in _SEPARATOR_RE.split(stripped)
+    )
 
 
 @dataclass(frozen=True, slots=True)
@@ -93,6 +142,11 @@ class MarkdownSection:
     Attributes:
         heading: The heading text, without its hashes. Empty for the preamble
             above the first heading (which is where front matter lives).
+        level: Number of hashes, so 1 for ``#`` and 3 for ``###``. ``0`` for the
+            preamble. Carried because a section-scoped rule is almost always
+            meant to cover the subsections beneath it: an exemption keyed on
+            ``### Change history`` that does not reach a ``#### PR log`` inside
+            it fires on the very lines the exemption exists to protect.
         lines: ``(1-based line number, text)`` for every line in the body,
             excluding the heading line itself. Fenced code is *included*, so a
             caller scanning prose still sees it; callers that must not read
@@ -104,6 +158,7 @@ class MarkdownSection:
     """
 
     heading: str
+    level: int
     lines: tuple[tuple[int, str], ...]
     fenced: frozenset[int]
 
@@ -156,6 +211,7 @@ def iter_sections(text: str) -> tuple[MarkdownSection, ...]:
     """
     sections: list[MarkdownSection] = []
     heading = ""
+    level = 0
     body: list[tuple[int, str]] = []
     fenced: set[int] = set()
     fence: str | None = None
@@ -184,12 +240,15 @@ def iter_sections(text: str) -> tuple[MarkdownSection, ...]:
             continue
 
         sections.append(
-            MarkdownSection(heading, tuple(body), frozenset(fenced))
+            MarkdownSection(heading, level, tuple(body), frozenset(fenced))
         )
         heading = match.group("text")
+        level = len(match.group("hashes"))
         body = []
 
-    sections.append(MarkdownSection(heading, tuple(body), frozenset(fenced)))
+    sections.append(
+        MarkdownSection(heading, level, tuple(body), frozenset(fenced))
+    )
     return tuple(sections)
 
 
@@ -223,6 +282,15 @@ def iter_tables(text: str) -> tuple[MarkdownTable, ...]:
             rows: list[tuple[str, ...]] = []
             cursor = index + 2
             while cursor < len(lines) and _is_row(lines[cursor][1]):
+                # A delimiter row inside the body means the *previous* line was
+                # the next table's header, not this table's last row. Without
+                # this, two tables separated by no blank line merge into one
+                # whose rows include the second table's header and delimiter —
+                # which defeats every "exactly one table under this heading"
+                # guard, because the caller is handed a single table.
+                nxt = lines[cursor + 1][1] if cursor + 1 < len(lines) else ""
+                if _DELIMITER_RE.match(nxt.strip()):
+                    break
                 rows.append(split_row(lines[cursor][1]))
                 cursor += 1
             tables.append(

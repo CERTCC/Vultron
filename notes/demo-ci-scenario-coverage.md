@@ -23,22 +23,25 @@ and validated by Invariant 5
 `test/ci/invariants/test_XXX_invariants.py` file.
 
 The `Scenario` column is the scenario registry's, in the registry's name order,
-and is checked against it (DEMOCI-11-007); the event-type ticks are
-hand-written. Adding a scenario therefore fails this check until a row is added
-— see [demo-scenario-registry.md](demo-scenario-registry.md) § "The
+and is checked against it (DEMOCI-11-007). The event-type ticks are checked too,
+against each scenario's `_XXX_EXPECTED_EVENT_TYPES` harness constant — the same
+constant Invariant 5 asserts against, so a tick that disagrees describes a
+scenario CI does not run (MS-16-002, ISSUE-3505). Adding a scenario, or adding an
+event type to a harness constant, therefore fails this check until the table
+follows — see [demo-scenario-registry.md](demo-scenario-registry.md) § "The
 generate-vs-check split".
 
-| Scenario | validate_report | add_participant_status_to_participant | close_case | add_note_to_case | engage_case | invite_actor_to_case | offer_case_participant | accept_invite_actor_to_case | accept_actor_recommendation | reject_invite_actor_to_case |
-|---|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|
-| fccv-extension    | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |   |
-| fccv-handoff      | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |   | ✓ |   |   |
-| fcv               | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |   | ✓ |   |   |
-| fcv-reject        | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |   |   |   | ✓ |
-| fcvcv             | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |   |
-| fv                | ✓ | ✓ | ✓ | ✓ | ✓ |   |   |   |   |   |
-| fvcv-extension    | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |   |
-| fvcv-handoff      | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |   | ✓ |   |   |
-| fvv               | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |   | ✓ |   |   |
+| Scenario | validate_report | add_participant_status_to_participant | close_case | add_note_to_case | engage_case | invite_actor_to_case | offer_case_participant | accept_invite_actor_to_case | accept_actor_recommendation | accept_case_ownership_transfer | reject_invite_actor_to_case |
+|---|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|
+| fccv-extension    | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |   |   |
+| fccv-handoff      | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |   | ✓ |   | ✓ |   |
+| fcv               | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |   | ✓ |   |   |   |
+| fcv-reject        | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |   |   |   |   | ✓ |
+| fcvcv             | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |   |   |
+| fv                | ✓ | ✓ | ✓ | ✓ | ✓ |   |   |   |   |   |   |
+| fvcv-extension    | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |   |   |
+| fvcv-handoff      | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |   | ✓ |   | ✓ |   |
+| fvv               | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |   | ✓ |   |   |   |
 
 **Notes:**
 
@@ -146,7 +149,10 @@ minimum-set member because it cannot be covered by any other scenario:
 
 ## Minimum PR Validation Set (DEMOCI-06-002)
 
-**Set: `fv`, `fvcv-handoff`, `fcvcv`, `fcv-reject`**
+**The set is the rows marked `✓ (member)` below**, and that column is checked
+against each scenario's `in_pr_set` decorator field. The membership is
+deliberately *not* also restated here in prose: a second copy would drift from
+the column beside it and no test could falsify the sentence (MS-16-002).
 
 Rows are in the registry's name order, checked against it, and PR-set membership
 reads off the `Covered by minimum set` column rather than off position — see
@@ -180,12 +186,16 @@ The minimum set covers every distinct event type:
 | accept_invite_actor_to_case | fvcv-handoff |
 | offer_case_participant | fcvcv |
 | accept_actor_recommendation | fcvcv |
+| accept_case_ownership_transfer | fvcv-handoff |
 | reject_invite_actor_to_case | fcv-reject |
 
-The remaining scenarios (`fvv`, `fvcv-extension`, `fccv-extension`,
-`fccv-handoff`, `fcv`) produce no event type not already covered by the
-minimum set. They run only on push to `main` (DEMOCI-06-003) to provide
-regression coverage without increasing PR wall-clock cost.
+Every non-member row above — the scenarios whose `Covered by minimum set` cell
+names a covering member rather than `✓ (member)` — produces no event type the
+minimum set does not already cover. They run only on push to `main`
+(DEMOCI-06-003) to provide regression coverage without increasing PR wall-clock
+cost. The membership is not re-listed here for the same reason it is not restated
+above the table: the column is the answer, and it is the copy a test can falsify
+(MS-16-002).
 
 ## Workflow Implementation (DEMOCI-06-003)
 

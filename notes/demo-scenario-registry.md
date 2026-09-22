@@ -129,9 +129,20 @@ Nothing enforced MS-13-003, so half the scenario groups were missing the marker
 (DEMOMA-12, -19, -20, -21, -24, -25). Adding it obliges **MS-13-004** —
 a `scenario_start` group MUST hold at least one `BehavioralSpec` with non-empty
 `steps` — which is why ISSUE-3480 also added step blocks to DEMOMA-19, -20, -21
-and -24. Each restates that group's already-normative phase list
-(DEMOMA-19-014, -20-007, -21-008) as ordered ECA steps; DEMOMA-24 had no phase
-list, so its block on DEMOMA-24-005 derives from DEMOMA-24-001/004/005.
+and -24, and why ISSUE-3495's DEMOMA-27 (`fcv-reject`) carries one too. Each
+restates that group's already-normative phase list (DEMOMA-19-014, -20-007,
+-21-008) as ordered ECA steps; DEMOMA-24 had no phase list, so its block sits on
+**DEMOMA-24-004** — the ordered causal claim — rather than on -24-005, which is
+the final-state property.
+
+**A `steps` block may not smuggle in a new requirement.** Its `expected` and
+`postconditions` fields read like a convenient place to record what the scenario
+ends up doing, but a block is a *projection* of the group's normative statements:
+anything asserted there and nowhere else becomes a MUST that only the ECA block
+carries, which is the copy-with-no-authority MS-16-002 forbids. Where a block
+needs to name a state its own group does not state — every participant reaching
+RM.CLOSED, say — it cites the check that owns it (the universal Invariant 7)
+instead of restating it as a group requirement.
 
 **Two rules were tried and rejected.** Record them here so neither is
 re-proposed:
@@ -141,20 +152,23 @@ re-proposed:
 | A `"Scenario"` substring in the group title | Also selects `Scenario Coverage` (DEMOMA-04), `Shared Scenario Harness` (DEMOMA-23), `Causal Gating and Scenario Narratives` (DEMOMA-22) and `In-Process Fuzz Simulation Scenario` (DEMOMA-18), none of which specifies a demo scenario |
 | "A group some per-scenario DEMOMA-16 requirement refines" | Selects only DEMOMA-24 and DEMOMA-25. DEMOMA-20 and DEMOMA-21 have no DEMOMA-16 refiner, so it drops half the planned set and the partition check passes vacuously over it |
 
-**The registry may hold a scenario no group specifies.** `fcv-reject` does:
-it is built, it is in the PR validation set, and it has a per-scenario
-requirement (DEMOMA-16-011) but no DEMOMA group of its own. DEMOCI-11-010
-constrains only scenarios that *have* a spec group, so this is not a partition
-failure — but it is a corpus gap, tracked as ISSUE-3495. The reverse is never
-legitimate: a planned-register row with no spec group is a row nothing specifies,
-and `partition_problems()` reports it.
+**Both directions are now closed.** DEMOCI-11-010 constrains only scenarios that
+*have* a spec group, so on its own it cannot see a built scenario with no group at
+all — which `fcv-reject` was until ISSUE-3495 gave it DEMOMA-27. The
+registry-to-group direction is therefore a separate check,
+`test_every_registered_scenario_is_named_by_a_spec_group`, and it holds a
+documented exception set that is currently empty: a new exception has to be argued
+for in that constant's comment rather than added by loosening an assertion. The
+group-to-register direction is never allowed an exception — a planned-register row
+with no spec group is a row nothing specifies, and `partition_problems()` reports
+it.
 
 **How the per-scenario DEMOMA-16 requirements are selected.** Not by ID range —
 DEMOCI-11-007 warns against it and the corpus proves the warning: DEMOMA-16-008
 sits inside the apparent span and is the spec-to-test sync rule, while -014 and
 -015 sit outside it and are per-scenario. The rule is what the statement *says*:
 it mentions `expected-event-types list` **and** names exactly one scenario as
-"the `<name>` scenario". That pair separates the eleven per-scenario
+"the `<name>` scenario". That pair separates the per-scenario
 requirements from DEMOMA-16-001 (universal types, names no scenario),
 DEMOMA-16-008 (names no scenario) and DEMOMA-16-012/-013 (name FCVCV but are
 about event *counts* in the case-actor log, not an expected-event-types list).
@@ -215,7 +229,9 @@ checking it. Route each consumer by what it is:
 | `.github/demo-scenarios.json` | generate + `--check` | CI needs it before Python exists |
 | `test/ci/README-case-log-ratchet.md` | generate + `--check` | Outside the mkdocs tree — read raw on GitHub and by agents, so an include directive would render literally |
 | `vultron/demo/scenario/README.md` | generate + `--check` | Same |
-| `notes/` scenario tables | **check in place** | Their tables interleave hand-written columns (PR-set Rationale, per-scenario event-type coverage) that the registry does not and should not hold — see below for why checking beats generating here |
+| `notes/` scenario tables | **check in place** | Their tables interleave hand-written columns (PR-set Rationale) that the registry does not and should not hold — see below for why checking beats generating here |
+| The coverage matrix's event-type ticks, and `Additional required` | check against the **harness constants** (ISSUE-3505) | Not registry-derived at all: the source is each scenario's `_XXX_EXPECTED_EVENT_TYPES`, which is what Invariant 5 asserts. Checked rather than generated for the same row-splicing reason as the columns beside them, and read by AST so the pre-commit hook never imports a test module |
+| The minimum set's `Covered by minimum set` membership mark | check against `in_pr_set` | Membership is derivable; *which* scenario covers a non-member is a coverage judgement and stays hand-written |
 | `notes/demo-future-ideas.md` planned register | check as the registry's complement | Hand-written; DEMOCI-11-010's second register |
 | `.github/workflows/demo-integration.yml` header comment | delete the prose enumeration | It restated both scenario sets in a comment above the code that computes them; nothing is lost by removing it, so there is no copy left to generate or check |
 | `specs/` DEMOCI-06-002/003 and the per-scenario DEMOMA-16 requirements | check only | Prose requirements; see below |
@@ -231,9 +247,29 @@ adding a scenario would make it write a placeholder row and call the result
 "generated". DEMOCI-11-006 and DEMOCI-11-007 — the normative requirements — say
 *checked in place* for exactly this case. What the check costs is one edit by the
 author who knows the hand-written cells; what it buys is that the file never
-holds a cell nobody wrote. The `Spec` column of the required-event-types table is
-derivable too, but from the **spec corpus** rather than the registry, so it is
-checked against DEMOMA-16 rather than against `ScenarioSpec`.
+holds a cell nobody wrote.
+
+**"Derivable" does not mean "derivable from the registry."** Three different
+sources feed these tables, and conflating them is how a column ends up
+unratcheted because nobody could name its authority:
+
+| Column | Source |
+|---|---|
+| `Scenario` | the scenario registry (`ScenarioSpec.name` / `.label`) |
+| `Spec` | the **spec corpus** — each per-scenario DEMOMA-16 statement names its own scenario, and `ScenarioSpec` carries no spec IDs |
+| `Covered by minimum set` membership | `ScenarioSpec.in_pr_set` |
+| event-type ticks, `Additional required` | the **invariant harness constants** (`_XXX_EXPECTED_EVENT_TYPES`) |
+
+The event-type columns were the last unratcheted mirror in these files, left
+hand-written because #3451's AC-3 described them that way. MS-16-002 made that a
+violation, and ISSUE-3505 closed it — and the ratchet found real drift on its
+first run: the `FCCV-handoff` row omitted `accept_case_ownership_transfer`, which
+its own harness constant requires. Tracing that surfaced ISSUE-3514: the type was
+also missing from DEMOCI-06-002's coverage enumeration and from DEMOMA-16-005 and
+-006, so the minimum-PR-set coverage argument had been made against an undercount.
+**That is the whole case for ratcheting a column rather than trusting it**: the
+mirror had been wrong long enough that three requirements agreed with each other
+and none agreed with the code.
 
 **The mkdocs-tree boundary is the load-bearing distinction.** The
 `include-markdown` plugin is configured, but it expands only at mkdocs build

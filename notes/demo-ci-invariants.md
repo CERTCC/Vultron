@@ -265,22 +265,26 @@ CONCERN-2243 (three rows understated their required types; the FCCV-extension
 and FCV-reject rows were absent entirely), which is exactly the drift
 DEMOMA-16-008 exists to prevent.
 
-Two of its four columns are derived and both are now checked (DEMOCI-11-007):
-`Scenario` is the registry's `label`, in the registry's name order, and `Spec`
-is resolved from the **spec corpus** — each per-scenario DEMOMA-16 statement
-names its own scenario, and `ScenarioSpec` carries no spec IDs. `Universal 5`
-and `Additional required` are hand-written.
+Every derived column is checked (DEMOCI-11-007): `Scenario` is the registry's
+`label`, in the registry's name order; `Spec` is resolved from the **spec
+corpus** — each per-scenario DEMOMA-16 statement names its own scenario, and
+`ScenarioSpec` carries no spec IDs; and `Additional required` is resolved from
+each scenario's `_XXX_EXPECTED_EVENT_TYPES` harness constant, minus the universal
+block (MS-16-002, ISSUE-3505). Multiplicity annotations such as `(≥3)` are prose
+about *how many times*, owned by the scenario-specific count tests below, and are
+not checked here. `Universal 5` stays hand-written — it says "same" rather than
+restating the block.
 
 | Scenario | Spec | Universal 5 | Additional required |
 |---|---|---|---|
 | FCCV-extension | DEMOMA-16-010 | same | invite_actor_to_case, offer_case_participant, accept_invite_actor_to_case, accept_actor_recommendation |
-| FCCV-handoff | DEMOMA-16-006 | same | invite_actor_to_case, accept_invite_actor_to_case |
+| FCCV-handoff | DEMOMA-16-006 | same | invite_actor_to_case, accept_invite_actor_to_case, accept_case_ownership_transfer |
 | FCV | DEMOMA-16-007 | same | invite_actor_to_case, accept_invite_actor_to_case |
 | FCV-reject | DEMOMA-16-011 | same | invite_actor_to_case, reject_invite_actor_to_case |
 | FCVCV | DEMOMA-16-009 | same | invite_actor_to_case (≥3), offer_case_participant (≥1), accept_invite_actor_to_case (≥3), accept_actor_recommendation (≥1) |
 | FV | DEMOMA-16-002 | validate_report, add_participant_status_to_participant, close_case, add_note_to_case, engage_case | (none) |
 | FVCV-extension | DEMOMA-16-004 | same | invite_actor_to_case, offer_case_participant, accept_invite_actor_to_case, accept_actor_recommendation |
-| FVCV-handoff | DEMOMA-16-005 | same | invite_actor_to_case, accept_invite_actor_to_case |
+| FVCV-handoff | DEMOMA-16-005 | same | invite_actor_to_case, accept_invite_actor_to_case, accept_case_ownership_transfer |
 | FVV | DEMOMA-16-003 | same | invite_actor_to_case, accept_invite_actor_to_case |
 
 ### Relationship to scenario-specific test functions
@@ -345,7 +349,9 @@ list (ISSUE-2266). The three emission paths are:
   `receiver_engages_case()` for the report's direct receiver — used by every
   multi-actor scenario.
 - `run_invite_path_rm_triage()` calls it again for the invited participant —
-  used by every scenario with an invite path (CM-11-002).
+  used by every scenario whose invite is *accepted* (CM-11-002). `fcv-reject`
+  has an invite path and does **not** call it: its Vendor rejects, so no
+  participant is added and there is nobody to engage.
 - `fv_demo.py` calls `receiver_engages_case()` directly via
   `vendor_engages_case()`.
 

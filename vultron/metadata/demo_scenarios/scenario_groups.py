@@ -168,8 +168,8 @@ def per_scenario_event_type_requirements(
 
     A DEMOMA-16 requirement is per-scenario when its statement both mentions
     :data:`_EXPECTED_LIST_PHRASE` and names exactly one scenario. That pair of
-    conditions is what separates the eleven per-scenario requirements from the
-    four that are not:
+    conditions is what separates the per-scenario requirements from those that
+    are not:
 
     - DEMOMA-16-001 enumerates the universal types and names no scenario;
     - DEMOMA-16-008 is the spec-to-test sync rule and names no scenario;
@@ -265,10 +265,12 @@ def partition_problems(
     available demos with a spec group, a tracking issue and no implementation
     (ADR-0098).
 
-    The registry may legitimately hold a scenario no group specifies —
-    ``fcv-reject`` does today (ISSUE-3495) — because DEMOCI-11-010 constrains
-    only scenarios that *have* a spec group. The reverse is not legitimate: a
-    planned entry with no spec group is a row nothing specifies.
+    DEMOCI-11-010 constrains only scenarios that *have* a spec group, so this
+    function cannot see a registered scenario with no group at all — that is
+    ``test_every_registered_scenario_is_named_by_a_spec_group``'s job, and it is
+    a separate check for exactly that reason (ISSUE-3495). The reverse direction
+    is covered here and admits no exception: a planned entry with no spec group is
+    a row nothing specifies.
 
     Args:
         root: Where the **planned register** is read from. It does *not* locate

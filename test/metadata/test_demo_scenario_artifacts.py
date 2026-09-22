@@ -40,9 +40,9 @@ import pytest
 import yaml
 
 from vultron.demo.scenario.registry import (
-    _NAME_RE,
     ScenarioSpec,
     discover_scenarios,
+    is_scenario_name,
 )
 from vultron.metadata.base import MkDocsYamlLoader
 from vultron.metadata.demo_scenarios.render import (
@@ -249,7 +249,7 @@ def test_democi_06_002_names_exactly_the_pr_set_scenarios() -> None:
     thousand lines into a demo script, so the check has to be structural.
 
     Scenario names are picked out of the statement by the registry's own name
-    grammar (:data:`vultron.demo.scenario.registry._NAME_RE`), which is what
+    grammar (:func:`vultron.demo.scenario.registry.is_scenario_name`), which is what
     makes this robust: the statement also backticks event types
     (``invite_actor_to_case``) and a filename (``demo-integration.yml``), and
     neither can satisfy a grammar that forbids underscores and dots.
@@ -265,7 +265,7 @@ def test_democi_06_002_names_exactly_the_pr_set_scenarios() -> None:
     named = {
         token
         for token in re.findall(r"`([^`]+)`", statement)
-        if _NAME_RE.match(token)
+        if is_scenario_name(token)
     }
     expected = {spec.name for spec in discover_scenarios() if spec.in_pr_set}
     assert named == expected, (
@@ -287,7 +287,7 @@ def test_democi_06_003_names_exactly_the_registered_scenarios() -> None:
     no other check reads.
 
     Names are picked out with the registry's own grammar
-    (:data:`vultron.demo.scenario.registry._NAME_RE`), which is what makes this
+    (:func:`vultron.demo.scenario.registry.is_scenario_name`), which is what makes this
     robust against the statement's other backticked spans: ``demo-integration.yml``
     carries a dot and ``push: branches: ["main"]`` carries spaces and brackets,
     and the grammar admits neither.
@@ -298,7 +298,7 @@ def test_democi_06_003_names_exactly_the_registered_scenarios() -> None:
     named = {
         token
         for token in re.findall(r"`([^`]+)`", statement)
-        if _NAME_RE.match(token)
+        if is_scenario_name(token)
     }
     expected = {spec.name for spec in discover_scenarios()}
     assert named == expected, (

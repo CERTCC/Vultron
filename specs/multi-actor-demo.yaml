@@ -2109,9 +2109,11 @@ groups:
     kind: project
     statement: >-
       The FVCV-handoff scenario expected-event-types list MUST include
-      `invite_actor_to_case` and `accept_invite_actor_to_case` in addition
+      `invite_actor_to_case`, `accept_invite_actor_to_case` and
+      `accept_case_ownership_transfer` in addition
       to the universal types (DEMOMA-16-001), because Vendor1 invites
-      Coordinator, the Coordinator accepts and becomes the new CASE_OWNER,
+      Coordinator, the Coordinator accepts the invitation and then accepts the
+      ownership transfer to become the new CASE_OWNER (TRIG-11-002, CM-21-007),
       and Coordinator then invites Vendor2 who also accepts.
     rationale: >-
       In addition to the event-type coverage, FVCV-handoff is the scenario
@@ -2134,10 +2136,12 @@ groups:
     kind: project
     statement: >-
       The FCCV-handoff scenario expected-event-types list MUST include
-      `invite_actor_to_case` and `accept_invite_actor_to_case` in addition
+      `invite_actor_to_case`, `accept_invite_actor_to_case` and
+      `accept_case_ownership_transfer` in addition
       to the universal types (DEMOMA-16-001), because C1 invites C2,
-      C2 accepts and becomes the new CASE_OWNER, and C2 then invites the
-      Vendor who also accepts.
+      C2 accepts the invitation and then accepts the ownership transfer to
+      become the new CASE_OWNER (TRIG-11-002, CM-21-007), and C2 then invites
+      the Vendor who also accepts.
     relationships:
     - rel_type: refines
       spec_id: DEMOMA-16-001
@@ -2243,6 +2247,8 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: DEMOMA-16-001
+    - rel_type: refines
+      spec_id: DEMOMA-27-002
   - id: DEMOMA-16-012
     priority: MUST
     kind: project
@@ -2751,8 +2757,14 @@ groups:
       expected: one case-ledger JSONL artifact per actor under devlogs/fcvcv/
     postconditions:
     - description: >-
-        EM.EXITED; RM.CLOSED and PXA = Pxa for all five participants; V1 at VFd
-        and V2 at VFD.
+        EM.EXITED after V1 reaches CS.P (DEMOMA-19-005); V1 at VFd and V2 at
+        VFD (DEMOMA-19-015); every participant at RM.CLOSED, which the universal
+        Invariant 7 check
+        (`test_invariant_7_log_terminates_all_rm_closed`) asserts for every
+        scenario rather than this group. Nothing beyond those is restated here:
+        a postcondition is a projection of the group's normative statements, and
+        asserting a state no statement carries would make this block the only
+        place that requirement exists (MS-16-002).
   - id: DEMOMA-19-015
     priority: MUST
     kind: project
@@ -3044,8 +3056,11 @@ groups:
         (DEMOMA-20-006)
     postconditions:
     - description: >-
-        EM.EXITED after a deliberate termination (variation e); RM.CLOSED and
-        PXA = Pxa for Reporter, Coordinator and Vendor.
+        EM.EXITED after a deliberate termination (variation e, DEMOMA-20-011);
+        every participant at RM.CLOSED, which the universal Invariant 7 check
+        (`test_invariant_7_log_terminates_all_rm_closed`) asserts for every
+        scenario rather than this group. Nothing beyond those is restated here —
+        see DEMOMA-19-014's postcondition for why.
   - id: DEMOMA-20-008
     priority: MUST
     kind: project
@@ -3339,8 +3354,11 @@ groups:
     postconditions:
     - description: >-
         EM.EXITED as an automatic consequence of CS.P rather than a deliberate
-        termination (variation d); RM.CLOSED and PXA = Pxa for Reporter,
-        Coordinator, V1 and V2.
+        termination (variation d, DEMOMA-21-004); every participant at
+        RM.CLOSED, which the universal Invariant 7 check
+        (`test_invariant_7_log_terminates_all_rm_closed`) asserts for every
+        scenario rather than this group. Nothing beyond those is restated here —
+        see DEMOMA-19-014's postcondition for why.
   - id: DEMOMA-21-009
     priority: MUST
     kind: project
@@ -3807,9 +3825,10 @@ groups:
         under devlogs/fcvd/
     postconditions:
     - description: >-
-        The final state DEMOMA-24-005 requires: Vendor VFD = VFd; Deployer
-        VFD = VFD; PXA = Pxa and RM.CLOSED for Finder, Coordinator, Vendor,
-        Deployer and CaseActor; EM.EXITED.
+        The final state DEMOMA-24-005 requires. Deliberately a pointer rather
+        than a copy: -005 is the authority for that state, and a restatement here
+        would drift from it with nothing able to tell which was current
+        (MS-16-002).
     rationale: >-
       CSB-15-004 defines a new guard condition for DEPLOYER-only actors that
       replaces the per-participant VFD-state check used by VENDOR actors. The FCVD
@@ -4226,3 +4245,143 @@ groups:
     tags:
     - demo
     - testing
+- id: DEMOMA-27
+  title: FCV-Reject Scenario (Coordinator invites Vendor; Vendor rejects the invitation)
+  trigger:
+    type: scenario_start
+    value: fcv-reject
+  specs:
+  - id: DEMOMA-27-001
+    priority: MUST
+    kind: project
+    statement: >-
+      The FCV-reject scenario MUST involve four actor identities — Finder,
+      Coordinator, Vendor, and CaseActor — each with its own isolated DataLayer
+      and separate container, with the Coordinator holding CVDRole.CASE_OWNER and
+      the CaseActor holding CVDRole.CASE_MANAGER throughout. The Vendor MUST be
+      seeded as a full actor identity even though it never becomes a case
+      participant.
+    rationale: >-
+      The topology is DEMOMA-12's (FCV): the scenario exists to isolate one
+      divergence — the invitation response — so every other variable is held
+      equal. The Vendor needs a real identity and container because the rejection
+      is a protocol message it must author; a stub could not send
+      `Reject(Invite(actor, case))`, and the point of the scenario is that the
+      rejection travels the wire.
+    relationships:
+    - rel_type: refines
+      spec_id: DEMOMA-01-001
+    - rel_type: refines
+      spec_id: DEMOMA-12-001
+    tags:
+    - demo
+  - id: DEMOMA-27-002
+    priority: MUST
+    kind: project
+    statement: >-
+      The Vendor MUST reject the case invitation by sending
+      `Reject(Invite(actor, case))`, and the CaseActor MUST record a
+      `reject_invite_actor_to_case` ledger entry. The Vendor MUST NOT be added
+      as a CaseParticipant, MUST NOT receive a case ledger replica, and MUST NOT
+      appear in any subsequent participant-status fan-out.
+    rationale: >-
+      This is the only scenario covering the invitation-layer rejection path, so
+      it is the only place the protocol's "invited but not participating" outcome
+      is exercised end to end. The negative half is the load-bearing half: a
+      rejection that still created a participant, or still shipped a replica,
+      would satisfy a check that only looked for the ledger entry while leaving
+      the case in a state the protocol forbids.
+    relationships:
+    - rel_type: refines
+      spec_id: DEMOMA-27-001
+    tags:
+    - demo
+  - id: DEMOMA-27-003
+    priority: MUST
+    kind: project
+    statement: >-
+      The scenario MUST execute its phases in order — report submission,
+      invitation and rejection, replica-sync verification, notes exchange,
+      publication, case closure, ledger dump — and the Finder and Coordinator
+      MUST complete publication and closure without the Vendor.
+    rationale: >-
+      Phase order is the causal order (EDF-06, ADR-0058): the rejection must
+      precede sync verification, because what sync verification asserts is the
+      *absence* of a Vendor replica, and asserting that before the rejection has
+      been processed would pass vacuously. Closing the case without the Vendor is
+      the scenario's demonstration that a rejected invitation does not block
+      lifecycle completion for the remaining participants.
+    preconditions:
+    - description: >-
+        All four containers running (Finder, Coordinator, Vendor, CaseActor); all
+        actors seeded and cross-registered; no VulnerabilityCase exists for this
+        report; the Coordinator is pre-configured with the dedicated CaseActor
+        container URL (DEMOMA-27-001).
+    steps:
+    - order: 1
+      actor: finder
+      action: >-
+        report_submission phase — POST submit-report trigger directed at the
+        Coordinator, which validates the report and engages the case
+      expected: >-
+        VulnerabilityCase created with the Coordinator as CVDRole.CASE_OWNER and
+        the CaseActor as CVDRole.CASE_MANAGER on its own container
+        (DEMOMA-27-001)
+    - order: 2
+      actor: coordinator
+      action: >-
+        invite_vendor_reject phase — Coordinator sends
+        `Invite(actor, case)` to the Vendor with CVDRole.VENDOR
+      expected: >-
+        `invite_actor_to_case` recorded in the case-actor log
+        (DEMOMA-16-011)
+    - order: 3
+      actor: vendor
+      action: >-
+        Vendor responds with `Reject(Invite(actor, case))` rather than
+        `Accept(...)`
+      expected: >-
+        `reject_invite_actor_to_case` recorded; the Vendor is not added as a
+        CaseParticipant and holds no case ledger replica (DEMOMA-27-002)
+    - order: 4
+      actor: coordinator
+      action: >-
+        sync_verification phase — verify replica agreement across the
+        participants that exist
+      expected: >-
+        Finder and Coordinator replicas agree with the case-actor log; no Vendor
+        replica is present, which is the assertion the rejection makes checkable
+        (DEMOMA-27-002)
+    - order: 5
+      actor: coordinator
+      action: notes_exchange phase — participants exchange case notes
+      expected: '`add_note_to_case` recorded (DEMOMA-16-001)'
+    - order: 6
+      actor: coordinator
+      action: publication phase — the case is published
+      expected: participants advance to the public-aware CS.pxa states
+    - order: 7
+      actor: coordinator
+      action: >-
+        case_closure phase — the Coordinator and Finder each close the case
+      expected: >-
+        every participant at RM.CLOSED, which the universal Invariant 7 check
+        (`test_invariant_7_log_terminates_all_rm_closed`) asserts for every
+        scenario rather than this group
+    - order: 8
+      actor: coordinator
+      action: dump_case_ledgers phase
+      expected: >-
+        one case-ledger JSONL artifact per participating actor under
+        devlogs/fcv-reject/
+    postconditions:
+    - description: >-
+        The case is closed with the Finder and Coordinator as its only
+        participants, and the case-actor log holds exactly one
+        `reject_invite_actor_to_case` entry and no
+        `accept_invite_actor_to_case` entry (DEMOMA-16-011, DEMOMA-27-002).
+    relationships:
+    - rel_type: refines
+      spec_id: DEMOMA-27-001
+    tags:
+    - demo

@@ -1,6 +1,6 @@
 ---
 status: accepted
-date: 2026-09-21
+date: 2026-09-22
 deciders: Vultron maintainers
 consulted: Vultron maintainers
 informed: Vultron contributors
@@ -109,27 +109,41 @@ DEMOMA-21 `rcvv-embargo`, DEMOMA-24 `fcvd`, DEMOMA-25 `vc`). None of them may be
 registered: a registered scenario is one whose module exists, and the derived-path
 checks depend on that being true. Those scenarios are declared instead by their
 spec group plus the planned-scenario register in `notes/demo-future-ideas.md`,
-which already carries the tracking issue and spec IDs for each. Every scenario
-with a spec group sits in exactly one of the two, and the partition is checked
-(DEMOCI-11-010).
+which carries the scenario name, the tracking issue and the spec IDs in their own
+columns for each. Every scenario with a spec group sits in exactly one of the two,
+and the partition is checked (DEMOCI-11-010).
 
 That partition, not the registry alone, is what closes the defect this decision
 started from. The `vc` row was a scenario in the second state rendered as though
 it were in the first, and no check could tell the difference.
 
-Each consumer is then treated according to what it actually is:
+Each consumer is then treated according to what it actually is. The routing below
+is a summary for the reader of this decision; **`specs/demo-ci.yaml` DEMOCI-11 is
+the authority**, and each row names the requirement that owns it rather than
+restating its terms — a table here that paraphrased them would be a second copy
+with no test able to say which was current (MS-16-002), which is exactly how the
+`notes/` row below drifted before ISSUE-3451 corrected it.
 
-| Consumer | Treatment |
-|---|---|
-| `docs/topics/scenarios/index.md` | rendered at build time by `markdown-exec`; no table is committed |
-| `.github/demo-scenarios.json` | generated; narrow projection of only the keys the CI matrix consumes |
-| `test/ci/README-case-log-ratchet.md` | generated between markers |
-| `vultron/demo/scenario/README.md` | generated between markers |
-| `notes/` scenario tables | generated columns where derivable; completeness-checked where hand-written |
-| `notes/demo-future-ideas.md` planned register | hand-written; checked as the complement of the registry (DEMOCI-11-010) |
-| `.github/workflows/demo-integration.yml` header comment | the prose enumeration is deleted in favour of the code below it; no copy survives to check |
-| `specs/` DEMOCI-06-002/003 and the per-scenario DEMOMA-16 requirements | prose retained, consistency-checked |
-| `mkdocs.yml` nav | completeness-checked |
+| Consumer | Treatment | Owned by |
+|---|---|---|
+| `docs/topics/scenarios/index.md` | rendered at build time by `markdown-exec`; no table is committed | DEMOCI-11-009 |
+| `.github/demo-scenarios.json` | generated; narrow projection of only the keys the CI matrix consumes | DEMOCI-11-004 |
+| `test/ci/README-case-log-ratchet.md` | generated between markers | DEMOCI-11-005 |
+| `vultron/demo/scenario/README.md` | generated between markers | DEMOCI-11-005 |
+| `notes/` scenario tables | checked in place, not column-generated | DEMOCI-11-006, DEMOCI-11-007 |
+| `notes/demo-future-ideas.md` planned register | hand-written; checked as the complement of the registry | DEMOCI-11-010 |
+| `.github/workflows/demo-integration.yml` header comment | the prose enumeration is deleted in favour of the code below it; no copy survives to check | DEMOCI-11-008 |
+| `specs/` DEMOCI-06-002/003 and the per-scenario DEMOMA-16 requirements | prose retained, consistency-checked | DEMOCI-11-007 |
+| `mkdocs.yml` nav | completeness-checked | DEMOCI-11-007 |
+
+**Why the `notes/` tables are checked rather than column-generated.** Only their
+`Scenario` column is registry-derived, and a markdown column cannot be spliced
+independently of the row it heads: a generator would have to emit whole rows
+including the hand-written cells it cannot know, so adding a scenario would make it
+write a placeholder row and call that "generated". DEMOCI-11-006 states the
+generate-or-check disjunction for exactly this case. Because the check asserts the
+column *equals* the registry in registry order, no row can be added, dropped,
+misspelled or reordered without failing.
 
 Committed generated files are gated by a `--check` mode in a pre-commit hook,
 exactly as `docs/adr/index.md` is gated by `adr-index-sync` today.
@@ -233,25 +247,22 @@ flags, with every table generated from it.
 
 ## More Information
 
-**Amendment (ISSUE-3451, ISSUE-3480).** Two rows of the consumer table above
-were refined when the checks were built; the decision is unchanged, its
-mechanism in two places is not.
+**Revised in place when the checks were built (ISSUE-3451, ISSUE-3480).** The
+decision is unchanged; two statements in the body were not accurate and have been
+corrected rather than appended to, per
+[Revising vs. amending an ADR](index.md#revising-vs-amending-an-adr).
 
-- `notes/` scenario tables read "generated columns where derivable". They are
-  **checked in place** instead. Only their `Scenario` column is
-  registry-derived, and a markdown column cannot be spliced independently of the
-  row it heads — a generator would have to emit whole rows including the
-  hand-written cells it cannot know, so adding a scenario would make it write a
-  placeholder row and call that "generated". DEMOCI-11-006 and DEMOCI-11-007, the
-  normative requirements, already said "checked in place"; this table row was the
-  looser statement.
-- "the planned register is hand-written; checked as the complement of the
-  registry" stands, but the premise underneath it did not: this ADR asserted
-  `notes/demo-future-ideas.md` "already carries the tracking issue and spec IDs
-  for each". It did not — there was no single planned register, planned scenario
-  names lived in Status-column prose, and implemented scenarios sat under a
-  "Planned scenarios" heading. ISSUE-3480 built the register the partition check
-  needs.
+- The consumer table's `notes/` row read "generated columns where derivable". It
+  now reads "checked in place", which is what DEMOCI-11-006 and DEMOCI-11-007 —
+  the normative requirements — always said; the table row was the looser
+  statement, and the implementation is what surfaced the gap.
+- The Decision section asserted that `notes/demo-future-ideas.md` "already carries
+  the tracking issue and spec IDs for each". **It did not.** There was no single
+  planned register, planned scenario names lived in Status-column prose, and
+  implemented scenarios sat under a "Planned scenarios" heading marked
+  `**implemented**`. ISSUE-3480 built the register the partition check needs, and
+  the sentence now describes what exists. Recorded rather than silently fixed
+  because DEMOCI-11-010 was written on that premise.
 
 The selector the partition check uses is **MS-13-003's** existing marker,
 `trigger: {type: scenario_start, value: <name>}`, rather than anything new: see

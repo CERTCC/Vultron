@@ -296,6 +296,26 @@ not).
 [...]"; replace "15 xfails" with "known-flaky tests are tracked in
 `notes/flaky-tests.md`".
 
+### The scenario-count rule is machine-enforced, and this file is exempt
+
+For one enumeration — the demo scenario set — MS-16-001 is no longer advice.
+DEMOCI-11-008 forbids any declared scenario-table consumer from restating the
+count, and `restated_counts()` in
+`vultron/metadata/demo_scenarios/prose_counts.py` enforces it over the
+`SCENARIO_TABLE_CONSUMERS` tuple, wired into `uv run demo-scenarios --check` and
+the `demo-scenarios-sync` pre-commit hook. A restatement inside a
+`## Change history` section (or any subsection of one) is exempt, because that
+sentence records a past state and rewriting it would destroy the record.
+
+**This file is deliberately not a declared consumer.** The "Instead of" column
+above must keep its restated counts — they are the counter-examples the guidance
+is made of — and a check cannot tell a counter-example from the thing it warns
+against. Adding `notes/specs-vs-adrs.md` to `SCENARIO_TABLE_CONSUMERS` would
+therefore report this section's own table and pressure someone into deleting the
+guidance to get the hook green. If you are editing the counter-examples, that is
+why they survive; the exemption is recorded in `EXEMPT_CONSUMERS` in the same
+module.
+
 ---
 
 ## Where the Authoritative Rules Live
