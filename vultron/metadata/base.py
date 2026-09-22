@@ -51,3 +51,42 @@ MkDocsYamlLoader.add_multi_constructor("!", lambda _l, _s, _n: None)
 MkDocsYamlLoader.add_multi_constructor(
     "tag:yaml.org,2002:python/name:", lambda _l, _s, _n: None
 )
+
+
+def mkdocs_config(root: Path | None = None) -> dict[str, object]:
+    """Return ``mkdocs.yml`` parsed with :class:`MkDocsYamlLoader`.
+
+    Args:
+        root: Repository root. Defaults to the enclosing checkout.
+    """
+    base = root or repo_root()
+    with (base / "mkdocs.yml").open(encoding="utf-8") as fh:
+        config = yaml.load(fh, Loader=MkDocsYamlLoader)  # noqa: S506
+    return config if isinstance(config, dict) else {}
+
+
+def _walk_nav(nav: object) -> list[str]:
+    """Collect every string file path anywhere in a mkdocs ``nav`` tree."""
+    if isinstance(nav, str):
+        return [nav]
+    if isinstance(nav, list):
+        return [path for item in nav for path in _walk_nav(item)]
+    if isinstance(nav, dict):
+        return [path for value in nav.values() for path in _walk_nav(value)]
+    return []
+
+
+def nav_paths(root: Path | None = None) -> frozenset[str]:
+    """Return every ``docs/``-relative path the mkdocs nav references.
+
+    The nav is walked structurally rather than matched as a substring: a path
+    that appears only in a comment or an unrelated key would otherwise satisfy
+    a completeness check while leaving the page genuinely un-navved, which then
+    fails ``mkdocs build --strict`` instead (MS-14-006).
+
+    Shared by every consumer that checks nav completeness rather than
+    regenerating the nav — ADR pages (MS-14-006) and scenario narrative pages
+    (DEMOCI-11-007) — because the nav's labels are hand-written prose in both
+    cases and only the *set* of files is derivable.
+    """
+    return frozenset(_walk_nav(mkdocs_config(root).get("nav")))

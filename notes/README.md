@@ -653,10 +653,11 @@ to read the CI artifacts (including the per-actor ledger dumps).
 or reproducing a scenario failure locally.
 
 **`demo-ci-scenario-coverage.md`**
-Coverage matrix mapping all 8 demo scenarios to the distinct protocol
+Coverage matrix mapping every demo scenario to the distinct protocol
 `event_type` values each exercises, plus the minimum-PR-validation-set
-analysis (DEMOCI-06): which 3 scenarios cover all 7 event types, rationale
-for the minimum set, and workflow implementation notes.
+analysis (DEMOCI-06): which scenarios cover every event type, rationale
+for the minimum set, and workflow implementation notes. Both of its scenario
+tables are checked against the scenario registry (DEMOCI-11-007).
 **Load when**: evaluating which demo scenarios to include in the PR gate,
 adding a new scenario and determining whether it changes the minimum set, or
 auditing `full_suite_only` assignments in `demo-integration.yml`.
@@ -776,11 +777,16 @@ implementation guidance. Implementation is tracked in issue #1156.
 inbox/outbox pipeline (see issue #1156 and its children).
 
 **`demo-future-ideas.md`**
-Extended multi-actor demo scenario sketches: FV (Finder + Vendor),
-Three-Actor (Finder + Vendor + Coordinator), MultiParty (ownership transfer).
-Describes what each scenario would demonstrate and open design questions.
-**Load when**: designing new demo scripts or extending the existing demo suite
-beyond the current FV scenario.
+Holds the **planned-scenario register** — the second of DEMOCI-11-010's two
+registers, listing every demo scenario that has a spec group but no demo module
+yet, with its name in the registry's grammar, its tracking issue and its spec
+IDs. The register is machine-checked as the complement of the scenario registry;
+the rest of the file is scenario *ideas* with no spec group (fuzz simulation,
+case split/merge, multi-reporter, cross-cutting variations, the pre-case ACK
+flow). Normative requirements: `specs/demo-ci.yaml` DEMOCI-11-010.
+**Load when**: adding a scenario to or removing one from the planned register,
+designing a new demo scenario, or working out which of the two registers a
+scenario belongs in (see [demo-scenario-registry.md](demo-scenario-registry.md)).
 
 **`cvd-recipe-injects.md`**
 Classification of all 21 CERT Guide to CVD problem-solving recipes as Vultron

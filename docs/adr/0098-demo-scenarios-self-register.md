@@ -233,6 +233,31 @@ flags, with every table generated from it.
 
 ## More Information
 
+**Amendment (ISSUE-3451, ISSUE-3480).** Two rows of the consumer table above
+were refined when the checks were built; the decision is unchanged, its
+mechanism in two places is not.
+
+- `notes/` scenario tables read "generated columns where derivable". They are
+  **checked in place** instead. Only their `Scenario` column is
+  registry-derived, and a markdown column cannot be spliced independently of the
+  row it heads — a generator would have to emit whole rows including the
+  hand-written cells it cannot know, so adding a scenario would make it write a
+  placeholder row and call that "generated". DEMOCI-11-006 and DEMOCI-11-007, the
+  normative requirements, already said "checked in place"; this table row was the
+  looser statement.
+- "the planned register is hand-written; checked as the complement of the
+  registry" stands, but the premise underneath it did not: this ADR asserted
+  `notes/demo-future-ideas.md` "already carries the tracking issue and spec IDs
+  for each". It did not — there was no single planned register, planned scenario
+  names lived in Status-column prose, and implemented scenarios sat under a
+  "Planned scenarios" heading. ISSUE-3480 built the register the partition check
+  needs.
+
+The selector the partition check uses is **MS-13-003's** existing marker,
+`trigger: {type: scenario_start, value: <name>}`, rather than anything new: see
+`notes/demo-scenario-registry.md` § "Which spec groups specify a scenario" for
+the two rules that were tried and rejected.
+
 Source: ISSUE-3386, which proposed the narrower per-table ratchet. The
 column-triage rule this decision generalises comes from ISSUE-3337. The `vc` row
 this decision's Context section describes was removed in the PR that recorded

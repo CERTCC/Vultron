@@ -62,25 +62,21 @@ import yaml
 from _pytest.mark.structures import ParameterSet
 
 from test.ci.invariants.universal_harness import make_universal_invariant_tests
+from vultron.metadata.markdown_tables import iter_tables
 
 _REPO_ROOT = Path(__file__).parents[3]
 _DIAGNOSTIC_MAP = _REPO_ROOT / "notes" / "demo-ci-diagnostics.md"
 _CI_SCENARIOS_JSON = _REPO_ROOT / ".github" / "demo-scenarios.json"
 _MAP_HEADING = "### Invariant Status and Diagnostic Focus"
 
-#: A table row: ``| 7 | `test_...` | ⏳ xfail — #2505 | 1 — Sent |``.  The
-#: function-name pattern is deliberately wider than ``test_invariant_*``: three
-#: rows are named for a spec clause or a property instead, and a stricter
-#: pattern would report a present row as missing.
-_ROW_RE = re.compile(
-    r"^\|[^|]*\|\s*`(?P<fn>test_[a-z0-9_]+)`\s*\|"
-    r"(?P<status>[^|]*)\|(?P<layer>[^|]*)\|\s*$"
-)
-#: An ATX heading, used to find the end of the table's section.  Note this
-#: matches a ``#`` comment inside a fenced code block too, so the table's
-#: section must not contain one; what the trailing ``\s`` buys is that a
-#: line-initial issue reference such as ``#2505`` is not read as a heading.
-_HEADING_RE = re.compile(r"^#{1,6}\s")
+#: The diagnostic map's columns, in order.  Asserted rather than assumed: a
+#: fifth column added to the table would otherwise shift ``Status`` silently and
+#: this ratchet would compare the wrong cell.
+_MAP_COLUMNS = ("#", "Test function", "Status", "Start at Layer")
+
+#: A ``Test function`` cell: a backticked ``test_``-prefixed name.
+_FUNCTION_RE = re.compile(r"^`(?P<fn>test_[a-z0-9_]+)`$")
+
 _ISSUE_RE = re.compile(r"#(\d+)")
 
 #: The only two legal Status cells.  A controlled vocabulary rather than an
@@ -183,45 +179,52 @@ def test_factory_xfail_markers_are_representable() -> None:
 def _map_rows() -> Mapping[str, str]:
     """Return ``{test function name: Status cell}`` from the diagnostic map.
 
-    Only lines under ``_MAP_HEADING`` and above the next ATX heading are read,
-    so function names in the surrounding prose — the scenario-local late-joiner
-    tests, for instance — are not mistaken for rows.
+    Located structurally with the shared reader in
+    :mod:`vultron.metadata.markdown_tables` rather than a regex of its own
+    (CS-22-001): only the table under :data:`_MAP_HEADING` is read, so function
+    names in the surrounding prose — the scenario-local late-joiner tests, for
+    instance — are not mistaken for rows, and a ``#`` inside a fenced code block
+    in that section is no longer a hazard the section layout has to avoid.
 
     Read-only: the result is cached and shared across every test in the module.
     """
     text = _DIAGNOSTIC_MAP.read_text(encoding="utf-8")
-    assert _MAP_HEADING in text, (
-        f"{_DIAGNOSTIC_MAP.name} no longer contains {_MAP_HEADING!r}; "
-        "this ratchet cannot locate the table"
+    heading = _MAP_HEADING.lstrip("# ")
+    tables = [table for table in iter_tables(text) if table.heading == heading]
+    # Distinguish "the table moved or changed shape" from "the table is empty".
+    assert len(tables) == 1, (
+        f"expected exactly one table under {heading!r} in "
+        f"{_DIAGNOSTIC_MAP.name}, found {len(tables)}; the table was moved, "
+        "renamed, or split"
     )
-    lines = text.split(_MAP_HEADING, 1)[1].splitlines()
-    for end, line in enumerate(lines):
-        if _HEADING_RE.match(line):
-            lines = lines[:end]
-            break
+    table = tables[0]
+    assert table.columns == _MAP_COLUMNS, (
+        f"the table under {heading!r} in {_DIAGNOSTIC_MAP.name} has columns "
+        f"{list(table.columns)}; this ratchet reads {list(_MAP_COLUMNS)}. "
+        "Update _MAP_COLUMNS if the table legitimately changed shape."
+    )
 
     rows: dict[str, str] = {}
-    header_seen = False
-    for line in lines:
-        header_seen = header_seen or line.startswith("| # |")
-        match = _ROW_RE.match(line)
-        if match is None:
-            continue
-        name = match.group("fn")
-        assert name not in rows, f"{name} appears in the map table twice"
-        rows[name] = match.group("status").strip()
-    # Distinguish "the table moved or changed shape" from "the table is empty":
-    # _ROW_RE hard-codes four columns, so adding a fifth silently matches
-    # nothing and would otherwise surface as a bare "no rows parsed".
-    assert header_seen, (
-        f"no '| # |' header row found under {_MAP_HEADING!r} in "
-        f"{_DIAGNOSTIC_MAP.name}; the table was moved, renamed, or removed"
-    )
+    for name, status in zip(
+        table.column("Test function"), table.column("Status")
+    ):
+        # The function-name pattern is deliberately wider than
+        # ``test_invariant_*``: three rows are named for a spec clause or a
+        # property instead, and a stricter pattern would report a present row
+        # as missing.
+        match = _FUNCTION_RE.match(name.strip())
+        assert match is not None, (
+            f"{name!r} in the {heading!r} table is not a backticked "
+            "`test_`-prefixed function name"
+        )
+        function = match.group("fn")
+        assert (
+            function not in rows
+        ), f"{function} appears in the map table twice"
+        rows[function] = status.strip()
     assert rows, (
-        f"the table under {_MAP_HEADING!r} in {_DIAGNOSTIC_MAP.name} has a "
-        "header but no parseable rows; _ROW_RE expects exactly four columns "
-        "(#, Test function, Status, Start at Layer) with a `test_`-prefixed "
-        "function name in backticks — update the regex if that changed"
+        f"the table under {heading!r} in {_DIAGNOSTIC_MAP.name} has a header "
+        "but no rows"
     )
     return MappingProxyType(rows)
 

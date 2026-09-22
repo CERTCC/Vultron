@@ -5,15 +5,18 @@ description: >
   Implementation guidance for the self-registering demo scenario registry
   (ADR-0098): what the decorator carries and what is derived by convention, why
   discovery must walk the package rather than import a list, why
-  `.github/demo-scenarios.json` stays committed, and which consumers are
-  generated versus completeness-checked.
+  `.github/demo-scenarios.json` stays committed, which consumers are generated
+  versus checked in place, and how the MS-13-003 marker selects the spec groups
+  that specify a scenario.
 related_specs:
   - specs/demo-ci.yaml
   - specs/multi-actor-demo.yaml
+  - specs/meta-specifications.yaml
 related_notes:
   - notes/demo-ci-invariants.md
   - notes/demo-ci-diagnostics.md
   - notes/demo-ci-scenario-coverage.md
+  - notes/demo-future-ideas.md
   - notes/demo-scenario-authoring.md
   - notes/vocabulary-registry.md
   - notes/documentation-strategy.md
@@ -32,10 +35,15 @@ reviewer will get wrong from the ADR alone.
 and `pkgutil` discovery), the renderers and the `--check`/`--write` dumper
 (`vultron/metadata/demo_scenarios/`, console script `uv run demo-scenarios`),
 the `demo-scenarios-sync` pre-commit hook, and the three generated consumers.
-**Still pending (ISSUE-3451):** the completeness checks over the remaining
+**Built by ISSUE-3451 and ISSUE-3480:** the checks over the remaining
 hand-written prose — DEMOCI-06-002/003, the per-scenario DEMOMA-16 requirements,
-the `mkdocs.yml` nav, the `notes/` tables, and the planned-scenario partition
-(DEMOCI-11-010).
+the `mkdocs.yml` nav, the `notes/` tables, the no-restated-count and
+no-stray-include ratchets
+(`vultron/metadata/demo_scenarios/prose_checks.py`), and the planned-scenario
+register and its partition
+(`vultron/metadata/demo_scenarios/scenario_groups.py`, DEMOCI-11-010).
+Both halves are reported by `uv run demo-scenarios --check`, so the
+`demo-scenarios-sync` hook covers generated and checked consumers alike.
 
 Design rationale and the options rejected: `docs/adr/0098-demo-scenarios-self-register.md`.
 Normative requirements: `specs/demo-ci.yaml` DEMOCI-11.
@@ -77,8 +85,7 @@ scenario, not just that one.
 ## Registration means built; planned scenarios live in the other register
 
 A scenario gets a spec group before anyone writes its demo — that is how its
-expected behaviour is agreed. Four scenarios are in that state today: `rcv-embargo`
-(DEMOMA-20), `rcvv-embargo` (DEMOMA-21), `fcvd` (DEMOMA-24) and `vc` (DEMOMA-25).
+expected behaviour is agreed. Several scenarios are in that state at any time.
 
 **Do not register them.** A registered scenario is one whose module exists, and
 every derived-path check depends on that. A `status="planned"` field in the
@@ -86,16 +93,71 @@ decorator would make the registry the place where both states live and would
 immediately need path checks exempted per entry — the override channel the whole
 design exists to avoid.
 
-Planned scenarios are declared by their spec group plus the table in
-[demo-future-ideas.md](demo-future-ideas.md), which already carries the tracking
-issue and spec IDs per row. DEMOCI-11-010 requires every spec'd scenario to sit in
-exactly one of the two registers, and the partition to be checked.
+Planned scenarios are declared by their spec group plus the **planned scenario
+register** in [demo-future-ideas.md](demo-future-ideas.md) § "Planned scenario
+register": one row per specified-but-unbuilt scenario, with the scenario name in
+its own column and spelled in the registry's name grammar, its tracking issue,
+and its spec IDs. DEMOCI-11-010 requires every spec'd scenario to sit in exactly
+one of the two registers, and the partition to be checked.
+
+That register carries the tracking issue and the spec IDs *because
+`partition_problems()` fails when a row omits either* — it is not a standing
+fact about the file. Before ISSUE-3480 this note asserted it was, and it was not
+true: planned scenarios were spread over three tables, their names lived in
+Status-column prose rather than a Scenario column, already-implemented scenarios
+sat under a "Planned scenarios" heading marked `**implemented**`, and a stale
+partial copy of the registry sat in the same file under "Implemented scenarios".
+The claim was load-bearing for DEMOCI-11-010 and nothing checked it.
 
 Write the check in both directions. The registry-to-prose direction alone reports
 agreement while ignoring DEMOMA-16-014 and DEMOMA-16-015, which describe scenarios
 that are *correctly* absent from the registry — the same blind spot that let a `vc`
 row sit in a table of available demos with a spec group, a tracking issue, and no
 implementation.
+
+## Which spec groups specify a scenario: the MS-13-003 marker
+
+The partition needs a mechanical answer to "which spec groups specify a demo
+scenario", and it already has one. **MS-13-003** requires a group whose items
+describe a demo scenario workflow to carry
+`trigger: {type: scenario_start, value: <name>}`, and **SR-02-018** fixes
+`value` as the scenario's name. That is the selector
+(`scenario_groups.scenario_spec_groups()`); the marker is a declaration by the
+group's author, not an inference from its wording.
+
+Nothing enforced MS-13-003, so half the scenario groups were missing the marker
+(DEMOMA-12, -19, -20, -21, -24, -25). Adding it obliges **MS-13-004** —
+a `scenario_start` group MUST hold at least one `BehavioralSpec` with non-empty
+`steps` — which is why ISSUE-3480 also added step blocks to DEMOMA-19, -20, -21
+and -24. Each restates that group's already-normative phase list
+(DEMOMA-19-014, -20-007, -21-008) as ordered ECA steps; DEMOMA-24 had no phase
+list, so its block on DEMOMA-24-005 derives from DEMOMA-24-001/004/005.
+
+**Two rules were tried and rejected.** Record them here so neither is
+re-proposed:
+
+| Rejected rule | Why it fails |
+|---|---|
+| A `"Scenario"` substring in the group title | Also selects `Scenario Coverage` (DEMOMA-04), `Shared Scenario Harness` (DEMOMA-23), `Causal Gating and Scenario Narratives` (DEMOMA-22) and `In-Process Fuzz Simulation Scenario` (DEMOMA-18), none of which specifies a demo scenario |
+| "A group some per-scenario DEMOMA-16 requirement refines" | Selects only DEMOMA-24 and DEMOMA-25. DEMOMA-20 and DEMOMA-21 have no DEMOMA-16 refiner, so it drops half the planned set and the partition check passes vacuously over it |
+
+**The registry may hold a scenario no group specifies.** `fcv-reject` does:
+it is built, it is in the PR validation set, and it has a per-scenario
+requirement (DEMOMA-16-011) but no DEMOMA group of its own. DEMOCI-11-010
+constrains only scenarios that *have* a spec group, so this is not a partition
+failure — but it is a corpus gap, tracked as ISSUE-3495. The reverse is never
+legitimate: a planned-register row with no spec group is a row nothing specifies,
+and `partition_problems()` reports it.
+
+**How the per-scenario DEMOMA-16 requirements are selected.** Not by ID range —
+DEMOCI-11-007 warns against it and the corpus proves the warning: DEMOMA-16-008
+sits inside the apparent span and is the spec-to-test sync rule, while -014 and
+-015 sit outside it and are per-scenario. The rule is what the statement *says*:
+it mentions `expected-event-types list` **and** names exactly one scenario as
+"the `<name>` scenario". That pair separates the eleven per-scenario
+requirements from DEMOMA-16-001 (universal types, names no scenario),
+DEMOMA-16-008 (names no scenario) and DEMOMA-16-012/-013 (name FCVCV but are
+about event *counts* in the case-actor log, not an expected-event-types list).
 
 ## Discovery must walk the package, never an import list
 
@@ -153,10 +215,25 @@ checking it. Route each consumer by what it is:
 | `.github/demo-scenarios.json` | generate + `--check` | CI needs it before Python exists |
 | `test/ci/README-case-log-ratchet.md` | generate + `--check` | Outside the mkdocs tree — read raw on GitHub and by agents, so an include directive would render literally |
 | `vultron/demo/scenario/README.md` | generate + `--check` | Same |
-| `notes/` scenario tables | generate derivable columns; check the rest | Their tables interleave hand-written columns (PR-set Rationale, per-scenario event-type coverage) that the registry does not and should not hold |
-| `.github/workflows/demo-integration.yml` header comment | delete the prose enumeration | It restates both scenario sets in a comment above the code that computes them; nothing is lost by removing it, so there is no copy left to generate or check |
+| `notes/` scenario tables | **check in place** | Their tables interleave hand-written columns (PR-set Rationale, per-scenario event-type coverage) that the registry does not and should not hold — see below for why checking beats generating here |
+| `notes/demo-future-ideas.md` planned register | check as the registry's complement | Hand-written; DEMOCI-11-010's second register |
+| `.github/workflows/demo-integration.yml` header comment | delete the prose enumeration | It restated both scenario sets in a comment above the code that computes them; nothing is lost by removing it, so there is no copy left to generate or check |
 | `specs/` DEMOCI-06-002/003 and the per-scenario DEMOMA-16 requirements | check only | Prose requirements; see below |
 | `mkdocs.yml` nav | check completeness | Hand-written short labels |
+| Any consumer's prose count | check absence (DEMOCI-11-008) | A count is another copy; the table is the count |
+
+**The `notes/` tables are checked in place, not column-generated.** ADR-0098's
+table says "generated columns where derivable", and for these two files that is
+not achievable as written: only the `Scenario` column is registry-derived, and a
+markdown column cannot be spliced independently of the row it heads. A generator
+would have to emit whole rows including the hand-written cells it cannot know, so
+adding a scenario would make it write a placeholder row and call the result
+"generated". DEMOCI-11-006 and DEMOCI-11-007 — the normative requirements — say
+*checked in place* for exactly this case. What the check costs is one edit by the
+author who knows the hand-written cells; what it buys is that the file never
+holds a cell nobody wrote. The `Spec` column of the required-event-types table is
+derivable too, but from the **spec corpus** rather than the registry, so it is
+checked against DEMOMA-16 rather than against `ScenarioSpec`.
 
 **The mkdocs-tree boundary is the load-bearing distinction.** The
 `include-markdown` plugin is configured, but it expands only at mkdocs build

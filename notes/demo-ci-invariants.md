@@ -148,7 +148,7 @@ reporting a protocol result.
 
 ### Regression coverage
 
-- `test/demo/test_issue_2239_ledger_dump_in_finally.py` (all nine scenarios)
+- `test/demo/test_issue_2239_ledger_dump_in_finally.py` (every scenario)
 - `test/demo/test_scenario_harness.py`
 - `test/ci/invariants/test_common.py::TestLoadDevlogsManifestHandling`
 - `test/ci/invariants/test_common.py::TestAllSkipGuard`
@@ -265,17 +265,23 @@ CONCERN-2243 (three rows understated their required types; the FCCV-extension
 and FCV-reject rows were absent entirely), which is exactly the drift
 DEMOMA-16-008 exists to prevent.
 
+Two of its four columns are derived and both are now checked (DEMOCI-11-007):
+`Scenario` is the registry's `label`, in the registry's name order, and `Spec`
+is resolved from the **spec corpus** — each per-scenario DEMOMA-16 statement
+names its own scenario, and `ScenarioSpec` carries no spec IDs. `Universal 5`
+and `Additional required` are hand-written.
+
 | Scenario | Spec | Universal 5 | Additional required |
 |---|---|---|---|
-| FV | DEMOMA-16-002 | validate_report, add_participant_status_to_participant, close_case, add_note_to_case, engage_case | (none) |
-| FVV | DEMOMA-16-003 | same | invite_actor_to_case, accept_invite_actor_to_case |
-| FVCV-extension | DEMOMA-16-004 | same | invite_actor_to_case, offer_case_participant, accept_invite_actor_to_case, accept_actor_recommendation |
-| FVCV-handoff | DEMOMA-16-005 | same | invite_actor_to_case, accept_invite_actor_to_case |
+| FCCV-extension | DEMOMA-16-010 | same | invite_actor_to_case, offer_case_participant, accept_invite_actor_to_case, accept_actor_recommendation |
 | FCCV-handoff | DEMOMA-16-006 | same | invite_actor_to_case, accept_invite_actor_to_case |
 | FCV | DEMOMA-16-007 | same | invite_actor_to_case, accept_invite_actor_to_case |
-| FCVCV | DEMOMA-16-009 | same | invite_actor_to_case (≥3), offer_case_participant (≥1), accept_invite_actor_to_case (≥3), accept_actor_recommendation (≥1) |
-| FCCV-extension | DEMOMA-16-010 | same | invite_actor_to_case, offer_case_participant, accept_invite_actor_to_case, accept_actor_recommendation |
 | FCV-reject | DEMOMA-16-011 | same | invite_actor_to_case, reject_invite_actor_to_case |
+| FCVCV | DEMOMA-16-009 | same | invite_actor_to_case (≥3), offer_case_participant (≥1), accept_invite_actor_to_case (≥3), accept_actor_recommendation (≥1) |
+| FV | DEMOMA-16-002 | validate_report, add_participant_status_to_participant, close_case, add_note_to_case, engage_case | (none) |
+| FVCV-extension | DEMOMA-16-004 | same | invite_actor_to_case, offer_case_participant, accept_invite_actor_to_case, accept_actor_recommendation |
+| FVCV-handoff | DEMOMA-16-005 | same | invite_actor_to_case, accept_invite_actor_to_case |
+| FVV | DEMOMA-16-003 | same | invite_actor_to_case, accept_invite_actor_to_case |
 
 ### Relationship to scenario-specific test functions
 
@@ -322,7 +328,7 @@ CONCERN-2243 was filed because a permanently-red `fvcv-handoff Invariant
 Harness` was read as proof that its `engage_case` assertion could never pass.
 The job was in fact dying in the first mode: it failed at artifact download on
 every run, so the assertion had never once executed. The assertion itself is
-correct — `engage_case` is emitted by all nine scenarios (see below) — and the
+correct — `engage_case` is emitted by every scenario (see below) — and the
 absence of the entries it looks for was a real protocol defect elsewhere.
 
 Before drawing any conclusion from this job, open the log and confirm which
@@ -332,14 +338,14 @@ step failed.
 
 Every scenario drives an engage-case trigger, so `engage_case` is a universal
 required event type on the same footing as `validate_report` — it is the fifth
-type in DEMOMA-16-001 and appears in all nine `_XXX_EXPECTED_EVENT_TYPES`
-lists (ISSUE-2266). The three emission paths are:
+type in DEMOMA-16-001 and appears in every `_XXX_EXPECTED_EVENT_TYPES`
+list (ISSUE-2266). The three emission paths are:
 
 - `run_direct_path_rm_triage()` (`vultron/demo/helpers/workflow.py`) calls
-  `receiver_engages_case()` for the report's direct receiver — used by all
-  eight multi-actor scenarios.
+  `receiver_engages_case()` for the report's direct receiver — used by every
+  multi-actor scenario.
 - `run_invite_path_rm_triage()` calls it again for the invited participant —
-  used by seven of them (CM-11-002).
+  used by every scenario with an invite path (CM-11-002).
 - `fv_demo.py` calls `receiver_engages_case()` directly via
   `vendor_engages_case()`.
 
@@ -350,7 +356,7 @@ invites the false conclusion that no code emits it.
 Before ISSUE-2266, only `test_fvcv_handoff_invariants.py` listed
 `engage_case` — added by PR #2018 as a scenario-specific type without amending
 the spec (a DEMOMA-16-008 violation), which left an engage-case regression
-silent in the other eight scenarios. The `fvcv-handoff`
+silent in every other scenario. The `fvcv-handoff`
 `check_event_type_count(..., "engage_case", min_count=2)` assertion remains
 scenario-specific: it asserts the *count* Vendor2's post-join triage cycle
 implies (CM-11-002), which is a stronger claim than the universal presence

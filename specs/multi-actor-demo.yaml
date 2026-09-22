@@ -1128,6 +1128,9 @@ groups:
 
 - id: DEMOMA-12
   title: FCV Scenario (Finder reports to Coordinator; Coordinator invites Vendor)
+  trigger:
+    type: scenario_start
+    value: fcv
   specs:
   - id: DEMOMA-12-001
     priority: MUST
@@ -2444,6 +2447,9 @@ groups:
 
 - id: DEMOMA-19
   title: FCVCV 5-Party Scenario (Finder + Coordinator1 + Vendor1 + Coordinator2 + Vendor2)
+  trigger:
+    type: scenario_start
+    value: fcvcv
   description: >-
     Specifies the FCVCV multi-actor demo scenario: a 5-party CVD case with
     Finder (F), Coordinator1 (C1), Vendor1 (V1), Coordinator2 (C2), and
@@ -2692,6 +2698,61 @@ groups:
       The phased structure mirrors the FCCV-extension scenario (the closest prior
       template) while adding V1's vendor-only VFd path and V2's full VFD path.
       Phase ordering reflects temporal protocol constraints.
+    preconditions:
+    - description: >-
+        All six containers running (Finder, C1, V1, C2, V2, CaseActor); all
+        actors seeded and cross-registered.
+    steps:
+    - order: 1
+      actor: finder
+      action: >-
+        report_submission phase — POST submit-report trigger to C1, which then
+        invites V1 and C2
+      expected: >-
+        C1 creates the VulnerabilityCase and holds CVDRole.CASE_OWNER; V1 and C2
+        accept their invitations
+    - order: 2
+      actor: c2
+      action: >-
+        c2_suggests_v2 phase — drive the ADR-0026 suggest-actor flow for V2's
+        onboarding (DEMOMA-19-009)
+      expected: >-
+        C2 posts suggest-actor-to-case; C1 posts accept-actor-recommendation;
+        CaseActor invites V2; V2 posts accept-case-invite
+    - order: 3
+      actor: demo-script
+      action: sync_verification phase — poll every replica for the participant set
+      expected: all five participants are present on every replica
+    - order: 4
+      actor: demo-script
+      action: notes_exchange phase — drive add-note-to-case
+      expected: add_note_to_case is recorded in the case-actor log
+    - order: 5
+      actor: demo-script
+      action: >-
+        fix_lifecycle phase — advance V1 to VFd and V2 to VFD, calling the
+        verification helpers named by DEMOMA-19-015
+      expected: >-
+        verify_fix_ready passes for V1 and V2; verify_fix_deployed passes for V2
+        only, because V1 holds no DEPLOYER role
+    - order: 6
+      actor: demo-script
+      action: publication phase — V1 publishes, then V2 (DEMOMA-19-005)
+      expected: >-
+        CaseActor emits the embargo teardown (EM.EXITED) after V1's CS.P update
+        and before V2 publishes
+    - order: 7
+      actor: demo-script
+      action: case_closure phase — close the case on every participant
+      expected: RM.CLOSED on every participant's replica
+    - order: 8
+      actor: demo-script
+      action: dump_case_ledgers phase
+      expected: one case-ledger JSONL artifact per actor under devlogs/fcvcv/
+    postconditions:
+    - description: >-
+        EM.EXITED; RM.CLOSED and PXA = Pxa for all five participants; V1 at VFd
+        and V2 at VFD.
   - id: DEMOMA-19-015
     priority: MUST
     kind: project
@@ -2778,6 +2839,9 @@ groups:
 
 - id: DEMOMA-20
   title: RCV Embargo Scenario (Reporter + Coordinator + Vendor, deliberate termination)
+  trigger:
+    type: scenario_start
+    value: rcv-embargo
   description: >-
     Specifies the rcv-embargo demo scenario: a 3-party CVD case with Reporter
     (R), Coordinator (C), and Vendor (V), exercising embargo lifecycle variations
@@ -2926,6 +2990,62 @@ groups:
     rationale: >-
       The phased structure mirrors prior FCV/FVCV scenarios while inserting
       embargo lifecycle phases between report setup and fix-lifecycle.
+    preconditions:
+    - description: >-
+        All four containers running (Reporter, Coordinator, Vendor, CaseActor);
+        all actors seeded and cross-registered; no embargo in force.
+    steps:
+    - order: 1
+      actor: reporter
+      action: >-
+        report_submission phase — POST submit-report trigger to the Coordinator,
+        which engages the case and invites the Vendor
+      expected: >-
+        the case exists on every replica; EM has no active embargo; PEC is
+        UNBOUND for all three participants
+    - order: 2
+      actor: reporter
+      action: >-
+        embargo_proposal phase — call demo_propose_and_activate_embargo
+        (DEMOMA-20-002): R posts trigger_propose_embargo, C posts
+        trigger_accept_embargo
+      expected: >-
+        em_state == EM.ACTIVE on the Coordinator's replica and
+        emConsentState == SIGNATORY for R, C and V (DEMOMA-20-009)
+    - order: 3
+      actor: demo-script
+      action: fix_lifecycle phase — advance the Vendor through the fix lifecycle
+      expected: >-
+        the fix lifecycle completes with the embargo still ACTIVE; the EM state
+        is asserted before the next phase begins (DEMOMA-20-008)
+    - order: 4
+      actor: coordinator
+      action: >-
+        embargo_termination phase — call demo_terminate_embargo
+        (DEMOMA-20-003), posting trigger_terminate_embargo before the window
+        expires
+      expected: >-
+        em_state == EM.EXITED on the terminating actor's replica
+        (DEMOMA-20-011)
+    - order: 5
+      actor: demo-script
+      action: publication phase — drive the P-transition for each participant
+      expected: PXA advances to Pxa on every replica
+    - order: 6
+      actor: demo-script
+      action: case_closure phase — close the case on every participant
+      expected: RM.CLOSED on every participant's replica
+    - order: 7
+      actor: demo-script
+      action: dump_case_ledgers phase
+      expected: >-
+        one case-ledger JSONL artifact per actor under devlogs/rcv-embargo/,
+        recording propose_embargo, accept_embargo and terminate_embargo
+        (DEMOMA-20-006)
+    postconditions:
+    - description: >-
+        EM.EXITED after a deliberate termination (variation e); RM.CLOSED and
+        PXA = Pxa for Reporter, Coordinator and Vendor.
   - id: DEMOMA-20-008
     priority: MUST
     kind: project
@@ -2977,6 +3097,9 @@ groups:
 
 - id: DEMOMA-21
   title: RCVV Embargo Scenario (Reporter + Coordinator + V1 + V2, revision and accidental collapse)
+  trigger:
+    type: scenario_start
+    value: rcvv-embargo
   description: >-
     Specifies the rcvv-embargo demo scenario: a 4-party CVD case with Reporter
     (R), Coordinator (C), Vendor1 (V1), and Vendor2 (V2), exercising embargo
@@ -3154,6 +3277,70 @@ groups:
       Phase ordering reflects the temporal protocol constraints: revision
       requires an ACTIVE embargo; V2 late-invite simulates a short-deadline
       vendor held back until terms are settled.
+    preconditions:
+    - description: >-
+        All five containers running (Reporter, Coordinator, V1, V2, CaseActor);
+        all actors seeded and cross-registered; V2 not yet invited.
+    steps:
+    - order: 1
+      actor: reporter
+      action: >-
+        report_submission phase — POST submit-report trigger to the Coordinator,
+        which engages the case and invites V1
+      expected: the case exists on every replica with R, C and V1 as participants
+    - order: 2
+      actor: reporter
+      action: >-
+        embargo_proposal phase — call demo_propose_and_activate_embargo: R posts
+        trigger_propose_embargo, C posts trigger_accept_embargo
+      expected: >-
+        em_state == EM.ACTIVE with emConsentState == SIGNATORY for R, C and V1
+    - order: 3
+      actor: coordinator
+      action: >-
+        embargo_revision phase — call demo_propose_embargo_revision
+        (DEMOMA-21-002): C posts trigger_propose_embargo_revision
+        (ACTIVE → REVISE), V1 posts trigger_accept_embargo (REVISE → ACTIVE)
+      expected: em_state returns to EM.ACTIVE with the revised terms
+    - order: 4
+      actor: coordinator
+      action: >-
+        v2_late_invite phase — invite V2 only after the revision is complete and
+        em_state is confirmed ACTIVE (DEMOMA-21-003)
+      expected: >-
+        V2 accepts the case invite and the current embargo event, reaching
+        emConsentState == SIGNATORY (DEMOMA-21-012)
+    - order: 5
+      actor: demo-script
+      action: fix_lifecycle phase — advance V1 and V2 through the fix lifecycle
+      expected: >-
+        the fix lifecycle completes for V1 and V2; the embargo stays ACTIVE
+        until the accidental collapse in phase 6
+    - order: 6
+      actor: reporter
+      action: >-
+        accidental_collapse phase — call actor_notifies_published on the
+        reporter's client to fire CS.P; trigger_terminate_embargo MUST NOT be
+        called (DEMOMA-21-004, DEMOMA-21-014)
+      expected: >-
+        CaseActor emits the embargo teardown via PublicDisclosureBranchNode and
+        em_state == EM.EXITED on the Coordinator's replica
+    - order: 7
+      actor: demo-script
+      action: case_closure phase — close the case on every participant
+      expected: RM.CLOSED on every participant's replica
+    - order: 8
+      actor: demo-script
+      action: dump_case_ledgers phase
+      expected: >-
+        one case-ledger JSONL artifact per actor under devlogs/rcvv-embargo/,
+        recording `propose_embargo`, `accept_embargo` and `revise_embargo`
+        (DEMOMA-21-007)
+    postconditions:
+    - description: >-
+        EM.EXITED as an automatic consequence of CS.P rather than a deliberate
+        termination (variation d); RM.CLOSED and PXA = Pxa for Reporter,
+        Coordinator, V1 and V2.
   - id: DEMOMA-21-009
     priority: MUST
     kind: project
@@ -3469,6 +3656,9 @@ groups:
 
 - id: DEMOMA-24
   title: FCVD Scenario (Finder + Coordinator + Vendor + Deployer)
+  trigger:
+    type: scenario_start
+    value: fcvd
   description: >-
     Requirements for the FCVD scenario, which exercises the Deployer role as a
     participant distinct from the Vendor. The Vendor develops the fix (VFd) but
@@ -3563,6 +3753,63 @@ groups:
       Deployer's d→D transition because at least one VENDOR participant in the case
       is at VFd, and MUST block d→D for any participant that holds neither
       CVDRole.DEPLOYER nor satisfies the causal precondition.
+    preconditions:
+    - description: >-
+        All five containers running (Finder, Coordinator, Vendor, Deployer,
+        CaseActor); all actors seeded and cross-registered; the Coordinator
+        holds CVDRole.CASE_OWNER throughout (DEMOMA-24-001).
+    steps:
+    - order: 1
+      actor: finder
+      action: >-
+        POST submit-report trigger to the Coordinator, which validates and
+        engages the case
+      expected: the case exists on the Coordinator's replica; RM→ACCEPTED
+    - order: 2
+      actor: coordinator
+      action: invite the Vendor (CVDRole.VENDOR only) into the case
+      expected: >-
+        the Vendor accepts and holds no CVDRole.DEPLOYER (DEMOMA-24-002)
+    - order: 3
+      actor: vendor
+      action: advance the participant VFD path to VFd without deploying
+      expected: >-
+        Vendor VFD = VFd and no VFD participant status snapshot exists for the
+        Vendor actor (DEMOMA-24-002); the CSB-15-004 causal precondition is now
+        satisfied
+    - order: 4
+      actor: coordinator
+      action: >-
+        invite the Deployer (CVDRole.DEPLOYER only) into the case, AFTER the
+        fix-ready milestone is verified (DEMOMA-24-003)
+      expected: >-
+        the Deployer container is polled for the arriving invitation before the
+        accept-case-invite trigger is driven (DEMOMA-24-008); the Deployer holds
+        no CVDRole.VENDOR
+    - order: 5
+      actor: deployer
+      action: apply the patch in its own environment, driving the d→D transition
+      expected: >-
+        the BT permits d→D because a VENDOR participant is at VFd, and blocks
+        d→D for any participant that holds neither CVDRole.DEPLOYER nor
+        satisfies the causal precondition
+    - order: 6
+      actor: demo-script
+      action: >-
+        drive publication, calling verify_publicly_disclosed with the Deployer
+        actor ID as the DEPLOYER-role participant (DEMOMA-24-005)
+      expected: PXA advances to Pxa on every replica; EM.EXITED
+    - order: 7
+      actor: demo-script
+      action: close the case on every participant, then dump the case ledgers
+      expected: >-
+        RM.CLOSED on every replica; one case-ledger JSONL artifact per actor
+        under devlogs/fcvd/
+    postconditions:
+    - description: >-
+        The final state DEMOMA-24-005 requires: Vendor VFD = VFd; Deployer
+        VFD = VFD; PXA = Pxa and RM.CLOSED for Finder, Coordinator, Vendor,
+        Deployer and CaseActor; EM.EXITED.
     rationale: >-
       CSB-15-004 defines a new guard condition for DEPLOYER-only actors that
       replaces the per-participant VFD-state check used by VENDOR actors. The FCVD
@@ -3659,6 +3906,9 @@ groups:
 
 - id: DEMOMA-25
   title: VC Scenario (Vendor self-reports; Coordinator joins as Observer)
+  trigger:
+    type: scenario_start
+    value: vc
   specs:
   - id: DEMOMA-25-001
     priority: MUST

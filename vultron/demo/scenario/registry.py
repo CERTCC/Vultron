@@ -87,6 +87,16 @@ _NAME_RE = re.compile(r"^[a-z0-9]+(-[a-z0-9]+)*\Z")
 F = TypeVar("F", bound=Callable[..., None])
 
 
+def is_scenario_name(value: str) -> bool:
+    """Whether *value* is a well-formed scenario name.
+
+    The public form of :data:`_NAME_RE`, so tooling outside this package can ask
+    the question without importing a private pattern. Callers that need to *find*
+    names inside prose still use the pattern itself — a predicate cannot scan.
+    """
+    return _NAME_RE.match(value) is not None
+
+
 @dataclass(frozen=True, slots=True)
 class ScenarioSpec:
     """One registered demo scenario.
@@ -386,6 +396,7 @@ __all__ = [
     "SCENARIO_PACKAGE",
     "ScenarioSpec",
     "discover_scenarios",
+    "is_scenario_name",
     "registered_scenarios",
     "scenario",
     "scenario_module_stems",
