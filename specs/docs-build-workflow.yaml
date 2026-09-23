@@ -7,7 +7,7 @@ description: >-
   It is distinct from `python-app.yml` (Python unit tests and linting) and
   `.github/workflows/demo-integration.yml` (demo container integration tests,
   specified in `specs/demo-ci.yaml`).
-version: 1.0.0
+version: 1.1.0
 scope:
   - prototype
   - production
@@ -103,6 +103,48 @@ groups:
           `docs/developer/` was moved from `exclude_docs` to `draft_docs`.
           Draft pages are excluded from `mkdocs build` regardless of config
           file, so a separate dev-overlay CI step no longer provides value.
+      - id: DOCBW-03-005
+        priority: MUST
+        kind: project
+        statement: >-
+          A withheld-artifact step MUST run after the Build Site step and MUST
+          fail the workflow when any artifact declared withheld produced files
+          in `site/`. It MUST also fail when `site/` is absent or empty, and
+          when a withheld declaration matches no file in the source tree.
+        rationale: >-
+          A decision not to publish is a claim, and nothing compared it to the
+          build output. `docs/ns/index.md` carried `draft: true` — a Material
+          blog-plugin key, not an MkDocs one — so it read as a suppression while
+          the build published `site/ns/`. Checking the outcome rather than the
+          `mkdocs.yml` mechanism also catches a mis-anchored pattern. The
+          empty-`site/` and stale-declaration failures exist because a gate that
+          resolves no targets and passes is worse than no gate (DF-09-009).
+        verification: >-
+          `uv run docs-withheld` (`vultron/metadata/docs/withheld.py`) exits
+          non-zero, invoked by the `Check withheld artifacts are unpublished`
+          step in `.github/workflows/docs-build-check.yml`. Its logic is
+          covered by `test/metadata/docs/test_withheld.py`, including the
+          empty-`site/` and stale-declaration failure modes. #3555 repoints the
+          declaration at the maturity manifest.
+      - id: DOCBW-03-006
+        priority: MUST
+        kind: project
+        statement: >-
+          Every workflow that builds the site MUST run the DOCBW-03-005 step,
+          including `.github/workflows/deploy_site.yml`, where it MUST sit
+          between the build step and the Pages artifact upload.
+        rationale: >-
+          `deploy_site.yml` is the workflow that actually publishes: it builds
+          `site/` on a push to `publish` and uploads it to Pages. A gate present
+          only in the pull-request workflow does not bind the publishing path, so
+          a withheld artifact reintroduced by a direct push to `publish`, or by a
+          plugin or dependency change that alters the build, would ship. Placing
+          the step before the upload means the deploy fails rather than
+          publishing an artifact the project declared withheld.
+        verification: >-
+          `test/ci/test_withheld_gate_in_workflows.py` asserts every workflow
+          running `mkdocs build` also runs `docs-withheld` after it, and that in
+          `deploy_site.yml` the step precedes `actions/upload-pages-artifact`.
 
   - id: DOCBW-04
     title: Docs-Changed Filter Step

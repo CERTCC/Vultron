@@ -255,13 +255,6 @@ nav:
           - CLI: 'reference/code/demo/cli.md'
           - Utilities: 'reference/code/demo/utils.md'
           - Demo Scripts: 'reference/code/demo/demos.md'
-    - Ontology:
-      - 'reference/ontology/index.md'
-      - Vultron_AS: 'reference/ontology/vultron_as.md'
-      - Vultron_Protocol: 'reference/ontology/vultron_protocol.md'
-      - Vultron_Process: 'reference/ontology/vultron_process.md'
-      - DFA: 'reference/ontology/dfa.md'
-      - RFC 2119: 'reference/ontology/rfc2119.md'
     - ISO Crosswalk:
       - 'reference/iso_crosswalks/index.md'
       - ISO 30111: 'reference/iso_crosswalks/iso_30111_2019.md'
@@ -387,8 +380,11 @@ nav:
 not_in_nav: |
   _*.md
   reference/vultron-spec/includes/*
-  # Published at the namespace URI and reached by that URI, not by browsing.
+  # Withheld from the built site entirely; see draft_docs below. Listed here so
+  # `mkdocs serve`, which does render drafts, raises no omitted-file warning.
   ns/index.md
+  # Withdrawn from the site: a tombstone that answers a live URL. See #3551.
+  reference/ontology/index.md
   adr/archived/*.md
   _*/**/*.md
   includes/*
@@ -425,6 +421,15 @@ draft_docs: |
   # silently published. Exclude them from production builds per DOCBW-03-004
   # while `mkdocs serve` still renders them for local review.
   developer/
+  # The Vultron vocabulary namespace is withheld: publishing the site would make
+  # `https://certcc.github.io/Vultron/ns/context.jsonld` resolve for the first
+  # time, and a namespace URI is a long-lived commitment. The gate on lifting
+  # this is the term set settling, not the drift check — #2943 landed that check
+  # (`wire-context --check`), but #3487 and #3488 still delete the `as_*` classes
+  # the declared terms name, under an ADR-0099 that is `accepted-provisional`.
+  # A draft pattern also withholds static files, so `context.jsonld` goes with
+  # the page.
+  ns/
 theme:
   logo: 'assets/Software_Engineering_Institute_Unitmark_White.svg'
   name: 'material'

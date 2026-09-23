@@ -1,7 +1,3 @@
----
-draft: true
----
-
 # Vultron Vocabulary Namespace
 
 **Namespace URI**: `https://certcc.github.io/Vultron/ns`
