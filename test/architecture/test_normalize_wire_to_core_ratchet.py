@@ -18,21 +18,23 @@
 ``type_`` strings whose wire class is projected to its core counterpart before a
 row is written.
 
-**This module used to be a grow-only ratchet, and the direction inverted.** The
-set was a list of *already migrated* write paths, so dropping an entry silently
-re-opened the shape duality of issue #2232 — core nesting ``rm: RmDimension``
-where the wire class had a flat ``rm_state``, so a wire-shaped row yielded
-``None`` for ``status.rm.state``. Growing the set was progress.
+**This is still a grow-only ratchet. What the entries mean changed, not the
+direction.** They used to name shadowing wire classes projected to core via
+``to_core()``, because core nested ``rm: RmDimension`` where the wire class had a
+flat ``rm_state``, so a wire-shaped row yielded ``None`` for ``status.rm.state``
+(#2232).
 
-ADR-0099 detail 3 removes the duality rather than containing it: one class per
-concept, so the stored object and the transmitted object are the same object and
-there is nothing to project. The set is therefore *empty*, and empty is the goal
-state the ratchet was protecting the road to — not a lost ratchet.
+ADR-0099 detail 3 collapses the pairs, so there is no projection left to perform
+and the listed classes no longer have ``to_core()``. But the *re-keying* half of
+the job survives: detail 1 keeps persistence on Python field names, and a payload
+can still arrive wire-spelled, so ``_storable_to_record`` round-trips it —
+validating by alias, dumping without one — to land the canonical key. Dropping an
+entry lets a wire-spelled row persist, which ``test_sqlite_crud`` forbids.
 
-The assertions were rewritten accordingly, in both a negative and a positive
-form: the set must stay empty, and no wire class may share a ``type_`` value with
-a distinct core class. The second catches a reintroduced shadowing class where it
-is declared, rather than waiting for someone to add it to a set. Deleting the
+Only the ``to_core``-projection assertions are gone, since the methods are. A
+positive check is added alongside: no wire class may share a ``type_`` value with a
+*distinct* core class, which catches a reintroduced shadowing class where it is
+declared rather than waiting for someone to add it to a set. Deleting the
 mechanism entirely is #2940 AC-5.
 
 Related: issue #2232 (the shape duality), #3487/#3488 (the last three pairs).
@@ -77,31 +79,41 @@ def test_registries_are_populated():
     assert len(WIRE_TYPE_MAP) > 40
 
 
-def test_nothing_needs_wire_to_core_normalisation_any_more():
-    """``_NORMALIZE_WIRE_TO_CORE`` must be empty, and empty is the goal state.
+_RE_KEYED_TYPES: frozenset[str] = frozenset(
+    {
+        "CaseParticipant",
+        "CaseStatus",
+        "ParticipantStatus",
+    }
+)
 
-    **The ratchet direction inverted, so the assertion had to.** This set may
-    previously only *grow*: each entry recorded a shadowing wire class whose shape
-    was structurally incompatible with its core counterpart — core nests
-    ``rm: RmDimension`` where wire had a flat ``rm_state``, so a wire-shaped row
-    silently yielded ``None`` for ``status.rm.state`` (#2232). Normalising on
-    write contained that, and dropping an entry silently re-opened it.
 
-    ADR-0099 detail 3 removes the incompatibility instead of containing it. With
-    the paired classes deleted there is one class per concept, so the stored and
-    transmitted objects are the same object and there is nothing to project.
-    Emptiness is therefore not a lost ratchet — it is the condition the ratchet
-    was protecting the road to.
+def test_normalize_set_may_only_grow():
+    """Every type re-keyed on write must still be re-keyed.
 
-    Asserting *empty* rather than deleting the test keeps a live check: an entry
-    reappearing means a shadowing wire class was reintroduced, which is the
-    duality ADR-0099 exists to prevent. The mechanism's removal is #2940 AC-5.
+    **The ratchet direction survives ADR-0099; what the entries mean changed.**
+    They used to name shadowing wire classes projected via ``to_core()``, because
+    core nested ``rm: RmDimension`` where wire had a flat ``rm_state`` and a
+    wire-shaped row silently yielded ``None`` for ``status.rm.state`` (#2232).
+    Detail 3 collapses the pairs, so there is no projection left and these classes
+    no longer have ``to_core()``.
+
+    The re-keying half is still load-bearing, which is why this stays grow-only.
+    Detail 1 keeps persistence on Python field names, and a payload can still
+    arrive wire-spelled, so ``_storable_to_record`` round-trips it to land the
+    canonical key. Dropping an entry lets a wire-spelled row persist —
+    ``test_sqlite_crud`` asserts it must not.
+
+    I emptied this set once on the reasoning that "nothing needs projecting any
+    more", which was true and beside the point: it silently removed the re-keying
+    too. Hence the explicit note.
     """
-    assert _NORMALIZE_WIRE_TO_CORE == frozenset(), (
-        "_NORMALIZE_WIRE_TO_CORE is non-empty"
-        f" ({sorted(_NORMALIZE_WIRE_TO_CORE)}), which means a wire class shadows"
-        " a core type again. Under ADR-0099 there should be one class per"
-        " concept; collapse the pair rather than normalising it on write."
+    missing = _RE_KEYED_TYPES - _NORMALIZE_WIRE_TO_CORE
+    assert not missing, (
+        f"_NORMALIZE_WIRE_TO_CORE lost entries {sorted(missing)} — a"
+        " wire-spelled row for those types would persist unchanged, and core"
+        " readers would see the start-state default instead (#2232). The set may"
+        " only grow."
     )
 
 

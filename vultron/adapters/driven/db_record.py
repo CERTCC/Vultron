@@ -39,25 +39,34 @@ _WIRE_MODULE_PREFIX = "vultron.wire.as2"
 # can be written into a core-typed row, producing a row whose field shape does
 # not match the class that reads it back (issue #2232).
 #
-# Types normalised to their core counterpart via ``to_core()`` before
-# serialisation, so the persisted row always carries the canonical core shape.
+# Types whose rows are re-keyed to the canonical core spelling before being
+# written, so a persisted row never carries a wire spelling.
 #
-# **Empty, and that is the goal state.** This set existed because a wire class and
-# its core counterpart were structurally incompatible — core nests
-# ``rm: RmDimension`` where wire used a flat ``rm_state``, so a wire-shaped row
-# silently yielded ``None`` for ``status.rm.state`` (#2232). Normalising on write
-# was how that was contained.
+# **What this does changed under ADR-0099; that it is needed did not.** The set
+# was originally a *projection* list: the wire class and its core counterpart were
+# structurally incompatible — core nesting ``rm: RmDimension`` where wire had a
+# flat ``rm_state`` — so a wire-shaped row silently yielded ``None`` for
+# ``status.rm.state`` (#2232), and ``to_core()`` was called to fix it. Detail 3
+# collapses the pairs, so there is no projection left to perform and the listed
+# classes no longer have ``to_core()``.
 #
-# ADR-0099 detail 3 removes the incompatibility rather than containing it: with
-# the paired classes deleted, the stored object and the transmitted object are the
-# same class, so there is nothing to project.  ``CaseParticipant``, ``CaseStatus``
-# and ``ParticipantStatus`` were the last three entries and were collapsed in
-# #3487/#3488.
+# The *re-keying* half survives and is still load-bearing. Detail 1 keeps
+# persistence on Python field names, and a payload can arrive wire-spelled
+# (``rmState``/``rm_state``), so ``_storable_to_record`` round-trips it through
+# ``to_obj()``/``from_obj()`` — validating by alias, dumping without one — to land
+# the canonical key. Dropping an entry lets a wire-spelled row persist, which is
+# what ``test_sqlite_crud`` guards.
 #
-# Deleting this set along with ``_normalize_to_core`` and
-# ``_project_shadowing_wire_obj`` is #2940 AC-5; it is left in place here, inert,
-# because removing it touches the read path too and is not this change's job.
-_NORMALIZE_WIRE_TO_CORE: frozenset[str] = frozenset()
+# So the set still may only GROW. Only these three types can arrive wire-spelled
+# and be re-keyed: the other paired classes are covered because their spelling
+# never differed structurally. Deleting the mechanism entirely is #2940 AC-5.
+_NORMALIZE_WIRE_TO_CORE: frozenset[str] = frozenset(
+    {
+        "CaseParticipant",
+        "CaseStatus",
+        "ParticipantStatus",
+    }
+)
 
 # ActivityStreams fields typed as ``as_ObjectRef`` (accept URI string
 # references).  Only these fields are candidates for dehydration.  Fields
