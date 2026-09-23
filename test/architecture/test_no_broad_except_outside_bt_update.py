@@ -124,11 +124,17 @@ def _collect_violations() -> dict[str, int]:
 # ---------------------------------------------------------------------------
 _DECLARED_EXCLUSIONS: dict[str, tuple[int, str]] = {
     "vultron/core/behaviors/bridge.py": (
-        3,
+        4,
         "BTBridge execution boundary (CONCERN-3019): a half-ticked tree must"
         " not escape into a FastAPI background task, so any node error is"
         " classified as internal_error and bt.shutdown() in finally must not"
-        " replace the classified result.",
+        " replace the classified result.  Three of the four classify, and all"
+        " three delegate to BTBridge._exception_result rather than building a"
+        " result inline (#3084); the fourth is the bt.shutdown() guard, which"
+        " builds no result at all.  The count grew from 3 to 4 when"
+        " execute_with_setup's combined try was split, so that setup and"
+        " execution each carry their own pair and an execution error is never"
+        " labelled 'BT setup failed' (#3085).",
     ),
     "vultron/core/behaviors/inbox/_process_payload.py": (
         1,

@@ -29,7 +29,7 @@ argument to :func:`get_datalayer` to override the config value, e.g. for
 import logging
 
 from .datalayer import SqliteDataLayer
-from .engine import dispose_actor_engines
+from .engine import dispose_actor_engines, reset_store_claimants
 from .schema import VultronObjectRecord, QueueEntry
 
 __all__ = [
@@ -40,6 +40,7 @@ __all__ = [
     "get_datalayer",
     "get_all_actor_datalayers",
     "reset_datalayer",
+    "reset_store_claimants",
 ]
 
 

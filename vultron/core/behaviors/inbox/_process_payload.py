@@ -31,6 +31,11 @@ from typing import TYPE_CHECKING, Any
 import py_trees
 from py_trees.common import Status
 
+from vultron.core.behaviors.blackboard_scope import (
+    KeyState,
+    restore_keys,
+    snapshot_keys,
+)
 from vultron.core.behaviors.inbox.inbox_tree import create_inbox_bt
 from vultron.core.behaviors.inbox.models import (
     DispatchAdapter,
@@ -61,13 +66,14 @@ _MAX_TICKS = 10
 
 def _save_inbox_keys(
     storage: dict[str, Any],
-) -> dict[str, tuple[bool, Any]]:
-    """Snapshot the current values of all inbox blackboard keys."""
-    saved: dict[str, tuple[bool, Any]] = {}
-    for key in ALL_INBOX_KEYS:
-        for variant in (key, f"/{key}"):
-            saved[variant] = (variant in storage, storage.get(variant))
-    return saved
+) -> dict[str, KeyState]:
+    """Snapshot the current values of all inbox blackboard keys.
+
+    Delegates to the shared implementation rather than carrying its own copy:
+    ``BTBridge.execute_with_setup`` needs the identical guarantee, and keeping
+    two copies meant a fix to one never reached the other (#3534, CS-22-001).
+    """
+    return snapshot_keys(storage, ALL_INBOX_KEYS)
 
 
 def _write_inbox_inputs(
@@ -152,14 +158,10 @@ def _read_inbox_outcome() -> InboxOutcome:
 
 def _restore_inbox_keys(
     storage: dict[str, Any],
-    saved: dict[str, tuple[bool, Any]],
+    saved: dict[str, KeyState],
 ) -> None:
-    """Restore inbox blackboard keys to their pre-execution state."""
-    for key, (had_value, value) in saved.items():
-        if had_value:
-            storage[key] = value
-        else:
-            storage.pop(key, None)
+    """Restore inbox blackboard keys to their pre-execution state (#3534)."""
+    restore_keys(storage, saved)
 
 
 def process_payload(
