@@ -17,77 +17,86 @@
 
 """Provides a Record model for document database storage."""
 
-from typing import Any, cast
+from functools import lru_cache
+from typing import Any, get_args
 
 from pydantic import BaseModel, ValidationError
 
 from vultron.core.models.protocols import PersistableModel
-from vultron.core.models.registry import CORE_VOCABULARY
 from vultron.core.ports.datalayer import StorableRecord
-from vultron.errors import VultronValidationError
 from vultron.wire.as2.enums import (
     as_IntransitiveActivityType,
     as_TransitiveActivityType,
 )
+from vultron.wire.as2.vocab.base.links import as_Link
+from vultron.wire.as2.vocab.base.objects.activities.transitive import (
+    as_TransitiveActivity,
+)
+from vultron.wire.as2.vocab.base.objects.base import as_Object
 from vultron.wire.as2.vocab.base.registry import find_in_vocabulary
 
-_WIRE_MODULE_PREFIX = "vultron.wire.as2"
 
-# Wire vocabulary ``type_`` values are *bare* names ("CaseParticipant"), not
-# ``as_``-prefixed, so the ``as_`` guard in ``Record.from_obj`` never fires for
-# them.  Fifteen wire classes therefore shadow a ``CORE_VOCABULARY`` entry and
-# can be written into a core-typed row, producing a row whose field shape does
-# not match the class that reads it back (issue #2232).
-#
-# Types listed here are normalised to their core counterpart via ``to_core()``
-# before serialisation, so the persisted row always carries the canonical core
-# shape.  The set may only GROW as the remaining shadowing types are migrated;
-# it is the write-side analogue of ``KNOWN_WIRE_ESCAPES`` in
-# ``test/architecture/test_dl_read_returns_core_objects.py`` (DL-05-004).
-#
-# ``ParticipantStatus`` and ``CaseParticipant`` are normalised because their
-# two shapes are structurally incompatible: core nests ``rm: RmDimension``
-# while wire uses a flat ``rm_state``, so a wire-shaped row silently yields
-# ``None`` for ``status.rm.state``.  All fifteen shadowing types are now
-# normalised — the five actor types via issue #2402, the remaining ten object
-# types via issue #2268.
-_NORMALIZE_WIRE_TO_CORE: frozenset[str] = frozenset(
-    {
-        "CaseLedgerEntry",
-        "CaseParticipant",
-        "CaseReference",
-        "CaseStatus",
-        "EmbargoEvent",
-        "EmbargoPolicy",
-        "ParticipantStatus",
-        "VulnerabilityCase",
-        "VulnerabilityRecord",
-        "VulnerabilityReport",
-        "VultronApplication",
-        "VultronGroup",
-        "VultronOrganization",
-        "VultronPerson",
-        "VultronService",
-    }
-)
+def _is_generic_object_ref(annotation: Any) -> bool:
+    """True when *annotation* is a reference to the *generic* ``as_Object``.
 
-# ActivityStreams fields typed as ``as_ObjectRef`` (accept URI string
-# references).  Only these fields are candidates for dehydration.  Fields
-# typed as concrete sub-objects (e.g. ``inbox``/``outbox`` on actors,
-# ``participant_statuses`` on participants) must remain as inline dicts so
-# that round-trip reconstruction via ``model_validate`` continues to work.
-_AS_OBJECT_REF_FIELDS: frozenset[str] = frozenset(
-    {
-        "object_",  # as_TransitiveActivity.object_
-        "target",  # optional target on activities
-        "origin",  # optional origin on activities
-        "result",  # optional result
-        "instrument",  # optional instrument
-    }
-)
+    The generic AS2 object-reference alias ``as_ObjectRef`` expands to
+    ``as_Object | as_Link | str | None`` and its required form
+    ``as_ObjectRequiredRef`` to ``as_Object | as_Link | str`` (no ``None``).
+    Both are matched; a *narrowed* reference (``as_ActorRef`` →
+    ``as_Actor | as_Link | str | None``) is not, because its ``T`` is a
+    subclass of ``as_Object`` rather than ``as_Object`` itself.  This is the
+    single property that separates the AS2 Activity object-reference fields
+    from narrowed refs, JSON-LD ``context``/``in_reply_to`` (typed ``Any``),
+    and unrelated types' refs (``as_Relationship.subject``, …).
+    """
+    args = set(get_args(annotation))
+    return args in (
+        {as_Object, as_Link, str},
+        {as_Object, as_Link, str, type(None)},
+    )
+
+
+@lru_cache(maxsize=1)
+def _activity_object_ref_properties() -> frozenset[str]:
+    """The generic object-reference field names of the AS2 Activity model.
+
+    Derived from ``as_TransitiveActivity``'s own annotations — the single
+    source of truth (ARCH-23-004).  ``object_`` is inherited by every
+    transitive activity; ``target``/``origin``/``result``/``instrument`` come
+    from ``as_Activity``.  This replaces the former hand-maintained frozenset
+    restatement that could silently drift from the annotations it claimed to
+    mirror (#2936).
+    """
+    return frozenset(
+        name
+        for name, field in as_TransitiveActivity.model_fields.items()
+        if _is_generic_object_ref(field.annotation)
+    )
+
+
+@lru_cache(maxsize=None)
+def object_ref_fields(cls: type[BaseModel]) -> frozenset[str]:
+    """The generic AS2 object-reference fields *cls* actually declares.
+
+    These fields hold either an inline object or a bare URI string, so they
+    are the only ones eligible for dehydration to an ID on write and
+    rehydration back to an object on read.  Fields typed as concrete
+    sub-objects (``inbox``/``outbox`` on actors, ``participant_statuses`` on
+    participants) are excluded and stay inline, so ``model_validate``
+    round-trips.
+
+    Computed as the intersection of the model's own fields with the
+    Activity-model object-reference properties, cached per class.  A model that
+    narrows one of these names to a plain URI (``as_CaseProposal.target``,
+    CP-01-005) still lists it — the name is what the storage layer keys on;
+    :func:`~vultron.adapters.driven.datalayer_sqlite.hydration.field_admits_object`
+    is the runtime guard that then declines to expand it.
+    """
+    return _activity_object_ref_properties() & frozenset(cls.model_fields)
+
 
 # AS2 Activity ``type_`` strings (transitive + intransitive) plus
-# ``CaseLedgerEntry``.  When a nested ``_AS_OBJECT_REF_FIELDS`` value has one
+# ``CaseLedgerEntry``.  When a nested object-reference value has one
 # of these types it MUST be kept inline rather than collapsed to a bare ID
 # string for two independent reasons:
 #
@@ -109,23 +118,30 @@ _KEEP_INLINE_NESTED_TYPES: frozenset[str] = frozenset(
     | {"CaseLedgerEntry"}
 )
 
-# Fields whose inline value must be re-typed to its specific vocabulary class on
-# read-back.  A superset of ``_AS_OBJECT_REF_FIELDS``: re-typing is safe for any
-# field that can hold an inline typed object, whereas *dehydration* is only safe
-# for a field declared as a reference, so the two sets are deliberately distinct.
-#
-# ``context`` is here and not there.  It is never dehydrated, so it is always
-# stored whole — but nothing re-typed it either, and ``as_Activity.context`` is
-# loosely typed, so read-back left a raw ``dict``.  That is enough to break
-# semantic matching: ``_OfferCaseParticipantRoleActivity`` is recognised by its
-# ``context`` being a ``VulnerabilityCase`` (ADR-0039), so a stored role offer
-# came back classified UNKNOWN, was never coerced out of the base ``as_Offer``,
-# and the receiver had no semantics to dispatch on.
-_AS_INLINE_TYPED_FIELDS: frozenset[str] = _AS_OBJECT_REF_FIELDS | {"context"}
+
+def _inline_typed_fields(cls: type[BaseModel]) -> frozenset[str]:
+    """Fields of *cls* whose inline value must be re-typed on read-back.
+
+    A superset of :func:`object_ref_fields`: re-typing is safe for any field
+    that can hold an inline typed object, whereas *dehydration* is only safe
+    for a field declared as a reference, so the two sets are deliberately
+    distinct.
+
+    ``context`` is here and not in :func:`object_ref_fields`.  It is never
+    dehydrated, so it is always stored whole — but nothing re-typed it either,
+    and ``as_Activity.context`` is loosely typed, so read-back left a raw
+    ``dict``.  That is enough to break semantic matching:
+    ``_OfferCaseParticipantRoleActivity`` is recognised by its ``context``
+    being a ``VulnerabilityCase`` (ADR-0039), so a stored role offer came back
+    classified UNKNOWN, was never coerced out of the base ``as_Offer``, and the
+    receiver had no semantics to dispatch on.
+    """
+    return object_ref_fields(cls) | {"context"}
+
 
 # Fields that hold a *list* of object references (ID strings or inline
 # objects).  Used by ``DataLayer.hydrate()`` to expand bare ID strings to
-# full domain objects — the list analogue of ``_AS_OBJECT_REF_FIELDS``.
+# full domain objects — the list analogue of the object-reference fields.
 _AS_LIST_REF_FIELDS: frozenset[str] = frozenset(
     {
         "case_participants",  # list[CaseParticipantRef] on VulnerabilityCase
@@ -136,12 +152,13 @@ _AS_LIST_REF_FIELDS: frozenset[str] = frozenset(
 def _dehydrate_data(
     data: dict[str, Any], obj: "PersistableModel | BaseModel | None" = None
 ) -> dict[str, Any]:
-    """Replace ``as_ObjectRef``-typed fields with their ID string.
+    """Replace generic object-reference fields with their ID string.
 
-    Only fields whose names are in ``_AS_OBJECT_REF_FIELDS`` are
-    candidates.  A field value is collapsed to its ID string when it is a
-    dict with a non-empty ``id_`` key.  All other fields (including lists)
-    are passed through unchanged.
+    Only fields returned by :func:`object_ref_fields` are candidates (or, when
+    *obj* is omitted, the Activity-model object-reference properties).  A field
+    value is collapsed to its ID string when it is a dict with a non-empty
+    ``id_`` key.  All other fields (including lists) are passed through
+    unchanged.
 
     This ensures that transitive activities (Offer, Create, …) store a URI
     reference to the nested object instead of an inline copy, eliminating
@@ -179,7 +196,9 @@ def _dehydrate_data(
         replaced by ID strings.
     """
     inline_required: frozenset[str] = frozenset()
+    ref_fields = _activity_object_ref_properties()
     if obj is not None:
+        ref_fields = object_ref_fields(type(obj))
         declared = getattr(type(obj), "inline_required_refs", None)
         if isinstance(declared, frozenset | set):
             inline_required = frozenset(declared)
@@ -191,7 +210,7 @@ def _dehydrate_data(
             # it would store a URI that nothing can resolve.
             result[key] = value
             continue
-        if key in _AS_OBJECT_REF_FIELDS and isinstance(value, dict):
+        if key in ref_fields and isinstance(value, dict):
             # Keep Activity-type and CaseLedgerEntry nested objects inline.
             # These may not have independent DataLayer records (e.g. a
             # reconstituted Offer in validate-report, or a CaseLedgerEntry
@@ -254,12 +273,12 @@ def _retype_inline_object_refs(
     application work without re-reading a separate record.  Generic: it applies
     to any inline typed reference, not just ``CaseLedgerEntry``.
 
-    Iterates :data:`_AS_INLINE_TYPED_FIELDS`, not ``_AS_OBJECT_REF_FIELDS`` —
+    Iterates :func:`_inline_typed_fields`, not :func:`object_ref_fields` —
     re-typing what is already stored inline is always safe, so its scope is
-    wider than dehydration's.  See that constant for why ``context`` needs it.
+    wider than dehydration's.  See that helper for why ``context`` needs it.
     """
     updates: dict[str, Any] = {}
-    for field_name in _AS_INLINE_TYPED_FIELDS:
+    for field_name in _inline_typed_fields(type(obj)):
         raw_sub = data.get(field_name)
         typed = _retype_inline_ref(obj, field_name, raw_sub)
         if typed is not None:
@@ -272,115 +291,6 @@ def _retype_inline_object_refs(
         return obj.model_copy(update=updates)
     except (ValidationError, TypeError):
         return obj
-
-
-def _project_shadowing_wire_obj(obj: "BaseModel") -> "BaseModel":
-    """Project one object to its core counterpart when it shadows a core type.
-
-    Returns *obj* unchanged unless it is a wire class whose bare ``type_``
-    shadows a :data:`_NORMALIZE_WIRE_TO_CORE` entry.
-
-    Raises:
-        VultronValidationError: when the wire object cannot be projected to its
-            core counterpart.  Core types are stricter than wire types, so a
-            projection failure means the object was never valid domain data;
-            surfacing it beats persisting a row nothing can read (ARCH-15-002).
-            A dedicated error type — not a bare ``ValueError`` — because
-            ``crud.create`` raises ``ValueError`` for an already-existing row
-            and callers legitimately swallow *that*; the two must stay
-            distinguishable.
-    """
-    if not type(obj).__module__.startswith(_WIRE_MODULE_PREFIX):
-        return obj
-    type_ = getattr(obj, "type_", None)
-    if not isinstance(type_, str):
-        return obj
-    if type_ not in _NORMALIZE_WIRE_TO_CORE or type_ not in CORE_VOCABULARY:
-        return obj
-    to_core = getattr(obj, "to_core", None)
-    if to_core is None:
-        raise VultronValidationError(
-            f"Wire class {type(obj).__name__} shadows core type '{type_}' but"
-            " has no to_core() projection, so it cannot be persisted in the"
-            " canonical core shape (issue #2232)."
-        )
-    _PROJECTION_ERRORS = (
-        ValidationError,
-        VultronValidationError,
-        ValueError,
-        TypeError,
-    )
-    try:
-        return cast("BaseModel", to_core())
-    except _PROJECTION_ERRORS as exc:
-        raise VultronValidationError(
-            f"Cannot persist {type(obj).__name__}"
-            f" '{getattr(obj, 'id_', '<no id>')}': projecting it to core type"
-            f" '{type_}' failed ({exc}). A wire-shaped '{type_}' row must not"
-            " be stored — normalise at the wire→core boundary instead"
-            " (issue #2232)."
-        ) from exc
-
-
-def _normalize_to_core(obj: PersistableModel) -> PersistableModel:
-    """Return the core-shaped equivalent of *obj*, or *obj* unchanged.
-
-    A wire vocabulary class whose bare ``type_`` shadows a ``CORE_VOCABULARY``
-    entry would otherwise be written into a core-typed row in the wire field
-    shape, so whichever class reads the row back decides what the data means
-    (issue #2232).  For the types in :data:`_NORMALIZE_WIRE_TO_CORE` the
-    difference is structural — core ``ParticipantStatus`` nests
-    ``rm: RmDimension`` where the wire shape carries a flat ``rm_state`` — so
-    the row is normalised here, at the persistence boundary, and no
-    wire-shaped row is ever stored.
-
-    Both the object itself **and its direct children** are projected.  Only
-    checking the top level left the invariant unmet in the case that motivated
-    it: a ``VulnerabilityCase`` row stores its ``case_participants`` inline, so
-    a wire-shaped participant nested inside a core-shaped case still persisted a
-    flat ``rm_state``.  One level of child projection is sufficient because
-    ``to_core()`` recurses — projecting an ``as_CaseParticipant`` also projects
-    its ``as_ParticipantStatus`` children.
-
-    Raises:
-        VultronValidationError: when a wire object (at either level) cannot be
-            projected to its core counterpart.
-    """
-    if not isinstance(obj, BaseModel):
-        return obj
-    model = _project_shadowing_wire_obj(obj)
-    updates: dict[str, Any] = {}
-    for field_name in type(model).model_fields:
-        if field_name in _AS_OBJECT_REF_FIELDS:
-            # These fields are dehydrated to ID strings by _dehydrate_data; their
-            # in-memory shape is irrelevant to the stored row.  Skipping them
-            # prevents spurious to_core() calls on stub/reference objects (e.g.
-            # as_VulnerabilityCaseStub in Invite.target) that are never stored
-            # standalone and have no full core projection.
-            continue
-        value = getattr(model, field_name, None)
-        if isinstance(value, BaseModel):
-            projected = _project_shadowing_wire_obj(value)
-            if projected is not value:
-                updates[field_name] = projected
-        elif isinstance(value, list) and value:
-            items = [
-                (
-                    _project_shadowing_wire_obj(item)
-                    if isinstance(item, BaseModel)
-                    else item
-                )
-                for item in value
-            ]
-            if any(new is not old for new, old in zip(items, value)):
-                updates[field_name] = items
-    if not updates:
-        return cast(PersistableModel, model)
-    # ``model_copy`` rather than re-validation: the parent's field is declared
-    # with the *wire* child type, so validating a core child against it would
-    # fail.  ``model_dump(serialize_as_any=True)`` in ``from_obj`` serialises
-    # each child by its runtime type, so the core shape is what reaches the row.
-    return cast(PersistableModel, model.model_copy(update=updates))
 
 
 class Record(StorableRecord):
@@ -419,11 +329,6 @@ class Record(StorableRecord):
                 " for Record conversion"
             )
 
-        # Wire ``type_`` values are bare, so the guard above cannot catch a
-        # wire class shadowing a core type.  Normalise those to the canonical
-        # core shape before serialising (issue #2232).
-        obj = _normalize_to_core(obj)
-
         record = Record(
             id_=obj.id_,
             type_=obj_type,
@@ -434,8 +339,6 @@ class Record(StorableRecord):
             # serialized against the base schema and lose its domain fields —
             # breaking read/replay reconstruction (SYNC-13-004).
             # ``obj`` is passed so its ``inline_required_refs`` are honoured.
-            # Note this is the *post*-``_normalize_to_core`` object, so a core
-            # counterpart of a wire type must carry the declaration too.
             data_=_dehydrate_data(
                 obj.model_dump(mode="json", serialize_as_any=True), obj
             ),

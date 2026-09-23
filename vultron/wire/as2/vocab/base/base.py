@@ -28,6 +28,11 @@ from vultron.wire.as2.vocab.base.utils import generate_new_id
 
 ACTIVITY_STREAMS_NS = "https://www.w3.org/ns/activitystreams"
 VULTRON_CONTEXT_URI = "https://certcc.github.io/Vultron/ns/context.jsonld"
+#: The Vultron vocabulary namespace IRI, bound to the ``vultron:`` prefix in the
+#: generated ``docs/ns/context.jsonld``. Distinct from ``VULTRON_CONTEXT_URI``,
+#: which is the URL of the context *document*; this is the term namespace it
+#: defines (VM-10-002). Single source of truth for the context generator.
+VULTRON_NS_URI = "https://certcc.github.io/Vultron/ns#"
 
 
 class as_Base(VultronBase):

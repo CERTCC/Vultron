@@ -191,12 +191,40 @@ class as_VultronObject(as_Object):
             "Override this method in the subclass."
         )
 
+    #: Trailing-underscore Python field names and the wire-facing names a core
+    #: type accepts through its ``validation_alias``.  ``_to_core_data`` emits
+    #: the wire spelling because ARCH-23-005 requires serialisation to use
+    #: wire-facing keys (``id``, ``type``, ``@context``) rather than Python field
+    #: names.
+    #:
+    #: It is **not** needed to get past ``extra="forbid"``: ``VultronBase`` sets
+    #: ``populate_by_name=True`` and Pydantic merges ``model_config`` across the
+    #: MRO, so core types already accept ``id_``/``type_``/``context_`` by field
+    #: name.  Do not restate the rejection rationale here — it is false, and it
+    #: misleads the next reader about what the boundary actually rejects (#2940).
+    _CORE_WIRE_NAMES: ClassVar[tuple[tuple[str, str], ...]] = (
+        ("id_", "id"),
+        ("type_", "type"),
+        ("context_", "@context"),
+    )
+
     def _to_core_data(self) -> dict[str, Any]:
-        """Dump wire data and reverse any ``_field_map`` renames for core use."""
+        """Dump wire data with wire-facing names for core reconstruction.
+
+        Reverses any ``_field_map`` renames and rewrites the trailing-underscore
+        identity fields (``id_``/``type_``/``context_``) to their wire spellings
+        (``id``/``type``/``@context``), which a core type accepts via its
+        ``validation_alias``.  This satisfies ARCH-23-005 (serialise under
+        wire-facing names); it is not what makes the dict pass ``extra="forbid"``
+        — ``populate_by_name=True`` already admits the Python names.
+        """
         data = self.model_dump(mode="python", round_trip=True)
         for domain_field, wire_field in self._field_map.items():
             if wire_field in data:
                 data[domain_field] = data.pop(wire_field)
+        for py_name, wire_name in self._CORE_WIRE_NAMES:
+            if py_name in data:
+                data[wire_name] = data.pop(py_name)
         return data
 
 

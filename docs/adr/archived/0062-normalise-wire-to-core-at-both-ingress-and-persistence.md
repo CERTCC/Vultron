@@ -1,11 +1,19 @@
 ---
-status: accepted
+status: superseded
 date: 2026-08-13
 deciders: Vultron maintainers
 consulted: Vultron maintainers
 informed: Vultron contributors
-partially_superseded_by: docs/adr/0082-wire-core-boundary-pairing-registry.md
+superseded_by: 0082-wire-core-boundary-pairing-registry.md
 ---
+
+> **Superseded (#2940).** The persistence-boundary normalisation this ADR
+> introduced (`_normalize_to_core` and the `_NORMALIZE_WIRE_TO_CORE` gate) is
+> removed: `CoreObject` now sets `extra="forbid"` (ARCH-12-003), so a
+> wire-shaped payload handed to a core type is rejected loudly rather than
+> silently mis-stored, and any row nonetheless persisted in a wire shape is
+> projected to its core counterpart on read. The pairing-registry direction is
+> ADR-0082.
 
 # Normalise Wire → Core at Ingress, and Enforce It Again at the Persistence Boundary
 
@@ -156,20 +164,20 @@ the shapes converge.
 
 ## More Information
 
-**Partially superseded by [ADR-0082](0082-wire-core-boundary-pairing-registry.md).**
+**Superseded by [ADR-0082](../0082-wire-core-boundary-pairing-registry.md).**
 That decision takes the unification this ADR named as the right end state and
 deferred: with
 `extra="forbid"` on the core branch and a declarative core↔wire pairing registry,
 the *second* of the two enforcement points chosen here stops being needed. The
 persistence-boundary backstop — `_normalize_to_core()`,
-`_NORMALIZE_WIRE_TO_CORE`, and the grow-only ratchet — is deleted, because the
-invariant it maintains by hand becomes a property of the type system. The
-ingress placement stands: inbound wire data is still normalised where it
-arrives, and only the mechanism changes, from a direct `to_core()` call to a
-`WireParsePort` call. "Readers stay strict" stands unchanged. That is why this
-ADR keeps `status: accepted` rather than being retired — the decision a reader
-comes here for is still in force, and it remains authoritative for the code as it
-stands.
+`_NORMALIZE_WIRE_TO_CORE`, and the grow-only ratchet — is deleted (#2940),
+because the invariant it maintained by hand became a property of the type
+system. The ingress placement stands: inbound wire data is still normalised
+where it arrives, and only the mechanism changes, from a direct `to_core()`
+call to a `WireParsePort` call. "Readers stay strict" stands unchanged. This
+ADR is therefore `superseded` by ADR-0082: the enforcement it prescribed now
+lives in the type system and the pairing registry rather than in a hand-kept
+persistence-boundary gate.
 
 Related: issue #2232 (the shape duality), issue #2264 (initial-state
 substitution sites), issue #2268 (migrating the remaining shadowing types).

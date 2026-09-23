@@ -26,6 +26,7 @@ from pydantic import (
     Field,
     model_validator,
 )
+from pydantic.alias_generators import to_camel
 
 from vultron.core.models._helpers import _new_urn, now_utc
 from vultron.core.models.registry import CORE_TYPE_MAP, CORE_VOCABULARY
@@ -177,6 +178,15 @@ class CoreObject(VultronObject):
     architectural direction (tracked by issue #699).
     """
 
+    # No unknown key may enter a core object: a wire-shaped payload handed to a
+    # core type is rejected loudly rather than silently dropping every
+    # snake_case-only key (the #2232 defect).  This subsumes the retired
+    # per-class camelCase reject-guards and the wire→core normalisation gate
+    # (ARCH-12-003, ADR-0082; closes the strong form of #2262).  Merged with
+    # VultronBase.populate_by_name and ValidatedAssignmentMixin
+    # validate_assignment across the MRO.
+    model_config = ConfigDict(extra="forbid")
+
     context_: NonEmptyString | None = Field(
         default=None,
         validation_alias="@context",
@@ -189,6 +199,90 @@ class CoreObject(VultronObject):
     # (per ARCH-12-002: shared base must be lenient for the wire branch).
     published: datetime = Field(default_factory=now_utc)
     updated: datetime = Field(default_factory=now_utc)
+
+    @model_validator(mode="before")
+    @classmethod
+    def _drop_computed_field_inputs(cls, data: Any) -> Any:
+        """Strip read-only computed-field values so a dump round-trips.
+
+        A ``@computed_field`` (e.g. ``ParticipantStatus.embargo_adherence``,
+        ADR-0056) appears in ``model_dump()`` output but is not settable, so
+        ``model_validate(model_dump(x))`` would reject it as an unknown key
+        under ``extra="forbid"``.  Dropping the computed keys before field
+        validation makes the round-trip exact (ARCH-23-005).  See
+        ``notes/wire-core-boundary.md`` § "Measured Evidence".
+        """
+        computed = cls.model_computed_fields
+        if not isinstance(data, dict) or not computed:
+            return data
+        drop = cls._computed_field_spellings().keys() & data.keys()
+        if drop:
+            data = {k: v for k, v in data.items() if k not in drop}
+        return data
+
+    @classmethod
+    def _computed_field_spellings(cls) -> dict[str, str]:
+        """Map every key spelling a computed field can arrive under to its name."""
+        spellings: dict[str, str] = {}
+        for name, info in cls.model_computed_fields.items():
+            spellings[name] = name
+            # ParticipantStatus still inherits alias_generator=to_camel pending
+            # #2288/#2289, so its dump(by_alias=True) emits `embargoAdherence`.
+            spellings[to_camel(name)] = name
+            alias = getattr(info, "alias", None)
+            if isinstance(alias, str):
+                spellings[alias] = name
+        return spellings
+
+    # NOTE (#2940 triage): rejecting a *contradicted* computed-field value here
+    # instead of stripping it was considered and rejected on evidence.
+    # ``as_ParticipantStatus.embargo_adherence`` is an independent settable wire
+    # field, while core derives it from ``consent`` (ADR-0056), so a wire row
+    # carrying ``embargo_adherence: True`` with no ``consent`` legitimately
+    # disagrees with the core-derived ``False``.  Raising there breaks the
+    # wire→core read projection (it makes ``dl.read()`` return the wire object).
+    # Telling "re-reading our own dump" apart from "projecting a wire row"
+    # requires the WireParsePort (#2938).  Tracked by #3547.
+
+    @model_validator(mode="before")
+    @classmethod
+    def _drop_alias_shadowed_field_names(cls, data: Any) -> Any:
+        """Drop a field-name key when its validation alias is also present.
+
+        An earlier ``mode="before"`` validator may derive a field and write it
+        under the alias — ``_set_id_from_case`` writes ``"id"`` — beside the
+        serialized field-name key (``"id_"``) already in the payload.  Under
+        ``extra="forbid"`` the un-consumed twin is an unknown key.  The alias
+        (wire-canonical, and the key carrying the freshly derived value) wins.
+        This runs after subclass ``mode="before"`` validators, so it cleans up
+        every such injection in one place rather than each site guarding
+        itself (see ``notes/wire-core-boundary.md`` § "The ``id_`` Failures Are
+        an Alias-Injection Bug").
+
+        The alias wins even when the two values *differ*, which is deliberate
+        rather than a silent pick: thirteen core types derive a canonical id in
+        a ``mode="before"`` validator and write it under the alias — a ledger
+        entry is addressed ``{case_id}/log/{log_index}`` (and several types mint
+        a fresh urn), so a caller-supplied ``id_`` is meant to be superseded,
+        not honoured.  Raising on disagreement was tried during #3531 triage and
+        breaks exactly those paths (e.g. the extractor passes the wire activity
+        id to ``CaseLedgerEntry`` alongside ``case_id``).  Only the *external*
+        both-spellings-supplied case is genuinely ambiguous, and no live path
+        reaches it — the wire layer supplies ``id`` alone.
+        """
+        if not isinstance(data, dict):
+            return data
+        drop = [
+            name
+            for name, field in cls.model_fields.items()
+            if isinstance(field.validation_alias, str)
+            and field.validation_alias != name
+            and field.validation_alias in data
+            and name in data
+        ]
+        if drop:
+            data = {k: v for k, v in data.items() if k not in drop}
+        return data
 
     def __init_subclass__(cls, **kwargs: object) -> None:
         super().__init_subclass__(**kwargs)  # type: ignore[arg-type]

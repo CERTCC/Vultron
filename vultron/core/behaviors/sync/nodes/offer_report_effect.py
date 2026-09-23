@@ -164,10 +164,15 @@ class ApplyOfferReportFromLedgerNode(DataLayerActionWithPorts):
             and self.datalayer.read(report_id) is None
         ):
             return
+        from vultron.core.models._helpers import (
+            project_wire_snapshot_to_core,
+        )
         from vultron.core.models.report import VulnerabilityReport
 
         try:
-            report = VulnerabilityReport.model_validate(object_data)
+            report = VulnerabilityReport.model_validate(
+                project_wire_snapshot_to_core(VulnerabilityReport, object_data)
+            )
         except ValidationError as exc:
             # A malformed snapshot cannot be reconstructed; stay lenient (this
             # restore is best-effort).  A non-validation error would be a real
