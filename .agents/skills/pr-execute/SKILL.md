@@ -218,14 +218,17 @@ the merge-state finding as `outcome: skipped` with the conflicted paths and stop
 #### Step 3 — Run local tests
 
 ```bash
-uv run pytest --tb=short 2>&1 | tee /tmp/pytest-unit.log | tail -20
+uv run pytest --tb=short > /tmp/pytest-unit.log 2>&1; rc=$?; tail -20 /tmp/pytest-unit.log; echo "exit: $rc"; (exit $rc)
 ```
 
 If `pr_metadata.needs_integration_tests` is true, also run:
 
 ```bash
-uv run pytest integration_tests/ -v 2>&1 | tee /tmp/pytest-integration.log | tail -40
+uv run pytest integration_tests/ -v > /tmp/pytest-integration.log 2>&1; rc=$?; tail -40 /tmp/pytest-integration.log; echo "exit: $rc"; (exit $rc)
 ```
+
+Read the `exit:` line, not just the tail — see `run-tests/SKILL.md` § Constraints.
+A piped form would report 0 for a killed run and this step would push it.
 
 **If the tail output is insufficient**, grep or read `/tmp/pytest-unit.log` or
 `/tmp/pytest-integration.log` — **do not re-run the test suite for more output**.

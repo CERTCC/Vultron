@@ -108,8 +108,10 @@ Spec: \`specs/<topic>.yaml\` <ID range>" \
 echo "Created gap issue #${ISSUE_NUMBER}"
 ```
 
-Set the `size:` label from AC count: 1–2 → `size:S`; 3–6 → `size:M`;
-7+ → `size:L`.
+Set the `size:` label from the AC count with
+`PYTHONPATH= uv run pr-size --acs <N> --quiet`. Do not restate the bands — see
+`.agents/skills/shared/sizing.md`. This is an **estimate**; the measured size is
+applied to the PR by CI and never overwrites it (PAD-05-010).
 
 Do **not** add tasks to GitHub Issues outside the `manage-github-issue`
 workflow documented above.
