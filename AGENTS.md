@@ -26,9 +26,7 @@ documentation structure guidance.
   built** (#1769, #3354). Do not assume the envelope exists.
 - ASGI entrypoint: `vultron.adapters.driving.fastapi.main:app`.
 - Tests: `uv run pytest --tb=short > /tmp/last-test-run.log 2>&1; rc=$?; tail -5 /tmp/last-test-run.log; echo "exit: $rc"; (exit $rc)`
-  — run once; never end a gate command with a pipe (`| tail`, `| tee … | tail`)
-  — a pipeline exits with `tail`'s status, so a killed run reads as success.
-  See `.agents/skills/run-tests/SKILL.md`.
+  — run once; read `exit:` first. Never end a gate command with a pipe: a pipeline exits with its last stage's status, so a killed run reads as success. See `.agents/skills/run-tests/SKILL.md`.
 
 Quick gotchas: specific patterns before general; always `rehydrate()` before
 pattern matching; persist with `dl.save(obj)`; return 202 immediately
@@ -186,9 +184,8 @@ entry vs. both.
 
 1. `run-linters` — all four linters (Black, flake8, mypy, pyright) must pass.
    Supersedes `format-code`, so run it alone — no separate `format-code` step.
-2. `run-tests` — unit suite once; read output. If `vultron/demo/` or `test/demo/`
-   touched, also run full suite:
-   `uv run pytest -m "" --tb=short > /tmp/last-test-run.log 2>&1; rc=$?; tail -5 /tmp/last-test-run.log; echo "exit: $rc"; (exit $rc)`
+2. `run-tests` — unit suite once; read the `exit:` line. If `vultron/demo/` or
+   `test/demo/` touched, also run the full suite (`-m ""`, same redirect form).
 3. `build-docs` — only if `docs/` modified
 4. `commit` skill — include Co-authored-by trailer
 
