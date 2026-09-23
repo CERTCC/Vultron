@@ -60,6 +60,9 @@ from vultron.wire.as2.vocab.objects.vulnerability_case import (
 from vultron.wire.as2.vocab.objects.vulnerability_report import (
     as_VulnerabilityReport,
 )
+from vultron.core.models.dimensions import (
+    RmDimension,
+)
 
 # ---------------------------------------------------------------------------
 # Constants — all IDs use HTTP-routable URIs
@@ -363,7 +366,7 @@ def _bootstrap_case_for_participant(
             as_ParticipantStatus(
                 attributed_to=owner_actor_id,
                 context=case_id,
-                rm_state=RM.RECEIVED,
+                rm=RmDimension(state=RM.RECEIVED),
             )
         ],
     )

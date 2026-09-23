@@ -69,6 +69,9 @@ from vultron.wire.as2.vocab.objects.vulnerability_case import (
 from vultron.wire.as2.vocab.objects.vulnerability_report import (
     as_VulnerabilityReport,
 )
+from vultron.core.models.dimensions import (
+    RmDimension,
+)
 
 # ---------------------------------------------------------------------------
 # Shared helpers
@@ -151,7 +154,7 @@ def _make_case_at_received(
             as_ParticipantStatus(
                 attributed_to=vendor_id,
                 context=case_id,
-                rm_state=RM.RECEIVED,
+                rm=RmDimension(state=RM.RECEIVED),
             )
         ],
     )
@@ -494,7 +497,7 @@ class TestCaseActorReceivedWritesLedgerEntry:
                 as_ParticipantStatus(
                     attributed_to=self.VENDOR_ID,
                     context=self.CASE_ID,
-                    rm_state=RM.RECEIVED,
+                    rm=RmDimension(state=RM.RECEIVED),
                 )
             ],
         )

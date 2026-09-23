@@ -246,19 +246,33 @@ def test_store_nested_inbox_object_logs_a_projection_failure(
     """
     import logging
 
-    from vultron.wire.as2.vocab.objects.case_participant import (
-        as_CaseParticipant,
-    )
+    from pydantic import BaseModel
 
-    # NonEmptyString rejects "" on the core class but not the wire class, so
-    # this participant is constructible yet cannot be projected to core.
-    unprojectable = as_CaseParticipant(
-        id_="urn:uuid:participant-2232-unprojectable",
-        attributed_to=_ACTOR_URI,
-        context="https://example.org/cases/case-2232",
-        accepted_embargo_ids=[""],
+    # The fixture changed with ADR-0099 detail 3, and the reason is worth keeping.
+    # It used to build an ``as_CaseParticipant`` with ``accepted_embargo_ids=[""]``
+    # — legal on the lenient wire class, rejected by the core class's
+    # ``NonEmptyString``, so "constructible yet unprojectable". Collapsing the pair
+    # removes that state: one class means such an object fails *construction*
+    # instead of projection. That is the improvement, not a gap — but the ERROR-vs-
+    # DEBUG distinction still needs an object that reaches the store and cannot be
+    # written, so this shadows a core type from the wire package without a
+    # ``to_core()``, which is the other way ``object_to_record`` refuses.
+    #
+    # Deliberately a plain ``BaseModel`` and not a ``CoreObject`` subclass: the
+    # latter self-registers in ``CORE_TYPE_MAP`` via ``__init_subclass__``, and with
+    # ``type_ = "CaseParticipant"`` it would clobber the real entry for every test
+    # that ran afterwards. ``model_construct`` puts it in the slot without the
+    # union validation a non-core model would fail.
+    class _ShadowingParticipant(BaseModel):
+        id_: str = "urn:uuid:participant-2232-unprojectable"
+        type_: str = "CaseParticipant"
+
+    _ShadowingParticipant.__module__ = "vultron.wire.as2.vocab.objects.fake"
+
+    unprojectable = _ShadowingParticipant()
+    activity = as_Announce.model_construct(
+        actor=_ACTOR_URI, object_=unprojectable
     )
-    activity = as_Announce(actor=_ACTOR_URI, object_=unprojectable)
 
     with caplog.at_level(logging.ERROR):
         _store_nested_inbox_object(datalayer, activity, None)

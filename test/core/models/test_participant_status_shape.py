@@ -194,7 +194,9 @@ class TestParticipantStatusRmStateHelper:
             as_ParticipantStatus,
         )
 
-        status = as_ParticipantStatus(context=_CONTEXT, rm_state=RM.RECEIVED)
+        status = as_ParticipantStatus(
+            context=_CONTEXT, rm=RmDimension(state=RM.RECEIVED)
+        )
         assert status.rm.state is RM.RECEIVED
         assert participant_status_rm_state(status) is RM.RECEIVED
 

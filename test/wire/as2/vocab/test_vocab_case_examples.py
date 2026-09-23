@@ -11,6 +11,8 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 import unittest
+
+from vultron.core.models.case_participant import CaseParticipant
 from typing import cast
 
 import vultron.wire.as2.vocab.examples.vocab_examples as examples
@@ -27,7 +29,6 @@ from vultron.wire.as2.vocab.base.objects.activities.transitive import (
     as_Reject,
     as_Update,
 )
-from vultron.wire.as2.vocab.base.objects.base import as_Object
 from vultron.wire.as2.vocab.base.objects.object_types import as_Note
 from vultron.wire.as2.vocab.objects.case_participant import as_CaseParticipant
 from vultron.wire.as2.vocab.objects.case_status import as_CaseStatus
@@ -79,9 +80,14 @@ class TestVocabCaseObjectExamples(unittest.TestCase):
         self.assertEqual(
             case_from_activity.vulnerability_reports[0], report.id_
         )
-        # case_participants stores participant IDs (strings) per ADR-0099
+        # Inline participants, not bare URIs: CBT-01-007 says a bare URI "MUST
+        # NOT be used" here, and use_cases/received/case/create.py refuses one.
+        # The as-delivered change asserted ``str`` to match an example that had
+        # been switched to IDs in order to dodge a validation failure.
         self.assertTrue(len(case_from_activity.case_participants) > 0)
-        self.assertIsInstance(case_from_activity.case_participants[0], str)
+        self.assertIsInstance(
+            case_from_activity.case_participants[0], CaseParticipant
+        )
 
     def test_create_case_multiple_calls_do_not_raise(self):
         # Regression: create_case() must not raise VultronValidationError when
@@ -226,7 +232,6 @@ class TestVocabCaseLifecycleExamples(unittest.TestCase):
 class TestVocabCaseNoteExamples(unittest.TestCase):
     def test_note(self):
         note = examples.note()
-        self.assertIsInstance(note, as_Object)
         self.assertIsInstance(note, as_Note)
 
         self.assertTrue(hasattr(note, "to_json"))
@@ -320,7 +325,6 @@ class TestVocabCaseOwnershipExamples(unittest.TestCase):
 class TestVocabCaseStatusExamples(unittest.TestCase):
     def test_case_status(self):
         obj = examples.case_status()
-        self.assertIsInstance(obj, as_Object)
         self.assertIsInstance(obj, as_CaseStatus)
         self.assertIn(obj.em_state, EM)
         self.assertIn(obj.pxa_state, CS_pxa)

@@ -295,9 +295,13 @@ class TestVulnerabilityCaseAddCaseStatus:
             as_CaseStatus,
         )
 
+        # ``as_CaseStatus`` *is* ``CaseStatus`` (ADR-0099 detail 3), so there is no
+        # wire-shaped status left to reject — the object is exactly what the slot
+        # wants and is appended.  The guard against a genuinely wrong type is still
+        # covered by ``test_add_case_status_rejects_non_case_status`` below.
         wire_status = as_CaseStatus(context=_CASE_ID)
-        with pytest.raises(VultronValidationError, match="CaseStatus"):
-            case.add_case_status(wire_status)  # type: ignore[arg-type]
+        case.add_case_status(wire_status)
+        assert case.case_statuses[-1] is wire_status
 
     def test_add_case_status_rejects_non_case_status(
         self, case: VulnerabilityCase

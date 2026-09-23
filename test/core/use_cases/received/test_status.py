@@ -41,6 +41,10 @@ from vultron.wire.as2.vocab.objects.case_status import (
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCase,
 )
+from vultron.core.models.dimensions import (
+    EmDimension,
+    RmDimension,
+)
 
 
 class TestStatusUseCases:
@@ -70,7 +74,7 @@ class TestStatusUseCases:
 
         CreateCaseStatusReceivedUseCase(dl, event).execute()
 
-        stored = dl.get(status.type_.value, status.id_)
+        stored = dl.get(status.type_, status.id_)
         assert stored is not None
 
     def test_create_case_status_idempotent(self, monkeypatch, make_payload):
@@ -97,7 +101,7 @@ class TestStatusUseCases:
 
         CreateCaseStatusReceivedUseCase(dl, event).execute()
 
-        stored = dl.get(status.type_.value, status.id_)
+        stored = dl.get(status.type_, status.id_)
         assert stored is not None
 
     def test_add_case_status_to_case_appends_status(
@@ -148,7 +152,7 @@ class TestStatusUseCases:
         initial_status = as_CaseStatus(
             id_="https://example.org/cases/case_em_guard/statuses/s_init",
             context=case.id_,
-            em_state=EM.NONE,
+            em=EmDimension(state=EM.NONE),
         )
         case.case_statuses.append(initial_status)  # type: ignore[arg-type]
         dl.create(case)
@@ -158,7 +162,7 @@ class TestStatusUseCases:
         bad_status = as_CaseStatus(
             id_="https://example.org/cases/case_em_guard/statuses/s_bad",
             context=case.id_,
-            em_state=EM.ACTIVE,
+            em=EmDimension(state=EM.ACTIVE),
         )
         dl.create(bad_status)
 
@@ -194,7 +198,7 @@ class TestStatusUseCases:
         initial_status = as_CaseStatus(
             id_="https://example.org/cases/case_fault_cs/statuses/s_init",
             context=case.id_,
-            em_state=EM.NONE,
+            em=EmDimension(state=EM.NONE),
         )
         case.case_statuses.append(initial_status)  # type: ignore[arg-type]
         dl.create(case)
@@ -202,7 +206,7 @@ class TestStatusUseCases:
         bad_status = as_CaseStatus(
             id_="https://example.org/cases/case_fault_cs/statuses/s_bad",
             context=case.id_,
-            em_state=EM.ACTIVE,
+            em=EmDimension(state=EM.ACTIVE),
         )
         dl.create(bad_status)
 
@@ -240,7 +244,7 @@ class TestStatusUseCases:
         initial_status = as_CaseStatus(
             id_="https://example.org/cases/case_fault_cs2/statuses/s_init",
             context=case.id_,
-            em_state=EM.NONE,
+            em=EmDimension(state=EM.NONE),
         )
         case.case_statuses.append(initial_status)  # type: ignore[arg-type]
         dl.create(case)
@@ -248,7 +252,7 @@ class TestStatusUseCases:
         bad_status = as_CaseStatus(
             id_="https://example.org/cases/case_fault_cs2/statuses/s_bad",
             context=case.id_,
-            em_state=EM.ACTIVE,
+            em=EmDimension(state=EM.ACTIVE),
         )
         dl.create(bad_status)
 
@@ -285,7 +289,7 @@ class TestStatusUseCases:
         pstatus = as_ParticipantStatus(
             id_=f"{case_id}/participants/p/statuses/s1",
             context=case_id,
-            rm_state=RM.CLOSED,
+            rm=RmDimension(state=RM.CLOSED),
         )
         participant.participant_statuses.append(pstatus)
         dl.create(participant)
@@ -302,7 +306,7 @@ class TestStatusUseCases:
         dup_status = as_ParticipantStatus(
             id_=f"{case_id}/participants/p/statuses/s_dup_closed",
             context=case_id,
-            rm_state=RM.CLOSED,
+            rm=RmDimension(state=RM.CLOSED),
         )
         dl.create(dup_status)
 
@@ -360,7 +364,7 @@ class TestStatusUseCases:
         pstatus = as_ParticipantStatus(
             id_=f"{case_id}/participants/p/statuses/s1",
             context=case_id,
-            rm_state=RM.CLOSED,
+            rm=RmDimension(state=RM.CLOSED),
         )
         participant.participant_statuses.append(pstatus)
         dl.create(participant)
@@ -378,7 +382,7 @@ class TestStatusUseCases:
         dup_status = as_ParticipantStatus(
             id_=f"{case_id}/participants/p/statuses/s_dup",
             context=case_id,
-            rm_state=RM.CLOSED,
+            rm=RmDimension(state=RM.CLOSED),
         )
         dl.create(dup_status)
 
@@ -410,7 +414,7 @@ class TestStatusUseCases:
         initial_status = as_CaseStatus(
             id_="https://example.org/cases/case_em_valid/statuses/s_init",
             context=case.id_,
-            em_state=EM.NONE,
+            em=EmDimension(state=EM.NONE),
         )
         case.case_statuses.append(initial_status)  # type: ignore[arg-type]
         dl.create(case)
@@ -419,7 +423,7 @@ class TestStatusUseCases:
         good_status = as_CaseStatus(
             id_="https://example.org/cases/case_em_valid/statuses/s_good",
             context=case.id_,
-            em_state=EM.PROPOSED,
+            em=EmDimension(state=EM.PROPOSED),
         )
         dl.create(good_status)
 
@@ -461,7 +465,7 @@ class TestStatusUseCases:
 
         CreateParticipantStatusReceivedUseCase(dl, event).execute()
 
-        stored = dl.get(pstatus.type_.value, pstatus.id_)
+        stored = dl.get(pstatus.type_, pstatus.id_)
         assert stored is not None
 
     def test_add_participant_status_to_participant_appends_status(
@@ -799,7 +803,7 @@ class TestParticipantStatusLogEntryCascade:
         closed_status = as_ParticipantStatus(
             id_=f"{case_id}/participants/p1/statuses/closed-existing",
             context=case_id,
-            rm_state=RM.CLOSED,
+            rm=RmDimension(state=RM.CLOSED),
         )
         participant.participant_statuses.append(closed_status)
         dl.save(participant)
@@ -808,7 +812,7 @@ class TestParticipantStatusLogEntryCascade:
         duplicate_closed_status = as_ParticipantStatus(
             id_=f"{case_id}/participants/p1/statuses/closed-duplicate",
             context=case_id,
-            rm_state=RM.CLOSED,
+            rm=RmDimension(state=RM.CLOSED),
         )
         dl.create(duplicate_closed_status)
 

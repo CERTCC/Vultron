@@ -267,6 +267,7 @@ class TestParticipantStatusLegacyPecMigration(unittest.TestCase):
             }
         )
         # The dimension owns the state; ``consent.state`` is where it lands.
+        assert ps.consent is not None
         self.assertEqual(ps.consent.state, PEC.UNBOUND)
 
 

@@ -54,6 +54,9 @@ from vultron.wire.as2.vocab.objects.vulnerability_case import (
 from vultron.wire.as2.vocab.objects.vulnerability_report import (
     as_VulnerabilityReport,
 )
+from vultron.core.models.dimensions import (
+    RmDimension,
+)
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -108,7 +111,9 @@ def _build_case(
         case_roles=[CVDRole.VENDOR],
     )
     vendor_p.participant_statuses.append(
-        WireParticipantStatus(context=case.id_, rm_state=RM.RECEIVED)
+        WireParticipantStatus(
+            context=case.id_, rm=RmDimension(state=RM.RECEIVED)
+        )
     )
 
     finder_p = FinderParticipant(

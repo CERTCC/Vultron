@@ -28,6 +28,9 @@ from vultron.wire.as2.vocab.objects.case_status import (
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCase,
 )
+from vultron.core.models.dimensions import (
+    RmDimension,
+)
 
 
 def _to_ids(activity) -> list[str]:
@@ -69,10 +72,12 @@ def _make_case_with_case_manager(
         case_roles=[CVDRole.VENDOR],
     )
     actor_participant.participant_statuses.append(
-        WireParticipantStatus(context=case.id_, rm_state=RM.RECEIVED)
+        WireParticipantStatus(
+            context=case.id_, rm=RmDimension(state=RM.RECEIVED)
+        )
     )
     actor_participant.participant_statuses.append(
-        WireParticipantStatus(context=case.id_, rm_state=RM.VALID)
+        WireParticipantStatus(context=case.id_, rm=RmDimension(state=RM.VALID))
     )
 
     finder_participant = FinderParticipant(
@@ -182,10 +187,14 @@ class TestDeferCaseRMTransitionViaBT:
             case_roles=[CVDRole.VENDOR],
         )
         vendor_participant.participant_statuses.append(
-            WireParticipantStatus(context=case_solo.id_, rm_state=RM.RECEIVED)
+            WireParticipantStatus(
+                context=case_solo.id_, rm=RmDimension(state=RM.RECEIVED)
+            )
         )
         vendor_participant.participant_statuses.append(
-            WireParticipantStatus(context=case_solo.id_, rm_state=RM.VALID)
+            WireParticipantStatus(
+                context=case_solo.id_, rm=RmDimension(state=RM.VALID)
+            )
         )
         case_solo.actor_participant_index[self.vendor.id_] = (
             vendor_participant.id_

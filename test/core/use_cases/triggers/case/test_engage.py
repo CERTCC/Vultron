@@ -25,6 +25,9 @@ from vultron.wire.as2.vocab.objects.case_participant import (
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCase,
 )
+from vultron.core.models.dimensions import (
+    RmDimension,
+)
 
 
 def _make_actor(name: str) -> as_Service:
@@ -70,10 +73,12 @@ def _make_case_with_case_manager(
     )
 
     actor_participant.participant_statuses.append(
-        WireParticipantStatus(context=case.id_, rm_state=RM.RECEIVED)
+        WireParticipantStatus(
+            context=case.id_, rm=RmDimension(state=RM.RECEIVED)
+        )
     )
     actor_participant.participant_statuses.append(
-        WireParticipantStatus(context=case.id_, rm_state=RM.VALID)
+        WireParticipantStatus(context=case.id_, rm=RmDimension(state=RM.VALID))
     )
 
     finder_participant = FinderParticipant(

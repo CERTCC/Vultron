@@ -69,7 +69,14 @@ from vultron.core.models.case_ledger_entry import VultronCaseLedgerEntry
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.behaviors.sync.nodes.chain import _to_persistable_entry
 from vultron.core.models.events.sync import AnnounceLogEntryReceivedEvent
-from vultron.core.models.dimensions import DDimension
+from vultron.core.models.dimensions import (
+    DDimension,
+    EmDimension,
+    PecDimension,
+    PxaDimension,
+    RmDimension,
+    VfDimension,
+)
 from vultron.core.states.composite_state_invariants import (
     composite_state_violations,
 )
@@ -247,14 +254,14 @@ def _current_status(
     return as_ParticipantStatus(
         id_=CURRENT_STATUS_ID,
         context=CASE_ID,
-        rm_state=rm_state,
-        vf_state=vf_state,
-        em_consent_state=PEC.SIGNATORY,
+        rm=RmDimension(state=rm_state),
+        vf=(VfDimension(state=vf_state) if vf_state is not None else None),
+        consent=PecDimension(state=PEC.SIGNATORY),
         case_status=as_CaseStatus(
             id_=f"{CURRENT_STATUS_ID}/cs",
             context=CASE_ID,
-            em_state=EM.NONE,
-            pxa_state=pxa_state,
+            em=EmDimension(state=EM.NONE),
+            pxa=PxaDimension(state=pxa_state),
         ),
     )
 
@@ -277,16 +284,16 @@ def _asserted_status(
         else as_CaseStatus(
             id_=f"{status_id}/cs",
             context=CASE_ID,
-            em_state=EM.NONE,
-            pxa_state=pxa_state,
+            em=EmDimension(state=EM.NONE),
+            pxa=PxaDimension(state=pxa_state),
         )
     )
     return as_ParticipantStatus(
         id_=status_id,
         context=CASE_ID,
-        rm_state=rm_state,
-        vf_state=vf_state,
-        em_consent_state=PEC.SIGNATORY,
+        rm=RmDimension(state=rm_state),
+        vf=(VfDimension(state=vf_state) if vf_state is not None else None),
+        consent=PecDimension(state=PEC.SIGNATORY),
         case_status=case_status,
     )
 

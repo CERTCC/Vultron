@@ -49,6 +49,9 @@ from vultron.wire.as2.vocab.objects.case_status import as_ParticipantStatus
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCase,
 )
+from vultron.core.models.dimensions import (
+    RmDimension,
+)
 
 _CASE_CONTEXT = "urn:uuid:case-context-fixture"
 _NOW = datetime(2026, 1, 1, tzinfo=timezone.utc)
@@ -237,7 +240,9 @@ def _mixed_spelling_case_row(case_id):
     """
     # Build the participant via the wire class (which accepts and produces camelCase)
     # then dump it with aliases to get the camelCase format we want to test.
-    status = as_ParticipantStatus(context=case_id, rm_state=RM.ACCEPTED)
+    status = as_ParticipantStatus(
+        context=case_id, rm=RmDimension(state=RM.ACCEPTED)
+    )
     wire_participant = as_CaseParticipant(
         id_="urn:uuid:participant-2232",
         attributed_to="https://example.org/actors/finder",

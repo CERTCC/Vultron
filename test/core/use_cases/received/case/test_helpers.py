@@ -28,7 +28,9 @@ import pytest
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.errors import VultronProtocolViolationError
 from vultron.core.models.participant import VultronParticipant
-from vultron.core.models.dimensions import RmDimension
+from vultron.core.models.dimensions import (
+    RmDimension,
+)
 from vultron.core.models.participant_status import ParticipantStatus
 from vultron.core.models.report import VultronReport
 from vultron.core.models.report_case_link import VultronReportCaseLink
@@ -243,7 +245,7 @@ class TestStoreEmbeddedParticipantsProjectsWireIngress:
                 as_ParticipantStatus(
                     context=self._CASE_ID,
                     attributed_to=self._ACTOR_ID,
-                    rm_state=rm_state,
+                    rm=RmDimension(state=rm_state),
                 )
             ],
         )

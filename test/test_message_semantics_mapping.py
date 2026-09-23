@@ -92,9 +92,17 @@ def test_vfd_dimensions_ride_participant_status_not_case_status():
     assert pattern.object_ == "ParticipantStatus"
     assert pattern.target_ == "CaseParticipant"
 
-    # V and F ride `vf_state`; D rides `d_state`. Both are participant-scoped.
-    assert "vf_state" in as_ParticipantStatus.model_fields
-    assert "d_state" in as_ParticipantStatus.model_fields
+    # V and F ride the VF dimension; D rides the D dimension. Both are
+    # participant-scoped.  They used to be flat ``vf_state``/``d_state`` *fields*;
+    # ADR-0099 detail 5 makes the dimension the field and the flat spelling its
+    # serialization, so the check is on the dimension field and the AS2 name it
+    # emits — which is what MSM-03 is actually about.
+    assert as_ParticipantStatus.model_fields["vf"].serialization_alias == (
+        "vfState"
+    )
+    assert as_ParticipantStatus.model_fields["d"].serialization_alias == (
+        "dState"
+    )
 
     # The whole point of the correction: there is no case-level V/F/D state, and
     # in particular none of the payload fields MSM-03 used to name.
@@ -120,7 +128,7 @@ def test_pxa_dimensions_ride_case_status():
     assert pattern.activity_ is TAtype.ADD
     assert pattern.object_ == "CaseStatus"
     assert pattern.target_ == "VulnerabilityCase"
-    assert "pxa_state" in as_CaseStatus.model_fields
+    assert as_CaseStatus.model_fields["pxa"].serialization_alias == "pxaState"
 
 
 # ---------------------------------------------------------------------------

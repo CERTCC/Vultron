@@ -26,7 +26,6 @@ from vultron.wire.as2.vocab.base.objects.activities.transitive import (
     as_Remove,
 )
 from vultron.wire.as2.vocab.base.objects.actors import as_Service
-from vultron.wire.as2.vocab.base.objects.base import as_Object
 from vultron.wire.as2.vocab.objects.case_participant import as_CaseParticipant
 from vultron.wire.as2.vocab.objects.case_status import (
     as_CaseStatus,
@@ -40,7 +39,6 @@ from vultron.core.states.rm import RM
 class TestVocabParticipantExamples(unittest.TestCase):
     def test_case_participant(self):
         obj = examples.case_participant()
-        self.assertIsInstance(obj, as_Object)
         self.assertIsInstance(obj, as_CaseParticipant)
 
         self.assertIsNotNone(obj.id_)
@@ -72,7 +70,6 @@ class TestVocabParticipantExamples(unittest.TestCase):
 
     def test_participant_status(self):
         obj = examples.participant_status()
-        self.assertIsInstance(obj, as_Object)
         self.assertIsInstance(obj, as_ParticipantStatus)
 
         self.assertIsNotNone(obj.attributed_to)

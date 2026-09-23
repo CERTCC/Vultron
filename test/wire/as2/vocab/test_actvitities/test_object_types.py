@@ -176,7 +176,7 @@ class TestAddStatusToCaseActivity:
         _assert_rejects_link(self.cls)
 
     def test_accepts_inline_case_status(self):
-        _assert_accepts_inline(self.cls, as_CaseStatus())
+        _assert_accepts_inline(self.cls, as_CaseStatus(context=_STR_URI))
 
 
 class TestCreateCaseActivity:
@@ -208,7 +208,7 @@ class TestCreateCaseStatusActivity:
         _assert_rejects_link(self.cls)
 
     def test_accepts_inline_case_status(self):
-        _assert_accepts_inline(self.cls, as_CaseStatus())
+        _assert_accepts_inline(self.cls, as_CaseStatus(context=_STR_URI))
 
 
 class TestAddNoteToCaseActivity:

@@ -49,6 +49,9 @@ from vultron.wire.as2.vocab.objects.case_status import (
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCase,
 )
+from vultron.core.models.dimensions import (
+    VfDimension,
+)
 
 # ---------------------------------------------------------------------------
 # Shared constants
@@ -298,7 +301,7 @@ class TestM4AddParticipantStatusAfterBootstrap:
         status = WireParticipantStatus(
             id_=_vfd_status_id,
             context=_CASE_ID,
-            vf_state=CS_vf.VF,
+            vf=VfDimension(state=CS_vf.VF),
         )
         activity = add_status_to_participant_activity(
             status,

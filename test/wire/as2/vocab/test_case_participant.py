@@ -31,6 +31,10 @@ from vultron.wire.as2.vocab.objects.case_participant import (
     FinderParticipant,
     VendorParticipant,
 )
+from vultron.core.models.dimensions import (
+    RmDimension,
+    VfDimension,
+)
 
 
 class TestCaseParticipantAcceptedEmbargoIds(unittest.TestCase):
@@ -82,7 +86,9 @@ class TestCaseParticipantAcceptedEmbargoIds(unittest.TestCase):
             context=self.case_id,
             accepted_embargo_ids=[self.embargo_id_1, self.embargo_id_2],
         )
-        json_str = participant.to_json()
+        # ``to_json`` was an as_VultronObject convenience; the promoted core
+        # class serialises through Pydantic directly.
+        json_str = participant.model_dump_json(by_alias=True)
         restored = as_CaseParticipant.model_validate_json(json_str)
         self.assertEqual(
             participant.accepted_embargo_ids, restored.accepted_embargo_ids
@@ -245,8 +251,8 @@ class TestParticipantStatusProperty(unittest.TestCase):
         appended = self.as_ParticipantStatus(
             context=self.case_id,
             attributed_to=self.actor_id,
-            rm_state=self.RM.ACCEPTED,
-            vf_state=self.CS_vf.Vf,
+            rm=RmDimension(state=self.RM.ACCEPTED),
+            vf=VfDimension(state=self.CS_vf.Vf),
             published=self.dt(2026, 6, 2, 16, 26, 48, tzinfo=self.tz.utc),
             updated=self.dt(2026, 6, 2, 16, 26, 48, tzinfo=self.tz.utc),
         )

@@ -36,6 +36,10 @@ from vultron.wire.as2.vocab.base.objects.object_types import as_Note
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCase,
 )
+from vultron.core.models.dimensions import (
+    RmDimension,
+    VfDimension,
+)
 
 ACTOR_ID = "https://example.org/actors/alice"
 CASE_ID = "https://example.org/cases/c1"
@@ -71,7 +75,9 @@ def dl():
         case_roles=[CVDRole.VENDOR],
         participant_statuses=[
             as_ParticipantStatus(
-                context=CASE_ID, rm_state=RM.ACCEPTED, vf_state=CS_vf.VF
+                context=CASE_ID,
+                rm=RmDimension(state=RM.ACCEPTED),
+                vf=VfDimension(state=CS_vf.VF),
             )
         ],
     )
@@ -198,7 +204,9 @@ class TestGetActionRulesUseCase:
             case_roles=[CVDRole.REPORTER],
             participant_statuses=[
                 as_ParticipantStatus(
-                    context=CASE_ID, rm_state=RM.RECEIVED, vf_state=CS_vf.Vf
+                    context=CASE_ID,
+                    rm=RmDimension(state=RM.RECEIVED),
+                    vf=VfDimension(state=CS_vf.Vf),
                 )
             ],
         )

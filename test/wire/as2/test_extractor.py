@@ -14,6 +14,9 @@ from vultron.semantic_registry import (
     extract_event,
     find_matching_semantics,
 )
+from vultron.core.models.dimensions import (
+    VfDimension,
+)
 
 
 @pytest.mark.spec("SE-02-003")
@@ -319,7 +322,7 @@ def test_extract_intent_participant_status_vf_state():
 
     ps = as_ParticipantStatus(
         context="https://example.org/cases/1",
-        vf_state=CS_vf.Vf,
+        vf=VfDimension(state=CS_vf.Vf),
     )
     activity = as_Create(
         actor="https://example.org/alice",
@@ -681,10 +684,15 @@ def test_coerce_pec_or_none_is_single_shared_helper():
     the ratchet against re-divergence.
     """
     from vultron.wire.as2.extractor import _builders
-    from vultron.wire.as2.vocab.objects import base, case_status
+    from vultron.wire.as2.vocab.objects import base
 
     assert _builders._coerce_pec_or_none is base._coerce_pec_or_none
-    assert case_status._coerce_pec_or_none is base._coerce_pec_or_none
+
+    # ``case_status`` no longer re-imports the helper: ADR-0099 detail 3 collapsed
+    # as_CaseStatus/as_ParticipantStatus into their core classes, so that module is
+    # aliases only and does no coercion. The divergence this ratchet guards is
+    # therefore narrower, not gone — the remaining import site still has to resolve
+    # to the one function.
 
 
 def test_coerce_pec_or_none_unknown_string_raises_value_error():

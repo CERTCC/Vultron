@@ -195,10 +195,13 @@ class TestAddParticipantStatus:
             as_ParticipantStatus,
         )
 
+        # ``as_ParticipantStatus`` *is* ``ParticipantStatus`` (ADR-0099 detail 3),
+        # so the status is accepted rather than refused.  ``test_rejects_non_status_object``
+        # below still covers a genuinely wrong type.
         p = _make()
         wire_status = as_ParticipantStatus(context=_CONTEXT)
-        with pytest.raises(VultronValidationError, match="ParticipantStatus"):
-            p.add_participant_status(wire_status)  # type: ignore[arg-type]
+        p.add_participant_status(wire_status)
+        assert p.participant_statuses[-1] is wire_status
 
     def test_rejects_non_status_object(self):
         p = _make()

@@ -44,6 +44,9 @@ from vultron.core.states.rm import RM
 from vultron.wire.as2.vocab.objects.case_status import as_ParticipantStatus
 
 from .conftest import ACTOR_ID, CASE_ID, PARTICIPANT_ID, STATUS_ID
+from vultron.core.models.dimensions import (
+    RmDimension,
+)
 
 # ---------------------------------------------------------------------------
 # SkipIfIdempotentNode
@@ -169,7 +172,7 @@ class TestValidateRMTransitionNode:
         closed_status = as_ParticipantStatus(
             id_=closed_status_id,
             context=CASE_ID,
-            rm_state=RM.CLOSED,
+            rm=RmDimension(state=RM.CLOSED),
         )
         populated_dl.create(closed_status)
 
@@ -204,7 +207,7 @@ class TestValidateRMTransitionNode:
         received_status = as_ParticipantStatus(
             id_="https://example.org/cases/case-01/statuses/received",
             context=CASE_ID,
-            rm_state=RM.RECEIVED,
+            rm=RmDimension(state=RM.RECEIVED),
         )
         populated_dl.create(received_status)
         p = populated_dl.read(PARTICIPANT_ID)
@@ -215,7 +218,7 @@ class TestValidateRMTransitionNode:
         accepted_status = as_ParticipantStatus(
             id_="https://example.org/cases/case-01/statuses/accepted",
             context=CASE_ID,
-            rm_state=RM.ACCEPTED,
+            rm=RmDimension(state=RM.ACCEPTED),
         )
         populated_dl.create(accepted_status)
 
@@ -257,7 +260,7 @@ class TestValidateRMTransitionNode:
         accepted_status = as_ParticipantStatus(
             id_="https://example.org/cases/case-01/statuses/accepted",
             context=CASE_ID,
-            rm_state=RM.ACCEPTED,
+            rm=RmDimension(state=RM.ACCEPTED),
         )
         populated_dl.create(accepted_status)
         p = populated_dl.read(PARTICIPANT_ID)
@@ -268,7 +271,7 @@ class TestValidateRMTransitionNode:
         regression_status = as_ParticipantStatus(
             id_="https://example.org/cases/case-01/statuses/regression",
             context=CASE_ID,
-            rm_state=RM.RECEIVED,
+            rm=RmDimension(state=RM.RECEIVED),
         )
         populated_dl.create(regression_status)
 
@@ -301,7 +304,7 @@ class TestValidateRMTransitionNode:
         received_status = as_ParticipantStatus(
             id_="https://example.org/cases/case-01/statuses/received",
             context=CASE_ID,
-            rm_state=RM.RECEIVED,
+            rm=RmDimension(state=RM.RECEIVED),
         )
         populated_dl.create(received_status)
         p = populated_dl.read(PARTICIPANT_ID)
@@ -312,7 +315,7 @@ class TestValidateRMTransitionNode:
         valid_status = as_ParticipantStatus(
             id_="https://example.org/cases/case-01/statuses/valid",
             context=CASE_ID,
-            rm_state=RM.VALID,
+            rm=RmDimension(state=RM.VALID),
         )
         populated_dl.create(valid_status)
 

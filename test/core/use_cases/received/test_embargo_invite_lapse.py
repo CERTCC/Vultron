@@ -81,7 +81,7 @@ def _make_active_embargo_case(
     invitee_cp = WireCP(
         attributed_to=_INVITEE,
         context=case_id,
-        embargo_consent_state=invitee_pec.value,
+        embargo_consent_state=invitee_pec,
         case_roles=[CVDRole.VENDOR],
     )
     invitee_cp_core = invitee_cp
@@ -339,7 +339,7 @@ class TestInviteeIsTheAddressee:
         invitee_cp = WireCP(
             attributed_to=_INVITEE,
             context=case_id,
-            embargo_consent_state=invitee_pec.value,
+            embargo_consent_state=invitee_pec,
             case_roles=[CVDRole.VENDOR],
         )
 
@@ -355,7 +355,7 @@ class TestInviteeIsTheAddressee:
             extra_cp = WireCP(
                 attributed_to=actor,
                 context=case_id,
-                embargo_consent_state=PEC.UNBOUND.value,
+                embargo_consent_state=PEC.UNBOUND,
                 case_roles=[CVDRole.VENDOR],
             )
             dl.create(extra_cp)
@@ -934,7 +934,7 @@ class TestLateAcceptHandling:
         invitee_cp = WireCP(
             attributed_to=_INVITEE,
             context=case_id,
-            embargo_consent_state=PEC.INVITED.value,
+            embargo_consent_state=PEC.INVITED,
             case_roles=[CVDRole.VENDOR],
         )
         invitee_cp_core = invitee_cp
@@ -979,7 +979,7 @@ class TestLateAcceptHandling:
         invitee_cp = WireCP(
             attributed_to=_INVITEE,
             context=case_id,
-            embargo_consent_state=PEC.INVITED.value,
+            embargo_consent_state=PEC.INVITED,
             case_roles=[CVDRole.VENDOR],
         )
         invitee_cp_core = invitee_cp

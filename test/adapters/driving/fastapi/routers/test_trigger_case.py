@@ -47,6 +47,9 @@ from vultron.wire.as2.vocab.objects.case_participant import (
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCase,
 )
+from vultron.core.models.dimensions import (
+    RmDimension,
+)
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -128,7 +131,7 @@ def case_with_participant(dl, actor):
             as_ParticipantStatus(
                 attributed_to=actor.id_,
                 context=case_obj.id_,
-                rm_state=RM.VALID,
+                rm=RmDimension(state=RM.VALID),
             )
         ],
     )
@@ -638,7 +641,7 @@ def short_id_env(report):
             as_ParticipantStatus(
                 attributed_to=actor_id,
                 context=case_obj.id_,
-                rm_state=RM.VALID,
+                rm=RmDimension(state=RM.VALID),
             )
         ],
     )

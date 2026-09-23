@@ -73,6 +73,10 @@ from vultron.wire.as2.vocab.objects.embargo_event import as_EmbargoEvent
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCase,
 )
+from vultron.core.models.dimensions import (
+    EmDimension,
+    PxaDimension,
+)
 
 # ---------------------------------------------------------------------------
 # Constants
@@ -433,7 +437,7 @@ class TestFilterCsPxaDimensionNodeBug2706:
         dl.create(cm_participant)
         # Asserted: pxa regression (pxa=pxa instead of Pxa), same EM
         asserted = as_CaseStatus(
-            id_=STATUS_ID, context=CASE_ID, pxa_state=CS_pxa.pxa
+            id_=STATUS_ID, context=CASE_ID, pxa=PxaDimension(state=CS_pxa.pxa)
         )
         dl.create(asserted)
         return dl
@@ -470,7 +474,7 @@ class TestFilterCsPxaDimensionNodeBug2706:
         dl = self._build_dl()
         wire_case = as_VulnerabilityCase(id_=CASE_ID, name="2706 Case")
         status_obj = as_CaseStatus(
-            id_=STATUS_ID, context=CASE_ID, pxa_state=CS_pxa.pxa
+            id_=STATUS_ID, context=CASE_ID, pxa=PxaDimension(state=CS_pxa.pxa)
         )
         activity = add_status_to_case_activity(
             status_obj, target=wire_case, actor=CASE_MANAGER_ID_2706
@@ -571,13 +575,13 @@ class TestAddCaseStatusTree:
         initial = as_CaseStatus(
             id_=f"{CASE_ID}/statuses/init",
             context=CASE_ID,
-            em_state=EM.NONE,
+            em=EmDimension(state=EM.NONE),
         )
         case.case_statuses.append(initial)  # type: ignore[arg-type]
         dl.create(case)
 
         bad_status = as_CaseStatus(
-            id_=STATUS_ID, context=CASE_ID, em_state=EM.ACTIVE
+            id_=STATUS_ID, context=CASE_ID, em=EmDimension(state=EM.ACTIVE)
         )
         dl.create(bad_status)
 
@@ -618,7 +622,7 @@ class TestAddCaseStatusTree:
         asserted = as_CaseStatus(
             id_=STATUS_ID,
             context=CASE_ID,
-            pxa_state=CS_pxa.pXA,
+            pxa=PxaDimension(state=CS_pxa.pXA),
         )
         dl.create(asserted)
 
@@ -662,8 +666,10 @@ class TestAddCaseStatusTree:
         asserted = as_CaseStatus(
             id_=STATUS_ID,
             context=CASE_ID,
-            em_state=EM.PROPOSED,
-            pxa_state=CS_pxa.pxa,  # regression: P was True, sender claims False
+            em=EmDimension(state=EM.PROPOSED),
+            pxa=PxaDimension(
+                state=CS_pxa.pxa
+            ),  # regression: P was True, sender claims False
         )
         dl.create(asserted)
 
@@ -713,8 +719,8 @@ class TestAddCaseStatusTree:
         asserted = as_CaseStatus(
             id_=STATUS_ID,
             context=CASE_ID,
-            em_state=EM.PROPOSED,
-            pxa_state=CS_pxa.pxa,
+            em=EmDimension(state=EM.PROPOSED),
+            pxa=PxaDimension(state=CS_pxa.pxa),
         )
         dl.create(asserted)
 
@@ -842,13 +848,13 @@ class TestAddCaseStatusToCaseReceivedUseCase:
         initial = as_CaseStatus(
             id_=f"{CASE_ID}/statuses/init",
             context=CASE_ID,
-            em_state=EM.NONE,
+            em=EmDimension(state=EM.NONE),
         )
         case.case_statuses.append(initial)  # type: ignore[arg-type]
         dl.create(case)
 
         bad_status = as_CaseStatus(
-            id_=STATUS_ID, context=CASE_ID, em_state=EM.ACTIVE
+            id_=STATUS_ID, context=CASE_ID, em=EmDimension(state=EM.ACTIVE)
         )
         dl.create(bad_status)
 
@@ -1068,7 +1074,7 @@ class TestAddCaseStatusTreeSeam2:
 
         case = as_VulnerabilityCase(id_=CASE_ID, name="Seam2 Case")
         status_obj = as_CaseStatus(
-            id_=STATUS_ID, context=CASE_ID, pxa_state=pxa_state
+            id_=STATUS_ID, context=CASE_ID, pxa=PxaDimension(state=pxa_state)
         )
         dl.create(case)
         dl.create(status_obj)
@@ -1112,7 +1118,7 @@ class TestAddCaseStatusTreeSeam2:
         case.active_embargo = embargo.id_
         case.append_case_status(em_state=EM.ACTIVE)
         status_obj = as_CaseStatus(
-            id_=STATUS_ID, context=CASE_ID, pxa_state=CS_pxa.Pxa
+            id_=STATUS_ID, context=CASE_ID, pxa=PxaDimension(state=CS_pxa.Pxa)
         )
         dl.create(case)
         dl.create(cm_participant)
@@ -1253,7 +1259,7 @@ class TestRegressionCSPTeardownPath:
         # — New pipeline: ThreatTerminationBranchNode (EmbargoTeardownAuthorizationGate) —
         dl_new = self._build_dl_with_active_embargo()
         new_status_obj = as_CaseStatus(
-            id_=STATUS_ID, context=CASE_ID, pxa_state=CS_pxa.Pxa
+            id_=STATUS_ID, context=CASE_ID, pxa=PxaDimension(state=CS_pxa.Pxa)
         )
         dl_new.create(new_status_obj)
 
@@ -1290,8 +1296,11 @@ class TestRegressionCSPTeardownPath:
         case_old.actor_participant_index[ACTOR_ID] = owner_participant.id_
         dl_old.save(case_old)
 
-        cs_old = as_CaseStatus()
-        object.__setattr__(cs_old, "pxa_state", CS_pxa.Pxa)
+        # ``context`` is required on the core class, and ``pxa_state`` is a real
+        # read/write view onto the dimension now, so plain assignment works —
+        # ``object.__setattr__`` bypassed the property and failed.
+        cs_old = as_CaseStatus(context=CASE_ID)
+        cs_old.pxa_state = CS_pxa.Pxa
         ps_with_cs = as_ParticipantStatus(
             id_=f"{CASE_ID}/participants/vendor/statuses/s1",
             context=CASE_ID,
@@ -1422,7 +1431,7 @@ class TestCaseLedgerEntryCreation:
         initial = as_CaseStatus(
             id_=f"{CASE_ID}/statuses/init",
             context=CASE_ID,
-            em_state=EM.NONE,
+            em=EmDimension(state=EM.NONE),
         )
         from typing import cast as c
         from vultron.core.models.case import VulnerabilityCase
@@ -1433,7 +1442,7 @@ class TestCaseLedgerEntryCreation:
         dl.save(case_obj)
 
         bad_status = as_CaseStatus(
-            id_=STATUS_ID, context=CASE_ID, em_state=EM.ACTIVE
+            id_=STATUS_ID, context=CASE_ID, em=EmDimension(state=EM.ACTIVE)
         )
         dl.create(bad_status)
 
@@ -1632,7 +1641,9 @@ class TestPxaEmInvariantDiagnosticNode:
         case.active_embargo = embargo.id_
         case.append_case_status(em_state=EM.ACTIVE)
         status_obj = as_CaseStatus(
-            id_=DIAG_STATUS_ID, context=DIAG_CASE_ID, pxa_state=CS_pxa.Pxa
+            id_=DIAG_STATUS_ID,
+            context=DIAG_CASE_ID,
+            pxa=PxaDimension(state=CS_pxa.Pxa),
         )
         dl.create(case)
         dl.create(cm_participant)

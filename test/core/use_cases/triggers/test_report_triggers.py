@@ -72,6 +72,9 @@ from vultron.core.models.case import VulnerabilityCase
 from vultron.wire.as2.vocab.objects.vulnerability_report import (
     as_VulnerabilityReport,
 )
+from vultron.core.models.dimensions import (
+    RmDimension,
+)
 
 # ---------------------------------------------------------------------------
 # Shared helpers
@@ -133,7 +136,9 @@ def _make_case_with_embargo(
     )
     # Seed RM.RECEIVED so the RECEIVED → VALID transition is valid.
     vendor_participant.participant_statuses.append(
-        WireParticipantStatus(context=case.id_, rm_state=RM.RECEIVED)
+        WireParticipantStatus(
+            context=case.id_, rm=RmDimension(state=RM.RECEIVED)
+        )
     )
     finder_participant = FinderParticipant(
         attributed_to=finder_id,

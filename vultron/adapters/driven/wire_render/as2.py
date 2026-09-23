@@ -41,7 +41,7 @@ Per ``specs/architecture.yaml`` ARCH-20-001 through ARCH-20-004.
 
 from typing import Any
 
-from pydantic import BaseModel
+from vultron.core.models.base import CoreObject
 
 from vultron.errors import VultronValidationError
 from vultron.wire.as2.vocab.base.registry import WIRE_TYPE_MAP
@@ -88,10 +88,30 @@ class As2WireRenderAdapter:
                 by_alias=True, exclude_none=True, mode="json"
             )
 
-        # Core types that have no wire wrapper (ADR-0099 detail 3): render
-        # the domain object directly.  Unknown non-Pydantic objects still raise.
-        if not isinstance(obj, BaseModel):
+        # Core types that have no wire wrapper (ADR-0099 detail 3): render the
+        # domain object directly.
+        #
+        # Gated on ``CoreObject``, not ``BaseModel``. ``isinstance(obj, BaseModel)``
+        # asks "is this a Pydantic model", which is not the question — every core
+        # class passes it, including ones that serialize to something that is not
+        # valid AS2. ``VultronOfferRecord`` extends ``VultronObject`` directly, so it
+        # carries neither the inherited ``alias_generator`` nor ``@context``:
+        # rendering it emitted ``offer_id``/``offer_actor_id``/``report_id`` in
+        # snake_case with no context, where before ADR-0099 it raised. Worse, those
+        # keys are read back via ``wire_key`` as ``offerId``/``offerActorId``, so a
+        # record that leaked into a ledger snapshot produced keys no reader finds —
+        # the silent-drop failure ``wire_keys`` documents as "worse than failing".
+        #
+        # ``CoreObject`` is the type that guarantees AS2-representability, because
+        # the generator and the ``@context`` serializer both live on it, and
+        # ``test_promoted_core_classes_are_exactly_as2_representable`` holds every
+        # subclass to it. So it fails closed as ARCH-20-003 (MUST) requires, rather
+        # than on "did someone remember".
+        if not isinstance(obj, CoreObject):
             raise VultronValidationError(
-                f"No wire counterpart for core type {type_name!r}."
+                f"No wire counterpart for core type {type_name!r}, and it is not"
+                " a CoreObject, so it has no AS2 spelling for its fields."
+                " Rendering it would emit Python field names and omit @context"
+                " (ARCH-20-003, VM-10-001)."
             )
         return obj.model_dump(by_alias=True, exclude_none=True, mode="json")

@@ -33,6 +33,9 @@ from vultron.wire.as2.enums import (
     as_TransitiveActivityType,
 )
 from vultron.wire.as2.factories import rm_submit_report_activity
+from vultron.core.models.dimensions import (
+    RmDimension,
+)
 
 
 # Fixtures for reused test objects
@@ -302,7 +305,7 @@ def test_object_to_record_normalizes_wire_participant_status():
     )
 
     wire_status = as_ParticipantStatus(
-        rm_state=RM.VALID,
+        rm=RmDimension(state=RM.VALID),
         context="https://example.org/cases/case-2232",
         attributed_to="https://example.org/actors/vendor",
     )
@@ -337,7 +340,9 @@ def test_object_to_record_normalizes_wire_participant_nested_in_core_case():
         attributed_to="https://example.org/actors/vendor",
         context=case_id,
         participant_statuses=[
-            as_ParticipantStatus(context=case_id, rm_state=RM.RECEIVED)
+            as_ParticipantStatus(
+                context=case_id, rm=RmDimension(state=RM.RECEIVED)
+            )
         ],
     )
     case = VulnerabilityCase(id_=case_id, name="case-2232").model_copy(

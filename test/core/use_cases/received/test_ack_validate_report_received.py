@@ -43,6 +43,9 @@ from vultron.core.use_cases.received.report import (
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCase,
 )
+from vultron.core.models.dimensions import (
+    RmDimension,
+)
 
 _CASE_ACTOR_SERVICE_URL = "http://case-actor:7999/api/v2"
 
@@ -186,7 +189,7 @@ class TestFullReportFlow:
                 as_ParticipantStatus(
                     attributed_to=self.VENDOR_ID,
                     context=self.CASE_ID,
-                    rm_state=RM.RECEIVED,
+                    rm=RmDimension(state=RM.RECEIVED),
                 )
             ],
         )
