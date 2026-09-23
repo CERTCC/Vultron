@@ -44,7 +44,8 @@ Read, in order:
    Reference table unless the page is about a taxonomy concept.
 4. `docs/_acronyms/index.md` — which acronyms are already registered (SG-08).
 
-Load the DF requirements via `load-specs` if not already in context.
+Load the DF requirements if not already in context:
+`PYTHONPATH= uv run spec-dump --topic DF --slim`.
 
 Do not read exemplar pages wholesale. The style guide's section 6 carries the
 register; read a specific page only when this page must align closely with it.

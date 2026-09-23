@@ -3,9 +3,10 @@ name: deepen-context
 description: >
   Load task-specific context after the target issue is known. The caller
   passes focus hints (e.g., "wire layer", "BT integration", "embargo
-  lifecycle") and this skill reads the relevant notes files, ADRs, and
-  codebase reference files. Run after orient-agent, once the issue to be
-  worked has been selected and read. Replaces study-project-docs Phase B.
+  lifecycle") and this skill reads the relevant glossary sections, notes
+  files, ADRs, and codebase reference files, and loads the governing specs
+  (emitting a Spec manifest). Run after orient-agent, once the issue to be worked has been
+  selected and read. Replaces study-project-docs Phase B.
 ---
 
 # Skill: Deepen Context
@@ -25,12 +26,23 @@ the codebase or design the task touches. Examples:
 - `"adapter layer"` — FastAPI inbox, SQLite data layer, emitters
 - `"testing"` — pytest fixtures, test data quality, integration tests
 
+The caller also passes the **spec floor**: every spec ID or group ID cited
+in the issue, plan, or PR (for example, the issue's `Governing specs:`
+line). Pass an empty floor explicitly when none are cited.
+
 ## Procedure
 
-### Step 1 — Read relevant notes
+### Step 1 — Read relevant glossary sections and notes
 
-Based on the focus hints, read the relevant `notes/*.md` files. Check
-`notes/README.md` (already loaded by `orient-agent`) for the index.
+**Glossary.** The term index from `orient-agent` gives each section of
+`docs/reference/glossary.md` a line range. Read the sections matching the
+focus hints (read by offset/limit, not the whole file). Also read
+**Flagged Ambiguities** when the task names, renames, or introduces a domain
+term.
+
+**Notes.** Read `notes/README.md` — the index of active design notes, with a
+**Load when** line per file — then read the `notes/*.md` files matching the
+focus hints.
 
 Always-relevant notes for implementation work:
 
@@ -45,11 +57,10 @@ rather than skip — missing context causes incorrect implementation.
 
 ### Step 2 — Read relevant ADRs
 
-Using the ADR index loaded by `orient-agent` (`docs/adr/index.md`),
-identify and read any ADRs relevant to the current task. Focus on ADRs
-whose titles match the task's domain (e.g., behavior trees, hexagonal
-architecture, ActivityStreams, DataLayer). Read the full ADR file for
-any decision that is in scope.
+Read the ADR index (`docs/adr/index.md`), then identify and read any ADRs
+relevant to the current task. Focus on ADRs whose titles match the task's
+domain (e.g., behavior trees, hexagonal architecture, ActivityStreams,
+DataLayer). Read the full ADR file for any decision that is in scope.
 
 **Weight each ADR by how settled it actually is — do not treat every ADR as
 equally solid fact.** An ADR that is genuinely `status: accepted`, not
@@ -70,7 +81,76 @@ against the code rather than inheriting the premise. If the ADR looks wrong or
 stale — not just imprecise for your task — that is a landmine worth routing to
 the `decision-audit` skill rather than quietly working around it.
 
-### Step 3 — Read relevant codebase reference files
+### Step 3 — Load governing specs (REQUIRED)
+
+This step runs after notes and ADRs because they cite spec IDs and sharpen
+the focus hints; it runs before the code scan so requirements shape what
+the scan looks for. Do not skip it, even for small tasks.
+
+1. **Cross-cutting (always):**
+
+   ```bash
+   PYTHONPATH= uv run spec-dump --cross-cutting --slim
+   ```
+
+2. **Floor (always):** load every spec ID the caller passed, plus their
+   dependencies. Skip only when the caller passed an explicitly empty floor.
+
+   ```bash
+   PYTHONPATH= uv run spec-dump --ids <ID>,<ID> --deps
+   ```
+
+   Group IDs in the floor (e.g. `CS-02`) go to `--group` instead of `--ids`.
+
+3. **Selected:** from the spec map loaded by `orient-agent`, choose the
+   topics and groups that match the focus hints **and** the issue text.
+   When in doubt, include the group — a missed requirement costs more
+   than extra context.
+
+   ```bash
+   PYTHONPATH= uv run spec-dump --topic <A>,<B> --slim
+   PYTHONPATH= uv run spec-dump --group <ARCH-01>,<CS-02> --slim
+   ```
+
+   `--slim` (id, priority, statement) is the default. Drop `--slim` for a
+   group when you need rationale, dependencies, or tags to interpret it.
+
+4. **Emit a Spec manifest** to the caller in exactly this format:
+
+   ```text
+   Spec manifest
+   Loaded (floor): <ids from issue/plan/PR, or "none — <reason>">
+   Loaded (cross-cutting): ARCH CS TB HP SL EH
+   Loaded (selected): <topic/group id> — <one-line reason>; ...
+   Considered, skipped: <group id> — <one-line reason>; ...
+   ```
+
+   The manifest makes spec selection auditable: reviewers can see what was
+   loaded and what was deliberately skipped. Callers carry the manifest into
+   the PR body, and check it against the code with `spec-backstop` (below).
+
+**Backstop — resolving the manifest against the diff.** Selection is
+judgment; `spec-backstop` is the deterministic check on it. After code
+changes exist, save the manifest to a file and run:
+
+```bash
+PYTHONPATH= uv run spec-backstop --manifest /tmp/spec-manifest.txt
+```
+
+It derives the spec groups governing the changed code (tests that import a
+changed symbol, mirror-path tests, statements naming a changed module or
+symbol, markers in changed tests) and exits 1 listing every **MUST** group the
+manifest neither loaded nor skipped. For each one, load it
+(`spec-dump --group <G> --slim`), check the change against it, then add it to
+`Loaded (selected)` or `Considered, skipped` with a reason. Re-run until exit
+0. **INFO** groups (incidental importers, hub symbols) are not required.
+A `no deterministic signal for: <file>` note means the backstop cannot vouch
+for that file — the manifest's selection is the only check, so review it.
+
+Do **not** run `spec-dump` with no filters, and do not read raw
+`specs/*.yaml` files directly.
+
+### Step 4 — Read relevant codebase reference files
 
 Read from `docs/reference/codebase/` based on task scope:
 
@@ -84,7 +164,7 @@ Read from `docs/reference/codebase/` based on task scope:
 | `CONCERNS.md` | When assessing risk or technical debt |
 | `INTEGRATIONS.md` | When working on external integrations |
 
-### Step 4 — Scan the codebase
+### Step 5 — Scan the codebase
 
 **Compose-before-create (blocking pre-coding step — all domain types):**
 Load `.agents/skills/shared/compose-before-create.md` and apply the
@@ -109,26 +189,28 @@ scan, also apply the base-class and AC-1 compliance checks from
 `vultron/core/behaviors/AGENTS.md` § "Compose Before Create: Node Discovery
 Gate".
 
-If `graphify-out/graph.json` exists, use the graph as the primary search tool:
+Search `vultron/` and `test/` directly (grep, code search) — this is the
+default. Do not assert missing functionality without evidence from code
+search.
 
-- `graphify query "<focus hint or concept>"` — broad orientation: which files,
-  communities, and nodes are relevant to this area
-- `graphify path "<ConceptA>" "<ConceptB>"` — trace the connection between two
-  concepts when the task spans a seam (e.g. wire layer → BT integration)
-- `graphify explain "<ClassName or function>"` — plain-language summary of a
-  specific node before reading its source
+**Graphify (optional seam-tracing aid).** When the task spans a seam (e.g.
+wire layer → BT integration), the graph can trace the connection. Check it
+first — the graph is gitignored, per-worktree, and often stale:
 
-After graph traversal, read raw source files only for lines you need to
-verify or modify — the graph gives you the map; file reads give you the exact
-text. Do not grep blindly when `graphify query` will orient you first.
+```bash
+bash .agents/skills/shared/graph-freshness.sh
+```
 
-If no graph exists, fall back to searching `vultron/` and `test/` directly.
-Do not assert missing functionality without evidence from code search.
+Only on exit 0, use `graphify path "<ConceptA>" "<ConceptB>"` or
+`graphify explain "<ClassName>"`, then verify against source. Do not rely on
+community names (they degrade as the graph is updated) or on `graphify query`
+output (it truncates on this graph's size), and verify any count with grep.
 
 ## Notes
 
 - Focus hints come from the calling skill after it has selected and read
   the target issue. For `build` and `bugfix`, the issue body describes
-  what is needed; use that as the basis for hints.
+  what is needed; use that as the basis for hints, and pass its
+  `Governing specs:` line as the spec floor.
 - For `plan-issue`, grill-me Phase 3 surfaces the relevant areas; pass
   those as hints when invoking `deepen-context` in Phase 4.

@@ -15,8 +15,8 @@ documentation structure guidance.
 
 ## Agent Quickstart
 
-- **Load specs first**: `PYTHONPATH= uv run spec-dump` — never read raw
-  `specs/*.yaml`. The `PYTHONPATH=` prefix is required; see pitfall below.
+- **Load specs first**: `PYTHONPATH= uv run spec-dump --index` (map), then
+  `--topic`/`--group`/`--ids`; never raw `specs/*.yaml`. `PYTHONPATH=` required.
 - Pipeline: FastAPI inbox → AS2 parser → semantic extraction
   (`vultron/wire/as2/extractor.py`) → dispatcher → use-case callable
   (`vultron/core/use_cases/`).
@@ -170,7 +170,7 @@ See `notes/parallel-development.md`.
 
 ## Change Protocol
 
-For non-trivial changes: state assumptions → load specs (`PYTHONPATH= uv run spec-dump`) →
+For non-trivial changes: state assumptions → load governing specs (`deepen-context`) →
 review `notes/` → describe intent → apply minimal diff → update/add tests →
 call out risks.
 

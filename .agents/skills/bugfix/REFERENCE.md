@@ -28,9 +28,6 @@ find vultron/ -name "<pattern>" -type f
 
 # Grep for the same structural element
 grep -rn "<root-cause signature>" vultron/ test/
-
-# Graph query for peer nodes
-graphify query "<root-cause concept>"
 ```
 
 **What to do with hits:**

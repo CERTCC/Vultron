@@ -22,6 +22,11 @@ Please note: Pull request submissions are subject to our
 <!-- File-by-file bullets with backtick paths. -->
 - **`path/to/file.py`**:
 
+## Specs
+
+<!-- Spec IDs / groups this PR satisfies. Agents: paste the Spec manifest from
+     deepen-context. Delete this section for docs-only PRs. -->
+
 ## Verification
 
 <!-- For PRs that modify .py files. Include actual test count + new tests added.

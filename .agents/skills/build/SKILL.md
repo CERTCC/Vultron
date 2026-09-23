@@ -16,7 +16,7 @@ description: >
 1. Invoke `orient-agent` to load baseline context.
 2. Select the target issue or bundle (auto or explicit) and fail fast on blockers.
 3. Claim every member.
-4. Invoke `deepen-context` with hints from the issue(s).
+4. Invoke `deepen-context` with hints and the `Governing specs:` floor from the issue(s).
 5. Implement, validate, code-review, open one PR closing every member, archive.
 
 ## Workflow
@@ -119,7 +119,7 @@ Invoke the `orient-agent` skill.
 6. **Pre-claim AC verification gate** — fetch the issue body and verify
    each acceptance criterion against `origin/main` HEAD before claiming:
 
-   For each `- [ ] AC-N: <text>` item in the issue body, grep or graphify
+   For each `- [ ] AC-N: <text>` item in the issue body, grep
    `origin/main` for concrete evidence the AC is already satisfied (e.g.,
    the described file exists with the required content, the named function
    or class is present, the referenced behavior is implemented).
@@ -166,7 +166,14 @@ Invoke the `orient-agent` skill.
 ### Phase 3 — Deepen Context
 
 Invoke `deepen-context` with focus hints derived from the issue body
-(e.g., `"wire layer"`, `"BT integration"`, `"embargo lifecycle"`).
+(e.g., `"wire layer"`, `"BT integration"`, `"embargo lifecycle"`), and pass
+as the **spec floor** every spec ID in each member's `Governing specs:` line
+plus any other spec IDs the issue body or comments cite. If an issue has no
+`Governing specs:` line, say so and pass the cited IDs you found (or an
+explicitly empty floor).
+
+`deepen-context` returns a **Spec manifest**. Keep it: it goes into the PR
+body (Phase 8), and reviewers use it as their spec floor.
 
 ### Phase 4 — Verify Before Coding
 
@@ -196,7 +203,9 @@ Invoke `deepen-context` with focus hints derived from the issue body
 
    NEW_ISSUE=$(.agents/skills/manage-github-issue/manage_github_issue.sh \
      --title "<prerequisite title>" \
-     --body "<description>" \
+     --body "<description>
+
+   Governing specs: <IDs, or none — reason>" \
      --issue-type-id "${TASK_TYPE_ID}" \
      --label "size:<S|M|L>" \
      --parent "${EPIC_NUMBER:-${ISSUE_NUMBER}}" \
@@ -302,10 +311,14 @@ later) are separate decisions. Apply
    integration suite; resource contention can inflate per-test runtime past the
    per-test timeout ceiling.
 
-2. Do not skip or delegate validation.
-3. Apply branch-ownership and pre-existing-failure rules from
+2. **Spec backstop (blocking).** Update the Spec manifest from Phase 3 if the
+   work drifted, then resolve it against the diff per `deepen-context`
+   § "Backstop" until `spec-backstop --manifest` exits 0. The resolved
+   manifest is what goes into the PR body.
+3. Do not skip or delegate validation.
+4. Apply branch-ownership and pre-existing-failure rules from
    `completeness-doctrine.md` § "Finding Severity".
-4. If pre-existing is proven: create/update a Bug issue via `manage-github-issue`
+5. If pre-existing is proven: create/update a Bug issue via `manage-github-issue`
    with evidence (failing command/output, clean-base proof, causality check,
    blocked/unblocked impact), wire structured blockers, add a handoff comment,
    and record the Bug link as a learning file in `plan/incoming/learnings/`.
@@ -348,6 +361,8 @@ draft commit and use `git diff main...HEAD` normally.
    the body carries `- Closes #N` **once per member, in bundle order**, and the
    Changes section names each member's change so a reviewer can map every hunk
    to a closed issue (`pr-body-guide.md`; `bundling.md` § "Executing a bundle").
+   The body includes a `## Specs` section carrying the Spec manifest from
+   Phase 3 (`pr-body-guide.md` § "Specs").
 
    ```text
    type:         implementation

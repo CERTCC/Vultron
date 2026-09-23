@@ -218,8 +218,8 @@ BODY   = What the decision claimed, what current understanding shows,
 ### ADR archive convention
 
 Retired ADRs live in `docs/adr/archived/` so agents do not meet outdated
-decisions in the default `docs/adr/` sweep (`orient-agent` reads
-`docs/adr/index.md`; `deepen-context` reads the live `docs/adr/` set only).
+decisions in the default `docs/adr/` sweep (`deepen-context` reads
+`docs/adr/index.md` and the live `docs/adr/` set only).
 When archiving:
 
 - keep the original filename, move it under `docs/adr/archived/`;

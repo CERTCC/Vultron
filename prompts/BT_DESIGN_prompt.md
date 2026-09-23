@@ -1,5 +1,6 @@
- 1. Run `uv run spec-dump` (see `.agents/skills/load-specs/SKILL.md`) to load
-    all project specifications as flat JSON. Do not read raw `specs/*.yaml`
+ 1. Run `PYTHONPATH= uv run spec-dump --index` for the spec map, then load the
+    topics you need with `--topic`/`--group` (see
+    `.agents/skills/load-specs/SKILL.md`). Do not read raw `specs/*.yaml`
     files directly.
  2. Study @plan/BUILD_LEARNINGS.md to understand current progress.
  3. Study @plan/BT_INTEGRATION.md to understand the intent of the next phase of the project.

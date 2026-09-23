@@ -22,6 +22,12 @@ labels: feature
 - [ ] <!-- AC-1: ... -->
 - [ ] <!-- AC-2: ... -->
 
+## Governing Specs
+
+<!-- Spec or group IDs this feature must satisfy (e.g. CS-02-003, EM-04), if
+     known. Maintainers complete this line before the issue is worked. -->
+Governing specs:
+
 ## Alternatives Considered
 
 <!-- Other approaches you evaluated and why this one is preferred. -->
