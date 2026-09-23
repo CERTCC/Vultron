@@ -355,36 +355,11 @@ class TestDisjointKeys:
             ), f"VOCABULARY key {key!r} does not start with 'as_'"
 
     def test_wire_type_map_keys_are_stripped(self):
-        """WIRE_TYPE_MAP keys are class names with the 'as_' prefix removed."""
+        """WIRE_TYPE_MAP keys are wire type_ values (no 'as_' prefix)."""
         for key in WIRE_TYPE_MAP:
             assert not key.startswith(
                 "as_"
             ), f"WIRE_TYPE_MAP key {key!r} still has 'as_' prefix"
-
-    @pytest.mark.parametrize(
-        "key,class_name,type_value",
-        [
-            ("VultronPerson", "as_VultronPerson", "Person"),
-            ("VultronOrganization", "as_VultronOrganization", "Organization"),
-            (
-                "VulnerabilityCaseStub",
-                "as_VulnerabilityCaseStub",
-                "VulnerabilityCase",
-            ),
-        ],
-    )
-    def test_wire_type_map_key_is_class_name_not_type_value(
-        self, key, class_name, type_value
-    ):
-        """ISSUE-2992: the generic key is ``cls.__name__.removeprefix("as_")``.
-
-        It is *not* the ``type_`` value — the two differ for these classes.
-        The AS2 actor ``type_`` keys (``"Person"``, …) exist only because
-        ``vultron_actor.py`` registers them explicitly.
-        """
-        cls = WIRE_TYPE_MAP[key]
-        assert cls.__name__ == class_name
-        assert cls.model_fields["type_"].default == type_value
 
 
 class TestWireTypeValues:

@@ -287,12 +287,11 @@ Design decisions and migration path for the AS2 vocabulary registry refactor:
 auto-registration via `__init_subclass__`, flat registry dict, `VocabNamespace`
 enum, fail-fast on unknown types, and dynamic discovery at startup. Operating
 rules are in `vultron/wire/as2/vocab/AGENTS.md`. `VOCABULARY` (keyed by full
-`as_*` class name) and `WIRE_TYPE_MAP` (keyed by class name minus `as_`, not by
-`type_`) are disjoint, so a core type's wire counterpart is resolved through
-`WIRE_TYPE_MAP`, never by name coincidence (ARCH-23-002). The declarative
-pairing registry that was to supersede both lookups (ARCH-23-001, issue #2937)
-is **cancelled by ADR-0099** — with one class per concept there is no pair to
-record.
+`as_*` class name) and `WIRE_TYPE_MAP` (keyed by wire `type_` value) are
+disjoint, so a core type's wire counterpart is resolved through `WIRE_TYPE_MAP`,
+never by name coincidence (ARCH-23-002). The declarative pairing registry that
+was to supersede both lookups (ARCH-23-001, issue #2937) is **cancelled by
+ADR-0099** — with one class per concept there is no pair to record.
 **Load when**: adding new vocabulary classes, debugging deserialization failures,
 resolving a core type's wire counterpart, or planning the
 `@activitystreams_object` decorator removal migration.

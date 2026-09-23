@@ -102,8 +102,7 @@ def is_wire_type_alias(cls: type) -> bool:
 def find_in_vocabulary(item_name: str) -> type[BaseModel]:
     """Find a class in the vocabulary by type name.
 
-    Checks ``WIRE_TYPE_MAP`` (keyed by class name minus ``as_``, plus the
-    explicit AS2 actor ``type_`` keys) first, then
+    Checks ``WIRE_TYPE_MAP`` (keyed by wire ``type_`` value) first, then
     ``VOCABULARY`` (keyed by full wire class name), then falls back to the
     core ``CORE_TYPE_MAP`` (via :func:`find_in_core_type_map`) for types
     that belong to the core domain layer (ARCH-12-003).
