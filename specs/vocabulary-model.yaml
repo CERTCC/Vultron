@@ -44,27 +44,22 @@ groups:
     priority: MUST
     kind: project
     statement: >-
-      The `VOCABULARY` registry MUST be keyed by a stable identifier derived from the wire
-      class name, and MUST map each such key to its corresponding vocabulary class.  The
-      registry key is an internal lookup concern and MUST NOT be assumed equal to the AS2
-      `type` field value emitted on the wire; deserialization MUST resolve an inbound
-      `"type": "..."` value through the declared key mapping rather than by treating the
-      value as the key directly.  Registry keys MUST be disjoint from core vocabulary keys
-      (ARCH-23-002).
+      The `VOCABULARY` registry MUST be keyed by the full wire class name (`as_VultronPerson`),
+      and MUST map each such key to that class.  A `VOCABULARY` key is a class-name lookup and
+      MUST NOT be read as an AS2 `type` value; resolving an inbound `"type": "..."` value is
+      `WIRE_TYPE_MAP`'s job (VM-01-007).  `VOCABULARY` keys MUST be disjoint from core
+      vocabulary keys (ARCH-23-002).
     rationale: >-
-      This requirement previously stated that the key *is* the AS2 `type` value.  That was
-      only accidentally true, and already false for the five actor types: `as_VultronPerson`
-      auto-registers under `VultronPerson` (derived from its class name via
-      `cls.__name__.removeprefix("as_")`) and is *also* explicitly assigned to the key
-      `Person`, which is the value that appears on the wire.  Stating that the key and the
-      wire value are the same string made the bare-name collision with `CORE_VOCABULARY`
-      look mandatory, when in fact nothing about the external protocol requires it — see
-      ARCH-23-003, which holds serialized output invariant under any key change.
+      The two registries answer different questions, so they carry different key forms:
+      `VOCABULARY` answers "which class is named this?", `WIRE_TYPE_MAP` answers "which class
+      does this wire `type` value deserialize to?" (VM-01-007).  The class-name form is what
+      keeps these keys disjoint from `CORE_VOCABULARY`, so no wire class shadows a core type.
+      The `as_` prefix is never part of an AS2 `type` value, so nothing external depends on
+      this key form (ARCH-23-003).
     verification: >-
-      A test asserts that every `VOCABULARY` key is the class-name-derived identifier for its
-      registered class; that resolving an inbound `"type"` value goes through the declared key
-      mapping rather than treating the value as the key, so `{"type": "Person"}` deserializes to
-      `as_VultronPerson` even though its derived key is `VultronPerson`; and that
+      `test/architecture/test_vocab_registry_keys.py` asserts every `VOCABULARY` key equals its
+      registered class's `__name__`, behind the same population guard the `WIRE_TYPE_MAP` ratchets
+      use.  A test in `test/wire/as2/vocab/base/test_registry.py` asserts
       `set(VOCABULARY) & set(CORE_VOCABULARY) == set()` once both registries are fully populated
       (ARCH-23-002).
     adr:
@@ -72,7 +67,7 @@ groups:
     relationships:
     - rel_type: depends_on
       spec_id: ARCH-23-002
-      note: Disjoint wire and core registry keys are what this requirement's key-independence permits.
+      note: Disjoint wire and core registry keys are what this requirement's key form delivers.
   - id: VM-01-005
     priority: MUST
     kind: project
@@ -86,6 +81,36 @@ groups:
     kind: project
     statement: 'A `VocabNamespace` enum (values: `AS`, `VULTRON`) MUST be defined in `vultron/wire/as2/vocab/base/enums.py`
       and used to annotate the provenance of each vocabulary class'
+  - id: VM-01-007
+    priority: MUST
+    kind: project
+    statement: >-
+      The `WIRE_TYPE_MAP` registry MUST be keyed by the wire `type` value the registered class
+      emits — its declared `type_` default, or, absent one, its class name with the `as_` prefix
+      removed, matching what VM-03-001 assigns at construction.  A class MUST NOT be registered
+      under its class name when that name is not the `type` value it emits.  Exactly one class
+      MUST own a given `type` value: a class that shares another's `type` value MUST declare
+      itself an alias (`_wire_type_alias = True`) and MUST NOT hold a `WIRE_TYPE_MAP` key, while
+      remaining reachable by class name through `VOCABULARY` (VM-01-004).
+    rationale: >-
+      A key that is no object's `type` value is unreachable from the wire, and it lets a caller
+      holding a *class* name resolve a wire class by name coincidence, which ARCH-23-001 forbids
+      — `as_VultronPerson` formerly registered under `VultronPerson`, which is also a core type's
+      name.  Deriving the key from the emitted value removes both hazards and puts the registry
+      key and the generated JSON-LD term (VM-10-002) on one rule instead of two.
+    verification: >-
+      `test/architecture/test_vocab_registry_keys.py` forces full registration, then asserts every
+      `WIRE_TYPE_MAP` key equals `wire_type_value()` of its registered class, that every declared
+      wire `type` value resolves to some registered class, and that no class declaring
+      `_wire_type_alias` holds a key.  A population guard precedes them, since registration is an
+      import side effect (VM-01-005) and the assertions would otherwise pass vacuously.
+    relationships:
+    - rel_type: depends_on
+      spec_id: VM-03-001
+      note: The class-name fallback must match the value `set_type_from_class_name` assigns.
+    - rel_type: depends_on
+      spec_id: VM-01-005
+      note: Import-time registration is why the verification must force population first.
 - id: VM-02
   title: Base Model Configuration
   specs:

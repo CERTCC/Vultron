@@ -11,13 +11,24 @@
    `@activitystreams_activity` decorators. Registration is automatic via
    `as_Base.__init_subclass__` when a class sets `type_` to `Literal[...]`.
 
-2. `find_in_vocabulary()` checks `VOCABULARY` first, then falls back to
-   `CORE_TYPE_MAP` (core domain types that MUST NOT appear in the wire
+2. `find_in_vocabulary()` checks `WIRE_TYPE_MAP`, then `VOCABULARY`, then falls
+   back to `CORE_TYPE_MAP` (core domain types that MUST NOT appear in the wire
    `VOCABULARY` per ARCH-12-003). It MUST raise `KeyError` for names not
-   found in either registry — never return `None`. Callers that previously
+   found in any registry — never return `None`. Callers that previously
    checked `if vocab_cls is not None` must use `try/except KeyError` instead.
    Do NOT add core-layer types to `VOCABULARY` as a workaround for a
    missing lookup — fix the registration in `CORE_TYPE_MAP` instead.
+
+3. The two registries carry **different key forms and you MUST NOT mix them**:
+   `VOCABULARY` is keyed by wire class name (`as_VultronPerson`, VM-01-004),
+   `WIRE_TYPE_MAP` by the emitted wire `type` value (`Person`, VM-01-007). Both
+   are derived by `as_Base.__init_subclass__` via `wire_type_value()` — do not
+   hand-assign a `WIRE_TYPE_MAP` key. The sole exception is `as_Actor`, which
+   declares no `type_` of its own (so auto-registration skips it) yet is stored
+   concretely as `type_="Actor"`. If a new class shares an existing class's
+   `type` value, declare `_wire_type_alias: ClassVar[bool] = True` on it rather
+   than letting import order decide who owns the key; it stays reachable through
+   `VOCABULARY`. Ratchet: `test/architecture/test_vocab_registry_keys.py`.
 
 ## `as_Object.model_config` Is Load-Bearing — Do Not Remove It
 

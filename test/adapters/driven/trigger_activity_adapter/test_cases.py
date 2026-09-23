@@ -14,6 +14,7 @@
 """Unit tests for TriggerActivityAdapter case-domain methods."""
 
 import json
+from typing import ClassVar
 from unittest.mock import patch
 
 import pytest
@@ -206,6 +207,13 @@ class TestAddObjectToCaseConversionBranch:
         core_obj = VulnerabilityCase(attributed_to=_ACTOR)
 
         class _BrokenWireClass(as_VultronObject):
+            # Declared an alias so defining this stand-in does not take
+            # as_VulnerabilityCase's WIRE_TYPE_MAP key for the rest of the
+            # session: registration is process-global and a class defined in a
+            # test body cannot be unregistered (VM-01-007). The adapter receives
+            # it by patching find_in_vocabulary, not through the registry.
+            _wire_type_alias: ClassVar[bool] = True
+
             type_: str = "VulnerabilityCase"
 
             @classmethod
