@@ -32,6 +32,7 @@ Source: ISSUE-3570.
 
 from __future__ import annotations
 
+import re
 import tomllib
 
 import pytest
@@ -42,6 +43,23 @@ _REPO_ROOT = _corpus.REPO_ROOT
 _PYPROJECT = _REPO_ROOT / "pyproject.toml"
 
 RETIRED_RDF_LIBRARIES = ("rdflib", "owlready2")
+
+# A PEP 508 name ends at the first extras, version, marker or URL delimiter.
+_REQUIREMENT_NAME_END = re.compile(r"[\s\[<>=!~;@(]")
+
+
+def _dependency_name(entry: str) -> str:
+    """Return the normalized project name of a PEP 508 requirement string."""
+    name = _REQUIREMENT_NAME_END.split(entry.strip(), maxsplit=1)[0]
+    return re.sub(r"[-_.]+", "-", name).lower()
+
+
+def _imports(library: str, source: str) -> bool:
+    """Return True if *source* has an ``import``/``from`` statement for *library*."""
+    pattern = re.compile(
+        rf"^\s*(?:import|from)\s+{re.escape(library)}\b", re.MULTILINE
+    )
+    return pattern.search(source) is not None
 
 
 def _declared_dependencies() -> list[str]:
@@ -72,7 +90,7 @@ def test_rdf_library_is_not_a_declared_dependency(library: str):
     offenders = [
         entry
         for entry in _declared_dependencies()
-        if entry.split("[")[0].split(">")[0].split("=")[0].strip() == library
+        if _dependency_name(entry) == library
     ]
     assert not offenders, (
         f"'{library}' is declared in pyproject.toml as {offenders}. It was "
@@ -93,19 +111,55 @@ def test_rdf_library_is_not_imported(library: str):
         str(path.relative_to(_REPO_ROOT))
         for directory in ("vultron", "test")
         for path, source in _corpus.sources_mentioning(
-            f"import {library}", under=_REPO_ROOT / directory
+            f"import {library}",
+            f"from {library}",
+            under=_REPO_ROOT / directory,
         )
         # This file names both libraries in prose and in its own assertions, so
         # match import statements at line starts rather than the bare substring.
-        if any(
-            line.strip().startswith((f"import {library}", f"from {library}"))
-            for line in source.splitlines()
-        )
+        if _imports(library, source)
     )
     assert not offenders, (
         f"'{library}' is imported by {offenders}, but it is no longer a "
         "dependency, so those modules cannot run (IMPLTS-06-003)."
     )
+
+
+@pytest.mark.parametrize(
+    "entry",
+    [
+        "rdflib>=7.2.1",
+        "rdflib~=7.0",
+        "rdflib<8",
+        "RDFLib>=7",
+        "rdflib ; python_version > '3'",
+        "rdflib[sparql]>=7",
+        "rdflib",
+    ],
+)
+def test_dependency_name_parses_every_specifier_form(entry: str):
+    """Negative control: no PEP 508 spelling of a retired name slips past."""
+    assert _dependency_name(entry) == "rdflib"
+
+
+@pytest.mark.parametrize(
+    "source",
+    [
+        "import rdflib\n",
+        "from rdflib import Graph\n",
+        "from rdflib.namespace import RDF\n",
+        "def f():\n    from rdflib import Graph\n",
+        "import rdflib as rdf\n",
+    ],
+)
+def test_import_detection_catches_every_import_form(source: str):
+    """Negative control: both statement forms are caught, not only ``import``."""
+    assert _imports("rdflib", source)
+
+
+def test_import_detection_ignores_prose_and_lookalikes():
+    assert not _imports("rdflib", '"""Mentions rdflib in prose."""\n')
+    assert not _imports("rdflib", "import rdflibx\n")
 
 
 def test_ontology_ttl_files_are_retained():

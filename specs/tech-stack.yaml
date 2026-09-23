@@ -480,8 +480,9 @@ groups:
       both dependencies were removed in #3570. Reintroducing either means
       reopening the question of whether the ontology is a maintained artifact.
     verification: >-
-      `grep -r "rdflib\|owlready2" pyproject.toml vultron/ test/` returns no
-      matches.
+      `test/architecture/test_no_rdf_dependencies.py` fails if either library
+      is declared in any `pyproject.toml` dependency group or imported by any
+      module under `vultron/` or `test/`.
   - id: IMPLTS-06-004
     priority: MAY
     kind: project

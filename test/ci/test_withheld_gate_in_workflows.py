@@ -28,6 +28,7 @@ MKDOCS_BUILD = "mkdocs build"
 UPLOAD_PAGES_ACTION = "actions/upload-pages-artifact"
 
 
+# Parsed workflow YAML is untyped by nature; ``Any`` here is the YAML boundary.
 def _load_workflow(path: Path) -> dict[str, Any]:
     data = yaml.safe_load(path.read_text(encoding="utf-8"))
     return data if isinstance(data, dict) else {}
@@ -101,6 +102,33 @@ def test_withheld_gate_runs_after_the_build(workflow: Path):
         f"In {workflow.name} the '{WITHHELD_COMMAND}' step precedes "
         "'mkdocs build', so it would fail on an absent site/ rather than "
         "checking the build's output."
+    )
+
+
+@pytest.mark.parametrize(
+    "workflow",
+    _site_building_workflows(),
+    ids=lambda p: p.name,
+)
+def test_withheld_gate_is_not_neutered(workflow: Path):
+    """DOCBW-03-005: the step must be able to fail the workflow.
+
+    A correctly ordered step that is skipped by an ``if:`` or whose failure is
+    swallowed by ``continue-on-error`` satisfies every ordering check above
+    while gating nothing.
+    """
+    steps = _steps(_load_workflow(workflow))
+    gate = _index_of(steps, WITHHELD_COMMAND, "run")
+    assert gate is not None
+    step = steps[gate]
+    assert "if" not in step, (
+        f"The '{WITHHELD_COMMAND}' step in {workflow.name} is conditional "
+        f"(if: {step['if']!r}), so it can be skipped (DOCBW-03-005)."
+    )
+    assert not step.get("continue-on-error", False), (
+        f"The '{WITHHELD_COMMAND}' step in {workflow.name} sets "
+        "continue-on-error, so a withheld artifact would not fail the "
+        "workflow (DOCBW-03-005)."
     )
 
 
