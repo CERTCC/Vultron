@@ -261,6 +261,11 @@ class TestAddObjectToCaseConversionBranch:
         core_obj = VulnerabilityCase(attributed_to=_ACTOR)
 
         class _NotFoundWireClass(as_VultronObject):
+            # An alias for the same reason as _BrokenWireClass above: without
+            # it this stand-in takes as_VulnerabilityCase's WIRE_TYPE_MAP key
+            # for the rest of the session (VM-01-008).
+            _wire_type_alias: ClassVar[bool] = True
+
             type_: str = "VulnerabilityCase"
 
             @classmethod

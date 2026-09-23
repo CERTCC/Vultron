@@ -3,8 +3,8 @@
 {% include-markdown "../../includes/not_normative.md" %}
 
 The Vultron protocol can be mapped onto the [ActivityPub](https://www.w3.org/TR/activitypub/){:target="_blank"}
-protocol. This mapping is described in the
-[Vultron ActivityStreams Ontology](../../reference/ontology/vultron_as.md).
+protocol. This mapping is described in
+[Message Types](../../reference/messages/index.md).
 
 This section provides examples of how the Vultron protocol
 message types can be represented as ActivityPub messages using the

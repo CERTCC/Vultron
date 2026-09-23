@@ -11,6 +11,7 @@ tags:
 shell: "zsh"
 commands:
   - ".github/scripts/mkdocs-build-strict.sh"
+  - "uv run docs-withheld"
 inputs:
   - name: repo_root
     description: "Repository root where the command will be executed"
@@ -64,7 +65,19 @@ still reported and must be fixed.
 2. Fix all reported real issues in the `docs/` files and re-run the command until
    it exits with code 0.
 
-3. Stage changes only after the build exits cleanly with zero code.
+3. Check the publication axis against the site the previous step just built:
+
+```bash
+PYTHONPATH='' uv run docs-withheld
+```
+
+   This fails when an artifact the project declared withheld produced files in
+   `site/` (DOCBW-03-005). It reads the built tree, so it only means anything
+   after step 1 succeeded. Both the pull-request workflow and `deploy_site.yml`
+   run the same check, so a failure here is a failure that would have blocked
+   the deploy.
+
+1. Stage changes only after both commands exit cleanly with zero code.
 
 ## Constraints / Rules
 
@@ -77,6 +90,8 @@ still reported and must be fixed.
   - Invalid markdown: syntax errors that prevent proper parsing
 - Validate links using `markdownlint-cli2` BEFORE running the build script
   to catch markdown syntax issues early.
+- Run `docs-withheld` AFTER the build script, never before: it reads `site/`,
+  and it fails rather than passes when that directory is absent or empty.
 
 ## Examples
 
