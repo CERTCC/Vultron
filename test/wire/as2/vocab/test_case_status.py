@@ -41,10 +41,18 @@ ACTOR_ID = "https://example.org/actors/alice"
 class TestCaseStatusContextField(unittest.TestCase):
     """Tests for as_CaseStatus.context empty-string validation (CS-08-001)."""
 
-    def test_context_none_accepted(self):
-        """context=None is valid (optional field)."""
-        cs = as_CaseStatus(context=None)
-        self.assertIsNone(cs.context)
+    def test_context_is_required(self):
+        """context is required: a status with no case is not a protocol object.
+
+        This asserted the opposite — that ``context=None`` was valid — because the
+        deleted wire class was deliberately lenient (ARCH-12-002 made the wire
+        branch accept anything so a malformed peer message could still be parsed
+        and reported). ADR-0099 detail 3 leaves only the core class, which is
+        fail-fast (ARCH-10-001): ``context`` names the case the status belongs to,
+        and a status belonging to no case cannot be acted on.
+        """
+        with pytest.raises(ValidationError):
+            as_CaseStatus(context=None)  # type: ignore[arg-type]
 
     def test_context_non_empty_accepted(self):
         """context with a non-empty string (case ID) is valid."""
@@ -98,15 +106,27 @@ class TestParticipantStatusTrackingIdField(unittest.TestCase):
         assert "must be a non-empty string" in str(exc_info.value)
 
 
-class TestFromCorePreservesPublished(unittest.TestCase):
-    """from_core must not regenerate published (regression: issue #2511)."""
+class TestAs2RoundTripPreservesPublished(unittest.TestCase):
+    """An AS2 round-trip must not regenerate published (regression: #2511).
+
+    This tested ``as_CaseStatus.from_core(core)``. There is no ``from_core`` after
+    ADR-0099 detail 3 — the wire class *is* the core class — so the projection this
+    guarded cannot regenerate anything.
+
+    The risk #2511 describes survives the collapse in a different place: a
+    ``published`` timestamp has a ``default_factory``, so any path that rebuilds an
+    object from a payload can quietly stamp "now" over the original. Serialising to
+    AS2 and reading it back is that path now, so that is what is asserted.
+    """
 
     _FIXED_TIME = datetime(2020, 1, 1, 0, 0, 0, tzinfo=timezone.utc)
 
-    def test_as_case_status_from_core_preserves_published(self):
+    def test_as2_round_trip_preserves_published(self):
         core = CoreCaseStatus(context=CASE_ID, published=self._FIXED_TIME)
-        wire = as_CaseStatus.from_core(core)
-        self.assertEqual(self._FIXED_TIME, wire.published)
+        rebuilt = as_CaseStatus.model_validate(
+            core.model_dump(by_alias=True, mode="json")
+        )
+        self.assertEqual(self._FIXED_TIME, rebuilt.published)
 
 
 class TestCoerceUnknownEnumNames(unittest.TestCase):
@@ -159,30 +179,38 @@ class TestCoerceUnknownEnumNames(unittest.TestCase):
             )
 
 
-class TestFromCorePreservesFields(unittest.TestCase):
-    """from_core must preserve published and cvd_role (regression: issue #2511)."""
+class TestAs2RoundTripPreservesFields(unittest.TestCase):
+    """An AS2 round-trip must preserve published and cvd_role (#2511).
+
+    The ``from_core`` counterpart of ``TestAs2RoundTripPreservesPublished`` — see
+    that docstring for why the projection these guarded no longer exists and why
+    the round-trip is the successor path.
+    """
 
     _FIXED_TIME = datetime(2020, 1, 1, 0, 0, 0, tzinfo=timezone.utc)
 
-    def test_as_participant_status_from_core_preserves_published(self):
+    def test_as2_round_trip_preserves_published(self):
         core = CoreParticipantStatus(
             context=CASE_ID,
             attributed_to=ACTOR_ID,
             published=self._FIXED_TIME,
         )
-        wire = as_ParticipantStatus.from_core(core)
-        self.assertEqual(self._FIXED_TIME, wire.published)
+        rebuilt = as_ParticipantStatus.model_validate(
+            core.model_dump(by_alias=True, mode="json")
+        )
+        self.assertEqual(self._FIXED_TIME, rebuilt.published)
 
-    def test_as_participant_status_from_core_preserves_cvd_role(self):
-        """model_dump() produces cvd_role (snake_case); verify it round-trips."""
+    def test_as2_round_trip_preserves_cvd_role(self):
         expected_roles = [CVDRole.FINDER, CVDRole.REPORTER]
         core = CoreParticipantStatus(
             context=CASE_ID,
             attributed_to=ACTOR_ID,
             cvd_role=expected_roles,
         )
-        wire = as_ParticipantStatus.from_core(core)
-        self.assertEqual(expected_roles, wire.cvd_role)
+        rebuilt = as_ParticipantStatus.model_validate(
+            core.model_dump(by_alias=True, mode="json")
+        )
+        self.assertEqual(expected_roles, rebuilt.cvd_role)
 
 
 class TestRetiredVfdKeyRejection(unittest.TestCase):
@@ -238,7 +266,8 @@ class TestParticipantStatusLegacyPecMigration(unittest.TestCase):
                 "emConsentState": "NO_EMBARGO",
             }
         )
-        self.assertEqual(ps.em_consent_state, PEC.UNBOUND)
+        # The dimension owns the state; ``consent.state`` is where it lands.
+        self.assertEqual(ps.consent.state, PEC.UNBOUND)
 
 
 if __name__ == "__main__":
