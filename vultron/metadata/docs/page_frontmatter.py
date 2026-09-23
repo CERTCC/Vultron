@@ -18,7 +18,7 @@ Every ``docs/**/*.md`` file is one of three things:
 * a **reader-facing page** — everything else. It declares both keys
   (DF-11-001).
 
-A page included only between ``start=``/``end=`` markers (a user story on its
+A page included only from a ``start=`` marker (a user story on its
 traceability page, a worked example quoted by the specification's annexes) is
 still a page: it has a URL and readers of its own. A page included *whole* has
 its frontmatter copied into its host, which would render its declarations
@@ -26,9 +26,10 @@ there (DF-11-004), so such a page that declares either key is reported too.
 
 Pages that declare nothing yet are listed in :data:`BASELINE_PATH`. A page in
 the baseline is tolerated; an undeclared page that is not is a failure, and so
-is a baseline entry that no longer names an undeclared page. The baseline can
-therefore only shrink, which lets this check land before the content audit
-(#3526) assigns values to the whole tree.
+is a baseline entry that no longer names an undeclared page. ``--prune-baseline``
+only removes entries, and a test pins the entry count to a ceiling that may only
+be lowered, so the baseline shrinks and never grows. That lets this check land
+before the content audit (#3526) assigns values to the whole tree.
 
 Usage::
 
@@ -73,8 +74,9 @@ _BASELINE_HEADER = """\
 #
 # Maintained by vultron.metadata.docs.page_frontmatter (DF-11-001). This list
 # may only shrink: a page not listed here must declare both keys, and a listed
-# page that now declares them must be removed — run
-# `uv run docs-frontmatter --prune-baseline`. Do not add entries by hand.
+# page that now declares them, or is deleted or renamed, must be removed — run
+# `uv run docs-frontmatter --prune-baseline`. Do not add entries by hand;
+# test_page_frontmatter.py pins a ceiling on the entry count.
 """
 
 # ``{% include-markdown "path" ... %}`` and the plugin's plain ``include``.
@@ -83,7 +85,9 @@ _INCLUDE_RE = re.compile(
     r"(?P<opts>.*?)-?%\}",
     re.DOTALL,
 )
-_MARKER_OPTION_RE = re.compile(r"\b(?:start|end)\s*=")
+# Only ``start=`` skips the top of the file. An include with just ``end=``
+# copies from line 1, frontmatter included, so it is still a whole include.
+_START_OPTION_RE = re.compile(r"\bstart\s*=")
 _TOP_LEVEL_KEY_RE = re.compile(r"^([A-Za-z_][\w-]*)\s*:")
 
 
@@ -139,7 +143,7 @@ def _include_targets(docs_dir: Path) -> dict[str, dict[str, bool]]:
                 if any(c in spec for c in "*?[")
                 else [base / spec]
             )
-            whole = not _MARKER_OPTION_RE.search(match.group("opts"))
+            whole = not _START_OPTION_RE.search(match.group("opts"))
             for candidate in candidates:
                 resolved = candidate.resolve()
                 if (
@@ -351,7 +355,9 @@ def check_docs_frontmatter(
         with collector.attempt():
             raise MetadataLoadError(
                 f"listed in {BASELINE_PATH.name} but is no longer a page "
-                f"under docs/; run `uv run docs-frontmatter --prune-baseline`",
+                f"under docs/; deleting or renaming a baselined page needs "
+                f"`uv run docs-frontmatter --prune-baseline` in the same "
+                f"commit",
                 path=shown(rel),
             )
 

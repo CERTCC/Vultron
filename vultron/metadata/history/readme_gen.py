@@ -18,8 +18,10 @@ import datetime
 from dataclasses import dataclass, field
 from pathlib import Path
 
+from vultron.metadata.base import repo_root
 from vultron.metadata.file_loading import (
     MetadataLoadError,
+    display_path,
     load_frontmatter,
     validate,
 )
@@ -49,19 +51,26 @@ def _parse_entry(path: Path) -> _EntryMeta:
         ValueError: If the frontmatter is malformed, missing, or fails
             required-field validation (HM-02-001, HM-06-002).
     """
-    post = load_frontmatter(path)
+    # Callers hand in absolute month directories; show the entry relative to
+    # its checkout (MS-17-001), or as given when it lies outside one.
+    try:
+        root: Path | None = repo_root(path.parent)
+    except FileNotFoundError:
+        root = None
+    post = load_frontmatter(path, root=root)
 
     if not post.metadata:
         raise MetadataLoadError(
             "missing frontmatter block — entry must begin with a YAML "
             "frontmatter block containing title, type, timestamp, and source",
-            path=str(path),
+            path=display_path(path, root),
         )
 
     meta = validate(
         HistoryEntryFrontmatter,
         post.metadata,
         path=path,
+        root=root,
         prefix="invalid history frontmatter",
     )
 

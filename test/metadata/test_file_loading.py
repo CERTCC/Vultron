@@ -333,6 +333,19 @@ class TestHistoryLoaders:
         ):
             _parse_entry(path)
 
+    def test_readme_entry_is_shown_relative_to_its_checkout(self, tmp_path):
+        """Callers pass absolute month directories (MS-17-001)."""
+        (tmp_path / "pyproject.toml").write_text("")
+        path = _write(
+            tmp_path / "plan" / "history" / "2609" / "e.md",
+            _ENTRY.replace("ISSUE-1", ""),
+        )
+
+        with pytest.raises(MetadataLoadError) as info:
+            _parse_entry(path)
+
+        assert info.value.path == "plan/history/2609/e.md"
+
     def test_cli_no_path_form(self):
         with pytest.raises(ValueError) as info:
             _validate_frontmatter("---\n" + _UNQUOTED_COLON + "---\n")

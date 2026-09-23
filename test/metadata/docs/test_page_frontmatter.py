@@ -212,6 +212,10 @@ def _repo(tmp_path: Path, files: dict[str, str], nav=None, auto_append=None):
     return tmp_path
 
 
+#: The committed baseline's entry count may only fall. Lower this when
+#: ``--prune-baseline`` shrinks the file; raising it defeats AC-3a of #3525.
+_BASELINE_CEILING = 473
+
 _READER = _page("[cvd-practitioner]", "100")
 _RECORD = _page("[project-contributor]")
 
@@ -337,6 +341,21 @@ class TestBaseline:
         assert removed == 2
         assert read_baseline(baseline) == {"todo.md"}
 
+    def test_committed_baseline_never_grows(self):
+        """AC-3a: the baseline only shrinks.
+
+        Nothing else stops a new undeclared page from being tolerated by
+        adding its path to the file. When pages gain declarations and the
+        baseline is pruned, lower the ceiling to the new count; never raise it.
+        """
+        count = len(read_baseline())
+
+        assert count <= _BASELINE_CEILING, (
+            f"{page_frontmatter.BASELINE_PATH.name} has {count} entries, above "
+            f"its ceiling of {_BASELINE_CEILING}. Declare stakeholder_type and "
+            f"level on the new page instead of baselining it (DF-11-001)."
+        )
+
     def test_committed_baseline_is_sorted_and_has_its_header(self):
         text = page_frontmatter.BASELINE_PATH.read_text(encoding="utf-8")
         entries = [
@@ -410,6 +429,19 @@ class TestFragments:
 
         assert "story.md" in classify_docs_tree(root).pages
 
+    def test_end_only_include_is_still_whole(self, tmp_path):
+        """Without ``start=`` the include copies from line 1, frontmatter too."""
+        root = _repo(
+            tmp_path,
+            {
+                "index.md": _READER
+                + '{% include-markdown "./_f.md" end="<!-- e -->" %}\n',
+                "_f.md": "Body.\n<!-- e -->\n",
+            },
+        )
+
+        assert "_f.md" in classify_docs_tree(root).fragments
+
     def test_declaring_page_included_whole_is_reported(self, tmp_path):
         """Its frontmatter would render into the host (DF-11-004)."""
         root = _repo(
@@ -448,7 +480,18 @@ def test_cli_reports_failures_without_a_traceback(
     assert "docs/index.md:2:9" in err
 
 
-def test_pre_commit_hook_runs_on_every_docs_page():
+@pytest.mark.parametrize(
+    "changed",
+    [
+        "docs/tutorials/deep/page.md",
+        "mkdocs.yml",
+        "vultron/metadata/docs/page_frontmatter_baseline.txt",
+        "vultron/metadata/docs/page_schema.py",
+        "vultron/metadata/base.py",
+        "vultron/metadata/file_loading.py",
+    ],
+)
+def test_pre_commit_hook_runs_on_every_input(changed):
     config = yaml.safe_load(
         (repo_root() / ".pre-commit-config.yaml").read_text(encoding="utf-8")
     )
@@ -461,7 +504,7 @@ def test_pre_commit_hook_runs_on_every_docs_page():
 
     assert "vultron.metadata.docs.page_frontmatter" in hook["entry"]
     assert hook["pass_filenames"] is False
-    assert re.search(hook["files"], "docs/tutorials/deep/page.md")
+    assert re.search(hook["files"], changed)
 
 
 @pytest.mark.spec("DF-11-001")
