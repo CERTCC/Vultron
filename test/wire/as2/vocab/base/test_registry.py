@@ -203,6 +203,31 @@ class TestDynamicDiscovery:
         assert VOCABULARY["as_VulnerabilityReport"] is as_VulnerabilityReport
         assert VOCABULARY["as_VulnerabilityCase"] is as_VulnerabilityCase
 
+    def test_case_stub_does_not_claim_the_case_wire_type_key(self):
+        """VM-01-008: an alias class holds no key of its own (issue #2982).
+
+        ``as_VulnerabilityCaseStub`` emits ``type: "VulnerabilityCase"``, so the
+        key belongs to ``as_VulnerabilityCase``. It used to also register under
+        ``VulnerabilityCaseStub`` — a key no payload carries, which is why
+        ``docs/ns/context.jsonld`` correctly grants the stub no term of its own.
+        """
+        import vultron.wire.as2.vocab  # noqa: F401 — dynamic discovery
+
+        from vultron.wire.as2.vocab.base.registry import wire_type_value
+        from vultron.wire.as2.vocab.objects.vulnerability_case import (
+            as_VulnerabilityCase,
+            as_VulnerabilityCaseStub,
+        )
+
+        assert wire_type_value(as_VulnerabilityCaseStub) == "VulnerabilityCase"
+        assert "VulnerabilityCaseStub" not in WIRE_TYPE_MAP
+        assert WIRE_TYPE_MAP["VulnerabilityCase"] is as_VulnerabilityCase
+
+        # The stub stays reachable by class name through VOCABULARY.
+        assert (
+            VOCABULARY["as_VulnerabilityCaseStub"] is as_VulnerabilityCaseStub
+        )
+
 
 class TestCoreTypeMapFallback:
     """Regression tests for ARCH-12-003 / issue #1992.

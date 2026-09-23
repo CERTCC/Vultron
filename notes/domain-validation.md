@@ -854,17 +854,38 @@ exception is the correct signal for catching that during development and testing
 
 Source: ISSUE-2668 — port contract clarified and regression test added.
 
-## Pitfall: Pydantic `model_fields` Is Not Available Inside `__init_subclass__`
+## Pitfall: Inside `__init_subclass__`, `model_fields` Reports the *Parent's* Fields
 
-`cls.model_fields` is populated by Pydantic's metaclass *after*
-`__init_subclass__` returns. Accessing it inside `__init_subclass__` returns an
-empty dict for the class being defined (though parent-class fields may be
-present). To inspect a class's own fields at subclass-registration time, read
-`cls.__annotations__` directly for declared annotations, or defer field
-inspection to a `model_post_init` or a class-level
+`cls.model_fields` is rebuilt by Pydantic's metaclass *after*
+`__init_subclass__` returns. Inside it, the dict holds whatever the **parent**
+class had — which is the dangerous part, and worse than the dict being empty:
+
+```python
+class _Child(_Parent):                       # _Parent: type_: str | None = None
+    type_: Literal["ChildProbe"] = Field(default="ChildProbe", ...)
+# inside __init_subclass__:  len(cls.model_fields) == 29
+#                            cls.model_fields["type_"].default is None   ← parent's
+```
+
+So a presence check (`if "type_" in cls.model_fields`) **succeeds** and hands
+back a value that is silently wrong, rather than raising the way an empty dict
+would. Measured on #2982, where `WIRE_TYPE_MAP` keys are derived from the
+declared `type_` default at registration time: reading `model_fields` there gives
+every class its parent's `None` and collapses the whole registry onto the
+class-name fallback.
+
+To inspect a class's **own** declarations at subclass-registration time, read the
+raw class namespace — `cls.__dict__["type_"]` for a declared default (a
+`FieldInfo` when assigned via `Field(...)`, the bare value otherwise) and
+`cls.__dict__["__annotations__"]` for annotations. Note the mirror-image trap:
+Pydantic *strips* field definitions out of `cls.__dict__` once the class is
+built, so after construction only `model_fields` has the answer. Code that must
+work in both contexts needs both paths — see
+`vultron/wire/as2/vocab/base/registry.py::declared_wire_type`. Otherwise defer
+inspection to `model_post_init` or a class-level
 `@model_validator(mode="before")`.
 
-Source: ISSUE-2294
+Source: ISSUE-2294, sharpened by ISSUE-2982
 
 ## Pitfall: `mode="before"` Validators Run in Reverse Definition Order
 
