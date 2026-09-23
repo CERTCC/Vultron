@@ -41,16 +41,38 @@ When `pytest-timeout` kills a test that exceeds the budget, it dumps a stack
 trace and exits non-zero, but the `uv run pytest ... 2>&1 | tail -5` pipeline
 returns `tail`'s exit code (0) and shows dump frames where the `N passed`
 summary line would be. **Absence of a summary line from `tail -5` is the
-signal.** Redirect to a file and check pytest's own exit code:
+signal.** Any pipeline does this — a pipeline's status is its *last* stage's, so
+`| tail`, `| tee … | tail`, `| head`, and `| wc` all mask it equally. Never end a
+gate command with a pipe. Redirect, capture `$?` immediately, then re-raise it:
 
 ```bash
-uv run pytest --tb=short > /tmp/unit.log 2>&1; echo $?
+uv run pytest --tb=short > /tmp/unit.log 2>&1; rc=$?; tail -5 /tmp/unit.log; echo "exit: $rc"; (exit $rc)
 ```
+
+Three details carry the weight, and dropping any one of them re-opens the hole:
+
+- **`rc=$?` directly after the redirected command.** Any command in between —
+  including the `tail` — overwrites `$?`.
+- **`echo` last, after the `tail`.** Otherwise the exit code scrolls above the
+  five tail lines, which is exactly where nobody looks.
+- **`(exit $rc)` at the end.** Without it the *statement* still exits 0, because
+  its status is that of the last command. `echo "exit: $?"` alone makes the code
+  visible to a reader but leaves it invisible to `&&`, to `set -e`, to a CI
+  `run:` step, and to anything consuming a skill's `commands:` frontmatter.
+
+Read the `exit:` line before the tail: it is authoritative. If the redirect
+cannot be opened (read-only `/tmp`, exhausted disk, `noclobber`), the command
+never runs and `tail` prints the *previous* run's passing summary.
 
 The spec-lint test (`test_real_specs_lint_no_hard_errors`) is particularly
 load-sensitive at ~3s against the 5s budget.
 
-Source: ISSUE-2232
+The canonical command lives in
+[`.agents/skills/run-tests/SKILL.md`](../.agents/skills/run-tests/SKILL.md) §
+Constraints, and `test/metadata/test_instruction_command_hygiene.py` fails the
+suite if a masking form reappears in an instruction file.
+
+Source: ISSUE-2232, #3518
 
 ### Per-Test Timeout Guardrail
 
@@ -541,7 +563,7 @@ A mismatch → pytest collects 0 tests (exit code 5). Verify:
 ```bash
 grep -r "old_mark_name" .github/workflows/  # no output
 grep "new_mark_name" pyproject.toml
-uv run pytest -m "new_mark_name" --collect-only 2>&1 | tail -5
+uv run pytest -m "new_mark_name" --collect-only > /tmp/collect.log 2>&1; rc=$?; tail -5 /tmp/collect.log; echo "exit: $rc"; (exit $rc)
 ```
 
 ### Trigger Use Cases Need Per-Use-Case Tests
