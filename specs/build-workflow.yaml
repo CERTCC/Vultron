@@ -8,7 +8,7 @@ description: >-
   narrow by design: findings with a definite owner are routed to a GitHub issue or an
   in-session fix at the moment of discovery, and only unverified general claims and
   spec divergences are queued for batch processing (BW-07).
-version: 3.0.0
+version: 3.1.0
 scope:
   - prototype
   - production
@@ -61,12 +61,23 @@ groups:
         statement: >-
           Each incoming learning file MUST be named `YYYYMMDD-SLUG.md`
           where `YYYYMMDD` is the creation date and `SLUG` is a short
-          uppercase identifier matching the `source` frontmatter field
-          (e.g., `20260622-AST-RATCHET-LAMBDA.md`).
+          lowercase, hyphenated slug describing the observation —
+          conventionally the originating issue number followed by a
+          descriptive phrase (e.g.,
+          `20260918-3399-bt18-has-no-contract-for-a-refusal-carrying-a-payload.md`).
+          `SLUG` MUST NOT be required to equal or derive from the `source`
+          frontmatter field; the link to the originating work item is
+          carried by `source` (BW-02-002). One work item MAY produce several
+          learning files, so each file's `SLUG` MUST be distinct from every
+          other file in the queue sharing its date prefix.
         rationale: >-
           Using individual files instead of a shared flat file eliminates
           merge conflicts when multiple PRs each have an observation to
-          record. The date prefix provides filesystem sort order.
+          record. The date prefix provides filesystem sort order. The slug
+          is descriptive rather than source-derived because a filename keyed
+          on `source` collapses every learning from one work item onto the
+          same name (#1857 — five learnings from #1777 would all have been
+          `20260730-ISSUE-1777.md`).
       - id: BW-01-006
         priority: MUST
         kind: process
