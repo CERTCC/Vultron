@@ -17,6 +17,7 @@ Requirements: BW-02-001 through BW-02-004.
 
 from __future__ import annotations
 
+import sys
 from pathlib import Path
 
 import frontmatter
@@ -41,28 +42,20 @@ def _describe(exc: Exception) -> str:
     return f"{type(exc).__name__}: {exc}"
 
 
-def validate_incoming_learnings(
+def _collect_incoming_learnings(
     repo_root: Path | None = None,
-) -> dict[str, HistoryEntryFrontmatter]:
-    """Validate every incoming learning file's frontmatter.
+) -> tuple[dict[str, HistoryEntryFrontmatter], list[str]]:
+    """Parse every incoming learning, returning what validated and what did not.
 
-    Args:
-        repo_root: Repository root.  Resolved automatically when ``None``.
-
-    Returns:
-        Mapping of filename to its parsed frontmatter, for the files that
-        validated.
-
-    Raises:
-        ValueError: If any file fails to parse or validate.  The message lists
-            every offending file so a contributor fixes them in one pass
-            rather than one commit at a time.
+    Split out from :func:`validate_incoming_learnings` so a reader that only
+    wants the usable entries — ``learnings-index`` — can report the failures
+    without losing the rest of the directory to an exception.
     """
     root = repo_root or _find_repo_root()
     directory = root / LEARNINGS_DIR
 
     if not directory.is_dir():
-        return {}
+        return {}, []
 
     validated: dict[str, HistoryEntryFrontmatter] = {}
     failures: list[str] = []
@@ -86,21 +79,46 @@ def validate_incoming_learnings(
         except ValidationError as exc:
             failures.append(f"  {path.name}: {_describe(exc)}")
 
-    if failures:
-        raise ValueError(
-            f"{len(failures)} file(s) in {LEARNINGS_DIR} cannot be archived by"
-            " `append-history --from-file` (BW-02-001):\n"
-            + "\n".join(failures)
-            + "\n\nCommon fixes:\n"
-            '  - timestamp MUST be tz-aware and quoted: "YYYY-MM-DDTHH:MM:SSZ"'
-            " (BW-02-004);\n"
-            "    a bare YYYY-MM-DD parses to a naive datetime and is rejected.\n"
-            "  - source MUST be the originating work item, e.g. ISSUE-1234"
-            " (BW-02-002).\n"
-            "  - type MUST be `learning`.\n"
-            "  - quote any title containing or ending with a colon."
-        )
+    return validated, failures
 
+
+def _failure_message(failures: list[str]) -> str:
+    """Render the shared remediation text for *failures*."""
+    return (
+        f"{len(failures)} file(s) in {LEARNINGS_DIR} cannot be archived by"
+        " `append-history --from-file` (BW-02-001):\n"
+        + "\n".join(failures)
+        + "\n\nCommon fixes:\n"
+        '  - timestamp MUST be tz-aware and quoted: "YYYY-MM-DDTHH:MM:SSZ"'
+        " (BW-02-004);\n"
+        "    a bare YYYY-MM-DD parses to a naive datetime and is rejected.\n"
+        "  - source MUST be the originating work item, e.g. ISSUE-1234"
+        " (BW-02-002).\n"
+        "  - type MUST be `learning`.\n"
+        "  - quote any title containing or ending with a colon."
+    )
+
+
+def validate_incoming_learnings(
+    repo_root: Path | None = None,
+) -> dict[str, HistoryEntryFrontmatter]:
+    """Validate every incoming learning file's frontmatter.
+
+    Args:
+        repo_root: Repository root.  Resolved automatically when ``None``.
+
+    Returns:
+        Mapping of filename to its parsed frontmatter, for the files that
+        validated.
+
+    Raises:
+        ValueError: If any file fails to parse or validate.  The message lists
+            every offending file so a contributor fixes them in one pass
+            rather than one commit at a time.
+    """
+    validated, failures = _collect_incoming_learnings(repo_root)
+    if failures:
+        raise ValueError(_failure_message(failures))
     return validated
 
 
@@ -128,7 +146,15 @@ def render_learnings_index(
 
 
 def main() -> None:
-    """Print the incoming-learnings index (``learnings-index``)."""
-    import sys
+    """Print the incoming-learnings index (``learnings-index``).
 
-    sys.stdout.write(render_learnings_index(validate_incoming_learnings()))
+    One malformed file must not cost orientation the whole index, so failures
+    are reported on stderr and the valid entries still print.
+    """
+    validated, failures = _collect_incoming_learnings()
+    if failures:
+        print(
+            f"learnings-index: skipped {_failure_message(failures)}",
+            file=sys.stderr,
+        )
+    sys.stdout.write(render_learnings_index(validated))

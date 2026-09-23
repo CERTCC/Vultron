@@ -17,6 +17,7 @@ import yaml
 
 from vultron.metadata.specs.backstop import (
     FileChange,
+    TestFile,
     GroupHit,
     Requirement,
     analyze,
@@ -554,6 +555,13 @@ def _pri(rid, priority, statement="names `vultron/a/mod.py`"):
     return Requirement(rid, rid[:5], rid[:2], statement, priority)
 
 
+def _indexed(path: str, source: str) -> dict[str, TestFile]:
+    """One-entry test index, asserting the source parsed."""
+    indexed = index_test_file(path, source)
+    assert indexed is not None
+    return {path: indexed}
+
+
 @pytest.mark.spec("SR-12-010")
 def test_should_only_group_is_advisory():
     """A SHOULD cannot block: TRIG-05 forced a load with no obligation."""
@@ -599,9 +607,7 @@ def test_catch_all_suite_markers_are_advisory():
         "import pytest\nfrom vultron.a.mod import SomeClass\n"
         f"@pytest.mark.spec({marks})\ndef test_a(): pass\n"
     )
-    tests = {
-        "test/x/test_all.py": index_test_file("test/x/test_all.py", source)
-    }
+    tests = _indexed("test/x/test_all.py", source)
     reqs = [_pri(i, "MUST", "holds") for i in ids]
     report = analyze([_change({13})], tests, reqs)
     assert not report.must
@@ -619,9 +625,7 @@ def test_suite_at_the_span_still_promotes():
         "import pytest\nfrom vultron.a.mod import SomeClass\n"
         f"@pytest.mark.spec({marks})\ndef test_a(): pass\n"
     )
-    tests = {
-        "test/x/test_all.py": index_test_file("test/x/test_all.py", source)
-    }
+    tests = _indexed("test/x/test_all.py", source)
     reqs = [_pri(i, "MUST", "holds") for i in ids]
     report = analyze([_change({13})], tests, reqs)
     assert len(report.must) == span
@@ -635,3 +639,78 @@ def test_no_python_source_says_exit_zero_is_not_coverage():
     text = render_text(report)
     assert "no Python source in the diff" in text
     assert "not evidence" in text
+
+
+# ---------------------------------------------------------------------------
+# Silent-pass guards (SR-12-012, SR-12-013)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.spec("SR-12-012")
+@pytest.mark.parametrize(
+    "config", ["diff.mnemonicPrefix=true", "diff.noprefix=true"]
+)
+def test_git_config_cannot_rename_the_diff_prefixes(
+    git_repo, monkeypatch, capsys, config
+):
+    """Renamed prefixes parsed as no changes at all: exit 0 on any manifest."""
+    _git(git_repo, "config", *config.split("="))
+    _git(git_repo, "checkout", "-q", "-b", "feature")
+    mod = git_repo / "vultron" / "a" / "mod.py"
+    mod.write_text(mod.read_text().replace("return 2", "return 3"))
+    _git(git_repo, "commit", "-q", "-am", "edit")
+    assert _main(monkeypatch, "--base", "main", "--json") == 0
+    data = json.loads(capsys.readouterr().out)
+    assert [c["path"] for c in data["changed"]] == ["vultron/a/mod.py"]
+    assert [g["group"] for g in data["must"]] == ["AA-01", "AA-02"]
+
+
+@pytest.mark.spec("SR-12-012")
+def test_paths_accepts_a_file_that_does_not_exist_yet(
+    repo, monkeypatch, capsys
+):
+    """deepen-context runs --paths at planning time, before the file exists."""
+    assert _main(monkeypatch, "--paths", "vultron/a/planned.py", "--json") == 0
+    data = json.loads(capsys.readouterr().out)
+    assert data["changed"] == [{"path": "vultron/a/planned.py", "symbols": []}]
+
+
+@pytest.mark.spec("SR-12-012")
+def test_paths_outside_the_repo_is_still_an_error(repo, monkeypatch, capsys):
+    assert _main(monkeypatch, "--paths", "/etc/hostname") == 2
+    assert "outside" in capsys.readouterr().err
+
+
+@pytest.mark.spec("SR-12-012")
+def test_unanalysed_path_is_reported(repo, monkeypatch, capsys):
+    """A docs path reported 0 files and exit 0 with nothing read and no note."""
+    (repo / "docs").mkdir()
+    (repo / "docs" / "x.md").write_text("# x\n")
+    assert _main(monkeypatch, "--paths", "docs/x.md", "--json") == 0
+    data = json.loads(capsys.readouterr().out)
+    assert data["ignored"] == ["docs/x.md"]
+    report = analyze([FileChange("docs/x.md", "# x\n")], {}, [])
+    assert "not analysed (outside vultron/ and test/)" in render_text(report)
+
+
+@pytest.mark.spec("SR-12-013")
+def test_comma_in_a_reason_does_not_dismiss_the_next_id():
+    """`BT-01 — irrelevant, CM-02 covers it` dismissed CM-02 and passed it."""
+    manifest = parse_manifest(
+        "Considered, skipped: BT-01 — irrelevant, CM-02 covers it\n",
+        {"BT", "CM"},
+    )
+    assert manifest.dismissed == {"BT-01"}
+
+
+@pytest.mark.spec("SR-12-013")
+def test_entries_after_a_reason_are_still_read():
+    """A reason ends at `;` or a sentence break, so later entries survive."""
+    manifest = parse_manifest(
+        "Loaded (selected): SR-07 — the tool; SR-12 — tiering, which matters\n"
+        "Considered, skipped: BW-01 BW-03 — format unchanged, as noted."
+        " MS-13 — statement format only.\n",
+        {"SR", "BW", "MS"},
+    )
+    assert manifest.loaded == {"SR-07", "SR-12"}
+    assert manifest.dismissed == {"BW-01", "BW-03", "MS-13"}

@@ -31,6 +31,7 @@ from pathlib import Path
 
 from vultron.metadata.base import repo_root
 from vultron.metadata.markdown_tables import (
+    MarkdownSection,
     MarkdownTable,
     iter_sections,
     iter_tables,
@@ -65,24 +66,39 @@ def _term_entries(table: MarkdownTable) -> list[str]:
     return entries
 
 
+def _heading_lines(text: str) -> list[tuple[int, MarkdownSection]]:
+    """Pair each section with the 1-based line number of its own heading.
+
+    :func:`iter_sections` excludes the heading line from ``lines``, and a
+    section with an empty body carries no line numbers at all — so the heading
+    line cannot be read off ``lines[0]``. Sections tile the document in order,
+    so walk them with a cursor instead: ``0`` for the headingless preamble.
+    """
+    paired: list[tuple[int, MarkdownSection]] = []
+    cursor = 0
+    for section in iter_sections(text):
+        heading = 0 if section.level == 0 else cursor + 1
+        paired.append((heading, section))
+        cursor = section.lines[-1][0] if section.lines else heading
+    return paired
+
+
 def render_index(text: str) -> str:
     """Render the term index for glossary markdown *text*."""
-    sections = [s for s in iter_sections(text) if s.level == 2]
-    tables_by_heading: dict[str, list[MarkdownTable]] = {}
-    for table in iter_tables(text):
-        tables_by_heading.setdefault(table.heading, []).append(table)
+    sections = [(n, s) for n, s in _heading_lines(text) if s.level == 2]
+    tables = sorted(iter_tables(text), key=lambda t: t.line)
 
     total = len(text.splitlines())
     lines = []
-    for i, section in enumerate(sections):
-        start = section.lines[0][0] - 1 if section.lines else 0
-        end = (
-            sections[i + 1].lines[0][0] - 2 if i + 1 < len(sections) else total
-        )
+    for i, (start, section) in enumerate(sections):
+        end = sections[i + 1][0] - 1 if i + 1 < len(sections) else total
         span = f"L{start}-{end}"
+        # Match tables by line range, not by heading text: two sections can
+        # share a title, and grouping on the title gave each the other's terms.
         entries = [
             entry
-            for table in tables_by_heading.get(section.heading, [])
+            for table in tables
+            if start <= table.line <= end
             for entry in _term_entries(table)
         ]
         if entries:

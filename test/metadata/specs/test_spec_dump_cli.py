@@ -393,3 +393,39 @@ class TestRequirementsText:
     @pytest.mark.spec("SR-07-014")
     def test_cli_text_without_a_selector_exits_2(self, monkeypatch, dump_dir):
         assert _exit_code(monkeypatch, "--text", str(dump_dir)) == 2
+
+    @pytest.mark.spec("SR-07-015")
+    @pytest.mark.parametrize(
+        "argv",
+        [
+            ("--kind", "architecture"),
+            ("--priority", "MUST"),
+            ("--tag", "protocol"),
+        ],
+    )
+    def test_cli_text_rejects_attribute_filters_alone(
+        self, monkeypatch, capsys, dump_dir, argv
+    ):
+        """An attribute filter keeps whole topics: 285 KB, the wall to avoid."""
+        code = _exit_code(monkeypatch, "--text", *argv, str(dump_dir))
+        assert code == 2
+        assert "needs a non-empty selection" in capsys.readouterr().err
+
+    @pytest.mark.spec("SR-07-015")
+    @pytest.mark.parametrize("flag", ["--topic", "--group", "--ids"])
+    def test_cli_empty_selector_exits_2(
+        self, monkeypatch, capsys, dump_dir, flag
+    ):
+        """`--topic ""` printed an empty dump under an unfiltered warning."""
+        code = _exit_code(monkeypatch, flag, "", str(dump_dir))
+        assert code == 2
+        assert "names no values" in capsys.readouterr().err
+
+    @pytest.mark.spec("SR-07-015")
+    def test_cli_empty_selector_exits_2_in_text_mode(
+        self, monkeypatch, dump_dir
+    ):
+        assert (
+            _exit_code(monkeypatch, "--text", "--topic", "", str(dump_dir))
+            == 2
+        )

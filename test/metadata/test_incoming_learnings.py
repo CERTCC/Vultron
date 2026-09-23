@@ -1,6 +1,6 @@
 """Tests for the incoming-learnings frontmatter validator.
 
-Covers: BW-02-001, BW-02-002, BW-02-004.
+Covers: BW-02-001, BW-02-002, BW-02-004, BW-02-006.
 """
 
 from __future__ import annotations
@@ -9,6 +9,7 @@ from pathlib import Path
 
 import pytest
 
+from vultron.metadata.history import incoming
 from vultron.metadata.history.incoming import (
     LEARNINGS_DIR,
     render_learnings_index,
@@ -171,3 +172,38 @@ class TestRenderLearningsIndex:
         out = render_learnings_index(entries)
         assert entries
         assert [name for name in entries if name not in out] == []
+
+
+class TestLearningsIndexCli:
+    """``learnings-index`` is what orient-agent reads instead of the queue."""
+
+    @pytest.mark.spec("BW-02-006")
+    def test_malformed_file_does_not_cost_the_valid_entries(
+        self, tmp_path: Path, monkeypatch, capsys
+    ) -> None:
+        """An unquoted colon in one title used to abort the whole index."""
+        root = _repo(
+            tmp_path,
+            **{
+                "20260901-good.md": _GOOD,
+                "20260902-bad.md": "---\ntitle: broken: colon\n---\nb\n",
+            },
+        )
+        monkeypatch.setattr(incoming, "_find_repo_root", lambda: root)
+        incoming.main()
+        out, err = capsys.readouterr()
+        assert "A thing was learned" in out
+        assert "1 incoming learnings" in out
+        assert "20260902-bad.md" in err
+        assert "20260901-good.md" not in err
+
+    @pytest.mark.spec("BW-02-006")
+    def test_clean_queue_writes_nothing_to_stderr(
+        self, tmp_path: Path, monkeypatch, capsys
+    ) -> None:
+        root = _repo(tmp_path, **{"20260901-good.md": _GOOD})
+        monkeypatch.setattr(incoming, "_find_repo_root", lambda: root)
+        incoming.main()
+        out, err = capsys.readouterr()
+        assert "A thing was learned" in out
+        assert err == ""

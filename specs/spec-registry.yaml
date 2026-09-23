@@ -652,6 +652,48 @@ groups:
     verification: >-
       `test/metadata/specs/test_spec_dump_cli.py` asserts the header, topic, group, and requirement
       line formats, that statements are collapsed to one line, and the exit-2 unselected case.
+  - id: SR-07-015
+    priority: MUST
+    kind: project
+    statement: >-
+      The selection that `--text` requires MUST be a set selector (`--topic`, `--group`, `--ids`,
+      or `--cross-cutting`) naming at least one value; an attribute filter such as `--kind` or
+      `--priority` MUST NOT satisfy it, and a set selector that names no values (`--topic ""`)
+      MUST exit with status 2.
+    rationale: >-
+      Attribute filters keep whole topics, so counting one as a selection let `--text --kind
+      protocol` print 285 KB — the wall SR-07-014's selector requirement exists to prevent. An
+      empty list is the opposite failure: it means "select nothing" to the exporter but "no
+      selection" to the size guard, so `--topic ""` printed an empty dump under a warning about an
+      unfiltered one. Both are typos, and both should say so.
+    verification: >-
+      `test/metadata/specs/test_spec_dump_cli.py` asserts `--text` with only an attribute filter
+      exits 2, and that an empty set selector exits 2 in both text and JSON modes.
+    relationships:
+    - rel_type: refines
+      spec_id: SR-07-014
+    tags:
+    - tooling
+  - id: SR-07-016
+    priority: MUST
+    kind: project
+    statement: >-
+      The `glossary-index` entry point MUST render one line per `##` section of
+      `docs/reference/glossary.md` carrying that section's line range, its terms, and the aliases
+      to avoid for each term, and MUST attribute a term table to the section whose line range
+      contains it rather than to a section with a matching heading.
+    rationale: >-
+      The glossary is ~82 KB, most of it definitions a given task never touches; the index is
+      ~12 KB and carries the naming guard, which is the part every session needs. Line ranges are
+      what let `deepen-context` read one section instead of the file. Matching on heading text
+      instead of position gave two sections sharing a title each other's terms.
+    verification: >-
+      `test/metadata/docs/test_glossary_index.py` asserts the line format, the alias rendering,
+      that a section with a heading at end of file does not raise, and that duplicate headings keep
+      their own terms.
+    tags:
+    - documentation
+    - tooling
 - id: SR-09
   title: Docs Renderer Kind Routing
   specs:
@@ -1063,5 +1105,48 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: SR-12-003
+    tags:
+    - tooling
+  - id: SR-12-012
+    priority: MUST
+    kind: project
+    statement: >-
+      `spec-backstop` MUST pin the diff prefixes it parses by passing `--src-prefix=a/` and
+      `--dst-prefix=b/` to `git diff`, MUST accept a `--paths` entry that does not exist yet, and
+      MUST report any changed path it did not analyse because the path falls outside `vultron/` and
+      `test/`.
+    rationale: >-
+      Each of the three turns a real condition into a silent pass. `diff.mnemonicPrefix` renames the
+      prefixes and every file then parses as unchanged: measured, 6 changed files and 4 MUST groups
+      became 0 and 0, exit 0 against any manifest. `--paths` names files the work will create, so a
+      missing file cannot be a setup error. A path outside both trees was dropped without a word.
+    verification: >-
+      `test/metadata/specs/test_backstop.py` asserts git mode finds the same changes under
+      `diff.mnemonicPrefix` and `diff.noprefix`, that a nonexistent `--paths` entry is analysed as
+      an empty file, and that an unanalysed path appears in the text and JSON reports.
+    relationships:
+    - rel_type: refines
+      spec_id: SR-12-001
+    tags:
+    - tooling
+  - id: SR-12-013
+    priority: MUST
+    kind: project
+    statement: >-
+      When `spec-backstop` reads a manifest entry, a free-text reason introduced by an em-dash MUST
+      run to the next `;` or to a sentence-ending `.` that a fresh ID begins, and a `,` inside that
+      reason MUST NOT start a new entry.
+    rationale: >-
+      Splitting a reason on every comma read prose as a dismissal: `BT-01 — irrelevant, CM-02
+      covers it` marked CM-02 dismissed, so an unresolved MUST group for CM-02 passed the gate.
+      The asymmetry decides the rule — over-reading a reason costs a false alarm the author can
+      answer, while under-reading it silently drops the check.
+    verification: >-
+      `test/metadata/specs/test_backstop.py` asserts a comma inside a reason does not dismiss the
+      ID that follows it, and that `;`- and sentence-separated entries after a reason are still
+      read.
+    relationships:
+    - rel_type: refines
+      spec_id: SR-12-006
     tags:
     - tooling

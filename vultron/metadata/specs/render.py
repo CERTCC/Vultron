@@ -392,6 +392,24 @@ def _csv(raw: str) -> list[str]:
     return [item.strip() for item in raw.split(",") if item.strip()]
 
 
+def _empty_selectors(args: argparse.Namespace) -> list[str]:
+    """Report a selector given but naming nothing, e.g. ``--topic ""``.
+
+    An empty list means "select nothing" to the exporter but "no selection" to
+    the size guard, so it used to print an empty dump under a warning about an
+    unfiltered one. It is a typo either way; say so.
+    """
+    return [
+        f"--{flag} was given but names no values"
+        for flag, dest in (
+            ("topic", "topic"),
+            ("group", "group"),
+            ("ids", "ids"),
+        )
+        if getattr(args, dest) == []
+    ]
+
+
 def _build_dump_parser() -> _DumpArgParser:
     parser = _DumpArgParser(
         prog="spec-dump",
@@ -527,7 +545,7 @@ def main_llm_json() -> None:
     )
 
     args = _build_dump_parser().parse_args()
-    problems = _enum_problems(args)
+    problems = _enum_problems(args) + _empty_selectors(args)
     if problems:
         _fail(problems)
 
@@ -547,23 +565,33 @@ def main_llm_json() -> None:
         _emit(to_index_text(registry, **kwargs))
         return
 
-    selected = any(
+    # Only the four *set* selectors narrow the corpus enough to be readable.
+    # An attribute filter such as --kind or --priority keeps whole topics, so
+    # counting one as a selection let `--text --kind protocol` print the 285 KB
+    # wall the guard exists to prevent. `--topic ""` is not a selection either:
+    # it selects nothing, and used to print an empty dump plus a 0.0 MB warning.
+    narrowed = any(
+        kwargs[key] for key in ("topic", "groups", "spec_ids")
+    ) or bool(args.cross_cutting)
+    filtered = any(
         value for key, value in kwargs.items() if key != "include_deps"
     )
     if args.text:
-        if not selected:
+        if not narrowed:
             _fail(
                 [
-                    "--text needs a selection (--topic/--group/--ids/"
-                    "--cross-cutting); every requirement as text is a"
-                    " ~1 MB wall. Start with --index."
+                    "--text needs a non-empty selection (--topic/--group/"
+                    "--ids/--cross-cutting); every requirement as text is a"
+                    " ~1 MB wall, and an attribute filter such as --kind or"
+                    " --priority does not narrow it enough. Start with"
+                    " --index."
                 ]
             )
         _emit(to_requirements_text(registry, **kwargs))
         return
 
     output = to_llm_json(registry, slim=args.slim, **kwargs)
-    if not selected:
+    if not filtered:
         print(
             f"spec-dump: warning: unfiltered dump is ~{len(output) / 1e6:.1f} MB"
             f" (~{len(output) // 4000}k tokens); use --index for a map and"

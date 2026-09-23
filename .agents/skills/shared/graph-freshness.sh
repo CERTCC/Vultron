@@ -10,11 +10,17 @@
 # graphify-out/ is gitignored and per-worktree, so a fresh worktree has no
 # graph. The post-commit hook only refreshes the AST (code) layer, and only
 # when core.hooksPath points at .githooks; document and rationale nodes are as
-# of built_at_commit until a full `/graphify . --update` run.
+# of built_at_commit until a full `graphify update .` run.
 
 set -u
 
 MAX_BEHIND=${1:-50}
+case $MAX_BEHIND in
+    '' | *[!0-9]*)
+        echo "graph: usage: $0 [max-commits-behind] — '${MAX_BEHIND}' is not a number" >&2
+        exit 1
+        ;;
+esac
 GRAPH=graphify-out/graph.json
 
 cd "$(git rev-parse --show-toplevel)" || exit 1
@@ -24,7 +30,9 @@ if [ ! -f "$GRAPH" ]; then
     exit 1
 fi
 
-BUILT=$(tail -c 200 "$GRAPH" | sed -n 's/.*"built_at_commit": *"\([0-9a-f]*\)".*/\1/p')
+# Scan the whole file, not its tail: built_at_commit is the last key today,
+# but a reader that breaks when a key is added is a reader that lies later.
+BUILT=$(sed -n 's/.*"built_at_commit": *"\([0-9a-f]*\)".*/\1/p' "$GRAPH" | tail -1)
 if [ -z "$BUILT" ] || ! git cat-file -e "${BUILT}^{commit}" 2>/dev/null; then
     echo "graph: built_at_commit unknown — treat as stale"
     exit 1
