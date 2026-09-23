@@ -274,9 +274,25 @@ The round-trip cleanups (ARCH-23-005) are still prerequisites rather than
 follow-ups, because the `@computed_field` half of the problem
 (`embargo_adherence`, 1096 failures) is real and independent.
 
-## `as_ObjectRef`: The Former Kludge
+## `as_ObjectRef`: The Former Kludge, Re-Added On Purpose
 
-**Removed in PR #3440** (ARCH-23-006). For context:
+**Removed in PR #3440** (ARCH-23-006), then **re-added deliberately in #3487**
+once ADR-0099 made a core type in a wire slot the intended shape rather than a
+migration convenience. Read this section for why it was a kludge the first time —
+the reasoning is sound and the distinction between the two cases is the point.
+
+The difference is the defect, not the union. `| CoreObject` was unsafe in PR #730
+because a core-side guard firing inside that union escaped the whole operation:
+`VultronValidationError` was not a `ValueError`, so Pydantic could not absorb it
+as a failed branch. That is now fixed — the class inherits `ValueError`, and
+`test_core_guard_inside_wire_union_fails_the_branch` holds the property — which is
+exactly the precondition ARCH-23-006's note set before the rule could be inverted.
+The fix was itself blocked until `VultronAlreadyExistsError` existed, because
+`crud.create` signalled a duplicate row with a bare `ValueError` that ~60 call
+sites swallow, so sharing the base made a projection failure indistinguishable
+from "already stored".
+
+For context on the original removal:
 
 ```python
 # FORMER definition (PR #730 through PR #3440):
@@ -312,6 +328,21 @@ re-introduction. Factory functions that previously accepted `CoreActor` now
 accept `as_Actor | str`; the adapter layer converts core objects to their wire
 counterparts before passing them.
 
+**Both halves of that were undone in #3487, and the ratchet was replaced rather
+than widened.** The union is back on purpose; the adapter-side conversion has
+nothing left to convert. The ratchet's replacement asserts the invariant detail 3
+states — every promoted class is exactly AS2-representable — because the
+alternative on offer was a 59-entry allowlist, which records violations without
+checking anything.
+
+One lesson worth keeping from the re-introduction: widening *some* of the slots is
+worse than widening none. `as_Activity.actor` and `as_ObjectRef` were widened while
+`target`/`origin`/`instrument` were not, so a promoted class in those three slots
+escaped its declared union — malformed payloads outbound, refusals inbound, and
+HTTP 422 on every `Create(VulnerabilityCase)`. The type errors that flagged it were
+suppressed with `# type: ignore[assignment]`, so mypy and pyright stayed green
+while the protocol did not work.
+
 ## Related Files
 
 - `docs/adr/0082-wire-core-boundary-pairing-registry.md` — the decision
@@ -324,6 +355,16 @@ counterparts before passing them.
 - `test/architecture/test_wire_core_import_allowlist.py` — the ARCH-22 allow-list, which replaced the ratchet (#3483). The ratchet file is deleted
 
 ## Deleting a Wire-Spelling Shim Without a Reject-Guard Is Silent Data Loss
+
+> **This prediction was borne out, and then the cause was removed.** #3487
+> collapsed the status classes and the guards below stopped firing — not because
+> anything was dropped, but because core now derives the camelCase aliases, so the
+> key is *read into the right field* instead of vanishing. The hazard is fixed at
+> its source rather than guarded against: `wire_spelled_keys()` returns an empty
+> map for any model carrying an `alias_generator`. What remains live is a camelCase
+> key matching *no* field — a retired name or a typo — which is still discarded
+> silently, and `extra="forbid"` (ARCH-12-003) is still not in place. #2940 AC-6
+> owns deleting the module.
 
 Pydantic v2 defaults to `extra="ignore"`, so removing a validator that accepted a
 legacy camelCase key makes that key *silently dropped* and the field default to

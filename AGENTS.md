@@ -67,10 +67,10 @@ Do NOT introduce alternative frameworks or package managers without approval.
 - **Vulnerability**: Abbreviated as `vul` (not `vuln`)
 - Wire-layer naming (as\_ prefix, trailing underscore, pattern objects) →
   see [`vultron/wire/as2/AGENTS.md`](vultron/wire/as2/AGENTS.md).
-  **Critical**: ALL classes in `vultron/wire/as2/vocab/objects/` use the
-  `as_` prefix (`as_VulnerabilityCase`, `as_CaseParticipant`, etc.). The
-  bare name `VulnerabilityCase` (no prefix) always refers to the **core**
-  domain model. See ARCH-14-001.
+  **Critical**: for a *domain* type, `as_VulnerabilityCase` and
+  `VulnerabilityCase` are the same class — ADR-0099 detail 3 aliased all 27
+  paired names onto core. The prefix still marks a real wire class for
+  unpaired AS2 vocabulary (`as_Link`, …). See ARCH-14-001.
 - Use-case / handler naming (Received suffix, Svc prefix, \_trigger suffix)
   → see [`vultron/core/AGENTS.md`](vultron/core/AGENTS.md)
 
