@@ -344,14 +344,6 @@ groups:
       core types that carry domain state and are not `CoreObject` subclasses must
       still be discoverable by type string. Re-scope to the surviving core object
       root when the migration lands.
-
-      Amended by #3242: this requirement used to state its purpose as being "the
-      wire-layer fallback path", and that purpose is withdrawn. The registration
-      duty is unchanged — core types must still be discoverable by type string —
-      but wire-branch callers no longer reach the map by default (VM-06-008).
-      Read the old phrasing as the cause of #3217 rather than as a mandate: it
-      made a core answer to a wire question look sanctioned, and #3232 had to
-      filter the answer out again at the one call site where it was measured.
     priority: MUST
     kind: project
     statement: >-
@@ -363,14 +355,11 @@ groups:
       `CORE_TYPE_MAP` catches core types (e.g. `VultronOfferRecord`,
       `VultronPendingCaseInbox`) that extend `VultronObject` directly and carry domain state
       not representable via `CoreObject`.  Those types need a name-keyed lookup for
-      core-layer and persistence callers; what they do not need, and what this requirement
-      was misread as licensing, is to answer a wire-branch caller's `type` lookup.
+      core-layer and persistence callers.  They do not need to answer a wire-branch caller's
+      `type` lookup: a hit there is a coincidence of naming, not a wire counterpart.
     relationships:
     - rel_type: refines
       spec_id: ARCH-12-004
-    - rel_type: constrains
-      spec_id: VM-06-008
-      note: The registration duty here is what VM-06-008 makes opt-in rather than default.
   - id: ARCH-12-011
     priority: MUST_NOT
     kind: project

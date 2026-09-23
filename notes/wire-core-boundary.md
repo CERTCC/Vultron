@@ -123,19 +123,14 @@ in a wire tree; the parent field annotation is the declared authority.
 
 Implementation: `vultron/wire/as2/parser.py::_inline_vocab_class`. ADR-0090.
 
-The registry gap that makes the core map reachable at all was planned as #3242,
-and the diagnosis there changes what "the trap" means. The collision is not two
-live classes sharing a name: it is a **vestigial** core class
-(`CoreActorCollection`, read by nothing) squatting on `OrderedCollection`, which
-the wire side never registered because its collection classes declare no `type_`
-annotation for `__init_subclass__` to see. So this section's rule is right and its
-remedy was too narrow — a filter inside one caller. A second caller, the inbox
-adapter's `_reparse_as_specific_type`, still produced a core class for an inbound
-`{"type": "OrderedCollection"}` and persisted it. The generalised rule is
-**VM-06-008**: wire-branch resolution goes through a lookup that returns `as_Base`
-subclasses only, and the core fallback is opt-in. Details, including why the
-annotation-based "is this concrete" test disagrees with the runtime `type_`
-derivation, are in
+A filter inside one caller protects only that caller. The inbox adapter's
+`_reparse_as_specific_type` has no such filter and still produces a core class
+for an inbound `{"type": "OrderedCollection"}` (#3565). The general rule is
+**VM-06-008**: wire-branch resolution goes through a lookup that returns
+`as_Base` subclasses only, and the core fallback is opt-in. The core class behind
+that name, `CoreActorCollection`, is vestigial (#3563), and the wire collection
+classes are unregistered because they declare no `type_` annotation for
+`__init_subclass__` to see (#3564). Details are in
 [vocabulary-registry](vocabulary-registry.md) § "Why `OrderedCollection` Collided
 At All".
 

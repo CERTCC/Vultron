@@ -40,15 +40,16 @@ dict. Core does not model an inbox as a list. `CoreActorCollection` was left
 behind when that reduction happened, and because it declares
 `type_: Literal["OrderedCollection"]` it registers itself in `CORE_TYPE_MAP`
 under that name. Nothing reads it: its only references were its own definition,
-its `__all__` entry, and three comments and assertions describing this bug. Its
+its `__all__` entry, an allow-list entry in `test_hierarchy_invariants.py`, and
+three comments and assertions describing this bug. Its
 sole live effect was to make the lookup answer a wire caller with a core class.
 Deleting it removes the collision at its source, which is a much smaller fix than
 the concern's "register the collection types and tighten the ratchet".
 
 **2. Two mechanisms disagree about which classes are concrete, and the silent one
 wins.** `as_Base.__init_subclass__` registers a class only if it declares its own
-non-union `type_` annotation; `set_type_from_class_name` (VM-03-001) gives
-*every* class a runtime `type_` from its class name. So a class that skipped
+non-union `type_` annotation; `set_type_from_class_name` (VM-03-001) gives every
+class that inherits no `type_` default a runtime `type_` from its class name. So a class that skipped
 VM-03-002 — then only a SHOULD — presented a distinct wire `type` and registered
 nothing. VM-03-002 is now a MUST for exactly this reason, and VM-01-007 phrases
 the completeness invariant on the `type` a class *presents* rather than the module
@@ -59,8 +60,10 @@ skip condition is the fault cannot see the fault.
 **3. A filter in one caller did not protect the others.** #3232 guarded
 `parser._inline_vocab_class` with `issubclass(cls, as_Base)`. The FastAPI inbox
 adapter's `_reparse_as_specific_type` had no such guard. Verified on `main`: an
-inbound `Add(object={"type": "OrderedCollection", ...})` was reconstructed as a
-core `CoreActorCollection` and handed to the persistence write. So the concern's
+inbound `Add(object={"type": "OrderedCollection", "id": ...})` was reconstructed
+as a core `CoreActorCollection` and handed to the persistence write (a payload with
+`totalItems` or `orderedItems` fails that validation and falls back to
+`as_Object`). So the concern's
 warning that "any future caller inherits the same trap" was already "one more
 current caller does". VM-06-008 generalises the rule from one call site to the
 lookup: wire-branch resolution returns `as_Base` subclasses only, and the core

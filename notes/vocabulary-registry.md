@@ -217,13 +217,15 @@ keeps only its `id`. Core does not model an actor's inbox as a list. But
 reduction happened, and because it declares `type_: Literal["OrderedCollection"]`
 it registers itself in `CORE_TYPE_MAP` under that name. Nothing else reads it: at
 the time of writing its only references are its own definition, its `__all__`
-entry, and three comments and assertions that exist to describe this bug. Its
+entry, its entry in the `_TO_CAMEL_BACKLOG_1991` allow-list
+(`test/architecture/test_hierarchy_invariants.py`), and three comments and
+assertions that exist to describe this bug. Its
 sole live effect was to make `find_in_vocabulary("OrderedCollection")` answer
 with a core class.
 
 **The wire half.** `as_Collection` and friends declare no `type_` annotation,
-relying on `set_type_from_class_name` (VM-03-001) to derive `type_` from the class
-name at construction time. `as_Base.__init_subclass__` uses the presence of a
+and inherit no `type_` default, so `set_type_from_class_name` (VM-03-001) derives
+`type_` from the class name at construction time. `as_Base.__init_subclass__` uses the presence of a
 non-union `type_` annotation as its test for "is this class concrete", so these
 classes present a distinct wire `type` while registering nothing. The two
 mechanisms disagree about which classes are concrete, and registration is the
@@ -232,16 +234,25 @@ silent one. VM-03-002 is now a MUST for exactly this reason.
 **Do not read the per-caller filter as the fix.** #3232's
 `issubclass(cls, as_Base)` guard in `parser._inline_vocab_class` closes the
 measured path and nothing else. The FastAPI inbox adapter's re-parse helper
-(`routers/actors/_inbox.py::_reparse_as_specific_type`) had no such guard, so an
-inbound `Add(object={"type": "OrderedCollection"})` was still reconstructed as a
-core `CoreActorCollection` and handed to the persistence write. The general rule
+(`routers/actors/_inbox.py::_reparse_as_specific_type`) has no such guard, so an
+inbound `Add(object={"type": "OrderedCollection", "id": ...})` is reconstructed as
+a core `CoreActorCollection` and handed to the persistence write (#3565). A
+payload carrying AS2 collection fields such as `totalItems` or `orderedItems`
+fails `CoreActorCollection` validation and falls back to `as_Object`, so the leak
+is limited to minimal collection objects. The general rule
 is VM-06-008: a wire-branch caller resolves through a lookup that returns
 `as_Base` subclasses only, and the core fallback is reached by asking for it.
 
 **Two measurements worth not re-deriving.** Of 126 `as_Base` subclasses, 66 are
-registered; of the 60 that are not, 47 are `_XxxActivity` semantic aliases
-(correct — they present a parent's `type`) and 6 are abstract roots or mixins.
-And 16 names resolve to a core class through the fallback and nothing else. Both
+registered. Of the 60 that are not, 47 are `_XxxActivity` semantic aliases
+(correct — they present a parent's `type`), 6 are abstract roots or mixins
+(`as_Object`, `as_VultronObject`, `as_VultronActorMixin`,
+`as_TransitiveActivity`, `as_IntransitiveActivity`, `as_VultronActivity`), and
+`as_CaseActor` is an alias presenting `Service` without the underscore prefix.
+The remaining 6 are the gap itself: `as_Collection`, `as_OrderedCollection`,
+`as_CollectionPage`, `as_OrderedCollectionPage`, `as_Link`, and `as_Mention`.
+Separately, 32 `CORE_TYPE_MAP` keys (27 distinct classes) resolve through
+`find_in_vocabulary` to a class that is not an `as_Base` subclass. Both
 figures move with the code; re-measure rather than quoting them (MS-16-001).
 
 ---

@@ -92,19 +92,24 @@ groups:
     statement: >-
       Registration completeness MUST be verified against the wire `type` a class actually
       presents, not against the module it lives in.  A test MUST assert that every
-      `as_Base` subclass whose runtime `as_type` equals its own class-name-derived value is
+      `as_Base` subclass whose presented `type` equals its own class-name-derived value is
       reachable in a wire registry under that value, and MUST hold the exceptions in a
       declared exemption set that names, per member, the requirement or reason that
-      exempts it.
+      exempts it.  A class's presented `type` is its `type_` field default, or its class
+      name with any `as_` prefix removed when that default is `None`.
     rationale: >-
       The pre-#3242 check asked whether each vocabulary *module* contributed a registration,
-      and skipped any module with no own `as_type` annotation as a "semantic alias or abstract
+      and skipped any module with no own `type_` annotation as a "semantic alias or abstract
       module".  `base/objects/collections.py` declares no annotation, so it was skipped — and
       that skip is the defect being tested for.  A check whose skip predicate is the defect
       cannot see the defect.  Phrasing the invariant on the presented `type` value closes
       that; the exemption set follows ARCH-22-003 so it stays auditable rather than folklore.
+      The presented value is read from the field default rather than an instance because
+      classes with required fields cannot be built without arguments.  Abstract roots such
+      as `as_Object`, `as_VultronObject`, and `as_VultronActorMixin` present their own name
+      and are unregistered by design, so they are exemption-set members.
     verification: >-
-      A test enumerates every `as_Base` subclass, computes the `as_type` each presents, and
+      A test enumerates every `as_Base` subclass, computes the `type` each presents, and
       asserts that a class presenting its own class-name-derived value resolves to itself
       through the wire lookup or appears in the declared exemption set with a stated reason.
     relationships:
@@ -163,22 +168,28 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      A wire-layer class that presents a distinct AS2 `type` value under its own name MUST
-      narrow the `as_type` field to a `Literal[...]` matching that value.  A class that
-      deliberately presents its parent's `type` value — a semantic alias — MUST NOT narrow
-      it.
+      A wire-layer class that presents its own class-name-derived AS2 `type` value MUST
+      narrow the `type_` field to a `Literal[...]` matching that value.  A semantic alias
+      that must not be reachable under its own class name — the `_XxxActivity` pattern,
+      which presents an ancestor's `type` — MUST NOT declare its own `type_` annotation,
+      because any such declaration registers the class under its class name.
     rationale: >-
-      Auto-registration reads the `Literal` annotation as its test for "is this class
-      concrete" (VM-01-001), while VM-03-001 gives every class a runtime `as_type` from its
-      class name — two answers to one question, with the registration side silent.  That is
-      how the AS2 collection types went unregistered until #3242: `OrderedCollection` was in
-      neither wire registry, so the lookup fell through to the core map and answered a wire
-      caller with a core class.  As a MUST, the annotation becomes the single declaration of
-      "distinct wire type", which is what VM-01-007 can then check.
+      Auto-registration reads an own `type_` annotation as its test for "is this class
+      concrete" and keys the entry on the class name (VM-01-001), while VM-03-001 fills
+      `type_` from the class name whenever a class inherits no default — so a class with
+      neither an annotation nor an inherited default presents a distinct wire `type` and
+      registers nothing.  That is how the AS2 collection types went unregistered until
+      #3242: `OrderedCollection` was in neither wire registry, so the lookup fell through to
+      the core map and answered a wire caller with a core class.  As a MUST, the annotation
+      becomes the single declaration of "distinct wire type", which is what VM-01-007 can
+      then check.  The prohibition is scoped to unaddressable aliases: classes such as
+      `as_VultronPerson` present an ancestor's `type` but narrow `type_` on purpose, so that
+      they register under their own class name.
     verification: >-
-      A test asserts that a wire class presenting its own `type` value declares that value as
-      a `Literal`, and that a semantic-alias subclass presenting its parent's value does not —
-      the per-class form of the hierarchy-wide invariant VM-01-007 verifies.
+      A test asserts that a wire class presenting its own class-name-derived `type` value
+      declares that value as a `Literal`, and that an `_XxxActivity` alias declares no own
+      `type_` annotation — the per-class form of the hierarchy-wide invariant VM-01-007
+      verifies.
     relationships:
     - rel_type: refines
       spec_id: VM-03-001
