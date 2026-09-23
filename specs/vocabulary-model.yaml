@@ -91,7 +91,11 @@ groups:
       under its class name when that name is not the `type` value it emits.  Exactly one class
       MUST own a given `type` value: a class that shares another's `type` value MUST declare
       itself an alias (`_wire_type_alias = True`) and MUST NOT hold a `WIRE_TYPE_MAP` key, while
-      remaining reachable by class name through `VOCABULARY` (VM-01-004).
+      remaining reachable by class name through `VOCABULARY` (VM-01-004).  The sole exception
+      is a sanctioned shadow, enumerated in the verifying ratchet: the five `as_Vultron*` actor
+      subtypes deliberately replace their base AS2 actor classes as the owner of `Person`,
+      `Organization`, `Service`, `Application` and `Group`, so an inbound actor keeps its
+      Vultron extension fields.
     rationale: >-
       A key that is no object's `type` value is unreachable from the wire, and it lets a caller
       holding a *class* name resolve a wire class by name coincidence, which ARCH-23-001 forbids
@@ -101,8 +105,9 @@ groups:
     verification: >-
       `test/architecture/test_vocab_registry_keys.py` forces full registration, then asserts every
       `WIRE_TYPE_MAP` key equals `wire_type_value()` of its registered class, that every declared
-      wire `type` value resolves to some registered class, and that no class declaring
-      `_wire_type_alias` holds a key.  A population guard precedes them, since registration is an
+      wire `type` value resolves to some registered class, that no class declaring
+      `_wire_type_alias` holds a key, and that no two registrable classes share a `type` value
+      outside the enumerated sanctioned shadows.  A population guard precedes them, since registration is an
       import side effect (VM-01-005) and the assertions would otherwise pass vacuously.
     relationships:
     - rel_type: depends_on

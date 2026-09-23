@@ -40,6 +40,7 @@ from vultron.wire.as2.vocab.base.registry import (
     VOCABULARY,
     WIRE_TYPE_MAP,
     declared_wire_type,
+    declares_registrable_type,
     is_wire_type_alias,
     wire_type_value,
 )
@@ -48,6 +49,18 @@ from vultron.wire.as2.vocab.base.registry import (
 #: vacuously: registration is a submodule import side effect (VM-01-005), and a
 #: bare ``from ... import WIRE_TYPE_MAP`` yields an empty dict.
 _MIN_REGISTERED_TYPES = 50
+
+#: The only ``type`` values two unflagged classes may share (VM-01-007): the
+#: Vultron actor subtypes deliberately shadow their base AS2 actor classes so an
+#: inbound actor keeps its extension fields. Maps each value to the class that
+#: MUST win the key.
+_SANCTIONED_SHADOWS = {
+    "Person": "as_VultronPerson",
+    "Organization": "as_VultronOrganization",
+    "Service": "as_VultronService",
+    "Application": "as_VultronApplication",
+    "Group": "as_VultronGroup",
+}
 
 
 def _force_full_registration() -> None:
@@ -161,4 +174,58 @@ def test_declared_aliases_do_not_own_a_registry_key() -> None:
         "A class declaring `_wire_type_alias = True` shares another class's "
         "wire 'type' value and must not hold a registry key of its own "
         "{key: class}: " + repr(registered_aliases)
+    )
+
+
+def _registrable_wire_classes() -> list[type[as_Base]]:
+    """Return every wire class that passes the registration gate, deduplicated."""
+    found: dict[type[as_Base], None] = {}
+
+    def walk(cls: type[as_Base]) -> None:
+        for sub in cls.__subclasses__():
+            if (
+                sub.__module__.startswith("vultron.wire.as2.vocab")
+                and declares_registrable_type(sub)
+                and not is_wire_type_alias(sub)
+            ):
+                found[sub] = None
+            walk(sub)
+
+    walk(as_Base)
+    return list(found)
+
+
+def test_no_unsanctioned_wire_type_collisions() -> None:
+    """VM-01-007: exactly one class owns each ``type`` value.
+
+    Without this, a new class that declares an existing value (say ``"Note"``)
+    silently takes the key for the whole process, decided by import order, and
+    every other ratchet still passes — the displaced class merely stops being
+    what that value deserializes to.
+    """
+    _force_full_registration()
+
+    claimants: dict[str, list[str]] = {}
+    for cls in _registrable_wire_classes():
+        claimants.setdefault(wire_type_value(cls), []).append(cls.__name__)
+
+    collisions = {
+        value: sorted(names)
+        for value, names in claimants.items()
+        if len(names) > 1 and value not in _SANCTIONED_SHADOWS
+    }
+    assert not collisions, (
+        "These wire 'type' values are claimed by more than one class. Mark "
+        "the non-owner `_wire_type_alias = True` (VM-01-007) {value: "
+        "classes}: " + repr(collisions)
+    )
+
+    wrong_winner = {
+        value: WIRE_TYPE_MAP[value].__name__
+        for value, owner in _SANCTIONED_SHADOWS.items()
+        if WIRE_TYPE_MAP[value].__name__ != owner
+    }
+    assert not wrong_winner, (
+        "A sanctioned shadow lost its key to the class it should replace "
+        "{value: actual owner}: " + repr(wrong_winner)
     )

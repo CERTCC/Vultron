@@ -16,6 +16,9 @@ Provides a registry for the Vultron ActivityStreams Vocabulary.
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
+import types as _types
+import typing as _typing
+
 from pydantic import BaseModel
 
 from vultron.core.models.registry import find_in_core_type_map
@@ -55,6 +58,23 @@ def declared_wire_type(cls: type) -> str | None:
     default = getattr(declared, "default", declared)
     value = getattr(default, "value", default)
     return value if isinstance(value, str) and value else None
+
+
+def declares_registrable_type(cls: type) -> bool:
+    """Return whether *cls* itself annotates a concrete (non-union) ``type_``.
+
+    This is the gate ``as_Base.__init_subclass__`` applies before registering a
+    class: an abstract base leaves ``type_`` unannotated or typed as a union
+    (``str | None``), and a subclass that merely inherits ``type_`` is not a new
+    wire type. Shared with the registry ratchet so both apply one rule.
+    """
+    annotations = cls.__dict__.get("__annotations__", {})
+    if "type_" not in annotations:
+        return False
+    annotation = annotations["type_"]
+    if isinstance(annotation, _types.UnionType):
+        return False
+    return _typing.get_origin(annotation) is not _typing.Union
 
 
 def wire_type_value(cls: type) -> str:

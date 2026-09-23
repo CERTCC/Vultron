@@ -294,7 +294,8 @@ The two registries are keyed differently, and the distinction matters
 | `WIRE_TYPE_MAP` | emitted wire `type` value | `"VulnerabilityCase"` | VM-01-007 |
 
 Both key forms are now **derived, not asserted**, by
-`as_Base.__init_subclass__` using `wire_type_value()` from `registry.py`:
+`as_Base.__init_subclass__` — `VOCABULARY` from `cls.__name__`, `WIRE_TYPE_MAP`
+from `wire_type_value()` in `registry.py`:
 the declared `type_` default, or the stripped class name when there is none
 (matching what `set_type_from_class_name` assigns, VM-03-001). Two classes
 cannot own one `type` value, so a class that shares another's declares
@@ -305,7 +306,10 @@ cannot own one `type` value, so a class that shares another's declares
 `as_VultronPerson` and its four actor siblings deliberately **shadow** the base
 `as_Person`/`as_Service`/… under the same `type` value: `vultron_actor.py`
 imports `base/objects/actors.py`, so it always registers second, and an inbound
-`{"type": "Person"}` gets the subclass that carries `embargo_policy`.
+`{"type": "Person"}` gets the subclass that carries `embargo_policy`. These
+five are the only unflagged sharers VM-01-007 allows; the ratchet enumerates
+them and fails on any other collision, since an accidental one would silently
+move the key to whichever class imports last.
 Until #2982 they *also* registered under their class names (`"VultronPerson"`),
 which is why the key form needed a ratchet:
 `test/architecture/test_vocab_registry_keys.py` now asserts both forms behind a

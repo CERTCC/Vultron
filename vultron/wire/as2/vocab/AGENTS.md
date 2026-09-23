@@ -22,13 +22,16 @@
 3. The two registries carry **different key forms and you MUST NOT mix them**:
    `VOCABULARY` is keyed by wire class name (`as_VultronPerson`, VM-01-004),
    `WIRE_TYPE_MAP` by the emitted wire `type` value (`Person`, VM-01-007). Both
-   are derived by `as_Base.__init_subclass__` via `wire_type_value()` — do not
-   hand-assign a `WIRE_TYPE_MAP` key. The sole exception is `as_Actor`, which
-   declares no `type_` of its own (so auto-registration skips it) yet is stored
-   concretely as `type_="Actor"`. If a new class shares an existing class's
-   `type` value, declare `_wire_type_alias: ClassVar[bool] = True` on it rather
-   than letting import order decide who owns the key; it stays reachable through
-   `VOCABULARY`. Ratchet: `test/architecture/test_vocab_registry_keys.py`.
+   are filled by `as_Base.__init_subclass__` — `VOCABULARY` from `cls.__name__`,
+   `WIRE_TYPE_MAP` from `wire_type_value()` — so do not hand-assign a
+   `WIRE_TYPE_MAP` key. The sole exception is `as_Actor`, which declares no
+   `type_` of its own (so auto-registration skips it) yet is stored concretely
+   as `type_="Actor"`. If a new class shares an existing class's `type` value,
+   declare `_wire_type_alias: ClassVar[bool] = True` on it rather than letting
+   import order decide who owns the key; it stays reachable through
+   `VOCABULARY`. The only unflagged sharers are the five `as_Vultron*` actor
+   shadows, enumerated in the ratchet `test/architecture/test_vocab_registry_keys.py`,
+   which fails on any other collision.
 
 ## `as_Object.model_config` Is Load-Bearing — Do Not Remove It
 

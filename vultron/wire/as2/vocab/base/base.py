@@ -14,8 +14,6 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-import types as _types
-import typing as _typing
 from typing import ClassVar
 
 from pydantic import Field, model_validator, ConfigDict
@@ -26,6 +24,7 @@ from vultron.wire.as2.vocab.base.enums import VocabNamespace
 from vultron.wire.as2.vocab.base.registry import (
     VOCABULARY,
     WIRE_TYPE_MAP,
+    declares_registrable_type,
     is_wire_type_alias,
     wire_type_value,
 )
@@ -58,15 +57,8 @@ class as_Base(VultronBase):
 
     def __init_subclass__(cls, **kwargs: object) -> None:
         super().__init_subclass__(**kwargs)  # type: ignore[arg-type]
-        annotations = cls.__dict__.get("__annotations__", {})
-        if "type_" not in annotations:
-            return  # No type_ override → abstract base, skip
-        annotation = annotations["type_"]
-        # Skip if annotation is a union type (e.g., str | None = abstract base)
-        if isinstance(annotation, _types.UnionType):
-            return
-        if _typing.get_origin(annotation) is _typing.Union:
-            return
+        if not declares_registrable_type(cls):
+            return  # No concrete type_ of its own → abstract base, skip
         if cls.__name__.startswith("as_"):
             VOCABULARY[cls.__name__] = cls
         # WIRE_TYPE_MAP answers "which class does this inbound `type` value
