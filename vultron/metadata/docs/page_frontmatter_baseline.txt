@@ -2,8 +2,9 @@
 #
 # Maintained by vultron.metadata.docs.page_frontmatter (DF-11-001). This list
 # may only shrink: a page not listed here must declare both keys, and a listed
-# page that now declares them must be removed — run
-# `uv run docs-frontmatter --prune-baseline`. Do not add entries by hand.
+# page that now declares them, or is deleted or renamed, must be removed — run
+# `uv run docs-frontmatter --prune-baseline`. Do not add entries by hand;
+# test_page_frontmatter.py pins a ceiling on the entry count.
 
 about/acknowledgements.md
 about/contributing.md
@@ -243,12 +244,7 @@ reference/messages/index.md
 reference/messages/ledger_replication.md
 reference/messages/rm.md
 reference/notation.md
-reference/ontology/dfa.md
 reference/ontology/index.md
-reference/ontology/rfc2119.md
-reference/ontology/vultron_as.md
-reference/ontology/vultron_process.md
-reference/ontology/vultron_protocol.md
 reference/quick_reference.md
 reference/specs/architecture.md
 reference/specs/index.md

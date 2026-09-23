@@ -29,7 +29,6 @@ from vultron.core.models.actor import (
 from vultron.wire.as2.enums import as_ActorType
 from vultron.wire.as2.vocab.base.objects.actors import as_Actor
 from vultron.wire.as2.vocab.base.links import ActivityStreamRef
-from vultron.wire.as2.vocab.base.registry import WIRE_TYPE_MAP
 
 _WIRE_ACTOR_TO_CORE: dict[str, Type[CoreActor]] = {
     as_ActorType.PERSON: VultronPerson,
@@ -41,7 +40,15 @@ _WIRE_ACTOR_TO_CORE: dict[str, Type[CoreActor]] = {
 
 
 class as_VultronActorMixin(as_Actor):
-    """Wire actor base with Vultron-specific actor extension fields."""
+    """Wire actor base with Vultron-specific actor extension fields.
+
+    The five concrete subclasses below deliberately **shadow** their
+    ``vultron/wire/as2/vocab/base/objects/actors.py`` counterparts in
+    ``WIRE_TYPE_MAP``: both declare the same wire ``type`` value, and this module
+    imports ``actors`` so it always registers second. An inbound
+    ``{"type": "Person"}`` therefore deserializes to ``as_VultronPerson``, which
+    is what carries ``embargo_policy`` — the base ``as_Person`` would drop it.
+    """
 
     embargo_policy: Any | None = Field(
         default=None,
@@ -98,13 +105,6 @@ class as_VultronGroup(as_VultronActorMixin):
         validation_alias="type",
         serialization_alias="type",
     )
-
-
-WIRE_TYPE_MAP["Person"] = as_VultronPerson
-WIRE_TYPE_MAP["Organization"] = as_VultronOrganization
-WIRE_TYPE_MAP["Service"] = as_VultronService
-WIRE_TYPE_MAP["Application"] = as_VultronApplication
-WIRE_TYPE_MAP["Group"] = as_VultronGroup
 
 
 as_VultronPersonRef: TypeAlias = ActivityStreamRef[as_VultronPerson]

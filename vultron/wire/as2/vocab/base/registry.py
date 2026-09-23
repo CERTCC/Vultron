@@ -16,6 +16,9 @@ Provides a registry for the Vultron ActivityStreams Vocabulary.
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
+import types as _types
+import typing as _typing
+
 from pydantic import BaseModel
 
 from vultron.core.models.registry import find_in_core_type_map
@@ -23,6 +26,77 @@ from vultron.core.models.registry import find_in_core_type_map
 VOCABULARY: dict[str, type[BaseModel]] = {}
 
 WIRE_TYPE_MAP: dict[str, type[BaseModel]] = {}
+
+#: Sentinel distinguishing "the class declared no ``type_``" from "it declared
+#: ``None``". Needed because ``as_Actor`` declares no concrete ``type_`` at all.
+_UNDECLARED = object()
+
+
+def declared_wire_type(cls: type) -> str | None:
+    """Return *cls*'s declared wire ``type`` default, or ``None`` if abstract.
+
+    Reads the raw class namespace first so this works from inside
+    ``as_Base.__init_subclass__``, where ``model_fields`` has not been rebuilt
+    yet and still reports the *parent's* ``type_`` default. Pydantic strips field
+    definitions out of the namespace once the class is built, so after that only
+    ``model_fields`` has the answer.
+
+    Args:
+        cls: A wire vocabulary class (built or mid-construction).
+    Returns:
+        The declared ``type`` value as a plain string, or ``None`` when *cls*
+        declares no concrete default (an abstract or intermediate base).
+    """
+    declared = cls.__dict__.get("type_", _UNDECLARED)
+    if declared is _UNDECLARED:
+        field = getattr(cls, "model_fields", {}).get("type_")
+        declared = (
+            getattr(field, "default", None) if field is not None else None
+        )
+    # A ``Field(...)`` assignment carries the default on the FieldInfo; a plain
+    # ``type_: Literal["Foo"] = "Foo"`` assignment is the value itself.
+    default = getattr(declared, "default", declared)
+    value = getattr(default, "value", default)
+    return value if isinstance(value, str) and value else None
+
+
+def declares_registrable_type(cls: type) -> bool:
+    """Return whether *cls* itself annotates a concrete (non-union) ``type_``.
+
+    This is the gate ``as_Base.__init_subclass__`` applies before registering a
+    class: an abstract base leaves ``type_`` unannotated or typed as a union
+    (``str | None``), and a subclass that merely inherits ``type_`` is not a new
+    wire type. Shared with the registry ratchet so both apply one rule.
+    """
+    annotations = cls.__dict__.get("__annotations__", {})
+    if "type_" not in annotations:
+        return False
+    annotation = annotations["type_"]
+    if isinstance(annotation, _types.UnionType):
+        return False
+    return _typing.get_origin(annotation) is not _typing.Union
+
+
+def wire_type_value(cls: type) -> str:
+    """Return the wire ``type`` value instances of *cls* will carry.
+
+    Mirrors ``as_Base.set_type_from_class_name`` (VM-03-001): the declared
+    default when there is one, else the class name with the ``as_`` prefix
+    removed. This is the key form ``WIRE_TYPE_MAP`` uses (VM-01-008).
+    """
+    return declared_wire_type(cls) or cls.__name__.removeprefix("as_")
+
+
+def is_wire_type_alias(cls: type) -> bool:
+    """Return whether *cls* declares itself an alias of another wire type.
+
+    An alias shares another class's wire ``type`` value (``as_VulnerabilityCaseStub``
+    emits ``type: "VulnerabilityCase"``) and therefore MUST NOT own a
+    ``WIRE_TYPE_MAP`` key: exactly one class can be what a given ``type`` value
+    deserializes to. Read off the class's own namespace rather than inherited,
+    so a subclass that narrows ``type_`` to a distinct value still registers.
+    """
+    return bool(cls.__dict__.get("_wire_type_alias", False))
 
 
 def find_in_vocabulary(item_name: str) -> type[BaseModel]:

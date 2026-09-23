@@ -15,7 +15,6 @@
 | `vultron/enums/` | Shared CVD-domain enums (roles, states) imported by config and core | `vultron/enums/` |
 | `vultron/demo/` | Demo scenario runners and seed-config helpers | `pyproject.toml` entry points |
 | `vultron/metadata/` | Spec registry, history CLI, notes metadata tooling, docs page frontmatter validator, message-semantics mapping renderer; `file_loading.py` attributes every loader failure to its file (MS-17) | `vultron/metadata/specs/`, `vultron/metadata/history/`, `vultron/metadata/docs/`, `vultron/metadata/msm/`, `vultron/metadata/file_loading.py` |
-| `vultron/scripts/` | Standalone helper scripts (e.g. `ontology2md.py`); NOT the console-script entry points (those live under `vultron/bt/`, `vultron/demo/`, `vultron/metadata/`) | `vultron/scripts/ontology2md.py` |
 | `vultron/semantic_registry/` | ActivityStreams semantic pattern registry | `vultron/semantic_registry/` |
 | `test/` | Pytest test suite (mirrors `vultron/` layout) | `pyproject.toml` `[tool.pytest.ini_options]` |
 | `test/architecture/` | Architecture-boundary enforcement tests | `test/architecture/test_core_no_adapter_imports.py` |
@@ -75,7 +74,7 @@ Enforced by: `test/architecture/test_core_no_adapter_imports.py`, `test/architec
 |--------|---------|
 | `vultron/core/participants/authority.py` | Single canonical `resolve_case_manager_id()` — neutral layer below both `behaviors/` and `use_cases/`; depends only on models/ports/enums (ADR-0088, ARCH-24-001) |
 | `vultron/core/ports/wire_render.py` | `WireRenderPort` driven-port Protocol for wire-shaped JSON rendering |
-| `vultron/adapters/driven/wire_render/as2.py` | AS2 adapter implementing `WireRenderPort` via `VOCABULARY` registry |
+| `vultron/adapters/driven/wire_render/as2.py` | AS2 adapter implementing `WireRenderPort` via the `WIRE_TYPE_MAP` registry |
 | `vultron/core/behaviors/embargo/nodes/terminate.py` | Embargo termination BT nodes |
 | `vultron/core/behaviors/sync/nodes/event_conditions.py` | Sync event-condition BT nodes (extracted from `conditions.py`) |
 | `vultron/core/behaviors/bridge.py` | BT bridge node |

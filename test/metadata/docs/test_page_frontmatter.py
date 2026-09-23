@@ -214,7 +214,7 @@ def _repo(tmp_path: Path, files: dict[str, str], nav=None, auto_append=None):
 
 #: The committed baseline's entry count may only fall. Lower this when
 #: ``--prune-baseline`` shrinks the file; raising it defeats AC-3a of #3525.
-_BASELINE_CEILING = 473
+_BASELINE_CEILING = 468
 
 _READER = _page("[cvd-practitioner]", "100")
 _RECORD = _page("[project-contributor]")

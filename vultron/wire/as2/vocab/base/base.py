@@ -14,8 +14,6 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-import types as _types
-import typing as _typing
 from typing import ClassVar
 
 from pydantic import Field, model_validator, ConfigDict
@@ -23,7 +21,13 @@ from pydantic.alias_generators import to_camel
 
 from vultron.core.models.base import VultronBase
 from vultron.wire.as2.vocab.base.enums import VocabNamespace
-from vultron.wire.as2.vocab.base.registry import VOCABULARY, WIRE_TYPE_MAP
+from vultron.wire.as2.vocab.base.registry import (
+    VOCABULARY,
+    WIRE_TYPE_MAP,
+    declares_registrable_type,
+    is_wire_type_alias,
+    wire_type_value,
+)
 from vultron.wire.as2.vocab.base.utils import generate_new_id
 
 ACTIVITY_STREAMS_NS = "https://www.w3.org/ns/activitystreams"
@@ -44,20 +48,25 @@ class as_Base(VultronBase):
 
     _vocab_ns: ClassVar[VocabNamespace] = VocabNamespace.AS
 
+    #: Set ``True`` on a class that shares another class's wire ``type`` value
+    #: and is therefore not what that value should deserialize to
+    #: (``as_VulnerabilityCaseStub`` emits ``type: "VulnerabilityCase"``). Such a
+    #: class stays reachable by class name through ``VOCABULARY`` but claims no
+    #: ``WIRE_TYPE_MAP`` key of its own (VM-01-008).
+    _wire_type_alias: ClassVar[bool] = False
+
     def __init_subclass__(cls, **kwargs: object) -> None:
         super().__init_subclass__(**kwargs)  # type: ignore[arg-type]
-        annotations = cls.__dict__.get("__annotations__", {})
-        if "type_" not in annotations:
-            return  # No type_ override → abstract base, skip
-        annotation = annotations["type_"]
-        # Skip if annotation is a union type (e.g., str | None = abstract base)
-        if isinstance(annotation, _types.UnionType):
-            return
-        if _typing.get_origin(annotation) is _typing.Union:
-            return
+        if not declares_registrable_type(cls):
+            return  # No concrete type_ of its own → abstract base, skip
         if cls.__name__.startswith("as_"):
             VOCABULARY[cls.__name__] = cls
-        WIRE_TYPE_MAP[cls.__name__.removeprefix("as_")] = cls
+        # WIRE_TYPE_MAP answers "which class does this inbound `type` value
+        # deserialize to?", so its key is the emitted `type` value — not the
+        # class name, which diverges for the Vultron actor subtypes and would
+        # register a key no payload ever carries (VM-01-008, issue #2982).
+        if not is_wire_type_alias(cls):
+            WIRE_TYPE_MAP[wire_type_value(cls)] = cls
 
     context_: str = Field(
         default=ACTIVITY_STREAMS_NS,
