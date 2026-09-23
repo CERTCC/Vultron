@@ -101,6 +101,13 @@ Every reader-facing page declares exactly two keys in YAML frontmatter.
 | `stakeholder_type` | `cvd-practitioner`, `platform-developer`, `process-researcher`, `project-contributor`, `ALL` |
 | `level` | 100, 200, 300, 400, 500 |
 
+This record states the members literally and deliberately does **not** include the
+shared fragment that defines them (`docs/includes/stakeholder_types.md`), which
+every other location uses. A decision record is a dated account of what was
+decided: if the enumeration later gains a member, an ADR that live-included it
+would retroactively claim to have decided something it did not. This is
+DF-10-002's documented-reason escape, used on purpose and only here.
+
 `stakeholder_type` is the audience a page is **addressed to** — not what it is
 about, and not who could get use out of it. It is list-valued, because a page
 may legitimately serve two audiences and no others. A list that covers every

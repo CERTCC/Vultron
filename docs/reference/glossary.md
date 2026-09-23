@@ -41,8 +41,10 @@ machines, and design notes.
 
 | Term | Definition | Aliases to avoid |
 |------|-----------|-----------------|
-| **Stakeholder Type** | Why a reader is here reading about Vultron, declared as `stakeholder_type` in a `docs/` page's frontmatter and used to organize reader-facing documentation (ADR-0102). One of `cvd-practitioner`, `platform-developer`, `process-researcher`, `project-contributor`, or `ALL`. A stakeholder type is **not** a **CVDRole**, and the two vocabularies deliberately share no value: *a role is assumable, inhabitable, temporal; a type is ontological, identity-formed, and slow to change.* An organization's roles vary from case to case, while what brought its engineer to this documentation does not. Values are never shown to readers (DF-11-009). | Role, audience track, reader level |
-| **Prerequisite Level** | How much a reader must already know before a `docs/` page makes sense, declared as `level` (100–500) in its frontmatter. One ladder that sorts site-wide, though each subject area judges its own 300 by its own criteria. A property of a **page**, never of a reader — there is no "300-level reader". Never rendered and never navigated by (DF-11-004). | Difficulty, reader level, track |
+| **Stakeholder Type** | Why a reader is here reading about Vultron, declared as `stakeholder_type` in a `docs/` page's frontmatter and used to organize reader-facing documentation (ADR-0102). The permitted values are normative in DF-11-001 and are listed below. A stakeholder type is **not** a **CVDRole**, and the two vocabularies deliberately share no value: *a role is assumable, inhabitable, temporal; a type is ontological, identity-formed, and slow to change.* An organization's roles vary from case to case, while what brought its engineer to this documentation does not. No page shows its own type to readers (DF-11-009). | Role, audience track, reader level |
+| **Prerequisite Level** | How much a reader must already know before a `docs/` page makes sense, declared as `level` (100–500) in its frontmatter. One ladder that sorts site-wide, though each subject area judges its own 300 by its own criteria. A property of a **page**, never of a reader — there is no "300-level reader". A page's own level is never rendered and never navigated by (DF-11-004). | Difficulty, reader level, track |
+
+{% include-markdown "../includes/stakeholder_types.md" %}
 
 ---
 

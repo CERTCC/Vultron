@@ -506,11 +506,11 @@ groups:
       naming every type — and `level` is one of 100, 200, 300, 400, or 500.
     rationale: >-
       Both axes must be machine readable so ordering can be checked and landing pages
-      generated rather than hand-maintained; per-page declaration keeps a page's
-      classification intact when it moves. The key is list-valued because a page may serve
+      generated rather than hand-maintained. The key is list-valued because a page may serve
       exactly two audiences; requiring `ALL` over a full enumeration stops one fact having two
-      forms. No member is a `CVDRole` value, making the reader-type versus case-role
-      conflation structurally impossible. Definitions:
+      forms. No member is a `CVDRole` value, so the reader-type versus case-role conflation is
+      structurally impossible. Members are defined once in
+      `docs/includes/stakeholder_types.md` (DF-10-002); rationale:
       `notes/site-information-architecture.md`.
     verification: >-
       A frontmatter validator resolves every reader-facing page under `docs/` and confirms
@@ -582,8 +582,9 @@ groups:
     adr:
       - ADR-0102
     statement: >-
-      Section landing pages that enumerate their section's contents MUST be generated from
-      page frontmatter and gated by a check mode, and MUST NOT be hand-maintained.
+      Section landing pages that enumerate their section's contents, and the shared fragment
+      defining the `stakeholder_type` members, MUST be generated from the frontmatter schema
+      and gated by a check mode, and MUST NOT be hand-maintained.
     rationale: >-
       Every section landing page was a hand-written duplicate of the navigation and every
       one had drifted from it — children missing, order disagreeing, and one describing a
@@ -660,9 +661,11 @@ groups:
     adr:
       - ADR-0102
     statement: >-
-      A `stakeholder_type` value MUST NOT appear in rendered page content or in the site
-      navigation; a routing page generated for a stakeholder type MUST be titled by the
-      reader's situation instead.
+      A page's own `stakeholder_type` MUST NOT appear in its rendered content or in the site
+      navigation, and a routing page generated for a stakeholder type MUST be titled by the
+      reader's situation instead. Documenting the vocabulary itself — in the glossary, in an
+      ADR, or in a shared fragment they include — is not a page declaring its own audience and
+      is unaffected.
     rationale: >-
       Extends DF-11-004's reasoning one step. A reader should not have to classify themselves
       before their first click, and a situation is recognizable without asking anyone to
@@ -671,6 +674,6 @@ groups:
       happens, whereas a published label would make the split a change to something readers
       had been taught.
     verification: >-
-      Inspection of rendered output and of `mkdocs.yml` confirms no stakeholder-type value or
-      value-derived label is presented to readers, and that each generated routing page's
-      title states a reader situation.
+      Inspection of rendered output and of `mkdocs.yml` confirms no page presents its own
+      stakeholder type or a label derived from it, and that each generated routing page's title
+      states a reader situation.

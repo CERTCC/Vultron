@@ -3,7 +3,7 @@ title: Site Information Architecture — Stakeholder Types, Levels, and Routing
 status: active
 description: >
   How reader-facing documentation is organized: the argument the site must win,
-  the four stakeholder types, the invisible 100-500 prerequisite levels, and the
+  the stakeholder types, the invisible 100-500 prerequisite levels, and the
   rule that nav enumerates groups while routing pages carry leaf sets.
 related_notes:
   - notes/diataxis-framework.md
@@ -123,15 +123,21 @@ the vendors/system-owners/coordinators/governments list in
 three are roles, and they were read as one list. The enumeration below is
 authoritative and retires the first two.
 
-## The four stakeholder types
+## The stakeholder types
 
-| Type | Reader | Wants |
-|---|---|---|
-| **`cvd-practitioner`** | Works CVD cases or the programs around them | To decide whether to adopt, and how the process changes if they do |
-| **`platform-developer`** | Builds or maintains a tracker, platform, or tool that must coordinate with others | What to send and when, and where their system plugs in |
-| **`process-researcher`** | CVD process engineering, process-improvement research, cross-case ecosystem health | The models, measurements, and where the process theory leads |
-| **`project-contributor`** | Working on this reference implementation | How this codebase is built and why it was built that way |
-| **`ALL`** | Genuinely every type | Declared explicitly, never inferred from an absent key |
+**The members and their definitions live in one place:
+`docs/includes/stakeholder_types.md`.** Read them there. They are not restated
+here, in the glossary, or in `notes/README.md`, because a list copied into four
+files is a list that drifts in three of them — the defect class this note already
+indicts for landing pages. The normative constraint on the values is DF-11-001;
+the fragment is generated from the frontmatter schema and gated by `--check`, so
+it cannot disagree with the code that enforces it.
+
+ADR-0102 states the members literally and deliberately does not include the
+fragment. A decision record is a dated account of what was decided; if the
+enumeration later gains a member, an ADR that live-included it would retroactively
+claim to have decided something it did not. That is DF-10-002's documented-reason
+escape, used on purpose.
 
 `stakeholder_type` records who a page is **addressed to** — not what it is
 about, and not who could get use out of it.
@@ -161,10 +167,10 @@ Three consequences that are easy to get wrong:
 
 ### Why `cvd-practitioner` stays whole
 
-It is the broadest of the four, and its constituents differ: security
-researchers who report, vendor PSIRTs, and national CSIRTs, ISACs, and ISAOs.
-Those are named in the definition rather than split into separate types, and a
-type is admitted only when the project commits to a catalogue for it.
+It is the broadest of the types, and its constituents differ from one another.
+They are enumerated in its definition in the shared fragment rather than split
+into separate types, and a type is admitted only when the project commits to a
+catalogue for it.
 
 Split it when — and only when — enough pages tagged `cvd-practitioner` narrow in
 their own text to one constituent that a body of content aimed at that

@@ -919,9 +919,9 @@ type (tutorial / how-to / reference / explanation) a new page should be.
 How reader-facing documentation is organized (ADR-0102): the argument the site
 must win and the protocol-not-a-platform analogy that answers it, why "Vultron
 doesn't do X" is answered by call-out points rather than denied, why a
-stakeholder type is not a `CVDRole` and the four types that replaced five
-competing audience lists, why `cvd-practitioner` stays whole and what would split
-it, the invisible 100–500 prerequisite levels and the rule that no page may
+stakeholder type is not a `CVDRole`, and why the enumeration itself lives in one
+shared fragment (`docs/includes/stakeholder_types.md`) rather than in this note;
+why `cvd-practitioner` stays whole and what would split it, the invisible 100–500 prerequisite levels and the rule that no page may
 depend above its own level, why a level describes a page and never a reader, why
 the project working record carries no level at all, the routing rule (nav
 enumerates groups, routing pages carry leaf sets, landing pages and the coverage
