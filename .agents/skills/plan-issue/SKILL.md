@@ -285,14 +285,13 @@ For Ideas and Concerns, wire the impl issue as **blocked-by the source
 issue** and as **child of the parent epic** (if `EPIC_NUMBER` is non-empty):
 
 ```bash
-PARENT_ARG=""
-[ -n "${EPIC_NUMBER}" ] && PARENT_ARG="--parent ${EPIC_NUMBER}"
-
 TASK_TYPE_ID=$(bash .agents/skills/shared/board-id.sh issue-type Task)
 
-# Body template. Include the "## Prior Art" section only when Phase 4
-# found relevant helpers, use cases, or base classes; omit it entirely
-# when the prior-art search returned no results (AC-3 in #2646).
+# Body template. Include the "## Prior Art" heading and its bullets only
+# when Phase 4 found relevant helpers, use cases, or base classes; delete
+# both entirely when the prior-art search returned no results (AC-3 in
+# #2646). Instructions stay in these comments, never inside --body, or
+# they are posted verbatim (#2770).
 IMPL_NUMBER=$(.agents/skills/manage-github-issue/manage_github_issue.sh \
   --title "<Implementation title from grill-me>" \
   --body "## Summary
@@ -301,7 +300,7 @@ IMPL_NUMBER=$(.agents/skills/manage-github-issue/manage_github_issue.sh \
 ## Acceptance Criteria
 - [ ] AC-1: <from grill-me>
 
-## Prior Art              ← include only when Phase 4 found prior art; omit if empty
+## Prior Art
 - <existing helper / use case / base class and its location>
 
 ## Reference
@@ -311,7 +310,7 @@ $([ -n "${SPEC_FILE}" ] && echo "Spec: \`specs/${SPEC_FILE}\`")
 $([ -n "${NOTES_FILE}" ] && echo "Notes: \`notes/${NOTES_FILE}\`")" \
   --issue-type-id "${TASK_TYPE_ID}" \
   --label "size:<S|M|L>" \
-  ${PARENT_ARG} \
+  ${EPIC_NUMBER:+--parent "${EPIC_NUMBER}"} \
   --milestone "${MILESTONE_NUMBER}" \
   --blocked-by "${ISSUE_NUMBER}")
 ```

@@ -52,6 +52,15 @@ YAML frontmatter matching the history entry format. Using individual files
 instead of a shared flat file eliminates merge conflicts when multiple PRs
 each have an observation to record.
 
+**The slug describes the observation; it is not the `source`.** Name files
+`YYYYMMDD-<issue>-<descriptive-phrase>.md` (e.g.
+`20260918-3399-bt18-has-no-contract-for-a-refusal-carrying-a-payload.md`) and
+put the work-item id in the `source` frontmatter (`ISSUE-3399`). One issue
+routinely yields several learnings, so a filename derived from `source` alone
+collides — an earlier wording of BW-01-003 required exactly that, and #1777's
+five learnings would all have been `20260730-ISSUE-1777.md` (BW-01-003,
+BW-02-002; #1857).
+
 ### What belongs here
 
 The queue is narrow by design. A finding gets a learning file **only** when it
@@ -147,6 +156,7 @@ requirements.
 | Why no branching inside skills? | Clean boundaries enable future automation of the loop | A BT or script can inspect file-change signals to trigger the right skill |
 | Why rename `IMPLEMENTATION_NOTES.md` to `BUILD_LEARNINGS.md`? | The old name implied general design notes; the new name signals a specific, focused role: a queue of code-execution observations for `learn` to promote | See `specs/build-workflow.yaml` BW-01-001 |
 | Why not let `build` write directly to `notes/`? | `build`'s job is coding; documentation curation is `learn`'s domain. `BUILD_LEARNINGS.md` is the upstream channel for `build` to communicate observations; `learn` decides what to do with them | BW-01-001, BW-01-002 |
+| Why are `build` and `bugfix` two skills rather than one? | Keep two skills. `work-issue` is the single type-routing entry point; each skill also gates on issue type and names the right skill for a mismatched issue. Phases the two genuinely share (sync, claim, pre-claim AC gate, validate, finalize) live in `.agents/skills/shared/` fragments both include | The workflows diverge where it matters: `bugfix` investigates before briefing and writes the failing regression test first; `build` selects from the priority queue. A merged skill would carry both paths in every session, and these are the most-used skills in the suite, so a rewrite is the riskiest possible change (#1984, planned in #2838) |
 | Why delete (not strike-through) processed learnings? | `BUILD_LEARNINGS.md` is a queue, not an archive. Processed entries live in `plan/history/` via `append-history learning`. Keeping the queue clean prevents accumulation of stale noise | BW-02-002 |
 
 ---
