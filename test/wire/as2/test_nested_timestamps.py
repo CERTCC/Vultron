@@ -32,9 +32,11 @@ from typing import Any, Callable
 
 import pytest
 
+from vultron.core.models._helpers import absent_times_as_none
 from vultron.semantic_registry import extract_event
 from vultron.wire.as2.errors import VultronParseValidationError
 from vultron.wire.as2.parser import parse_activity
+from vultron.wire.as2.vocab.base.base import as_Base
 
 ACTOR = "https://example.org/actors/alice"
 CASE_ID = "https://example.org/cases/c1"
@@ -389,3 +391,50 @@ def test_embargo_without_end_time_is_refused_at_parse():
 
     with pytest.raises(VultronParseValidationError, match="end_time"):
         parse_activity(_body(obj))
+
+
+@pytest.mark.spec("CLP-15-007")
+@pytest.mark.parametrize("spelling", list(ABSENT))
+def test_inline_object_without_a_type_is_not_stamped_either(spelling: str):
+    """An inline object that omits ``type`` is carried as received too.
+
+    ``_inline_vocab_class`` can only pre-resolve a dict that names its ``type``;
+    without one the dict stays raw for the parent field to validate.  Reading
+    absences in the parser therefore missed it, and the class the parent chose
+    stamped the receiver's clock — which, being the newest value in the list,
+    made this status the case's current one ahead of every status the sender
+    actually timed.  The read belongs on the class being validated
+    (``as_Base.carry_absent_times_on_inbound``), which is the only place that
+    knows both that the object has timestamps and which they are.
+    """
+    status: dict[str, Any] = {
+        "id": "https://example.org/cases/c1/statuses/1",
+        "published": SENDER_PUBLISHED,
+    }
+    ABSENT[spelling](status)
+    case = dict(KINDS["VulnerabilityCase"][0])
+    case["caseStatuses"] = [status]
+
+    parsed = parse_activity(_body(case))
+
+    parsed_case = getattr(parsed, "object_", None)
+    assert parsed_case is not None
+    nested = parsed_case.case_statuses[0]
+    assert nested.published is None
+    assert nested.updated is None
+
+
+@pytest.mark.spec("CLP-15-007")
+def test_a_class_without_timestamps_is_untouched_by_the_inbound_read():
+    """The read only names fields the validated class declares.
+
+    Injecting ``published``/``updated`` blindly would hand a timestamp-less
+    class keys it refuses under ``extra="forbid"``, turning an absent time into
+    a parse failure for an object that never had one.  ``as_Base`` declares no
+    timestamp at all, so it is the case that would break.
+    """
+    data = {"id": "https://example.org/things/1", "name": "no times here"}
+
+    result = absent_times_as_none(as_Base, dict(data))
+
+    assert result == data

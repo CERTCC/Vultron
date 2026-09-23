@@ -16,11 +16,12 @@
 
 import types as _types
 import typing as _typing
-from typing import ClassVar
+from typing import Any, ClassVar
 
-from pydantic import Field, model_validator, ConfigDict
+from pydantic import Field, model_validator, ConfigDict, ValidationInfo
 from pydantic.alias_generators import to_camel
 
+from vultron.core.models._helpers import absent_times_as_none
 from vultron.core.models.base import VultronBase
 from vultron.wire.as2.vocab.base.enums import VocabNamespace
 from vultron.wire.as2.vocab.base.registry import VOCABULARY, WIRE_TYPE_MAP
@@ -77,6 +78,43 @@ class as_Base(VultronBase):
     name: str | None = None
     preview: str | None = None
     media_type: str | None = None
+
+    #: Validation-context key that marks a ``model_validate`` call as reading
+    #: *inbound* data.  ``parse_activity`` sets it; nothing else should.
+    INBOUND_CONTEXT_KEY: ClassVar[str] = "inbound_wire"
+
+    @model_validator(mode="before")
+    @classmethod
+    def carry_absent_times_on_inbound(
+        cls, data: Any, info: ValidationInfo
+    ) -> Any:
+        """Read an absent clock-defaulted timestamp as ``None`` when inbound.
+
+        The same classes author outbound activities and validate inbound ones,
+        so the ``default_factory=now_utc`` that correctly stamps an object *this
+        process* creates would, on inbound data, fabricate a time the sender
+        never claimed and present it downstream as the sender's claim
+        (ISSUE-3257, CLP-15-007).  The two directions are told apart by
+        validation context rather than by a field default: ``parse_activity``
+        passes ``INBOUND_CONTEXT_KEY``, and Pydantic propagates the context
+        through every nested model in that call.
+
+        Doing this here rather than in the parser is what makes the rule hold at
+        *every* depth.  The parser can only pre-treat a dict whose ``type`` it
+        resolved; an inline object that omits ``type`` stays a raw dict for the
+        parent field to validate, and that validation lands here, on the class
+        the field actually chose.  Each class sees only its own
+        ``model_fields``, so a class without timestamps (``as_Link``) is
+        untouched rather than handed a key it would refuse.
+        """
+        if not isinstance(data, dict):
+            return data
+        context = info.context
+        if not isinstance(context, dict) or not context.get(
+            cls.INBOUND_CONTEXT_KEY
+        ):
+            return data
+        return absent_times_as_none(cls, dict(data))
 
     @model_validator(mode="after")
     def set_type_from_class_name(self):

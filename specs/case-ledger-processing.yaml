@@ -1552,11 +1552,14 @@ groups:
       hash for one case and ordered received statuses by arrival (ISSUE-3257). Absence
       harms only a decision that needs the time, so that decision refuses it early and
       loudly; every other consumer tolerates it (ISSUE-2553).'
-    verification: '`parser._absent_times_as_none` in `vultron/wire/as2/parser.py` reads
-      an omitted clock-defaulted timestamp as `None` before validation, and the
-      extractor builders pass timestamps through unchanged. Covered by
-      `test/wire/as2/test_nested_timestamps.py`.'
+    verification: '`as_Base.carry_absent_times_on_inbound` reads an omitted clock-defaulted
+      timestamp as `None` for any class validated under the inbound context `parse_activity`
+      passes, the extractor builders pass timestamps through unchanged, and
+      `project_wire_snapshot_to_core` does the same when a replica rebuilds a core object
+      from a stored snapshot. Covered by `test/wire/as2/test_nested_timestamps.py` and
+      `test/core/behaviors/sync/nodes/test_participant_status_effect.py`.'
     adr:
+    - ADR-0103
     - ADR-0079
     - ADR-0032
     relationships:

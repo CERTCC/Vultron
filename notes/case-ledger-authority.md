@@ -446,15 +446,25 @@ Five traps, all found the hard way:
 
    This holds only at the **top level**. Nested objects legitimately omit
    `published` (AS2 makes it optional everywhere), so they are **taken as
-   received**: `parser._absent_times_as_none` reads an omitted clock-defaulted
-   timestamp as `None` before validation, the extractor passes it through, and
-   core keeps `None` — an object's time is carried, never minted by whoever
-   receives or renders it (#3257, #2553). Refusal is reserved for a decision
-   that *needs* the time, and it happens at parse: a case with no `genesisHash`
-   and no `published` (CLP-08-002), an embargo with no `endTime`, a replicated
-   ledger entry with no `published` or `receivedAt` (CLP-14-002, CLP-02-008).
-   Consumers that merely order by time tolerate `None` —
-   `most_recent_status` sorts it lowest and breaks ties by append order.
+   received** (ADR-0103): `as_Base.carry_absent_times_on_inbound` reads an
+   omitted clock-defaulted timestamp as `None` for whichever class is being
+   validated, switched on by the inbound context `parse_activity` passes; the
+   extractor passes it through, and core keeps `None` — an object's time is
+   carried, never minted by whoever receives or renders it (#3257, #2553).
+   Refusal is reserved for a decision that *needs* the time, and it happens at
+   parse: a case with no `genesisHash` and no `published` (CLP-08-002), an
+   embargo with no `endTime`, a replicated ledger entry with no `published` or
+   `receivedAt` (CLP-14-002, CLP-02-008). Consumers that merely order by time
+   tolerate `None` — `most_recent_status` sorts it lowest and breaks ties by
+   append order.
+
+   The rule binds **storage too, not just parsing**. A payload snapshot is
+   dumped with `exclude_none=True`, so a carried absence leaves no key, and
+   validating that dict straight into a core class let the `default_factory`
+   stamp the *replica's* clock — the same fabrication one boundary later, and
+   the reason two replicas disagreed about which status was current. Rebuild a
+   core object from a snapshot through `project_wire_snapshot_to_core`, which
+   reads those absences, never `Model.model_validate(snapshot)` directly.
 5. **Never gate a whole guard on one optional argument.** The CLP-14 guard sat
    behind `if case_published is not None:` and the sole production call site
    never passed it, so nothing was checked for the guard's entire life while

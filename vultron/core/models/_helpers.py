@@ -15,13 +15,15 @@
 
 """Shared helper utilities for core domain model types."""
 
+import types
 import uuid
 from collections.abc import Iterable, Sequence
 from datetime import datetime, timedelta, timezone
-from typing import Any, Protocol, TypeVar
+from typing import Any, Protocol, TypeVar, Union, get_args, get_origin
 
 from pydantic import BaseModel
 from pydantic.alias_generators import to_camel
+from pydantic.fields import FieldInfo
 
 # Frozen reference to the real datetime type used for isinstance guards.
 # `now_utc` looks up `datetime` by name at call time so that tests can
@@ -217,6 +219,58 @@ def collapse_duplicate_spellings(
     return {k: v for k, v in data.items() if k not in drops}
 
 
+def _is_datetime_field(field: FieldInfo) -> bool:
+    """Return whether *field* can hold a ``datetime``.
+
+    Compares against the frozen ``_datetime_type`` rather than the module-level
+    ``datetime`` name, which tests monkeypatch to control the clock: a patched
+    name would make every timestamp field read as a non-datetime and silently
+    disable :func:`absent_times_as_none`.
+    """
+    annotation = field.annotation
+    if annotation is _datetime_type:
+        return True
+    if (
+        isinstance(annotation, types.UnionType)
+        or get_origin(annotation) is Union
+    ):
+        return _datetime_type in get_args(annotation)
+    return False
+
+
+def absent_times_as_none(
+    cls: type[BaseModel], data: dict[str, Any]
+) -> dict[str, Any]:
+    """Read every absent clock-defaulted timestamp in *data* as ``None``.
+
+    A datetime field with a ``default_factory`` (``published``, ``updated``, an
+    embargo's ``start_time``/``end_time``, a ledger entry's ``received_at``)
+    fills an omitted value from the *local* clock.  That is right when this
+    process authors the object and wrong when it reconstructs one it received:
+    the value would be a time no one claimed, and downstream it reads as the
+    sender's claim (ISSUE-3257, CLP-15-007).
+
+    Absence has two spellings on the two inbound edges and both arrive here as
+    an absent key: a sender omits the field on the wire, and a stored snapshot
+    drops it because the snapshot dump excludes ``None``.  Where the field may
+    be absent the result is ``None``; where the class requires the time
+    (``end_time``, a ledger entry's ``received_at``/``published``) or a
+    validator needs it (a case's genesis hash, CLP-08-002), validation refuses
+    rather than deciding on a minted value later (ADR-0032, ADR-0103).
+    """
+    for name, field in cls.model_fields.items():
+        if field.default_factory is None or not _is_datetime_field(field):
+            continue
+        keys = {name} | {
+            key
+            for key in (field.alias, field.validation_alias)
+            if isinstance(key, str)
+        }
+        if keys.isdisjoint(data):
+            data[name] = None
+    return data
+
+
 def project_wire_snapshot_to_core(cls: type[BaseModel], data: Any) -> Any:
     """Rename a wire-rendered snapshot's camelCase keys to *cls*'s field names.
 
@@ -229,6 +283,14 @@ def project_wire_snapshot_to_core(cls: type[BaseModel], data: Any) -> Any:
     ``inReplyTo``) already accept their wire form; this maps the remaining
     ``to_camel`` spellings (``attributedTo`` → ``attributed_to``) back to the
     field name so the core type validates without loosening its guard.
+
+    Projection also reads an absent clock-defaulted timestamp as ``None``
+    (:func:`absent_times_as_none`).  A snapshot is dumped with
+    ``exclude_none=True``, so an object whose time was carried as absent has no
+    key at all here, and the core ``default_factory`` would stamp *this
+    replica's* clock in its place — the same fabrication the wire parser
+    refuses one boundary earlier, and the reason two replicas disagreed about
+    which status was current (ISSUE-3257, CLP-15-007).
 
     Interim helper for the handful of core sync/effect nodes that rebuild core
     objects from inline snapshots.  It becomes redundant once the wire→core
@@ -246,7 +308,7 @@ def project_wire_snapshot_to_core(cls: type[BaseModel], data: Any) -> Any:
         if camel != name:
             remap[camel] = name
     if not remap:
-        return data
+        return absent_times_as_none(cls, dict(data))
     # A snapshot carrying *both* spellings would collapse onto one key and lose
     # a value by iteration order, so reject a disagreement before remapping.
     data = collapse_duplicate_spellings(
@@ -254,7 +316,15 @@ def project_wire_snapshot_to_core(cls: type[BaseModel], data: Any) -> Any:
         ((name, camel) for camel, name in remap.items()),
         owner=f"{cls.__name__} wire snapshot",
     )
-    return {remap.get(key, key): value for key, value in data.items()}
+    # Read absences only once the wire spellings have been projected onto field
+    # names: a core field's camelCase form is a spelling this helper supplies,
+    # not an alias the field itself declares, so reading first would take a
+    # present ``receivedAt`` for an absent ``received_at``.
+    projected: dict[str, Any] = {
+        remap[key] if key in remap else key: value
+        for key, value in data.items()
+    }
+    return absent_times_as_none(cls, projected)
 
 
 def _new_urn() -> str:

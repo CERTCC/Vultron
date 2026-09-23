@@ -103,7 +103,12 @@ def _to_domain_obj(as_obj: object) -> VultronObject | None:
     if not obj_id:
         return None
     obj_type = _get_type(as_obj)
-    return VultronObject(id_=obj_id, type_=obj_type)
+    return VultronObject(
+        id_=obj_id,
+        type_=obj_type,
+        published=_get_timestamp(as_obj, "published"),
+        updated=_get_timestamp(as_obj, "updated"),
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -247,6 +252,8 @@ def _participant_ref_to_domain(ref: object) -> str | VultronParticipant | None:
             context=context_id,
             name=getattr(ref, "name", None),
             case_roles=list(roles),
+            published=_get_timestamp(ref, "published"),
+            updated=_get_timestamp(ref, "updated"),
         )
 
     # Fallback: return as ID string only
@@ -612,5 +619,10 @@ def _build_object_kwargs(
     else:
         obj_id = _get_id(obj)
         if obj_id:
-            kw["object_"] = VultronObject(id_=obj_id, type_=_get_type(obj))
+            kw["object_"] = VultronObject(
+                id_=obj_id,
+                type_=_get_type(obj),
+                published=_get_timestamp(obj, "published"),
+                updated=_get_timestamp(obj, "updated"),
+            )
     return kw

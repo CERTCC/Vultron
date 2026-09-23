@@ -139,9 +139,10 @@ class as_Object(as_Base, VultronObject):
         and ``updated`` carry ``default_factory=now_utc`` so that an object this
         process *authors* is stamped with the local clock; on inbound data that
         default would fabricate a time and present it as the sender's claim.
-        ``parser._absent_times_as_none`` therefore reads an omitted key as
-        ``None`` before validation, so omission, ``null`` and blank all arrive
-        as the same ``None`` (ISSUE-3257).
+        ``as_Base.carry_absent_times_on_inbound`` therefore reads an omitted
+        key as ``None`` under the inbound validation context, so omission,
+        ``null`` and blank all arrive as the same ``None`` (ISSUE-3257,
+        ADR-0103).
 
         A non-blank string that is not a timestamp stays an error: blank means
         "not provided", and reporting corrupt data as missing data would tell
