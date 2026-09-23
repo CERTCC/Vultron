@@ -15,7 +15,6 @@
 | `vultron/enums/` | Shared CVD-domain enums (roles, states) imported by config and core | `vultron/enums/` |
 | `vultron/demo/` | Demo scenario runners and seed-config helpers | `pyproject.toml` entry points |
 | `vultron/metadata/` | Spec registry, history CLI, notes metadata tooling, message-semantics mapping renderer | `vultron/metadata/specs/`, `vultron/metadata/history/`, `vultron/metadata/msm/` |
-| `vultron/scripts/` | Standalone helper scripts (e.g. `ontology2md.py`); NOT the console-script entry points (those live under `vultron/bt/`, `vultron/demo/`, `vultron/metadata/`) | `vultron/scripts/ontology2md.py` |
 | `vultron/semantic_registry/` | ActivityStreams semantic pattern registry | `vultron/semantic_registry/` |
 | `test/` | Pytest test suite (mirrors `vultron/` layout) | `pyproject.toml` `[tool.pytest.ini_options]` |
 | `test/architecture/` | Architecture-boundary enforcement tests | `test/architecture/test_core_no_adapter_imports.py` |

@@ -464,9 +464,24 @@ groups:
     kind: project
     statement: The project MAY use uv for Python environment and dependency management.
   - id: IMPLTS-06-003
-    priority: MAY
+    priority: MUST_NOT
     kind: project
-    statement: The system MAY use rdflib and owlready2 for RDF and OWL ontology support.
+    statement: >-
+      The system MUST NOT carry rdflib or owlready2 as dependencies. The OWL/TTL
+      ontology under `ontology/` is retained as a working record and is withheld
+      from the published site, so nothing reads it at runtime or at docs-build
+      time.
+    rationale: >-
+      Both libraries existed solely for `vultron/scripts/ontology2md.py`, which
+      rendered the ontology into five `docs/reference/ontology/` pages at
+      build time. #3551 withheld those pages, leaving the script with no callers
+      and two RDF libraries in the runtime dependency set — and therefore in
+      every deployed container image — for no runtime purpose. The script and
+      both dependencies were removed in #3570. Reintroducing either means
+      reopening the question of whether the ontology is a maintained artifact.
+    verification: >-
+      `grep -r "rdflib\|owlready2" pyproject.toml vultron/ test/` returns no
+      matches.
   - id: IMPLTS-06-004
     priority: MAY
     kind: project
