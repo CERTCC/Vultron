@@ -33,6 +33,7 @@ from vultron.metadata.adr.loader import (
 )
 from vultron.metadata.adr.schema import AdrFrontmatter
 from vultron.metadata.base import nav_paths
+from vultron.metadata.file_loading import validate
 from vultron.metadata.specs.schema import AdrStatus
 
 # Marker after which the status-organised sections begin. Everything before it
@@ -97,8 +98,8 @@ def generate_index(repo_root: Path | None = None) -> str:
 
     # Sort numerically by ADR number so the index is stable and scannable.
     for path in sorted(_iter_adr_paths(adr_dir), key=lambda p: p.name):
-        post = load_adr_post(path)
-        fm = AdrFrontmatter.model_validate(post.metadata)
+        post = load_adr_post(path, root)
+        fm = validate(AdrFrontmatter, post.metadata, path=path, root=root)
         entry = _entry(path, adr_dir)
 
         if fm.status in (AdrStatus.ACCEPTED, AdrStatus.ACCEPTED_PROVISIONAL):

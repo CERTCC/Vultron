@@ -18,9 +18,11 @@ import datetime
 from dataclasses import dataclass, field
 from pathlib import Path
 
-import frontmatter
-from pydantic import ValidationError
-
+from vultron.metadata.file_loading import (
+    MetadataLoadError,
+    load_frontmatter,
+    validate,
+)
 from vultron.metadata.history.models import HistoryEntryFrontmatter
 from vultron.metadata.history.types import HistoryEntryType
 
@@ -47,26 +49,21 @@ def _parse_entry(path: Path) -> _EntryMeta:
         ValueError: If the frontmatter is malformed, missing, or fails
             required-field validation (HM-02-001, HM-06-002).
     """
-    try:
-        post = frontmatter.load(str(path))
-    except Exception as exc:  # noqa: BLE001
-        raise ValueError(f"{path}: malformed YAML frontmatter: {exc}") from exc
+    post = load_frontmatter(path)
 
     if not post.metadata:
-        raise ValueError(
-            f"{path}: missing frontmatter block — entry must begin with a "
-            "YAML frontmatter block containing title, type, timestamp, and source"
+        raise MetadataLoadError(
+            "missing frontmatter block — entry must begin with a YAML "
+            "frontmatter block containing title, type, timestamp, and source",
+            path=str(path),
         )
 
-    try:
-        meta = HistoryEntryFrontmatter.model_validate(post.metadata)
-    except ValidationError as exc:
-        missing = [e["loc"][0] for e in exc.errors() if e["loc"]]
-        fields = ", ".join(str(f) for f in missing) if missing else str(exc)
-        raise ValueError(
-            f"{path}: invalid history frontmatter: missing or invalid "
-            f"field(s): {fields}"
-        ) from exc
+    meta = validate(
+        HistoryEntryFrontmatter,
+        post.metadata,
+        path=path,
+        prefix="invalid history frontmatter",
+    )
 
     # timestamp is required on HistoryEntryFrontmatter (HM-06-002).
     return _EntryMeta(

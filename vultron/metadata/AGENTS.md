@@ -83,40 +83,54 @@ validate the parsed data against a Pydantic model. Both steps can fail, and
 **both must name the file that failed** — as `path:line:col` when the parser
 supplies a position (MS-17-001).
 
-Route both steps through the shared helper in `file_loading.py`; do not write
-a new wrapper (MS-17-003). That helper does not exist yet — #3324 creates it and
-converts every loader, and its AC-5 lists the sites still carrying hand-written
-copies.
+Route both steps through `file_loading.py`; do not write a new wrapper
+(MS-17-003). A ratchet (`test/architecture/test_metadata_loader_attribution.py`)
+fails on any module here, other than that one, that re-raises a caught exception
+as a path-prefixed `ValueError` — the shape every hand-written copy took.
 
-Three traps make this easy to get wrong:
+| Helper | Use it for |
+|---|---|
+| `load_yaml(path, root=, loader=)` | a whole YAML file (`specs/*.yaml`) |
+| `load_frontmatter(path, root=)` | a markdown file's frontmatter block |
+| `loads_frontmatter(text)` | the no-path form, for content not yet on disk |
+| `validate(Model, data, path=, root=, prefix=)` | the Pydantic half |
+| `FailureCollector` | report **every** failing file, not the first (SR-03-009) |
+
+All raise `MetadataLoadError`, a `ValueError` subclass carrying `path`, `line`,
+`column` and `detail` (MS-17-004); `FailureCollector.raise_if_any()` raises
+`MetadataLoadErrors`, whose `failures` holds each one. Neither derives from
+`VultronError` — that hierarchy is the protocol's, and a second ratchet keeps
+`vultron/errors.py` out of this package. Pass `root=` so the path displays
+repository-relative; a path outside it displays as given.
+
+What the helper absorbs, so you know not to re-solve it:
 
 1. **A YAML error is not a `ValueError`.** `yaml.scanner.ScannerError` derives
    from `Exception`, so a caller guarding `except (ValidationError, ValueError)`
-   — the contract the loaders document — does not catch it. It escapes as a
-   traceback in which no frame names the offending file (MS-17-002). Only
-   `specs/lint.py` guards that pair at all: `coverage.py`, `render.py` (which
-   backs `spec-dump`), `docs_render.py` and `llm_export.py` call `load_registry`
-   with no guard, and `test/conftest.py` wraps it in `except Exception: return`,
-   so most callers surface even less than the traceback does.
+   — the contract the loaders document — would not catch it, and it would
+   escape as a traceback in which no frame names the offending file
+   (MS-17-002). The helper re-raises it as `MetadataLoadError`. Callers that
+   do not guard at all (`coverage.py`, `render.py`, `docs_render.py`,
+   `llm_export.py`) still surface a traceback, but its message now names the
+   file.
 
 2. **Passing text instead of a stream costs you the filename.** PyYAML takes the
-   name for its position mark from the stream it is given. Hand it
-   `path.read_text()` and every error reads `in "<unicode string>", line N` — a
-   position attributed to a source that is not on disk. Read the position off
-   the exception's `problem_mark` and pair it with the path yourself; naming the
-   file and then printing PyYAML's own mark next to it contradicts itself.
+   name for its position mark from the stream it is given; hand it
+   `path.read_text()` and every mark reads `"<unicode string>"`. The helper
+   reads the position off `problem_mark` and pairs it with the real path, and
+   PyYAML's own rendering of the mark never reaches the message. It also adds a
+   cause hint for the faults PyYAML words unhelpfully (`CAUSE_HINTS`) — the
+   unquoted `": "` in a plain scalar above all.
 
 3. **A Pydantic error names the model, not the file.** A validation failure
    reports a positional path into the parsed structure (`groups.0.specs.0.kind`)
-   and the model's class name. Across a directory of files that locates nothing,
-   so the validate step needs attribution just as much as the parse step does —
-   and it is the more common failure, because it is what an invalid `kind`,
-   `priority`, or `rel_type` value produces.
+   and the model's class name. Across a directory that locates nothing, so
+   `validate()` attributes it to the file too.
 
 A loader that walks a set of files reports **every** failing file, not just the
 first (SR-03-009). These loaders reject the corpus as a unit, so stopping at the
 first fault makes the tool report less than it knows; see EH-07-001 for the
-general principle and `history/incoming.py` for the shape.
+general principle, and `load_registry` or `history/incoming.py` for the shape.
 
 ## Spec-First References Need a Lint Suppression
 

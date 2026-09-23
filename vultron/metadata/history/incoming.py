@@ -19,26 +19,17 @@ from __future__ import annotations
 
 from pathlib import Path
 
-import frontmatter
-from pydantic import ValidationError
-
 from vultron.metadata.base import repo_root as _find_repo_root
+from vultron.metadata.file_loading import (
+    FailureCollector,
+    load_frontmatter,
+    validate,
+)
 from vultron.metadata.history.models import HistoryEntryFrontmatter
 
 LEARNINGS_DIR = Path("plan") / "incoming" / "learnings"
 
 SKIP_FILES = {"README.md"}
-
-
-def _describe(exc: Exception) -> str:
-    """Render a validation failure as a single compact line."""
-    if isinstance(exc, ValidationError):
-        parts = []
-        for err in exc.errors():
-            field = ".".join(str(p) for p in err.get("loc", ())) or "<root>"
-            parts.append(f"{field}: {err.get('msg', 'invalid')}")
-        return "; ".join(parts)
-    return f"{type(exc).__name__}: {exc}"
 
 
 def validate_incoming_learnings(
@@ -54,9 +45,10 @@ def validate_incoming_learnings(
         validated.
 
     Raises:
-        ValueError: If any file fails to parse or validate.  The message lists
-            every offending file so a contributor fixes them in one pass
-            rather than one commit at a time.
+        MetadataLoadErrors: If any file fails to parse or validate.  The
+            message lists every offending file so a contributor fixes them in
+            one pass rather than one commit at a time, and ``failures`` carries
+            each one.  A ``ValueError`` subclass.
     """
     root = repo_root or _find_repo_root()
     directory = root / LEARNINGS_DIR
@@ -65,33 +57,27 @@ def validate_incoming_learnings(
         return {}
 
     validated: dict[str, HistoryEntryFrontmatter] = {}
-    failures: list[str] = []
+    collector = FailureCollector()
 
     for path in sorted(directory.glob("*.md")):
         if path.name in SKIP_FILES:
             continue
-        try:
-            post = frontmatter.load(path)
-        except Exception as exc:  # noqa: BLE001 - reported, not swallowed
+        with collector.attempt():
             # A `title:` whose text contains or ends with a colon and is left
             # unquoted makes the whole block invalid YAML, so parse failures
             # are a real and recurring mode here rather than a theoretical one.
-            failures.append(f"  {path.name}: unparseable frontmatter — {exc}")
-            continue
-
-        try:
-            validated[path.name] = HistoryEntryFrontmatter.model_validate(
-                post.metadata
+            post = load_frontmatter(path, root=root)
+            validated[path.name] = validate(
+                HistoryEntryFrontmatter, post.metadata, path=path, root=root
             )
-        except ValidationError as exc:
-            failures.append(f"  {path.name}: {_describe(exc)}")
 
-    if failures:
-        raise ValueError(
-            f"{len(failures)} file(s) in {LEARNINGS_DIR} cannot be archived by"
-            " `append-history --from-file` (BW-02-001):\n"
-            + "\n".join(failures)
-            + "\n\nCommon fixes:\n"
+    collector.raise_if_any(
+        summary=(
+            f"{len(collector.failures)} file(s) in {LEARNINGS_DIR} cannot be"
+            " archived by `append-history --from-file` (BW-02-001):"
+        ),
+        footer=(
+            "Common fixes:\n"
             '  - timestamp MUST be tz-aware and quoted: "YYYY-MM-DDTHH:MM:SSZ"'
             " (BW-02-004);\n"
             "    a bare YYYY-MM-DD parses to a naive datetime and is rejected.\n"
@@ -99,6 +85,7 @@ def validate_incoming_learnings(
             " (BW-02-002).\n"
             "  - type MUST be `learning`.\n"
             "  - quote any title containing or ending with a colon."
-        )
+        ),
+    )
 
     return validated
