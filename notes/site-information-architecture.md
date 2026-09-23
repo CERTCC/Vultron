@@ -125,13 +125,26 @@ authoritative and retires the first two.
 
 ## The stakeholder types
 
-**The members and their definitions live in one place:
-`docs/includes/stakeholder_types.md`.** Read them there. They are not restated
-here, in the glossary, or in `notes/README.md`, because a list copied into four
-files is a list that drifts in three of them — the defect class this note already
-indicts for landing pages. The normative constraint on the values is DF-11-001;
-the fragment is generated from the frontmatter schema and gated by `--check`, so
-it cannot disagree with the code that enforces it.
+**Read the members and their definitions in
+`docs/includes/stakeholder_types.md`.** They are not restated in this note, in
+`notes/README.md`, or in the glossary, because a list copied into four files is a
+list that drifts in three of them — the defect class this note already indicts
+for landing pages.
+
+One authority, one chain, so it is clear which copy is which:
+
+| Where | What it is |
+|---|---|
+| **DF-11-001** | The normative enumeration. Every other form derives from it. |
+| Frontmatter schema (#3525) | Implements DF-11-001 in code and exposes the members importably |
+| `docs/includes/stakeholder_types.md` | Generated from that schema and `--check` gated (DF-11-011); the only form any `docs/` page includes |
+| ADR-0102 | A dated literal copy, on purpose — see below |
+
+A caveat on that third row: **the generator does not exist yet.** #3527 builds
+it; until it lands the fragment is hand-written, so a change to the members has
+to be made in DF-11-001 and in the fragment together, and nothing will catch you
+if you forget. That is precisely the state DF-11-011 exists to end, and it is why
+the generator is not optional scope in #3527.
 
 ADR-0102 states the members literally and deliberately does not include the
 fragment. A decision record is a dated account of what was decided; if the
@@ -265,7 +278,7 @@ exhaustively enumerated state pages, and retained design history. It stays
 published, linkable, and unbroken — and it stays out of the reader-facing
 navigation, behind one labeled door.
 
-It does declare `stakeholder_type: project-contributor`, because it is addressed
+It does declare `stakeholder_type: [project-contributor]`, because it is addressed
 to somebody. That makes the missing level an ordinary property of one audience's
 material rather than a special exemption carved out for a category of page: this
 is the audience whose material largely is not sequenced, because a decision
@@ -307,6 +320,26 @@ check. Three working examples to build on:
 | `vultron/metadata/adr/index_gen.py` | Generates a landing page from frontmatter; `missing_nav_entries()` proves nav completeness by parsing the nav structurally rather than by substring match (MS-14-006) |
 | `vultron/metadata/notes/` + `validate-notes-frontmatter` | Frontmatter schema, loader, and pre-commit hook |
 | `demo-scenarios-sync` (ADR-0098) | `--write` / `--check` so a generated artifact refuses to be hand-edited |
+
+### An `index.md` is a routing surface, not a content page
+
+Generation fixes a landing page that *under*-routes — a stub that lists too few
+of its children. It cannot fix the opposite failure, a page that is a full
+content essay wearing an index's filename, because the generator preserves
+hand-written prose and would faithfully preserve all of it.
+
+So the rule is about what the filename means, not about what the generator does:
+an `index.md` orients and routes, and anything on it that is neither orientation
+nor routing belongs on a named page of its own, with the index linking to it.
+
+`docs/topics/background/index.md` is the open instance — 211 lines titled
+"Vultron Contextualized", which is an essay, not a door. The prerequisites
+admonition and the "New to Vultron?" pointer are the parts that belong to an
+index; the rest needs its own page. #3526 owns deciding what that page is called
+and what carries over, because the choice depends on how the neighbouring
+`background/` pages divide the same material — which is exactly the
+several-overlapping-pages judgment an audit must settle rather than hand to a
+page-local fixer.
 
 ### Entry pages are titled by situation, never by type
 
@@ -397,6 +430,30 @@ it is now reviewable, because the level rule makes a wrong order falsifiable.
 Deleting a page's self-sufficiency to make neighbors read as a sequence is a
 regression.
 
+### This overturns one of #3512's own asks
+
+Worth stating plainly, because the issue that commissioned this note asked for
+the opposite. #3512's suggested action step 4 was a continuity pass that would
+"fix transitions between neighbors, add forward/back references, and **remove
+the duplicated openings** that came from pages being written standalone" — and
+it called that the step most easily skipped.
+
+Two of those three survive and are real work: transitions and forward/back
+references are what make a correct order read as a sequence, and #3526 records
+them per page alongside its other findings.
+
+The third is rejected, and DF-11-007 now forbids it. The duplicated openings
+were read as damage from pages having been written in isolation. They are not:
+they are what lets a reader who arrived from a search result understand the page
+they landed on. The premise underneath step 4 was that a reader moves through
+the site in nav order, which is the same premise SG-07 already rejected on
+different evidence. Deduplicating openings would have made the site read better
+for the one reader who starts at the top and worse for every other.
+
+This is the note's own thesis turned on the issue that asked for it: the request
+to smooth the pages into a sequence was itself written from the inside out, by
+someone who knows the whole tree, for a reader who does not exist.
+
 ## Validation
 
 There is no analytics, no search-log data, and no observed newcomer for this
@@ -411,19 +468,28 @@ read will falsify more of this note than any amount of internal review.
 
 ## Measured baseline
 
-Recorded at the time of writing, so later structural claims have something to
-be compared against.
+A dated one-off measurement, so later structural claims have something to be
+compared against. **These numbers go stale the moment anything lands** — they
+are a historical datum, not a live figure, and nothing downstream may restate
+them (MS-16-001). The standing answer is DF-11-008's generated coverage matrix;
+this table is what existed before there was one.
+
+Measured 2026-09-23 at `8f82d645`. Method, so it can be re-derived rather than
+trusted: page totals from `docs/**/*.md`; the in-nav set from the `.md` targets
+parsed out of `mkdocs.yml`; each quadrant count is the in-nav set filtered by
+path prefix, with decision records counted under Reference because `docs/adr/`
+is navigated there.
 
 | | Pages |
 |---|---|
-| `docs/**/*.md` total | 544 |
-| In nav | 333 |
-| Not in nav (57 include fragments, 161 matching `not_in_nav`, 3 unaccounted) | 211 |
+| `docs/**/*.md` total | 549 |
+| In nav | 336 |
+| Not in nav (include fragments plus `not_in_nav` entries) | 213 |
 | Tutorials | 7 |
 | How-to Guides | 20 |
 | Explanation | 97 |
-| Reference | 203 |
-| — of which decision records | 100 |
+| Reference | 206 |
+| — of which decision records | 102 |
 | — of which enumerated case states | 33 |
 | — of which generated code pages | 22 |
 | Retained design-history pages | 23 |

@@ -502,21 +502,24 @@ groups:
       Every reader-facing `docs/` page MUST declare an audience `stakeholder_type` and a
       prerequisite `level` in its YAML frontmatter, where `stakeholder_type` is a list whose
       members are drawn from cvd-practitioner, platform-developer, process-researcher, and
-      project-contributor — or the single value `ALL`, which MUST be used in place of a list
-      naming every type — and `level` is one of 100, 200, 300, 400, or 500.
+      project-contributor — or the bare scalar `ALL`, never `[ALL]`, which MUST be used in
+      place of a list naming every type — and `level` is one of 100, 200, 300, 400, or 500.
+      A reader-facing page is a published page under `docs/` that is neither a project
+      working-record page (DF-11-003) nor an `{% include-markdown %}` fragment (DF-11-010).
     rationale: >-
-      Both axes must be machine readable so ordering can be checked and landing pages
-      generated rather than hand-maintained. The key is list-valued because a page may serve
-      exactly two audiences; requiring `ALL` over a full enumeration stops one fact having two
-      forms. No member is a `CVDRole` value, so the reader-type versus case-role conflation is
-      structurally impossible. Members are defined once in
-      `docs/includes/stakeholder_types.md` (DF-10-002); rationale:
+      Both axes must be machine readable so ordering can be checked and landing
+      pages generated rather than hand-maintained. The key is list-valued because
+      a page may serve exactly two audiences; requiring `ALL` over a full
+      enumeration stops one fact having two forms. No member is a `CVDRole` value,
+      making the reader-type versus case-role conflation structurally impossible.
+      This item is the normative enumeration; its derivation chain is in
       `notes/site-information-architecture.md`.
     verification: >-
       A frontmatter validator resolves every reader-facing page under `docs/` and confirms
       each declares both keys with permitted values, rejecting a `stakeholder_type` list that
-      enumerates every type instead of using `ALL`. Project working-record pages declare
-      `project-contributor` and are confirmed to declare no `level` per DF-11-003.
+      enumerates every type instead of using `ALL` and rejecting `[ALL]`. Project
+      working-record pages declare `[project-contributor]` and are confirmed to declare no
+      `level` per DF-11-003.
   - id: DF-11-002
     priority: MUST
     kind: process
@@ -543,29 +546,49 @@ groups:
       - ADR-0102
     statement: >-
       Project working-record pages — decision records, generated code documentation,
-      exhaustively enumerated state pages, and retained design-history pages — MUST be
-      excluded from the reader-facing navigation and MUST NOT be assigned a `level`, while
-      declaring `stakeholder_type: [project-contributor]` and remaining published and
-      reachable.
+      exhaustively enumerated state pages, retained design-history pages, and agent- and
+      contributor-facing material such as `docs/agents/`, `docs/developer/` and
+      `docs/reference/codebase/` — MUST be excluded from the reader-facing navigation while
+      remaining published and reachable.
     rationale: >-
       The working record is a different kind of content, not a greater depth of the same
-      content, so assigning it a level is a category error. It is addressed to somebody, so it
-      does declare a type: the absent level is then a property of one audience's material, not
-      an exemption for a class of page. It is also the bulk of the site — roughly 200 of 333
-      navigated pages — which is what makes the tree read as accretion. Exclusion is demotion,
-      not retirement (#3281).
+      content. It is also the bulk of the navigated site, which is what makes the tree read as
+      accretion; for the measured proportions see the dated baseline in
+      `notes/site-information-architecture.md`. Research pages are *not* working record — they
+      are reader-facing material for `process-researcher` and do carry a level (ADR-0102) — so
+      they are outside this requirement. Exclusion is demotion, not retirement (#3281).
     verification: >-
       Inspection of `mkdocs.yml` confirms no working-record page appears in the
       reader-facing navigation, and that each remains reachable through a routing page or a
       `not_in_nav` entry rather than being unreferenced.
+  - id: DF-11-012
+    priority: MUST
+    kind: process
+    adr:
+      - ADR-0102
+    statement: >-
+      A project working-record page (DF-11-003) MUST declare
+      `stakeholder_type: [project-contributor]` and MUST NOT be assigned a `level`.
+    rationale: >-
+      Split from DF-11-003 because that item is verified against `mkdocs.yml`
+      while this one is verified against page frontmatter, and bundling them let a
+      tree satisfy the navigation half with every declaration still missing. A
+      level on the working record is a category error, but it is addressed to
+      somebody, so it declares a type. The absent level is then a property of one
+      audience's material, not an exemption.
+    verification: >-
+      The frontmatter validator confirms each working-record page declares
+      `[project-contributor]` and enforces the absence of `level` rather than defaulting one.
   - id: DF-11-004
     priority: MUST_NOT
     kind: process
     adr:
       - ADR-0102
     statement: >-
-      The `level` of a `docs/` page MUST NOT appear in rendered page content or in the
-      site navigation.
+      A page's own `level` MUST NOT appear in its rendered content or in the site
+      navigation. Documenting the level ladder itself — in the glossary, in an ADR, or in a
+      shared fragment they include — is not a page declaring its own level and is
+      unaffected.
     rationale: >-
       Levels describe prerequisite depth, which is a property of the content, while readers
       sort themselves by goal: someone wiring a scanner into report validation thinks "how
@@ -582,9 +605,8 @@ groups:
     adr:
       - ADR-0102
     statement: >-
-      Section landing pages that enumerate their section's contents, and the shared fragment
-      defining the `stakeholder_type` members, MUST be generated from the frontmatter schema
-      and gated by a check mode, and MUST NOT be hand-maintained.
+      Section landing pages that enumerate their section's contents MUST be generated from
+      page frontmatter and gated by a check mode, and MUST NOT be hand-maintained.
     rationale: >-
       Every section landing page was a hand-written duplicate of the navigation and every
       one had drifted from it — children missing, order disagreeing, and one describing a
@@ -606,11 +628,12 @@ groups:
       than enumerating the members.
     rationale: >-
       The pattern is already proven here and applied inconsistently:
-      `docs/reference/user_stories/` holds 111 story pages kept out of the navigation
-      entirely and reached through `traceability.md`, so two nav entries carry 111 pages.
-      The same navigation meanwhile enumerates 100 decision records, 33 enumerated case
-      states, and 22 generated code pages inline. Same shape of content, opposite treatment;
-      the routing-page treatment is the one to generalize.
+      `docs/reference/user_stories/` keeps its whole story set out of the
+      navigation and reaches it through `traceability.md`. The same navigation
+      meanwhile enumerates the decision records, the case states and the generated
+      code pages inline. Same shape of content, opposite treatment; the routing-
+      page treatment is the one to generalize. Measured sizes: `notes/site-
+      information-architecture.md`.
     verification: >-
       Inspection of `mkdocs.yml` confirms large sibling leaf sets appear as a single group
       entry, and that a routing page links every member so no page becomes unreachable.
@@ -644,12 +667,13 @@ groups:
       the committed matrix disagrees with the tree. The check MUST NOT fail because a cell is
       empty.
     rationale: >-
-      The matrix turns "we do not serve audience X" from an impression into a recorded fact
-      planning can act on, which is the return on declaring `stakeholder_type` at all. Gating
-      currency rather than fullness keeps it a checked object rather than an advisory one,
-      leaving to a human whether a gap matters; requiring fullness would harden into "every
-      type at every level", which the divergence-above-100 shape contradicts. It sits outside
-      `docs/` because it prints levels (DF-11-004).
+      The matrix turns "we do not serve audience X" from an impression into a
+      recorded fact planning can act on. Gating currency rather than fullness
+      keeps it a checked object rather than an advisory one; requiring fullness
+      would harden into "every type at every level", which the divergence-
+      above-100 shape contradicts. It sits outside `docs/` because it is a
+      planning artifact, and a per-page level table shown to readers would defeat
+      DF-11-004 page by page.
     verification: >-
       The generator's `--check` mode runs as a pre-commit hook and in CI, failing when the
       committed matrix differs from what page frontmatter implies, and passing a tree in which
@@ -677,3 +701,41 @@ groups:
       Inspection of rendered output and of `mkdocs.yml` confirms no page presents its own
       stakeholder type or a label derived from it, and that each generated routing page's title
       states a reader situation.
+  - id: DF-11-010
+    priority: MUST_NOT
+    kind: process
+    adr:
+      - ADR-0102
+    statement: >-
+      An `{% include-markdown %}` fragment MUST NOT declare `stakeholder_type` or `level` of
+      its own; both are taken from the pages that include it, and a fragment with more than
+      one host is governed by each host's declarations.
+    rationale: >-
+      A fragment is not a page, so a page-scoped declaration applied to one yields
+      artifacts of the authoring split rather than facts about a reader — the same
+      reason DF-09-008 takes a fragment's quadrant from its hosts. Without this
+      the validator's target set is ambiguous for the published-but-unnavved
+      fragments under `docs/includes/`, and `stakeholder_types.md` would have to
+      declare an audience for a table with no reader.
+    verification: >-
+      The frontmatter validator's resolved target set excludes `{% include-markdown %}`
+      fragments, and a fragment carrying either key is reported as a finding.
+  - id: DF-11-011
+    priority: MUST
+    kind: process
+    adr:
+      - ADR-0102
+    statement: >-
+      The shared fragment defining the `stakeholder_type` members MUST be generated from the
+      frontmatter schema and gated by a check mode, and MUST NOT be hand-maintained.
+    rationale: >-
+      Split from DF-11-005 because it is a different artifact with a different source: a
+      landing page is generated from the frontmatter of many pages, while this fragment is
+      generated from the schema that defines the vocabulary. Bundling them let an
+      implementation satisfy one and leave the other neither met nor unmet. Generating it is
+      what keeps DF-11-001's normative enumeration and the list published to readers from
+      disagreeing, which hand-maintenance cannot guarantee.
+    verification: >-
+      The generator's `--check` mode runs as a pre-commit hook and in CI, failing when the
+      committed fragment differs from what the schema implies. Per DF-09-009 the check fails
+      rather than passes when it resolves no targets.

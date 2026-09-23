@@ -1,9 +1,10 @@
 ---
-status: accepted
+status: accepted-provisional
 date: 2026-09-23
 deciders: Allen Householder
 consulted: CERT/CC Vultron team
 informed: Vultron contributors
+stakeholder_type: [project-contributor]
 ---
 
 # Organize reader-facing documentation by stakeholder type and invisible prerequisite level
@@ -150,7 +151,7 @@ something they were taught.
 
 The project working record — decision records, generated code documentation,
 enumerated state pages, retained design history — declares
-`stakeholder_type: project-contributor` and **no level at all**. It is a
+`stakeholder_type: [project-contributor]` and **no level at all**. It is a
 different kind of thing rather than a greater depth, and it moves out of the
 reader-facing navigation while remaining published and linkable. Research
 material becomes its own small 500-level section addressed to
@@ -302,4 +303,12 @@ staleness are a separate concern from placement.
 Source: #3512, under epic #3511.
 
 Generated spec requirements: `diataxis-requirements.yaml` DF-11-001 through
-DF-11-009.
+DF-11-012.
+
+This record is `accepted-provisional` rather than `accepted` on purpose. The
+structure is decided and is being implemented; the *audience model underneath it*
+rests on indirect signals and has not met a real reader, as the Consequences and
+Validation sections above say plainly. Status is the confidence signal agents
+read (MS-14-002), so it should not claim more than the Validation section
+delivers. It advances to `accepted` when a cold read confirms the types, or the
+types change and it is amended.
