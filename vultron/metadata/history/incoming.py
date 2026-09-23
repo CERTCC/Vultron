@@ -102,3 +102,33 @@ def validate_incoming_learnings(
         )
 
     return validated
+
+
+def render_learnings_index(
+    entries: dict[str, HistoryEntryFrontmatter],
+) -> str:
+    """Render one line per incoming learning: source, title, filename.
+
+    Each learning's ``title`` states the lesson in full — that is the house
+    style — so the titles alone carry what a reader of the whole directory
+    would take away, at ~5% of the bytes.
+    """
+    lines = [
+        f"{fm.source}  {fm.title}\n    {name}"
+        for name, fm in sorted(
+            entries.items(), key=lambda kv: kv[1].timestamp, reverse=True
+        )
+    ]
+    header = (
+        f"# {len(lines)} incoming learnings, newest first."
+        f" Titles state the lesson; read {LEARNINGS_DIR}/<file> for the"
+        " evidence behind one that bears on your task."
+    )
+    return "\n".join([header, *lines]) + "\n"
+
+
+def main() -> None:
+    """Print the incoming-learnings index (``learnings-index``)."""
+    import sys
+
+    sys.stdout.write(render_learnings_index(validate_incoming_learnings()))

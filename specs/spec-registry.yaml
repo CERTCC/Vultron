@@ -637,6 +637,21 @@ groups:
     verification: >-
       `test/metadata/specs/test_spec_dump_cli.py` asserts the full output, the single stderr line,
       and that filtered and `--index` runs do not warn.
+  - id: SR-07-014
+    priority: MUST
+    kind: project
+    statement: >-
+      The `spec-dump` CLI MUST support a `--text` flag that renders the selected requirements as
+      indented text — a topic header, a group header, then one `ID PRIORITY statement` line per
+      requirement — and MUST reject `--text` without a selector with exit status 2.
+    rationale: >-
+      The JSON dump is a single line, so an agent that prints a load of any size sees a truncated
+      prefix of one unreadable token; observed agent runs piped every load through `jq` to read it
+      at all. One line per requirement truncates gracefully and costs fewer bytes than the JSON.
+      Requiring a selector keeps `--text` from reproducing the full-dump wall.
+    verification: >-
+      `test/metadata/specs/test_spec_dump_cli.py` asserts the header, topic, group, and requirement
+      line formats, that statements are collapsed to one line, and the exit-2 unselected case.
 - id: SR-09
   title: Docs Renderer Kind Routing
   specs:
@@ -1003,6 +1018,48 @@ groups:
       `test/metadata/specs/test_backstop.py` asserts the demotion above the threshold, no
       demotion at it, that mirror and mention hits stay MUST, the hub line in the text output,
       and the `--hub-threshold` flag and `hubs` key in the JSON output.
+    relationships:
+    - rel_type: refines
+      spec_id: SR-12-003
+    tags:
+    - tooling
+  - id: SR-12-010
+    priority: MUST
+    kind: project
+    statement: >-
+      `spec-backstop` MUST tier a group by the priority of the requirements that matched: a group
+      whose matched requirements are all SHOULD, SHOULD_NOT, or MAY MUST go to the INFO tier, so
+      that only a MUST or MUST_NOT requirement can leave the manifest unresolved.
+    rationale: >-
+      An unresolved MUST group blocks the build, so the blocking set has to be requirements that
+      themselves bind. A SHOULD-only group such as TRIG-05 forced a spec load with no obligation
+      behind it.
+    verification: >-
+      `test/metadata/specs/test_backstop.py` asserts a SHOULD-only group lands in INFO, a group
+      with one MUST among SHOULDs stays in MUST, and the advisory evidence wording.
+    relationships:
+    - rel_type: refines
+      spec_id: SR-12-004
+    tags:
+    - tooling
+  - id: SR-12-011
+    priority: MUST
+    kind: project
+    statement: >-
+      `spec-backstop` MUST move to the INFO tier the marker-derived hits of a test file whose spec
+      markers span more than `MONOLITH_GROUP_SPAN` requirement groups, MUST exclude module-level
+      boilerplate names (`logger`, `log`, and case variants) from the changed-symbol set, and MUST
+      report when a diff contains no Python source that a passing exit status is not coverage.
+    rationale: >-
+      Three distinct false-positive sources measured on real diffs: a 17-group catch-all suite put
+      13 unrelated groups in MUST from one import; `logger` is assigned in nearly every module, so
+      it matched every requirement mentioning `logger.info`; and a docs-only diff exits 0 with no
+      signal at all, which reads as a pass. The median test file here spans 2 groups and the 90th
+      percentile spans 6, so a threshold of 8 demotes only genuine whole-subsystem suites.
+    verification: >-
+      `test/metadata/specs/test_backstop.py` asserts the marker demotion above the span, that a
+      file at the span still promotes, that `logger` is not a changed symbol, and the no-source
+      note in the text output.
     relationships:
     - rel_type: refines
       spec_id: SR-12-003

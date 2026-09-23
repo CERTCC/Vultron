@@ -365,6 +365,67 @@ def to_llm_json(
     return json.dumps(result, separators=(",", ":"))
 
 
+def to_requirements_text(
+    registry: SpecRegistry,
+    *,
+    topic: str | Iterable[str] | None = None,
+    groups: Iterable[str] | None = None,
+    spec_ids: Iterable[str] | None = None,
+    include_deps: bool = False,
+    kinds: list[str] | None = None,
+    scope: str | None = None,
+    tags: list[str] | None = None,
+    priority: str | None = None,
+) -> str:
+    """Render selected requirements as line-per-requirement text (SR-07-014).
+
+    ``to_llm_json`` emits one long line, so an agent that prints a load of
+    any size sees a truncated prefix of a single unreadable token — the same
+    failure the full dump had.  This renders the same selection as indented
+    text: a topic header, a group header, then ``ID PRIORITY statement`` per
+    requirement, which truncates gracefully and costs ~30% fewer bytes.
+    """
+    selected_ids = select_spec_ids(
+        registry,
+        topics=topic,
+        groups=groups,
+        spec_ids=spec_ids,
+        include_deps=include_deps,
+    )
+    filters = _AttrFilters(
+        kinds=kinds, scope=scope, tags=tags, priority=priority
+    )
+    by_group: dict[str, list[str]] = {}
+    for spec_id, spec, group, _file in _iter_matching(
+        registry, selected_ids, filters
+    ):
+        statement = " ".join(spec.statement.split())
+        by_group.setdefault(group.id, []).append(
+            f"    {spec_id} {spec.priority.value}  {statement}"
+        )
+
+    lines: list[str] = []
+    n_reqs = 0
+    for file in registry.files:
+        rendered = [
+            (g, by_group[g.id]) for g in file.groups if g.id in by_group
+        ]
+        if not rendered:
+            continue
+        lines.append(f"{file.id}  {file.title}")
+        for group, reqs in rendered:
+            lines.append(f"  {group.id}  {group.title}")
+            lines.extend(reqs)
+            n_reqs += len(reqs)
+
+    header = (
+        f"# {n_reqs} requirements, statements only. Relationships,"
+        " verification, and tags are omitted here — drop --text for the"
+        " full JSON record of any ID below."
+    )
+    return "\n".join([header, *lines]) + "\n"
+
+
 def to_index_text(
     registry: SpecRegistry,
     *,
@@ -414,7 +475,8 @@ def to_index_text(
     n_topics = sum(1 for line in lines if not line.startswith(" "))
     header = (
         f"# spec map: {n_topics} topics, {sum(group_counts.values())} reqs."
-        " Load with: spec-dump --topic T | --group G | --ids I [--deps]"
-        f" [--slim]; --cross-cutting adds {','.join(CROSS_CUTTING_TOPICS)}"
+        " Load with: spec-dump --text --topic T | --group G | --ids I"
+        f" [--deps]; --cross-cutting adds {','.join(CROSS_CUTTING_TOPICS)}."
+        " Drop --text for the full JSON record of one group."
     )
     return "\n".join([header, *lines])

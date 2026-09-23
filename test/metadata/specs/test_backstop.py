@@ -288,7 +288,7 @@ def test_hub_threshold_not_exceeded_keeps_must():
 def test_render_text_names_hubs():
     report = analyze([_change({13})], _tests(), REQS, hub_threshold=0)
     assert (
-        "hub symbols (imported by >0 test files; import hits shown as "
+        "hub symbols (imported by >0 test files; hits shown as "
         "INFO): SomeClass (1)"
     ) in render_text(report)
     plain = analyze([_change({13})], _tests(), REQS)
@@ -543,3 +543,95 @@ def test_cli_git_mode_collects_all_change_kinds(git_repo, monkeypatch, capsys):
         "vultron/z.py": ["lonely_fn"],
     }
     assert [g["group"] for g in data["must"]] == ["AA-01", "AA-02"]
+
+
+# ---------------------------------------------------------------------------
+# Noise control (SR-12-010, SR-12-011)
+# ---------------------------------------------------------------------------
+
+
+def _pri(rid, priority, statement="names `vultron/a/mod.py`"):
+    return Requirement(rid, rid[:5], rid[:2], statement, priority)
+
+
+@pytest.mark.spec("SR-12-010")
+def test_should_only_group_is_advisory():
+    """A SHOULD cannot block: TRIG-05 forced a load with no obligation."""
+    report = analyze([_change()], {}, [_pri("EE-01-001", "SHOULD")])
+    assert "EE-01" not in report.must
+    assert "EE-01" in report.info
+    assert any("advisory" in e for e in report.info["EE-01"].evidence)
+
+
+@pytest.mark.spec("SR-12-010")
+@pytest.mark.parametrize("priority", ["MUST", "MUST_NOT"])
+def test_mandatory_priorities_still_block(priority):
+    report = analyze([_change()], {}, [_pri("EE-01-001", priority)])
+    assert "EE-01" in report.must
+
+
+@pytest.mark.spec("SR-12-010")
+def test_one_must_among_shoulds_keeps_the_group_blocking():
+    """Only the mandatory ID blocks, and the group is not listed twice."""
+    report = analyze(
+        [_change()],
+        {},
+        [_pri("EE-01-001", "SHOULD"), _pri("EE-01-002", "MUST")],
+    )
+    assert report.must["EE-01"].reqs == {"EE-01-002"}
+    assert "EE-01" not in report.info
+
+
+@pytest.mark.spec("SR-12-011")
+def test_logger_is_not_a_changed_symbol():
+    """`logger` is module boilerplate, and matched every `logger.info` spec."""
+    tree = ast.parse("import logging\nlogger = logging.getLogger(__name__)\n")
+    assert changed_symbols(tree, None) == set()
+
+
+@pytest.mark.spec("SR-12-011")
+def test_catch_all_suite_markers_are_advisory():
+    """One import from a 17-group suite put 13 unrelated groups in MUST."""
+    span = backstop.MONOLITH_GROUP_SPAN + 1
+    ids = [f"G{i:02d}-01-001" for i in range(span)]
+    marks = ", ".join(f'"{i}"' for i in ids)
+    source = (
+        "import pytest\nfrom vultron.a.mod import SomeClass\n"
+        f"@pytest.mark.spec({marks})\ndef test_a(): pass\n"
+    )
+    tests = {
+        "test/x/test_all.py": index_test_file("test/x/test_all.py", source)
+    }
+    reqs = [_pri(i, "MUST", "holds") for i in ids]
+    report = analyze([_change({13})], tests, reqs)
+    assert not report.must
+    assert len(report.info) == span
+    assert report.monoliths == {"test/x/test_all.py": span}
+    assert "catch-all test files" in render_text(report)
+
+
+@pytest.mark.spec("SR-12-011")
+def test_suite_at_the_span_still_promotes():
+    span = backstop.MONOLITH_GROUP_SPAN
+    ids = [f"G{i:02d}-01-001" for i in range(span)]
+    marks = ", ".join(f'"{i}"' for i in ids)
+    source = (
+        "import pytest\nfrom vultron.a.mod import SomeClass\n"
+        f"@pytest.mark.spec({marks})\ndef test_a(): pass\n"
+    )
+    tests = {
+        "test/x/test_all.py": index_test_file("test/x/test_all.py", source)
+    }
+    reqs = [_pri(i, "MUST", "holds") for i in ids]
+    report = analyze([_change({13})], tests, reqs)
+    assert len(report.must) == span
+    assert not report.monoliths
+
+
+@pytest.mark.spec("SR-12-011")
+def test_no_python_source_says_exit_zero_is_not_coverage():
+    """A docs-only diff has no signal, and silence read as a pass."""
+    report = analyze([], {}, REQS)
+    text = render_text(report)
+    assert "no Python source in the diff" in text
+    assert "not evidence" in text

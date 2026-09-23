@@ -111,9 +111,11 @@ Check against `.claude/skills/shared/pr-body-guide.md`:
    branch, save the manifest to a file and run
    `PYTHONPATH= uv run spec-backstop --base origin/<base> --manifest <file>`.
    Each unresolved **MUST** group is a selection gap (IMPROVE): load it with
-   `spec-dump --group <G> --slim` and check the diff against it in Phase 5.
+   `spec-dump --group <G> --text` and check the diff against it in Phase 5.
    With no manifest, run it without `--manifest` and treat every MUST group
-   as unresolved.
+   as unresolved. Exit 0 does not discharge this check: the tool only sees
+   what the diff already names, so a requirement the change should have
+   honored but never references stays invisible to it.
 4. Record the domain list in `pr_metadata.domains` — execute re-uses these hints.
 
 ### Phase 5 — Spec and Notes Conformance

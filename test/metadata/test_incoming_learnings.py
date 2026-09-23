@@ -11,6 +11,7 @@ import pytest
 
 from vultron.metadata.history.incoming import (
     LEARNINGS_DIR,
+    render_learnings_index,
     validate_incoming_learnings,
 )
 
@@ -126,3 +127,47 @@ class TestRealCorpus:
         re-accumulating between releases.
         """
         assert validate_incoming_learnings()
+
+
+class TestRenderLearningsIndex:
+    """The index replaces reading the directory whole during `orient-agent`.
+
+    Each title states the lesson, so the failure that matters is dropping a
+    file: a learning missing from the index is one no agent sees.
+    """
+
+    def test_lists_source_title_and_filename(self, tmp_path: Path) -> None:
+        root = _repo(tmp_path, **{"20260901-good.md": _GOOD})
+        out = render_learnings_index(validate_incoming_learnings(root))
+        assert "ISSUE-2762  A thing was learned" in out
+        assert "    20260901-good.md" in out
+        assert out.startswith("# 1 incoming learnings")
+
+    def test_orders_newest_first(self, tmp_path: Path) -> None:
+        older = _GOOD.replace("2026-09-01", "2026-08-01").replace(
+            "A thing", "Older thing"
+        )
+        root = _repo(
+            tmp_path,
+            **{"20260901-new.md": _GOOD, "20260801-old.md": older},
+        )
+        out = render_learnings_index(validate_incoming_learnings(root))
+        assert out.index("A thing was learned") < out.index("Older thing")
+
+    def test_empty_directory_renders_a_header_only(
+        self, tmp_path: Path
+    ) -> None:
+        (tmp_path / "pyproject.toml").write_text("[project]\nname='x'\n")
+        out = render_learnings_index(validate_incoming_learnings(tmp_path))
+        assert out.splitlines() == [
+            "# 0 incoming learnings, newest first. Titles state the lesson;"
+            " read plan/incoming/learnings/<file> for the evidence behind one"
+            " that bears on your task."
+        ]
+
+    @pytest.mark.spec("BW-02-001")
+    def test_real_corpus_index_lists_every_committed_learning(self) -> None:
+        entries = validate_incoming_learnings()
+        out = render_learnings_index(entries)
+        assert entries
+        assert [name for name in entries if name not in out] == []

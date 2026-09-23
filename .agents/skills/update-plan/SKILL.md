@@ -58,7 +58,7 @@ test/.
 
 Gap analysis needs broader spec coverage than one task. Walk the spec map
 from `orient-agent` one topic at a time with
-`PYTHONPATH= uv run spec-dump --topic <T> --slim` rather than printing the
+`PYTHONPATH= uv run spec-dump --topic <T> --text` rather than printing the
 full dump, which is too large to read end to end.
 
 To understand what has recently been completed and avoid re-adding finished

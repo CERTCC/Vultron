@@ -10,7 +10,11 @@ import pytest
 import yaml
 
 from vultron.metadata.specs import CROSS_CUTTING_TOPICS
-from vultron.metadata.specs.llm_export import to_index_text, to_llm_json
+from vultron.metadata.specs.llm_export import (
+    to_index_text,
+    to_llm_json,
+    to_requirements_text,
+)
 from vultron.metadata.specs.registry import load_registry
 from vultron.metadata.specs.render import main_llm_json
 
@@ -322,3 +326,70 @@ class TestCli:
     @pytest.mark.spec("SR-07-013")
     def test_index_does_not_warn(self, dump_dir, monkeypatch, capsys):
         assert _run(monkeypatch, capsys, "--index", str(dump_dir)).err == ""
+
+
+# ---------------------------------------------------------------------------
+# Text rendering (SR-07-014)
+# ---------------------------------------------------------------------------
+
+
+class TestRequirementsText:
+    """JSON output is one line, so any printed load truncated to one token."""
+
+    @pytest.mark.spec("SR-07-014")
+    def test_renders_topic_group_and_requirement_lines(self, registry):
+        out = to_requirements_text(registry, topic="ARCH")
+        assert out.splitlines()[1] == "ARCH  Architecture"
+        assert "  ARCH-01  Layering" in out
+        assert "    ARCH-01-001 MUST  ARCH-01-001 MUST hold" in out
+        assert "    ARCH-01-002 SHOULD  ARCH-01-002 SHOULD hold" in out
+
+    @pytest.mark.spec("SR-07-014")
+    def test_one_line_per_requirement(self, registry):
+        out = to_requirements_text(registry, topic=["ARCH", "CM"])
+        assert (
+            len([ln for ln in out.splitlines() if ln.startswith("    ")]) == 4
+        )
+        assert out.startswith("# 4 requirements, statements only.")
+
+    @pytest.mark.spec("SR-07-014")
+    def test_wrapped_statement_becomes_one_line(self, tmp_path):
+        """YAML folds long statements; a line per requirement must survive."""
+        doc = dict(ARCH_YAML)
+        doc["groups"] = [
+            {
+                "id": "ARCH-01",
+                "title": "Layering",
+                "specs": [
+                    {
+                        "id": "ARCH-01-001",
+                        "priority": "MUST",
+                        "kind": "architecture",
+                        "statement": "first line\nsecond line\nthird line",
+                    }
+                ],
+            }
+        ]
+        (tmp_path / "arch.yaml").write_text(yaml.dump(doc))
+        out = to_requirements_text(load_registry(tmp_path), topic="ARCH")
+        assert "    ARCH-01-001 MUST  first line second line third line" in out
+        assert len(out.splitlines()) == 4
+
+    @pytest.mark.spec("SR-07-014")
+    def test_filters_narrow_the_text(self, registry):
+        out = to_requirements_text(registry, topic="ARCH", priority="MUST")
+        assert "ARCH-01-001" in out
+        assert "ARCH-01-002" not in out
+
+    @pytest.mark.spec("SR-07-014")
+    def test_cli_text_flag(self, monkeypatch, capsys, dump_dir):
+        captured = _run(
+            monkeypatch, capsys, "--text", "--topic", "CM", str(dump_dir)
+        )
+        assert captured.out.startswith("# 2 requirements")
+        assert "CM-01-001 MUST" in captured.out
+        assert not captured.err
+
+    @pytest.mark.spec("SR-07-014")
+    def test_cli_text_without_a_selector_exits_2(self, monkeypatch, dump_dir):
+        assert _exit_code(monkeypatch, "--text", str(dump_dir)) == 2

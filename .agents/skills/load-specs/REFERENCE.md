@@ -13,6 +13,21 @@ group line is `GROUP-ID  title (N)`, indented two spaces. The counts show
 only requirements that match the other flags. Topics and groups with no
 match are left out.
 
+## `--text` output
+
+```text
+# N requirements, statements only. Relationships, verification, and tags are
+# omitted here — drop --text for the full JSON record of any ID below.
+ARCH  Architecture
+  ARCH-01  group title
+    ARCH-01-001 MUST  The statement, whitespace-collapsed to one line.
+```
+
+Same topic/group nesting as `--index`, with one line per requirement:
+`ID PRIORITY  statement`, indented four spaces. This is the default form for
+loading requirements — the JSON forms print as a single line, so a large
+selection shows only a truncated prefix. `--text` requires a selection.
+
 ## JSON structure
 
 ```json
@@ -65,7 +80,7 @@ remain.
 PYTHONPATH= uv run spec-dump --index --kind protocol
 
 # Two topics plus cross-cutting constraints, compact
-PYTHONPATH= uv run spec-dump --topic CM,EP --cross-cutting --slim
+PYTHONPATH= uv run spec-dump --topic CM,EP --cross-cutting --text
 
 # One requirement and everything it depends on, full records
 PYTHONPATH= uv run spec-dump --ids EP-04-001 --deps

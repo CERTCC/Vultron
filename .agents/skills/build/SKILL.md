@@ -313,8 +313,12 @@ later) are separate decisions. Apply
 
 2. **Spec backstop (blocking).** Update the Spec manifest from Phase 3 if the
    work drifted, then resolve it against the diff per `deepen-context`
-   § "Backstop" until `spec-backstop --manifest` exits 0. The resolved
-   manifest is what goes into the PR body.
+   § "Backstop" until
+   `spec-backstop --manifest /tmp/spec-manifest-<issue>.txt` exits 0 (no
+   `--paths`: the branch diff is what ships). The resolved manifest is what
+   goes into the PR body. Exit 0 is a floor, not proof of completeness — read
+   the `no deterministic signal` and `no Python source in the diff` notes as
+   "this part rests on your judgment".
 3. Do not skip or delegate validation.
 4. Apply branch-ownership and pre-existing-failure rules from
    `completeness-doctrine.md` § "Finding Severity".

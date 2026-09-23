@@ -46,6 +46,10 @@ MAX_EVIDENCE = 3
 #: A changed symbol imported by more test files than this is a hub: its
 #: import hits go to INFO, because nearly every test would otherwise be MUST.
 HUB_THRESHOLD = 10
+#: A test file carrying markers for more groups than this is a whole-subsystem
+#: suite, not a test of one contract; its markers go to INFO. The median test
+#: file here spans 2 groups and the 90th percentile spans 6.
+MONOLITH_GROUP_SPAN = 8
 
 _HUNK_RE = re.compile(r"^@@ -\S+ \+(\d+)(?:,(\d+))? @@")
 _WORD_RE = re.compile(r"[A-Za-z_][A-Za-z0-9_]*")
@@ -100,6 +104,12 @@ class Requirement:
     group: str
     topic: str
     statement: str
+    priority: str = "MUST"
+
+    @property
+    def mandatory(self) -> bool:
+        """``MUST``/``MUST_NOT``; a SHOULD or MAY cannot block a build."""
+        return self.priority in ("MUST", "MUST_NOT")
 
 
 @dataclass
@@ -122,6 +132,13 @@ class BackstopReport:
     no_signal: list[str]
     hubs: dict[str, int] = field(default_factory=dict)
     hub_threshold: int = HUB_THRESHOLD
+    #: Catch-all test files whose markers were demoted, and their group span.
+    monoliths: dict[str, int] = field(default_factory=dict)
+
+
+#: Stand-in for an ID absent from the registry, so an unknown ID is treated as
+#: mandatory rather than silently dropped from the MUST tier.
+_ADVISORY = Requirement("", "", "", "", "MUST")
 
 
 @dataclass
@@ -237,6 +254,13 @@ def changes_from_paths(root: Path, paths: Iterable[str]) -> list[FileChange]:
 # ---------------------------------------------------------------------------
 
 
+#: Module-level boilerplate that is not part of any module's API.  ``logger``
+#: is assigned in nearly every module here, so treating it as a changed symbol
+#: matches every requirement that says ``logger.info`` and flags its group on
+#: any diff that touches a logging line (observed: CLP-13 on a bridge change).
+BOILERPLATE_SYMBOLS = frozenset({"logger", "log", "LOGGER", "LOG"})
+
+
 def _symbol_names(node: ast.stmt) -> list[str]:
     if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
         names = [node.name]
@@ -246,7 +270,12 @@ def _symbol_names(node: ast.stmt) -> list[str]:
         names = [node.target.id]
     else:
         return []
-    return [n for n in names if not (n.startswith("__") and n.endswith("__"))]
+    return [
+        n
+        for n in names
+        if not (n.startswith("__") and n.endswith("__"))
+        and n not in BOILERPLATE_SYMBOLS
+    ]
 
 
 def _span(node: ast.stmt) -> range:
@@ -516,18 +545,50 @@ class _Analyzer:
         self.report = BackstopReport({}, {}, {}, [])
 
     def must(self, ids: Iterable[str], evidence: str) -> bool:
-        return _add(self.report.must, self.reqs, ids, evidence)
+        """Record *ids* as MUST, routing advisory requirements to INFO.
+
+        A group whose only matched requirements are SHOULD or MAY cannot
+        block, or a SHOULD-only group such as TRIG-05 forces a load with no
+        obligation behind it.
+        """
+        ids = list(ids)
+        mandatory = [i for i in ids if self.reqs.get(i, _ADVISORY).mandatory]
+        advisory = [i for i in ids if i not in set(mandatory)]
+        if advisory:
+            self.info(advisory, f"{evidence} (advisory: SHOULD/MAY only)")
+        return _add(self.report.must, self.reqs, mandatory, evidence)
 
     def source_change(self, change: FileChange, symbols: set[str]) -> None:
         module = module_name(change.path)
         hit = self._importers(module, symbols)
         for test in mirror_tests(change.path, self.tests):
-            hit |= self.must(self.tests[test].spec_ids, f"mirror {test}")
+            hit |= self._from_test(test, f"mirror {test}")
+        # Hub demotion deliberately does not apply here. ``mentions`` only
+        # matches symbols *defined* in the changed file, so a requirement
+        # naming ``BTBridge`` is a requirement about the contract of the file
+        # that defines it — the strongest signal available, not the weakest.
         for req in self.requirements:
             for token in sorted(mentions(req, change.path, symbols)):
                 hit |= self.must([req.id], f"{req.id} names {token}")
         if not hit:
             self.report.no_signal.append(change.path)
+
+    def _from_test(self, test: str, evidence: str) -> bool:
+        """Promote *test*'s markers, unless it is a catch-all test file.
+
+        A file carrying markers for more than ``MONOLITH_GROUP_SPAN`` groups
+        is a whole-subsystem suite (the median here is 2), so importing any
+        one symbol from it says nothing about which of its groups apply.
+        """
+        ids = self.tests[test].spec_ids
+        groups = {self.reqs[i].group for i in ids if i in self.reqs}
+        if len(groups) > MONOLITH_GROUP_SPAN:
+            self.report.monoliths[test] = len(groups)
+            self.info(
+                ids, f"{evidence} (catch-all suite, {len(groups)} groups)"
+            )
+            return False
+        return self.must(ids, evidence)
 
     def info(self, ids: Iterable[str], evidence: str) -> None:
         _add(self.report.info, self.reqs, ids, evidence)
@@ -552,7 +613,7 @@ class _Analyzer:
             ids = self.tests[path].spec_ids
             if names - hubs:
                 shown = ", ".join(sorted(names - hubs))
-                hit |= self.must(ids, f"{path} imports {shown}")
+                hit |= self._from_test(path, f"{path} imports {shown}")
             elif names:
                 self.info(
                     ids, f"{path} imports hub {', '.join(sorted(names))}"
@@ -602,7 +663,11 @@ def load_requirements(spec_dir: Path) -> list[Requirement]:
     registry = load_registry(spec_dir)
     return [
         Requirement(
-            spec.id, group.id, file.id, " ".join(spec.statement.split())
+            spec.id,
+            group.id,
+            file.id,
+            " ".join(spec.statement.split()),
+            spec.priority.value,
         )
         for file in registry.files
         for group in file.groups
@@ -701,11 +766,25 @@ def render_text(
         f"spec-backstop: {len(report.symbols)} changed source files, "
         f"{nsym} changed symbols",
     ]
+    if not report.symbols:
+        lines.append(
+            "no Python source in the diff: this tool derives nothing from"
+            " docs, YAML, or config changes, so exit 0 here is not evidence"
+            " that the manifest covers the change"
+        )
     if report.hubs:
         hubs = ", ".join(f"{n} ({c})" for n, c in sorted(report.hubs.items()))
         lines.append(
             f"hub symbols (imported by >{report.hub_threshold} test files; "
-            f"import hits shown as INFO): {hubs}"
+            f"hits shown as INFO): {hubs}"
+        )
+    if report.monoliths:
+        shown = ", ".join(
+            f"{p} ({n} groups)" for p, n in sorted(report.monoliths.items())
+        )
+        lines.append(
+            f"catch-all test files (markers span >{MONOLITH_GROUP_SPAN}"
+            f" groups; shown as INFO): {shown}"
         )
     lines.append(f"MUST ({len(report.must)} groups):")
     lines += [_group_line(report.must[g]) for g in sorted(report.must)]

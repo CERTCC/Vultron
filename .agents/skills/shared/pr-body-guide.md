@@ -62,7 +62,9 @@ captures the full rationale.>
   descriptions. Do not just echo the commit message.
 - **Specs**: required. Paste the Spec manifest `deepen-context` returned
   (floor, cross-cutting, selected, and considered-but-skipped lines), as
-  resolved against the diff by `spec-backstop --manifest` (exit 0).
+  resolved against the diff by `spec-backstop --manifest` (exit 0). Exit 0
+  means nothing derivable from the diff was missed — not that the selection
+  is complete, so keep the `Considered, skipped` reasons honest.
   `pr-review` and `pr-triage` use it as their spec floor and flag a PR
   without one.
 - **Verification**: required for any PR that modifies `.py` files. Include

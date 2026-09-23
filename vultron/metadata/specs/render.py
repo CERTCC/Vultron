@@ -407,6 +407,11 @@ def _build_dump_parser() -> _DumpArgParser:
         action="store_true",
         help="print a plain-text topic/group map instead of JSON",
     )
+    parser.add_argument(
+        "--text",
+        action="store_true",
+        help="print selected requirements as one line each, not JSON",
+    )
     parser.add_argument("--topic", type=_csv, help="comma list of topic IDs")
     parser.add_argument("--group", type=_csv, help="comma list of group IDs")
     parser.add_argument("--ids", type=_csv, help="comma list of spec IDs")
@@ -517,6 +522,7 @@ def main_llm_json() -> None:
     from vultron.metadata.specs.llm_export import (
         to_index_text,
         to_llm_json,
+        to_requirements_text,
         unknown_selectors,
     )
 
@@ -541,10 +547,23 @@ def main_llm_json() -> None:
         _emit(to_index_text(registry, **kwargs))
         return
 
-    output = to_llm_json(registry, slim=args.slim, **kwargs)
-    if not any(
+    selected = any(
         value for key, value in kwargs.items() if key != "include_deps"
-    ):
+    )
+    if args.text:
+        if not selected:
+            _fail(
+                [
+                    "--text needs a selection (--topic/--group/--ids/"
+                    "--cross-cutting); every requirement as text is a"
+                    " ~1 MB wall. Start with --index."
+                ]
+            )
+        _emit(to_requirements_text(registry, **kwargs))
+        return
+
+    output = to_llm_json(registry, slim=args.slim, **kwargs)
+    if not selected:
         print(
             f"spec-dump: warning: unfiltered dump is ~{len(output) / 1e6:.1f} MB"
             f" (~{len(output) // 4000}k tokens); use --index for a map and"

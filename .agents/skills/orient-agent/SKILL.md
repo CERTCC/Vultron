@@ -4,7 +4,7 @@ description: >
   Load the always-required baseline context before any implementation,
   planning, or documentation work. Reads the glossary term index, loads the
   spec map (topic/group index, not the requirements), reads AGENTS.md, the
-  completeness doctrine, and plan/incoming/learnings/, and queries Project
+  completeness doctrine, and the incoming-learnings index, and queries Project
   #24 for Schedule=Now items. Run this at the start of every workflow skill
   before selecting or reading a specific issue. Task-specific context —
   requirements, notes, ADRs, glossary sections, code — is loaded afterwards
@@ -43,11 +43,18 @@ than an agent reads end to end, so only a truncated prefix is ever seen. Do
 Read in parallel:
 
 - `AGENTS.md` — agent rules, conventions, and pitfalls
-- `.claude/skills/shared/completeness-doctrine.md` — quality standard; governs what "done" means
+- `.agents/skills/shared/completeness-doctrine.md` — quality standard; governs what "done" means
 
-### Step 4 — Read build observations
+### Step 4 — Read the build-observation index
 
-Read all files in `plan/incoming/learnings/`. Do not read `plan/history/`.
+```bash
+PYTHONPATH= uv run learnings-index
+```
+
+Each incoming learning's title states the lesson in full, so the index
+carries what the directory says at ~5% of the bytes. Read
+`plan/incoming/learnings/<file>` for the evidence behind any title that bears
+on your task. Do not read `plan/history/`.
 
 ### Step 5 — Query current priorities
 

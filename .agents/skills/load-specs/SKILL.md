@@ -10,7 +10,7 @@ tags:
 shell: "zsh"
 commands:
   - "PYTHONPATH= uv run spec-dump --index"
-  - "PYTHONPATH= uv run spec-dump --cross-cutting --slim"
+  - "PYTHONPATH= uv run spec-dump --cross-cutting --text"
 inputs:
   - name: repo_root
     description: "Repository root where the command should be executed"
@@ -32,7 +32,7 @@ in two steps:
 PYTHONPATH= uv run spec-dump --index
 
 # 2. Load what the task touches, plus the cross-cutting constraints
-PYTHONPATH= uv run spec-dump --topic CM --group EP-04 --cross-cutting --slim
+PYTHONPATH= uv run spec-dump --topic CM --group EP-04 --cross-cutting --text
 ```
 
 Do **not** read raw `specs/*.yaml` files — the export resolves inheritance
@@ -49,7 +49,8 @@ and flattens group nesting.
 | `--deps` | Add transitive dependencies of the selection. |
 | `--cross-cutting` | Add the cross-cutting topics (see below). |
 | `--kind`, `--tag`, `--scope`, `--priority` | Narrow the selection. `--kind`/`--tag` take comma lists; all tags must match. |
-| `--slim` | Keep only `id`, `priority`, `statement`, `note` per requirement. |
+| `--text` | Print one line per requirement (`id priority statement`) instead of JSON. Needs a selection. |
+| `--slim` | JSON, but keep only `id`, `priority`, `statement`, `note` per requirement. |
 
 Selectors (`--topic`, `--group`, `--ids`, `--cross-cutting`) combine as a
 union. An unknown value exits with code 2 and names the value. A run with
@@ -62,12 +63,17 @@ Always add `--cross-cutting`, whatever the primary topic. The list of topics
 is `CROSS_CUTTING_TOPICS` in `vultron/metadata/specs/llm_export.py`. Refer to
 the flag; do not copy the list into other files.
 
-Use `--slim` to scan. Load a requirement without `--slim` when you need its
-`rationale`, `verification`, or `relationships`. See
-[REFERENCE.md](REFERENCE.md) for field definitions.
+Use `--text` to scan — the JSON forms print as a single line, so a large
+selection shows only a truncated prefix of one unreadable token. Drop
+`--text` for a specific group when you need its `rationale`,
+`verification`, or `relationships`, and read that JSON with `jq` rather
+than printing it. See [REFERENCE.md](REFERENCE.md) for field definitions.
 
 ## Checking a selection
 
 `PYTHONPATH= uv run spec-backstop --manifest <file>` checks a Spec manifest
-against the branch diff and lists the governing groups it missed. See
-`deepen-context` § "Backstop".
+against the branch diff and exits 1 listing every **MUST** group the
+manifest neither loaded nor skipped. It derives those groups from what the
+code already says, so exit 0 is a floor, not proof that the selection is
+complete — it is silent on a requirement no changed file or test names yet.
+See `deepen-context` § "Backstop".

@@ -239,8 +239,10 @@ Once the plan is confirmed:
 
 4. **Spec backstop (blocking)**: resolve the Spec manifest from 2g against
    the diff per `deepen-context` § "Backstop" until
-   `spec-backstop --manifest` exits 0; the resolved manifest goes into the PR
-   body.
+   `spec-backstop --manifest /tmp/spec-manifest-<issue>.txt` exits 0; the
+   resolved manifest goes into the PR body. A docs-only fix makes the tool
+   report that it derived nothing — expected, and it means your selection is
+   the only check.
 
 5. **Iterate**: run `format-code`, `run-linters`, `run-tests`; refine until
    all relevant tests pass. Apply branch-ownership and pre-existing-failure

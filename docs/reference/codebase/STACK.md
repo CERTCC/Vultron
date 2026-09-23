@@ -80,7 +80,7 @@ uv run mkdocs serve
 
 # Spec registry: map first, then targeted LLM-friendly JSON
 PYTHONPATH= uv run spec-dump --index
-PYTHONPATH= uv run spec-dump --topic CS --slim
+PYTHONPATH= uv run spec-dump --topic CS --text
 ```
 
 ### 5) Environment and Config
