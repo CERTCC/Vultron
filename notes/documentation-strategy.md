@@ -10,6 +10,7 @@ related_notes:
   - notes/documentation-sweeps.md
   - notes/message-type-reference.md
   - notes/rfc-spec-authoring.md
+  - notes/site-information-architecture.md
   - notes/spec-authoring-rules.md
 related_specs:
   - specs/diataxis-requirements.yaml
@@ -289,6 +290,16 @@ into a clearly marked "historical" section rather than delete:
 A reasonable convention: add a front-matter note to historical docs stating
 the document predates the ActivityStreams implementation and may not reflect
 current design. This preserves historical context without causing confusion.
+
+## Where a Page Belongs Is a Separate Question
+
+This file covers how to *interpret* and *trust* the documentation generations,
+and which of the three behavior views to edit. It does not decide where a page
+sits or what it may assume of its reader — that is
+[site-information-architecture.md](site-information-architecture.md) (ADR-0102,
+DF-11): stakeholder types, the invisible 100–500 prerequisite levels, the
+working-record exclusion, and the routing rule for landing pages and large leaf
+sets.
 
 ## MkDocs `not_in_nav` and `exclude_docs` Are Not the Same
 
