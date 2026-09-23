@@ -8,7 +8,7 @@ workflow.
 Run:
 
 ```bash
-uv run pytest --tb=short 2>&1 | tail -5
+uv run pytest --tb=short > /tmp/last-test-run.log 2>&1; rc=$?; tail -5 /tmp/last-test-run.log; echo "exit: $rc"; (exit $rc)
 ```
 
 This is the default local maintainer command.
@@ -28,7 +28,7 @@ Replace the test path with your target file.
 If you touched any file under `vultron/demo/` or `test/demo/`, run:
 
 ```bash
-uv run pytest -m "" --tb=short 2>&1 | tail -5
+uv run pytest -m "" --tb=short > /tmp/last-test-run.log 2>&1; rc=$?; tail -5 /tmp/last-test-run.log; echo "exit: $rc"; (exit $rc)
 ```
 
 Use this to mirror CI behavior for demo/integration-sensitive changes.

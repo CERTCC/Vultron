@@ -35,7 +35,7 @@ needs_integration = any(
 
 ### Unit Tests Only (default)
 
-**Command**: `uv run pytest --tb=short 2>&1 | tee /tmp/pytest-unit.log | tail -5`
+**Command**: `uv run pytest --tb=short > /tmp/pytest-unit.log 2>&1; rc=$?; tail -5 /tmp/pytest-unit.log; echo "exit: $rc"; (exit $rc)`
 
 **When**: Changes are localized (single module, no core/demo/adapter impact)
 
@@ -45,8 +45,8 @@ needs_integration = any(
 
 **Commands**:
 
-1. `uv run pytest --tb=short 2>&1 | tee /tmp/pytest-unit.log | tail -5` (all unit tests)
-2. `uv run pytest integration_tests/ -v 2>&1 | tee /tmp/pytest-integration.log` (integration test suite)
+1. `uv run pytest --tb=short > /tmp/pytest-unit.log 2>&1; rc=$?; tail -5 /tmp/pytest-unit.log; echo "exit: $rc"; (exit $rc)` (all unit tests)
+2. `uv run pytest integration_tests/ -v > /tmp/pytest-integration.log 2>&1; rc=$?; tail -40 /tmp/pytest-integration.log; echo "exit: $rc"; (exit $rc)` (integration test suite)
 
 **When**: Demo, adapters, behavior trees, or use-cases modified
 
