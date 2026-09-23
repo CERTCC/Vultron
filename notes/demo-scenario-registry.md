@@ -300,7 +300,9 @@ was most of the file.
 A registered scenario could still have no sub-command — a scenario nobody can
 invoke — so DEMOCI-11-001's set-equality intent was only half true.
 ISSUE-3475 made the CLI generate one sub-command per registered scenario
-(DEMOCI-11-011), which took the file to ~430 lines and back inside CS-18-001.
+(DEMOCI-11-011), which brought the file back inside CS-18-001. No line count
+here: it would drift independently of the file and nothing could falsify it
+(MS-16-002) — `wc -l` is the live answer.
 
 The obstacle was never the command; it was the **options**.
 Each scenario takes one `--<role>-url` per actor and, for most actors, a

@@ -51,14 +51,20 @@ from dataclasses import dataclass
 
 from vultron.errors import DemoActorRoleError
 
-#: Role name spelling: lowercase alphanumerics separated by single hyphens.
-#: ``name`` is the stem of both option flags and both ``main()`` parameters, so a
-#: name that cannot round-trip into a click flag *and* a Python identifier is
-#: rejected here rather than producing an unreachable option later.
+#: Role name spelling: lowercase alphanumerics separated by single hyphens, with
+#: a leading letter.  ``name`` is the stem of both option flags and both
+#: ``main()`` parameters, so a name that cannot round-trip into a click flag
+#: *and* a Python identifier is rejected here rather than producing an
+#: unreachable option later.
+#:
+#: The leading letter is what makes the identifier half true: ``"2nd-vendor"`` is
+#: a fine click flag but yields ``2nd_vendor_url``, which no ``main()`` can
+#: declare — the failure would surface in the ratchet rather than at the
+#: declaration site this check exists to guard.
 #:
 #: Anchored with ``\Z`` rather than ``$``, which also matches before a trailing
 #: newline: ``"finder\n"`` would pass and then yield a ``--finder\n-url`` flag.
-_NAME_RE = re.compile(r"^[a-z0-9]+(-[a-z0-9]+)*\Z")
+_NAME_RE = re.compile(r"^[a-z][a-z0-9]*(-[a-z0-9]+)*\Z")
 
 
 @dataclass(frozen=True, slots=True)
@@ -94,12 +100,13 @@ class ActorRole:
     id_env: str | None = None
 
     def __post_init__(self) -> None:
-        if not _NAME_RE.match(self.name):
+        if not _NAME_RE.match(self.name) or not self.param_stem.isidentifier():
             raise DemoActorRoleError(
                 f"actor role name {self.name!r} is not a valid option stem; "
                 "expected lowercase alphanumerics separated by single hyphens "
-                "(e.g. 'case-actor'). Both option flags and both main() "
-                "parameter names derive from it."
+                "and starting with a letter (e.g. 'case-actor'). Both option "
+                "flags and both main() parameter names derive from it, and "
+                f"{self.param_stem!r} is not a Python identifier."
             )
         for field_name in ("url_env", "default_url", "url_help"):
             value = getattr(self, field_name)
@@ -117,6 +124,18 @@ class ActorRole:
                     f"actor role {self.name!r} declares has_id=True but no "
                     "id_help; the generated --"
                     f"{self.name}-id option would have no --help text."
+                )
+            # A blank `id_env` reads as an env binding and is not one: the
+            # factory would pass `envvar=""` to click, whose
+            # `resolve_envvar_value` does `os.environ.get("")` and always gets
+            # None. Same failure the `has_id`/`id_help` check above catches —
+            # metadata the author believes is live and the CLI silently drops.
+            if self.id_env is not None and not self.id_env.strip():
+                raise DemoActorRoleError(
+                    f"actor role {self.name!r} has a blank id_env; click reads "
+                    f"an empty envvar as unset, so the --{self.name}-id option "
+                    "would look env-bound and never resolve. Name the env var "
+                    "or drop id_env."
                 )
         else:
             # Set-but-ignored id metadata is the failure this catches: the

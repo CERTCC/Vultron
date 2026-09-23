@@ -113,6 +113,11 @@ class TestMalformedDeclarations:
             # would accept this and emit a `--finder\n-url` flag.
             "finder\n",
             "--finder",
+            # A fine click flag (`--2nd-vendor-url`) whose parameter stem
+            # `2nd_vendor_url` no main() can declare — the half of the invariant
+            # a flag-only check misses.
+            "2nd-vendor",
+            "1",
         ],
     )
     def test_rejects_a_malformed_name(self, name: str) -> None:
@@ -121,6 +126,16 @@ class TestMalformedDeclarations:
             DemoActorRoleError, match="not a valid option stem"
         ):
             _role(name=name)
+
+    def test_accepts_a_digit_after_the_first_character(self) -> None:
+        """Only a *leading* digit is refused: ``c1``/``v2`` are real role names.
+
+        Guards the guard — `fcvcv` and both `fccv` scenarios name their actors
+        `c1`, `c2`, `v1`, `v2`, so a regex tightened to letters-only would reject
+        the shipped declarations.
+        """
+        assert _role(name="c1").url_param == "c1_url"
+        assert _role(name="vendor2").id_param == "vendor2_id"
 
     @pytest.mark.parametrize("field", ["url_env", "default_url", "url_help"])
     def test_rejects_an_empty_required_field(self, field: str) -> None:
@@ -132,6 +147,19 @@ class TestMalformedDeclarations:
         """An id option with no help text would be undocumented in ``--help``."""
         with pytest.raises(DemoActorRoleError, match="no id_help"):
             _role(has_id=True)
+
+    @pytest.mark.parametrize("id_env", ["", "   "])
+    def test_rejects_a_blank_id_env(self, id_env: str) -> None:
+        """A blank ``id_env`` looks like an env binding and is never one.
+
+        The factory would pass ``envvar=""`` to click, whose
+        ``resolve_envvar_value`` does ``os.environ.get("")`` and always gets
+        ``None`` — the same silently-dropped-metadata failure the
+        ``has_id``/``id_help`` check catches, and the asymmetry with the
+        non-blank checks on ``url_env`` that let it through.
+        """
+        with pytest.raises(DemoActorRoleError, match="blank id_env"):
+            _role(has_id=True, id_help="Deterministic URI.", id_env=id_env)
 
     @pytest.mark.parametrize(
         ("field", "value"),

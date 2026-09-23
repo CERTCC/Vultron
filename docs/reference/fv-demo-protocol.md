@@ -544,7 +544,7 @@ simulation — it is a live protocol run.
 | File | Role |
 |:-----|:-----|
 | `vultron/demo/scenario/fv_demo.py` | Demo orchestration script |
-| `vultron/demo/helpers/` | Shared helper modules (actor_roles, embargo, harness, ledger_dump, milestones, notes, polling, runner, seeding, sync, verification, workflow) |
+| `vultron/demo/helpers/` | Shared helper modules for scenario scripts — actor roles, seeding, causal polling and gating, verification, and workflow emission. The package docstring enumerates them |
 | `vultron/adapters/driving/fastapi/routers/demo_triggers.py` | Demo trigger endpoints |
 | `vultron/adapters/driving/fastapi/routers/actors/` | Inbox endpoint |
 | `vultron/wire/as2/extractor.py` | Activity pattern matching (AS2 → MessageSemantics) |

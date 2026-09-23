@@ -24,11 +24,11 @@ they are separate tests rather than one "the CLI is right" assertion:
   against a literal table, because a literal table of nine scenarios' options
   would be a fresh hand-maintained copy of the inventory this consolidation
   deleted.
-* **The three divergences.** ``ROLES`` being self-consistent does not make it
+* **The declared divergences.** ``ROLES`` being self-consistent does not make it
   *right*: the checks above pass just as happily if a careless edit gives every
-  scenario the same options.  The three asymmetries the scenarios actually have
-  are pinned by name, because smoothing one of them over is the likely mistake
-  and nothing else would notice.
+  scenario the same options.  The asymmetries the scenarios actually have are
+  pinned by name in ``TestDeclaredDivergences``, because smoothing one of them
+  over is the likely mistake and nothing else would notice.
 
 These read the CLI and the filesystem, never a running container, so they belong
 in the unit suite — see this package's docstring for why that means not
@@ -41,7 +41,9 @@ import ast
 import importlib
 import inspect
 from collections.abc import Sequence
+from dataclasses import replace
 from pathlib import Path
+from types import SimpleNamespace
 from typing import cast
 from unittest.mock import MagicMock, patch
 
@@ -52,8 +54,24 @@ from click.testing import CliRunner
 from vultron.demo import cli
 from vultron.demo.helpers.actor_roles import ActorRole
 from vultron.demo.scenario.registry import ScenarioSpec, discover_scenarios
+from vultron.errors import DemoActorRoleError, DemoScenarioRegistryError
 
 _CLI_SOURCE = Path(inspect.getfile(cli))
+
+#: One generated click option, compared positionally: first flag, parameter
+#: name, envvar, default, help, ``is_flag``, ``show_default``.
+_OptionTuple = tuple[
+    str, str | None, str | None, object, str | None, bool, bool
+]
+
+#: A well-formed role, used to build the malformed module declarations in
+#: ``TestFactoryRejectsABadModule`` by changing one field at a time.
+_ROLE = ActorRole(
+    name="finder",
+    url_env="VULTRON_FINDER_BASE_URL",
+    default_url="http://localhost:7901/api/v2",
+    url_help="Base URL of the Finder container API.",
+)
 
 #: Sub-commands on ``vultron-demo`` that are deliberately not scenarios: the
 #: exchange demos (``cli.DEMOS``) plus the three standing commands. Needed
@@ -105,27 +123,63 @@ def _roles_of(spec: ScenarioSpec) -> Sequence[ActorRole]:
     return cast("Sequence[ActorRole]", module.ROLES)
 
 
+def _literal_str(node: ast.expr | None) -> str | None:
+    """*node* as a string literal, or ``None`` if it is anything else.
+
+    A computed name (``name=spec.name``) is not a hand-declaration, so it is
+    correctly invisible to the caller.
+    """
+    if isinstance(node, ast.Constant) and isinstance(node.value, str):
+        return node.value
+    return None
+
+
+def _explicit_command_name(call: ast.Call | None) -> str | None:
+    """The command name spelled out in a decorator call, keyword or positional."""
+    if call is None:
+        return None
+    for keyword in call.keywords:
+        if keyword.arg == "name":
+            return _literal_str(keyword.value)
+    return _literal_str(call.args[0] if call.args else None)
+
+
 def _command_decorator_names(tree: ast.Module) -> set[str]:
-    """Every ``name=`` string passed to a ``@*.command``/``@*.group`` decorator."""
+    """Every command name a ``@*.command``/``@*.group`` decorator declares.
+
+    All four spellings click accepts, because the guard below is only as strong
+    as this function and three of them name a command without a ``name=``
+    keyword anywhere in the source:
+
+    * ``@main.command(name="fv")`` — the keyword form;
+    * ``@main.command("fv")`` — the same string, positionally;
+    * ``@main.command()`` and bare ``@main.command`` — click derives the name
+      from ``__name__``, lowercased with ``_`` → ``-``, so ``def fcv_reject``
+      declares ``fcv-reject`` and even a hyphenated scenario name is reachable.
+
+    Missing any of the last three would let a hand-wired block shadow a
+    generated command with every other check in this file still green, which is
+    the one failure this guard exists for (DEMOCI-11-011).
+    """
     names: set[str] = set()
     for node in ast.walk(tree):
         if not isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
             continue
         for decorator in node.decorator_list:
-            if not isinstance(decorator, ast.Call):
-                continue
-            func = decorator.func
+            # Bare `@main.command` — no Call node, so the name is derived.
+            call = decorator if isinstance(decorator, ast.Call) else None
+            func = call.func if call is not None else decorator
             if not isinstance(func, ast.Attribute):
                 continue
             if func.attr not in ("command", "group"):
                 continue
-            for keyword in decorator.keywords:
-                if keyword.arg == "name" and isinstance(
-                    keyword.value, ast.Constant
-                ):
-                    value = keyword.value.value
-                    if isinstance(value, str):
-                        names.add(value)
+
+            explicit = _explicit_command_name(call)
+            names.add(
+                explicit
+                if explicit is not None
+                else node.name.lower().replace("_", "-")
+            )
     return names
 
 
@@ -152,6 +206,41 @@ def test_no_scenario_subcommand_is_hand_declared() -> None:
         "registry by _make_scenario_command (DEMOCI-11-011); delete the block "
         "and declare what it carried on the scenario module (ROLES, CLI_HELP)."
     )
+
+
+@pytest.mark.parametrize(
+    ("source", "expected"),
+    [
+        ('@main.command(name="fv")\ndef _x() -> None: ...', "fv"),
+        ('@main.command("fv")\ndef _x() -> None: ...', "fv"),
+        ("@main.command()\ndef fv() -> None: ...", "fv"),
+        ("@main.command\ndef fv() -> None: ...", "fv"),
+        ("@main.command()\ndef fcv_reject() -> None: ...", "fcv-reject"),
+        ("@main.group\ndef fvcv_extension() -> None: ...", "fvcv-extension"),
+    ],
+    ids=[
+        "name-keyword",
+        "name-positional",
+        "derived-empty-call",
+        "derived-bare",
+        "derived-underscores-to-hyphens",
+        "derived-group",
+    ],
+)
+def test_command_decorator_names_sees_every_click_spelling(
+    source: str, expected: str
+) -> None:
+    """Guards the guard above: all four ways click names a command are detected.
+
+    ``test_no_scenario_subcommand_is_hand_declared`` is only as strong as
+    ``_command_decorator_names``, and three of these spellings put no ``name=``
+    keyword in the source at all — click derives the name from ``__name__``,
+    lowercased with ``_`` → ``-``, which reaches even the hyphenated scenario
+    names. A reader would assume a ``name=``-only scan was sufficient, so the
+    shortfall is asserted here rather than left to be rediscovered by the
+    shadowed command it would allow.
+    """
+    assert expected in _command_decorator_names(ast.parse(source))
 
 
 def test_scenario_subcommands_are_exactly_the_registered_set() -> None:
@@ -222,17 +311,20 @@ def test_generated_options_match_the_declared_roles(
 ) -> None:
     """Each scenario's options are exactly what its ``ROLES`` list declares.
 
-    Covers flag spelling, env binding, default, help text and declaration order
-    in one comparison, because they are produced by one loop and a regression in
-    the factory would usually break several at once.
+    Covers flag spelling, env binding, default, help text, ``show_default`` and
+    declaration order in one comparison, because they are produced by one loop
+    and a regression in the factory would usually break several at once.
+
+    ``show_default`` is in the tuple because it is otherwise unpinned and
+    invisible: dropping it from the URL options would strip the
+    ``[default: http://localhost:79xx/api/v2]`` line from every scenario's
+    ``--help`` — a change to rendered output that no other assertion here or in
+    ``test/demo/test_cli.py`` would notice.
     """
     roles = _roles_of(spec)
     command = cli.main.commands[spec.name]
 
-    # (first flag, parameter name, envvar, default, help, is_flag)
-    expected: list[
-        tuple[str, str | None, str | None, object, str | None, bool]
-    ] = [
+    expected: list[_OptionTuple] = [
         (
             role.url_option,
             role.url_param,
@@ -240,6 +332,7 @@ def test_generated_options_match_the_declared_roles(
             role.url,
             role.url_help,
             False,
+            True,
         )
         for role in roles
     ]
@@ -250,6 +343,7 @@ def test_generated_options_match_the_declared_roles(
             role.id_env,
             None,
             role.id_help,
+            False,
             False,
         )
         for role in roles
@@ -263,12 +357,11 @@ def test_generated_options_match_the_declared_roles(
             False,
             "Skip container availability checks.",
             True,
+            False,
         )
     )
 
-    actual: list[
-        tuple[str, str | None, str | None, object, str | None, bool]
-    ] = [
+    actual: list[_OptionTuple] = [
         (
             param.opts[0],
             param.name,
@@ -276,6 +369,7 @@ def test_generated_options_match_the_declared_roles(
             param.default,
             cast(click.Option, param).help,
             cast(click.Option, param).is_flag,
+            bool(cast(click.Option, param).show_default),
         )
         for param in command.params
     ]
@@ -360,6 +454,74 @@ def test_scenario_declares_cli_help(spec: ScenarioSpec) -> None:
         f"'{spec.name}' sub-command would have no --help body."
     )
     assert cli.main.commands[spec.name].help == help_text
+
+
+class TestFactoryRejectsABadModule:
+    """The factory's own guards, exercised on the path the factory uses.
+
+    Each of these is currently unreachable through the nine shipped scenarios,
+    which is the point: they are what a *tenth* scenario meets, and every one of
+    them fails quietly rather than loudly if the guard is absent.
+    """
+
+    @staticmethod
+    def _spec() -> ScenarioSpec:
+        """A registered scenario's spec, used to name the module under test."""
+        return discover_scenarios()[0]
+
+    def _build(self, module: object) -> None:
+        """Run the factory against *module* standing in for the real one."""
+        spec = self._spec()
+        with patch.object(importlib, "import_module", lambda _: module):
+            cli._make_scenario_command(spec)
+
+    def test_rejects_an_empty_roles_list(self) -> None:
+        """``ROLES = []`` is absent, not declared.
+
+        It would otherwise reach the factory as a real declaration and yield a
+        sub-command carrying only ``--skip-health-check`` — a scenario that runs
+        against localhost defaults and *looks* like a working demo, which is the
+        outcome ``_require_module_attr``'s docstring promises to prevent.
+        """
+        module = SimpleNamespace(ROLES=[], CLI_HELP="Run it.")
+        with pytest.raises(DemoScenarioRegistryError, match="no usable ROLES"):
+            self._build(module)
+
+    def test_rejects_an_empty_cli_help(self) -> None:
+        """``CLI_HELP = ""`` yields a sub-command that documents nothing."""
+        module = SimpleNamespace(ROLES=[_ROLE], CLI_HELP="")
+        with pytest.raises(
+            DemoScenarioRegistryError, match="no usable CLI_HELP"
+        ):
+            self._build(module)
+
+    def test_rejects_two_roles_sharing_a_name(self) -> None:
+        """The factory enforces ``role_map``'s declared-once guarantee itself.
+
+        Without the ``role_map()`` call in ``_scenario_roles`` this would bind
+        only because every scenario module happens to call ``role_map`` to derive
+        its ``*_BASE_URL`` constants, and nothing requires a module to do that.
+        The failure is quiet: ``_role_option_decorators`` keys its map by
+        parameter name, so two roles named ``finder`` collapse into one option
+        carrying the *second* role's env var and default — the first binding is
+        dropped with no error and the scenario runs against the wrong container.
+        """
+        other = replace(
+            _ROLE,
+            url_env="VULTRON_VENDOR_BASE_URL",
+            default_url="http://localhost:7902/api/v2",
+        )
+        module = SimpleNamespace(ROLES=[_ROLE, other], CLI_HELP="Run it.")
+        with pytest.raises(DemoActorRoleError, match="declared twice"):
+            self._build(module)
+
+    def test_rejects_two_roles_sharing_a_container_slot(self) -> None:
+        """One ``url_env`` claimed by two roles is a half-edited copy-paste."""
+        module = SimpleNamespace(
+            ROLES=[_ROLE, replace(_ROLE, name="vendor")], CLI_HELP="Run it."
+        )
+        with pytest.raises(DemoActorRoleError, match="one of them is reading"):
+            self._build(module)
 
 
 class TestDeclaredDivergences:

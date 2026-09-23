@@ -59,7 +59,11 @@ import vultron.demo.exchange.status_updates_demo as status_updates_demo
 import vultron.demo.exchange.suggest_actor_demo as suggest_actor_demo
 import vultron.demo.exchange.transfer_ownership_demo as transfer_ownership_demo
 import vultron.demo.exchange.trigger_demo as trigger_demo
-from vultron.demo.helpers.actor_roles import ActorRole, role_kwarg_names
+from vultron.demo.helpers.actor_roles import (
+    ActorRole,
+    role_kwarg_names,
+    role_map,
+)
 from vultron.demo.scenario.registry import ScenarioSpec, discover_scenarios
 from vultron.demo.seed_config import SeedConfig
 from vultron.demo.utils import DataLayerClient, BASE_URL, seed_actor, seed_peer
@@ -159,13 +163,18 @@ def _require_module_attr(
     that quietly lost its ``ROLES`` list would produce a sub-command with no
     container options, which runs against localhost defaults and *looks* like a
     working demo.
+
+    Falsy counts as absent, not just ``None``: ``ROLES = []`` and
+    ``CLI_HELP = ""`` reach the factory as "declared" and produce exactly the
+    optionless, undocumented sub-command described above.
     """
     value = getattr(module, attr, None)
-    if value is None:
+    if not value:
         raise DemoScenarioRegistryError(
             f"scenario {spec.name!r} module {spec.module_name!r} defines no "
-            f"{attr}; the demo CLI generates its sub-command from the registry "
-            f"and reads {attr} from the module (DEMOCI-11-011)."
+            f"usable {attr} (got {value!r}); the demo CLI generates its "
+            f"sub-command from the registry and reads {attr} from the module "
+            "(DEMOCI-11-011)."
         )
     return value
 
@@ -173,10 +182,22 @@ def _require_module_attr(
 def _scenario_roles(
     module: ModuleType, spec: ScenarioSpec
 ) -> Sequence[ActorRole]:
-    """The scenario module's declared role list."""
-    return cast(
+    """The scenario module's declared role list, validated.
+
+    ``role_map()`` is called for its side effect, not its result: it holds the
+    "declared once" guarantees (no duplicate name, no two roles reading one
+    container slot), and without this call they would bind only because every
+    scenario module happens to call it to derive its ``*_BASE_URL`` constants.
+    Nothing requires a module to do that, and the failure is quiet — two roles
+    sharing a ``name`` yield two identical flags both carrying the *second*
+    role's binding, because :func:`_role_option_decorators` keys its map by
+    parameter name and the first is silently dropped.
+    """
+    roles = cast(
         "Sequence[ActorRole]", _require_module_attr(module, "ROLES", spec)
     )
+    role_map(roles)
+    return roles
 
 
 def _scenario_cli_help(module: ModuleType, spec: ScenarioSpec) -> str:
