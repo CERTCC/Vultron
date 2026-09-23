@@ -22,13 +22,14 @@ camelCase spelling if it inherited a map computed from its base.
 """
 
 import pytest
-from pydantic import BaseModel, Field, ValidationError
+from pydantic import BaseModel, Field
 
 from vultron.core.models._wire_spelling import (
     clear_cache,
     reject_wire_spelled_keys,
     wire_spelled_keys,
 )
+from vultron.core.models.participant_status import ParticipantStatus
 from vultron.core.models.case_participant import (
     CaseActorParticipant,
     CaseParticipant,
@@ -75,15 +76,35 @@ def test_every_case_participant_subclass_is_covered():
 @pytest.mark.parametrize(
     "model", _PARTICIPANT_CLASSES, ids=lambda c: c.__name__
 )
-def test_wire_spelled_participant_statuses_raises(model):
-    """Each role subclass rejects ``participantStatuses`` in its own right."""
-    data = {
-        "attributed_to": _ACTOR,
-        "context": _CONTEXT,
-        "participantStatuses": [],
-    }
-    with pytest.raises(ValidationError, match="participantStatuses"):
-        model.model_validate(data)
+def test_wire_spelled_participant_statuses_is_read_not_dropped(model):
+    """Each role subclass reads ``participantStatuses`` into the right field.
+
+    This asserted the opposite — that ``participantStatuses`` was *rejected*.
+    Rejection was never the goal: core declared no camelCase aliases, so
+    Pydantic's ``extra="ignore"`` default made the key vanish and the field
+    re-seeded at its start value (#2232 — a silently shortened RM ladder).
+    Raising at least made the loss visible.
+
+    ADR-0099 puts the AS2 spelling on the core class, so the key is read into
+    ``participant_statuses`` instead of disappearing.  Asserting the value
+    *arrives* is strictly stronger than asserting the payload was refused: a
+    passing rejection test is still consistent with the data being unreadable,
+    whereas this one fails if the mapping is ever lost.
+    """
+    status = ParticipantStatus(attributed_to=_ACTOR, context=_CONTEXT)
+    participant = model.model_validate(
+        {
+            "attributed_to": _ACTOR,
+            "context": _CONTEXT,
+            "participantStatuses": [
+                status.model_dump(by_alias=True, mode="json")
+            ],
+        }
+    )
+    assert len(participant.participant_statuses) == 1, (
+        "the wire spelling was dropped — the field re-seeded instead of being"
+        " read, which is the #2232 defect"
+    )
 
 
 @pytest.mark.parametrize(
@@ -104,9 +125,31 @@ def test_canonical_snake_case_still_validates(model):
 class TestWireSpelledKeys:
     """``wire_spelled_keys`` maps forbidden camelCase spellings per class."""
 
-    def test_snake_only_field_is_forbidden(self):
-        mapping = wire_spelled_keys(CaseParticipant)
-        assert mapping["participantStatuses"] == "participant_statuses"
+    def test_generator_derived_spellings_are_not_forbidden(self):
+        """A model carrying an ``alias_generator`` forbids nothing.
+
+        ``participantStatuses`` used to be in this map, because core declared no
+        camelCase aliases and the key would have vanished under
+        ``extra="ignore"``.  ADR-0099 puts the AS2 spelling on the core class, so
+        every field's camelCase form is now a real alias and the map is empty —
+        a deliberate no-op for ``CoreObject`` subclasses, not a broken guard.
+
+        The module is therefore vestigial for core types; its removal is #2940
+        AC-6.  It is kept because it still protects models carrying no generator
+        (below), and deleting it is not this change's job.
+        """
+        assert wire_spelled_keys(CaseParticipant) == {}
+
+    def test_guard_still_protects_a_model_without_a_generator(self):
+        """Where nothing derives the alias, the silent-drop hazard is still real."""
+
+        class _NoGenerator(BaseModel):
+            some_field: str | None = None
+
+        try:
+            assert wire_spelled_keys(_NoGenerator)["someField"] == "some_field"
+        finally:
+            clear_cache()
 
     def test_sanctioned_alias_is_not_forbidden(self):
         """``in_reply_to`` declares ``inReplyTo`` — a deliberate alias."""
@@ -123,31 +166,34 @@ class TestWireSpelledKeys:
         assert "name" not in mapping
         assert "context" not in mapping
 
-    def test_subclass_gets_its_own_map_not_the_base_map(self):
-        """A subclass that adds a field must have that field guarded too.
+    def test_subclass_field_added_later_is_still_read_not_dropped(self):
+        """A field added by a subclass gets its AS2 spelling for free.
 
-        This is the hole a single shared module-level map would leave open: the
-        base's map knows nothing about ``extra_wire_field``, so a payload
-        spelling it ``extraWireField`` would be dropped in silence.
+        This was the hole a shared module-level map would have left open: the
+        base's map knew nothing about ``extra_wire_field``, so a payload spelling
+        it ``extraWireField`` was dropped in silence, and the guard's answer was
+        to refuse the payload.
+
+        Inheriting the generator closes the hole at the source instead — the new
+        field is readable under its AS2 spelling without anyone registering it.
+        That is the property worth holding: asserting a refusal only ever proved
+        the data was unusable.
         """
 
         class _WithExtraField(CaseParticipant):
             extra_wire_field: str | None = Field(default=None)
 
         try:
-            base_map = wire_spelled_keys(CaseParticipant)
-            sub_map = wire_spelled_keys(_WithExtraField)
-            assert "extraWireField" not in base_map
-            assert sub_map["extraWireField"] == "extra_wire_field"
+            assert wire_spelled_keys(_WithExtraField) == {}
 
-            with pytest.raises(ValidationError, match="extraWireField"):
-                _WithExtraField.model_validate(
-                    {
-                        "attributed_to": _ACTOR,
-                        "context": _CONTEXT,
-                        "extraWireField": "dropped-in-silence",
-                    }
-                )
+            built = _WithExtraField.model_validate(
+                {
+                    "attributed_to": _ACTOR,
+                    "context": _CONTEXT,
+                    "extraWireField": "read-not-dropped",
+                }
+            )
+            assert built.extra_wire_field == "read-not-dropped"
         finally:
             # The dynamic class would otherwise linger in the per-class cache.
             clear_cache()
@@ -181,11 +227,11 @@ class TestRejectWireSpelledKeys:
             reject_wire_spelled_keys(
                 self._Model,
                 {"someField": "wire-spelled"},
-                "as_Thing.to_core()",
+                "as_Thing",
             )
         message = str(exc_info.value)
         assert "someField -> some_field" in message
-        assert "as_Thing.to_core()" in message
+        assert "as_Thing" in message
         assert "#2232" in message
 
     def test_all_offenders_are_reported_not_just_the_first(self):
