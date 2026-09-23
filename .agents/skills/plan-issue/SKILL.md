@@ -282,7 +282,11 @@ MILESTONE_NUMBER=$(gh issue view "${ISSUE_NUMBER}" --repo CERTCC/Vultron \
 ```
 
 For Ideas and Concerns, wire the impl issue as **blocked-by the source
-issue** and as **child of the parent epic** (if `EPIC_NUMBER` is non-empty):
+issue** and as **child of the parent epic**. `manage_github_issue.sh` requires
+`--parent` on create, so if `EPIC_NUMBER` is empty, resolve it **before** the
+create call: invoke **`calve-epics`** (Mode 1) to find the epic the impl issue
+matches, and if it finds none, follow "A parent epic is mandatory" below
+(#3591).
 
 ```bash
 TASK_TYPE_ID=$(bash .agents/skills/shared/board-id.sh issue-type Task)
@@ -291,7 +295,8 @@ TASK_TYPE_ID=$(bash .agents/skills/shared/board-id.sh issue-type Task)
 # when Phase 4 found relevant helpers, use cases, or base classes; delete
 # both entirely when the prior-art search returned no results (AC-3 in
 # #2646). Instructions stay in these comments, never inside --body, or
-# they are posted verbatim (#2770).
+# they are posted verbatim (#2770). Pass --parent unconditionally: a
+# conditional ${VAR:+--parent "${VAR}"} is one word under zsh (#2771).
 IMPL_NUMBER=$(.agents/skills/manage-github-issue/manage_github_issue.sh \
   --title "<Implementation title from grill-me>" \
   --body "## Summary
@@ -310,7 +315,7 @@ $([ -n "${SPEC_FILE}" ] && echo "Spec: \`specs/${SPEC_FILE}\`")
 $([ -n "${NOTES_FILE}" ] && echo "Notes: \`notes/${NOTES_FILE}\`")" \
   --issue-type-id "${TASK_TYPE_ID}" \
   --label "size:<S|M|L>" \
-  ${EPIC_NUMBER:+--parent "${EPIC_NUMBER}"} \
+  --parent "${EPIC_NUMBER}" \
   --milestone "${MILESTONE_NUMBER}" \
   --blocked-by "${ISSUE_NUMBER}")
 ```
@@ -329,14 +334,12 @@ Add each new issue to Project #24:
 bash .agents/skills/shared/add-to-project.sh "${IMPL_NUMBER}"
 ```
 
-**Then route it onto the epic forest.** An impl issue wired as a sub-issue of a
-parent Epic (`EPIC_NUMBER` non-empty) is already on the right glacier — leave
-it at its inherited tier. But an impl issue with **no** parent epic should not
-be left flat at Someday: invoke the **`calve-epics`** skill (Mode 1) to route
-it onto the epic it matches, inheriting that epic's Schedule tier.
+**The impl issue is already on the epic forest.** Because its parent epic is
+resolved before the create call, it is a sub-issue of that epic and inherits
+the epic's Schedule tier — leave it there.
 
 **A parent epic is mandatory.** If `calve-epics` Mode 1 finds no match, do
-**not** leave the issue at root. Instead use `AskUserQuestion` to present the
+**not** create the issue at root. Instead use `AskUserQuestion` to present the
 full list of open epics and require the user to select the best fit. If the
 user determines a new epic is warranted, run `calve-epics` Mode 2 to propose
 and confirm it before closing this skill. An impl issue without a parent epic

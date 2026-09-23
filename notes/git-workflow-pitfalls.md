@@ -153,9 +153,9 @@ Both halves of the rule:
   are prose, or unnumbered checkboxes, skips the gate entirely — and those are
   the issues where "read the issue, start coding" feels like one motion. Until
   the gate derives a checklist from prose, check such issues by hand before
-  claiming. Five July 2026 sessions (ISSUE-1484, ISSUE-1510, ISSUE-1612,
-  ISSUE-1661, ISSUE-1665) each spent a full build cycle on already-delivered
-  work (#1907).
+  claiming (`build` Phase 2 says so). Five July 2026 sessions (ISSUE-1484,
+  ISSUE-1510, ISSUE-1612, ISSUE-1661, ISSUE-1665) each spent a build cycle on
+  work that was already wholly or partly delivered (#1907).
 - **When opening the PR**, include `- Closes #N` at the top of the body, one per
   line. This applies to docs and `learn` PRs too: when a docs PR fixes a bug as
   a side effect, the footer is still required.
