@@ -193,11 +193,24 @@ def _dispose_actor_stores_between_tests():
     Autouse and session-wide: individual tests should not have to remember, and
     forgetting produces cross-test contamination that presents as a confusing
     duplicate-id error far from its cause.
+
+    The claimant record is reset alongside the stores, for the same
+    "contamination far from its cause" reason but a different mechanism. It is
+    deliberately *not* cleared by engine disposal (see
+    ``reset_store_claimants``), so it would otherwise live for the whole pytest
+    process: one test using ``https://example.org/actors/test-actor`` left the
+    slug ``test-actor`` claimed, and a later test using
+    ``https://test.example/api/v2/actors/test-actor`` got a cross-authority
+    warning it then failed on (#3545).
     """
     yield
-    from vultron.adapters.driven.datalayer_sqlite import reset_datalayer
+    from vultron.adapters.driven.datalayer_sqlite import (
+        reset_datalayer,
+        reset_store_claimants,
+    )
 
     reset_datalayer()
+    reset_store_claimants()
 
 
 def seed_case_actor_replica(dl, case_actor_id, case, *extra):

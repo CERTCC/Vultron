@@ -20,6 +20,9 @@ already exist on every candidate:
    A leaf with no Schedule of its own inherits its Epic's tier.
 3. ``size:`` labels weigh a candidate's effort, and the bundle's total weight is
    capped, because a bundle is implemented as **one PR** closing every member.
+   The band table those labels come from lives in the sibling
+   ``planning.size_bands`` module, which ``model`` imports rather than restates;
+   the top band (``size:XL``) has no weight at all and is refused outright.
 
 Thematic coherence is deliberately *not* scored. ``calve-epics`` requires cutting
 by design grain and warns that cutting by "superficial theme" produces
@@ -66,7 +69,10 @@ from vultron.metadata.planning.bundle_fit.model import (
     NON_TOPIC_LABELS,
     PLANNING_PROJECT_NUMBER,
     SCHEDULE_ORDER,
+    SIZE_LABELS,
     SIZE_WEIGHTS,
+    UNBUNDLABLE_LABELS,
+    UNSIZED_LABEL,
     UNSIZED_WEIGHT,
     WORKFLOW_BY_TYPE,
     Bundle,
@@ -98,7 +104,10 @@ __all__ = [
     "PLANNING_PROJECT_NUMBER",
     "Rejection",
     "SCHEDULE_ORDER",
+    "SIZE_LABELS",
     "SIZE_WEIGHTS",
+    "UNBUNDLABLE_LABELS",
+    "UNSIZED_LABEL",
     "UNSIZED_WEIGHT",
     "WORKFLOW_BY_TYPE",
     "_render",

@@ -137,10 +137,10 @@ class as_CaseStatus(as_VultronObject):
 
         Accepting only the mapping form is silent state loss: the key is left
         unconsumed, the flat field is never set, and ``em_state`` falls back to
-        ``EM.NONE`` with no error. This path is reached on every persistence
-        write, because ``VulnerabilityCase`` and ``CaseStatus`` are both in
-        ``_NORMALIZE_WIRE_TO_CORE``, so an EM state set by a caller was being
-        dropped between ``DataLayer.update`` and the stored row.
+        ``EM.NONE`` with no error. This path is reached whenever an
+        ``as_CaseStatus`` is reconstructed from a stored or received wire shape
+        (e.g. the read-side wire→core projection), so tolerating both forms is
+        what keeps an EM state set by a caller from being dropped.
         """
         if not isinstance(data, dict):
             return data

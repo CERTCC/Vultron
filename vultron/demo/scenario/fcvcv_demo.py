@@ -37,7 +37,6 @@ Spec: DEMOMA-19 (GitHub issue #1925).
 """
 
 import logging
-import os
 import sys
 
 from vultron.core.states.cs import CS_d, CS_vf
@@ -55,6 +54,7 @@ from vultron.wire.as2.vocab.objects.vulnerability_case import (
 )
 
 from vultron.demo.actor_session import ActorSession
+from vultron.demo.helpers.actor_roles import ActorRole, role_map
 from vultron.enums.roles import CVDRole
 from vultron.demo.utils import (  # noqa: F401 — re-exported for test monkeypatching
     DataLayerClient,
@@ -128,21 +128,84 @@ logger = logging.getLogger(__name__)
 # Default container base URLs — override via environment variables.
 # C1 uses the "coordinator" container, V1 uses "vendor", C2 uses "actor5",
 # and V2 (VendorDeployer) uses "actor6".
-FINDER_BASE_URL = os.environ.get(
-    "VULTRON_FINDER_BASE_URL", "http://localhost:7901/api/v2"
-)
-C1_BASE_URL = os.environ.get(
-    "VULTRON_COORDINATOR_BASE_URL", "http://localhost:7903/api/v2"
-)
-V1_BASE_URL = os.environ.get(
-    "VULTRON_VENDOR_BASE_URL", "http://localhost:7902/api/v2"
-)
-C2_BASE_URL = os.environ.get(
-    "VULTRON_VENDOR2_BASE_URL", "http://localhost:7904/api/v2"
-)
-V2_BASE_URL = os.environ.get(
-    "VULTRON_VENDOR_DEPLOYER_BASE_URL", "http://localhost:7905/api/v2"
-)
+ROLES: list[ActorRole] = [
+    ActorRole(
+        name="finder",
+        url_env="VULTRON_FINDER_BASE_URL",
+        default_url="http://localhost:7901/api/v2",
+        url_help="Base URL for the Finder actor container.",
+        has_id=True,
+        id_help="Deterministic URI for the Finder actor.",
+        id_env="VULTRON_FINDER_ACTOR_ID",
+    ),
+    ActorRole(
+        name="c1",
+        url_env="VULTRON_COORDINATOR_BASE_URL",
+        default_url="http://localhost:7903/api/v2",
+        url_help="Base URL for the C1 (Coordinator1/CASE_OWNER) actor "
+        "container.",
+        has_id=True,
+        id_help="Deterministic URI for the C1 actor.",
+        id_env="VULTRON_COORDINATOR_ACTOR_ID",
+    ),
+    ActorRole(
+        name="v1",
+        url_env="VULTRON_VENDOR_BASE_URL",
+        default_url="http://localhost:7902/api/v2",
+        url_help="Base URL for the V1 (Vendor1) actor container.",
+        has_id=True,
+        id_help="Deterministic URI for the V1 actor.",
+        id_env="VULTRON_VENDOR_ACTOR_ID",
+    ),
+    ActorRole(
+        name="c2",
+        url_env="VULTRON_VENDOR2_BASE_URL",
+        default_url="http://localhost:7904/api/v2",
+        url_help="Base URL for the C2 (Coordinator2) actor container.",
+        has_id=True,
+        id_help="Deterministic URI for the C2 actor.",
+        id_env="VULTRON_VENDOR2_ACTOR_ID",
+    ),
+    ActorRole(
+        name="v2",
+        url_env="VULTRON_VENDOR_DEPLOYER_BASE_URL",
+        default_url="http://localhost:7905/api/v2",
+        url_help="Base URL for the V2 (VendorDeployer) actor container.",
+        has_id=True,
+        id_help="Deterministic URI for the V2 (VendorDeployer) actor.",
+        id_env="VULTRON_VENDOR_DEPLOYER_ACTOR_ID",
+    ),
+]
+_ROLES = role_map(ROLES)
+
+FINDER_BASE_URL = _ROLES["finder"].url
+C1_BASE_URL = _ROLES["c1"].url
+V1_BASE_URL = _ROLES["v1"].url
+C2_BASE_URL = _ROLES["c2"].url
+V2_BASE_URL = _ROLES["v2"].url
+
+#: ``vultron-demo fcvcv --help`` text. Lives here rather than in ``cli.py``
+#: because the sub-command is generated from the registry and the scenario
+#: module is the only place that knows what its own workflow does.
+CLI_HELP = """Run the FCVCV 5-party CVD demo (DEMOMA-19).
+
+Five actors coordinate a full CVD lifecycle:
+Finder + C1 (CASE_OWNER) + V1 (VENDOR) + C2 (COORDINATOR) + V2
+(VENDOR+DEPLOYER).
+
+\b
+Workflow:
+  1. Reset and seed all five containers.
+  2. Finder submits a report to C1; C1 validates and engages.
+  3. C1 invites V1 (VENDOR) and C2 (COORDINATOR).
+  4. C2 suggests V2 via ADR-0026; C1 approves; V2 joins via CaseActor.
+  5. Verify LedgerFanout replication across all six participants.
+  6. All five actors exchange notes.
+  7. Fix lifecycle: V1 → VFd (no deploy); V2 → VFD (fix-deployed).
+  8. Publication: V1 publishes first → embargo terminates; all publish.
+  9. All actors close the case.
+ 10. Export case ledger JSONL for each actor (devlogs).
+"""
 
 # Deterministic actor IDs — match docker-compose-multi-actor.yml service names.
 FINDER_ACTOR_ID = "http://finder:7999/api/v2/actors/finder"

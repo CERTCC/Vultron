@@ -88,11 +88,13 @@ For each small update:
    resolved before proceeding. If it escalates a quadrant misclassification,
    act on the recommendation it gives or hand the page to `write-docs`.
 3. Invoke `format-markdown` to lint the updated file before building.
-4. Invoke `build-docs` to validate the build passes, tee-ing output to a temp
-   file so full context is available on failure:
+4. Invoke `build-docs` to validate the build passes. It runs
+   `.github/scripts/mkdocs-build-strict.sh`, which is the canonical docs gate.
+   To run the build directly instead, redirect to a temp file so full context is
+   available on failure — never pipe it, or `--strict`'s non-zero exit is lost:
 
    ```bash
-   UV_NO_SYNC=1 uv run mkdocs build --strict 2>&1 | tee /tmp/mkdocs-build.log | tail -20
+   UV_NO_SYNC=1 uv run mkdocs build --strict > /tmp/mkdocs-build.log 2>&1; rc=$?; tail -20 /tmp/mkdocs-build.log; echo "exit: $rc"; (exit $rc)
    # On failure with insufficient tail output: grep /tmp/mkdocs-build.log
    ```
 
@@ -127,7 +129,6 @@ details as context:
 - **Source**: PD-03-007 — implementation PR must include docs updates or a
   linked Concern; deferred only when multiple pages require simultaneous rewrite
 - **Deferred from PR**: `<PR_URL>` (fill in after the PR opens)
-- **Suggested label**: `size:M`
 
 `new-item` handles duplicate detection, parent epic selection, and creation.
 

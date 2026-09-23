@@ -13,11 +13,20 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
-# Effort weights from the PAD-05 label taxonomy. An unlabelled candidate counts
-# as the largest size rather than as zero: size:L is unbounded above (301+ diff
-# lines), so "no label" is an unmeasured issue, not a small one.
-SIZE_WEIGHTS: dict[str, int] = {"size:S": 1, "size:M": 2, "size:L": 3}
-UNSIZED_WEIGHT = 3
+from vultron.metadata.planning.size_bands import (  # noqa: F401
+    SIZE_LABELS,
+    SIZE_WEIGHTS,
+    UNBUNDLABLE_LABELS,
+    UNSIZED_LABEL,
+    UNSIZED_WEIGHT,
+    weight_of,
+)
+
+# The PAD-05 band table — weights, the unsized fallback, and which bands are
+# past the review ceiling — lives in `size_bands`, re-exported here because this
+# module is what the rest of the subpackage imports. Deriving rather than
+# restating is the point: the thresholds were duplicated in eight prose sites
+# and computed in none, and the labels were correct 24% of the time as a result.
 
 # A bundle becomes one PR, so the budget is a review budget.
 DEFAULT_BUDGET = 6
@@ -97,29 +106,42 @@ class Candidate:
 
     @property
     def weight(self) -> int:
-        """Effort weight from the ``size:`` labels (largest one wins)."""
-        weights = [
-            SIZE_WEIGHTS[label]
-            for label in self.labels
-            if label in SIZE_WEIGHTS
-        ]
-        return max(weights) if weights else UNSIZED_WEIGHT
+        """Effort weight from the ``size:`` labels (largest one wins).
+
+        Only meaningful when ``unbundlable`` is false. ``select`` rejects an
+        unbundlable candidate in fit part 1, before any weight is consulted, so
+        no report can print a weight for a band that has none.
+        """
+        return weight_of(self.labels)
 
     @property
     def sized(self) -> bool:
-        return any(label in SIZE_WEIGHTS for label in self.labels)
+        """Whether any ``size:`` label was applied at all.
+
+        Tested against every band, not just the weighted ones — a ``size:XL``
+        candidate is measured, so calling it unsized would be a second wrong
+        answer on top of refusing to bundle it.
+        """
+        return any(label in SIZE_LABELS for label in self.labels)
+
+    @property
+    def unbundlable(self) -> bool:
+        """Whether a band past the review ceiling was applied (``size:XL``)."""
+        return any(label in UNBUNDLABLE_LABELS for label in self.labels)
 
     @property
     def size_label(self) -> str:
-        """The ``size:`` label that produced ``weight``.
+        """The largest ``size:`` label the candidate carries.
 
-        Derived from the same ``max`` decision as ``weight`` so a candidate
-        carrying two size labels cannot be reported as ``size:S weight=3``.
+        Ranked by the band table's own order rather than by weight, because the
+        top band has no weight. Sharing one ordering with ``weight`` is why a
+        candidate carrying two size labels cannot be reported as
+        ``size:S weight=3``.
         """
-        sized = [label for label in self.labels if label in SIZE_WEIGHTS]
+        sized = [label for label in self.labels if label in SIZE_LABELS]
         if not sized:
-            return "unsized"
-        return max(sized, key=lambda label: SIZE_WEIGHTS[label])
+            return UNSIZED_LABEL
+        return max(sized, key=SIZE_LABELS.index)
 
     @property
     def workflow(self) -> str | None:
@@ -131,7 +153,7 @@ class Candidate:
         return [
             label
             for label in self.labels
-            if label not in SIZE_WEIGHTS and label not in NON_TOPIC_LABELS
+            if label not in SIZE_LABELS and label not in NON_TOPIC_LABELS
         ]
 
 
