@@ -1,9 +1,9 @@
 ---
-title: Site Information Architecture — Tracks, Levels, and Routing
+title: Site Information Architecture — Stakeholder Types, Levels, and Routing
 status: active
 description: >
   How reader-facing documentation is organized: the argument the site must win,
-  the three audience tracks, the invisible 100-500 prerequisite levels, and the
+  the four stakeholder types, the invisible 100-500 prerequisite levels, and the
   rule that nav enumerates groups while routing pages carry leaf sets.
 related_notes:
   - notes/diataxis-framework.md
@@ -14,7 +14,7 @@ related_specs:
   - specs/diataxis-requirements.yaml
 ---
 
-# Site Information Architecture — Tracks, Levels, and Routing
+# Site Information Architecture — Stakeholder Types, Levels, and Routing
 
 ## The failure this answers
 
@@ -35,7 +35,7 @@ it addresses a reviewer of a research report.
 
 Repositioning such a page does not fix it. It fails louder, sooner. This is
 why an information-architecture pass here covers rewriting and not only
-moving (ADR-0101).
+moving (ADR-0102).
 
 ## The argument the site must win
 
@@ -97,25 +97,95 @@ argument-critical rather than as background reading. A negative list that
 ends without the plug-in answer is an unfinished thought, not a scoping
 statement.
 
-## The three tracks
+## Stakeholder type is not CVD role
 
-A track is *who the page is for*. Tracks do not nest and a page belongs to
-exactly one.
+A **stakeholder type** is why someone is here reading about Vultron. A
+**CVDRole** is a position an actor holds in a case. The two are named so they
+cannot be confused, because they change on different timescales:
 
-| Track | Reader | Wants |
+> A role is assumable, inhabitable, temporal. A type is ontological,
+> identity-formed, and slow to change.
+
+An organization's roles vary from case to case — the same vendor is a Reporter
+in one case and a Vendor in the next. What brought its engineer to this
+documentation does not change between cases. So no stakeholder type is named
+after a `CVDRole` value, which makes the conflation structurally impossible
+rather than a matter of author discipline. `docs/reference/terms.md` defines
+roles held in a case; it is not a register of reader types, and stakeholder-type
+descriptions must not be added to it.
+
+This is not a hypothetical hazard. Five audience or role enumerations were
+already in circulation and none was authoritative: the four audiences in
+`docs/index.md`, the three in #607/#3511, the seven roles in
+`docs/reference/terms.md`, the `Roles:` metadata on the 111 user stories, and
+the vendors/system-owners/coordinators/governments list in
+`topics/other_uses/roles_influence.md`. The first two are audiences and the last
+three are roles, and they were read as one list. The enumeration below is
+authoritative and retires the first two.
+
+## The four stakeholder types
+
+| Type | Reader | Wants |
 |---|---|---|
-| **Adopter / implementer** | Building or extending a system that must coordinate with others | To decide whether to adopt, then what to send and when |
-| **Project developer** | Working on this reference implementation | How this codebase is built and why it was built that way |
-| **Process researcher** | CVD process engineering, process-improvement research | The models, measurements, and where the process theory leads |
+| **`cvd-practitioner`** | Works CVD cases or the programs around them | To decide whether to adopt, and how the process changes if they do |
+| **`platform-developer`** | Builds or maintains a tracker, platform, or tool that must coordinate with others | What to send and when, and where their system plugs in |
+| **`process-researcher`** | CVD process engineering, process-improvement research, cross-case ecosystem health | The models, measurements, and where the process theory leads |
+| **`project-contributor`** | Working on this reference implementation | How this codebase is built and why it was built that way |
+| **`ALL`** | Genuinely every type | Declared explicitly, never inferred from an absent key |
 
-Two consequences that are easy to get wrong:
+`stakeholder_type` records who a page is **addressed to** — not what it is
+about, and not who could get use out of it.
+`topics/other_uses/roles_influence.md` is *about* vendors, coordinators, and
+governments and is *addressed to* a `process-researcher`. Tagging by subject
+matter is what makes the axis degenerate: almost every conceptual page is
+"about" everyone, so the field collapses to `ALL` and stops carrying
+information.
+
+The key is list-valued, because some pages serve exactly two types and no
+others — a wire-format explanation serves `platform-developer` and
+`project-contributor`. A list covering every type MUST be written `ALL`, and the
+validator rejects the enumerated form, so one fact never has two spellings.
+
+Three consequences that are easy to get wrong:
 
 - **The two developer audiences are different people.** Someone implementing
   Vultron in their own tracker and someone working on this repository need
   different material, and conflating them buries the first under the second.
-- **Research material belongs to neither of the other two.** It is not
+- **Research material belongs to neither of the developer audiences.** It is not
   advanced adopter reading and it is not project internals. It is a small
   section for a third reader, and it sits off the adoption path entirely.
+- **Cross-case interest needs no mechanism.** A national CSIRT or ISAC wanting
+  ecosystem health across cases is a `cvd-practitioner` who also reads
+  `process-researcher` pages. Readers read more than one type; nothing has to
+  model the overlap.
+
+### Why `cvd-practitioner` stays whole
+
+It is the broadest of the four, and its constituents differ: security
+researchers who report, vendor PSIRTs, and national CSIRTs, ISACs, and ISAOs.
+Those are named in the definition rather than split into separate types, and a
+type is admitted only when the project commits to a catalogue for it.
+
+Split it when — and only when — enough pages tagged `cvd-practitioner` narrow in
+their own text to one constituent that a body of content aimed at that
+constituent exists. That symptom is observable but only if someone is looking,
+so the reader-facing content audit records it per page alongside its other
+findings; the split then arrives with its evidence attached instead of needing a
+fresh pass.
+
+Splitting ahead of the evidence would repeat the mistake that produced the five
+competing enumerations. The asymmetry also favours waiting: an over-broad tag
+makes a page findable by a superset of its real readers, while a premature split
+makes a page invisible to readers who needed it. And if `cvd-practitioner` does
+need a vendor-versus-coordinator distinction, that belongs on the routing pages
+and never in frontmatter — that distinction *is* the case-role axis, and it
+varies per case.
+
+`policy-owner` (VDP or program owner, regulator, standards body) is a deliberate
+exclusion, not an oversight. Nothing in the tree is addressed to one today —
+`topics/other_uses/policy_formalization.md` speaks to a researcher — so
+admitting it now would buy a column of holes with no owner. Admit it the day
+someone writes its first page.
 
 ## Levels 100–500: a rule, not a label
 
@@ -123,13 +193,24 @@ Every reader-facing page carries a level recording **how much the reader must
 already know**. Levels exist to make ordering reviewable. They are *not*
 navigation labels and are never rendered.
 
-| Level | Assumes | Typically |
-|---|---|---|
-| **100** | Works in security. Nothing about CVD or Vultron | What this is, the portal-login problem, why it matters |
-| **200** | 100 | How a case works: roles, lifecycle, embargo, the state machines |
-| **300** | 200 | Implementing: which messages to send when, wiring a capability |
-| **400** | 300 | Formal specification and deep detail |
-| **500** | 400, or a research background | CVD process research and measurement |
+| Level | Assumes the reader already knows |
+|---|---|
+| **100** | Nothing about CVD or Vultron; works in security |
+| **200** | What CVD is, what Vultron is for, and that it is a protocol rather than a platform |
+| **300** | How a case works: the roles, the lifecycle, embargo, and that state machines drive it |
+| **400** | The protocol as a working system — enough to read normative detail and formalism |
+| **500** | Level 400, or an independent research background in process engineering |
+
+The table states assumed knowledge and deliberately does not say which topics
+live at each rung. Which content sits at a level differs by stakeholder type,
+and each subject area judges its own 300 by its own criteria — a course-catalogue
+number, where departments set their own standards but the number still sorts
+across the whole institution. A table that named the topics per rung would be one
+audience's syllabus presented as the site's structure, which is the failure this
+note exists to correct.
+
+There is one ladder and it sorts site-wide: a 300 means the same prerequisite
+depth everywhere.
 
 The rule, and the whole reason levels exist:
 
@@ -153,6 +234,20 @@ The pedagogical point is that the student sees a linear flow and the teacher
 sees the hierarchy that produced it. If a reader ever notices the levels, it
 should be in retrospect.
 
+### A level describes a page, never a reader
+
+Pages are leveled; readers are not. There is no such thing as a "300-level
+reader", and the temptation to talk that way is what a third axis for reader
+depth would have formalized. Every stakeholder type enters at 100 and traverses
+its own sequence, so a `platform-developer` may legitimately reach a 300-level
+page early. That is a different path through one ladder, not a violation of it.
+
+Specialization rises with level: most types need most of the 100-level material,
+and they diverge as the level climbs. So `ALL` should predominate at 100 and thin
+out above it. That is an expected *shape*, used as a diagnostic when reading the
+coverage matrix — a tree that does not look like this is probably mis-tagged. It
+is not a rule, and nothing fails because of it.
+
 ## Reader-facing content versus the project working record
 
 These are different kinds of thing, not different depths, and the working
@@ -162,7 +257,14 @@ Vultron, it is how this particular implementation came to be.
 The working record is decision records, generated code documentation,
 exhaustively enumerated state pages, and retained design history. It stays
 published, linkable, and unbroken — and it stays out of the reader-facing
-navigation, behind one labeled door for the project-developer track.
+navigation, behind one labeled door.
+
+It does declare `stakeholder_type: project-contributor`, because it is addressed
+to somebody. That makes the missing level an ordinary property of one audience's
+material rather than a special exemption carved out for a category of page: this
+is the audience whose material largely is not sequenced, because a decision
+record is read when a question arises and not as the fourth thing after three
+others.
 
 Design history is **retained deliberately**, not tolerated. `#3281` decided
 against retiring `docs/topics/behavior_logic/` because those pages are the
@@ -200,12 +302,49 @@ check. Three working examples to build on:
 | `vultron/metadata/notes/` + `validate-notes-frontmatter` | Frontmatter schema, loader, and pre-commit hook |
 | `demo-scenarios-sync` (ADR-0098) | `--write` / `--check` so a generated artifact refuses to be hand-edited |
 
+### Entry pages are titled by situation, never by type
+
+One routing page is generated per stakeholder type, and its title names a
+situation the reader recognizes rather than the type it was generated from:
+*"You maintain a vulnerability tracker and want it to talk to your partners"*,
+not *"For platform developers"*. The vocabulary drives which pages exist and
+what they link; it never appears on them.
+
+Two reasons, and the second is the one that decides it. Levels are hidden
+because a reader should not have to classify themselves before their first
+click; a situation is recognizable without asking anyone to identify with a
+label at all, so the same logic applies one step further. And because
+`cvd-practitioner` may be split later on evidence, a reader who was never taught
+the word loses nothing when it happens — the split just adds a page with a
+narrower situation. Keeping the vocabulary internal is what makes that deferral
+cheap.
+
+### The coverage matrix is generated too
+
+The same generator emits a `stakeholder_type` × `level` matrix, so that
+"we do not serve audience X" is a fact in a file rather than a recurring
+feeling. Two properties matter:
+
+- **It lives in `notes/`, not `docs/`.** It prints levels, and levels are never
+  rendered to readers.
+- **The check enforces currency, not fullness.** `--check` fails when the
+  committed matrix disagrees with the tree. It never fails because a cell is
+  empty. An empty cell is a gap someone has to decide about — planning work, not
+  a merge blocker — and a rule demanding every type at every level would
+  contradict the divergence-at-the-top shape described above.
+
+This is the one place where the project's no-WARN doctrine needs care. A
+report that can never fail is a WARN by another name, and those do not exist
+here. Gating the artifact's currency is what makes the matrix a checked object
+instead of an advisory one, while leaving what it *says* to human judgment.
+
 ## How remediation is partitioned
 
 Two rules, learned from the shape of this work rather than from a failure.
 
 **Audit routes; the fix decides.** An audit records, per page, its level,
-track, verdict, a one-line evidence note, and which task owns it. It does
+stakeholder type, whether the page narrows to one `cvd-practitioner`
+constituent, a verdict, a one-line evidence note, and which task owns it. It does
 *not* prescribe the fix. The remediation task reads its pages properly and
 fixes them in one session, with the context loaded. A prescription written by
 one session and applied by another is the lossy handoff the completeness

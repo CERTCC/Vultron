@@ -94,25 +94,48 @@ narrative flow.
 
 ## Decisions reached
 
-- **Tracks, not a single audience.** Three: adopter/implementer, project
-  developer, process researcher. The two developer audiences are different
-  people, and research material belongs to neither of the other two.
+- **Stakeholder types, not a single audience, and not CVD roles.** Four:
+  `cvd-practitioner`, `platform-developer`, `process-researcher`,
+  `project-contributor`, plus an explicit `ALL`. The two developer audiences are
+  different people, and research material belongs to neither of the other two.
+  No member is a `CVDRole` value: a role is assumable, inhabitable, temporal,
+  while a type is ontological and slow to change. This list is authoritative and
+  retires the four audiences named in `docs/index.md` and the three in
+  #607/#3511.
+- **`cvd-practitioner` stays whole** with its constituents (security
+  researchers, vendor PSIRTs, national CSIRTs/ISACs/ISAOs) named in its
+  definition. It splits only when enough pages tagged with it narrow in their own
+  text to one constituent, a symptom the content audit records per page.
+- **No third axis for reader depth.** An earlier draft of this plan declared a
+  `track` per page alongside the level. It was retired before merge as redundant
+  twice over: its values were audience identities, and its novice/expert sense is
+  the level seen from the reader's side rather than the page's.
 - **Levels 100–500 as an invisible rule.** Declared in frontmatter, never
   rendered and never navigated by, governing the single rule that no page may
-  depend on a page above its own level. Readers sort themselves by goal, not by
+  depend on a page above its own level. One ladder that sorts site-wide, and a
+  property of a page rather than of a reader — different types enter at 100 and
+  traverse different sequences. Readers sort themselves by goal, not by
   depth; exposing levels would re-create the self-classification problem the
   Study/Work split already has. The student sees a linear flow, the teacher sees
   the hierarchy that produced it.
 - **The working record carries no level at all** — it is a different kind of
   thing rather than a greater depth, and giving it a level is a category error.
-  It leaves the reader-facing nav while staying published and linkable.
+  It does declare `project-contributor`, which makes the absent level a property
+  of one audience's material rather than a carve-out. It leaves the reader-facing
+  nav while staying published and linkable.
 - **The four Diátaxis sections stay**; the home page gains a small entry layer
   above them. Additive and reversible, which matters because there is no
   reader data to steer a larger restructuring.
 - **Landing pages are generated from frontmatter and gated by a check** rather
-  than hand-maintained.
-- **Audit routes; the fix decides.** The audit records level, track, verdict, a
-  one-line evidence note, and the owning task — not the prescription. Depth
+  than hand-maintained, and so is a `stakeholder_type` × `level` coverage matrix
+  written to unpublished `notes/`. That check gates the matrix's currency, never
+  its fullness: an empty cell is a recorded gap, not a merge blocker.
+- **Entry pages are titled by situation, never by type.** The vocabulary drives
+  which routing pages exist and never appears on them, which is what keeps a
+  later `cvd-practitioner` split invisible to readers.
+- **Audit routes; the fix decides.** The audit records level, stakeholder type,
+  any narrowing to a `cvd-practitioner` constituent, a verdict, a one-line
+  evidence note, and the owning task — not the prescription. Depth
   lives in the remediation task, which reads its pages fresh. The exception is
   judgments invisible from inside one page (merges, inbound-link counts, level
   violations, gaps), which the audit must settle itself.
@@ -135,16 +158,17 @@ as the intended test rather than as an acceptance criterion.
 **Resolved**: 2026-09-22 — implementation tracked in seven issues:
 
 - #3524 — front door: what Vultron is, and where your tools plug in
-- #3525 — declare `track` and `level` in docs frontmatter, with a validator
+- #3525 — declare `stakeholder_type` and `level` in docs frontmatter, with a
+  validator
 - #3526 — five-lens reader-facing content audit (Concern)
-- #3527 — generate section landing pages from frontmatter
+- #3527 — generate section landing pages and the coverage matrix from frontmatter
 - #3528 — move the working record out of the reader-facing nav
 - #3529 — check that no page depends above its own level
 - #3530 — teach `write-docs` and `lint-docs` the architecture
 
 Docs PR: <https://github.com/CERTCC/Vultron/pull/3523>
-Spec: `specs/diataxis-requirements.yaml` DF-11-001 through DF-11-007 (v1.4.0).
+Spec: `specs/diataxis-requirements.yaml` DF-11-001 through DF-11-009 (v1.4.0).
 Notes: `notes/site-information-architecture.md`.
-ADR: `docs/adr/0101-docs-tracks-and-invisible-prerequisite-levels.md` — numbered
-0101 rather than 0099 because ADR-0099 and ADR-0100 landed on `main` while the
-branch was open.
+ADR: `docs/adr/0102-docs-stakeholder-types-and-invisible-prerequisite-levels.md`
+— numbered 0102 rather than 0099 because ADR-0099, ADR-0100, and ADR-0101 all
+landed on `main` while the branch was open.

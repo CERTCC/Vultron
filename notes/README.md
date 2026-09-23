@@ -916,20 +916,24 @@ compass and a workflow for authoring new technical docs.
 type (tutorial / how-to / reference / explanation) a new page should be.
 
 **`site-information-architecture.md`**
-How reader-facing documentation is organized (ADR-0101): the argument the site
+How reader-facing documentation is organized (ADR-0102): the argument the site
 must win and the protocol-not-a-platform analogy that answers it, why "Vultron
-doesn't do X" is answered by call-out points rather than denied, the three
-audience tracks, the invisible 100–500 prerequisite levels and the rule that no
-page may depend above its own level, why the project working record carries no
-level at all, the routing rule (nav enumerates groups, routing pages carry leaf
-sets, landing pages are generated), and the two remediation rules — audit
-routes while the fix decides, and analysis fans out by dimension while
-remediation partitions by page. Records the SG-07 / `write-docs` Phase 6 premise
-conflict and how both survive scoped, plus a measured page-count baseline.
+doesn't do X" is answered by call-out points rather than denied, why a
+stakeholder type is not a `CVDRole` and the four types that replaced five
+competing audience lists, why `cvd-practitioner` stays whole and what would split
+it, the invisible 100–500 prerequisite levels and the rule that no page may
+depend above its own level, why a level describes a page and never a reader, why
+the project working record carries no level at all, the routing rule (nav
+enumerates groups, routing pages carry leaf sets, landing pages and the coverage
+matrix are generated, entry pages are titled by situation), and the two
+remediation rules — audit routes while the fix decides, and analysis fans out by
+dimension while remediation partitions by page. Records the SG-07 /
+`write-docs` Phase 6 premise conflict and how both survive scoped, plus a
+measured page-count baseline.
 Normative requirements: `specs/diataxis-requirements.yaml` DF-11.
 **Load when**: deciding where a `docs/` page belongs, assigning or checking a
-page's track or level, changing `mkdocs.yml` nav structure, building or editing a
-section landing page, or planning any documentation reorganization.
+page's stakeholder type or level, changing `mkdocs.yml` nav structure, building
+or editing a section landing page, or planning any documentation reorganization.
 Source: CONCERN-3512.
 
 **`documentation-strategy.md`**

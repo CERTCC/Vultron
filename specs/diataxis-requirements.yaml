@@ -491,33 +491,37 @@ groups:
       `{% include-markdown %}` with a path relative to each including file or (b) has a documented
       reason why a shared fragment is inappropriate for that case.
 - id: DF-11
-  title: Site information architecture — tracks, levels, and routing
+  title: Site information architecture — stakeholder types, levels, and routing
   specs:
   - id: DF-11-001
     priority: MUST
     kind: process
     adr:
-      - ADR-0101
+      - ADR-0102
     statement: >-
-      Every reader-facing `docs/` page MUST declare an audience `track` and a prerequisite
-      `level` in its YAML frontmatter, where `track` is one of adopter-implementer,
-      project-developer, or process-researcher, and `level` is one of 100, 200, 300, 400,
-      or 500.
+      Every reader-facing `docs/` page MUST declare an audience `stakeholder_type` and a
+      prerequisite `level` in its YAML frontmatter, where `stakeholder_type` is a list whose
+      members are drawn from cvd-practitioner, platform-developer, process-researcher, and
+      project-contributor — or the single value `ALL`, which MUST be used in place of a list
+      naming every type — and `level` is one of 100, 200, 300, 400, or 500.
     rationale: >-
-      Track and level are the two axes the site is organized on, and both must be machine
-      readable so that ordering can be checked and landing pages generated rather than
-      hand-maintained. Declaring them per page rather than deriving them from directory
-      position keeps a page's classification intact when it moves. Definitions of each
-      track and level: `notes/site-information-architecture.md`.
+      Both axes must be machine readable so ordering can be checked and landing pages
+      generated rather than hand-maintained; per-page declaration keeps a page's
+      classification intact when it moves. The key is list-valued because a page may serve
+      exactly two audiences; requiring `ALL` over a full enumeration stops one fact having two
+      forms. No member is a `CVDRole` value, making the reader-type versus case-role
+      conflation structurally impossible. Definitions:
+      `notes/site-information-architecture.md`.
     verification: >-
       A frontmatter validator resolves every reader-facing page under `docs/` and confirms
-      each declares both keys with a permitted value. Pages belonging to the project
-      working record are exempt per DF-11-003 and are confirmed to declare no `level`.
+      each declares both keys with permitted values, rejecting a `stakeholder_type` list that
+      enumerates every type instead of using `ALL`. Project working-record pages declare
+      `project-contributor` and are confirmed to declare no `level` per DF-11-003.
   - id: DF-11-002
     priority: MUST
     kind: process
     adr:
-      - ADR-0101
+      - ADR-0102
     statement: >-
       A `docs/` page MUST NOT depend on a page whose declared `level` is higher than its
       own, where depending means using a concept the higher-level page introduces without
@@ -536,19 +540,20 @@ groups:
     priority: MUST
     kind: process
     adr:
-      - ADR-0101
+      - ADR-0102
     statement: >-
       Project working-record pages — decision records, generated code documentation,
       exhaustively enumerated state pages, and retained design-history pages — MUST be
       excluded from the reader-facing navigation and MUST NOT be assigned a `level`, while
-      remaining published and reachable.
+      declaring `stakeholder_type: [project-contributor]` and remaining published and
+      reachable.
     rationale: >-
-      The working record is a different kind of content rather than a greater depth of the
-      same content, so assigning it a level is a category error. It is also the bulk of the
-      site: roughly 200 of 333 navigated pages are written by the team for the team or for
-      the record, which is what makes the tree read as accretion. Exclusion is demotion and
-      not retirement — #3281 decided deliberately to retain the design-history pages as the
-      design-intent view, and nothing here reopens that.
+      The working record is a different kind of content, not a greater depth of the same
+      content, so assigning it a level is a category error. It is addressed to somebody, so it
+      does declare a type: the absent level is then a property of one audience's material, not
+      an exemption for a class of page. It is also the bulk of the site — roughly 200 of 333
+      navigated pages — which is what makes the tree read as accretion. Exclusion is demotion,
+      not retirement (#3281).
     verification: >-
       Inspection of `mkdocs.yml` confirms no working-record page appears in the
       reader-facing navigation, and that each remains reachable through a routing page or a
@@ -557,7 +562,7 @@ groups:
     priority: MUST_NOT
     kind: process
     adr:
-      - ADR-0101
+      - ADR-0102
     statement: >-
       The `level` of a `docs/` page MUST NOT appear in rendered page content or in the
       site navigation.
@@ -575,7 +580,7 @@ groups:
     priority: MUST
     kind: process
     adr:
-      - ADR-0101
+      - ADR-0102
     statement: >-
       Section landing pages that enumerate their section's contents MUST be generated from
       page frontmatter and gated by a check mode, and MUST NOT be hand-maintained.
@@ -593,7 +598,7 @@ groups:
     priority: SHOULD
     kind: process
     adr:
-      - ADR-0101
+      - ADR-0102
     statement: >-
       A set of sibling leaf pages that is too large to browse SHOULD be reached through a
       routing page that links each member, with the navigation carrying the group rather
@@ -612,7 +617,7 @@ groups:
     priority: MUST
     kind: process
     adr:
-      - ADR-0101
+      - ADR-0102
     statement: >-
       A `docs/` page MUST remain self-sufficient for a reader arriving directly at it;
       repeated openings, restated prerequisites, and re-expanded acronyms on adjacent pages
@@ -627,3 +632,45 @@ groups:
       Inspection of any change that removes an opening, a prerequisite statement, or an
       acronym expansion from a page confirms the page still stands alone for a reader who
       did not read its predecessor.
+  - id: DF-11-008
+    priority: MUST
+    kind: process
+    adr:
+      - ADR-0102
+    statement: >-
+      A `stakeholder_type` × `level` coverage matrix MUST be generated from page frontmatter
+      into an unpublished location outside `docs/` and gated by a check mode that fails when
+      the committed matrix disagrees with the tree. The check MUST NOT fail because a cell is
+      empty.
+    rationale: >-
+      The matrix turns "we do not serve audience X" from an impression into a recorded fact
+      planning can act on, which is the return on declaring `stakeholder_type` at all. Gating
+      currency rather than fullness keeps it a checked object rather than an advisory one,
+      leaving to a human whether a gap matters; requiring fullness would harden into "every
+      type at every level", which the divergence-above-100 shape contradicts. It sits outside
+      `docs/` because it prints levels (DF-11-004).
+    verification: >-
+      The generator's `--check` mode runs as a pre-commit hook and in CI, failing when the
+      committed matrix differs from what page frontmatter implies, and passing a tree in which
+      one or more cells are empty. Per DF-09-009 the check fails rather than passes when it
+      resolves no targets.
+  - id: DF-11-009
+    priority: MUST_NOT
+    kind: process
+    adr:
+      - ADR-0102
+    statement: >-
+      A `stakeholder_type` value MUST NOT appear in rendered page content or in the site
+      navigation; a routing page generated for a stakeholder type MUST be titled by the
+      reader's situation instead.
+    rationale: >-
+      Extends DF-11-004's reasoning one step. A reader should not have to classify themselves
+      before their first click, and a situation is recognizable without asking anyone to
+      identify with a label. It also keeps the enumeration free to change: `cvd-practitioner`
+      may be split later on evidence, and a reader never taught the term loses nothing when it
+      happens, whereas a published label would make the split a change to something readers
+      had been taught.
+    verification: >-
+      Inspection of rendered output and of `mkdocs.yml` confirms no stakeholder-type value or
+      value-derived label is presented to readers, and that each generated routing page's
+      title states a reader situation.

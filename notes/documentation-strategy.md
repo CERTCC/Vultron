@@ -296,8 +296,8 @@ current design. This preserves historical context without causing confusion.
 This file covers how to *interpret* and *trust* the documentation generations,
 and which of the three behavior views to edit. It does not decide where a page
 sits or what it may assume of its reader — that is
-[site-information-architecture.md](site-information-architecture.md) (ADR-0101,
-DF-11): audience tracks, the invisible 100–500 prerequisite levels, the
+[site-information-architecture.md](site-information-architecture.md) (ADR-0102,
+DF-11): stakeholder types, the invisible 100–500 prerequisite levels, the
 working-record exclusion, and the routing rule for landing pages and large leaf
 sets.
 
