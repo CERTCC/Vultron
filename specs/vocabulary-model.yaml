@@ -86,6 +86,38 @@ groups:
     kind: project
     statement: 'A `VocabNamespace` enum (values: `AS`, `VULTRON`) MUST be defined in `vultron/wire/as2/vocab/base/enums.py`
       and used to annotate the provenance of each vocabulary class'
+  - id: VM-01-007
+    priority: MUST
+    kind: project
+    statement: >-
+      Registration completeness MUST be verified against the wire `type` a class actually
+      presents, not against the module it lives in.  A test MUST assert that every
+      `as_Base` subclass whose presented `type` equals its own class-name-derived value is
+      reachable in a wire registry under that value, and MUST hold the exceptions in a
+      declared exemption set that names, per member, the requirement or reason that
+      exempts it.  A class's presented `type` is its `type_` field default, or its class
+      name with any `as_` prefix removed when that default is `None`.
+    rationale: >-
+      The pre-#3242 check asked whether each vocabulary *module* contributed a registration,
+      and skipped any module with no own `type_` annotation as a "semantic alias or abstract
+      module".  `base/objects/collections.py` declares no annotation, so it was skipped — and
+      that skip is the defect being tested for.  A check whose skip predicate is the defect
+      cannot see the defect.  Phrasing the invariant on the presented `type` value closes
+      that; the exemption set follows ARCH-22-003 so it stays auditable rather than folklore.
+      The presented value is read from the field default rather than an instance because
+      classes with required fields cannot be built without arguments.  Abstract roots such
+      as `as_Object`, `as_VultronObject`, and `as_VultronActorMixin` present their own name
+      and are unregistered by design, so they are exemption-set members.
+    verification: >-
+      A test enumerates every `as_Base` subclass, computes the `type` each presents, and
+      asserts that a class presenting its own class-name-derived value resolves to itself
+      through the wire lookup or appears in the declared exemption set with a stated reason.
+    relationships:
+    - rel_type: verifies
+      spec_id: VM-01-001
+    - rel_type: depends_on
+      spec_id: VM-03-002
+      note: The `Literal` annotation is what makes "distinct wire type" declarable rather than inferred.
 - id: VM-02
   title: Base Model Configuration
   specs:
@@ -133,13 +165,38 @@ groups:
     lint_suppress:
     - missing_story_reference
   - id: VM-03-002
-    priority: SHOULD
+    priority: MUST
     kind: protocol
-    statement: Concrete subclasses SHOULD narrow the `as_type` field to a `Literal[...]` type matching the wire type name
-      they represent
+    statement: >-
+      A wire-layer class that presents its own class-name-derived AS2 `type` value MUST
+      narrow the `type_` field to a `Literal[...]` matching that value.  A semantic alias
+      that must not be reachable under its own class name — the `_XxxActivity` pattern,
+      which presents an ancestor's `type` — MUST NOT declare its own `type_` annotation,
+      because any such declaration registers the class under its class name.
+    rationale: >-
+      Auto-registration reads an own `type_` annotation as its test for "is this class
+      concrete" and keys the entry on the class name (VM-01-001), while VM-03-001 fills
+      `type_` from the class name whenever a class inherits no default — so a class with
+      neither an annotation nor an inherited default presents a distinct wire `type` and
+      registers nothing.  That is how the AS2 collection types went unregistered until
+      #3242: `OrderedCollection` was in neither wire registry, so the lookup fell through to
+      the core map and answered a wire caller with a core class.  As a MUST, the annotation
+      becomes the single declaration of "distinct wire type", which is what VM-01-007 can
+      then check.  The prohibition is scoped to unaddressable aliases: classes such as
+      `as_VultronPerson` present an ancestor's `type` but narrow `type_` on purpose, so that
+      they register under their own class name.
+    verification: >-
+      A test asserts that a wire class presenting its own class-name-derived `type` value
+      declares that value as a `Literal`, and that an `_XxxActivity` alias declares no own
+      `type_` annotation — the per-class form of the hierarchy-wide invariant VM-01-007
+      verifies.
     relationships:
     - rel_type: refines
       spec_id: VM-03-001
+    - rel_type: refines
+      spec_id: VM-01-001
+    lint_suppress:
+    - missing_story_reference
   - id: VM-03-003
     priority: MUST_NOT
     kind: protocol
@@ -301,6 +358,37 @@ groups:
       note: Materialisation needs the `dl` parameter that requirement mandates.
     lint_suppress:
     - missing_story_reference
+  - id: VM-06-008
+    priority: MUST
+    kind: project
+    statement: >-
+      A wire-branch caller resolving an AS2 `type` value MUST use a lookup that returns
+      `as_Base` subclasses only.  The core-type-map fallback (ARCH-12-010) MUST be reachable
+      only from a caller that has asked for it explicitly; it MUST NOT be the default
+      answer a wire-branch caller receives.  A caller that may legitimately receive either
+      branch — the persistence read paths that reconstruct whatever was stored — MUST state
+      that in its call rather than inherit it from the function's default.
+    rationale: >-
+      The core map is keyed for core-layer callers, so a hit there from a wire-branch caller is
+      a coincidence of naming, not a wire counterpart (ARCH-23-002).  MV-04-003 already forbids
+      the substitution for inline objects, and #3232 implemented it as a local filter in one
+      caller.  A filter in one caller does not protect the others: the inbox re-parse path had
+      none, so an inbound `Add(object={"type": "OrderedCollection"})` was reconstructed as a
+      core class and persisted.  A permissive default hands the unsafe answer to every new
+      caller for free.
+    verification: >-
+      A test asserts that the wire-branch lookup raises for a name registered only in
+      `CORE_TYPE_MAP`, that the inbox re-parse path does not produce a core class for an
+      inbound `OrderedCollection` object, and that every remaining call site either uses the
+      wire-only lookup or names its need for the core fallback explicitly.
+    relationships:
+    - rel_type: refines
+      spec_id: MV-04-003
+    - rel_type: constrains
+      spec_id: ARCH-12-010
+      note: ARCH-12-010's registration duty stands; what changes is which callers reach the map it fills.
+    adr:
+    - ADR-0090
 - id: VM-07
   title: Serialization Rules
   specs:

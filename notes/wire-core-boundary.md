@@ -122,8 +122,17 @@ the history). The *name lookup* path is the wrong way to place a core object
 in a wire tree; the parent field annotation is the declared authority.
 
 Implementation: `vultron/wire/as2/parser.py::_inline_vocab_class`. ADR-0090.
-The registry gap that makes the core map reachable at all — the AS2 collection
-types are registered in neither wire registry — is tracked by #3242.
+
+A filter inside one caller protects only that caller. The inbox adapter's
+`_reparse_as_specific_type` has no such filter and still produces a core class
+for an inbound `{"type": "OrderedCollection"}` (#3565). The general rule is
+**VM-06-008**: wire-branch resolution goes through a lookup that returns
+`as_Base` subclasses only, and the core fallback is opt-in. The core class behind
+that name, `CoreActorCollection`, is vestigial (#3563), and the wire collection
+classes are unregistered because they declare no `type_` annotation for
+`__init_subclass__` to see (#3564). Details are in
+[vocabulary-registry](vocabulary-registry.md) § "Why `OrderedCollection` Collided
+At All".
 
 An implementer working the easy files would reach the base classes and have to
 choose which MUST to break. ADR-0082 removes the first two structural causes —
