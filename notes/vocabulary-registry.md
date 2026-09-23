@@ -182,7 +182,8 @@ The fix:
    resolution in `parser._inline_vocab_class` therefore filters on
    `issubclass(cls, as_Base)`. Full write-up:
    [wire-core-boundary](wire-core-boundary.md) § "ARCH-12-010 is a trap for
-   wire-side callers".
+   wire-side callers". **The per-caller filter is not the end state** — see
+   § "Why `OrderedCollection` Collided At All" below, and VM-06-008.
 
 3. **Wire re-export modules** (`offer_record.py`, etc.) no longer write to
    `VOCABULARY`. They import and re-export the core class unchanged.
@@ -198,6 +199,61 @@ inherit this value; `VultronObject.__init_subclass__` checks
 `cls._is_core_branch` at entry and returns immediately for any wire-branch
 type. Confirmed by `test_no_wire_types_in_core_type_map` in
 `test/architecture/test_hierarchy_invariants.py`.
+
+---
+
+## Why `OrderedCollection` Collided At All
+
+(CONCERN-3242, 2026-09-23)
+
+The collision that caused #3217 was not a naming accident between two live
+classes. It was a **vestigial core class squatting on a name the wire side had
+never claimed**, and both halves of that sentence are load-bearing.
+
+**The core half.** `CoreActor.inbox` and `.outbox` are `str | None` — a plain
+URL, with a `mode="before"` validator that accepts a full collection dict and
+keeps only its `id`. Core does not model an actor's inbox as a list. But
+`CoreActorCollection` (`vultron/core/models/actor.py`) was left behind when that
+reduction happened, and because it declares `type_: Literal["OrderedCollection"]`
+it registers itself in `CORE_TYPE_MAP` under that name. Nothing else reads it: at
+the time of writing its only references are its own definition, its `__all__`
+entry, its entry in the `_TO_CAMEL_BACKLOG_1991` allow-list
+(`test/architecture/test_hierarchy_invariants.py`), and three comments and
+assertions that exist to describe this bug. Its
+sole live effect was to make `find_in_vocabulary("OrderedCollection")` answer
+with a core class.
+
+**The wire half.** `as_Collection` and friends declare no `type_` annotation,
+and inherit no `type_` default, so `set_type_from_class_name` (VM-03-001) derives
+`type_` from the class name at construction time. `as_Base.__init_subclass__` uses the presence of a
+non-union `type_` annotation as its test for "is this class concrete", so these
+classes present a distinct wire `type` while registering nothing. The two
+mechanisms disagree about which classes are concrete, and registration is the
+silent one. VM-03-002 is now a MUST for exactly this reason.
+
+**Do not read the per-caller filter as the fix.** #3232's
+`issubclass(cls, as_Base)` guard in `parser._inline_vocab_class` closes the
+measured path and nothing else. The FastAPI inbox adapter's re-parse helper
+(`routers/actors/_inbox.py::_reparse_as_specific_type`) has no such guard, so an
+inbound `Add(object={"type": "OrderedCollection", "id": ...})` is reconstructed as
+a core `CoreActorCollection` and handed to the persistence write (#3565). A
+payload carrying AS2 collection fields such as `totalItems` or `orderedItems`
+fails `CoreActorCollection` validation and falls back to `as_Object`, so the leak
+is limited to minimal collection objects. The general rule
+is VM-06-008: a wire-branch caller resolves through a lookup that returns
+`as_Base` subclasses only, and the core fallback is reached by asking for it.
+
+**Two measurements worth not re-deriving.** Of 126 `as_Base` subclasses, 66 are
+registered. Of the 60 that are not, 47 are `_XxxActivity` semantic aliases
+(correct — they present a parent's `type`), 6 are abstract roots or mixins
+(`as_Object`, `as_VultronObject`, `as_VultronActorMixin`,
+`as_TransitiveActivity`, `as_IntransitiveActivity`, `as_VultronActivity`), and
+`as_CaseActor` is an alias presenting `Service` without the underscore prefix.
+The remaining 6 are the gap itself: `as_Collection`, `as_OrderedCollection`,
+`as_CollectionPage`, `as_OrderedCollectionPage`, `as_Link`, and `as_Mention`.
+Separately, 32 `CORE_TYPE_MAP` keys (27 distinct classes) resolve through
+`find_in_vocabulary` to a class that is not an `as_Base` subclass. Both
+figures move with the code; re-measure rather than quoting them (MS-16-001).
 
 ---
 

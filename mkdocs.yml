@@ -376,6 +376,7 @@ nav:
       - 'One Object Model: AS2 Is a Serialization of the Core Model, Not a Parallel Hierarchy': 'adr/0099-one-object-model-as2-is-a-serialization.md'
       - 'No Multi-Candidate Embargo Poll; Open Proposals Resolve Earliest-Expiration First': 'adr/0100-no-multi-candidate-embargo-poll.md'
       - 'Spec Item Format Is Field Presence, Not a Class Choice': 'adr/0101-spec-item-format-is-field-presence.md'
+      - 'Organize Reader-Facing Docs by Stakeholder Type and Invisible Prerequisite Level': 'adr/0102-docs-stakeholder-types-and-invisible-prerequisite-levels.md'
   - About:
     - What's New: 'about/whats_new.md'
     - Contributing: 'about/contributing.md'
