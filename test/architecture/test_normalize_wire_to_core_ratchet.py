@@ -12,10 +12,10 @@
 #  ("Third Party Software"). See LICENSE.md for more details.
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
-"""Architecture check: nothing needs write-side wire→core normalisation.
+"""Architecture ratchet: the write-side row re-keying set may only grow.
 
 ``_NORMALIZE_WIRE_TO_CORE`` in ``vultron/adapters/driven/db_record.py`` lists the
-``type_`` strings whose wire class is projected to its core counterpart before a
+``type_`` strings whose rows are re-keyed to the canonical core spelling before a
 row is written.
 
 **This is still a grow-only ratchet. What the entries mean changed, not the
