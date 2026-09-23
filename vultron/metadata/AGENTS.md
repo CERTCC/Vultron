@@ -5,8 +5,8 @@
 This package is the project's own tooling layer: it reads the repository's
 metadata files and validates them. It backs the `spec-dump`, `spec-lint`,
 `spec-coverage`, `adr-index`, `demo-scenarios`, `append-history`,
-`show-history`, `bundle-fit`, and `pr-size` console entry points, plus several
-pre-commit hooks.
+`show-history`, `bundle-fit`, `pr-size`, and `glossary-index` console entry
+points, plus several pre-commit hooks.
 
 One exception to "reads the repository's metadata files": `planning/` reads a
 GitHub GraphQL payload piped in on **stdin** rather than files on disk, so its
@@ -28,7 +28,7 @@ are the product**.
 | `history/` | `plan/history/**/*.md`, `plan/incoming/learnings/*.md` | `HistoryEntryFrontmatter` |
 | `msm/` | a constant mapping table + the wire `SEMANTIC_REGISTRY` | — |
 | `demo_scenarios/` | the `@scenario` registry in `vultron/demo/scenario/` | — |
-| `docs/` | `git log` over `docs/`, for the what's-new page | — |
+| `docs/` | `git log` over `docs/`, for the what's-new page; `docs/reference/glossary.md`, for the `glossary-index` term index | — |
 | `planning/` | an Epic's sub-issue GraphQL payload on stdin | — (selection rules: PAD-15) |
 
 Shared helpers live in two places. **Do not re-derive any of them** — see the

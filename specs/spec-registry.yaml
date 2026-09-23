@@ -551,6 +551,92 @@ groups:
       comma-separated `SpecKind` values, filtering the LLM-optimized JSON output to matching
       requirements. An unknown kind value MUST produce a clear error message listing valid values
       and exit with code 2.
+  - id: SR-07-007
+    priority: MUST
+    kind: project
+    statement: >-
+      The `spec-dump` CLI MUST support an `--index` flag that prints a plain-text spec map instead
+      of JSON: one line per topic (`ID  Title  (N reqs)`) followed by one indented line per group
+      (`  GROUP-ID  group title (N)`), counting only requirements that match the other flags.
+    rationale: >-
+      The unfiltered JSON dump is several megabytes, far larger than an agent context window. A
+      map of topics and groups lets an agent choose what to load before loading it.
+    verification: >-
+      `test/metadata/specs/test_spec_dump_cli.py` asserts the topic and group line formats, that
+      filters narrow the counts, and that the output is not JSON.
+  - id: SR-07-008
+    priority: MUST
+    kind: project
+    statement: >-
+      The `spec-dump` CLI MUST support the selectors `--topic`, `--group`, and `--ids` (each a
+      comma-separated list) and a `--deps` flag that adds the transitive dependencies of every
+      selected requirement; the selectors MUST combine as a union.
+    rationale: >-
+      Targeted loads replace the full dump. A union lets one call load a primary topic together
+      with specific groups or IDs from other topics.
+    verification: >-
+      `test/metadata/specs/test_spec_dump_cli.py` asserts multi-topic, group, ID, dependency
+      expansion, and union selection through both `to_llm_json` and the CLI.
+  - id: SR-07-009
+    priority: SHOULD
+    kind: project
+    statement: >-
+      The `spec-dump` CLI SHOULD expose `--tag` (comma-separated; all tags must match), `--scope`,
+      and `--priority` flags that narrow the selected requirements, alongside `--kind`.
+    verification: >-
+      `test/metadata/specs/test_spec_dump_cli.py` asserts each flag narrows the output.
+  - id: SR-07-010
+    priority: MUST
+    kind: project
+    statement: >-
+      The `spec-dump` CLI MUST support a `--cross-cutting` flag that adds the topics in the
+      `CROSS_CUTTING_TOPICS` constant of `vultron.metadata.specs` to the selection; that constant
+      MUST be the single definition of the cross-cutting topic list.
+    rationale: >-
+      Skills previously repeated the cross-cutting list by hand, so the copies could drift. Skills
+      now reference the flag.
+    verification: >-
+      `test/metadata/specs/test_spec_dump_cli.py` asserts the constant's value and that the flag
+      unions those topics with the other selectors.
+  - id: SR-07-011
+    priority: MUST
+    kind: project
+    statement: >-
+      The `spec-dump` CLI MUST exit with code 2 and write an error to stderr that names the
+      offending values when a `--topic`, `--group`, `--ids`, `--tag`, `--scope`, or `--priority`
+      value is unknown, or when a flag is given without its value.
+    rationale: >-
+      An empty result for a mistyped ID looks the same as "no requirements apply", which is the
+      wrong conclusion for an agent to draw silently.
+    verification: >-
+      `test/metadata/specs/test_spec_dump_cli.py` asserts exit code 2 and the stderr message for
+      each flag.
+  - id: SR-07-012
+    priority: SHOULD
+    kind: project
+    statement: >-
+      The `spec-dump` CLI SHOULD support a `--slim` flag that reduces each requirement to `id`,
+      `priority`, `statement`, and `note` (when set), keeps only relationship edges whose both
+      ends are in the output, and reduces each topic to `id` and `title`.
+    rationale: >-
+      `note` stays because it records which side an obligation binds; dropping it leads to
+      requirements implemented at the wrong layer.
+    verification: >-
+      `test/metadata/specs/test_spec_dump_cli.py` asserts the slim record fields, edge pruning,
+      and topic fields.
+  - id: SR-07-013
+    priority: SHOULD
+    kind: project
+    statement: >-
+      When `spec-dump` is run without `--index` and without any selector or filter flag, it SHOULD
+      still print the full JSON dump to stdout and SHOULD write a one-line warning to stderr that
+      states the output size and suggests `--index` and the selector flags.
+    rationale: >-
+      `spec-audit` needs the full corpus, but an agent that runs the bare command by habit needs to
+      learn that the output does not fit in its context.
+    verification: >-
+      `test/metadata/specs/test_spec_dump_cli.py` asserts the full output, the single stderr line,
+      and that filtered and `--index` runs do not warn.
 - id: SR-09
   title: Docs Renderer Kind Routing
   specs:
@@ -768,4 +854,157 @@ groups:
       spec_id: SR-11-003
     tags:
     - documentation
+    - tooling
+- id: SR-12
+  title: Spec Selection Backstop
+  specs:
+  - id: SR-12-001
+    priority: MUST
+    kind: project
+    statement: >-
+      The `spec-backstop` CLI MUST, by default, treat as changed every `.py` file in the
+      `git diff` between the merge-base of `--base` (default `origin/main`) and `HEAD` and the
+      working tree, plus every untracked `.py` file; the `--paths` flag MUST replace that set
+      with the named files, each treated as fully changed.
+    rationale: >-
+      Agents choose which requirements to load by judgment. A check computed from the diff
+      catches under-selection without trusting that judgment. The working tree is included
+      because an agent runs the check before it commits.
+    verification: >-
+      `test/metadata/specs/test_backstop.py` asserts diff-hunk parsing, `--paths` handling,
+      and, in a temporary git repository, that committed, uncommitted, and untracked changes
+      are all collected.
+    tags:
+    - tooling
+  - id: SR-12-002
+    priority: MUST
+    kind: project
+    statement: >-
+      `spec-backstop` MUST treat as a changed symbol each top-level function, class, or
+      assignment whose line span, decorators included, intersects a diff hunk; a changed
+      method MUST count as a change to its class, and a fully changed file MUST contribute all
+      of its top-level symbols.
+    rationale: >-
+      Symbol-level matching is much narrower than module-level matching. A module such as
+      `vultron/core/behaviors/bridge.py` is imported by dozens of test files, but only the tests
+      that import the edited names govern the edit.
+    verification: >-
+      `test/metadata/specs/test_backstop.py` asserts method-to-class attribution, decorator
+      spans, module-level-only hunks, and whole-file mode.
+    tags:
+    - tooling
+  - id: SR-12-003
+    priority: MUST
+    kind: project
+    statement: >-
+      `spec-backstop` MUST report as required (MUST tier) the spec groups of the
+      `@pytest.mark.spec` IDs in test files that import a changed symbol by name, in mirror-path
+      test files of a changed module, and in the changed parts of changed test files, together
+      with the groups of requirements whose statement names a changed module's path or dotted
+      name, or a changed symbol of six or more characters or in CamelCase, as a whole word.
+    rationale: >-
+      Each signal is a deterministic link between the change and a requirement. Directory
+      prefixes and short symbol names are excluded because they match too many unrelated
+      statements.
+    verification: >-
+      `test/metadata/specs/test_backstop.py` asserts each of the four signals, and that a
+      directory prefix and a short symbol name do not match.
+    tags:
+    - tooling
+  - id: SR-12-004
+    priority: SHOULD
+    kind: project
+    statement: >-
+      `spec-backstop` SHOULD report as advisory (INFO tier) the spec groups of test files that
+      import a changed module by any name, and SHOULD omit from that tier every group that is
+      already in the MUST tier.
+    rationale: >-
+      A module import is weak evidence. Listing it without enforcing it gives the agent a place
+      to look without adding false alarms.
+    verification: >-
+      `test/metadata/specs/test_backstop.py` asserts that a module-only importer yields an INFO
+      group and that a group in both tiers appears only in MUST.
+    tags:
+    - tooling
+  - id: SR-12-005
+    priority: MUST
+    kind: project
+    statement: >-
+      `spec-backstop` MUST report each hit at the spec-group level, listing the requirement IDs
+      that matched and the deduplicated evidence for them, and MUST emit the same report as JSON
+      when `--json` is given.
+    rationale: >-
+      Agents load specs by topic and group, so a group-level report maps directly onto the
+      manifest. The evidence lets the agent judge a hit instead of loading it blindly.
+    verification: >-
+      `test/metadata/specs/test_backstop.py` asserts the human-readable MUST and INFO sections
+      and the JSON keys.
+    tags:
+    - tooling
+  - id: SR-12-006
+    priority: MUST
+    kind: project
+    statement: >-
+      When `--manifest` names a file, or `-` for stdin, `spec-backstop` MUST read the topic,
+      group, and requirement IDs on the manifest's `Loaded` lines as loaded and on its
+      `Considered, skipped` lines as dismissed, and MUST exit with code 1 and list every MUST-tier
+      group that is not resolved; a group is resolved when it or its topic is loaded, when it is
+      dismissed, or when each of its matched requirement IDs is listed.
+    rationale: >-
+      A dismissal with a reason is an explicit judgment and satisfies the check; a group that
+      the manifest does not mention at all is the under-selection the check exists to catch.
+    verification: >-
+      `test/metadata/specs/test_backstop.py` asserts each resolution rule, that IDs in reason
+      text are not parsed, and the exit codes through the CLI.
+    tags:
+    - tooling
+  - id: SR-12-007
+    priority: MUST
+    kind: project
+    statement: >-
+      `spec-backstop` MUST write to stderr a note naming each changed source file that produced
+      no MUST-tier signal.
+    rationale: >-
+      An empty MUST tier for a file with no tests and no spec mentions is not evidence that no
+      requirement applies. The note stops the agent from reading silence as coverage.
+    verification: >-
+      `test/metadata/specs/test_backstop.py` asserts the note for a file with no signal and its
+      absence for a file with one.
+    tags:
+    - tooling
+  - id: SR-12-008
+    priority: MUST
+    kind: project
+    statement: >-
+      `spec-backstop` MUST exit with code 2 and write an error to stderr when it runs outside a
+      git repository in diff mode, when the `--base` ref cannot be resolved, or when the
+      manifest file cannot be read.
+    rationale: >-
+      Exit code 1 means unresolved groups. A setup failure must not look like either a pass or
+      a finding.
+    verification: >-
+      `test/metadata/specs/test_backstop.py` asserts exit code 2 for an unknown base ref and
+      for a missing manifest file.
+    tags:
+    - tooling
+  - id: SR-12-009
+    priority: MUST
+    kind: project
+    statement: >-
+      `spec-backstop` MUST move to the INFO tier the symbol-import hits of a changed symbol that
+      more than `--hub-threshold` test files import (default `HUB_THRESHOLD`, 10), MUST keep
+      mirror-path and statement-mention hits in the MUST tier regardless, and MUST print each
+      such hub symbol with its importer count in the report.
+    rationale: >-
+      A hub such as `BTBridge` is imported by most behaviour tests, so symbol-import matching
+      on it puts about 75 groups in MUST and the check stops discriminating. Naming the hubs
+      keeps the demotion visible, so an agent does not read the shorter list as coverage.
+    verification: >-
+      `test/metadata/specs/test_backstop.py` asserts the demotion above the threshold, no
+      demotion at it, that mirror and mention hits stay MUST, the hub line in the text output,
+      and the `--hub-threshold` flag and `hubs` key in the JSON output.
+    relationships:
+    - rel_type: refines
+      spec_id: SR-12-003
+    tags:
     - tooling

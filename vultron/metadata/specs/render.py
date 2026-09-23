@@ -18,8 +18,15 @@ Usage::
 
 from __future__ import annotations
 
+import argparse
 import json
+import os
+import re
+import sys
 from pathlib import Path
+from typing import Any, NoReturn
+
+from vultron.metadata.specs.llm_export import CROSS_CUTTING_TOPICS
 
 from vultron.metadata.specs.registry import (
     SpecRegistry,
@@ -364,63 +371,187 @@ def main() -> None:
         print(render_registry_markdown(registry))
 
 
+class _DumpArgParser(argparse.ArgumentParser):
+    """ArgumentParser that reports errors as ``Error: ...`` and exits 2.
+
+    A flag given without its value is reported as ``--flag requires a
+    value`` (the wording SR-07-006 tests pin) instead of argparse's default.
+    """
+
+    def error(self, message: str) -> NoReturn:
+        missing = re.match(
+            r"argument (--[\w-]+).*: expected one argument", message
+        )
+        if missing:
+            message = f"{missing.group(1)} requires a value"
+        self.print_usage(sys.stderr)
+        self.exit(2, f"Error: {message}\n")
+
+
+def _csv(raw: str) -> list[str]:
+    return [item.strip() for item in raw.split(",") if item.strip()]
+
+
+def _build_dump_parser() -> _DumpArgParser:
+    parser = _DumpArgParser(
+        prog="spec-dump",
+        description=(
+            "Export specs as LLM-optimized JSON. Selectors (--topic, --group,"
+            " --ids, --cross-cutting) are unioned; --kind/--tag/--scope/"
+            "--priority narrow the result. Start with --index."
+        ),
+    )
+    parser.add_argument("spec_dir", nargs="?", default="specs")
+    parser.add_argument(
+        "--index",
+        action="store_true",
+        help="print a plain-text topic/group map instead of JSON",
+    )
+    parser.add_argument("--topic", type=_csv, help="comma list of topic IDs")
+    parser.add_argument("--group", type=_csv, help="comma list of group IDs")
+    parser.add_argument("--ids", type=_csv, help="comma list of spec IDs")
+    parser.add_argument(
+        "--deps",
+        action="store_true",
+        help="add transitive dependencies of the selected specs",
+    )
+    parser.add_argument(
+        "--cross-cutting",
+        action="store_true",
+        help=f"add topics {','.join(CROSS_CUTTING_TOPICS)} to the selection",
+    )
+    parser.add_argument("--kind", type=_csv, help="comma list of kinds")
+    parser.add_argument("--tag", type=_csv, help="comma list; ALL must match")
+    parser.add_argument("--scope", help="prototype or production")
+    parser.add_argument("--priority", help="e.g. MUST, SHOULD, MAY")
+    parser.add_argument(
+        "--slim",
+        action="store_true",
+        help="only id/priority/statement(/note) per requirement",
+    )
+    return parser
+
+
+def _enum_problems(args: argparse.Namespace) -> list[str]:
+    """Validate enum-valued flags; one message per offending flag."""
+    from vultron.metadata.specs.schema import (
+        RFC2119Priority,
+        Scope,
+        SpecKind,
+        SpecTag,
+    )
+
+    checks = (
+        ("kind", args.kind, SpecKind),
+        ("tag", args.tag, SpecTag),
+        ("scope", [args.scope] if args.scope else None, Scope),
+        (
+            "priority",
+            [args.priority] if args.priority else None,
+            RFC2119Priority,
+        ),
+    )
+    problems: list[str] = []
+    for label, values, enum in checks:
+        valid = {item.value for item in enum}
+        invalid = sorted(set(values or []) - valid)
+        if invalid:
+            problems.append(
+                f"unknown {label} value(s): {', '.join(invalid)}."
+                f" Valid values: {', '.join(sorted(valid))}"
+            )
+    return problems
+
+
+def _fail(problems: list[str]) -> NoReturn:
+    for problem in problems:
+        print(f"Error: {problem}", file=sys.stderr)
+    sys.exit(2)
+
+
+def _emit(text: str) -> None:
+    """Print *text*; a closed pipe (``spec-dump --index | head``) is not an error."""
+    try:
+        print(text)
+        sys.stdout.flush()
+    except BrokenPipeError:
+        devnull = os.open(os.devnull, os.O_WRONLY)
+        os.dup2(devnull, sys.stdout.fileno())
+
+
+def _selection_kwargs(args: argparse.Namespace) -> dict[str, Any]:
+    topics = args.topic
+    if args.cross_cutting:
+        topics = [*(topics or []), *CROSS_CUTTING_TOPICS]
+    return {
+        "topic": topics,
+        "groups": args.group,
+        "spec_ids": args.ids,
+        "include_deps": args.deps,
+        "kinds": args.kind,
+        "scope": args.scope,
+        "tags": args.tag,
+        "priority": args.priority,
+    }
+
+
 def main_llm_json() -> None:
     """LLM-optimized spec dump entry point (spec-dump / spec-dump-llm-json).
 
-    Exports all specs as flat, inheritance-resolved JSON for coding agents.
-    Defaults to the ``specs/`` directory relative to the current working
-    directory.
+    Exports specs as flat, inheritance-resolved JSON for coding agents
+    (SR-07-006 through SR-07-013).  Defaults to the ``specs/`` directory
+    relative to the current working directory.
 
     Usage::
 
-        spec-dump
-        spec-dump specs/
-        spec-dump --kind protocol
-        spec-dump --kind protocol,architecture
-        spec-dump-llm-json
+        spec-dump --index                       # plain-text topic/group map
+        spec-dump --cross-cutting --slim        # ARCH, CS, TB, HP, SL, EH
+        spec-dump --topic CM,EP --group ARCH-01
+        spec-dump --ids EP-04-001 --deps
+        spec-dump --kind protocol,architecture --priority MUST
+        spec-dump [specs/]                      # full dump (large; warns)
 
-    Agents should run this at the start of any implementation or design task
-    rather than reading raw YAML files directly.
+    Agents should start with ``--index`` and load targeted subsets rather
+    than reading raw YAML files or the full dump.
     """
-    import sys
+    from vultron.metadata.specs.llm_export import (
+        to_index_text,
+        to_llm_json,
+        unknown_selectors,
+    )
 
-    from vultron.metadata.specs.schema import SpecKind
+    args = _build_dump_parser().parse_args()
+    problems = _enum_problems(args)
+    if problems:
+        _fail(problems)
 
-    _valid_kinds = {k.value for k in SpecKind}
-
-    args = sys.argv[1:]
-    kinds_filter: list[str] | None = None
-
-    if "--kind" in args:
-        idx = args.index("--kind")
-        if idx + 1 >= len(args):
-            print("Error: --kind requires a value", file=sys.stderr)
-            sys.exit(2)
-        raw_kind = args[idx + 1]
-        args = args[:idx] + args[idx + 2 :]
-        kinds_filter = [k.strip() for k in raw_kind.split(",")]
-        invalid = [k for k in kinds_filter if k not in _valid_kinds]
-        if invalid:
-            print(
-                f"Error: unknown kind value(s): {', '.join(sorted(invalid))}."
-                f" Valid values: {', '.join(sorted(_valid_kinds))}",
-                file=sys.stderr,
-            )
-            sys.exit(2)
-
-    spec_dir = Path(args[0]) if args else Path("specs")
-
+    spec_dir = Path(args.spec_dir)
     if not spec_dir.is_dir():
-        print(
-            f"Error: spec directory not found: {spec_dir}",
-            file=sys.stderr,
-        )
-        sys.exit(2)
-
-    from vultron.metadata.specs.llm_export import to_llm_json
+        _fail([f"spec directory not found: {spec_dir}"])
 
     registry = load_registry(spec_dir)
-    print(to_llm_json(registry, kinds=kinds_filter))
+    problems = unknown_selectors(
+        registry, topics=args.topic, groups=args.group, spec_ids=args.ids
+    )
+    if problems:
+        _fail(problems)
+
+    kwargs = _selection_kwargs(args)
+    if args.index:
+        _emit(to_index_text(registry, **kwargs))
+        return
+
+    output = to_llm_json(registry, slim=args.slim, **kwargs)
+    if not any(
+        value for key, value in kwargs.items() if key != "include_deps"
+    ):
+        print(
+            f"spec-dump: warning: unfiltered dump is ~{len(output) / 1e6:.1f} MB"
+            f" (~{len(output) // 4000}k tokens); use --index for a map and"
+            " --topic/--group/--ids/--cross-cutting [--slim] to load subsets",
+            file=sys.stderr,
+        )
+    _emit(output)
 
 
 if __name__ == "__main__":
