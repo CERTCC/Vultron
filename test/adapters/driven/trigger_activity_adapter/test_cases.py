@@ -17,8 +17,15 @@ import json
 from unittest.mock import patch
 
 import pytest
+from pydantic import ValidationError
 
-from vultron.errors import VultronActivityConstructionError
+from vultron.adapters.driven.trigger_activity_adapter._base import (
+    _to_wire_object,
+)
+from vultron.errors import (
+    VultronActivityConstructionError,
+    VultronNotFoundError,
+)
 from vultron.wire.as2.vocab.base.objects.object_types import as_Note
 from vultron.wire.as2.vocab.objects.base import as_VultronObject
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
@@ -139,7 +146,10 @@ class TestAddObjectToCase:
 
 
 _VOCAB_PATH = (
-    "vultron.adapters.driven.trigger_activity_adapter.cases.find_in_vocabulary"
+    "vultron.adapters.driven.trigger_activity_adapter._base.find_in_vocabulary"
+)
+_TO_WIRE_OBJECT_PATH = (
+    "vultron.adapters.driven.trigger_activity_adapter.cases._to_wire_object"
 )
 
 
@@ -177,8 +187,10 @@ class TestAddObjectToCaseConversionBranch:
         assert activity_id
         assert isinstance(activity_dict, str)
 
-    def test_unregistered_core_type_raises_value_error(self, adapter, dl):
-        """KeyError from find_in_vocabulary is re-raised as ValueError with informative message."""
+    def test_unregistered_core_type_raises_construction_error(
+        self, adapter, dl
+    ):
+        """KeyError from find_in_vocabulary is re-raised as VultronActivityConstructionError."""
         case = _make_case(dl)
         fake_id = "urn:test:unregistered-1"
 
@@ -190,15 +202,18 @@ class TestAddObjectToCaseConversionBranch:
             "read",
             side_effect=self._patched_read(dl, fake_id, _UnknownDomainObj()),
         ):
-            with pytest.raises(ValueError, match="no wire class registered"):
+            with pytest.raises(
+                VultronActivityConstructionError,
+                match="no wire class registered",
+            ):
                 adapter.add_object_to_case(
                     actor=_ACTOR,
                     object_id=fake_id,
                     case_id=case.id_,
                 )
 
-    def test_from_core_failure_raises_value_error(self, adapter, dl):
-        """Exception from wire_cls.from_core is wrapped in ValueError."""
+    def test_from_core_failure_raises_construction_error(self, adapter, dl):
+        """Exception from wire_cls.from_core is wrapped in VultronActivityConstructionError."""
         from vultron.core.models.case import VulnerabilityCase
 
         case = _make_case(dl)
@@ -210,7 +225,7 @@ class TestAddObjectToCaseConversionBranch:
 
             @classmethod
             def from_core(cls, obj):
-                raise RuntimeError("simulated from_core failure")
+                raise ValueError("simulated from_core failure")
 
         with (
             patch.object(
@@ -220,15 +235,74 @@ class TestAddObjectToCaseConversionBranch:
             ),
             patch(_VOCAB_PATH, return_value=_BrokenWireClass),
         ):
-            with pytest.raises(ValueError, match="from_core failed"):
+            with pytest.raises(
+                VultronActivityConstructionError, match="from_core failed"
+            ):
                 adapter.add_object_to_case(
                     actor=_ACTOR,
                     object_id=fake_id,
                     case_id=case.id_,
                 )
 
-    def test_non_vultron_wire_class_raises_value_error(self, adapter, dl):
-        """Wire class that is not as_VultronObject raises ValueError."""
+    def test_vultron_error_from_from_core_is_not_rewrapped(self, adapter, dl):
+        """A VultronError raised by from_core surfaces as itself (CS-23-001)."""
+        from vultron.core.models.case import VulnerabilityCase
+
+        case = _make_case(dl)
+        fake_id = "urn:test:core-vuln-case-3"
+        core_obj = VulnerabilityCase(attributed_to=_ACTOR)
+
+        class _NotFoundWireClass(as_VultronObject):
+            type_: str = "VulnerabilityCase"
+
+            @classmethod
+            def from_core(cls, obj):
+                raise VultronNotFoundError("Thing", "urn:test:missing-ref")
+
+        with (
+            patch.object(
+                dl,
+                "read",
+                side_effect=self._patched_read(dl, fake_id, core_obj),
+            ),
+            patch(_VOCAB_PATH, return_value=_NotFoundWireClass),
+        ):
+            with pytest.raises(VultronNotFoundError, match="missing-ref"):
+                adapter.add_object_to_case(
+                    actor=_ACTOR,
+                    object_id=fake_id,
+                    case_id=case.id_,
+                )
+
+    def test_core_only_class_error_names_its_type(self, adapter, dl):
+        """A core class registered as its own wire class, but not carryable by
+        as_Add (e.g. ``CoreActor``), fails with its type named in the error.
+        """
+        from vultron.core.models import CoreActor
+
+        case = _make_case(dl)
+        fake_id = "urn:test:core-actor-1"
+        core_actor = CoreActor(id_=fake_id, name="Some Actor")
+
+        with patch.object(
+            dl,
+            "read",
+            side_effect=self._patched_read(dl, fake_id, core_actor),
+        ):
+            with pytest.raises(
+                VultronActivityConstructionError,
+                match="'CoreActor' cannot be carried in an Add activity",
+            ):
+                adapter.add_object_to_case(
+                    actor=_ACTOR,
+                    object_id=fake_id,
+                    case_id=case.id_,
+                )
+
+    def test_non_vultron_wire_class_raises_construction_error(
+        self, adapter, dl
+    ):
+        """Wire class that is not as_VultronObject raises VultronActivityConstructionError."""
         case = _make_case(dl)
         fake_id = "urn:test:non-as2-obj-1"
 
@@ -246,13 +320,92 @@ class TestAddObjectToCaseConversionBranch:
             patch(_VOCAB_PATH, return_value=as_Note),
         ):
             with pytest.raises(
-                ValueError, match="no as_VultronObject wire counterpart"
+                VultronActivityConstructionError,
+                match="no as_VultronObject wire counterpart",
             ):
                 adapter.add_object_to_case(
                     actor=_ACTOR,
                     object_id=fake_id,
                     case_id=case.id_,
                 )
+
+    def test_missing_object_raises_not_found(self, adapter, dl):
+        """A dl.read miss is a not-found error, not a vocabulary error.
+
+        Before #3437 the ``None`` fell through to the vocabulary lookup and
+        surfaced as "no wire class registered for 'NoneType'".
+        """
+        case = _make_case(dl)
+
+        with pytest.raises(VultronNotFoundError) as exc_info:
+            adapter.add_object_to_case(
+                actor=_ACTOR,
+                object_id="urn:test:absent-1",
+                case_id=case.id_,
+            )
+
+        assert exc_info.value.resource_id == "urn:test:absent-1"
+        assert "NoneType" not in str(exc_info.value)
+
+    def test_add_construction_failure_raises_construction_error(
+        self, adapter, dl
+    ):
+        """A ValidationError from as_Add crosses the port as a VultronError."""
+        case = _make_case(dl)
+        note = as_Note(name="Finding", content="details")
+        dl.create(note)
+
+        class _NotAnAS2Object:
+            pass
+
+        with patch(_TO_WIRE_OBJECT_PATH, return_value=_NotAnAS2Object()):
+            with pytest.raises(
+                VultronActivityConstructionError,
+                match="cannot be carried in an Add activity",
+            ) as exc_info:
+                adapter.add_object_to_case(
+                    actor=_ACTOR,
+                    object_id=note.id_,
+                    case_id=case.id_,
+                )
+
+        assert isinstance(exc_info.value.__cause__, ValidationError)
+
+
+class TestToWireObject:
+    """Tests for the shared generic core→wire helper in ``_base``."""
+
+    def test_none_raises_not_found(self):
+        with pytest.raises(VultronNotFoundError, match="urn:test:absent-2"):
+            _to_wire_object(None, "urn:test:absent-2")
+
+    def test_as_object_returned_unchanged(self):
+        note = as_Note(name="Finding", content="details")
+
+        assert _to_wire_object(note, note.id_) is note
+
+    def test_core_object_converted_via_from_core(self):
+        from vultron.core.models.case import VulnerabilityCase
+
+        core_obj = VulnerabilityCase(attributed_to=_ACTOR)
+
+        result = _to_wire_object(core_obj, core_obj.id_)
+
+        assert isinstance(result, as_VulnerabilityCase)
+        assert result.id_ == core_obj.id_
+
+    def test_object_already_of_registered_class_returned_unchanged(self):
+        """A class registered as its own wire class needs no conversion.
+
+        This is the shape ADR-0099 detail 3 produces once a paired ``as_*``
+        class is deleted and the core class serialises directly.
+        """
+        from vultron.core.models.case import VulnerabilityCase
+
+        core_obj = VulnerabilityCase(attributed_to=_ACTOR)
+
+        with patch(_VOCAB_PATH, return_value=VulnerabilityCase):
+            assert _to_wire_object(core_obj, core_obj.id_) is core_obj
 
 
 class TestAnnounceVulnerabilityCase:
