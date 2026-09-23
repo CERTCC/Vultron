@@ -45,6 +45,10 @@ import py_trees
 from py_trees.common import Status
 from py_trees.display import unicode_tree
 
+from vultron.core.behaviors.blackboard_scope import (
+    restore_keys,
+    snapshot_keys,
+)
 from vultron.core.behaviors.store_scope import port_for_store, store_for_actor
 from vultron.core.ports.case_persistence import CasePersistence
 from vultron.errors import VultronError
@@ -781,13 +785,10 @@ class BTBridge:
             # inner call's activity or case_id (#3161).
             managed_keys += ["activity", *context_data.keys()]
             storage = py_trees.blackboard.Blackboard.storage
-            key_aliases: set[str] = set()
-            for key in managed_keys:
-                key_aliases.add(key)
-                key_aliases.add(f"/{key}")
-            previous_values = {
-                key: (key in storage, storage.get(key)) for key in key_aliases
-            }
+            # Both spellings of every key, and "absent" kept distinct from
+            # "None" — see blackboard_scope for why each matters.  Shared with
+            # the inbox pipeline, which needs the identical guarantee (#3534).
+            previous_values = snapshot_keys(storage, managed_keys)
             try:
                 # Two try blocks, not one, so the label always names the phase
                 # that actually failed.  A single combined block reported an
@@ -861,11 +862,7 @@ class BTBridge:
                 # is reentrant and previous_values captures the outer call's
                 # state, so the inner call restores exactly what the outer
                 # call wrote.
-                for _key, (_had_value, _value) in previous_values.items():
-                    if _had_value:
-                        storage[_key] = _value
-                    else:
-                        storage.pop(_key, None)
+                restore_keys(storage, previous_values)
 
     @staticmethod
     def get_failure_reason(

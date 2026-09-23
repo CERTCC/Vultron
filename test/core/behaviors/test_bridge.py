@@ -16,7 +16,7 @@
 """Unit tests for BT bridge layer."""
 
 import logging
-from typing import Any
+from typing import Any, cast
 
 import pytest
 import py_trees
@@ -162,6 +162,49 @@ class StageLedgerOverrideThenFail(py_trees.behaviour.Behaviour):
         ] = {"object_id": "stale-object-from-vanished-case"}
         self.feedback_message = "staged override then aborting"
         return Status.FAILURE
+
+
+class WriteLedgerOverride(py_trees.behaviour.Behaviour):
+    """Write ``ledger_payload_object_override`` and SUCCEED.
+
+    ``StageLedgerOverrideThenFail`` short-circuits its Sequence, which is the
+    right shape for the #3101 regression tests but stops any probe downstream of
+    it from ever ticking.  This variant exists so a probe can observe the key
+    *while* the tree is still running.
+    """
+
+    def __init__(self, name: str = "WriteLedgerOverride"):
+        super().__init__(name=name)
+
+    def update(self) -> Status:
+        py_trees.blackboard.Blackboard.storage[
+            "/ledger_payload_object_override"
+        ] = {"object_id": "written-during-execution"}
+        return Status.SUCCESS
+
+
+class RecordManagedKeyDuringTick(py_trees.behaviour.Behaviour):
+    """Record what ``/<key>`` holds while the tree is still ticking.
+
+    Module-level per CONCERN-2321 (`notes/testing-pitfalls.md`): py_trees keys
+    its class registry by class name, so the recording dict is injected rather
+    than closed over.
+
+    Reads ``Blackboard.storage`` directly rather than through a ``Client``
+    because the point is to observe whatever is under the raw key, including a
+    non-port sentinel that no port machinery would hand back.
+    """
+
+    def __init__(self, key: str, observed: dict[str, Any]):
+        super().__init__(name=f"RecordDuringTick-{key}")
+        self._key = key
+        self._observed = observed
+
+    def update(self) -> Status:
+        self._observed["during"] = py_trees.blackboard.Blackboard.storage.get(
+            f"/{self._key}"
+        )
+        return Status.SUCCESS
 
 
 # Fixtures
@@ -1577,24 +1620,70 @@ class TestNestedExecutionKeyIsolation:
         ],
     )
     def test_every_fixed_managed_key_is_restored(
-        self, bridge, test_actor_id, key: str
+        self, datalayer, test_actor_id, key: str
     ) -> None:
         """BT-17-007 says "every managed key", so cover the whole fixed list.
 
+        Each parametrization has to be *load-bearing*: unless the sentinel is
+        displaced while the tree ticks, the post-run assertion passes whether or
+        not the key is in ``managed_keys`` at all.  Under a bare
+        ``BTBridge(datalayer=...)`` running ``AlwaysSucceed``, five of these
+        seven are inert, each for its own reason:
+
+        - ``is_leader`` — ``setup_tree`` writes it only when the caller passed an
+          explicit guard (``_is_leader_explicit``), so a default bridge never
+          touches the key.
+        - the three ports — ``_ports_for_store`` falls back to
+          ``_inherited_port(...)``, which reads the sentinel straight back off
+          the process-global blackboard, and ``port_for_store`` returns an
+          object that does not opt in unchanged.  ``setup_tree`` then writes
+          *the sentinel itself* back, so pre-value == post-value.
+        - ``ledger_payload_object_override`` — no node in ``AlwaysSucceed``
+          writes it.
+
+        So this builds a bridge with distinct injected ports and an explicit
+        leadership guard, and asserts on the mid-tick value first.  That
+        ``during`` assertion is the guard against silent re-vacuuming: if a
+        future change makes a parametrization inert again, it fails here rather
+        than passing for the wrong reason.
+
         The dynamic half (``activity`` and the ``context_data`` keys) is covered
-        by the nested-call tests above.  A non-callable sentinel is safe for
-        ``is_leader``: ``execute_with_setup`` ignores a non-callable under that
-        key and falls back to its own guard.
+        by the nested-call tests above.
         """
         storage = py_trees.blackboard.Blackboard.storage
         sentinel = object()
         storage[f"/{key}"] = sentinel
 
-        result = bridge.execute_with_setup(
-            tree=AlwaysSucceed(), actor_id=test_actor_id
+        # Distinct objects, so "setup_tree wrote its own value" stays
+        # distinguishable from "setup_tree wrote the sentinel back".  These
+        # stand in for ports only as blackboard payloads — nothing in the tree
+        # below calls them — so a bare object() is sufficient.
+        bridge = BTBridge(
+            datalayer=datalayer,
+            is_leader=lambda: True,
+            trigger_activity=cast(Any, object()),
+            sync_port=cast(Any, object()),
+            wire_render_port=cast(Any, object()),
         )
 
+        observed: dict[str, Any] = {}
+        children: list[py_trees.behaviour.Behaviour] = []
+        if key == "ledger_payload_object_override":
+            # The only key here that no bridge-injected value covers: a node
+            # has to write it, the way add_case_status_tree does (#3101).
+            children.append(WriteLedgerOverride())
+        children.append(RecordManagedKeyDuringTick(key, observed))
+        tree = py_trees.composites.Sequence(
+            name="ObserveManagedKey", memory=False, children=children
+        )
+
+        result = bridge.execute_with_setup(tree=tree, actor_id=test_actor_id)
+
         assert result.status == Status.SUCCESS
+        # Harness validity: the execution really did displace the sentinel, so
+        # the restore assertion below is about managed_keys rather than about a
+        # key nothing ever changed.
+        assert observed["during"] is not sentinel
         assert storage[f"/{key}"] is sentinel
 
     def test_the_outer_execution_leaves_no_context_key_behind(
@@ -1698,3 +1787,126 @@ class TestNestedExecutionKeyIsolation:
         # a key nothing ever changed.
         assert inner_seen == [inner_actor]
         assert outer_seen == [test_actor_id]
+
+    # BT-17-007 says the restore happens "on every outcome".  The tests above
+    # all run an inner tree that SUCCEEDs, which only exercises the ``finally``
+    # via the normal return.  The three below cover the other ways out: a
+    # FAILURE status, an exception escaping the ticks, and a setup-phase raise —
+    # the last being a code path this PR introduced, whose early ``return`` from
+    # the setup handler leaves the shared ``finally`` as the only thing that
+    # restores anything.
+
+    @pytest.mark.parametrize(
+        "inner_tree_factory, expected_inner_status",
+        [
+            (AlwaysFail, Status.FAILURE),
+            (ExceptionNode, Status.FAILURE),
+        ],
+        ids=["inner-returns-failure", "inner-raises"],
+    )
+    def test_the_dynamic_keys_are_restored_on_a_failing_inner_tree(
+        self,
+        bridge,
+        test_actor_id,
+        inner_tree_factory,
+        expected_inner_status,
+    ) -> None:
+        """A nested call that fails still hands the outer values back."""
+        observed: dict[str, Any] = {}
+        inner_actor = "https://example.org/actors/case-actor"
+
+        result = bridge.execute_with_setup(
+            tree=_NestedExecution(
+                bridge,
+                inner_actor,
+                {
+                    "activity": {"type": "Update", "id": "inner-activity"},
+                    "case_id": "inner-case",
+                },
+                observed,
+                inner_tree=inner_tree_factory(),
+            ),
+            actor_id=test_actor_id,
+            activity={"type": "Create", "id": "outer-activity"},
+            case_id="outer-case",
+        )
+
+        assert result.status == Status.SUCCESS
+        # Harness validity: the inner call really did take the failing path, so
+        # this is not silently re-testing the SUCCESS route.
+        assert observed["inner_status"] == expected_inner_status
+
+        after = observed["after"]
+        assert after["/activity"] == {"type": "Create", "id": "outer-activity"}
+        assert after["/case_id"] == "outer-case"
+        assert after["/actor_id"] == test_actor_id
+
+    def test_the_dynamic_keys_are_restored_when_setup_raises(
+        self, bridge, test_actor_id, monkeypatch
+    ) -> None:
+        """The setup-phase early return must still pass through the teardown.
+
+        ``execute_with_setup`` returns from inside its setup ``except`` blocks,
+        so nothing on that path restores a key except the shared ``finally``.
+        The inner call here is given keys the outer execution also holds, and
+        ``setup_tree`` is made to raise *after* it would have written them —
+        which is what makes this a restore test rather than a "setup never got
+        that far" test.
+        """
+        real_setup_tree = BTBridge.setup_tree
+        during: dict[str, Any] = {}
+
+        def _setup_then_explode(self, tree, actor_id, activity=None, **kw):
+            # Called for its blackboard writes; the tree it returns is
+            # deliberately discarded, since this setup never completes.
+            real_setup_tree(self, tree, actor_id, activity, **kw)
+            storage = py_trees.blackboard.Blackboard.storage
+            during["activity"] = storage.get("/activity")
+            during["case_id"] = storage.get("/case_id")
+            during["actor_id"] = storage.get("/actor_id")
+            raise RuntimeError("setup exploded after writing its keys")
+
+        observed: dict[str, Any] = {}
+        inner_actor = "https://example.org/actors/case-actor"
+
+        class _NestedWithBrokenSetup(_NestedExecution):
+            def update(self) -> Status:
+                monkeypatch.setattr(
+                    BTBridge, "setup_tree", _setup_then_explode
+                )
+                try:
+                    return super().update()
+                finally:
+                    monkeypatch.setattr(
+                        BTBridge, "setup_tree", real_setup_tree
+                    )
+
+        result = bridge.execute_with_setup(
+            tree=_NestedWithBrokenSetup(
+                bridge,
+                inner_actor,
+                {
+                    "activity": {"type": "Update", "id": "inner-activity"},
+                    "case_id": "inner-case",
+                },
+                observed,
+            ),
+            actor_id=test_actor_id,
+            activity={"type": "Create", "id": "outer-activity"},
+            case_id="outer-case",
+        )
+
+        assert result.status == Status.SUCCESS
+        # The inner setup failed, and was classified as a setup-phase internal
+        # error rather than an execution one.
+        assert observed["inner_status"] == Status.FAILURE
+        # Harness validity: setup really did overwrite the outer values before
+        # raising, so the restore below has something to undo.
+        assert during["activity"] == {"type": "Update", "id": "inner-activity"}
+        assert during["case_id"] == "inner-case"
+        assert during["actor_id"] == inner_actor
+
+        after = observed["after"]
+        assert after["/activity"] == {"type": "Create", "id": "outer-activity"}
+        assert after["/case_id"] == "outer-case"
+        assert after["/actor_id"] == test_actor_id

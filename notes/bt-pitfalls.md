@@ -321,8 +321,15 @@ there is an explicit opt-in, described in the section below.
 
 Note the discriminator, because it is easy to get backwards: a key the *caller*
 passes as a `context_data` kwarg **is** managed and restored, even when a node
-also writes it. `suggested_roles` is that case, so it is not an example of this
-rule.
+also writes it. Flat `/suggested_roles` is that case — `SvcInviteActorToCaseUseCase`
+puts it in `_extra_execute_kwargs()`, so it arrives as `context_data` — and it is
+therefore not an example of this rule.
+
+The same noun covers both cases, so name the key form and not the noun: the
+*namespaced* `/suggested_roles_{id_segment}` written by `EvaluateDefaultRolesNode`
+on the received path is nobody's `context_data` kwarg, is not on `managed_keys`,
+and **is** an example of this rule. See "Namespaced Inter-Node Handoff Keys" below,
+where it is catalogued.
 
 **Rule**: When a BT node takes a no-op path (empty recipient list, guard
 condition not met, etc.), it MUST explicitly clear any output blackboard key it
@@ -397,6 +404,16 @@ are restored on every outcome, so a caller that reads one after
 wrote. Pass a mutable `result_out` dict instead — it is shared by reference and
 unaffected by the restore.
 
+The snapshot/restore mechanism itself lives in
+`vultron/core/behaviors/blackboard_scope.py`, shared with the inbox pipeline,
+which needs the same guarantee for its own key set (#3534). Two details there are
+easy to re-implement wrongly and are the reason it is one function rather than
+two: a key **absent** before the call is *removed* afterwards rather than set to
+`None` (or a consumer relying on the BT-17-003 `KeyError`-vs-`None` distinction
+reads "explicitly cleared" where the truth is "never written"), and **both**
+spellings of every key are covered, since port access uses `/name` while direct
+`Blackboard.storage` access usually uses the bare name.
+
 ### `/actor_id` Is Restored Too, Because Nodes Re-Read It Every Tick
 
 `actor_id` was excluded from `managed_keys` until #3516, on the reasoning that
@@ -450,6 +467,13 @@ is WARNING with no traceback and a bare `"<prefix>: <Type>: <msg>"` message,
 `True` is `logger.exception` (ERROR + traceback, which requires calling the
 helper from inside the `except` block) and a `"<prefix> with internal error: …"`
 message. A log-level divergence between two of these copies was #3080.
+
+The routing is ratcheted, not merely asserted in prose:
+`test/architecture/test_bridge_exception_handlers_use_helper.py` fails on any
+handler in `bridge.py` that returns a result it built itself. That matters
+because the older `test_no_broad_except_outside_bt_update.py` ratchet counts only
+`except Exception`/bare handlers, so it pins three of the six and is blind to the
+three `except VultronError` ones — the half where #3080 actually happened.
 
 `execute_with_setup` uses **two** try blocks rather than one, so the `prefix`
 always names the phase that actually failed — a combined block reported an

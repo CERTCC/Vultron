@@ -22,11 +22,14 @@ and both times the omission was invisible — nothing connects the two lists, so
 adding a blackboard write to ``setup_tree`` and forgetting ``managed_keys`` is a
 silent one-line mistake.
 
-This closes that loop statically. ``setup_tree``'s literal
-``register_key(key="X")`` calls are the complete set of keys it writes by name;
-the ``**context_data`` keys go through a ``setattr`` loop and are added to
-``managed_keys`` dynamically, so they are deliberately out of scope here and are
-covered by the nested-execution tests in
+This closes that loop statically. ``setup_tree``'s ``register_key`` calls are
+the complete set of keys it writes by name — read in both the ``key="X"`` and
+the positional ``register_key("X", ...)`` form, since py_trees accepts either and
+reading only the first would leave the ratchet blind to exactly the kind of
+one-line addition it is here to catch.  A key that cannot be resolved statically
+fails the test rather than being skipped.  The ``**context_data`` keys go through
+a ``setattr`` loop and are added to ``managed_keys`` dynamically, so they are
+deliberately out of scope here and are covered by the nested-execution tests in
 ``test/core/behaviors/test_bridge.py``.
 
 Why a ratchet rather than a runtime assertion: the omission is only observable
@@ -48,21 +51,62 @@ def _function(tree: ast.Module, name: str) -> ast.FunctionDef:
     raise AssertionError(f"{name}() not found in {_BRIDGE}")
 
 
+def _register_key_calls(fn: ast.FunctionDef) -> list[ast.Call]:
+    """Every ``*.register_key(...)`` call within *fn*."""
+    return [
+        node
+        for node in ast.walk(fn)
+        if isinstance(node, ast.Call)
+        and isinstance(node.func, ast.Attribute)
+        and node.func.attr == "register_key"
+    ]
+
+
+def _key_argument(call: ast.Call) -> ast.expr | None:
+    """Return the expression passed as ``register_key``'s *key* parameter.
+
+    py_trees' signature is ``register_key(self, key, access, ...)``, so the key
+    can arrive either as ``key="x"`` or positionally as ``register_key("x",
+    ...)``.  Reading only the keyword form would let the positional form through
+    unseen — which is exactly the silent one-line omission this ratchet exists
+    to catch.
+    """
+    for kw in call.keywords:
+        if kw.arg == "key":
+            return kw.value
+    return call.args[0] if call.args else None
+
+
 def _registered_keys(fn: ast.FunctionDef) -> set[str]:
-    """Literal ``key=`` arguments to ``register_key`` calls within *fn*."""
+    """Statically-resolvable keys passed to ``register_key`` calls within *fn*.
+
+    Fails loudly on a key this extractor cannot resolve, rather than skipping
+    it.  A silently-skipped registration is the failure mode that let #3161 and
+    #3516 each ship: the ratchet would report "nothing missing" precisely
+    because it could not see the new write.  The one sanctioned dynamic key is
+    ``setup_tree``'s ``**context_data`` loop variable, which is added to
+    ``managed_keys`` dynamically and covered by the nested-execution tests in
+    ``test/core/behaviors/test_bridge.py``.
+    """
+    _SANCTIONED_DYNAMIC_KEYS = {"key"}
+
     keys: set[str] = set()
-    for node in ast.walk(fn):
-        if not isinstance(node, ast.Call):
+    for call in _register_key_calls(fn):
+        arg = _key_argument(call)
+        if isinstance(arg, ast.Constant) and isinstance(arg.value, str):
+            keys.add(arg.value)
             continue
-        func = node.func
-        if not (
-            isinstance(func, ast.Attribute) and func.attr == "register_key"
-        ):
+        if isinstance(arg, ast.Name) and arg.id in _SANCTIONED_DYNAMIC_KEYS:
             continue
-        for kw in node.keywords:
-            if kw.arg == "key" and isinstance(kw.value, ast.Constant):
-                if isinstance(kw.value.value, str):
-                    keys.add(kw.value.value)
+        raise AssertionError(
+            "register_key() called with a key this ratchet cannot resolve"
+            f" statically (line {call.lineno} of {_BRIDGE.name}:"
+            f" {ast.dump(arg) if arg is not None else 'no key argument'}).\n\n"
+            "Either pass a string literal, or — if the key is genuinely"
+            " dynamic — add it to _SANCTIONED_DYNAMIC_KEYS here and make sure"
+            " execute_with_setup extends managed_keys with it at runtime the"
+            " way it does for **context_data."
+        )
     return keys
 
 
@@ -119,6 +163,39 @@ def _bridge_tree() -> ast.Module:
         if path == _BRIDGE and isinstance(tree, ast.Module):
             return tree
     raise AssertionError(f"{_BRIDGE} not in the shared corpus")
+
+
+def test_every_register_key_call_lives_in_setup_tree() -> None:
+    """The ratchet below only reads ``setup_tree``, so nothing may register elsewhere.
+
+    ``_registered_keys`` is scoped to ``setup_tree``'s own body.  Moving a
+    registration into a private helper that ``setup_tree`` calls would therefore
+    make it invisible to the subset check — a silent pass in the same direction
+    as the omissions this file exists to catch.  Assert the scoping assumption
+    directly instead of relying on it.
+    """
+    tree = _bridge_tree()
+    setup_tree_calls = {
+        call.lineno
+        for call in _register_key_calls(_function(tree, "setup_tree"))
+    }
+    module_calls = {
+        node.lineno
+        for node in ast.walk(tree)
+        if isinstance(node, ast.Call)
+        and isinstance(node.func, ast.Attribute)
+        and node.func.attr == "register_key"
+    }
+
+    stray = sorted(module_calls - setup_tree_calls)
+    assert not stray, (
+        f"register_key() called outside setup_tree() at line(s) {stray} of"
+        f" {_BRIDGE.name}.\n\n"
+        "test_managed_keys_covers_every_key_setup_tree_registers only inspects"
+        " setup_tree(), so a registration anywhere else is not checked against"
+        " managed_keys.  Either move it back into setup_tree(), or widen"
+        " _registered_keys() to cover the new location."
+    )
 
 
 def test_managed_keys_covers_every_key_setup_tree_registers() -> None:
