@@ -16,9 +16,9 @@
 """Shared helper utilities for core domain model types."""
 
 import uuid
-from collections.abc import Iterable
+from collections.abc import Iterable, Sequence
 from datetime import datetime, timedelta, timezone
-from typing import Any
+from typing import Any, Protocol, TypeVar
 
 from pydantic import BaseModel
 from pydantic.alias_generators import to_camel
@@ -130,6 +130,40 @@ def status_recency_key(
     in one place.
     """
     return as_utc(updated) or as_utc(published) or _MIN_UTC
+
+
+class _Timestamped(Protocol):
+    @property
+    def updated(self) -> datetime | None: ...
+
+    @property
+    def published(self) -> datetime | None: ...
+
+
+_StatusT = TypeVar("_StatusT", bound=_Timestamped)
+
+
+def most_recent_status(statuses: Sequence[_StatusT]) -> _StatusT:
+    """Return the most recent of *statuses*; a tie goes to the last appended.
+
+    Recency is :func:`status_recency_key`.  Received statuses carry the
+    sender's time or none at all (ISSUE-3257), so equal keys are ordinary, and
+    append order is the only honest tiebreaker left: ``id_`` scheme is an
+    implementation artefact (CM-29-001), and a bare ``max`` keeps the *first*
+    maximal element, so a status appended with the same time as the one before
+    it would never become current.
+
+    Raises:
+        ValueError: When *statuses* is empty.
+    """
+    _, latest = max(
+        enumerate(statuses),
+        key=lambda pair: (
+            status_recency_key(pair[1].updated, pair[1].published),
+            pair[0],
+        ),
+    )
+    return latest
 
 
 class DuplicateKeySpellingError(ValueError):

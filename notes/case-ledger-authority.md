@@ -445,10 +445,16 @@ Five traps, all found the hard way:
    already sent.
 
    This holds only at the **top level**. Nested objects legitimately omit
-   `published`, so the guard does not apply to them — and there the `now_utc`
-   default still applies, which means a nested object with no claimed time
-   carries the receiver's clock. Do not read a nested `published` as the
-   sender's claim without checking it was supplied — tracked by #3257.
+   `published` (AS2 makes it optional everywhere), so they are **taken as
+   received**: `parser._absent_times_as_none` reads an omitted clock-defaulted
+   timestamp as `None` before validation, the extractor passes it through, and
+   core keeps `None` — an object's time is carried, never minted by whoever
+   receives or renders it (#3257, #2553). Refusal is reserved for a decision
+   that *needs* the time, and it happens at parse: a case with no `genesisHash`
+   and no `published` (CLP-08-002), an embargo with no `endTime`, a replicated
+   ledger entry with no `published` or `receivedAt` (CLP-14-002, CLP-02-008).
+   Consumers that merely order by time tolerate `None` —
+   `most_recent_status` sorts it lowest and breaks ties by append order.
 5. **Never gate a whole guard on one optional argument.** The CLP-14 guard sat
    behind `if case_published is not None:` and the sole production call site
    never passed it, so nothing was checked for the guard's entire life while

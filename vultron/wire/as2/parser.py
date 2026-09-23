@@ -7,9 +7,12 @@ to transport-level error responses (e.g., HTTP status codes).
 """
 
 import logging
-from typing import Any, cast
+import types
+from datetime import datetime
+from typing import Any, Union, cast, get_args, get_origin
 
 from pydantic import BaseModel
+from pydantic.fields import FieldInfo
 
 from vultron.wire.as2.vocab.base.objects.activities.base import as_Activity
 from vultron.wire.as2.vocab.base.registry import find_in_vocabulary
@@ -41,6 +44,50 @@ _VULNERABILITY_CASE_STUB_KEYS = frozenset(
 # (payload_snapshot expects a dict), causing the parser to fall back to the base
 # ``as_Object`` type and mis-route the entry (SYNC-13-004).
 _OPAQUE_PAYLOAD_KEYS = frozenset({"payloadSnapshot", "payload_snapshot"})
+
+
+def _is_datetime_field(field: FieldInfo) -> bool:
+    annotation = field.annotation
+    if annotation is datetime:
+        return True
+    if (
+        isinstance(annotation, types.UnionType)
+        or get_origin(annotation) is Union
+    ):
+        return datetime in get_args(annotation)
+    return False
+
+
+def _absent_times_as_none(
+    cls: type[BaseModel], data: dict[str, Any]
+) -> dict[str, Any]:
+    """Read every absent clock-defaulted timestamp in *data* as ``None``.
+
+    A wire datetime field with a ``default_factory`` (``published``,
+    ``updated``, an embargo's ``start_time``/``end_time``, a ledger entry's
+    ``received_at``) fills an omitted value from the *local* clock.  That is
+    right when this process authors the object and wrong when it receives one:
+    the value would be a time the sender never claimed, and downstream it reads
+    as the sender's claim (ISSUE-3257).  So on the inbound path an object's
+    time is taken as received — an omission stays an omission.
+
+    Where a field may be absent the result is ``None``; where the object's own
+    class requires the time (``end_time``, ``received_at``) or a validator
+    needs it (a case's genesis hash, CLP-08-002), validation refuses the
+    message here, at the edge, rather than deciding on a minted value later
+    (ADR-0032).
+    """
+    for name, field in cls.model_fields.items():
+        if field.default_factory is None or not _is_datetime_field(field):
+            continue
+        keys = {name} | {
+            key
+            for key in (field.alias, field.validation_alias)
+            if isinstance(key, str)
+        }
+        if keys.isdisjoint(data):
+            data[name] = None
+    return data
 
 
 def _inline_vocab_class(value: dict[str, Any]) -> type[BaseModel] | None:
@@ -128,7 +175,9 @@ def _expand_inline_value(value: object, path: str = "") -> object:
     # inner field lost its case id and drew a 202 for a message the receiver
     # never understood (ISSUE-3217).
     try:
-        return inline_cls.model_validate(expanded)
+        return inline_cls.model_validate(
+            _absent_times_as_none(inline_cls, expanded)
+        )
     except Exception as exc:
         where = f" at {path!r}" if path else ""
         raise VultronParseValidationError(
@@ -217,7 +266,8 @@ def parse_activity(body: dict[str, Any]) -> as_Activity:
     # (ADR-0032: validate at the edge).
     #
     # Scoped to the top-level activity: nested objects legitimately omit
-    # ``published`` and may be bare ID strings.
+    # ``published`` and may be bare ID strings.  Their absence is kept as
+    # absence by ``_absent_times_as_none`` instead (ISSUE-3257).
     #
     # A present-but-blank value carries no claimed time either, so it is refused
     # the same way.  Asking only whether the *key* was absent let ``""`` reach
@@ -240,7 +290,10 @@ def parse_activity(body: dict[str, Any]) -> as_Activity:
 
     try:
         return cast(
-            as_Activity, cls.model_validate(_expand_inline_object(body))
+            as_Activity,
+            cls.model_validate(
+                _absent_times_as_none(cls, _expand_inline_object(body))
+            ),
         )
     except VultronParseError:
         # A malformed inline object already carries its own diagnosis, naming

@@ -1539,3 +1539,28 @@ groups:
       spec_id: CLP-01-003
     lint_suppress:
     - missing_story_reference
+  - id: CLP-15-007
+    priority: MUST
+    kind: protocol
+    statement: A receiver MUST carry the `published` and `updated` timestamps of every
+      object nested in an inbound activity as received. A timestamp the sender omitted
+      MUST remain absent; the receiver MUST NOT substitute its own clock for it, whether
+      at parsing, extraction, storage or rendering. Where a decision requires a nested
+      timestamp that is absent, the receiver MUST reject the message at message validation.
+    rationale: 'AS2 makes object timestamps optional. A receiver-minted value is later
+      indistinguishable from the sender''s claim: it gave each receiver its own genesis
+      hash for one case and ordered received statuses by arrival (ISSUE-3257). Absence
+      harms only a decision that needs the time, so that decision refuses it early and
+      loudly; every other consumer tolerates it (ISSUE-2553).'
+    verification: '`parser._absent_times_as_none` in `vultron/wire/as2/parser.py` reads
+      an omitted clock-defaulted timestamp as `None` before validation, and the
+      extractor builders pass timestamps through unchanged. Covered by
+      `test/wire/as2/test_nested_timestamps.py`.'
+    adr:
+    - ADR-0079
+    - ADR-0032
+    relationships:
+    - rel_type: refines
+      spec_id: CLP-15-006
+    lint_suppress:
+    - missing_story_reference

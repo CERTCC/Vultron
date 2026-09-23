@@ -136,13 +136,12 @@ class as_Object(as_Base, VultronObject):
         omit outright.
 
         Absence here means ``None``, **not** the field default.  ``published``
-        and ``updated`` carry ``default_factory=now_utc``, so omitting the key
-        yields the receiver's clock while a blank yields ``None`` — blank is
-        therefore equivalent to an explicit ``null``, not to omission.  That is
-        the more honest of the two: ``None`` records that the sender supplied
-        no time, where the default would fabricate one and present it as the
-        sender's claim.  ``start_time`` and ``end_time`` default to ``None``
-        already, so for them the two spellings do coincide.
+        and ``updated`` carry ``default_factory=now_utc`` so that an object this
+        process *authors* is stamped with the local clock; on inbound data that
+        default would fabricate a time and present it as the sender's claim.
+        ``parser._absent_times_as_none`` therefore reads an omitted key as
+        ``None`` before validation, so omission, ``null`` and blank all arrive
+        as the same ``None`` (ISSUE-3257).
 
         A non-blank string that is not a timestamp stays an error: blank means
         "not provided", and reporting corrupt data as missing data would tell

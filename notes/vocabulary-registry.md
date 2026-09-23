@@ -317,12 +317,22 @@ The two registries are keyed differently, and the distinction matters
 | Registry | Key | Example |
 |---|---|---|
 | `VOCABULARY` | full `as_*` class name | `"as_VulnerabilityCase"` |
-| `WIRE_TYPE_MAP` | wire `type_` value | `"VulnerabilityCase"` |
+| `WIRE_TYPE_MAP` | class name minus `as_` | `"VulnerabilityCase"` |
+
+`as_Base.__init_subclass__` registers each class under
+`cls.__name__.removeprefix("as_")` — the class name, **not** the `type_` value. The two usually coincide, but not
+always: `as_VultronPerson` is keyed `"VultronPerson"` with `type_` `"Person"`,
+and `as_VulnerabilityCaseStub` is keyed `"VulnerabilityCaseStub"` with `type_`
+`"VulnerabilityCase"`. The AS2 actor `type_` keys (`"Person"`, `"Organization"`,
+`"Service"`, `"Application"`, `"Group"`, `"Actor"`) exist only because
+`vultron/wire/as2/vocab/objects/vultron_actor.py` and
+`vultron/wire/as2/vocab/base/objects/actors.py` register them explicitly
+(ISSUE-2992).
 
 The render adapter resolves a core class to its wire counterpart with
 `WIRE_TYPE_MAP.get(type(obj).__name__)`. Never resolve a core type's wire
-counterpart by name coincidence — use `WIRE_TYPE_MAP` (for `type_` values) or
-`VOCABULARY` (for wire class-name lookups). The full pairing registry
+counterpart by name coincidence — use `WIRE_TYPE_MAP` (for stripped class names
+and the explicit `type_` keys) or `VOCABULARY` (for wire class-name lookups). The full pairing registry
 (ARCH-23-001) is **cancelled** by ADR-0099 — see § "Cancelled: Declarative Pairing
 Registry" above.
 

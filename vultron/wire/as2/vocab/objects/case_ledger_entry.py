@@ -117,6 +117,11 @@ class as_CaseLedgerEntry(as_VultronObject):
         validation_alias="entryHash",
         serialization_alias="entryHash",
     )
+    # Required on the wire as in core (CLP-14-002): an inbound entry with no
+    # commit stamp is refused at parse rather than stamped by the receiver.
+    published: datetime = Field(  # type: ignore[assignment]
+        default_factory=now_utc, json_schema_extra={"format": "date-time"}
+    )
     received_at: datetime = Field(
         default_factory=now_utc,
         description="Server-generated TZ-aware UTC receipt timestamp",
