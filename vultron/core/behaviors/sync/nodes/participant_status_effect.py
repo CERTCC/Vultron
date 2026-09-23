@@ -43,7 +43,10 @@ from vultron.core.behaviors.helpers import (
     read_rm_states,
 )
 from vultron.core.behaviors.sync.nodes.effects import _extract_id_from_field
-from vultron.core.models._helpers import _as_id
+from vultron.core.models._helpers import (
+    _as_id,
+    project_wire_snapshot_to_core,
+)
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.dimensions import RmDimension
 from vultron.core.models.fault_classes import (
@@ -238,7 +241,12 @@ class ApplyParticipantStatusFromLedgerNode(DataLayerActionWithPorts):
             return Status.SUCCESS
 
         try:
-            status_obj = ParticipantStatus.model_validate(status_data)
+            # Projected, not validated raw: the snapshot is AS2-shaped, and its
+            # absent timestamps are absences to carry rather than gaps for this
+            # replica's clock to fill (CLP-15-007).
+            status_obj = ParticipantStatus.model_validate(
+                project_wire_snapshot_to_core(ParticipantStatus, status_data)
+            )
         except Exception as exc:
             self.logger.warning(
                 "%s: failed to reconstruct ParticipantStatus from"

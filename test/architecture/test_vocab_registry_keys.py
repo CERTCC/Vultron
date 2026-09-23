@@ -229,3 +229,37 @@ def test_no_unsanctioned_wire_type_collisions() -> None:
         "A sanctioned shadow lost its key to the class it should replace "
         "{value: actual owner}: " + repr(wrong_winner)
     )
+
+
+def test_no_test_class_owns_a_wire_type_key() -> None:
+    """VM-01-008: a production ``type`` value is never owned by a test class.
+
+    ``test_no_unsanctioned_wire_type_collisions`` above cannot see this case.
+    Its subclass walk is scoped to ``vultron.wire.as2.vocab`` modules, so a
+    stand-in defined in a test body is filtered out of the comparison — while
+    ``__init_subclass__`` registers it all the same, by its *declared* ``type_``
+    rather than its class name. A class defined inside a test function that
+    declares ``type_ = "VulnerabilityCase"`` therefore takes that key silently,
+    and ``WIRE_TYPE_MAP``'s own reference keeps it alive for the rest of the
+    process: every later lookup of that value resolves to the stand-in, in a
+    different file, with no mention of the test that defined it (#3592).
+
+    Such a stand-in must declare ``_wire_type_alias = True``, which is what it
+    is — a class sharing another's ``type`` value that the value must not
+    deserialize to. This check runs over the live registry, so it sees the
+    squatter whatever module it came from.
+    """
+    _force_full_registration()
+
+    intruders = {
+        value: f"{cls.__module__}.{cls.__qualname__}"
+        for value, cls in WIRE_TYPE_MAP.items()
+        if not cls.__module__.startswith("vultron.")
+    }
+
+    assert not intruders, (
+        "These wire 'type' values are owned by a class defined outside "
+        "`vultron.` — a test stand-in that registered itself. Declare "
+        "`_wire_type_alias: ClassVar[bool] = True` on it (VM-01-008) "
+        "{value: class}: " + repr(intruders)
+    )

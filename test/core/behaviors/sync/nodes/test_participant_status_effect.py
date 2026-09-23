@@ -433,3 +433,38 @@ class TestEmitImpossibleStateFaultNode:
         )
 
         assert result.status == Status.FAILURE
+
+
+@pytest.mark.spec("CLP-15-007")
+def test_replicated_status_carries_no_time_rather_than_the_replica_clock(
+    bridge, datalayer, case_actor, participant
+):
+    """A rebuilt status keeps an absent time absent (ISSUE-3257).
+
+    A payload snapshot is dumped with ``exclude_none=True``, so a status whose
+    ``published`` was carried as absent has no key at all in the snapshot.
+    Validating that dict straight into ``ParticipantStatus`` let the core
+    ``default_factory`` stamp *this replica's* clock, which is the fabrication
+    the wire parser refuses one boundary earlier: the asserting actor's copy
+    sorted the status last (no time) while every replica sorted it first
+    (a time seconds old), so the two disagreed about which status was current.
+    """
+    entry = _make_status_entry(
+        status_id=f"urn:uuid:{uuid.uuid4()}",
+        participant_id=participant.id_,
+    )
+    assert "published" not in entry.payload_snapshot["object"]
+
+    result = bridge.execute_with_setup(
+        tree=ApplyParticipantStatusFromLedgerNode(
+            name="ApplyParticipantStatusFromLedger"
+        ),
+        actor_id=PARTICIPANT_ACTOR_ID,
+        activity=_make_event(entry, actor_id=case_actor.id_),
+    )
+
+    assert result.status == Status.SUCCESS
+    updated = cast(as_CaseParticipant, datalayer.read(participant.id_))
+    new_status = cast(ParticipantStatus, updated.participant_statuses[-1])
+    assert new_status.published is None
+    assert new_status.updated is None
