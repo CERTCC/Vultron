@@ -116,6 +116,12 @@ that bite most often:
   is a FATAL registry load error.
 - **`rel_type:`** — one of the enumerated values; `related_to` is not among them.
 - **`references:`** — not a schema field, silently dropped. Use `adr:`.
+- **Item format is field presence, not a class you pick** (ADR-0101).
+  `BehavioralSpec` requires at least one of `preconditions`, `steps`,
+  `postconditions`; an item carrying none of them is a `StatementSpec`. `steps`
+  carries the *action* half of an ECA rule, so a single step is correct and
+  asserts no ordering. Read the format off the fields — never off `isinstance`,
+  and never off the `behavioral` tag.
 - **Adding or modifying a `kind: protocol` entry** requires a same-PR
   `@pytest.mark.spec("<ID>")` marker (SR-05-004, SR-05-005) — the
   `MAX_UNCOVERED_PROTOCOL_SPECS` ceiling can only be lowered, never raised. If
