@@ -34,6 +34,7 @@ from typing import Any, TypeVar
 
 import frontmatter
 import yaml
+from frontmatter.default_handlers import YAMLHandler
 from pydantic import BaseModel, ValidationError
 
 M = TypeVar("M", bound=BaseModel)
@@ -240,6 +241,45 @@ def load_yaml(
 _FRONTMATTER_LEAD = "malformed YAML frontmatter"
 
 
+class _NotAMapping(Exception):
+    """A frontmatter block parsed to something other than a mapping."""
+
+
+class _MappingYAMLHandler(YAMLHandler):
+    """YAML handler that refuses a block parsing to a list or a scalar.
+
+    ``python-frontmatter`` keeps the parsed block only when it is a ``dict``
+    and otherwise returns empty metadata, so a malformed block would read as
+    no block at all. An empty block (``None``) is still no metadata.
+    """
+
+    def load(self, fm: str, **kwargs: object) -> Any:
+        data = super().load(fm, **kwargs)
+        if data is not None and not isinstance(data, dict):
+            raise _NotAMapping(type(data).__name__)
+        return data
+
+
+_MAPPING_YAML = _MappingYAMLHandler()
+
+
+def _parse_frontmatter(text: str, shown: str | None) -> frontmatter.Post:
+    # The handler is passed only when the text opens with a ``---`` fence;
+    # passed unconditionally, it would split on a later horizontal rule.
+    handler = _MAPPING_YAML if _MAPPING_YAML.detect(text) else None
+    try:
+        return frontmatter.loads(text, handler=handler)
+    except yaml.YAMLError as exc:
+        raise _yaml_error(exc, shown, _FRONTMATTER_LEAD) from exc
+    except _NotAMapping as exc:
+        raise MetadataLoadError(
+            f"{_FRONTMATTER_LEAD}: the block is a YAML {exc}, not a mapping "
+            f"of keys",
+            path=shown,
+            line=1,
+        ) from exc
+
+
 def load_frontmatter(
     path: Path, *, root: Path | None = None
 ) -> frontmatter.Post:
@@ -250,18 +290,16 @@ def load_frontmatter(
     line.
 
     Raises:
-        MetadataLoadError: On malformed YAML frontmatter or an undecodable
-            file.
+        MetadataLoadError: On malformed YAML frontmatter, a block that is not
+            a mapping, or an undecodable file.
         FileNotFoundError: If *path* does not exist.
     """
     shown = display_path(path, root)
     try:
-        with path.open(encoding="utf-8") as fh:
-            return frontmatter.load(fh)
-    except yaml.YAMLError as exc:
-        raise _yaml_error(exc, shown, _FRONTMATTER_LEAD) from exc
+        text = path.read_text(encoding="utf-8")
     except UnicodeDecodeError as exc:
         raise MetadataLoadError(f"not valid UTF-8: {exc}", path=shown) from exc
+    return _parse_frontmatter(text, shown)
 
 
 def loads_frontmatter(text: str) -> frontmatter.Post:
@@ -271,12 +309,10 @@ def loads_frontmatter(text: str) -> frontmatter.Post:
     (``append-history`` stdin). The error carries the position but no path.
 
     Raises:
-        MetadataLoadError: On malformed YAML frontmatter.
+        MetadataLoadError: On malformed YAML frontmatter or a block that is
+            not a mapping.
     """
-    try:
-        return frontmatter.loads(text)
-    except yaml.YAMLError as exc:
-        raise _yaml_error(exc, None, _FRONTMATTER_LEAD) from exc
+    return _parse_frontmatter(text, None)
 
 
 def describe_validation_error(exc: ValidationError) -> str:

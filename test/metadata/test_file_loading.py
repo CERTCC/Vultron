@@ -163,6 +163,36 @@ class TestFrontmatterAttribution:
         assert str(info.value).startswith("malformed YAML frontmatter:")
         assert "<unicode string>" not in str(info.value)
 
+    @pytest.mark.parametrize(
+        ("block", "kind"),
+        [("- a\n- b\n", "list"), ("just a scalar\n", "str")],
+        ids=["list", "scalar"],
+    )
+    def test_non_mapping_block_is_malformed(self, tmp_path, block, kind):
+        """python-frontmatter alone would return empty metadata here."""
+        path = _write(tmp_path / "n.md", "---\n" + block + "---\nbody\n")
+
+        with pytest.raises(MetadataLoadError) as info:
+            load_frontmatter(path, root=tmp_path)
+
+        assert str(info.value).startswith(
+            f"n.md:1 — malformed YAML frontmatter: the block is a YAML {kind}"
+        )
+
+    def test_non_mapping_block_no_path_form(self):
+        with pytest.raises(MetadataLoadError, match="not a mapping"):
+            loads_frontmatter("---\n- a\n---\nbody\n")
+
+    @pytest.mark.parametrize(
+        "text",
+        ["---\n---\nbody\n", "no block\n", "intro\n\n---\n\n- a\n---\nrest\n"],
+        ids=["empty-block", "no-block", "horizontal-rule"],
+    )
+    def test_absent_or_empty_block_is_empty_metadata(self, text):
+        post = loads_frontmatter(text)
+
+        assert post.metadata == {}
+
 
 @pytest.mark.spec("MS-17-001")
 class TestValidateAttribution:
