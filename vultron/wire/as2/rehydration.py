@@ -109,7 +109,20 @@ def _slot_requires_object(annotation: Any) -> bool:
     ]
     if not model_branches:
         return False
-    if not all(issubclass(branch, as_Object) for branch in model_branches):
+    # A promoted core class is a materialisable AS2 object too.  Requiring
+    # ``as_Object`` alone excluded every class ADR-0099 detail 3 collapsed —
+    # ``participant_statuses: list[ParticipantStatus]`` stopped being an eligible
+    # slot, so an unresolvable reference in it was left bare instead of refused,
+    # silently dropping VM-06-007's refusal guarantee.
+    #
+    # ``CoreObject`` is the right addition rather than ``BaseModel``: the point of
+    # this gate is to keep a *dimension* out, since detail 5 makes it serialize to
+    # a bare state value that would otherwise be read as a reference. Dimensions
+    # derive from ``_ScalarDimension``, not ``CoreObject``, so they stay excluded.
+    if not all(
+        issubclass(branch, (as_Object, CoreObject))
+        for branch in model_branches
+    ):
         return False
     if all(issubclass(branch, as_Collection) for branch in model_branches):
         return False
@@ -156,14 +169,18 @@ def _materialise_one(
             "object rather than a URI. Refusing rather than fabricating a "
             "placeholder (VM-06-007)."
         )
-    if not isinstance(resolved, as_Object):
+    # A promoted core class is placeable: detail 3 has now retargeted these slots
+    # at the core class, which is what the previous version of this message said
+    # it was waiting for.  ``dl.read()`` returns core objects for paired types
+    # (DL-05-004), so requiring ``as_Object`` alone refused every read of a
+    # collapsed type — the refusal fired on the normal path instead of the
+    # malformed one.
+    if not isinstance(resolved, (as_Object, CoreObject)):
         raise VultronReferenceResolutionError(
             f"{cls_name}.{field_name}: reference '{obj_id}' resolved to "
-            f"{type(resolved).__name__}, which is not an AS2 object and cannot "
-            "be placed in a wire slot. `dl.read()` returns core objects for "
-            "paired types (DL-05-004); this slot is materialisable only once "
-            "ADR-0099 detail 3 retargets it at the core class. Refusing rather "
-            "than substituting a shape the slot cannot hold (VM-06-007)."
+            f"{type(resolved).__name__}, which is neither an AS2 object nor a "
+            "core domain object, so it cannot be placed in this slot. Refusing "
+            "rather than substituting a shape the slot cannot hold (VM-06-007)."
         )
     logger.debug(
         "Materialised %s.%s reference '%s' as %s.",

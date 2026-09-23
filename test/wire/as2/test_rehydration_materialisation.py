@@ -174,7 +174,11 @@ def test_materialise_builds_a_valid_object_from_bare_ids(
 
 def test_bare_id_in_scalar_object_slot_is_resolved() -> None:
     """`as_ParticipantStatus.case_status` is scalar and admits no URI."""
-    status = as_CaseStatus(id_="https://example.org/case-statuses/cs-1")
+    # ``context`` is required on the core class (fail-fast, ARCH-10-001); the
+    # deleted wire class allowed it to be absent (ARCH-12-002 leniency).
+    status = as_CaseStatus(
+        id_="https://example.org/case-statuses/cs-1", context=CASE_ID
+    )
     dl = FakeDataLayer({status.id_: status})
     out = materialise_object_slots(
         as_ParticipantStatus,
@@ -438,40 +442,67 @@ def test_nested_object_list_slot_is_covered_too() -> None:
 # ---------------------------------------------------------------------------
 
 
-def test_reference_resolving_to_a_core_object_is_refused() -> None:
-    """A core object cannot occupy a wire slot, so refuse rather than substitute.
+def test_reference_resolving_to_a_core_object_is_materialised() -> None:
+    """A core object may now occupy the slot, so it is placed rather than refused.
 
-    This is the real `DataLayer` contract, not a hypothetical. DL-05-004 /
-    ADR-0034 make ``dl.read()`` return **core** objects for every
-    ``CORE_VOCABULARY`` type; AS2 activities are the exemption that still comes
-    back wire-shaped. So of the three object-only slots, only
-    ``as_VulnerabilityCase.case_activity`` can be materialised today —
-    ``as_ParticipantStatus.case_status`` and
-    ``as_CaseParticipant.participant_statuses`` get a core object back.
+    **This asserted the exact opposite, and the inversion is the point of
+    ADR-0099 detail 3.** DL-05-004 / ADR-0034 make ``dl.read()`` return *core*
+    objects for every ``CORE_VOCABULARY`` type, so a slot typed with the wire
+    class could never be filled from the data layer — the resolved object was the
+    wrong shape and materialisation had to refuse. The old refusal message said as
+    much: "this slot is materialisable only once ADR-0099 detail 3 retargets it at
+    the core class".
 
-    Substituting it produces an opaque Pydantic error three frames away, which is
-    how this went unnoticed: the other tests here stock the fake with ``as_*``
-    instances and so assert a contract the real port does not honour.
+    Detail 3 has now done that. ``as_ParticipantStatus.case_status`` names
+    ``CaseStatus``, which is what ``dl.read()`` returns, so the normal path
+    succeeds. Keeping the refusal would have meant refusing every well-formed
+    read — the guard firing on the healthy case instead of the broken one.
+
+    The refusal itself is still covered, for the cases where it is still correct:
+    an unresolvable reference (``test_unresolvable_reference_in_object_slot_is_refused``)
+    and a resolved object that is neither an AS2 object nor a core object.
     """
     core_status = CoreCaseStatus(
         id_="https://example.org/statuses/cs-1", context=CASE_ID
     )
     dl = FakeDataLayer({core_status.id_: core_status})
 
+    out = materialise_object_slots(
+        as_ParticipantStatus,
+        {
+            "id": "https://example.org/statuses/ps-1",
+            "case_status": core_status.id_,
+        },
+        dl.as_port(),
+    )
+    assert out["case_status"] is core_status
+
+
+def test_reference_resolving_to_a_non_object_is_still_refused() -> None:
+    """Something that is neither an AS2 object nor a core object is refused.
+
+    The residual case the rewritten test above no longer covers: the slot holds
+    objects, and what came back cannot be one, so substituting it would produce an
+    opaque Pydantic error three frames away (VM-06-007).
+    """
+
+    class _NotAnObject:
+        id_ = "https://example.org/statuses/not-an-object"
+
+    stray = _NotAnObject()
+    dl = FakeDataLayer({stray.id_: stray})  # type: ignore[dict-item]
+
     with pytest.raises(
-        VultronReferenceResolutionError, match="not an AS2 object"
+        VultronReferenceResolutionError, match="neither an AS2 object"
     ):
         materialise_object_slots(
             as_ParticipantStatus,
             {
-                "id": "https://example.org/statuses/ps-1",
-                "case_status": core_status.id_,
+                "id": "https://example.org/statuses/ps-2",
+                "case_status": stray.id_,
             },
             dl.as_port(),
         )
-    assert dl.reads == [
-        core_status.id_
-    ], "the reference must still be looked up"
 
 
 def test_the_refusal_is_absorbable_by_pydantic() -> None:
