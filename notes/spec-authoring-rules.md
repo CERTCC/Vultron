@@ -54,8 +54,44 @@ commit time. The error may look like a YAML syntax error — it is not.
 - Use `kind: process` for development process rules (testing, documentation,
   CI).
 
-Check existing entries in the same spec file for context before writing a new
-entry. *Source: ISSUE-2258*
+These glosses come from *ISSUE-2258*.
+
+#### Apply the decision tree, not the neighbouring entries
+
+The four one-line glosses above are a summary, not the rule. The authoritative
+rule is the decision tree in **MS-12-001 … MS-12-005** (`meta-specifications.yaml`),
+established by [ADR-0038](../docs/adr/0038-four-tier-specification-taxonomy.md).
+Apply it in order and stop at the first match:
+
+1. About how the project is run — CI, workflow, agent conventions, docs
+   standards, spec authoring rules? → `process`
+2. References a language construct, library, file path, class, function,
+   module, or codebase mechanism (`py_trees`, `pydantic`, `vultron/`, `.py`,
+   `pytest`, BT nodes)? → `project`
+3. Must an independent implementer satisfy it to be Vultron-compliant, in any
+   language? → `protocol`
+4. None of the above — implementation-independent but not compliance-bearing?
+   → `architecture`
+
+Step 2 is the one that gets skipped. A codebase reference disqualifies
+`protocol` **even when the surrounding requirement feels protocol-ish**, which
+is why the ordering is normative in MS-12-005 rather than advisory.
+
+Do **not** infer a spec's `kind` by copying the entries around it. That heuristic
+is what produced the defect behind ISSUE-2601: MS-12 went unenforced from its
+adoption until 2026-09, and by then 277 `kind: protocol` MUST specs were carrying
+`lint_suppress: [missing_story_reference]` instead of a corrected `kind` — code
+naming conventions, test-coverage requirements, and build-file formats all tagged
+as wire-protocol obligations. Suppressing the story-traceability gate is almost
+never the right response to it firing; a spec that cannot be traced to a user
+story is usually mis-classified, not story-less. MS-12-006 now makes the
+unambiguous cases a hard error, and MS-12-007 ratchets the suppression count
+downward, but neither detects a misclassification whose statement names no code.
+
+The general lesson, from ISSUE-3480: **an enforced MUST advertises itself through
+full compliance in the artifacts; an unenforced one anti-advertises.** A rule at
+half adoption reads to the next author as "no rule here" — worse than one at zero
+adoption, which at least reads as "not done yet".
 
 ### Valid `priority:` Values — Underscores, Not Spaces
 
