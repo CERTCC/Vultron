@@ -45,11 +45,52 @@ class TestTableShape:
         unbounded = [b for b in SIZE_BANDS if b.max_lines is None]
         assert unbounded == [SIZE_BANDS[-1]]
 
+    def test_the_estimate_domain_is_unbounded_only_at_its_end(self):
+        """`band_for_acs` relies on this, and only ``max_lines`` was checked.
+
+        Give ``size:L`` a finite ``max_acs`` and the loop falls through to a
+        ``# pragma: no cover`` ``AssertionError`` for every count above it,
+        which coverage cannot flag — and the parametrized boundary test starts
+        silently comparing against the ``measured_only`` band instead.
+        """
+        estimable = [b for b in SIZE_BANDS if not b.measured_only]
+        unbounded = [b for b in estimable if b.max_acs is None]
+        assert unbounded == [estimable[-1]]
+
     def test_every_band_has_a_colour(self):
         assert set(LABEL_COLORS) == set(SIZE_LABELS)
 
     def test_labels_are_unique(self):
         assert len(set(SIZE_LABELS)) == len(SIZE_LABELS)
+
+
+class TestCalibratedValues:
+    """The one place a literal belongs: the table is the authority.
+
+    Every other test here reads its threshold out of ``SIZE_BANDS``, which pins
+    the *derivation* but cannot fail on a wrong number — change ``max_lines`` to
+    1000 and the rest of this file stays green while PAD-05-008 and PAD-05-009
+    are both violated. Seven spec requirements state these numbers normatively
+    and name this file as their verification, so the numbers are asserted here
+    once, against the spec, and nowhere else.
+    """
+
+    def test_the_line_thresholds_are_the_surveyed_ones(self):
+        # PAD-05-006/007/008/009: ≤100 / 101-400 / 401-1200 / 1201+.
+        assert [b.max_lines for b in SIZE_BANDS] == [100, 400, 1200, None]
+
+    def test_the_ac_thresholds_are_the_surveyed_ones(self):
+        # PAD-05-001/004/005: ≤2 / 3-6 / 7+, and XL is unreachable (PAD-05-012).
+        assert [b.max_acs for b in SIZE_BANDS] == [2, 6, None, None]
+
+    def test_the_bundle_weights_are_one_two_three_then_never(self):
+        # PAD-15-005/PAD-15-011. `size:M` = 2 is pinned nowhere else: the
+        # budget tests reach 1 and 3 indirectly, so dropping M to 1 would let
+        # five M-sized members into a budget-6 bundle with the suite green.
+        assert [b.weight for b in SIZE_BANDS] == [1, 2, 3, None]
+
+    def test_the_labels_are_s_m_l_xl_in_that_order(self):
+        assert SIZE_LABELS == ("size:S", "size:M", "size:L", "size:XL")
 
 
 class TestDerivation:

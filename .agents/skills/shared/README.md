@@ -10,7 +10,7 @@ Shared scripts and reference documents referenced by multiple skills.
 | `issue-creation-requirements.md` | Three required fields (type, parent epic, milestone) for every new issue; lookup commands and defaults | `manage-github-issue`, `new-item`, `plan-issue`, `bugfix`, `build` |
 | `pr-body-guide.md` | PR body templates and formatting rules | `build`, `bugfix`, `plan-issue` |
 | `bundling.md` | Normative definition of a bundle: the two selection stages, the three fit signals and their authorities, and how one bundle becomes one PR (PAD-15) | `propose-bundle`, `build`, `bugfix`, `plan-issue` |
-| `sizing.md` | What the `size:` labels mean, estimate vs. measurement, who applies each, and why `size:XL` is a review-coverage warning (PAD-05). Band values come from `pr-size`, never prose | `plan-issue`, `update-plan`, `new-item`, `build`, `bugfix`, `check-docs-sync` |
+| `sizing.md` | What the `size:` labels mean, estimate vs. measurement, who applies each, and why `size:XL` is a review-coverage warning (PAD-05). Band values come from `pr-size`, never prose | `plan-issue`, `update-plan`, `build`, `bugfix` |
 | `upward-reflection.md` | Mandatory end-of-session checklist and the routing table that sends each finding to a GitHub issue, an in-session fix, an assertion at the site, or a learning file | `build` Phase 8, `bugfix` Phase 3, `pr-execute` Phase 3 |
 
 ## Scripts

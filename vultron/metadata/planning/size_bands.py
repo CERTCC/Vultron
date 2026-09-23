@@ -310,7 +310,10 @@ def main(argv: list[str] | None = None) -> int:
     source.add_argument(
         "--base",
         metavar="REF",
-        help="measure `git diff REF...HEAD` (default: origin/main)",
+        help=(
+            "measure the merge base with REF against the working tree, so "
+            "uncommitted and untracked work counts (default: origin/main)"
+        ),
     )
     source.add_argument(
         "--lines", type=int, help="measure an already-known diff line count"

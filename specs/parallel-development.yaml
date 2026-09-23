@@ -196,14 +196,20 @@ groups:
           Provides an objective, count-based size estimate at the point the
           Issue is created, before any implementation diff is available.
         verification: >-
-          `test/metadata/test_size_bands.py::TestBandForAcs::test_each_ceiling_and_the_one_after_it_land_correctly`
+          `test/metadata/test_size_bands.py::TestCalibratedValues` pins the
+          AC ceiling itself, and
+          `::TestBandForAcs::test_each_ceiling_and_the_one_after_it_land_correctly`
+          pins that the ceiling is inclusive.
       - id: PAD-05-002
         priority: MUST
         kind: process
         statement: >-
           At PR open time, the actual diff (total lines added plus removed
           across all changed files) MUST be measured and the corresponding
-          `size:` label applied to the **pull request**.
+          `size:` label applied to the **pull request**. This applies to PRs
+          whose head branch is in this repository; a PR from a fork is exempt,
+          because the workflow that applies the label holds a read-only token
+          there.
         rationale: >-
           Replaces the creation-time AC-count estimate with an objective
           implementation measurement before the PR is reviewed. The label goes
@@ -212,8 +218,10 @@ groups:
           label at all, because the step it replaced asked an agent to write the
           measurement onto an Issue that was about to close.
         verification: >-
-          `.github/workflows/pr-size-label.yml` applies it on every push;
-          `test/metadata/test_size_bands.py::TestBandForDiff` pins the bands.
+          `.github/workflows/pr-size-label.yml` applies it on every push to a
+          same-repo PR;
+          `test/metadata/test_size_bands.py::TestCalibratedValues` pins the
+          thresholds themselves and `::TestBandForDiff` pins their inclusivity.
       - id: PAD-05-003
         priority: MUST
         kind: process
@@ -221,6 +229,11 @@ groups:
           The measured `size:` label on the pull request (PAD-05-002) is the
           authoritative size of the delivered change; the AC-count label on the
           Issue is an estimate only.
+        verification: >-
+          `.github/workflows/pr-size-label.yml` writes the measured label with
+          `gh pr edit` only and never touches the Issue, so the two coexist;
+          `.agents/skills/shared/sizing.md` records which of them is
+          authoritative for what.
       - id: PAD-05-010
         priority: MUST_NOT
         kind: process
@@ -247,7 +260,8 @@ groups:
           drifts; one table with one applier cannot.
         verification: >-
           `test/metadata/test_size_bands.py::TestDerivation` asserts every
-          derived constant reads the table rather than restating it.
+          derived constant reads the table rather than restating it, and
+          `::TestCalibratedValues` pins the one table it all derives from.
       - id: PAD-05-004
         priority: MUST
         kind: process
@@ -258,7 +272,10 @@ groups:
           Provides an objective, count-based size estimate at the point the
           Issue is created, before any implementation diff is available.
         verification: >-
-          `test/metadata/test_size_bands.py::TestBandForAcs::test_each_ceiling_and_the_one_after_it_land_correctly`
+          `test/metadata/test_size_bands.py::TestCalibratedValues` pins the
+          AC ceiling itself, and
+          `::TestBandForAcs::test_each_ceiling_and_the_one_after_it_land_correctly`
+          pins that the ceiling is inclusive.
       - id: PAD-05-005
         priority: MUST
         kind: process
@@ -269,7 +286,10 @@ groups:
           Provides an objective, count-based size estimate at the point the
           Issue is created, before any implementation diff is available.
         verification: >-
-          `test/metadata/test_size_bands.py::TestBandForAcs::test_each_ceiling_and_the_one_after_it_land_correctly`
+          `test/metadata/test_size_bands.py::TestCalibratedValues` pins the
+          AC ceiling itself, and
+          `::TestBandForAcs::test_each_ceiling_and_the_one_after_it_land_correctly`
+          pins that the ceiling is inclusive.
       - id: PAD-05-006
         priority: MUST
         kind: process
@@ -278,11 +298,15 @@ groups:
           label.
         rationale: >-
           Calibrates the size label to the actual implementation effort
-          measured at PR open time (see PAD-05-002). The ≤50 ceiling this
-          replaces captured only 12% of merged PRs, and ~55% of the PRs
-          labelled `size:S` under it were larger than the band allowed.
+          measured at PR open time (see PAD-05-002). Across the 692 PRs merged
+          2026-07-22..2026-09-22, the ≤50 ceiling this replaces captured only
+          12% of them, and ~55% of the PRs labelled `size:S` under it were
+          larger than the band allowed.
         verification: >-
-          `test/metadata/test_size_bands.py::TestBandForDiff::test_each_ceiling_and_the_line_after_it_land_correctly`
+          `test/metadata/test_size_bands.py::TestCalibratedValues` pins the
+          threshold value itself, and
+          `::TestBandForDiff::test_each_ceiling_and_the_line_after_it_land_correctly`
+          pins that the ceiling is inclusive.
       - id: PAD-05-007
         priority: MUST
         kind: process
@@ -295,7 +319,10 @@ groups:
           lognormal with a median of 258 lines and no natural clusters, so this
           band covers the normal unit of work (38% of the surveyed window).
         verification: >-
-          `test/metadata/test_size_bands.py::TestBandForDiff::test_each_ceiling_and_the_line_after_it_land_correctly`
+          `test/metadata/test_size_bands.py::TestCalibratedValues` pins the
+          threshold value itself, and
+          `::TestBandForDiff::test_each_ceiling_and_the_line_after_it_land_correctly`
+          pins that the ceiling is inclusive.
       - id: PAD-05-008
         priority: MUST
         kind: process
@@ -305,11 +332,14 @@ groups:
         rationale: >-
           Calibrates the size label to the actual implementation effort
           measured at PR open time (see PAD-05-002). The previous `301+`
-          definition was unbounded above and covered 46% of merged PRs across
-          two orders of magnitude, so it could not distinguish a large change
-          from an unreviewable one.
+          definition was unbounded above and covered 46% of the 692 PRs merged
+          2026-07-22..2026-09-22, across two orders of magnitude, so it could
+          not distinguish a large change from an unreviewable one.
         verification: >-
-          `test/metadata/test_size_bands.py::TestBandForDiff::test_each_ceiling_and_the_line_after_it_land_correctly`
+          `test/metadata/test_size_bands.py::TestCalibratedValues` pins the
+          threshold value itself, and
+          `::TestBandForDiff::test_each_ceiling_and_the_line_after_it_land_correctly`
+          pins that the ceiling is inclusive.
       - id: PAD-05-009
         priority: MUST
         kind: process
@@ -324,7 +354,10 @@ groups:
           does not drop threefold in large PRs, so the falling detection rate
           is review saturation.
         verification: >-
-          `test/metadata/test_size_bands.py::TestBandForDiff::test_each_ceiling_and_the_line_after_it_land_correctly`
+          `test/metadata/test_size_bands.py::TestCalibratedValues` pins the
+          threshold value itself, and
+          `::TestBandForDiff::test_each_ceiling_and_the_line_after_it_land_correctly`
+          pins that the ceiling is inclusive.
       - id: PAD-05-012
         priority: MUST_NOT
         kind: process
