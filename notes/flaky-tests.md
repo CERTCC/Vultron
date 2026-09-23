@@ -148,7 +148,7 @@ No open entries.
 > the tracker was closed prematurely, or fixed only one of several races sharing
 > a job name.  Repoint in that case; delete only when the flake is gone.
 >
-> **`fvcv-handoff` has two distinct signatures — match on the message, not the
+> **`fvcv-handoff` has three distinct signatures — match on the message, not the
 > job name.** The row above points at #2257, but a second, unrelated failure
 > shape is live as of 2026-09-03 and is tracked by **#2768**:
 >
@@ -163,6 +163,25 @@ No open entries.
 > before, so it is intermittent. Note that `auth` here is Vendor1, itself a
 > fanout recipient rather than the CaseActor, so this is two replicas racing and
 > `sync.py` tolerates auth ahead but not auth behind.
+>
+> A **third** shape is live as of 2026-09-23 and is tracked by **#3602**:
+>
+> ```text
+> CHECK FAILED: Case attributed_to updated to Coordinator on Vendor1's DataLayer (AC-1)
+>   — Timed out waiting for case 'urn:uuid:…' attributed_to='http://coordinator:…'
+>     on container http://vendor:7999/api/v2
+> ```
+>
+> Raised from `wait_for_case_attributed_to` at
+> `vultron/demo/scenario/fvcv_handoff_demo.py:458`, the first check after
+> `Coordinator accepts case ownership transfer (TRIG-11-002)`. The two shapes
+> above bracket it in scenario order — #2257's gate is the participant fan-out
+> *before* the transfer, #2768's is ledger coverage *after* it — so neither
+> covers the transfer's own state mutation. Note which side fails: Vendor1 is the
+> *transferor*, waiting to observe a mutation to a case it no longer owns, which
+> it can only learn from the CaseActor's fan-out. Confirmed 2026-09-23 on PR
+> #3585 (metadata/specs/docs diff only): failed once, green on re-run of the same
+> commit with all 27 checks passing, `main` green throughout.
 >
 > `fvcv-handoff Demo Integration` / `fvcv-handoff Invariant Harness` also point to
 > #2257 (`AddCaseParticipantReceivedBT` failure).  Root error:
