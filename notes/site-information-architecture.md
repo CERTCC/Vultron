@@ -474,11 +474,16 @@ are a historical datum, not a live figure, and nothing downstream may restate
 them (MS-16-001). The standing answer is DF-11-008's generated coverage matrix;
 this table is what existed before there was one.
 
-Measured 2026-09-23 at `8f82d645`. Method, so it can be re-derived rather than
-trusted: page totals from `docs/**/*.md`; the in-nav set from the `.md` targets
-parsed out of `mkdocs.yml`; each quadrant count is the in-nav set filtered by
-path prefix, with decision records counted under Reference because `docs/adr/`
-is navigated there.
+Measured 2026-09-23. Method, so it can be re-derived rather than trusted: page
+totals from `docs/**/*.md`; the in-nav set from the `.md` targets parsed out of
+`mkdocs.yml`; each quadrant count is the in-nav set filtered by path prefix, with
+decision records counted under Reference because `docs/adr/` is navigated there,
+and counting the archived ones (`docs/adr/archived/`, still navigated) but not
+`adr/index.md`.
+
+The decision-record row moved twice while this note was being written — once when
+three ADRs landed on `main` mid-branch, once when ADR-0062 was archived. That is
+the argument for DF-11-008's generated matrix in one line.
 
 | | Pages |
 |---|---|
@@ -489,7 +494,7 @@ is navigated there.
 | How-to Guides | 20 |
 | Explanation | 97 |
 | Reference | 206 |
-| — of which decision records | 102 |
+| — of which decision records | 103 |
 | — of which enumerated case states | 33 |
 | — of which generated code pages | 22 |
 | Retained design-history pages | 23 |
