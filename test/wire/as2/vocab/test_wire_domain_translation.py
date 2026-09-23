@@ -76,11 +76,13 @@ def test_case_status_round_trips_between_core_and_wire():
         em=EmDimension(state=EM.PROPOSED),
     )
 
-    wire = as_CaseStatus.from_core(core)
+    wire = as_CaseStatus.model_validate(
+        core.model_dump(by_alias=True, mode="json")
+    )
 
     assert isinstance(wire, as_CaseStatus)
     assert wire.em_state == EM.PROPOSED
-    round_tripped = wire.to_core()
+    round_tripped = wire
     assert round_tripped.id_ == core.id_
     assert round_tripped.attributed_to == core.attributed_to
     assert round_tripped.context == core.context
@@ -103,11 +105,13 @@ def test_participant_status_from_core_materializes_case_status_reference():
         case_status=core_case_status,
     )
 
-    wire = as_ParticipantStatus.from_core(core)
+    wire = as_ParticipantStatus.model_validate(
+        core.model_dump(by_alias=True, mode="json")
+    )
 
     assert isinstance(wire.case_status, as_CaseStatus)
     assert wire.case_status.id_ == "https://example.org/cases/1/status/1"
-    round_tripped = wire.to_core()
+    round_tripped = wire
     assert round_tripped.id_ == core.id_
     assert round_tripped.attributed_to == core.attributed_to
     assert round_tripped.context == core.context
@@ -126,10 +130,12 @@ def test_participant_status_embargo_adherence_survives_wire_round_trip():
         context="https://example.org/cases/1",
         consent=PecDimension(state=PEC.SIGNATORY),
     )
-    wire = as_ParticipantStatus.from_core(core_signatory)
+    wire = as_ParticipantStatus.model_validate(
+        core_signatory.model_dump(by_alias=True, mode="json")
+    )
     assert wire.embargo_adherence is True
 
-    round_tripped = wire.to_core()
+    round_tripped = wire
     assert round_tripped.embargo_adherence is True
 
     core_no_consent = CoreParticipantStatus(
@@ -138,9 +144,11 @@ def test_participant_status_embargo_adherence_survives_wire_round_trip():
         context="https://example.org/cases/1",
         consent=None,
     )
-    wire_no_consent = as_ParticipantStatus.from_core(core_no_consent)
+    wire_no_consent = as_ParticipantStatus.model_validate(
+        core_no_consent.model_dump(by_alias=True, mode="json")
+    )
     assert wire_no_consent.embargo_adherence is False
-    assert wire_no_consent.to_core().embargo_adherence is False
+    assert wire_no_consent.embargo_adherence is False
 
 
 def test_case_participant_round_trips_between_core_and_wire():
@@ -161,11 +169,13 @@ def test_case_participant_round_trips_between_core_and_wire():
         participant_case_name="Vendor Case Name",
     )
 
-    wire = as_CaseParticipant.from_core(core)
+    wire = as_CaseParticipant.model_validate(
+        core.model_dump(by_alias=True, mode="json")
+    )
 
     assert isinstance(wire, as_CaseParticipant)
     assert wire.id_ == core.id_
-    round_tripped = wire.to_core()
+    round_tripped = wire
     assert round_tripped.id_ == core.id_
     assert round_tripped.attributed_to == core.attributed_to
     assert round_tripped.context == core.context
@@ -275,7 +285,9 @@ def test_vultron_as2_activity_from_core_with_string_fields():
         object_="https://example.org/reports/1",
     )
 
-    wire = as_VultronActivity.from_core(core)
+    wire = as_VultronActivity.model_validate(
+        core.model_dump(by_alias=True, mode="json")
+    )
 
     assert isinstance(wire, as_VultronActivity)
     assert wire.id_ == core.id_
@@ -333,7 +345,9 @@ def test_vultron_as2_activity_from_core_accept_subtype():
         object_="https://example.org/activities/offer-1",
     )
 
-    wire = as_VultronActivity.from_core(core)
+    wire = as_VultronActivity.model_validate(
+        core.model_dump(by_alias=True, mode="json")
+    )
 
     assert isinstance(wire, as_VultronActivity)
     assert wire.id_ == core.id_

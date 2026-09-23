@@ -167,11 +167,23 @@ class TestParticipantRmStateShapeGuard:
 
         assert _participant_rm_state(_NoStatuses()) is None
 
-    def test_raises_on_wire_shaped_participant(self):
+    def test_reads_the_rm_state_of_an_as_prefixed_participant(self):
+        """An ``as_CaseParticipant`` now carries a readable RM dimension.
+
+        This asserted the opposite: that the wire class's nested status had no
+        ``rm`` at all, and that reading it raised. ADR-0099 detail 3 collapses the
+        pair, so ``as_CaseParticipant`` *is* ``CaseParticipant`` and its seeded
+        status carries a real dimension — there is no wire shape left to refuse.
+
+        The helper's guard is still covered by
+        ``test_returns_none_when_there_are_no_statuses`` above and by
+        ``test_participant_status_shape``, for objects that genuinely cannot supply
+        a dimension.
+        """
         from vultron.core.use_cases.received.case._helpers import (
             _participant_rm_state,
         )
-        from vultron.errors import VultronValidationError
+        from vultron.core.states.rm import RM
         from vultron.wire.as2.vocab.objects.case_participant import (
             as_CaseParticipant,
         )
@@ -181,10 +193,9 @@ class TestParticipantRmStateShapeGuard:
             context=self._CONTEXT,
         )
         latest = wire_participant.participant_statuses[-1]
-        assert getattr(latest, "rm", None) is None
+        assert latest.rm.state is RM.START
 
-        with pytest.raises(VultronValidationError):
-            _participant_rm_state(wire_participant)
+        assert _participant_rm_state(wire_participant) is RM.START
 
 
 # ---------------------------------------------------------------------------
@@ -236,10 +247,11 @@ class TestStoreEmbeddedParticipantsProjectsWireIngress:
                 )
             ],
         )
-        assert (
-            getattr(wire_participant.participant_statuses[-1], "rm", None)
-            is None
-        )
+        # The nested status now carries a real dimension: as_ParticipantStatus is
+        # ParticipantStatus (ADR-0099 detail 3), and the flat ``rm_state`` kwarg is
+        # an alias of it (detail 5).  This previously asserted ``rm`` was absent,
+        # which was the whole reason ingress needed projecting.
+        assert wire_participant.participant_statuses[-1].rm.state == rm_state
         return as_VulnerabilityCase.model_construct(
             id_=self._CASE_ID,
             name="Bug #2232 ingress case",
@@ -283,7 +295,13 @@ class TestStoreEmbeddedParticipantsProjectsWireIngress:
         )
         latest = stored.participant_statuses[-1]
         assert latest.rm.state == RM.RECEIVED
-        assert not hasattr(latest, "rm_state")
+        # ``not hasattr(latest, "rm_state")`` used to stand in for "this is the
+        # core shape, not the wire one". That proxy is retired: ``rm_state`` is now
+        # a deliberate read/write view onto the dimension (ADR-0099 detail 5), so
+        # its presence says nothing about shape. The shape itself is asserted
+        # directly by the isinstance check above; what is worth adding is that the
+        # view and the dimension cannot disagree.
+        assert latest.rm_state == latest.rm.state
 
     def test_regression_guard_still_protects_a_local_core_participant(
         self, dl
