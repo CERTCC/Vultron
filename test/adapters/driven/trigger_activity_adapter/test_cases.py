@@ -225,7 +225,7 @@ class TestAddObjectToCaseConversionBranch:
 
             @classmethod
             def from_core(cls, obj):
-                raise RuntimeError("simulated from_core failure")
+                raise ValueError("simulated from_core failure")
 
         with (
             patch.object(
@@ -237,6 +237,61 @@ class TestAddObjectToCaseConversionBranch:
         ):
             with pytest.raises(
                 VultronActivityConstructionError, match="from_core failed"
+            ):
+                adapter.add_object_to_case(
+                    actor=_ACTOR,
+                    object_id=fake_id,
+                    case_id=case.id_,
+                )
+
+    def test_vultron_error_from_from_core_is_not_rewrapped(self, adapter, dl):
+        """A VultronError raised by from_core surfaces as itself (CS-23-001)."""
+        from vultron.core.models.case import VulnerabilityCase
+
+        case = _make_case(dl)
+        fake_id = "urn:test:core-vuln-case-3"
+        core_obj = VulnerabilityCase(attributed_to=_ACTOR)
+
+        class _NotFoundWireClass(as_VultronObject):
+            type_: str = "VulnerabilityCase"
+
+            @classmethod
+            def from_core(cls, obj):
+                raise VultronNotFoundError("Thing", "urn:test:missing-ref")
+
+        with (
+            patch.object(
+                dl,
+                "read",
+                side_effect=self._patched_read(dl, fake_id, core_obj),
+            ),
+            patch(_VOCAB_PATH, return_value=_NotFoundWireClass),
+        ):
+            with pytest.raises(VultronNotFoundError, match="missing-ref"):
+                adapter.add_object_to_case(
+                    actor=_ACTOR,
+                    object_id=fake_id,
+                    case_id=case.id_,
+                )
+
+    def test_core_only_class_error_names_its_type(self, adapter, dl):
+        """A core class registered as its own wire class, but not carryable by
+        as_Add (e.g. ``CoreActor``), fails with its type named in the error.
+        """
+        from vultron.core.models import CoreActor
+
+        case = _make_case(dl)
+        fake_id = "urn:test:core-actor-1"
+        core_actor = CoreActor(id_=fake_id, name="Some Actor")
+
+        with patch.object(
+            dl,
+            "read",
+            side_effect=self._patched_read(dl, fake_id, core_actor),
+        ):
+            with pytest.raises(
+                VultronActivityConstructionError,
+                match="'CoreActor' cannot be carried in an Add activity",
             ):
                 adapter.add_object_to_case(
                     actor=_ACTOR,

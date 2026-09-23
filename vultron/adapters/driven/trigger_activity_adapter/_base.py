@@ -102,8 +102,9 @@ def _to_wire_object(core_obj: Any, object_id: str) -> Any:
             ``'NoneType'``.
         VultronActivityConstructionError: when no wire class is registered for
             the object's type, the registered class has no ``from_core``
-            projection, or the projection fails. The original error, if any,
-            is the ``__cause__``.
+            projection, or the projection fails with a ``ValueError``
+            (including ``ValidationError``) or ``TypeError``. The original
+            error, if any, is the ``__cause__``.
     """
     if core_obj is None:
         raise VultronNotFoundError("AS2Object", object_id)
@@ -126,9 +127,13 @@ def _to_wire_object(core_obj: Any, object_id: str) -> Any:
             f"object '{object_id}': {type_name!r} has no as_VultronObject"
             " wire counterpart"
         )
+    # Narrowed per CS-23-001: a from_core projection fails by raising
+    # ValidationError (a ValueError) or TypeError. Anything else — a
+    # VultronError, or a programming error such as AttributeError — surfaces
+    # as itself rather than being relabelled "from_core failed".
     try:
         return _to_wire(core_obj, wire_cls)
-    except Exception as exc:
+    except (ValueError, TypeError) as exc:
         raise VultronActivityConstructionError(
             f"object '{object_id}': from_core failed for {type_name!r}: {exc}"
         ) from exc

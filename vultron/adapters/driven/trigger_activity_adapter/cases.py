@@ -182,8 +182,8 @@ class _CasesMixin:
             activity = as_Add(actor=actor, object_=obj, target=case)
         except ValidationError as exc:
             raise VultronActivityConstructionError(
-                f"add_object_to_case: object '{object_id}' cannot be carried"
-                " in an Add activity"
+                f"add_object_to_case: object '{object_id}' of type"
+                f" {type(obj).__name__!r} cannot be carried in an Add activity"
             ) from exc
         try:
             self._dl.create(activity)
