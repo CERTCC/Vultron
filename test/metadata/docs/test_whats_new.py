@@ -86,6 +86,60 @@ def test_render_recent_pages_excludes_developer_tree():
     assert "quick_reference" in out
 
 
+def test_render_recent_pages_excludes_the_withheld_namespace():
+    """`ns/` is draft_docs since #3549, so linking to it 404s.
+
+    This is the regression that shipped: `ns/` was added to `draft_docs` while
+    this module carried a hand-maintained mirror of that list, so the rendered
+    entry linked to `../../ns/` after the page stopped being built. `--strict`
+    could not see it — the list is emitted by a `markdown-exec` block, whose links
+    MkDocs never parses — so only `linkchecker` over the built site caught it.
+    """
+    out = render_recent_pages(
+        [
+            "docs/ns/index.md",
+            "docs/reference/quick_reference.md",
+        ]
+    )
+    assert "ns/" not in out
+    assert "quick_reference" in out
+
+
+def test_render_recent_pages_includes_a_not_in_nav_page():
+    """`not_in_nav` is not `draft_docs`: those pages are built and linkable.
+
+    The ontology tombstone is the case that matters — #3551 keeps it answering a
+    live URL while removing it from the nav, so excluding it here would hide a
+    page that does exist.
+    """
+    out = render_recent_pages(["docs/reference/ontology/index.md"])
+    assert "](../../reference/ontology/)" in out
+
+
+def test_publication_filter_is_derived_from_mkdocs_yml(monkeypatch):
+    """The exclusion set is read from mkdocs.yml, not mirrored in this module.
+
+    Pins the mechanism rather than today's values: a page excluded only because
+    `mkdocs.yml` says so must become published when that config no longer does.
+    Without this, the filter could silently regress to a hardcoded list that
+    happens to produce the same answers now and drifts on the next config edit.
+    """
+    from vultron.metadata.docs import whats_new
+
+    whats_new._unpublished_spec.cache_clear()
+    monkeypatch.setattr(
+        whats_new, "mkdocs_config", lambda *a, **k: {"draft_docs": "ns/\n"}
+    )
+    try:
+        # Declared draft in the stub config -> unpublished.
+        assert not whats_new._is_published("docs/ns/index.md")
+        # Absent from the stub config -> published, even though the real
+        # mkdocs.yml drafts it. Proves the answer tracks the config.
+        assert whats_new._is_published("docs/developer/how-to/build.md")
+    finally:
+        whats_new._unpublished_spec.cache_clear()
+
+
 def test_render_recent_pages_docs_root_index_does_not_crash():
     """docs/index.md collapses to "" — relpath must not raise (#3144)."""
     out = render_recent_pages(["docs/index.md"])

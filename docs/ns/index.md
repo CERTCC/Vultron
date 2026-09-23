@@ -1,7 +1,3 @@
----
-draft: true
----
-
 # Vultron Vocabulary Namespace
 
 **Namespace URI**: `https://certcc.github.io/Vultron/ns`
@@ -28,10 +24,16 @@ extends the AS2 core vocabulary with CVD-specific object types.
 | `EmbargoEvent` | Embargo proposal, acceptance, revision, or termination record |
 | `EmbargoPolicy` | Actor-level declaration of embargo preferences |
 | `ParticipantStatus` | Per-participant snapshot of RM state and embargo consent |
+| `ProcessingFault` | Negative acknowledgement returned when a received activity could not be processed |
 | `VulnerabilityCase` | Coordination container for a vulnerability disclosure case |
-| `VulnerabilityCaseStub` | Lightweight reference form of `VulnerabilityCase` |
 | `VulnerabilityRecord` | Persistent identifier record for a confirmed vulnerability |
 | `VulnerabilityReport` | Initial report artifact submitted to a case |
+
+This table must list exactly the terms `context.jsonld` declares.
+Those terms come from the wire `type` value each class emits, never from its
+class name, so a class that emits another class's `type` value gets no term of
+its own: the stub form of a case is transmitted as
+`"type": "VulnerabilityCase"`, and the wire sees one term for both.
 
 ## Usage in wire messages
 

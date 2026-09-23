@@ -26,7 +26,6 @@
 | transitions | >=0.9.3 | State machine definitions | `pyproject.toml` |
 | PyYAML | >=6.0 | YAML config + spec file parsing | `pyproject.toml` |
 | python-frontmatter | >=1.3.0 | YAML frontmatter in Markdown notes | `pyproject.toml` |
-| rdflib + owlready2 | >=7.2.1 / >=0.51 | Semantic/ontology support | `pyproject.toml` |
 | scipy + pandas | >=1.18.0 / >=3.0.5 | Analysis and scoring | `pyproject.toml` |
 | mkdocs-material | >=9.7.7 | Documentation site generation | `pyproject.toml` |
 | griffelib | >=2.1.0 | API-doc introspection backing mkdocstrings | `pyproject.toml` |

@@ -51,6 +51,7 @@ from vultron.wire.as2.vocab.base.base import (
 )
 from vultron.wire.as2.vocab.base.enums import VocabNamespace
 from vultron.wire.as2.vocab.base.objects.base import as_Object
+from vultron.wire.as2.vocab.base.registry import declared_wire_type
 
 #: Repository-relative path of the generated artifact.
 CONTEXT_JSONLD_PATH = "docs/ns/context.jsonld"
@@ -134,13 +135,12 @@ def _concrete_type_value(cls: type) -> str | None:
 
     An abstract base (``VultronAS2Object``) leaves ``type_`` a union default of
     ``None``; only classes with a concrete default carry a wire term.
+
+    Shares :func:`~vultron.wire.as2.vocab.base.registry.declared_wire_type` with
+    ``WIRE_TYPE_MAP`` key derivation on purpose: the registry key and the JSON-LD
+    term are the same fact about a class, and two copies of the rule could drift.
     """
-    field = cls.model_fields.get("type_")  # type: ignore[attr-defined]
-    if field is None:
-        return None
-    default = getattr(field, "default", None)
-    value = getattr(default, "value", default)
-    return value if isinstance(value, str) and value else None
+    return declared_wire_type(cls)
 
 
 def vultron_context_terms() -> dict[str, str]:

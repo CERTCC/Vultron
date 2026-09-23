@@ -8,6 +8,9 @@ on:
       - 'mkdocs.yml'
       - 'pyproject.toml'
       - 'uv.lock'
+      # The withheld-artifact declaration (DOCBW-03-005): a PR that only edits
+      # it must rerun the gate it configures.
+      - 'vultron/metadata/docs/withheld.py'
       - 'CONTRIBUTING.md'
       - 'ContributionInstructions.md'
       - 'LICENSE.md'
@@ -55,6 +58,15 @@ jobs:
       - name: Build Site
         run: |
           uv run mkdocs build --verbose --clean --config-file mkdocs.yml
+
+      # Runs against the built site above, so it must follow that step. Verifies
+      # the publication axis: every artifact declared withheld produced no files
+      # in site/. The `docs/ns/` case is why this exists — the page claimed
+      # `draft: true` and shipped anyway, because nothing compared the claim to
+      # the output.
+      - name: Check withheld artifacts are unpublished
+        run: |
+          PYTHONPATH='' uv run docs-withheld
 
       - name: Check links
         if: steps.filter.outputs.docs_changed == 'true'

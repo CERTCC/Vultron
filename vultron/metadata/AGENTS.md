@@ -5,14 +5,18 @@
 This package is the project's own tooling layer: it reads the repository's
 metadata files and validates them. It backs the `spec-dump`, `spec-lint`,
 `spec-coverage`, `adr-index`, `demo-scenarios`, `append-history`,
-`show-history`, `bundle-fit`, `pr-size`, and `glossary-index` console entry
-points, plus several pre-commit hooks.
+`show-history`, `bundle-fit`, `pr-size`, `wire-context`, `docs-withheld`,
+`glossary-index`, `learnings-index`, and `spec-backstop` console entry points,
+plus several pre-commit hooks.
 
-One exception to "reads the repository's metadata files": `planning/` reads a
+Two exceptions to "reads the repository's metadata files". `planning/` reads a
 GitHub GraphQL payload piped in on **stdin** rather than files on disk, so its
 selection logic stays pure and testable without the network. The shell script
 that fetches the payload owns the query
-(`.agents/skills/shared/query-epic-subissues.sh`).
+(`.agents/skills/shared/query-epic-subissues.sh`). And `docs/withheld.py` reads
+the **built** `site/` tree, so it only runs after `mkdocs build` — it is the one
+tool here whose input is a build product rather than a source file, and it fails
+rather than passing when that input is missing (DOCBW-03-005, DF-09-009).
 
 Nothing here is protocol code. The audience for its output is a human or an
 agent who just edited a metadata file and got it wrong, so **error messages
@@ -22,13 +26,13 @@ are the product**.
 
 | Subpackage | Reads | Validates against |
 |---|---|---|
-| `specs/` | `specs/*.yaml` | `SpecFile` (schema.py) |
+| `specs/` | `specs/*.yaml`; a branch diff and the source it touches (`backstop/`) | `SpecFile` (schema.py) |
 | `notes/` | `notes/*.md` frontmatter | `NotesFrontmatter` |
 | `adr/` | `docs/adr/*.md` frontmatter | `AdrFrontmatter` |
 | `history/` | `plan/history/**/*.md`, `plan/incoming/learnings/*.md` | `HistoryEntryFrontmatter` |
 | `msm/` | a constant mapping table + the wire `SEMANTIC_REGISTRY` | — |
 | `demo_scenarios/` | the `@scenario` registry in `vultron/demo/scenario/` | — |
-| `docs/` | `git log` over `docs/`, for the what's-new page; `docs/reference/glossary.md`, for the `glossary-index` term index | — |
+| `docs/` | `git log` over `docs/` (what's-new page); `docs/reference/glossary.md` (`glossary_index.py`); the built `site/` tree (`withheld.py`) | — (publication axis: DOCBW-03-005) |
 | `planning/` | an Epic's sub-issue GraphQL payload on stdin | — (selection rules: PAD-15) |
 
 Shared helpers live in two places. **Do not re-derive any of them** — see the

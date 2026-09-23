@@ -1,6 +1,8 @@
 # Terms and Definitions
 
 This page defines the Coordinated Vulnerability Disclosure (CVD) stakeholder roles and case terms used throughout this documentation.
+Every term here names a role held *in a case* or a unit of work within one; none of them describes a reader of this documentation.
+For the reader audiences the documentation is organized around, see **Stakeholder Type** in the [Glossary](glossary.md).
 The canonical source for Vultron domain terminology is the [Glossary](glossary.md).
 This page covers the subset of terms that map onto the [*CERT Guide to Coordinated Vulnerability Disclosure*](https://certcc.github.io/CERT-Guide-to-CVD){:target="_blank"} and the relevant ISO standards, together with the synonyms those sources use.
 

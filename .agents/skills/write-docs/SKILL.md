@@ -155,10 +155,20 @@ Never coin a term without registering it.
 `--strict`, so a page absent from the nav fails the build. Every new page must
 be navved or explicitly listed under `not_in_nav`.
 
-Nav order carries reading order, so **propose the slot and confirm it**: name
-the section, the position within it, and the label, with one sentence of
-reasoning. Maintainer-facing pages (`docs/developer/`, `docs/agents/`) are
-covered by existing `not_in_nav` patterns and need no nav entry.
+Nav order carries **dependency and prominence**, not narrative flow, so
+**propose the slot and confirm it**: name the section, the position within it,
+and the label, with one sentence of reasoning. Maintainer-facing pages
+(`docs/developer/`, `docs/agents/`) are covered by existing `not_in_nav` patterns
+and need no nav entry.
+
+Propose the slot against `notes/site-information-architecture.md` (ADR-0102,
+DF-11) rather than against taste — it states the stakeholder types, the invisible
+100–500 prerequisite levels, and the rule that no page may depend on a page above
+its own level, which is what makes a wrong slot reviewable. Two traps it settles:
+a page's own level and stakeholder type are never rendered or navigated by
+(DF-11-004, DF-11-009), and repeated openings on adjacent pages are **required**
+for deep-link arrivals — never remove them to make neighbours read as a sequence
+(DF-11-007).
 
 ## Phase 7 — Validate
 
