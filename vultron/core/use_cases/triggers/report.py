@@ -53,7 +53,11 @@ from vultron.core.use_cases.triggers.requests import (
     SubmitReportTriggerRequest,
     ValidateReportTriggerRequest,
 )
-from vultron.errors import VultronNotFoundError, VultronValidationError
+from vultron.errors import (
+    VultronAlreadyExistsError,
+    VultronNotFoundError,
+    VultronValidationError,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -252,7 +256,7 @@ class SvcSubmitReportUseCase(SvcBTTriggerBase):
         )
         try:
             self._dl.create(report)
-        except ValueError:
+        except VultronAlreadyExistsError:
             logger.warning(
                 "VulnerabilityReport '%s' already exists", report.id_
             )
@@ -270,7 +274,7 @@ class SvcSubmitReportUseCase(SvcBTTriggerBase):
                     trusted_case_creator_id=request.recipient_id,
                 )
             )
-        except ValueError:
+        except VultronAlreadyExistsError:
             logger.debug(
                 "SvcSubmitReportUseCase: ReportCaseLink for '%s' already "
                 "exists — preserving existing link (idempotent)",

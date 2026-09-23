@@ -48,7 +48,10 @@ from vultron.core.services.embargo_lifecycle import (
 )
 from vultron.core.states.participant_embargo_consent import PEC, PEC_Trigger
 from vultron.core.models._helpers import _as_id
-from vultron.errors import VultronError
+from vultron.errors import (
+    VultronAlreadyExistsError,
+    VultronError,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -162,7 +165,7 @@ class CreateEmbargoEventNode(DataLayerActionWithPorts):
         embargo = EmbargoEvent(end_time=end_time, context=case_id)
         try:
             self.datalayer.create(embargo)
-        except ValueError:
+        except VultronAlreadyExistsError:
             self.logger.debug(
                 "%s: Embargo %s already exists — skipping creation",
                 self.name,

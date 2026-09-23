@@ -19,6 +19,7 @@ from py_trees.common import Status
 
 from vultron.core.behaviors.helpers import DataLayerActionWithPorts
 from vultron.core.models.embargo_event import EmbargoEvent
+from vultron.errors import VultronAlreadyExistsError
 
 
 class PersistEmbargoEventNode(DataLayerActionWithPorts):
@@ -34,7 +35,7 @@ class PersistEmbargoEventNode(DataLayerActionWithPorts):
         assert self.datalayer is not None
         try:
             self.datalayer.create(self._embargo)
-        except ValueError:
+        except VultronAlreadyExistsError:
             self.logger.warning(
                 "EmbargoEvent '%s' already exists", self._embargo.id_
             )

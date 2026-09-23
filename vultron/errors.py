@@ -70,6 +70,30 @@ class VultronNotFoundError(VultronError):
         super().__init__(f"{resource_type} '{resource_id}' not found.")
 
 
+class VultronAlreadyExistsError(VultronError, ValueError):
+    """Raised when creating a record whose ``id_`` is already present.
+
+    The counterpart of :exc:`VultronNotFoundError`, and the *only* cause a
+    caller of ``DataLayer.create()`` may legitimately swallow: the record it
+    wanted stored is already stored.
+
+    This type exists so that "already there" stays separable from "could not be
+    projected".  ``crud.create`` previously raised a bare ``ValueError`` for the
+    duplicate, and every caller that swallows a duplicate catches it — so any
+    *other* ``ValueError`` escaping the same call was silently logged as a
+    benign duplicate and never stored.  That is not hypothetical: it is why
+    :exc:`VultronValidationError` was kept out of the ``ValueError`` hierarchy,
+    and it also swallowed ``Record.from_obj``'s two genuine faults (an object
+    with no ``type_``, and a ``type_`` still carrying the ``as_`` prefix).
+
+    ``ValueError`` remains in the base classes so that callers written against
+    the older contract keep working; callers that mean *only* "already exists"
+    MUST catch this class rather than ``ValueError``.  ARCH-23-006's note
+    records why :exc:`VultronValidationError` must be absorbable by Pydantic,
+    which is what made the shared base untenable.
+    """
+
+
 class VultronInvalidStateTransitionError(VultronError):
     """Raised when an operation requests an invalid state machine transition."""
 
@@ -82,7 +106,7 @@ class VultronInvalidStateTransitionError(VultronError):
 VultronConflictError = VultronInvalidStateTransitionError
 
 
-class VultronValidationError(VultronError):
+class VultronValidationError(VultronError, ValueError):
     """Raised when domain validation of a resource or request fails.
 
     When the boundary recognised more than one violation, pass them as
@@ -91,6 +115,24 @@ class VultronValidationError(VultronError):
     message to recover the individual rules (EH-07-003).  This follows
     :exc:`DemoFailureError`'s shape, the house pattern for
     accumulate-all-then-fail (DEMOCI-01-003).
+
+    ``ValueError`` is in the base classes for the same reason as
+    :exc:`VultronProtocolViolationError` and
+    :exc:`VultronReferenceResolutionError`: Pydantic absorbs a ``ValueError``
+    raised inside a validator and reports it as a failed branch, where any other
+    exception escapes the whole ``model_validate()`` call.  ARCH-23-006 requires
+    this: under ADR-0099 core classes sit *inside* wire unions, so a core-side
+    guard firing while Pydantic resolves a union must fail that branch rather
+    than abort the operation.  The rule's note names this as the defect to fix
+    before the rule is inverted, and inverting it is what ADR-0099 does.
+
+    This class deliberately did *not* inherit ``ValueError`` until
+    :exc:`VultronAlreadyExistsError` existed, because ``crud.create`` signalled
+    a duplicate row with a bare ``ValueError`` that callers swallow — so sharing
+    the base made a projection failure indistinguishable from "already stored".
+    Separability now comes from the two distinct types, not from this class
+    avoiding ``ValueError``; see
+    ``test_normalization_failure_is_distinguishable_from_duplicate_row``.
     """
 
     def __init__(

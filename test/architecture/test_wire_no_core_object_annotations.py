@@ -18,8 +18,8 @@ Spec: ARCH-23-006
 
 ``as_ObjectRef`` carried ``| CoreObject``, added in PR #730 as a migration
 convenience.  It made a core-side validation guard unsafe to enforce loudly:
-``VultronValidationError`` is not a ``ValueError`` subclass, so a guard firing
-while Pydantic resolves that union escapes the whole operation rather than being
+``VultronValidationError`` was not a ``ValueError`` subclass, so a guard firing
+while Pydantic resolved that union escaped the whole operation rather than being
 absorbed as a failed union branch.
 
 That union-escape defect is the whole of the remaining justification. This test
@@ -28,6 +28,16 @@ and ADR-0099 goes further and *inverts* this rule, since under one object model 
 wire field annotation is supposed to name the core class. Fixing the union-escape
 defect is therefore the prerequisite for inverting this test, tracked as AC-2 of
 #3491. Do not invert it first.
+
+**The prerequisite is now met**: ``VultronValidationError`` inherits
+``ValueError``, so Pydantic absorbs it as a failed branch.  That was blocked
+until the duplicate-row signal got its own type
+(``VultronAlreadyExistsError``), because ``crud.create`` used a bare
+``ValueError`` for "already stored" and callers swallow it — sharing the base
+made a projection failure indistinguishable from a duplicate.
+``test_core_guard_inside_wire_union_fails_the_branch`` below holds the absorption
+property, and ``test_db_record`` holds the separability property.  Inverting this
+rule is now unblocked; do not invert it without keeping both of those green.
 
 This test asserts that no wire-branch class (``as_Base`` subclass registered in
 ``VOCABULARY``) has a field annotation that names a ``CoreObject`` subclass.
@@ -42,6 +52,7 @@ import vultron.wire.as2.vocab.activities  # noqa: F401 — trigger dynamic disco
 import vultron.wire.as2.vocab.objects  # noqa: F401
 
 from vultron.core.models.base import CoreObject
+from vultron.errors import VultronValidationError
 from vultron.wire.as2.vocab.base.base import as_Base
 from vultron.wire.as2.vocab.base.registry import VOCABULARY
 
@@ -180,3 +191,61 @@ def test_no_wire_field_annotation_names_core_object_subclass() -> None:
         "ADR-0099 known violations resolved — remove these from "
         f"_ADR0099_KNOWN_VIOLATIONS: {sorted(resolved)}"
     )
+
+
+def test_core_guard_inside_wire_union_fails_the_branch() -> None:
+    """A core guard firing inside a union must fail that branch, not the call.
+
+    This is ARCH-23-006's named prerequisite, and the reason the rule could not
+    simply be inverted.  A core-branch validator raising
+    ``VultronValidationError`` while Pydantic resolves a union must be reported
+    as a failed branch inside a ``ValidationError``.  Before
+    ``VultronValidationError`` inherited ``ValueError`` it escaped
+    ``model_validate()`` entirely, taking the whole operation with it — so a
+    single unprojectable nested object aborted an otherwise valid activity
+    instead of being rejected as one bad alternative.
+
+    Under ADR-0099 core classes sit *inside* wire unions by design, which is what
+    turns this from a latent wart into a live requirement.
+    """
+    from typing import Any
+
+    from pydantic import BaseModel, ValidationError, field_validator
+
+    class _Guarded(BaseModel):
+        """Stands in for a core class whose validator refuses bad input."""
+
+        value: str
+
+        @field_validator("value")
+        @classmethod
+        def _refuse(cls, v: str) -> str:
+            if v == "bad":
+                raise VultronValidationError("core guard refused 'bad'")
+            return v
+
+    class _Holder(BaseModel):
+        """Stands in for a wire slot admitting a core class or a raw payload."""
+
+        slot: _Guarded | dict[str, Any]
+
+    # The discriminating case: the payload is a *mapping*, so Pydantic actually
+    # attempts the guarded branch and the validator fires.  Absorbed, that branch
+    # fails and the remaining alternative wins.  Unabsorbed, this call raises
+    # VultronValidationError and the whole activity is lost — which is the defect
+    # ARCH-23-006 names.  (A plain string payload would prove nothing: the smart
+    # union matches `str` without ever entering the guarded branch.)
+    resolved = _Holder.model_validate({"slot": {"value": "bad"}})
+    assert resolved.slot == {
+        "value": "bad"
+    }, "guarded branch did not fail over — the core guard escaped the union"
+
+    # With no surviving alternative the failure is still reported as a validation
+    # error rather than raised out of model_validate().
+    class _StrictHolder(BaseModel):
+        slot: _Guarded
+
+    with pytest.raises(ValidationError) as exc_info:
+        _StrictHolder.model_validate({"slot": {"value": "bad"}})
+
+    assert "core guard refused" in str(exc_info.value)

@@ -28,7 +28,11 @@ from vultron.core.models.ownership_transfer_offer_record import (
 )
 from vultron.core.ports.case_persistence import CaseOutboxPersistence
 from vultron.core.models._helpers import _as_id
-from vultron.errors import VultronNotFoundError, VultronValidationError
+from vultron.errors import (
+    VultronAlreadyExistsError,
+    VultronNotFoundError,
+    VultronValidationError,
+)
 from vultron.wire.as2.factories import (
     accept_actor_recommendation_activity,
     accept_case_participant_offer_activity,
@@ -119,7 +123,7 @@ class _ActorsMixin:
         )
         try:
             self._dl.create(activity)
-        except ValueError:
+        except VultronAlreadyExistsError:
             logger.warning(
                 "invite_actor_to_case: activity '%s' already exists"
                 " — skipping",
@@ -153,7 +157,7 @@ class _ActorsMixin:
         )
         try:
             self._dl.create(activity)
-        except ValueError:
+        except VultronAlreadyExistsError:
             logger.warning(
                 "accept_case_invite: activity '%s' already exists — skipping",
                 activity.id_,
@@ -184,7 +188,7 @@ class _ActorsMixin:
         )
         try:
             self._dl.create(activity)
-        except ValueError:
+        except VultronAlreadyExistsError:
             logger.warning(
                 "reject_case_invite: activity '%s' already exists — skipping",
                 activity.id_,
@@ -218,7 +222,7 @@ class _ActorsMixin:
         )
         try:
             self._dl.create(activity)
-        except ValueError:
+        except VultronAlreadyExistsError:
             logger.warning(
                 "accept_case_participant_offer: activity '%s' already exists"
                 " — skipping",
@@ -248,7 +252,7 @@ class _ActorsMixin:
         )
         try:
             self._dl.create(activity)
-        except ValueError:
+        except VultronAlreadyExistsError:
             logger.warning(
                 "suggest_actor_to_case: activity '%s' already exists"
                 " — skipping",
@@ -295,7 +299,7 @@ class _ActorsMixin:
                 pass
         try:
             self._dl.create(activity)
-        except ValueError:
+        except VultronAlreadyExistsError:
             logger.warning(
                 "offer_actor_to_case: activity '%s' already exists — skipping",
                 activity.id_,
@@ -331,7 +335,7 @@ class _ActorsMixin:
         )
         try:
             self._dl.create(activity)
-        except ValueError:
+        except VultronAlreadyExistsError:
             logger.warning(
                 "emit_accept_actor_recommendation: activity '%s' already"
                 " exists — skipping",
@@ -368,7 +372,7 @@ class _ActorsMixin:
         )
         try:
             self._dl.create(activity)
-        except ValueError:
+        except VultronAlreadyExistsError:
             logger.warning(
                 "emit_reject_actor_recommendation: activity '%s' already"
                 " exists — skipping",
@@ -406,7 +410,7 @@ class _ActorsMixin:
         )
         try:
             self._dl.create(activity)
-        except ValueError:
+        except VultronAlreadyExistsError:
             logger.warning(
                 "accept_actor_recommendation: activity '%s' already exists"
                 " — skipping",
@@ -430,7 +434,7 @@ class _ActorsMixin:
         )
         try:
             self._dl.create(activity)
-        except ValueError:
+        except VultronAlreadyExistsError:
             logger.warning(
                 "add_participant_to_case: activity '%s' already exists"
                 " — skipping",
@@ -469,7 +473,7 @@ class _ActorsMixin:
         )
         try:
             self._dl.create(activity)
-        except ValueError:
+        except VultronAlreadyExistsError:
             logger.warning(
                 "add_participant_status_to_participant: activity '%s' already"
                 " exists — skipping",
@@ -505,7 +509,7 @@ class _ActorsMixin:
         )
         try:
             self._dl.create(activity)
-        except ValueError:
+        except VultronAlreadyExistsError:
             logger.warning(
                 "offer_case_participant_role: activity '%s' already exists"
                 " — skipping",
@@ -543,7 +547,7 @@ class _ActorsMixin:
         activity_json = activity.model_dump_json(**_DUMP_KWARGS)
         try:
             self._dl.create(activity)
-        except ValueError:
+        except VultronAlreadyExistsError:
             logger.warning(
                 "accept_case_participant_role: activity '%s' already exists"
                 " — skipping",
@@ -580,7 +584,7 @@ class _ActorsMixin:
         )
         try:
             self._dl.create(activity)
-        except ValueError:
+        except VultronAlreadyExistsError:
             logger.warning(
                 "reject_case_participant_role: activity '%s' already exists"
                 " — skipping",
@@ -619,7 +623,7 @@ class _ActorsMixin:
         )
         try:
             self._dl.create(activity)
-        except ValueError:
+        except VultronAlreadyExistsError:
             logger.warning(
                 "offer_case_ownership_transfer: activity '%s' already exists"
                 " — skipping",
@@ -666,7 +670,7 @@ class _ActorsMixin:
         )
         try:
             self._dl.create(activity)
-        except ValueError:
+        except VultronAlreadyExistsError:
             logger.warning(
                 "accept_case_ownership_transfer: activity '%s' already exists"
                 " — skipping",

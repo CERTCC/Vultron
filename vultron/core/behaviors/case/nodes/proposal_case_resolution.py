@@ -35,6 +35,7 @@ from vultron.core.behaviors.helpers import (
 )
 from vultron.core.models.case import VultronCase
 from vultron.core.models.report import VulnerabilityReport
+from vultron.errors import VultronAlreadyExistsError
 
 logger = logging.getLogger(__name__)
 
@@ -201,7 +202,7 @@ class StoreProposalReportNode(DataLayerAction):
 
         try:
             self.datalayer.create(report)
-        except ValueError as exc:
+        except VultronAlreadyExistsError as exc:
             logger.debug(
                 "%s: report '%s' already stored: %s",
                 self.name,

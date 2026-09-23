@@ -56,6 +56,7 @@ from vultron.core.models.participant_status import (
 from vultron.core.states.cs import CS_d, CS_vf
 from vultron.core.states.rm import RM
 from vultron.enums.roles import CVDRole
+from pydantic import ValidationError
 from vultron.errors import VultronValidationError
 from test.support.participant_status import advance_participant_rm
 
@@ -94,9 +95,7 @@ class TestCaseParticipantRejectsWireSpelledKeys:
         data = _core_participant_with_ladder().model_dump(mode="json")
         data["participantStatuses"] = data.pop("participant_statuses")
 
-        with pytest.raises(
-            VultronValidationError, match="participantStatuses"
-        ):
+        with pytest.raises(ValidationError, match="participantStatuses"):
             CaseParticipant.model_validate(data)
 
     def test_camel_case_case_roles_raises(self):
@@ -104,7 +103,7 @@ class TestCaseParticipantRejectsWireSpelledKeys:
         data = _core_participant_with_ladder().model_dump(mode="json")
         data["caseRoles"] = data.pop("case_roles")
 
-        with pytest.raises(VultronValidationError, match="caseRoles"):
+        with pytest.raises(ValidationError, match="caseRoles"):
             CaseParticipant.model_validate(data)
 
     def test_snake_case_round_trip_is_unaffected(self):

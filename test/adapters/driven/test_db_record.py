@@ -24,7 +24,10 @@ from vultron.adapters.driven.db_record import (
     object_to_record,
     record_to_object,
 )
-from vultron.errors import VultronValidationError
+from vultron.errors import (
+    VultronAlreadyExistsError,
+    VultronValidationError,
+)
 from vultron.wire.as2.enums import (
     as_IntransitiveActivityType,
     as_TransitiveActivityType,
@@ -373,13 +376,22 @@ def test_object_to_record_raises_when_wire_class_has_no_to_core():
 
 
 def test_normalization_failure_is_distinguishable_from_duplicate_row():
-    """A projection failure must not look like an "already exists" ValueError.
+    """A projection failure must not look like an "already exists" error.
 
-    ``crud.create`` raises ``ValueError`` for a genuine duplicate and callers
-    legitimately swallow that.  When normalisation failure raised ``ValueError``
-    too, an unprojectable object was silently never stored and never logged
-    (the ingress pre-store in ``routers/actors/_inbox.py`` did exactly this).
-    A distinct, non-``ValueError`` type keeps the two causes separable.
+    ``crud.create`` signals a genuine duplicate and callers legitimately swallow
+    that.  When normalisation failure was indistinguishable from it, an
+    unprojectable object was silently never stored and never logged (the ingress
+    pre-store in ``routers/actors/_inbox.py`` did exactly this).
+
+    The discriminator used to be that ``VultronValidationError`` was *not* a
+    ``ValueError`` while the duplicate was.  That is no longer available:
+    ARCH-23-006 requires ``VultronValidationError`` to be a ``ValueError`` so
+    Pydantic absorbs it as a failed union branch instead of aborting the whole
+    ``model_validate()`` — see
+    ``test_core_guard_inside_wire_union_fails_the_branch``.  Separability now
+    rests on the two being **distinct types**, which is a stronger guarantee than
+    the old proxy: it survives both of them being ``ValueError`` subclasses, and
+    it is what the swallowing call sites now actually match on.
     """
     from vultron.wire.as2.vocab.objects.case_participant import (
         as_CaseParticipant,
@@ -396,8 +408,23 @@ def test_normalization_failure_is_distinguishable_from_duplicate_row():
     with pytest.raises(VultronValidationError) as exc_info:
         object_to_record(cast(Any, unprojectable))
 
-    assert not isinstance(exc_info.value, ValueError)
+    # The load-bearing assertion: a projection failure is not an already-exists.
+    assert not isinstance(exc_info.value, VultronAlreadyExistsError)
     assert "2232" in str(exc_info.value)
+
+
+def test_already_exists_and_validation_error_are_disjoint_types():
+    """Neither duplicate-row nor projection-failure may catch the other.
+
+    Guards the invariant the swallowing call sites depend on.  Both are
+    ``ValueError`` subclasses so that older callers and Pydantic respectively
+    keep working, which means subclassing is the only thing standing between
+    "already stored" and "never stored, silently".
+    """
+    assert issubclass(VultronAlreadyExistsError, ValueError)
+    assert issubclass(VultronValidationError, ValueError)
+    assert not issubclass(VultronValidationError, VultronAlreadyExistsError)
+    assert not issubclass(VultronAlreadyExistsError, VultronValidationError)
 
 
 def test_object_to_record_still_accepts_wire_activities():

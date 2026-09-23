@@ -22,7 +22,7 @@ camelCase spelling if it inherited a map computed from its base.
 """
 
 import pytest
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ValidationError
 
 from vultron.core.models._wire_spelling import (
     clear_cache,
@@ -82,7 +82,7 @@ def test_wire_spelled_participant_statuses_raises(model):
         "context": _CONTEXT,
         "participantStatuses": [],
     }
-    with pytest.raises(VultronValidationError, match="participantStatuses"):
+    with pytest.raises(ValidationError, match="participantStatuses"):
         model.model_validate(data)
 
 
@@ -140,7 +140,7 @@ class TestWireSpelledKeys:
             assert "extraWireField" not in base_map
             assert sub_map["extraWireField"] == "extra_wire_field"
 
-            with pytest.raises(VultronValidationError, match="extraWireField"):
+            with pytest.raises(ValidationError, match="extraWireField"):
                 _WithExtraField.model_validate(
                     {
                         "attributed_to": _ACTOR,

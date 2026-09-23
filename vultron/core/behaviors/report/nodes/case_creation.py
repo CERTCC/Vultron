@@ -24,6 +24,7 @@ from vultron.core.behaviors.helpers import (
 from vultron.core.models.activity import VultronCreateCaseActivity
 from vultron.core.models.case import VultronCase
 from vultron.core.models.offer_record import VultronOfferRecord
+from vultron.errors import VultronAlreadyExistsError
 
 
 def _append_addressee_ids(addressees: list[str], value: object) -> None:
@@ -130,7 +131,7 @@ class CreateCaseNode(DataLayerActionWithPorts):
                 self.logger.info(
                     f"{self.name}: Created VulnerabilityCase {case.id_}: {case.name}"
                 )
-            except ValueError as e:
+            except VultronAlreadyExistsError as e:
                 self.logger.warning(
                     f"{self.name}: VulnerabilityCase {case.id_} already exists: {e}"
                 )
@@ -235,7 +236,7 @@ class CreateCaseActivity(DataLayerActionWithPorts):
                 self.logger.info(
                     f"{self.name}: Created CreateCaseActivity activity: {create_case_activity.id_}"
                 )
-            except ValueError as e:
+            except VultronAlreadyExistsError as e:
                 self.logger.warning(
                     f"{self.name}: CreateCaseActivity activity {create_case_activity.id_} already exists: {e}"
                 )

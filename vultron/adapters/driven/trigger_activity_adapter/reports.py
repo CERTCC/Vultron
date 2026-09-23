@@ -32,6 +32,7 @@ from vultron.wire.as2.vocab.objects.vulnerability_report import (
 )
 
 from ._base import _DUMP_KWARGS, _to_wire
+from vultron.errors import VultronAlreadyExistsError
 
 logger = logging.getLogger(__name__)
 
@@ -104,7 +105,7 @@ class _ReportsMixin:
         )
         try:
             self._dl.create(activity)
-        except ValueError:
+        except VultronAlreadyExistsError:
             logger.warning(
                 "submit_report: activity '%s' already exists — skipping",
                 activity.id_,
@@ -117,7 +118,7 @@ class _ReportsMixin:
         )
         try:
             self._dl.create(offer_record)
-        except ValueError:
+        except VultronAlreadyExistsError:
             logger.warning(
                 "submit_report: offer record '%s' already exists — skipping",
                 offer_record.id_,
@@ -156,7 +157,7 @@ class _ReportsMixin:
         activity = rm_validate_report_activity(offer=offer, actor=actor, to=to)
         try:
             self._dl.create(activity)
-        except ValueError:
+        except VultronAlreadyExistsError:
             logger.warning(
                 "validate_report: activity '%s' already exists — skipping",
                 activity.id_,
@@ -175,7 +176,7 @@ class _ReportsMixin:
         activity = rm_close_report_activity(offer=offer, actor=actor, to=to)
         try:
             self._dl.create(activity)
-        except ValueError:
+        except VultronAlreadyExistsError:
             logger.warning(
                 "close_report: activity '%s' already exists — skipping",
                 activity.id_,
@@ -195,7 +196,7 @@ class _ReportsMixin:
         )
         try:
             self._dl.create(activity)
-        except ValueError:
+        except VultronAlreadyExistsError:
             logger.warning(
                 "invalidate_report: activity '%s' already exists — skipping",
                 activity.id_,
@@ -213,7 +214,7 @@ class _ReportsMixin:
         activity = as_Read(object_=offer, actor=actor, to=to)
         try:
             self._dl.create(activity)
-        except ValueError:
+        except VultronAlreadyExistsError:
             logger.warning(
                 "ack_report: activity '%s' already exists — skipping",
                 activity.id_,

@@ -37,6 +37,7 @@ from vultron.core.behaviors.helpers import (
     PortInformation,
 )
 from vultron.core.models.vultron_types import VultronCreateCaseActivity
+from vultron.errors import VultronAlreadyExistsError
 
 logger = logging.getLogger(__name__)
 
@@ -205,7 +206,7 @@ class CreateAndPersistCaseActivityNode(DataLayerActionWithPorts):
                 f"{self.name}: Created CreateCaseActivity activity"
                 f" {activity.id_}"
             )
-        except ValueError as e:
+        except VultronAlreadyExistsError as e:
             self.logger.warning(
                 f"{self.name}: CreateCaseActivity activity {activity.id_}"
                 f" already exists: {e}"

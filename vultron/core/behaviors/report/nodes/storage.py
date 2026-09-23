@@ -37,6 +37,7 @@ from py_trees.common import Status
 
 from vultron.core.behaviors.helpers import DataLayerActionWithPorts
 from vultron.core.use_cases._helpers import _idempotent_create
+from vultron.errors import VultronAlreadyExistsError
 
 
 class StoreReportNode(DataLayerActionWithPorts):
@@ -152,7 +153,7 @@ class StoreActivityNode(DataLayerActionWithPorts):
             self.logger.info(
                 "Stored %s activity '%s'", self.label, self.activity_id
             )
-        except ValueError:
+        except VultronAlreadyExistsError:
             # Duplicate: inbox endpoint may pre-store activities before
             # dispatching.  This is expected and not an error condition.
             self.logger.debug(

@@ -200,7 +200,7 @@ class SqliteDataLayer:
     # ------------------------------------------------------------------
 
     def create(self, record: "StorableRecord | PersistableModel") -> None:
-        """Insert a new record; raises ``ValueError`` if it already exists."""
+        """Insert a new record; raises ``VultronAlreadyExistsError`` if it exists."""
         crud.create(self, record)
 
     def read(

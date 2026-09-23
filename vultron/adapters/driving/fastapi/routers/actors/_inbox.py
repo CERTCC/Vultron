@@ -36,7 +36,10 @@ from vultron.adapters.utils import strip_id_prefix
 from vultron.core.models.actor import CoreActor
 from vultron.core.models.protocols import PersistableModel
 from vultron.core.ports.datalayer import DataLayer, StorableRecord
-from vultron.errors import VultronValidationError
+from vultron.errors import (
+    VultronAlreadyExistsError,
+    VultronValidationError,
+)
 from vultron.wire.as2.errors import (
     VultronParseError,
     VultronParseMissingTypeError,
@@ -326,7 +329,7 @@ def _store_nested_inbox_object(
             getattr(nested, "id_", "<no id>"),
             exc_info=True,
         )
-    except ValueError:
+    except VultronAlreadyExistsError:
         logger.debug(
             "Inline object %s already exists in shared DL; skipping re-store.",
             getattr(nested, "id_", "<no id>"),
@@ -336,7 +339,7 @@ def _store_nested_inbox_object(
 def _store_inbox_activity(dl: DataLayer, activity: as_Activity) -> None:
     try:
         dl.create(object_to_record(activity))
-    except ValueError:
+    except VultronAlreadyExistsError:
         logger.debug(
             "Activity %s already exists in shared DL; skipping re-store.",
             activity.id_,

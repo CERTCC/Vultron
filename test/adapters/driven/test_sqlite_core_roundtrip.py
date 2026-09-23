@@ -43,6 +43,8 @@ from vultron.core.models.report import VulnerabilityReport
 from vultron.core.models.vulnerability_record import VulnerabilityRecord
 from vultron.core.states import RM
 from vultron.enums.roles import CVDRole
+from pydantic import ValidationError
+
 from vultron.errors import VultronValidationError
 from vultron.wire.as2.vocab.base.objects.object_types import as_Note
 from vultron.wire.as2.vocab.objects.case_participant import as_CaseParticipant
@@ -263,10 +265,27 @@ def test_mixed_spelling_row_fails_core_validation():
 
     Without this, the read-path tests below could pass for the wrong reason —
     a row that validates cleanly never exercises the fallback at all.
+
+    The guard is a ``VultronValidationError`` raised inside ``CaseParticipant``'s
+    validator, so Pydantic absorbs it (ARCH-23-006) and reports it as a failed
+    branch of the ``str | CaseParticipant`` union rather than letting it escape
+    ``model_validate()``.  Asserting on the wrapped form is the point, not an
+    accommodation: it is what lets ``from_row`` tell a wire-spelled row apart
+    from a genuine schema mismatch — see ``_vultron_validation_cause``.
     """
     case_id = "urn:uuid:case-2232-premise"
-    with pytest.raises(VultronValidationError):
+    with pytest.raises(ValidationError) as exc_info:
         VulnerabilityCase.model_validate(_mixed_spelling_case_row(case_id))
+
+    # The core guard is still recoverable from the wrapped error, which is what
+    # the read path depends on.
+    causes = [
+        (err.get("ctx") or {}).get("error") for err in exc_info.value.errors()
+    ]
+    assert any(isinstance(c, VultronValidationError) for c in causes), (
+        "the core shape guard was not preserved in the ValidationError — "
+        "from_row can no longer distinguish a wire-spelled row"
+    )
 
 
 def test_read_projects_wire_fallback_back_to_core(dl):

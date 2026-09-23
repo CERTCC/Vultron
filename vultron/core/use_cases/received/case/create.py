@@ -6,7 +6,10 @@ from vultron.core.models.events.case import CreateCaseReceivedEvent
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.report_case_link import VultronReportCaseLink
 from vultron.core.ports.case_persistence import CasePersistence
-from vultron.errors import VultronProtocolViolationError
+from vultron.errors import (
+    VultronAlreadyExistsError,
+    VultronProtocolViolationError,
+)
 
 from vultron.core.participants.authority import resolve_case_manager_id
 
@@ -104,7 +107,7 @@ class CreateCaseReceivedUseCase:
                         case_id,
                         actor_id,
                     )
-                except ValueError:
+                except VultronAlreadyExistsError:
                     logger.info(
                         "create_case_received: case '%s' persisted concurrently"
                         " — idempotent",
@@ -191,7 +194,7 @@ class CreateCaseReceivedUseCase:
                     "create_case_received: replica case '%s' persisted",
                     case_id,
                 )
-            except ValueError:
+            except VultronAlreadyExistsError:
                 logger.info(
                     "create_case_received: case '%s' persisted concurrently "
                     "— idempotent",

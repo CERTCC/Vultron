@@ -30,7 +30,7 @@ from vultron.core.models.dimensions import EmDimension
 from vultron.core.models.registry import CORE_VOCABULARY
 from vultron.core.models.staged_case import Case, EmbargoedCase, IncomingReport
 from vultron.core.states.em import EM
-from vultron.errors import VultronValidationError
+from pydantic import ValidationError
 
 _ACTOR = "https://example.org/actor"
 _REPORT_ID = "urn:uuid:report-1"
@@ -105,12 +105,12 @@ class TestIncomingReport:
         assert ir.case_participants == []
 
     def test_raises_when_no_reports(self):
-        with pytest.raises(VultronValidationError, match="IncomingReport"):
+        with pytest.raises(ValidationError, match="IncomingReport"):
             IncomingReport()
 
     def test_raises_when_participants_present(self):
         p = CaseParticipant(id_="urn:uuid:p1")
-        with pytest.raises(VultronValidationError, match="participants"):
+        with pytest.raises(ValidationError, match="participants"):
             IncomingReport(
                 vulnerability_reports=[_REPORT_ID],
                 case_participants=[p.id_],
@@ -126,7 +126,7 @@ class TestIncomingReport:
 
     def test_model_validate_raises_on_missing_report(self):
         vc = VulnerabilityCase()
-        with pytest.raises(VultronValidationError):
+        with pytest.raises(ValidationError):
             IncomingReport.model_validate(vc)
 
     def test_model_validate_raises_when_participants_present(self):
@@ -135,7 +135,7 @@ class TestIncomingReport:
         object.__setattr__(
             vc, "case_participants", _minimal_case_participants()
         )
-        with pytest.raises(VultronValidationError):
+        with pytest.raises(ValidationError):
             IncomingReport.model_validate(vc)
 
 
@@ -169,7 +169,7 @@ class TestCase:
         object.__setattr__(
             vc, "case_participants", _minimal_case_participants()
         )
-        with pytest.raises(VultronValidationError, match="report"):
+        with pytest.raises(ValidationError, match="report"):
             Case.model_validate(vc)
 
     def test_raises_when_fewer_than_two_participants(self):
@@ -177,9 +177,7 @@ class TestCase:
         vc.vulnerability_reports.append(_REPORT_ID)
         one: list[str | CaseParticipant] = ["urn:uuid:p1"]
         object.__setattr__(vc, "case_participants", one)
-        with pytest.raises(
-            VultronValidationError, match="reporter and receiver"
-        ):
+        with pytest.raises(ValidationError, match="reporter and receiver"):
             Case.model_validate(vc)
 
     def test_raises_when_no_participants(self):
@@ -187,7 +185,7 @@ class TestCase:
         vc.vulnerability_reports.append(_REPORT_ID)
         none: list[str | CaseParticipant] = []
         object.__setattr__(vc, "case_participants", none)
-        with pytest.raises(VultronValidationError):
+        with pytest.raises(ValidationError):
             Case.model_validate(vc)
 
     def test_raises_when_no_case_statuses(self):
@@ -199,9 +197,7 @@ class TestCase:
         )
         # case_statuses is empty (no attributed_to to trigger auto-seed)
         assert vc.case_statuses == []
-        with pytest.raises(
-            VultronValidationError, match="materialized CaseStatus"
-        ):
+        with pytest.raises(ValidationError, match="materialized CaseStatus"):
             Case.model_validate(vc)
 
     def test_raises_when_case_statuses_contains_only_string_ids(self):
@@ -212,9 +208,7 @@ class TestCase:
             vc, "case_participants", _minimal_case_participants()
         )
         vc.case_statuses = ["urn:uuid:status-string-id"]
-        with pytest.raises(
-            VultronValidationError, match="materialized CaseStatus"
-        ):
+        with pytest.raises(ValidationError, match="materialized CaseStatus"):
             Case.model_validate(vc)
 
     def test_model_validate_promotes_vulnerability_case(self):
@@ -273,7 +267,7 @@ class TestEmbargoedCase:
     def test_raises_when_active_embargo_is_none(self):
         vc = _minimal_case()
         assert vc.active_embargo is None
-        with pytest.raises(VultronValidationError, match="active_embargo"):
+        with pytest.raises(ValidationError, match="active_embargo"):
             EmbargoedCase.model_validate(vc)
 
     def test_raises_when_em_state_is_no_embargo(self):
@@ -285,7 +279,7 @@ class TestEmbargoedCase:
                 em=EmDimension(state=EM.NONE),
             )
         ]
-        with pytest.raises(VultronValidationError, match="em_state"):
+        with pytest.raises(ValidationError, match="em_state"):
             EmbargoedCase.model_validate(vc)
 
     def test_raises_when_em_state_is_proposed(self):
@@ -297,7 +291,7 @@ class TestEmbargoedCase:
                 em=EmDimension(state=EM.PROPOSED),
             )
         ]
-        with pytest.raises(VultronValidationError, match="em_state"):
+        with pytest.raises(ValidationError, match="em_state"):
             EmbargoedCase.model_validate(vc)
 
     def test_raises_when_em_state_is_exited(self):
@@ -309,7 +303,7 @@ class TestEmbargoedCase:
                 em=EmDimension(state=EM.EXITED),
             )
         ]
-        with pytest.raises(VultronValidationError, match="em_state"):
+        with pytest.raises(ValidationError, match="em_state"):
             EmbargoedCase.model_validate(vc)
 
     def test_inherits_case_invariants(self):
@@ -317,7 +311,7 @@ class TestEmbargoedCase:
         vc = VulnerabilityCase(attributed_to=_ACTOR)
         object.__setattr__(vc, "active_embargo", _EMBARGO_ID)
         # No reports: should fail the Case check first
-        with pytest.raises(VultronValidationError):
+        with pytest.raises(ValidationError):
             EmbargoedCase.model_validate(vc)
 
     def test_model_validate_promotes_qualified_vulnerability_case(self):
@@ -329,7 +323,7 @@ class TestEmbargoedCase:
     def test_pre_embargo_case_fails_embargoed_validate(self):
         """A pre-embargo Case fails EmbargoedCase.model_validate (LST-05-003)."""
         vc = _minimal_case()
-        with pytest.raises(VultronValidationError):
+        with pytest.raises(ValidationError):
             EmbargoedCase.model_validate(vc)
 
 
@@ -372,7 +366,7 @@ class TestDataLayerRoundTrip:
         c = Case.model_validate(_minimal_case())
         dumped = c.model_dump(by_alias=True)
         vc = VulnerabilityCase.model_validate(dumped)
-        with pytest.raises(VultronValidationError):
+        with pytest.raises(ValidationError):
             EmbargoedCase.model_validate(vc)
 
     def test_promotion_works_on_a_real_datalayer_read(self):

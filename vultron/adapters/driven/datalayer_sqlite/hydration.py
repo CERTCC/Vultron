@@ -104,6 +104,30 @@ def to_row(obj: PersistableModel) -> VultronObjectRecord:
     )
 
 
+def _vultron_validation_cause(
+    exc: ValidationError,
+) -> VultronValidationError | None:
+    """Return the core guard's ``VultronValidationError`` inside *exc*, if any.
+
+    Pydantic absorbs a ``ValueError`` raised inside a validator and reports it as
+    a ``value_error`` entry that keeps the original exception at
+    ``ctx['error']``.  ARCH-23-006 requires ``VultronValidationError`` to be a
+    ``ValueError`` — so that a core guard firing inside a wire union fails that
+    branch instead of aborting the whole ``model_validate()`` — which means a
+    guard no longer arrives as itself.  Recovering it here is what keeps
+    "the row is wire-spelled, project it" distinguishable from "the row's schema
+    genuinely does not match, fall back un-projected".
+
+    Returns the first one found: a row is rejected by one guard in practice, and
+    the caller only needs to know which fault class it is looking at.
+    """
+    for err in exc.errors():
+        cause = (err.get("ctx") or {}).get("error")
+        if isinstance(cause, VultronValidationError):
+            return cause
+    return None
+
+
 def _recover_vve_row(
     row: VultronObjectRecord,
     core_cls: type[BaseModel],
@@ -169,26 +193,41 @@ def from_row(
        ``as_Offer``), coerce via ``model_validate`` so that callers always
        receive the most precise type without manual coercion.
     """
-    wire_obj: PersistableModel | None
     try:
         core_cls = find_in_core_vocabulary(row.type_)
     except KeyError:
         # No core counterpart (AS2 Activity types) → wire vocabulary path.
-        wire_obj = wire_object_from_row(row)
-        if wire_obj is None:
-            return None
-        obj = wire_obj
+        obj = wire_object_from_row(row)
     else:
-        try:
-            obj = cast(PersistableModel, core_cls.model_validate(row.data))
-        except ValidationError as exc:
-            # Stored data came from a wire object whose schema differs from
-            # the core class (e.g. as_EmbargoEvent lacks context).  Return
-            # the wire object un-projected: that is the long-standing
-            # behaviour the KNOWN_WIRE_ESCAPES ratchet in
-            # test/architecture/test_dl_read_returns_core_objects.py
-            # measures, and projecting here would dehydrate inline nested
-            # objects that callers of these rows still expect inline.
+        obj = _core_object_from_row(row, core_cls)
+    if obj is None:
+        return None
+    obj = rehydrate_fields(dl, obj)
+    return coerce_to_semantic_class(obj)
+
+
+def _core_object_from_row(
+    row: VultronObjectRecord, core_cls: type[BaseModel]
+) -> PersistableModel | None:
+    """Reconstruct *row* as ``core_cls``, or recover when it will not validate.
+
+    Split out of :func:`from_row` so the two recovery routes below stay legible
+    (and so ``from_row`` stays under the C901 gate).  The routes are opposites
+    and picking the wrong one is silent, so the distinction is the whole point of
+    this function.
+    """
+    try:
+        return cast(PersistableModel, core_cls.model_validate(row.data))
+    except ValidationError as exc:
+        guard_exc = _vultron_validation_cause(exc)
+        if guard_exc is None:
+            # Stored data came from a wire object whose schema differs from the
+            # core class (e.g. as_EmbargoEvent lacks context).  Return the wire
+            # object un-projected: that is the long-standing behaviour the
+            # KNOWN_WIRE_ESCAPES ratchet in
+            # test/architecture/test_dl_read_returns_core_objects.py measures,
+            # and projecting here would dehydrate inline nested objects that
+            # callers of these rows still expect inline.
             logger.debug(
                 "from_row: core_cls.model_validate failed for type %r"
                 " (row %r): %s; using wire fallback",
@@ -196,29 +235,24 @@ def from_row(
                 row.id_,
                 exc,
             )
-            wire_obj = wire_object_from_row(row)
-            if wire_obj is None:
-                return None
-            obj = wire_obj
-        except VultronValidationError as exc:
-            # A core type's own shape guard rejected the row — e.g.
-            # CaseParticipant's wire-spelled-key guard (#2232).  It is not a
-            # ValueError subclass, so without naming it here it would escape
-            # this ladder entirely instead of falling back like every other
-            # shape mismatch (DL-05-002).
-            #
-            # Unlike the ValidationError case above, the row *is* a
-            # wire-spelled copy of a core type, so project it: handing back
-            # a wire object makes every core-typed caller fail (resolve_case
-            # raises "Expected VulnerabilityCase, got as_VulnerabilityCase").
-            recovered = _recover_vve_row(row, core_cls, exc)
-            if recovered is None:
-                return None
-            obj = recovered
-    if obj is None:
-        return None
-    obj = rehydrate_fields(dl, obj)
-    return coerce_to_semantic_class(obj)
+            return wire_object_from_row(row)
+        # A core type's own shape guard rejected the row — e.g. CaseParticipant's
+        # wire-spelled-key guard (#2232).  The row *is* a wire-spelled copy of a
+        # core type, so project it: handing back a wire object makes every
+        # core-typed caller fail (resolve_case raises "Expected
+        # VulnerabilityCase, got as_VulnerabilityCase").
+        #
+        # The guard used to arrive as a bare VultronValidationError, because it
+        # was not a ValueError subclass.  ARCH-23-006 made it one so a core guard
+        # can fail a union branch instead of aborting the whole call, which means
+        # Pydantic now absorbs it and it reaches us wrapped — hence the unwrap
+        # rather than a separate except clause.  Losing this distinction would
+        # silently reroute every wire-spelled row to the un-projected fallback.
+        return _recover_vve_row(row, core_cls, guard_exc)
+    except VultronValidationError as exc:
+        # Retained for a guard that reaches us *unwrapped* — anything raising
+        # outside Pydantic's validator machinery, which does not absorb it.
+        return _recover_vve_row(row, core_cls, exc)
 
 
 def _normalize_wire_nested_objects(
