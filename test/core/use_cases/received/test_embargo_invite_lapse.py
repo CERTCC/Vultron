@@ -84,7 +84,7 @@ def _make_active_embargo_case(
         embargo_consent_state=invitee_pec.value,
         case_roles=[CVDRole.VENDOR],
     )
-    invitee_cp_core = invitee_cp.to_core()
+    invitee_cp_core = invitee_cp
     if invitee_deadline is not None:
         invitee_cp_core.invite_rsvp_deadline = invitee_deadline
 
@@ -269,7 +269,7 @@ class TestInviteStoresDeadline:
             context=case_id,
             case_roles=[CVDRole.VENDOR],
         )
-        invitee_cp_core = invitee_cp.to_core()
+        invitee_cp_core = invitee_cp
 
         dl.create(case)
         dl.create(embargo)
@@ -335,13 +335,13 @@ class TestInviteeIsTheAddressee:
             attributed_to=_COORD,
             context=case_id,
             case_roles=[CVDRole.CASE_MANAGER],
-        ).to_core()
+        )
         invitee_cp = WireCP(
             attributed_to=_INVITEE,
             context=case_id,
             embargo_consent_state=invitee_pec.value,
             case_roles=[CVDRole.VENDOR],
-        ).to_core()
+        )
 
         dl.create(case)
         dl.create(embargo)
@@ -357,7 +357,7 @@ class TestInviteeIsTheAddressee:
                 context=case_id,
                 embargo_consent_state=PEC.UNBOUND.value,
                 case_roles=[CVDRole.VENDOR],
-            ).to_core()
+            )
             dl.create(extra_cp)
             case.actor_participant_index[actor] = extra_cp.id_
             self.extra_participant_ids[actor] = extra_cp.id_
@@ -937,7 +937,7 @@ class TestLateAcceptHandling:
             embargo_consent_state=PEC.INVITED.value,
             case_roles=[CVDRole.VENDOR],
         )
-        invitee_cp_core = invitee_cp.to_core()
+        invitee_cp_core = invitee_cp
         invitee_cp_core.invite_rsvp_deadline = _FUTURE
 
         dl.create(case)
@@ -982,7 +982,7 @@ class TestLateAcceptHandling:
             embargo_consent_state=PEC.INVITED.value,
             case_roles=[CVDRole.VENDOR],
         )
-        invitee_cp_core = invitee_cp.to_core()
+        invitee_cp_core = invitee_cp
         # No deadline set — invite_rsvp_deadline stays None
 
         dl.create(case)

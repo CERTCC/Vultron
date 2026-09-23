@@ -215,6 +215,21 @@ class CoreObject(VultronObject):
     # the port remains the only caller that passes `by_alias=True`.
     model_config = ConfigDict(alias_generator=to_camel)
 
+    #: Fields that are local bookkeeping, not AS2 properties: kept in the stored
+    #: row, dropped from the delivery payload.
+    #:
+    #: ADR-0099 detail 3 makes a class that can appear in a message slot exactly
+    #: AS2-representable and forbids it carrying "a field that cannot go on the
+    #: wire".  ``exclude=True`` is the obvious way to express that and is the
+    #: wrong one: it removes the field from *every* dump, including the
+    #: persistence dump, so the value stops being stored at all.  That is a data
+    #: loss rather than a wire-format fix — an invite RSVP deadline the local
+    #: actor set would simply vanish on the next read.
+    #:
+    #: Declared as a ClassVar so a subclass names its own local fields where they
+    #: are defined, rather than in a registry somewhere else that can fall behind.
+    local_only_fields: ClassVar[frozenset[str]] = frozenset()
+
     context_: NonEmptyString | None = Field(
         default=None,
         validation_alias="@context",
@@ -274,10 +289,22 @@ class CoreObject(VultronObject):
         An explicitly-supplied ``context_`` wins, so a document parsed from the
         wire round-trips with the context it arrived with instead of being
         silently relabelled.
+
+        The same fork drops :attr:`local_only_fields` — see that attribute for
+        why those cannot simply use ``exclude=True``.
         """
         data = handler(self)
         if not isinstance(data, dict) or not info.by_alias:
             return data
+        for name in self.local_only_fields:
+            data.pop(name, None)
+            field = type(self).model_fields.get(name)
+            alias = (
+                getattr(field, "serialization_alias", None) if field else None
+            )
+            if alias:
+                data.pop(alias, None)
+            data.pop(to_camel(name), None)
         data["@context"] = self.context_ or VULTRON_CONTEXT_URI
         return data
 

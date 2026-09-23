@@ -35,7 +35,7 @@ from __future__ import annotations
 
 import logging
 from datetime import datetime
-from typing import Any, Literal
+from typing import Any, ClassVar, Literal
 
 from pydantic import Field, field_serializer, field_validator, model_validator
 
@@ -75,6 +75,10 @@ class CaseParticipant(CoreObject):
     wire-level type discrimination.
     """
 
+    local_only_fields: ClassVar[frozenset[str]] = frozenset(
+        {"invite_rsvp_deadline"}
+    )
+
     type_: Literal["CaseParticipant"] = Field(
         default="CaseParticipant",
         validation_alias="type",
@@ -86,51 +90,39 @@ class CaseParticipant(CoreObject):
     embargo_consent_state: PEC = Field(default=PEC.UNBOUND)
     participant_case_name: NonEmptyString | None = None
     # Local bookkeeping, not an AS2 property: the deadline by which this actor's
-    # own implementation wants an RSVP.  ADR-0099 detail 3 makes a class that can
-    # appear in a message slot exactly AS2-representable, and "MUST NOT carry a
-    # field that cannot go on the wire" — so this is excluded rather than given an
-    # invented ``inviteRsvpDeadline`` spelling that no peer would understand.
-    # ``force_rm_state``/``previous_rm_state`` on ParticipantStatus are excluded
-    # for the same reason.
-    invite_rsvp_deadline: datetime | None = Field(default=None, exclude=True)
+    # own implementation wants an RSVP.  Kept in the stored row and dropped from
+    # the delivery payload — see ``CoreObject.local_only_fields``, and note that
+    # plain ``exclude=True`` would have stopped it being persisted at all.
+    invite_rsvp_deadline: datetime | None = None
 
     @model_validator(mode="before")
     @classmethod
     def _reject_wire_spelled_keys(cls, data: Any) -> Any:
         """Raise on camelCase keys that Pydantic would silently discard.
 
-        This class declares no ``alias_generator``, so a wire-spelled key such
-        as ``participantStatuses`` is an *unknown* key.  Pydantic v2 ignores
-        unknown keys by default, so it was silently dropped and
+        **This guard no longer fires for this class, by design.** It was added
+        because the class declared no ``alias_generator``, so a wire-spelled key
+        such as ``participantStatuses`` was an *unknown* key: Pydantic v2 ignores
+        unknown keys by default, so it was dropped and
         ``_init_participant_status_if_empty`` then re-seeded a single status at
-        ``RM.START``: a whole RM ladder vanished without a trace (issue #2232).
-        The same drop applied to every other snake-only field on this model
-        (``case_roles``, ``accepted_embargo_ids``, ``embargo_consent_state``,
-        ``participant_case_name``), so roles could be lost the same way.
+        ``RM.START`` — a whole RM ladder vanished without a trace (issue #2232).
+        Raising was the loudest available substitute for reading the key.
 
-        Wire→core conversion belongs at the boundary
-        (``as_CaseParticipant.to_core()``, which emits snake_case), not here.
-        This validator makes the mismatch loud instead of lossy
-        (ARCH-15-001, ARCH-15-002).
+        ADR-0099 removes the need for the substitute: the core class now carries
+        the AS2 spelling (detail 2), so ``participantStatuses`` is read into
+        ``participant_statuses`` and the ladder survives.
+        ``wire_spelled_keys`` excludes any spelling the model's
+        ``alias_generator`` derives, so it returns an empty map here and this
+        validator passes the payload through.
 
-        Fields that declare an explicit camelCase ``validation_alias`` (e.g.
-        ``in_reply_to``/``inReplyTo``) are sanctioned spellings and are
-        accepted unchanged.
-
-        **This guard is one level deep, by design and not by accident.** The
-        nested :class:`ParticipantStatus` *does* set
-        ``alias_generator=to_camel`` and accepts flat wire spellings
-        (``rmState``) through its own migration shim, so
-        ``{"participant_statuses": [{"rmState": "CLOSED"}]}`` is accepted here
-        and yields ``rm.state == RM.CLOSED``.  That asymmetry is a known
-        deviation from ARCH-12-003 tracked in #1991 — the child's shim is what
-        makes this parent guard survivable in the first place — and it is not
-        a hole in the #2232 fix: an aliased child cannot *lose* the ladder, it
-        only spells it differently.  The remaining ARCH-12-003 deviation
-        (``alias_generator`` on ``ParticipantStatus``) is tracked in #1991.
+        It is kept rather than deleted because a camelCase key matching *no*
+        field — a retired name, or a typo — is still silently dropped, and this
+        is still where that would be caught for models that carry no generator.
+        Removing the module outright is #2940 AC-6.
 
         Raises:
-            VultronValidationError: when a wire-spelled key is present.
+            VultronValidationError: when a wire-spelled key is present that no
+                field or alias accounts for.
         """
         return reject_wire_spelled_keys(
             cls, data, "as_CaseParticipant.to_core()"
