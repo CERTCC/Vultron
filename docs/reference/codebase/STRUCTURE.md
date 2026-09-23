@@ -14,7 +14,7 @@
 | `vultron/config/` | Layer-neutral configuration models and loading logic | `vultron/config/app.py`, `vultron/config/actor.py` |
 | `vultron/enums/` | Shared CVD-domain enums (roles, states) imported by config and core | `vultron/enums/` |
 | `vultron/demo/` | Demo scenario runners and seed-config helpers | `pyproject.toml` entry points |
-| `vultron/metadata/` | Spec registry, history CLI, notes metadata tooling, message-semantics mapping renderer | `vultron/metadata/specs/`, `vultron/metadata/history/`, `vultron/metadata/msm/` |
+| `vultron/metadata/` | Spec registry, history CLI, notes metadata tooling, docs page frontmatter validator, message-semantics mapping renderer; `file_loading.py` attributes every loader failure to its file (MS-17) | `vultron/metadata/specs/`, `vultron/metadata/history/`, `vultron/metadata/docs/`, `vultron/metadata/msm/`, `vultron/metadata/file_loading.py` |
 | `vultron/scripts/` | Standalone helper scripts (e.g. `ontology2md.py`); NOT the console-script entry points (those live under `vultron/bt/`, `vultron/demo/`, `vultron/metadata/`) | `vultron/scripts/ontology2md.py` |
 | `vultron/semantic_registry/` | ActivityStreams semantic pattern registry | `vultron/semantic_registry/` |
 | `test/` | Pytest test suite (mirrors `vultron/` layout) | `pyproject.toml` `[tool.pytest.ini_options]` |
@@ -39,6 +39,7 @@
   - `spec-dump` / `spec-dump-llm-json` → `vultron.metadata.specs.render:main_llm_json`
   - `spec-lint` → `vultron.metadata.specs.lint:main`; `spec-coverage` → `vultron.metadata.specs.coverage:main`
   - `adr-index` → `vultron.metadata.adr.index_gen:main`
+  - `docs-frontmatter` → `vultron.metadata.docs.page_frontmatter:main`. Validates the `stakeholder_type` and `level` every `docs/` page declares (DF-11-001), skipping include fragments and tolerating only the pages in its shrink-only baseline; `--prune-baseline` drops entries whose pages now declare.
   - `demo-scenarios` → `vultron.metadata.demo_scenarios.sync:main`. `--write` regenerates the artifacts derived from the demo scenario registry. `--check` verifies those, and also the consumers that are checked rather than generated: the `mkdocs.yml` nav, the `notes/` scenario tables (including their event-type columns, resolved from the invariant-harness constants), the `DEMOCI-06-002`/`-003` spec enumerations, and the register of scenarios that are specified but not yet built. It also rejects a restated scenario count and a stray `include-markdown` directive.
   - `append-history` → `vultron.metadata.history.cli:main`; `show-history` → `vultron.metadata.history.show_history_cli:main`; `backfill-implementation-history` → `vultron.metadata.history.backfill_implementation:main`
 - **How entry is selected**: via `[project.scripts]` in `pyproject.toml`; uvicorn deployment uses `vultron.adapters.driving.fastapi.main:app`
