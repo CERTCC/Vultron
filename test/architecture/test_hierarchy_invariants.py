@@ -128,12 +128,13 @@ class TestCoreVocabularyHierarchy:
             f"  newly violating: {sorted(has_to_camel - _TO_CAMEL_BACKLOG_1991)}\n"
             f"  fixed but still listed: {sorted(_TO_CAMEL_BACKLOG_1991 - has_to_camel)}\n"
             "to_camel is an AS2 serialization concern and belongs only in the"
-            " wire layer (ARCH-12-004, #2288 / #2289)."
+            " wire layer (ARCH-12-004, #3578)."
         )
 
     @pytest.mark.xfail(
         strict=True,
-        reason="Goal state tracked in #2288 and #2289 (supersedes closed #1991): "
+        reason="Goal state tracked in #3578 (successor to #2288/#2289, both "
+        "closed as superseded; supersedes closed #1991): "
         "no CoreObject subclass inherits alias_generator=to_camel from as_Base. "
         "8 known classes remain, enumerated in _TO_CAMEL_BACKLOG_1991. "
         "When the last is fixed this test XPASSes and fails the build — "
