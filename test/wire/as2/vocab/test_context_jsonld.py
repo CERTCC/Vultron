@@ -13,6 +13,7 @@
 """Tests for the generated ``docs/ns/context.jsonld`` (#2943, VM-10-001/002)."""
 
 import json
+import re
 
 from vultron.metadata.base import repo_root
 from vultron.metadata.wire_context.sync import (
@@ -183,3 +184,26 @@ def test_render_is_deterministic_and_sorted() -> None:
     assert render_context_json() == render_context_json()
     terms = list(vultron_context_terms())
     assert terms == sorted(terms)
+
+
+def test_namespace_index_page_lists_exactly_the_generated_terms() -> None:
+    """``docs/ns/index.md``'s "Declared types" table matches the context.
+
+    The page is the human-readable face of the normative artifact, and its table
+    is hand-maintained — so unlike ``context.jsonld`` itself, nothing stopped it
+    from advertising a term the namespace does not declare. It listed
+    ``VulnerabilityCaseStub`` until #2982: the stub emits
+    ``type: "VulnerabilityCase"``, so it has no term of its own, and a receiver
+    trusting the page would have expected ``vultron:VulnerabilityCaseStub`` to
+    resolve.
+    """
+    page = (repo_root() / "docs/ns/index.md").read_text(encoding="utf-8")
+    rows = re.findall(r"^\|\s*`(\w+)`\s*\|", page, flags=re.MULTILINE)
+
+    assert rows, "found no 'Declared types' rows in docs/ns/index.md"
+    assert set(rows) == set(vultron_context_terms()), (
+        "docs/ns/index.md's declared-type table disagrees with the generated "
+        f"context. Only on the page: {sorted(set(rows) - set(vultron_context_terms()))}; "
+        f"only in the context: {sorted(set(vultron_context_terms()) - set(rows))}. "
+        f"Regenerate with '{WRITE_COMMAND}' and update the table to match."
+    )
