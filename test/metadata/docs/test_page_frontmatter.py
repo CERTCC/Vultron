@@ -388,6 +388,38 @@ class TestFragments:
         assert "includes/note.md" not in tree.pages
         check_docs_frontmatter(root, baseline=set())
 
+    def test_unprefixed_target_resolves_against_docs(self, tmp_path):
+        """From a nested host, a target without ``./`` is still docs-relative."""
+        root = _repo(
+            tmp_path,
+            {
+                "a/b/page.md": _READER
+                + '{% include-markdown "includes/note.md" %}\n',
+                "includes/note.md": "Note.\n",
+            },
+            nav=["a/b/page.md"],
+        )
+
+        tree = classify_docs_tree(root)
+
+        assert tree.fragments == {"includes/note.md": ("a/b/page.md",)}
+
+    def test_glob_target_expands(self, tmp_path):
+        root = _repo(
+            tmp_path,
+            {
+                "a/index.md": _READER
+                + '{% include-markdown "../includes/*.md" %}\n',
+                "includes/one.md": "One.\n",
+                "includes/two.md": "Two.\n",
+            },
+            nav=["a/index.md"],
+        )
+
+        tree = classify_docs_tree(root)
+
+        assert set(tree.fragments) == {"includes/one.md", "includes/two.md"}
+
     def test_fragment_declaring_a_key_is_reported(self, tmp_path):
         root = _repo(
             tmp_path,

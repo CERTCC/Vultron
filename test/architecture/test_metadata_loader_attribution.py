@@ -38,6 +38,19 @@ _METADATA_ROOT = _corpus.REPO_ROOT / "vultron" / "metadata"
 _HELPER = _METADATA_ROOT / "file_loading.py"
 
 
+def _metadata_trees():
+    """Parsed modules under ``vultron/metadata/``; never empty.
+
+    Both ratchets pass vacuously over an empty scan, so a path or corpus-cache
+    change that finds nothing fails here instead.
+    """
+    trees = list(_corpus.all_trees(under=_METADATA_ROOT))
+    assert _HELPER in {
+        path for path, _ in trees
+    }, f"corpus scan of {_METADATA_ROOT} did not reach {_HELPER.name}"
+    return trees
+
+
 def _path_prefixed_reraises(tree: ast.AST) -> list[int]:
     """Return line numbers of ``raise ValueError(f"{x}...")`` in an except body.
 
@@ -73,7 +86,7 @@ def test_no_private_attribution_wrapper_outside_the_helper():
     """Every loader obtains file attribution from ``file_loading.py``."""
     violations = [
         f"{path.relative_to(_corpus.REPO_ROOT)}:{line}"
-        for path, tree in _corpus.all_trees(under=_METADATA_ROOT)
+        for path, tree in _metadata_trees()
         if path != _HELPER
         for line in _path_prefixed_reraises(tree)
     ]
@@ -119,7 +132,7 @@ def test_the_ratchet_ignores_context_added_by_a_caller():
 def test_metadata_does_not_import_the_protocol_error_hierarchy():
     """``vultron/errors.py`` belongs to the protocol domain, not tooling."""
     violations: list[str] = []
-    for path, tree in _corpus.all_trees(under=_METADATA_ROOT):
+    for path, tree in _metadata_trees():
         for node in ast.walk(tree):
             if isinstance(node, ast.ImportFrom):
                 # ``from vultron import errors`` names the module as an alias.

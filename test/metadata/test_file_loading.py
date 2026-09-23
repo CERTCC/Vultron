@@ -118,6 +118,23 @@ class TestYamlAttribution:
 
         assert 'containing ": " must be quoted' in str(info.value)
 
+    @pytest.mark.parametrize(
+        ("loader", "text"),
+        [
+            (yaml.SafeLoader, "a:\n\tb: 1\n"),
+            (
+                getattr(yaml, "CSafeLoader", yaml.SafeLoader),
+                "a: 1\nb:\n  c: 1\n\td: 2\n",
+            ),
+        ],
+        ids=["python", "libyaml"],
+    )
+    def test_tab_indentation_gets_the_tab_hint(self, tmp_path, loader, text):
+        path = _write(tmp_path / "x.yaml", text)
+
+        with pytest.raises(MetadataLoadError, match="spaces, not tabs"):
+            load_yaml(path, loader=loader)
+
     def test_unlisted_problem_gets_no_hint(self, tmp_path):
         path = _write(tmp_path / "x.yaml", "a: [1, 2\n")
 
@@ -153,6 +170,28 @@ class TestFrontmatterAttribution:
         assert str(info.value).startswith(
             "n.md:3:21 — malformed YAML frontmatter:"
         )
+
+    @pytest.mark.parametrize("blank", [1, 2], ids=["one", "two"])
+    def test_blank_lines_after_the_fence_are_counted(self, tmp_path, blank):
+        """The fence pattern swallows them; the line must not move up."""
+        path = _write(
+            tmp_path / "n.md",
+            "---\n" + "\n" * blank + _UNQUOTED_COLON + "---\n",
+        )
+
+        with pytest.raises(MetadataLoadError) as info:
+            load_frontmatter(path, root=tmp_path)
+
+        assert info.value.line == 2 + blank
+
+    def test_json_block_is_attributed(self, tmp_path):
+        """A ``{`` first line selects python-frontmatter's JSON handler."""
+        path = _write(tmp_path / "n.md", '{\n"title": \n}\nbody\n')
+
+        with pytest.raises(MetadataLoadError) as info:
+            load_frontmatter(path, root=tmp_path)
+
+        assert str(info.value).startswith("n.md:3:1 — malformed frontmatter:")
 
     def test_no_path_form_carries_position_only(self):
         with pytest.raises(MetadataLoadError) as info:
@@ -392,6 +431,21 @@ class TestHistoryLoaders:
         learnings = tmp_path / "plan" / "incoming" / "learnings"
         _write(learnings / "a.md", "---\n" + _UNQUOTED_COLON + "---\n")
         _write(learnings / "b.md", _ENTRY.replace("ISSUE-1", ""))
+
+        with pytest.raises(MetadataLoadErrors) as info:
+            validate_incoming_learnings(tmp_path)
+
+        assert [f.path for f in info.value.failures] == [
+            "plan/incoming/learnings/a.md",
+            "plan/incoming/learnings/b.md",
+        ]
+        assert "Common fixes" in str(info.value)
+
+    def test_incoming_collects_past_a_json_block(self, tmp_path):
+        """A JSON decode fault is collected, not raised past the others."""
+        learnings = tmp_path / "plan" / "incoming" / "learnings"
+        _write(learnings / "a.md", '{\n"title": \n}\n')
+        _write(learnings / "b.md", "---\n" + _UNQUOTED_COLON + "---\n")
 
         with pytest.raises(MetadataLoadErrors) as info:
             validate_incoming_learnings(tmp_path)

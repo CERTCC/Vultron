@@ -47,14 +47,17 @@ _UNQUOTED_COLON_HINT = (
     'a plain scalar containing ": " must be quoted, or written as a block '
     "scalar (`>-` or `|`)"
 )
+_TAB_HINT = "YAML indentation must use spaces, not tabs"
 CAUSE_HINTS: dict[str, str] = {
     # libyaml (CSafeLoader, and python-frontmatter) and pure-Python PyYAML
     # word the same fault differently.
     "mapping values are not allowed in this context": _UNQUOTED_COLON_HINT,
     "mapping values are not allowed here": _UNQUOTED_COLON_HINT,
-    "found character '\\t' that cannot start any token": (
-        "YAML indentation must use spaces, not tabs"
-    ),
+    "found character '\\t' that cannot start any token": _TAB_HINT,
+    # libyaml names the tab only in its indentation fault; its bare "found
+    # character that cannot start any token" also covers `@` and a backtick, so
+    # it gets no hint.
+    "found a tab character that violates indentation": _TAB_HINT,
 }
 
 
@@ -187,9 +190,13 @@ def display_path(path: Path, root: Path | None = None) -> str:
 
 
 def _yaml_error(
-    exc: yaml.YAMLError, shown: str | None, lead: str
+    exc: yaml.YAMLError, shown: str | None, lead: str, line_offset: int = 0
 ) -> MetadataLoadError:
-    """Attribute a PyYAML error to *shown*, reading its position mark."""
+    """Attribute a PyYAML error to *shown*, reading its position mark.
+
+    *line_offset* is the number of file lines before the text PyYAML parsed,
+    for a block cut out of a larger file.
+    """
     if not isinstance(exc, yaml.MarkedYAMLError):
         return MetadataLoadError(f"{lead}: {exc}", path=shown)
     mark = exc.problem_mark or exc.context_mark
@@ -205,7 +212,7 @@ def _yaml_error(
     return MetadataLoadError(
         detail,
         path=shown,
-        line=None if mark is None else mark.line + 1,
+        line=None if mark is None else mark.line + 1 + line_offset,
         column=None if mark is None else mark.column + 1,
     )
 
@@ -214,7 +221,7 @@ def load_yaml(
     path: Path,
     *,
     root: Path | None = None,
-    loader: type[Any] = yaml.SafeLoader,
+    loader: type[yaml.SafeLoader] | type[yaml.CSafeLoader] = yaml.SafeLoader,
 ) -> object:
     """Parse the YAML file at *path*, attributing any fault to it.
 
@@ -253,6 +260,8 @@ class _MappingYAMLHandler(YAMLHandler):
     no block at all. An empty block (``None``) is still no metadata.
     """
 
+    # ``Any``, not ``dict[str, Any] | None``: the base declares ``dict``, yet
+    # returns ``None`` for an empty block, so the honest type breaks override.
     def load(self, fm: str, **kwargs: object) -> Any:
         data = super().load(fm, **kwargs)
         if data is not None and not isinstance(data, dict):
@@ -266,17 +275,34 @@ _MAPPING_YAML = _MappingYAMLHandler()
 def _parse_frontmatter(text: str, shown: str | None) -> frontmatter.Post:
     # The handler is passed only when the text opens with a ``---`` fence;
     # passed unconditionally, it would split on a later horizontal rule.
-    handler = _MAPPING_YAML if _MAPPING_YAML.detect(text) else None
+    boundary = _MAPPING_YAML.FM_BOUNDARY
+    assert boundary is not None  # set on YAMLHandler, Optional on its base
+    fence = boundary.match(text)
+    handler = _MAPPING_YAML if fence else None
     try:
         return frontmatter.loads(text, handler=handler)
     except yaml.YAMLError as exc:
-        raise _yaml_error(exc, shown, _FRONTMATTER_LEAD) from exc
+        # The fence pattern's trailing ``\s*`` swallows blank lines after the
+        # opening ``---``, so the block PyYAML sees starts that many lines
+        # into the file; its mark is relative to the block.
+        offset = text.count("\n", 0, fence.end()) if fence else 0
+        raise _yaml_error(exc, shown, _FRONTMATTER_LEAD, offset) from exc
     except _NotAMapping as exc:
         raise MetadataLoadError(
             f"{_FRONTMATTER_LEAD}: the block is a YAML {exc}, not a mapping "
             f"of keys",
             path=shown,
             line=1,
+        ) from exc
+    except ValueError as exc:
+        # With no ``---`` fence, python-frontmatter picks its JSON (``{``) or
+        # TOML (``+++``) handler, whose decode errors are ``ValueError``s
+        # with no path. ``JSONDecodeError`` carries its own position.
+        raise MetadataLoadError(
+            f"malformed frontmatter: {getattr(exc, 'msg', exc)}",
+            path=shown,
+            line=getattr(exc, "lineno", None),
+            column=getattr(exc, "colno", None),
         ) from exc
 
 
