@@ -4,7 +4,7 @@ description: Defines the structure, location, entry format, and tooling for mana
   `implementation` and `idea` types whose `--source` resolves to a GitHub issue number, `append-history` posts the
   entry body as a comment on the corresponding GitHub issue rather than writing a file. `learning` and `priority`
   types continue to write per-entry write-once files under `plan/history/`, managed by the `append-history` CLI tool.
-version: 1.5.0
+version: 1.6.0
 scope:
 
 - prototype
@@ -53,11 +53,19 @@ groups:
   - id: HM-01-005
     priority: MUST_NOT
     kind: process
-    statement: Once written, a history entry file MUST NOT be modified. History entries are immutable records. The `plan/history/YYMM/README.md`
-      index may be regenerated locally but is gitignored.
-    note: 'One-time exception: the IDEA-26043001/2/3 migration (2026-05) rewrote all existing entries to replace the legacy
-      `date:` field with a tz-aware `timestamp:` field. That migration is the only authorised exception to this rule; future
-      changes to entry files are prohibited.'
+    statement: Once an entry file has been merged to `main`, it MUST NOT be modified. History entries are immutable records.
+      An entry MAY still be corrected while it remains unmerged on the branch that created it, because until then no record
+      has been published. The `plan/history/YYMM/README.md` index may be regenerated locally but is gitignored.
+    rationale: >-
+      Immutability exists so a published record cannot be rewritten in hindsight.
+      Worded as "once written" it bound the entry from its first commit, forcing
+      any branch whose plan changed during review to choose between an immutable
+      record that was now wrong and a correct one that broke the rule. PR #3523 is
+      the witness. Anchoring on the merge to `main` keeps everything published
+      immutable while letting a branch land an accurate first version (#3561).
+    note: 'One-time exception: the IDEA-26043001/2/3 migration (2026-05) rewrote all existing merged entries to replace the
+      legacy `date:` field with a tz-aware `timestamp:` field. That migration is the only authorised exception for entries
+      already on `main`.'
   - id: HM-01-007
     priority: MUST
     kind: process
