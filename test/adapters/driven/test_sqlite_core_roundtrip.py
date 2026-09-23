@@ -43,9 +43,6 @@ from vultron.core.models.report import VulnerabilityReport
 from vultron.core.models.vulnerability_record import VulnerabilityRecord
 from vultron.core.states import RM
 from vultron.enums.roles import CVDRole
-from pydantic import ValidationError
-
-from vultron.errors import VultronValidationError
 from vultron.wire.as2.vocab.base.objects.object_types import as_Note
 from vultron.wire.as2.vocab.objects.case_participant import as_CaseParticipant
 from vultron.wire.as2.vocab.objects.case_status import as_ParticipantStatus
@@ -260,36 +257,48 @@ def _mixed_spelling_case_row(case_id):
     return data
 
 
-def test_mixed_spelling_row_fails_core_validation():
-    """Guard the premise: the fixture row really does fail core validation.
+def test_mixed_spelling_row_now_validates_directly():
+    """The fixture row validates as core, with its participant data intact.
 
-    Without this, the read-path tests below could pass for the wrong reason —
-    a row that validates cleanly never exercises the fallback at all.
+    This asserted the opposite premise — that the row *fails* core validation —
+    and it was the guard ensuring the read-path tests below actually exercised
+    the recovery fallback rather than passing trivially.
 
-    The guard is a ``VultronValidationError`` raised inside ``CaseParticipant``'s
-    validator, so Pydantic absorbs it (ARCH-23-006) and reports it as a failed
-    branch of the ``str | CaseParticipant`` union rather than letting it escape
-    ``model_validate()``.  Asserting on the wrapped form is the point, not an
-    accommodation: it is what lets ``from_row`` tell a wire-spelled row apart
-    from a genuine schema mismatch — see ``_vultron_validation_cause``.
+    That premise is now false, and the fix is the reason rather than a
+    regression: ADR-0099 puts the AS2 spelling on the core class, so a
+    camelCase-keyed participant is read straight into ``CaseParticipant``. No
+    recovery runs because nothing fails. The read-path tests below therefore no
+    longer prove *which* route delivered the object — they still prove the
+    outcome, which is what callers depend on, and their docstrings say so.
+
+    Asserting the data survives, not merely that validation succeeds, is what
+    keeps this from being weaker than the test it replaces: a row that validated
+    into an empty participant would be the #2232 defect wearing a passing test.
     """
     case_id = "urn:uuid:case-2232-premise"
-    with pytest.raises(ValidationError) as exc_info:
-        VulnerabilityCase.model_validate(_mixed_spelling_case_row(case_id))
+    case = VulnerabilityCase.model_validate(_mixed_spelling_case_row(case_id))
 
-    # The core guard is still recoverable from the wrapped error, which is what
-    # the read path depends on.
-    causes = [
-        (err.get("ctx") or {}).get("error") for err in exc_info.value.errors()
-    ]
-    assert any(isinstance(c, VultronValidationError) for c in causes), (
-        "the core shape guard was not preserved in the ValidationError — "
-        "from_row can no longer distinguish a wire-spelled row"
-    )
+    assert len(case.case_participants) == 1
+    participant = case.case_participants[0]
+    assert isinstance(
+        participant, CaseParticipant
+    ), "the camelCase participant was not read as a core CaseParticipant"
+    assert participant.case_roles == [CVDRole.FINDER]
+    assert [s.rm.state.name for s in participant.participant_statuses] == [
+        "ACCEPTED"
+    ], "the RM ladder was rewound (#2264)"
 
 
-def test_read_projects_wire_fallback_back_to_core(dl):
-    """A row failing core validation reads back as the core type.
+def test_read_returns_the_core_type_for_a_mixed_spelling_row(dl):
+    """A mixed-spelling stored row reads back as the core type.
+
+    What this covers has narrowed, and saying so matters. It once proved the
+    recovery fallback worked; the row now validates directly (see
+    ``test_mixed_spelling_row_now_validates_directly``), so this asserts the
+    end-to-end outcome through ``dl.read()`` without proving which route produced
+    it. Still worth holding — the 422 it guards against was a read-path failure —
+    but it is no longer coverage of ``_recover_vve_row`` and should not be
+    mistaken for it.
 
     Before #2232 the shape guard on ``CaseParticipant`` turned this row into an
     ``as_VulnerabilityCase`` from ``dl.read()``, and ``resolve_case`` then raised

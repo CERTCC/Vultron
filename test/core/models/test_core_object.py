@@ -11,7 +11,7 @@ from vultron.core.models import (
     VultronObject,
     find_in_core_vocabulary,
 )
-from vultron.core.models.base import VultronBase
+from vultron.core.models.base import VULTRON_CONTEXT_URI, VultronBase
 from vultron.core.models.case import VultronCase
 from vultron.core.models.case_ledger_entry import (
     CaseLedgerEntry as CoreCaseLedgerEntry,
@@ -57,23 +57,44 @@ def test_core_object_default_instance():
     assert obj.updated is not None
 
 
-def test_core_object_context_alias_accepted_but_excluded_from_dump():
-    """@context is accepted on input but excluded from serialization.
+def test_core_object_context_is_emitted_on_the_as2_path_only():
+    """@context appears on the AS2 dump and not on the persistence dump.
 
-    ``context_`` is a wire-layer concern (JSON-LD ``@context``); it is
-    validated when present in incoming data but intentionally omitted from
-    ``model_dump()`` output so that core objects can be round-tripped
-    through the DataLayer without colliding with the wire base's required
-    ``context_: str`` field.
+    ADR-0099 detail 1 gives one class two serializations, chosen by destination:
+    ``by_alias=True`` is inter-actor delivery (camelCase plus ``@context``), a
+    plain dump is persistence (Python field names, no ``@context``).  ``context_``
+    stays ``exclude=True`` so a stored row never carries it, which is what lets
+    core objects round-trip through the DataLayer.
+
+    This previously asserted ``@context`` was absent from *both*.  That held only
+    while a paired ``as_*`` class supplied it; deleting those classes took the
+    Vultron context off every promoted type and left the AS2 namespace alone on
+    the wire, which VM-10-001 (MUST) says "is not sufficient".
     """
     obj = CoreObject.model_validate(
         {"@context": "https://www.w3.org/ns/activitystreams"}
     )
     assert obj.context_ == "https://www.w3.org/ns/activitystreams"
-    # excluded from serialization — neither alias nor field name appears
-    dumped = obj.model_dump(by_alias=True, exclude_none=True)
-    assert "@context" not in dumped
-    assert "context_" not in dumped
+
+    # Delivery form: the supplied context wins, so a document round-trips with
+    # the context it arrived carrying rather than being relabelled.
+    as2 = obj.model_dump(by_alias=True, exclude_none=True)
+    assert as2["@context"] == "https://www.w3.org/ns/activitystreams"
+
+    # Persistence form: neither the alias nor the field name is stored.
+    stored = obj.model_dump(exclude_none=True)
+    assert "@context" not in stored
+    assert "context_" not in stored
+
+
+def test_core_object_context_defaults_to_the_vultron_uri_on_the_wire():
+    """An object carrying no context still declares the Vultron one.
+
+    VM-10-001 requires it on Vultron-specific types; the ActivityStreams
+    namespace alone is not sufficient for types AS2 does not define.
+    """
+    as2 = CoreObject().model_dump(by_alias=True, exclude_none=True)
+    assert as2["@context"] == VULTRON_CONTEXT_URI
 
 
 def test_core_object_context_empty_string_rejected():

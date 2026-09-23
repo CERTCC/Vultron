@@ -15,25 +15,40 @@
 
 """Regression tests for the canonical ParticipantStatus shape (issue #2232).
 
-``ParticipantStatus`` exists in two incompatible shapes:
+``ParticipantStatus`` **used to exist** in two incompatible shapes:
 
 - **core** (``vultron/core/models/participant_status.py``) — nested
   ``rm: RmDimension``, read as ``status.rm.state``.
 - **wire** (``vultron/wire/as2/vocab/objects/case_status.py``) — flat
   ``rm_state: RM``, and no ``rm`` attribute at all.
 
-Two silent-failure modes followed from that, both reproduced here:
+ADR-0099 detail 3 collapsed the pair, so there is one shape: the flat spelling is
+an alias of the dimension (detail 5), and ``as_ParticipantStatus`` is the core
+class. The tests below are kept because the *failure modes* they document were
+real and their fixes still have to hold — but read them knowing the second shape
+no longer exists.
 
-1. Core ``CaseParticipant`` has no ``alias_generator``, so a wire-spelled
+Two silent-failure modes followed from the split, both reproduced here:
+
+1. Core ``CaseParticipant`` had no ``alias_generator``, so a wire-spelled
    (camelCase) ``participantStatuses`` key was an unknown key, silently
    dropped, and ``_init_participant_status_if_empty`` re-seeded a single
    status at ``RM.START`` — losing the whole RM ladder.
 2. Reading ``rm`` off a wire-shaped status yielded ``None``, so every core
    reader degraded instead of failing (ARCH-15-001, ARCH-15-002).
 
-The fix keeps core snake_case-canonical (ARCH-12-003 forbids
-``alias_generator=to_camel`` in core-branch types) and makes both failure
-modes raise.  Related: #2264 (RM.START substitution sites).
+Both were made to *raise*, which stopped the loss without fixing its cause.
+ADR-0099 fixes the cause: core carries the AS2 spelling (detail 2), so the key is
+read into the right field and the ladder survives; and the second shape is gone,
+so there is no mismatch left to raise about. The tests assert the values *arrive*,
+which is stronger than asserting a refusal — a refusal is also consistent with the
+data being unusable.
+
+ARCH-12-003's prohibition on ``alias_generator`` in core-branch types is what
+ADR-0099 overturns: with the paired class deleted, there is nowhere else for the
+spelling to live. The helper guards in failure mode 2 still hold for an object
+that genuinely cannot supply a dimension.  Related: #2264 (RM.START substitution
+sites).
 """
 
 import pytest
@@ -56,7 +71,6 @@ from vultron.core.models.participant_status import (
 from vultron.core.states.cs import CS_d, CS_vf
 from vultron.core.states.rm import RM
 from vultron.enums.roles import CVDRole
-from pydantic import ValidationError
 from vultron.errors import VultronValidationError
 from test.support.participant_status import advance_participant_rm
 
@@ -82,29 +96,40 @@ def _core_participant_with_ladder() -> CaseParticipant:
 # ---------------------------------------------------------------------------
 
 
-class TestCaseParticipantRejectsWireSpelledKeys:
-    """Core ``CaseParticipant`` must raise, not silently drop, camelCase keys."""
+class TestCaseParticipantReadsWireSpelledKeys:
+    """Core ``CaseParticipant`` must read camelCase keys, not drop them."""
 
-    def test_camel_case_participant_statuses_raises(self):
-        """``participantStatuses`` must raise instead of resetting the ladder.
+    def test_camel_case_participant_statuses_preserves_the_ladder(self):
+        """``participantStatuses`` must arrive intact, not reset the ladder.
 
-        Before the fix this validated cleanly and returned a participant with
-        a single re-seeded ``RM.START`` status — a two-entry ladder silently
-        became one entry.
+        Three behaviours in sequence. Originally this validated cleanly and
+        returned a participant with a single re-seeded ``RM.START`` status — a
+        two-entry ladder silently became one (#2232). The fix made it *raise*,
+        which stopped the loss by refusing the payload. ADR-0099 goes the rest of
+        the way: the core class carries the AS2 spelling, so the ladder is read.
+
+        Asserting the ladder survives is what both earlier forms were reaching
+        for. A rejection test passes equally well when the data is unusable; this
+        one does not.
         """
         data = _core_participant_with_ladder().model_dump(mode="json")
         data["participantStatuses"] = data.pop("participant_statuses")
 
-        with pytest.raises(ValidationError, match="participantStatuses"):
-            CaseParticipant.model_validate(data)
+        rebuilt = CaseParticipant.model_validate(data)
+        assert [s.rm.state.name for s in rebuilt.participant_statuses] == [
+            "START",
+            "RECEIVED",
+        ], "the RM ladder was truncated (#2232)"
 
-    def test_camel_case_case_roles_raises(self):
-        """The same silent drop applied to every snake-only core field."""
-        data = _core_participant_with_ladder().model_dump(mode="json")
+    def test_camel_case_case_roles_is_read(self):
+        """The same applies to every other camelCase-spelled core field."""
+        participant = _core_participant_with_ladder()
+        participant.case_roles = [CVDRole.VENDOR]
+        data = participant.model_dump(mode="json")
         data["caseRoles"] = data.pop("case_roles")
 
-        with pytest.raises(ValidationError, match="caseRoles"):
-            CaseParticipant.model_validate(data)
+        rebuilt = CaseParticipant.model_validate(data)
+        assert rebuilt.case_roles == [CVDRole.VENDOR]
 
     def test_snake_case_round_trip_is_unaffected(self):
         """The canonical core shape must still round-trip losslessly."""
@@ -149,19 +174,38 @@ class TestParticipantStatusRmStateHelper:
         )
         assert participant_status_rm_state(status) is RM.RECEIVED
 
-    def test_raises_on_wire_shaped_status(self):
-        """A flat ``rm_state`` status has no ``rm`` — that must raise."""
+    def test_flat_rm_state_is_read_into_the_dimension(self):
+        """A flat ``rm_state`` input populates ``rm`` rather than leaving it unset.
+
+        This asserted the opposite: that ``as_ParticipantStatus(rm_state=...)``
+        had **no** ``rm`` attribute at all, and that reading it had to raise.
+        That was true while ``as_ParticipantStatus`` was a separate wire class
+        holding a flat field. ADR-0099 detail 3 collapsed the pair, so the flat
+        spelling is now an alias of the dimension (detail 5) and there is no
+        shape mismatch left to raise about — the value is simply read.
+
+        The guard itself is still covered, by
+        ``test_raises_on_object_without_rm`` below: an object that genuinely has
+        no usable ``rm`` must still raise rather than degrade to ``None``
+        (ARCH-15-001, ARCH-15-002). Only the way of *producing* such an object
+        changed, because a wire-shaped status is no longer one of them.
+        """
         from vultron.wire.as2.vocab.objects.case_status import (
             as_ParticipantStatus,
         )
 
-        wire_status = as_ParticipantStatus(
-            context=_CONTEXT, rm_state=RM.RECEIVED
-        )
-        assert getattr(wire_status, "rm", None) is None
+        status = as_ParticipantStatus(context=_CONTEXT, rm_state=RM.RECEIVED)
+        assert status.rm.state is RM.RECEIVED
+        assert participant_status_rm_state(status) is RM.RECEIVED
+
+    def test_raises_on_object_without_rm(self):
+        """An object with no ``rm`` at all must raise, not return None."""
+
+        class _NoRm:
+            """Stands in for any object that cannot supply an RM dimension."""
 
         with pytest.raises(VultronValidationError, match="rm"):
-            participant_status_rm_state(wire_status)
+            participant_status_rm_state(_NoRm())
 
     def test_raises_when_rm_carries_no_rm_state(self):
         """A present-but-unusable ``rm`` must raise rather than return None.

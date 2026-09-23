@@ -392,21 +392,28 @@ def test_normalization_failure_is_distinguishable_from_duplicate_row():
     rests on the two being **distinct types**, which is a stronger guarantee than
     the old proxy: it survives both of them being ``ValueError`` subclasses, and
     it is what the swallowing call sites now actually match on.
-    """
-    from vultron.wire.as2.vocab.objects.case_participant import (
-        as_CaseParticipant,
-    )
 
-    # NonEmptyString rejects "" on the core class but not on the wire class,
-    # so this object is constructible yet unprojectable.
-    unprojectable = as_CaseParticipant(
-        attributed_to="https://example.org/actors/vendor",
-        context="https://example.org/cases/case-2232",
-        accepted_embargo_ids=[""],
-    )
+    The fixture changed with ADR-0099 and the reason is worth recording. It used
+    to build an ``as_CaseParticipant`` with ``accepted_embargo_ids=[""]`` — legal
+    on the lenient wire class, rejected by the core class's ``NonEmptyString``,
+    and therefore "constructible yet unprojectable". Collapsing the pair removes
+    that state entirely: there is one class, so an object that would fail
+    projection now fails construction instead. That is the improvement, not a gap
+    — but it means this test has to reach the projection failure another way, so
+    it uses the same synthetic shadowing class as the test above.
+    """
+    from vultron.core.models.protocols import PersistableModel
+
+    class _ShadowingWireClass(BaseModel):
+        """Stands in for a wire class that never grew a ``to_core()``."""
+
+        id_: str = "urn:uuid:00000000-0000-4000-8000-000000002232"
+        type_: str = "ParticipantStatus"
+
+    _ShadowingWireClass.__module__ = "vultron.wire.as2.vocab.objects.fake"
 
     with pytest.raises(VultronValidationError) as exc_info:
-        object_to_record(cast(Any, unprojectable))
+        object_to_record(cast(PersistableModel, _ShadowingWireClass()))
 
     # The load-bearing assertion: a projection failure is not an already-exists.
     assert not isinstance(exc_info.value, VultronAlreadyExistsError)
