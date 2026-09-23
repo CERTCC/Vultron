@@ -19,8 +19,10 @@ document maps every Vultron-namespace ``type`` string (``CaseParticipant``,
 term. Hand-maintaining it means a new Vultron-namespace wire type is added to
 the code but forgotten in the context, and receivers silently cannot resolve
 it. This module derives the document from the one source of truth — the wire
-classes' ``_vocab_ns`` annotation — and a drift check (``--check``, wired into
-pre-commit and CI) fails when the committed file diverges.
+classes' ``_vocab_ns`` annotation — and a drift check fails when the committed
+file diverges.  The check runs two ways: ``--check`` in the local pre-commit
+hook, and ``test_committed_context_is_not_stale`` in the unit suite, which is
+what enforces it in CI (no workflow runs pre-commit or this CLI directly).
 
 The term set is every distinct concrete ``type_`` value carried by a wire class
 whose ``_vocab_ns`` is :data:`VocabNamespace.VULTRON` (VM-10-002). It is keyed
@@ -75,8 +77,25 @@ def _import_all_vocab() -> None:
         importlib.import_module(module.name)
 
 
+#: Package prefix a class must be defined under to count as wire vocabulary.
+VOCAB_PACKAGE = "vultron.wire.as2.vocab"
+
+#: Sub-tree holding the ActivityStreams base vocabulary.  A ``type`` value
+#: declared here is an AS2 term; anything else is Vultron-specific.
+AS2_BASE_PACKAGE = "vultron.wire.as2.vocab.base"
+
+
 def _all_object_subclasses() -> set[type]:
-    """Return every subclass of :class:`as_Object`, transitively."""
+    """Return every wire-vocabulary subclass of :class:`as_Object`, transitively.
+
+    Restricted to classes defined under :data:`VOCAB_PACKAGE`.  ``__subclasses__()``
+    is a *live* graph of every subclass currently alive in the interpreter, so a
+    class defined inside a test function joins it and — unlike a registry entry —
+    cannot be removed by deleting a dict key.  Without this filter a test probe
+    leaks into enumeration, which both fails the annotation guard spuriously and,
+    if the probe is annotated ``VULTRON``, injects a bogus term into the
+    *normative* ``context.jsonld`` (making ``is_stale()`` true on a clean tree).
+    """
     _import_all_vocab()
 
     def descend(cls: type) -> set[type]:
@@ -86,7 +105,28 @@ def _all_object_subclasses() -> set[type]:
             found |= descend(sub)
         return found
 
-    return descend(as_Object)
+    return {
+        cls
+        for cls in descend(as_Object)
+        if cls.__module__.startswith(VOCAB_PACKAGE)
+    }
+
+
+def as2_term_values() -> set[str]:
+    """Return the ``type`` values that are genuine ActivityStreams terms.
+
+    Provenance is the defining module, not the ``_vocab_ns`` annotation: a
+    Vultron type *mis-annotated* ``AS`` is exactly what the annotation guard
+    exists to catch, so deriving the AS2 term set from that annotation would
+    make the guard unable to see it.  ``WIRE_TYPE_MAP`` is likewise unusable
+    here — it is the whole wire registry, Vultron terms included.
+    """
+    return {
+        value
+        for cls in _all_object_subclasses()
+        if cls.__module__.startswith(AS2_BASE_PACKAGE)
+        and (value := _concrete_type_value(cls)) is not None
+    }
 
 
 def _concrete_type_value(cls: type) -> str | None:

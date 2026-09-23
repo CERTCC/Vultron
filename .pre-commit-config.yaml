@@ -92,7 +92,8 @@ repos:
         # Two kinds of input make the artifact stale (VM-10-001/002): the wire
         # vocabulary classes (a new/renamed Vultron-namespace type, or a
         # changed _vocab_ns) and the committed file itself (a hand-edit).
-        # test_committed_context_is_not_stale is the backstop for a deletion,
+        # This hook is local-only; test_committed_context_is_not_stale is what
+        # enforces the check in CI, and is also the backstop for a deletion,
         # which pre-commit's staged-file list cannot match.
         files: ^(vultron/wire/as2/vocab/.*\.py|vultron/metadata/wire_context/.*\.py|docs/ns/context\.jsonld)$
         pass_filenames: false

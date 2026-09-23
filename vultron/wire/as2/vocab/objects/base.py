@@ -193,9 +193,15 @@ class as_VultronObject(as_Object):
 
     #: Trailing-underscore Python field names and the wire-facing names a core
     #: type accepts through its ``validation_alias``.  ``_to_core_data`` emits
-    #: the wire spelling so a core ``model_validate`` never receives an
-    #: un-aliased Python name that ``extra="forbid"`` would reject (#2940,
-    #: ARCH-23-005).
+    #: the wire spelling because ARCH-23-005 requires serialisation to use
+    #: wire-facing keys (``id``, ``type``, ``@context``) rather than Python field
+    #: names.
+    #:
+    #: It is **not** needed to get past ``extra="forbid"``: ``VultronBase`` sets
+    #: ``populate_by_name=True`` and Pydantic merges ``model_config`` across the
+    #: MRO, so core types already accept ``id_``/``type_``/``context_`` by field
+    #: name.  Do not restate the rejection rationale here — it is false, and it
+    #: misleads the next reader about what the boundary actually rejects (#2940).
     _CORE_WIRE_NAMES: ClassVar[tuple[tuple[str, str], ...]] = (
         ("id_", "id"),
         ("type_", "type"),
@@ -208,8 +214,9 @@ class as_VultronObject(as_Object):
         Reverses any ``_field_map`` renames and rewrites the trailing-underscore
         identity fields (``id_``/``type_``/``context_``) to their wire spellings
         (``id``/``type``/``@context``), which a core type accepts via its
-        ``validation_alias`` — so the dict validates under ``extra="forbid"``
-        rather than tripping on a Python field-name spelling (#2940).
+        ``validation_alias``.  This satisfies ARCH-23-005 (serialise under
+        wire-facing names); it is not what makes the dict pass ``extra="forbid"``
+        — ``populate_by_name=True`` already admits the Python names.
         """
         data = self.model_dump(mode="python", round_trip=True)
         for domain_field, wire_field in self._field_map.items():

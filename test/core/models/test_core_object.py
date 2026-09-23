@@ -274,14 +274,13 @@ def test_core_object_strips_computed_field_input():
     from vultron.core.models.participant_status import ParticipantStatus
     from vultron.core.states.participant_embargo_consent import PEC
 
-    # embargo_adherence is read-only and would trip extra="forbid"; the lie
-    # (True) must be ignored and the real value derived from consent (UNBOUND
-    # → not signatory → False).
+    # UNBOUND → not signatory → False, which is what the payload also says, so
+    # the redundant key is simply stripped.
     status = ParticipantStatus.model_validate(
         {
             "context": "urn:uuid:case-computed-strip",
             "consent": PecDimension(state=PEC.UNBOUND).model_dump(mode="json"),
-            "embargo_adherence": True,
+            "embargo_adherence": False,
         }
     )
     assert status.embargo_adherence is False
@@ -289,6 +288,12 @@ def test_core_object_strips_computed_field_input():
     # And a full dump round-trips (the computed key in the dump is stripped).
     assert ParticipantStatus.model_validate(
         status.model_dump(mode="json")
+    ) == (status)
+
+    # Including the camelCase spelling ParticipantStatus still emits, because it
+    # inherits alias_generator=to_camel pending #2288/#2289.
+    assert ParticipantStatus.model_validate(
+        status.model_dump(mode="json", by_alias=True)
     ) == (status)
 
 

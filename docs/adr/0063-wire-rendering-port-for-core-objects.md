@@ -154,13 +154,17 @@ Concretely:
 
 5. **(Pending — not yet landed; tracked by open #2288/#2289.)**
    `alias_generator` is removed from all eight classes, and
-   `_migrate_flat_fields` is deleted. Each de-aliased class gains a rejecting
-   `model_validator(mode="before")` built on the existing
-   `reject_wire_spelled_keys` mechanism in
-   `vultron/core/models/_wire_spelling.py`, extended to cover the flat wire field
-   names (`rm_state`/`rmState`, `vf_state`/`vfState`, `d_state`/`dState`,
-   `em_consent_state`/`emConsentState` — post-ADR-0075) so that a wire-shaped
-   payload raises instead of being silently dropped. `_to_core_status` in
+   `_migrate_flat_fields` is deleted.
+   **Amended (#2940):** the original plan here was for each de-aliased class to
+   gain a rejecting `model_validator(mode="before")` built on
+   `reject_wire_spelled_keys` in `vultron/core/models/_wire_spelling.py`. That
+   mechanism and that module were **deleted** in #2940, and SDO-03-005 now
+   forbids reinstating them for this purpose: the guarantee is `extra="forbid"`
+   on `CoreObject` (ARCH-12-003), which already makes a retired flat wire field
+   name (`rm_state`/`rmState`, `vf_state`/`vfState`, `d_state`/`dState`,
+   `em_consent_state`/`emConsentState` — post-ADR-0075) raise rather than be
+   silently dropped, once the `AliasChoices` entries that currently accept those
+   spellings are removed along with the `alias_generator`. `_to_core_status` in
    `behaviors/status/nodes/dimension_filter.py` is converted from
    dump-and-revalidate to the `to_core()` boundary projection at the same time,
    since the guard would otherwise make it raise (ARCH-20-007).

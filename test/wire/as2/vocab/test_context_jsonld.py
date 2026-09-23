@@ -20,6 +20,7 @@ from vultron.metadata.wire_context.sync import (
     WRITE_COMMAND,
     _all_object_subclasses,
     _concrete_type_value,
+    as2_term_values,
     build_context_document,
     is_stale,
     render_context_json,
@@ -88,6 +89,25 @@ def test_every_vultron_type_resolves_through_context() -> None:
         assert committed_terms[value] == f"vultron:{value}"
 
 
+def test_as2_term_set_excludes_vultron_terms() -> None:
+    """The AS2 term set must not be the whole wire registry.
+
+    ``WIRE_TYPE_MAP`` keys every wire type, Vultron ones included, so using it
+    as the "is this an AS2 term?" oracle skips every registered class and makes
+    the guard below vacuous.  Provenance comes from the defining module
+    instead; this test pins that distinction so the shortcut cannot come back.
+    """
+    as2_terms = as2_term_values()
+    for vultron_term in (
+        "VulnerabilityCase",
+        "CaseParticipant",
+        "EmbargoEvent",
+    ):
+        assert vultron_term in WIRE_TYPE_MAP
+        assert vultron_term not in as2_terms
+    assert "Note" in as2_terms  # a real AS2 term is still present
+
+
 def test_non_as2_wire_types_are_annotated_vultron() -> None:
     """AC-6: any wire type whose ``type`` value is not an AS2 term is VULTRON.
 
@@ -95,18 +115,60 @@ def test_non_as2_wire_types_are_annotated_vultron() -> None:
     ``_vocab_ns = AS`` from ``as_Event``): a Vultron-specific type left
     annotated ``AS`` would be silently dropped from the generated context.
     """
-    as2_terms = set(WIRE_TYPE_MAP)
+    as2_terms = as2_term_values()
+    # The guard is only meaningful if Vultron types actually reach the check.
+    assert as2_terms, "AS2 term set is empty — the oracle is broken"
+    reached = 0
     offenders = []
     for cls in _all_object_subclasses():
         value = _concrete_type_value(cls)
         if value is None or value in as2_terms:
             continue
+        reached += 1
         if getattr(cls, "_vocab_ns", None) is not VocabNamespace.VULTRON:
             offenders.append(f"{cls.__name__} (type={value!r})")
     assert not offenders, (
         "these wire classes carry a non-AS2 type but are not annotated "
         f"VocabNamespace.VULTRON, so they miss the context: {offenders}"
     )
+    # Without this the assertion above can pass by examining nothing at all.
+    assert reached >= len(vultron_context_terms()), (
+        f"only {reached} Vultron-typed classes reached the annotation check, "
+        f"fewer than the {len(vultron_context_terms())} generated terms — the "
+        "AS2 term set is over-broad and the guard is silently vacuous"
+    )
+
+
+def test_enumeration_ignores_classes_defined_outside_the_vocab_package() -> (
+    None
+):
+    """A test-defined wire subclass must not leak into enumeration.
+
+    ``as_Object.__subclasses__()`` is a live graph: a class declared inside a
+    test function joins it and cannot be removed by deleting its registry
+    entries (``test_wire_base_hierarchy`` does exactly that).  Such a leak both
+    failed this module's annotation guard spuriously and — when annotated
+    VULTRON — injected a bogus term into the *normative* artifact.
+    """
+    from typing import Literal
+
+    from pydantic import Field
+
+    from vultron.wire.as2.vocab.objects.base import as_VultronObject
+
+    before = vultron_context_terms()
+
+    class as_LeakProbe(as_VultronObject):  # noqa: N801
+        type_: Literal["LeakProbe"] = Field(
+            default="LeakProbe",
+            validation_alias="type",
+            serialization_alias="type",
+        )
+
+    assert as_LeakProbe not in _all_object_subclasses()
+    assert "LeakProbe" not in vultron_context_terms()
+    assert vultron_context_terms() == before
+    assert not is_stale()
 
 
 def test_generator_terms_match_committed_terms() -> None:

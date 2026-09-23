@@ -55,9 +55,13 @@ from vultron.adapters.driven.datalayer_sqlite import (
     SqliteDataLayer,
     reset_datalayer,
 )
+from pydantic.alias_generators import to_camel
+
 from vultron.core.models.base import CoreObject
 from vultron.core.models.protocols import PersistableModel
 from vultron.core.models.registry import CORE_VOCABULARY
+from vultron.core.ports.datalayer import StorableRecord
+from vultron.wire.as2.vocab.base.registry import VOCABULARY
 
 _WIRE_MODULE_PREFIX = "vultron.wire.as2"
 
@@ -179,6 +183,106 @@ def _collect_wire_escapes() -> frozenset[str]:
 
     reset_datalayer()
     return frozenset(wire_escapes)
+
+
+#: CORE_VOCABULARY keys whose *wire-shaped row* still reads back as a wire
+#: object.  Distinct from KNOWN_WIRE_ESCAPES above, which only exercises rows
+#: written from a *core-constructed* object.  Since #2940 removed the write-side
+#: normalisation, ingress can persist a wire-shaped row verbatim, so that path
+#: needs its own ratchet — a core-object round trip structurally cannot observe
+#: it.
+#:
+#: Empty on purpose: measured at #3531, every shadowed core type reads a
+#: wire-spelled row back as core.  Note this is *stricter* than
+#: KNOWN_WIRE_ESCAPES — the actor types listed there escape only when the row
+#: was written from a core object, not on this path.  Keep it empty.
+KNOWN_WIRE_SHAPED_ROW_ESCAPES: frozenset[str] = frozenset()
+
+#: Lower bound on how many types the wire-shaped-row ratchet must exercise, so a
+#: fixture change cannot quietly reduce it to nothing (the failure mode #3531
+#: found in the AC-6 guard).
+_MIN_WIRE_SHAPED_ROWS_EXERCISED = 5
+
+
+def _collect_wire_shaped_row_escapes() -> tuple[frozenset[str], int]:
+    """Return (escapes, number of types actually exercised)."""
+    reset_datalayer()
+    dl = SqliteDataLayer(
+        actor_id="https://test.example/api/v2/actors/test-actor"
+    )
+    escapes: set[str] = set()
+    exercised = 0
+
+    for vocab_key, base_cls in CORE_VOCABULARY.items():
+        if not issubclass(base_cls, CoreObject):
+            continue
+        if f"as_{vocab_key}" not in VOCABULARY:
+            continue  # no wire counterpart shadows this core type
+        cls: type[CoreObject] = base_cls  # type: ignore[assignment]
+        row_id = f"urn:test:{vocab_key.lower()}:wire-row-ratchet"
+        kwargs = _minimal_kwargs(cls)
+        kwargs["id_"] = row_id
+        try:
+            core_obj: CoreObject = cls(**kwargs)
+        except Exception:
+            continue
+        # Build a *wire-shaped* copy of valid core data: camelCase spellings plus
+        # the wire-facing identity keys.  Deriving it from a constructed core
+        # object keeps the payload semantically valid, so any failure to read it
+        # back as core is a genuine shape escape rather than missing data.
+        core_data = core_obj.model_dump(mode="json")
+        wire_data = {
+            to_camel(k): v
+            for k, v in core_data.items()
+            if k not in ("id_", "type_")
+        }
+        wire_data["id"] = row_id
+        wire_data["type"] = vocab_key
+        storable = StorableRecord(id_=row_id, type_=vocab_key, data_=wire_data)
+        try:
+            dl.create(storable)
+        except Exception:
+            continue
+        result = dl.read(row_id)
+        if result is None:
+            continue
+        exercised += 1
+        if type(result).__module__.startswith(_WIRE_MODULE_PREFIX):
+            escapes.add(vocab_key)
+
+    reset_datalayer()
+    return frozenset(escapes), exercised
+
+
+def test_dl_read_projects_wire_shaped_rows_to_core() -> None:
+    """A wire-shaped *row* must also read back as a core object (DL-05-002).
+
+    #2940 removed the write-side wire→core normalisation, so a wire-shaped
+    payload reaching ingress is now stored verbatim and the projection happens on
+    read.  ``KNOWN_WIRE_ESCAPES`` cannot see that path — it writes rows from
+    core-constructed objects — so without this ratchet a stored wire row could
+    hand a wire object to core callers on *every* read, indefinitely and
+    unobserved, rather than failing once at the boundary.
+    """
+    actual, exercised = _collect_wire_shaped_row_escapes()
+    new_escapes = actual - KNOWN_WIRE_SHAPED_ROW_ESCAPES
+    resolved = KNOWN_WIRE_SHAPED_ROW_ESCAPES - actual
+
+    assert exercised >= _MIN_WIRE_SHAPED_ROWS_EXERCISED, (
+        f"only {exercised} wire-shaped rows were exercised (expected at least "
+        f"{_MIN_WIRE_SHAPED_ROWS_EXERCISED}) — the fixture stopped building "
+        "valid rows and this ratchet is checking almost nothing"
+    )
+
+    assert not new_escapes, (
+        "NEW wire-shaped-row escapes — dl.read() returned a vultron.wire.as2 "
+        f"type for a verbatim wire row: {sorted(new_escapes)}. The read-side "
+        "projection (hydration.project_wire_row_to_core) must resolve these."
+    )
+    assert not resolved, (
+        "These wire-shaped-row escapes are fixed — remove them from "
+        f"KNOWN_WIRE_SHAPED_ROW_ESCAPES: {sorted(resolved)}"
+    )
 
 
 def test_dl_read_returns_core_objects_not_wire_types() -> None:

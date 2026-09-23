@@ -142,16 +142,22 @@ def from_row(
             obj = cast(PersistableModel, core_cls.model_validate(row.data))
         except (ValidationError, VultronValidationError) as exc:
             # The row's stored shape does not validate against the core class.
-            # Under extra="forbid" (ARCH-12-003, #2940) a wire-shaped copy of a
-            # core type (flat ``rm_state``, camelCase keys) now raises here
-            # rather than the retired per-class shape guard, so this is the sole
-            # shape-mismatch signal and it must attempt the wire→core
+            # Under extra="forbid" (ARCH-12-003, #2940) this is the sole
+            # shape-mismatch signal, raised by Pydantic here rather than by the
+            # retired per-class shape guard, so it must attempt the wire→core
             # projection: handing back a wire object makes every core-typed
             # caller fail (``resolve_case`` raises "Expected VulnerabilityCase,
             # got as_VulnerabilityCase").  ``project_wire_row_to_core`` falls
             # back to the un-projected wire object when the type has no working
             # ``to_core()`` — the residual KNOWN_WIRE_ESCAPES actor types
             # (DL-05-002, DL-05-004).
+            #
+            # Be precise about what actually trips this branch: an *unknown* key,
+            # i.e. a camelCase-only name such as ``participantStatuses``.  A flat
+            # ``rm_state``/``rmState`` does **not** — it is an AliasChoice on the
+            # dimension field, so it is interpreted rather than dropped, and such
+            # a row validates straight through as core without ever reaching the
+            # projection (#2288/#2289 remove those aliases).
             logger.debug(
                 "from_row: core_cls.model_validate failed for type %r"
                 " (row %r): %s; attempting wire→core projection",

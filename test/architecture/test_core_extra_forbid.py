@@ -54,6 +54,10 @@ def _all_core_object_subclasses() -> set[type[CoreObject]]:
     return {c for c in descend(CoreObject)}
 
 
+#: Why a CORE_VOCABULARY entry could not be minimally constructed, per name.
+_UNCONSTRUCTIBLE: dict[str, str] = {}
+
+
 def _minimal_kwargs(cls: type[CoreObject]) -> dict:
     """Minimum kwargs to construct *cls* without validation errors."""
     kwargs: dict = {}
@@ -80,11 +84,39 @@ def _constructible_vocab() -> list[tuple[str, CoreObject]]:
         kwargs["id_"] = f"urn:test:{name.lower()}:forbid"
         try:
             out.append((name, cls(**kwargs)))
-        except Exception:
-            # Not minimally constructible here — no core code stores it without
-            # its required fields either, so it is out of scope for this ratchet.
+        except Exception as exc:  # noqa: PERF203
+            # Not minimally constructible from synthesised kwargs.  Recorded
+            # rather than swallowed: AC-3/AC-4 claim coverage of *every*
+            # CORE_VOCABULARY entry, so an entry dropping out silently would
+            # weaken both ratchets with no signal.
+            _UNCONSTRUCTIBLE[name] = f"{type(exc).__name__}: {exc}"
             continue
     return out
+
+
+def test_every_core_vocabulary_entry_is_actually_exercised() -> None:
+    """The AC-3/AC-4 ratchets must cover every CORE_VOCABULARY entry.
+
+    Both iterate ``_constructible_vocab()``.  If a future core type gains a
+    required field ``_minimal_kwargs`` cannot synthesise, it would vanish from
+    those loops and they would keep passing while checking less.  This makes
+    that visible instead: extend ``_minimal_kwargs`` (or state the exemption
+    here deliberately) rather than letting coverage erode.
+    """
+    _UNCONSTRUCTIBLE.clear()
+    exercised = {name for name, _ in _constructible_vocab()}
+    expected = {
+        name
+        for name, cls in CORE_VOCABULARY.items()
+        if issubclass(cls, CoreObject)
+    }
+    missing = {
+        n: _UNCONSTRUCTIBLE.get(n, "?") for n in sorted(expected - exercised)
+    }
+    assert exercised == expected, (
+        'these CORE_VOCABULARY entries are not exercised by the extra="forbid" '
+        f"ratchets: {missing}"
+    )
 
 
 def test_every_core_object_forbids_extra_with_no_exemption_list() -> None:
@@ -114,12 +146,40 @@ def test_unknown_key_raises_for_every_core_vocabulary_entry() -> None:
             type(obj).model_validate(payload)
 
 
-def test_participant_status_rejects_wire_spelled_rm_state() -> None:
-    """AC-3: the concrete #2232 defect input is rejected, not dropped."""
-    from vultron.core.models.participant_status import ParticipantStatus
+def test_participant_status_does_not_drop_wire_spelled_rm_state() -> None:
+    """AC-3: the concrete #2232 defect — a lost RM ladder — cannot happen.
 
+    #2232 was *silent loss*: ``rmState`` was discarded and ``rm.state`` fell
+    back to ``RM.START`` with no error.  Two distinct outcomes prevent that, and
+    this pins both so neither can regress into a drop:
+
+    * ``rm_state``/``rmState`` are declared ``AliasChoices`` on the field, so the
+      value is *interpreted* rather than dropped.  (Removing those aliases so the
+      flat spellings raise instead is #2289; until then "rejected" is the wrong
+      assertion — see ``notes/wire-core-boundary.md``.)
+    * a spelling that is **not** an alias is rejected by ``extra="forbid"``.
+
+    Note the required ``context`` is supplied deliberately: without it every
+    input here raises on the missing field, so the test would pass while
+    asserting nothing about wire spellings at all.
+    """
+    from vultron.core.models.participant_status import ParticipantStatus
+    from vultron.core.states.rm import RM
+
+    for spelling in ("rm_state", "rmState"):
+        status = ParticipantStatus.model_validate(
+            {"context": "urn:uuid:case-2232", spelling: "RECEIVED"}
+        )
+        assert status.rm.state == RM.RECEIVED, (
+            f"{spelling} was dropped instead of interpreted — the #2232 "
+            "silent-loss defect"
+        )
+
+    # A non-alias wire spelling has nowhere to land, so forbid rejects it.
     with pytest.raises(ValidationError):
-        ParticipantStatus.model_validate({"rmState": "RECEIVED"})
+        ParticipantStatus.model_validate(
+            {"context": "urn:uuid:case-2232", "participantStatuses": "x"}
+        )
 
 
 def test_round_trip_is_exact_for_every_core_vocabulary_entry() -> None:

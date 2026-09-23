@@ -329,14 +329,27 @@ Pydantic v2 defaults to `extra="ignore"`, so historically removing a validator
 that accepted a legacy camelCase key silently dropped that key and reset the
 field to its start value — a lost RM ladder, not an error (the #2232 defect).
 
-`CoreObject` now sets `extra="forbid"` (ARCH-12-003): any unknown key on a core
-type raises rather than being dropped, so a wire-shaped payload handed to a core
-type fails loudly. This **subsumed and retired** the per-class camelCase
-reject-guards and `vultron/core/models/_wire_spelling.py`, and the
-persistence-boundary normalisation gate (`_normalize_to_core`,
+`CoreObject` now sets `extra="forbid"` (ARCH-12-003): any **unknown** key on a
+core type raises rather than being dropped. This **subsumed and retired** the
+per-class camelCase reject-guards and `vultron/core/models/_wire_spelling.py`,
+and the persistence-boundary normalisation gate (`_normalize_to_core`,
 `_NORMALIZE_WIRE_TO_CORE`, `_project_shadowing_wire_obj`) — all deleted in #2940.
 A wire-shaped row that is nonetheless persisted is projected to its core
 counterpart on **read** (`hydration.project_wire_row_to_core`).
+
+**Be precise about how much this rejects, because it is less than "a
+wire-shaped payload fails loudly".** `forbid` rejects keys the model does not
+know. Keys the model *does* know under a wire spelling are still accepted:
+
+- `participantStatuses`, `caseRoles` and other camelCase-only keys do now raise.
+- A flat `rm_state`/`rmState` on `ParticipantStatus`, or `em_state` on
+  `CaseStatus`, is **accepted** — those spellings are declared `AliasChoices` on
+  the dimension fields, so the value is *interpreted*, not dropped. That is not
+  the #2232 defect (nothing is lost), but it does mean
+  `CaseStatus.model_validate(as_CaseStatus(...).model_dump())` succeeds rather
+  than failing, and so does the `CaseParticipant` equivalent. Making those
+  spellings raise is #2288/#2289, which removes the `alias_generator` *and* the
+  `AliasChoices`.
 
 Two invariants keep `extra="forbid"` self-consistent, both enforced on
 `CoreObject` as `mode="before"` validators (see `_drop_computed_field_inputs`

@@ -16,6 +16,7 @@
 """Shared helper utilities for core domain model types."""
 
 import uuid
+from collections.abc import Iterable
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
@@ -131,6 +132,57 @@ def status_recency_key(
     return as_utc(updated) or as_utc(published) or _MIN_UTC
 
 
+class DuplicateKeySpellingError(ValueError):
+    """Two spellings of one field arrived carrying different values.
+
+    A :class:`ValueError` subclass on purpose: these are raised from
+    ``mode="before"`` validators on union-exposed core types, and pydantic only
+    converts ``ValueError``/``AssertionError`` into a ``ValidationError``.
+    ``VultronValidationError`` is not a ``ValueError`` subclass, so raising it
+    here would escape union resolution instead of failing the candidate branch
+    (the hazard recorded in #2940 and AGENTS.md).
+    """
+
+
+def collapse_duplicate_spellings(
+    data: dict[str, Any],
+    pairs: "Iterable[tuple[str, str]]",
+    *,
+    owner: str,
+) -> dict[str, Any]:
+    """Drop redundant key spellings, raising when the two disagree.
+
+    *pairs* is ``(keep, drop)`` key tuples.  When both keys are present and
+    carry equal values the ``drop`` spelling is redundant and is removed; when
+    they *disagree* one of two real values would be discarded silently, so this
+    raises instead.  Silently picking a winner is the defect class
+    ``extra="forbid"`` exists to eliminate (ARCH-12-003): it is how a
+    participant's RM ladder was reset without a trace (#2232).
+
+    Returns *data* unchanged (not copied) when there is nothing to collapse.
+    """
+    conflicts: list[str] = []
+    drops: set[str] = set()
+    for keep, drop in pairs:
+        if keep not in data or drop not in data:
+            continue
+        if data[keep] == data[drop]:
+            drops.add(drop)
+            continue
+        conflicts.append(
+            f"{drop}={data[drop]!r} conflicts with {keep}={data[keep]!r}"
+        )
+    if conflicts:
+        raise DuplicateKeySpellingError(
+            f"{owner} received two spellings of the same field with different "
+            f"values: {'; '.join(sorted(conflicts))}. Convert at the wire->core "
+            "boundary instead of passing both spellings."
+        )
+    if not drops:
+        return data
+    return {k: v for k, v in data.items() if k not in drops}
+
+
 def project_wire_snapshot_to_core(cls: type[BaseModel], data: Any) -> Any:
     """Rename a wire-rendered snapshot's camelCase keys to *cls*'s field names.
 
@@ -161,6 +213,13 @@ def project_wire_snapshot_to_core(cls: type[BaseModel], data: Any) -> Any:
             remap[camel] = name
     if not remap:
         return data
+    # A snapshot carrying *both* spellings would collapse onto one key and lose
+    # a value by iteration order, so reject a disagreement before remapping.
+    data = collapse_duplicate_spellings(
+        data,
+        ((name, camel) for camel, name in remap.items()),
+        owner=f"{cls.__name__} wire snapshot",
+    )
     return {remap.get(key, key): value for key, value in data.items()}
 
 

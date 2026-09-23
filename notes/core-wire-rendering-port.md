@@ -201,11 +201,20 @@ default to `RM.START` — a whole RM ladder lost with no error. That is the #223
 defect class and an ARCH-15-001/ARCH-15-002 violation. This is codified as
 **SDO-03-005**.
 
-The guard mechanism already exists: `reject_wire_spelled_keys` in
-`vultron/core/models/_wire_spelling.py`, used by
-`CaseParticipant._reject_wire_spelled_keys`. Extend it to cover the retired flat
-field names, then add a `model_validator(mode="before")` to each de-aliased
-class.
+**The guard is already in place, and it is not a reject-guard (#2940).**
+`CoreObject` sets `extra="forbid"` (ARCH-12-003), so once `alias_generator` goes
+a retired flat key has nowhere to land and Pydantic raises by itself. This is
+what SDO-03-005 now requires: the guarantee MUST be `extra="forbid"`, and a
+per-class `model_validator(mode="before")` reject-guard for those keys "MUST NOT
+be added or retained for this purpose". The former mechanism
+(`reject_wire_spelled_keys` in `vultron/core/models/_wire_spelling.py`, used by
+`CaseParticipant._reject_wire_spelled_keys`) was **deleted** in #2940 — do not
+plan #2288/#2289 around extending it.
+
+One thing to verify while doing #2289: the flat spellings are currently declared
+as `AliasChoices` on the dimension fields, so today they are *interpreted*, not
+dropped. Removing `alias_generator` is not sufficient on its own — the
+`AliasChoices` entries have to go too, or the flat key keeps being accepted.
 
 Raising is safe on the read path: `VultronValidationError` is already caught by
 `DataLayer._from_row`, which falls back to `_wire_object_from_row` →

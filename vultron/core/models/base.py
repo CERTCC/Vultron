@@ -215,16 +215,34 @@ class CoreObject(VultronObject):
         computed = cls.model_computed_fields
         if not isinstance(data, dict) or not computed:
             return data
-        drop: set[str] = set()
-        for name, info in computed.items():
-            drop.add(name)
-            alias = getattr(info, "alias", None)
-            if isinstance(alias, str):
-                drop.add(alias)
-            drop.add(to_camel(name))
-        if drop & data.keys():
+        drop = cls._computed_field_spellings().keys() & data.keys()
+        if drop:
             data = {k: v for k, v in data.items() if k not in drop}
         return data
+
+    @classmethod
+    def _computed_field_spellings(cls) -> dict[str, str]:
+        """Map every key spelling a computed field can arrive under to its name."""
+        spellings: dict[str, str] = {}
+        for name, info in cls.model_computed_fields.items():
+            spellings[name] = name
+            # ParticipantStatus still inherits alias_generator=to_camel pending
+            # #2288/#2289, so its dump(by_alias=True) emits `embargoAdherence`.
+            spellings[to_camel(name)] = name
+            alias = getattr(info, "alias", None)
+            if isinstance(alias, str):
+                spellings[alias] = name
+        return spellings
+
+    # NOTE (#2940 triage): rejecting a *contradicted* computed-field value here
+    # instead of stripping it was considered and rejected on evidence.
+    # ``as_ParticipantStatus.embargo_adherence`` is an independent settable wire
+    # field, while core derives it from ``consent`` (ADR-0056), so a wire row
+    # carrying ``embargo_adherence: True`` with no ``consent`` legitimately
+    # disagrees with the core-derived ``False``.  Raising there breaks the
+    # wire→core read projection (it makes ``dl.read()`` return the wire object).
+    # Telling "re-reading our own dump" apart from "projecting a wire row"
+    # requires the WireParsePort (#2938).  Tracked by #3547.
 
     @model_validator(mode="before")
     @classmethod
@@ -240,6 +258,17 @@ class CoreObject(VultronObject):
         every such injection in one place rather than each site guarding
         itself (see ``notes/wire-core-boundary.md`` § "The ``id_`` Failures Are
         an Alias-Injection Bug").
+
+        The alias wins even when the two values *differ*, which is deliberate
+        rather than a silent pick: thirteen core types derive a canonical id in
+        a ``mode="before"`` validator and write it under the alias — a ledger
+        entry is addressed ``{case_id}/log/{log_index}`` (and several types mint
+        a fresh urn), so a caller-supplied ``id_`` is meant to be superseded,
+        not honoured.  Raising on disagreement was tried during #3531 triage and
+        breaks exactly those paths (e.g. the extractor passes the wire activity
+        id to ``CaseLedgerEntry`` alongside ``case_id``).  Only the *external*
+        both-spellings-supplied case is genuinely ambiguous, and no live path
+        reaches it — the wire layer supplies ``id`` alone.
         """
         if not isinstance(data, dict):
             return data
