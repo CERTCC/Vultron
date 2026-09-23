@@ -21,8 +21,7 @@ import logging
 from datetime import datetime, timedelta, timezone
 from typing import Any, ClassVar, Literal
 
-from pydantic import ConfigDict, Field, model_validator
-from pydantic.alias_generators import to_camel
+from pydantic import Field, model_validator
 
 from vultron.core.models._helpers import (
     _new_urn,
@@ -63,8 +62,6 @@ class VulnerabilityCase(CoreObject):
     avoid circular-reference issues during serialization.  See ADR-0017
     for the rationale.
     """
-
-    model_config = ConfigDict(alias_generator=to_camel)
 
     type_: Literal["VulnerabilityCase"] = Field(
         default="VulnerabilityCase",

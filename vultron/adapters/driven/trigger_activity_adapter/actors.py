@@ -456,20 +456,18 @@ class _ActorsMixin:
                 "ParticipantStatus",
                 f"status '{status_id}' not found",
             )
-        # Convert from core as_ParticipantStatus to wire as_ParticipantStatus
-        # so that nested fields (case_status, pxa_state) survive the boundary.
-        from vultron.core.models.participant_status import (
-            ParticipantStatus as CorePS,
-        )
-
-        if isinstance(raw, CorePS):
-            wire_status: as_ParticipantStatus = as_ParticipantStatus.from_core(
-                raw
-            )
-        else:
-            wire_status = cast(as_ParticipantStatus, raw)
+        # No conversion step: ``as_ParticipantStatus`` *is* ``ParticipantStatus``
+        # (ADR-0099 detail 3), so the object read from the DataLayer is already the
+        # class the activity slot wants.  This previously called
+        # ``as_ParticipantStatus.from_core(raw)`` to make nested fields survive a
+        # boundary that no longer exists; once the pair collapsed, that call raised
+        # ``AttributeError: from_core`` and the use case reported "Activity
+        # construction failed".
         activity = add_status_to_participant_activity(
-            status=wire_status, target=participant_id, actor=actor, to=to
+            status=cast(as_ParticipantStatus, raw),
+            target=participant_id,
+            actor=actor,
+            to=to,
         )
         try:
             self._dl.create(activity)

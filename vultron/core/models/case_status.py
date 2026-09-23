@@ -17,8 +17,7 @@
 
 from typing import Literal
 
-from pydantic import AliasChoices, ConfigDict, Field, model_validator
-from pydantic.alias_generators import to_camel
+from pydantic import AliasChoices, Field, model_validator
 
 from vultron.core.models.base import CoreObject, NonEmptyString
 from vultron.core.models.dimensions import EmDimension, PxaDimension
@@ -40,8 +39,6 @@ class CaseStatus(CoreObject):
     ``em`` and ``pxa`` are dimension objects that own the EM and PXA state
     machines respectively (ADR-0036, SDO-03-001).
     """
-
-    model_config = ConfigDict(alias_generator=to_camel)
 
     type_: Literal["CaseStatus"] = Field(
         default="CaseStatus",
@@ -81,15 +78,35 @@ class CaseStatus(CoreObject):
     # above accept all three spellings, and ``_ScalarDimension``'s
     # ``_accept_bare_state`` accepts the bare state value the flat form carries.
 
+    # ``em_state``/``pxa_state`` are a read/write view onto the dimension, not a
+    # second place to keep the value: the dimension owns the state machine
+    # (ADR-0036, SDO-03-001) and the flat spelling is only how it serializes
+    # (ADR-0099 detail 5).  They exist because the deleted ``as_CaseStatus``
+    # carried ``em_state``/``pxa_state`` as real fields, so callers and tests
+    # written against the wire class read *and assigned* them.
+    #
+    # The setters are what make that compatibility real.  Read-only properties
+    # satisfied every reader and then failed on the first writer with
+    # "property has no setter" — which is not a compatibility shim, just a
+    # narrower break.
+
     @property
     def em_state(self) -> EM:
-        """Return the EM state value. Alias for ``em.state``."""
+        """The EM state value. A view onto ``em.state``."""
         return self.em.state
+
+    @em_state.setter
+    def em_state(self, value: EM) -> None:
+        self.em = EmDimension(state=value)
 
     @property
     def pxa_state(self) -> CS_pxa:
-        """Return the PXA state value. Alias for ``pxa.state``."""
+        """The PXA state value. A view onto ``pxa.state``."""
         return self.pxa.state
+
+    @pxa_state.setter
+    def pxa_state(self, value: CS_pxa) -> None:
+        self.pxa = PxaDimension(state=value)
 
     @model_validator(mode="after")
     def _set_name(self) -> "CaseStatus":

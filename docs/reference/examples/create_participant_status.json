@@ -1,5 +1,5 @@
 {
-  "id": "urn:uuid:bc4eb618-99a4-4b26-9d84-114bb8cb2743",
+  "id": "urn:uuid:3543e751-03cc-4571-9f49-122fd002a27c",
   "type": "Create",
   "name": "https://vultron.example/organizations/vendorco Create RECEIVED Vf NONE pxa",
   "@context": "https://www.w3.org/ns/activitystreams",
@@ -12,11 +12,9 @@
     "published": "2026-06-01T19:12:00+00:00",
     "updated": "2026-06-01T19:12:00+00:00",
     "attributedTo": "https://vultron.example/organizations/vendor",
-    "@context": "https://certcc.github.io/Vultron/ns/context.jsonld",
     "rmState": "RECEIVED",
     "vfState": "Vf",
     "caseEngagement": true,
-    "embargoAdherence": false,
     "cvdRole": [
       "OBSERVER"
     ],
@@ -27,9 +25,11 @@
       "context": "https://vultron.example/cases/1",
       "published": "2026-06-01T19:12:00+00:00",
       "updated": "2026-06-01T19:12:00+00:00",
-      "@context": "https://certcc.github.io/Vultron/ns/context.jsonld",
       "emState": "NONE",
-      "pxaState": "pxa"
-    }
+      "pxaState": "pxa",
+      "@context": "https://certcc.github.io/Vultron/ns/context.jsonld"
+    },
+    "embargoAdherence": false,
+    "@context": "https://certcc.github.io/Vultron/ns/context.jsonld"
   }
 }

@@ -123,7 +123,12 @@ _ACTOR = as_Person(name="Alice")
 _CASE = as_VulnerabilityCase(name="Test Case")
 _REPORT = as_VulnerabilityReport(name="CVE-TEST-001")
 _NOTE = as_Note(name="Test Note")
-_STATUS = as_CaseStatus()
+# ``context`` is required: it names the case the status belongs to, and a status
+# with no case is not a thing the protocol can carry.  The deleted wire class
+# admitted it as absent, because the wire branch was deliberately lenient
+# (ARCH-12-002); the core class is fail-fast (ARCH-10-001) and is now the only
+# class.
+_STATUS = as_CaseStatus(context=_CASE.id_)
 _PARTICIPANT_STATUS = as_ParticipantStatus(context=_CASE.id_)
 _EMBARGO = as_EmbargoEvent(name="Embargo Event", context="urn:uuid:case-123")
 _PARTICIPANT = as_CaseParticipant(attributed_to=_ACTOR.id_)

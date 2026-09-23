@@ -1,7 +1,7 @@
 {
-  "id": "urn:uuid:a68e1467-96b7-4987-b820-3a8779f8ac2c",
+  "id": "urn:uuid:d9e4d6ff-5113-4c86-a4c0-46500b5f5f6d",
   "type": "Reject",
-  "name": "https://vultron.example/organizations/coordinator Reject https://vultron.example/organizations/vendorco Offer urn:uuid:304eb54f-8727-4236-a019-589a5272eaaf to Coordinator LLC",
+  "name": "https://vultron.example/organizations/coordinator Reject https://vultron.example/organizations/vendorco Offer urn:uuid:087250b1-a1bb-4197-b2fd-2bf779d72508 to Coordinator LLC",
   "content": "We're declining the role you offered.",
   "to": [
     "https://vultron.example/organizations/vendorco"
@@ -9,34 +9,47 @@
   "@context": "https://www.w3.org/ns/activitystreams",
   "actor": "https://vultron.example/organizations/coordinator",
   "object": {
-    "id": "urn:uuid:a1538429-37ea-4eab-8065-854e925a55c8",
+    "id": "urn:uuid:e3a5e796-1bc1-48c4-aa6f-028d7d9e761c",
     "type": "Offer",
-    "name": "https://vultron.example/organizations/vendorco Offer urn:uuid:304eb54f-8727-4236-a019-589a5272eaaf to Coordinator LLC",
+    "name": "https://vultron.example/organizations/vendorco Offer urn:uuid:087250b1-a1bb-4197-b2fd-2bf779d72508 to Coordinator LLC",
     "context": {
-      "id": "urn:uuid:7b2a011a-de61-466a-af40-8cfdc92b5e2a",
+      "id": "urn:uuid:a0a80546-90d9-482d-916a-72f47f8a64d6",
       "type": "VulnerabilityCase",
-      "name": "VendorCo Case #46462114",
-      "published": "2026-09-18T21:33:04+00:00",
-      "updated": "2026-09-18T21:33:04+00:00",
+      "name": "VendorCo Case #61038668",
+      "published": "2026-09-23T16:41:56+00:00",
+      "updated": "2026-09-23T16:41:56+00:00",
       "attributedTo": "https://vultron.example/organizations/vendorco",
-      "@context": "https://certcc.github.io/Vultron/ns/context.jsonld",
       "caseParticipants": [],
       "actorParticipantIndex": {},
       "vulnerabilityReports": [],
-      "caseStatuses": [],
+      "caseStatuses": [
+        {
+          "id": "urn:uuid:ad9a662e-e103-401e-998e-b3ae27edceeb",
+          "type": "CaseStatus",
+          "name": "NONE pxa",
+          "context": "urn:uuid:a0a80546-90d9-482d-916a-72f47f8a64d6",
+          "published": "2026-09-23T16:41:56+00:00",
+          "updated": "2026-09-23T16:41:56+00:00",
+          "attributedTo": "https://vultron.example/organizations/vendorco",
+          "emState": "NONE",
+          "pxaState": "pxa",
+          "@context": "https://certcc.github.io/Vultron/ns/context.jsonld"
+        }
+      ],
       "notes": [],
-      "genesisHash": "6f952de54da1b7dd553f0c4952b20853cb5f7c62657ce3e1f6f61ed6ac7eb9c2",
       "proposedEmbargoes": [],
       "pendingEmbargoProposalIndex": {},
       "recommendationRecommenderIndex": {},
       "caseActivity": [],
+      "genesisHash": "84e1411f242ec6e1e1ee9cd6cb6cc3d05d4a85c44aa8030fbeb13edc81a031d9",
       "parentCases": [],
       "childCases": [],
-      "siblingCases": []
+      "siblingCases": [],
+      "@context": "https://certcc.github.io/Vultron/ns/context.jsonld"
     },
-    "published": "2026-09-18T21:33:05+00:00",
-    "updated": "2026-09-18T21:33:05+00:00",
-    "content": "We're offering the coordinator role on case VendorCo Case #46462114 to Coordinator LLC.",
+    "published": "2026-09-23T16:41:57+00:00",
+    "updated": "2026-09-23T16:41:57+00:00",
+    "content": "We're offering the coordinator role on case VendorCo Case #61038668 to Coordinator LLC.",
     "to": [
       "https://vultron.example/organizations/coordinator"
     ],
@@ -46,33 +59,33 @@
       "id": "https://vultron.example/organizations/coordinator",
       "type": "Organization",
       "name": "Coordinator LLC",
-      "published": "2026-09-18T21:33:04+00:00",
-      "updated": "2026-09-18T21:33:04+00:00",
+      "published": "2026-09-23T16:41:56+00:00",
+      "updated": "2026-09-23T16:41:56+00:00",
       "@context": "https://www.w3.org/ns/activitystreams",
       "inbox": {
-        "id": "urn:uuid:e0cecd94-b098-45bb-8520-6b5c3d2668c9",
+        "id": "urn:uuid:490ba486-0899-4fcf-b132-b6403ed08b24",
         "type": "OrderedCollection",
-        "published": "2026-09-18T21:33:04+00:00",
-        "updated": "2026-09-18T21:33:04+00:00",
+        "published": "2026-09-23T16:41:56+00:00",
+        "updated": "2026-09-23T16:41:56+00:00",
         "@context": "https://www.w3.org/ns/activitystreams",
         "items": [],
         "current": 0
       },
       "outbox": {
-        "id": "urn:uuid:a226608f-711e-42fd-99f1-79aaade63848",
+        "id": "urn:uuid:25388126-8760-4d8e-80bb-59a1989fa4b3",
         "type": "OrderedCollection",
-        "published": "2026-09-18T21:33:04+00:00",
-        "updated": "2026-09-18T21:33:04+00:00",
+        "published": "2026-09-23T16:41:56+00:00",
+        "updated": "2026-09-23T16:41:56+00:00",
         "@context": "https://www.w3.org/ns/activitystreams",
         "items": [],
         "current": 0
       }
     },
     "object": {
-      "id": "urn:uuid:304eb54f-8727-4236-a019-589a5272eaaf",
+      "id": "urn:uuid:087250b1-a1bb-4197-b2fd-2bf779d72508",
       "type": "CaseParticipantRole",
-      "published": "2026-09-18T21:33:05+00:00",
-      "updated": "2026-09-18T21:33:05+00:00",
+      "published": "2026-09-23T16:41:57+00:00",
+      "updated": "2026-09-23T16:41:57+00:00",
       "@context": "https://certcc.github.io/Vultron/ns/context.jsonld",
       "role": "coordinator"
     }

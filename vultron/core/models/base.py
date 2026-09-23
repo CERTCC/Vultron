@@ -24,12 +24,27 @@ from pydantic import (
     BaseModel,
     ConfigDict,
     Field,
+    SerializationInfo,
+    SerializerFunctionWrapHandler,
+    field_serializer,
+    model_serializer,
     model_validator,
 )
+from pydantic.alias_generators import to_camel
 
 from vultron.core.models._helpers import _new_urn, now_utc
 from vultron.core.models.registry import CORE_TYPE_MAP, CORE_VOCABULARY
 from vultron.primitives import NonEmptyString, UriString  # noqa: F401
+
+#: The Vultron JSON-LD ``@context``.  VM-10-001 (MUST) requires it on every
+#: Vultron-specific object on the wire; the ActivityStreams namespace alone "is
+#: not sufficient" for types AS2 does not define.
+#:
+#: It lives in core rather than beside ``ACTIVITY_STREAMS_NS`` in the wire layer
+#: because under ADR-0099 the core classes *are* the objects that carry it, and
+#: core MUST NOT import wire (ARCH-01-001 — the one boundary rule ADR-0099 leaves
+#: fully in force).  Wire imports it from here, which detail 6 permits.
+VULTRON_CONTEXT_URI = "https://certcc.github.io/Vultron/ns/context.jsonld"
 
 
 class ValidatedAssignmentMixin(BaseModel):
@@ -168,14 +183,37 @@ class CoreObject(VultronObject):
     ``__init_subclass__``.  Subclasses that leave ``type_`` abstract
     (omitted, or annotated as a union) are intentionally not registered.
 
-    ``context_`` defaults to ``None``: the JSON-LD ``@context`` value is a
-    wire-layer concern, and the wire projection layer is responsible for
-    supplying the AS2 namespace at serialization time.
+    ``context_`` defaults to ``None`` and is ``exclude=True``, so it never
+    reaches a stored row: ADR-0099 detail 1 keeps persistence on Python field
+    names with no ``@context``.  It is emitted only on the AS2 path — see
+    :meth:`_serialize_with_jsonld_context`.
 
     See ``docs/adr/0017-domain-wire-object-separation.md`` for the
     rationale, and ``notes/domain-model-separation.md`` for the broader
     architectural direction (tracked by issue #699).
     """
+
+    # The AS2 spelling of every field, derived rather than hand-maintained.
+    #
+    # ADR-0099 detail 2 puts the AS2 spelling on the core class, because under one
+    # object model there is no second class left to hold it.  `to_camel` derives
+    # it correctly for all but three fields — `id_`, `type_` and `context_`, whose
+    # trailing underscores exist to dodge Python keyword/shadowing collisions and
+    # which therefore carry explicit aliases (`id`, `type`, `@context`).  `@context`
+    # could not come from a generator at all.
+    #
+    # Deriving beats enumerating here: a hand-written alias per field silently
+    # omits the ones nobody remembered, which is precisely how `attributedTo`
+    # became `attributed_to` on the wire for four object types.  What keeps the
+    # derivation honest is a closed-world test on the projected key set
+    # (test_core_object_projection_keys), not the declaration site.
+    #
+    # ARCH-20-001 forbids this, on a rationale that predates ADR-0099: it reads
+    # "keeps every fact about wire spelling ... behind the adapter-side translator
+    # that owns projection (ARCH-12-005)", and ADR-0099 removed that translator.
+    # The part of the rule that still binds — one rendering seam — is unaffected:
+    # the port remains the only caller that passes `by_alias=True`.
+    model_config = ConfigDict(alias_generator=to_camel)
 
     context_: NonEmptyString | None = Field(
         default=None,
@@ -183,6 +221,65 @@ class CoreObject(VultronObject):
         serialization_alias="@context",
         exclude=True,
     )
+
+    @field_serializer(
+        "start_time", "end_time", "published", "updated", when_used="json"
+    )
+    def _serialize_datetime(self, value: datetime | None) -> str | None:
+        """Write timestamps with an explicit offset, as the wire classes did.
+
+        Pydantic's default JSON form for an aware UTC datetime is ``...Z``;
+        ``isoformat()`` gives ``...+00:00``.  Both denote the same instant and
+        both are valid ISO-8601, which is why swapping them is invisible in
+        review — but they are different *bytes*, and
+        ``CaseLedgerEntry.payloadSnapshot`` is compared across replicas, so two
+        actors on different spellings disagree about the canonical snapshot of an
+        identical event.
+
+        Every one of the 226 timestamps in ``docs/reference/examples`` uses the
+        offset form, so that is the published contract.  Promoting a core class
+        onto the wire must not quietly renegotiate it.
+        """
+        if value is None:
+            return None
+        return value.isoformat()
+
+    @model_serializer(mode="wrap")
+    def _serialize_with_jsonld_context(
+        self,
+        handler: SerializerFunctionWrapHandler,
+        info: SerializationInfo,
+    ) -> Any:
+        """Add the JSON-LD ``@context`` on the AS2 path, and only there.
+
+        ADR-0099 detail 1 gives one class two serializations, chosen by where the
+        object is going:
+
+        ==========================  ==========================================
+        inter-actor delivery        ``model_dump_json(by_alias=True)`` — AS2:
+                                    camelCase **plus** ``@context``
+        persistence                 ``model_dump(mode="json")`` — Python field
+                                    names, no ``@context``
+        ==========================  ==========================================
+
+        ``by_alias`` is exactly that fork, so it is what selects the behaviour
+        here rather than a flag a caller has to remember to pass.
+
+        VM-10-001 (MUST) requires the Vultron context on Vultron-specific objects;
+        the ActivityStreams namespace alone "is not sufficient".  Before ADR-0099
+        the paired ``as_*`` class supplied it from ``as_Base``; deleting those
+        classes removed it from every promoted type, including nested ones such as
+        ``caseParticipants[]``, which is not a change any peer asked for.
+
+        An explicitly-supplied ``context_`` wins, so a document parsed from the
+        wire round-trips with the context it arrived with instead of being
+        silently relabelled.
+        """
+        data = handler(self)
+        if not isinstance(data, dict) or not info.by_alias:
+            return data
+        data["@context"] = self.context_ or VULTRON_CONTEXT_URI
+        return data
 
     # Re-narrow published/updated: the core branch guarantees these are always
     # populated (default_factory ensures it).  VultronObject uses datetime|None

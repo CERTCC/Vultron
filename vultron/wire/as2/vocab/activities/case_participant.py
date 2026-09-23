@@ -46,7 +46,7 @@ class _CreateParticipantActivity(as_Create):
     object_: as_CaseParticipant = Field(
         ..., validation_alias="object", serialization_alias="object"
     )
-    target: as_VulnerabilityCaseRef = None  # type: ignore[assignment]
+    target: as_VulnerabilityCaseRef = None
 
     @model_validator(mode="after")
     def set_name(self):
@@ -109,7 +109,7 @@ class _AddParticipantToCaseActivity(as_Add):
     object_: as_CaseParticipant = Field(
         ..., validation_alias="object", serialization_alias="object"
     )
-    target: as_VulnerabilityCaseRef = None  # type: ignore[assignment]
+    target: as_VulnerabilityCaseRef = None
 
 
 class _RemoveParticipantFromCaseActivity(as_Remove):
@@ -122,4 +122,4 @@ class _RemoveParticipantFromCaseActivity(as_Remove):
     object_: as_CaseParticipant = Field(
         ..., validation_alias="object", serialization_alias="object"
     )
-    target: as_VulnerabilityCaseRef = None  # type: ignore[assignment]
+    target: as_VulnerabilityCaseRef = None

@@ -85,7 +85,14 @@ class CaseParticipant(CoreObject):
     accepted_embargo_ids: list[NonEmptyString] = Field(default_factory=list)
     embargo_consent_state: PEC = Field(default=PEC.UNBOUND)
     participant_case_name: NonEmptyString | None = None
-    invite_rsvp_deadline: datetime | None = None
+    # Local bookkeeping, not an AS2 property: the deadline by which this actor's
+    # own implementation wants an RSVP.  ADR-0099 detail 3 makes a class that can
+    # appear in a message slot exactly AS2-representable, and "MUST NOT carry a
+    # field that cannot go on the wire" — so this is excluded rather than given an
+    # invented ``inviteRsvpDeadline`` spelling that no peer would understand.
+    # ``force_rm_state``/``previous_rm_state`` on ParticipantStatus are excluded
+    # for the same reason.
+    invite_rsvp_deadline: datetime | None = Field(default=None, exclude=True)
 
     @model_validator(mode="before")
     @classmethod

@@ -83,6 +83,12 @@ from vultron.wire.as2.factories import (
 from vultron.demo.helpers.runner import run_exchange_demos
 from vultron.demo.helpers.verification import _fetch_participant
 from vultron.demo.helpers.workflow import setup_initialized_case
+from vultron.core.models.dimensions import (
+    EmDimension,
+    PecDimension,
+    PxaDimension,
+    RmDimension,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -206,8 +212,8 @@ def demo_status_workflow(
     with demo_step("Step 1: Vendor creates as_CaseStatus"):
         case_status = as_CaseStatus(
             context=case.id_,
-            em_state=EM.NONE,
-            pxa_state=CS_pxa.pxa,
+            em=EmDimension(state=EM.NONE),
+            pxa=PxaDimension(state=CS_pxa.pxa),
         )
         create_status_activity = create_case_status_activity(
             case_status, actor=vendor.id_, context=case.id_
@@ -239,9 +245,9 @@ def demo_status_workflow(
     with demo_step("Step 3: Vendor creates as_ParticipantStatus"):
         participant_status = as_ParticipantStatus(
             context=participant.id_,
-            rm_state=RM.RECEIVED,
+            rm=RmDimension(state=RM.RECEIVED),
             attributed_to=finder.id_,
-            em_consent_state=PEC.UNBOUND,
+            consent=PecDimension(state=PEC.UNBOUND),
             cvd_role=[CVDRole.FINDER],
             case_status=case_status,
         )

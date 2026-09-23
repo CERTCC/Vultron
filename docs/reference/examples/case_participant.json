@@ -4,7 +4,6 @@
   "name": "Vendor",
   "context": "https://vultron.example/cases/1",
   "attributedTo": "https://vultron.example/organizations/vendor",
-  "@context": "https://certcc.github.io/Vultron/ns/context.jsonld",
   "caseRoles": [
     "vendor"
   ],
@@ -17,11 +16,9 @@
       "published": "2026-06-01T19:12:00+00:00",
       "updated": "2026-06-01T19:12:00+00:00",
       "attributedTo": "https://vultron.example/organizations/vendor",
-      "@context": "https://certcc.github.io/Vultron/ns/context.jsonld",
       "rmState": "RECEIVED",
       "vfState": "Vf",
       "caseEngagement": true,
-      "embargoAdherence": false,
       "cvdRole": [
         "OBSERVER"
       ],
@@ -32,12 +29,15 @@
         "context": "https://vultron.example/cases/1",
         "published": "2026-06-01T19:12:00+00:00",
         "updated": "2026-06-01T19:12:00+00:00",
-        "@context": "https://certcc.github.io/Vultron/ns/context.jsonld",
         "emState": "NONE",
-        "pxaState": "pxa"
-      }
+        "pxaState": "pxa",
+        "@context": "https://certcc.github.io/Vultron/ns/context.jsonld"
+      },
+      "embargoAdherence": false,
+      "@context": "https://certcc.github.io/Vultron/ns/context.jsonld"
     }
   ],
   "acceptedEmbargoIds": [],
-  "embargoConsentState": "UNBOUND"
+  "embargoConsentState": "UNBOUND",
+  "@context": "https://certcc.github.io/Vultron/ns/context.jsonld"
 }

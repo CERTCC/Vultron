@@ -21,13 +21,17 @@ from typing import ClassVar
 from pydantic import Field, model_validator, ConfigDict
 from pydantic.alias_generators import to_camel
 
-from vultron.core.models.base import VultronBase
+from vultron.core.models.base import VULTRON_CONTEXT_URI, VultronBase
 from vultron.wire.as2.vocab.base.enums import VocabNamespace
 from vultron.wire.as2.vocab.base.registry import VOCABULARY, WIRE_TYPE_MAP
 from vultron.wire.as2.vocab.base.utils import generate_new_id
 
 ACTIVITY_STREAMS_NS = "https://www.w3.org/ns/activitystreams"
-VULTRON_CONTEXT_URI = "https://certcc.github.io/Vultron/ns/context.jsonld"
+
+# Re-exported: this was the constant's original home, and wire-layer callers
+# import it from here.  It now lives in core, because core objects are what
+# carry it under ADR-0099 and core cannot import wire (ARCH-01-001).
+__all__ = ["ACTIVITY_STREAMS_NS", "VULTRON_CONTEXT_URI", "as_Base"]
 
 
 class as_Base(VultronBase):

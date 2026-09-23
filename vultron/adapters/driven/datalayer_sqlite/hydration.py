@@ -284,13 +284,27 @@ def _normalize_wire_nested_objects(
         for p in participants:
             if isinstance(p, dict):
                 try:
-                    wire_p = as_CaseParticipant.model_validate(p)
-                    core_p = wire_p.to_core()
+                    # as_CaseParticipant *is* CaseParticipant (ADR-0099 detail 3),
+                    # so validating yields the core object directly — there is no
+                    # projection left to apply.  Re-dumping still normalises the
+                    # keys, which is this function's whole job.
+                    core_p = as_CaseParticipant.model_validate(p)
                     patched.append(core_p.model_dump(mode="json"))
                     changed = True
                     continue
                 except Exception:
-                    pass
+                    # Logged rather than swallowed: if *no* participant normalises
+                    # this function returns None, _recover_vve_row returns None, and
+                    # dl.read() reports the case as **absent** rather than
+                    # unreadable.  Every sibling recovery path in this module logs
+                    # for exactly that reason — a silent fallback here is what made
+                    # this class of shape bug so hard to trace.
+                    logger.warning(
+                        "_normalize_wire_nested_objects: could not normalise"
+                        " participant %r; leaving it unchanged",
+                        p.get("id") or p.get("id_"),
+                        exc_info=True,
+                    )
             patched.append(p)
         if changed:
             normalized["case_participants"] = patched

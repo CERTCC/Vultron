@@ -19,14 +19,12 @@ from typing import Any, Literal
 
 from pydantic import (
     AliasChoices,
-    ConfigDict,
     Field,
     computed_field,
     field_serializer,
     field_validator,
     model_validator,
 )
-from pydantic.alias_generators import to_camel
 
 from vultron.core.states.cs import CS_d, CS_vf
 from vultron.core.states.participant_embargo_consent import PEC
@@ -107,8 +105,6 @@ class ParticipantStatus(CoreObject):
     both.
     """
 
-    model_config = ConfigDict(alias_generator=to_camel)
-
     type_: Literal["ParticipantStatus"] = Field(
         default="ParticipantStatus",
         validation_alias="type",
@@ -180,6 +176,37 @@ class ParticipantStatus(CoreObject):
     # now cover its whole job with nothing hand-written: the ``AliasChoices``
     # above accept all three spellings, and ``_ScalarDimension``'s
     # ``_accept_bare_state`` accepts the bare state value the flat form carries.
+
+    @model_validator(mode="before")
+    @classmethod
+    def _reject_retired_vfd_keys(cls, data: Any) -> Any:
+        """Refuse the retired ``vfd_state``/``vfdState`` key (SDO-03-005).
+
+        ADR-0075 split the combined VFD dimension into ``vf`` (vendor fix) and
+        ``d`` (deployer deployment).  ``vfd_state`` names neither, so it matches no
+        field and no alias — Pydantic's ``extra="ignore"`` default would discard it
+        and leave both dimensions at their initial states.  That is silent protocol
+        state loss, so it is refused instead.
+
+        Relocated here from ``as_ParticipantStatus`` when that class was collapsed
+        into this one (ADR-0099 detail 3, AC-4).  It is the one piece of the wire
+        class's behaviour with no core equivalent: the camelCase guards it sat
+        beside are obsolete now that core derives AS2 spellings, but a *retired*
+        name is not a spelling of anything, so this guard is still load-bearing.
+
+        Raises ``VultronProtocolViolationError``, which subclasses ``ValueError``
+        so Pydantic reports it as a validation failure rather than letting it
+        escape ``model_validate()``.
+        """
+        if isinstance(data, dict) and (
+            "vfd_state" in data or "vfdState" in data
+        ):
+            raise VultronProtocolViolationError(
+                "vfd_state/vfdState is retired (ADR-0075). Use vf_state"
+                " for vendor participants and d_state for deployer"
+                " participants instead."
+            )
+        return data
 
     @model_validator(mode="before")
     @classmethod
@@ -255,6 +282,44 @@ class ParticipantStatus(CoreObject):
     @classmethod
     def _validate_cvd_role(cls, v: object) -> list[CVDRole]:
         return coerce_cvd_roles(v)
+
+    # Flat views onto the dimensions, matching ``CaseStatus.em_state``/
+    # ``pxa_state``.  The deleted ``as_ParticipantStatus`` carried
+    # ``rm_state``/``vf_state``/``d_state`` as real fields, so callers read and
+    # assigned them; the dimension remains the owner of the state machine
+    # (ADR-0036) and the flat spelling is only how it serializes (ADR-0099
+    # detail 5).
+    #
+    # ``vf`` and ``d`` are legitimately absent for a participant whose role does
+    # not carry them (ADR-0075), so those two views are optional in both
+    # directions rather than fabricating an initial state on read.
+
+    @property
+    def rm_state(self) -> RM:
+        """The RM state value. A view onto ``rm.state``."""
+        return self.rm.state
+
+    @rm_state.setter
+    def rm_state(self, value: RM) -> None:
+        self.rm = RmDimension(state=value)
+
+    @property
+    def vf_state(self) -> CS_vf | None:
+        """The VF state value, or ``None`` when this participant has no VF."""
+        return self.vf.state if self.vf is not None else None
+
+    @vf_state.setter
+    def vf_state(self, value: CS_vf | None) -> None:
+        self.vf = VfDimension(state=value) if value is not None else None
+
+    @property
+    def d_state(self) -> CS_d | None:
+        """The D state value, or ``None`` when this participant has no D."""
+        return self.d.state if self.d is not None else None
+
+    @d_state.setter
+    def d_state(self, value: CS_d | None) -> None:
+        self.d = DDimension(state=value) if value is not None else None
 
     @model_validator(mode="after")
     def _set_name(self) -> "ParticipantStatus":

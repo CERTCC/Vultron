@@ -113,7 +113,7 @@ class _ActivateEmbargoActivity(as_Add):
     object_: as_EmbargoEvent = Field(
         default=..., validation_alias="object", serialization_alias="object"
     )
-    target: as_VulnerabilityCaseRef = None  # type: ignore[assignment]
+    target: as_VulnerabilityCaseRef = None
     in_reply_to: _EmProposeEmbargoRef = None
 
 
@@ -127,7 +127,7 @@ class _AddEmbargoToCaseActivity(as_Add):
     object_: as_EmbargoEvent = Field(
         default=..., validation_alias="object", serialization_alias="object"
     )
-    target: as_VulnerabilityCaseRef = None  # type: ignore[assignment]
+    target: as_VulnerabilityCaseRef = None
 
 
 class _AnnounceEmbargoActivity(as_Announce):
@@ -154,4 +154,4 @@ class _RemoveEmbargoFromCaseActivity(as_Remove):
     object_: as_EmbargoEvent = Field(
         default=..., validation_alias="object", serialization_alias="object"
     )
-    origin: as_VulnerabilityCaseRef = None  # type: ignore[assignment]
+    origin: as_VulnerabilityCaseRef = None

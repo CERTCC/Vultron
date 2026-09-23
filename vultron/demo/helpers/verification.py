@@ -413,7 +413,10 @@ def _all_fetchable_participants_rm_closed(
             continue  # remote container — not fetchable here
         if not p_data:
             return False
-        core_participants.append(as_CaseParticipant(**p_data).to_core())
+        # No projection step: as_CaseParticipant *is* CaseParticipant
+        # (ADR-0099 detail 3), so validating the fetched payload already yields the
+        # core object ``all_participants_rm_closed`` expects.
+        core_participants.append(as_CaseParticipant(**p_data))
     if not core_participants:
         # No locally-fetchable participants — cannot confirm closure.
         return False

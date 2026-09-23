@@ -40,8 +40,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Any, Literal, TypeAlias
 
-from pydantic import ConfigDict, Field, model_validator
-from pydantic.alias_generators import to_camel
+from pydantic import Field, model_validator
 
 from vultron.core.models._helpers import now_utc
 from vultron.core.models.base import CoreObject
@@ -74,8 +73,6 @@ class CaseLedgerEntry(CoreObject):
     Spec: SYNC-01-002, SYNC-02-003, SYNC-03-001 through SYNC-03-003;
     CLP-04-007.
     """
-
-    model_config = ConfigDict(alias_generator=to_camel)
 
     type_: Literal["CaseLedgerEntry"] = Field(  # type: ignore[assignment]
         default="CaseLedgerEntry",

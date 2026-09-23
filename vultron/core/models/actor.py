@@ -20,7 +20,6 @@ from __future__ import annotations
 from typing import Any, Literal
 
 from pydantic import ConfigDict, Field, field_validator
-from pydantic.alias_generators import to_camel
 
 from vultron.core.models.base import CoreObject
 from vultron.core.models.enums import VultronActorType
@@ -79,7 +78,6 @@ class CoreActorCollection(CoreObject):
 
     model_config = ConfigDict(
         populate_by_name=True,
-        alias_generator=to_camel,
         validate_by_name=True,
         validate_by_alias=True,
     )
@@ -105,7 +103,6 @@ class VultronPerson(CoreActor):
         populate_by_name=True,
         validate_by_name=True,
         validate_by_alias=True,
-        alias_generator=to_camel,
     )
     type_: Literal[VultronActorType.PERSON] = Field(
         default=VultronActorType.PERSON,
@@ -121,7 +118,6 @@ class VultronOrganization(CoreActor):
         populate_by_name=True,
         validate_by_name=True,
         validate_by_alias=True,
-        alias_generator=to_camel,
     )
     type_: Literal[VultronActorType.ORGANIZATION] = Field(
         default=VultronActorType.ORGANIZATION,
@@ -137,7 +133,6 @@ class VultronService(CoreActor):
         populate_by_name=True,
         validate_by_name=True,
         validate_by_alias=True,
-        alias_generator=to_camel,
     )
     type_: Literal[VultronActorType.SERVICE] = Field(
         default=VultronActorType.SERVICE,
@@ -153,7 +148,6 @@ class VultronApplication(CoreActor):
         populate_by_name=True,
         validate_by_name=True,
         validate_by_alias=True,
-        alias_generator=to_camel,
     )
     type_: Literal[VultronActorType.APPLICATION] = Field(
         default=VultronActorType.APPLICATION,
@@ -169,7 +163,6 @@ class VultronGroup(CoreActor):
         populate_by_name=True,
         validate_by_name=True,
         validate_by_alias=True,
-        alias_generator=to_camel,
     )
     type_: Literal[VultronActorType.GROUP] = Field(
         default=VultronActorType.GROUP,

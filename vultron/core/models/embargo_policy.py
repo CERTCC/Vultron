@@ -19,8 +19,7 @@ from datetime import timedelta
 from typing import Any, Literal, cast
 
 import isodate  # type: ignore[import-untyped]
-from pydantic import ConfigDict, Field, field_serializer, field_validator
-from pydantic.alias_generators import to_camel
+from pydantic import Field, field_serializer, field_validator
 
 from vultron.core.models.base import CoreObject, NonEmptyString
 
@@ -86,8 +85,6 @@ class EmbargoPolicy(CoreObject):
     Per specs/embargo-policy.yaml EP-01-001 through EP-01-004 and
     specs/duration.yaml DUR-01-001, DUR-05-001, DUR-05-002.
     """
-
-    model_config = ConfigDict(alias_generator=to_camel)
 
     type_: Literal["EmbargoPolicy"] = Field(
         default="EmbargoPolicy",

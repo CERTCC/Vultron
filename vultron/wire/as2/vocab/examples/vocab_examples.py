@@ -32,7 +32,7 @@ JSON file list drifts from what this generator produces.
 
 from typing import cast
 
-from vultron.wire.as2.vocab.base.base import as_Base
+from pydantic import BaseModel
 from vultron.wire.as2.vocab.examples._base import *  # noqa: F401, F403
 from vultron.wire.as2.vocab.examples.actor import *  # noqa: F401, F403
 from vultron.wire.as2.vocab.examples.case import *  # noqa: F401, F403
@@ -192,7 +192,7 @@ def main(outdir=None):
     obj_to_file(activity, f"{outdir}/create_case.json")
 
     # case object — extracted from create_case activity for coherence
-    _case = cast(as_Base, activity.object_)
+    _case = cast(BaseModel, activity.object_)
     obj_to_file(_case, f"{outdir}/vulnerability_case.json")
 
     # activity: vendor adds _report to case
@@ -203,14 +203,14 @@ def main(outdir=None):
     activity = add_vendor_participant_to_case()
 
     participant = activity.object_
-    if isinstance(participant, as_Base):
+    if isinstance(participant, BaseModel):
         obj_to_file(participant, f"{outdir}/vendor_participant.json")
     obj_to_file(activity, f"{outdir}/add_vendor_participant_to_case.json")
 
     # activity: vendor adds finder as participant to case
     activity = add_finder_participant_to_case()
     participant = activity.object_
-    if isinstance(participant, as_Base):
+    if isinstance(participant, BaseModel):
         obj_to_file(participant, f"{outdir}/finder_participant.json")
     obj_to_file(activity, f"{outdir}/add_finder_participant_to_case.json")
 

@@ -50,10 +50,21 @@ def wire_spelled_keys(model: type[BaseModel]) -> dict[str, str]:
 
     A field's camelCase form is *sanctioned* — and therefore excluded — when the
     field declares it as an explicit ``validation_alias`` (``in_reply_to`` →
-    ``inReplyTo``).  Names ending in ``_`` (``id_``, ``type_``, ``context_``)
+    ``inReplyTo``), or when the model carries an ``alias_generator`` that derives
+    that same spelling.  Names ending in ``_`` (``id_``, ``type_``, ``context_``)
     are skipped: they carry their own aliases and have no camelCase form.
     Fields whose camelCase form equals their snake_case form (``name``,
     ``context``) cannot collide and are skipped too.
+
+    The ``alias_generator`` clause is what makes this guard correct under
+    ADR-0099.  The guard exists because Pydantic's ``extra="ignore"`` default made
+    an unrecognised camelCase key *silently vanish* — ``participantStatuses``
+    dropped, the field re-seeded at its start value, and an RM ladder quietly
+    shortened (#2232).  Once the model derives camelCase aliases, that key is no
+    longer unrecognised: it is read into the right field.  Rejecting it would then
+    refuse the project's own wire spelling.  What remains forbidden, and still
+    worth raising on, is a camelCase key matching *no* field — a retired name or a
+    typo, which is still dropped silently.
 
     Results are cached per exact class; call :func:`clear_cache` if a test
     defines model classes dynamically and needs the cache reset.
@@ -61,6 +72,7 @@ def wire_spelled_keys(model: type[BaseModel]) -> dict[str, str]:
     cached = _CACHE.get(model)
     if cached is not None:
         return cached
+    generator = model.model_config.get("alias_generator")
     mapping: dict[str, str] = {}
     for name, field in model.model_fields.items():
         if name.endswith("_"):
@@ -71,6 +83,8 @@ def wire_spelled_keys(model: type[BaseModel]) -> dict[str, str]:
         if isinstance(field.validation_alias, str) and (
             field.validation_alias == camel
         ):
+            continue
+        if callable(generator) and generator(name) == camel:
             continue
         mapping[camel] = name
     _CACHE[model] = mapping
