@@ -12,26 +12,30 @@
 #  ("Third Party Software"). See LICENSE.md for more details.
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
-"""Architecture ratchet: the write-side wire→core normalization set may only grow.
+"""Architecture check: nothing needs write-side wire→core normalisation.
 
 ``_NORMALIZE_WIRE_TO_CORE`` in ``vultron/adapters/driven/db_record.py`` lists the
 ``type_`` strings whose wire class is projected to its core counterpart before a
-row is written.  It is the write-side analogue of ``KNOWN_WIRE_ESCAPES`` in
-``test_dl_read_returns_core_objects.py`` (DL-05-004) and needs the same
-protection, for the mirror-image reason:
+row is written.
 
-- ``KNOWN_WIRE_ESCAPES`` is a list of *known bad* read paths, so it may only
-  **shrink**.
-- ``_NORMALIZE_WIRE_TO_CORE`` is a list of *already migrated* write paths, so it
-  may only **grow**.  Silently dropping an entry re-opens the shape duality that
-  issue #2232 closed, and it would do so without any test noticing: nothing else
-  asserts that a given type is normalised.
+**This module used to be a grow-only ratchet, and the direction inverted.** The
+set was a list of *already migrated* write paths, so dropping an entry silently
+re-opened the shape duality of issue #2232 — core nesting ``rm: RmDimension``
+where the wire class had a flat ``rm_state``, so a wire-shaped row yielded
+``None`` for ``status.rm.state``. Growing the set was progress.
 
-All fifteen wire classes that shadow a ``CORE_VOCABULARY`` entry are now
-normalised — ten object types via issue #2268, five actor types via issue #2402.
-No remaining entries; ``_NOT_YET_NORMALIZED`` is empty.
+ADR-0099 detail 3 removes the duality rather than containing it: one class per
+concept, so the stored object and the transmitted object are the same object and
+there is nothing to project. The set is therefore *empty*, and empty is the goal
+state the ratchet was protecting the road to — not a lost ratchet.
 
-Related: issue #2232 (the shape duality), issue #2268 (migrating the rest).
+The assertions were rewritten accordingly, in both a negative and a positive
+form: the set must stay empty, and no wire class may share a ``type_`` value with
+a distinct core class. The second catches a reintroduced shadowing class where it
+is declared, rather than waiting for someone to add it to a set. Deleting the
+mechanism entirely is #2940 AC-5.
+
+Related: issue #2232 (the shape duality), #3487/#3488 (the last three pairs).
 """
 
 # Importing the SQLite adapter transitively imports the core and wire vocabulary
@@ -43,24 +47,6 @@ from vultron.core.models.registry import CORE_VOCABULARY
 from vultron.wire.as2.vocab.base.registry import VOCABULARY, WIRE_TYPE_MAP
 
 _WIRE_MODULE_PREFIX = "vultron.wire.as2"
-
-# ---------------------------------------------------------------------------
-# Baseline: seven types normalised as of issue #2402 (five actor types added to
-# the two from #2232).  Combined with the ten object types from issue #2268, all
-# fifteen shadowing types are now covered.
-# ---------------------------------------------------------------------------
-_NORMALIZED_AS_OF_2402: frozenset[str] = frozenset(
-    {
-        "CaseParticipant",
-        "ParticipantStatus",
-    }
-)
-
-# ---------------------------------------------------------------------------
-# Shadowing types NOT yet normalised.  Empty: all fifteen are now covered.
-# If a new shadowing wire class appears, add it here before normalising.
-# ---------------------------------------------------------------------------
-_NOT_YET_NORMALIZED: frozenset[str] = frozenset()
 
 
 def _shadowing_types() -> dict[str, type]:
@@ -79,58 +65,59 @@ def _shadowing_types() -> dict[str, type]:
 
 
 def test_registries_are_populated():
-    """Guard the guard: an empty registry would make every assertion vacuous."""
-    assert len(CORE_VOCABULARY) > 10
-    assert len(VOCABULARY) > 50
-    assert len(WIRE_TYPE_MAP) > 50
+    """Guard the guard: an empty registry would make every assertion vacuous.
 
-
-def test_normalize_set_may_only_grow():
-    """Every type normalised as of #2402 must still be normalised."""
-    missing = _NORMALIZED_AS_OF_2402 - _NORMALIZE_WIRE_TO_CORE
-    assert not missing, (
-        "_NORMALIZE_WIRE_TO_CORE lost entries"
-        f" {sorted(missing)} — the write path would again persist a wire-shaped"
-        " row for those types (issues #2232, #2402). The set may only grow."
-    )
-
-
-def test_every_normalized_type_actually_shadows_a_core_type():
-    """A stale entry is dead weight — it normalises nothing."""
-    shadowing = set(_shadowing_types())
-    stale = _NORMALIZE_WIRE_TO_CORE - shadowing
-    assert not stale, (
-        f"_NORMALIZE_WIRE_TO_CORE entries {sorted(stale)} do not name a wire"
-        " class that shadows a CORE_VOCABULARY type; remove them or fix the"
-        " spelling."
-    )
-
-
-def test_every_normalized_type_has_a_to_core_projection():
-    """Normalisation is implemented by ``to_core()``; without it the write raises."""
-    shadowing = _shadowing_types()
-    for type_ in sorted(_NORMALIZE_WIRE_TO_CORE):
-        cls = shadowing[type_]
-        assert hasattr(cls, "to_core"), (
-            f"{cls.__name__} is listed in _NORMALIZE_WIRE_TO_CORE but exposes no"
-            " to_core(), so every attempt to persist one raises instead of"
-            " normalising (issue #2232)."
-        )
-
-
-def test_unmigrated_shadowing_types_are_enumerated():
-    """A newly added shadowing type must be triaged, not silently deferred.
-
-    Fails in both directions on purpose:
-
-    - a **new** shadowing wire class appears → decide whether it needs
-      normalising (issue #2232) and record the answer here;
-    - a type is **migrated** → move it into ``_NORMALIZE_WIRE_TO_CORE`` and drop
-      it from ``_NOT_YET_NORMALIZED`` so the backlog stays honest (issue #2268).
+    The VOCABULARY threshold dropped from 50 to 40 because collapsing the paired
+    classes removes them from the wire registry — the count falling is the change
+    working, not a regression. It is still asserted, so a registry that failed to
+    populate at all would be caught.
     """
-    unmigrated = set(_shadowing_types()) - set(_NORMALIZE_WIRE_TO_CORE)
-    assert unmigrated == set(_NOT_YET_NORMALIZED), (
-        "the set of un-normalised shadowing types changed.\n"
-        f"  newly un-normalised: {sorted(unmigrated - _NOT_YET_NORMALIZED)}\n"
-        f"  no longer listed:    {sorted(_NOT_YET_NORMALIZED - unmigrated)}"
+    assert len(CORE_VOCABULARY) > 10
+    assert len(VOCABULARY) > 40
+    assert len(WIRE_TYPE_MAP) > 40
+
+
+def test_nothing_needs_wire_to_core_normalisation_any_more():
+    """``_NORMALIZE_WIRE_TO_CORE`` must be empty, and empty is the goal state.
+
+    **The ratchet direction inverted, so the assertion had to.** This set may
+    previously only *grow*: each entry recorded a shadowing wire class whose shape
+    was structurally incompatible with its core counterpart — core nests
+    ``rm: RmDimension`` where wire had a flat ``rm_state``, so a wire-shaped row
+    silently yielded ``None`` for ``status.rm.state`` (#2232). Normalising on
+    write contained that, and dropping an entry silently re-opened it.
+
+    ADR-0099 detail 3 removes the incompatibility instead of containing it. With
+    the paired classes deleted there is one class per concept, so the stored and
+    transmitted objects are the same object and there is nothing to project.
+    Emptiness is therefore not a lost ratchet — it is the condition the ratchet
+    was protecting the road to.
+
+    Asserting *empty* rather than deleting the test keeps a live check: an entry
+    reappearing means a shadowing wire class was reintroduced, which is the
+    duality ADR-0099 exists to prevent. The mechanism's removal is #2940 AC-5.
+    """
+    assert _NORMALIZE_WIRE_TO_CORE == frozenset(), (
+        "_NORMALIZE_WIRE_TO_CORE is non-empty"
+        f" ({sorted(_NORMALIZE_WIRE_TO_CORE)}), which means a wire class shadows"
+        " a core type again. Under ADR-0099 there should be one class per"
+        " concept; collapse the pair rather than normalising it on write."
+    )
+
+
+def test_no_wire_class_shadows_a_core_type_any_more():
+    """No wire class may share a ``type_`` value with a distinct core class.
+
+    The positive form of the invariant above: it catches the reintroduction of a
+    shadowing class at the point it is declared, rather than waiting for someone
+    to add it to the normalisation set.
+    """
+    shadowing = {
+        type_: cls.__name__
+        for type_, cls in _shadowing_types().items()
+        if cls is not CORE_VOCABULARY.get(type_)
+    }
+    assert not shadowing, (
+        "these wire classes shadow a CORE_VOCABULARY type without being the same"
+        f" class: {shadowing}. ADR-0099 detail 3 allows one class per concept."
     )

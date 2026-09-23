@@ -39,25 +39,25 @@ _WIRE_MODULE_PREFIX = "vultron.wire.as2"
 # can be written into a core-typed row, producing a row whose field shape does
 # not match the class that reads it back (issue #2232).
 #
-# Types listed here are normalised to their core counterpart via ``to_core()``
-# before serialisation, so the persisted row always carries the canonical core
-# shape.  The set may only GROW as the remaining shadowing types are migrated;
-# it is the write-side analogue of ``KNOWN_WIRE_ESCAPES`` in
-# ``test/architecture/test_dl_read_returns_core_objects.py`` (DL-05-004).
+# Types normalised to their core counterpart via ``to_core()`` before
+# serialisation, so the persisted row always carries the canonical core shape.
 #
-# ``ParticipantStatus`` and ``CaseParticipant`` are normalised because their
-# two shapes are structurally incompatible: core nests ``rm: RmDimension``
-# while wire uses a flat ``rm_state``, so a wire-shaped row silently yields
-# ``None`` for ``status.rm.state``.  The remaining paired as_* classes were
-# deleted in issue #3487 (ADR-0099 detail 3); the wire class IS the core class
-# for those types, so no normalisation is needed.
-_NORMALIZE_WIRE_TO_CORE: frozenset[str] = frozenset(
-    {
-        "CaseParticipant",
-        "CaseStatus",
-        "ParticipantStatus",
-    }
-)
+# **Empty, and that is the goal state.** This set existed because a wire class and
+# its core counterpart were structurally incompatible — core nests
+# ``rm: RmDimension`` where wire used a flat ``rm_state``, so a wire-shaped row
+# silently yielded ``None`` for ``status.rm.state`` (#2232). Normalising on write
+# was how that was contained.
+#
+# ADR-0099 detail 3 removes the incompatibility rather than containing it: with
+# the paired classes deleted, the stored object and the transmitted object are the
+# same class, so there is nothing to project.  ``CaseParticipant``, ``CaseStatus``
+# and ``ParticipantStatus`` were the last three entries and were collapsed in
+# #3487/#3488.
+#
+# Deleting this set along with ``_normalize_to_core`` and
+# ``_project_shadowing_wire_obj`` is #2940 AC-5; it is left in place here, inert,
+# because removing it touches the read path too and is not this change's job.
+_NORMALIZE_WIRE_TO_CORE: frozenset[str] = frozenset()
 
 # ActivityStreams fields typed as ``as_ObjectRef`` (accept URI string
 # references).  Only these fields are candidates for dehydration.  Fields

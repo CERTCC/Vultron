@@ -44,6 +44,7 @@ This test asserts that no wire-branch class (``as_Base`` subclass registered in
 The AS2-faithful reference union (``as_Object | as_Link | str``) is permitted.
 """
 
+import re
 import typing
 
 import pytest
@@ -53,85 +54,7 @@ import vultron.wire.as2.vocab.objects  # noqa: F401
 
 from vultron.core.models.base import CoreObject
 from vultron.errors import VultronValidationError
-from vultron.wire.as2.vocab.base.base import as_Base
-from vultron.wire.as2.vocab.base.registry import VOCABULARY
-
-# ---------------------------------------------------------------------------
-# ADR-0099 transitional violations: wire fields that name core classes because
-# the paired wire class was deleted (issue #3487, detail 3).  These are
-# intentional under ADR-0099 and will be resolved when #3491 fixes the
-# union-escape defect and this test is inverted.
-# This set must not grow — new violations outside ADR-0099 are bugs.
-# ---------------------------------------------------------------------------
-_ADR0099_KNOWN_VIOLATIONS: frozenset[str] = frozenset(
-    {
-        # as_ObjectRequiredRef intentionally includes CoreObject so activities
-        # can hold promoted core classes (VulnerabilityCase, EmbargoEvent, etc.)
-        # after paired wire class deletion (issue #3487).
-        "as_Accept.object_",
-        "as_Add.object_",
-        "as_Announce.object_",
-        "as_Block.object_",
-        "as_Create.object_",
-        "as_Delete.object_",
-        "as_Dislike.object_",
-        "as_Flag.object_",
-        "as_Follow.object_",
-        "as_Ignore.object_",
-        "as_Invite.object_",
-        "as_Join.object_",
-        "as_Leave.object_",
-        "as_Like.object_",
-        "as_Listen.object_",
-        "as_Move.object_",
-        "as_Offer.object_",
-        "as_Profile.describes",
-        "as_Read.object_",
-        "as_Reject.object_",
-        "as_Relationship.object",
-        "as_Relationship.subject",
-        "as_Remove.object_",
-        "as_TentativeAccept.object_",
-        "as_TentativeReject.object_",
-        "as_Undo.object_",
-        "as_Update.object_",
-        "as_View.object_",
-        # Specific fields typed with promoted core classes (issue #3487):
-        "as_CaseProposal.object_",
-        "as_VulnerabilityCaseStub.active_embargo",
-        # actor: as_ActorRef | CoreActor so activities accept promoted core actors
-        # (VultronPerson, VultronOrganization, etc.) after wire class deletion (#3487).
-        "as_Accept.actor",
-        "as_Activity.actor",
-        "as_Add.actor",
-        "as_Announce.actor",
-        "as_Arrive.actor",
-        "as_Block.actor",
-        "as_Create.actor",
-        "as_Delete.actor",
-        "as_Dislike.actor",
-        "as_Flag.actor",
-        "as_Follow.actor",
-        "as_Ignore.actor",
-        "as_Invite.actor",
-        "as_Join.actor",
-        "as_Leave.actor",
-        "as_Like.actor",
-        "as_Listen.actor",
-        "as_Move.actor",
-        "as_Offer.actor",
-        "as_Question.actor",
-        "as_Read.actor",
-        "as_Reject.actor",
-        "as_Remove.actor",
-        "as_TentativeAccept.actor",
-        "as_TentativeReject.actor",
-        "as_Travel.actor",
-        "as_Undo.actor",
-        "as_Update.actor",
-        "as_View.actor",
-    }
-)
+from vultron.core.models.registry import CORE_VOCABULARY
 
 
 def _hint_contains_core_object(hint: typing.Any) -> bool:
@@ -145,51 +68,71 @@ def _hint_contains_core_object(hint: typing.Any) -> bool:
 
 
 @pytest.mark.spec("ARCH-23-006")
-def test_no_wire_field_annotation_names_core_object_subclass() -> None:
-    """No wire-branch field annotation names a CoreObject subclass.
+def test_promoted_core_classes_are_exactly_as2_representable() -> None:
+    """Every promoted class emits AS2 property names and nothing else.
 
-    Spec: ARCH-23-006
+    **This replaces the rule it used to enforce**, rather than relaxing it.
+    ARCH-23-006 forbade a core type appearing in a wire field annotation. Under
+    ADR-0099 that is the intended shape: detail 3 says the message-shape slots
+    name the core class, so the old assertion now fails on every activity by
+    design. Keeping it alive behind a growing allowlist — which is what the
+    as-delivered change did, at 59 entries — records violations without checking
+    anything.
 
-    Checks every class registered in ``VOCABULARY`` (wire-branch classes only).
-    The AS2-faithful union ``as_Object | as_Link | str | None`` is permitted.
-    A core type (``CoreObject`` subclass) in a wire field annotation is forbidden,
-    except for the ADR-0099 transitional violations in ``_ADR0099_KNOWN_VIOLATIONS``
-    (pending resolution in #3491).
+    Detail 3 states the invariant that takes its place, and it is a real
+    constraint rather than a weaker one: a core class that can appear in a
+    message slot "MUST be exactly AS2-representable. Every field it carries must
+    have a valid AS2 property spelling, and it MUST NOT carry a field that cannot
+    go on the wire."
+
+    So this asserts the delivery payload of every promoted class is spelled in
+    AS2: camelCase or a reserved AS2 name, never a Python field name. That is the
+    check that would have caught `attributedTo` silently becoming
+    `attributed_to` on four promoted types — something the old rule, and a
+    filename-level examples check, both passed straight through.
+
+    A field that genuinely cannot go on the wire is declared in
+    ``local_only_fields`` and dropped from the payload; anything else leaking a
+    snake_case key is a field nobody gave an AS2 spelling.
     """
-    violations: list[str] = []
-
-    for _type_name, cls in VOCABULARY.items():
-        if not (isinstance(cls, type) and issubclass(cls, as_Base)):
-            continue
-        try:
-            hints = typing.get_type_hints(cls, include_extras=True)
-        except Exception:
-            continue
-        for field_name, hint in hints.items():
-            if _hint_contains_core_object(hint):
-                violations.append(f"{cls.__name__}.{field_name}: {hint!r}")
-
-    # Filter out ADR-0099 known transitional violations (pending #3491)
-    new_violations = [
-        v
-        for v in violations
-        if v.split(": ")[0] not in _ADR0099_KNOWN_VIOLATIONS
-    ]
-
-    assert not new_violations, (
-        "Wire-branch field annotations name a CoreObject subclass (ARCH-23-006):\n"
-        + "\n".join(f"  {v}" for v in sorted(new_violations))
-        + "\n\nThe AS2-faithful reference union (as_Object | as_Link | str) is "
-        "permitted. Remove CoreObject (and its subclasses) from wire field "
-        "annotations — assign a wire projection instead."
+    offenders: list[str] = []
+    snake = re.compile(r"[a-z0-9]_[a-z0-9]")
+    generator = CoreObject.model_config.get("alias_generator")
+    assert callable(generator), (
+        "CoreObject no longer derives AS2 spellings, so this test would pass"
+        " vacuously — see test_hierarchy_invariants"
     )
 
-    # Ratchet: known violations must not silently resolve without updating this set
-    found_keys = {v.split(": ")[0] for v in violations}
-    resolved = _ADR0099_KNOWN_VIOLATIONS - found_keys
-    assert not resolved, (
-        "ADR-0099 known violations resolved — remove these from "
-        f"_ADR0099_KNOWN_VIOLATIONS: {sorted(resolved)}"
+    # CORE_VOCABULARY, not the wire VOCABULARY: a promoted class registers in
+    # CORE_VOCABULARY and WIRE_TYPE_MAP, never in VOCABULARY (which holds
+    # as_Base subclasses). Iterating VOCABULARY here examined nothing at all.
+    #
+    # Read the declared aliases rather than dumping an instance. Seven of these
+    # classes have required fields and cannot be constructed bare, so an
+    # instance-based check silently skipped exactly the ones that matter —
+    # CaseStatus, ParticipantStatus and EmbargoEvent among them.
+    examined = 0
+    for _type_name, cls in sorted(
+        CORE_VOCABULARY.items(), key=lambda kv: kv[0]
+    ):
+        if not (isinstance(cls, type) and issubclass(cls, CoreObject)):
+            continue
+        examined += 1
+        local = cls.local_only_fields
+        for name, field in cls.model_fields.items():
+            if name in local or field.exclude:
+                continue  # never reaches the wire
+            alias = field.serialization_alias or generator(name)
+            if snake.search(alias):
+                offenders.append(f"{cls.__name__}.{name} -> {alias}")
+
+    assert examined, "no promoted classes were examined — the test is vacuous"
+    assert not offenders, (
+        "these promoted classes put Python field names on the wire instead of "
+        "AS2 property names (ADR-0099 detail 3):\n"
+        + "\n".join(f"  {o}" for o in sorted(offenders))
+        + "\n\nGive the field an AS2 spelling, or declare it in "
+        "local_only_fields if it cannot go on the wire at all."
     )
 
 

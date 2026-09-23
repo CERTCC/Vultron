@@ -26,6 +26,8 @@ from pydantic import (
     model_validator,
 )
 
+from pydantic.alias_generators import to_camel
+
 from vultron.core.states.cs import CS_d, CS_vf
 from vultron.core.states.participant_embargo_consent import PEC
 from vultron.core.states.rm import RM, is_valid_rm_transition
@@ -198,12 +200,17 @@ class ParticipantStatus(CoreObject):
         so Pydantic reports it as a validation failure rather than letting it
         escape ``model_validate()``.
         """
+        # The camelCase form is derived, not written out: ADR-0099 detail 2 keeps
+        # AS2 spellings out of core logic, and an architecture test enforces it
+        # (test_core_no_as2_spellings).  Deriving also guarantees the guard matches
+        # whatever the project's own generator would have produced.
+        retired = "vfd_state"
         if isinstance(data, dict) and (
-            "vfd_state" in data or "vfdState" in data
+            retired in data or to_camel(retired) in data
         ):
             raise VultronProtocolViolationError(
-                "vfd_state/vfdState is retired (ADR-0075). Use vf_state"
-                " for vendor participants and d_state for deployer"
+                f"{retired}/{to_camel(retired)} is retired (ADR-0075). Use"
+                " vf_state for vendor participants and d_state for deployer"
                 " participants instead."
             )
         return data
