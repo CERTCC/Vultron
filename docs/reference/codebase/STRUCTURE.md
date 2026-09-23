@@ -74,7 +74,7 @@ Enforced by: `test/architecture/test_core_no_adapter_imports.py`, `test/architec
 |--------|---------|
 | `vultron/core/participants/authority.py` | Single canonical `resolve_case_manager_id()` — neutral layer below both `behaviors/` and `use_cases/`; depends only on models/ports/enums (ADR-0088, ARCH-24-001) |
 | `vultron/core/ports/wire_render.py` | `WireRenderPort` driven-port Protocol for wire-shaped JSON rendering |
-| `vultron/adapters/driven/wire_render/as2.py` | AS2 adapter implementing `WireRenderPort` via `VOCABULARY` registry |
+| `vultron/adapters/driven/wire_render/as2.py` | AS2 adapter implementing `WireRenderPort` via the `WIRE_TYPE_MAP` registry |
 | `vultron/core/behaviors/embargo/nodes/terminate.py` | Embargo termination BT nodes |
 | `vultron/core/behaviors/sync/nodes/event_conditions.py` | Sync event-condition BT nodes (extracted from `conditions.py`) |
 | `vultron/core/behaviors/bridge.py` | BT bridge node |
