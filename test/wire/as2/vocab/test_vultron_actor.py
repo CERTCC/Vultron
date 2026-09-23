@@ -183,7 +183,7 @@ class TestWireActorVocabularyAndRoundTrip(unittest.TestCase):
         self.assertIs(WIRE_TYPE_MAP["Group"], as_VultronGroup)
 
     def test_actor_class_names_are_not_wire_type_map_keys(self):
-        """VM-01-007: the wire ``type`` value is the only key (issue #2982).
+        """VM-01-008: the wire ``type`` value is the only key (issue #2982).
 
         ``as_VultronPerson`` used to register under ``VultronPerson`` too — a
         key no AS2 payload ever carries, which let a caller holding the *core*

@@ -14,7 +14,7 @@ stripped class names (``VultronPerson`` — also the name of a core type) as wel
 their ``type`` values (``Person``), and ``as_VulnerabilityCaseStub`` registered
 under ``VulnerabilityCaseStub`` while emitting ``type: "VulnerabilityCase"``.
 
-Spec: `specs/vocabulary-model.yaml` VM-01-004, VM-01-007.
+Spec: `specs/vocabulary-model.yaml` VM-01-004, VM-01-008.
 See: GitHub issue #2982.
 """
 
@@ -50,7 +50,7 @@ from vultron.wire.as2.vocab.base.registry import (
 #: bare ``from ... import WIRE_TYPE_MAP`` yields an empty dict.
 _MIN_REGISTERED_TYPES = 50
 
-#: The only ``type`` values two unflagged classes may share (VM-01-007): the
+#: The only ``type`` values two unflagged classes may share (VM-01-008): the
 #: Vultron actor subtypes deliberately shadow their base AS2 actor classes so an
 #: inbound actor keeps its extension fields. Maps each value to the class that
 #: MUST win the key.
@@ -122,7 +122,7 @@ def test_every_vocabulary_key_is_its_class_name() -> None:
 
 
 def test_every_wire_type_map_key_is_its_class_wire_type_value() -> None:
-    """VM-01-007: the key is the ``type`` value, never the class name."""
+    """VM-01-008: the key is the ``type`` value, never the class name."""
     _force_full_registration()
 
     divergent = {
@@ -133,7 +133,7 @@ def test_every_wire_type_map_key_is_its_class_wire_type_value() -> None:
 
     assert not divergent, (
         "WIRE_TYPE_MAP keys must equal the wire 'type' value their class "
-        "emits (VM-01-007). Divergent entries "
+        "emits (VM-01-008). Divergent entries "
         "{key: (class, type value)}: " + repr(divergent)
     )
 
@@ -196,7 +196,7 @@ def _registrable_wire_classes() -> list[type[as_Base]]:
 
 
 def test_no_unsanctioned_wire_type_collisions() -> None:
-    """VM-01-007: exactly one class owns each ``type`` value.
+    """VM-01-008: exactly one class owns each ``type`` value.
 
     Without this, a new class that declares an existing value (say ``"Note"``)
     silently takes the key for the whole process, decided by import order, and
@@ -216,7 +216,7 @@ def test_no_unsanctioned_wire_type_collisions() -> None:
     }
     assert not collisions, (
         "These wire 'type' values are claimed by more than one class. Mark "
-        "the non-owner `_wire_type_alias = True` (VM-01-007) {value: "
+        "the non-owner `_wire_type_alias = True` (VM-01-008) {value: "
         "classes}: " + repr(collisions)
     )
 

@@ -210,7 +210,7 @@ class TestAddObjectToCaseConversionBranch:
             # Declared an alias so defining this stand-in does not take
             # as_VulnerabilityCase's WIRE_TYPE_MAP key for the rest of the
             # session: registration is process-global and a class defined in a
-            # test body cannot be unregistered (VM-01-007). The adapter receives
+            # test body cannot be unregistered (VM-01-008). The adapter receives
             # it by patching find_in_vocabulary, not through the registry.
             _wire_type_alias: ClassVar[bool] = True
 

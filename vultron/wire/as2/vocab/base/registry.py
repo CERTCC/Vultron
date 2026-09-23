@@ -82,7 +82,7 @@ def wire_type_value(cls: type) -> str:
 
     Mirrors ``as_Base.set_type_from_class_name`` (VM-03-001): the declared
     default when there is one, else the class name with the ``as_`` prefix
-    removed. This is the key form ``WIRE_TYPE_MAP`` uses (VM-01-007).
+    removed. This is the key form ``WIRE_TYPE_MAP`` uses (VM-01-008).
     """
     return declared_wire_type(cls) or cls.__name__.removeprefix("as_")
 

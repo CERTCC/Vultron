@@ -42,8 +42,8 @@ The standard ActivityStreams actor types can be used in Vultron. These include:
 ActivityStreams also includes a number of native object types, including:
 
 - `as:Article`
-- `as:Collection`
-- `as:CollectionPage`, including `as:OrderedCollection` and `as:OrderedCollectionPage`
+- `as:Collection`, including `as:OrderedCollection`
+- `as:CollectionPage`, including `as:OrderedCollectionPage`
 - `as:Document`, including `as:Audio`, `as:Image`, and `as:Video`
 - `as:Event`
 - `as:Note`

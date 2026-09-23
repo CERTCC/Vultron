@@ -52,7 +52,7 @@ class as_Base(VultronBase):
     #: and is therefore not what that value should deserialize to
     #: (``as_VulnerabilityCaseStub`` emits ``type: "VulnerabilityCase"``). Such a
     #: class stays reachable by class name through ``VOCABULARY`` but claims no
-    #: ``WIRE_TYPE_MAP`` key of its own (VM-01-007).
+    #: ``WIRE_TYPE_MAP`` key of its own (VM-01-008).
     _wire_type_alias: ClassVar[bool] = False
 
     def __init_subclass__(cls, **kwargs: object) -> None:
@@ -64,7 +64,7 @@ class as_Base(VultronBase):
         # WIRE_TYPE_MAP answers "which class does this inbound `type` value
         # deserialize to?", so its key is the emitted `type` value — not the
         # class name, which diverges for the Vultron actor subtypes and would
-        # register a key no payload ever carries (VM-01-007, issue #2982).
+        # register a key no payload ever carries (VM-01-008, issue #2982).
         if not is_wire_type_alias(cls):
             WIRE_TYPE_MAP[wire_type_value(cls)] = cls
 

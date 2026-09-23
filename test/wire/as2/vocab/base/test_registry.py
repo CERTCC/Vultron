@@ -204,7 +204,7 @@ class TestDynamicDiscovery:
         assert VOCABULARY["as_VulnerabilityCase"] is as_VulnerabilityCase
 
     def test_case_stub_does_not_claim_the_case_wire_type_key(self):
-        """VM-01-007: an alias class holds no key of its own (issue #2982).
+        """VM-01-008: an alias class holds no key of its own (issue #2982).
 
         ``as_VulnerabilityCaseStub`` emits ``type: "VulnerabilityCase"``, so the
         key belongs to ``as_VulnerabilityCase``. It used to also register under

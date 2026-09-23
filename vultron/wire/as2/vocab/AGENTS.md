@@ -21,7 +21,7 @@
 
 3. The two registries carry **different key forms and you MUST NOT mix them**:
    `VOCABULARY` is keyed by wire class name (`as_VultronPerson`, VM-01-004),
-   `WIRE_TYPE_MAP` by the emitted wire `type` value (`Person`, VM-01-007). Both
+   `WIRE_TYPE_MAP` by the emitted wire `type` value (`Person`, VM-01-008). Both
    are filled by `as_Base.__init_subclass__` — `VOCABULARY` from `cls.__name__`,
    `WIRE_TYPE_MAP` from `wire_type_value()` — so do not hand-assign a
    `WIRE_TYPE_MAP` key. The sole exception is `as_Actor`, which declares no
