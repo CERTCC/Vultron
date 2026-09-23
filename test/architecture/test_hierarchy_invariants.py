@@ -133,7 +133,8 @@ class TestCoreVocabularyHierarchy:
 
     @pytest.mark.xfail(
         strict=True,
-        reason="Goal state tracked in #2288 and #2289 (supersedes closed #1991): "
+        reason="Goal state tracked in #3578 (which superseded #2288, #2289 "
+        "and closed #1991): "
         "no CoreObject subclass inherits alias_generator=to_camel from as_Base. "
         "8 known classes remain, enumerated in _TO_CAMEL_BACKLOG_1991. "
         "When the last is fixed this test XPASSes and fails the build — "

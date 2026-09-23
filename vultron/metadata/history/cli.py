@@ -52,9 +52,13 @@ from pathlib import Path
 from typing import NoReturn
 
 import yaml
-from pydantic import ValidationError
 
 from vultron.metadata.base import repo_root as _find_repo_root
+from vultron.metadata.file_loading import (
+    MetadataLoadError,
+    loads_frontmatter,
+    validate,
+)
 from vultron.metadata.history.models import (
     HistoryEntryFrontmatter,
     NewHistoryEntry,
@@ -76,27 +80,20 @@ def _validate_frontmatter(content: str) -> HistoryEntryFrontmatter:
         ValueError: If the frontmatter is malformed, missing, or fails
             required-field validation (HM-02-001, HM-06-002).
     """
-    import frontmatter as _fm
-
-    try:
-        post = _fm.loads(content)
-    except Exception as exc:  # noqa: BLE001
-        raise ValueError(f"malformed YAML frontmatter: {exc}") from exc
+    # The no-path form: the content has not been written anywhere yet.
+    post = loads_frontmatter(content)
 
     if not post.metadata:
-        raise ValueError(
+        raise MetadataLoadError(
             "missing frontmatter block: entry must begin with a YAML "
             "frontmatter block containing title, type, timestamp, and source"
         )
 
-    try:
-        return HistoryEntryFrontmatter.model_validate(post.metadata)
-    except ValidationError as exc:
-        missing = [e["loc"][0] for e in exc.errors() if e["loc"]]
-        fields = ", ".join(str(f) for f in missing) if missing else str(exc)
-        raise ValueError(
-            f"invalid history frontmatter: missing or invalid field(s): {fields}"
-        ) from exc
+    return validate(
+        HistoryEntryFrontmatter,
+        post.metadata,
+        prefix="invalid history frontmatter",
+    )
 
 
 def _sanitize_entry_id(entry_id: str) -> str:
