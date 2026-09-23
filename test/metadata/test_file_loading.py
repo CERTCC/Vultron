@@ -182,6 +182,18 @@ class TestValidateAttribution:
         with pytest.raises(MetadataLoadError, match="^invalid thing: title"):
             validate(_Model, {"count": 1}, prefix="invalid thing")
 
+    def test_key_lines_locate_the_failing_key(self, tmp_path):
+        with pytest.raises(MetadataLoadError) as info:
+            validate(
+                _Model,
+                {"title": "t", "count": "x"},
+                path=tmp_path / "m.md",
+                root=tmp_path,
+                key_lines={"title": 2, "count": 3},
+            )
+
+        assert info.value.location == "m.md:3"
+
     def test_valid_data_round_trips(self):
         assert validate(_Model, {"title": "t", "count": 1}).count == 1
 

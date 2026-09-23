@@ -56,6 +56,16 @@ repos:
         exclude: ^docs/adr/(index|README)\.md$
         pass_filenames: false
 
+      - id: validate-docs-page-frontmatter
+        name: Validate docs page stakeholder_type and level
+        entry: uv run python -m vultron.metadata.docs.page_frontmatter
+        language: system
+        # Every docs page (DF-11-001), plus the two inputs that change the
+        # verdict without touching a page: the nav, which decides what is an
+        # include fragment, and the schema, patterns and baseline.
+        files: ^(docs/.*\.md|mkdocs\.yml|vultron/metadata/docs/page_.*)$
+        pass_filenames: false
+
       - id: adr-index-sync
         name: ADR index and nav in sync
         entry: uv run python -m vultron.metadata.adr.index_gen --check

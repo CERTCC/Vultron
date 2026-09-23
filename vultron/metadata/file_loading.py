@@ -27,7 +27,7 @@ first (SR-03-009): :class:`FailureCollector` gathers them and raises one
 
 from __future__ import annotations
 
-from collections.abc import Iterator, Sequence
+from collections.abc import Iterator, Mapping, Sequence
 from contextlib import contextmanager
 from pathlib import Path
 from typing import Any, TypeVar
@@ -299,6 +299,7 @@ def validate(
     path: Path | None = None,
     root: Path | None = None,
     prefix: str | None = None,
+    key_lines: Mapping[str, int] | None = None,
 ) -> M:
     """Validate *data* against *model*, attributing a failure to *path*.
 
@@ -309,6 +310,10 @@ def validate(
         root: Root the displayed path is made relative to.
         prefix: Optional lead-in for the detail, e.g. ``"invalid history
             frontmatter"``, so a loader keeps its own vocabulary.
+        key_lines: Optional 1-based line of each top-level key in the file.
+            When given, the failure is located at the line of the first key
+            that failed, so a schema fault reads ``path:line`` like a parse
+            fault does.
 
     Raises:
         MetadataLoadError: If validation fails. The detail lists every field
@@ -321,4 +326,11 @@ def validate(
         if prefix:
             detail = f"{prefix}: {detail}"
         shown = None if path is None else display_path(path, root)
-        raise MetadataLoadError(detail, path=shown) from exc
+        line = None
+        if key_lines:
+            for err in exc.errors():
+                loc = err.get("loc", ())
+                if loc and str(loc[0]) in key_lines:
+                    line = key_lines[str(loc[0])]
+                    break
+        raise MetadataLoadError(detail, path=shown, line=line) from exc

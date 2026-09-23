@@ -28,11 +28,13 @@ are the product**.
 | `history/` | `plan/history/**/*.md`, `plan/incoming/learnings/*.md` | `HistoryEntryFrontmatter` |
 | `msm/` | a constant mapping table + the wire `SEMANTIC_REGISTRY` | — |
 | `demo_scenarios/` | the `@scenario` registry in `vultron/demo/scenario/` | — |
-| `docs/` | `git log` over `docs/`, for the what's-new page | — |
+| `docs/` | `git log` over `docs/`, for the what's-new page; every `docs/**/*.md` page's `stakeholder_type`/`level` (`page_frontmatter.py`, DF-11) | `PageFrontmatter`, `WorkingRecordFrontmatter` (`page_schema.py`) |
 | `planning/` | an Epic's sub-issue GraphQL payload on stdin | — (selection rules: PAD-15) |
 
-Shared helpers live in two places. **Do not re-derive any of them** — see the
-`repo_root` history below for what that costs.
+Shared helpers live in three places — `base.py`, `markdown_tables.py`, and
+`file_loading.py` (see [Loader Failure Attribution](#loader-failure-attribution-ms-17)).
+**Do not re-derive any of them** — see the `repo_root` history below for what
+that costs.
 
 `base.py` — cross-subpackage primitives:
 
@@ -93,7 +95,7 @@ as a path-prefixed `ValueError` — the shape every hand-written copy took.
 | `load_yaml(path, root=, loader=)` | a whole YAML file (`specs/*.yaml`) |
 | `load_frontmatter(path, root=)` | a markdown file's frontmatter block |
 | `loads_frontmatter(text)` | the no-path form, for content not yet on disk |
-| `validate(Model, data, path=, root=, prefix=)` | the Pydantic half |
+| `validate(Model, data, path=, root=, prefix=, key_lines=)` | the Pydantic half; `key_lines` locates the failure at its key's line |
 | `FailureCollector` | report **every** failing file, not the first (SR-03-009) |
 
 All raise `MetadataLoadError`, a `ValueError` subclass carrying `path`, `line`,
