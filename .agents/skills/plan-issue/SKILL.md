@@ -319,8 +319,10 @@ $([ -n "${NOTES_FILE}" ] && echo "Notes: \`notes/${NOTES_FILE}\`")" \
 For Epics, see the `epic.md` companion file — Tasks are wired as sub-issues
 of the Epic itself, not blocked-by it.
 
-Repeat for each additional impl issue. Set `size:` by AC count:
-1–2 → `size:S`; 3–6 → `size:M`; 7+ → `size:L`.
+Repeat for each additional impl issue. Set `size:` from the AC count with
+`PYTHONPATH= uv run pr-size --acs <N> --quiet` — an **estimate**, per
+`.agents/skills/shared/sizing.md`. Never `size:XL`: an issue that large is a
+decomposition signal, and the band is measurement-only (PAD-05-012).
 
 Add each new issue to Project #24:
 

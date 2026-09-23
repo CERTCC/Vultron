@@ -5,8 +5,8 @@
 This package is the project's own tooling layer: it reads the repository's
 metadata files and validates them. It backs the `spec-dump`, `spec-lint`,
 `spec-coverage`, `adr-index`, `demo-scenarios`, `append-history`,
-`show-history`, and `bundle-fit` console entry points, plus several pre-commit
-hooks.
+`show-history`, `bundle-fit`, and `pr-size` console entry points, plus several
+pre-commit hooks.
 
 One exception to "reads the repository's metadata files": `planning/` reads a
 GitHub GraphQL payload piped in on **stdin** rather than files on disk, so its

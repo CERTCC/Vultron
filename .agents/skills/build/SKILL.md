@@ -338,9 +338,11 @@ draft commit and use `git diff main...HEAD` normally.
 
 ### Phase 8 — Open PR and Finalize
 
-1. Compute diff size over the whole PR: ≤50 lines → `size:S`; 51–300 →
-   `size:M`; 301+ → `size:L`. Update the `size:` label on the Issue — on every
-   member for a bundle, each carrying the whole-PR size (PAD-05-002).
+1. **Do not set a `size:` label.** The `pr-size-label` workflow measures the
+   whole-PR diff and applies it on every push (PAD-05-002), and the Issue keeps
+   its AC-count estimate untouched so estimate-versus-actual stays queryable
+   (PAD-05-010). See `shared/sizing.md`. To see the size before pushing:
+   `PYTHONPATH= uv run pr-size --base origin/main`.
 
 2. Invoke the `create-pr` skill to push and open the PR. One bundle is one PR:
    the body carries `- Closes #N` **once per member, in bundle order**, and the
@@ -351,7 +353,7 @@ draft commit and use `git diff main...HEAD` normally.
    type:         implementation
    title:        <short title>
    body:         <composed per pr-body-guide.md implementation template>
-   labels:       size:<X>
+   labels:       <topic labels only — never size:, see step 1>
    issue_number: <N>        # the first bundle member
    ```
 
