@@ -46,27 +46,34 @@ class CoreActor(CoreObject):
         validate_by_name=True,
     )
 
-    inbox: str | None = None
-    outbox: str | None = None
+    # Never empty once validated: ``""`` only means "not supplied", and
+    # ``_derive_endpoints_from_id`` replaces it.  ActivityPub requires every
+    # actor to publish both endpoints (ISSUE-3616).
+    inbox: str = ""
+    outbox: str = ""
 
     @field_validator("inbox", "outbox", mode="before")
     @classmethod
-    def _coerce_collection_to_uri(cls, v: Any) -> str | None:
+    def _coerce_collection_to_uri(cls, v: Any) -> str:
         """Coerce a collection object to its URI string.
 
         When reading back from storage, inbox/outbox may be stored as a full
         collection dict (from wire-layer as_Service/as_Actor) rather than a
         plain string URI. Extract the id_ or id field for backward compat.
+        ``None`` or a collection without an id reads as ``""``, the "not
+        supplied" value ``_derive_endpoints_from_id`` fills.
         """
-        if v is None or isinstance(v, str):
+        if v is None:
+            return ""
+        if isinstance(v, str):
             return v
         if isinstance(v, dict):
-            return v.get("id_") or v.get("id") or None
-        return getattr(v, "id_", None) or getattr(v, "id", None) or None
+            return v.get("id_") or v.get("id") or ""
+        return getattr(v, "id_", None) or getattr(v, "id", None) or ""
 
     @model_validator(mode="after")
     def _derive_endpoints_from_id(self) -> Self:
-        """Fill an absent or ``None`` ``inbox``/``outbox`` from ``id_``.
+        """Fill an absent, ``None`` or empty ``inbox``/``outbox`` from ``id_``.
 
         Mirrors ``as_Actor.set_collections`` so a Vultron actor publishes the
         same addresses whichever branch built it.  Written with
@@ -75,7 +82,7 @@ class CoreActor(CoreObject):
         ``exclude_unset`` dump still carries the derived address.
         """
         for field_name in ("inbox", "outbox"):
-            if getattr(self, field_name) is None:
+            if not getattr(self, field_name).strip():
                 object.__setattr__(
                     self, field_name, f"{self.id_}/{field_name}"
                 )

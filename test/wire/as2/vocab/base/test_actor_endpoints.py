@@ -127,12 +127,22 @@ def test_core_actor_serializes_derived_endpoints(field_name):
     assert actor.model_dump(exclude_unset=True)[field_name] == expected
 
 
+@pytest.mark.parametrize("empty", [None, "", "   "])
 @pytest.mark.parametrize("field_name", _ENDPOINTS)
-def test_core_actor_rederives_an_endpoint_reassigned_to_none(field_name):
-    """Assigning ``None`` cannot leave an actor without an endpoint."""
+def test_core_actor_never_holds_an_empty_endpoint(field_name, empty):
+    """No arrival or assignment leaves an actor without an endpoint.
+
+    ActivityPub requires both, so ``None``, ``""`` and blank strings — at
+    construction or by later assignment — all resolve to the derived URL.
+    """
+    built = VultronOrganization.model_validate(
+        {"id": ACTOR_ID, field_name: empty}
+    )
+    assert getattr(built, field_name) == f"{ACTOR_ID}/{field_name}"
+
     actor = VultronOrganization(id_=ACTOR_ID, name="Alice")
 
-    setattr(actor, field_name, None)
+    setattr(actor, field_name, empty)
 
     assert getattr(actor, field_name) == f"{ACTOR_ID}/{field_name}"
 
