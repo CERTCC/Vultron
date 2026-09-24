@@ -180,21 +180,30 @@ returns: it goes in the Phase 3 briefing and the PR body.
 
 ## Phase 3 — Present Findings (BLOCKING)
 
-Embed the complete briefing in the `question` field of the `ask_user` call —
-do **not** output it as free text before the tool call. Include every item
-from Phase 2 with concrete evidence directly in the question text:
+Present the briefing as a **plain-text message** and end your turn — do
+**not** use `ask_user` here. The user often redirects or adds context at this
+step, and a plain reply in the normal prompt wraps where the `ask_user` notes
+field does not. With no question box open, nothing hides the briefing.
 
-```text
-Reproduced at: <file:line>
-Root cause:    <specific hypothesis with evidence>
-Sibling hits:  <list of file:line instances, or "none found">
-Proposed fix:  <approach>
-Alternative:   <if any>
-Test strategy: <specific test name and location>
-Specs:         <Spec manifest "Loaded" lines from 2g>
-```
+Write it per `.agents/skills/shared/asking-the-user.md`: plain language, no
+bare IDs, every option spelled out. Cover each item from Phase 2 with concrete
+evidence, in whatever order reads best:
 
-Ask: **"Proceed with this plan, redirect, or narrow scope?"**
+- **What's broken** — the symptom, and where you reproduced it (`file:line`
+  plus a few words on what that code does).
+- **Why it happens** — the root cause, with the evidence behind it.
+- **Other places with the same bug** — each one with its location and what it
+  is, or "none found."
+- **The fix** — what you will change, in plain terms. Name an alternative if
+  there is a real one, and say why you prefer your choice.
+- **How the test proves it** — the test name, location, and what it checks.
+- **Requirements that apply** — from the Spec manifest in 2g, each ID with a
+  short description of what it requires.
+
+End with one specific question, such as: **"Should I go ahead with this fix,
+including the other places listed?"** Tell the user they can also narrow the
+scope (fix only some places and file the rest as issues) or point you
+somewhere else.
 
 - **Confirms**: proceed to Phase 4.
 - **Redirects** to a different area: update understanding and return to

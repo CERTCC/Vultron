@@ -61,7 +61,7 @@ stale items). Recommend, do not act.
 
 ## Phase 3: Interactive Update Loop
 
-Use `ask_user` for every choice — never ask in plain prose.
+Use `ask_user` for each discrete choice (see `.agents/skills/shared/asking-the-user.md`).
 
 ```python
 while True:

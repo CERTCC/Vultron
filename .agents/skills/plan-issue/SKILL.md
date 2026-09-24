@@ -66,7 +66,7 @@ selection before continuing.
 
 #### Creating a new Idea (if selected)
 
-Ask the user to describe the idea (`ask_user`, freeform). Synthesize a
+Ask the user to describe the idea (plain text, open-ended). Synthesize a
 short title. Then select a parent epic (query open Epics and ask the user to
 confirm — see `new-item` Phase 4 for the pattern) and a milestone (see
 `shared/issue-creation-requirements.md`). Then create:
@@ -161,7 +161,7 @@ from the discussion rather than being asked as structured questions.
 
 **General pattern (all types):**
 
-1. **Prior-art search (before the synthesis brief):** Load
+1. **Prior-art search (before the short brief):** Load
    `.agents/skills/shared/compose-before-create.md` and search for existing
    helpers, use cases, or base classes that match the domain nouns in the
    issue title and body. This surfaces reuse opportunities before acceptance
@@ -169,11 +169,11 @@ from the discussion rather than being asked as structured questions.
    section of the implementation issues created in Phase 8; omit the section
    if nothing is found.
 
-2. **Open with a synthesis brief** — Before asking anything, present what
-   the research from Phase 3 reveals: what the issue says, what the current
-   codebase/specs show about the landscape, and 2–3 plausible directions.
-   Include any prior-art findings from step 1 in the brief. Ask whether this
-   reading is accurate before proceeding.
+2. **Open with a short brief** — Before asking anything, give a few bullets
+   on what the research from Phase 3 reveals: what the issue says, what the
+   current codebase/specs show, any prior-art findings from step 1, and 2–3
+   plausible directions, each described in a line. End with **one specific
+   question** — never "is this accurate?" about the whole block.
 
 3. **Conversation** — Walk through the problem bottom-up. Ask clarifying
    questions as understanding builds. Do not impose a predetermined question
@@ -184,10 +184,14 @@ from the discussion rather than being asked as structured questions.
    "I think we're almost there — here's what I have so far. Got more?"
    Do not declare done unilaterally.
 
-5. **Confirm conclusions** — After the user closes the conversation, propose
-   the full plan as a confirmation block: what to implement, what docs to
-   update, whether an ADR is warranted. These are proposals to confirm, not
-   a new round of questions.
+5. **Confirm conclusions** — After the user closes the conversation, list the
+   plan as a short numbered list, one plain-language line per decision: what
+   to implement, what docs to update, whether an ADR is warranted. Write every
+   item out in full — never refer back by number or bare ID. The user says
+   which lines are wrong; this is not a new round of questions.
+
+Every question follows `.agents/skills/shared/asking-the-user.md` (one at a
+time, problem before decision, plain language, no bare IDs).
 
 **Type-specific opening and conversation guidance:** see the loaded
 companion file.
