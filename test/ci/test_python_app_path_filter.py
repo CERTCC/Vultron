@@ -15,7 +15,7 @@
 """The unit-test workflow runs on a lockfile-only change.
 
 The demo workflow skips Dependabot PRs on the premise that ``python-app.yml``
-still tests them (DEMOCI-02-004). A Dependabot bump inside an existing
+still tests them (DEMOCI-02-004), which DEMOCI-02-016 secures. A Dependabot bump inside an existing
 version range touches only ``uv.lock``, so without ``uv.lock`` in the path
 filter no test runs at all — which is how the py_trees 2.6.0 bump reached
 ``main`` untested (#3610).
@@ -41,7 +41,7 @@ def _triggers() -> dict:
     return triggers
 
 
-@pytest.mark.spec("DEMOCI-02-004")
+@pytest.mark.spec("DEMOCI-02-016")
 @pytest.mark.parametrize("event", ["push", "pull_request"])
 def test_python_app_workflow_runs_on_lockfile_change(event: str) -> None:
     assert "uv.lock" in _triggers()[event]["paths"]

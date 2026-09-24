@@ -261,9 +261,7 @@ groups:
           are unlikely to break the demo; running the full container stack on
           each one wastes CI resources. The python-app.yml test suite still
           guards against broken dependencies on Dependabot PRs — which holds
-          only because its path filter includes `uv.lock`: a bump inside an
-          existing version range touches nothing else, and without it such a
-          bump merged with no test run at all (#3610).
+          only because its path filter includes `uv.lock` (DEMOCI-02-016).
 
       - id: DEMOCI-02-005
         priority: MUST
@@ -406,6 +404,26 @@ groups:
         relationships:
           - rel_type: refines
             spec_id: DEMOCI-02-010
+
+      - id: DEMOCI-02-016
+        priority: MUST
+        kind: project
+        statement: >-
+          Both the push and pull_request triggers of
+          `.github/workflows/python-app.yml` MUST include `uv.lock` in their
+          paths filter.
+        rationale: >-
+          DEMOCI-02-004 skips the demo workflow on Dependabot PRs on the
+          premise that python-app.yml still tests them. A Dependabot bump
+          inside an existing version range touches only `uv.lock`, so without
+          it in the filter such a bump merges with no test run at all — which
+          is how the py-trees 2.6.0 bump reached main untested (#3610).
+        verification: >-
+          `test/ci/test_python_app_path_filter.py` asserts `uv.lock` is in both
+          path filters.
+        relationships:
+          - rel_type: derives_from
+            spec_id: DEMOCI-02-004
 
   - id: DEMOCI-03
     title: Extensibility for Additional Demo Scenarios

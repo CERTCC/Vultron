@@ -23,8 +23,11 @@ classmethods, so no behavior tree could be built (#3610).
 
 Two checks per class:
 
-1. py_trees' own abstract-class predicate says the class is concrete, so
-   it can be instantiated.
+1. The class resolves both ``INPUT_PORTS`` and ``OUTPUT_PORTS`` — the
+   condition py_trees >= 2.6 checks before it will instantiate a ports
+   class. The check is stated here rather than borrowed from py_trees'
+   private predicate, which also flags unimplemented abstract methods and
+   would misreport a deliberately abstract base as a missing declaration.
 2. The class does not override ``input_ports`` / ``output_ports``: an
    override would shadow the attribute and give the node two sources of
    truth that can drift apart.
@@ -36,11 +39,12 @@ import importlib
 import pkgutil
 
 import pytest
-from py_trees.ports import PortsMixin, _ports_class_is_abstract
+from py_trees.ports import PortsMixin
 
 import vultron.core.behaviors
 
 _OLD_ACCESSORS = ("input_ports", "output_ports")
+_PORT_ATTRIBUTES = ("INPUT_PORTS", "OUTPUT_PORTS")
 
 
 def _import_all_behavior_modules() -> None:
@@ -70,15 +74,16 @@ def test_ports_classes_are_discovered() -> None:
 
 @pytest.mark.spec("BTND-03-009")
 def test_every_ports_node_declares_class_attribute_ports() -> None:
-    abstract = [
-        f"{c.__module__}.{c.__qualname__}"
+    undeclared = [
+        f"{c.__module__}.{c.__qualname__}.{attr}"
         for c in _vultron_ports_classes()
-        if _ports_class_is_abstract(c)
+        for attr in _PORT_ATTRIBUTES
+        if not hasattr(c, attr)
     ]
-    assert abstract == [], (
-        f"{len(abstract)} typed-ports class(es) lack INPUT_PORTS / "
-        "OUTPUT_PORTS and cannot be instantiated under py_trees >= 2.6:\n  "
-        + "\n  ".join(abstract)
+    assert undeclared == [], (
+        f"{len(undeclared)} typed-ports declaration(s) missing; py_trees "
+        ">= 2.6 refuses to instantiate these classes:\n  "
+        + "\n  ".join(undeclared)
     )
 
 

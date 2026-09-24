@@ -133,8 +133,10 @@ class CaseIdInputPortMixin:
         # the port to whatever ``INPUT_PORTS`` the class ends up with. This
         # runs before ``PortsMixin.__init_subclass__`` (the mixin precedes
         # the ports base in the MRO), so the port is validated with the rest.
+        # No fallback: a class with no ``INPUT_PORTS`` to extend raises here
+        # rather than silently declaring ``case_id`` alone.
         cls.INPUT_PORTS = {
-            **getattr(cls, "INPUT_PORTS", {}),
+            **cls.INPUT_PORTS,
             "case_id": PortInformation(data_type=str, required=False),
         }
         super().__init_subclass__(**kwargs)
