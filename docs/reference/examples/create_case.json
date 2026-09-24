@@ -1,37 +1,37 @@
 {
-  "id": "urn:uuid:256b39ea-5042-456e-90a9-1a1a1db4f37b",
+  "id": "urn:uuid:3f0a6261-bb83-4607-96fb-fc26ab335fdc",
   "type": "Create",
-  "name": "https://vultron.example/organizations/vendorco Create VendorCo Case #36201851",
-  "context": "https://demo.vultron.local/VulnerabilityReport/d3374731-d2d0-4530-89a7-00f118413aa3",
+  "name": "https://vultron.example/organizations/vendorco Create VendorCo Case #39327986",
+  "context": "https://demo.vultron.local/VulnerabilityReport/7e9514d8-f9b0-48ea-b784-a2fbd3ad1ee9",
   "content": "We've created a case from this report.",
   "@context": "https://www.w3.org/ns/activitystreams",
   "actor": "https://vultron.example/organizations/vendorco",
   "object": {
-    "id": "https://demo.vultron.local/VulnerabilityCase/980c8df6-7846-4567-a532-99ac071415d9",
+    "id": "https://demo.vultron.local/VulnerabilityCase/29c9265b-ef75-4364-ae54-bd3a6bc524bb",
     "type": "VulnerabilityCase",
-    "name": "VendorCo Case #36201851",
-    "published": "2026-09-23T16:41:57+00:00",
-    "updated": "2026-09-23T16:41:57+00:00",
+    "name": "VendorCo Case #39327986",
+    "published": "2026-09-24T14:21:06+00:00",
+    "updated": "2026-09-24T14:21:06+00:00",
     "attributedTo": "https://vultron.example/organizations/vendorco",
     "caseParticipants": [
       {
-        "id": "urn:uuid:9795d550-e72a-41cf-961b-f95b5cb312cc",
+        "id": "urn:uuid:d92d77dc-61eb-46c1-aba0-8a24381d9a35",
         "type": "CaseParticipant",
         "name": "VendorCo",
-        "published": "2026-09-23T16:41:57+00:00",
-        "updated": "2026-09-23T16:41:57+00:00",
+        "published": "2026-09-24T14:21:06+00:00",
+        "updated": "2026-09-24T14:21:06+00:00",
         "attributedTo": "https://vultron.example/organizations/vendorco",
         "caseRoles": [
           "vendor"
         ],
         "participantStatuses": [
           {
-            "id": "urn:uuid:4b5ed8f5-596a-45f2-8eb5-2671fa2b89fa",
+            "id": "urn:uuid:f2965400-78cf-40bf-acb9-d422befcd88a",
             "type": "ParticipantStatus",
             "name": "START vf",
-            "context": "urn:uuid:9795d550-e72a-41cf-961b-f95b5cb312cc",
-            "published": "2026-09-23T16:41:57+00:00",
-            "updated": "2026-09-23T16:41:57+00:00",
+            "context": "urn:uuid:d92d77dc-61eb-46c1-aba0-8a24381d9a35",
+            "published": "2026-09-24T14:21:06+00:00",
+            "updated": "2026-09-24T14:21:06+00:00",
             "attributedTo": "https://vultron.example/organizations/vendorco",
             "rmState": "START",
             "vfState": "vf",
@@ -51,16 +51,16 @@
     ],
     "actorParticipantIndex": {},
     "vulnerabilityReports": [
-      "https://demo.vultron.local/VulnerabilityReport/d3374731-d2d0-4530-89a7-00f118413aa3"
+      "https://demo.vultron.local/VulnerabilityReport/7e9514d8-f9b0-48ea-b784-a2fbd3ad1ee9"
     ],
     "caseStatuses": [
       {
-        "id": "urn:uuid:baac47bb-03ce-44a1-9736-78cefad2e1ba",
+        "id": "urn:uuid:67986064-6fe3-48db-892f-e179c2880163",
         "type": "CaseStatus",
         "name": "NONE pxa",
-        "context": "https://demo.vultron.local/VulnerabilityCase/980c8df6-7846-4567-a532-99ac071415d9",
-        "published": "2026-09-23T16:41:57+00:00",
-        "updated": "2026-09-23T16:41:57+00:00",
+        "context": "https://demo.vultron.local/VulnerabilityCase/29c9265b-ef75-4364-ae54-bd3a6bc524bb",
+        "published": "2026-09-24T14:21:06+00:00",
+        "updated": "2026-09-24T14:21:06+00:00",
         "attributedTo": "https://vultron.example/organizations/vendorco",
         "emState": "NONE",
         "pxaState": "pxa",
@@ -72,7 +72,7 @@
     "pendingEmbargoProposalIndex": {},
     "recommendationRecommenderIndex": {},
     "caseActivity": [],
-    "genesisHash": "59402425558dbc6bfe5aff498f990b7f59744fac5f09c2fa0866d287fa10cc58",
+    "genesisHash": "fc462749644f92f69117afe6f1518e240ca4111b41f3c357934afe7ffd2c1593",
     "parentCases": [],
     "childCases": [],
     "siblingCases": [],

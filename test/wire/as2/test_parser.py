@@ -321,13 +321,14 @@ def test_parse_activity_keeps_inline_actor_subtype_with_inline_collections():
     """An inline actor's subtype must survive its ``inbox``/``outbox``.
 
     ``OrderedCollection`` was once registered only in ``CORE_TYPE_MAP``, so
-    ``find_in_vocabulary`` handed the nested expansion a *core* class that
-    ``as_VultronOrganization.inbox`` rejected, and the swallowed failure
-    degraded the whole actor to an ``as_Link`` (ISSUE-3217).  The wire class
-    now owns the name (VM-03-002), so the collections must expand to it — an
-    assertion about what they *are*, not about which class they are not, which
-    would pass vacuously once the offending class was gone (ISSUE-3563).  The
-    rule is MV-04-003: which registry an inline type string resolves against.
+    ``find_in_vocabulary`` handed the nested expansion a *core* class the
+    actor's ``inbox`` rejected, and the swallowed failure degraded the whole
+    actor to an ``as_Link`` (ISSUE-3217).  The wire class now owns the name
+    (VM-03-002), and the Vultron actor reduces each expanded collection to its
+    address — an assertion about what the endpoints *are*, not about which
+    class they are not, which would pass vacuously once the offending class was
+    gone (ISSUE-3563).  The rule is MV-04-003: which registry an inline type
+    string resolves against.
     """
     actor = {
         "type": "Organization",
@@ -358,9 +359,10 @@ def test_parse_activity_keeps_inline_actor_subtype_with_inline_collections():
     assert type(result.actor) is as_VultronOrganization
     assert getattr(result.actor, "id_", None) == "https://example.org/alice"
     for field_name in ("inbox", "outbox"):
-        collection = getattr(result.actor, field_name)
-        assert type(collection) is as_OrderedCollection
-        assert collection.id_ == f"https://example.org/alice/{field_name}"
+        assert (
+            getattr(result.actor, field_name)
+            == f"https://example.org/alice/{field_name}"
+        )
 
 
 def test_parsing_activity_line_is_debug_not_info(caplog):

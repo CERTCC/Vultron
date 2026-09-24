@@ -2,11 +2,12 @@
 """Tests for an actor's ``inbox``/``outbox`` endpoint collections.
 
 An actor's inbox and outbox are *addresses* (ActivityPub publishes them as
-URIs); ``as_Actor`` wraps each in an ``as_OrderedCollection`` and ``CoreActor``
-reduces it back to the URL.  Each arrival shape — a full collection dict, a
-bare URI, ``None``, absent — must end up at the actor's inbox URL (ISSUE-3563
-AC-5), and the serialized form must not change as a side effect of registering
-the collection types (ARCH-23-003, ISSUE-3564 AC-5).
+URIs); the AS2 ``as_Actor`` branch wraps each in an ``as_OrderedCollection``,
+and ``CoreActor`` — which the Vultron actor types now are on the wire too
+(ADR-0099) — reduces it to the URL.  Each arrival shape — a full collection
+dict, a bare URI, ``None``, absent — must end up at the actor's inbox URL
+(ISSUE-3563 AC-5), and the serialized form must not change as a side effect of
+registering the collection types (ARCH-23-003, ISSUE-3564 AC-5).
 """
 
 #  Copyright (c) 2026 Carnegie Mellon University and Contributors.
@@ -32,10 +33,9 @@ from vultron.wire.as2.vocab.base.objects.actors import as_Actor, as_Service
 from vultron.wire.as2.vocab.base.objects.collections import (
     as_OrderedCollection,
 )
-from vultron.wire.as2.vocab.objects.vultron_actor import as_VultronOrganization
 
 ACTOR_ID = "https://example.org/actors/alice"
-_ACTOR_CLASSES = [as_Actor, as_Service, as_VultronOrganization]
+_ACTOR_CLASSES = [as_Actor, as_Service]
 _ENDPOINTS = ["inbox", "outbox"]
 
 
@@ -83,7 +83,7 @@ def test_core_actor_reduces_every_arrival_shape_to_the_url(field_name, shape):
     """``CoreActor`` keeps the URL of a collection dict, and ``None`` otherwise.
 
     Core models an endpoint as an address, not a list, so an absent or
-    ``None`` endpoint stays ``None`` in core; the wire actor derives it.
+    ``None`` endpoint stays ``None`` in core; the AS2 actor derives it.
     """
     data = {"id": ACTOR_ID, **_arrival_shapes(field_name)[shape]}
 
@@ -95,16 +95,6 @@ def test_core_actor_reduces_every_arrival_shape_to_the_url(field_name, shape):
     assert getattr(actor, field_name) == expected
 
 
-def test_core_actor_without_endpoints_renders_actor_derived_urls():
-    """A core actor with no inbox reaches the wire at the actor's inbox URL."""
-    core = VultronOrganization(id_=ACTOR_ID, name="Alice")
-
-    wire = as_VultronOrganization.model_validate(core.model_dump())
-
-    assert wire.inbox.id_ == f"{ACTOR_ID}/inbox"
-    assert wire.outbox.id_ == f"{ACTOR_ID}/outbox"
-
-
 @pytest.mark.spec("ARCH-23-003")
 def test_serialized_endpoints_carry_only_address_type_and_items():
     """An endpoint serializes as an address, type and items — nothing else.
@@ -113,7 +103,7 @@ def test_serialized_endpoints_carry_only_address_type_and_items():
     particular ``current`` is gone: it serialized as ``0``, but AS2's
     ``current`` is a reference to a page, not an integer (ISSUE-3563).
     """
-    actor = as_VultronOrganization.model_validate(
+    actor = as_Service.model_validate(
         {
             "id": ACTOR_ID,
             "inbox": f"{ACTOR_ID}/inbox",

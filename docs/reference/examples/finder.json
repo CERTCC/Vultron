@@ -4,21 +4,19 @@
   "name": "Finn der Vul",
   "@context": "https://www.w3.org/ns/activitystreams",
   "inbox": {
-    "id": "urn:uuid:f0f1dea1-ff67-4648-8320-b7b6bae3b693",
+    "id": "https://vultron.example/users/finndervul/inbox",
     "type": "OrderedCollection",
-    "published": "2026-09-23T16:41:56+00:00",
-    "updated": "2026-09-23T16:41:56+00:00",
+    "published": "2026-09-24T14:21:06+00:00",
+    "updated": "2026-09-24T14:21:06+00:00",
     "@context": "https://www.w3.org/ns/activitystreams",
-    "items": [],
-    "current": 0
+    "items": []
   },
   "outbox": {
-    "id": "urn:uuid:25109c0c-a9e3-4025-8101-fb7b7ff147fc",
+    "id": "https://vultron.example/users/finndervul/outbox",
     "type": "OrderedCollection",
-    "published": "2026-09-23T16:41:56+00:00",
-    "updated": "2026-09-23T16:41:56+00:00",
+    "published": "2026-09-24T14:21:06+00:00",
+    "updated": "2026-09-24T14:21:06+00:00",
     "@context": "https://www.w3.org/ns/activitystreams",
-    "items": [],
-    "current": 0
+    "items": []
   }
 }

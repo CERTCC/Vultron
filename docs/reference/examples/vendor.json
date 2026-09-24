@@ -4,21 +4,19 @@
   "name": "VendorCo",
   "@context": "https://www.w3.org/ns/activitystreams",
   "inbox": {
-    "id": "urn:uuid:3b8e78e4-4bc4-4f8e-8458-518b2fca7a81",
+    "id": "https://vultron.example/organizations/vendorco/inbox",
     "type": "OrderedCollection",
-    "published": "2026-09-23T16:41:56+00:00",
-    "updated": "2026-09-23T16:41:56+00:00",
+    "published": "2026-09-24T14:21:06+00:00",
+    "updated": "2026-09-24T14:21:06+00:00",
     "@context": "https://www.w3.org/ns/activitystreams",
-    "items": [],
-    "current": 0
+    "items": []
   },
   "outbox": {
-    "id": "urn:uuid:f79bad8b-4aff-4347-8e2f-34696a920b45",
+    "id": "https://vultron.example/organizations/vendorco/outbox",
     "type": "OrderedCollection",
-    "published": "2026-09-23T16:41:56+00:00",
-    "updated": "2026-09-23T16:41:56+00:00",
+    "published": "2026-09-24T14:21:06+00:00",
+    "updated": "2026-09-24T14:21:06+00:00",
     "@context": "https://www.w3.org/ns/activitystreams",
-    "items": [],
-    "current": 0
+    "items": []
   }
 }

@@ -1,36 +1,34 @@
 {
-  "id": "urn:uuid:a0a80546-90d9-482d-916a-72f47f8a64d6/invitation/1",
+  "id": "urn:uuid:864f7679-66d1-4208-9a13-db37dd1598ae/invitation/1",
   "type": "Invite",
-  "name": "https://vultron.example/organizations/vendorco Invite Coordinator LLC to urn:uuid:a0a80546-90d9-482d-916a-72f47f8a64d6",
-  "content": "We're inviting you to participate in case VendorCo Case #61038668.",
+  "name": "https://vultron.example/organizations/vendorco Invite Coordinator LLC to urn:uuid:864f7679-66d1-4208-9a13-db37dd1598ae",
+  "content": "We're inviting you to participate in case VendorCo Case #16418220.",
   "to": "https://vultron.example/organizations/coordinator",
   "@context": "https://www.w3.org/ns/activitystreams",
   "actor": "https://vultron.example/organizations/vendorco",
-  "target": "urn:uuid:a0a80546-90d9-482d-916a-72f47f8a64d6",
+  "target": "urn:uuid:864f7679-66d1-4208-9a13-db37dd1598ae",
   "object": {
     "id": "https://vultron.example/organizations/coordinator",
     "type": "Organization",
     "name": "Coordinator LLC",
-    "published": "2026-09-23T16:41:56+00:00",
-    "updated": "2026-09-23T16:41:56+00:00",
+    "published": "2026-09-24T14:21:06+00:00",
+    "updated": "2026-09-24T14:21:06+00:00",
     "@context": "https://www.w3.org/ns/activitystreams",
     "inbox": {
-      "id": "urn:uuid:490ba486-0899-4fcf-b132-b6403ed08b24",
+      "id": "https://vultron.example/organizations/coordinator/inbox",
       "type": "OrderedCollection",
-      "published": "2026-09-23T16:41:56+00:00",
-      "updated": "2026-09-23T16:41:56+00:00",
+      "published": "2026-09-24T14:21:06+00:00",
+      "updated": "2026-09-24T14:21:06+00:00",
       "@context": "https://www.w3.org/ns/activitystreams",
-      "items": [],
-      "current": 0
+      "items": []
     },
     "outbox": {
-      "id": "urn:uuid:25388126-8760-4d8e-80bb-59a1989fa4b3",
+      "id": "https://vultron.example/organizations/coordinator/outbox",
       "type": "OrderedCollection",
-      "published": "2026-09-23T16:41:56+00:00",
-      "updated": "2026-09-23T16:41:56+00:00",
+      "published": "2026-09-24T14:21:06+00:00",
+      "updated": "2026-09-24T14:21:06+00:00",
       "@context": "https://www.w3.org/ns/activitystreams",
-      "items": [],
-      "current": 0
+      "items": []
     }
   }
 }

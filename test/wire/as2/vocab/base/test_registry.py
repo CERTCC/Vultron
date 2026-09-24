@@ -530,8 +530,6 @@ _UNREGISTERED_WIRE_TYPES: dict[str, str] = {
     f"{_VOCAB}.objects.base.as_VultronObject": "abstract root of the Vultron "
     "wire object branch; every concrete subclass declares its own `type_` "
     "(VM-05-001)",
-    f"{_VOCAB}.objects.vultron_actor.as_VultronActorMixin": "mixin carrying "
-    "Vultron actor extension fields; never instantiated on its own",
     f"{_BASE}.actors.as_Person": "VM-01-008 sanctioned shadow: "
     "as_VultronPerson owns `Person`",
     f"{_BASE}.actors.as_Organization": "VM-01-008 sanctioned shadow: "
