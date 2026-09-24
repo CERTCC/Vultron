@@ -16,6 +16,7 @@ related_notes:
   - notes/flaky-tests.md
   - notes/configuration.md
   - notes/bt-pitfalls.md
+  - notes/bt-integration.md
   - notes/datalayer-design.md
   - notes/triggers-test-coverage.md
   - notes/demo-ci-invariants.md
@@ -118,6 +119,66 @@ is firing on honest work rather than catching hangs, change the tier rather
 than contorting the tests around it. Do not add a row to
 [notes/flaky-tests.md](flaky-tests.md) for a test that is merely near its
 ceiling.
+
+#### Raising the Ceiling Lowers the Frequency of Signal Loss, Never the Severity
+
+`timeout_method = "thread"` arrived in #528 as an unexamined default — the
+commit that added the guardrail states no reason for it — and every write-up
+since, including the tier table above, has treated it as a fixed constraint and
+tuned *ceilings* around it. That is the wrong dial. A ceiling governs how often
+a trip happens; the method governs what a trip costs, and under `"thread"` a
+trip costs the whole session: the process dies where it stands, so the tests
+after the hang never run and the failures already recorded are never named.
+
+The cost is not theoretical. #3576 lost the names of four unrelated failures
+that way, and the class has been re-diagnosed six times (ISSUE-1925,
+ISSUE-1988, ISSUE-2086, ISSUE-2237, #2762, #3576) — each time as flakiness or a
+too-tight ceiling, never as the method. A two-line probe settles which dial
+matters, because the difference is visible in the summary rather than in
+argument:
+
+| `--timeout-method` | Hanging test | Rest of session | Summary line |
+|---|---|---|---|
+| `thread` | kills the process | never runs | none |
+| `signal` | fails, named, alone | runs to completion | names every failure |
+
+`signal` (POSIX-only, `SIGALRM` in the main thread) is what restores the
+signal. It is not free: the alarm raises at an arbitrary point, so an interrupt
+landing while a test holds the module-level blackboard `RLock` is a deadlock
+mode `"thread"` does not have, and a hang inside a C call that never releases
+the GIL is unreachable by a signal. Both are bounded by a job-level
+`timeout-minutes` on the pytest job, which the `thread` method's self-kill has
+been quietly standing in for. Tracked in #3603.
+
+Source: #528, #2270, #3041, #3576
+
+#### A Marker Sweep That Counts Declarations Misses a Directory Hook
+
+Tests under `test/demo/` are marked `integration` by a path-based
+`pytest_collection_modifyitems` hook in `test/demo/conftest.py`, not by a
+`pytestmark` line in each module. A sweep that greps for the declaration
+therefore reports near-total non-compliance for a directory that is in fact
+100% compliant — which is how #3041 came to assert that 59 of 63 demo modules
+inherit the unit tier, three weeks after both the hook and the 60s tier had
+landed. It also proposed adding the marker to all 59, which would have been a
+no-op duplicating the hook's job per module.
+
+**Ask what the collected items actually carry, not what the files declare.** A
+`trylast` plugin reading `item.get_closest_marker(...)` answers it in one run
+and needs no repo change:
+
+```bash
+uv run pytest test/demo -m "" --collect-only -q -s -p <probe_plugin>
+```
+
+The same distinction applies to the assertion that guards the tier.
+`test/test_integration_timeout_tier.py` exercises `apply_integration_timeout`
+against hand-built `FakeItem`s, so it stays green no matter what the real
+collection produces: if the root and demo `pytest_collection_modifyitems` hooks
+ever reorder, every demo test silently drops to the unit tier without a single
+test failing. Tracked in #3604.
+
+Source: #3041, #3576
 
 ### A `filterwarnings` Exemption Placed Before `"error"` Is a No-Op
 
