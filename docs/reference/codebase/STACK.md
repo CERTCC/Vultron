@@ -77,8 +77,9 @@ uv build
 # Serve docs locally
 uv run mkdocs serve
 
-# Export spec registry as LLM-friendly JSON
-uv run spec-dump
+# Spec registry: map first, then targeted LLM-friendly JSON
+PYTHONPATH= uv run spec-dump --index
+PYTHONPATH= uv run spec-dump --topic CS --text
 ```
 
 ### 5) Environment and Config

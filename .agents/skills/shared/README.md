@@ -26,6 +26,7 @@ Shared scripts and reference documents referenced by multiple skills.
 | `freshen-branch.sh` | Rebase-free freshening onto `origin/main` **before the first push** | `bash .agents/skills/shared/freshen-branch.sh` |
 | `sync-with-main.sh` | Merge the base branch into an **already-pushed** PR branch; leaves conflicts for the caller | `bash .agents/skills/shared/sync-with-main.sh [<base-branch>]` |
 | `merge-state.sh` | Report a PR's mergeability, polling past GitHub's transient `UNKNOWN` | `bash .agents/skills/shared/merge-state.sh [<pr-number>]` |
+| `graph-freshness.sh` | Check this worktree's graphify graph is present and fresh before relying on it; exit 1 means use grep/code search | `bash .agents/skills/shared/graph-freshness.sh [max-commits-behind]` |
 
 ## freshen vs sync — pick by whether the branch is pushed
 

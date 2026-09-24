@@ -981,13 +981,16 @@ maps to an AS2 wire form, working on `docs/reference/messages/`, adding a
 or reasoning about fault reporting and acknowledgment. Source: IDEA-605.
 
 **`spec-authoring-rules.md`**
-Mechanical rules for authoring spec YAML: the exact enums `spec-lint` accepts
-for `kind`, `priority`, and `rel_type`; keys silently dropped by `spec-dump`;
-the protocol-coverage ratchet and its strict-`xfail` pattern; and the audit
-passes required when retiring a name or splitting a compound requirement.
-**Load when**: adding or editing any `specs/*.yaml` entry, or debugging a
-spec-lint / `spec-dump` failure. Pair with `specs-vs-adrs.md` for *whether* the
-requirement belongs in a spec at all.
+Mechanical rules for authoring spec YAML: the MS-12 decision tree for choosing
+a `kind`, and why copying the neighbouring entries is the mechanism that spread
+misclassification rather than a safe shortcut; the exact enums `spec-lint`
+accepts for `kind`, `priority`, and `rel_type`; keys silently dropped by
+`spec-dump`; the protocol-coverage ratchet and its strict-`xfail` pattern; and
+the audit passes required when retiring a name or splitting a compound
+requirement.
+**Load when**: adding or editing any `specs/*.yaml` entry, choosing a `kind:`
+for a new entry, or debugging a spec-lint / `spec-dump` failure. Pair with
+`specs-vs-adrs.md` for *whether* the requirement belongs in a spec at all.
 
 **`rfc-spec-authoring.md`**
 Structural and editorial decisions for building `docs/reference/vultron-spec/`

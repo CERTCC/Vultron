@@ -302,6 +302,8 @@ IMPL_NUMBER=$(.agents/skills/manage-github-issue/manage_github_issue.sh \
   --body "## Summary
 <Description>
 
+Governing specs: <spec/group IDs, e.g. CS-02-003, EM-04> ← or \"none — <reason>\"
+
 ## Acceptance Criteria
 - [ ] AC-1: <from grill-me>
 
@@ -319,6 +321,15 @@ $([ -n "${NOTES_FILE}" ] && echo "Notes: \`notes/${NOTES_FILE}\`")" \
   --milestone "${MILESTONE_NUMBER}" \
   --blocked-by "${ISSUE_NUMBER}")
 ```
+
+**`Governing specs:` is required in every impl issue body.** List the spec
+IDs (or group IDs) the work must satisfy: draw them from the Spec manifest
+`deepen-context` emitted in Phase 3 (floor + selected entries that apply to
+this AC cluster) plus any requirements added in Phase 5. Leave it empty only
+as an explicit `none — <reason>`. `build` and `bugfix` pass this line to
+`deepen-context` as the spec floor, so a missing line means the implementer
+loads no task-specific specs by default. See
+`.agents/skills/shared/issue-creation-requirements.md` § "Governing specs".
 
 For Epics, see the `epic.md` companion file — Tasks are wired as sub-issues
 of the Epic itself, not blocked-by it.
@@ -399,6 +410,7 @@ See the loaded companion file for the type-specific completion step:
 - [ ] Markdown lint clean (if docs changed)
 - [ ] PR opened with `specs-notes` label — always
 - [ ] Implementation issue(s) created via `manage-github-issue` + `add-to-project.sh` (with type, parent epic, and milestone set)
+- [ ] Every impl issue body has a `Governing specs:` line (IDs, or `none — <reason>`)
 - [ ] Impl issues wired per type (blocked-by for Ideas/Concerns; sub-issue for Epics)
 - [ ] Impl issues reference docs PR URL in their body (Ideas/Concerns only — Phase 8)
 - [ ] Docs PR body updated with Implementation Issues section (Ideas/Concerns only — Phase 8b)

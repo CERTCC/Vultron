@@ -13,6 +13,7 @@ from vultron.metadata.specs.coverage import (
     collect_marked_ids,
     compute_protocol_coverage,
 )
+from vultron.metadata.specs.llm_export import CROSS_CUTTING_TOPICS
 from vultron.metadata.specs.registry import SpecRegistry, load_registry
 
 
@@ -76,6 +77,7 @@ def warn_unknown_spec_id(spec_id: str, registry: SpecRegistry) -> None:
 
 
 __all__ = [
+    "CROSS_CUTTING_TOPICS",
     "ProtocolCoverageReport",
     "SpecRegistry",
     "SpecRegistryUnavailableWarning",

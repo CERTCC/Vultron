@@ -18,6 +18,9 @@ Research and present findings on:
    has the project structure shifted?
 5. **Title/body gaps** — Proposed edits to the Epic title or body if the
    validated understanding differs from what is written.
+6. **Governing specs** — The spec topics or groups the Epic as a whole must
+   satisfy (from the Spec manifest). Add or refresh a `Governing specs:`
+   line in the Epic body; its Tasks narrow it to specific IDs.
 
 Present all findings as a brief, ask for confirmation or correction, and
 apply any agreed Epic title/body edits before proceeding to Phase B:
@@ -58,7 +61,8 @@ Docs updates are optional. Skip if Phase A found no gaps.
 
 ## Implementation Issues
 
-Create one Task sub-issue per decomposition cluster from Phase B. Wire each as:
+Create one Task sub-issue per decomposition cluster from Phase B. Every Task
+body carries a `Governing specs:` line (see `SKILL.md` Phase 8). Wire each as:
 
 - `--blocked-by <N>` for any sequencing constraints
 - `--issue-type-id "$(bash .agents/skills/shared/board-id.sh issue-type Task)"`
@@ -70,6 +74,8 @@ TASK_NUMBER=$(.agents/skills/manage-github-issue/manage_github_issue.sh \
   --title "<task title from Phase B>" \
   --body "## Summary
 <description>
+
+Governing specs: <spec/group IDs this Task must satisfy> ← or \"none — <reason>\"
 
 ## Acceptance Criteria
 - [ ] AC-1: <from Phase B>

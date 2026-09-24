@@ -1,5 +1,6 @@
-1. Run `uv run spec-dump` (see `.agents/skills/load-specs/SKILL.md`) to load
-   all project specifications as flat JSON. Do not read raw `specs/*.yaml`
+1. Run `PYTHONPATH= uv run spec-dump --index` for the spec map, then load the
+   topics you need with `--topic`/`--group` (see
+   `.agents/skills/load-specs/SKILL.md`). Do not read raw `specs/*.yaml`
    files directly.
 2. Check [open GitHub Issues](https://github.com/CERTCC/Vultron/issues) to understand the current progress.
 3. Study plan/BUILD_LEARNINGS.md to understand any additional insights or observations that may be helpful for implementation.

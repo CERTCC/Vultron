@@ -49,8 +49,9 @@ If this fails, stop and investigate before proceeding.
    synthesize a title, then **before creating** determine the required fields:
 
    0. **Invoke `orient-agent` first.** `calve-epics` Mode 1 matches the bug
-      against open Epics using domain terminology drawn from the spec corpus,
-      the glossary, and the schedule — all of which `orient-agent` loads.
+      against open Epics using domain terminology drawn from the spec map,
+      the glossary term index, and the schedule — all of which `orient-agent`
+      loads.
       Running the match before that context is loaded makes it unreliable.
       Step 3 below then becomes a no-op.
 
@@ -61,6 +62,10 @@ If this fails, stop and investigate before proceeding.
 
    2. **Milestone** — query open milestones and ask the user to confirm the
       best-fit one (see `shared/issue-creation-requirements.md` for defaults).
+
+   `BUG_BODY` includes a `Governing specs:` line naming the spec IDs the
+   correct behavior is defined by (or `none — <reason>`); see
+   `shared/issue-creation-requirements.md` § "Governing specs".
 
    Then create with all three required fields:
 
@@ -81,8 +86,7 @@ If this fails, stop and investigate before proceeding.
      described defect still exists on `origin/main` HEAD:
 
      Search for the specific symptom, anti-pattern, or code path described
-     in the issue body (grep, `git log -S "<key term>" -- <file>`, or
-     graphify query). If the defect cannot be reproduced on `origin/main`,
+     in the issue body (grep or `git log -S "<key term>" -- <file>`). If the defect cannot be reproduced on `origin/main`,
      it may have been fixed by a prior PR that lacked a `Closes #N` footer.
 
      If the defect is absent from `origin/main`:
@@ -169,7 +173,10 @@ Identify the specific failing test that will prove the bug exists. Name it:
 ### 2g — Deepen context
 
 Invoke `deepen-context` with focus hints derived from the investigation
-(e.g., `"BT node write boundary"`, `"EM state transition"`).
+(e.g., `"BT node write boundary"`, `"EM state transition"`), and pass as the
+**spec floor** the issue's `Governing specs:` line plus any spec IDs cited in
+the issue body, comments, or code you traced. Keep the **Spec manifest** it
+returns: it goes in the Phase 3 briefing and the PR body.
 
 ## Phase 3 — Present Findings (BLOCKING)
 
@@ -184,6 +191,7 @@ Sibling hits:  <list of file:line instances, or "none found">
 Proposed fix:  <approach>
 Alternative:   <if any>
 Test strategy: <specific test name and location>
+Specs:         <Spec manifest "Loaded" lines from 2g>
 ```
 
 Ask: **"Proceed with this plan, redirect, or narrow scope?"**
@@ -229,11 +237,18 @@ Once the plan is confirmed:
    - Defer a sibling hit only through Gate 1 (measured remainder + approval).
      See [REFERENCE.md](REFERENCE.md) § "Escalation".
 
-4. **Iterate**: run `format-code`, `run-linters`, `run-tests`; refine until
+4. **Spec backstop (blocking)**: resolve the Spec manifest from 2g against
+   the diff per `deepen-context` § "Backstop" until
+   `spec-backstop --manifest /tmp/spec-manifest-<issue>.txt` exits 0; the
+   resolved manifest goes into the PR body. A docs-only fix makes the tool
+   report that it derived nothing — expected, and it means your selection is
+   the only check.
+
+5. **Iterate**: run `format-code`, `run-linters`, `run-tests`; refine until
    all relevant tests pass. Apply branch-ownership and pre-existing-failure
    rules from `completeness-doctrine.md`.
 
-5. **Finalize** — in this order. `archive-history` comes *after* `create-pr`
+6. **Finalize** — in this order. `archive-history` comes *after* `create-pr`
    because its entry body carries the PR URL, which does not exist until the PR
    is open (see that skill's "Always invoke AFTER the PR is opened").
    - Do **not** set a `size:` label: the `pr-size-label` workflow measures the
@@ -241,7 +256,9 @@ Once the plan is confirmed:
      (PAD-05-010). See `shared/sizing.md`.
    - Invoke `create-pr`. One bundle is one PR: the body carries `- Closes #N`
      once per member, in bundle order, and the Changes section names each
-     member's fix (`bundling.md` § "Executing a bundle").
+     member's fix (`bundling.md` § "Executing a bundle"). The body includes
+     a `## Specs` section carrying the Spec manifest from 2g
+     (`pr-body-guide.md` § "Specs").
 
      ```text
      type:         implementation

@@ -10,8 +10,11 @@ requirements.
 
 ### Loading Specifications
 
-**Always run `uv run spec-dump` before any implementation or design task.**
-This produces flat, inheritance-resolved JSON covering all 48 spec files. Raw
+**Always load the governing specs before any implementation or design task.**
+`orient-agent` loads the map (`PYTHONPATH= uv run spec-dump --index`);
+`deepen-context` loads the task's requirements with `--topic`, `--group`, or
+`--ids ... --deps` (flat, inheritance-resolved JSON). Do not print the
+unfiltered dump — it is too large to read end to end. Raw
 `specs/*.yaml` files are for authoring and linting only — do not read them
 directly. See `.agents/skills/load-specs/SKILL.md` for field definitions and
 usage guidance.
@@ -63,7 +66,8 @@ when working on a narrow feature — they impose constraints on all code.
 
 If requirements appear to conflict:
 
-1. Check **cross-references** in the `edges` array from `uv run spec-dump`
+1. Check **cross-references** in the `edges` array from
+   `PYTHONPATH= uv run spec-dump --ids <A>,<B> --deps`
 2. Consolidated specs (`http-protocol.yaml`, `structured-logging.yaml`) take
    precedence over older inline requirements
 3. MUST requirements override SHOULD/MAY
@@ -111,7 +115,14 @@ that bite most often:
 
 - **`kind:`** — exactly `protocol`, `architecture`, `project`, `process`.
   `implementation` is not valid, and the rejection can read like a YAML syntax
-  error.
+  error. Which one to pick is a decision tree, not a judgment call: apply
+  MS-12-001 → MS-12-005 in order (see `notes/spec-authoring-rules.md`), and do
+  not infer a `kind` from the surrounding entries in the same file.
+- **`lint_suppress: [missing_story_reference]`** — a ratcheted escape hatch,
+  not a free one. MS-12-007 pins the corpus-wide count to a ceiling that can
+  only fall, so adding a suppression fails the ratchet unless another one is
+  removed. If SR-11-003 fires on a new entry, the usual fix is a corrected
+  `kind:`, not a suppression.
 - **`priority:`** — underscores, not spaces: `MUST_NOT`, `SHOULD_NOT`. A space
   is a FATAL registry load error.
 - **`rel_type:`** — one of the enumerated values; `related_to` is not among them.
@@ -128,6 +139,6 @@ that bite most often:
   the implementation does not exist yet, use the strict-`xfail` pattern.
 
 After adding any new key to a spec YAML, verify it appears in
-`PYTHONPATH= uv run spec-dump` output before treating it as persisted.
+`PYTHONPATH= uv run spec-dump --ids <ID>` output before treating it as persisted.
 
 ---

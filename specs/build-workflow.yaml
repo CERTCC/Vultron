@@ -239,6 +239,30 @@ groups:
             spec_id: BW-02-001
         lint_suppress:
         - missing_story_reference
+      - id: BW-02-006
+        priority: MUST
+        kind: project
+        statement: >-
+          The `learnings-index` entry point MUST render one line per file in
+          `plan/incoming/learnings/` carrying its source, title, and filename,
+          and MUST still print the valid entries when a file fails
+          validation, reporting the failures on stderr.
+        rationale: >-
+          `orient-agent` read the directory whole at 42.7 KB of a budget meant
+          for maps. Each title states its lesson in full, so the index carries
+          what the directory says in 2.5 KB. It has to survive a malformed
+          file because the queue is written by hand and an unquoted colon in a
+          `title:` is the recurring failure — losing the whole index to one
+          bad file would cost orientation the other nine entries.
+        verification: >-
+          `test/metadata/test_incoming_learnings.py` asserts the line format,
+          newest-first ordering, and that a malformed file is reported on
+          stderr while the valid entries still render.
+        relationships:
+          - rel_type: depends_on
+            spec_id: BW-02-001
+        lint_suppress:
+        - missing_story_reference
   - id: BW-03
     title: learn Skill Processing
     specs:
