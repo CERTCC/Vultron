@@ -65,7 +65,8 @@ The page tells you which of those nodes your organization owns.
 ## How call-out points behave
 
 A call-out point is a location where an actor obtains a judgment, a fact, or an artifact from outside the protocol ([ADR-0024](../../../adr/0024-coordination-agent-taxonomy.md)).
-Five shapes cover every one of them: **Evaluator** returns a recommendation, **Retriever** returns facts, **Composer** returns content, **Actuator** confirms a side effect, and **Sentinel** watches a condition and calls a trigger endpoint instead of being called.
+Four capability shapes cover every one of them: **Evaluator** returns a recommendation, **Retriever** returns facts, **Composer** returns content, and **Actuator** confirms a side effect (BT-18-013, [ADR-0097](../../../adr/0097-capability-layer-four-shapes-and-core-declared-contracts.md)).
+A **Sentinel** is not a shape: it watches a condition and calls a trigger endpoint on its own initiative, so it has no call-out point.
 The shapes and their service contracts are described in the [Capability Model](../../capability_model/index.md).
 
 Three properties of a call-out point matter when reading these pages.
@@ -103,7 +104,7 @@ Both appear in these pages, and confusing them leads to an implementation that w
 ## Further reading
 
 - [Protocol Event Flow](../../protocol_flow.md) — the actor model, cascades, and what happens when an actor must ask permission
-- [Capability Model](../../capability_model/index.md) — the five capability shapes and the full catalog of call-out points
+- [Capability Model](../../capability_model/index.md) — the four capability shapes and the full catalog of call-out points
 - [Behaviors Reference](../../../reference/behaviors/index.md) — the trees the reference implementation builds today
 - [Behavior Logic](../index.md) — the original behavior tree design these use cases realize
 - [Glossary](../../../reference/glossary.md) — Participant, call-out point, capability shape, case actor service

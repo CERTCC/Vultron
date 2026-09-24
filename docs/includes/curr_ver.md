@@ -1,9 +1,19 @@
-!!! info inline end "Current Version"
-
-    The current version of the Vultron Protocol is
+!!! info inline end "Site build"
 
     ```python exec="true" idprefix=""
-    from vultron import __version__
+    import sys
+    from pathlib import Path
 
-    print(__version__)
+    _repo = Path.cwd()
+    if str(_repo) not in sys.path:
+        sys.path.insert(0, str(_repo))
+
+    from vultron import __version__
+    from vultron.metadata.docs.build_version import describe_build
+
+    print(describe_build(__version__))
     ```
+
+    This is a build version, not a protocol version.
+    <!-- versioning-link -->
+    Protocol versions are numbered by the [protocol versioning scheme](../reference/versioning.md).

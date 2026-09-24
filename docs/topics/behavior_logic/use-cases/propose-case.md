@@ -67,7 +67,7 @@ Sending a second `Accept` would tell the proposer it had been accepted twice, an
 ## Where judgment enters
 
 One call-out point governs this use case: **EvaluateCaseProposal** (Evaluator), the admission decision (CP-05-002).
-Evaluator is one of the five capability shapes defined in [ADR-0024](../../../adr/0024-coordination-agent-taxonomy.md), and the backend that answers it is injected as a swappable factory ([ADR-0025](../../../adr/0025-call-out-point-abstraction-layer.md)), so a deployment supplies its own admission policy without editing the tree.
+Evaluator is one of the four capability shapes ([ADR-0097](../../../adr/0097-capability-layer-four-shapes-and-core-declared-contracts.md), BT-18-013), and the backend that answers it is injected as a swappable factory ([ADR-0025](../../../adr/0025-call-out-point-abstraction-layer.md)), so a deployment supplies its own admission policy without editing the tree.
 Its service contract is in the [Capability Model](../../capability_model/index.md#case-admission).
 
 It is the only place a deployment can express admission policy.

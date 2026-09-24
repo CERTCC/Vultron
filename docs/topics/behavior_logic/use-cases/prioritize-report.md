@@ -51,7 +51,7 @@ The practical rule for implementers: anything that can *refuse* an inbound asser
 ## Where judgment enters
 
 **EvaluateCasePriority** (Evaluator) is the decision itself: given this case, should this actor engage it or defer it?
-Evaluator is one of the five capability shapes in [ADR-0024](../../../adr/0024-coordination-agent-taxonomy.md); the backend answering it is injected, not compiled in ([ADR-0025](../../../adr/0025-call-out-point-abstraction-layer.md)).
+Evaluator is one of the four capability shapes ([ADR-0097](../../../adr/0097-capability-layer-four-shapes-and-core-declared-contracts.md), BT-18-013); the backend answering it is injected, not compiled in ([ADR-0025](../../../adr/0025-call-out-point-abstraction-layer.md)).
 
 This is the natural home for a Stakeholder-Specific Vulnerability Categorization (SSVC) integration, or for any prioritization scheme an organization already runs.
 The protocol asks for a decision, not for a methodology, and deliberately says nothing about which inputs a Participant should weigh.

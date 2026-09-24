@@ -113,7 +113,7 @@ _KNOWN_UNDISPATCHABLE = {
     # never gain an ActivityPattern or a MessageSemantics member.  (Was #3433,
     # closed by that decision — cite the ADR, not the issue, so this does not read
     # as a dead tracking reference.)
-    "choose_preferred_embargo": "ADR-0100 — the multi-candidate embargo poll is retired, so this example is emit-only by decision: no ActivityPattern and no MessageSemantics",
+    "choose_preferred_embargo": "ADR-0100 — the multi-candidate embargo poll is retired, so this example is emit-only by decision: no ActivityPattern and no MessageSemantics. Removed with the class by #3469",
 }
 
 
