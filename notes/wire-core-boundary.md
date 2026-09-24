@@ -127,10 +127,12 @@ A filter inside one caller protects only that caller. The inbox adapter's
 `_reparse_as_specific_type` has no such filter and still produces a core class
 for an inbound `{"type": "OrderedCollection"}` (#3565). The general rule is
 **VM-06-008**: wire-branch resolution goes through a lookup that returns
-`as_Base` subclasses only, and the core fallback is opt-in. The core class behind
-that name, `CoreActorCollection`, is vestigial (#3563), and the wire collection
-classes are unregistered because they declare no `type_` annotation for
-`__init_subclass__` to see (#3564). Details are in
+`as_Base` subclasses only, and the core fallback is opt-in. For
+`OrderedCollection` itself both causes are gone: the vestigial core class
+`CoreActorCollection` was deleted (#3563) and the wire collection classes now
+declare the `type_` they present, so the wire registry answers first (#3564).
+The inbox adapter's lookup still inherits the fallback for every other core-only
+name. Details are in
 [vocabulary-registry](vocabulary-registry.md) § "Why `OrderedCollection` Collided
 At All".
 

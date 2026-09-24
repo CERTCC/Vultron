@@ -11,10 +11,10 @@ level: 400
 {% include-markdown "../includes/not_normative.md" %}
 
 !!! note "Scope of this page"
-    This page covers how to integrate the Vultron Protocol state machines (RM, EM, CS)
-    into existing workflow management systems — for example, hooking an ITSM ticketing
-    system into the RM lifecycle, or mapping embargo negotiation onto a calendaring
-    protocol.
+    This page covers how to integrate the Vultron Protocol's Report Management (RM),
+    Embargo Management (EM), and Case State (CS) state machines
+    into existing workflow management systems — for example, hooking an IT Service Management (ITSM) ticketing
+    system into the RM lifecycle.
 
     For a conceptual overview of the *reference implementation's* architectural
     choices — hexagonal boundaries, the ActivityStreams-based inbox pipeline, and
@@ -22,14 +22,14 @@ level: 400
     [Reference Implementation Architecture](../topics/reference_architecture.md)
     in the Explanation section.
 
-To integrate the Vultron Protocol into everyday MPCVD operations, identify where each of your business processes
+To integrate the Vultron Protocol into everyday Multi-Party Coordinated Vulnerability Disclosure (MPCVD) operations, identify where each of your business processes
 intersects with the [RM](../topics/process_models/rm/index.md), [EM](../topics/process_models/em/index.md),
 and [CS](../topics/process_models/cs/index.md) process models, then instrument each intersection to emit the
 appropriate protocol message.
 
 ## RM Implementation Notes
 
-Roughly speaking, the RM process is very close to a normal [IT Service Management](https://en.wikipedia.org/wiki/IT_service_management){:target="_blank"} (ITSM)
+Roughly speaking, the RM process is very close to a normal [ITSM](https://en.wikipedia.org/wiki/IT_service_management){:target="_blank"}
 incident or service request workflow.
 As such, the RM process could be implemented as a JIRA ticket workflow, as part of a Kanban process, etc.
 The main modifications needed to adapt an existing workflow are to intercept the key milestones and emit the appropriate RM messages:
@@ -58,12 +58,6 @@ To support this workflow, build the draft-sharing process into the
 
 ## EM Implementation Notes
 
-### Embargo Management and Calendaring
-
-In terms of the proposal, acceptance, rejection, etc., the EM process is strikingly parallel to the process of
-scheduling a meeting in a calendaring system, and could be mapped onto
-[`iCalendar`](https://en.wikipedia.org/wiki/ICalendar){:target="_blank"} protocol semantics.
-
 ### Embargo Management Does Not Deliver Synchronized Publication
 
 The Vultron EM process establishes when publication restrictions are lifted.
@@ -81,7 +75,7 @@ However, at times, case Participants may find it necessary to coordinate more cl
     to indicate that the information is sensitive and should be shared only with those who need to know.
     Thus, an embargo declaration might take the form of "This case is <span style="color:#FFC000;background-color:#000000">**TLP:AMBER**</span>
     until 2024-03-31 23:59:59 UTC, at which time it becomes <span style="color:#FFFFFF;background-color:#000000">**TLP:CLEAR**</span>." 
-    The [CERT Guide to CVD](https://certcc.github.io/CERT-Guide-to-CVD/howto/operation/opsec/){:target="_blank"} covers TLP in CVD in more detail.
+    The [CERT Guide to Coordinated Vulnerability Disclosure (CVD)](https://certcc.github.io/CERT-Guide-to-CVD/howto/operation/opsec/){:target="_blank"} covers TLP in CVD in more detail.
 
 ## CS Implementation Notes
 
@@ -114,43 +108,36 @@ Some portions of this process can be automated:
 
 - Human analysts and/or automated search agents can look for evidence of early publication of vulnerability information.
 
-- IDS and IPS signatures might be deployed prior to fix availability to act as an early warning of adversary activity.
+- Intrusion Detection System (IDS) and Intrusion Prevention System (IPS) signatures might be deployed prior to fix availability to act as an early warning of adversary activity.
 
 - Well-known code publication and malware analysis platforms can be monitored for evidence of exploit publication or use.
 
-## Conformance Levels
+## Conformance
 
-Independent implementors can achieve different levels of protocol conformance.
-The Vultron Protocol defines four levels, each building on the previous:
+A conformance claim names the capability sets an implementation provides and the roles it takes on, written `CapabilitySet / Role` ([§12.1](../reference/vultron-spec/index.md#121-conformance-model-overview)).
+[What Is Vultron?](../topics/background/what-is-vultron.md#what-conformance-means-for-your-system) summarizes the three capability sets.
+
+Conformance *tests* are organized in four layers, a separate axis from the capability sets ([§12.5](../reference/vultron-spec/index.md#125-conformance-testing-approach)).
+A capability set says what your software provides; a layer says what a test checks.
 
 **L1 — Syntax**
-: Well-formed messages that conform to the wire format.
-  This level is covered by the [wire format specifications](../reference/specs/protocol.md).
+: Messages are well formed against the wire format.
+  The wire format is defined in [§5 of the specification](../reference/vultron-spec/index.md#5-syntactic-layer-wire-format-n).
 
-**L2 — Semantic**
-: Correct state transitions in response to received messages and local events.
-  This level is covered by the [Vultron Protocol spec (VP)](../reference/specs/protocol.md) and the
-  [Transition Functions](../reference/formal_protocol/transitions.md).
+**L2 — Semantics**
+: Each received message or local event drives the correct state transition.
+  The [Vultron Protocol spec (VP)](../reference/specs/protocol.md) and the [Transition Functions](../reference/formal_protocol/transitions.md) define the transitions.
 
-**L3 — Behavioral**
-: Correct observable outputs — the right messages emitted and the right states reached
-  in response to a given (input state + received message/event) combination.
-  This level is covered by the protocol behavioral specifications:
+**L3 — Behavior**
+: Given an input state and a received message or event, the right messages are emitted and the right states reached.
+  The protocol behavioral specifications define the expected outputs:
 
     - [RMB — Report Management Behavioral Requirements](../reference/specs/protocol.md#rmb)
     - [EMB — Embargo Management Behavioral Requirements](../reference/specs/protocol.md#emb)
     - [CSB — CVD Case State Behavioral Requirements](../reference/specs/protocol.md#csb)
 
 **L4 — Process**
-: Correct internal decision structure — for example, precondition checks before state writes
-  before protocol effects, audit-log ordering, and idempotency guarantees.
-  This level is enforceable only through a reference implementation.
-  The `vultron/core/behaviors/` behavior tree layer in this repository provides the
-  reference implementation for L4.
+: The internal order of decisions, such as precondition checks before state writes before protocol effects, audit-log ordering, and idempotency.
+  L4 inspects internal structure, so it applies only to the reference implementation, whose behavior tree layer lives in `vultron/core/behaviors/`.
 
-!!! tip "Start with L2"
-
-    Most implementations will naturally achieve L1 by using a compliant message serializer.
-    L2 conformance is the practical minimum for interoperability: a Participant that transitions
-    states correctly can exchange messages with any other L2-conformant Participant.
-    L3 adds observable-output guarantees that matter for multi-party coordination correctness.
+Independent implementations are tested at L1 through L3.

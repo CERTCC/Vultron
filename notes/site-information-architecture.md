@@ -416,8 +416,8 @@ page-local fixer.
 
 ### Entry pages are titled by situation, never by type
 
-One routing page is generated per stakeholder type, and its title names a
-situation the reader recognizes rather than the type it was generated from:
+There is one routing page per stakeholder type, under `docs/start/`, and its
+title names a situation the reader recognizes rather than the type it serves:
 *"You maintain a vulnerability tracker and want it to talk to your partners"*,
 not *"For platform developers"*. The vocabulary drives which pages exist and
 what they link; it never appears on them.
@@ -430,6 +430,10 @@ label at all, so the same logic applies one step further. And because
 the word loses nothing when it happens — the split just adds a page with a
 narrower situation. Keeping the vocabulary internal is what makes that deferral
 cheap.
+
+The pages are hand-written, not generated. Each is a curated reading path, not
+an enumeration of a section's children, so DF-11-005's generate-and-gate rule
+does not apply to them (#3524 AC-11).
 
 ### The coverage matrix is generated too
 

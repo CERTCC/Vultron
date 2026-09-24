@@ -214,56 +214,66 @@ type. Confirmed by `test_no_wire_types_in_core_type_map` in
 
 ## Why `OrderedCollection` Collided At All
 
-(CONCERN-3242, 2026-09-23)
+(CONCERN-3242, 2026-09-23; resolved by #3563 and #3564, 2026-09-24)
 
 The collision that caused #3217 was not a naming accident between two live
 classes. It was a **vestigial core class squatting on a name the wire side had
 never claimed**, and both halves of that sentence are load-bearing.
 
-**The core half.** `CoreActor.inbox` and `.outbox` are `str | None` — a plain
-URL, with a `mode="before"` validator that accepts a full collection dict and
-keeps only its `id`. Core does not model an actor's inbox as a list. But
-`CoreActorCollection` (`vultron/core/models/actor.py`) was left behind when that
-reduction happened, and because it declares `type_: Literal["OrderedCollection"]`
-it registers itself in `CORE_TYPE_MAP` under that name. Nothing else reads it: at
-the time of writing its only references are its own definition, its `__all__`
-entry, its entry in the `_TO_CAMEL_BACKLOG_1991` allow-list
-(`test/architecture/test_hierarchy_invariants.py`), and three comments and
-assertions that exist to describe this bug. Its
-sole live effect was to make `find_in_vocabulary("OrderedCollection")` answer
-with a core class.
+**The core half.** `CoreActor.inbox` and `.outbox` are a never-empty `str` — a
+plain URL, with a `mode="before"` validator that accepts a full collection dict
+and keeps only its `id`, and an absent, `None`, blank or id-less endpoint is
+derived as `{id_}/inbox` (#3616), because the Vultron actor types are the wire form too
+(ADR-0099). Core does not model an actor's inbox as a list. But a
+`CoreActorCollection` class was left behind when that reduction happened, and
+because it declared `type_: Literal["OrderedCollection"]` it registered itself in
+`CORE_TYPE_MAP` under that name. Nothing read it; its sole live effect was to
+make `find_in_vocabulary("OrderedCollection")` answer with a core class. It was
+deleted in #3563, and a core collection model MUST NOT be reintroduced.
 
-**The wire half.** `as_Collection` and friends declare no `type_` annotation,
-and inherit no `type_` default, so `set_type_from_class_name` (VM-03-001) derives
-`type_` from the class name at construction time. `as_Base.__init_subclass__` uses the presence of a
-non-union `type_` annotation as its test for "is this class concrete", so these
-classes present a distinct wire `type` while registering nothing. The two
-mechanisms disagree about which classes are concrete, and registration is the
-silent one. VM-03-002 is now a MUST for exactly this reason.
+**The wire half.** `as_Collection` and `as_OrderedCollection` declared no `type_`
+annotation, so `set_type_from_class_name` (VM-03-001) derived `type_` from the
+class name at construction time while `as_Base.__init_subclass__` — which uses
+the presence of a non-union `type_` annotation as its test for "is this class
+concrete" — registered nothing. The two mechanisms disagreed about which classes
+are concrete, and registration was the silent one. VM-03-002 is a MUST for
+exactly this reason; both classes (and `as_Link`) now narrow `type_` to a
+`Literal`.
+
+**The ratchet that could not see it.** The old completeness test worked per
+module and skipped any module with no own `type_` annotation as "semantic alias
+or abstract" — which is precisely what an unregistered module looks like. Its
+skip predicate *was* the defect. VM-01-007's replacement,
+`test_registry.py::TestWireTypeValues`, walks the `as_Base` subclasses, computes
+the `type` each presents, and requires a class presenting its own
+class-name-derived value to be what `WIRE_TYPE_MAP` answers for it. Exceptions
+are a per-class exemption set, each member naming its reason: abstract roots and
+mixins, and the five VM-01-008 actor shadows. A companion test fails an
+exemption that no longer needs to exist.
 
 **Do not read the per-caller filter as the fix.** #3232's
-`issubclass(cls, as_Base)` guard in `parser._inline_vocab_class` closes the
-measured path and nothing else. The FastAPI inbox adapter's re-parse helper
-(`routers/actors/_inbox.py::_reparse_as_specific_type`) has no such guard, so an
-inbound `Add(object={"type": "OrderedCollection", "id": ...})` is reconstructed as
-a core `CoreActorCollection` and handed to the persistence write (#3565). A
-payload carrying AS2 collection fields such as `totalItems` or `orderedItems`
-fails `CoreActorCollection` validation and falls back to `as_Object`, so the leak
-is limited to minimal collection objects. The general rule
+`issubclass(cls, as_Base)` guard in `parser._inline_vocab_class` closes one path.
+The FastAPI inbox adapter's re-parse helper
+(`routers/actors/_inbox.py::_reparse_as_specific_type`) has no such guard (#3565).
+For `OrderedCollection` that no longer matters, but any other name registered
+only in `CORE_TYPE_MAP` still resolves to a core class there. The general rule
 is VM-06-008: a wire-branch caller resolves through a lookup that returns
 `as_Base` subclasses only, and the core fallback is reached by asking for it.
 
-**Two measurements worth not re-deriving.** Of 126 `as_Base` subclasses, 66 are
-registered. Of the 60 that are not, 47 are `_XxxActivity` semantic aliases
-(correct — they present a parent's `type`), 6 are abstract roots or mixins
-(`as_Object`, `as_VultronObject`, `as_VultronActorMixin`,
-`as_TransitiveActivity`, `as_IntransitiveActivity`, `as_VultronActivity`), and
-`as_CaseActor` is an alias presenting `Service` without the underscore prefix.
-The remaining 6 are the gap itself: `as_Collection`, `as_OrderedCollection`,
-`as_CollectionPage`, `as_OrderedCollectionPage`, `as_Link`, and `as_Mention`.
-Separately, 32 `CORE_TYPE_MAP` keys (27 distinct classes) resolve through
-`find_in_vocabulary` to a class that is not an `as_Base` subclass. Both
-figures move with the code; re-measure rather than quoting them (MS-16-001).
+**The paging machinery went with it.** `as_CollectionPage`,
+`as_OrderedCollectionPage`, `as_Mention`, the `following`/`followers`/`liked`/
+`streams` actor fields and the paging fields had no readers and were deleted
+(#3563). The `current` field was not inert, though. It serialized as
+`"current": 0` in every actor's inbox and outbox, and AS2's `current` is a page
+reference, not an integer. Its removal is the one intended change to an actor's
+serialized form. The other change is that an actor built without an
+inbox/outbox now gets `{id}/inbox` and `{id}/outbox`, as `set_collections`
+always intended, instead of a fresh `urn:uuid:`.
+
+Separately, 32 `CORE_TYPE_MAP` keys (27 distinct classes) resolved through
+`find_in_vocabulary` to a class that is not an `as_Base` subclass when this was
+measured. The figure moves with the code; re-measure rather than quoting it
+(MS-16-001).
 
 ---
 
@@ -273,9 +283,8 @@ figures move with the code; re-measure rather than quoting them (MS-16-001).
 
 When overriding actor-type keys in `VOCABULARY` from a Vultron-specific
 actor module (e.g., `vultron_actor.py`), overriding **all** actor keys can
-leave the base-actors-module (`vultron.wire.as2.vocab.base.objects.actors`)
-with zero registered concrete types, tripping the registry-completeness
-invariant.
+leave `as_Actor` unreachable under `"Actor"`, which the per-class
+registry-completeness ratchet (VM-01-007) refuses.
 
 **Rule**: Keep at least one base-actors-module registration. Override only
 the concrete keys that need Vultron-specific subclasses (e.g., `Person`,
@@ -291,10 +300,11 @@ VOCABULARY["Person"] = VultronPerson
 VOCABULARY["Organization"] = VultronOrganization
 ```
 
-**Why**: The registry-completeness test checks that every module under
-`vocab/base/objects/` contributes at least one concrete registration.
-A module with zero registrations indicates a structural gap (all
-registrations were moved elsewhere) and causes the invariant check to fail.
+**Why**: `WIRE_TYPE_MAP["Actor"]` is the only registration for `as_Actor`,
+which declares no concrete `type_` of its own. The per-class completeness
+ratchet (VM-01-007, § "Why `OrderedCollection` Collided At All") requires
+`as_Actor` to be what `"Actor"` resolves to. The five base actor subtypes
+are exempt from it as sanctioned VM-01-008 shadows.
 
 **Current state (post ISSUE-1992)**: `VOCABULARY["Actor"]` correctly maps to
 `as_Actor`. The earlier `CoreActor` assignment was removed as an ARCH-12-003

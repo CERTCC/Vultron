@@ -24,6 +24,11 @@ Verifies:
 
 import pytest
 
+from vultron.wire.as2.vocab.base.links import as_Link
+from vultron.wire.as2.vocab.base.objects.collections import (
+    as_Collection,
+    as_OrderedCollection,
+)
 from vultron.wire.as2.vocab.base.registry import (
     VOCABULARY,
     WIRE_TYPE_MAP,
@@ -251,6 +256,19 @@ class TestCoreTypeMapFallback:
         "ReplicationState",
     ]
 
+    @pytest.mark.spec("VM-06-008")
+    def test_ordered_collection_is_not_a_core_type(self):
+        """No core class claims ``OrderedCollection`` (ISSUE-3563).
+
+        The vestigial ``CoreActorCollection`` registered under that name, so
+        the core-map fallback answered a wire caller with a core class
+        (ISSUE-3217).  Core models an actor's inbox as a URL, not a list.
+        """
+        from vultron.core.models.registry import CORE_TYPE_MAP
+
+        assert "OrderedCollection" not in CORE_TYPE_MAP
+        assert "CoreActorCollection" not in CORE_TYPE_MAP
+
     def test_core_types_absent_from_vocabulary(self):
         """None of the formerly-misregistered core types should be in VOCABULARY."""
         for name in self._CORE_TYPE_NAMES:
@@ -427,6 +445,136 @@ class TestWireTypeValues:
             f"ARCH-23-003: find_in_vocabulary({type_value!r}) returned "
             f"{cls.__name__!r}, expected {expected_class_name!r}"
         )
+
+    @pytest.mark.spec("VM-01-007")
+    @pytest.mark.spec("VM-03-002")
+    def test_every_class_presenting_its_own_type_is_reachable_under_it(self):
+        """VM-01-007: a class presenting its own ``type`` is what that value finds.
+
+        The mirror of the registry walk above: walk the *classes* rather than
+        the registry, so a class that registered nothing is visible.  A class
+        presents its ``type_`` default, or its class name without ``as_`` when
+        it has none (``set_type_from_class_name``).  When that value is its own
+        class-name-derived one, ``WIRE_TYPE_MAP`` must answer it with that very
+        class — otherwise an inbound payload carrying the value this class
+        emits deserializes to something else, or falls through to the core map
+        (ISSUE-3242).  Semantic aliases present an ancestor's ``type`` and are
+        out of scope by construction; the rest are in ``_UNREGISTERED_WIRE_TYPES``.
+        """
+        unreachable = sorted(
+            f"{cls.__module__}.{cls.__name__} presents {value!r}; "
+            f"WIRE_TYPE_MAP[{value!r}] is "
+            f"{getattr(WIRE_TYPE_MAP.get(value), '__name__', None)}"
+            for cls, value in _classes_presenting_own_type()
+            if WIRE_TYPE_MAP.get(value) is not cls
+            and _qualified_name(cls) not in _UNREGISTERED_WIRE_TYPES
+        )
+        assert unreachable == [], (
+            "VM-01-007: these classes present their own class-name-derived "
+            "`type` but are not reachable under it. Narrow `type_` to a "
+            "`Literal` (VM-03-002), or add the class to "
+            "_UNREGISTERED_WIRE_TYPES with the requirement that exempts it:\n"
+            + "\n".join(unreachable)
+        )
+
+    @pytest.mark.spec("VM-01-007")
+    def test_every_exemption_is_live(self):
+        """VM-01-007: an exemption names a class that still needs one.
+
+        An entry for a class that no longer exists, no longer presents its own
+        ``type``, or has since become reachable is a stale licence.  Keys are
+        qualified names, so a new class reusing a bare name elsewhere is not
+        covered by accident.
+        """
+        needing = {
+            _qualified_name(cls)
+            for cls, value in _classes_presenting_own_type()
+            if WIRE_TYPE_MAP.get(value) is not cls
+        }
+        assert set(_UNREGISTERED_WIRE_TYPES) - needing == set()
+
+    @pytest.mark.spec("VM-03-002")
+    @pytest.mark.spec("VM-06-008")
+    @pytest.mark.parametrize(
+        "type_value,expected",
+        [
+            ("Collection", as_Collection),
+            ("OrderedCollection", as_OrderedCollection),
+            ("Link", as_Link),
+        ],
+    )
+    def test_collection_and_link_types_resolve_to_the_wire_class(
+        self, type_value, expected
+    ):
+        """VM-03-002: these names resolve to the wire class, not the core map.
+
+        ``OrderedCollection`` used to answer a wire caller with a core class
+        (ISSUE-3217, ISSUE-3242).  Asserting identity, not merely that the
+        lookup succeeds, is what distinguishes the two.
+        """
+        cls = find_in_vocabulary(type_value)
+        assert cls is expected
+        assert WIRE_TYPE_MAP[type_value] is cls
+
+
+_VOCAB = "vultron.wire.as2.vocab"
+_BASE = f"{_VOCAB}.base.objects"
+
+#: Classes that present their own class-name-derived ``type`` but are
+#: deliberately not what that value deserializes to, each with the reason
+#: (VM-01-007).  ``test_every_exemption_is_live`` keeps this set from outliving
+#: its members.
+_UNREGISTERED_WIRE_TYPES: dict[str, str] = {
+    f"{_BASE}.base.as_Object": "abstract root of the AS2 object branch; the "
+    "class an unresolved inline object is left to, not a type Vultron emits",
+    f"{_VOCAB}.objects.base.as_VultronObject": "abstract root of the Vultron "
+    "wire object branch; every concrete subclass declares its own `type_` "
+    "(VM-05-001)",
+    f"{_BASE}.actors.as_Person": "VM-01-008 sanctioned shadow: "
+    "as_VultronPerson owns `Person`",
+    f"{_BASE}.actors.as_Organization": "VM-01-008 sanctioned shadow: "
+    "as_VultronOrganization owns `Organization`",
+    f"{_BASE}.actors.as_Service": "VM-01-008 sanctioned shadow: "
+    "as_VultronService owns `Service`",
+    f"{_BASE}.actors.as_Application": "VM-01-008 sanctioned shadow: "
+    "as_VultronApplication owns `Application`",
+    f"{_BASE}.actors.as_Group": "VM-01-008 sanctioned shadow: "
+    "as_VultronGroup owns `Group`",
+}
+
+
+def _qualified_name(cls: type) -> str:
+    """Return the ``module.ClassName`` key ``_UNREGISTERED_WIRE_TYPES`` uses."""
+    return f"{cls.__module__}.{cls.__name__}"
+
+
+def _classes_presenting_own_type() -> list[tuple[type, str]]:
+    """Return every production ``as_Base`` subclass presenting its own ``type``.
+
+    Walks ``__subclasses__`` from ``as_Base`` after importing every vocabulary
+    package, keeping classes defined under ``vultron.`` so throwaway subclasses
+    other tests declare are not mistaken for production vocabulary.
+    """
+    import vultron.wire.as2.vocab.activities  # noqa: F401 — defines subclasses
+    import vultron.wire.as2.vocab.objects  # noqa: F401 — defines subclasses
+    from vultron.wire.as2.vocab.base.base import as_Base
+    from vultron.wire.as2.vocab.base.registry import wire_type_value
+
+    found: list[tuple[type, str]] = []
+    seen: set[type] = set()
+    pending: list[type] = list(as_Base.__subclasses__())
+    while pending:
+        cls = pending.pop()
+        if cls in seen:
+            continue
+        seen.add(cls)
+        pending.extend(cls.__subclasses__())
+        if not cls.__module__.startswith("vultron."):
+            continue
+        value = wire_type_value(cls)
+        if value == cls.__name__.removeprefix("as_"):
+            found.append((cls, value))
+    return found
 
 
 class TestSetTypeFromClassName:

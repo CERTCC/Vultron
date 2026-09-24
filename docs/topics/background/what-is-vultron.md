@@ -1,204 +1,170 @@
+---
+description: >
+  What kind of thing Vultron is: an open protocol that lets the systems
+  organizations already use for vulnerability disclosure coordinate a case
+  with each other, the way email servers exchange mail.
+stakeholder_type: ALL
+level: 100
+---
+
 # What Is Vultron?
 
-!!! tip inline end "Is this page for me?"
+Vultron is an open protocol that lets the systems organizations already use for Coordinated Vulnerability Disclosure (CVD) coordinate a case with each other.
+It is a protocol in the way the Simple Mail Transfer Protocol (SMTP) is: it defines what systems say to each other, not a product anyone must run.
+Two mail services compete for users and still deliver each other's mail, because both speak SMTP.
+Vultron aims for the same arrangement among vulnerability trackers, coordination services, and disclosure platforms.
 
-    This page is written for two readers:
-
-    - A **CVD practitioner** (security researcher, coordinator, CERT/CSIRT
-      analyst) who wants to know whether Vultron solves a problem they
-      actually have.
-    - A **systems architect** who wants to understand what "Vultron
-      conformance" would mean for their organization's tools and processes.
-
-    If you are already sold and want to implement, jump to
-    [How-to Guides](../../howto/index.md).
-
-CVD is a multi-party coordination problem. When a vulnerability spans several
-vendors, a coordinator, and a national CSIRT, the parties typically rely on a
-patchwork of one-off tracking systems — bug trackers, bug bounty platforms,
-bespoke coordination services — that rarely integrate with each other, and
-when they do, only on a point-to-point basis.
-Every new coordination relationship requires custom effort, and there is no
-shared protocol: a system built for one organization's CVD workflow cannot
-interoperate with another's without explicit bilateral agreements.
-
-Vultron is a proposal for changing that. It is a federated, open-source
-protocol for CVD coordination — one that any tool, CSIRT, vendor, or service
-provider can implement to participate in ad-hoc coordination across
-organizational boundaries.
-
-## Vultron as a Protocol in Four Senses
-
-The word *protocol* is doing a lot of work here. Vultron is a protocol in
-four distinct senses, and understanding all four is the fastest way to see
-what it can and cannot do for you.
-
-### 1. Technical — Message Format and Syntax
-
-Vultron specifies a wire format based on
-[ActivityStreams 2.0](https://www.w3.org/TR/activitystreams-core/){:target="_blank"}
-for the messages that CVD participants exchange: report submissions, state
-change notifications, embargo proposals, and invitations. Any system can
-implement this wire format independently of other implementations.
-
-This is the *syntactic* layer: two systems speaking Vultron at this level can
-exchange structured data, even if they do not yet interpret it identically.
-
-### 2. Procedural — Behavior Logic
-
-Beyond the wire format, Vultron specifies *behavioral requirements*: given a
-current case state and a received message, what should a well-behaved
-participant do next? These requirements are captured as machine-readable specs
-in the [RMB](../../reference/specs/protocol.md#rmb),
-[EMB](../../reference/specs/protocol.md#emb), and
-[CSB](../../reference/specs/protocol.md#csb) families and illustrated as
-Behavior Trees in the [Behavior Logic](../behavior_logic/index.md) section.
-
-!!! note "Syntax describes meaning; behavior specifies timing"
-
-    The wire format says what messages *mean*. The behavioral requirements
-    say *when* to send them.
-
-For example: a participant whose report transitions to *Accepted* should emit
-a Report/Case Accepted notification. Most of this is automatable; the reference
-implementation handles it. But some decisions cannot be automated — these are
-**call-out points**, explicit seams in the behavior trees where the protocol
-hands control back to a human, a policy engine, or an external service.
-
-!!! info "Call-out point shapes"
-
-    Each call-out point in the Vultron behavior trees has one of five
-    interaction shapes:
-
-    | Shape | What it does |
-    |---|---|
-    | **Sentinel** | Watches for a condition; fires a protocol trigger when met |
-    | **Evaluator** | Makes a structured decision and records a recommendation |
-    | **Retriever** | Fetches external data (e.g., assigns a CVE ID) |
-    | **Composer** | Generates content (e.g., drafts an advisory) |
-    | **Actuator** | Causes a side effect in an external system |
-
-    Call-out points are *by design* — the protocol cannot decide for you
-    whether to accept a report, how long an embargo should last, or whether
-    an advisory is ready to publish. These are the judgment calls that
-    belong to your organization or your stakeholders. Each can be fulfilled
-    by an automated policy with built-in defaults, left open to human
-    judgment, or handled by any hybrid of the two.
-
-### 3. Diplomatic — Shared Vocabulary for Embargo and Trust
-
-CVD coordination breaks down most often not because of technical failure
-but because parties have different unstated assumptions: when does the
-embargo start? Who can invite additional participants? What happens if
-someone drops out?
-
-Vultron provides a shared vocabulary for these negotiations: explicit
-Embargo state transitions (Proposed → Active → Revise → eXited), formal
-invite/accept/reject handshakes, and a trust bootstrap mechanism for
-establishing relationships between previously unknown parties. This
-*diplomatic* layer is what allows distrusting parties to coordinate
-without a central authority.
-
-### 4. Coordinative — Enabling Ad-Hoc Interoperability
-
-Taken together, the three preceding layers create a fourth property: any
-Vultron-compatible system can join a CVD case with any other
-Vultron-compatible system without bespoke setup. A new participant can
-receive a case invitation, seed its local replica from the canonical
-ledger, and participate in state coordination — all via the shared protocol.
-
-This is the value proposition for adopters: you implement Vultron once, and
-you gain interoperability with every other Vultron-compatible participant.
-
-## What Conformance Means for Your System
-
-A Vultron-compatible system operates at one or more conformance levels:
-
-| Level | What it requires |
-|---|---|
-| **Syntax** | Well-formed messages — correct wire format, valid AS2 structure |
-| **Semantic** | Correct state transitions in response to received messages |
-| **Behavioral** | The right observable outputs — right messages, right order, given state conditions |
-
-The reference implementation (this repository) demonstrates all three
-conformance levels. You can run it as a test peer to verify your own
-implementation, or use it as a starting point and replace the components
-your organization already has.
-
-A Syntax-level implementation can exchange structured data. Semantic
-conformance means participating correctly in shared case state. Behavioral
-conformance is where the automation lives — where Vultron begins to reduce
-coordination overhead compared to ad-hoc tools.
-
-## What Vultron Is Not
+{% include-markdown "../../includes/protocol_analogies.md" %}
 
 !!! note "Work in progress"
 
-    Vultron is **not yet ready for production use**. The protocol design and
-    reference implementation are under active development.
+    Vultron is **not yet ready for production use**.
+    The protocol design and reference implementation are under active development.
 
-Vultron is **not** a drop-in replacement for:
+---
 
-- *Tracking systems* — Bugzilla, Jira, ServiceNow
-- *CVD and threat coordination tools* — VINCE, MISP
-- *Vulnerability disclosure platforms or programs* — HackerOne, Bugcrowd, DC3
-  VDP
+## The problem it addresses
 
-Instead, Vultron is designed to serve as a *lingua franca* for exchanging case
-coordination data *between* those systems. It is meant to be a feature set
-that existing products can adopt to gain interoperability — not a product in
-itself.
+A vulnerability that spans several vendors, a coordinator, and a national Computer Security Incident Response Team (CSIRT) is a multi-party coordination problem.
+Each party runs its own system: a bug tracker, a disclosure platform, a coordination service.
+Those systems rarely exchange data, and when they do, it is through a point-to-point integration built for one pair of organizations.
 
-Vultron is also **not** a vulnerability prioritization tool, though it is
-designed to be compatible with schemes like
-[SSVC](https://github.com/CERTCC/SSVC){:target="_blank"} and
-[CVSS](https://www.first.org/cvss/){:target="_blank"} at its call-out points.
+So every new coordination relationship costs custom effort.
+Participants end up with an account on each partner's system, or fall back to encrypted email and tickets updated by hand.
+Vultron replaces those bilateral arrangements with one shared protocol that any tool, CSIRT, vendor, or service provider can implement.
 
-## Where to Go Next
+---
 
-Your starting point depends on what you need:
+## What we mean by *protocol*
 
-<div class="grid cards" markdown>
+!!! question inline end "Why *Vultron*?"
 
-- :material-shield-search:{ .lg .middle } **CVD Practitioner**
+    The working name for the protocol is *Vultron*, an homage to the fictional robot Voltron.
+    In the Voltron animated series, a team of protectors joins forces to defend the universe from their adversaries.
+    Their mission requires independent defenders who coordinate their efforts to reach a shared goal.
+    Like Voltron, the Vultron Protocol combines humans with the technical processes and mechanisms that empower them.
+    Those humans, processes, and mechanisms must work individually and together to protect information systems, and the people who depend on them, from exploitation.
 
-    ---
+The Oxford English Dictionary gives two senses of [*protocol*](https://www.oed.com/dictionary/protocol_n?tab=meaning_and_use){:target="_blank"}, and both apply here.
 
-    You coordinate disclosures and want to understand how Vultron models the
-    process.
+!!! quote "Oxford English Dictionary on *protocol*"
 
-    [:octicons-arrow-right-24: Background](index.md) →
-    [:octicons-arrow-right-24: Process Models](../process_models/index.md) →
-    [:octicons-arrow-right-24: Behavior Logic](../behavior_logic/index.md)
+    (Computing and Telecommunications) A (usually standardized) set of
+    rules governing the exchange of data between given devices, or the
+    transmission of data via a given communications channel.
 
-- :fontawesome-solid-building:{ .lg .middle } **Systems Architect**
+    (In extended use) the accepted or established code of behavior in
+    any group, organization, or situation; an instance of this.
 
-    ---
+The first sense covers the messages systems exchange.
+The second covers how the people behind those systems are expected to behave.
+Vultron separates these into four senses, and understanding all four is the fastest way to see what it can and cannot do for you.
 
-    You are evaluating whether to implement Vultron in your organization's
-    tools. Start with the formal protocol and implementation guidance.
+### 1. Technical: message format and syntax
 
-    [:octicons-arrow-right-24: Formal Protocol](../../reference/formal_protocol/index.md) →
-    [:octicons-arrow-right-24: How-to Guides](../../howto/index.md)
+Vultron specifies a wire format based on [ActivityStreams 2.0](https://www.w3.org/TR/activitystreams-core/){:target="_blank"} for the messages CVD Participants exchange.
+Those messages carry report submissions, state change notifications, embargo proposals, and invitations.
+Any system can implement the wire format independently of other implementations.
 
-- :fontawesome-solid-code:{ .lg .middle } **Tool Builder**
+This is the *syntactic* layer.
+Two systems that agree at this level can exchange structured data, even if they do not yet interpret it identically.
 
-    ---
+### 2. Procedural: behavior logic
 
-    You are implementing the wire format or integrating with an existing
-    Vultron node.
+Beyond the wire format, Vultron specifies *behavioral requirements*: given a case state and a received message, what a well-behaved Participant does next.
+The requirements are machine-readable specifications in the Report Management Behavioral ([RMB](../../reference/specs/protocol.md#rmb)), Embargo Management Behavioral ([EMB](../../reference/specs/protocol.md#emb)), and CVD Case State Behavioral ([CSB](../../reference/specs/protocol.md#csb)) families.
+The [Behavior Logic](../behavior_logic/index.md) section illustrates them as behavior trees.
 
-    [:octicons-arrow-right-24: How-to Guides](../../howto/index.md) →
-    [:octicons-arrow-right-24: Reference](../../reference/index.md)
+!!! note "Syntax describes meaning; behavior specifies timing"
 
-- :material-source-pull:{ .lg .middle } **Vultron Contributor**
+    The wire format says what messages *mean*.
+    The behavioral requirements say *when* to send them.
 
-    ---
+For example, a Participant whose report transitions to *Accepted* emits a notification that it accepted the report.
+The reference implementation automates most of this.
+Some decisions cannot be automated, and these are **call-out points**: explicit seams where the protocol hands a decision to a human, a policy engine, or an external service.
 
-    You want to run the reference implementation, explore the codebase, or
-    contribute.
+!!! info "Call-out points and the Sentinel pattern"
 
-    [:octicons-arrow-right-24: Tutorials](../../tutorials/index.md) →
-    [:octicons-arrow-right-24: Reference](../../reference/index.md)
+    Each call-out point takes one of four capability shapes (BT-18-013):
 
-</div>
+    | Shape | What it does |
+    |---|---|
+    | **Evaluator** | Makes a structured decision and returns a recommendation |
+    | **Retriever** | Fetches external facts, such as whether a Common Vulnerabilities and Exposures (CVE) ID already exists |
+    | **Composer** | Generates content, such as an advisory draft |
+    | **Actuator** | Causes a side effect in an external system |
+
+    A **Sentinel** is not a shape.
+    It is a call-in pattern: a process that watches a condition and acts on its own initiative when it fires, instead of waiting to be asked.
+
+    Call-out points exist by design.
+    The protocol cannot decide for you whether to accept a report, how long an embargo should last, or whether an advisory is ready to publish.
+    Those judgment calls belong to your organization.
+    Each can be answered by an automated policy, by a person, or by a mix of the two.
+    The [Capability Model](../capability_model/index.md) lists every call-out point and where your system plugs in.
+
+### 3. Diplomatic: shared vocabulary for embargo and trust
+
+CVD coordination breaks down more often from unstated assumptions than from technical failure.
+Parties disagree about when an embargo starts, who can invite additional Participants, and what happens when someone drops out.
+
+Vultron gives these negotiations a shared vocabulary.
+Embargoes move through explicit states (Proposed, Active, Revise, eXited).
+Invitations follow formal invite, accept, and reject handshakes.
+A trust bootstrap mechanism lets previously unknown parties establish a relationship.
+This *diplomatic* layer lets parties who do not fully trust each other coordinate without a central authority.
+
+### 4. Coordinative: ad-hoc interoperability
+
+The three preceding senses combine into a fourth: any Vultron-compatible system can join a case with any other Vultron-compatible system without bespoke setup.
+A new Participant receives a case invitation, seeds its local copy of the case from the case ledger, and takes part in state coordination through the shared protocol.
+
+This is the value to an adopter.
+You implement Vultron once, and you can coordinate with every other Vultron-compatible Participant.
+
+---
+
+## What conformance means for your system
+
+A conformance claim names the **capability sets** an implementation provides and the **roles** it takes on, written `CapabilitySet / Role` ([§12.1](../../reference/vultron-spec/index.md#121-conformance-model-overview)).
+Examples are `Case Observer / Vendor` and `Case Observer + Case Decision + Case Hosting / Coordinator + Case Owner`.
+
+| Capability set | What it adds |
+|---|---|
+| **Case Observer** | The participation floor: track the case's state machines, send the messages your roles require, and take part in embargo negotiation |
+| **Case Decision** | Governing a case as its owner: adopting its own status updates without approval, driving shared embargo transitions, and transferring ownership |
+| **Case Hosting** | Running a case for others: holding the canonical case ledger, replicating it to Participants, and managing who participates |
+
+The normative definitions are in [§12.2 Capability Sets](../../reference/vultron-spec/index.md#122-capability-sets).
+
+Conformance *tests* are organized in four layers, and the layers are a separate question from the capability sets ([§12.5](../../reference/vultron-spec/index.md#125-conformance-testing-approach)).
+A capability set says what your software provides; a layer says what a test checks.
+
+| Layer | What a test checks |
+|---|---|
+| **L1 Syntax** | Messages are well formed against the wire format |
+| **L2 Semantics** | Each message drives the correct state transition |
+| **L3 Behavior** | The right messages are emitted and the right states reached, given a state and a received message |
+| **L4 Process** | The internal order of decisions, such as precondition before state write before side effect |
+
+Independent implementations are tested at L1 through L3.
+L4 inspects internal structure, so it applies only to the reference implementation.
+You can run the reference implementation as a test peer for your own system, or start from it and replace the components your organization already has.
+
+---
+
+## What Vultron is not
+
+{% include-markdown "../../includes/vultron_is_not.md" %}
+
+---
+
+## Where to go next
+
+Pick the description that matches your situation.
+
+- [You handle vulnerability reports and coordinate cases with other organizations](../../start/coordinate-cases.md)
+- [You maintain a vulnerability tracker and want it to talk to your partners](../../start/connect-your-tracker.md)
+- [You study how vulnerability disclosure works and want the models behind it](../../start/study-the-process.md)
+- [You want to work on the Vultron reference implementation](../../start/contribute.md)

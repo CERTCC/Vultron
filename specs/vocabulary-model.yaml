@@ -200,7 +200,9 @@ groups:
     kind: protocol
     statement: >-
       A wire-layer class that presents its own class-name-derived AS2 `type` value MUST
-      narrow the `type_` field to a `Literal[...]` matching that value.  A semantic alias
+      narrow the `type_` field to a `Literal[...]` matching that value, unless VM-01-007's
+      exemption set names it (an abstract root such as `as_Object`, which must stay
+      unregistered so an unresolved inline object is left to it).  A semantic alias
       that must not be reachable under its own class name — the `_XxxActivity` pattern,
       which presents an ancestor's `type` — MUST NOT declare its own `type_` annotation,
       because any such declaration registers the class under its class name.

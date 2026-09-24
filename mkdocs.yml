@@ -370,6 +370,7 @@ nav:
       - 'Spec Item Format Is Field Presence, Not a Class Choice': 'adr/0101-spec-item-format-is-field-presence.md'
       - 'Organize Reader-Facing Docs by Stakeholder Type and Invisible Prerequisite Level': 'adr/0102-docs-stakeholder-types-and-invisible-prerequisite-levels.md'
       - "An Object's Time Is Carried, Never Minted by the Receiver": 'adr/0103-object-time-is-carried-never-minted.md'
+      - "The Interactive Demo UI Is a React/ReactFlow Operator-Side Ledger Watcher, Fed by a Prototype-Only SSE Stream": 'adr/0104-interactive-demo-ui-live-ledger-watcher.md'
   - About:
     - What's New: 'about/whats_new.md'
     - Contributing: 'about/contributing.md'
@@ -387,6 +388,9 @@ not_in_nav: |
   # A redirect stub: the case object moved to topics/case_lifecycle/case_model.md,
   # but older pages still link here.
   howto/case_object.md
+  # Situation-titled entry pages, reached from the home page. Nav placement
+  # belongs to the nav reorder (#3627).
+  start/*.md
   adr/archived/*.md
   _*/**/*.md
   includes/*
@@ -474,6 +478,11 @@ plugins:
   # autorefs is declared explicitly so mkdocstrings does not auto-append it
   # after print-site, which would trip print-site's must-be-last check.
   - autorefs
+  # Retired pages keep their old URL alive by redirecting to the page that
+  # absorbed their content.
+  - redirects:
+      redirect_maps:
+        howto/em_icalendar.md: howto/process_implementation.md
   # NOTE print-site MUST be the last plugin in the list (see its docs for why)
   - print-site
 repo_url: 'https://github.com/CERTCC/Vultron'
