@@ -1,6 +1,9 @@
 #!/usr/bin/env python
 """
-Provides a CaseReference object for the Vultron ActivityStreams Vocabulary.
+Wire-layer alias for CaseReference.
+
+Per ADR-0099 detail 3: the core class is the canonical form.
+The as_-prefixed names are retained for backward compatibility.
 """
 
 #  Copyright (c) 2023-2025 Carnegie Mellon University and Contributors.
@@ -18,111 +21,14 @@ Provides a CaseReference object for the Vultron ActivityStreams Vocabulary.
 
 from typing import TypeAlias
 
-from pydantic import Field, field_validator
-
-from vultron.core.models.base import NonEmptyString
-from vultron.core.models.case_reference import (
-    CASE_REFERENCE_TAG_VOCABULARY,
-    CaseReference as CoreCaseReference,
-)
-from vultron.core.models.enums import VultronObjectType as VO_type
+from vultron.core.models.case_reference import CaseReference
 from vultron.wire.as2.vocab.base.links import ActivityStreamRef
-from vultron.wire.as2.vocab.objects.base import (
-    as_VultronObject,
-    _scalar_ref_id_or_value,
-    _strip_core_context,
-)
+from vultron.wire.as2.vocab.base.registry import WIRE_TYPE_MAP
 
+# Backward-compatibility alias (ADR-0099 detail 3)
+as_CaseReference = CaseReference
 
-class as_CaseReference(as_VultronObject):
-    """
-    Represents a typed external reference associated with a case.
+# Register core class in WIRE_TYPE_MAP so the parser admits it inline
+WIRE_TYPE_MAP["CaseReference"] = CaseReference
 
-    A CaseReference links to external resources (e.g., public advisory, patch,
-    vendor bulletin, or other vulnerability-related resource) rather than
-    embedding their content. The structure aligns with the CVE JSON schema
-    reference format.
-
-    Fields:
-        url: Required URL reference (must be non-empty string).
-        name: Optional human-readable title for the reference.
-        tags: Optional array of type descriptors from CVE JSON schema
-            vocabulary (e.g., 'patch', 'vendor-advisory', 'exploit', etc.).
-    """
-
-    type_: VO_type = Field(
-        default=VO_type.CASE_REFERENCE,
-        validation_alias="type",
-        serialization_alias="type",
-    )
-
-    url: NonEmptyString = Field(  # pyright: ignore[reportGeneralTypeIssues]
-        ...,
-        description="URL reference for the external resource",
-    )
-    name: NonEmptyString | None = Field(
-        default=None,
-        description="Human-readable title for the reference",
-    )
-    tags: list[str] | None = Field(
-        default=None,
-        description="Type descriptors from CVE JSON schema vocabulary",
-    )
-
-    @field_validator("tags")
-    @classmethod
-    def validate_tags(cls, v: list[str] | None) -> list[str] | None:
-        if v is None:
-            return None
-        if not isinstance(v, list):
-            raise ValueError("tags must be a list or None")
-        if not v:
-            raise ValueError("tags must have at least one element")
-        for tag in v:
-            if not isinstance(tag, str) or not tag.strip():
-                raise ValueError("All tags must be non-empty strings")
-            if tag not in CASE_REFERENCE_TAG_VOCABULARY:
-                raise ValueError(
-                    f"Invalid tag '{tag}'. Must be one of: "
-                    f"{sorted(CASE_REFERENCE_TAG_VOCABULARY)}"
-                )
-        return v
-
-    @classmethod
-    def from_core(cls, core_obj: CoreCaseReference) -> "as_CaseReference":
-        data = core_obj.model_dump(mode="json")
-        _strip_core_context(data)
-        data["attributed_to"] = _scalar_ref_id_or_value(
-            data.get("attributed_to")
-        )
-        return cls.model_validate(data)
-
-    def to_core(self) -> CoreCaseReference:
-        data = self._to_core_data()
-        data["attributed_to"] = _scalar_ref_id_or_value(
-            data.get("attributed_to")
-        )
-        return CoreCaseReference.model_validate(data)
-
-
-as_CaseReferenceRef: TypeAlias = ActivityStreamRef[as_CaseReference]
-
-
-def main():
-    from vultron.wire.as2.vocab.base.objects.actors import as_Actor
-
-    actor = as_Actor()
-    obj = as_CaseReference(
-        url="https://example.org/advisory/",
-        name="Example Security Advisory",
-        tags=["vendor-advisory", "patch"],
-        attributed_to=[actor],
-    )
-    _json = obj.to_json(indent=2)
-    print(_json)
-    with open("../../../doc/examples/case_reference.json", "w") as fp:
-        fp.write(_json)
-
-
-if __name__ == "__main__":
-    main()
+as_CaseReferenceRef: TypeAlias = ActivityStreamRef[CaseReference]

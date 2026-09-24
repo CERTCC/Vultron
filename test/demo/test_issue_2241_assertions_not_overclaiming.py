@@ -65,6 +65,10 @@ from vultron.wire.as2.vocab.objects.case_status import as_ParticipantStatus
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCase,
 )
+from vultron.core.models.dimensions import (
+    RmDimension,
+    VfDimension,
+)
 
 # ---------------------------------------------------------------------------
 # Shared constants
@@ -227,7 +231,9 @@ def test_wait_participant_status_timeout_includes_base_url(monkeypatch):
     import vultron.demo.helpers.verification as verification_module
     from vultron.demo.helpers.polling import _wait_for_participant_status_field
 
-    ps = as_ParticipantStatus(context=_CASE_ID, rm_state=RM.RECEIVED)
+    ps = as_ParticipantStatus(
+        context=_CASE_ID, rm=RmDimension(state=RM.RECEIVED)
+    )
     participant = as_CaseParticipant(
         id_=_PARTICIPANT_ID,
         case_roles=[CVDRole.VENDOR],
@@ -266,7 +272,11 @@ def test_wait_participant_status_timeout_includes_base_url(monkeypatch):
 
 def _make_participant(vf: CS_vf | None, rm: RM) -> as_CaseParticipant:
     """Build a minimal CaseParticipant with given vf and rm state."""
-    ps = as_ParticipantStatus(context=_CASE_ID, vf_state=vf, rm_state=rm)
+    ps = as_ParticipantStatus(
+        context=_CASE_ID,
+        vf=(VfDimension(state=vf) if vf is not None else None),
+        rm=RmDimension(state=rm),
+    )
     return as_CaseParticipant(
         id_=_PARTICIPANT_ID,
         case_roles=[CVDRole.VENDOR],

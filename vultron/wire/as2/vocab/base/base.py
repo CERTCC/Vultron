@@ -19,8 +19,11 @@ from typing import Any, ClassVar
 from pydantic import Field, model_validator, ConfigDict, ValidationInfo
 from pydantic.alias_generators import to_camel
 
-from vultron.core.models._helpers import absent_times_as_none
-from vultron.core.models.base import VultronBase
+from vultron.core.models._helpers import (
+    INBOUND_CONTEXT_KEY,
+    absent_times_as_none,
+)
+from vultron.core.models.base import VULTRON_CONTEXT_URI, VultronBase
 from vultron.wire.as2.vocab.base.enums import VocabNamespace
 from vultron.wire.as2.vocab.base.registry import (
     VOCABULARY,
@@ -32,12 +35,21 @@ from vultron.wire.as2.vocab.base.registry import (
 from vultron.wire.as2.vocab.base.utils import generate_new_id
 
 ACTIVITY_STREAMS_NS = "https://www.w3.org/ns/activitystreams"
-VULTRON_CONTEXT_URI = "https://certcc.github.io/Vultron/ns/context.jsonld"
 #: The Vultron vocabulary namespace IRI, bound to the ``vultron:`` prefix in the
 #: generated ``docs/ns/context.jsonld``. Distinct from ``VULTRON_CONTEXT_URI``,
 #: which is the URL of the context *document*; this is the term namespace it
 #: defines (VM-10-002). Single source of truth for the context generator.
 VULTRON_NS_URI = "https://certcc.github.io/Vultron/ns#"
+
+# Re-exported: this was the constant's original home, and wire-layer callers
+# import it from here.  It now lives in core, because core objects are what
+# carry it under ADR-0099 and core cannot import wire (ARCH-01-001).
+__all__ = [
+    "ACTIVITY_STREAMS_NS",
+    "VULTRON_CONTEXT_URI",
+    "VULTRON_NS_URI",
+    "as_Base",
+]
 
 
 class as_Base(VultronBase):
@@ -90,7 +102,7 @@ class as_Base(VultronBase):
 
     #: Validation-context key that marks a ``model_validate`` call as reading
     #: *inbound* data.  ``parse_activity`` sets it; nothing else should.
-    INBOUND_CONTEXT_KEY: ClassVar[str] = "inbound_wire"
+    INBOUND_CONTEXT_KEY: ClassVar[str] = INBOUND_CONTEXT_KEY
 
     @model_validator(mode="before")
     @classmethod

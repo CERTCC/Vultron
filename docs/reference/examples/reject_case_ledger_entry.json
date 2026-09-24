@@ -1,23 +1,23 @@
 {
-  "id": "urn:uuid:a73ac12a-d14a-49ec-adea-9ff4b47b1536",
+  "id": "urn:uuid:cf20e4cb-cc7e-41d8-adb1-665a98b74c2a",
   "type": "Reject",
-  "name": "https://vultron.example/organizations/vendorco Reject urn:uuid:5a4de4be-e35f-4167-a9dc-c48fe6ea3774/ledger/0",
+  "name": "https://vultron.example/organizations/vendorco Reject urn:uuid:a0a80546-90d9-482d-916a-72f47f8a64d6/log/0",
   "context": "0000000000000000000000000000000000000000000000000000000000000000",
   "@context": "https://www.w3.org/ns/activitystreams",
   "actor": "https://vultron.example/organizations/vendorco",
   "object": {
-    "id": "urn:uuid:5a4de4be-e35f-4167-a9dc-c48fe6ea3774/ledger/0",
+    "id": "urn:uuid:a0a80546-90d9-482d-916a-72f47f8a64d6/log/0",
     "type": "CaseLedgerEntry",
-    "published": "2026-09-21T14:10:28+00:00",
-    "updated": "2026-09-21T14:10:28+00:00",
-    "@context": "https://certcc.github.io/Vultron/ns/context.jsonld",
-    "caseId": "urn:uuid:5a4de4be-e35f-4167-a9dc-c48fe6ea3774",
+    "published": "2026-09-23T16:41:57+00:00",
+    "updated": "2026-09-23T16:41:57+00:00",
+    "caseId": "urn:uuid:a0a80546-90d9-482d-916a-72f47f8a64d6",
     "logIndex": 0,
     "logObjectId": "https://vultron.example/activities/00000000-0000-0000-0000-000000000001",
     "eventType": "create_case",
     "payloadSnapshot": {},
     "prevLogHash": "0000000000000000000000000000000000000000000000000000000000000000",
     "entryHash": "a1b2c3d4a1b2c3d4a1b2c3d4a1b2c3d4a1b2c3d4a1b2c3d4a1b2c3d4a1b2c3d4",
-    "receivedAt": "2024-01-01T12:00:00Z"
+    "receivedAt": "2024-01-01T12:00:00Z",
+    "@context": "https://certcc.github.io/Vultron/ns/context.jsonld"
   }
 }

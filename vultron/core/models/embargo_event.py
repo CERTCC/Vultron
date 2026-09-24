@@ -18,7 +18,7 @@
 from datetime import datetime
 from typing import Literal
 
-from pydantic import Field
+from pydantic import Field, model_validator
 
 from vultron.core.models._helpers import days_from_now_utc, now_utc
 from vultron.core.models.base import CoreObject, NonEmptyString
@@ -49,6 +49,25 @@ class EmbargoEvent(CoreObject):
     start_time: datetime | None = Field(default_factory=now_utc)
     end_time: datetime = Field(default_factory=_45_days_hence)
     context: NonEmptyString  # pyright: ignore[reportGeneralTypeIssues]
+
+    @model_validator(mode="after")
+    def _set_name(self) -> "EmbargoEvent":
+        """Label the embargo by its case and window when it carries no name.
+
+        The derivation the deleted ``as_EmbargoEvent.set_name`` performed,
+        relocated here because this class is now its own wire class (ADR-0099
+        detail 3).  Activity labels compose the object's name, and the name
+        reaches peers in the ledger payload snapshot, so dropping it changed the
+        wire.  A name the object already carries is kept: it is the sender's.
+        """
+        if self.name is not None:
+            return self
+        parts = ["Embargo for", self.context]
+        if self.start_time:
+            parts.append(f"start: {self.start_time.isoformat()}")
+        parts.append(f"end: {self.end_time.isoformat()}")
+        object.__setattr__(self, "name", " ".join(parts))
+        return self
 
 
 # Backward-compatibility alias

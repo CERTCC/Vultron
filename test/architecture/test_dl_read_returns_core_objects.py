@@ -61,7 +61,7 @@ from vultron.core.models.base import CoreObject
 from vultron.core.models.protocols import PersistableModel
 from vultron.core.models.registry import CORE_VOCABULARY
 from vultron.core.ports.datalayer import StorableRecord
-from vultron.wire.as2.vocab.base.registry import VOCABULARY
+from vultron.wire.as2.vocab.base.registry import WIRE_TYPE_MAP
 
 _WIRE_MODULE_PREFIX = "vultron.wire.as2"
 
@@ -125,16 +125,7 @@ ACTIVITY_TYPE_EXEMPTIONS: frozenset[str] = frozenset(
 #
 # Remove an entry from this set when the round-trip regression is fixed.
 # ---------------------------------------------------------------------------
-KNOWN_WIRE_ESCAPES: frozenset[str] = frozenset(
-    {
-        "CaseActor",
-        "VultronApplication",
-        "VultronGroup",
-        "VultronOrganization",
-        "VultronPerson",
-        "VultronService",
-    }
-)
+KNOWN_WIRE_ESCAPES: frozenset[str] = frozenset()
 
 
 def _minimal_kwargs(cls: type[CoreObject]) -> dict:
@@ -216,8 +207,11 @@ def _collect_wire_shaped_row_escapes() -> tuple[frozenset[str], int]:
     for vocab_key, base_cls in CORE_VOCABULARY.items():
         if not issubclass(base_cls, CoreObject):
             continue
-        if f"as_{vocab_key}" not in VOCABULARY:
-            continue  # no wire counterpart shadows this core type
+        if vocab_key not in WIRE_TYPE_MAP:
+            # Not a wire type, so ingress never stores a wire-shaped row of it.
+            # Keyed on the ``type`` value rather than an ``as_{name}`` class:
+            # under ADR-0099 detail 3 those classes are aliases, not entries.
+            continue
         cls: type[CoreObject] = base_cls  # type: ignore[assignment]
         row_id = f"urn:test:{vocab_key.lower()}:wire-row-ratchet"
         kwargs = _minimal_kwargs(cls)

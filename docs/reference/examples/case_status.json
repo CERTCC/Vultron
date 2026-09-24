@@ -3,7 +3,7 @@
   "type": "CaseStatus",
   "name": "NONE pxa",
   "context": "https://vultron.example/cases/1",
-  "@context": "https://certcc.github.io/Vultron/ns/context.jsonld",
   "emState": "NONE",
-  "pxaState": "pxa"
+  "pxaState": "pxa",
+  "@context": "https://certcc.github.io/Vultron/ns/context.jsonld"
 }

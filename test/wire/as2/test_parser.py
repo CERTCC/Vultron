@@ -351,7 +351,7 @@ def test_parse_activity_keeps_inline_actor_subtype_with_core_only_collections():
         }
     )
 
-    assert type(result.actor).__name__ == "as_VultronOrganization"
+    assert type(result.actor).__name__ == "VultronOrganization"
     assert getattr(result.actor, "id_", None) == "https://example.org/alice"
 
 

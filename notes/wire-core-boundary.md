@@ -283,18 +283,37 @@ The round-trip cleanups (ARCH-23-005) are still prerequisites rather than
 follow-ups, because the `@computed_field` half of the problem
 (`embargo_adherence`, 1096 failures) is real and independent.
 
-## `as_ObjectRef`: The Former Kludge
+## `as_ObjectRef`: The Former Kludge, Re-Added On Purpose
 
-**Removed in PR #3440** (ARCH-23-006). For context:
+**Removed in PR #3440** (ARCH-23-006), then **re-added deliberately in #3487**
+once ADR-0099 made a core type in a wire slot the intended shape rather than a
+migration convenience. Read this section for why it was a kludge the first time —
+the reasoning is sound and the distinction between the two cases is the point.
+
+The difference is the defect, not the union. `| CoreObject` was unsafe in PR #730
+because a core-side guard firing inside that union escaped the whole operation:
+`VultronValidationError` was not a `ValueError`, so Pydantic could not absorb it
+as a failed branch. That is now fixed — the class inherits `ValueError`, and
+`test_core_guard_inside_wire_union_fails_the_branch` holds the property — which is
+exactly the precondition ARCH-23-006's note set before the rule could be inverted.
+The fix was itself blocked until `VultronAlreadyExistsError` existed, because
+`crud.create` signalled a duplicate row with a bare `ValueError` that ~60 call
+sites swallow, so sharing the base made a projection failure indistinguishable
+from "already stored".
+
+For context on the original removal:
 
 ```python
 # FORMER definition (PR #730 through PR #3440):
 as_ObjectRef = ActivityStreamRef[as_Object] | CoreObject | None
 #   expanded to:  as_Object | as_Link | str | None | CoreObject
 
-# CURRENT definition:
+# PR #3440 until #3487:
 as_ObjectRef = ActivityStreamRef[as_Object] | None
 #   expands to:  as_Object | as_Link | str | None
+
+# CURRENT definition (#3487, ADR-0099):
+as_ObjectRef = ActivityStreamRef[as_Object] | CoreObject | None
 ```
 
 **`as_Object | as_Link | str` is not a kludge.** AS2 explicitly permits a
@@ -308,7 +327,7 @@ field of every transitive activity, `as_Collection.items`,
 `as_Relationship.subject`/`.object`, and `as_Profile.describes`.
 
 Beyond violating ARCH-22-001, it made a core-side guard unsafe to enforce
-loudly: **`VultronValidationError` is not a `ValueError` subclass**, so a guard
+loudly: **`VultronValidationError` was not a `ValueError` subclass (until #3487)**, so a guard
 firing while Pydantic resolved that union escaped the entire operation rather
 than being absorbed as a failed union branch. Any core-branch validator that
 raises must either be removed from union exposure (the chosen path, ARCH-23-006)
@@ -320,6 +339,21 @@ PR #3440 removed `| CoreObject` from both `as_ObjectRef` and
 re-introduction. Factory functions that previously accepted `CoreActor` now
 accept `as_Actor | str`; the adapter layer converts core objects to their wire
 counterparts before passing them.
+
+**Both halves of that were undone in #3487, and the ratchet was replaced rather
+than widened.** The union is back on purpose; the adapter-side conversion has
+nothing left to convert. The ratchet's replacement asserts the invariant detail 3
+states — every promoted class is exactly AS2-representable — because the
+alternative on offer was a 59-entry allowlist, which records violations without
+checking anything.
+
+One lesson worth keeping from the re-introduction: widening *some* of the slots is
+worse than widening none. `as_Activity.actor` and `as_ObjectRef` were widened while
+`target`/`origin`/`instrument` were not, so a promoted class in those three slots
+escaped its declared union — malformed payloads outbound, refusals inbound, and
+HTTP 422 on every `Create(VulnerabilityCase)`. The type errors that flagged it were
+suppressed with `# type: ignore[assignment]`, so mypy and pyright stayed green
+while the protocol did not work.
 
 ## Related Files
 
@@ -338,6 +372,12 @@ Pydantic v2 defaults to `extra="ignore"`, so historically removing a validator
 that accepted a legacy camelCase key silently dropped that key and reset the
 field to its start value — a lost RM ladder, not an error (the #2232 defect).
 
+> **Under ADR-0099 the camelCase key is read, not refused.** #3487 put
+> `alias_generator=to_camel` on `CoreObject` (detail 2), so `participantStatuses`
+> is a declared alias of `participant_statuses` and lands in the right field. With
+> `extra="forbid"` beside it, the only key still refused is one matching *no*
+> field — a retired name or a typo — which is exactly the case that used to vanish.
+
 `CoreObject` now sets `extra="forbid"` (ARCH-12-003): any **unknown** key on a
 core type raises rather than being dropped. This **subsumed and retired** the
 per-class camelCase reject-guards and `vultron/core/models/_wire_spelling.py`,
@@ -350,15 +390,18 @@ counterpart on **read** (`hydration.project_wire_row_to_core`).
 wire-shaped payload fails loudly".** `forbid` rejects keys the model does not
 know. Keys the model *does* know under a wire spelling are still accepted:
 
-- `participantStatuses`, `caseRoles` and other camelCase-only keys do now raise.
+- `participantStatuses`, `caseRoles` and other camelCase spellings are
+  **accepted** once #3487 lands: `CoreObject` derives them as aliases (ADR-0099
+  detail 2), so they are read into their fields. Only a key matching no field
+  raises.
 - A flat `rm_state`/`rmState` on `ParticipantStatus`, or `em_state` on
   `CaseStatus`, is **accepted** — those spellings are declared `AliasChoices` on
   the dimension fields, so the value is *interpreted*, not dropped. That is not
   the #2232 defect (nothing is lost), but it does mean
   `CaseStatus.model_validate(as_CaseStatus(...).model_dump())` succeeds rather
-  than failing, and so does the `CaseParticipant` equivalent. Making those
-  spellings raise is #2288/#2289, which removes the `alias_generator` *and* the
-  `AliasChoices`.
+  than failing, and so does the `CaseParticipant` equivalent. #2288/#2289, which
+  would have made those spellings raise by removing the `alias_generator`, are
+  closed as superseded by ADR-0099; #3578 owns reconciling ARCH-12-003.
 
 Two invariants keep `extra="forbid"` self-consistent, both enforced on
 `CoreObject` as `mode="before"` validators (see `_drop_computed_field_inputs`

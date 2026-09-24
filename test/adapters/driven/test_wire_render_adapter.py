@@ -30,6 +30,7 @@ import pytest
 from vultron.adapters.driven.wire_render import As2WireRenderAdapter
 from vultron.wire.as2.vocab.base.registry import find_in_vocabulary
 from vultron.core.models.actor import VultronPerson
+from vultron.core.models.base import VULTRON_CONTEXT_URI
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_actor import CaseActor
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
@@ -211,18 +212,24 @@ def test_render_same_object_twice_across_clock_tick_is_equal(
 # ---------------------------------------------------------------------------
 
 
-def test_render_raises_for_case_actor(adapter):
-    """CaseActor has no as_VultronObject wire counterpart — must raise."""
+def test_render_succeeds_for_case_actor(adapter):
+    """CaseActor IS the wire counterpart after ADR-0099 detail 3 (#3487)."""
     obj = CaseActor()
-    with pytest.raises(VultronValidationError, match="CaseActor"):
-        adapter.render(obj)
+    result = adapter.render(obj)
+    assert isinstance(result, dict)
+    assert result.get("type") == "Service"
+    assert result.get("@context") == VULTRON_CONTEXT_URI
+    # The internal outbox list is replaced by the AS2 collection URIs.
+    assert result.get("inbox") == f"{obj.id_}/inbox"
+    assert result.get("outbox") == f"{obj.id_}/outbox"
 
 
-def test_render_raises_for_vultron_person(adapter):
-    """VultronPerson wire class is NOT as_VultronObject — must raise."""
+def test_render_succeeds_for_vultron_person(adapter):
+    """VultronPerson IS the wire counterpart after ADR-0099 detail 3 (#3487)."""
     obj = VultronPerson()
-    with pytest.raises(VultronValidationError, match="VultronPerson"):
-        adapter.render(obj)
+    result = adapter.render(obj)
+    assert isinstance(result, dict)
+    assert result.get("type") == "Person"
 
 
 def test_render_raises_for_unknown_type(adapter):
@@ -233,6 +240,39 @@ def test_render_raises_for_unknown_type(adapter):
 
     with pytest.raises(VultronValidationError):
         adapter.render(_NotACoreType())
+
+
+def test_render_raises_for_a_core_model_that_is_not_a_core_object(adapter):
+    """A Pydantic core model with no AS2 spellings must be refused, not dumped.
+
+    ARCH-20-003 (MUST) requires the render port to fail closed. The fallback for
+    promoted classes was gated on ``isinstance(obj, BaseModel)``, which asks "is
+    this a Pydantic model" rather than "does this serialize to valid AS2" — and
+    every core class passes it.
+
+    ``VultronOfferRecord`` extends ``VultronObject`` directly, not ``CoreObject``,
+    so it inherits neither the ``alias_generator`` nor the ``@context``
+    serializer. Under the old predicate it rendered as
+    ``offer_id``/``offer_actor_id``/``report_id`` with no ``@context``, where
+    before ADR-0099 it raised. Those keys are read back through ``wire_key`` as
+    ``offerId``/``offerActorId``, so a record leaking into a ledger snapshot
+    produced keys no reader finds — silent, and in a tamper-evident ledger.
+
+    Gating on ``CoreObject`` makes the guard structural: that is the class the
+    generator and the ``@context`` serializer live on, and
+    ``test_promoted_core_classes_are_exactly_as2_representable`` holds every
+    subclass of it to a full set of AS2 spellings.
+    """
+    from vultron.core.models.offer_record import VultronOfferRecord
+
+    record = VultronOfferRecord(
+        offer_id="urn:uuid:offer-1",
+        offer_actor_id="urn:uuid:actor-1",
+        report_id="urn:uuid:report-1",
+    )
+
+    with pytest.raises(VultronValidationError, match="ARCH-20-003"):
+        adapter.render(record)
 
 
 # ---------------------------------------------------------------------------

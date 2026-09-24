@@ -16,7 +16,10 @@ from vultron.core.models.events.report import (
 )
 from vultron.core.models.offer_record import VultronOfferRecord
 from vultron.core.ports.case_persistence import CasePersistence
-from vultron.errors import VultronValidationError
+from vultron.errors import (
+    VultronAlreadyExistsError,
+    VultronValidationError,
+)
 from vultron.core.use_cases._helpers import (
     resolve_receiving_actor_id,
 )
@@ -94,7 +97,7 @@ def _store_submit_report_dependencies(
         logger.info(
             "Stored VultronOfferRecord for offer '%s'", request.activity_id
         )
-    except ValueError as e:
+    except VultronAlreadyExistsError as e:
         logger.debug(
             "VultronOfferRecord for offer '%s' already exists: %s",
             request.activity_id,

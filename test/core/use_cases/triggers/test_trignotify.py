@@ -84,6 +84,9 @@ from vultron.wire.as2.vocab.objects.vulnerability_report import (
 )
 
 from datetime import datetime, timezone
+from vultron.core.models.dimensions import (
+    RmDimension,
+)
 
 FUTURE_END_TIME = "2099-12-01T00:00:00Z"
 FUTURE_END_DATETIME = datetime(2099, 12, 1, 0, 0, 0, tzinfo=timezone.utc)
@@ -132,10 +135,12 @@ def _make_case_with_case_manager(
     # Pre-advance actor to RM.VALID so engage/defer transitions will succeed
 
     actor_participant.participant_statuses.append(
-        WireParticipantStatus(context=case.id_, rm_state=RM.RECEIVED)
+        WireParticipantStatus(
+            context=case.id_, rm=RmDimension(state=RM.RECEIVED)
+        )
     )
     actor_participant.participant_statuses.append(
-        WireParticipantStatus(context=case.id_, rm_state=RM.VALID)
+        WireParticipantStatus(context=case.id_, rm=RmDimension(state=RM.VALID))
     )
 
     finder_participant = FinderParticipant(

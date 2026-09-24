@@ -17,11 +17,23 @@
     Do NOT use `VultronAS2Object` — that name is retired. See ARCH-14-002.
   - `TypeAlias` companion types also use the `as_` prefix:
     `as_VulnerabilityCaseRef`, `as_CaseParticipantRef`, etc. See ARCH-14-003.
-  - **IMPORTANT**: Core domain models (`vultron/core/models/`) do NOT use the
-    `as_` prefix. `VulnerabilityCase` (no prefix) is always the core type;
-    `as_VulnerabilityCase` is always the wire type. If you find yourself
-    importing `VulnerabilityCase` from `vultron.wire.as2.vocab.objects.*`,
-    that is a bug — switch to `as_VulnerabilityCase`.
+  - **IMPORTANT — this changed with ADR-0099 detail 3.** For a *domain* type
+    there is now only one class, and `as_X` is a `TypeAlias` onto it:
+    `as_VulnerabilityCase is VulnerabilityCase` is `True`. All 27 paired
+    classes were collapsed (#3487, #3488), so an `as_` prefix on a domain name
+    no longer means "the wire twin" — it means the same class under its
+    historical name, kept so existing imports resolve.
+    - Consequence worth knowing before you debug something: `isinstance(x,
+      as_Base)` and `issubclass(cls, as_Object)` are **False** for every
+      promoted domain type. Guards written that way silently changed meaning
+      when the classes collapsed — that is what stopped two example files
+      being generated and what made the render port fail open. Gate on
+      `CoreObject` when you mean "a Vultron domain object".
+    - The prefix still marks a genuine wire class for the ~49 *unpaired* AS2
+      vocabulary types (`as_Link`, `as_Collection`, `as_Tombstone`, …) and the
+      47 `_XxxActivity` message shapes. Those have no core counterpart and the
+      old rule applies to them unchanged.
+    - New domain models still belong in `vultron/core/models/` with no prefix.
 - **Wire-layer field names**: Use trailing underscore for fields whose
   plain name collides with a Python builtin or reserved word (e.g.,
   `id_`, `type_`, `object_`, `context_`) with a Pydantic alias for the

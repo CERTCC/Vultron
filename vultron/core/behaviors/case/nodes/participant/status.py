@@ -64,6 +64,7 @@ from vultron.core.states.cs import (
 )
 from vultron.core.states.em import EM
 from vultron.core.states.rm import RM
+from vultron.errors import VultronAlreadyExistsError
 
 
 def _resolve_em_state(case: object) -> EM:
@@ -189,7 +190,7 @@ class CreateParticipantStatusNode(
         """Write the status to the DataLayer and link it to the participant."""
         try:
             dl.create(status)  # type: ignore[attr-defined]
-        except ValueError:
+        except VultronAlreadyExistsError:
             dl.save(status)  # type: ignore[attr-defined]
         participant_obj = dl.read(participant_id)  # type: ignore[attr-defined]
         wire_status = dl.read(status.id_)  # type: ignore[attr-defined]

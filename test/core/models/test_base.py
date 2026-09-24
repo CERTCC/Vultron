@@ -89,7 +89,7 @@ def test_has_as_type(cls):
 #: ADR-0099 detail 5 moved that derivation from the wire class onto the core
 #: class, which is what makes these the exception — the label is a function of
 #: the object's state, and the class that holds the state owns it.
-DERIVES_ITS_OWN_NAME = frozenset({CaseStatus})
+DERIVES_ITS_OWN_NAME = frozenset({CaseStatus, VultronEmbargoEvent})
 
 
 @pytest.mark.parametrize("cls", DOMAIN_OBJECT_CLASSES)
@@ -234,3 +234,15 @@ def test_vultron_case_init_case_statuses():
         case_existing_statuses.case_statuses[0].attributed_to
         == "urn:uuid:actor-456"
     )
+
+
+def test_vultron_case_rewrites_status_context_to_case_id():
+    """An inline status belongs to the case holding it (``set_cs_context``)."""
+    case = VultronCase(
+        case_statuses=[
+            CaseStatus(context="urn:uuid:other", attributed_to="urn:uuid:a")
+        ],
+    )
+    status = case.case_statuses[0]
+    assert isinstance(status, CaseStatus)
+    assert status.context == case.id_

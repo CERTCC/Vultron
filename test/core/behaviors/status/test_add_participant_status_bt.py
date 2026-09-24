@@ -85,6 +85,10 @@ from vultron.wire.as2.vocab.objects.case_status import as_ParticipantStatus
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCase,
 )
+from vultron.core.models.dimensions import (
+    RmDimension,
+    VfDimension,
+)
 
 # ---------------------------------------------------------------------------
 # Constants
@@ -401,7 +405,7 @@ class TestValidateRMTransitionNode:
         closed_status = as_ParticipantStatus(
             id_=f"{STATUS_ID}/closed",
             context=CASE_ID,
-            rm_state=RM.CLOSED,
+            rm=RmDimension(state=RM.CLOSED),
         )
         p.participant_statuses.append(closed_status)
         populated_dl.save(p)
@@ -410,7 +414,7 @@ class TestValidateRMTransitionNode:
         regressed_status = as_ParticipantStatus(
             id_=f"{STATUS_ID}/regressed",
             context=CASE_ID,
-            rm_state=RM.RECEIVED,
+            rm=RmDimension(state=RM.RECEIVED),
         )
         populated_dl.create(regressed_status)
 
@@ -439,7 +443,7 @@ class TestValidateRMTransitionNode:
         closed_status = as_ParticipantStatus(
             id_=f"{STATUS_ID}/closed",
             context=CASE_ID,
-            rm_state=RM.CLOSED,
+            rm=RmDimension(state=RM.CLOSED),
         )
         p.participant_statuses.append(closed_status)
         populated_dl.save(p)
@@ -448,7 +452,7 @@ class TestValidateRMTransitionNode:
         duplicate_closed_status = as_ParticipantStatus(
             id_=f"{STATUS_ID}/closed-dup",
             context=CASE_ID,
-            rm_state=RM.CLOSED,
+            rm=RmDimension(state=RM.CLOSED),
         )
         populated_dl.create(duplicate_closed_status)
 
@@ -476,7 +480,7 @@ class TestValidateRMTransitionNode:
         received_status = as_ParticipantStatus(
             id_=f"{STATUS_ID}/received",
             context=CASE_ID,
-            rm_state=RM.RECEIVED,
+            rm=RmDimension(state=RM.RECEIVED),
         )
         p.participant_statuses.append(received_status)
         populated_dl.save(p)
@@ -485,7 +489,7 @@ class TestValidateRMTransitionNode:
         accepted_status = as_ParticipantStatus(
             id_=f"{STATUS_ID}/accepted",
             context=CASE_ID,
-            rm_state=RM.ACCEPTED,
+            rm=RmDimension(state=RM.ACCEPTED),
         )
         populated_dl.create(accepted_status)
 
@@ -601,7 +605,7 @@ class TestAppendParticipantStatusSubtree:
         closed_status = as_ParticipantStatus(
             id_=f"{STATUS_ID}/prev",
             context=CASE_ID,
-            rm_state=RM.CLOSED,
+            rm=RmDimension(state=RM.CLOSED),
         )
         participant.participant_statuses.append(closed_status)
         populated_dl.save(participant)
@@ -610,7 +614,7 @@ class TestAppendParticipantStatusSubtree:
         regressed_status = as_ParticipantStatus(
             id_=f"{STATUS_ID}/regressed",
             context=CASE_ID,
-            rm_state=RM.RECEIVED,
+            rm=RmDimension(state=RM.RECEIVED),
         )
         populated_dl.create(regressed_status)
 
@@ -631,7 +635,7 @@ class TestAppendParticipantStatusSubtree:
         closed_status = as_ParticipantStatus(
             id_=f"{STATUS_ID}/prev",
             context=CASE_ID,
-            rm_state=RM.CLOSED,
+            rm=RmDimension(state=RM.CLOSED),
         )
         participant.participant_statuses.append(closed_status)
         populated_dl.save(participant)
@@ -640,7 +644,7 @@ class TestAppendParticipantStatusSubtree:
         duplicate_closed = as_ParticipantStatus(
             id_=f"{STATUS_ID}/closed-dup",
             context=CASE_ID,
-            rm_state=RM.CLOSED,
+            rm=RmDimension(state=RM.CLOSED),
         )
         populated_dl.create(duplicate_closed)
 
@@ -666,7 +670,7 @@ class TestAppendParticipantStatusSubtree:
         received_status = as_ParticipantStatus(
             id_=f"{STATUS_ID}/received",
             context=CASE_ID,
-            rm_state=RM.RECEIVED,
+            rm=RmDimension(state=RM.RECEIVED),
         )
         participant.participant_statuses.append(received_status)
         populated_dl.save(participant)
@@ -675,7 +679,7 @@ class TestAppendParticipantStatusSubtree:
         accepted_status = as_ParticipantStatus(
             id_=f"{STATUS_ID}/accepted",
             context=CASE_ID,
-            rm_state=RM.ACCEPTED,
+            rm=RmDimension(state=RM.ACCEPTED),
         )
         populated_dl.create(accepted_status)
 
@@ -827,12 +831,12 @@ class TestAllParticipantsRMClosedConditionNode:
         closed_vendor = as_ParticipantStatus(
             id_=f"{STATUS_ID}/closed",
             context=CASE_ID,
-            rm_state=RM.CLOSED,
+            rm=RmDimension(state=RM.CLOSED),
         )
         closed_cm = as_ParticipantStatus(
             id_=f"{CM_PARTICIPANT_ID}/statuses/closed",
             context=CASE_ID,
-            rm_state=RM.CLOSED,
+            rm=RmDimension(state=RM.CLOSED),
         )
         populated_dl.create(closed_vendor)
         populated_dl.create(closed_cm)
@@ -858,7 +862,7 @@ class TestAllParticipantsRMClosedConditionNode:
         closed_vendor = as_ParticipantStatus(
             id_=f"{STATUS_ID}/closed",
             context=CASE_ID,
-            rm_state=RM.CLOSED,
+            rm=RmDimension(state=RM.CLOSED),
         )
         populated_dl.create(closed_vendor)
         participant.participant_statuses.append(closed_vendor)
@@ -1569,7 +1573,7 @@ class TestRejectionValidatorBeforeCommit:
         existing_status = as_ParticipantStatus(
             id_=f"{STATUS_ID}/existing",
             context=CASE_ID,
-            rm_state=RM.CLOSED,
+            rm=RmDimension(state=RM.CLOSED),
         )
         vendor_participant = as_CaseParticipant(
             id_=PARTICIPANT_ID,
@@ -1589,8 +1593,8 @@ class TestRejectionValidatorBeforeCommit:
         incoming_status = as_ParticipantStatus(
             id_=STATUS_ID,
             context=CASE_ID,
-            rm_state=RM.VALID,
-            vf_state=CS_vf.Vf,
+            rm=RmDimension(state=RM.VALID),
+            vf=VfDimension(state=CS_vf.Vf),
         )
         dl.create(incoming_status)
 
@@ -1655,8 +1659,8 @@ class TestRejectionValidatorBeforeCommit:
         existing_status = as_ParticipantStatus(
             id_=f"{STATUS_ID}/existing",
             context=CASE_ID,
-            rm_state=RM.CLOSED,
-            vf_state=CS_vf.Vf,
+            rm=RmDimension(state=RM.CLOSED),
+            vf=VfDimension(state=CS_vf.Vf),
         )
         vendor_participant = as_CaseParticipant(
             id_=PARTICIPANT_ID,
@@ -1676,7 +1680,7 @@ class TestRejectionValidatorBeforeCommit:
         incoming_status = as_ParticipantStatus(
             id_=STATUS_ID,
             context=CASE_ID,
-            rm_state=RM.VALID,
+            rm=RmDimension(state=RM.VALID),
         )
         dl.create(incoming_status)
 

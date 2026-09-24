@@ -303,7 +303,7 @@ def test_handle_outbox_item_preserves_inline_case_ledger_entry_fields():
     )
     entry = _to_persistable_entry(chain_entry)
     activity = announce_log_entry_activity(
-        WireCaseLedgerEntry.from_core(entry),
+        entry,
         actor="https://example.org/actors/case-actor",
         to=[recipient],
     )

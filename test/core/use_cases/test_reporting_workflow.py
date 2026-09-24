@@ -57,7 +57,7 @@ def report(reporter):
     return as_VulnerabilityReport(
         name="Test Vulnerability Report",
         summary="This is a test vulnerability report.",
-        attributed_to=reporter,
+        attributed_to=reporter.id_,
     )
 
 

@@ -104,44 +104,43 @@ class TestCaseReferenceRegistration:
 
 
 class TestCaseReferenceWireRoundTrip:
-    """Wire CaseReference.from_core / .to_core must preserve identity."""
+    """as_CaseReference IS CaseReference (ADR-0099 detail 3, issue #3487)."""
 
     def test_from_core_preserves_url(self):
         from vultron.wire.as2.vocab.objects.case_reference import (
             as_CaseReference as WireCaseReference,
         )
 
+        assert WireCaseReference is CaseReference
         core_ref = CaseReference(
             id_="urn:uuid:ref-test",
             url=_URL,
             name="Example Advisory",
             tags=["patch"],
         )
-        wire_ref = WireCaseReference.from_core(core_ref)
-        assert wire_ref.url == _URL
-        assert wire_ref.name == "Example Advisory"
+        assert core_ref.url == _URL
+        assert core_ref.name == "Example Advisory"
 
     def test_to_core_produces_core_reference(self):
         from vultron.wire.as2.vocab.objects.case_reference import (
             as_CaseReference as WireCaseReference,
         )
 
+        assert WireCaseReference is CaseReference
         wire_ref = WireCaseReference(url=_URL, tags=["vendor-advisory"])
-        core_ref = wire_ref.to_core()
-        assert isinstance(core_ref, CaseReference)
-        assert core_ref.url == _URL
-        assert core_ref.tags == ["vendor-advisory"]
+        assert isinstance(wire_ref, CaseReference)
+        assert wire_ref.url == _URL
+        assert wire_ref.tags == ["vendor-advisory"]
 
     def test_round_trip_preserves_id(self):
         from vultron.wire.as2.vocab.objects.case_reference import (
             as_CaseReference as WireCaseReference,
         )
 
+        assert WireCaseReference is CaseReference
         core_ref = CaseReference(
             id_="urn:uuid:ref-roundtrip",
             url=_URL,
         )
-        wire_ref = WireCaseReference.from_core(core_ref)
-        restored = wire_ref.to_core()
-        assert restored.id_ == "urn:uuid:ref-roundtrip"
-        assert isinstance(restored, CaseReference)
+        assert core_ref.id_ == "urn:uuid:ref-roundtrip"
+        assert isinstance(core_ref, CaseReference)

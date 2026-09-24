@@ -28,7 +28,9 @@ import pytest
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.errors import VultronProtocolViolationError
 from vultron.core.models.participant import VultronParticipant
-from vultron.core.models.dimensions import RmDimension
+from vultron.core.models.dimensions import (
+    RmDimension,
+)
 from vultron.core.models.participant_status import ParticipantStatus
 from vultron.core.models.report import VultronReport
 from vultron.core.models.report_case_link import VultronReportCaseLink
@@ -38,6 +40,9 @@ from vultron.core.use_cases.received.case.create import (
     CreateCaseReceivedUseCase,
 )
 from vultron.wire.as2.factories import create_case_activity
+from vultron.core.models.case_participant import (
+    CaseParticipant as CoreCaseParticipant,
+)
 from vultron.wire.as2.vocab.objects.case_participant import as_CaseParticipant
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCase,
@@ -59,7 +64,8 @@ def test_reporter_participant_stored_at_accepted_when_inline(make_payload):
     _store_embedded_participants so subsequent Add(ParticipantStatus) calls can
     read it at RM.ACCEPTED.
     """
-    from vultron.wire.as2.vocab.objects.case_status import as_ParticipantStatus
+    from vultron.core.models.case_participant import CaseParticipant
+    from vultron.core.models.participant_status import ParticipantStatus as PS
 
     _VENDOR_ID = "https://vendor.example.org/actors/vendor-cbt05007"
     _FINDER_ID = "https://finder.example.org/actors/finder-cbt05007"
@@ -76,21 +82,21 @@ def test_reporter_participant_stored_at_accepted_when_inline(make_payload):
         trusted_case_creator_id=_VENDOR_ID,
     )
     dl.save(link)
-    vendor_participant = as_CaseParticipant(
+    vendor_participant = CaseParticipant(
         case_roles=[CVDRole.CASE_MANAGER],
         id_=_VENDOR_PARTICIPANT_ID,
         attributed_to=_VENDOR_ID,
         context=_CASE_ID,
     )
-    finder_participant = as_CaseParticipant(
+    finder_participant = CaseParticipant(
         id_=_FINDER_PARTICIPANT_ID,
         attributed_to=_FINDER_ID,
         context=_CASE_ID,
         participant_statuses=[
-            as_ParticipantStatus(
+            PS(
                 context=_CASE_ID,
                 attributed_to=_FINDER_ID,
-                rm_state=RM.ACCEPTED,
+                rm_state=RM.ACCEPTED,  # type: ignore[call-arg]
             )
         ],
     )
@@ -163,11 +169,23 @@ class TestParticipantRmStateShapeGuard:
 
         assert _participant_rm_state(_NoStatuses()) is None
 
-    def test_raises_on_wire_shaped_participant(self):
+    def test_reads_the_rm_state_of_an_as_prefixed_participant(self):
+        """An ``as_CaseParticipant`` now carries a readable RM dimension.
+
+        This asserted the opposite: that the wire class's nested status had no
+        ``rm`` at all, and that reading it raised. ADR-0099 detail 3 collapses the
+        pair, so ``as_CaseParticipant`` *is* ``CaseParticipant`` and its seeded
+        status carries a real dimension — there is no wire shape left to refuse.
+
+        The helper's guard is still covered by
+        ``test_returns_none_when_there_are_no_statuses`` above and by
+        ``test_participant_status_shape``, for objects that genuinely cannot supply
+        a dimension.
+        """
         from vultron.core.use_cases.received.case._helpers import (
             _participant_rm_state,
         )
-        from vultron.errors import VultronValidationError
+        from vultron.core.states.rm import RM
         from vultron.wire.as2.vocab.objects.case_participant import (
             as_CaseParticipant,
         )
@@ -177,10 +195,9 @@ class TestParticipantRmStateShapeGuard:
             context=self._CONTEXT,
         )
         latest = wire_participant.participant_statuses[-1]
-        assert getattr(latest, "rm", None) is None
+        assert latest.rm.state is RM.START
 
-        with pytest.raises(VultronValidationError):
-            _participant_rm_state(wire_participant)
+        assert _participant_rm_state(wire_participant) is RM.START
 
 
 # ---------------------------------------------------------------------------
@@ -228,15 +245,16 @@ class TestStoreEmbeddedParticipantsProjectsWireIngress:
                 as_ParticipantStatus(
                     context=self._CASE_ID,
                     attributed_to=self._ACTOR_ID,
-                    rm_state=rm_state,
+                    rm=RmDimension(state=rm_state),
                 )
             ],
         )
-        assert (
-            getattr(wire_participant.participant_statuses[-1], "rm", None)
-            is None
-        )
-        return as_VulnerabilityCase(
+        # The nested status now carries a real dimension: as_ParticipantStatus is
+        # ParticipantStatus (ADR-0099 detail 3), and the flat ``rm_state`` kwarg is
+        # an alias of it (detail 5).  This previously asserted ``rm`` was absent,
+        # which was the whole reason ingress needed projecting.
+        assert wire_participant.participant_statuses[-1].rm.state == rm_state
+        return as_VulnerabilityCase.model_construct(
             id_=self._CASE_ID,
             name="Bug #2232 ingress case",
             case_participants=[wire_participant],
@@ -279,7 +297,13 @@ class TestStoreEmbeddedParticipantsProjectsWireIngress:
         )
         latest = stored.participant_statuses[-1]
         assert latest.rm.state == RM.RECEIVED
-        assert not hasattr(latest, "rm_state")
+        # ``not hasattr(latest, "rm_state")`` used to stand in for "this is the
+        # core shape, not the wire one". That proxy is retired: ``rm_state`` is now
+        # a deliberate read/write view onto the dimension (ADR-0099 detail 5), so
+        # its presence says nothing about shape. The shape itself is asserted
+        # directly by the isinstance check above; what is worth adding is that the
+        # view and the dimension cannot disagree.
+        assert latest.rm_state == latest.rm.state
 
     def test_regression_guard_still_protects_a_local_core_participant(
         self, dl
@@ -376,7 +400,7 @@ def test_bootstrap_bare_uri_participant_raises_protocol_error(make_payload):
         trusted_case_creator_id=_VENDOR_ID,
     )
     dl.save(link)
-    case_actor_participant = as_CaseParticipant(
+    case_actor_participant = CoreCaseParticipant(
         case_roles=[CVDRole.CASE_MANAGER],
         id_=_VENDOR_PARTICIPANT_ID,
         attributed_to=_VENDOR_ID,

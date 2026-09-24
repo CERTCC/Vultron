@@ -40,6 +40,7 @@ from vultron.core.behaviors.helpers import DataLayerActionWithPorts
 from vultron.core.behaviors.sync.commit_tree import (
     create_commit_log_entry_tree,
 )
+from vultron.core.models._helpers import _as_id
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.case_status import CaseStatus
@@ -180,7 +181,11 @@ class CommitNativeLedgerEntriesNode(DataLayerActionWithPorts):
         assert self.datalayer is not None
         assert self.actor_id is not None
         assert self.wire_render_port is not None
-        for report_id in case.vulnerability_reports:
+        for report_ref in case.vulnerability_reports:
+            # Resolve through the store even when the case carries the report
+            # inline: the stored record StoreProposalReportNode wrote is the
+            # authoritative copy, and an inline one may be a partial projection.
+            report_id = _as_id(report_ref) or ""
             raw_report = self.datalayer.read(report_id)
             if not isinstance(raw_report, VulnerabilityReport):
                 logger.warning(

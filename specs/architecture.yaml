@@ -267,6 +267,29 @@ groups:
     rationale: Lenient shared-base types allow both branches to narrow independently without MRO conflicts; Pydantic AfterValidator
       narrowing is valid in subclasses.
   - id: ARCH-12-003
+    note: >-
+      ADR-0099 inverts the `alias_generator` clause. Under one object model the
+      core object's own `by_alias` dump *is* the AS2 wire form (detail 2), so
+      there is no second class left to hold the spelling and the generator on the
+      core type is the intended design rather than a violation. Detail 5 also
+      dissolves the "insufficient for its purpose" half of the rationale: a
+      dimension now serializes to a bare state value, which is exactly what lets
+      the core dump produce the wire shape, so the hand-patched
+      `consent`->`emConsentState` rewrite this cites is gone.
+
+      The multi-spelling *reading* hazard is real and is now deliberately
+      embraced: `ParticipantStatus.rm` declares
+      `AliasChoices("rmState", "rm_state", "rm")`. What makes that safe is that
+      all three spellings resolve to the *same* field on the *same* class, so no
+      reader "decides what the data means" — the #2232 defect was a key matching
+      *no* field and being silently discarded, which multi-spelling acceptance
+      prevents rather than causes. Detail 7 ("reading is strict, with unknown
+      fields set aside") is where the argument attaches.
+
+      The `extra="forbid"` clause is untouched by ADR-0099 and remains unmet: an
+      unrecognised key is still silently dropped. #3578 owns the full rewrite of
+      this requirement and the disposition of #2288/#2289; this note records the
+      inversion so the requirement is not left contradicting merged code.
     priority: MUST
     kind: project
     statement: 'The core branch MAY narrow inherited fields via Pydantic validators (e.g., `NonEmptyString | None`, required
@@ -793,8 +816,11 @@ groups:
   title: Core-to-Wire Rendering Port
   description: Governs how core domain objects are rendered into wire-shaped (AS2 camelCase) JSON. Core legitimately needs
     a wire representation in one place — the `CaseLedgerEntry.payloadSnapshot`, which CLP-07-001 requires to be receiver-reconstitutable
-    AS2 — but producing it by setting `alias_generator=to_camel` on the core type violates ARCH-12-003 and cannot express
+    AS2 — but producing it by setting `alias_generator=to_camel` on the core type violated ARCH-12-003 and could not express
     structural differences between the two branches. This group establishes a driven port as the single rendering seam.
+    ADR-0099 reverses the parenthetical — detail 5's bare dimension serialization removes the structural difference, and
+    detail 2 puts the spelling on the core class, so the generator is now the sanctioned mechanism *behind* the port
+    rather than an alternative to it. The port is still the single seam. See the note on ARCH-12-003 and #3578.
   rationale: 'Eight `CoreObject` subclasses carried `alias_generator=to_camel` (issue #1991) solely so that core code could
     call `model_dump(by_alias=True)` when building ledger payload snapshots. The mechanism was both a layer violation and
     inadequate: `ParticipantStatus` nests `consent: PecDimension` where the wire shape carries a flat `emConsentState`, so
@@ -802,6 +828,19 @@ groups:
     prescribes driven ports as the remediation for core→wire needs. See ADR-0063.'
   specs:
   - id: ARCH-20-001
+    note: >-
+      The "single rendering seam" this requires still holds; the mechanism named
+      in its rationale does not. That rationale reads "keeps every fact about
+      wire spelling ... behind the adapter-side translator that owns projection
+      (ARCH-12-005)", and ADR-0099 removes that translator along with the paired
+      classes. Detail 2 puts the AS2 spelling on the core class, so forbidding
+      `alias_generator` there forbids the only place it can now live, and
+      ARCH-20-002's own ADR-0099 note already sanctions the port dumping the core
+      object with `by_alias=True` — the second means this statement forbids.
+
+      What survives intact: the port remains the only caller that renders, so
+      there is still exactly one seam. Core code must still not produce the wire
+      shape itself.
     priority: MUST
     kind: architecture
     statement: Core code that requires a wire-shaped representation of a **core-branch** object MUST obtain it through a driven
@@ -850,13 +889,13 @@ groups:
     - ADR-0082
   - id: ARCH-20-003
     note: >-
-      ADR-0099 inverts this requirement. Under one object model a missing wire
-      counterpart is the normal case, not an error, so raising on absence would
-      make every core object unrenderable. Amend when the rendering port
-      collapses; until then the statement matches the code.
+      Amended by ADR-0099 (#3487). Under one object model a core object is its
+      own wire form, so a missing wire counterpart is no longer the failure
+      case; the port instead fails closed on anything that is not a
+      CoreObject, which has no AS2 serialization.
     priority: MUST
     kind: project
-    statement: When no wire counterpart exists for the supplied core object, the rendering port MUST raise `VultronValidationError`.
+    statement: When the supplied object is not a `CoreObject`, the rendering port MUST raise `VultronValidationError`.
       It MUST NOT fall back to a core-shaped `model_dump`, return `None`, or emit a partially-rendered object.
     rationale: A silently core-shaped payload snapshot is unreconstitutable by receivers (CLP-07-001) and is indistinguishable
       from a correct one at the call site. Failing loudly is required by ARCH-15-002.
@@ -892,6 +931,19 @@ groups:
     adr:
     - ADR-0063
   - id: ARCH-20-006
+    note: >-
+      The `as_*` mechanism named here is unavailable for promoted types: ADR-0099
+      detail 3 deletes those classes, so "render the response from the
+      corresponding `as_*` wire class" cannot be satisfied for a core type that no
+      longer has one.
+
+      The prohibition survives and is what still binds: a driving adapter MUST NOT
+      synthesise an AS2 document by dumping an arbitrary core class. Routing
+      through the ARCH-20 port is how that is honoured, and the port fails closed
+      on anything that is not a `CoreObject` — the class that carries the alias
+      generator and the `@context` serializer, and which
+      `test_promoted_core_classes_are_exactly_as2_representable` holds to a
+      complete set of AS2 spellings.
     priority: MUST
     kind: project
     statement: Driving adapters that serve AS2 documents over HTTP (e.g. `GET /actors/{id}`) MUST render the response from
@@ -1307,12 +1359,27 @@ groups:
     note: >-
       ADR-0099 inverts this requirement. Under one object model a wire-branch
       field annotation MUST name the core class — `object_: VulnerabilityReport`,
-      `target: VulnerabilityCase` — which is exactly what this forbids. The
-      defect that motivated it is real and must be re-handled rather than
-      dropped: `VultronValidationError` is not a `ValueError` subclass, so a
-      core-side guard firing while Pydantic resolves a union escapes the whole
-      operation instead of being absorbed as a failed union branch. Fix that
-      before inverting this rule.
+      `target: VulnerabilityCase` — which is exactly what this forbids.
+
+      **The precondition this note set is now met.** It required the union-escape
+      defect to be re-handled rather than dropped: `VultronValidationError` was
+      not a `ValueError` subclass, so a core-side guard firing while Pydantic
+      resolved a union escaped the whole operation instead of being absorbed as a
+      failed union branch. It now inherits `ValueError`, and
+      `test_core_guard_inside_wire_union_fails_the_branch` holds that property.
+      That fix was itself blocked until the duplicate-row signal got its own type
+      (`VultronAlreadyExistsError`), because `crud.create` used a bare
+      `ValueError` for "already stored" and ~60 call sites swallow it — sharing
+      the base made a projection failure indistinguishable from a duplicate.
+
+      Enforcement moved rather than ended. The old test forbade core types in wire
+      annotations, which is now the intended shape, so it was replaced by the
+      invariant detail 3 actually states: a class that can appear in a message
+      slot must be exactly AS2-representable, and must not carry a field that
+      cannot go on the wire
+      (`test_promoted_core_classes_are_exactly_as2_representable`). A 59-entry
+      allowlist was the alternative and records violations without checking
+      anything.
     priority: MUST_NOT
     kind: project
     statement: >-

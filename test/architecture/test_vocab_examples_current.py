@@ -36,11 +36,19 @@ _COMMITTED_DIR = _REPO_ROOT / "docs" / "reference" / "examples"
 
 
 @pytest.fixture(scope="module")
-def generated_files(tmp_path_factory) -> frozenset[str]:
-    """Run the generator into a temp directory and return the set of filenames."""
-    tmpdir = tmp_path_factory.mktemp("vocab_examples")
+def generated_dir(tmp_path_factory) -> Path:
+    """Run the generator into a temp directory and return that directory."""
+    tmpdir: Path = tmp_path_factory.mktemp("vocab_examples")
     main(outdir=str(tmpdir))
-    return frozenset(p.name for p in tmpdir.iterdir() if p.suffix == ".json")
+    return tmpdir
+
+
+@pytest.fixture(scope="module")
+def generated_files(generated_dir) -> frozenset[str]:
+    """Return the set of filenames the generator produced."""
+    return frozenset(
+        p.name for p in generated_dir.iterdir() if p.suffix == ".json"
+    )
 
 
 @pytest.fixture(scope="module")
@@ -96,3 +104,81 @@ def test_all_committed_examples_are_valid_json(committed_files):
     assert (
         invalid == []
     ), "Invalid JSON in committed examples:\n  " + "\n  ".join(invalid)
+
+
+def _key_paths(value: object, prefix: str = "") -> set[str]:
+    """Return every dotted key path in *value*, merging list elements.
+
+    Ids, timestamps and case numbers are random on each generator run, so the
+    examples cannot be compared value-for-value; their *shape* — which keys
+    appear where — is deterministic, and that is what a wire-format change
+    moves.  Keys that are themselves URIs (map entries keyed by an id) are
+    collapsed to ``<uri>`` so random ids do not register as new keys.
+    """
+    paths: set[str] = set()
+    if isinstance(value, dict):
+        for key, child in value.items():
+            name = "<uri>" if ":" in key and key != "@context" else key
+            path = f"{prefix}.{name}" if prefix else name
+            paths.add(path)
+            paths |= _key_paths(child, path)
+    elif isinstance(value, list):
+        for child in value:
+            paths |= _key_paths(child, f"{prefix}[]")
+    return paths
+
+
+def test_committed_examples_have_the_same_wire_keys_as_generated(
+    generated_dir, generated_files, committed_files
+):
+    """Every committed example has the key shape the generator now emits.
+
+    Catches a serializer change (a renamed alias, a dropped or added field)
+    that left the committed examples describing the old wire format.  AC-3 of
+    issue #3487.
+
+    Fix: re-run the generator and commit ``docs/reference/examples/``.
+    """
+    drifted = []
+    for filename in sorted(generated_files & committed_files):
+        committed = _key_paths(
+            json.loads((_COMMITTED_DIR / filename).read_text())
+        )
+        generated = _key_paths(
+            json.loads((generated_dir / filename).read_text())
+        )
+        if committed != generated:
+            drifted.append(
+                f"{filename}: only committed {sorted(committed - generated)};"
+                f" only generated {sorted(generated - committed)}"
+            )
+    assert not drifted, "Examples out of date:\n  " + "\n  ".join(drifted)
+
+
+_TIME_KEYS = frozenset({"published", "updated", "startTime", "endTime"})
+
+
+def _times(value: object) -> list[str]:
+    found: list[str] = []
+    if isinstance(value, dict):
+        for key, child in value.items():
+            if key in _TIME_KEYS and isinstance(child, str):
+                found.append(child)
+            found.extend(_times(child))
+    elif isinstance(value, list):
+        for child in value:
+            found.extend(_times(child))
+    return found
+
+
+def test_committed_example_timestamps_are_utc_offset(committed_files):
+    """Wire timestamps carry an explicit ``+00:00`` UTC offset (ADR-0103)."""
+    bad = [
+        f"{filename}: {stamp}"
+        for filename in sorted(committed_files)
+        for stamp in _times(
+            json.loads((_COMMITTED_DIR / filename).read_text())
+        )
+        if not stamp.endswith("+00:00")
+    ]
+    assert not bad, "Non-UTC-offset timestamps:\n  " + "\n  ".join(bad)

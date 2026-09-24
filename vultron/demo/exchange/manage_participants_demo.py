@@ -86,6 +86,10 @@ from vultron.wire.as2.factories import (
 )
 
 from vultron.demo.helpers.runner import run_exchange_demos
+from vultron.core.models.dimensions import (
+    PecDimension,
+    RmDimension,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -254,9 +258,9 @@ def demo_manage_participants_accept(
     with demo_step("Step 6: Coordinator creates a as_ParticipantStatus"):
         participant_status = as_ParticipantStatus(
             context=coordinator_participant.id_,
-            rm_state=RM.ACCEPTED,
+            rm=RmDimension(state=RM.ACCEPTED),
             attributed_to=coordinator.id_,
-            em_consent_state=PEC.UNBOUND,
+            consent=PecDimension(state=PEC.UNBOUND),
             cvd_role=[CVDRole.COORDINATOR],
         )
         create_status = create_status_for_participant_activity(

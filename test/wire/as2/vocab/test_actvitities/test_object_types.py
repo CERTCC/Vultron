@@ -176,7 +176,7 @@ class TestAddStatusToCaseActivity:
         _assert_rejects_link(self.cls)
 
     def test_accepts_inline_case_status(self):
-        _assert_accepts_inline(self.cls, as_CaseStatus())
+        _assert_accepts_inline(self.cls, as_CaseStatus(context=_STR_URI))
 
 
 class TestCreateCaseActivity:
@@ -208,7 +208,7 @@ class TestCreateCaseStatusActivity:
         _assert_rejects_link(self.cls)
 
     def test_accepts_inline_case_status(self):
-        _assert_accepts_inline(self.cls, as_CaseStatus())
+        _assert_accepts_inline(self.cls, as_CaseStatus(context=_STR_URI))
 
 
 class TestAddNoteToCaseActivity:
@@ -320,7 +320,9 @@ class TestEmProposeEmbargoActivity:
         _assert_rejects_link(self.cls)
 
     def test_accepts_inline_embargo_event(self):
-        _assert_accepts_inline(self.cls, as_EmbargoEvent())
+        _assert_accepts_inline(
+            self.cls, as_EmbargoEvent(context="urn:uuid:case-123")
+        )
 
 
 class TestActivateEmbargoActivity:
@@ -337,7 +339,9 @@ class TestActivateEmbargoActivity:
         _assert_rejects_link(self.cls)
 
     def test_accepts_inline_embargo_event(self):
-        _assert_accepts_inline(self.cls, as_EmbargoEvent())
+        _assert_accepts_inline(
+            self.cls, as_EmbargoEvent(context="urn:uuid:case-123")
+        )
 
 
 class TestAddEmbargoToCaseActivity:
@@ -354,7 +358,9 @@ class TestAddEmbargoToCaseActivity:
         _assert_rejects_link(self.cls)
 
     def test_accepts_inline_embargo_event(self):
-        _assert_accepts_inline(self.cls, as_EmbargoEvent())
+        _assert_accepts_inline(
+            self.cls, as_EmbargoEvent(context="urn:uuid:case-123")
+        )
 
 
 class TestAnnounceEmbargoActivity:
@@ -371,7 +377,9 @@ class TestAnnounceEmbargoActivity:
         _assert_rejects_link(self.cls)
 
     def test_accepts_inline_embargo_event(self):
-        _assert_accepts_inline(self.cls, as_EmbargoEvent())
+        _assert_accepts_inline(
+            self.cls, as_EmbargoEvent(context="urn:uuid:case-123")
+        )
 
 
 class TestRemoveEmbargoFromCaseActivity:
@@ -388,7 +396,9 @@ class TestRemoveEmbargoFromCaseActivity:
         _assert_rejects_link(self.cls)
 
     def test_accepts_inline_embargo_event(self):
-        _assert_accepts_inline(self.cls, as_EmbargoEvent())
+        _assert_accepts_inline(
+            self.cls, as_EmbargoEvent(context="urn:uuid:case-123")
+        )
 
 
 # ---------------------------------------------------------------------------

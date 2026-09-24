@@ -28,7 +28,12 @@ OWNER_ID = "https://example.org/actors/alice"
 
 
 class TestFromCorePreservesPublished(unittest.TestCase):
-    """from_core must not regenerate published (regression: issue #2554)."""
+    """as_CaseActor IS CaseActor (ADR-0099 detail 3, issue #3487).
+
+    The paired wire class was deleted; as_CaseActor is now an alias for the
+    core CaseActor class.  Verify that CaseActor preserves the provided
+    published time (regression guard for issue #2554).
+    """
 
     _FIXED_TIME = datetime(2020, 1, 1, 0, 0, 0, tzinfo=timezone.utc)
 
@@ -39,8 +44,9 @@ class TestFromCorePreservesPublished(unittest.TestCase):
             attributed_to=OWNER_ID,
             published=self._FIXED_TIME,
         )
-        wire = as_CaseActor.from_core(core)
-        self.assertEqual(self._FIXED_TIME, wire.published)
+        # as_CaseActor IS the core class; direct instantiation replaces from_core()
+        self.assertIs(as_CaseActor, CoreCaseActor)
+        self.assertEqual(self._FIXED_TIME, core.published)
 
 
 if __name__ == "__main__":

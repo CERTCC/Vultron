@@ -53,13 +53,14 @@ _MIN_REGISTERED_TYPES = 50
 #: The only ``type`` values two unflagged classes may share (VM-01-008): the
 #: Vultron actor subtypes deliberately shadow their base AS2 actor classes so an
 #: inbound actor keeps its extension fields. Maps each value to the class that
-#: MUST win the key.
+#: MUST win the key.  Under ADR-0099 detail 3 the winners are the core actor
+#: classes themselves; ``as_VultronPerson`` and friends are aliases of them.
 _SANCTIONED_SHADOWS = {
-    "Person": "as_VultronPerson",
-    "Organization": "as_VultronOrganization",
-    "Service": "as_VultronService",
-    "Application": "as_VultronApplication",
-    "Group": "as_VultronGroup",
+    "Person": "VultronPerson",
+    "Organization": "VultronOrganization",
+    "Service": "VultronService",
+    "Application": "VultronApplication",
+    "Group": "VultronGroup",
 }
 
 

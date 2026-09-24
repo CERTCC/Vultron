@@ -26,9 +26,10 @@ from vultron.core.behaviors.embargo.nodes.conditions import (
     IsProposedEmbargoNode,
     ValidateCaseExistsNode,
 )
+from vultron.core.models.case import VulnerabilityCase
+from vultron.core.models.case_status import CaseStatus
 from vultron.core.states.em import EM
 from vultron.errors import VultronInvalidStateTransitionError
-from vultron.wire.as2.vocab.objects.case_status import as_CaseStatus
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCase,
 )
@@ -231,9 +232,14 @@ class TestHasCaseStatusesNode:
             "sqlite:///:memory:",
             actor_id="https://test.example/api/v2/actors/test-actor",
         )
-        case = as_VulnerabilityCase(
+        case = VulnerabilityCase(
             id_="https://example.org/cases/hcs1",
-            case_statuses=[as_CaseStatus(em_state=EM.ACTIVE)],
+            case_statuses=[  # type: ignore[arg-type]
+                CaseStatus(
+                    context="https://example.org/cases/hcs1",
+                    em_state=EM.ACTIVE,  # type: ignore[call-arg]
+                )
+            ],
         )
         dl.create(case)
 

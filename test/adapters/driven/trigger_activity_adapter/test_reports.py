@@ -17,6 +17,7 @@ import json
 import pytest
 
 from vultron.core.models.offer_record import VultronOfferRecord
+from vultron.errors import VultronAlreadyExistsError
 from vultron.wire.as2.vocab.objects.vulnerability_report import (
     as_VulnerabilityReport,
 )
@@ -120,19 +121,28 @@ class TestSubmitReport:
     def test_no_compensating_delete_on_duplicate_offer_record(
         self, adapter, dl
     ):
-        """ValueError on offer record create does not trigger compensating delete."""
+        """A duplicate offer record does not trigger a compensating delete.
+
+        The double raises the exception ``crud.create`` actually raises for a
+        duplicate.  It used to be a bare ``ValueError``, which the idempotent
+        guard caught — but so was every *other* fault from that call, so a real
+        projection failure was swallowed as "already exists" too.  The guard now
+        matches ``VultronAlreadyExistsError`` specifically; simulating a
+        duplicate with a bare ``ValueError`` would no longer reach it, and this
+        test would be asserting against a fault that never happens in production.
+        """
         report = _make_report(dl)
 
         original_create = dl.create
 
-        def offer_record_raises_value_error(obj):
+        def offer_record_already_exists(obj):
             if isinstance(obj, VultronOfferRecord):
-                raise ValueError("already exists")
+                raise VultronAlreadyExistsError("already exists")
             return original_create(obj)
 
-        dl.create = offer_record_raises_value_error
+        dl.create = offer_record_already_exists
 
-        # Call succeeds (ValueError is swallowed by the idempotent guard).
+        # Call succeeds (the duplicate is swallowed by the idempotent guard).
         offer_id, _ = adapter.submit_report(
             report_id=report.id_,
             actor=_ACTOR,

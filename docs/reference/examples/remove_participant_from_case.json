@@ -1,43 +1,43 @@
 {
-  "id": "urn:uuid:f4c8c49f-b01d-425d-a9ad-039e0a636208",
+  "id": "urn:uuid:43a01e59-132a-46a7-b600-481bc8b266d1",
   "type": "Remove",
-  "name": "https://vultron.example/organizations/vendorco Remove Coordinator LLC to urn:uuid:598ffc72-7dc6-41fa-8ffa-e05f6b578b3c",
+  "name": "https://vultron.example/organizations/vendorco Remove Coordinator LLC to urn:uuid:a0a80546-90d9-482d-916a-72f47f8a64d6",
   "summary": "Vendor is removing the coordinator from the case.",
   "@context": "https://www.w3.org/ns/activitystreams",
   "actor": "https://vultron.example/organizations/vendorco",
-  "target": "urn:uuid:598ffc72-7dc6-41fa-8ffa-e05f6b578b3c",
+  "target": "urn:uuid:a0a80546-90d9-482d-916a-72f47f8a64d6",
   "object": {
-    "id": "urn:uuid:598ffc72-7dc6-41fa-8ffa-e05f6b578b3c/participants/coordinator",
+    "id": "urn:uuid:a0a80546-90d9-482d-916a-72f47f8a64d6/participants/coordinator",
     "type": "CaseParticipant",
     "name": "Coordinator LLC",
-    "context": "urn:uuid:598ffc72-7dc6-41fa-8ffa-e05f6b578b3c",
-    "published": "2026-09-18T22:07:19+00:00",
-    "updated": "2026-09-18T22:07:19+00:00",
+    "context": "urn:uuid:a0a80546-90d9-482d-916a-72f47f8a64d6",
+    "published": "2026-09-23T16:41:57+00:00",
+    "updated": "2026-09-23T16:41:57+00:00",
     "attributedTo": "https://vultron.example/organizations/coordinator",
-    "@context": "https://certcc.github.io/Vultron/ns/context.jsonld",
     "caseRoles": [
       "coordinator"
     ],
     "participantStatuses": [
       {
-        "id": "urn:uuid:c05e7e5b-61d6-465a-94e0-f2b844c0167e",
+        "id": "urn:uuid:e2162ac7-3716-45b9-84b6-5728dd55bfd8",
         "type": "ParticipantStatus",
         "name": "START",
-        "context": "urn:uuid:598ffc72-7dc6-41fa-8ffa-e05f6b578b3c",
-        "published": "2026-09-18T22:07:19+00:00",
-        "updated": "2026-09-18T22:07:19+00:00",
+        "context": "urn:uuid:a0a80546-90d9-482d-916a-72f47f8a64d6",
+        "published": "2026-09-23T16:41:57+00:00",
+        "updated": "2026-09-23T16:41:57+00:00",
         "attributedTo": "https://vultron.example/organizations/coordinator",
-        "@context": "https://certcc.github.io/Vultron/ns/context.jsonld",
         "rmState": "START",
         "caseEngagement": true,
-        "embargoAdherence": false,
         "emConsentState": "UNBOUND",
         "cvdRole": [
           "COORDINATOR"
-        ]
+        ],
+        "embargoAdherence": false,
+        "@context": "https://certcc.github.io/Vultron/ns/context.jsonld"
       }
     ],
     "acceptedEmbargoIds": [],
-    "embargoConsentState": "UNBOUND"
+    "embargoConsentState": "UNBOUND",
+    "@context": "https://certcc.github.io/Vultron/ns/context.jsonld"
   }
 }

@@ -37,6 +37,9 @@ from vultron.core.behaviors.status.nodes.cs_invariant_guards import (
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.states.cs import CS_pxa
 from vultron.wire.as2.vocab.objects.case_status import as_CaseStatus
+from vultron.core.models.dimensions import (
+    PxaDimension,
+)
 
 ACTOR_ID = "https://example.org/actors/vendor"
 CASE_ID = "https://example.org/cases/inv-guards-01"
@@ -87,7 +90,7 @@ class TestCheckCsEphemeralStateNode:
         case = _make_case_with_pxa(CS_pxa.pXa)
         dl.create(case)
         asserted = as_CaseStatus(
-            id_=STATUS_ID, context=CASE_ID, pxa_state=CS_pxa.pXA
+            id_=STATUS_ID, context=CASE_ID, pxa=PxaDimension(state=CS_pxa.pXA)
         )
         dl.create(asserted)
 
@@ -100,7 +103,7 @@ class TestCheckCsEphemeralStateNode:
         case = _make_case_with_pxa(CS_pxa.pXa)
         dl.create(case)
         asserted = as_CaseStatus(
-            id_=STATUS_ID, context=CASE_ID, pxa_state=CS_pxa.PXa
+            id_=STATUS_ID, context=CASE_ID, pxa=PxaDimension(state=CS_pxa.PXa)
         )
         dl.create(asserted)
 
@@ -112,7 +115,7 @@ class TestCheckCsEphemeralStateNode:
         case = _make_case_with_pxa(CS_pxa.pXa)
         dl.create(case)
         asserted = as_CaseStatus(
-            id_=STATUS_ID, context=CASE_ID, pxa_state=CS_pxa.PXA
+            id_=STATUS_ID, context=CASE_ID, pxa=PxaDimension(state=CS_pxa.PXA)
         )
         dl.create(asserted)
 
@@ -124,7 +127,7 @@ class TestCheckCsEphemeralStateNode:
         case = _make_case_with_pxa(CS_pxa.Pxa)
         dl.create(case)
         asserted = as_CaseStatus(
-            id_=STATUS_ID, context=CASE_ID, pxa_state=CS_pxa.PXa
+            id_=STATUS_ID, context=CASE_ID, pxa=PxaDimension(state=CS_pxa.PXa)
         )
         dl.create(asserted)
 
@@ -142,7 +145,7 @@ class TestCheckCsEphemeralStateNode:
         bare_case = VulnerabilityCase(id_=CASE_ID, context=ACTOR_ID)
         dl.create(bare_case)
         asserted = as_CaseStatus(
-            id_=STATUS_ID, context=CASE_ID, pxa_state=CS_pxa.pXA
+            id_=STATUS_ID, context=CASE_ID, pxa=PxaDimension(state=CS_pxa.pXA)
         )
         dl.create(asserted)
 
@@ -222,7 +225,7 @@ class TestCheckCsHistoryPrefixNode:
         case = _make_case_with_pxa(CS_pxa.pXa)
         dl.create(case)
         asserted = as_CaseStatus(
-            id_=STATUS_ID, context=CASE_ID, pxa_state=CS_pxa.pXA
+            id_=STATUS_ID, context=CASE_ID, pxa=PxaDimension(state=CS_pxa.pXA)
         )
         dl.create(asserted)
 
@@ -235,7 +238,7 @@ class TestCheckCsHistoryPrefixNode:
         case = _make_case_with_pxa(CS_pxa.pXa)
         dl.create(case)
         asserted = as_CaseStatus(
-            id_=STATUS_ID, context=CASE_ID, pxa_state=CS_pxa.PXa
+            id_=STATUS_ID, context=CASE_ID, pxa=PxaDimension(state=CS_pxa.PXa)
         )
         dl.create(asserted)
 
@@ -247,7 +250,7 @@ class TestCheckCsHistoryPrefixNode:
         case = _make_case_with_pxa(CS_pxa.pxa)
         dl.create(case)
         asserted = as_CaseStatus(
-            id_=STATUS_ID, context=CASE_ID, pxa_state=CS_pxa.pXa
+            id_=STATUS_ID, context=CASE_ID, pxa=PxaDimension(state=CS_pxa.pXa)
         )
         dl.create(asserted)
 
@@ -259,7 +262,7 @@ class TestCheckCsHistoryPrefixNode:
         case = _make_case_with_pxa(CS_pxa.pXa)
         dl.create(case)
         asserted = as_CaseStatus(
-            id_=STATUS_ID, context=CASE_ID, pxa_state=CS_pxa.pXa
+            id_=STATUS_ID, context=CASE_ID, pxa=PxaDimension(state=CS_pxa.pXa)
         )
         dl.create(asserted)
 
@@ -271,7 +274,7 @@ class TestCheckCsHistoryPrefixNode:
         case = _make_case_with_pxa(CS_pxa.pxa)
         dl.create(case)
         asserted = as_CaseStatus(
-            id_=STATUS_ID, context=CASE_ID, pxa_state=CS_pxa.PXA
+            id_=STATUS_ID, context=CASE_ID, pxa=PxaDimension(state=CS_pxa.PXA)
         )
         dl.create(asserted)
 
@@ -297,7 +300,7 @@ class TestCheckCsHistoryPrefixNode:
         bare_case = VulnerabilityCase(id_=CASE_ID, context=ACTOR_ID)
         dl.create(bare_case)
         asserted = as_CaseStatus(
-            id_=STATUS_ID, context=CASE_ID, pxa_state=CS_pxa.pXA
+            id_=STATUS_ID, context=CASE_ID, pxa=PxaDimension(state=CS_pxa.pXA)
         )
         dl.create(asserted)
 
@@ -345,7 +348,7 @@ class TestCsGuardDryRefactorRegression:
         case = _make_case_with_pxa(CS_pxa.pXa)
         dl.create(case)
         asserted = as_CaseStatus(
-            id_=STATUS_ID, context=CASE_ID, pxa_state=CS_pxa.pXA
+            id_=STATUS_ID, context=CASE_ID, pxa=PxaDimension(state=CS_pxa.pXA)
         )
         dl.create(asserted)
 
@@ -357,7 +360,7 @@ class TestCsGuardDryRefactorRegression:
         case = _make_case_with_pxa(CS_pxa.pXa)
         dl.create(case)
         asserted = as_CaseStatus(
-            id_=STATUS_ID, context=CASE_ID, pxa_state=CS_pxa.pXA
+            id_=STATUS_ID, context=CASE_ID, pxa=PxaDimension(state=CS_pxa.pXA)
         )
         dl.create(asserted)
 

@@ -21,7 +21,10 @@ from typing import Any
 from pydantic import ValidationError
 
 from vultron.core.ports.case_persistence import CaseOutboxPersistence
-from vultron.errors import VultronActivityConstructionError
+from vultron.errors import (
+    VultronActivityConstructionError,
+    VultronAlreadyExistsError,
+)
 from vultron.wire.as2.factories import (
     create_case_activity,
     rm_defer_case_activity,
@@ -60,7 +63,7 @@ class _CasesMixin:
         activity = create_case_activity(case=case, actor=actor, to=to)
         try:
             self._dl.create(activity)
-        except ValueError:
+        except VultronAlreadyExistsError:
             logger.warning(
                 "create_case: activity '%s' already exists — skipping",
                 activity.id_,
@@ -78,7 +81,7 @@ class _CasesMixin:
         activity = rm_engage_case_activity(case=case, actor=actor, to=to)
         try:
             self._dl.create(activity)
-        except ValueError:
+        except VultronAlreadyExistsError:
             logger.warning(
                 "engage_case: activity '%s' already exists — skipping",
                 activity.id_,
@@ -96,7 +99,7 @@ class _CasesMixin:
         activity = rm_defer_case_activity(case=case, actor=actor, to=to)
         try:
             self._dl.create(activity)
-        except ValueError:
+        except VultronAlreadyExistsError:
             logger.warning(
                 "defer_case: activity '%s' already exists — skipping",
                 activity.id_,
@@ -116,7 +119,7 @@ class _CasesMixin:
         activity = rm_close_case_activity(case=case, actor=actor, to=to)
         try:
             self._dl.create(activity)
-        except ValueError:
+        except VultronAlreadyExistsError:
             logger.warning(
                 "close_case: activity '%s' already exists — skipping",
                 activity.id_,
@@ -153,7 +156,7 @@ class _CasesMixin:
         activity = reject_close_case_activity(leave=leave, **kwargs)
         try:
             self._dl.create(activity)
-        except ValueError:
+        except VultronAlreadyExistsError:
             logger.warning(
                 "reject_close_case: activity '%s' already exists — skipping",
                 activity.id_,
@@ -187,7 +190,7 @@ class _CasesMixin:
             ) from exc
         try:
             self._dl.create(activity)
-        except ValueError:
+        except VultronAlreadyExistsError:
             logger.warning(
                 "add_object_to_case: activity '%s' already exists — skipping",
                 activity.id_,
@@ -214,7 +217,7 @@ class _CasesMixin:
         )
         try:
             self._dl.create(activity)
-        except ValueError:
+        except VultronAlreadyExistsError:
             logger.warning(
                 "add_case_status_to_case: activity '%s' already exists"
                 " — skipping",
@@ -274,7 +277,7 @@ class _CasesMixin:
         )
         try:
             self._dl.create(activity)
-        except ValueError:
+        except VultronAlreadyExistsError:
             logger.warning(
                 "announce_vulnerability_case: activity '%s' already exists"
                 " — skipping",
@@ -326,7 +329,7 @@ class _CasesMixin:
         # when the as_Create activity is read back from the DataLayer.
         try:
             self._dl.create(proposal)
-        except ValueError:
+        except VultronAlreadyExistsError:
             logger.debug(
                 "create_case_proposal: proposal '%s' already exists"
                 " — skipping",
@@ -340,7 +343,7 @@ class _CasesMixin:
         )
         try:
             self._dl.create(activity)
-        except ValueError:
+        except VultronAlreadyExistsError:
             logger.warning(
                 "create_case_proposal: activity '%s' already exists — skipping",
                 activity.id_,
@@ -394,7 +397,7 @@ class _CasesMixin:
             ) from exc
         try:
             self._dl.create(wire_proposal)
-        except ValueError:
+        except VultronAlreadyExistsError:
             logger.debug(
                 "reject_case_proposal: proposal '%s' already exists — skipping",
                 wire_proposal.id_,
@@ -414,7 +417,7 @@ class _CasesMixin:
         )
         try:
             self._dl.create(activity)
-        except ValueError:
+        except VultronAlreadyExistsError:
             logger.warning(
                 "reject_case_proposal: activity '%s' already exists — skipping",
                 activity.id_,

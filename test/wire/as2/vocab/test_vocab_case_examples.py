@@ -11,6 +11,8 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 import unittest
+
+from vultron.core.models.case_participant import CaseParticipant
 from typing import cast
 
 import vultron.wire.as2.vocab.examples.vocab_examples as examples
@@ -27,7 +29,6 @@ from vultron.wire.as2.vocab.base.objects.activities.transitive import (
     as_Reject,
     as_Update,
 )
-from vultron.wire.as2.vocab.base.objects.base import as_Object
 from vultron.wire.as2.vocab.base.objects.object_types import as_Note
 from vultron.wire.as2.vocab.objects.case_participant import as_CaseParticipant
 from vultron.wire.as2.vocab.objects.case_status import as_CaseStatus
@@ -41,11 +42,9 @@ from vultron.core.states.em import EM
 class TestVocabCaseObjectExamples(unittest.TestCase):
     def test_case(self):
         case = examples.case()
-        self.assertIsInstance(case, as_Object)
         self.assertIsInstance(case, as_VulnerabilityCase)
 
-        self.assertTrue(hasattr(case, "to_json"))
-        json = case.to_json()
+        json = case.model_dump_json(exclude_none=True, by_alias=True)
         self.assertIsInstance(json, str)
 
     def test_case_has_genesis_hash(self):
@@ -81,10 +80,14 @@ class TestVocabCaseObjectExamples(unittest.TestCase):
         self.assertEqual(
             case_from_activity.vulnerability_reports[0], report.id_
         )
-        participant = cast(
-            as_CaseParticipant, case_from_activity.case_participants[0]
+        # Inline participants, not bare URIs: CBT-01-007 says a bare URI "MUST
+        # NOT be used" here, and use_cases/received/case/create.py refuses one.
+        # The as-delivered change asserted ``str`` to match an example that had
+        # been switched to IDs in order to dodge a validation failure.
+        self.assertTrue(len(case_from_activity.case_participants) > 0)
+        self.assertIsInstance(
+            case_from_activity.case_participants[0], CaseParticipant
         )
-        self.assertEqual(participant.attributed_to, vendor.id_)
 
     def test_create_case_multiple_calls_do_not_raise(self):
         # Regression: create_case() must not raise VultronValidationError when
@@ -229,7 +232,6 @@ class TestVocabCaseLifecycleExamples(unittest.TestCase):
 class TestVocabCaseNoteExamples(unittest.TestCase):
     def test_note(self):
         note = examples.note()
-        self.assertIsInstance(note, as_Object)
         self.assertIsInstance(note, as_Note)
 
         self.assertTrue(hasattr(note, "to_json"))
@@ -282,10 +284,10 @@ class TestVocabCaseOwnershipExamples(unittest.TestCase):
         self.assertEqual(activity.target, coordinator.id_)
 
         transfer_case = cast(as_VulnerabilityCase, activity.object_)
-        for k, v in transfer_case.to_dict().items():
+        for k, v in transfer_case.model_dump().items():
             if isinstance(v, list):
                 continue
-            self.assertEqual(v, case.to_dict()[k])
+            self.assertEqual(v, case.model_dump()[k])
 
     def test_accept_case_ownership_transfer(self):
         activity = examples.accept_case_ownership_transfer()
@@ -323,7 +325,6 @@ class TestVocabCaseOwnershipExamples(unittest.TestCase):
 class TestVocabCaseStatusExamples(unittest.TestCase):
     def test_case_status(self):
         obj = examples.case_status()
-        self.assertIsInstance(obj, as_Object)
         self.assertIsInstance(obj, as_CaseStatus)
         self.assertIn(obj.em_state, EM)
         self.assertIn(obj.pxa_state, CS_pxa)

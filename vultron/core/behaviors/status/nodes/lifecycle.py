@@ -52,6 +52,7 @@ from vultron.core.behaviors.status.nodes.threat_termination import (  # noqa: F4
     ThreatTerminationBranchNode,
     _ThreatTerminationSkipConditionNode,
 )
+from vultron.errors import VultronAlreadyExistsError
 
 logger = logging.getLogger(__name__)
 
@@ -305,7 +306,7 @@ class EmitAddCaseStatusToSelfNode(DataLayerActionWithPorts):
         # Persist the case status so the factory can read it back.
         try:
             self.datalayer.create(case_status)
-        except ValueError:
+        except VultronAlreadyExistsError:
             pass  # already exists — idempotent
 
         return str(case_status_id)

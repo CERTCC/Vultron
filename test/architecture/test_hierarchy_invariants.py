@@ -20,23 +20,30 @@ between the core (domain) and wire (ActivityStreams) layers:
 
 1. All classes in CORE_VOCABULARY are subclasses of CoreObject.
 2. All classes in VOCABULARY (wire) are subclasses of as_Base.
-3. No CoreObject subclass uses alias_generator=to_camel (an AS2 serialization
-   concern that belongs only to the wire layer).
+3. Every CoreObject subclass derives its AS2 spellings from an
+   ``alias_generator`` — and still accepts Python field names.
 4. No CoreObject subclass references the AS2 namespace string directly.
 
-These invariants are specified in ARCH-12-003 and ARCH-12-004.
+Invariant 3 **inverted** under ADR-0099, and that is worth stating rather than
+quietly editing. It used to read "no CoreObject subclass uses
+alias_generator=to_camel", because AS2 spelling belonged to the wire layer
+(ARCH-12-003, ARCH-12-004) and a paired ``as_*`` class held it. ADR-0099 detail 2
+deletes those classes and puts the spelling on the core class, so there is no
+second class left to carry it. The #1991 backlog set that tracked the old
+direction is removed with it. #2288 and #2289, which described the old goal, are
+closed as superseded; #3578 owns reconciling ARCH-12-003 against ADR-0099.
 
-Invariants 2 and 3 are not met yet. Their known violations are **enumerated** in
-the two backlog sets below and asserted with ``==``, so the sets fail if a new
-violation appears *and* if a listed one is fixed without being ticked off. Each
-has a companion ``xfail(strict=True)`` goal test, so emptying its backlog makes
-the goal test XPASS and fail the build — forcing the marker to be deleted.
+Invariant 2 is not met yet. Its known violations are **enumerated** in the backlog
+set below and asserted with ``==``, so the set fails if a new violation appears
+*and* if a listed one is fixed without being ticked off, with a companion
+``xfail(strict=True)`` goal test so emptying the backlog fails the build and forces
+the marker to be deleted.
 
-Both backlogs previously sat behind bare ``strict=False`` xfails, which is a
-pattern worth naming: a non-strict xfail keeps passing forever after the work is
-done, so nobody is ever told to clean it up, and it gives no partial-progress
-signal along the way. See ``test_validate_assignment_ratchet.py``, which uses the
-same three-part shape (exact backlog + strict goal + guard-the-guard).
+That backlog previously sat behind a bare ``strict=False`` xfail, a pattern worth
+naming: a non-strict xfail keeps passing forever after the work is done, so nobody
+is ever told to clean it up, and it gives no partial-progress signal along the way.
+See ``test_validate_assignment_ratchet.py``, which uses the same three-part shape
+(exact backlog + strict goal + guard-the-guard).
 
 Spec: `specs/architecture.yaml` ARCH-12-003, ARCH-12-004, ARCH-12-007
 Reference: `docs/adr/0017-domain-wire-object-separation.md`
@@ -51,23 +58,6 @@ from vultron.wire.as2.vocab.base.registry import VOCABULARY
 
 # AS2 namespace constant from wire layer
 ACTIVITY_STREAMS_NS = "https://www.w3.org/ns/activitystreams"
-
-# ---------------------------------------------------------------------------
-# Backlog: core classes inheriting alias_generator=to_camel from as_Base,
-# violating ARCH-12-004 (issue #1991). This set may only SHRINK.
-# ---------------------------------------------------------------------------
-_TO_CAMEL_BACKLOG_1991: frozenset[str] = frozenset(
-    {
-        "CaseStatus",
-        "CoreActorCollection",
-        "ParticipantStatus",
-        "VultronApplication",
-        "VultronGroup",
-        "VultronOrganization",
-        "VultronPerson",
-        "VultronService",
-    }
-)
 
 # ---------------------------------------------------------------------------
 # Backlog: core-layer classes registered in the wire VOCABULARY registry,
@@ -109,56 +99,34 @@ class TestCoreVocabularyHierarchy:
                 cls, as_Base
             ), f"{name} inherits from as_Base (wire layer)"
 
-    def test_to_camel_backlog_is_exact(self) -> None:
-        """The #1991 violation set must match reality, in both directions.
+    def test_every_core_vocabulary_entry_derives_as2_spellings(self) -> None:
+        """Every CORE_VOCABULARY entry inherits the AS2 alias generator.
 
-        Replaces a bare ``strict=False`` xfail. A non-strict xfail keeps passing
-        after the work is done, so it never tells anyone to remove it, and it
-        gives no signal for partial progress. An exact set does both: it fails if
-        a *new* core class inherits ``alias_generator``, and it fails if one is
-        fixed without being ticked off here.
+        Replaces the #1991 backlog set and its goal xfail, both of which drove
+        toward *removing* ``alias_generator`` from core. That goal was right while
+        a paired ``as_*`` class held the AS2 spelling; ADR-0099 deletes those
+        classes, so the spelling has nowhere else to live (detail 2). The
+        backlog's direction is inverted, not merely satisfied — a set documented
+        as "may only SHRINK" cannot express "all of them, by inheritance".
+
+        The uniformity is the point. Per-class opt-in is what let four promoted
+        types ship ``attributed_to`` on the wire while their siblings shipped
+        ``attributedTo``: a partial migration is invisible until a peer cannot
+        read the payload. Inheriting from ``CoreObject`` makes "some classes" a
+        state the code cannot be in.
+
+        #2288 and #2289 tracked the removal and are closed as superseded; their
+        premise — render AS2 from the ``as_*`` classes — no longer holds, because
+        those classes are gone. #3578 owns the ARCH-12-003 annotation.
         """
-        has_to_camel = {
+        missing = sorted(
             name
             for name, cls in CORE_VOCABULARY.items()
-            if "alias_generator" in getattr(cls, "model_config", {})
-        }
-        assert has_to_camel == set(_TO_CAMEL_BACKLOG_1991), (
-            "the set of core classes inheriting alias_generator changed.\n"
-            f"  newly violating: {sorted(has_to_camel - _TO_CAMEL_BACKLOG_1991)}\n"
-            f"  fixed but still listed: {sorted(_TO_CAMEL_BACKLOG_1991 - has_to_camel)}\n"
-            "to_camel is an AS2 serialization concern and belongs only in the"
-            " wire layer (ARCH-12-004, #3578)."
+            if "alias_generator" not in getattr(cls, "model_config", {})
         )
-
-    @pytest.mark.xfail(
-        strict=True,
-        reason="Goal state tracked in #3578 (which superseded #2288, #2289 "
-        "and closed #1991): "
-        "no CoreObject subclass inherits alias_generator=to_camel from as_Base. "
-        "8 known classes remain, enumerated in _TO_CAMEL_BACKLOG_1991. "
-        "When the last is fixed this test XPASSes and fails the build — "
-        "delete the marker and the backlog then.",
-    )
-    def test_no_core_object_has_to_camel_alias_generator(self) -> None:
-        """No CoreObject subclass may use alias_generator=to_camel.
-
-        The to_camel alias generator is an AS2 serialization concern.
-        Domain objects use field aliases only for reserved-word conflicts,
-        not for general field-name transformation.
-
-        Enforces ARCH-12-004: Core branch model_config must not include
-        AS2-specific serialization configuration.
-        """
-        has_to_camel: dict[str, object] = {}
-        for name, cls in CORE_VOCABULARY.items():
-            model_config = getattr(cls, "model_config", {})
-            if "alias_generator" in model_config:
-                has_to_camel[name] = model_config["alias_generator"]
-
-        assert not has_to_camel, (
-            f"CoreObject classes with alias_generator=to_camel: {list(has_to_camel.keys())}\n"
-            "to_camel is an AS2 serialization concern and belongs only in the wire layer."
+        assert not missing, (
+            "these CORE_VOCABULARY entries do not derive AS2 spellings, so they"
+            f" would serialize Python field names onto the wire: {missing}"
         )
 
 
@@ -168,7 +136,7 @@ class TestWireVocabularyHierarchy:
     def test_non_as_base_vocabulary_backlog_is_exact(self) -> None:
         """The #1992 violation set must match reality, in both directions.
 
-        See ``test_to_camel_backlog_is_exact`` for why this replaces a
+        See this module's docstring for why an exact set replaces a
         ``strict=False`` xfail.
         """
         if not VOCABULARY:
@@ -335,19 +303,26 @@ class TestCoreObjectModelConfig:
             True
         ), "Placeholder for future bytecode scanning (no violations found)"
 
-    def test_core_object_base_model_config_is_lenient(self) -> None:
-        """CoreObject base class must use lenient model_config.
+    def test_core_object_derives_as2_spellings_and_accepts_field_names(
+        self,
+    ) -> None:
+        """CoreObject derives the AS2 spelling and still accepts field names.
 
-        CoreObject.model_config must NOT specify alias_generator=to_camel
-        or other AS2-specific serialization options. It should use the
-        shared lenient root configuration that works for both core and
-        wire branches.
+        This asserted the opposite until ADR-0099: no ``alias_generator`` on
+        ``CoreObject``, because AS2 spelling was the wire branch's job
+        (ARCH-12-002, ARCH-12-004).  Under one object model there is no second
+        class to hold it — detail 2 puts the AS2 spelling on the core class.
 
-        Enforces ARCH-12-002 and ARCH-12-004.
+        Both halves are asserted together because they are only correct together.
+        The generator alone would make the *persistence* form unreadable, since
+        stored rows are keyed by Python field name; ``populate_by_name`` is what
+        keeps both serializations of detail 1 valid on input.
         """
-        # The shared base (VultronBase) defines the minimal config
         config = getattr(CoreObject, "model_config", {})
-        # Core should not override with wire-specific concerns
         assert (
-            config.get("alias_generator") is None
-        ), "CoreObject.model_config must not set alias_generator"
+            config.get("alias_generator") is not None
+        ), "CoreObject must derive AS2 spellings (ADR-0099 detail 2)"
+        assert config.get("populate_by_name") is True, (
+            "CoreObject must still accept Python field names, or persisted rows"
+            " (which are keyed by field name) become unreadable"
+        )

@@ -51,6 +51,9 @@ from vultron.wire.as2.vocab.objects.vulnerability_report import (
 )
 from vultron.core.states.rm import RM
 from vultron.enums.roles import CVDRole
+from vultron.core.models.dimensions import (
+    RmDimension,
+)
 
 # ---------------------------------------------------------------------------
 # Module-level outbox suppression
@@ -174,7 +177,7 @@ def received_report(dl, actor, report):
             as_ParticipantStatus(
                 attributed_to=actor.id_,
                 context=case_obj.id_,
-                rm_state=RM.RECEIVED,
+                rm=RmDimension(state=RM.RECEIVED),
             )
         ],
     )

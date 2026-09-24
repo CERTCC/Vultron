@@ -197,11 +197,11 @@ class TestDynamicDiscovery:
         assert WIRE_TYPE_MAP["VulnerabilityReport"] is as_VulnerabilityReport
         assert WIRE_TYPE_MAP["VulnerabilityCase"] is as_VulnerabilityCase
 
-        # VOCABULARY is keyed by full wire class name
-        assert "as_VulnerabilityReport" in VOCABULARY
-        assert "as_VulnerabilityCase" in VOCABULARY
-        assert VOCABULARY["as_VulnerabilityReport"] is as_VulnerabilityReport
-        assert VOCABULARY["as_VulnerabilityCase"] is as_VulnerabilityCase
+        # After ADR-0099 detail 3 deletion (issue #3487), the core class IS the
+        # wire class — these are no longer registered under "as_*" in VOCABULARY
+        # but are accessible via WIRE_TYPE_MAP (checked above).
+        assert "as_VulnerabilityReport" not in VOCABULARY
+        assert "as_VulnerabilityCase" not in VOCABULARY
 
     def test_case_stub_does_not_claim_the_case_wire_type_key(self):
         """VM-01-008: an alias class holds no key of its own (issue #2982).
@@ -401,16 +401,16 @@ class TestWireTypeValues:
     @pytest.mark.parametrize(
         "type_value,expected_class_name",
         [
-            ("VulnerabilityCase", "as_VulnerabilityCase"),
-            ("VulnerabilityReport", "as_VulnerabilityReport"),
+            ("VulnerabilityCase", "VulnerabilityCase"),
+            ("VulnerabilityReport", "VulnerabilityReport"),
             ("Accept", "as_Accept"),
             ("Create", "as_Create"),
             ("Announce", "as_Announce"),
-            ("Person", "as_VultronPerson"),
-            ("Service", "as_VultronService"),
+            ("Person", "VultronPerson"),
+            ("Service", "VultronService"),
             ("Actor", "as_Actor"),
             ("Add", "as_Add"),
-            ("EmbargoEvent", "as_EmbargoEvent"),
+            ("EmbargoEvent", "EmbargoEvent"),
         ],
     )
     def test_critical_type_values_resolve_to_expected_wire_class(

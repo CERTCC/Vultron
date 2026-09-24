@@ -87,6 +87,9 @@ from vultron.wire.as2.vocab.objects.case_proposal import as_CaseProposal
 from vultron.wire.as2.vocab.objects.vulnerability_report import (
     as_VulnerabilityReport,
 )
+from vultron.core.models.dimensions import (
+    EmDimension,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -119,14 +122,21 @@ def _project_case_to_stub(
     active_embargo_uri = getattr(case, "active_embargo", None)
     if em_state != EM.ACTIVE or active_embargo_uri is None:
         return as_VulnerabilityCaseStub(id_=case_id)
-    wire_status = as_CaseStatus(em_state=em_state)
+    # ``context`` names the case this status belongs to.  It is required on the
+    # core class (fail-fast, ARCH-10-001); the deleted wire class allowed it to be
+    # absent because the wire branch was deliberately lenient (ARCH-12-002).
+    wire_status = as_CaseStatus(
+        context=case_id, em=EmDimension(state=em_state)
+    )
     embargo_ref: WireEmbargoEvent | str = active_embargo_uri
     if embargo_obj is not None:
         end_time = getattr(embargo_obj, "end_time", None)
         if end_time is not None:
             try:
                 embargo_ref = WireEmbargoEvent(
-                    id_=active_embargo_uri, end_time=end_time
+                    id_=active_embargo_uri,
+                    end_time=end_time,
+                    context=case_id,
                 )
             except ValidationError as exc:
                 logger.warning(

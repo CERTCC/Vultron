@@ -83,7 +83,15 @@ def _coerce_rm(v: object) -> RM:
     if isinstance(v, RM):
         return v
     if isinstance(v, str):
-        return RM[v]
+        # ``RM[v]`` raises KeyError on an unknown name, and Pydantic only absorbs
+        # ValueError/AssertionError from a validator — so a bogus state escaped as
+        # a 500 instead of a clean 422 (#2964).  The deleted ``as_ParticipantStatus``
+        # carried its own coercion that converted this; ``_coerce_vf``/``_coerce_d``
+        # already did it here and these two did not.
+        try:
+            return RM[v]
+        except KeyError:
+            raise ValueError(f"Unknown RM value: {v!r}") from None
     raise ValueError(f"Cannot coerce {v!r} to RM")
 
 
@@ -93,7 +101,10 @@ def _coerce_pec(v: object) -> PEC:
     if isinstance(v, str):
         if v == "NO_EMBARGO":
             return PEC.UNBOUND
-        return PEC[v]
+        try:
+            return PEC[v]
+        except KeyError:
+            raise ValueError(f"Unknown PEC value: {v!r}") from None
     raise ValueError(f"Cannot coerce {v!r} to PEC")
 
 
@@ -101,7 +112,10 @@ def _coerce_pxa(v: object) -> CS_pxa:
     if isinstance(v, CS_pxa):
         return v
     if isinstance(v, str):
-        return CS_pxa[v]
+        try:
+            return CS_pxa[v]
+        except KeyError:
+            raise ValueError(f"Unknown CS_pxa value: {v!r}") from None
     if isinstance(v, (list, tuple)) and len(v) == 3:
         return CS_pxa(PxaState(*v))
     raise ValueError(f"Cannot coerce {v!r} to CS_pxa")

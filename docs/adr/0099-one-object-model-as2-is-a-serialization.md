@@ -18,11 +18,13 @@ consulted: notes/wire-core-boundary.md, notes/domain-model-separation.md
 > | 5 | dimension objects serialize to a bare state value — validated by the spike under [Validation](#validation) | — |
 > | 6 | ARCH-22-001 replaced by the wire→core allow-list | #3483 |
 > | 9 | `rehydrate()` named and implemented as the owner of ID-to-object materialisation (VM-06-007) | #3486 |
+> | 3 | all 27 paired `as_*` domain classes deleted; message slots name the core class | #3487, #3488 |
 >
 > The four misnamed wire classes were also renamed to `as_*` (#3484).
 >
-> **Details 1, 3, 4, 7, 8 and 10 are not built**, and detail 9's other half — the
-> object slots themselves holding whole objects — waits on detail 3. Item-by-item
+> **Details 1, 4, 7, 8 and 10 are not built.** Detail 9's other half — the object
+> slots themselves holding whole objects — was unblocked by detail 3 and now
+> materialises promoted core classes. Item-by-item
 > status is in [Migration](#migration), which is transitional and should be
 > deleted once the work lands.
 
@@ -139,6 +141,25 @@ spelling, and both are the status classes covered by ADR-0036.
    No parallel core-only naming scheme is built. YAGNI: the aliases already
    provide the separation. How a core implemented in another language would
    handle this is out of scope for this decision.
+
+   **Amended during #3487: the aliases are *derived*, not enumerated.** As first
+   written this detail said the spelling is carried "entirely by
+   `validation_alias` / `serialization_alias` on the field", i.e. one hand-written
+   alias per field. That was built and then changed, for a measured reason:
+   `pydantic.alias_generators.to_camel` produces the correct AS2 property name for
+   27 of 30 real field names, and the three it misses (`id_`, `type_`, `context_`)
+   are trailing-underscore fields that already carry explicit aliases and always
+   will — `@context` cannot come from any generator.
+
+   Enumerating therefore buys nothing and costs the fields nobody remembers:
+   declaring the generator per class instead of once let four promoted types ship
+   `attributed_to` on the wire while their siblings shipped `attributedTo`, which
+   is invisible until a peer cannot read the payload. So the generator is declared
+   once on `CoreObject` and inherited, and what keeps it honest is a closed-world
+   test on the projected key set
+   (`test_promoted_core_classes_are_exactly_as2_representable`) rather than the
+   declaration site. ARCH-12-003 and ARCH-20-001 both forbid this mechanism and
+   are annotated; #3578 owns their rewrite.
 3. **The 27 paired `as_*` domain classes are deleted.** Message-shape classes
    name core classes in their slots: `object_: VulnerabilityReport`,
    `target: VulnerabilityCase`.

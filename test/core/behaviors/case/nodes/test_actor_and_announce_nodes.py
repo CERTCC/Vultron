@@ -412,7 +412,7 @@ class TestSeedAnnouncedCaseNode:
             id_=CASE_ID2, name="Inline Participant Write-Path Test"
         )
         case_with_inline.actor_participant_index[actor_id] = participant_id
-        case_with_inline.case_participants.append(inline_participant)
+        case_with_inline.case_participants.append(inline_participant)  # type: ignore[arg-type]
 
         tree = SeedAnnouncedCaseNode(
             case_id=CASE_ID2,

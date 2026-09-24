@@ -60,6 +60,9 @@ from vultron.wire.as2.vocab.objects.case_status import (
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCase,
 )
+from vultron.core.models.dimensions import (
+    RmDimension,
+)
 
 # ---------------------------------------------------------------------------
 # Constants
@@ -104,13 +107,17 @@ def _seed_case(
         case_roles=[role],
     )
     participant.participant_statuses.append(
-        WireParticipantStatus(context=case_id, rm_state=RM.RECEIVED)
+        WireParticipantStatus(
+            context=case_id, rm=RmDimension(state=RM.RECEIVED)
+        )
     )
     participant.participant_statuses.append(
-        WireParticipantStatus(context=case_id, rm_state=RM.VALID)
+        WireParticipantStatus(context=case_id, rm=RmDimension(state=RM.VALID))
     )
     participant.participant_statuses.append(
-        WireParticipantStatus(context=case_id, rm_state=RM.ACCEPTED)
+        WireParticipantStatus(
+            context=case_id, rm=RmDimension(state=RM.ACCEPTED)
+        )
     )
     dl.create(participant)
     case.actor_participant_index[actor_id] = participant.id_
@@ -126,7 +133,7 @@ def _seed_case(
     # add it during owner Leave; pre-seeding would make the assertion vacuous.
     for state in [RM.RECEIVED, RM.VALID, RM.ACCEPTED]:
         cm_participant.participant_statuses.append(
-            WireParticipantStatus(context=case_id, rm_state=state)
+            WireParticipantStatus(context=case_id, rm=RmDimension(state=state))
         )
     dl.create(cm_participant)
     case.actor_participant_index[case_actor_id] = cm_participant.id_

@@ -36,6 +36,7 @@ from vultron.core.behaviors.helpers import (
     PortInformation,
 )
 from vultron.core.models.vultron_types import VultronCase
+from vultron.errors import VultronAlreadyExistsError
 
 
 class PersistCase(DataLayerActionWithPorts):
@@ -345,6 +346,6 @@ class EnsureCaseActorHostedNode(DataLayerActionWithPorts):
                 continue
             try:
                 store.create(case_actor)
-            except ValueError:
+            except VultronAlreadyExistsError:
                 pass  # already exists (race or duplicate); not an error
         return Status.SUCCESS

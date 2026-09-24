@@ -27,6 +27,7 @@ from vultron.adapters.driven.db_record import (
 from vultron.adapters.utils import _URN_UUID_PREFIX, _UUID_RE
 from vultron.core.models.protocols import PersistableModel
 from vultron.core.ports.datalayer import StorableRecord
+from vultron.errors import VultronAlreadyExistsError
 
 from .schema import VultronObjectRecord, QueueEntry, participant_status_summary
 
@@ -52,7 +53,7 @@ def create(
     dl: "Any",  # SqliteDataLayer
     record: "StorableRecord | PersistableModel",
 ) -> None:
-    """Insert a new record; raises ``ValueError`` if it already exists.
+    """Insert a new record; raises ``VultronAlreadyExistsError`` if it exists.
 
     Args:
         dl: The SqliteDataLayer instance.
@@ -60,7 +61,13 @@ def create(
             with ``id_`` and ``type_`` attributes.
 
     Raises:
-        ValueError: If a record with the same ``id_`` already exists.
+        VultronAlreadyExistsError: If a record with the same ``id_`` already
+            exists.  This is the only cause a caller may swallow, and callers
+            that mean "already stored" MUST catch this class rather than
+            ``ValueError`` — ``object_to_record`` below also raises
+            ``VultronValidationError`` (unprojectable object) and ``ValueError``
+            (no ``type_``; ``as_``-prefixed ``type_``), which are real faults
+            that must not be mistaken for a duplicate.
     """
     if isinstance(record, StorableRecord):
         rec = _storable_to_record(record)
@@ -70,7 +77,7 @@ def create(
     with Session(dl._engine) as session:
         existing = session.get(VultronObjectRecord, rec.id_)
         if existing is not None:
-            raise ValueError(
+            raise VultronAlreadyExistsError(
                 f"record with id_={rec.id_!r} already exists "
                 f"in {rec.type_!r}"
             )

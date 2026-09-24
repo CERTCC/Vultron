@@ -319,7 +319,9 @@ def test_dispatcher_resolves_case_for_reject_embargo_invite_gate():
     case_id = "https://example.org/cases/case-gate-embargo"
     invite = em_propose_embargo_activity(
         embargo=as_EmbargoEvent(
-            id_=f"{case_id}/embargo_events/e1", content="Embargo proposal"
+            id_=f"{case_id}/embargo_events/e1",
+            content="Embargo proposal",
+            context=case_id,
         ),
         context=case_id,
         actor="https://example.org/users/vendor",

@@ -23,7 +23,9 @@ HTTP-09-003: Serializes with model_dump(mode="json", by_alias=True,
 from typing import Any
 
 from fastapi.responses import JSONResponse
+from pydantic import BaseModel
 
+from vultron.core.models.base import CoreObject
 from vultron.wire.as2.vocab.base.base import as_Base
 
 AS2_CONTENT_TYPE = "application/activity+json"
@@ -32,7 +34,7 @@ AS2_CONTENT_TYPE = "application/activity+json"
 class AS2JSONResponse(JSONResponse):
     """FastAPI response for ActivityStreams 2.0 objects.
 
-    Serializes an ``as_Base`` subclass instance with ``by_alias=True`` and
+    Serializes an ``as_Base`` or ``CoreObject`` instance with ``by_alias=True`` and
     ``exclude_none=True`` to produce compact camelCase AS2 JSON, and sets the
     ``Content-Type`` header to ``application/activity+json``.
 
@@ -48,9 +50,17 @@ class AS2JSONResponse(JSONResponse):
     media_type = AS2_CONTENT_TYPE
 
     def __init__(self, content: "as_Base | Any", **kwargs: Any) -> None:
-        if isinstance(content, as_Base):
+        # A CoreObject is its own AS2 class (ADR-0099 detail 3), so it dumps as
+        # one.  Any other model has no AS2 form; dumping it by alias would
+        # synthesise a document that is not AS2 (ARCH-20-006), so refuse it.
+        if isinstance(content, (as_Base, CoreObject)):
             body = content.model_dump(
                 mode="json", by_alias=True, exclude_none=True
+            )
+        elif isinstance(content, BaseModel):
+            raise TypeError(
+                f"AS2JSONResponse: {type(content).__name__} is neither an AS2"
+                " object nor a CoreObject and has no AS2 serialization"
             )
         else:
             body = content

@@ -25,7 +25,9 @@ hook, and ``test_committed_context_is_not_stale`` in the unit suite, which is
 what enforces it in CI (no workflow runs pre-commit or this CLI directly).
 
 The term set is every distinct concrete ``type_`` value carried by a wire class
-whose ``_vocab_ns`` is :data:`VocabNamespace.VULTRON` (VM-10-002). It is keyed
+whose ``_vocab_ns`` is :data:`VocabNamespace.VULTRON`, plus every non-AS2
+``type_`` value of a core class registered in ``WIRE_TYPE_MAP`` (the ADR-0099
+aliases; VM-10-002). It is keyed
 by the emitted ``type`` *value*, not the class name: ``VulnerabilityCaseStub``
 emits ``type: "VulnerabilityCase"``, so it needs no separate term — the
 ``VulnerabilityCase`` term already resolves it.
@@ -51,7 +53,10 @@ from vultron.wire.as2.vocab.base.base import (
 )
 from vultron.wire.as2.vocab.base.enums import VocabNamespace
 from vultron.wire.as2.vocab.base.objects.base import as_Object
-from vultron.wire.as2.vocab.base.registry import declared_wire_type
+from vultron.wire.as2.vocab.base.registry import (
+    WIRE_TYPE_MAP,
+    declared_wire_type,
+)
 
 #: Repository-relative path of the generated artifact.
 CONTEXT_JSONLD_PATH = "docs/ns/context.jsonld"
@@ -84,6 +89,9 @@ VOCAB_PACKAGE = "vultron.wire.as2.vocab"
 #: Sub-tree holding the ActivityStreams base vocabulary.  A ``type`` value
 #: declared here is an AS2 term; anything else is Vultron-specific.
 AS2_BASE_PACKAGE = "vultron.wire.as2.vocab.base"
+
+#: Package holding the core classes the wire vocabulary aliases (ADR-0099).
+CORE_MODELS_PACKAGE = "vultron.core.models"
 
 
 def _all_object_subclasses() -> set[type]:
@@ -146,9 +154,17 @@ def _concrete_type_value(cls: type) -> str | None:
 def vultron_context_terms() -> dict[str, str]:
     """Map each Vultron-namespace wire ``type`` value to its ``vultron:`` IRI.
 
-    The single source of truth is the class annotation ``_vocab_ns ==
-    VocabNamespace.VULTRON``. Distinct concrete ``type_`` values are collected
-    and mapped to ``vultron:<term>`` (VM-10-002).
+    Two sources feed the term set, and distinct concrete ``type_`` values from
+    both are mapped to ``vultron:<term>`` (VM-10-002):
+
+    - wire classes annotated ``_vocab_ns == VocabNamespace.VULTRON``;
+    - core classes registered in ``WIRE_TYPE_MAP``.  Under ADR-0099 detail 3
+      the paired ``as_*`` classes are aliases of their core classes, which are
+      not ``as_Object`` subclasses and carry no ``_vocab_ns`` — so the
+      annotation walk alone would silently drop ``CaseParticipant``,
+      ``VulnerabilityReport`` and the rest.  A core class whose ``type`` is an
+      ActivityStreams term (``VultronPerson`` emits ``Person``) contributes
+      nothing: the AS2 context already defines it.
     """
     terms: set[str] = set()
     for cls in _all_object_subclasses():
@@ -156,6 +172,13 @@ def vultron_context_terms() -> dict[str, str]:
             continue
         value = _concrete_type_value(cls)
         if value is not None:
+            terms.add(value)
+    as2_terms = as2_term_values()
+    for cls in WIRE_TYPE_MAP.values():
+        if not cls.__module__.startswith(CORE_MODELS_PACKAGE):
+            continue
+        value = _concrete_type_value(cls)
+        if value is not None and value not in as2_terms:
             terms.add(value)
     return {term: f"vultron:{term}" for term in sorted(terms)}
 

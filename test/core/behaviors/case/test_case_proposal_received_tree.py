@@ -2147,7 +2147,7 @@ def test_store_proposal_report_keeps_the_reporter(caplog):
         proposal_dict=proposal.model_dump(
             by_alias=True, serialize_as_any=True
         ),
-        inline_report=cast(Any, proposal.object_).to_core(),
+        inline_report=cast(Any, proposal.object_),
     )
     py_trees.blackboard.Blackboard.storage.clear()
     result = BTBridge(datalayer=dl).execute_with_setup(

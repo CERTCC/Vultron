@@ -61,6 +61,9 @@ from vultron.core.models.case_status import CaseStatus
 from vultron.wire.as2.vocab.objects.vulnerability_report import (
     as_VulnerabilityReport,
 )
+from vultron.core.models.dimensions import (
+    RmDimension,
+)
 
 FUTURE_DATETIME = datetime(2099, 12, 1, tzinfo=timezone.utc)
 
@@ -96,7 +99,7 @@ def _add_self_participant(case, dl, actor_id: str, rm: RM = RM.RECEIVED):
             as_ParticipantStatus(
                 attributed_to=actor_id,
                 context=case.id_,
-                rm_state=rm,
+                rm=RmDimension(state=rm),
             )
         ],
     )
@@ -277,7 +280,7 @@ def case_with_participant(dl, actor):
             as_ParticipantStatus(
                 attributed_to=actor.id_,
                 context=case_obj.id_,
-                rm_state=RM.VALID,
+                rm=RmDimension(state=RM.VALID),
             )
         ],
     )

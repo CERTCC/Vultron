@@ -23,6 +23,10 @@ from vultron.adapters.driven.db_record import (
     object_to_record,
     record_to_object,
 )
+from vultron.errors import (
+    VultronAlreadyExistsError,
+    VultronValidationError,
+)
 from vultron.wire.as2.enums import (
     as_IntransitiveActivityType,
     as_TransitiveActivityType,
@@ -250,6 +254,22 @@ def test_object_to_record_nested_report_not_duplicated_in_offer_data():
 # ---------------------------------------------------------------------------
 # Wire/core shape guard on the write path (issue #2232)
 # ---------------------------------------------------------------------------
+
+
+def test_already_exists_and_validation_error_are_disjoint_types():
+    """Neither duplicate-row nor projection-failure may catch the other.
+
+    Guards the invariant the swallowing call sites depend on.  Both are
+    ``ValueError`` subclasses so that older callers and Pydantic respectively
+    keep working, which means subclassing is the only thing standing between
+    "already stored" and "never stored, silently".
+    """
+    assert issubclass(VultronAlreadyExistsError, ValueError)
+    assert issubclass(VultronValidationError, ValueError)
+    assert not issubclass(VultronValidationError, VultronAlreadyExistsError)
+    assert not issubclass(VultronAlreadyExistsError, VultronValidationError)
+
+
 def test_object_to_record_still_accepts_wire_activities():
     """Activities have no core counterpart, so they must remain persistable."""
     from vultron.wire.as2.vocab.objects.vulnerability_report import (
@@ -427,6 +447,26 @@ def test_object_to_record_normalizes_migrated_wire_type(
     assert record.type_ == expected_type
 
 
+def test_embargo_event_with_context_is_valid():
+    """EmbargoEvent with context can be persisted.
+
+    After ADR-0099 detail 3, as_EmbargoEvent is an alias for the core
+    EmbargoEvent class. EmbargoEvent.context is required (NonEmptyString).
+    """
+    from vultron.wire.as2.vocab.objects.embargo_event import as_EmbargoEvent
+
+    event = as_EmbargoEvent(context="urn:uuid:case-123")
+    assert event.context == "urn:uuid:case-123"
+
+    record = object_to_record(cast(Any, event))
+    assert record is not None
+
+
+# ---------------------------------------------------------------------------
+# CP-01-004: a ref field the model requires to be inline is never dehydrated
+# ---------------------------------------------------------------------------
+
+
 def _inline_proposal():
     """An ``as_CaseProposal`` carrying its report inline, as CP-01-004 requires."""
     from vultron.wire.as2.vocab.objects.case_proposal import as_CaseProposal
@@ -572,31 +612,31 @@ def test_case_active_embargo_survives_storage_as_an_inline_object():
     assert stored["id_"] == "urn:uuid:emb-dl08000-0000-0000-000000000001"
 
 
-def test_case_to_core_keeps_the_carried_embargo():
-    """``to_core()`` must not flatten a declared inline-required ref.
+def test_case_carries_the_embargo_as_an_inline_object():
+    """A case constructed with an inline EmbargoEvent keeps it as an object.
 
-    The core case is what gets stored, and ``outbox_delivery`` re-serialises the
-    *stored* activity, so a flattening here puts the bare id back on the wire no
-    matter what the sender held.
+    After ADR-0099 detail 3, as_VulnerabilityCase is an alias for the core
+    VulnerabilityCase; there is no to_core() projection step.  The active_embargo
+    field retains whatever type was set at construction — if an EmbargoEvent
+    object was provided, it stays an object.
     """
     case = _case_carrying_its_embargo()
-    core = case.to_core()
 
-    assert not isinstance(core.active_embargo, str), (
-        "to_core() reduced active_embargo to an id; the declaration in"
-        " inline_required_refs says it is carried (DL-08-001)"
+    assert not isinstance(case.active_embargo, str), (
+        "active_embargo was reduced to an id; the declaration in"
+        " inline_required_refs says it must be carried inline (DL-08-001)"
     )
     assert (
-        core.active_embargo_id == "urn:uuid:emb-dl08000-0000-0000-000000000001"
+        case.active_embargo_id == "urn:uuid:emb-dl08000-0000-0000-000000000001"
     ), "the id is still reachable via active_embargo_id when that is what is wanted"
 
 
-def test_case_to_core_passes_through_a_bare_embargo_id():
-    """A case that only ever held an id must still project.
+def test_case_passes_through_a_bare_embargo_id():
+    """A case that only ever held a bare embargo id is still valid.
 
     ``inline_required_refs`` says the field must not be *reduced* to an id on
-    the way out; it cannot conjure an object a sender never had.  Rehydrating
-    such a case has to keep working rather than raise.
+    storage; it cannot conjure an object a sender never had.  Constructing such
+    a case must succeed and the id must be readable back.
     """
     from vultron.wire.as2.vocab.objects.vulnerability_case import (
         as_VulnerabilityCase,
@@ -609,9 +649,7 @@ def test_case_to_core_passes_through_a_bare_embargo_id():
         active_embargo="urn:uuid:emb-dl08001-0000-0000-000000000001",
     )
 
-    core = case.to_core()
-
-    assert core.active_embargo == "urn:uuid:emb-dl08001-0000-0000-000000000001"
+    assert case.active_embargo == "urn:uuid:emb-dl08001-0000-0000-000000000001"
 
 
 # ---------------------------------------------------------------------------

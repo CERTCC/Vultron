@@ -164,7 +164,7 @@ def test_reparse_as_specific_type_returns_same_object_when_already_specific_clas
         name="Already Specific",
     )
     raw_obj = case.model_dump(mode="json", by_alias=True, exclude_none=True)
-    result = _reparse_as_specific_type(case, raw_obj)
+    result = _reparse_as_specific_type(case, raw_obj)  # type: ignore[arg-type]
     assert result is case
 
 
@@ -237,39 +237,51 @@ def test_store_nested_inbox_object_skips_when_no_body(datalayer):
 def test_store_nested_inbox_object_projection_failure_surfaces_on_read(
     datalayer, caplog
 ):
-    """An unpersistable inline object surfaces its failure on read (#2232, #2940).
+    """An unreadable inline object surfaces its failure on read (#2232, #2940).
 
     Since #2940 removed write-side wire→core normalisation (``extra="forbid"``
     is the boundary contract now), ingress stores the inline object verbatim
-    rather than rejecting it at write.  The projection failure is not silently
-    swallowed: reading the row back logs a WARNING and returns the un-projected
-    wire object rather than a misleading "not found" or a wrong core object.
+    rather than rejecting it at write.  The failure is not silently swallowed
+    on the way back out: reading the row logs a WARNING naming #2232 rather
+    than reporting a misleading "not found" with no trace.
     """
     import logging
 
-    from vultron.wire.as2.vocab.objects.case_participant import (
-        as_CaseParticipant,
-    )
+    from pydantic import BaseModel
 
-    # NonEmptyString rejects "" on the core class but not the wire class, so
-    # this participant is constructible yet cannot be projected to core.
-    unprojectable = as_CaseParticipant(
-        id_="urn:uuid:participant-2232-unprojectable",
-        attributed_to=_ACTOR_URI,
-        context="https://example.org/cases/case-2232",
-        accepted_embargo_ids=[""],
+    # The fixture changed with ADR-0099 detail 3, and the reason is worth keeping.
+    # It used to build an ``as_CaseParticipant`` with ``accepted_embargo_ids=[""]``
+    # — legal on the lenient wire class, rejected by the core class's
+    # ``NonEmptyString``, so "constructible yet unprojectable". Collapsing the pair
+    # removes that state: one class means such an object fails *construction*
+    # instead of projection, and there is no wire object left to hand back on
+    # read. What still reaches the store is a shape the core class refuses — here
+    # a key no ``CaseParticipant`` field accepts, which ``extra="forbid"`` rejects.
+    #
+    # Deliberately a plain ``BaseModel`` and not a ``CoreObject`` subclass: the
+    # latter self-registers in ``CORE_TYPE_MAP`` via ``__init_subclass__``, and with
+    # ``type_ = "CaseParticipant"`` it would clobber the real entry for every test
+    # that ran afterwards. ``model_construct`` puts it in the slot without the
+    # union validation a non-core model would fail.
+    class _ShadowingParticipant(BaseModel):
+        id_: str = "urn:uuid:participant-2232-unprojectable"
+        type_: str = "CaseParticipant"
+        not_a_participant_field: str = "x"
+
+    _ShadowingParticipant.__module__ = "vultron.wire.as2.vocab.objects.fake"
+
+    unprojectable = _ShadowingParticipant()
+    activity = as_Announce.model_construct(
+        actor=_ACTOR_URI, object_=unprojectable
     )
-    activity = as_Announce(actor=_ACTOR_URI, object_=unprojectable)
 
     _store_nested_inbox_object(datalayer, activity, None)
 
     with caplog.at_level(logging.WARNING):
         result = datalayer.read(unprojectable.id_)
 
-    # Present (not silently absent) but surfaced as the un-projected wire
-    # fallback, with the failure logged loudly.
-    assert result is not None
-    assert type(result).__module__.startswith("vultron.wire.as2")
+    # No class can read the row, so it reads as absent — but loudly.
+    assert result is None
     assert "issue #2232" in caplog.text
 
 

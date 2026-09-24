@@ -16,6 +16,8 @@
 
 from pydantic import Field
 
+from vultron.core.models.actor import CoreActor
+from vultron.core.models.base import CoreObject
 from vultron.wire.as2.vocab.base.links import as_Link
 from vultron.wire.as2.vocab.base.objects.actors import as_ActorRef
 from vultron.wire.as2.vocab.base.objects.base import as_Object
@@ -39,10 +41,27 @@ class as_Activity(as_Object):
         serialization_alias="type",
     )
 
-    actor: as_ActorRef
-    target: as_Object | as_Link | str | None = None
-    origin: as_Object | as_Link | str | None = None
-    instrument: as_Object | as_Link | str | None = None
+    # All four slots admit a core object, not just ``actor``.
+    #
+    # Widening only ``actor`` (and ``as_ObjectRef``, for ``object_``) left
+    # ``target``/``origin``/``instrument`` declaring a wire-only union while the
+    # adapters put promoted core classes in them.  A value outside its declared
+    # union escapes in both directions: outbound, Pydantic emits
+    # ``PydanticSerializationUnexpectedValue`` and ships a payload shaped by the
+    # wrong schema; inbound, a payload from an unmodified peer is refused. That is
+    # what made every recipient answer ``422`` to ``Create(VulnerabilityCase)`` and
+    # never seed the case replica (ADR-0041, PCR-01-003).
+    #
+    # The type errors this produced on the subclass overrides were suppressed with
+    # ``# type: ignore[assignment]`` rather than fixed, which is why mypy and
+    # pyright stayed green while the wire protocol did not work. Widening here is
+    # what lets those suppressions be deleted: a subclass narrowing
+    # ``target`` to ``VulnerabilityCase | as_Link | str | None`` is now a genuine
+    # narrowing of this union rather than an incompatible override.
+    actor: as_ActorRef | CoreActor
+    target: as_Object | as_Link | str | CoreObject | None = None
+    origin: as_Object | as_Link | str | CoreObject | None = None
+    instrument: as_Object | as_Link | str | CoreObject | None = None
     result: as_Object | as_Link | str | None = None
 
     def description(self):

@@ -1,30 +1,43 @@
 {
-  "id": "urn:uuid:80a2cfdd-e34d-4abe-ab6f-05b81e095072",
+  "id": "urn:uuid:d1cb2483-5757-4940-bf72-f20fcb85bac5",
   "type": "Join",
-  "name": "https://vultron.example/organizations/vendorco Join VendorCo Case #27396413",
+  "name": "https://vultron.example/organizations/vendorco Join VendorCo Case #61038668",
   "content": "We're engaging this case.",
   "@context": "https://www.w3.org/ns/activitystreams",
   "actor": "https://vultron.example/organizations/vendorco",
   "object": {
-    "id": "urn:uuid:5a4de4be-e35f-4167-a9dc-c48fe6ea3774",
+    "id": "urn:uuid:a0a80546-90d9-482d-916a-72f47f8a64d6",
     "type": "VulnerabilityCase",
-    "name": "VendorCo Case #27396413",
-    "published": "2026-09-21T14:10:27+00:00",
-    "updated": "2026-09-21T14:10:27+00:00",
+    "name": "VendorCo Case #61038668",
+    "published": "2026-09-23T16:41:56+00:00",
+    "updated": "2026-09-23T16:41:56+00:00",
     "attributedTo": "https://vultron.example/organizations/vendorco",
-    "@context": "https://certcc.github.io/Vultron/ns/context.jsonld",
     "caseParticipants": [],
     "actorParticipantIndex": {},
     "vulnerabilityReports": [],
-    "caseStatuses": [],
+    "caseStatuses": [
+      {
+        "id": "urn:uuid:ad9a662e-e103-401e-998e-b3ae27edceeb",
+        "type": "CaseStatus",
+        "name": "NONE pxa",
+        "context": "urn:uuid:a0a80546-90d9-482d-916a-72f47f8a64d6",
+        "published": "2026-09-23T16:41:56+00:00",
+        "updated": "2026-09-23T16:41:56+00:00",
+        "attributedTo": "https://vultron.example/organizations/vendorco",
+        "emState": "NONE",
+        "pxaState": "pxa",
+        "@context": "https://certcc.github.io/Vultron/ns/context.jsonld"
+      }
+    ],
     "notes": [],
-    "genesisHash": "b0189c1defdbbc2cdc875e954adce1417ea6b7a3e7133715b353e06cbf117246",
     "proposedEmbargoes": [],
     "pendingEmbargoProposalIndex": {},
     "recommendationRecommenderIndex": {},
     "caseActivity": [],
+    "genesisHash": "84e1411f242ec6e1e1ee9cd6cb6cc3d05d4a85c44aa8030fbeb13edc81a031d9",
     "parentCases": [],
     "childCases": [],
-    "siblingCases": []
+    "siblingCases": [],
+    "@context": "https://certcc.github.io/Vultron/ns/context.jsonld"
   }
 }

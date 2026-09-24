@@ -133,11 +133,53 @@ def test_non_as2_wire_types_are_annotated_vultron() -> None:
         f"VocabNamespace.VULTRON, so they miss the context: {offenders}"
     )
     # Without this the assertion above can pass by examining nothing at all.
-    assert reached >= len(vultron_context_terms()), (
+    # Core-registered terms (ADR-0099) never reach the annotation check, so the
+    # floor is the terms the remaining wire classes contribute.
+    annotated_terms = len(vultron_context_terms()) - len(
+        _core_registered_vultron_terms()
+    )
+    assert annotated_terms > 0 and reached >= annotated_terms, (
         f"only {reached} Vultron-typed classes reached the annotation check, "
-        f"fewer than the {len(vultron_context_terms())} generated terms — the "
+        f"fewer than the {annotated_terms} annotation-sourced terms — the "
         "AS2 term set is over-broad and the guard is silently vacuous"
     )
+
+
+def _core_registered_vultron_terms() -> set[str]:
+    """Non-AS2 ``type`` values of core classes registered in WIRE_TYPE_MAP."""
+    as2_terms = as2_term_values()
+    return {
+        value
+        for cls in WIRE_TYPE_MAP.values()
+        if cls.__module__.startswith("vultron.core.models")
+        and (value := _concrete_type_value(cls)) is not None
+        and value not in as2_terms
+    }
+
+
+def test_core_registered_types_resolve_through_context() -> None:
+    """Collapsed ``as_*`` aliases keep their context terms (ADR-0099 detail 3).
+
+    A paired wire class is now an alias of its core class, which is not an
+    ``as_Object`` subclass and carries no ``_vocab_ns``.  Enumerating only
+    annotated wire classes silently dropped nine terms from the normative
+    context; this pins that every such core type still resolves.
+    """
+    committed_terms = _term_block(_committed_context())
+    core_terms = _core_registered_vultron_terms()
+    for term in (
+        "CaseParticipant",
+        "VulnerabilityRecord",
+        "VulnerabilityReport",
+        "ParticipantStatus",
+    ):
+        assert term in core_terms
+    missing = sorted(t for t in core_terms if t not in committed_terms)
+    assert not missing, (
+        f"core types {missing} are registered on the wire but no context "
+        f"term resolves them — run '{WRITE_COMMAND}'."
+    )
+    assert "Person" not in core_terms  # an AS2 term is not re-declared
 
 
 def test_enumeration_ignores_classes_defined_outside_the_vocab_package() -> (
@@ -151,7 +193,7 @@ def test_enumeration_ignores_classes_defined_outside_the_vocab_package() -> (
     failed this module's annotation guard spuriously and — when annotated
     VULTRON — injected a bogus term into the *normative* artifact.
     """
-    from typing import Literal
+    from typing import ClassVar, Literal
 
     from pydantic import Field
 
@@ -160,6 +202,8 @@ def test_enumeration_ignores_classes_defined_outside_the_vocab_package() -> (
     before = vultron_context_terms()
 
     class as_LeakProbe(as_VultronObject):  # noqa: N801
+        # Keeps the probe out of WIRE_TYPE_MAP too, not just enumeration (#3592).
+        _wire_type_alias: ClassVar[bool] = True
         type_: Literal["LeakProbe"] = Field(
             default="LeakProbe",
             validation_alias="type",

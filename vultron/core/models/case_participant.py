@@ -35,7 +35,7 @@ from __future__ import annotations
 
 import logging
 from datetime import datetime
-from typing import Any, Literal
+from typing import Any, ClassVar, Literal
 
 from pydantic import Field, field_serializer, field_validator, model_validator
 
@@ -74,6 +74,10 @@ class CaseParticipant(CoreObject):
     wire-level type discrimination.
     """
 
+    local_only_fields: ClassVar[frozenset[str]] = frozenset(
+        {"invite_rsvp_deadline"}
+    )
+
     type_: Literal["CaseParticipant"] = Field(
         default="CaseParticipant",
         validation_alias="type",
@@ -84,6 +88,10 @@ class CaseParticipant(CoreObject):
     accepted_embargo_ids: list[NonEmptyString] = Field(default_factory=list)
     embargo_consent_state: PEC = Field(default=PEC.UNBOUND)
     participant_case_name: NonEmptyString | None = None
+    # Local bookkeeping, not an AS2 property: the deadline by which this actor's
+    # own implementation wants an RSVP.  Kept in the stored row and dropped from
+    # the delivery payload — see ``CoreObject.local_only_fields``, and note that
+    # plain ``exclude=True`` would have stopped it being persisted at all.
     invite_rsvp_deadline: datetime | None = None
 
     @field_serializer("case_roles")

@@ -43,6 +43,9 @@ from vultron.core.use_cases.received.report import (
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCase,
 )
+from vultron.core.models.dimensions import (
+    RmDimension,
+)
 
 _CASE_ACTOR_SERVICE_URL = "http://case-actor:7999/api/v2"
 
@@ -186,22 +189,24 @@ class TestFullReportFlow:
                 as_ParticipantStatus(
                     attributed_to=self.VENDOR_ID,
                     context=self.CASE_ID,
-                    rm_state=RM.RECEIVED,
+                    rm=RmDimension(state=RM.RECEIVED),
                 )
             ],
         )
-        case = as_VulnerabilityCase(
+        case = as_VulnerabilityCase.model_construct(
             id_=self.CASE_ID,
             name="Flow test case",
             vulnerability_reports=[self.REPORT_ID],
             case_participants=[case_manager, vendor_participant],
             active_embargo=f"{self.CASE_ID}/embargoes/flow-embargo",
+            # The index travels on the wire alongside the inline participants
+            # (CM-19-003): participants are resolved through it, never by
+            # scanning inline snapshots.
+            actor_participant_index={
+                self.CASE_ACTOR_ID: case_manager.id_,
+                self.VENDOR_ID: vendor_participant.id_,
+            },
         )
-        # The index travels on the wire alongside the inline participants
-        # (CM-19-003): participants are resolved through it, never by scanning
-        # inline snapshots.
-        case.actor_participant_index[self.CASE_ACTOR_ID] = case_manager.id_
-        case.actor_participant_index[self.VENDOR_ID] = vendor_participant.id_
         activity = create_case_activity(case, actor=self.CASE_ACTOR_ID)
         CreateCaseReceivedUseCase(dl, make_payload(activity)).execute()
 

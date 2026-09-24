@@ -1,10 +1,10 @@
 {
-  "id": "urn:uuid:0bee3107-07d3-4c2d-bd82-e733f29e12c0",
+  "id": "urn:uuid:6a4c5323-cdbb-4f5e-9be1-fae422d3f69b",
   "type": "Add",
-  "name": "https://vultron.example/organizations/vendorco Add NONE pxa to urn:uuid:5a4de4be-e35f-4167-a9dc-c48fe6ea3774",
+  "name": "https://vultron.example/organizations/vendorco Add NONE pxa to urn:uuid:a0a80546-90d9-482d-916a-72f47f8a64d6",
   "@context": "https://www.w3.org/ns/activitystreams",
   "actor": "https://vultron.example/organizations/vendorco",
-  "target": "urn:uuid:5a4de4be-e35f-4167-a9dc-c48fe6ea3774",
+  "target": "urn:uuid:a0a80546-90d9-482d-916a-72f47f8a64d6",
   "object": {
     "id": "https://vultron.example/cases/1/status/1",
     "type": "CaseStatus",
@@ -12,8 +12,8 @@
     "context": "https://vultron.example/cases/1",
     "published": "2026-06-01T19:12:00+00:00",
     "updated": "2026-06-01T19:12:00+00:00",
-    "@context": "https://certcc.github.io/Vultron/ns/context.jsonld",
     "emState": "NONE",
-    "pxaState": "pxa"
+    "pxaState": "pxa",
+    "@context": "https://certcc.github.io/Vultron/ns/context.jsonld"
   }
 }

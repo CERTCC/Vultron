@@ -126,7 +126,7 @@ def test_routing_safety_net_embargo_domain(test_pipeline, monkeypatch):
     case = _base_case()
     embargo = as_EmbargoEvent(
         id_="https://example.org/embargoes/e-ibp-1",
-        context=case,
+        context=case.id_,
     )
     activity = em_propose_embargo_activity(
         embargo, context=case.id_, actor=SENDER_ID, to=[RECEIVER_ID]

@@ -366,7 +366,7 @@ class TestRejectEventCarriesCaseAndEmbargoIds:
         actor_id = "https://example.org/actors/rejector"
         proposal_id = f"{case_id}/proposals/p1"
 
-        embargo = as_EmbargoEvent(id_=embargo_id)
+        embargo = as_EmbargoEvent(id_=embargo_id, context=case_id)
         proposal = em_propose_embargo_activity(
             embargo=embargo,
             context=case_id,

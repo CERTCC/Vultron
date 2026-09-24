@@ -31,6 +31,12 @@ from vultron.wire.as2.factories import (
     create_case_status_activity,
     create_status_for_participant_activity,
 )
+from vultron.core.models.dimensions import (
+    EmDimension,
+    PxaDimension,
+    RmDimension,
+    VfDimension,
+)
 
 _EXAMPLE_TIMESTAMP = datetime(2026, 6, 1, 19, 12, tzinfo=timezone.utc)
 
@@ -39,8 +45,8 @@ def case_status() -> as_CaseStatus:
     status = as_CaseStatus(
         id_="https://vultron.example/cases/1/status/1",
         context="https://vultron.example/cases/1",
-        em_state=EM.EMBARGO_MANAGEMENT_NONE,
-        pxa_state=CS_pxa.pxa,
+        em=EmDimension(state=EM.EMBARGO_MANAGEMENT_NONE),
+        pxa=PxaDimension(state=CS_pxa.pxa),
         published=_EXAMPLE_TIMESTAMP,
         updated=_EXAMPLE_TIMESTAMP,
     )
@@ -73,8 +79,8 @@ def participant_status() -> as_ParticipantStatus:
         id_="https://vultron.example/cases/1/participants/vendor/status/1",
         context="https://vultron.example/cases/1/participants/vendor",
         attributed_to="https://vultron.example/organizations/vendor",
-        rm_state=RM.RECEIVED,
-        vf_state=CS_vf.Vf,
+        rm=RmDimension(state=RM.RECEIVED),
+        vf=VfDimension(state=CS_vf.Vf),
         case_status=case_status(),
         published=_EXAMPLE_TIMESTAMP,
         updated=_EXAMPLE_TIMESTAMP,

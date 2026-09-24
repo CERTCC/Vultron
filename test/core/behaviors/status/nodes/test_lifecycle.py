@@ -46,6 +46,9 @@ from vultron.core.models.case import VulnerabilityCase
 from vultron.wire.as2.vocab.objects.vulnerability_case import (  # noqa: F401
     as_VulnerabilityCase,
 )
+from vultron.core.models.dimensions import (
+    PxaDimension,
+)
 
 ACTOR_ID = "https://example.org/actors/vendor"
 CASE_MANAGER_ID = "https://example.org/actors/case-actor"
@@ -90,7 +93,9 @@ def public_aware_status():
     return as_ParticipantStatus(
         id_=STATUS_ID,
         context=CASE_ID,
-        case_status=as_CaseStatus(pxa_state=CS_pxa.Pxa),
+        case_status=as_CaseStatus(
+            context=CASE_ID, pxa=PxaDimension(state=CS_pxa.Pxa)
+        ),
     )
 
 
