@@ -797,6 +797,16 @@ flow). Normative requirements: `specs/demo-ci.yaml` DEMOCI-11-010.
 designing a new demo scenario, or working out which of the two registers a
 scenario belongs in (see [demo-scenario-registry.md](demo-scenario-registry.md)).
 
+**`demo-interactive-ui.md`**
+Design for the stakeholder-facing interactive demo UI (ADR-0104): the
+React/ReactFlow app from `origin/feature/demo-ui` as the vehicle, the real
+system's case ledgers watched live as the source of truth, an operator-side
+dashboard with no case identity (the watching half of a Sentinel), and the
+prototype-only SSE ledger stream it reads. Also holds the presentation scenario
+set, the CYOA branch points, and the Task sequence under epic #676.
+**Load when**: working on `ui/`, the demo ledger stream endpoint, or any
+presentation-facing demo work.
+
 **`cvd-recipe-injects.md`**
 Classification of all 21 CERT Guide to CVD problem-solving recipes as Vultron
 scenario injects. Each recipe is mapped to RM/EM/CS protocol constructs and
