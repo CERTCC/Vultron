@@ -1,6 +1,7 @@
 ---
 stakeholder_type: [platform-developer, process-researcher]
 level: 400
+introduces: [Embargo Grammar]
 ---
 
 # EM Formal Model

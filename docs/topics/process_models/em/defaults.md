@@ -64,7 +64,7 @@ The absence of that exchange is intentional and correct; it is not a skipped ste
 
 The party who creates the case is its Case Owner.
 The Case Owner brings the active embargo into being, so it would be incoherent to treat them as not yet bound by it.
-Each Participant's own agreement to the embargo is tracked separately from the case's embargo state, by Participant Embargo Consent (PEC).
+Each Participant's own agreement to the embargo is tracked separately from the case's embargo state, by [Participant Embargo Consent (PEC)](../../behavior_logic/use-cases/embargo-lifecycle.md#which-messages-move-consent).
 The Case Owner starts there as a *Signatory*, and so does a Reporter whose submission accepted the terms, without either having been sent an invitation.
 [Embargo Lifecycle](../../behavior_logic/use-cases/embargo-lifecycle.md) explains how the two scopes fit together, and [§9.3 of the Vultron Protocol Specification](../../../reference/vultron-spec/index.md#93-what-unbound-means) specifies consent without an invitation.
 

@@ -4,6 +4,7 @@ description: >
   as a communicating hierarchical state machine.
 stakeholder_type: [platform-developer, process-researcher]
 level: 400
+introduces: [Deterministic Finite Automaton (DFA), Global State, Communicating Hierarchical State Machine]
 ---
 
 # A Formal Protocol Definition for MPCVD

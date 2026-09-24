@@ -92,7 +92,7 @@ The two default paths are the exception because nothing is left open on them: a 
     In the absence of an explicit *accept* or *reject* response from a Receiver in a timely manner, the Sender MAY proceed as though the proposal had been rejected: for a revision ($q^{em} \in R \xrightarrow{r} A$, in the [EM shorthand](formal_model.md#em-states)), the terms of the *Active* embargo stay in force.
 
 The protocol reads silence the same way when a Participant is invited to an existing embargo.
-A Participant who neither accepts nor declines before the invitation's deadline is recorded as having declined, the *pocket veto* ([§9.4 of the Vultron Protocol Specification](../../../reference/vultron-spec/index.md#94-deadlines-and-the-pocket-veto)).
+A Participant who neither accepts nor declines before the invitation's deadline is recorded as having declined, the [*pocket veto*](../../behavior_logic/use-cases/embargo-lifecycle.md#inaction-is-an-answer) ([§9.4 of the Vultron Protocol Specification](../../../reference/vultron-spec/index.md#94-deadlines-and-the-pocket-veto)).
 
 ## No Embargo means No Embargo
 

@@ -29,7 +29,7 @@ The Vultron Protocol describes a Coordinated Vulnerability Disclosure (CVD) case
 - [Embargo Management (EM)](em/index.md) tracks whether the case has an agreement to keep the vulnerability private for a time.
 - [Case State (CS)](cs/index.md) tracks what has happened to the vulnerability itself, such as whether a fix is ready or the public is aware.
 
-Each model is a deterministic finite automaton (DFA): a state machine with a fixed set of states in which every action leads from one state to exactly one next state.
+Each model is a [deterministic finite automaton (DFA)](../../reference/formal_protocol/index.md): a state machine with a fixed set of states in which every action leads from one state to exactly one next state.
 The inset at right shows that each process interacts with the other two in the context of a CVD case.
 
 A CVD case is coordinated by multiple agents, such as Reporters, Vendors, and Coordinators, each running these processes in parallel and interacting with each other.

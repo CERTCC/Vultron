@@ -33,7 +33,7 @@ Each Participant in a case has its own RM state, which only that Participant cha
 Three other pages cover the rest of the RM model:
 
 - [RM Interactions Between CVD Participants](rm_interactions.md) shows how one Participant's RM actions move another Participant's RM state, with common coordination scenarios.
-- [RM Formal Model](formal_model.md) defines the RM process as a deterministic finite automaton (DFA), a state machine with a fixed set of states and exactly one next state for each state and action, with its grammar, its shortest possible histories, and the named state subsets that other pages use.
+- [RM Formal Model](formal_model.md) defines the RM process as a [deterministic finite automaton (DFA)](../../../reference/formal_protocol/index.md), a state machine with a fixed set of states and exactly one next state for each state and action, with its grammar, its shortest possible histories, and the named state subsets that other pages use.
 - The [Vultron Protocol Specification, §6](../../../reference/vultron-spec/index.md#6-report-management-rm-state-machine-n), is the normative source for the [RM states](../../../reference/vultron-spec/index.md#61-states) and [transitions](../../../reference/vultron-spec/index.md#62-transitions-and-guards).
 
 ### RM States

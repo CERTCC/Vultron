@@ -76,6 +76,9 @@ _HEADING_RE = re.compile(r"^(?P<hashes>#{1,6})\s+(?P<text>.*?)\s*$")
 #: claims to absorb, failing silently in the most common case.
 _FENCE_RE = re.compile(r"^ {0,3}(?P<fence>`{3,}|~{3,})")
 
+#: :data:`_FENCE_RE` at any indentation, for :func:`fenced_lines`'s ``nested``.
+_NESTED_FENCE_RE = re.compile(r"^\s*(?P<fence>`{3,}|~{3,})")
+
 #: A table's delimiter row: ``|---|:---:|---|``. Its presence is what promotes
 #: the line above it from prose-containing-pipes to a table header.
 #:
@@ -202,6 +205,39 @@ class MarkdownTable:
         )
 
 
+def fenced_lines(text: str, *, nested: bool = False) -> frozenset[int]:
+    """Return the 1-based numbers of lines inside a fenced code block.
+
+    Opener and closer lines are included. A closer must use the opener's
+    character and be at least as long; a shorter run inside a longer block is
+    literal content, not a close.
+
+    Args:
+        nested: Also track fences indented four or more spaces, as inside a
+            mkdocs-material admonition or content tab. CommonMark reads such a
+            line as indented code, so a caller parsing plain Markdown leaves
+            this off; a caller reading rendered prose turns it on.
+    """
+    pattern = _NESTED_FENCE_RE if nested else _FENCE_RE
+    fenced: set[int] = set()
+    fence: str | None = None
+    for number, line in enumerate(text.splitlines(), start=1):
+        opener = pattern.match(line)
+        run = opener.group("fence") if opener is not None else None
+        if fence is None and run is not None:
+            fence = run
+            fenced.add(number)
+        elif fence is not None:
+            fenced.add(number)
+            if (
+                run is not None
+                and len(run) >= len(fence)
+                and run[0] == fence[0]
+            ):
+                fence = None
+    return frozenset(fenced)
+
+
 def iter_sections(text: str) -> tuple[MarkdownSection, ...]:
     """Partition *text* at ATX headings, ignoring hashes inside code fences.
 
@@ -213,42 +249,20 @@ def iter_sections(text: str) -> tuple[MarkdownSection, ...]:
     heading = ""
     level = 0
     body: list[tuple[int, str]] = []
-    fenced: set[int] = set()
-    fence: str | None = None
+    fenced = fenced_lines(text)
 
     for number, line in enumerate(text.splitlines(), start=1):
-        opener = _FENCE_RE.match(line)
-        run = opener.group("fence") if opener is not None else None
-        if fence is None and run is not None:
-            fence = run
-            fenced.add(number)
-        elif fence is not None:
-            fenced.add(number)
-            # A closing fence must use the same character and be at least as
-            # long as the one it opened; a shorter run inside a longer block is
-            # literal content, not a close.
-            if (
-                run is not None
-                and len(run) >= len(fence)
-                and run[0] == fence[0]
-            ):
-                fence = None
-
-        match = None if fence is not None else _HEADING_RE.match(line)
+        match = None if number in fenced else _HEADING_RE.match(line)
         if match is None:
             body.append((number, line))
             continue
 
-        sections.append(
-            MarkdownSection(heading, level, tuple(body), frozenset(fenced))
-        )
+        sections.append(MarkdownSection(heading, level, tuple(body), fenced))
         heading = match.group("text")
         level = len(match.group("hashes"))
         body = []
 
-    sections.append(
-        MarkdownSection(heading, level, tuple(body), frozenset(fenced))
-    )
+    sections.append(MarkdownSection(heading, level, tuple(body), fenced))
     return tuple(sections)
 
 

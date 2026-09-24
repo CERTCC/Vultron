@@ -1,6 +1,7 @@
 ---
 stakeholder_type: [platform-developer]
 level: 400
+introduces: [Embargo Consent, Pocket Veto]
 ---
 
 # Embargo Lifecycle

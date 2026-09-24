@@ -44,7 +44,7 @@ They are independent of any specific implementation language.
 
 ### vultron-core
 
-**Definition.** The abstract Vultron protocol: the state machines for Report Management (RM), Embargo Management (EM), Participant Embargo Consent (PEC), and the vendor-path (VFD) and public-path (PXA) case state dimensions, the valid transitions between states, the process logic that drives those transitions, and the behavioral conformance rules that define correct observable behavior.
+**Definition.** The abstract Vultron protocol: the state machines for Report Management (RM), Embargo Management (EM), [Participant Embargo Consent (PEC)](../topics/behavior_logic/use-cases/embargo-lifecycle.md), and the vendor-path (VFD) and public-path (PXA) case state dimensions, the valid transitions between states, the process logic that drives those transitions, and the behavioral conformance rules that define correct observable behavior.
 
 **What is in scope.**
 

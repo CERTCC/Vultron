@@ -104,7 +104,7 @@ The normative transitions table is [§7.2 of the Vultron Protocol Specification]
 ## The case embargo and each Participant's consent
 
 The EM state says whether the *case* has an embargo.
-Whether each *Participant* has agreed to its current terms is a separate question, tracked per Participant by Participant Embargo Consent (PEC).
+Whether each *Participant* has agreed to its current terms is a separate question, tracked per Participant by [Participant Embargo Consent (PEC)](../../behavior_logic/use-cases/embargo-lifecycle.md#which-messages-move-consent).
 A case can be *Active* while a Participant who joined later, or who declined, is not bound.
 
 The two are linked at two points:
@@ -123,7 +123,7 @@ The normative PEC states and transitions are [§9 of the Vultron Protocol Specif
 - [Adding Participants to an Embargoed Case](working_with_others.md) — adding Participants to a case under embargo.
 - [Early Termination](early_termination.md) — the events that end an embargo before its agreed time.
 - [Case Splitting and Merging](split_merge.md) — what happens to embargoes when cases are split or merged.
-- [EM Formal Model](formal_model.md) — the EM process as a deterministic finite automaton, with its grammar and every possible history.
+- [EM Formal Model](formal_model.md) — the EM process as a [deterministic finite automaton](../../../reference/formal_protocol/index.md), with its grammar and every possible history.
 
 ## Doing it on the wire
 

@@ -11,6 +11,7 @@ related_notes:
   - notes/documentation-strategy.md
   - notes/documentation-sweeps.md
   - notes/agents-md-structure.md
+  - notes/reader-facing-docs-audit.md
 related_specs:
   - specs/diataxis-requirements.yaml
 ---
@@ -266,6 +267,66 @@ and they diverge as the level climbs. So `ALL` should predominate at 100 and thi
 out above it. That is an expected *shape*, used as a diagnostic when reading the
 coverage matrix — a tree that does not look like this is probably mis-tagged. It
 is not a rule, and nothing fails because of it.
+
+### How the rule is checked
+
+`uv run docs-level-order` (`vultron/metadata/docs/level_order.py`, #3529)
+checks the rule. It needs one fact the tree did not record before: which page
+introduces which concept. The glossary stays the concept registry (SG-11). The
+page that is a term's canonical introduction names the term in its own
+frontmatter:
+
+```yaml
+level: 400
+introduces: [CASE_MANAGER, Case Ledger Entry]
+```
+
+A term has one introducer, and it must be a glossary term. For each leveled
+page, the check finds the first prose use of each term introduced above that
+page's level. Code, link targets, comments and directives are not prose. The use
+passes when the page links to the introducer before or at the use, or when the
+use is itself the text of a glossary link. A link later on the same line does
+not count, because SG-11 asks for the link at first use. Both are canonical introductions
+(SG-11), and linking out satisfies the rule. Otherwise it is a finding at
+`path:line:col`. Inline, reference-style and `<a href>` links all count. A
+reference definition counts only where a link uses it.
+
+Some consequences of that design:
+
+- **One ladder.** Levels are compared across the whole tree and never per
+  `stakeholder_type`.
+- **Unleveled pages are skipped.** The working record and not-yet-declared pages
+  are skipped, not read as level 0. Neither may declare `introduces:`, because
+  no page could be ordered against them.
+- **Fragments.** An include fragment is checked at its lowest host's level
+  (DF-11-010). A fragment included by another fragment takes the outer
+  fragment's hosts. A link inside a fragment counts for its host from the
+  include directive, because that is where the rendered page shows it. The
+  reverse is not credited: a fragment is checked on its own, so a host's link
+  above the include does not excuse a use inside the fragment. The snippets
+  `auto_append` abbreviations file has no leveled host and is not scanned: its
+  entries render as tooltips, not prose.
+- **The glossary is exempt.** It defines every term it lists, so it is the
+  registry the scan reads, never a page the scan reads.
+- **Defining in place is not detected.** DF-11-002 also excuses a page that
+  defines the concept itself. The check cannot tell a definition from a use, so
+  such a page links out instead.
+- **What still reads as prose.** Headings are prose, so a term in a heading is
+  a use. Indented code blocks are too: four spaces is also how an admonition
+  nests its prose. Fenced code, `<code>` and `<pre>` are masked.
+- **Only glossary terms are tracked.** A dependency on a page whose concept
+  has no glossary term goes unseen. Add the term to the glossary to track it.
+- **Choose specific terms.** A term claimed by `introduces:` should name a
+  specific concept. Everyday phrases such as "report submission" or
+  "participant status" match ordinary prose on dozens of pages, so the matches
+  measure word frequency, not dependency.
+
+Pre-existing violations are listed in
+`vultron/metadata/docs/level_order_baseline.txt`. Each entry is
+`page | term | reason`, and the reason names the remediation task that owns
+the fix. The list may only shrink. Most entries clear together when a 300-level
+introduction of the CASE_MANAGER and the case ledger exists (audit missing
+page 3) and moves `introduces:` there.
 
 ## Reader-facing content versus the project working record
 
