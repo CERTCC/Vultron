@@ -10,7 +10,7 @@ level: 200
 # CVD as a Coordination Problem
 
 Coordinated Vulnerability Disclosure (CVD) is a problem of coordinating people and organizations, not a problem of moving data.
-This page explains why Vultron treats every CVD case as a Multi-Party Coordinated Vulnerability Disclosure (MPCVD) case, and where the protocol sits among the CERT Coordination Center (CERT/CC) documents it builds on.
+This page explains why Vultron treats every CVD case as a Multi-Party Coordinated Vulnerability Disclosure (MPCVD) case, and where the protocol sits among the [CERT Coordination Center](https://www.sei.cmu.edu/about/divisions/cert/index.cfm){:target="_blank"} (CERT/CC) documents it builds on.
 It is written for readers who know the CVD process in general.
 For a shorter overview of what Vultron is, read [What Is Vultron?](what-is-vultron.md) first.
 
@@ -172,3 +172,4 @@ Those goals are stated as outcomes a case should reach, and [What Does *Success*
 - [What Does *Success* Mean in CVD?](cvd_success.md) — the outcomes the protocol is designed to make more likely.
 - [The Need for Interoperability in Coordinated Vulnerability Disclosure](interoperability.md) — why the Participants in a case need shared meaning, not only a shared message format.
 - [Vultron Process Models](../process_models/index.md) — the report, embargo, and case state processes that carry out the protocol.
+- [Formal Protocol Definition](../../reference/formal_protocol/index.md) — the protocol in the technical sense: its states, messages, and transitions, stated formally.

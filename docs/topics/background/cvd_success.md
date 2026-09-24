@@ -131,7 +131,7 @@ They show that adversaries are far ahead of defenders.
 
 ## Acting on the preferences in a case
 
-A Coordinator can cause some of the six events: Vendor Awareness (**V**) by notifying a Vendor, and Public Awareness (**P**) by publishing.
+A Coordinator can cause some of the six events: Vendor Awareness (**V**) by notifying a Vendor, Public Awareness (**P**) by publishing, and Exploit Public (**X**) by publishing exploit code.
 It cannot cause Fix Ready (**F**), Fix Deployed (**D**), or Attacks Observed (**A**).
 So most coordination decisions in a case are choices about *when* events happen relative to each other, and which preferences that protects.
 

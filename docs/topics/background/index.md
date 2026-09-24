@@ -15,16 +15,13 @@ level: 200
     - an interest in learning about the Vultron Protocol
     - familiarity with the Coordinated Vulnerability Disclosure (CVD) process in general
 
-    If you are already familiar with the Vultron Protocol, and are looking for implementation advice, 
-    see [How-to Guides](../../howto/index.md).
+    If you are already familiar with the Vultron Protocol, and are looking for implementation advice, see [How-to Guides](../../howto/index.md).
     For technical reference, see [Reference](../../reference/index.md).
     If you're trying to understand the CVD process, we recommend that you start with the [CERT Guide to Coordinated Vulnerability Disclosure](https://certcc.github.io/CERT-Guide-to-CVD){:target="_blank"}.
 
 !!! tip "New to Vultron?"
 
-    If you want a concise overview of what Vultron is, why it exists, and
-    whether it is relevant to your organization, start with
-    [What Is Vultron?](what-is-vultron.md).
+    If you want a concise overview of what Vultron is, why it exists, and whether it is relevant to your organization, start with [What Is Vultron?](what-is-vultron.md).
 
 These pages explain the problem Vultron addresses and the goals it is designed toward.
 Each one builds on the ones before it.
