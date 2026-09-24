@@ -1,6 +1,7 @@
 ---
 stakeholder_type: [platform-developer, project-contributor]
 level: 400
+introduces: [Case Ownership Transfer]
 ---
 
 # Case Ownership Transfer

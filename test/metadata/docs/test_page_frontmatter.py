@@ -528,6 +528,7 @@ def test_cli_reports_failures_without_a_traceback(
         "docs/tutorials/deep/page.md",
         "mkdocs.yml",
         "vultron/metadata/docs/page_frontmatter_baseline.txt",
+        "vultron/metadata/docs/baseline_file.py",
         "vultron/metadata/docs/page_schema.py",
         "vultron/metadata/base.py",
         "vultron/metadata/file_loading.py",
