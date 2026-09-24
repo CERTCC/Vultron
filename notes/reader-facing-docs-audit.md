@@ -92,7 +92,7 @@ Ten pages the reader-facing schema had caught are, by DF-11-003's own
 categories, project working record. `WORKING_RECORD_PATTERNS` in
 `vultron/metadata/docs/page_schema.py` now names them:
 
-- **Generated code documentation**: `reference/behaviors/**`, the five
+- **Generated code documentation**: `reference/behaviors/**`, the four
   generated behavior-tree renderings and their index.
 - **Contributor-facing material**: `reference/specs/project.md` and
   `reference/specs/process.md`, the generated Python-codebase and CI/agent
@@ -100,7 +100,7 @@ categories, project working record. `WORKING_RECORD_PATTERNS` in
 - **Retained design history**: `reference/ontology/index.md`, the tombstone for
   the unmaintained OWL files.
 - **Requirements-traceability records**: `reference/user_stories/traceability.md`
-  joins the 113 story pages. It is contributor-facing, with a hand-edit
+  joins the 111 story pages. It is contributor-facing, with a hand-edit
   EDITOR NOTES block, a Line column, and gap analysis keyed to issue numbers.
   That makes it a working-record routing page in the same way as `adr/index.md`.
   DF-11-003 is amended to name user stories; `user_stories/index.md` is
@@ -119,9 +119,9 @@ authority:
 | Registry | What it is | Addressed to | Inbound files |
 |---|---|---|---|
 | `reference/vultron-spec/_terminology.md` (spec §2) | Normative protocol terms, including the role enumeration; says it is authoritative | `platform-developer` | via the spec |
-| `reference/glossary.md` | The project's ubiquitous language: CVD terms beside hexagonal ports, DataLayer methods, work tracking, and dialogues | effectively `project-contributor` | 18 |
-| `reference/terms.md` | The seven CVD-Guide roles plus Case, Participant, and Report; defers to the glossary as "canonical" | `cvd-practitioner` | 3 |
-| `reference/vultron-taxonomy.md` | A concept-scope document: layers, capability sets and shapes, roles, planned views, dissolved concepts | `platform-developer`, `project-contributor` | 3 |
+| `reference/glossary.md` | The project's ubiquitous language: CVD terms beside hexagonal ports, DataLayer methods, work tracking, and dialogues | effectively `project-contributor` | 14 |
+| `reference/terms.md` | The seven CVD-Guide roles plus Case, Participant, and Report; defers to the glossary as "canonical" | `cvd-practitioner` | 2 |
+| `reference/vultron-taxonomy.md` | A concept-scope document: layers, capability sets and shapes, roles, planned views, dissolved concepts | `platform-developer`, `project-contributor` | 1 |
 
 They disagree. Vendor is "synonymous with Supplier" in `terms.md` while the
 glossary lists "supplier" as an alias to avoid. Coordinator has three different
@@ -140,7 +140,7 @@ case states as both 32 and 40, and messages as 29 against 28 everywhere else.
    `glossary-index` tool and every agent skill read this file, so it is not
    renamed or moved.
 3. **`terms.md` is merged into the glossary and retired.** Its CERT-Guide and
-   ISO alignment notes survive as glossary content. Its three inbound links
+   ISO alignment notes survive as glossary content. Its two inbound links
    are repointed, which is cheap. Each role definition it carries is verified
    against §2 before it moves, not copied (DF-10-001).
 4. **The taxonomy stays, as a scope document rather than a registry.** Its
@@ -468,11 +468,11 @@ current value.
 
 | Page | Level | Addressed to | Verdict | Inbound | Evidence | Continuity |
 |---|---|---|---|---|---|---|
-| `reference/glossary.md` | 300 | project-contributor | split | 17 | 721-line ubiquitous-language dump: reader CVD terms sit beside hexagonal ports, DataLayer methods, 'Priority 473', TASK-AF dialogues and GitHub work tracking. 'Flagged Ambiguities' repeats 'CVD Domain Ambiguities' item for item. CS is given as '32 reachable' and also '40 total states', and Message Type as 29 where other pages say 28. | — |
+| `reference/glossary.md` | 300 | project-contributor | split | 14 | 721-line ubiquitous-language dump: reader CVD terms sit beside hexagonal ports, DataLayer methods, 'Priority 473', TASK-AF dialogues and GitHub work tracking. 'Flagged Ambiguities' repeats 'CVD Domain Ambiguities' item for item. CS is given as '32 reachable' and also '40 total states', and Message Type as 29 where other pages say 28. | — |
 | `reference/notation.md` | 300 | ALL | split | 2 | Does two jobs: site admonition and normative-banner conventions (100-level, for everyone) and ZF set/DFA/CFSM notation (400). Its placeholder admonitions ('It is also an example example.', 'What is a question? This is.') are part of the rendered page. Its math half is also included into vultron-spec Annex C. | — |
 | `reference/quick_reference.md` | 400 | platform-developer | revise | 0 | Summarizes participant state as the triple (cs,rm,em) with three state machines, while the spec and taxonomy define five (RM, EM, PEC, VFD, PXA), and it omits PEC entirely. Its role table has a 'Finder / Reporter' row although Finder is not a role (ADR-0078). 0 inbound links. | — |
 | `reference/terms.md` | 200 | cvd-practitioner | merge | 2 | 89-line page of seven CVD Guide roles plus Case/Participant/Report. It defers to the Glossary as canonical and calls Vendor synonymous with Supplier, which the Glossary lists as an alias to avoid. | — |
-| `reference/vultron-taxonomy.md` | 300 | platform-developer, project-contributor | revise | 3 | Lists 'The five capability shapes' including Sentinel, while spec Annex G, the Glossary and ADR-0097 say four and exclude Sentinel. Calls Case Manager an 'AS actor', the actor-identity framing ADR-0088 retires. Its 'Audience' note enumerates a competing four-audience list (sponsors, collaborators, implementers, contributors). | — |
+| `reference/vultron-taxonomy.md` | 300 | platform-developer, project-contributor | revise | 1 | Lists 'The five capability shapes' including Sentinel, while spec Annex G, the Glossary and ADR-0097 say four and exclude Sentinel. Calls Case Manager an 'AS actor', the actor-identity framing ADR-0088 retires. Its 'Audience' note enumerates a competing four-audience list (sponsors, collaborators, implementers, contributors). | — |
 
 ### #3625 (R7) — Wire and protocol reference
 

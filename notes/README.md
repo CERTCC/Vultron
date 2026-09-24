@@ -938,6 +938,7 @@ Normative requirements: `specs/diataxis-requirements.yaml` DF-11.
 **Load when**: deciding where a `docs/` page belongs, assigning or checking a
 page's stakeholder type or level, changing `mkdocs.yml` nav structure, building
 or editing a section landing page, or planning any documentation reorganization.
+Source: CONCERN-3512.
 
 **`reader-facing-docs-audit.md`**
 The dated audit (#3526) of every reader-facing `docs/` page against ADR-0102:
@@ -951,7 +952,7 @@ missing pages.
 **Load when**: working any remediation task spawned by #3526, deciding which of
 two overlapping `docs/` pages owns a topic, or changing a page's level or
 stakeholder type.
-Source: CONCERN-3512.
+Source: CONCERN-3526.
 
 **`documentation-strategy.md`**
 Docs chronology and trust levels, process models, formal protocol reference,

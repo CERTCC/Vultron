@@ -186,6 +186,16 @@ class TestWorkingRecordSchema:
         ("topics/behavior_logic/use-cases/x_bt.md", False),
         ("reference/codebase_notes.md", False),
         ("tutorials/index.md", False),
+        ("about/contributing.md", True),
+        ("about/faq.md", False),
+        ("reference/specs/process.md", True),
+        ("reference/specs/project.md", True),
+        ("reference/specs/protocol.md", False),
+        ("reference/behaviors/rm_handlers.md", True),
+        ("reference/ontology/index.md", True),
+        ("reference/user_stories/story_2022_001.md", True),
+        ("reference/user_stories/traceability.md", True),
+        ("reference/user_stories/index.md", False),
     ],
 )
 def test_working_record_patterns(path, expected):

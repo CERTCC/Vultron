@@ -173,6 +173,7 @@ WORKING_RECORD_PATTERNS: tuple[str, ...] = (
     # Retained design history: the "Original Design" behavior-tree pages
     # (#3281 decided to keep them, not to retire them).
     "topics/behavior_logic/*_bt.md",
+    # The tombstone page for the unmaintained OWL ontology files (#3526).
     "reference/ontology/index.md",
     # Requirements-traceability records: the individual user stories and the
     # contributor-facing matrix that routes them. The stories' index.md is
