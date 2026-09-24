@@ -38,7 +38,7 @@ _COMMITTED_DIR = _REPO_ROOT / "docs" / "reference" / "examples"
 @pytest.fixture(scope="module")
 def generated_dir(tmp_path_factory) -> Path:
     """Run the generator into a temp directory and return that directory."""
-    tmpdir = tmp_path_factory.mktemp("vocab_examples")
+    tmpdir: Path = tmp_path_factory.mktemp("vocab_examples")
     main(outdir=str(tmpdir))
     return tmpdir
 

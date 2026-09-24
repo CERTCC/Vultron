@@ -257,7 +257,7 @@ def blank_times_as_none(
     for name, field in cls.model_fields.items():
         if not _is_datetime_field(field):
             continue
-        for key in {name, field.alias, field.validation_alias}:
+        for key in (name, field.alias, field.validation_alias):
             if not isinstance(key, str):
                 continue
             value = data.get(key)
