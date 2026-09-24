@@ -255,20 +255,21 @@ any branch point is interactive.
 
 ## Task Sequence (epic #676)
 
-1. **Land `feature/demo-ui` on `main`** — Greg Strom. Blocks 3 and 4.
-2. **Live case log SSE endpoint** — independent; can start now.
-3. **Live mode** — compose service with reverse proxy; Log Replay subscribes
-   to each container's stream; scenario selector, branding, disclaimer.
-   Blocked by 1 and 2.
-4. **Branch-point choices via real triggers** — report validation on
-   scenario A first. Blocked by 3.
+1. **Land `feature/demo-ui` on `main`** (#3640) — Greg Strom. Blocks 3
+   and 4.
+2. **Live case log SSE endpoint** (#3641) — independent; can start now.
+3. **Live mode** (#3642) — compose service with reverse proxy; Log Replay
+   subscribes to each container's stream; scenario selector, branding,
+   disclaimer. Blocked by 1 and 2.
+4. **Branch-point choices via real triggers** (#3643) — report validation
+   on scenario A first. Blocked by 3.
 
 ---
 
 ## Open Questions / Future Work
 
 - **CI for `ui/`**: whether `ui/` gets a lint/build job is a maintainer
-  decision (agents do not touch CI); raised in Task 1.
+  decision (agents do not touch CI); raised in #3640.
 - **Duplicated display logic**: `caseLedgerMapper.ts` holds its own event
   phrasing, parallel to the `SEMANTIC_REGISTRY` phrases `report.py` renders
   (DRPT-03-005 forbids that duplication *within* the report tool). Consider
