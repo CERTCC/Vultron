@@ -124,7 +124,6 @@ developer/index.md
 developer/reference/index.md
 developer/tutorials/first-day-setup.md
 developer/tutorials/index.md
-index.md
 reference/behaviors/case_handlers.md
 reference/behaviors/cs_handlers.md
 reference/behaviors/em_handlers.md
@@ -310,8 +309,6 @@ reference/user_stories/story_2022_109.md
 reference/user_stories/story_2022_110.md
 reference/user_stories/story_2022_111.md
 reference/user_stories/traceability.md
-topics/background/interoperability.md
-topics/background/what-is-vultron.md
 topics/behavior_logic/acquire_exploit_bt.md
 topics/behavior_logic/cvd_bt.md
 topics/behavior_logic/deployment_bt.md
@@ -335,4 +332,3 @@ topics/behavior_logic/rm_closure_bt.md
 topics/behavior_logic/rm_prioritization_bt.md
 topics/behavior_logic/rm_validation_bt.md
 topics/behavior_logic/vuldisco_bt.md
-topics/capability_model/index.md

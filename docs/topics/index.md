@@ -31,12 +31,12 @@ This section provides an overview of the Vultron Protocol, including:
 - [Message Semantics](message_semantics.md)
 - [Actor Knowledge Model](actor-knowledge-model.md)
 - [Process Models](process_models/index.md)
+- [Capability Model](capability_model/index.md) — The answer to "Vultron doesn't do X": every decision the protocol leaves to your organization is a call-out point where your own system plugs in.
 - [Demo Scenarios](scenarios/index.md)
 - [Future Work](future_work/index.md)
 - [Activity Vocabulary Design](activity_vocabulary_design.md)
 - [Reference Implementation Architecture](reference_architecture.md)
 - [Behavior Logic](behavior_logic/index.md)
-- [Capability Model](capability_model/index.md)
 
 <!-- END GENERATED SECTION CONTENTS -->
 

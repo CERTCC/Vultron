@@ -1,145 +1,188 @@
+---
+description: >
+  The answer to "Vultron doesn't do X": every decision the protocol leaves to
+  your organization is a call-out point where your own system plugs in.
+stakeholder_type: [cvd-practitioner, platform-developer]
+level: 300
+---
+
 # Capability Model
 
-## Overview
-
-This page is for developers building external services that integrate with Vultron's coordination protocol. You are probably building one of:
-
-- A **REST service** (microservice, serverless function, or similar) that Vultron calls when it needs a decision, data, or action
-- A **monitoring process** that watches an external condition and notifies Vultron when something changes
-
-This page explains the conceptual model, the five types of services you can build, and the catalog of known integration points.
+Vultron does not decide whether a report is credible, how urgent a case is, or when an advisory is ready to publish.
+Each of those decisions is a **call-out point**: a place where the protocol stops and asks a system you run.
+This page answers the objection "Vultron doesn't do X" by naming, for each X, the call-out point where your system does it.
+It then describes the four shapes a call-out point can take, the Sentinel call-in pattern, and the full catalog of known call-out points.
 
 ---
 
-## Why Vultron needs external services
+## Vultron doesn't do X: your system does
 
-Vultron automates multi-party coordinated vulnerability disclosure (CVD) — the process by which a vulnerability finder, vendor, coordinator, and others manage a vulnerability from discovery through public disclosure.
+Every objection below is true, and each is true by design.
+The protocol coordinates the case; the judgment, the data, and the side effects come from your systems.
 
-Much of that process is mechanical: send a message, record a state, wait for a reply. Vultron handles all of that automatically using [behavior trees (BTs)](../behavior_logic/index.md) — a kind of state machine that runs as protocol activities arrive.
+| "Vultron doesn't…" | Where your system plugs in | Shape |
+|---|---|---|
+| judge whether a report is credible or valid | [EvaluateReportCredibility, EvaluateReportValidity](#report-validation) | Evaluator |
+| prioritize cases | [EvaluateCasePriority](#report-prioritization), the natural home for a Stakeholder-Specific Vulnerability Categorization (SSVC) decision | Evaluator |
+| decide which cases to host for others | [EvaluateCaseProposal](#case-admission) | Evaluator |
+| set or accept embargo terms | [SelectEmbargoOfferTerms, EvaluateEmbargoProposal](#embargo-management) | Evaluator |
+| assign Common Vulnerabilities and Exposures (CVE) IDs | [IdAssigned, EvaluateCveEligibility, AssignId](#cve-vulnerability-id-assignment) | Retriever, Evaluator, Composer |
+| develop or deploy fixes | [CreateFix, DeployFix](#fix-development) | Composer, Evaluator |
+| know whether an exploit exists | [HaveExploit, FindExploit](#exploit-management) | Retriever |
+| write or publish advisories | [DraftAdvisoryArtifact, ReviewAdvisoryDraft, SubmitAdvisoryArtifact](#publication) | Composer, Evaluator, Actuator |
+| know who else belongs in the case | [IdentifyVendors, ResolveActor, InjectParticipant](#participant-and-actor-discovery) | Retriever, Actuator |
+| watch threat feeds | [MonitorAttacks, MonitorExploits, MonitorPublicReports](#threat-monitoring), or a [Sentinel](#the-sentinel-call-in-pattern) that reports what it sees | Retriever |
+| update your ticketing system | [OnAccept, OnDefer](#report-prioritization) and [PreCloseAction](#close-report) | Actuator |
 
-But some steps require judgment that Vultron cannot make by itself:
+The plug-in seam is the same in every row.
+During development and simulation, each call-out point is filled by a **fuzzer node**: a stub that returns a random success or failure.
+You replace the stub with a **capability implementation** that answers the question for real.
+[Wiring a Capability into the Reference Implementation](../../howto/wire_capability.md) walks through that replacement for one call-out point.
 
-- Is this vulnerability report credible?
-- Should we accept this embargo proposal?
-- Has a CVE (Common Vulnerabilities and Exposures) ID already been assigned?
-- Is it time to publish the advisory?
+---
 
-These are **call-out points** — places where the BT pauses and waits for an answer from an external service before it can continue.
+## Why the protocol asks instead of deciding
+
+Much of the Coordinated Vulnerability Disclosure (CVD) process is mechanical: send a message, record a state, wait for a reply.
+Vultron automates that part with [behavior trees (BTs)](../behavior_logic/index.md), which run as protocol activities arrive.
+
+The remaining steps need judgment that depends on your organization's policy, data, and tools.
+A protocol that made those decisions would impose one organization's policy on every participant.
+So the BT reaches a call-out point, asks, and continues with the answer.
 
 !!! note "A call-out point is answerable now; asking another actor is not"
 
-    A call-out point waits for a service *you* run, so it can be answered while
-    the BT is still running. That is what makes pausing viable.
-
-    Some questions cannot be answered that way, because they need a **decision
-    from another actor in the case** — for example, whether the case owner permits
-    a change to the case's agreed state. No service can answer that on the owner's
-    behalf, and the answer may take days. There the actor does not pause: it sends
-    a request and finishes, and the reply starts new work when it arrives. See
-    [Protocol Event Flow](../protocol_flow.md#when-an-actor-must-ask-permission).
-
-During development and simulation, call-out points are filled by **fuzzer nodes** — stubs that return a random success or failure based on a probability. In production, you replace a fuzzer node with a real service: a **capability implementation**.
+    A call-out point asks a service *you* run, so it is answered while the BT is still running (BT-18-011).
+    Some questions cannot be answered that way, because they need a **decision from another actor in the case**.
+    An example is whether the case owner permits a change to the case's agreed state.
+    No service can answer that on the owner's behalf, and the answer may take days.
+    There the actor does not wait: it sends a request and finishes, and the reply starts new work when it arrives.
+    See [Protocol Event Flow](../protocol_flow.md#when-an-actor-must-ask-permission).
 
 ---
 
 ## The two integration surfaces
 
-There are two ways an external service interacts with Vultron:
+An external service interacts with Vultron in one of two directions.
 
-**Call-out** — Vultron calls *you*. The BT reaches a call-out point, packages up a question as a structured payload, sends it to your service, and waits for a structured answer. Your service decides and responds.
+**Call-out**: Vultron calls *you*.
+The BT reaches a call-out point, packages the question as a structured payload, and waits for a structured answer.
+Your service decides and responds.
 
-**Call-in** — You call *Vultron*. Your service monitors something externally — a timer, a threat feed, a deployment system — and, when a condition is met, sends a trigger to Vultron. Vultron acts on it.
+**Call-in**: you call *Vultron*.
+Your service monitors something outside the case, such as a timer, a threat feed, or a deployment system.
+When a condition is met, it calls a Vultron trigger, and Vultron acts on it.
 
-Most services use the call-out surface. One shape — the **Sentinel** — works exclusively on the call-in side (see [The five shapes](#the-five-shapes) below).
+Every capability uses the call-out surface.
+The call-in surface belongs to the [Sentinel call-in pattern](#the-sentinel-call-in-pattern) and to any other external system that acts on a case.
 
 ---
 
 ## Three-level taxonomy
 
-Every integration point in Vultron fits into a three-level hierarchy:
+Every call-out point fits a three-level hierarchy:
 
 **Shape** → **Capability** → **Capability implementation**
 
 | Level | What it is | Example |
 |---|---|---|
-| **Shape** | The abstract type of interaction — what the service receives, what it returns, and how the BT uses the result | Evaluator |
-| **Capability** | A specific named integration point with its own input/output contract | `EvaluateCveEligibility` |
-| **Capability implementation** | The concrete service you build that fulfills a capability at runtime | A microservice that applies CNA Operational Rules and returns pass/fail |
+| **Shape** | The abstract type of interaction: what the service receives, what it returns, and how the BT uses the result | Evaluator |
+| **Capability** | A specific named call-out point with its own input and output contract | `EvaluateCveEligibility` |
+| **Capability implementation** | The concrete service you build that fulfills a capability at runtime | A microservice that applies the CVE Numbering Authority (CNA) Operational Rules and returns pass or fail |
 
 Think of the shape as a job description, the capability as the open role, and your implementation as the service hired into that role.
 
-Some capabilities are sub-steps of a larger workflow capability. For example, `EvaluateCveEligibility` is a step within the broader `AssignCveId` workflow. Most capabilities are not nested — the hierarchy is shallow for most domains.
+Some capabilities are sub-steps of a larger workflow.
+For example, `EvaluateCveEligibility` is a step within the broader `AssignCveId` workflow.
+Most capabilities are not nested.
 
 !!! note "Design decisions"
-    The taxonomy is defined in [ADR-0024](../../adr/0024-coordination-agent-taxonomy.md).
-    The factory-injection pattern and three-mode backend model are defined in [ADR-0025](../../adr/0025-call-out-point-abstraction-layer.md).
+    The taxonomy is defined in [ADR-0024](../../adr/0024-coordination-agent-taxonomy.md), and [ADR-0097](../../adr/0097-capability-layer-four-shapes-and-core-declared-contracts.md) reduces it to four shapes.
+    The factory-injection pattern is defined in [ADR-0025](../../adr/0025-call-out-point-abstraction-layer.md).
 
 ---
 
-## The five shapes
+## The four shapes
+
+There are exactly four capability shapes (BT-18-013).
+The normative contracts are in [Annex G of the protocol specification](../../reference/vultron-spec/index.md#annex-g-capability-shapes-i); this section explains how each one behaves.
 
 ### Evaluator
 
-**You receive:** A situation — case context, report details, embargo terms, or similar
-**You return:** A structured recommendation — typically a decision plus optional reasoning
-**The BT uses it to:** Gate what happens next
+**You receive:** a situation, such as case context, report details, or embargo terms.
+**You return:** a structured recommendation, typically a decision plus optional reasoning.
+**The BT uses it to:** gate what happens next.
 
-If you return "needs revision," the BT routes to the revision branch. If you return FAILURE, the pipeline stops. The BT does not care whether the judgment came from a human reviewer, a rules engine, or an LLM (large language model) — what matters is that you return a structured answer it can act on.
+If you return "needs revision," the BT routes to the revision branch.
+If you return FAILURE, the pipeline stops.
+The BT does not care whether the judgment came from a human reviewer, a rules engine, or a large language model (LLM); it needs a structured answer it can act on.
 
-Evaluators require human-level judgment. Examples: assessing whether a report is credible, deciding whether an embargo proposal is acceptable, checking whether a vulnerability meets CVE assignment criteria.
+Evaluators carry human-level judgment.
+Examples are assessing whether a report is credible, deciding whether an embargo proposal is acceptable, and checking whether a vulnerability meets CVE assignment criteria.
 
 ### Retriever
 
-**You receive:** A query
-**You return:** Structured facts the BT needs to proceed
-**The BT uses it to:** Supply inputs for downstream steps
+**You receive:** a query.
+**You return:** structured facts the BT needs to proceed.
+**The BT uses it to:** supply inputs for downstream steps.
 
-Retrievers are data lookups. Examples: "does a CVE ID already exist for this vulnerability?", "is there a known exploit in public exploit databases?", "what is the current SSVC (Stakeholder-Specific Vulnerability Categorization) score for this case?". Boolean yes/no questions are also Retrievers — not Sentinels.
+Retrievers are data lookups.
+Examples are whether a CVE ID already exists for this vulnerability, whether a public exploit database lists an exploit, and what the current SSVC decision is for this case.
+A yes-or-no question the protocol asks is also a Retriever, never a Sentinel.
 
-Most Retrievers have high automation potential: they can be wired directly to an API or database without human involvement.
+Most Retrievers can be wired directly to an API or database without human involvement.
 
 ### Composer
 
-**You receive:** Context — case details, draft content, constraints
-**You return:** A content artifact — a document, report body, advisory text, or fix description
-**The BT uses it to:** Pass the artifact to the next stage (review, publish, etc.)
+**You receive:** context, such as case details, draft content, and constraints.
+**You return:** a content artifact, such as a document, report body, advisory text, or fix description.
+**The BT uses it to:** pass the artifact to the next stage, such as review or publication.
 
-The output of a Composer is written into the BT's shared state (the **blackboard**) so later steps can read it. Examples: drafting a security advisory, writing a vulnerability report body, preparing a fix description.
+The Composer writes its output into the BT's shared state, the **blackboard**, so later steps can read it.
+Examples are drafting a security advisory, writing a vulnerability report body, and preparing a fix description.
 
 !!! tip "Composer vs. Actuator"
-    If your service *generates* a document, it is a Composer. If it *submits* that document to a publication platform, that is an Actuator.
+    If your service *generates* a document, it is a Composer.
+    If it *submits* that document to a publication platform, it is an Actuator.
 
 ### Actuator
 
-**You receive:** A trigger — a signal that something should happen
-**You return:** Confirmation of success or failure — no content artifact
-**The BT uses it to:** Confirm that a side effect was executed
+**You receive:** a trigger, a signal that something should happen.
+**You return:** confirmation of success or failure, with no content artifact.
+**The BT uses it to:** confirm that a side effect was executed.
 
-Actuators fire side effects in external systems. Examples: posting an embargo acceptance notification to a collaboration platform, submitting an advisory to a publication pipeline, updating a ticket-tracking system when a report is closed.
+Actuators fire side effects in external systems.
+Examples are posting an embargo acceptance to a collaboration platform, submitting an advisory to a publication pipeline, and updating a ticket when a report is closed.
 
-If your service "does something" in an outside system and confirms it worked, it is an Actuator.
+---
 
-### Sentinel
+## The Sentinel call-in pattern
 
-**Sentinels work differently from the other four shapes.** They have no call-out point — Vultron does not call them. Instead, a Sentinel monitors a condition externally and calls *into* Vultron when that condition is met.
+A **Sentinel** is not a capability shape (BT-18-013, [ADR-0097](../../adr/0097-capability-layer-four-shapes-and-core-declared-contracts.md)).
+It watches a condition over time and, when the condition is met, acts on its own initiative.
+The protocol never asks it anything, so it has no call-out point, no blackboard contract, and no backend factory.
 
-A Sentinel is a long-running process. It watches something — a timer, a threat intelligence feed, a deployment monitor, a public advisory database — and when it detects the trigger condition, it sends one of Vultron's **trigger endpoints** (see [Call-in triggers](#call-in-triggers) below).
+The discriminator is *who initiates*, not where the information comes from.
+A capability is asked and answers within the tick that asks.
+A Sentinel decides for itself that the moment has come.
 
-Examples:
+A Sentinel takes one of two forms:
 
-- An embargo timer that fires `terminate_embargo` when the agreed end date passes
-- A threat-feed monitor that signals Vultron when active attacks on the vulnerability are observed
-- A deployment monitor that fires when a fix is confirmed deployed across affected systems
+- a case **Participant**, typically holding the Observer role, that learns case state through ordinary ledger replication and acts by sending ordinary protocol messages, visible to every participant;
+- operator-side machinery with no case identity, which drives one actor through its [call-in triggers](#call-in-triggers) and is invisible to the case.
 
-Because Sentinels are long-running monitors, building one requires different infrastructure than building a call-out responder.
+Examples are an embargo timer that calls `terminate-embargo` when the agreed end date passes, a threat-feed monitor that reports active attacks, and a deployment monitor that reports a fix as deployed.
+A Sentinel is a long-running monitor, so building one needs different infrastructure from building a call-out responder: a way to observe, a decision rule, and something to call.
 
 ---
 
 ## Capability hierarchy
 
-The following is the current catalog of known integration points, organized by domain. Use this list to identify which capability you are building toward.
+The following is the current catalog of known integration points, organized by domain.
+Use this list to identify which capability you are building toward.
 
-Capabilities marked with a shape label are call-out points — Vultron calls you. Capabilities marked (Sentinel) are call-in — you call Vultron.
+Entries marked with a shape are call-out points: Vultron asks, and your capability answers.
+Entries marked (Sentinel) are not capabilities: they are call-in patterns that watch a condition and call a trigger on their own initiative (see [The Sentinel call-in pattern](#the-sentinel-call-in-pattern)).
 
 ### Report Validation
 
@@ -183,7 +226,7 @@ The [Propose case](../behavior_logic/use-cases/propose-case.md#where-judgment-en
 - **CurrentEmbargoAcceptable** (Evaluator) — is the active embargo still acceptable given current conditions? (see [#1943](https://github.com/CERTCC/Vultron/issues/1943))
 - **StopProposingEmbargo** (Evaluator) — should we stop trying to negotiate an embargo?
 - **ExitEmbargoWhenFixReady** / **ExitEmbargoWhenDeployed** / **ExitEmbargoForOtherReason** (Evaluators) — should the embargo end early?
-- **EmbargoTimerExpired** (Retriever or Sentinel — classification open; see [Open questions](#open-questions) and [#1893](https://github.com/CERTCC/Vultron/issues/1893)) — has the embargo end date passed?
+- **EmbargoTimerExpired** (Retriever; whether a Sentinel should replace this call-out point is open — see [Still open](#still-open) and [#1893](https://github.com/CERTCC/Vultron/issues/1893)) — has the embargo end date passed?
 - **CaseOwnerApprovesEmbargoResponse** (Evaluator) — security gate: does the case owner approve this action?
 - **OnEmbargoAccept** / **OnEmbargoReject** / **OnEmbargoExit** (Actuators) — notification hooks for embargo lifecycle events
 
@@ -196,8 +239,10 @@ This domain has one extra level because the ID assignment workflow has distinct 
 - **AssignCveId** — the overall ID assignment workflow, containing:
   - **IdAssigned** (Retriever) — does a CVE ID already exist for this vulnerability?
   - **InScope** (Evaluator) — is this vulnerability in scope for ID assignment?
-  - **ProductInCNAScope** / **IsMostAppropriateCNA** (Evaluators) — CNA (CVE Numbering Authority) scoping checks
-  - **EvaluateCveEligibility** (Evaluator) — does this vulnerability meet the CNA criteria for CVE assignment? This is a single judgment call that consolidates multiple CNA Operational Rules criteria. See [#2518](https://github.com/CERTCC/Vultron/issues/2518).
+  - **ProductInCNAScope** / **IsMostAppropriateCNA** (Evaluators) — CNA scoping checks
+  - **EvaluateCveEligibility** (Evaluator) — does this vulnerability meet the CNA criteria for CVE assignment?
+    This is a single judgment call that consolidates multiple CNA Operational Rules criteria.
+    See [#2518](https://github.com/CERTCC/Vultron/issues/2518).
   - **AssignId** (Composer) — generate and record the CVE ID
   - **RequestId** (Retriever) — request an ID from an external CNA if we are not the appropriate authority
 
@@ -263,79 +308,93 @@ This domain has one extra level because the ID assignment workflow has distinct 
 
 ## Call-in triggers
 
-These are the actions an external system can invoke on Vultron. Sentinels use these to notify Vultron when a monitored condition fires. Other external systems may also call them directly.
-
-The exact API is not yet finalized (see [Open questions](#open-questions)), but the available trigger actions are:
+These are the actions an external system can invoke on a Vultron actor, each at `POST /actors/{actor_id}/trigger/{behavior}`.
+An operator-side Sentinel uses them to act when a monitored condition fires, and any other external system may call them directly.
+The [Trigger API Reference](../../reference/trigger-api.md) gives each endpoint's request and response.
 
 ### Report lifecycle
 
-- `submit_report` — create and offer a vulnerability report to a recipient
-- `validate_report` — mark a received report as valid
-- `invalidate_report` — mark a received report as invalid
-- `reject_report` — close a report before validation completes
-- `close_case` — close a case via the report management lifecycle
+- `submit-report` — create and offer a vulnerability report to a recipient
+- `validate-report` — mark a received report as valid
+- `invalidate-report` — mark a received report as invalid
+- `reject-report` — hard-close a report before validation completes
+- `close-report` — close a report through the report management lifecycle
 
 ### Case management
 
-- `create_case` — create a local vulnerability case
-- `engage_case` — accept a case (transitions to ACCEPTED state)
-- `defer_case` — defer a case (transitions to DEFERRED state)
-- `leave_case` — depart from a case
-- `add_report_to_case` — link a report to an existing case
-- `add_object_to_case` — add any protocol object to a case
-- `add_note_to_case` — add a free-text note to a case
-- `add_participant_status` — report your current state to the case manager
+- `create-case` — create a local vulnerability case
+- `engage-case` — accept a case (transitions to ACCEPTED state)
+- `defer-case` — defer a case (transitions to DEFERRED state)
+- `add-report-to-case` — link a report to an existing case
+- `add-object-to-case` — add any protocol object to a case
 
 ### Embargo
 
-- `propose_embargo` — propose a new embargo
-- `accept_embargo` — accept a pending embargo proposal
-- `reject_embargo` — reject a pending embargo proposal
-- `propose_embargo_revision` — propose a revision to an active embargo
-- `terminate_embargo` — end the active embargo immediately
+- `propose-embargo` — propose a new embargo
+- `accept-embargo` — accept a pending embargo proposal
+- `reject-embargo` — reject a pending embargo proposal
+- `propose-embargo-revision` — propose a revision to an active embargo
+- `terminate-embargo` — end the active embargo immediately
 
 ### Participants and actors
 
-- `suggest_actor_to_case` — recommend another actor to the case owner
-- `invite_actor_to_case` — directly invite an actor to a case
-- `accept_case_invite` / `reject_case_invite` — respond to a case invitation
-- `accept_actor_recommendation` — approve a suggested actor (case owner only)
-- `offer_case_participant_role` — offer a CVD role to another actor
-- `offer_case_ownership_transfer` / `accept_case_ownership_transfer` — transfer case ownership
+- `suggest-actor-to-case` — recommend another actor to the case owner
+- `invite-actor-to-case` — directly invite an actor to a case
+- `accept-case-invite` / `reject-case-invite` — respond to a case invitation
+- `accept-actor-recommendation` — approve a suggested actor (case owner only)
+- `offer-case-participant-role` — offer a CVD role to another actor
+- `offer-case-ownership-transfer` / `accept-case-ownership-transfer` — transfer case ownership
 
 ### Typical Sentinel patterns
 
-| Sentinel condition | Trigger to call |
+| Sentinel condition | How it acts |
 |---|---|
-| Embargo end date passes | `terminate_embargo` |
-| Active attack observed in threat feed | `add_participant_status` (signaling the A event) |
-| Fix confirmed deployed | `add_participant_status` (signaling the D event) |
-| New party identified by a discovery service | `suggest_actor_to_case` or `invite_actor_to_case` |
+| Embargo end date passes | Calls `terminate-embargo` |
+| Active attack observed in a threat feed | As a case Participant, sends `Add(ParticipantStatus)` recording the attack (the [*A* event](../process_models/cs/events.md#exploit-public-and-attacks-observed)); no trigger endpoint covers this yet ([#1845](https://github.com/CERTCC/Vultron/issues/1845)) |
+| Fix confirmed deployed | As a case Participant, sends `Add(ParticipantStatus)` recording deployment (the [*D* event](../process_models/cs/events.md#fix-readiness-and-deployment)) |
+| New party identified by a discovery service | Calls `suggest-actor-to-case` or `invite-actor-to-case` |
 
 ---
 
-## Open questions
+## Settled and open design questions
 
-These questions are actively under discussion. You can build the core logic of your service without waiting for answers, but the wiring details will depend on how they are resolved.
+You can build the core logic of a capability implementation now.
+The questions below determine the wiring details.
 
-**What must a capability formally define? ([#2452](https://github.com/CERTCC/Vultron/issues/2452))**
-There is no finalized specification yet for what a named capability must declare — its input schema, output schema, shape classification, and blackboard contract. The current code uses factory injection (each call-out point has a factory function in a domain bundle). Whether this becomes a formal interface definition, a JSON schema registry, or both is open.
+### Settled
 
-**How are capability implementations invoked? ([#2453](https://github.com/CERTCC/Vultron/issues/2453))**
-The invocation model is not yet decided. Synchronous REST + JSON is likely for most shapes. Asynchronous callbacks (webhook, queue) are under consideration for long-running Evaluators and Sentinels. This work is blocked on a broader async delivery design that has not been written yet.
+**What a capability must define.**
+A named capability declares its blackboard contract as typed input and output ports, on a declaration owned by the core layer (BT-18-012, [ADR-0097](../../adr/0097-capability-layer-four-shapes-and-core-declared-contracts.md)).
+Moving the existing declarations into the core layer is in progress under [#3421](https://github.com/CERTCC/Vultron/issues/3421).
 
-**Code naming ([#2454](https://github.com/CERTCC/Vultron/issues/2454))**
-The codebase currently uses class names like `EvaluatorCallOutPoint` that predate the three-level taxonomy. Whether these will be renamed to match the current terminology is open.
+**How a capability implementation is invoked.**
+A backend answers synchronously, within the tick that asks, and never returns RUNNING (BT-18-011, [ADR-0080](../../adr/0080-protocol-asks-not-suspended-behaviors.md)).
+A decision that takes days is not a call-out point: it is a request to another actor, or a Sentinel.
+
+**What the shape classes are called in code.**
+The shape base classes are being renamed to `EvaluatorCapability`, `RetrieverCapability`, `ComposerCapability`, and `ActuatorCapability` ([ADR-0097](../../adr/0097-capability-layer-four-shapes-and-core-declared-contracts.md), [#3421](https://github.com/CERTCC/Vultron/issues/3421)).
+Until that lands, the code uses names such as `EvaluatorCallOutPoint`.
+
+### Still open
 
 **EmbargoTimerExpired: Retriever or Sentinel? ([#1893](https://github.com/CERTCC/Vultron/issues/1893))**
-A timer check could be either shape: a Retriever that the BT polls each tick, or a Sentinel that fires `terminate_embargo` at the right moment. The right classification affects what you build.
+A timer check could be a Retriever the BT asks each tick, or the call-out point could give way to a Sentinel that calls `terminate-embargo` at the right moment.
+The answer changes what you build.
 
 ---
 
 ## Choosing what to build
 
-1. **Read the capability hierarchy above.** Find a domain that matches your expertise or your organization's existing tooling.
-2. **Identify the shape.** Ask: will Vultron call me (Evaluator, Retriever, Composer, or Actuator), or will I watch something and call Vultron (Sentinel)?
-3. **Check the GitHub issues.** Several capabilities already have open idea issues under [epic #1147](https://github.com/CERTCC/Vultron/issues/1147). If one fits, comment on it. If your capability is not listed, file a new issue with the `idea` label.
-4. **Design the interface.** Even though the formal calling convention is not finalized, you can design the JSON input/output contract for your capability now. Focus on: what context does Vultron need to give you, and what structured answer do you need to return?
-5. **Build and test with the stochastic layer.** The Vultron demo layer uses probabilistic stub nodes for every call-out point. You can replace a stub with a real service and test it against the existing BT structure.
+1. **Find the objection you are answering.**
+   Start from [the table above](#vultron-doesnt-do-x-your-system-does), or browse the [capability hierarchy](#capability-hierarchy) for a domain that matches your organization's tooling.
+2. **Identify the direction.**
+   If Vultron asks and you answer, you are building one of the four shapes.
+   If you watch something and act when it happens, you are building a Sentinel.
+3. **Check the GitHub issues.**
+   Several capabilities already have open idea issues under [epic #1147](https://github.com/CERTCC/Vultron/issues/1147).
+   If one fits, comment on it.
+   If yours is not listed, file a new issue with the `idea` label.
+4. **Design the contract.**
+   Decide what context your capability needs from Vultron and what structured answer it returns.
+5. **Wire it in and test it.**
+   Replace the fuzzer node with your backend, following [Wiring a Capability into the Reference Implementation](../../howto/wire_capability.md), and run it against the existing BT structure.

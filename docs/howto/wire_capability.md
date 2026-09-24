@@ -407,7 +407,7 @@ unchanged.
 
 ## Reference
 
-- **[Capability Model](../topics/capability_model/index.md)** — the five capability shapes and the full catalog of known call-out points
+- **[Capability Model](../topics/capability_model/index.md)** — the four capability shapes and the full catalog of known call-out points
 - **[Reference Implementation Architecture](../topics/reference_architecture.md)** — the hexagonal boundary, inbox pipeline, and behavior-tree model
 - **`vultron/core/behaviors/call_out/`** — `CallOutBackendFactory` Protocol, `AlwaysSucceed`/`AlwaysFail`, and all domain bundle dataclasses
 - **`vultron/demo/fuzzer/`** — probabilistic fuzzer nodes (one per call-out point) and `STOCHASTIC` bundle singletons

@@ -130,13 +130,13 @@ A behavior tree can reach a step it cannot decide on its own: whether a report i
 These are **call-out points** — locations where automated execution pauses and waits for an answer from an external service.
 
 During development and simulation, a call-out point is filled by a **Fuzzer Node** that returns a probabilistic success or failure.
-In production, an adopter replaces that stub with a real service that satisfies one of five **capability shapes** — Sentinel, Evaluator, Retriever, Composer, or Actuator ([ADR-0024](../adr/0024-coordination-agent-taxonomy.md)).
+In production, an adopter replaces that stub with a real service that satisfies one of four **capability shapes** — Evaluator, Retriever, Composer, or Actuator ([ADR-0097](../adr/0097-capability-layer-four-shapes-and-core-declared-contracts.md), BT-18-013).
 In the hexagonal layout, a capability shape is a port and a concrete capability is the adapter that fulfills it.
 
 Not every external question is a call-out point.
 A question that needs a decision from *another actor* — for example, whether the Case Owner approves a change — cannot be answered while the tree is running, so the actor sends a request and finishes instead of pausing (see [when an actor must ask permission](protocol_flow.md#when-an-actor-must-ask-permission)).
 
-The [Capability Model](capability_model/index.md) page is the full taxonomy: the two integration surfaces, the five shapes, and the catalog of known call-out points by domain.
+The [Capability Model](capability_model/index.md) page is the full taxonomy: the two integration surfaces, the four shapes, the Sentinel call-in pattern, and the catalog of known call-out points by domain.
 
 ---
 
@@ -146,11 +146,11 @@ The extension boundary is the set of ports.
 The reference implementation provides the protocol machinery: the five state machines, the wire vocabulary and its semantic mapping, the inbox and outbox pipelines, the behavior trees that orchestrate transitions, and the persistence and delivery adapters that make a local actor run.
 What an adopter supplies are the capabilities behind the call-out points — the judgment and the connections to outside systems that the protocol deliberately leaves open.
 
-This division tracks the protocol's conformance levels.
-Correct message syntax and correct state transitions (levels L1 and L2) come from using a conformant serializer and implementing the state machines.
+This division tracks the protocol's conformance test layers.
+Correct message syntax and correct state transitions (test layers L1 and L2) come from using a conformant serializer and implementing the state machines.
 Correct observable behavior (L3) is stated by the behavioral conformance specifications.
-Correct internal decision structure — precondition checks before state writes before effects, audit-log ordering, idempotency — is level L4, which is only demonstrable through a reference implementation, and the `vultron/core/behaviors/` behavior-tree layer is that demonstration.
-The [Process Implementation Notes](../howto/process_implementation.md#conformance-levels) how-to develops the L1–L4 framing and how to map the protocol onto an existing workflow system.
+Correct internal decision structure — precondition checks before state writes before effects, audit-log ordering, idempotency — is test layer L4, which is only demonstrable through a reference implementation, and the `vultron/core/behaviors/` behavior-tree layer is that demonstration.
+The [Process Implementation Notes](../howto/process_implementation.md#conformance) how-to describes the L1–L4 test layers and how to map the protocol onto an existing workflow system.
 
 An adopter therefore has a spectrum of choices.
 A minimal participant reuses the protocol machinery and supplies only the capabilities it needs.

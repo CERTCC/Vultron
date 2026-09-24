@@ -52,6 +52,8 @@ sense the docs actually use.
 *[CPE]: Common Platform Enumeration
 *[CS]: Case State
 *[CSAF]: Common Security Advisory Framework
+*[CSB]: CVD Case State Behavioral Requirements (spec family)
+*[CSET]: Cyber Security Experimentation and Test
 *[CSIRT]: Computer Security Incident Response Team
 *[CSIRTs]: Computer Security Incident Response Teams
 *[CV]: Vendor Awareness (CS message)
@@ -63,6 +65,7 @@ sense the docs actually use.
 *[CWSS]: Common Weakness Scoring System
 *[CX]: Exploit Public (CS message)
 
+*[DC3]: U.S. Department of Defense Cyber Crime Center
 *[DDoS]: Distributed Denial of Service
 *[DFA]: Deterministic Finite Automaton
 *[DFAs]: Deterministic Finite Automata
@@ -81,6 +84,7 @@ sense the docs actually use.
 *[EJ]: Embargo Revision Rejection (EM message)
 *[EK]: Embargo Acknowledgement (EM message)
 *[EM]: Embargo Management
+*[EMB]: Embargo Management Behavioral Requirements (spec family)
 *[ENISA]: European Union Agency for Cybersecurity
 *[EO]: Executive Order
 *[EOL]: End of Life
@@ -100,6 +104,7 @@ sense the docs actually use.
 *[FIRST]: Forum of Incident Response and Security Teams
 *[FTC]: U.S. Federal Trade Commission
 *[FTP]: File Transfer Protocol
+*[FV]: Finder and Vendor (demo scenario)
 
 *[GE]: General Error (general message)
 *[GI]: General Inquiry (general message)
@@ -113,12 +118,14 @@ sense the docs actually use.
 *[HTTPS]: Hyper Text Transfer Protocol Secure
 *[HVAC]: Heating, Ventilation, and Air Conditioning
 
+*[IDS]: Intrusion Detection System
 *[IEC]: International Electrotechnical Commission
 *[IEEE]: Institute of Electrical and Electronics Engineers
 *[IETF]: Internet Engineering Task Force
 *[IoT]: Internet of Things
 *[I/O]: Input/Output
 *[IP]: Internet Protocol
+*[IPS]: Intrusion Prevention System
 *[ISAC]: Information Sharing and Analysis Center
 *[ISACs]: Information Sharing and Analysis Centers
 *[ISAO]: Information Sharing and Analysis Organization
@@ -126,6 +133,7 @@ sense the docs actually use.
 *[ISO]: International Organization for Standardization
 *[ISP]: Internet Service Provider
 *[ISPs]: Internet Service Providers
+*[ITSM]: IT Service Management
 
 *[JPCERT/CC]: Japan Computer Emergency Response Team Coordination Center
 *[JSON]: JavaScript Object Notation
@@ -137,6 +145,7 @@ sense the docs actually use.
 *[LLMs]: Large Language Models
 
 *[MADR]: Markdown Any Decision Records
+*[MISP]: Malware Information Sharing Platform
 *[ML]: Machine Learning
 *[MON]: The Monitoring Process Area of the CERT Resilience Management Model
 *[MPCVD]: Multi-Party Coordinated Vulnerability Disclosure
@@ -181,8 +190,10 @@ sense the docs actually use.
 *[RI]: Report Invalid (RM message)
 *[RK]: Report Acknowledgement (RM message)
 *[RM]: Report Management
+*[RMB]: Report Management Behavioral Requirements (spec family)
 *[RMM]: The CERT Resilience Management Model
 *[RS]: Report Submission (RM message)
+*[RSS]: Really Simple Syndication
 *[RV]: Report Valid (RM message)
 
 *[SAAS]: Software as a Service
@@ -229,6 +240,7 @@ sense the docs actually use.
 *[URL]: Uniform Resource Locator
 *[URLs]: Uniform Resource Locators
 *[US]: United States
+*[UTC]: Coordinated Universal Time
 
 *[VAR]: Vulnerability Analysis and Resolution, a process area of the CERT RMM
 *[VDB]: Vulnerability Database
@@ -246,3 +258,6 @@ sense the docs actually use.
 *[VXREF]: Vulnerability Cross-Reference
 
 *[W3C]: World Wide Web Consortium
+*[WEIS]: Workshop on the Economics of Information Security
+
+*[XMPP]: Extensible Messaging and Presence Protocol
