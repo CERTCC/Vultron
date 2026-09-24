@@ -2,10 +2,12 @@
 title: Spec Authoring Rules — Field Values, Lint Traps, and Coverage Gates
 status: active
 description: >
-  Mechanical rules for authoring spec YAML: the exact enum values spec-lint
-  accepts for `kind`, `priority`, and `rel_type`; keys that are silently
-  dropped; the protocol-coverage ratchet and its xfail pattern; and the audit
-  passes required when retiring a name or splitting a compound requirement.
+  Mechanical rules for authoring spec YAML: the MS-12 decision tree for
+  choosing a `kind` and why copying neighbouring entries is the wrong
+  heuristic; the exact enum values spec-lint accepts for `kind`, `priority`,
+  and `rel_type`; keys that are silently dropped; the protocol-coverage
+  ratchet and its xfail pattern; and the audit passes required when retiring a
+  name or splitting a compound requirement.
 related_specs:
   - specs/meta-specifications.yaml
   - specs/spec-registry.yaml
@@ -54,8 +56,81 @@ commit time. The error may look like a YAML syntax error — it is not.
 - Use `kind: process` for development process rules (testing, documentation,
   CI).
 
-Check existing entries in the same spec file for context before writing a new
-entry. *Source: ISSUE-2258*
+These glosses come from *ISSUE-2258*.
+
+#### Apply the decision tree, not the neighbouring entries
+
+The four one-line glosses above are a summary, not the rule. The authoritative
+rule is the decision tree in **MS-12-001 … MS-12-005** (`meta-specifications.yaml`),
+established by [ADR-0038](../docs/adr/0038-four-tier-specification-taxonomy.md).
+Apply it in order and stop at the first match:
+
+1. About how the project is run — CI, workflow, agent conventions, docs
+   standards, spec authoring rules? → `process`
+2. References a language construct, library, file path, class, function,
+   module, or codebase mechanism (`py_trees`, `pydantic`, `vultron/`, `.py`,
+   `pytest`, BT nodes)? → `project`
+3. Must an independent implementer satisfy it to be Vultron-compliant, in any
+   language? → `protocol`
+4. None of the above — implementation-independent but not compliance-bearing?
+   → `architecture`
+
+Step 2 is the one that gets skipped. A codebase reference disqualifies
+`protocol` **even when the surrounding requirement feels protocol-ish**, which
+is why the ordering is normative in MS-12-005 rather than advisory.
+
+Do **not** infer a spec's `kind` by copying the entries around it. That heuristic
+is what produced the defect behind ISSUE-2601: MS-12 went unenforced from its
+adoption until 2026-09, and by then a large fraction of the `kind: protocol`
+corpus was carrying `lint_suppress: [missing_story_reference]` instead of a
+corrected `kind` — code naming conventions, test-coverage requirements, and
+build-file formats all tagged as wire-protocol obligations. For the live count,
+read the ratchet constant that MS-12-007 pins under `test/architecture/`; it is
+the authoritative figure and it only goes down. Suppressing the
+story-traceability gate is almost never the right response to it firing; a spec
+that cannot be traced to a user story is usually mis-classified, not story-less.
+MS-12-006 now makes the unambiguous cases a hard error, and MS-12-007 ratchets
+the suppression count downward, but neither detects a misclassification whose
+statement names no code.
+
+#### Why MS-12-006 is scoped the way it is
+
+MS-12-006's rationale defers here, because the three scoping decisions are what
+keep it from becoming the problem it was written to solve. Each one was measured
+against the live corpus.
+
+**It fires only on specs with no `stories:`.** Scanning every `kind: protocol`
+spec looks stricter and is much worse. A protocol spec that traces to a user
+story has already demonstrated it is protocol, and its `verification:` field
+names a `test/…py` path *because MS-10-003 obliges every MUST to carry one and
+MS-15-001 obliges the path to resolve*. Applied to the whole protocol corpus the
+detector flags roughly half of it, and the majority of those hits are specs that
+are fully SR-11-compliant. The author's only available remedies would then be
+relabeling a genuine protocol spec as `project` or adding a suppression — the
+wrong-way ratchet described above, re-created by the check meant to stop it.
+Gating on the absence of a story confines the check to the population where a
+codebase reference actually indicates misclassification.
+
+**The token list excludes bare `module`, `class`, and `function`.** Those read as
+ordinary domain English in wire requirements — "a machine-readable failure
+class", "the same action class", "the actor's function in the CVD process". Left
+in, they flag two dozen genuine protocol statements and instruct the author to
+set `kind: project` on a pure wire obligation. `.py`, `vultron/`, `test/`,
+`scripts/`, `pytest`, `pydantic`, and `py_trees` carry no such second meaning.
+The cost of the omission is a handful of true positives the check will not catch;
+those are MS-12-006's acknowledged blind spot, not an oversight.
+
+**The error names the whole tree, not `project`.** MS-12-002 is not always the
+right answer for a spec that names code: MS-12-005 gives MS-12-001 precedence,
+and `pytest`, `test/`, and `scripts/` land squarely in the CI-and-authoring-rules
+territory MS-12-001 claims for `process`. MS-12-006 and MS-12-007 are themselves
+the demonstration — both name those tokens, and both are correctly `process`. A
+message that prescribed `project` would send those specs to the wrong tier.
+
+The general lesson, from ISSUE-3480: **an enforced MUST advertises itself through
+full compliance in the artifacts; an unenforced one anti-advertises.** A rule at
+half adoption reads to the next author as "no rule here" — worse than one at zero
+adoption, which at least reads as "not done yet".
 
 ### Valid `priority:` Values — Underscores, Not Spaces
 

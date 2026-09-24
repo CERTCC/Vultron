@@ -111,7 +111,14 @@ that bite most often:
 
 - **`kind:`** — exactly `protocol`, `architecture`, `project`, `process`.
   `implementation` is not valid, and the rejection can read like a YAML syntax
-  error.
+  error. Which one to pick is a decision tree, not a judgment call: apply
+  MS-12-001 → MS-12-005 in order (see `notes/spec-authoring-rules.md`), and do
+  not infer a `kind` from the surrounding entries in the same file.
+- **`lint_suppress: [missing_story_reference]`** — a ratcheted escape hatch,
+  not a free one. MS-12-007 pins the corpus-wide count to a ceiling that can
+  only fall, so adding a suppression fails the ratchet unless another one is
+  removed. If SR-11-003 fires on a new entry, the usual fix is a corrected
+  `kind:`, not a suppression.
 - **`priority:`** — underscores, not spaces: `MUST_NOT`, `SHOULD_NOT`. A space
   is a FATAL registry load error.
 - **`rel_type:`** — one of the enumerated values; `related_to` is not among them.

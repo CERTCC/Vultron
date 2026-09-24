@@ -4,6 +4,7 @@ date: 2026-09-23
 deciders: Allen D. Householder
 consulted: CERT/CC Vultron protocol team
 informed: CERT/CC Vultron protocol team
+stakeholder_type: [project-contributor]
 ---
 
 # An Object's Time Is Carried, Never Minted by the Receiver
