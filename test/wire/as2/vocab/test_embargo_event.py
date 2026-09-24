@@ -42,10 +42,17 @@ class TestWireEmbargoEventBasics:
         assert "endTime" in data
         assert "startTime" in data
 
-    def test_name_defaults_to_none(self):
-        """Core EmbargoEvent does not auto-populate name."""
+    def test_set_name_populated(self):
+        """The derived label survives the collapse onto the core class."""
         e = WireEmbargoEvent(context=_CONTEXT, end_time=_FUTURE)
-        assert e.name is None
+        assert e.name is not None
+        assert "Embargo for" in e.name
+        assert _CONTEXT in e.name
+
+    def test_carried_name_is_kept(self):
+        """A name the sender supplied is not overwritten by the derivation."""
+        e = WireEmbargoEvent(context=_CONTEXT, end_time=_FUTURE, name="mine")
+        assert e.name == "mine"
 
     def test_fields_accessible(self):
         e = WireEmbargoEvent(context=_CONTEXT, end_time=_FUTURE)

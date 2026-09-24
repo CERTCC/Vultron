@@ -889,13 +889,13 @@ groups:
     - ADR-0082
   - id: ARCH-20-003
     note: >-
-      ADR-0099 inverts this requirement. Under one object model a missing wire
-      counterpart is the normal case, not an error, so raising on absence would
-      make every core object unrenderable. Amend when the rendering port
-      collapses; until then the statement matches the code.
+      Amended by ADR-0099 (#3487). Under one object model a core object is its
+      own wire form, so a missing wire counterpart is no longer the failure
+      case; the port instead fails closed on anything that is not a
+      CoreObject, which has no AS2 serialization.
     priority: MUST
     kind: project
-    statement: When no wire counterpart exists for the supplied core object, the rendering port MUST raise `VultronValidationError`.
+    statement: When the supplied object is not a `CoreObject`, the rendering port MUST raise `VultronValidationError`.
       It MUST NOT fall back to a core-shaped `model_dump`, return `None`, or emit a partially-rendered object.
     rationale: A silently core-shaped payload snapshot is unreconstitutable by receivers (CLP-07-001) and is indistinguishable
       from a correct one at the call site. Failing loudly is required by ARCH-15-002.

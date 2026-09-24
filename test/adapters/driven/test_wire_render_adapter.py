@@ -30,6 +30,7 @@ import pytest
 from vultron.adapters.driven.wire_render import As2WireRenderAdapter
 from vultron.wire.as2.vocab.base.registry import find_in_vocabulary
 from vultron.core.models.actor import VultronPerson
+from vultron.core.models.base import VULTRON_CONTEXT_URI
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_actor import CaseActor
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
@@ -217,6 +218,10 @@ def test_render_succeeds_for_case_actor(adapter):
     result = adapter.render(obj)
     assert isinstance(result, dict)
     assert result.get("type") == "Service"
+    assert result.get("@context") == VULTRON_CONTEXT_URI
+    # The internal outbox list is replaced by the AS2 collection URIs.
+    assert result.get("inbox") == f"{obj.id_}/inbox"
+    assert result.get("outbox") == f"{obj.id_}/outbox"
 
 
 def test_render_succeeds_for_vultron_person(adapter):

@@ -308,9 +308,12 @@ For context on the original removal:
 as_ObjectRef = ActivityStreamRef[as_Object] | CoreObject | None
 #   expanded to:  as_Object | as_Link | str | None | CoreObject
 
-# CURRENT definition:
+# PR #3440 until #3487:
 as_ObjectRef = ActivityStreamRef[as_Object] | None
 #   expands to:  as_Object | as_Link | str | None
+
+# CURRENT definition (#3487, ADR-0099):
+as_ObjectRef = ActivityStreamRef[as_Object] | CoreObject | None
 ```
 
 **`as_Object | as_Link | str` is not a kludge.** AS2 explicitly permits a
@@ -324,7 +327,7 @@ field of every transitive activity, `as_Collection.items`,
 `as_Relationship.subject`/`.object`, and `as_Profile.describes`.
 
 Beyond violating ARCH-22-001, it made a core-side guard unsafe to enforce
-loudly: **`VultronValidationError` is not a `ValueError` subclass**, so a guard
+loudly: **`VultronValidationError` was not a `ValueError` subclass (until #3487)**, so a guard
 firing while Pydantic resolved that union escaped the entire operation rather
 than being absorbed as a failed union branch. Any core-branch validator that
 raises must either be removed from union exposure (the chosen path, ARCH-23-006)

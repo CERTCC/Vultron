@@ -696,7 +696,10 @@ class _ActorsMixin:
         if case is None:
             raise VultronNotFoundError("VulnerabilityCase", record.case_id)
         if not isinstance(case, as_VulnerabilityCase):
-            raise VultronNotFoundError("VulnerabilityCase", record.case_id)
+            raise VultronValidationError(
+                f"Record '{record.case_id}' is a {type(case).__name__},"
+                " not a VulnerabilityCase"
+            )
         wire_case = case
         # Reuse the same factory the offering side calls, so the rebuilt Offer
         # is constructed exactly the way the wire path would have built it

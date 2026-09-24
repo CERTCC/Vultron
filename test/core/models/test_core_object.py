@@ -351,3 +351,20 @@ def test_core_object_drops_alias_shadowed_field_name_twin():
     both = dict(dumped)
     both["id"] = dumped["id_"]
     assert CoreCaseLedgerEntry.model_validate(both) == entry
+
+
+def test_case_ledger_entry_derives_id_from_wire_spelled_coordinates():
+    """An entry parsed off the wire carries ``caseId``/``logIndex``.
+
+    The derivation must read those too, or a wire-parsed entry keeps a random
+    id instead of its ``{case_id}/log/{log_index}`` coordinates.
+    """
+    entry = CoreCaseLedgerEntry.model_validate(
+        {
+            "caseId": "urn:uuid:case-wire",
+            "logIndex": 3,
+            "logObjectId": "urn:uuid:logobj-wire",
+            "eventType": "RS",
+        }
+    )
+    assert entry.id_ == "urn:uuid:case-wire/log/3"

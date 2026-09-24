@@ -64,6 +64,9 @@ def test_vulnerability_report_round_trips_between_core_and_wire():
 
     assert isinstance(core, as_VulnerabilityReport)
     data = core.model_dump(by_alias=True, exclude_none=True, mode="json")
+    # The wire shape uses the AS2 spellings, not the Python field names.
+    assert data["attributedTo"] == core.attributed_to
+    assert "attributed_to" not in data and "id_" not in data
     restored = as_VulnerabilityReport.model_validate(data)
     assert restored.id_ == core.id_
 
@@ -218,6 +221,19 @@ def test_vulnerability_case_round_trips_between_core_and_wire():
 
     assert isinstance(core, as_VulnerabilityCase)
     data = core.model_dump(by_alias=True, exclude_none=True, mode="json")
+    for key in (
+        "caseParticipants",
+        "vulnerabilityReports",
+        "caseStatuses",
+        "activeEmbargo",
+        "proposedEmbargoes",
+        "caseActivity",
+        "parentCases",
+        "childCases",
+        "siblingCases",
+    ):
+        assert key in data, f"wire dump is missing AS2 key {key!r}"
+    assert "case_statuses" not in data and "active_embargo" not in data
     restored = as_VulnerabilityCase.model_validate(data)
     assert restored.id_ == core.id_
     assert restored.vulnerability_reports == core.vulnerability_reports

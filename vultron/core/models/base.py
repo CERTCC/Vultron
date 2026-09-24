@@ -441,8 +441,18 @@ class CoreObject(VultronObject):
             if alias:
                 data.pop(alias, None)
             data.pop(to_camel(name), None)
+        data.update(self._as2_derived_fields())
         data["@context"] = self.context_ or VULTRON_CONTEXT_URI
         return data
+
+    def _as2_derived_fields(self) -> dict[str, Any]:
+        """Return AS2 keys derived from this object for the delivery form.
+
+        The counterpart of :attr:`local_only_fields`: a subclass whose AS2 form
+        carries a value core does not store (``CaseActor``'s collection URIs)
+        supplies it here, so the derivation lives on the class it describes.
+        """
+        return {}
 
     def __init_subclass__(cls, **kwargs: object) -> None:
         super().__init_subclass__(**kwargs)  # type: ignore[arg-type]

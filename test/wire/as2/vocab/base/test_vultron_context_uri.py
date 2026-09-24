@@ -96,8 +96,8 @@ def test_embargo_event_serializes_vultron_context():
     """AC-3: as_EmbargoEvent is now a core class (ADR-0099 detail 3, issue #3487).
 
     The paired wire class was deleted; as_EmbargoEvent IS EmbargoEvent (core).
-    Core objects do not carry @context — that is a wire-layer serialization concern.
-    Verify the identity and that model_dump_json produces the expected type_ field.
+    The core class adds the Vultron ``@context`` on the by-alias (wire) dump
+    (ADR-0099 detail 1), so the collapsed class still serializes it.
     """
     from vultron.core.models.embargo_event import EmbargoEvent
 
@@ -105,6 +105,7 @@ def test_embargo_event_serializes_vultron_context():
     obj = as_EmbargoEvent(context="urn:uuid:case-123")
     data = json.loads(obj.model_dump_json(exclude_none=True, by_alias=True))
     assert data["type"] == "EmbargoEvent"
+    assert data["@context"] == VULTRON_CONTEXT_URI
 
 
 @pytest.mark.spec("VM-10-002")

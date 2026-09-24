@@ -44,6 +44,7 @@ from pydantic import Field, model_validator
 
 from vultron.core.models._helpers import now_utc
 from vultron.core.models.base import CoreObject
+from vultron.core.models.wire_keys import wire_key
 
 
 class CaseLedgerEntry(CoreObject):
@@ -135,13 +136,21 @@ class CaseLedgerEntry(CoreObject):
     @model_validator(mode="before")
     @classmethod
     def _set_id_from_case(cls, data: Any) -> Any:
-        """Compute ``id_`` from ``case_id`` and ``log_index``."""
-        if isinstance(data, dict):
-            case_id = data.get("case_id")
-            if case_id is not None:
-                log_index = data.get("log_index", -1)
-                data = dict(data)
-                data["id"] = f"{case_id}/log/{log_index}"
+        """Compute ``id_`` from ``case_id`` and ``log_index``.
+
+        Both field names are read in either spelling, because an entry parsed
+        off the wire (ADR-0099 detail 3) carries the AS2 keys; reading only the
+        Python names left a wire-parsed entry with a random id instead of its
+        ledger coordinates.
+        """
+        if not isinstance(data, dict):
+            return data
+        case_id = data.get("case_id", data.get(wire_key("case_id")))
+        if case_id is None:
+            return data
+        log_index = data.get("log_index", data.get(wire_key("log_index"), -1))
+        data = dict(data)
+        data["id"] = f"{case_id}/log/{log_index}"
         return data
 
 

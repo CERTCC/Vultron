@@ -236,6 +236,32 @@ class VulnerabilityCase(CoreObject):
             ]
         return data
 
+    @model_validator(mode="after")
+    def _set_cs_context(self) -> "VulnerabilityCase":
+        """Point every inline :class:`CaseStatus` at this case.
+
+        A case status belongs to the case that holds it, so a carried
+        ``context`` that names another case (or none) is rewritten to this
+        case's id.  This is the invariant the deleted
+        ``as_VulnerabilityCase.set_cs_context`` held on the wire class; it moved
+        here with the collapse (ADR-0099 detail 3).
+        """
+        if not any(
+            isinstance(cs, CaseStatus) and cs.context != self.id_
+            for cs in self.case_statuses
+        ):
+            return self
+        statuses: list[str | CaseStatus] = [
+            (
+                cs.model_copy(update={"context": self.id_})
+                if isinstance(cs, CaseStatus) and cs.context != self.id_
+                else cs
+            )
+            for cs in self.case_statuses
+        ]
+        object.__setattr__(self, "case_statuses", statuses)
+        return self
+
     # ------------------------------------------------------------------
     # Domain methods
     # ------------------------------------------------------------------
