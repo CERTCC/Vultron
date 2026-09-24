@@ -990,9 +990,11 @@ misclassification rather than a safe shortcut; the exact enums `spec-lint`
 accepts for `kind`, `priority`, and `rel_type`; keys silently dropped by
 `spec-dump`; the protocol-coverage ratchet and its strict-`xfail` pattern; and
 the audit passes required when retiring a name or splitting a compound
-requirement.
+requirement; why a priority gate names a tier (`MUST_NOT` with `MUST`), never a
+keyword; and the four rules that make a ceiling ratchet end at zero.
 **Load when**: adding or editing any `specs/*.yaml` entry, choosing a `kind:`
-for a new entry, or debugging a spec-lint / `spec-dump` failure. Pair with
+for a new entry, writing any lint check or ratchet that selects by priority, or
+debugging a spec-lint / `spec-dump` failure. Pair with
 `specs-vs-adrs.md` for *whether* the requirement belongs in a spec at all.
 
 **`rfc-spec-authoring.md`**
