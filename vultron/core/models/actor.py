@@ -61,39 +61,12 @@ class CoreActor(CoreObject):
             return v.get("id_") or v.get("id") or None
         return getattr(v, "id_", None) or getattr(v, "id", None) or None
 
-    following: Any | None = None
-    followers: Any | None = None
-    liked: Any | None = None
-    streams: Any | None = None
     preferred_username: str | None = None
     endpoints: Any | None = None
     embargo_policy: Any | None = Field(
         default=None,
         description="The actor's stated embargo preferences.",
     )
-
-
-class CoreActorCollection(CoreObject):
-    """Minimal ordered-collection shape used for actor inbox/outbox fields."""
-
-    model_config = ConfigDict(
-        populate_by_name=True,
-        validate_by_name=True,
-        validate_by_alias=True,
-    )
-
-    context_: str = Field(
-        default="https://www.w3.org/ns/activitystreams",
-        validation_alias="@context",
-        serialization_alias="@context",
-    )
-    type_: Literal["OrderedCollection"] = Field(
-        default="OrderedCollection",
-        validation_alias="type",
-        serialization_alias="type",
-    )
-    items: list[str] = Field(default_factory=list)
-    current: int = 0
 
 
 class VultronPerson(CoreActor):
@@ -173,7 +146,6 @@ class VultronGroup(CoreActor):
 
 __all__ = [
     "CoreActor",
-    "CoreActorCollection",
     "VultronApplication",
     "VultronGroup",
     "VultronOrganization",

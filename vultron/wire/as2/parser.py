@@ -61,10 +61,12 @@ def _inline_vocab_class(value: dict[str, Any]) -> type[BaseModel] | None:
 
     The wire-branch restriction is load-bearing. ``find_in_vocabulary`` falls
     back to ``CORE_TYPE_MAP`` (ARCH-12-003), and a core instance placed inside a
-    wire tree is rejected by the wire parent's field type: ``OrderedCollection``
-    is registered only in the core map, so an inline actor's ``inbox`` expanded
-    to a ``CoreActorCollection`` that ``as_VultronOrganization.inbox`` refused,
-    degrading the whole actor to a bare ``as_Link`` (ISSUE-3217).
+    wire tree is rejected by the wire parent's field type: while
+    ``OrderedCollection`` was registered only in the core map, an inline
+    actor's ``inbox`` expanded to a core class that
+    ``as_VultronOrganization.inbox`` refused, degrading the whole actor to a
+    bare ``as_Link`` (ISSUE-3217).  The wire class now owns that name
+    (ISSUE-3564), but any other core-only ``type`` would fail the same way.
 
     Scope of that claim: the fields this function feeds are declared
     ``as_ObjectRef``/``as_ObjectRequiredRef``, whose unions *do* admit

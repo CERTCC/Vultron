@@ -79,11 +79,10 @@ def _slot_requires_object(annotation: Any) -> bool:
     a bare URI is not a value it can legally hold: the reference must either be
     materialised or *refused*.
 
-    ``as_Collection`` slots are excluded.  An AS2 actor's ``inbox``, ``outbox``,
-    ``following``, ``followers``, ``liked`` and ``streams`` are declared as
-    collections but are *endpoints* — ActivityPub publishes them as URIs, they
-    usually belong to a remote actor, and they are not rows in anybody's data
-    layer.  ``as_Actor`` already declares how a URI becomes the object there: a
+    ``as_Collection`` slots are excluded.  An AS2 actor's ``inbox`` and
+    ``outbox`` are declared as collections but are *endpoints* — ActivityPub
+    publishes them as URIs, they usually belong to a remote actor, and they
+    are not rows in anybody's data layer.  ``as_Actor`` already declares how a URI becomes the object there: a
     ``mode="before"`` validator constructs the collection around it, and
     ``set_collections`` derives it from ``id_`` when absent.  Materialising
     would pre-empt a coercion the class has already specified, and would send a

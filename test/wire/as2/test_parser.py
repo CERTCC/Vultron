@@ -12,6 +12,10 @@ from vultron.wire.as2.errors import (
     VultronParseValidationError,
 )
 from vultron.wire.as2.parser import parse_activity
+from vultron.wire.as2.vocab.base.objects.collections import (
+    as_OrderedCollection,
+)
+from vultron.wire.as2.vocab.objects.vultron_actor import as_VultronOrganization
 
 #: Every inbound activity must carry a sender-supplied ``published``, so each
 #: body below sets one.  Absence is a validity failure, not a field the parser
@@ -313,17 +317,17 @@ def test_parse_activity_refuses_malformed_nested_object_of_known_type():
 
 @pytest.mark.spec("ARCH-22-001")
 @pytest.mark.spec("MV-04-003")
-def test_parse_activity_keeps_inline_actor_subtype_with_core_only_collections():
+def test_parse_activity_keeps_inline_actor_subtype_with_inline_collections():
     """An inline actor's subtype must survive its ``inbox``/``outbox``.
 
-    ``OrderedCollection`` is registered only in ``CORE_TYPE_MAP``, so
-    ``find_in_vocabulary`` used to hand the nested expansion a *core*
-    ``CoreActorCollection``; ``as_VultronOrganization.inbox`` rejects a core
-    instance, and the swallowed failure degraded the whole actor to an
-    ``as_Link``.  Nested expansion inside a wire tree resolves wire classes
-    only (MV-04-003), so the mismatch cannot arise.  The rule is MV-04-003, not
-    ARCH-22-001 as this previously cited: it is about which registry an inline
-    type string resolves against, not about which modules may import which.
+    ``OrderedCollection`` was once registered only in ``CORE_TYPE_MAP``, so
+    ``find_in_vocabulary`` handed the nested expansion a *core* class that
+    ``as_VultronOrganization.inbox`` rejected, and the swallowed failure
+    degraded the whole actor to an ``as_Link`` (ISSUE-3217).  The wire class
+    now owns the name (VM-03-002), so the collections must expand to it — an
+    assertion about what they *are*, not about which class they are not, which
+    would pass vacuously once the offending class was gone (ISSUE-3563).  The
+    rule is MV-04-003: which registry an inline type string resolves against.
     """
     actor = {
         "type": "Organization",
@@ -351,8 +355,12 @@ def test_parse_activity_keeps_inline_actor_subtype_with_core_only_collections():
         }
     )
 
-    assert type(result.actor).__name__ == "VultronOrganization"
+    assert type(result.actor) is as_VultronOrganization
     assert getattr(result.actor, "id_", None) == "https://example.org/alice"
+    for field_name in ("inbox", "outbox"):
+        collection = getattr(result.actor, field_name)
+        assert type(collection) is as_OrderedCollection
+        assert collection.id_ == f"https://example.org/alice/{field_name}"
 
 
 def test_parsing_activity_line_is_debug_not_info(caplog):
@@ -445,14 +453,15 @@ def test_refusal_of_malformed_inline_object_names_the_field_path():
 
 @pytest.mark.spec("MV-04-003")
 @pytest.mark.spec("ARCH-22-001")
-def test_core_only_inline_type_is_left_for_the_parent_field():
-    """A ``CORE_TYPE_MAP``-only ``type`` must not resolve to a core class here.
+def test_inline_ordered_collection_resolves_to_the_wire_class():
+    """An inline ``OrderedCollection`` must resolve to the wire class.
 
     ``find_in_vocabulary`` falls back to the core map (ARCH-12-003), where
-    ``OrderedCollection`` alone is registered.  Resolving it would place a core
-    instance in a wire tree; the wire parent then rejected it and the whole
-    object degraded to a bare ``as_Link``.  Leaving the dict unexpanded hands
-    the decision to the parent field, which is its declared authority.
+    ``OrderedCollection`` was once registered alone, so resolving it placed a
+    core instance in a wire tree and the whole object degraded (ISSUE-3217).
+    The wire class now declares the ``type`` it presents (VM-03-002), so the
+    wire registry answers first.  Asserting the positive identity keeps the
+    test meaningful now that the core class is gone (ISSUE-3563).
     """
     result = parse_activity(
         {
@@ -468,5 +477,5 @@ def test_core_only_inline_type_is_left_for_the_parent_field():
     )
 
     inline = getattr(result, "object_", None)
-    assert type(inline).__name__ == "as_Object"
-    assert type(inline).__name__ != "CoreActorCollection"
+    assert type(inline) is as_OrderedCollection
+    assert inline.id_ == "https://example.org/collections/1"

@@ -16,13 +16,12 @@
 
 from typing import Any, TypeAlias
 
-from pydantic import Field, field_validator, model_validator
+from pydantic import Field, ValidationInfo, field_validator, model_validator
 
 from vultron.wire.as2.enums import as_ActorType as A_type
 from vultron.wire.as2.vocab.base.links import ActivityStreamRef
 from vultron.wire.as2.vocab.base.objects.base import as_Object
 from vultron.wire.as2.vocab.base.objects.collections import (
-    as_Collection,
     as_OrderedCollection,
 )
 from vultron.wire.as2.vocab.base.registry import WIRE_TYPE_MAP
@@ -39,10 +38,6 @@ class as_Actor(as_Object):
     # todo: collections should be internally represented as lists but dumped as collections
     inbox: as_OrderedCollection = Field(default_factory=as_OrderedCollection)
     outbox: as_OrderedCollection = Field(default_factory=as_OrderedCollection)
-    following: as_Collection | None = None
-    followers: as_Collection | None = None
-    liked: as_Collection | None = None
-    streams: as_Collection | None = None
     preferred_username: str | None = None
     endpoints: Any | None = None
     # todo endpoints should be its own object
@@ -50,46 +45,54 @@ class as_Actor(as_Object):
 
     @field_validator("inbox", "outbox", mode="before")
     @classmethod
-    def _coerce_uri_to_collection(cls, v: Any) -> Any:
+    def _coerce_uri_to_collection(cls, v: Any, info: ValidationInfo) -> Any:
         """Coerce a plain URI string or None to an as_OrderedCollection.
 
         When reading back an actor that was stored via a CoreActor-derived
         class (inbox/outbox as str | None), the value is normalised:
 
-        - ``None`` → empty ``as_OrderedCollection`` (id_ set by
-          ``set_collections`` model validator)
+        - ``None`` → ``as_OrderedCollection`` at ``{actor_id}/{field}``, the
+          same address ``set_collections`` derives when the field is absent
         - ``str`` → ``as_OrderedCollection(id_=v)``
         - anything else → returned as-is for Pydantic to validate
         """
         if v is None:
-            return as_OrderedCollection()
+            return _endpoint_collection(info.data.get("id_"), info.field_name)
         if isinstance(v, str):
             return as_OrderedCollection(id_=v)
         return v
 
     @model_validator(mode="after")
     def set_collections(self):
-        actor_id = self.id_
+        """Derive an absent ``inbox``/``outbox`` from the actor's ``id_``.
 
-        # Set inbox/outbox URI if not yet populated (None or empty id_).
-        if self.inbox is None or self.inbox.id_ is None:
-            object.__setattr__(
-                self,
-                "inbox",
-                as_OrderedCollection(
-                    id_=f"{actor_id}/inbox", type_="OrderedCollection"
-                ),
-            )
-        if self.outbox is None or self.outbox.id_ is None:
-            object.__setattr__(
-                self,
-                "outbox",
-                as_OrderedCollection(
-                    id_=f"{actor_id}/outbox", type_="OrderedCollection"
-                ),
-            )
-
+        Keyed on ``model_fields_set`` rather than on the collection's ``id_``:
+        the field's ``default_factory`` builds a collection whose ``id_`` is a
+        fresh ``urn:uuid:``, so an ``id_ is None`` test never fires and the
+        actor would publish an address nobody routes to.
+        """
+        for field_name in ("inbox", "outbox"):
+            if field_name not in self.model_fields_set:
+                object.__setattr__(
+                    self,
+                    field_name,
+                    _endpoint_collection(self.id_, field_name),
+                )
         return self
+
+
+def _endpoint_collection(
+    actor_id: str | None, field_name: str | None
+) -> as_OrderedCollection:
+    """Return the collection at the actor's ``{actor_id}/{field_name}`` URL.
+
+    Falls back to a fresh collection id when the actor id is unavailable,
+    which happens only if ``id_`` itself failed validation — in which case the
+    actor is being rejected anyway.
+    """
+    if actor_id is None or field_name is None:
+        return as_OrderedCollection()
+    return as_OrderedCollection(id_=f"{actor_id}/{field_name}")
 
 
 as_ActorRef: TypeAlias = ActivityStreamRef[as_Actor]

@@ -84,7 +84,8 @@ Eight `CoreObject` subclasses carried `model_config = ConfigDict(alias_generator
 so that core could call `model_dump(by_alias=True)`:
 
 `ParticipantStatus`, `CaseStatus`, `VultronPerson`, `VultronOrganization`,
-`VultronService`, `VultronApplication`, `VultronGroup`, `CoreActorCollection`.
+`VultronService`, `VultronApplication`, `VultronGroup`, `CoreActorCollection`
+(since deleted as vestigial, #3563).
 
 This violated ARCH-12-003 (a MUST). Less obviously, **it did not work**. Core and
 wire `ParticipantStatus` differ *structurally*, not just by spelling: core nests
