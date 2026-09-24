@@ -92,4 +92,4 @@ Three further terms name the units of work in the CVD process.
 
     The unit of work for an individual Case Participant's [Report Management (RM) process](../topics/process_models/rm/index.md)
 
-[Case Object](../howto/case_object.md) contains a diagram of the relationships between CVD Cases, Participants, and Reports.
+[Case Model](../topics/case_lifecycle/case_model.md) contains a diagram of the relationships between CVD Cases, Participants, and Reports.
