@@ -5,34 +5,34 @@ level: 300
 
 # Model Interactions
 
-{% include-markdown "../../../includes/normative.md" %}
+The three Vultron process models constrain each other.
+Those models are the [Report Management (RM)](../rm/index.md), [Embargo Management (EM)](../em/index.md), and [Case State (CS)](../cs/index.md) models.
+This section describes those constraints.
+Read the three model pages first, because the constraints are stated in terms of their states and transitions.
 
-Here we reflect on the interactions between the [RM](../rm/index.md), [EM](../em/index.md), and [CS](../cs/index.md) models within the
-overall Vultron process.
+## Which parts belong to whom
 
-## Participant-Agnostic vs Participant-Specific Aspects
+The models differ in whose state they describe:
 
-!!! tip inline end "This sounds like SSVC"
+- The RM process is specific to each Participant, and each Participant has its own RM state.
+- The EM process is global to the case, and all Participants share one EM state.
+- The CS model is a hybrid.
+  Its Vendor fix path (Vendor aware, fix ready, fix deployed) is tracked per Vendor, while public awareness, exploit publication, and attacks observed are facts about the case as a whole.
 
-    In [SSVC](https://github.com/CERTCC/SSVC){:target="_blank"}, we distinguish between stakeholder-specific and
-    stakeholder-agnostic decision points when describing vulnerability response decisions.
-    Here, we carry a similar distinction into the CVD process.
-    Some facts about a case are participant-specific, while others are global to the case, or participant-agnostic.
-
-Some aspects of the Vultron process are Participant-agnostic (i.e., they represent a global state of the case),
-while others are specific to a Participant.
-Specifically, the [RM](../rm/index.md) process is unique to each Participant, while the
-[EM](../em/index.md) process is global to all Participants in a case.
-The [CS](../cs/index.md) process is a hybrid: some aspects are Participant-agnostic, while others are
-Participant-specific, which we will discuss in more detail below.
-
-Interactions between all these processes affect the overall MPCVD process for a case.
-The following diagram illustrates this distinction.
+The diagram below groups the models by that distinction.
+The arrows show that the Participant-specific and the Participant-agnostic parts influence each other.
+Each CS box is labeled with the [case state](../cs/cs_model.md) letters it holds.
 
 ```mermaid
+---
+title: Participant-Agnostic and Participant-Specific Parts of the Process Models
+---
 stateDiagram-v2
     direction LR
     PA: Participant-Agnostic
+    CS_pxa: CS public awareness, exploit public, attacks (pxa)
+    CS_vf: CS Vendor aware, fix ready (vf)
+    CS_d: CS fix deployed (d)
     state PA {
         EM
         CS_pxa
@@ -50,54 +50,16 @@ stateDiagram-v2
         CS_d --> RM
     }
     PA --> PS
-    PS --> PA   
+    PS --> PA
 ```
 
-### Global vs. Participant-Specific Aspects of the CS Model
+This split matters most when one Participant's action meets a shared state.
+For example, one Participant closing their report does not end the embargo that every Participant shares.
 
-The [CS model](../cs/index.md) encompasses both Participant-specific and Participant-agnostic aspects of a
-CVD case. In particular, the Vendor fix path substates&mdash;Vendor unaware (*vfd*),
-Vendor aware (*Vfd*), fix ready (*VFd*), and fix deployed (*VFD*)&mdash;are
-specific to each Vendor Participant in a case. On the other hand, the
-remaining substates represent Participant-agnostic facts about the case
-status&mdash;public awareness (*p,P*), exploit public (*x,X*), and attacks
-observed (*a,A*). This distinction in perspectives will become
-important in the [Formal Protocol](../../../reference/formal_protocol/index.md) definition.
+## Pages in this section
 
-{% include-markdown "./_cs_global_local.md" %}
+- [Interactions Between the RM and EM Models](rm_em.md) covers when embargoes are negotiated relative to report validation and prioritization, and what report closure means while an embargo is active.
+- [CVD Case State Interactions with the RM and EM Process Models](rm_em_cs.md) covers how each CS event, such as Vendor notification, fix readiness, or public awareness, constrains the RM and EM processes.
+  It also details which parts of the CS model are global to a case.
 
-### Closing a Case While an Embargo Is Active
-
-Because the [RM](../rm/index.md) process is Participant-specific but the
-[EM](../em/index.md) process is global to the case, closing a case interacts
-with any active embargo. When one Participant closes its own report, that does
-not by itself end the embargo for the others; the embargo remains in force
-until it is torn down through the EM process.
-
-The Case Owner's departure is different, because it ends the case for every
-Participant. For that reason, when the Case Owner tries to leave a case that
-still holds an active embargo, the CASE_MANAGER declines the request: the case
-stays open and the embargo stays in force. The Case Owner ends the embargo
-first (for example, once the vulnerability is public) and then leaves.
-
-## Summary
-
-!!! note "Participant-Agnostic Aspects"
-
-    Participant-agnostic aspects of the MPCVD process are those that represent facts about the world with respect to a 
-    case.
-
-!!! example "Participant-Agnostic Examples"
-
-    - The [Embargo Management](../em/index.md) process is global to all Participants in a case
-    - As is the Public State portion of the [Case State](../cs/index.md) process
-
-!!! note "Participant-Specific Aspects"
-
-    Participant-specific aspects of the MPCVD process are those that represent facts about a Participant's
-    internal state with respect to a case.
-
-!!! example "Participant-Specific Examples"
-
-    - The [Report Management](../rm/index.md) process is unique to each Participant.
-    - So is the Vendor Fix Path portion of the [Case State](../cs/index.md) process.
+The [formal protocol](../../../reference/formal_protocol/index.md) combines all three models into one protocol definition and builds on these interactions.

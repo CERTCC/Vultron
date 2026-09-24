@@ -8,6 +8,9 @@ level: 300
 !!! info inline end "Vultron Process Models"
 
     ```mermaid
+    ---
+    title: Each Process Interacts With the Other Two
+    ---
     flowchart TD
         RM[[Report Management]]
         EM[[Embargo Management]]
@@ -20,16 +23,17 @@ level: 300
         CS --> RM
     ```
 
-The Vultron Protocol defines three main processes in terms of deterministic finite automata (DFAs):
+The Vultron Protocol describes a Coordinated Vulnerability Disclosure (CVD) case with three process models:
 
-- Report Management
-- Embargo Management
-- Case State
+- [Report Management (RM)](rm/index.md) tracks each Participant's handling of the report.
+- [Embargo Management (EM)](em/index.md) tracks whether the case has an agreement to keep the vulnerability private for a time.
+- [Case State (CS)](cs/index.md) tracks what has happened to the vulnerability itself, such as whether a fix is ready or the public is aware.
 
-Each of these processes interacts with the other two processes in the context of a CVD case.
+Each model is a deterministic finite automaton (DFA): a state machine with a fixed set of states in which every action leads from one state to exactly one next state.
+The inset at right shows that each process interacts with the other two in the context of a CVD case.
 
-A CVD case is coordinated by multiple agents (Reporters, Vendors, Coordinators, etc.),
-each running these processes in parallel and interacting with each other.
+A CVD case is coordinated by multiple agents, such as Reporters, Vendors, and Coordinators, each running these processes in parallel and interacting with each other.
+The diagram below shows two such agents, each running all three processes and exchanging messages with the other.
 
 ```mermaid
 ---
@@ -64,24 +68,38 @@ flowchart LR
 
 ## [Report Management process](rm/index.md)
 
-{% include-markdown "./rm/index.md" start="<!-- start_excerpt -->" end="<!-- end_excerpt -->" %}
+The RM process covers how each Participant receives, validates, prioritizes, works on, and closes a report.
+Each Participant has its own RM state, and only that Participant changes it.
+Anyone familiar with IT service management workflows, such as incident or problem management, will recognize its shape.
+The diagram below shows the seven RM states and the actions that move a report between them.
 
 {% include-markdown "./rm/rm_state_machine_diagram.md" %}
 
-[Read More...](rm/index.md)
+[Read more about Report Management](rm/index.md)
 
 ## [Embargo Management process](em/index.md)
 
-{% include-markdown "./em/index.md" start="<!-- start_excerpt -->" end="<!-- end_excerpt -->" %}
+The EM process covers how the Participants propose, agree to, revise, and end an embargo.
+There is one EM state per case, shared by all its Participants.
+An embargo-eligible case begins with an *Active* embargo when the case is created.
+The diagram below shows the EM states and the actions that move the case between them.
 
 {% include-markdown "./em/em_dfa_diagram.md" %}
 
-[Read More...](em/index.md)
+[Read more about Embargo Management](em/index.md)
 
 ## [Case State process](cs/index.md)
 
-{% include-markdown "./cs/index.md" start="<!-- start_excerpt -->" end="<!-- end_excerpt -->" %}
+The CS model tracks six facts about a vulnerability: whether the Vendor is aware of it, whether a fix is ready, whether the fix is deployed, whether the public is aware, whether an exploit is public, and whether attacks have been observed.
+The first three are tracked per Vendor, while the last three are facts about the case as a whole.
+The diagram below shows the two parts side by side.
 
 {% include-markdown "./model_interactions/_cs_global_local.md" %}
 
-[Read More...](cs/index.md)
+[Read more about the Case State model](cs/index.md)
+
+## How the models fit together
+
+[Model Interactions](model_interactions/index.md) describes the constraints the three models place on each other, such as when an embargo may be negotiated relative to a report's validation.
+The [formal protocol](../../reference/formal_protocol/index.md) builds on all three models and their interactions to define the messages Participants exchange.
+The [Vultron Protocol Specification](../../reference/vultron-spec/index.md) is the normative source for each model's states and transitions.

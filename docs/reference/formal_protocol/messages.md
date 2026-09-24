@@ -16,7 +16,7 @@ MPCVD process:
 - Deployer
 
 This page examines the messages passed between them.
-Revisiting the definitions from the [Formal Protocol Introduction](index.md):
+Revisiting the definitions from the [Protocol Definition](protocol_definition.md):
 
 !!! note "Formalism"
 

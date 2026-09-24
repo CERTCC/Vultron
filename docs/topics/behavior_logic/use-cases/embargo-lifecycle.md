@@ -72,6 +72,27 @@ That is what makes renegotiation safe, and it is why the recommended practice is
 
 ---
 
+## Which messages move consent
+
+Consent has no messages of its own (MSM-07-001).
+Every Participant Embargo Consent transition is a side effect of an EM activity, an internal cascade, or a deadline, and the case manager records it; a Participant never declares its own consent state.
+
+| Activity | Effect on the case's EM state | Effect on consent |
+|---|---|---|
+| Embargo Proposal (EP), `Invite(Event)` on the case | `NONE` to `PROPOSED`; a further proposal leaves it `PROPOSED` | the invited Participant moves from `UNBOUND`, `DECLINED` or `LAPSED` to `INVITED` (MSM-07-002) |
+| Embargo Acceptance (EA) or Embargo Revision Acceptance (EC), `Accept(Invite(Event))` | from the case owner: `PROPOSED` (EA) or `REVISE` (EC) to `ACTIVE` | the accepting Participant moves to `SIGNATORY` (MSM-07-003) |
+| Embargo Rejection (ER), `Reject(Invite(Event))` | from the case owner: `PROPOSED` to `NONE` | the rejecting Participant moves to `DECLINED` (MSM-07-004) |
+| Embargo Revision Rejection (EJ), `Reject(Invite(Event))` | from the case owner: `REVISE` back to `ACTIVE`; the prior terms stand | the rejecting Participant moves to `DECLINED` (MSM-07-004) |
+| Embargo Revision (EV) | `ACTIVE` to `REVISE` | every `SIGNATORY` moves to `LAPSED`, with no further message (MSM-07-005) |
+| Embargo Termination (ET) | to `EXITED` | every Participant returns to `UNBOUND`, with no further message (MSM-07-006) |
+| Invitation deadline passes | none | `INVITED` or `LAPSED` moves to `DECLINED`, recorded in the case ledger (MSM-07-007) |
+
+One activity can therefore move both scopes at once: an Accept from the case owner activates the embargo *and* makes the owner a signatory.
+A `SIGNATORY` that rejects is withdrawing its own consent: its record moves to `DECLINED` and the case's embargo is unchanged ([§9.2](../../../reference/vultron-spec/index.md#92-transitions-and-guards)).
+The full consent transition table is in [§9.2 of the specification](../../../reference/vultron-spec/index.md#92-transitions-and-guards).
+
+---
+
 ## The condition that overrides everything
 
 If the vulnerability is public, an exploit is public, or attacks have been observed, there is nothing left to embargo.
@@ -194,5 +215,5 @@ The embargo is over for everyone at once, which is the one thing about the EM sc
 - [Embargo Management Behaviors](../em_bt.md) — the original design trees for proposal, evaluation, and termination
 - [Propose case](propose-case.md) — where the default embargo comes from
 - [Embargo Management Handlers](../../../reference/behaviors/em_handlers.md) — the trees the reference implementation builds today
-- [EM Process Model](../../process_models/em/index.md) — the state machine in full
+- [EM Process Model](../../process_models/em/index.md) — the case-level embargo model, with its [formal definition](../../process_models/em/formal_model.md)
 - [Glossary](../../../reference/glossary.md) — Participant, call-out point, capability shape, embargo consent

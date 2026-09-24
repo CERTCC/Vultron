@@ -146,5 +146,5 @@ See [Early Termination](../../../topics/process_models/em/early_termination.md).
 
 - [Embargo Management (EM) Messages](../../../reference/messages/em.md) — the wire format and a rendered example for each activity above, and the state-context rule that distinguishes a revision from a proposal
 - [Embargo Management](../../../topics/process_models/em/index.md) — the state machine these activities drive
-- [Participant Embargo Consent](../../../topics/process_models/em/participant-embargo-consent.md) — how each participant's own commitment is tracked alongside the case EM state
+- [Participant Embargo Consent (§9)](../../../reference/vultron-spec/index.md#9-participant-embargo-consent-pec-state-machine-n) — how each participant's own commitment is tracked alongside the case EM state
 - [Trigger API Reference](../../../reference/trigger-api.md#embargo-management) — request schema and endpoint details for `propose-embargo-revision` and `terminate-embargo`

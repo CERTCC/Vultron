@@ -36,21 +36,20 @@ nav:
       - Report Management:
         - 'topics/process_models/rm/index.md'
         - RM Participant Interactions: 'topics/process_models/rm/rm_interactions.md'
+        - RM Formal Model: 'topics/process_models/rm/formal_model.md'
       - Embargo Management:
         - 'topics/process_models/em/index.md'
         - Embargo Principles: 'topics/process_models/em/principles.md'
         - Default Embargoes: 'topics/process_models/em/defaults.md'
         - Negotiating Embargoes: 'topics/process_models/em/negotiating.md'
         - Adding Participants: 'topics/process_models/em/working_with_others.md'
-        - Participant Embargo Consent: 'topics/process_models/em/participant-embargo-consent.md'
         - Early Termination: 'topics/process_models/em/early_termination.md'
         - Case Splits and Merges: 'topics/process_models/em/split_merge.md'
+        - EM Formal Model: 'topics/process_models/em/formal_model.md'
       - Case State:
         - 'topics/process_models/cs/index.md'
-        - Vulnerability Lifecycle Events: 'topics/process_models/cs/events.md'
         - CS States: 'topics/process_models/cs/cs_model.md'
         - CS Transitions: 'topics/process_models/cs/transitions.md'
-        - CS Process Model: 'topics/process_models/cs/model_definition.md'
         - CS Model Limitations: 'topics/process_models/cs/cs_model_limitations.md'
       - Model Interactions:
         - 'topics/process_models/model_interactions/index.md'
@@ -125,6 +124,7 @@ nav:
       - Benchmarking MPCVD: 'topics/measuring_cvd/benchmarking_mpcvd.md'
       - Reward Functions: 'topics/measuring_cvd/reward_functions.md'
       - Modeling and Simulation: 'topics/measuring_cvd/mod_sim.md'
+      - State Space Size: 'topics/measuring_cvd/state_space_size.md'
     - Future Work:
       - 'topics/future_work/index.md'
       - Federation: 'topics/future_work/federation.md'
@@ -165,6 +165,7 @@ nav:
     - Versioning: 'reference/versioning.md'
     - Formal Protocol:
       - 'reference/formal_protocol/index.md'
+      - Protocol Definition: 'reference/formal_protocol/protocol_definition.md'
       - States: 'reference/formal_protocol/states.md'
       - Messages: 'reference/formal_protocol/messages.md'
       - Transitions: 'reference/formal_protocol/transitions.md'
@@ -483,6 +484,9 @@ plugins:
   - redirects:
       redirect_maps:
         howto/em_icalendar.md: howto/process_implementation.md
+        topics/process_models/cs/events.md: topics/process_models/cs/cs_model.md
+        topics/process_models/cs/model_definition.md: topics/process_models/cs/transitions.md
+        topics/process_models/em/participant-embargo-consent.md: topics/behavior_logic/use-cases/embargo-lifecycle.md
   # NOTE print-site MUST be the last plugin in the list (see its docs for why)
   - print-site
 repo_url: 'https://github.com/CERTCC/Vultron'

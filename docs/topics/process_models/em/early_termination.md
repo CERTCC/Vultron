@@ -67,7 +67,9 @@ embargo early. Note that the distinction between the *SHALL* in the
 first item and the *SHOULD* in the second is derived from the reasoning
 given in the [CS model](../cs/cs_model.md)
 , where we describe the CS model's transition function.
-Embargo termination is the set of transitions described in the [EM model](index.md#terminate-embargo).
+Embargo termination is the set of transitions described in the [EM formal model](formal_model.md#terminate-embargo).
+When an embargo terminates, every Participant's embargo consent resets to *Unbound*, because there is no longer an embargo to agree to ([§7.3 of the Vultron Protocol Specification](../../../reference/vultron-spec/index.md#73-relationship-to-embargo-consent)).
+A Participant who wants to be bound by a later embargo must agree to it afresh.
 
 ## Waiting for All Vendors to Reach *Fix Ready* May Be Impractical
 
@@ -98,3 +100,8 @@ those that are not ($q^{cs} \in \cdot f \cdot \cdot \cdot \cdot$)
     Participants SHOULD consider the software supply chain for the
     vulnerability in question when determining an appropriate quorum for
     release.
+
+## Doing It on the Wire
+
+- [How to Revise or Terminate an Embargo](../../../howto/activitypub/activities/manage_embargo.md) — end an active embargo, early or at its agreed time.
+- [How to Establish an Embargo](../../../howto/activitypub/activities/establish_embargo.md) — put a case back under embargo, where the case is still embargo-eligible.
