@@ -395,13 +395,10 @@ class EmitCloseCaseNode(DataLayerActionWithPorts):
         super().__init__(name=name or self.__class__.__name__)
         self.case_id = case_id
 
-    @classmethod
-    def input_ports(cls) -> dict[str, PortInformation]:
-        ports = super().input_ports()
-        ports["case_manager_id"] = PortInformation(
-            data_type=str, required=False
-        )
-        return ports
+    INPUT_PORTS: dict[str, PortInformation] = {
+        **DataLayerActionWithPorts.INPUT_PORTS,
+        "case_manager_id": PortInformation(data_type=str, required=False),
+    }
 
     @classmethod
     def _domain_port_remappings(cls) -> dict[str, str]:

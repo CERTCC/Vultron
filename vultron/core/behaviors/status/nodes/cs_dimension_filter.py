@@ -66,7 +66,7 @@ BB_CASE_STATUS_DIM_FILTER = "append_case_status_dim_filter"
 _BB_CS_FILTER_ACC = "cs_dim_filter_accumulator"
 
 #: Dual-alias write name for the accumulator.  py_trees forbids the same
-#: logical port name from appearing in both input_ports() and output_ports()
+#: logical port name from appearing in both INPUT_PORTS and OUTPUT_PORTS
 #: of the same node, so FilterCsPxaDimensionNode uses this distinct logical
 #: name mapped to the same physical key ``/{_BB_CS_FILTER_ACC}`` for its
 #: output port (#2706).
@@ -130,16 +130,12 @@ class FilterCsEmDimensionNode(_CsStatusGuardBase):
     in the precondition_guards sequence.
     """
 
-    @classmethod
-    def output_ports(cls) -> dict[str, PortInformation]:
-        return {
-            _BB_CS_FILTER_ACC: PortInformation(
-                data_type=object, required=False
-            ),
-            BB_CASE_STATUS_DIM_FILTER: PortInformation(
-                data_type=object, required=False
-            ),
-        }
+    OUTPUT_PORTS: dict[str, PortInformation] = {
+        _BB_CS_FILTER_ACC: PortInformation(data_type=object, required=False),
+        BB_CASE_STATUS_DIM_FILTER: PortInformation(
+            data_type=object, required=False
+        ),
+    }
 
     @classmethod
     def _domain_port_remappings(cls) -> dict[str, str]:
@@ -225,8 +221,8 @@ class FilterCsPxaDimensionNode(DataLayerConditionWithPorts):
     The write-back uses a dual-alias output port (``_BB_CS_FILTER_ACC_WRITE``)
     mapped to the same physical blackboard key as the input port
     (``_BB_CS_FILTER_ACC``).  This satisfies the py_trees constraint that
-    forbids the same logical port name from appearing in both ``input_ports()``
-    and ``output_ports()`` of the same node (#2706).
+    forbids the same logical port name from appearing in both ``INPUT_PORTS``
+    and ``OUTPUT_PORTS`` of the same node (#2706).
 
     Always returns SUCCESS.  Must run after ``FilterCsEmDimensionNode`` and
     before ``FinalizeCsFilterNode`` in the precondition_guards sequence.
@@ -235,22 +231,16 @@ class FilterCsPxaDimensionNode(DataLayerConditionWithPorts):
     def __init__(self, name: str | None = None):
         super().__init__(name=name or self.__class__.__name__)
 
-    @classmethod
-    def input_ports(cls) -> dict[str, PortInformation]:
-        return {
-            **super().input_ports(),
-            _BB_CS_FILTER_ACC: PortInformation(
-                data_type=object, required=False
-            ),
-        }
+    INPUT_PORTS: dict[str, PortInformation] = {
+        **DataLayerConditionWithPorts.INPUT_PORTS,
+        _BB_CS_FILTER_ACC: PortInformation(data_type=object, required=False),
+    }
 
-    @classmethod
-    def output_ports(cls) -> dict[str, PortInformation]:
-        return {
-            _BB_CS_FILTER_ACC_WRITE: PortInformation(
-                data_type=object, required=False
-            ),
-        }
+    OUTPUT_PORTS: dict[str, PortInformation] = {
+        _BB_CS_FILTER_ACC_WRITE: PortInformation(
+            data_type=object, required=False
+        ),
+    }
 
     @classmethod
     def _domain_port_remappings(cls) -> dict[str, str]:
@@ -312,25 +302,19 @@ class FinalizeCsFilterNode(DataLayerConditionWithPorts):
     def __init__(self, name: str | None = None):
         super().__init__(name=name or self.__class__.__name__)
 
-    @classmethod
-    def input_ports(cls) -> dict[str, PortInformation]:
-        return {
-            **super().input_ports(),
-            _BB_CS_FILTER_ACC: PortInformation(
-                data_type=object, required=False
-            ),
-        }
+    INPUT_PORTS: dict[str, PortInformation] = {
+        **DataLayerConditionWithPorts.INPUT_PORTS,
+        _BB_CS_FILTER_ACC: PortInformation(data_type=object, required=False),
+    }
 
-    @classmethod
-    def output_ports(cls) -> dict[str, PortInformation]:
-        return {
-            BB_CASE_STATUS_DIM_FILTER: PortInformation(
-                data_type=object, required=False
-            ),
-            BB_LEDGER_PAYLOAD_OBJECT_OVERRIDE: PortInformation(
-                data_type=object, required=False
-            ),
-        }
+    OUTPUT_PORTS: dict[str, PortInformation] = {
+        BB_CASE_STATUS_DIM_FILTER: PortInformation(
+            data_type=object, required=False
+        ),
+        BB_LEDGER_PAYLOAD_OBJECT_OVERRIDE: PortInformation(
+            data_type=object, required=False
+        ),
+    }
 
     @classmethod
     def _domain_port_remappings(cls) -> dict[str, str]:

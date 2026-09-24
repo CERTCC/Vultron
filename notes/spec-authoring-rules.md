@@ -6,8 +6,9 @@ description: >
   choosing a `kind` and why copying neighbouring entries is the wrong
   heuristic; the exact enum values spec-lint accepts for `kind`, `priority`,
   and `rel_type`; keys that are silently dropped; the protocol-coverage
-  ratchet and its xfail pattern; and the audit passes required when retiring a
-  name or splitting a compound requirement.
+  ratchet and its xfail pattern; the audit passes required when retiring a
+  name or splitting a compound requirement; priority tiers (MS-02-003/004); and
+  the owner-and-terminal-state rules for ceiling ratchets (MS-10-006..008).
 related_specs:
   - specs/meta-specifications.yaml
   - specs/spec-registry.yaml
@@ -244,12 +245,68 @@ indistinguishable from background noise, and a newly-introduced instance is
 invisible.
 
 When you add a per-item advisory, decide up front what happens when it is
-routinely true: collapse it to a count plus an opt-in listing, put a never-raise
-ceiling on the count (the `MAX_UNCOVERED_PROTOCOL_SPECS` pattern in
-`test/architecture/test_spec_coverage_ratchet.py`), or make it a hard error and
+routinely true: collapse it to a count plus an opt-in listing, pin the count to
+a ceiling that equals the live count and has an owner and a terminal state (see
+[A Ratchet Needs an Owner and a Terminal State](#a-ratchet-needs-an-owner-and-a-terminal-state)),
+or make it a hard error and
 dispose of every existing hit. Do not ship a rule at partial adoption: per the
 ISSUE-3480 learning, a requirement half-adopted reads as *no rule here*, which is
 worse than one nobody has started.
+
+### A Priority Gate Names a Tier, Not a Keyword
+
+RFC 2119 gives `MUST NOT` the same absolute strength as `MUST`, and `SHOULD NOT`
+the same strength as `SHOULD`. Every gate that selects requirements by priority
+must therefore select a *tier* (MS-02-003). In the code, that will mean asking a
+shared tier definition on `RFC2119Priority` (MS-02-004, which #3522 adds), never
+`spec.priority == RFC2119Priority.MUST`.
+
+The literal comparison is easy to write and fails silently: nothing errors, and
+the prohibitions simply drop out. That happened more than once before MS-02-003:
+
+- `must_without_verification` was scoped to "MUST requirements" by the wording
+  of the issue that introduced it (#2466), and a unit test then pinned the
+  exclusion (`test_lint_must_not_without_verification_no_warn`). The test reads
+  as a deliberate decision but only preserves the wording of that AC. So the
+  #2467 protocol-tier backfill reported the tier complete while most protocol
+  `MUST_NOT`s had no `verification:` at all (#2535, #3612).
+- SR-11-003's story gate and SR-11-004's advisory have the same shape. The
+  first skips `MUST_NOT`, and the second skips `SHOULD_NOT`; SR-11-004 now names
+  `SHOULD_NOT`, and #3522 makes the lint code match.
+  So the protocol story requirement that #2717 plans against was undercounted.
+  SR-11-003 is the one recorded exception, because extending it needs stories
+  that do not exist yet (see its `note:`).
+- `spec-backstop` got it right (`priority in ("MUST", "MUST_NOT")`), but as a
+  second hand-written copy of the tiering, which is the drift MS-02-004's
+  single shared definition prevents.
+
+When a priority-scoped rule is proposed, read "MUST" in its AC as the tier
+unless the AC explicitly excludes the negative form *and says why*. If you find
+a test that asserts a negative form is excluded, trace it to a decision before
+you trust it.
+
+### A Ratchet Needs an Owner and a Terminal State
+
+The MS-10 verification ratchet (MS-10-006 through MS-10-008) is built so that it can
+only end at zero:
+
+1. **The ceiling equals the live count.** It is not an upper bound with slack,
+   so every backfill has to lower it, and a new unverified MUST fails at once.
+   This is MS-12-007's two-sided assertion. Suppressed items still count, so a
+   kind cannot reach zero by suppression.
+2. **Each non-zero ceiling names its owning issue.** A tier's backlog
+   cannot exist without a tracked path to zero. If you close the owning issue
+   early, the ratchet names a closed issue, which is a visible defect.
+3. **Zero is terminal.** The change that reaches zero turns that kind's check
+   into a hard error that `lint_suppress` cannot silence, and deletes the
+   ceiling entry, so there is nothing left to raise.
+4. **A relabel carries its verification with it.** Moving an unverified spec
+   between kinds (the MS-12 passes in #3600 and #3601) would otherwise force an
+   upward edit to the destination ceiling. Add the `verification:` clause in the
+   same change instead (MS-10-008).
+
+Any new ceiling-style ratchet should follow the same four rules unless it states
+why it cannot.
 
 ---
 

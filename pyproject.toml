@@ -47,7 +47,7 @@ dependencies = [
     "pandas>=3.0.5",
     "pathspec>=0.12.1",
     "pydantic==2.13.5",
-    "py-trees>=2.5.0",
+    "py-trees>=2.6.0",
     "scipy>=1.18.0",
     "uvicorn>=0.52.3",
     "click>=8.4.2",

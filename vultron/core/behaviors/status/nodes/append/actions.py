@@ -56,13 +56,11 @@ class LoadParticipantNode(DataLayerActionWithPorts):
         super().__init__(name=name or self.__class__.__name__)
         self.participant_id = participant_id
 
-    @classmethod
-    def output_ports(cls) -> dict[str, PortInformation]:
-        return {
-            "append_status_participant": PortInformation(
-                data_type=object, required=True
-            )
-        }
+    OUTPUT_PORTS: dict[str, PortInformation] = {
+        "append_status_participant": PortInformation(
+            data_type=object, required=True
+        ),
+    }
 
     @classmethod
     def _domain_port_remappings(cls) -> dict[str, str]:
@@ -123,21 +121,16 @@ class ResolveAndPersistStatusObjectNode(DataLayerActionWithPorts):
         self.status_id = status_id
         self.status_obj_fallback = status_obj_fallback
 
-    @classmethod
-    def input_ports(cls) -> dict[str, PortInformation]:
-        ports = super().input_ports()
-        ports[BB_DIMENSION_FILTER] = PortInformation(
-            data_type=object, required=False
-        )
-        return ports
+    INPUT_PORTS: dict[str, PortInformation] = {
+        **DataLayerActionWithPorts.INPUT_PORTS,
+        BB_DIMENSION_FILTER: PortInformation(data_type=object, required=False),
+    }
 
-    @classmethod
-    def output_ports(cls) -> dict[str, PortInformation]:
-        return {
-            "append_status_status_obj": PortInformation(
-                data_type=object, required=True
-            )
-        }
+    OUTPUT_PORTS: dict[str, PortInformation] = {
+        "append_status_status_obj": PortInformation(
+            data_type=object, required=True
+        ),
+    }
 
     @classmethod
     def _domain_port_remappings(cls) -> dict[str, str]:
@@ -214,16 +207,15 @@ class AppendStatusAndSaveParticipantNode(DataLayerActionWithPorts):
         self.status_id = status_id
         self.participant_id = participant_id
 
-    @classmethod
-    def input_ports(cls) -> dict[str, PortInformation]:
-        ports = super().input_ports()
-        ports["append_status_participant"] = PortInformation(
+    INPUT_PORTS: dict[str, PortInformation] = {
+        **DataLayerActionWithPorts.INPUT_PORTS,
+        "append_status_participant": PortInformation(
             data_type=object, required=True
-        )
-        ports["append_status_status_obj"] = PortInformation(
+        ),
+        "append_status_status_obj": PortInformation(
             data_type=object, required=True
-        )
-        return ports
+        ),
+    }
 
     @classmethod
     def _domain_port_remappings(cls) -> dict[str, str]:

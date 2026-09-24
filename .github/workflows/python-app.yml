@@ -11,6 +11,10 @@ on:
       - vultron/**
       - test/**
       - pyproject.toml
+      # A Dependabot bump inside the existing version range touches only the
+      # lockfile; demo-integration.yml skips Dependabot PRs on the premise that
+      # this workflow still tests them (DEMOCI-02-004, #3610).
+      - uv.lock
       - pyrightconfig.json
       - .github/workflows/python-app.yml
   pull_request:
@@ -19,6 +23,7 @@ on:
       - vultron/**
       - test/**
       - pyproject.toml
+      - uv.lock
       - pyrightconfig.json
       - .github/workflows/python-app.yml
   workflow_dispatch:

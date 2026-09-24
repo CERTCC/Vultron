@@ -53,19 +53,16 @@ class CreateOwnerParticipantNode(DataLayerActionWithPorts):
         _seg = report_id.split("/")[-1] if report_id else "default"
         self._new_case_participant_key = f"new_case_participant_{_seg}"
 
-    @classmethod
-    def input_ports(cls) -> dict[str, PortInformation]:
-        ports = super().input_ports()
-        ports["case_id"] = PortInformation(data_type=str, required=False)
-        return ports
+    INPUT_PORTS: dict[str, PortInformation] = {
+        **DataLayerActionWithPorts.INPUT_PORTS,
+        "case_id": PortInformation(data_type=str, required=False),
+    }
 
-    @classmethod
-    def output_ports(cls) -> dict[str, PortInformation]:
-        return {
-            "new_case_participant": PortInformation(
-                data_type=object, required=True
-            )
-        }
+    OUTPUT_PORTS: dict[str, PortInformation] = {
+        "new_case_participant": PortInformation(
+            data_type=object, required=True
+        ),
+    }
 
     def _instance_port_remappings(self) -> dict[str, str]:
         return {
@@ -126,11 +123,10 @@ class CreateOwnerInitialStatusNode(DataLayerActionWithPorts):
             force_rm_state=(initial_rm_state != RM.RECEIVED),
         )
 
-    @classmethod
-    def input_ports(cls) -> dict[str, PortInformation]:
-        ports = super().input_ports()
-        ports["case_id"] = PortInformation(data_type=str, required=False)
-        return ports
+    INPUT_PORTS: dict[str, PortInformation] = {
+        **DataLayerActionWithPorts.INPUT_PORTS,
+        "case_id": PortInformation(data_type=str, required=False),
+    }
 
     @classmethod
     def _domain_port_remappings(cls) -> dict[str, str]:
@@ -176,22 +172,19 @@ class AttachOwnerParticipantToCaseNode(DataLayerActionWithPorts):
         self._new_case_participant_key = f"new_case_participant_{_seg}"
         self._participant_case_key = f"participant_case_{_seg}"
 
-    @classmethod
-    def input_ports(cls) -> dict[str, PortInformation]:
-        ports = super().input_ports()
-        ports["case_id"] = PortInformation(data_type=str, required=False)
-        ports["new_case_participant"] = PortInformation(
+    INPUT_PORTS: dict[str, PortInformation] = {
+        **DataLayerActionWithPorts.INPUT_PORTS,
+        "case_id": PortInformation(data_type=str, required=False),
+        "new_case_participant": PortInformation(
             data_type=object, required=True
-        )
-        return ports
+        ),
+    }
 
-    @classmethod
-    def output_ports(cls) -> dict[str, PortInformation]:
-        return {
-            "participant_case": PortInformation(
-                data_type=VulnerabilityCase, required=True
-            )
-        }
+    OUTPUT_PORTS: dict[str, PortInformation] = {
+        "participant_case": PortInformation(
+            data_type=VulnerabilityCase, required=True
+        ),
+    }
 
     def _instance_port_remappings(self) -> dict[str, str]:
         return {
@@ -255,13 +248,12 @@ class PersistOwnerCaseNode(DataLayerActionWithPorts):
         _seg = report_id.split("/")[-1] if report_id else "default"
         self._participant_case_key = f"participant_case_{_seg}"
 
-    @classmethod
-    def input_ports(cls) -> dict[str, PortInformation]:
-        ports = super().input_ports()
-        ports["participant_case"] = PortInformation(
+    INPUT_PORTS: dict[str, PortInformation] = {
+        **DataLayerActionWithPorts.INPUT_PORTS,
+        "participant_case": PortInformation(
             data_type=VulnerabilityCase, required=True
-        )
-        return ports
+        ),
+    }
 
     def _instance_port_remappings(self) -> dict[str, str]:
         return {"participant_case": f"/{self._participant_case_key}"}
@@ -297,16 +289,15 @@ class RecordOwnerJoinedEventNode(DataLayerActionWithPorts):
         self._participant_case_key = f"participant_case_{_seg}"
         self._new_case_participant_key = f"new_case_participant_{_seg}"
 
-    @classmethod
-    def input_ports(cls) -> dict[str, PortInformation]:
-        ports = super().input_ports()
-        ports["participant_case"] = PortInformation(
+    INPUT_PORTS: dict[str, PortInformation] = {
+        **DataLayerActionWithPorts.INPUT_PORTS,
+        "participant_case": PortInformation(
             data_type=VulnerabilityCase, required=True
-        )
-        ports["new_case_participant"] = PortInformation(
+        ),
+        "new_case_participant": PortInformation(
             data_type=object, required=True
-        )
-        return ports
+        ),
+    }
 
     def _instance_port_remappings(self) -> dict[str, str]:
         return {

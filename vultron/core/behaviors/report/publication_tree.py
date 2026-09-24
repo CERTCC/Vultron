@@ -143,19 +143,13 @@ class _ShouldPublishArtifactGate(BehaviourWithPorts):
             f"{self.__class__.__module__}.{self.__class__.__name__}"
         )
 
-    @classmethod
-    def input_ports(cls) -> dict[str, PortInformation]:
-        return {
-            # data_type=object: accept any value; isinstance check in update()
-            # handles the type contract (avoid TypeError from get_input).
-            INTENT_DECISION_KEY: PortInformation(
-                data_type=object, required=False
-            ),
-        }
+    # data_type=object: accept any value; isinstance check in update()
+    # handles the type contract (avoid TypeError from get_input).
+    INPUT_PORTS: dict[str, PortInformation] = {
+        INTENT_DECISION_KEY: PortInformation(data_type=object, required=False),
+    }
 
-    @classmethod
-    def output_ports(cls) -> dict[str, PortInformation]:
-        return {}
+    OUTPUT_PORTS: dict[str, PortInformation] = {}
 
     def setup(self, **kwargs: Any) -> None:
         """Wire input port to the shared intent-decision blackboard key."""

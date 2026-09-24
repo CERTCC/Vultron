@@ -104,11 +104,9 @@ class LookupParticipantNode(DataLayerConditionWithPorts):
         super().__init__(name=name or self.__class__.__name__)
         self.case_id = case_id
 
-    @classmethod
-    def output_ports(cls) -> dict[str, PortInformation]:
-        return {
-            "participant": PortInformation(data_type=object, required=True)
-        }
+    OUTPUT_PORTS: dict[str, PortInformation] = {
+        "participant": PortInformation(data_type=object, required=True),
+    }
 
     @classmethod
     def _domain_port_remappings(cls) -> dict[str, str]:
@@ -188,11 +186,9 @@ class OptionalLookupParticipantNode(DataLayerConditionWithPorts):
         self.case_id = case_id
         self.target_actor_id = target_actor_id
 
-    @classmethod
-    def output_ports(cls) -> dict[str, PortInformation]:
-        return {
-            "participant": PortInformation(data_type=object, required=False)
-        }
+    OUTPUT_PORTS: dict[str, PortInformation] = {
+        "participant": PortInformation(data_type=object, required=False),
+    }
 
     @classmethod
     def _domain_port_remappings(cls) -> dict[str, str]:
