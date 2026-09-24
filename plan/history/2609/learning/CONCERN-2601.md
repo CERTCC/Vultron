@@ -32,11 +32,13 @@ work is larger and differently shaped than described.
 **The count is 277, not ~120.** The concern's figure was a snapshot from the
 2026-08-25 pass. The suppression list kept growing afterward. At planning time the
 corpus held 310 `missing_story_reference` suppressions, of which 277 are *live*
-(`kind:protocol` + `priority:MUST` + no `stories:`) and **33 are already dead** — the
-spec is no longer `kind:protocol`, or is not `priority:MUST`, so SR-11-003 cannot fire
-for it at all. Those 33 can be deleted with no judgment whatsoever. Of the 121 IDs the
-concern named, all still exist and 119 are still `kind:protocol`; only `TRIG-09-002`
-had ever been fixed.
+(`kind:protocol` + `priority:MUST` + no `stories:`) and **33 cannot trigger SR-11-003** —
+the spec is no longer `kind:protocol`, or is not `priority:MUST`. Of those 33, 31 are
+inert and can be deleted with no judgment whatsoever; the remaining two
+(`MSM-05-006`, `RSH-07-003`) are `kind:protocol` SHOULD/MAY, where the *same*
+suppression code silences the SR-11-004 advisory, so deleting them is a judgment call
+rather than a cleanup. Of the 121 IDs the concern named, all still exist and 120 are
+still `kind:protocol`; only `TRIG-09-002` had ever been fixed.
 
 **SR-11-003 is green, and that is the problem.** Zero protocol MUSTs fail unsuppressed.
 This was never a broken-CI problem; it is a corpus-integrity problem hiding behind a
@@ -97,24 +99,45 @@ framing — author criteria, relabel ~120 specs — was replaced by enforce-then
 Two new requirements were added rather than an ADR, because ADR-0038 already decided the
 taxonomy and this work only applies it:
 
-- **MS-12-006** — `spec-lint` MUST hard-error on a `kind: protocol` spec whose scanned
-  text names an unambiguous codebase construct, suppressible via
+- **MS-12-006** — `spec-lint` MUST hard-error on a `kind: protocol` spec that carries no
+  `stories:` back-reference and whose `statement` or `verification` text names an
+  unambiguous codebase construct, suppressible via
   `protocol_kind_with_code_reference`. The detector is deliberately narrow (`.py`;
-  `vultron/`, `test/`, `scripts/` paths; `pytest`, `pydantic`, `py_trees`, `module`,
-  `class`, `function`) because genuine protocol specs quote wire field names in
-  backticks (`case_id`, `log_index`) and a greedy matcher flags them.
+  `vultron/`, `test/`, `scripts/` paths; `pytest`, `pydantic`, `py_trees`) because
+  genuine protocol specs quote wire field names in backticks (`case_id`, `log_index`)
+  and a greedy matcher flags them. Bare `module`, `class`, and `function` were
+  considered and dropped for the same reason.
 - **MS-12-007** — a ratchet MUST pin the suppression count to a ceiling that is never
-  raised.
+  raised, and MUST also assert the ceiling is no higher than the live count, so that
+  editing the constant upward fails the test.
 
-Both carry `verification:` clauses, so neither repeats MS-12's own mistake.
+Both carry `verification:` clauses naming the test files that must cover them. That is
+a weaker guarantee than enforcement — MS-12-001 through MS-12-005 were themselves
+declared without one, and a `verification:` clause is a claim, not a check. What keeps
+these two from repeating that mistake is that the work they describe *is* the
+enforcement, and #3600/#3601 own shipping it.
 
-Implementing MS-12-006's detector against the live corpus flags **182** of the 277 and
-stays silent on **95**. The 95 are a genuine mix: some are `project`/`process` the
-narrow detector misses (`BW-02-002`, `CLP-11-003`, `BT-06-005`), and some are genuinely
-`kind:protocol` and were suppressed wrongly, needing stories rather than relabeling
-(`CSB-17-009`, the `DUR-04-*` duration rules, `CLP-14-005`, `ENC-03-002`). Conflating
-those two is the exact error this concern exists to prevent, so they were split apart
-rather than bundled.
+**The original MS-12-006 wording would have re-created the problem it was written to
+solve.** "Scanned text" in `spec-lint` already means `statement` *plus* `verification`,
+and because MS-10-003 obliges every MUST to carry a `verification:` clause whose path
+MS-15-001 obliges to resolve, nearly every protocol MUST names a `test/**.py` path.
+Measured: the first wording flagged 666 of 1320 protocol specs, 455 of which already
+carry `stories:` and are fully SR-11-compliant — forcing either the relabeling of
+genuine protocol specs or ~455 new suppressions. Gating the check on the spec having
+*no* `stories:` fixes this by construction: a protocol spec that traces to a story has
+already demonstrated it is protocol.
+
+As rescoped, the detector flags **174** of the 277 and stays silent on **103**. The 103
+are a genuine mix: some are `project`/`process` the narrow detector misses (`BW-02-002`,
+`CLP-11-003`, `BT-06-005`), and some are genuinely `kind:protocol` and were suppressed
+wrongly, needing stories rather than relabeling (`CSB-17-009`, the `DUR-04-*` duration
+rules, `CLP-14-005`, `ENC-03-002`). Conflating those two is the exact error this concern
+exists to prevent, so they were split apart rather than bundled.
+
+It also fires on **25** specs that carry no suppression at all — none of them `MUST`, so
+SR-11-003 never reached them (12 `MUST_NOT`, 11 `SHOULD`, 1 `MAY`, 1 `SHOULD_NOT`;
+mostly `CSB-*`, `SYNC-*`, and `PRM-*`). These are day-one hard errors the moment
+MS-12-006 lands, which makes #3600's real population ~302 rather than 277.
 
 `notes/spec-authoring-rules.md` previously advised "check existing entries in the same
 spec file for context before writing a new entry." That advice was replaced with the

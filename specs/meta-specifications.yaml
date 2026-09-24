@@ -359,6 +359,15 @@ groups:
     statement: When a spec references a language construct, library, file path, class, function, module, or codebase-specific
       mechanism (py_trees, pydantic, `vultron/`, `.py`, pytest, Behavior Tree nodes, etc.), the spec MUST be classified
       as `project`.
+    verification: >-
+      MS-12-006's spec-lint check enforces the unambiguous half of this rule — a spec of kind protocol
+      carrying no story back-reference, whose text names a `.py` suffix, a `vultron/`, `test/`, or
+      `scripts/` path, or `pytest`, `pydantic`, or `py_trees`, is a hard error. Covered by
+      `test/metadata/specs/test_lint.py`.
+    relationships:
+    - rel_type: depends_on
+      spec_id: MS-12-005
+      note: applies only when MS-12-001 did not already match
     tags:
     - documentation
   - id: MS-12-003
@@ -383,27 +392,43 @@ groups:
       be assigned the kind corresponding to the first matching question.
     rationale: The ordering ensures that process and project concerns (which immediately disqualify protocol or architecture)
       are checked before the compliance test, preventing misclassification.
+    verification: MS-12-006's check defers to this ordering rather than naming a replacement kind, so its
+      error message cannot prescribe `project` for a spec MS-12-001 claims for `process`. Covered by
+      `test/metadata/specs/test_lint.py`.
     tags:
     - documentation
   - id: MS-12-006
     priority: MUST
     kind: process
     statement: >-
-      spec-lint MUST emit a hard error for any spec with kind protocol whose scanned
-      text references an unambiguous codebase construct (a `.py` suffix; a `vultron/`,
-      `test/`, or `scripts/` path; or the tokens `pytest`, `pydantic`, `py_trees`,
-      `module`, `class`, or `function`), because MS-12-002 assigns such a spec the
-      kind project. This check MUST be suppressible per-spec via the
-      `protocol_kind_with_code_reference` lint_suppress code.
+      spec-lint MUST emit a hard error for any spec with kind protocol that carries no
+      `stories:` back-reference and whose `statement` or `verification` text references
+      an unambiguous codebase construct — a `.py` suffix, a `vultron/`, `test/`, or
+      `scripts/` path, or the tokens `pytest`, `pydantic`, or `py_trees`. The check MUST
+      be suppressible per-spec via the `protocol_kind_with_code_reference` lint_suppress
+      code, and its message MUST direct the author to the MS-12-001 → MS-12-005 tree
+      rather than naming a single replacement kind.
     rationale: >-
-      MS-12-001 through MS-12-005 went unenforced from adoption until issue #2601, and
-      the corpus accumulated 277 protocol-kind MUST specs suppressing the
-      missing-story-reference check instead of carrying a corrected kind. An unenforced
-      MUST anti-advertises: partial adoption reads as "no rule here", so the rule
-      decays faster than it is applied. The detector stays narrow because genuine
-      protocol specs legitimately quote wire field names in backticks.
-    verification: Unit tests in `test/metadata/specs/test_lint.py` cover both the hard error and the suppression path, and
-      `test/architecture/` holds a ratchet asserting the live corpus has no unsuppressed violation.
+      MS-12-001 through MS-12-005 went unenforced until issue #2601, and the corpus accreted
+      protocol-kind specs suppressing the missing-story-reference check instead of carrying a
+      corrected kind. An unenforced MUST anti-advertises: partial adoption reads as "no rule
+      here". Three choices keep it off already-compliant specs: story-less specs only, a token
+      list narrow enough to exclude domain English, and the whole tree — not one branch — as
+      the remedy. Derived in `notes/spec-authoring-rules.md`.
+    verification: Unit tests in `test/metadata/specs/test_lint.py` cover the hard error, the
+      story-bearing exemption, and the suppression path, and `test/architecture/` holds a ratchet
+      asserting the live corpus has no unsuppressed violation.
+    relationships:
+    - rel_type: verifies
+      spec_id: MS-12-002
+    - rel_type: verifies
+      spec_id: MS-12-005
+      note: the error message defers to the ordering rule rather than to a single branch
+    - rel_type: depends_on
+      spec_id: SR-11-003
+      note: shares the story-traceability population; the absence of stories gates both
+    adr:
+    - ADR-0038
     tags:
     - documentation
     - tooling
@@ -411,16 +436,29 @@ groups:
     priority: MUST
     kind: process
     statement: >-
-      A ratchet test MUST assert that the count of specs suppressing the
-      missing-story-reference check stays at or below a pinned ceiling, and that
-      ceiling MUST NOT be raised to accommodate new suppressions.
+      A ratchet test MUST assert that the number of specs carrying
+      `lint_suppress: [missing_story_reference]` — whether or not SR-11-003 would fire on
+      them — stays at or below a pinned ceiling, and that the ceiling is no higher than
+      the live count, so that raising it to accommodate new suppressions fails the test.
     rationale: >-
       Suppression is the escape hatch SR-11-003 deliberately provides, so it cannot be
-      forbidden outright — but an un-ratcheted escape hatch is how the count reached
-      277. A monotonically decreasing ceiling keeps the remaining suppressions visible
-      as debt and makes story work the only way to lower it. Mirrors the uncovered-spec
-      ceiling already used for protocol marker coverage.
-    verification: A ratchet test under `test/architecture/` fails when the suppression count exceeds its pinned constant.
+      forbidden outright — but an un-ratcheted escape hatch is how the corpus accumulated its
+      backlog. A decreasing ceiling keeps the remaining suppressions visible as debt. It is
+      asserted tight rather than merely sufficient because a test cannot otherwise notice its
+      own constant being edited upward; slack is headroom the corpus regrows into. Counting
+      every spec carrying the code surfaces dead suppressions too.
+    verification: A ratchet test under `test/architecture/` fails both when the suppression count
+      exceeds its pinned constant and when the constant exceeds the live count, mirroring
+      `test/metadata/test_agents_md_size_ratchet.py::test_known_overage_ceilings_are_tight`.
+    relationships:
+    - rel_type: constrains
+      spec_id: SR-11-003
+      note: ratchets the suppression escape hatch SR-11-003 provides
+    - rel_type: depends_on
+      spec_id: SR-11-004
+      note: the same suppression code silences this advisory, so dead suppressions are in scope
+    adr:
+    - ADR-0038
     tags:
     - documentation
     - tooling
