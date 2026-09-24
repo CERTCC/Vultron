@@ -49,6 +49,7 @@ from pathlib import Path
 
 from vultron.metadata.base import mkdocs_config, nav_paths
 from vultron.metadata.base import repo_root as _find_repo_root
+from vultron.metadata.docs.baseline_file import entry_lines, write_entries
 from vultron.metadata.docs.page_schema import (
     PageFrontmatter,
     WorkingRecordFrontmatter,
@@ -205,7 +206,7 @@ def classify_docs_tree(root: Path) -> DocsTree:
     )
 
 
-def _key_lines(path: Path) -> dict[str, int]:
+def frontmatter_key_lines(path: Path) -> dict[str, int]:
     """1-based line of each top-level key in *path*'s frontmatter block."""
     lines = path.read_text(encoding="utf-8", errors="replace").splitlines()
     found: dict[str, int] = {}
@@ -222,22 +223,16 @@ def _key_lines(path: Path) -> dict[str, int]:
 
 def read_baseline(path: Path | None = None) -> set[str]:
     """Return the baselined page paths, ignoring comments and blank lines."""
-    path = path or BASELINE_PATH
-    if not path.exists():
-        return set()
-    entries = set()
-    for line in path.read_text(encoding="utf-8").splitlines():
-        entry = line.split("#", 1)[0].strip()
-        if entry:
-            entries.add(entry)
-    return entries
+    return {
+        entry
+        for _, line in entry_lines(path or BASELINE_PATH)
+        if (entry := line.split("#", 1)[0].strip())
+    }
 
 
 def write_baseline(entries: set[str], path: Path | None = None) -> None:
     """Write *entries* sorted, under the explanatory header."""
-    path = path or BASELINE_PATH
-    body = "".join(f"{entry}\n" for entry in sorted(entries))
-    path.write_text(_BASELINE_HEADER + "\n" + body, encoding="utf-8")
+    write_entries(path or BASELINE_PATH, _BASELINE_HEADER, entries)
 
 
 def _declarations(metadata: Mapping[str, object]) -> dict[str, object]:
@@ -294,7 +289,7 @@ def check_docs_frontmatter(
                     f"both keys from the pages hosting it ({', '.join(hosts)})"
                     f" (DF-11-010)",
                     path=shown(rel),
-                    line=_key_lines(path).get(key),
+                    line=frontmatter_key_lines(path).get(key),
                 )
 
     for rel in tree.pages:
@@ -323,7 +318,7 @@ def check_docs_frontmatter(
                     f"declares neither key; add {wanted}", path=shown(rel)
                 )
 
-            key_lines = _key_lines(path)
+            key_lines = frontmatter_key_lines(path)
             if rel in allowed:
                 raise MetadataLoadError(
                     f"now declares its keys but is still listed in "

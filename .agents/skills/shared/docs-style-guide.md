@@ -98,7 +98,10 @@ obligation.
 taxonomy term on a page links to its canonical introduction — the glossary
 entry, the taxonomy section, or the explanation page that develops it. The
 glossary and the taxonomy are the concept registry; there is no separate
-dependency file to maintain.
+dependency file to maintain. The page that is a glossary term's canonical
+introduction names the term in its `introduces:` frontmatter, and
+`docs-level-order` fails an unlinked first use of it on a lower-level page
+(DF-11-002).
 
 **SG-12 — Prerequisites are stated, not assumed.** A page that requires prior
 reading says so in its opening paragraph and links to it. Tutorials and how-to

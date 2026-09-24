@@ -1,0 +1,35 @@
+# Upward level dependencies in docs/ that predate the DF-11-002 check.
+#
+# Maintained by vultron.metadata.docs.level_order. One entry per line:
+#   <docs/-relative page> | <glossary term> | <reason it is still unfixed>
+# This list may only shrink. Fix an entry by linking the term's first use to
+# the page that introduces it (SG-11) or by moving the page, then run
+# `uv run docs-level-order --prune-baseline`. Do not add entries by hand;
+# test_level_order.py pins a ceiling on the entry count.
+
+howto/activitypub/activities/error.md | CASE_MANAGER | #3623: the CASE_MANAGER has no 300-level introduction yet (audit missing page 3, owned by #3621); link or re-level here
+howto/activitypub/activities/initialize_case.md | CASE_MANAGER | #3623: the CASE_MANAGER has no 300-level introduction yet (audit missing page 3, owned by #3621); link or re-level here
+howto/activitypub/activities/invite_actor.md | CASE_MANAGER | #3623: the CASE_MANAGER has no 300-level introduction yet (audit missing page 3, owned by #3621); link or re-level here
+howto/activitypub/activities/invite_actor.md | Embargo Consent | #3623: first use predates DF-11-002; link it to docs/topics/process_models/em/participant-embargo-consent.md
+howto/activitypub/activities/manage_case.md | CASE_MANAGER | #3623: the CASE_MANAGER has no 300-level introduction yet (audit missing page 3, owned by #3621); link or re-level here
+howto/activitypub/activities/manage_participants.md | CASE_MANAGER | #3623: the CASE_MANAGER has no 300-level introduction yet (audit missing page 3, owned by #3621); link or re-level here
+howto/activitypub/activities/role_delegation.md | Case Ownership Transfer | #3623: first use predates DF-11-002; link it to docs/topics/case_lifecycle/ownership_transfer.md
+howto/activitypub/activities/status_updates.md | CASE_MANAGER | #3623: the CASE_MANAGER has no 300-level introduction yet (audit missing page 3, owned by #3621); link or re-level here
+howto/activitypub/activities/suggest_actor.md | CASE_MANAGER | #3623: the CASE_MANAGER has no 300-level introduction yet (audit missing page 3, owned by #3621); link or re-level here
+ns/index.md | Embargo Consent | #3623: first use predates DF-11-002; link it to docs/topics/process_models/em/participant-embargo-consent.md
+reference/activitypub/objects.md | CaseParticipant | #3625: the case model has no 300-level introduction yet (audit missing page 3, owned by #3621); link or re-level here
+reference/fv-demo-protocol.md | CASE_MANAGER | #3622: the CASE_MANAGER has no 300-level introduction yet (audit missing page 3, owned by #3621); link or re-level here
+reference/fv-demo-protocol.md | Case Ledger Entry | #3622: the case ledger has no 300-level introduction yet (audit missing page 3, owned by #3621); link or re-level here
+reference/fv-demo-protocol.md | VulnerabilityCase | #3622: the case model has no 300-level introduction yet (audit missing page 3, owned by #3621); link or re-level here
+reference/vultron-taxonomy.md | CASE_MANAGER | #3624: the CASE_MANAGER has no 300-level introduction yet (audit missing page 3, owned by #3621); link or re-level here
+topics/case_lifecycle/index.md | CASE_MANAGER | #3621: the CASE_MANAGER has no 300-level introduction yet (audit missing page 3, owned by #3621); link or re-level here
+topics/process_models/index.md | Deterministic Finite Automaton (DFA) | #3620: first use predates DF-11-002; link it to docs/reference/formal_protocol/index.md
+topics/process_models/model_interactions/index.md | CASE_MANAGER | #3620: the CASE_MANAGER has no 300-level introduction yet (audit missing page 3, owned by #3621); link or re-level here
+topics/process_models/model_interactions/index.md | Global State | #3620: first use predates DF-11-002; link it to docs/reference/formal_protocol/index.md
+topics/scenarios/fccv-handoff.md | Case Ownership Transfer | #3622: first use predates DF-11-002; link it to docs/topics/case_lifecycle/ownership_transfer.md
+topics/scenarios/fcv.md | Case Ledger Entry | #3622: first use predates DF-11-002; link it to docs/topics/case_lifecycle/case_ledger_sync.md
+topics/scenarios/fvcv-handoff.md | Case Ledger Entry | #3622: first use predates DF-11-002; link it to docs/topics/case_lifecycle/case_ledger_sync.md
+topics/scenarios/fvcv-handoff.md | Case Ownership Transfer | #3622: first use predates DF-11-002; link it to docs/topics/case_lifecycle/ownership_transfer.md
+topics/scenarios/index.md | Case Ledger Entry | #3622: first use predates DF-11-002; link it to docs/topics/case_lifecycle/case_ledger_sync.md
+tutorials/container_demos.md | Case Ownership Transfer | #3622: first use predates DF-11-002; link it to docs/topics/case_lifecycle/ownership_transfer.md
+tutorials/other_demos.md | Case Ownership Transfer | #3622: first use predates DF-11-002; link it to docs/topics/case_lifecycle/ownership_transfer.md

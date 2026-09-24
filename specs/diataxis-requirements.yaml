@@ -538,7 +538,11 @@ groups:
       concept edge is a hyperlink supplies the escape: linking out satisfies the rule.
     verification: >-
       A check compares each page's declared `level` against the levels of the pages it
-      depends on and fails on any dependency whose level is higher.
+      depends on and fails on any dependency whose level is higher. `docs-level-order`
+      implements it: a page that is a glossary term's canonical introduction declares
+      the term in `introduces:`, and the first unlinked prose use of the term on a
+      lower-level page is a finding at `path:line:col`, with pre-existing violations in
+      a shrink-only baseline that names a reason for each.
   - id: DF-11-003
     priority: MUST
     kind: process

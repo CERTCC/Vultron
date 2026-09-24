@@ -1,6 +1,7 @@
 ---
 stakeholder_type: [cvd-practitioner, platform-developer, process-researcher]
 level: 400
+introduces: [Embargo Grammar]
 ---
 
 # Embargo Management Process Model
