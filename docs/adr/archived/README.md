@@ -2,8 +2,8 @@
 
 Retired decision records live here — those whose status is `deprecated` or
 `superseded` (+ `superseded_by:` field). They are moved out of the parent `docs/adr/` directory
-so that agents loading context (`orient-agent` reads `docs/adr/index.md`;
-`deepen-context` reads the live `docs/adr/` set) do **not** encounter outdated
+so that agents loading context (`deepen-context` reads `docs/adr/index.md`
+and the live `docs/adr/` set) do **not** encounter outdated
 decisions in the default sweep. Finding an archived decision requires
 deliberately looking here.
 

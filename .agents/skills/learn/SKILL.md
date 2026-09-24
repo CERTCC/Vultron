@@ -39,8 +39,9 @@ entries that should be promoted into durable docs.
    in `docs/reference/codebase/`.
 3. Read all files in `plan/incoming/learnings/` and query GitHub for open
    `type:Concern` issues (both are input queues).
-4. Invoke `orient-agent` then `deepen-context` for full context (specs,
-   notes, code) — it now reads the freshly updated codebase docs.
+4. Invoke `orient-agent` then `deepen-context` for full context (spec map and
+   governing specs, notes, code) — it now reads the freshly updated codebase
+   docs.
 5. Analyze what the build process has learned vs. what specs and notes capture.
 6. Invoke `grill-me` to align on scope and decisions — before writing anything.
    Include GitHub Concern issue triage in this phase (no separate triage step
@@ -108,8 +109,8 @@ that the cost of a full scan is justified on every invocation.
    `reflect-cycle` gates this same queue on the type, so a label query here
    makes the two skills disagree about whether `learn` has input.
 
-3. Invoke `orient-agent` then `deepen-context` for full context: specs JSON,
-   plan files, docs/adr/, notes/, AGENTS.md, and a code scan. Because
+3. Invoke `orient-agent` then `deepen-context` for full context: the spec map
+   plus the specs governing the learnings and Concerns in scope, plan files, docs/adr/, notes/, AGENTS.md, and a code scan. Because
    Phase 0 has already refreshed the codebase docs, `orient-agent`/`deepen-context`
    will read up-to-date architecture and structure information.
 

@@ -92,11 +92,19 @@ For `implementation`:
 
 - **`path/to/file.py`**: <what changed and why>
 
+## Specs
+
+<Spec manifest from deepen-context, verbatim>
+
 ## Verification
 
 - All N unit tests pass (M new)
 - Black, flake8, mypy, pyright clean
 ```
+
+If the caller supplied no Spec manifest, write `Spec manifest: not provided —
+deepen-context was not run` under `## Specs` rather than omitting the section;
+reviewers flag a missing manifest.
 
 For `docs`:
 

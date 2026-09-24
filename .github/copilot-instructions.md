@@ -61,8 +61,11 @@ Both `mypy` and `pyright` must pass before committing.
 ### Spec File Format & References
 
 All Vultron specifications are **YAML files** (`.yaml`, not `.md`). When you
-need to reference a spec, use `uv run spec-dump` or invoke the `load-specs`
-skill to get the authoritative, inheritance-resolved JSON view. **Never
+need to reference a spec, start from the map (`PYTHONPATH= uv run spec-dump
+--index`), then load only what you need with `--topic`, `--group`, or `--ids`
+(add `--slim` for statements only), or invoke the `load-specs` skill, to get
+the authoritative, inheritance-resolved JSON view. Do not print the unfiltered
+dump; it is far too large to read. **Never
 construct spec file paths manually** — the load-specs output is the source of
 truth.
 

@@ -95,16 +95,27 @@ grows the PR is simply `fix-now-file` (see the doctrine § "Clarity Over Size").
 Check against `.claude/skills/shared/pr-body-guide.md`:
 
 - Closing references at the **top**, one per bullet
-- Required sections present (Summary, Changes, Verification for impl PRs)
+- Required sections present (Summary, Changes, Specs, Verification for impl PRs)
 - Test counts in Verification are real numbers, not placeholders
 
 ### Phase 4 — Domain Context
 
 1. Identify domains from changed file paths (e.g., `wire/as2/`, `core/behaviors/`,
    `adapters/`, `demo/`).
-2. Invoke `deepen-context` with hints matching those domains.
-3. Load specs relevant to the changed domains via `load-specs` or
-   `PYTHONPATH= uv run spec-dump`.
+2. Invoke `deepen-context` with hints matching those domains. Pass as the
+   **spec floor** the IDs on the PR's Spec manifest `Loaded` lines (in its
+   `## Specs` section) plus the closed issues' `Governing specs:` lines;
+   `deepen-context` adds targeted `--topic`/`--group` loads for the changed
+   domains. Do not run `spec-dump` with no filters.
+3. **Flag a missing or placeholder Spec manifest** (IMPROVE). Then, on the PR
+   branch, save the manifest to a file and run
+   `PYTHONPATH= uv run spec-backstop --base origin/<base> --manifest <file>`.
+   Each unresolved **MUST** group is a selection gap (IMPROVE): load it with
+   `spec-dump --group <G> --text` and check the diff against it in Phase 5.
+   With no manifest, run it without `--manifest` and treat every MUST group
+   as unresolved. Exit 0 does not discharge this check: the tool only sees
+   what the diff already names, so a requirement the change should have
+   honored but never references stays invisible to it.
 4. Record the domain list in `pr_metadata.domains` — execute re-uses these hints.
 
 ### Phase 5 — Spec and Notes Conformance

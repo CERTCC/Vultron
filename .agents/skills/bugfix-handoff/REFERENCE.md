@@ -91,6 +91,18 @@ Components / layers involved:
 
 ---
 
+### Spec manifest
+
+<!-- Paste the Spec manifest deepen-context emitted for this session, so the
+     next agent reuses the same spec floor. Add any spec IDs you found to be
+     governing during investigation. -->
+
+```text
+<Spec manifest, or "deepen-context not yet run">
+```
+
+---
+
 ### Test status at interrupt
 
 <!-- What tests were passing / failing at the time of interruption.

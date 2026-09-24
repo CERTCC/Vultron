@@ -128,7 +128,7 @@ class TestCoreVocabularyHierarchy:
             f"  newly violating: {sorted(has_to_camel - _TO_CAMEL_BACKLOG_1991)}\n"
             f"  fixed but still listed: {sorted(_TO_CAMEL_BACKLOG_1991 - has_to_camel)}\n"
             "to_camel is an AS2 serialization concern and belongs only in the"
-            " wire layer (ARCH-12-004, #2288 / #2289)."
+            " wire layer (ARCH-12-004, #3578)."
         )
 
     @pytest.mark.xfail(

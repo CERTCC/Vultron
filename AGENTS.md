@@ -15,10 +15,10 @@ documentation structure guidance.
 
 ## Agent Quickstart
 
-- **Load specs first**: `PYTHONPATH= uv run spec-dump` — never read raw
-  `specs/*.yaml`. The `PYTHONPATH=` prefix is required; see pitfall below.
+- **Load specs first**: `PYTHONPATH= uv run spec-dump --index` (map), then
+  `--topic`/`--group`/`--ids`; never raw `specs/*.yaml`. `PYTHONPATH=` required.
 - Pipeline: FastAPI inbox → AS2 parser → semantic extraction
-  (`vultron/wire/as2/extractor.py`) → dispatcher → use-case callable
+  (`vultron/wire/as2/extractor/`) → dispatcher → use-case callable
   (`vultron/core/use_cases/`).
 - Use-Case Protocol: `__init__(dl, request)` + `execute() -> None` (received) or
   `-> dict` (trigger); routing via `use_case_map()` key lookup. Both are slated
@@ -170,7 +170,7 @@ See `notes/parallel-development.md`.
 
 ## Change Protocol
 
-For non-trivial changes: state assumptions → load specs (`PYTHONPATH= uv run spec-dump`) →
+For non-trivial changes: state assumptions → load governing specs (`deepen-context`) →
 review `notes/` → describe intent → apply minimal diff → update/add tests →
 call out risks.
 
@@ -367,8 +367,8 @@ SHOULD be discussed via Issue or PR. Include rationale in the commit message.
   [`vultron/adapters/AGENTS.md`](vultron/adapters/AGENTS.md) for `demo_step` /
   `demo_check` pattern.
 - **Project history entries**: use `uv run append-history` — never write directly
-  to `plan/history/`. See HM-01–HM-05 and `notes/history-management.md`. During
-  `orient-agent`, read only `plan/*.md`.
+  to `plan/history/`. See HM-01–HM-05 and `notes/history-management.md`.
+  `orient-agent` reads `plan/*.md` and `learnings-index`, never `plan/history/`.
 
 ---
 
