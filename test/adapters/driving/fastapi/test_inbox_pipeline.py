@@ -126,7 +126,7 @@ def test_routing_safety_net_embargo_domain(test_pipeline, monkeypatch):
     case = _base_case()
     embargo = as_EmbargoEvent(
         id_="https://example.org/embargoes/e-ibp-1",
-        context=case,
+        context=case.id_,
     )
     activity = em_propose_embargo_activity(
         embargo, context=case.id_, actor=SENDER_ID, to=[RECEIVER_ID]
@@ -354,6 +354,62 @@ def test_process_requeues_activity_on_validation_error(
     assert (
         activity.id_ in queue_dl.inbox_list()
     ), "A transient validation failure MUST re-queue the activity for retry (#2766)"
+
+
+# ---------------------------------------------------------------------------
+# Regression: rehydrate() outside try (#3044 / #2905)
+# ---------------------------------------------------------------------------
+
+
+def test_rehydrate_protocol_violation_returns_none_not_raises(
+    test_pipeline, monkeypatch
+):
+    """AC-2 (#3044): VultronProtocolViolationError from rehydrate() must not
+    propagate — it is a permanent failure, return None, do not re-queue.
+
+    Before the fix rehydrate() was called outside the try/except block in
+    InboxPipeline.process(), so this exception escaped the pipeline entirely.
+    """
+    import vultron.adapters.driving.fastapi.inbox_pipeline as ip_module
+
+    def _raise_protocol(*args, **kwargs):
+        raise VultronProtocolViolationError("rehydrate protocol violation")
+
+    monkeypatch.setattr(ip_module, "rehydrate", _raise_protocol)
+
+    pipeline, dl = test_pipeline
+    result = pipeline.process("https://example.org/activities/bad-rehydrate")
+
+    assert result is None, (
+        "VultronProtocolViolationError from rehydrate() must be caught and"
+        " return None rather than propagating (#3044)"
+    )
+
+
+def test_rehydrate_generic_exception_returns_none_not_raises(
+    test_pipeline, monkeypatch
+):
+    """AC-2 (#3044): Any exception from rehydrate() must not propagate out of
+    the pipeline — return None and re-queue for transient failures.
+
+    Before the fix an unhandled exception from rehydrate() escaped
+    InboxPipeline.process() entirely.
+    """
+    import vultron.adapters.driving.fastapi.inbox_pipeline as ip_module
+
+    def _raise_generic(*args, **kwargs):
+        raise RuntimeError("simulated rehydration failure")
+
+    monkeypatch.setattr(ip_module, "rehydrate", _raise_generic)
+
+    pipeline, dl = test_pipeline
+    activity_id = "https://example.org/activities/transient-rehydrate"
+    result = pipeline.process(activity_id)
+
+    assert result is None, (
+        "A generic exception from rehydrate() must be caught and return None"
+        " (#3044)"
+    )
 
 
 def test_protocol_violation_error_does_not_requeue(test_pipeline, monkeypatch):

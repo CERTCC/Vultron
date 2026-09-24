@@ -1,3 +1,10 @@
+---
+description: >
+  Notation conventions used throughout the documentation.
+stakeholder_type: ALL
+level: 300
+---
+
 # Notation
 
 {% include-markdown "../includes/not_normative.md" %}
@@ -7,9 +14,8 @@ This page provides a reference for the conventions and notation used throughout 
 
 ## Documentation Conventions
 
-We are using the [*Admonitions*](https://squidfunk.github.io/mkdocs-material/reference/admonitions/){:target="_blank"} (call-outs) provided by
-[Material for MkDocs](https://squidfunk.github.io/mkdocs-material/){:target="_blank"} to highlight specific types of information in this
-documentation.
+This documentation uses the [*Admonitions*](https://squidfunk.github.io/mkdocs-material/reference/admonitions/){:target="_blank"} (call-outs) provided by
+[Material for MkDocs](https://squidfunk.github.io/mkdocs-material/){:target="_blank"} to highlight specific types of information.
 
 !!! note ""
 
@@ -51,24 +57,23 @@ documentation.
 
 !!! success
 
-    We use this (as you'll see below) as an indicator that a page contains
-    normative content.
+    This admonition indicates that a page contains
+    normative content (as shown below).
 
 !!! warning
 
     This is a warning.
 
 Material for MkDocs supports a number of other [admonitions](https://squidfunk.github.io/mkdocs-material/reference/admonitions/){:target="_blank"}.
-We're generally trying to keep our usage consistent with the admonition names used in the Material for MkDocs
-[documentation](https://squidfunk.github.io/mkdocs-material/reference/admonitions/){:target="_blank"}, but we'd also like to list the
-ones we use here for completeness and clarity.
-If you spot us using one that is not listed here, or being inconsistent with the above in our usage, please let us
-know by [opening an issue](https://github.com/CERTCC/Vultron/issues){:target="_blank"}.
+This documentation generally keeps its usage consistent with the admonition names used in the Material for MkDocs
+[documentation](https://squidfunk.github.io/mkdocs-material/reference/admonitions/){:target="_blank"}; the
+ones used here are listed for completeness and clarity.
+Any admonition used here but not listed, or any inconsistency with the above, can be reported by [opening an issue](https://github.com/CERTCC/Vultron/issues){:target="_blank"}.
 
 ### Normative and Non-Normative Pages
 
-Not everything we say about the Vultron Protocol is a normative requirement.
-We use the following conventions to indicate whether a page contains normative requirements or not.
+Not everything in this documentation about the Vultron Protocol is a normative requirement.
+The following conventions indicate whether a page contains normative requirements or not.
 
 !!! info "Recognizing Normative Pages"
 
@@ -82,13 +87,14 @@ We use the following conventions to indicate whether a page contains normative r
 
     Pages that do not contain normative requirements are marked with a banner at or near the top of the page (Like this one).
     This banner may be omitted if the page is clearly non-normative.
-    We include it on pages where that may not be clear, for example on pages where we are describing a specific implementation
-    in terms of SHOULD, MUST, MAY, etc. statements, but those statements are not intended to be normative requirements.
+    This banner appears on pages where that may not be clear, for example on pages describing a specific implementation
+    in terms of SHOULD, MUST, MAY, etc. statements that are not intended to be normative requirements.
 
+<!-- notation-math-start -->
 ## Mathematical Notation
 
-In all of these definitions, we take the standard [Zermelo-Fraenkel set theory](https://en.wikipedia.org/wiki/Zermelo%E2%80%93Fraenkel_set_theory){:target="_blank"}.
-We adopt the following notation:
+All of these definitions assume the standard [Zermelo-Fraenkel set theory](https://en.wikipedia.org/wiki/Zermelo%E2%80%93Fraenkel_set_theory){:target="_blank"}.
+The following notation is used:
 
 !!! info "Set Theory Symbols"
 
@@ -128,11 +134,11 @@ We adopt the following notation:
 
 ## Diagram Notation
 
-We use a variety of diagramming techniques throughout the documentation.
+A variety of diagramming techniques are used throughout the documentation.
 
 ### State Diagrams
 
-Our depictions of DFA as figures use common state diagram symbols as shown in the example below.
+Depictions of DFA as figures use common state diagram symbols, as shown in the example below.
 
 ```mermaid
 stateDiagram-v2
@@ -149,7 +155,7 @@ stateDiagram-v2
 
 ### Sequence and Class Diagrams
 
-We follow UML conventions for sequence and class diagrams
+Sequence and class diagrams follow UML conventions
 
 ```mermaid
 ---
@@ -175,4 +181,6 @@ classDiagram
 
 ### Behavior Tree Diagrams
 
-We introduce a few additional notation details specific to [Behavior Trees](../topics/behavior_logic/index.md) when needed.
+A few additional notation details specific to [Behavior Trees](../topics/behavior_logic/index.md) are introduced when needed.
+
+<!-- notation-math-end -->

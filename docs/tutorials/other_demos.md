@@ -1,3 +1,12 @@
+---
+description: >
+  Explore case initialization, actor management, embargo negotiation,
+  acknowledgement, status updates, and the full Report Management (RM) case
+  lifecycle using the remaining `vultron-demo` sub-commands.
+stakeholder_type: [platform-developer]
+level: 300
+---
+
 # Tutorial: Running the Other Demos
 
 In this tutorial, we will run the remaining Vultron demo sub-commands
@@ -71,7 +80,7 @@ vendor as participant and case owner, link the report to the case, and add
 the finder as a participant.
 
 See
-[Initialize a Case](../howto/activitypub/activities/initialize_case.md)
+[How to Initialize a Case](../howto/activitypub/activities/initialize_case.md)
 for the full activity-by-activity walkthrough.
 
 ### initialize-participant
@@ -85,7 +94,7 @@ coordinator and a finder are each created as `CaseParticipant` objects and
 added to the case. Notice how the participant list grows after each addition.
 
 See
-[Initialize a Participant](../howto/activitypub/activities/initialize_participant.md)
+[How to Seat a Participant on an Existing Case](../howto/activitypub/activities/initialize_participant.md)
 for details.
 
 ---
@@ -120,7 +129,7 @@ sequenceDiagram
 ```
 
 See
-[Invite an Actor to a Case](../howto/activitypub/activities/invite_actor.md)
+[How to Invite an Actor to a Case](../howto/activitypub/activities/invite_actor.md)
 for background.
 
 ### suggest-actor
@@ -150,7 +159,7 @@ sequenceDiagram
 ```
 
 See
-[Suggest an Actor for a Case](../howto/activitypub/activities/suggest_actor.md)
+[How to Suggest an Actor for a Case](../howto/activitypub/activities/suggest_actor.md)
 for the corresponding activity descriptions.
 
 ### manage-participants
@@ -182,7 +191,7 @@ sequenceDiagram
 ```
 
 See
-[Manage Participants](../howto/activitypub/activities/manage_participants.md)
+[How to Manage a Case Roster](../howto/activitypub/activities/manage_participants.md)
 for details.
 
 ### transfer-ownership
@@ -212,8 +221,8 @@ sequenceDiagram
 ```
 
 See
-[Transfer Case Ownership](../howto/activitypub/activities/transfer_ownership.md)
-for the corresponding activity descriptions.
+[Ownership Transfer](../topics/case_lifecycle/ownership_transfer.md)
+for the routing model and wire format.
 
 ---
 
@@ -245,7 +254,7 @@ sequenceDiagram
 ```
 
 See
-[Establish an Embargo](../howto/activitypub/activities/establish_embargo.md)
+[How to Establish an Embargo](../howto/activitypub/activities/establish_embargo.md)
 for background.
 
 ### manage-embargo
@@ -284,7 +293,7 @@ sequenceDiagram
 ```
 
 See
-[Manage an Embargo](../howto/activitypub/activities/manage_embargo.md)
+[How to Revise or Terminate an Embargo](../howto/activitypub/activities/manage_embargo.md)
 for details.
 
 ---
@@ -341,7 +350,7 @@ This demo shows three types of case record updates:
    it to a case participant.
 
 See
-[Status Updates](../howto/activitypub/activities/status_updates.md)
+[How to Post a Status Update or a Case Note](../howto/activitypub/activities/status_updates.md)
 for details.
 
 ---
@@ -454,8 +463,8 @@ We have:
 ## Next steps
 
 - **Understand the protocol** — browse
-  [How-to: ActivityPub Activities](../howto/activitypub/activities/index.md)
-  for per-activity walkthroughs of everything we just observed.
+  [Vultron AS Activity Guides](../howto/activitypub/activities/index.md)
+  for task guides covering everything we just observed.
 - **Explore the demo scripts** — all demo source files are in
   `vultron/demo/`; shared utilities are in `vultron/demo/utils.py`.
 - **Read the demo README** — `vultron/demo/README.md` describes the demo

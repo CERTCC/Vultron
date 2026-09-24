@@ -26,6 +26,7 @@ from vultron.wire.as2.vocab.base.objects.activities.transitive import (
 from vultron.wire.as2.vocab.base.objects.object_types import as_Note
 
 from ._base import _DUMP_KWARGS
+from vultron.errors import VultronAlreadyExistsError
 
 logger = logging.getLogger(__name__)
 
@@ -53,7 +54,7 @@ class _NotesMixin:
         )
         try:
             self._dl.create(note)
-        except ValueError:
+        except VultronAlreadyExistsError:
             logger.warning(
                 "create_note: note '%s' already exists — skipping", note.id_
             )
@@ -70,7 +71,7 @@ class _NotesMixin:
         activity = as_Create(actor=actor, object_=note, to=to)
         try:
             self._dl.create(activity)
-        except ValueError:
+        except VultronAlreadyExistsError:
             logger.warning(
                 "create_note_activity: activity '%s' already exists"
                 " — skipping",
@@ -92,7 +93,7 @@ class _NotesMixin:
         )
         try:
             self._dl.create(activity)
-        except ValueError:
+        except VultronAlreadyExistsError:
             logger.warning(
                 "add_note_to_case: activity '%s' already exists — skipping",
                 activity.id_,

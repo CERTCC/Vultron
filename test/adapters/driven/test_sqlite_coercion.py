@@ -98,20 +98,18 @@ class TestRehydrateFields:
         Offer(VulnerabilityCase), silently mis-routing ownership-transfer
         Accepts as accept_case_manager_role (SE-08-001, ISSUE-2194).
         """
+        from vultron.core.models.actor import CoreActor
         from vultron.wire.as2.vocab.base.objects.actors import as_Actor
         from vultron.wire.as2.vocab.base.objects.actors import as_Organization
-        from vultron.wire.as2.vocab.objects.vulnerability_case import (
-            as_VulnerabilityCase,
-        )
 
         org_id = "https://example.org/actors/target-org"
         org = as_Organization(id_=org_id, name="Target Org")
         dl.save(org)
 
-        case = as_VulnerabilityCase()
+        case_id = "urn:uuid:case-sqlite-coerce-00000000000001"
         # target is a bare string URI — must be expanded on read-back via recursion
         offer = as_Offer(
-            object_=case,
+            object_=case_id,
             target=org_id,
             actor="https://example.org/actors/sender",
         )
@@ -137,7 +135,7 @@ class TestRehydrateFields:
             f"Offer.target should be the typed actor after recursion,"
             f" not bare string {inline_offer.target!r}"  # type: ignore[union-attr]
         )
-        assert isinstance(inline_offer.target, as_Actor)  # type: ignore[union-attr]
+        assert isinstance(inline_offer.target, (as_Actor, CoreActor))  # type: ignore[union-attr]
 
 
 # ---------------------------------------------------------------------------
@@ -208,6 +206,8 @@ class TestCoerceToSemanticClass:
                     "type": "Accept",
                     "id": "urn:uuid:accept-invite-roundtrip-1",
                     "actor": "https://example.org/actors/coordinator",
+                    # Required on every inbound activity (ISSUE-3149).
+                    "published": "2026-03-04T05:06:07+00:00",
                     "inReplyTo": "urn:uuid:invite-roundtrip-1",
                     "object": {
                         "type": "Invite",
@@ -268,7 +268,7 @@ class TestCoerceToSemanticClass:
         )
         entry = _to_persistable_entry(chain_entry)
         announce = announce_log_entry_activity(
-            WireCaseLedgerEntry.from_core(entry),
+            entry,
             actor="https://example.org/actors/case-actor",
         )
         dl.save(entry)

@@ -277,6 +277,30 @@ class TriggerActivityPort(Protocol):
         """
         ...
 
+    def reject_case_proposal(
+        self,
+        actor: str,
+        proposal: dict,
+        to: list[str] | None = None,
+        summary: str | None = None,
+    ) -> tuple[str, str]:
+        """Create and persist a ``Reject(as_CaseProposal)`` activity.
+
+        The case actor service sends this when it declines to open and manage a
+        case for the proposal (CP-05-004).  *proposal* is the wire-serialised
+        ``as_CaseProposal`` from the inbound ``Create``; it is embedded inline so
+        the vendor has full context without reading anything from the case actor
+        service's store (AKM-03-001).
+
+        *summary* carries the refusal reason when the service has one to give,
+        which is what the proposer surfaces (CP-06-004).  It is optional: a
+        decline is never blocked on having an explanation.
+
+        Per ``specs/case-proposal.yaml`` CP-05-002, CP-05-004.
+        Returns ``(activity_id, activity_dict)``.
+        """
+        ...
+
     # -----------------------------------------------------------------------
     # Actors (invitations, recommendations)
     # -----------------------------------------------------------------------
@@ -326,6 +350,25 @@ class TriggerActivityPort(Protocol):
     ) -> tuple[str, str]:
         """Create and persist a ``Reject(Invite)`` activity.
 
+        Returns ``(activity_id, activity_dict)``.
+        """
+        ...
+
+    def reject_close_case(
+        self,
+        case_id: str,
+        actor: str,
+        close_sender: str,
+        in_reply_to: str | None = None,
+    ) -> tuple[str, str]:
+        """Create and persist a ``Reject(Leave(VulnerabilityCase))`` activity.
+
+        Emitted by the Case Actor to decline an owner's
+        ``Leave(VulnerabilityCase)`` while an embargo is still active
+        (CM-23-011).  ``actor`` is the Case Actor sending the decline;
+        ``close_sender`` is the Case Owner who sent the Leave and is used as the
+        sole ``to`` recipient so the decline is routable back to them.
+        ``in_reply_to`` threads the decline to the received Leave activity.
         Returns ``(activity_id, activity_dict)``.
         """
         ...
@@ -518,14 +561,14 @@ class TriggerActivityPort(Protocol):
         vendor_id: str,
         actor: str,
         to: list[str] | None = None,
-    ) -> str:
+    ) -> tuple[str, str]:
         """Create and persist a ``Reject(_OfferCaseParticipantRoleActivity)`` (ADR-0039).
 
         Ephemerally reconstructs the original Offer before building the
         Reject so that ``Reject.object_`` is a typed
         ``_OfferCaseParticipantRoleActivity``, not a bare string IRI.
 
-        Returns the activity ID.
+        Returns ``(activity_id, activity_json)``.
         """
         ...
 

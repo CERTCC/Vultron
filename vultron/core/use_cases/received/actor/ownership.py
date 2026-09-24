@@ -18,9 +18,9 @@ from vultron.core.models.events.actor import (
 )
 from vultron.core.ports.case_persistence import CaseOutboxPersistence
 from vultron.core.ports.sync_activity import SyncActivityPort
+from vultron.core.participants.authority import resolve_case_manager_id
 from vultron.core.use_cases._helpers import (
     _idempotent_create,
-    _resolve_case_manager_id,
     resolve_receiving_actor_id,
 )
 
@@ -67,7 +67,7 @@ class OfferCaseOwnershipTransferReceivedUseCase:
             return request.actor_id
         case = self._dl.read_case(case_id)
         case_actor_id = (
-            _resolve_case_manager_id(case, self._dl)
+            resolve_case_manager_id(case, self._dl)
             if case is not None
             else None
         )

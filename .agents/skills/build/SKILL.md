@@ -14,10 +14,10 @@ description: >
 
 0. Sync the worktree to `origin/main` before loading any context.
 1. Invoke `orient-agent` to load baseline context.
-2. Select a single target issue (auto or explicit) and fail fast on blockers.
-3. Claim the issue.
-4. Invoke `deepen-context` with hints from the issue.
-5. Implement, validate, code-review, open PR, archive.
+2. Select the target issue or bundle (auto or explicit) and fail fast on blockers.
+3. Claim every member.
+4. Invoke `deepen-context` with hints and the `Governing specs:` floor from the issue(s).
+5. Implement, validate, code-review, open one PR closing every member, archive.
 
 ## Workflow
 
@@ -43,8 +43,10 @@ Invoke the `orient-agent` skill.
 0. Determine the target issue mode:
 
    - If the user passed multiple issue numbers (for example `build 123 456`),
-     ask whether to start with the first issue only (recommended). This skill
-     executes one issue per run.
+     that is a **bundle**: implement all of them in one PR that closes every
+     member. Follow `.agents/skills/shared/bundling.md` § "Executing a bundle".
+     Do not ask whether to take only the first, and do not drop members —
+     bundling exists to get more than one issue done in a PR.
    - If the user passed one explicit issue number, use that issue.
    - If no explicit issue was passed, auto-select from the top-priority
      unblocked Now-Epic flow below.
@@ -58,16 +60,24 @@ Invoke the `orient-agent` skill.
    The top-priority group is the first Epic with at least one unblocked
    open leaf sub-issue.
 
-2. Query leaf Issues of that Epic:
+2. Query leaf Issues of that Epic and apply eligibility **and** fit:
 
    ```bash
-   bash .agents/skills/shared/query-epic-subissues.sh <EPIC_NUMBER>
+   bash .agents/skills/shared/query-epic-subissues.sh <EPIC_NUMBER> \
+     | PYTHONPATH= uv run bundle-fit --workflow build
    ```
 
-   A candidate issue must: `state=OPEN`, no assignees, no `stale-claim`
-   label, all `blockedBy` entries `CLOSED`, `subIssues.totalCount==0`.
+   Eligibility alone (`state=OPEN`, no assignees, no `stale-claim`, all
+   `blockedBy` `CLOSED`, `subIssues.totalCount==0`) is not sufficient: an
+   `Idea` or `Concern` leaf clears every one of those gates and still must not
+   be built — it belongs to `plan-issue`, and a `Bug` belongs to `bugfix`.
+   `bundle-fit` enforces that routing, orders candidates by the authoritative
+   Project #24 `Schedule` tier rather than sub-issue list order (PAD-03-001),
+   and respects the size budget. See `bundling.md` for the rule table.
 
-3. Pick the highest-priority candidate.
+3. Take the tool's proposed bundle. Auto-selection may return several members;
+   confirm they share one design idea in a single sentence (`bundling.md`
+   § "Selecting a bundle") and drop any member that needs a different one.
 
 4. **Empty-Epic gate** — applies to both auto-selected and explicit issues:
 
@@ -96,22 +106,29 @@ Invoke the `orient-agent` skill.
    3. Tell the user: "Epic #N has no sub-issues and cannot be built yet. Run `/plan-issue N` to decompose it into Tasks first."
    4. **Stop.** Do not claim, branch, or proceed.
 
-5. Fail-fast blocker gate on the selected issue (auto-selected or explicit):
+5. Fail-fast blocker gate on every selected issue (auto-selected or explicit),
+   and, for an explicit bundle, a homogeneity gate:
 
-   - Query `blockedBy` for the issue and filter to `state=OPEN`.
+   - Query `blockedBy` for each issue and filter to `state=OPEN`.
    - If any OPEN blockers exist, print blocker numbers/titles and stop.
    - Do not claim, branch, or deepen context when blocked.
+   - Query each member's `issueType`. If a member is not a `Task` or `Feature`,
+     stop and name the skill it belongs to (`bugfix` for a Bug; `plan-issue`
+     for an Idea, Concern, or Epic). Do not silently work or drop it.
 
 6. **Pre-claim AC verification gate** — fetch the issue body and verify
    each acceptance criterion against `origin/main` HEAD before claiming:
 
-   For each `- [ ] AC-N: <text>` item in the issue body, grep or graphify
+   For each `- [ ] AC-N: <text>` item in the issue body, grep
    `origin/main` for concrete evidence the AC is already satisfied (e.g.,
    the described file exists with the required content, the named function
    or class is present, the referenced behavior is implemented).
 
    If **no** `- [ ] AC-N:` items are found in the issue body (prose-format
-   or free-form ACs), skip this gate and proceed directly to step 7.
+   or free-form ACs), the gate cannot run mechanically — and that is where
+   already-delivered work slips through. Read the prose, list its concrete
+   claims, and check each against `origin/main` by hand as above. Only then
+   proceed to step 7 (or close per the rules below) (#1907, #3036).
 
    If **all** ACs are confirmed satisfied on `origin/main`:
 
@@ -136,22 +153,30 @@ Invoke the `orient-agent` skill.
 
    If any AC is unconfirmed, proceed to step 7 and claim normally.
 
-7. **Claim the Issue**:
+7. **Claim the Issue** — or every bundle member, onto one branch named for the
+   first member:
 
    ```bash
-   bash .agents/skills/shared/claim-issue.sh <N> task <slug>
+   bash .agents/skills/shared/claim-issue.sh <N> task <slug> [<OTHER_MEMBERS>...]
    ```
 
    Abort immediately if this exits non-zero.
 
-8. Fetch the issue body and comments (including any comments not yet
+8. Fetch each issue's body and comments (including any comments not yet
    loaded in step 6). Use the full content as implementation context
    throughout Phases 3–5.
 
 ### Phase 3 — Deepen Context
 
 Invoke `deepen-context` with focus hints derived from the issue body
-(e.g., `"wire layer"`, `"BT integration"`, `"embargo lifecycle"`).
+(e.g., `"wire layer"`, `"BT integration"`, `"embargo lifecycle"`), and pass
+as the **spec floor** every spec ID in each member's `Governing specs:` line
+plus any other spec IDs the issue body or comments cite. If an issue has no
+`Governing specs:` line, say so and pass the cited IDs you found (or an
+explicitly empty floor).
+
+`deepen-context` returns a **Spec manifest**. Keep it: it goes into the PR
+body (Phase 8), and reviewers use it as their spec floor.
 
 ### Phase 4 — Verify Before Coding
 
@@ -181,7 +206,9 @@ Invoke `deepen-context` with focus hints derived from the issue body
 
    NEW_ISSUE=$(.agents/skills/manage-github-issue/manage_github_issue.sh \
      --title "<prerequisite title>" \
-     --body "<description>" \
+     --body "<description>
+
+   Governing specs: <IDs, or none — reason>" \
      --issue-type-id "${TASK_TYPE_ID}" \
      --label "size:<S|M|L>" \
      --parent "${EPIC_NUMBER:-${ISSUE_NUMBER}}" \
@@ -276,18 +303,29 @@ later) are separate decisions. Apply
    ```bash
    uv run black vultron/ test/
    uv run flake8 vultron/ test/ && uv run mypy && uv run pyright
-   uv run pytest --tb=short 2>&1 | tee /tmp/pytest-unit.log | tail -5
-   uv run pytest -m integration --tb=short 2>&1 | tee /tmp/pytest-integration.log | tail -5
+   uv run pytest --tb=short > /tmp/pytest-unit.log 2>&1; rc=$?; tail -5 /tmp/pytest-unit.log; echo "exit: $rc"; (exit $rc)
+   uv run pytest -m integration --tb=short > /tmp/pytest-integration.log 2>&1; rc=$?; tail -5 /tmp/pytest-integration.log; echo "exit: $rc"; (exit $rc)
    ```
 
    Both suites must pass. The first command covers the unit suite (integration
    tests excluded by `addopts`); the second explicitly runs the integration
    suite so demo-layer regressions are caught before the PR opens.
+   Do not run `mdlint.sh` or any other whole-tree tool concurrently with the
+   integration suite; resource contention can inflate per-test runtime past the
+   per-test timeout ceiling.
 
-2. Do not skip or delegate validation.
-3. Apply branch-ownership and pre-existing-failure rules from
+2. **Spec backstop (blocking).** Update the Spec manifest from Phase 3 if the
+   work drifted, then resolve it against the diff per `deepen-context`
+   § "Backstop" until
+   `spec-backstop --manifest /tmp/spec-manifest-<issue>.txt` exits 0 (no
+   `--paths`: the branch diff is what ships). The resolved manifest is what
+   goes into the PR body. Exit 0 is a floor, not proof of completeness — read
+   the `no deterministic signal` and `no Python source in the diff` notes as
+   "this part rests on your judgment".
+3. Do not skip or delegate validation.
+4. Apply branch-ownership and pre-existing-failure rules from
    `completeness-doctrine.md` § "Finding Severity".
-4. If pre-existing is proven: create/update a Bug issue via `manage-github-issue`
+5. If pre-existing is proven: create/update a Bug issue via `manage-github-issue`
    with evidence (failing command/output, clean-base proof, causality check,
    blocked/unblocked impact), wire structured blockers, add a handoff comment,
    and record the Bug link as a learning file in `plan/incoming/learnings/`.
@@ -320,17 +358,25 @@ draft commit and use `git diff main...HEAD` normally.
 
 ### Phase 8 — Open PR and Finalize
 
-1. Compute diff size: ≤50 lines → `size:S`; 51–300 → `size:M`; 301+ → `size:L`.
-   Update the `size:` label on the Issue.
+1. **Do not set a `size:` label.** The `pr-size-label` workflow measures the
+   whole-PR diff and applies it on every push (PAD-05-002), and the Issue keeps
+   its AC-count estimate untouched so estimate-versus-actual stays queryable
+   (PAD-05-010). See `shared/sizing.md`. To see the size before pushing:
+   `PYTHONPATH= uv run pr-size --base origin/main`.
 
-2. Invoke the `create-pr` skill to push and open the PR:
+2. Invoke the `create-pr` skill to push and open the PR. One bundle is one PR:
+   the body carries `- Closes #N` **once per member, in bundle order**, and the
+   Changes section names each member's change so a reviewer can map every hunk
+   to a closed issue (`pr-body-guide.md`; `bundling.md` § "Executing a bundle").
+   The body includes a `## Specs` section carrying the Spec manifest from
+   Phase 3 (`pr-body-guide.md` § "Specs").
 
    ```text
    type:         implementation
    title:        <short title>
    body:         <composed per pr-body-guide.md implementation template>
-   labels:       size:<X>
-   issue_number: <N>
+   labels:       <topic labels only — never size:, see step 1>
+   issue_number: <N>        # the first bundle member
    ```
 
    `create-pr` performs the rebase on `origin/main`, validates, pushes, and
@@ -346,7 +392,8 @@ draft commit and use `git diff main...HEAD` normally.
 
 4. Post `[ADVISORY]` findings as a PR comment (if any).
 
-5. Invoke `archive-history`:
+5. Invoke `archive-history` — once per bundle member, each entry carrying the
+   same PR URL:
 
    ```text
    TYPE    = implementation
@@ -366,8 +413,12 @@ draft commit and use `git diff main...HEAD` normally.
 
 ## Constraints
 
-- One issue is executed per run.
-- Multi-issue input may be accepted for user guidance, but this skill should
-  ask how to proceed and then continue with one issue only.
+- One run produces one PR. That PR closes one issue, or every member of a
+  bundle — see `.agents/skills/shared/bundling.md`.
+- Multi-issue input is a bundle, not a menu: implement every member. If the
+  bundle cannot be finished, finish what you can, close only those members, and
+  say which you left and why.
+- Every member is implemented to the standard it would get alone — its own
+  tests, its own acceptance criteria. A bundle amortizes context, never rigor.
 - Do not skip validation or the pre-PR code review.
 - Do not commit directly to `main`. All work goes through a PR.

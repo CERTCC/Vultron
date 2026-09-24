@@ -1,3 +1,11 @@
+---
+description: >
+  Domain terminology for the Vultron Coordinated Vulnerability Disclosure
+  (CVD) protocol and its reference implementation, with the aliases to avoid.
+stakeholder_type: [project-contributor]
+level: 300
+---
+
 # Glossary — Vultron
 
 Domain terminology for Vultron's Coordinated Vulnerability Disclosure (CVD)
@@ -10,7 +18,7 @@ machines, and design notes.
 
 | Term | Definition | Aliases to avoid |
 |------|-----------|-----------------|
-| **Vulnerability** | A weakness in an information system that could be exploited to cause harm | Bug, issue, flaw |
+| **Vulnerability** | A set of conditions or behaviors that allows the violation of an explicit or implicit security policy. Definition taken from the [CERT Guide to CVD](https://certcc.github.io/CERT-Guide-to-CVD/tutorials/terms/vulnerability/); Vultron uses it unchanged | Bug, issue, flaw, weakness |
 | **Coordinated Vulnerability Disclosure (CVD)** | A collaborative process where affected parties work together to manage vulnerability remediation and public disclosure | Responsible disclosure, coordinated release |
 | **Multi-Party CVD (MPCVD)** | CVD process involving three or more independent organizations with different interests and roles | Multiparty coordination |
 | **Report** | A formal notification of a discovered vulnerability, including technical details and potential impact | Submission, notice |
@@ -27,12 +35,24 @@ machines, and design notes.
 | **Vendor** | The organization that maintains or supplies the affected product or service | Developer, supplier, maintainer |
 | **Deployer** | An organization that deploys the Vendor's product and is responsible for applying patches in their own environment (distinct from Vendor) | Operator, customer |
 | **Coordinator** | A neutral third party (often a national CERT) that facilitates communication and negotiates embargo terms between other parties | Mediator, facilitator |
-| **Participant** | Any Actor engaged in a Case, holding one or more CVD Roles | Stakeholder, party |
+| **Participant** | Any Actor engaged in a Case, holding one or more CVD Roles | "Stakeholder" *used as a synonym for Participant*, party. The bare word is permitted in its ecosystem-category sense — see **Stakeholder Type** |
 | **Actor** | Any URI-identified federated peer (person or organization) in the protocol | Agent, endpoint |
 | **Case Owner** | The Actor who creates and administers a Case (typically the party seeking vulnerability coordination) | Case creator |
-| **Case Actor** | An auto-generated federated peer (ActivityStreams Service actor) created during case initialization; operates as the single-writer authority for the canonical case ledger and coordinates state across participants | Case service actor, case coordinator |
-| **Case Manager** | A `CVDRole.CASE_MANAGER` role that designates a **Participant** authorized to delegate case management responsibilities and co-manage embargo negotiations; often assigned via **Offer** → **Accept** handoff during case creation | Admin role, management role |
+| **Case Actor** | The concrete actor the **prototype/demo implements** to hold `CVDRole.CASE_MANAGER` — an automated software actor spawned to enact the role and automate its duties (emitting activities, maintaining the canonical ledger). It is a specific **identity/label** (`case-actor`, `.../actors/case-actor`) with **no protocol meaning**. It is **not** a synonym for the authority and **not** an identity to match on: authority, recognition, and routing derive from the **`CASE_MANAGER` role**, never from this actor's name or URL, and code MUST NOT compare `actor_id` against a computed `case_actor_id` to decide authority (ADR-0088, refining ADR-0041). Name the authority **Case Manager** (the role holder); use **Case Actor** only for the prototype actor that happens to hold it. | Case service actor, case coordinator, "the CaseActor authority" |
+| **Case Manager** | The `CVDRole.CASE_MANAGER` role — the **single-writer authority** for a case. Whichever **Participant** holds it is authoritative for the canonical case ledger and case-scoped routing; authority is determined by the role and nothing else (ADR-0088). Often assigned via **Offer** → **Accept** handoff during case creation, and may co-manage embargo negotiations. Protocol-normative prose names the authority *the CASE_MANAGER* (the role holder), never *the CaseActor* (the prototype identity). | Admin role, management role |
+| **Case Actor Service** | The provisioning endpoint (configured as `case_actor_service_url`) that receives `CaseProposal`s and spawns the `case-actor` identities that enact `CASE_MANAGER`. A hosting/provisioning concern — distinct from the authority (the **role**) and from any one **Case Actor** identity it spawns. Hosting location and URL shape carry no authority signal (ADR-0088). | Case actor URL, provisioning service |
 | **CVE Numbering Authority (CNA)** | An organization authorized to directly assign CVE IDs; modeled as `CVDRole.CVE_NUMBERING_AUTHORITY`. A **Participant** holding this role may assign IDs directly rather than delegating to an external CNA service. | CVE authority |
+
+---
+
+## Documentation Audience
+
+| Term | Definition | Aliases to avoid |
+|------|-----------|-----------------|
+| **Stakeholder Type** | Why a reader is here reading about Vultron, declared as `stakeholder_type` in a `docs/` page's frontmatter and used to organize reader-facing documentation (ADR-0102). The permitted values are normative in DF-11-001 and are listed below. A stakeholder type is **not** a **CVDRole**, and the two vocabularies deliberately share no value: *a role is assumable, inhabitable, temporal; a type is ontological, identity-formed, and slow to change.* An organization's roles vary from case to case, while what brought its engineer to this documentation does not. No page shows its own type to readers (DF-11-009). | Role, audience track, reader level |
+| **Prerequisite Level** | How much a reader must already know before a `docs/` page makes sense, declared as `level` (100–500) in its frontmatter. One ladder that sorts site-wide, though each subject area judges its own 300 by its own criteria. A property of a **page**, never of a reader — there is no "300-level reader". A page's own level is never rendered and never navigated by (DF-11-004). | Difficulty, reader level, track |
+
+{% include-markdown "../includes/stakeholder_types.md" %}
 
 ---
 
@@ -77,12 +97,14 @@ fix not ready) are structurally impossible, per SM-09-002 and CSB-17-001.
 |------|-----------|-----------------|
 | **Embargo** | A time-bounded agreement that participating parties will not publicly disclose a vulnerability until a specific date or condition is met | NDA, disclosure delay, embargo period |
 | **Embargo Event** | A point-in-time record of an embargo's end date, context, and who initiated it; used to track embargo history | Embargo record |
-| **Embargo Consent** | A **Participant**'s individual agreement to or rejection of an **Embargo** (a personal commitment, distinct from the **Embargo** itself); tracked as a per-participant 5-state machine over NO_EMBARGO, INVITED, SIGNATORY, LAPSED, and DECLINED. NO_EMBARGO means *no embargo is in scope for this participant* — not "has not consented yet" — so ACCEPT and DECLINE are valid directly from it, without an intervening invitation (ADR-0048, CM-18-003) | Embargo acceptance, embargo stance |
+| **Embargo Consent** | A **Participant**'s individual agreement to or rejection of an **Embargo** (a personal commitment, distinct from the **Embargo** itself); tracked as a per-participant 5-state machine over UNBOUND, INVITED, SIGNATORY, LAPSED, and DECLINED. UNBOUND means *the participant is not bound by any embargo terms* — not "has not consented yet" — so ACCEPT and DECLINE are valid directly from it, without an intervening invitation (ADR-0048, ADR-0091, CM-18-003) | Embargo acceptance, embargo stance |
 | **Active Embargo** | The currently in-force **Embargo** for a **Case**; there is at most one | Current embargo, ongoing embargo |
 | **Proposed Embargo** | An **Embargo** that has been offered but not yet accepted by all parties | Embargo offer, pending embargo |
-| **Pocket Veto** | A timer-based transition in the **Embargo Consent** state machine where a **Participant** in INVITED or LAPSED state automatically transitions to DECLINED if they do not respond within a configurable timeout window (inaction = rejection). The window is the *implicit* form of the **RSVP Deadline**: when an invitation carries an explicit `Invite.end_time` that value supersedes it (CM-27-002); the policy default (7 days, EP-07-001) applies only when it is absent. The two are one mechanism, not two (ADR-0065) | Embargo invitation timeout, implicit rejection |
-| **RSVP Deadline** | The activity-level `end_time` on an `Invite(EmbargoEvent)`, giving the invitee an explicit respond-by instant after which the invitation is no longer open. Distinct from the nested `Invite.object_.end_time`, which is when the **Embargo** itself ends — the same invitation carries both, one nesting level apart. Enforced lazily by the **CaseActor** (CM-27-003); a late **Accept** is never refused outright (EMB-17). Introduced by ADR-0065 | Invite expiry, respond-by deadline, invite end_time |
+| **Pocket Veto** | A timer-based transition in the **Embargo Consent** state machine where a **Participant** in INVITED or LAPSED state automatically transitions to DECLINED if they do not respond within a configurable timeout window (inaction = rejection). The window is the *implicit* form of the **RSVP Deadline**: when an invitation carries an explicit `Invite.end_time` that value supersedes it (CM-28-002); the policy default (7 days, EP-07-001) applies only when it is absent. The two are one mechanism, not two (ADR-0065) | Embargo invitation timeout, implicit rejection |
+| **RSVP Deadline** | The activity-level `end_time` on an `Invite(EmbargoEvent)`, giving the invitee an explicit respond-by instant after which the invitation is no longer open. Distinct from the nested `Invite.object_.end_time`, which is when the **Embargo** itself ends — the same invitation carries both, one nesting level apart. Bounded at both ends: never earlier than the minimum window, which is the lesser of a configured window (72h by default) and the time remaining in the **Embargo** (EP-07-002/EP-07-003), and never later than the Embargo's own end, whether it came from an explicit `Invite.end_time` or the policy window (EP-07-006, CM-28-011). Enforced lazily by the **CASE_MANAGER** (CM-28-003); a late **Accept** is never refused outright (EMB-17). Introduced by ADR-0065, bounded by ADR-0096 | Invite expiry, respond-by deadline, invite end_time |
 | **EmbargoPolicy** | An actor-level declaration of embargo preferences (preferred, minimum, and maximum duration); allows coordinators to evaluate compatibility before proposing an embargo. | Embargo preferences, embargo terms |
+| **Actor Default** | The embargo duration carried by an Actor's published **EmbargoPolicy**. `em/defaults.md` calls it a *standing proposal*: a Reporter who submits without contrary terms has tacitly accepted it. An actor default **does** compete in the shortest-proposal-wins comparison (EP-04-003). | Default embargo (ambiguous — see **Protocol Default**) |
+| **Protocol Default** | The **Embargo** duration applied when no proposal and no **Actor Default** applies, so that an embargo-eligible **Case** always begins with an **Active Embargo**. Configurable, but constrained to 72 hours–5 days (EP-04-005) — deliberately short so that publishing an **EmbargoPolicy** is the rewarded behavior. It is the value when the candidate set is empty and **never a candidate itself**: it does not compete under shortest-wins (EP-04-006), because a short default that did would cap every embargo in the system at its own length. It is also not a minimum — a Reporter may propose less and get it (EP-04-007). Does not apply once P/X/A is set (EP-04-008). Introduced by ADR-0096 | Default embargo, fallback embargo, minimum embargo |
 | **Embargo Adherence** | A derived indicator on a **Participant**'s status recording whether that Participant is currently bound by the active **Embargo**; `True` only when their **Embargo Consent** state is `SIGNATORY`. Computed from consent state rather than stored independently, preventing the two from drifting out of sync. | Embargo acceptance, embargo compliance |
 
 ---
@@ -97,9 +119,9 @@ fix not ready) are structurally impossible, per SM-09-002 and CSB-17-001.
 | **Inbox** | The protocol endpoint where an Actor receives incoming Activities from other parties | Receiver, endpoint |
 | **Outbox** | The protocol channel through which an Actor broadcasts Activities to other known parties | Sender, distribution |
 | **Precondition** | The required state(s) that must be true before a message can be sent or a state transition is valid (e.g., Participant must be in RM Accepted to send RS) | State requirement, prerequisite |
-| **CaseProposal** | An AS2 negotiation object sent by any actor (typically a Vendor or Coordinator) to a CaseActor service to request the creation and management of a new Case; the CaseActor, not the requesting actor, is the authoritative case creator. The CaseProposal is the mechanism by which an actor delegates case initialization to a CaseActor service (ADR-0023, ADR-0041). | Case request, case creation request |
-| **Case Ownership Transfer** | The protocol sequence by which the `CASE_OWNER` role is transferred from one actor to another via an `Offer(VulnerabilityCase)` → `Accept` handshake routed through the CaseActor (ADR-0053). | Case transfer, ownership handoff |
-| **Suggest-Actor-to-Case** | The CaseActor-routed protocol flow for inviting a new actor to a case: a **Participant** sends `Offer(Actor, Case)` to the **Case Manager**, the Case Manager presents the recommendation to the **Case Owner**, and upon approval issues `Invite(CaseStub, embargo)` to the suggested actor (ADR-0026). | Add participant, inject participant |
+| **CaseProposal** | An AS2 negotiation object sent by any actor (typically a Vendor or Coordinator) to a **case actor service** to request the creation and management of a new Case; the CASE_MANAGER, not the requesting actor, is the authoritative case creator. The CaseProposal is the mechanism by which an actor delegates case initialization to a case actor service (ADR-0023, ADR-0041). | Case request, case creation request |
+| **Case Ownership Transfer** | The protocol sequence by which the `CASE_OWNER` role is transferred from one actor to another via an `Offer(VulnerabilityCase)` → `Accept` handshake routed through the CASE_MANAGER (ADR-0053). | Case transfer, ownership handoff |
+| **Suggest-Actor-to-Case** | The CASE_MANAGER-routed protocol flow for inviting a new actor to a case: a **Participant** sends `Offer(Actor, Case)` to the **Case Manager**, the Case Manager presents the recommendation to the **Case Owner**, and upon approval issues `Invite(CaseStub, embargo)` to the suggested actor (ADR-0026). | Add participant, inject participant |
 | **Liberal Accept** | The protocol robustness principle (Postel's Law applied): be conservative in what you send, liberal in what you accept; refuse the narrowest thing that must be refused. | — |
 | **Per-Dimension Adjudication** | The pattern of evaluating each state-machine dimension of a received `ParticipantStatus` independently rather than accepting or refusing the entire snapshot as a unit; allows a valid `vfd` update to proceed even if `rm` is refused (ADR-0061). | All-or-nothing status update |
 | **ProtocolPair** | A value type tracking whether a protocol request/reply handshake (e.g., `Offer` → `Accept/Reject`) is still open or closed; used by both durable ledger queries and ephemeral assertion suppression. | Handshake state, open request |
@@ -129,22 +151,22 @@ fix not ready) are structurally impossible, per SM-09-002 and CSB-17-001.
 | **Driving Port** | A port that exposes an inbound boundary; adapters call it to reach core (e.g., use cases, handlers) | Inbound port, entry point |
 | **Hexagonal Architecture** | Layered design where core business logic has no imports from wire format, adapter, or external framework layers | Ports and adapters, onion architecture |
 | **Validate-at-Edge** | The architectural principle that loose wire-layer types are promoted to strict core types at system entry boundaries; core logic operates on guaranteed-field types rather than defensively guarding every field (ADR-0032). | Edge validation, boundary validation |
-| **Two-Branch Hierarchy** | The core architectural pattern where domain objects exist in two structurally incompatible shapes sharing a common base (`VultronBase`): the **core branch** (strict, required-field constraints) and the **wire branch** (lenient, permitting loose AS2 fields). | Domain/wire split, core/wire hierarchy |
+| **Two-Branch Hierarchy** | *Being removed by ADR-0099.* The pattern where domain objects exist in two structurally incompatible shapes sharing a common base (`VultronBase`): the **core branch** (strict, required-field constraints) and the **wire branch** (lenient, permitting loose AS2 fields). ADR-0099 replaces it with **one object model** — the classes under `vultron/core/models/` are the model and AS2 is a serialization of them — so the shared root and the paired `as_*` domain classes are both deleted. Still describes the current tree; do not treat it as the target. | Domain/wire split, core/wire hierarchy |
 
 ## Sync, Authority & Replication
 
 | Term | Definition | Aliases to avoid |
 |------|-----------|-----------------|
-| **Log-Centric Architecture** | A system design where the **CaseActor** is the authoritative single writer of an append-only, hash-chained **canonical recorded log**, and all externally visible replicated state is a deterministic projection of that log | Log-based architecture, event sourcing |
-| **Single-Writer Regime** | The design principle that the **CaseActor** (acting as de facto replication leader) is the only node that appends to the authoritative **canonical recorded log**; simplifies consistency guarantees and avoids concurrent-write conflicts | Single leader, master authority |
-| **Canonical Recorded Log** | The authoritative append-only history maintained by the **CaseActor**; hash-chained for verification; replicated to **Participants** via `Announce(CaseLedgerEntry)` messages | Authoritative log, master log |
-| **Case Ledger Entry** | A single item in the **canonical recorded log**; includes a trusted timestamp generated by the **CaseActor** (never copied from inbound **Activities**), hash of its content, and hash of its predecessor (forming a Merkle chain) | Log item, journal entry |
-| **Eventual Consistency** | The replication guarantee that **Participant** replicas converge to the **CaseActor**'s state as **Case Ledger Entries** are delivered and processed | Convergence property |
-| **Participant Case Replica** | A local copy of **VulnerabilityCase** state maintained by a **Participant** node; must satisfy PCR safety rules (proper seeding, no out-of-order mutations) and convergence to the **CaseActor**'s authoritative state | Case replica, local case copy |
-| **Trust Bootstrap** | The first-time establishment of trust between the **CaseActor** and a new **Participant** via an **Accept** activity in response to an **Offer**; includes sending a `Create(VulnerabilityCase)` activity to seed the **Participant Case Replica** | Trust handoff, initial trust |
-| **Case Replica Seeding** | The process of initializing a **Participant Case Replica** by receiving an `Announce(VulnerabilityCase)` or `Create(VulnerabilityCase)` activity from the **CaseActor**; must occur before case-context activities can be processed | Replica initialization, case sync |
+| **Log-Centric Architecture** | A system design where the **CASE_MANAGER** is the authoritative single writer of an append-only, hash-chained **canonical recorded log**, and all externally visible replicated state is a deterministic projection of that log | Log-based architecture, event sourcing |
+| **Single-Writer Regime** | The design principle that the **CASE_MANAGER** (acting as de facto replication leader) is the only node that appends to the authoritative **canonical recorded log**; simplifies consistency guarantees and avoids concurrent-write conflicts | Single leader, master authority |
+| **Canonical Recorded Log** | The authoritative append-only history maintained by the **CASE_MANAGER**; hash-chained for verification; replicated to **Participants** via `Announce(CaseLedgerEntry)` messages | Authoritative log, master log |
+| **Case Ledger Entry** | A single item in the **canonical recorded log**; includes a trusted timestamp generated by the **CASE_MANAGER** (never copied from inbound **Activities**), hash of its content, and hash of its predecessor (forming a Merkle chain) | Log item, journal entry |
+| **Eventual Consistency** | The replication guarantee that **Participant** replicas converge to the **CASE_MANAGER**'s state as **Case Ledger Entries** are delivered and processed | Convergence property |
+| **Participant Case Replica** | A local copy of **VulnerabilityCase** state maintained by a **Participant** node; must satisfy PCR safety rules (proper seeding, no out-of-order mutations) and convergence to the **CASE_MANAGER**'s authoritative state | Case replica, local case copy |
+| **Trust Bootstrap** | The first-time establishment of trust between the **CASE_MANAGER** and a new **Participant** via an **Accept** activity in response to an **Offer**; includes sending a `Create(VulnerabilityCase)` activity to seed the **Participant Case Replica** | Trust handoff, initial trust |
+| **Case Replica Seeding** | The process of initializing a **Participant Case Replica** by receiving an `Announce(VulnerabilityCase)` or `Create(VulnerabilityCase)` activity from the **CASE_MANAGER**; must occur before case-context activities can be processed | Replica initialization, case sync |
 | **Append-Only Ledger** | The first ledger synchronization phase: establishes the local append-only case ledger with hash-chain indexing, providing the cryptographic integrity foundation for all subsequent replication phases. Each entry is immutable once committed and uniquely identified by its content hash. | SYNC-1, phase 1 |
-| **Ledger Fanout** | The second ledger synchronization phase: one-way replication from the authoritative **CaseActor** to all **Participant Actors** via `Announce(CaseLedgerEntry)` messages. A participant's replica is considered synchronized when its log tail hash matches the **CaseActor**'s. | SYNC-2, phase 2 |
+| **Ledger Fanout** | The second ledger synchronization phase: one-way replication from the authoritative **CASE_MANAGER** to all **Participant Actors** via `Announce(CaseLedgerEntry)` messages. A participant's replica is considered synchronized when its log tail hash matches the **CASE_MANAGER**'s. | SYNC-2, phase 2 |
 | **Ledger Reconciliation** | The third ledger synchronization phase: a full sync loop with retry and backoff that detects and repairs gaps in participant replicas, ensuring eventual convergence even after missed or delayed deliveries. | SYNC-3, phase 3 |
 | **Peer Ledger Sync** | The fourth ledger synchronization phase: multi-peer synchronization enabling actors with equal standing to reconcile their ledgers with each other, supporting federated and ownership-transfer scenarios where no single actor is permanently authoritative. | SYNC-4, phase 4 |
 | **Genesis Hash** | A per-case SHA-256 hash derived deterministically from the `VulnerabilityCase` object; serves as the hash-chain predecessor anchor for the first **Case Ledger Entry**, binding the ledger to its origin case. | Initial hash, seed hash |
@@ -162,11 +184,11 @@ fix not ready) are structurally impossible, per SM-09-002 and CSB-17-001.
 | **Semantic Extraction** | The process of mapping an inbound **Activity** structure to a domain-level **MessageSemantics** enum value | Pattern matching, dispatch, intent detection |
 | **MessageSemantics** | A domain-level enum of message intents (e.g., `CREATE_REPORT`, `ACCEPT_INVITE_TO_EMBARGO_ON_CASE`) | Message type, semantic type, intent |
 | **Factory Function** | A public, type-safe constructor function that builds outbound **Activities**; ensures validation and returns plain AS2 types; located in `vultron/wire/as2/factories/` | Activity constructor, builder |
-| **from_core()** / **to_core()** | Projection methods that translate between a domain object and its wire counterpart. Historically defined on the wire vocabulary class and callable only from adapters, never from core use cases (ARCH-01-001). **Being relocated by ADR-0082**: projection moves off the wire classes into adapter-side translator modules driven by the core↔wire **Pairing Registry**, so wire classes carry no domain knowledge (ARCH-12-005). | Wire constructor, projection method |
-| **Pairing Registry** | **Being introduced by ADR-0082** (#2937), not yet present in the code: the single declarative statement of core↔wire type correspondence (ARCH-23-001). It replaces four undeclared sources — the bare-*key* collision between `VOCABULARY` and `CORE_VOCABULARY`, `_WIRE_ACTOR_TO_CORE`, `_NORMALIZE_WIRE_TO_CORE`, and the three chained registries — after which resolving a wire counterpart by key coincidence is forbidden. | Core-wire pairing, translation registry |
+| **from_core()** / **to_core()** | Projection methods that translate between a domain object and its wire counterpart. Historically defined on the wire vocabulary class and callable only from adapters, never from core use cases (ARCH-01-001). ADR-0082 was going to relocate projection off the wire classes into adapter-side translator modules driven by a core↔wire **Pairing Registry** (ARCH-12-005); **ADR-0099 cancels that relocation** — with one object model there is nothing to translate, so these methods are deleted along with the paired classes rather than moved. | Wire constructor, projection method |
+| **Pairing Registry** | **Cancelled by ADR-0099**; never built. ADR-0082 (#2937) proposed it as the single declarative statement of core↔wire type correspondence (ARCH-23-001). A pairing registry exists to reconcile two classes that mean the same thing, and ADR-0099 deletes the second class instead — so there is no pair to record. Do not revive #2937. It replaces four undeclared sources — the bare-*key* collision between `VOCABULARY` and `CORE_VOCABULARY`, `_WIRE_ACTOR_TO_CORE`, `_NORMALIZE_WIRE_TO_CORE`, and the three chained registries — after which resolving a wire counterpart by key coincidence is forbidden. | Core-wire pairing, translation registry |
 | **Stub Object** | A lightweight object representation in ActivityStreams 2.0 containing only `id`, `type`, and optionally `summary` fields; used for selective disclosure (e.g., restricting vulnerability details pending embargo acceptance) | Lazy-loaded object, header-only object, object reference |
 | **Activity Translator** (port) | A narrow driven port that core use cases call to construct outbound **Activities** from domain objects; implemented by adapters with wire imports, preserving core layer isolation (inverse of `from_core()` anti-pattern) | Wire adapter port, activity constructor port |
-| **WireParsePort** | **Being introduced by ADR-0082** (#2938), not yet present in the code: the inbound counterpart to `WireRenderPort` — a driven port core calls to project a received wire object to its core form, replacing the `getattr(obj, "to_core", None)` duck-typing that lets core reach for a wire capability without an import the ratchet can see. ADR-0082 is the design authority; the requirement that core obtain normalisation through it is ARCH-20-008, amended by that decision. | Wire parse port, inbound translation port |
+| **WireParsePort** | **Rejected by ADR-0099**; never built. ADR-0082 (#2938) proposed it as the inbound counterpart to `WireRenderPort` — a driven port core calls to project a received wire object to its core form, replacing the `getattr(obj, "to_core", None)` duck-typing that lets core reach for a wire capability without an import the ratchet can see. ADR-0099 rejected it on three grounds: it does not exist, its own AC-2 requires the cancelled **Pairing Registry**, and its single-method shape has no store access so it could only fabricate placeholders. `rehydrate()` owns ID-to-object materialisation instead (VM-06-007). | Wire parse port, inbound translation port |
 
 ## Persistence & Data Access
 
@@ -182,7 +204,7 @@ fix not ready) are structurally impossible, per SM-09-002 and CSB-17-001.
 | **Bare Object URI** | An anti-pattern in outbound **Activities** where an object is referenced as a bare string URI (e.g., `object_="urn:uuid:abc123"`) instead of a full inline object; causes recipient pattern-matching failure because the recipient's DataLayer has no record of the referenced object | String reference, bare ID |
 | **Dead Letter Record** | A persistence record created when an inbound activity's `object_` URI cannot be resolved after rehydration; stored for administrative review and retry rather than raising an error. | Dead letter queue entry, failed delivery record |
 | **OfferRecord** | A core state record capturing domain facts from a received `Offer(VulnerabilityReport)` activity; stored so core can recover these facts without re-reading the wire Activity. | — |
-| **ReportCaseLink** | A persisted mapping from a vulnerability report to its associated case replica. Stores the trust anchors established during **Trust Bootstrap** — specifically, which actor the report was originally submitted to and which CaseActor is authoritative for the resulting case — so that subsequent messages can be validated against those known-good identities. | — |
+| **ReportCaseLink** | A persisted mapping from a vulnerability report to its associated case replica. Stores the trust anchors established during **Trust Bootstrap** — specifically, which actor the report was originally submitted to and which actor holds `CASE_MANAGER` (is authoritative) for the resulting case — so that subsequent messages can be validated against those known-good identities. | — |
 | **PendingCreateCaseActivity** | A durable marker written after `Accept(CaseProposal)` is sent but before `Create(VulnerabilityCase)` delivery; enables retry if the process crashes between the two sends. | — |
 | **Outbox Terminal State** | The condition reached when the delivery mechanism exhausts its retry budget for an outbound Activity; the Activity is moved to the dead-letter store and no further delivery is attempted. | Delivery failure, max retries exceeded |
 
@@ -199,10 +221,10 @@ fix not ready) are structurally impossible, per SM-09-002 and CSB-17-001.
 | **Cascading Consequences** | Automated downstream behaviors triggered by primary protocol events via BT subtrees; examples include submit-report → case creation → participant setup → embargo initialization → notifications (anti-pattern: post-BT procedural calls) | Event cascade, automation chain |
 | **Call-Out Point** | A BT node location where automated protocol execution cannot proceed without external input from a human, skill, or LLM agent; implemented as a **Fuzzer Node** stub in the simulator layer | Decision point, human-in-the-loop seam |
 | **Fuzzer Node** | A stub BT node in the legacy simulation (`vultron/bt/`) that stands in for unimplemented real-world decision logic by returning probabilistic SUCCESS/FAILURE; each represents a **Call-Out Point** awaiting a real **capability** | Stub node, random node |
-| **Capability shape** | One of five abstract interface contracts that characterise how a **Call-Out Point** interacts with the protocol; describes the interaction pattern without prescribing the implementation. A concrete **capability** may be a function, a human workflow, or an LLM agent. The five shapes are **Sentinel**, **Evaluator**, **Retriever**, **Composer**, and **Actuator**. See ADR-0024. | Coordination Agent (deprecated) |
+| **Capability shape** | One of four abstract interface contracts that characterise how a **Call-Out Point** interacts with the protocol; describes the interaction pattern without prescribing the implementation. A concrete **capability** may be a function, a human workflow, or an LLM agent. The four shapes are **Evaluator**, **Retriever**, **Composer**, and **Actuator**. The **Sentinel** pattern is not a capability shape — it is a call-in pattern (ADR-0097). See ADR-0024 and ADR-0097. | Coordination Agent (deprecated), "the five shapes" |
 | **Capability** | A specific named call-out point with its own blackboard contract (input keys, output keys, and types); implements a **capability shape** for a particular domain context. Example: `EvaluateReportCredibility` is an Evaluator capability. | Call-out node, capability instance |
 | **Capability implementation** | The factory backend fulfilling a **capability** at runtime; may be a Python function, a human workflow, a rules engine, or an LLM agent. The implementation choice is made at deployment time, not at design time. | Backend, factory backend |
-| **Sentinel** | A **capability shape** that monitors a condition over time; when the condition is met, calls a Vultron trigger endpoint. Operates on the call-in surface — it has no BT call-out point. | Guard agent, check agent |
+| **Sentinel** | A **call-in integration pattern** (not a **capability shape**): a process that monitors a condition over time and, when it is met, acts on its own initiative. The protocol never consults it, so it has no **Call-Out Point**, no blackboard contract, and no backend factory — which is why it sits outside the capability-shape taxonomy (ADR-0097, BT-18-013). The discriminator is *who initiates*, not whether the information is external: a Sentinel may be a case **Participant** (typically holding **Observer**) that reads case state via `Announce(CaseLedgerEntry)` and acts by sending protocol messages, or operator-side machinery with no case identity that calls one actor's trigger endpoints. Its design questions belong to Agentic Participants (#2450); the issues themselves remain under the Capability Shapes epic (#1147). | Guard agent, check agent, "Sentinel capability", "Sentinel shape", "external-only monitor" |
 | **Evaluator** | A **capability shape** that receives a situation and returns a structured recommendation or decision (e.g., `ReviewAdvisoryDraft`); its output gates downstream BT execution | Decision agent, reviewer agent |
 | **Retriever** | A **capability shape** that receives a query and returns structured facts from an external source (e.g., CVE ID lookup, SSVC scoring); also used for binary yes/no external queries | Fetch agent, lookup agent |
 | **Composer** | A **capability shape** that receives context and generates a new content artifact (e.g., drafting advisory text); output is written to the blackboard | Generator agent, authoring agent |
@@ -219,9 +241,11 @@ fix not ready) are structurally impossible, per SM-09-002 and CSB-17-001.
 |------|-----------|-----------------|
 | **VultronEvent** | The base domain event type for received-side use cases; carries extracted semantic information from an inbound wire Activity and drives the dispatcher into the appropriate Behavior Tree handler. Contrast with **TriggerRequest**, which represents local actor intent rather than a received remote notification. | Event, handler event |
 | **TriggerRequest** | The base request type for trigger-side use cases, representing a local actor's intent to initiate a protocol action (e.g., propose an embargo, submit a report). Contrast with **VultronEvent**, which represents an inbound remote notification rather than local intent. | Trigger, use case request |
-| **UseCaseResult** | The typed return envelope from a use-case execution; communicates outcome and any emitted Activities back to the driving adapter. Has two subtypes: **HandlerResult** (for received-side use cases) and **TriggerResult** (for trigger-side use cases) (ADR-0040). | Use case output, result envelope |
-| **HandlerResult** | The **UseCaseResult** subtype returned by received-side use cases (processing an inbound Activity). | Handler output, received-side result |
-| **TriggerResult** | The **UseCaseResult** subtype returned by trigger-side use cases (executing local actor intent). | Trigger output, trigger-side result |
+| **UseCaseResult** | The typed return envelope from a use-case execution; communicates outcome and any emitted Activities back to the driving adapter. Has two subtypes: **HandlerResult** (received-side) and **TriggerResult** (trigger-side) (ADR-0040). **Specified but not yet implemented** — received `execute()` methods are `-> None` and trigger ones return `dict` (#1769, #3354). | Use case output, result envelope |
+| **HandlerResult** | The **UseCaseResult** subtype returned by received-side use cases (processing an inbound Activity); carries a **HandlerDisposition** and, when refused, a reason. Its purpose is to route the handler's own verdict to **InboxOutcome**, which is otherwise assembled from behavior-tree bookkeeping and cannot see it (ADR-0095, #2255). Not yet implemented. | Handler output, received-side result |
+| **HandlerDisposition** | The closed `StrEnum` vocabulary on a **HandlerResult**: `APPLIED` (local state changed), `SKIPPED` (correct no-op — duplicate or already-present), `DEFERRED` (parked for later replay, as the ledger-sync buffer nodes do for an out-of-order entry), `REFUSED` (inbound assertion rejected). `APPLIED` and `SKIPPED` both map to `InboxOutcome.status == "processed"`; `DEFERRED` maps to `"deferred"` and `REFUSED` to `"rejected"`. Note that `deferred` has two producers: `DeferCheckNode` before dispatch, for missing case context, and a handler after dispatch (ADR-0095). Not yet implemented. | Handler status, handler outcome |
+| **TriggerResult** | The **UseCaseResult** subtype returned by trigger-side use cases (executing local actor intent). Not yet implemented (#3354). | Trigger output, trigger-side result |
+| **InboxOutcome** | The typed result of `process_payload()` for one inbound payload: `processed` / `deferred` / `rejected`, plus an optional context ID and failure reason (IO-01-001…004). It reports the **processing** verdict, which is distinct from the **acceptance** verdict the inbox endpoint answers synchronously as HTTP 400 or 202 — the 202 is sent before any handler runs, so it makes no claim about processing. | Inbox result, dispatch outcome |
 
 ## Domain Model — CVD Coordination
 
@@ -234,9 +258,9 @@ fix not ready) are structurally impossible, per SM-09-002 and CSB-17-001.
 | **Advisory Review Decision** | A record produced by a **Reviewer** (Evaluator **capability**) capturing whether an **Advisory** draft needs revision; the `needs_revision` flag gates the BT pipeline; to block submission for any reason, the Evaluator MUST return `Status.FAILURE` (BT-18-007) | Review result, review outcome |
 | **Publication Intent** | A domain object recording a participant's decision about *how* and *when* to disclose a vulnerability (e.g., which advisory platform, embargo exit condition); gates the BT publish pipeline | Disclosure intent, publish intent |
 | **CVDRolesFlag** | Legacy bitmask-based Flag enum using bitwise arithmetic to represent combined roles; retained for backward compatibility with the `vultron.bt` simulator layer only; **do not use in new code** — use `list[CVDRole]` instead | Bitmask roles, legacy roles |
-| **CASE_OWNER** | A **CVDRole** value marking a participant as the human decision-maker who owns and administers the VulnerabilityCase (BTND-05-001); distinct from CASE_MANAGER which is the service actor | Owner role |
-| **CASE_MANAGER** | A **CVDRole** value representing the ActivityStreams Actor (often a Service type) that performs ongoing case replica synchronization and manages the case on behalf of the **Case Owner**; always held alongside the COORDINATOR role (CBT-01-003); may be any Actor type though demo uses Service | Case synchronizer, case service actor |
-| **Participant** | A CVD actor in a case; has one or more **CVDRole** values, contact info, and status in the case state machine | Actor, stakeholder |
+| **CASE_OWNER** | A **CVDRole** value marking a participant as the human decision-maker who owns and administers the VulnerabilityCase (BTND-05-001); distinct from the **CASE_MANAGER** role, which carries single-writer authority (see **Case Manager**) | Owner role |
+| **CASE_MANAGER** | A **CVDRole** value — the **single-writer authority** over the canonical case ledger; whichever **Participant** holds it performs ongoing case replica synchronization and manages the case on behalf of the **Case Owner** (ADR-0088). Authority derives from the role and nothing else, never from the enacting actor's name or URL. Often held alongside the COORDINATOR role (CBT-01-003); the concrete actor enacting it (a **Case Actor**) may be any Actor type though demo uses Service | Case synchronizer, "the service actor", "the CaseActor authority" |
+| **Participant** | A CVD actor in a case; has one or more **CVDRole** values, contact info, and status in the case state machine | Actor, "stakeholder" *used as a synonym for Participant* (see **Stakeholder Type**) |
 | **Embargo Initialization** | The automatic creation of a default **Embargo** with standard terms when a **Case** is first created; includes seeding the **Case Owner** as **Participant** with SIGNATORY **Embargo Consent** status | Default embargo creation, embargo bootstrap |
 | **Role Delegation** | The protocol sequence where a **Case Owner** can offer the **CASE_MANAGER** role to another **Participant** (via **Offer** activity) and receive acceptance (via **Accept** activity); enables distributed case administration | Role handoff, role transfer |
 | **VulnerabilityCase** | The canonical core domain type for a vulnerability coordination case; stores participants, reports, statuses, ledger links, and embargo state; distinct from the lifecycle-staged subtypes. | Coordination case, case object |
@@ -315,6 +339,27 @@ fix not ready) are structurally impossible, per SM-09-002 and CSB-17-001.
 
 ---
 
+## Conformance — Capability Sets
+
+Conformance is two-dimensional: a **capability set** claim (what protocol
+machinery the software provides) and a **role** profile (which positions the
+actor holds in a case). The two are different kinds of thing — a capability set
+is a property of *software*; a **CVDRole** is a position an actor holds — and are
+named so they never collide. The three named sets carry a **`Case`** prefix
+precisely to keep them distinct from the similarly-named roles they serve
+(ADR-0088). A conformance claim writes them together as
+`CapabilitySet [+ ...] / Role [+ ...]`, e.g.
+`Case Observer + Case Decision + Case Hosting / Coordinator + Case Owner`.
+
+| Term | Definition | Aliases to avoid |
+|------|-----------|-----------------|
+| **Capability set** | A named group of protocol obligations an implementation takes on — a property of *software*, distinct from a **CVDRole** (a position in a case). The three named sets are **Case Observer**, **Case Decision**, and **Case Hosting**; the `Case` prefix marks each as a capability set, not a role. Capability sets are orthogonal to both **capability shapes** and conformance test **layers** (L1–L4). | Conformance tier, T0/T1/T2, capability level |
+| **Case Observer capability set** | The participation floor every case **Participant** MUST implement: track all five state machines (RM, EM, PEC, VFD, PXA), drive the transitions its roles authorize, take part in embargo negotiation, and route case-scoped messages through the **CASE_MANAGER**. Named to echo the **Observer** role, with the `Case` prefix keeping set and role distinct. There is no sub-Observer participation level. | Observer capability set (unprefixed), Observer tier, T1 |
+| **Case Decision capability set** | The **Case Owner** governance obligations, separable from **Case Hosting**: adopt status updates without an external approval gate (the Case Owner's own updates are authoritative), drive shared EM transitions, and transfer case ownership. Formerly the "Authority capability set"; renamed because *authority* is reserved for the **CASE_MANAGER**'s single-writer control (ADR-0088). | Authority capability set, governance authority |
+| **Case Hosting capability set** | The **Case Manager** infrastructure obligations, separable from **Case Decision**: host the actor enacting the **CASE_MANAGER** role, maintain the authoritative canonical case ledger, replicate it to participants via `Announce(CaseLedgerEntry)`, and run multi-party case management. Ledger authority follows the **CASE_MANAGER** role the implementation holds — never its hosting location or actor name (ADR-0088). | Hosting capability set (unprefixed) |
+
+---
+
 ---
 
 ---
@@ -341,8 +386,8 @@ fix not ready) are structurally impossible, per SM-09-002 and CSB-17-001.
 | **Report Submission (RS)** | The only RM message that directly triggers a state change in receiver (from S → R); all other RM messages announce sender's state | Initial RM message |
 | **Report Received (R)** | Initial RM state when a Report arrives; recipient must validate before transitioning to Invalid or Valid | Received state, intake state |
 | **Report Valid (V)** | RM state indicating validation passed; next decision is whether to Accept or Defer | Validated state, prioritization state |
-| **Report Accepted (A)** | RM state indicating work accepted; prerequisite for sending RS to other parties | In-progress state, active state |
-| **Report Deferred (D)** | RM state indicating work deferred (parking lot); can transition back to Accepted if priorities change | Parked state, backlog state |
+| **Report/Case Accepted (A)** | RM state indicating a Participant has committed to work on the report/case; a case-participation decision (`Join(VulnerabilityCase)`), prerequisite for sending RS to other parties | Report Accepted, in-progress state, active state |
+| **Report/Case Deferred (D)** | RM state indicating a Participant has deferred further action on the report/case (parking lot); a case-participation decision (`Ignore(VulnerabilityCase)`); can transition back to Accepted if priorities change | Report Deferred, parked state, backlog state |
 | **Report Closed (C)** | Final RM state; recipient may ignore all messages on closed reports (no further coordination) | Terminal state, archive state |
 
 ---
@@ -429,7 +474,8 @@ fix not ready) are structurally impossible, per SM-09-002 and CSB-17-001.
 
 - A **Fuzzer Node** in the simulator is the placeholder form of a **Call-Out Point**.
 - A **Call-Out Point** is fulfilled in production by a **capability** of the appropriate **capability shape**.
-- A **Sentinel** monitors a condition and fires a trigger when the condition is met; an **Evaluator** records a domain decision; a **Retriever** fetches external data; a **Composer** generates content; an **Actuator** fires a side effect in an external system.
+- An **Evaluator** records a domain decision; a **Retriever** fetches external data; a **Composer** generates content; an **Actuator** fires a side effect in an external system. These four are the **capability shapes**.
+- A **Sentinel** monitors a condition and fires a trigger when the condition is met. It answers no **Call-Out Point**, so it is a call-in pattern rather than a **capability shape**.
 - An **Advisory Review Decision** is produced by a **Reviewer** (an Evaluator **capability**) and determines whether an **Advisory** draft requires revision before the BT submits it.
 
 **Status and Dimensions:**
@@ -499,14 +545,15 @@ fix not ready) are structurally impossible, per SM-09-002 and CSB-17-001.
     - **Embargo Consent** is each **Participant**'s individual acceptance or rejection of that embargo.
     - **Recommendation**: If discussing terms/dates, say "Embargo"; if discussing one party's stance, say "Embargo Consent".
 
-13. **"Case Owner" vs. "Case Actor" vs. "Case Manager" (role)**:
+13. **"Case Owner" vs. "Case Manager" (role) vs. "Case Actor" (prototype identity) vs. "case actor service"**:
      - A **Case Owner** is a human **Participant** (e.g., Reporter) with a **CVDRole.CASE_OWNER** value; the decision-maker and administrator of the **Case**.
-     - A **Case Actor** is the auto-generated ActivityStreams Service actor created during case initialization; maintains the **canonical recorded log** and coordinates state across participants.
-     - **Case Manager** is a **CVDRole** value (not a role delegation; rather a role assignment) held by the service actor that manages case replica synchronization on behalf of the **Case Owner**; always held alongside **COORDINATOR**.
-     - **Recommendation**: Use "Case Owner" for the human decision-maker; "Case Actor" or "Case Manager actor" for the service peer; "CASE_MANAGER role" when discussing the role value. Avoid "case manager" as standalone unless context is clear.
+     - **Case Manager** (`CVDRole.CASE_MANAGER`) is the **role** that carries single-writer authority over the canonical case ledger. It is the *only* protocol-salient signal of authority: an actor is the authority for a case **iff** it holds this role in the case roster.
+     - A **Case Actor** is the *concrete actor the prototype/demo implements to hold `CASE_MANAGER`* — a specific identity labelled `case-actor`. It is **not** a synonym for the authority and **not** an identity to match on: its name and URL are cosmetic and carry no protocol meaning (ADR-0088).
+     - A **case actor service** is the provisioning endpoint (`case_actor_service_url`) that spawns `case-actor` identities — a hosting concern, not the authority.
+     - **Recommendation**: In protocol-normative prose, name the authority **"the CASE_MANAGER"** (the role holder), never "the CaseActor". Reserve **"CaseActor"** for the prototype/demo actor that enacts the role, and **"case actor service"** for the provisioning endpoint. Never determine authority, recognition, or routing from the `case-actor` name or URL shape, and never compare `actor_id` against a computed `case_actor_id` to decide authority — gate on the role (CM-24-004, CM-02-011).
 
 14. **"Participant Case Replica" vs. "Case State"**:
-     - A **Participant Case Replica** is a local copy of case state on a participant's node; must be seeded via **Trust Bootstrap** and maintain **Eventual Consistency** with the **CaseActor**'s authoritative state.
+     - A **Participant Case Replica** is a local copy of case state on a participant's node; must be seeded via **Trust Bootstrap** and maintain **Eventual Consistency** with the **CASE_MANAGER**'s authoritative state.
      - **Case State (CS)** is the formal six-dimensional state model (VfDpxa lattice) tracking vulnerability awareness and readiness.
      - **Recommendation**: Use "Participant Case Replica" for participant-local state copies; "Case State" for the formal model.
 
@@ -527,7 +574,7 @@ fix not ready) are structurally impossible, per SM-09-002 and CSB-17-001.
      - **Recommendation**: Before classifying a node as Composer, verify it writes a content artifact to the blackboard. If the only output is a SUCCESS/FAILURE confirming an external side effect, it is an **Actuator** capability shape.
 
 18. **"Coordination Agent" vs. "Capability shape"**:
-     - A **Capability shape** is the current term for the abstract interface contract at a call-out point (Sentinel, Evaluator, Retriever, Composer, Actuator).
+     - A **Capability shape** is the current term for the abstract interface contract at a call-out point (Evaluator, Retriever, Composer, Actuator).
      - **Coordination Agent** was the previous term. It is deprecated because "agent" has acquired connotations of LLM-based autonomous systems, which was not the original intent.
      - **Recommendation**: Use "capability shape" in all new text. When reading older code or docs, treat "Coordination Agent" as a synonym for "capability shape."
 
@@ -554,7 +601,7 @@ fix not ready) are structurally impossible, per SM-09-002 and CSB-17-001.
 >
 > **Protocol Designer:** "And they coordinate through **Message Types**?"
 >
-> **Formal Spec Expert:** "Yes. When a **Vendor** transitions their RM from Valid to Accepted, they send an **RA** (Report Accepted) **Message Type**. That **Activity** carries the **RA** and is transmitted via the wire protocol. The **Coordinator** receives it and updates their model of the **Vendor**'s **RM State**."
+> **Formal Spec Expert:** "Yes. When a **Vendor** transitions their RM from Valid to Accepted, they send an **RA** (Report/Case Accepted) **Message Type**. That **Activity** carries the **RA** and is transmitted via the wire protocol. The **Coordinator** receives it and updates their model of the **Vendor**'s **RM State**."
 >
 > **Protocol Designer:** "But that doesn't change the **Coordinator**'s own RM state?"
 >
@@ -669,7 +716,7 @@ fix not ready) are structurally impossible, per SM-09-002 and CSB-17-001.
 ## Metadata
 
 - **Source:** Vultron codebase, CERT/CC CVD research publications, architecture audit, formal protocol specification
-- **Last Updated:** 2026-08-27
+- **Last Updated:** 2026-09-22
 - **Domains:** Formal MPCVD protocol, CVD process models (RM/EM/CS), communicating state machines, hexagonal architecture, activity pattern matching, persistence abstraction, behavior tree orchestration, case actor federation, participant case replicas, trust bootstrap and delegation
 - **Related References:**
   - [A State-Based Model for Multi-Party Coordinated Vulnerability Disclosure](https://resources.sei.cmu.edu/library/asset-view.cfm?assetid=735513) (CMU/SEI-2021-SR-021)
@@ -678,5 +725,5 @@ fix not ready) are structurally impossible, per SM-09-002 and CSB-17-001.
   - `docs/topics/process_models/` — detailed RM, EM, CS models
   - `docs/reference/formal_protocol/` — formal protocol specification
   - `notes/case-bootstrap-trust.md` — trust bootstrap and delegation design
-  - `notes/case-creation-sequence.md` — case creation and participant initialization
+  - `notes/case-proposal.md` — case proposal, creation, and participant initialization
   - `specs/participant-case-replica.yaml` — PCR safety rules and eventual consistency

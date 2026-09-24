@@ -1,3 +1,8 @@
+---
+stakeholder_type: [platform-developer, project-contributor]
+level: 400
+---
+
 # Architecture Specifications
 
 Implementation-independent structural guidance transferable across languages and

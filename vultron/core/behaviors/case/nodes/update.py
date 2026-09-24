@@ -66,15 +66,9 @@ class CheckCaseUpdateOwnerNode(DataLayerConditionWithPorts):
             return f
         assert self.datalayer is not None
         assert self.actor_id is not None
-        case = self.datalayer.read_case(self.case_id)
-        if case is None:
-            self.feedback_message = f"case '{self.case_id}' not found"
-            self.logger.warning(
-                "%s: case '%s' not found in DataLayer",
-                self.name,
-                self.case_id,
-            )
-            return Status.FAILURE
+        case, failure = self._require_case(self.case_id)
+        if failure is not None:
+            return failure  # Regime 1: case must exist (ADR-0087)
 
         if self._sender_actor_id is None:
             self.feedback_message = (
@@ -109,13 +103,9 @@ class CaptureCaseUpdateBroadcastExclusionsNode(DataLayerConditionWithPorts):
         super().__init__(name=name or self.__class__.__name__)
         self.case_id = case_id
 
-    @classmethod
-    def output_ports(cls) -> dict[str, PortInformation]:
-        return {
-            "excluded_actor_ids": PortInformation(
-                data_type=object, required=True
-            )
-        }
+    OUTPUT_PORTS: dict[str, PortInformation] = {
+        "excluded_actor_ids": PortInformation(data_type=object, required=True),
+    }
 
     @classmethod
     def _domain_port_remappings(cls) -> dict[str, str]:
@@ -127,15 +117,9 @@ class CaptureCaseUpdateBroadcastExclusionsNode(DataLayerConditionWithPorts):
         assert self.datalayer is not None
         assert self.actor_id is not None
 
-        case = self.datalayer.read_case(self.case_id)
-        if case is None:
-            self.feedback_message = f"case '{self.case_id}' not found"
-            self.logger.warning(
-                "%s: case '%s' not found in DataLayer",
-                self.name,
-                self.case_id,
-            )
-            return Status.FAILURE
+        case, failure = self._require_case(self.case_id)
+        if failure is not None:
+            return failure  # Regime 1: case must exist (ADR-0087)
 
         self._set_output(
             "excluded_actor_ids", find_excluded_actor_ids(case, self.datalayer)
@@ -162,14 +146,9 @@ class ApplyCaseUpdateNode(DataLayerActionWithPorts):
         assert self.datalayer is not None
         assert self.actor_id is not None
 
-        stored_case = self.datalayer.read_case(self.case_id)
-        if stored_case is None:
-            self.logger.warning(
-                "%s: case '%s' not found in DataLayer",
-                self.name,
-                self.case_id,
-            )
-            return Status.FAILURE
+        stored_case, failure = self._require_case(self.case_id)
+        if failure is not None:
+            return failure  # Regime 1: case must exist (ADR-0087)
 
         if apply_update_case_fields(stored_case, self.request):
             self.datalayer.save(stored_case)
@@ -201,13 +180,10 @@ class BroadcastCaseUpdateNode(DataLayerActionWithPorts):
         super().__init__(name=name or self.__class__.__name__)
         self.case_id = case_id
 
-    @classmethod
-    def input_ports(cls) -> dict[str, PortInformation]:
-        ports = super().input_ports()
-        ports["excluded_actor_ids"] = PortInformation(
-            data_type=object, required=True
-        )
-        return ports
+    INPUT_PORTS: dict[str, PortInformation] = {
+        **DataLayerActionWithPorts.INPUT_PORTS,
+        "excluded_actor_ids": PortInformation(data_type=object, required=True),
+    }
 
     @classmethod
     def _domain_port_remappings(cls) -> dict[str, str]:
@@ -223,15 +199,9 @@ class BroadcastCaseUpdateNode(DataLayerActionWithPorts):
         assert self.datalayer is not None
         assert self.actor_id is not None
 
-        case = self.datalayer.read_case(self.case_id)
-        if case is None:
-            self.feedback_message = f"case '{self.case_id}' not found"
-            self.logger.warning(
-                "%s: case '%s' not found in DataLayer",
-                self.name,
-                self.case_id,
-            )
-            return Status.FAILURE
+        case, failure = self._require_case(self.case_id)
+        if failure is not None:
+            return failure  # Regime 1: case must exist (ADR-0087)
 
         broadcast_case_update(
             self.datalayer,

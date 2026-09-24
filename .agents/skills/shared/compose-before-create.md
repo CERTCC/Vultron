@@ -11,13 +11,16 @@ docstrings, or semantics overlap with the code you are about to write. If a
 match exists, compose or subclass — do not re-implement. If the task spans
 multiple subsystems, search each one.
 
+Search with grep and code search. A graphify graph is not a substitute: it
+is per-worktree, often stale, and `graphify query` truncates on this repo's
+graph, so an empty or partial answer is not evidence of absence.
+
 ## Per-Subsystem Search Patterns
 
 ### Use cases (`vultron/core/use_cases/`)
 
 ```bash
 grep -rn "<semantic keyword>" vultron/core/use_cases/
-graphify query "<use case action or message type>"
 ```
 
 A match in `handlers/` or `triggers/` means the protocol action is already
@@ -27,18 +30,16 @@ wired. Reuse the existing use case rather than writing a parallel handler.
 
 ```bash
 grep -rn "<message type or pattern name>" vultron/wire/as2/
-graphify query "<wire activity type>"
 ```
 
-A match in `extractor.py` or `patterns/` means the wire pattern is already
-registered. Extend an existing entry when semantics overlap; do not create a
+A match in `extractor/_pattern.py` or `extractor/_instances.py` means the
+wire pattern is already registered. Extend an existing entry when semantics overlap; do not create a
 competing pattern for the same activity structure.
 
 ### Adapters (`vultron/adapters/`)
 
 ```bash
 grep -rn "<port name or adapter action>" vultron/adapters/
-graphify query "<adapter keyword>"
 ```
 
 Confirm the port contract before implementing. A port method already defined
@@ -49,7 +50,6 @@ extended, not shadowed.
 
 ```bash
 grep -rn "<helper name or scenario action>" vultron/demo/helpers/
-graphify query "<demo action>"
 ```
 
 Demo helpers are strictly DRY — reuse `receiver_engages_case()`,
@@ -68,7 +68,6 @@ or semantic action overlaps with what you are about to implement:
 
 ```bash
 grep -r "<target state value or action name>" vultron/core/behaviors/<domain>/nodes/
-graphify query "<action name or protocol state>"
 ```
 
 If a match exists, compose or subclass — do not re-implement. After

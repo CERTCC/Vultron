@@ -13,6 +13,7 @@ related_notes:
   - notes/devcontainer-tooling.md
 related_specs:
   - specs/project-documentation.yaml
+  - specs/build-workflow.yaml
 ---
 
 # Git, Branch, and PR Workflow Pitfalls
@@ -34,21 +35,9 @@ the cleanup checkout.*
 
 Sources: ISSUE-1518, ISSUE-1504, ISSUE-1784
 
-## `freshen-branch.sh` Leaves Temp Branch on Conflict When Abort Silently Fails
-
-*Fixed in #1784.* The script now runs cherry-pick with `core.hooksPath=/dev/null`
-(preventing pre-commit hook interference) and guards the cleanup checkout with
-`|| git checkout -` (preventing silent exit when `cherry-pick --abort` leaves
-conflict markers). If both checkout attempts still fail (rare: genuine conflict
-marker blocking every branch switch), manual recovery is required:
-`git branch --show-current` (confirm `temp-freshen-*`), resolve conflict
-markers, `git add <file>`, `git cherry-pick --continue --no-edit`, then
-`git branch -f "$TASK_BRANCH" HEAD && git checkout "$TASK_BRANCH" && git branch -D "$TEMP"`.
-Use `manage_worktree.sh ensure-synced` in preference to the raw script.
-
 ## Pre-commit Hooks Interfere with `git rebase` in Worktrees
 
-Use `manage_worktree.sh ensure-synced`. Manual fix: `git reset --soft origin/main`
+Use `.agents/skills/shared/sync-check.sh` (or the `manage-worktree` skill). Manual fix: `git reset --soft origin/main`
 then `git -c core.hooksPath=/dev/null commit`.
 
 ## Worktree Sync Checks Need Ancestry Verification
@@ -125,7 +114,7 @@ Sources: CONCERN-2137, ISSUE-2030
 
 The script checks that your branch is ancestor-or-equal to `origin/main`. If
 `main` has moved since you last synced, the check fails with a confusing error.
-Run `manage_worktree.sh ensure-synced` or `git fetch origin && git rebase
+Run `.agents/skills/shared/sync-check.sh` or `git fetch origin && git rebase
 origin/main` first. The presence of an existing task branch for the same issue
 may also indicate the issue was started (or completed) via another PR — check
 `git log --oneline origin/main | grep -i "<issue title>"` before assuming
@@ -160,11 +149,19 @@ Both halves of the rule:
   The pre-claim gates enforce this before branching: see
   `.agents/skills/build/SKILL.md` Phase 2 § "Pre-claim AC verification gate" and
   `.agents/skills/bugfix/SKILL.md` Phase 1 § "Pre-claim defect verification".
+- **The `build` gate only sees `- [ ] AC-N:` lines.** An issue whose criteria
+  are prose, or unnumbered checkboxes, skips the gate entirely — and those are
+  the issues where "read the issue, start coding" feels like one motion. Until
+  the gate derives a checklist from prose, check such issues by hand before
+  claiming (`build` Phase 2 says so). Five July 2026 sessions (ISSUE-1484,
+  ISSUE-1510, ISSUE-1612, ISSUE-1661, ISSUE-1665) each spent a build cycle on
+  work that was already wholly or partly delivered (#1907).
 - **When opening the PR**, include `- Closes #N` at the top of the body, one per
   line. This applies to docs and `learn` PRs too: when a docs PR fixes a bug as
   a side effect, the footer is still required.
 
-Sources: ISSUE-1467, ISSUE-1484, ISSUE-1510, ISSUE-1787, ISSUE-2290
+Sources: ISSUE-1467, ISSUE-1484, ISSUE-1510, ISSUE-1612, ISSUE-1661,
+ISSUE-1665, ISSUE-1787, ISSUE-1907, ISSUE-2290
 
 ## Fix One, Miss the Siblings: Scan Peer Files Before Closing a Bug
 

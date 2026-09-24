@@ -1,3 +1,8 @@
+---
+stakeholder_type: [cvd-practitioner, platform-developer]
+level: 300
+---
+
 # Default Embargoes
 
 {% include-markdown "../../../includes/normative.md" %}
@@ -9,7 +14,7 @@ stalemate of unaccepted proposals, we offer the following guidance.
 
 ## Declaring Defaults
 
-First, we note that all CVD Participants (including Reporters) are
+All CVD Participants (including Reporters) are
 free to establish their own default embargo period in a published
 vulnerability disclosure policy. In particular, we recommend that
 CVD report
@@ -26,6 +31,73 @@ recipients (typically Vendors and Coordinators) do so.
     Vulnerability Disclosure Policy to set expectations with potential
     Reporters.
 
+## Embargoes Are Active at Case Creation
+
+The scenarios below describe embargo agreement as an exchange between two
+parties. In the most common situation, however, no exchange is visible at
+all: a case is created and it *already* has an active embargo. This section
+explains why.
+
+When a Report Recipient has published a default embargo period (see
+[Declaring Defaults](#declaring-defaults)), that default acts as a **standing
+proposal**. A Reporter who submits a report without proposing different terms
+has, by not objecting, **tacitly accepted** that standing proposal. Both
+parties have therefore already agreed before the case exists: the Recipient by
+publishing the policy, the Reporter by not contradicting it.
+
+Because the agreement is already in place, nothing remains to negotiate. The
+embargo is *Active* from the moment the case is created.
+
+!!! note ""
+
+    When a case is created and a published default embargo applies with no
+    contrary proposal, the embargo SHALL begin in the *Active* state.
+
+The same holds when *nobody* has published anything: a short
+[protocol default](#no-defaults-no-proposals-the-protocol-default) applies
+instead. So an embargo-eligible case always begins with an *Active* embargo,
+whatever the parties have or have not declared. Reaching a case with no embargo
+through mutual silence is the outcome the EM process exists to avoid.
+
+### Why *Active* and Not *Proposed*?
+
+The *Proposed* state represents an embargo that has been offered but not yet
+agreed — an open question awaiting a decision. On the default path there is no
+open question. The published default supplies the *propose* action and the
+Reporter's silence supplies the *accept* action. Both transitions along
+$N \xrightarrow{p} P \xrightarrow{a} A$ are therefore already satisfied when the
+case begins. The case does not *rest* in *Proposed*, because no decision is
+pending.
+
+Leaving a newly created case in *Proposed* would misrepresent a settled
+agreement as an unresolved one and would imply that some party still owes a
+response. This is why a protocol trace of the happy path shows an *Active*
+embargo with no preceding *propose* or *accept* message exchanged between the
+parties. The absence of that exchange is intentional and correct — it is not a
+skipped step.
+
+### The Case Owner Is a Signatory from the Start
+
+The party who creates the case is its Case Owner. Because the Case Owner
+established the default embargo, they are a party to it from the moment the
+case exists. The Case Owner brings an active embargo into being, so it would be
+incoherent to then treat them as not yet bound by it. Each
+participant's individual relationship to the embargo is tracked by the
+[Participant Embargo Consent](participant-embargo-consent.md) state machine,
+and the Case Owner begins there as a `SIGNATORY`.
+
+### When a Counter-Proposal Is Present
+
+The default path applies only when the Reporter proposes nothing to the
+contrary. If the Reporter proposes different terms, the case follows the
+negotiated path instead — see
+[Sender Proposes an Embargo Longer than the Receiver Default](#sender-proposes-an-embargo-longer-than-the-receiver-default)
+and
+[Sender Proposes an Embargo Shorter than the Receiver Default](#sender-proposes-an-embargo-shorter-than-the-receiver-default)
+below. Even then, the shortest proposal is taken as accepted and the longer one
+as a proposed revision. The case therefore still reaches an *Active* embargo
+promptly, rather than stalling in negotiation.
+
 ## Using Defaults
 
 Next, we work through the possible interactions of published policies
@@ -41,25 +113,73 @@ is performing the action. For example, $a_{sender}$ indicates acceptance
 of the Sender's proposal, even if it is the Receiver doing the
 accepting.
 
-### No Defaults, No Proposals
-
-???+ note inline end "Formalism"
-
-    $$q^{em} \in N$$
+### No Defaults, No Proposals — the Protocol Default
 
 We begin with the simplest case, in which neither party has a default and no
-embargo has been proposed.
+embargo has been proposed. Even here an embargo is established, at a short
+duration fixed by the protocol itself.
 
 ```mermaid
 stateDiagram-v2
     direction LR
     [*] --> N
+    N --> P : propose<br/>(protocol default)
+    P --> A : accept
 ```
 
-!!! note ""  
+As on the other paths below, the two transitions are applied atomically at case
+creation and the intermediate *Proposed* state is never externally observable
+(see [Why *Active* and Not *Proposed*?](#why-active-and-not-proposed) above).
+What is different here is only the source of the duration: the protocol itself,
+rather than either party.
+
+!!! note ""
 
     If neither Sender nor Receiver proposes an embargo, _and_ no policy
-    defaults apply, no embargo SHALL exist.
+    defaults apply, the **protocol default embargo** SHALL apply and the
+    embargo SHALL begin in the *Active* state.
+
+!!! note ""
+
+    The protocol default embargo duration MUST be configurable. It SHALL be
+    no less than 72 hours and no more than 5 days.
+
+The protocol default is deliberately short. Its purpose is not to provide a
+comfortable embargo — it is to make publishing a default embargo period the
+rewarded behavior. A Participant who publishes nothing gets a few days; one who
+publishes a considered period gets the period they asked for. A generous fallback
+would remove the reason to publish at all.
+
+!!! warning "The Protocol Default Is Not a Proposal"
+
+    The protocol default does **not** take part in the *shortest proposal wins*
+    comparison described below. It is the value applied when there are no
+    candidates, never a candidate itself.
+
+    This distinction is load-bearing. A 3-day protocol default that competed
+    under shortest-wins would win against every longer proposal and cap every
+    embargo in the system at 3 days — no longer embargo could ever be agreed.
+
+    Two different things are called a *default*, and they behave differently:
+
+    | Term | What it is | Competes under shortest-wins? |
+    |---|---|---|
+    | **Actor default** | A duration from an Actor's published `EmbargoPolicy` — a *standing proposal* | **Yes** |
+    | **Protocol default** | The fallback when no proposal and no actor default applies | **No** |
+
+Nor is the protocol default a *minimum*. A Participant who proposes terms
+shorter than it gets the terms they proposed; the range above bounds what the
+fallback may be set to, not what parties may agree.
+
+One exception applies. An embargo on an already-public vulnerability protects
+nothing, so:
+
+!!! note ""
+
+    The protocol default embargo SHALL NOT apply to a case that is no longer
+    embargo-eligible. Where the vulnerability is already public, exploit code is
+    public, or attacks have been observed, no embargo is established and
+    $q^{em} \in N$.
 
 ### Sender Proposes When Receiver Has No Default Embargo
 
@@ -312,7 +432,7 @@ to lengthen it.
         \end{split}$$
     
     From this, we can see that the scalar sum of the agreement vector---and
-    therefore the longest embargo acceptable to both parties---is simply the
+    therefore the longest embargo acceptable to both parties---is the
     lesser of _n_ and _m_:
     
     $$\Sigma ( \mathbf{z} ) = min(n,m)$$
@@ -329,7 +449,7 @@ As an example:
     Vendor to extend the embargo. Even if those continued negotiations fail,
     both parties get at least the 30-day embargo period they agreed on in
     the first place. This should be preferable to both parties versus the
-    alternative of no embargo at all were they to simply reject the shorter
+    alternative of no embargo at all were they to reject the shorter
     proposal.
 
     ```mermaid

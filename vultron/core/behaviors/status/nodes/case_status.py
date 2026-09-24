@@ -99,13 +99,9 @@ class CheckCaseStatusIdempotencyNode(
             return f
         assert self.datalayer is not None
 
-        case = self.datalayer.read_case(self.case_id)
-        if case is None:
-            self.feedback_message = f"Case '{self.case_id}' not found"
-            self.logger.warning(
-                "CheckCaseStatusIdempotency: %s", self.feedback_message
-            )
-            return Status.FAILURE
+        case, failure = self._require_case(self.case_id)
+        if failure is not None:
+            return failure  # Regime 1 (ADR-0087)
 
         existing_ids = [_as_id(s) for s in case.case_statuses]
         if self.status_id in existing_ids:
@@ -150,14 +146,12 @@ class AppendCaseStatusToCaseNode(DataLayerActionWithPorts):
         self.status_id = status_id
         self.status_obj_fallback = status_obj_fallback
 
-    @classmethod
-    def input_ports(cls) -> dict[str, PortInformation]:
-        return {
-            **super().input_ports(),
-            BB_CASE_STATUS_DIM_FILTER: PortInformation(
-                data_type=object, required=False
-            ),
-        }
+    INPUT_PORTS: dict[str, PortInformation] = {
+        **DataLayerActionWithPorts.INPUT_PORTS,
+        BB_CASE_STATUS_DIM_FILTER: PortInformation(
+            data_type=object, required=False
+        ),
+    }
 
     @classmethod
     def _domain_port_remappings(cls) -> dict[str, str]:
@@ -197,13 +191,9 @@ class AppendCaseStatusToCaseNode(DataLayerActionWithPorts):
             return f
         assert self.datalayer is not None
 
-        case = self.datalayer.read_case(self.case_id)
-        if case is None:
-            self.feedback_message = f"Case '{self.case_id}' not found"
-            self.logger.warning(
-                "AppendCaseStatusToCase: %s", self.feedback_message
-            )
-            return Status.FAILURE
+        case, failure = self._require_case(self.case_id)
+        if failure is not None:
+            return failure  # Regime 1 (ADR-0087)
 
         # Use the per-dimension-filtered status when available; otherwise fall
         # back to the raw asserted object (no filtering was needed or applied).
@@ -287,11 +277,9 @@ class EmitCaseStatusUpdateNode(DataLayerActionWithPorts):
         assert self.datalayer is not None
         assert self.actor_id is not None
 
-        case = self.datalayer.read_case(self.case_id)
-        if case is None:
-            self.feedback_message = f"Case '{self.case_id}' not found"
-            self.logger.warning("%s: %s", self.name, self.feedback_message)
-            return Status.FAILURE
+        case, failure = self._require_case(self.case_id)
+        if failure is not None:
+            return failure  # Regime 1 (ADR-0087)
 
         # Within-tick idempotency: if this node already committed a CaseStatus
         # for this case during the current BT execution, skip the duplicate write.
@@ -324,6 +312,14 @@ class EmitCaseStatusUpdateNode(DataLayerActionWithPorts):
             pxa=PxaDimension(state=pxa_state),
         )
 
+        # ARCH-20-001, honestly: ``new_status`` is a *core-branch* ``CaseStatus``
+        # this node just built, so the sanctioned route is ``WireRenderPort``,
+        # which is not injected into this node today.  What makes the output
+        # correct meanwhile is that ``CaseStatus`` declares its own AS2 aliases
+        # (ADR-0099 details 2 and 5), so this dump produces the same ``emState`` /
+        # ``pxaState`` snapshot shape the port would — the shape CM-18-006's
+        # invariant harness and every replica read.  Route it through the port
+        # when the rendering collapse lands.
         status_dict: dict[str, Any] = new_status.model_dump(
             mode="json",
             by_alias=True,

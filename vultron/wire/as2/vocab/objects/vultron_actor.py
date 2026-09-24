@@ -1,5 +1,11 @@
 #!/usr/bin/env python
-"""Wire-branch Vultron actor models."""
+"""
+Wire-layer aliases for Vultron actor types.
+
+Per ADR-0099 detail 3: core actor classes are the canonical form.
+The as_-prefixed names and WIRE_TYPE_MAP entries are retained for
+backward compatibility and vocabulary lookup.
+"""
 
 #  Copyright (c) 2026 Carnegie Mellon University and Contributors.
 #  - see Contributors.md for a full list of Contributors
@@ -14,7 +20,7 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-from typing import Annotated, Any, Literal, Type, TypeAlias, Union
+from typing import Annotated, TypeAlias, Union
 
 from pydantic import Field
 
@@ -26,103 +32,42 @@ from vultron.core.models.actor import (
     VultronPerson,
     VultronService,
 )
-from vultron.wire.as2.enums import as_ActorType
-from vultron.wire.as2.vocab.base.objects.actors import as_Actor
 from vultron.wire.as2.vocab.base.links import ActivityStreamRef
 from vultron.wire.as2.vocab.base.registry import WIRE_TYPE_MAP
 
-_WIRE_ACTOR_TO_CORE: dict[str, Type[CoreActor]] = {
-    as_ActorType.PERSON: VultronPerson,
-    as_ActorType.ORGANIZATION: VultronOrganization,
-    as_ActorType.SERVICE: VultronService,
-    as_ActorType.APPLICATION: VultronApplication,
-    as_ActorType.GROUP: VultronGroup,
-}
+# Backward-compatibility aliases (ADR-0099 detail 3)
+as_VultronPerson = VultronPerson
+as_VultronOrganization = VultronOrganization
+as_VultronService = VultronService
+as_VultronApplication = VultronApplication
+as_VultronGroup = VultronGroup
 
+# Register core actor classes in WIRE_TYPE_MAP under their emitted ``type``
+# value, so an inbound ``{"type": "Person"}`` deserializes to ``VultronPerson``,
+# which carries ``embargo_policy`` — the base ``as_Person`` would drop it. These
+# deliberately shadow the ``actors.py`` registrations; this module imports
+# ``actors`` so it always registers second. No class-name key is registered:
+# ``VultronPerson`` is no payload's ``type`` value (VM-01-008, #2982).
+WIRE_TYPE_MAP["Person"] = VultronPerson
+WIRE_TYPE_MAP["Organization"] = VultronOrganization
+WIRE_TYPE_MAP["Service"] = VultronService
+WIRE_TYPE_MAP["Application"] = VultronApplication
+WIRE_TYPE_MAP["Group"] = VultronGroup
 
-class VultronActorMixin(as_Actor):
-    """Wire actor base with Vultron-specific actor extension fields."""
-
-    embargo_policy: Any | None = Field(
-        default=None,
-        description="The actor's stated embargo preferences.",
-    )
-
-    def to_core(self) -> CoreActor:
-        type_str = self.type_
-        core_cls = (
-            _WIRE_ACTOR_TO_CORE.get(type_str) if type_str is not None else None
-        )
-        if core_cls is None:
-            raise ValueError(
-                f"No core actor type for wire type {self.type_!r}"
-            )
-        return core_cls.model_validate(self.model_dump(mode="json"))
-
-
-class as_VultronPerson(VultronActorMixin):
-    type_: Literal[as_ActorType.PERSON] = Field(
-        default=as_ActorType.PERSON,
-        validation_alias="type",
-        serialization_alias="type",
-    )
-
-
-class as_VultronOrganization(VultronActorMixin):
-    type_: Literal[as_ActorType.ORGANIZATION] = Field(
-        default=as_ActorType.ORGANIZATION,
-        validation_alias="type",
-        serialization_alias="type",
-    )
-
-
-class as_VultronService(VultronActorMixin):
-    type_: Literal[as_ActorType.SERVICE] = Field(
-        default=as_ActorType.SERVICE,
-        validation_alias="type",
-        serialization_alias="type",
-    )
-
-
-class as_VultronApplication(VultronActorMixin):
-    type_: Literal[as_ActorType.APPLICATION] = Field(
-        default=as_ActorType.APPLICATION,
-        validation_alias="type",
-        serialization_alias="type",
-    )
-
-
-class as_VultronGroup(VultronActorMixin):
-    type_: Literal[as_ActorType.GROUP] = Field(
-        default=as_ActorType.GROUP,
-        validation_alias="type",
-        serialization_alias="type",
-    )
-
-
-WIRE_TYPE_MAP["Person"] = as_VultronPerson
-WIRE_TYPE_MAP["Organization"] = as_VultronOrganization
-WIRE_TYPE_MAP["Service"] = as_VultronService
-WIRE_TYPE_MAP["Application"] = as_VultronApplication
-WIRE_TYPE_MAP["Group"] = as_VultronGroup
-
-
-as_VultronPersonRef: TypeAlias = ActivityStreamRef[as_VultronPerson]
-as_VultronOrganizationRef: TypeAlias = ActivityStreamRef[
-    as_VultronOrganization
-]
-as_VultronServiceRef: TypeAlias = ActivityStreamRef[as_VultronService]
-as_VultronApplicationRef: TypeAlias = ActivityStreamRef[as_VultronApplication]
-as_VultronGroupRef: TypeAlias = ActivityStreamRef[as_VultronGroup]
+as_VultronPersonRef: TypeAlias = ActivityStreamRef[VultronPerson]
+as_VultronOrganizationRef: TypeAlias = ActivityStreamRef[VultronOrganization]
+as_VultronServiceRef: TypeAlias = ActivityStreamRef[VultronService]
+as_VultronApplicationRef: TypeAlias = ActivityStreamRef[VultronApplication]
+as_VultronGroupRef: TypeAlias = ActivityStreamRef[VultronGroup]
 
 
 ActorUnion: TypeAlias = Annotated[
     Union[
-        as_VultronPerson,
-        as_VultronOrganization,
-        as_VultronService,
-        as_VultronApplication,
-        as_VultronGroup,
+        VultronPerson,
+        VultronOrganization,
+        VultronService,
+        VultronApplication,
+        VultronGroup,
     ],
     Field(
         description="A concrete Vultron actor (Person, Organization, Service, Application, or Group)."
@@ -133,7 +78,6 @@ ActorUnion: TypeAlias = Annotated[
 __all__ = [
     "ActorUnion",
     "CoreActor",
-    "VultronActorMixin",
     "as_VultronApplication",
     "as_VultronApplicationRef",
     "as_VultronGroup",

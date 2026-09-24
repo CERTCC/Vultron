@@ -21,24 +21,35 @@ SCHEDULE_OPTION_ID=$(bash .agents/skills/shared/board-id.sh schedule "${TIER}") 
 ## Querying All Board Items
 
 ```bash
+# Paginated: Project #24 has ~300 items; the API cap is 100 per page.
 PROJECT_ID=$(bash .agents/skills/shared/board-id.sh project)
-gh api graphql -f query='{
-  node(id: "'"$PROJECT_ID"'") {
-    ... on ProjectV2 {
-      items(first: 100) {
-        nodes {
-          id
-          content {
-            ... on Issue { number title state }
-          }
-          fieldValueByName(name: "Schedule") {
-            ... on ProjectV2ItemFieldSingleSelectValue { name optionId }
+CURSOR=""
+while true; do
+  [ -n "$CURSOR" ] && AFTER=', after: "'"$CURSOR"'"' || AFTER=""
+  PAGE=$(gh api graphql \
+    --jq '{items:.data.node.items.nodes,more:.data.node.items.pageInfo.hasNextPage,cursor:.data.node.items.pageInfo.endCursor}' \
+    -f query='{
+    node(id: "'"$PROJECT_ID"'") {
+      ... on ProjectV2 {
+        items(first: 100'"$AFTER"') {
+          pageInfo { hasNextPage endCursor }
+          nodes {
+            id
+            content {
+              ... on Issue { number title state }
+            }
+            fieldValueByName(name: "Schedule") {
+              ... on ProjectV2ItemFieldSingleSelectValue { name optionId }
+            }
           }
         }
       }
     }
-  }
-}'
+  }')
+  echo "$PAGE" | jq -r '.items[]'
+  [ "$(echo "$PAGE" | jq -r '.more')" = "true" ] || break
+  CURSOR=$(echo "$PAGE" | jq -r '.cursor')
+done
 ```
 
 ## Moving an Item Between Tiers

@@ -92,9 +92,17 @@ def test_vfd_dimensions_ride_participant_status_not_case_status():
     assert pattern.object_ == "ParticipantStatus"
     assert pattern.target_ == "CaseParticipant"
 
-    # V and F ride `vf_state`; D rides `d_state`. Both are participant-scoped.
-    assert "vf_state" in as_ParticipantStatus.model_fields
-    assert "d_state" in as_ParticipantStatus.model_fields
+    # V and F ride the VF dimension; D rides the D dimension. Both are
+    # participant-scoped.  They used to be flat ``vf_state``/``d_state`` *fields*;
+    # ADR-0099 detail 5 makes the dimension the field and the flat spelling its
+    # serialization, so the check is on the dimension field and the AS2 name it
+    # emits — which is what MSM-03 is actually about.
+    assert as_ParticipantStatus.model_fields["vf"].serialization_alias == (
+        "vfState"
+    )
+    assert as_ParticipantStatus.model_fields["d"].serialization_alias == (
+        "dState"
+    )
 
     # The whole point of the correction: there is no case-level V/F/D state, and
     # in particular none of the payload fields MSM-03 used to name.
@@ -120,7 +128,7 @@ def test_pxa_dimensions_ride_case_status():
     assert pattern.activity_ is TAtype.ADD
     assert pattern.object_ == "CaseStatus"
     assert pattern.target_ == "VulnerabilityCase"
-    assert "pxa_state" in as_CaseStatus.model_fields
+    assert as_CaseStatus.model_fields["pxa"].serialization_alias == "pxaState"
 
 
 # ---------------------------------------------------------------------------
@@ -308,6 +316,39 @@ def test_ledger_hash_mismatch_rejects_and_replays_from_last_accepted():
     nak = _pattern(MessageSemantics.REJECT_CASE_LEDGER_ENTRY)
     assert nak.activity_ is TAtype.REJECT
     assert nak.object_ == "CaseLedgerEntry"
+
+
+@pytest.mark.spec("MSM-05-005")
+def test_report_submission_is_the_only_non_ledger_wire_activity():
+    """RK / ACK_REPORT is the only ack semantic because RS is not ledger-replicated.
+
+    Every other protocol-significant activity reaches participants via
+    Announce(CaseLedgerEntry) — there is no second category of activities that
+    bypasses the ledger and would need its own ack mechanism.
+    """
+    registered = _registered()
+
+    # The ledger fan-out semantic exists ...
+    assert MessageSemantics.ANNOUNCE_CASE_LEDGER_ENTRY in registered
+    # ... and the only explicit ack is the one for report submission.
+    assert _members_matching(_ACK_TOKENS) == _SANCTIONED_ACK_SEMANTICS
+
+
+@pytest.mark.spec("MSM-05-006")
+def test_no_heartbeat_semantic_exists_in_registry():
+    """Liveness inference relies solely on Announce deliveries; no heartbeat is mandated.
+
+    MSM-05-006 records that implementations MAY rely on Announce(CaseLedgerEntry)
+    for liveness without emitting a dedicated heartbeat. The absence of a
+    HEARTBEAT-named semantic in the current registry is the observable correlate.
+    """
+    heartbeat_members = frozenset(
+        s.name for s in MessageSemantics if "HEARTBEAT" in s.name
+    )
+    assert not heartbeat_members, (
+        f"A HEARTBEAT semantic was registered ({heartbeat_members}); "
+        "update MSM-05-006 before making heartbeat mandatory."
+    )
 
 
 @pytest.mark.spec("MSM-05-003")

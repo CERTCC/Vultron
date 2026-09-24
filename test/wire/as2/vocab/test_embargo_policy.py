@@ -241,7 +241,9 @@ class TestEmbargoPolicySerialization(unittest.TestCase):
 
     def test_json_serialization_uses_iso8601_strings(self):
         """DUR-05-002: JSON wire layer serializes durations as ISO 8601 strings."""
-        data = json.loads(self.policy.to_json())
+        data = json.loads(
+            self.policy.model_dump_json(exclude_none=True, by_alias=True)
+        )
         # JSON uses camelCase (alias_generator=to_camel)
         self.assertIsInstance(data["preferredDuration"], str)
         self.assertIsInstance(data["minimumDuration"], str)
@@ -253,7 +255,9 @@ class TestEmbargoPolicySerialization(unittest.TestCase):
 
     def test_json_does_not_serialize_as_number(self):
         """DUR-05-002: Duration MUST NOT be serialized as a plain number."""
-        data = json.loads(self.policy.to_json())
+        data = json.loads(
+            self.policy.model_dump_json(exclude_none=True, by_alias=True)
+        )
         # JSON uses camelCase (alias_generator=to_camel)
         self.assertNotIsInstance(data["preferredDuration"], (int, float))
 
@@ -296,7 +300,7 @@ class TestEmbargoPolicySerialization(unittest.TestCase):
             inbox=INBOX,
             preferred_duration=timedelta(days=90),
         )
-        json_str = p.to_json()
+        json_str = p.model_dump_json(exclude_none=True, by_alias=True)
         data = json.loads(json_str)
         # JSON uses camelCase (alias_generator=to_camel)
         self.assertEqual("P90D", data["preferredDuration"])
@@ -305,7 +309,7 @@ class TestEmbargoPolicySerialization(unittest.TestCase):
         self.assertEqual(timedelta(days=90), p2.preferred_duration)
 
     def test_json_serialization(self):
-        j = self.policy.to_json()
+        j = self.policy.model_dump_json(exclude_none=True, by_alias=True)
         self.assertIn("EmbargoPolicy", j)
         self.assertIn(ACTOR_ID, j)
         self.assertIn(INBOX, j)
@@ -324,7 +328,7 @@ if __name__ == "__main__":
 
 
 class TestEmbargoPolicyCoreConversion(unittest.TestCase):
-    """Wire EmbargoPolicy ↔ core EmbargoPolicy round-trip — ADR-0017."""
+    """Wire EmbargoPolicy IS core EmbargoPolicy (identity) — ADR-0099 detail 3."""
 
     def setUp(self):
         from vultron.core.models.embargo_policy import (
@@ -343,36 +347,46 @@ class TestEmbargoPolicyCoreConversion(unittest.TestCase):
         )
 
     def test_from_core_produces_wire_instance(self):
-        wire = self.wire_cls.from_core(self.core_policy)
-        self.assertIsInstance(wire, self.wire_cls)
+        """ADR-0099 detail 3: wire IS core — no from_core() needed."""
+        self.assertIs(self.wire_cls, self.core_cls)
+        self.assertIsInstance(self.core_policy, self.wire_cls)
 
     def test_from_core_preserves_fields(self):
-        wire = self.wire_cls.from_core(self.core_policy)
-        self.assertEqual(wire.actor_id, ACTOR_ID)
-        self.assertEqual(wire.inbox, INBOX)
-        self.assertEqual(wire.preferred_duration, _P90D)
-        self.assertEqual(wire.minimum_duration, _P45D)
-        self.assertEqual(wire.maximum_duration, _P180D)
-        self.assertEqual(wire.notes, "Prefer 90 days.")
+        """Direct core instantiation via wire alias preserves all fields."""
+        policy = self.wire_cls(
+            actor_id=ACTOR_ID,
+            inbox=INBOX,
+            preferred_duration=_P90D,
+            minimum_duration=_P45D,
+            maximum_duration=_P180D,
+            notes="Prefer 90 days.",
+        )
+        self.assertEqual(policy.actor_id, ACTOR_ID)
+        self.assertEqual(policy.inbox, INBOX)
+        self.assertEqual(policy.preferred_duration, _P90D)
+        self.assertEqual(policy.minimum_duration, _P45D)
+        self.assertEqual(policy.maximum_duration, _P180D)
+        self.assertEqual(policy.notes, "Prefer 90 days.")
 
     def test_to_core_produces_core_instance(self):
-        wire = self.wire_cls.from_core(self.core_policy)
-        core = wire.to_core()
-        self.assertIsInstance(core, self.core_cls)
+        """Wire instance IS already a core instance."""
+        self.assertIsInstance(self.core_policy, self.core_cls)
 
     def test_to_core_preserves_fields(self):
-        wire = self.wire_cls.from_core(self.core_policy)
-        core = wire.to_core()
-        self.assertEqual(core.actor_id, ACTOR_ID)
-        self.assertEqual(core.preferred_duration, _P90D)
-        self.assertEqual(core.minimum_duration, _P45D)
-        self.assertEqual(core.maximum_duration, _P180D)
+        """Core instance fields are accessible directly (no to_core() conversion)."""
+        self.assertEqual(self.core_policy.actor_id, ACTOR_ID)
+        self.assertEqual(self.core_policy.preferred_duration, _P90D)
+        self.assertEqual(self.core_policy.minimum_duration, _P45D)
+        self.assertEqual(self.core_policy.maximum_duration, _P180D)
 
     def test_roundtrip_core_to_wire_to_core(self):
-        wire = self.wire_cls.from_core(self.core_policy)
-        core2 = wire.to_core()
-        self.assertEqual(
-            core2.preferred_duration, self.core_policy.preferred_duration
+        """Model dump/validate round-trip preserves fields."""
+        data = self.core_policy.model_dump(
+            by_alias=True, exclude_none=True, mode="json"
         )
-        self.assertEqual(core2.actor_id, self.core_policy.actor_id)
-        self.assertEqual(core2.notes, self.core_policy.notes)
+        restored = self.core_cls.model_validate(data)
+        self.assertEqual(
+            restored.preferred_duration, self.core_policy.preferred_duration
+        )
+        self.assertEqual(restored.actor_id, self.core_policy.actor_id)
+        self.assertEqual(restored.notes, self.core_policy.notes)

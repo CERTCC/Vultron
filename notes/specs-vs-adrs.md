@@ -241,10 +241,14 @@ Generated spec requirements: `datalayer.yaml` DL-01 through DL-03.
 
 ---
 
-## Never State Ephemeral Counts in Long-Lived Docs
+## Never State Unverifiable, Drift-Prone Facts in Long-Lived Docs
 
 Long-lived documents — specs, notes files, AGENTS.md — **MUST NOT state
-counts that will drift independently of their authoritative source** (MS-16-001).
+counts that will drift independently of their authoritative source**
+(MS-16-001), and more generally **MUST NOT state any fact that no automated
+check could falsify and that drifts independently of its source** (MS-16-002).
+A restated count is only the most common instance; the governing test is
+"could a test fail on this sentence?" — not "is this a number?".
 
 ### The problem
 
@@ -259,6 +263,17 @@ gets a false picture of the system. The count adds no normative force.
 The same applies to any long-lived doc: writing "there are 4 unimplemented
 nodes" or "15 xfails" is a snapshot virtually guaranteed to be wrong when read
 later.
+
+The failure is sharpest in a **doc table that mirrors a code, spec, or config
+inventory**. Such tables drift unevenly: the columns a test could check stay
+roughly right, while the columns no test could hold go wholly wrong — and rot
+into confident wrong answers, not into silence. Before syncing such a table,
+sort its columns into verifiable and not, *disaggregating any column that packs
+two facts into one heading first* — a column may look unverifiable only because
+it answers two questions at once, and splitting it can make one part derivable.
+The full triage procedure is in `notes/documentation-sweeps.md` §
+"Mirrored tables rot in the column no test can hold" (witnesses ISSUE-3337 and
+the scenario table, CONCERN-3466).
 
 ### The fix
 
@@ -280,6 +295,26 @@ not).
 "there are 4 unimplemented nodes" with "the unimplemented nodes are listed in
 [...]"; replace "15 xfails" with "known-flaky tests are tracked in
 `notes/flaky-tests.md`".
+
+### The scenario-count rule is machine-enforced, and this file is exempt
+
+For one enumeration — the demo scenario set — MS-16-001 is no longer advice.
+DEMOCI-11-008 forbids any declared scenario-table consumer from restating the
+count, and `restated_counts()` in
+`vultron/metadata/demo_scenarios/prose_counts.py` enforces it over the
+`SCENARIO_TABLE_CONSUMERS` tuple, wired into `uv run demo-scenarios --check` and
+the `demo-scenarios-sync` pre-commit hook. A restatement inside a
+`## Change history` section (or any subsection of one) is exempt, because that
+sentence records a past state and rewriting it would destroy the record.
+
+**This file is deliberately not a declared consumer.** The "Instead of" column
+above must keep its restated counts — they are the counter-examples the guidance
+is made of — and a check cannot tell a counter-example from the thing it warns
+against. Adding `notes/specs-vs-adrs.md` to `SCENARIO_TABLE_CONSUMERS` would
+therefore report this section's own table and pressure someone into deleting the
+guidance to get the hook green. If you are editing the counter-examples, that is
+why they survive; the exemption is recorded in `EXEMPT_CONSUMERS` in the same
+module.
 
 ---
 

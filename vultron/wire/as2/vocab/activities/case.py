@@ -34,7 +34,6 @@ from vultron.wire.as2.vocab.base.objects.activities.transitive import (
     as_Reject,
     as_Update,
 )
-from vultron.core.models.actor import CoreActor
 from vultron.wire.as2.vocab.base.objects.actors import as_Actor, as_ActorRef
 from vultron.wire.as2.vocab.base.objects.object_types import as_Note
 from vultron.wire.as2.vocab.objects.case_participant_role import (
@@ -44,7 +43,7 @@ from vultron.wire.as2.vocab.objects.case_status import as_CaseStatus
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCase,
     as_VulnerabilityCaseRef,
-    VulnerabilityCaseStub,
+    as_VulnerabilityCaseStub,
 )
 from vultron.wire.as2.vocab.objects.vulnerability_report import (
     as_VulnerabilityReport,
@@ -319,10 +318,10 @@ class _RmInviteToCaseActivity(as_Invite):
     answered 404 for an invite it had never been told about (#2548, fcv-reject).
     """
 
-    object_: CoreActor | as_Actor = Field(
+    object_: as_Actor = Field(
         ..., validation_alias="object", serialization_alias="object"
     )
-    target: VulnerabilityCaseStub | str | None = None
+    target: as_VulnerabilityCaseStub | str | None = None
 
     inline_required_refs: ClassVar[frozenset[str]] = frozenset({"object_"})
 
@@ -362,6 +361,31 @@ class _RmRejectInviteToCaseActivity(as_Reject):
 
     @model_validator(mode="after")
     def set_in_reply_to_from_invite(self):
+        if self.in_reply_to is None:
+            object.__setattr__(self, "in_reply_to", self.object_.id_)
+        return self
+
+
+class _RmRejectCloseCaseActivity(as_Reject):
+    """The Case Actor declines an owner's Leave(VulnerabilityCase) close.
+
+    Emitted per CM-23-011: when the Case Owner sends Leave(VulnerabilityCase)
+    while the case still holds an active embargo, the Case Actor declines the
+    closure with an ``as:Reject`` ("received and understood but declined",
+    MSM-05-001) instead of running the CM-23-002 closure sequence.  The owner
+    must terminate the embargo first, then re-issue the close.
+
+    `object_`: the `_RmCloseCaseActivity` (the Leave) being declined (inline
+        typed object required — bare string IDs are rejected at construction
+        time).
+    """
+
+    object_: _RmCloseCaseActivity = Field(
+        ..., validation_alias="object", serialization_alias="object"
+    )
+
+    @model_validator(mode="after")
+    def set_in_reply_to_from_leave(self):
         if self.in_reply_to is None:
             object.__setattr__(self, "in_reply_to", self.object_.id_)
         return self

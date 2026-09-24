@@ -23,7 +23,7 @@ from vultron.wire.as2.factories import (
 from vultron.wire.as2.vocab.objects.embargo_event import as_EmbargoEvent
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCase,
-    VulnerabilityCaseStub,
+    as_VulnerabilityCaseStub,
 )
 
 
@@ -201,7 +201,7 @@ def test_dispatcher_allows_gated_semantic_when_backfill_complete():
             id_=f"{participant_id}/status/closed",
             context=case_id,
         ),
-        target=VulnerabilityCaseStub(id_=participant_id),
+        target=as_VulnerabilityCaseStub(id_=participant_id),
         activity=VultronActivity(type_="Add", actor=actor_id),
     )
     mock_dl.list_objects.return_value = [
@@ -280,7 +280,7 @@ def test_dispatcher_uses_case_context_for_participant_status_gate():
             id_=f"{participant_id}/status/1",
             context=case_id,
         ),
-        target=VulnerabilityCaseStub(id_=participant_id),
+        target=as_VulnerabilityCaseStub(id_=participant_id),
         activity=VultronActivity(type_="Add", actor=actor_id),
     )
     state_id = VultronReplicationState(
@@ -319,7 +319,9 @@ def test_dispatcher_resolves_case_for_reject_embargo_invite_gate():
     case_id = "https://example.org/cases/case-gate-embargo"
     invite = em_propose_embargo_activity(
         embargo=as_EmbargoEvent(
-            id_=f"{case_id}/embargo_events/e1", content="Embargo proposal"
+            id_=f"{case_id}/embargo_events/e1",
+            content="Embargo proposal",
+            context=case_id,
         ),
         context=case_id,
         actor="https://example.org/users/vendor",
@@ -329,7 +331,7 @@ def test_dispatcher_resolves_case_for_reject_embargo_invite_gate():
         activity_id="act-gate-4",
         actor_id=actor_id,
         object_=invite,
-        inner_context=VulnerabilityCaseStub(id_=case_id),
+        inner_context=as_VulnerabilityCaseStub(id_=case_id),
         activity=VultronActivity(type_="Reject", actor=actor_id),
     )
     state_id = VultronReplicationState(

@@ -22,14 +22,7 @@ import py_trees.behaviour
 from py_trees.common import Status
 
 from vultron.core.models.enums import VultronObjectType
-from vultron.core.models.dimensions import (
-    DDimension,
-    PecDimension,
-    RmDimension,
-    VfDimension,
-)
 from vultron.core.models.participant_status import (
-    ParticipantStatus,
     participant_status_d_state,
     participant_status_rm_state,
     participant_status_vf_state,
@@ -41,7 +34,6 @@ from vultron.core.ports.case_persistence import (
     CaseOutboxPersistence,
     CasePersistence,
 )
-from vultron.core.states.participant_embargo_consent import PEC
 from vultron.core.states.cs import CS_d, CS_pxa, CS_vf
 from vultron.core.states.participant_transitions import (
     participant_transition_violations,
@@ -49,10 +41,6 @@ from vultron.core.states.participant_transitions import (
 from vultron.core.states.rm import RM
 from vultron.enums.roles import CVDRole
 from vultron.errors import VultronValidationError
-from vultron.core.models._helpers import (
-    _report_phase_status_id,
-    report_phase_context,
-)
 
 if TYPE_CHECKING:
     from vultron.core.ports.trigger_activity import TriggerActivityPort
@@ -84,6 +72,9 @@ def _create_and_attach_participant(
             participant.id_,
         )
 
+    # Regime 1 (ADR-0087): module-level resolver (bare `dl`, not a node) —
+    # a missing case is logged at ERROR and returned as None so the calling
+    # node fails loudly. Conformance allowlist: module-resolver category.
     stored_case = dl.read_case(case_id)
     if stored_case is None:
         node_logger.error("Case %s not found in DataLayer", case_id)
@@ -111,100 +102,6 @@ def _create_and_attach_participant(
         stored_case.id_,
     )
     return stored_case
-
-
-def _get_or_create_accepted_status(
-    dl: CasePersistence,
-    actor_id: str,
-    report_id: str | None,
-    node_name: str,
-    node_logger: logging.Logger,
-    cvd_role: list[CVDRole],
-    em_consent_state: PEC | None,
-) -> ParticipantStatus | None:
-    if report_id is None:
-        return None
-
-    # CLP-07-007: context must use the case URI once a case exists.  Single
-    # canonical copy of that selection lives in models/_helpers (ARCH-15-004).
-    context = report_phase_context(dl, report_id)
-
-    accepted_status_id = _report_phase_status_id(
-        actor_id,
-        report_id,
-        RM.ACCEPTED.value,
-    )
-    existing = dl.read(accepted_status_id)
-    if isinstance(existing, ParticipantStatus):
-        should_update_role = existing.cvd_role != cvd_role
-        should_backfill_consent = (
-            existing.consent.state if existing.consent is not None else None
-        ) is None and em_consent_state is not None
-        # AC-3: backfill context if it still holds the report URI.
-        should_backfill_context = (
-            existing.context == report_id and context != report_id
-        )
-        if (
-            should_update_role
-            or should_backfill_consent
-            or should_backfill_context
-        ):
-            existing.cvd_role = cvd_role
-            if should_backfill_consent and em_consent_state is not None:
-                existing.consent = PecDimension(state=em_consent_state)
-            if should_backfill_context:
-                existing.context = context
-            dl.save(existing)
-        # Construct a fresh core ParticipantStatus for callers that require
-        # the core type (e.g. CaseParticipant.participant_statuses).  The
-        # DataLayer vocabulary registry may return the wire-layer subclass;
-        # we normalise here so downstream code never sees a wire-layer type.
-        return ParticipantStatus(
-            id_=existing.id_,
-            context=existing.context,
-            rm=RmDimension(state=existing.rm.state),
-            vf=(
-                VfDimension(state=existing.vf.state)
-                if existing.vf is not None
-                else None
-            ),
-            d=(
-                DDimension(state=existing.d.state)
-                if existing.d is not None
-                else None
-            ),
-            attributed_to=getattr(existing, "attributed_to", actor_id),
-            cvd_role=existing.cvd_role,
-            consent=(
-                PecDimension(state=existing.consent.state)
-                if existing.consent is not None
-                else None
-            ),
-        )
-
-    node_logger.info(
-        "%s: Creating fresh RM.ACCEPTED status for actor '%s' "
-        "(report-phase status not pre-created)",
-        node_name,
-        actor_id,
-    )
-    accepted_status = ParticipantStatus(
-        id_=accepted_status_id,
-        context=context,
-        rm=RmDimension(state=RM.ACCEPTED),
-        attributed_to=actor_id,
-        cvd_role=cvd_role,
-        consent=(
-            PecDimension(state=em_consent_state)
-            if em_consent_state is not None
-            else None
-        ),
-    )
-    try:
-        dl.create(accepted_status)
-    except ValueError:
-        pass
-    return accepted_status
 
 
 def resolve_participant_state_from_dl(

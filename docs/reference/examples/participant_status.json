@@ -1,23 +1,26 @@
 {
-  "@context": "https://www.w3.org/ns/activitystreams",
-  "type": "ParticipantStatus",
   "id": "https://vultron.example/cases/1/participants/vendor/status/1",
-  "name": "REPORT_MANAGEMENT_RECEIVED Vfd EMBARGO_MANAGEMENT_NONE pxa",
+  "type": "ParticipantStatus",
+  "name": "RECEIVED Vf NONE pxa",
   "context": "https://vultron.example/cases/1/participants/vendor",
-  "actor": "https://vultron.example/organizations/vendor",
-  "rmState": "REPORT_MANAGEMENT_RECEIVED",
-  "vfdState": "Vfd",
+  "attributedTo": "https://vultron.example/organizations/vendor",
+  "rmState": "RECEIVED",
+  "vfState": "Vf",
   "caseEngagement": true,
-  "embargoAdherence": true,
+  "cvdRole": [
+    "OBSERVER"
+  ],
   "caseStatus": {
-    "@context": "https://www.w3.org/ns/activitystreams",
-    "type": "CaseStatus",
     "id": "https://vultron.example/cases/1/status/1",
-    "name": "EMBARGO_MANAGEMENT_NONE pxa",
+    "type": "CaseStatus",
+    "name": "NONE pxa",
     "context": "https://vultron.example/cases/1",
-    "published": "2024-01-22T20:29:47+00:00",
-    "updated": "2024-01-22T20:29:47+00:00",
-    "emState": "EMBARGO_MANAGEMENT_NONE",
-    "pxaState": "pxa"
-  }
+    "published": "2026-06-01T19:12:00+00:00",
+    "updated": "2026-06-01T19:12:00+00:00",
+    "emState": "NONE",
+    "pxaState": "pxa",
+    "@context": "https://certcc.github.io/Vultron/ns/context.jsonld"
+  },
+  "embargoAdherence": false,
+  "@context": "https://certcc.github.io/Vultron/ns/context.jsonld"
 }

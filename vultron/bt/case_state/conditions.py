@@ -20,18 +20,16 @@ from vultron.bt.base.factory import condition_check, invert, sequence_node
 from vultron.core.states.cs import (
     AttackObservation,
     ExploitPublication,
-    FixDeployment,
-    FixReadiness,
     PublicAwareness,
-    VendorAwareness,
+    is_d_fix_deployed,
+    is_vf_fix_ready,
+    is_vf_vendor_aware,
 )
 
 
 def cs_in_state_vendor_aware(obj: BtNode) -> bool:
     """True when the vendor is aware of the vulnerability"""
-    return bool(
-        obj.bb.q_cs.value.vfd_state.value.vendor_awareness == VendorAwareness.V
-    )
+    return is_vf_vendor_aware(obj.bb.q_cs.value.vf_state)
 
 
 CSinStateVendorAware = condition_check(
@@ -42,9 +40,7 @@ CSinStateVendorAware = condition_check(
 
 def cs_in_state_fix_ready(obj: BtNode) -> bool:
     """True when the vendor has a fix ready"""
-    return bool(
-        obj.bb.q_cs.value.vfd_state.value.fix_readiness == FixReadiness.F
-    )
+    return is_vf_fix_ready(obj.bb.q_cs.value.vf_state)
 
 
 CSinStateFixReady = condition_check(
@@ -55,9 +51,7 @@ CSinStateFixReady = condition_check(
 
 def cs_in_state_fix_deployed(obj: BtNode) -> bool:
     """True when the fix has been deployed"""
-    return bool(
-        obj.bb.q_cs.value.vfd_state.value.fix_deployment == FixDeployment.D
-    )
+    return is_d_fix_deployed(obj.bb.q_cs.value.d_state)
 
 
 CSinStateFixDeployed = condition_check(

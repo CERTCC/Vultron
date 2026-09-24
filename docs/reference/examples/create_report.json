@@ -1,19 +1,17 @@
 {
+  "id": "urn:uuid:29c08268-a49c-48cb-89bc-800a8bc09815",
+  "type": "Create",
+  "name": "https://vultron.example/users/finndervul Create FDR-8675309",
   "@context": "https://www.w3.org/ns/activitystreams",
-  "asType": "Create",
-  "id": "https://for.example/32ec0fda-bfe8-4ae3-af59-d421592580c1",
-  "name": "https://vultron.example/users/finn Create FDR-8675309",
-  "actor": "https://vultron.example/users/finn",
+  "actor": "https://vultron.example/users/finndervul",
   "object": {
-    "@context": "https://www.w3.org/ns/activitystreams",
+    "id": "https://demo.vultron.local/VulnerabilityReport/d3374731-d2d0-4530-89a7-00f118413aa3",
     "type": "VulnerabilityReport",
-    "id": "https://vultron.example/reports/FDR-8675309",
     "name": "FDR-8675309",
-    "published": "2024-01-22T20:29:47+00:00",
-    "updated": "2024-01-22T20:29:47+00:00",
+    "published": "2026-09-23T16:41:56+00:00",
+    "updated": "2026-09-23T16:41:56+00:00",
     "content": "I found a vulnerability!",
-    "attributedTo": [
-      "https://vultron.example/users/finn"
-    ]
+    "attributedTo": "https://vultron.example/users/finndervul",
+    "@context": "https://certcc.github.io/Vultron/ns/context.jsonld"
   }
 }

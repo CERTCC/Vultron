@@ -19,9 +19,11 @@ True multi-container isolation is validated by the acceptance test runnable via:
 
 import importlib
 import json
+from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
 import pytest
+from vultron.demo.actor_session import ActorSession
 from _pytest.monkeypatch import MonkeyPatch
 from click.testing import CliRunner
 from fastapi.testclient import TestClient
@@ -377,7 +379,7 @@ class TestFvcvHandoffMilestoneAssertions:
 
         with (
             patch.object(demo, "wait_for_participant_rm_state"),
-            patch.object(demo, "actor_notifies_fix_ready"),
+            patch.object(ActorSession, "notify_fix_ready"),
             patch.object(demo, "wait_for_participant_vf_state"),
             patch.object(demo, "verify_fix_ready") as mock_m4,
             patch.object(
@@ -423,8 +425,8 @@ class TestFvcvHandoffMilestoneAssertions:
         with (
             patch.object(demo, "wait_for_participant_rm_state", _rm_wait),
             patch.object(
-                demo,
-                "actor_notifies_fix_ready",
+                ActorSession,
+                "notify_fix_ready",
                 side_effect=lambda *a, **kw: call_order.append("fix_ready"),
             ),
             patch.object(demo, "wait_for_participant_vf_state"),
@@ -472,7 +474,7 @@ class TestFvcvHandoffMilestoneAssertions:
         case = self._case()
 
         with (
-            patch.object(demo, "actor_notifies_published"),
+            patch.object(ActorSession, "notify_published"),
             patch.object(demo, "wait_for_case_em_terminated"),
             patch.object(demo, "wait_for_participant_vf_state"),
             patch.object(demo, "verify_publicly_disclosed") as mock_m6,
@@ -517,12 +519,15 @@ class TestFvcvHandoffMilestoneAssertions:
 
         call_order: list[str] = []
 
-        def _notify(**kwargs):
-            call_order.append(kwargs["actor"].id_)
+        def _notify(session, *a, **kw):
+            call_order.append(session.actor.id_)
 
         with (
             patch.object(
-                demo, "actor_notifies_published", side_effect=_notify
+                ActorSession,
+                "notify_published",
+                autospec=True,
+                side_effect=_notify,
             ),
             patch.object(demo, "wait_for_case_em_terminated"),
             patch.object(demo, "wait_for_participant_vf_state"),
@@ -586,7 +591,7 @@ class TestFvcvHandoffMilestoneAssertions:
         }
 
         with (
-            patch.object(demo, "actor_closes_case"),
+            patch.object(ActorSession, "close_case"),
             patch.object(demo, "wait_for_all_participants_rm_closed"),
             patch.object(demo, "verify_case_closed") as mock_m7,
             patch.object(demo, "wait_for_event_type_in_ledger"),
@@ -643,10 +648,10 @@ class TestFvcvHandoffMilestoneAssertions:
             }
         }
 
-        mock_close = MagicMock()
-
         with (
-            patch.object(demo, "actor_closes_case", mock_close),
+            patch.object(
+                ActorSession, "close_case", autospec=True
+            ) as mock_close,
             patch.object(demo, "wait_for_all_participants_rm_closed"),
             patch.object(demo, "verify_case_closed"),
             patch.object(demo, "wait_for_event_type_in_ledger"),
@@ -676,7 +681,7 @@ class TestFvcvHandoffMilestoneAssertions:
             )
 
         actors_closed = [
-            call.kwargs["actor"].id_ for call in mock_close.call_args_list
+            call.args[0].actor.id_ for call in mock_close.call_args_list
         ]
         assert (
             actors_closed[-1] == coordinator_in_coordinator.id_
@@ -1027,7 +1032,7 @@ class TestFinderCaseReplicaGenesisWaitInReportSubmission:
             patch.object(
                 demo, "wait_for_case_on_container", side_effect=_wait_for_case
             ),
-            patch.object(demo, "post_to_trigger"),
+            patch("vultron.demo.actor_session.post_to_trigger"),
             patch.object(demo, "as_VulnerabilityCase") as mock_vc,
             patch.object(
                 demo,
@@ -1154,16 +1159,31 @@ class TestFinderCaseReplicaWaitBeforeVendor2Triage:
             patch.object(
                 demo, "run_invite_path_rm_triage", side_effect=_triage
             ),
+            # actor="urn:t:ca" matches the case_actor_id passed below: the
+            # phase now asserts the Invite went out attributed to the CaseActor
+            # (PCR-08-008), which is the property that used to be pursued by
+            # posting the trigger to the CaseActor's container instead.
             patch.object(
-                demo,
-                "post_to_trigger",
-                return_value={
-                    "activity": {"id": "urn:t:act", "type": "Offer"}
-                },
+                ActorSession,
+                "invite_actor_to_case",
+                return_value=SimpleNamespace(
+                    activity=MagicMock(id_="urn:t:invite", actor="urn:t:ca")
+                ),
+            ),
+            patch.object(
+                ActorSession,
+                "accept_case_invite",
+                return_value=SimpleNamespace(
+                    activity={
+                        "type": "Accept",
+                        "id": "http://t/acc",
+                        "actor": "http://t/a",
+                        "object": "http://t/o",
+                    }
+                ),
             ),
             patch.object(demo, "find_case_invite_for_actor"),
             patch.object(demo, "wait_for_case_participants"),
-            patch.object(demo, "as_TransitiveActivity") as mock_ta,
             patch.object(
                 demo,
                 "demo_check",
@@ -1175,13 +1195,6 @@ class TestFinderCaseReplicaWaitBeforeVendor2Triage:
                 side_effect=lambda _: __import__("contextlib").nullcontext(),
             ),
         ):
-            # actor="urn:t:ca" matches the case_actor_id passed below: the
-            # phase now asserts the Invite went out attributed to the CaseActor
-            # (PCR-08-008), which is the property that used to be pursued by
-            # posting the trigger to the CaseActor's container instead.
-            mock_ta.model_validate.return_value = MagicMock(
-                id_="urn:t:invite", actor="urn:t:ca"
-            )
             demo._phase_coordinator_invites_vendor2(
                 finder_client=finder_client,
                 vendor_client=vendor_client,
@@ -1276,18 +1289,36 @@ class TestPhaseOwnershipHandoffForwardedOfferId:
 
         trigger_seq = iter(
             [
-                {"activity": {"id": "urn:test:invite", "type": "Invite"}},
+                {
+                    "activity": {
+                        "id": "urn:test:invite",
+                        "type": "Invite",
+                        "actor": "http://t/a",
+                        "object": "http://t/o",
+                    }
+                },
                 {
                     "activity": {
                         "id": "urn:test:accept-invite",
                         "type": "Accept",
+                        "actor": "http://t/a",
+                        "object": "http://t/o",
                     }
                 },
-                {"activity": {"id": original_offer.id_, "type": "Offer"}},
+                {
+                    "activity": {
+                        "id": original_offer.id_,
+                        "type": "Offer",
+                        "actor": "http://t/a",
+                        "object": "http://t/o",
+                    }
+                },
                 {
                     "activity": {
                         "id": "urn:test:accept-ownership",
                         "type": "Accept",
+                        "actor": "http://t/a",
+                        "object": "http://t/o",
                     }
                 },
             ]
@@ -1298,17 +1329,11 @@ class TestPhaseOwnershipHandoffForwardedOfferId:
             trigger_calls.append(kwargs)
             return next(trigger_seq)
 
-        ta_seq = iter(
-            [
-                MagicMock(id_="urn:test:invite"),
-                original_offer,
-                MagicMock(id_="urn:test:accept"),
-            ]
-        )
-
         with (
-            patch.object(demo, "post_to_trigger", side_effect=_trigger),
-            patch.object(demo, "as_TransitiveActivity") as mock_ta,
+            patch(
+                "vultron.demo.actor_session.post_to_trigger",
+                side_effect=_trigger,
+            ),
             patch.object(
                 demo,
                 "find_ownership_transfer_offer_for_actor",
@@ -1337,7 +1362,6 @@ class TestPhaseOwnershipHandoffForwardedOfferId:
                 side_effect=lambda _: contextlib.nullcontext(),
             ),
         ):
-            mock_ta.model_validate.side_effect = lambda x: next(ta_seq)
             mock_vc.model_validate.return_value = case
             demo._phase_ownership_handoff(
                 finder_client=finder_client,
@@ -1559,7 +1583,7 @@ class TestFvcvHandoffCausalGates:
                 "wait_for_contiguous_ledger_coverage",
                 side_effect=coverage_wait_called,
             ),
-            patch.object(demo, "wait_for_case_participants"),
+            patch.object(demo, "wait_for_participants_on_replicas"),
             patch.object(demo, "verify_replica_state"),
         ):
             demo._phase_sync_verification(

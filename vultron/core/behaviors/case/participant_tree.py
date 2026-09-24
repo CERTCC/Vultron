@@ -41,22 +41,20 @@ specs/behavior-tree-node-design.yaml BTND-07-003.
 import py_trees
 
 from vultron.core.behaviors.case.nodes.participant.owner import (
-    AdvanceOwnerRmToAcceptedNode,
     AttachOwnerParticipantToCaseNode,
+    CreateOwnerInitialStatusNode,
     CreateOwnerParticipantNode,
     PersistOwnerCaseNode,
     RecordOwnerJoinedEventNode,
-    ResolveOwnerInitialStatusNode,
-    ShouldAdvanceOwnerToAcceptedNode,
 )
 from vultron.core.behaviors.case.nodes.participant.participant_add import (
     AttachParticipantToCaseNode,
     CaseHasActiveEmbargoNode,
     CaseHasNoActiveEmbargoNode,
+    CreateParticipantInitialStatusNode,
     CreateParticipantNode,
     QueueAddParticipantNotificationNode,
     RecordParticipantAddedEventNode,
-    ResolveParticipantAcceptedStatusNode,
     SeedParticipantAsSignatoryNode,
 )
 from vultron.config.actor import ActorConfig
@@ -108,7 +106,6 @@ class CreateCaseOwnerParticipant(py_trees.composites.Sequence):
         actor_config: ActorConfig | None = None,
         report_id: str | None = None,
         case_obj: VultronCase | None = None,
-        advance_to_accepted: bool = False,
         initial_rm_state: RM = RM.VALID,
         name: str | None = None,
     ):
@@ -116,36 +113,16 @@ class CreateCaseOwnerParticipant(py_trees.composites.Sequence):
             name=name or self.__class__.__name__,
             memory=False,
             children=[
-                ResolveOwnerInitialStatusNode(
-                    report_id=report_id,
-                    case_obj=case_obj,
-                    initial_rm_state=initial_rm_state,
-                ),
                 CreateOwnerParticipantNode(
                     actor_config=actor_config, report_id=report_id
                 ),
                 AttachOwnerParticipantToCaseNode(report_id=report_id),
                 PersistOwnerCaseNode(report_id=report_id),
-                RecordOwnerJoinedEventNode(report_id=report_id),
-                py_trees.composites.Selector(
-                    name="AdvanceOwnerRmIfConfigured",
-                    memory=False,
-                    children=[
-                        py_trees.composites.Sequence(
-                            name="AdvanceOwnerRmBranch",
-                            memory=False,
-                            children=[
-                                ShouldAdvanceOwnerToAcceptedNode(
-                                    advance_to_accepted=advance_to_accepted
-                                ),
-                                AdvanceOwnerRmToAcceptedNode(
-                                    report_id=report_id
-                                ),
-                            ],
-                        ),
-                        py_trees.behaviours.Success(name="SkipAdvanceOwnerRm"),
-                    ],
+                CreateOwnerInitialStatusNode(
+                    initial_rm_state=initial_rm_state,
+                    report_id=report_id,
                 ),
+                RecordOwnerJoinedEventNode(report_id=report_id),
             ],
         )
 
@@ -169,11 +146,6 @@ class CreateCaseParticipantNode(py_trees.composites.Sequence):
             name=name or self.__class__.__name__,
             memory=False,
             children=[
-                ResolveParticipantAcceptedStatusNode(
-                    participant_actor_id=actor_id,
-                    roles=roles,
-                    report_id=report_id,
-                ),
                 CreateParticipantNode(
                     participant_actor_id=actor_id,
                     roles=roles,
@@ -181,6 +153,10 @@ class CreateCaseParticipantNode(py_trees.composites.Sequence):
                 ),
                 AttachParticipantToCaseNode(
                     participant_actor_id=actor_id, report_id=report_id
+                ),
+                CreateParticipantInitialStatusNode(
+                    participant_actor_id=actor_id,
+                    report_id=report_id,
                 ),
                 RecordParticipantAddedEventNode(report_id=report_id),
                 SeedParticipantAsSignatoryIfEmbargoActiveNode(

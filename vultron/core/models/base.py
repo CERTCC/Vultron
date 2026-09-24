@@ -15,22 +15,43 @@
 
 """Base class for Vultron Protocol core domain object models."""
 
-import re
 import types as _types
 import typing as _typing
 from datetime import datetime, timedelta
-from typing import Annotated, Any, ClassVar
+from typing import Any, ClassVar
 
 from pydantic import (
-    AfterValidator,
     BaseModel,
     ConfigDict,
     Field,
+    SerializationInfo,
+    SerializerFunctionWrapHandler,
+    ValidationInfo,
+    field_serializer,
+    model_serializer,
     model_validator,
 )
+from pydantic.alias_generators import to_camel
 
-from vultron.core.models._helpers import _new_urn, _now_utc
+from vultron.core.models._helpers import (
+    INBOUND_CONTEXT_KEY,
+    _new_urn,
+    absent_times_as_none,
+    blank_times_as_none,
+    now_utc,
+)
 from vultron.core.models.registry import CORE_TYPE_MAP, CORE_VOCABULARY
+from vultron.primitives import NonEmptyString, UriString  # noqa: F401
+
+#: The Vultron JSON-LD ``@context``.  VM-10-001 (MUST) requires it on every
+#: Vultron-specific object on the wire; the ActivityStreams namespace alone "is
+#: not sufficient" for types AS2 does not define.
+#:
+#: It lives in core rather than beside ``ACTIVITY_STREAMS_NS`` in the wire layer
+#: because under ADR-0099 the core classes *are* the objects that carry it, and
+#: core MUST NOT import wire (ARCH-01-001 — the one boundary rule ADR-0099 leaves
+#: fully in force).  Wire imports it from here, which detail 6 permits.
+VULTRON_CONTEXT_URI = "https://certcc.github.io/Vultron/ns/context.jsonld"
 
 
 class ValidatedAssignmentMixin(BaseModel):
@@ -45,26 +66,6 @@ class ValidatedAssignmentMixin(BaseModel):
     """
 
     model_config = ConfigDict(validate_assignment=True)
-
-
-def _non_empty(v: str) -> str:
-    if not v.strip():
-        raise ValueError("must be a non-empty string")
-    return v
-
-
-NonEmptyString = Annotated[str, AfterValidator(_non_empty)]
-
-_URI_SCHEME_RE = re.compile(r"^[a-zA-Z][a-zA-Z0-9+\-.]*:[^\s]")
-
-
-def _valid_uri(v: str) -> str:
-    if not _URI_SCHEME_RE.match(v):
-        raise ValueError("must be a URI (e.g. urn:uuid:... or https://...)")
-    return v
-
-
-UriString = Annotated[NonEmptyString, AfterValidator(_valid_uri)]
 
 
 class VultronBase(BaseModel):
@@ -115,30 +116,31 @@ class VultronObject(ValidatedAssignmentMixin, VultronBase):
             return
         try:
             hints = _typing.get_type_hints(cls)
-        except Exception:
+        except (NameError, TypeError):
+            # Forward references cannot be resolved yet (NameError) or an
+            # annotation is not a valid type (TypeError) — do not register.
+            # A half-constructed entry is worse than a missing one, which
+            # surfaces immediately at lookup time (CS-23-001).
             return
         annotation = hints.get("type_")
         if isinstance(annotation, _types.UnionType):
             return
         if _typing.get_origin(annotation) is _typing.Union:
             return
-        try:
-            # Register by class name (covers classes where _set_type_from_class_name
-            # sets type_ = cls.__name__, e.g. CoreActor stored as "CoreActor").
-            CORE_TYPE_MAP[cls.__name__] = cls
-            # Also register by the Literal value itself when it differs from the
-            # class name (e.g. VultronOfferRecord → "OfferRecord"). Extract from
-            # the annotation directly; model_fields is not yet populated at
-            # __init_subclass__ time.
-            literal_args = _typing.get_args(annotation)
-            if (
-                literal_args
-                and len(literal_args) == 1
-                and isinstance(literal_args[0], str)
-            ):
-                CORE_TYPE_MAP[literal_args[0]] = cls
-        except Exception:
-            pass
+        # Register by class name (covers classes where _set_type_from_class_name
+        # sets type_ = cls.__name__, e.g. CoreActor stored as "CoreActor").
+        CORE_TYPE_MAP[cls.__name__] = cls
+        # Also register by the Literal value itself when it differs from the
+        # class name (e.g. VultronOfferRecord → "OfferRecord"). Extract from
+        # the annotation directly; model_fields is not yet populated at
+        # __init_subclass__ time.
+        literal_args = _typing.get_args(annotation)
+        if (
+            literal_args
+            and len(literal_args) == 1
+            and isinstance(literal_args[0], str)
+        ):
+            CORE_TYPE_MAP[literal_args[0]] = cls
 
     replies: Any | None = None
     url: NonEmptyString | None = None
@@ -154,8 +156,8 @@ class VultronObject(ValidatedAssignmentMixin, VultronBase):
     duration: timedelta | None = None
     start_time: datetime | None = None
     end_time: datetime | None = None
-    published: datetime | None = Field(default_factory=_now_utc)
-    updated: datetime | None = Field(default_factory=_now_utc)
+    published: datetime | None = Field(default_factory=now_utc)
+    updated: datetime | None = Field(default_factory=now_utc)
 
     # content
     content: Any | None = None
@@ -188,14 +190,62 @@ class CoreObject(VultronObject):
     ``__init_subclass__``.  Subclasses that leave ``type_`` abstract
     (omitted, or annotated as a union) are intentionally not registered.
 
-    ``context_`` defaults to ``None``: the JSON-LD ``@context`` value is a
-    wire-layer concern, and the wire projection layer is responsible for
-    supplying the AS2 namespace at serialization time.
+    ``context_`` defaults to ``None`` and is ``exclude=True``, so it never
+    reaches a stored row: ADR-0099 detail 1 keeps persistence on Python field
+    names with no ``@context``.  It is emitted only on the AS2 path — see
+    :meth:`_serialize_with_jsonld_context`.
 
     See ``docs/adr/0017-domain-wire-object-separation.md`` for the
     rationale, and ``notes/domain-model-separation.md`` for the broader
     architectural direction (tracked by issue #699).
     """
+
+    # The AS2 spelling of every field, derived rather than hand-maintained.
+    #
+    # ADR-0099 detail 2 puts the AS2 spelling on the core class, because under one
+    # object model there is no second class left to hold it.  `to_camel` derives
+    # it correctly for all but three fields — `id_`, `type_` and `context_`, whose
+    # trailing underscores exist to dodge Python keyword/shadowing collisions and
+    # which therefore carry explicit aliases (`id`, `type`, `@context`).  `@context`
+    # could not come from a generator at all.
+    #
+    # Deriving beats enumerating here: a hand-written alias per field silently
+    # omits the ones nobody remembered, which is precisely how `attributedTo`
+    # became `attributed_to` on the wire for four object types.  What keeps the
+    # derivation honest is a closed-world test on the projected key set
+    # (test_core_object_projection_keys), not the declaration site.
+    #
+    # ARCH-20-001 forbids this, on a rationale that predates ADR-0099: it reads
+    # "keeps every fact about wire spelling ... behind the adapter-side translator
+    # that owns projection (ARCH-12-005)", and ADR-0099 removed that translator.
+    # The part of the rule that still binds — one rendering seam — is unaffected:
+    # the port remains the only caller that passes `by_alias=True`.
+    #
+    # No unknown key may enter a core object: a wire-shaped payload handed to a
+    # core type is rejected loudly rather than silently dropping every
+    # snake_case-only key (the #2232 defect).  This subsumes the retired
+    # per-class camelCase reject-guards and the wire→core normalisation gate
+    # (ARCH-12-003, ADR-0082; closes the strong form of #2262).  The generator is
+    # what makes the two compatible: every AS2 spelling is a declared alias, so
+    # ``extra="forbid"`` refuses only keys that match no field at all.  Merged
+    # with VultronBase.populate_by_name and ValidatedAssignmentMixin
+    # validate_assignment across the MRO.
+    model_config = ConfigDict(alias_generator=to_camel, extra="forbid")
+
+    #: Fields that are local bookkeeping, not AS2 properties: kept in the stored
+    #: row, dropped from the delivery payload.
+    #:
+    #: ADR-0099 detail 3 makes a class that can appear in a message slot exactly
+    #: AS2-representable and forbids it carrying "a field that cannot go on the
+    #: wire".  ``exclude=True`` is the obvious way to express that and is the
+    #: wrong one: it removes the field from *every* dump, including the
+    #: persistence dump, so the value stops being stored at all.  That is a data
+    #: loss rather than a wire-format fix — an invite RSVP deadline the local
+    #: actor set would simply vanish on the next read.
+    #:
+    #: Declared as a ClassVar so a subclass names its own local fields where they
+    #: are defined, rather than in a registry somewhere else that can fall behind.
+    local_only_fields: ClassVar[frozenset[str]] = frozenset()
 
     context_: NonEmptyString | None = Field(
         default=None,
@@ -204,11 +254,205 @@ class CoreObject(VultronObject):
         exclude=True,
     )
 
-    # Re-narrow published/updated: the core branch guarantees these are always
-    # populated (default_factory ensures it).  VultronObject uses datetime|None
-    # (per ARCH-12-002: shared base must be lenient for the wire branch).
-    published: datetime = Field(default_factory=_now_utc)
-    updated: datetime = Field(default_factory=_now_utc)
+    # An object this process authors takes the local clock (default_factory);
+    # an object it *receives* carries the sender's time, which AS2 lets the
+    # sender omit, so an explicit ``None`` stays ``None`` rather than becoming
+    # the receiver's clock (ISSUE-3257).  Decisions that need the time refuse
+    # its absence at the wire edge, not here.
+    published: datetime | None = Field(default_factory=now_utc)
+    updated: datetime | None = Field(default_factory=now_utc)
+
+    @model_validator(mode="before")
+    @classmethod
+    def _drop_computed_field_inputs(cls, data: Any) -> Any:
+        """Strip read-only computed-field values so a dump round-trips.
+
+        A ``@computed_field`` (e.g. ``ParticipantStatus.embargo_adherence``,
+        ADR-0056) appears in ``model_dump()`` output but is not settable, so
+        ``model_validate(model_dump(x))`` would reject it as an unknown key
+        under ``extra="forbid"``.  Dropping the computed keys before field
+        validation makes the round-trip exact (ARCH-23-005).  See
+        ``notes/wire-core-boundary.md`` § "Measured Evidence".
+        """
+        computed = cls.model_computed_fields
+        if not isinstance(data, dict) or not computed:
+            return data
+        drop = cls._computed_field_spellings().keys() & data.keys()
+        if drop:
+            data = {k: v for k, v in data.items() if k not in drop}
+        return data
+
+    @classmethod
+    def _computed_field_spellings(cls) -> dict[str, str]:
+        """Map every key spelling a computed field can arrive under to its name."""
+        spellings: dict[str, str] = {}
+        for name, info in cls.model_computed_fields.items():
+            spellings[name] = name
+            # CoreObject carries alias_generator=to_camel (ADR-0099 detail 2), so
+            # dump(by_alias=True) emits `embargoAdherence`.
+            spellings[to_camel(name)] = name
+            alias = getattr(info, "alias", None)
+            if isinstance(alias, str):
+                spellings[alias] = name
+        return spellings
+
+    # NOTE (#2940 triage): rejecting a *contradicted* computed-field value here
+    # instead of stripping it was considered and rejected on evidence.
+    # ``as_ParticipantStatus.embargo_adherence`` is an independent settable wire
+    # field, while core derives it from ``consent`` (ADR-0056), so a wire row
+    # carrying ``embargo_adherence: True`` with no ``consent`` legitimately
+    # disagrees with the core-derived ``False``.  Raising there breaks the
+    # wire→core read projection (it makes ``dl.read()`` return the wire object).
+    # Telling "re-reading our own dump" apart from "projecting a wire row"
+    # requires the WireParsePort (#2938).  Tracked by #3547.
+
+    @model_validator(mode="before")
+    @classmethod
+    def _drop_alias_shadowed_field_names(cls, data: Any) -> Any:
+        """Drop a field-name key when its validation alias is also present.
+
+        An earlier ``mode="before"`` validator may derive a field and write it
+        under the alias — ``_set_id_from_case`` writes ``"id"`` — beside the
+        serialized field-name key (``"id_"``) already in the payload.  Under
+        ``extra="forbid"`` the un-consumed twin is an unknown key.  The alias
+        (wire-canonical, and the key carrying the freshly derived value) wins.
+        This runs after subclass ``mode="before"`` validators, so it cleans up
+        every such injection in one place rather than each site guarding
+        itself (see ``notes/wire-core-boundary.md`` § "The ``id_`` Failures Are
+        an Alias-Injection Bug").
+
+        The alias wins even when the two values *differ*, which is deliberate
+        rather than a silent pick: thirteen core types derive a canonical id in
+        a ``mode="before"`` validator and write it under the alias — a ledger
+        entry is addressed ``{case_id}/log/{log_index}`` (and several types mint
+        a fresh urn), so a caller-supplied ``id_`` is meant to be superseded,
+        not honoured.  Raising on disagreement was tried during #3531 triage and
+        breaks exactly those paths (e.g. the extractor passes the wire activity
+        id to ``CaseLedgerEntry`` alongside ``case_id``).  Only the *external*
+        both-spellings-supplied case is genuinely ambiguous, and no live path
+        reaches it — the wire layer supplies ``id`` alone.
+        """
+        if not isinstance(data, dict):
+            return data
+        drop = [
+            name
+            for name, field in cls.model_fields.items()
+            if isinstance(field.validation_alias, str)
+            and field.validation_alias != name
+            and field.validation_alias in data
+            and name in data
+        ]
+        if drop:
+            data = {k: v for k, v in data.items() if k not in drop}
+        return data
+
+    @model_validator(mode="before")
+    @classmethod
+    def _carry_absent_times_on_inbound(
+        cls, data: Any, info: ValidationInfo
+    ) -> Any:
+        """Read an absent or blank timestamp as ``None`` when inbound.
+
+        The core-class twin of ``as_Base.carry_absent_times_on_inbound``, and
+        needed for the same reason (ISSUE-3257, ADR-0103): ``default_factory=
+        now_utc`` correctly stamps an object this process authors, but on
+        inbound data it would fabricate a time the sender never claimed.  Under
+        ADR-0099 detail 3 an inbound ``CaseParticipant``, ``EmbargoEvent`` or
+        ``VulnerabilityCase`` validates straight into this class rather than a
+        wire subclass of ``as_Base``, so without this the rule silently stops
+        holding for every collapsed type.  Gated on the same validation-context
+        key, which ``parse_activity`` sets and Pydantic propagates to nested
+        models.
+        """
+        if not isinstance(data, dict):
+            return data
+        context = info.context
+        if not isinstance(context, dict) or not context.get(
+            INBOUND_CONTEXT_KEY
+        ):
+            return data
+        return absent_times_as_none(cls, blank_times_as_none(cls, dict(data)))
+
+    @field_serializer(
+        "start_time", "end_time", "published", "updated", when_used="json"
+    )
+    def _serialize_datetime(self, value: datetime | None) -> str | None:
+        """Write timestamps with an explicit offset, as the wire classes did.
+
+        Pydantic's default JSON form for an aware UTC datetime is ``...Z``;
+        ``isoformat()`` gives ``...+00:00``.  Both denote the same instant and
+        both are valid ISO-8601, which is why swapping them is invisible in
+        review — but they are different *bytes*, and
+        ``CaseLedgerEntry.payloadSnapshot`` is compared across replicas, so two
+        actors on different spellings disagree about the canonical snapshot of an
+        identical event.
+
+        Every one of the 226 timestamps in ``docs/reference/examples`` uses the
+        offset form, so that is the published contract.  Promoting a core class
+        onto the wire must not quietly renegotiate it.
+        """
+        if value is None:
+            return None
+        return value.isoformat()
+
+    @model_serializer(mode="wrap")
+    def _serialize_with_jsonld_context(
+        self,
+        handler: SerializerFunctionWrapHandler,
+        info: SerializationInfo,
+    ) -> Any:
+        """Add the JSON-LD ``@context`` on the AS2 path, and only there.
+
+        ADR-0099 detail 1 gives one class two serializations, chosen by where the
+        object is going:
+
+        ==========================  ==========================================
+        inter-actor delivery        ``model_dump_json(by_alias=True)`` — AS2:
+                                    camelCase **plus** ``@context``
+        persistence                 ``model_dump(mode="json")`` — Python field
+                                    names, no ``@context``
+        ==========================  ==========================================
+
+        ``by_alias`` is exactly that fork, so it is what selects the behaviour
+        here rather than a flag a caller has to remember to pass.
+
+        VM-10-001 (MUST) requires the Vultron context on Vultron-specific objects;
+        the ActivityStreams namespace alone "is not sufficient".  Before ADR-0099
+        the paired ``as_*`` class supplied it from ``as_Base``; deleting those
+        classes removed it from every promoted type, including nested ones such as
+        ``caseParticipants[]``, which is not a change any peer asked for.
+
+        An explicitly-supplied ``context_`` wins, so a document parsed from the
+        wire round-trips with the context it arrived with instead of being
+        silently relabelled.
+
+        The same fork drops :attr:`local_only_fields` — see that attribute for
+        why those cannot simply use ``exclude=True``.
+        """
+        data = handler(self)
+        if not isinstance(data, dict) or not info.by_alias:
+            return data
+        for name in self.local_only_fields:
+            data.pop(name, None)
+            field = type(self).model_fields.get(name)
+            alias = (
+                getattr(field, "serialization_alias", None) if field else None
+            )
+            if alias:
+                data.pop(alias, None)
+            data.pop(to_camel(name), None)
+        data.update(self._as2_derived_fields())
+        data["@context"] = self.context_ or VULTRON_CONTEXT_URI
+        return data
+
+    def _as2_derived_fields(self) -> dict[str, Any]:
+        """Return AS2 keys derived from this object for the delivery form.
+
+        The counterpart of :attr:`local_only_fields`: a subclass whose AS2 form
+        carries a value core does not store (``CaseActor``'s collection URIs)
+        supplies it here, so the derivation lives on the class it describes.
+        """
+        return {}
 
     def __init_subclass__(cls, **kwargs: object) -> None:
         super().__init_subclass__(**kwargs)  # type: ignore[arg-type]
@@ -235,10 +479,15 @@ class CoreObject(VultronObject):
             return  # Skip CORE_VOCABULARY — not a concrete vocab entry
         try:
             hints = _typing.get_type_hints(cls)
-        except Exception:
-            # If forward references cannot be resolved, do not register —
-            # silent registration of a half-constructed class is worse than
-            # a missing entry, which surfaces immediately at lookup time.
+        except (NameError, TypeError):
+            # Forward references cannot be resolved yet (NameError) or an
+            # annotation is not a valid type (TypeError) — do not register.
+            # Silent registration of a half-constructed class is worse than a
+            # missing entry, which surfaces immediately at lookup time.  Kept
+            # symmetric with VultronObject.__init_subclass__, which runs the
+            # same get_type_hints(cls) call for every CoreObject subclass; a
+            # divergent catch here would let one handler swallow what the other
+            # crashes on (CS-23-001).
             return
         annotation = hints.get("type_")
         # Skip union annotations (e.g. ``str | None``) — these mark

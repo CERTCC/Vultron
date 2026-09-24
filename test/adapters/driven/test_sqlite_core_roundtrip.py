@@ -43,12 +43,14 @@ from vultron.core.models.report import VulnerabilityReport
 from vultron.core.models.vulnerability_record import VulnerabilityRecord
 from vultron.core.states import RM
 from vultron.enums.roles import CVDRole
-from vultron.errors import VultronValidationError
 from vultron.wire.as2.vocab.base.objects.object_types import as_Note
 from vultron.wire.as2.vocab.objects.case_participant import as_CaseParticipant
 from vultron.wire.as2.vocab.objects.case_status import as_ParticipantStatus
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCase,
+)
+from vultron.core.models.dimensions import (
+    RmDimension,
 )
 
 _CASE_CONTEXT = "urn:uuid:case-context-fixture"
@@ -148,36 +150,39 @@ def test_read_preserves_core_object_id(dl):
     assert result.id_ == original_id
 
 
-def test_read_does_not_return_wire_type_for_core_entity(dl):
-    """dl.read() MUST NOT return as_VulnerabilityCase for a saved VulnerabilityCase."""
-    from vultron.wire.as2.vocab.objects.vulnerability_case import (
-        as_VulnerabilityCase,
-    )
+def test_read_returns_core_type_for_core_entity(dl):
+    """dl.read() MUST return the core VulnerabilityCase for a saved VulnerabilityCase.
 
+    After ADR-0099 detail 3, as_VulnerabilityCase is an alias for VulnerabilityCase,
+    so the distinction is between core class identity and wire wrapper identity.
+    """
     case = VulnerabilityCase()
     dl.save(case)
     result = dl.read(case.id_)
     assert result is not None
-    assert not isinstance(result, as_VulnerabilityCase), (
-        "dl.read() returned a wire type (as_VulnerabilityCase) instead of the "
-        "core type (VulnerabilityCase) — CORE_VOCABULARY lookup is not used."
-    )
+    assert isinstance(
+        result, VulnerabilityCase
+    ), "dl.read() must return a VulnerabilityCase instance."
+    assert (
+        type(result) is VulnerabilityCase
+    ), "dl.read() must return the exact VulnerabilityCase class, not a subclass."
 
 
-def test_list_objects_does_not_return_wire_type_for_core_entity(dl):
-    """dl.list_objects() MUST NOT return wire types for CORE_VOCABULARY types."""
-    from vultron.wire.as2.vocab.objects.vulnerability_report import (
-        as_VulnerabilityReport,
-    )
+def test_list_objects_returns_core_type_for_core_entity(dl):
+    """dl.list_objects() MUST return the core VulnerabilityReport for saved core entities.
 
+    After ADR-0099 detail 3, as_VulnerabilityReport is an alias for VulnerabilityReport.
+    """
     report = VulnerabilityReport()
     dl.save(report)
     results = dl.list_objects("VulnerabilityReport")
     assert len(results) == 1
-    assert not isinstance(results[0], as_VulnerabilityReport), (
-        "dl.list_objects() returned a wire type instead of the core type "
-        "— CORE_VOCABULARY lookup is not used."
-    )
+    assert isinstance(
+        results[0], VulnerabilityReport
+    ), "dl.list_objects() must return a VulnerabilityReport instance."
+    assert (
+        type(results[0]) is VulnerabilityReport
+    ), "dl.list_objects() must return the exact VulnerabilityReport class."
 
 
 # ---------------------------------------------------------------------------
@@ -226,46 +231,87 @@ def _mixed_spelling_case_row(case_id):
     """A stored case row whose nested participant uses wire (camelCase) keys.
 
     Snake_case at the case level — so ``case_participants`` is populated — but
-    each entry is dumped ``by_alias``, which is what makes core validation of
-    the *participant* fail while the case itself looks well formed.
+    each entry is in camelCase wire format, which is what makes core validation
+    of the *participant* fail while the case itself looks well formed.
+
+    After ADR-0099 detail 3, as_VulnerabilityCase is an alias for VulnerabilityCase,
+    so the test data is built by constructing a plain VulnerabilityCase and then
+    injecting camelCase participant data directly.
     """
-    status = as_ParticipantStatus(context=case_id, rm_state=RM.ACCEPTED)
-    participant = as_CaseParticipant(
+    # Build the participant via the wire class (which accepts and produces camelCase)
+    # then dump it with aliases to get the camelCase format we want to test.
+    status = as_ParticipantStatus(
+        context=case_id, rm=RmDimension(state=RM.ACCEPTED)
+    )
+    wire_participant = as_CaseParticipant(
         id_="urn:uuid:participant-2232",
         attributed_to="https://example.org/actors/finder",
         context=case_id,
         case_roles=[CVDRole.FINDER],
         participant_statuses=[status],
     )
-    case = as_VulnerabilityCase(
-        id_=case_id, name="mixed", case_participants=[participant]
-    )
+    # Build the case without participants first, so we get snake_case at the top level.
+    case = as_VulnerabilityCase(id_=case_id, name="mixed")
     data = case.model_dump(mode="json")
+    # Inject camelCase participant data to simulate a pre-ADR-0099 stored row.
     data["case_participants"] = [
-        participant.model_dump(mode="json", by_alias=True, exclude_none=True)
+        wire_participant.model_dump(
+            mode="json", by_alias=True, exclude_none=True
+        )
     ]
     return data
 
 
-def test_mixed_spelling_row_fails_core_validation():
-    """Guard the premise: the fixture row really does fail core validation.
+def test_mixed_spelling_row_now_validates_directly():
+    """The fixture row validates as core, with its participant data intact.
 
-    Without this, the read-path tests below could pass for the wrong reason —
-    a row that validates cleanly never exercises the fallback at all.
+    This asserted the opposite premise — that the row *fails* core validation —
+    and it was the guard ensuring the read-path tests below actually exercised
+    the recovery fallback rather than passing trivially.
+
+    That premise is now false, and the fix is the reason rather than a
+    regression: ADR-0099 puts the AS2 spelling on the core class, so a
+    camelCase-keyed participant is read straight into ``CaseParticipant``. No
+    recovery runs because nothing fails. The read-path tests below therefore no
+    longer prove *which* route delivered the object — they still prove the
+    outcome, which is what callers depend on, and their docstrings say so.
+
+    Asserting the data survives, not merely that validation succeeds, is what
+    keeps this from being weaker than the test it replaces: a row that validated
+    into an empty participant would be the #2232 defect wearing a passing test.
     """
     case_id = "urn:uuid:case-2232-premise"
-    with pytest.raises(VultronValidationError):
-        VulnerabilityCase.model_validate(_mixed_spelling_case_row(case_id))
+    case = VulnerabilityCase.model_validate(_mixed_spelling_case_row(case_id))
+
+    assert len(case.case_participants) == 1
+    participant = case.case_participants[0]
+    assert isinstance(
+        participant, CaseParticipant
+    ), "the camelCase participant was not read as a core CaseParticipant"
+    assert participant.case_roles == [CVDRole.FINDER]
+    assert [s.rm.state.name for s in participant.participant_statuses] == [
+        "ACCEPTED"
+    ], "the RM ladder was rewound (#2264)"
 
 
-def test_read_projects_wire_fallback_back_to_core(dl):
-    """A row failing core validation reads back as the core type, not the wire one.
+def test_read_returns_the_core_type_for_a_mixed_spelling_row(dl):
+    """A mixed-spelling stored row reads back as the core type.
+
+    What this covers has narrowed, and saying so matters. It once proved the
+    recovery fallback worked; the row now validates directly (see
+    ``test_mixed_spelling_row_now_validates_directly``), so this asserts the
+    end-to-end outcome through ``dl.read()`` without proving which route produced
+    it. Still worth holding — the 422 it guards against was a read-path failure —
+    but it is no longer coverage of ``_recover_vve_row`` and should not be
+    mistaken for it.
 
     Before #2232 the shape guard on ``CaseParticipant`` turned this row into an
     ``as_VulnerabilityCase`` from ``dl.read()``, and ``resolve_case`` then raised
     ``Expected VulnerabilityCase, got as_VulnerabilityCase`` — a 422 on every
     subsequent case operation (fcv-reject demo, Phase 3 add-note-to-case).
-    The read path now projects the wire fallback through ``to_core()``.
+    After ADR-0099 detail 3, as_VulnerabilityCase IS VulnerabilityCase, so the
+    type mismatch from #2232 is structurally impossible.  The read path still
+    recovers mixed-spelling rows via _normalize_wire_nested_objects.
     """
     case_id = "urn:uuid:case-2232-read"
     _insert_raw_row(
@@ -275,10 +321,9 @@ def test_read_projects_wire_fallback_back_to_core(dl):
     result = dl.read(case_id)
 
     assert result is not None
-    assert not isinstance(result, as_VulnerabilityCase)
     assert isinstance(result, VulnerabilityCase), (
-        f"Expected VulnerabilityCase, got {type(result).__name__} — the wire "
-        "fallback was returned un-projected (DL-05-002, issue #2232)."
+        f"Expected VulnerabilityCase, got {type(result).__name__} — the recovery "
+        "path failed to normalize the camelCase participant row (DL-05-002, issue #2232)."
     )
 
 

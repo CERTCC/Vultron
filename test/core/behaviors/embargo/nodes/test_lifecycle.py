@@ -200,7 +200,7 @@ class TestTerminateEmbargoBT:
 
     @pytest.mark.spec("EMB-13-001")
     def test_resets_participant_pec_state(self):
-        """Shared BT resets participant embargo_consent_state to NO_EMBARGO."""
+        """Shared BT resets participant embargo_consent_state to UNBOUND."""
         case, _, dl = _make_case_with_manager("teb5", em_state=EM.ACTIVE)
         participant = as_CaseParticipant(
             id_=f"{case.id_}/participants/p1",
@@ -234,7 +234,7 @@ class TestTerminateEmbargoBT:
 
         assert result.status == py_trees.common.Status.SUCCESS
         updated_p = cast(as_CaseParticipant, dl.read(participant.id_))
-        assert updated_p.embargo_consent_state == PEC.NO_EMBARGO.value
+        assert updated_p.embargo_consent_state == PEC.UNBOUND.value
 
     def test_cascade_path_no_builder_returns_failure_when_no_factory(self):
         """Without activity_builder, FAILURE when no trigger_activity_factory set.
@@ -650,6 +650,48 @@ class TestSetEmbargoActiveNode:
         assert (
             mock_activate.called
         ), "EmbargoLifecycle.activate_embargo() was never called"
+
+    def test_idempotent_guard_requires_active_state_not_just_matching_id(self):
+        """Idempotency guard fires only when EM is ACTIVE, not REVISE (issue #2859).
+
+        When active_embargo matches the target embargo_id but EM is REVISE,
+        the node must call activate_embargo() rather than returning early.
+        """
+        from unittest.mock import patch
+
+        from vultron.core.services.embargo_lifecycle import (
+            EmbargoLifecycle,
+            EmbargoLifecycleResult,
+        )
+
+        dl = SqliteDataLayer("sqlite:///:memory:", actor_id=ACTOR_ID)
+        case, embargo = make_case_and_embargo("sea-2859", em_state=EM.REVISE)
+        object.__setattr__(case, "active_embargo", embargo.id_)
+        dl.create(case)
+
+        _setup_blackboard_simple(dl)
+        node = SetEmbargoActiveNode(case_id=case.id_, embargo_id=embargo.id_)
+        bt = py_trees.trees.BehaviourTree(root=node)
+        bt.setup()
+
+        fake_result = EmbargoLifecycleResult(
+            em_before=EM.REVISE,
+            em_after=EM.ACTIVE,
+            case_changed=True,
+            case_embargo_changed=False,
+            pec_reset=False,
+        )
+        with patch.object(
+            EmbargoLifecycle,
+            "activate_embargo",
+            return_value=fake_result,
+        ) as mock_activate:
+            bt.tick()
+
+        assert mock_activate.called, (
+            "activate_embargo() was not called — idempotency guard fired"
+            " too early (checked ID only, not EM state)"
+        )
 
     def test_returns_failure_when_case_missing(self):
         """Returns FAILURE when the case is not found in the DataLayer."""

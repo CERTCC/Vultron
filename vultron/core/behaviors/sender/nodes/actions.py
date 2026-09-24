@@ -23,7 +23,7 @@ from vultron.core.behaviors.helpers import (
     DataLayerActionWithPorts,
     PortInformation,
 )
-from vultron.core.use_cases._helpers import _resolve_case_manager_id
+from vultron.core.participants.authority import resolve_case_manager_id
 from vultron.core.use_cases._helpers import add_activity_to_outbox
 
 
@@ -34,13 +34,11 @@ class ResolveCaseManagerNode(DataLayerActionWithPorts):
         super().__init__(name=name or self.__class__.__name__)
         self.case_id = case_id
 
-    @classmethod
-    def output_ports(cls) -> dict[str, PortInformation]:
-        return {
-            "case_manager_id": PortInformation(
-                data_type=str | None, required=True
-            )
-        }
+    OUTPUT_PORTS: dict[str, PortInformation] = {
+        "case_manager_id": PortInformation(
+            data_type=str | None, required=True
+        ),
+    }
 
     @classmethod
     def _domain_port_remappings(cls) -> dict[str, str]:
@@ -53,15 +51,15 @@ class ResolveCaseManagerNode(DataLayerActionWithPorts):
         assert self.datalayer is not None
         assert self.actor_id is not None
 
-        case = self.datalayer.read_case(self.case_id)
-        if case is None:
-            self.feedback_message = (
-                f"Case '{self.case_id}' not found or wrong type"
-            )
+        # Regime 1 (ADR-0087): case must exist; preserve the BT-17-003
+        # output-clear on the failure path before returning the canonical
+        # FAILURE from _require_case.
+        case, failure = self._require_case(self.case_id)
+        if failure is not None:
             self._set_output("case_manager_id", None)  # BT-17-003
-            return Status.FAILURE
+            return failure
 
-        case_manager_id = _resolve_case_manager_id(case, self.datalayer)
+        case_manager_id = resolve_case_manager_id(case, self.datalayer)
         if case_manager_id is None:
             self.feedback_message = (
                 f"No CASE_MANAGER participant found in case '{self.case_id}'"
@@ -87,19 +85,14 @@ class ConstructActivitiesNode(DataLayerActionWithPorts):
         super().__init__(name=name or self.__class__.__name__)
         self._activity_builder = activity_builder
 
-    @classmethod
-    def input_ports(cls) -> dict[str, PortInformation]:
-        ports = super().input_ports()
-        ports["case_manager_id"] = PortInformation(
-            data_type=str, required=True
-        )
-        return ports
+    INPUT_PORTS: dict[str, PortInformation] = {
+        **DataLayerActionWithPorts.INPUT_PORTS,
+        "case_manager_id": PortInformation(data_type=str, required=True),
+    }
 
-    @classmethod
-    def output_ports(cls) -> dict[str, PortInformation]:
-        return {
-            "activity_ids": PortInformation(data_type=object, required=True)
-        }
+    OUTPUT_PORTS: dict[str, PortInformation] = {
+        "activity_ids": PortInformation(data_type=object, required=True),
+    }
 
     @classmethod
     def _domain_port_remappings(cls) -> dict[str, str]:
@@ -140,13 +133,10 @@ class QueueToOutboxNode(DataLayerActionWithPorts):
     def __init__(self, name: str | None = None) -> None:
         super().__init__(name=name or self.__class__.__name__)
 
-    @classmethod
-    def input_ports(cls) -> dict[str, PortInformation]:
-        ports = super().input_ports()
-        ports["activity_ids"] = PortInformation(
-            data_type=object, required=True
-        )
-        return ports
+    INPUT_PORTS: dict[str, PortInformation] = {
+        **DataLayerActionWithPorts.INPUT_PORTS,
+        "activity_ids": PortInformation(data_type=object, required=True),
+    }
 
     @classmethod
     def _domain_port_remappings(cls) -> dict[str, str]:

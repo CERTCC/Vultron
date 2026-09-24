@@ -12,17 +12,20 @@ need on *every* run; the longer pitfall write-ups live in
 ## ⚠️ Running the Test Suite — ONE RUN RULE (MUST)
 
 ```bash
-uv run pytest --tb=short 2>&1 | tail -5
+uv run pytest --tb=short > /tmp/last-test-run.log 2>&1; rc=$?; tail -5 /tmp/last-test-run.log; echo "exit: $rc"; (exit $rc)
 ```
 
 Run **exactly once**. Do NOT re-run to grep counts, change tail length, or add
-`-q` (suppresses summary line). One run, read the tail.
+`-q` (suppresses summary line). One run, read the `exit:` line, then the tail.
 
-**Absence of a summary line means the run was killed, not that it passed** — the
-pipeline returns `tail`'s exit code. See
+**Read `exit:` before the tail — it is the verdict; the tail is only detail.**
+Never pipe the run into `tail` (`… 2>&1 | tail -5`) or through `tee`: a pipeline
+exits with `tail`'s status, so a `pytest-timeout` kill reports 0 and shows dump
+frames where the summary line would be — indistinguishable from a pass if you
+only read the tail. The redirect form above is the default for every run, not a
+diagnostic fallback. See
 [`notes/testing-pitfalls.md`](../notes/testing-pitfalls.md) § "A Killed `pytest`
-Run Reports Exit 0 Under `tail -5`" for the file-redirect form to use when
-diagnosing.
+Run Reports Exit 0 Under `tail -5`".
 
 ## Running a Specific Test File
 
@@ -31,7 +34,7 @@ uv run pytest test/test_semantic_activity_patterns.py -v
 ```
 
 If `vultron/demo/` or `test/demo/` was touched, run the full suite:
-`uv run pytest -m "" --tb=short 2>&1 | tail -5`.
+`uv run pytest -m "" --tb=short > /tmp/last-test-run.log 2>&1; rc=$?; tail -5 /tmp/last-test-run.log; echo "exit: $rc"; (exit $rc)`.
 
 ---
 
@@ -73,16 +76,9 @@ Guardrail".
 
 ## `test/demo/` Tests Are Auto-Marked `integration` by a Directory Hook
 
-`test/demo/conftest.py` has a `pytest_collection_modifyitems` hook that
-unconditionally adds `pytest.mark.integration` to **every** test collected from
-`test/demo/`, regardless of whether the test actually starts a FastAPI
-`TestClient`. Because the default `pyproject.toml` `addopts` is
-`-m 'not integration'`, a pure-unit test placed in `test/demo/` will be
-**silently deselected** by a bare `uv run pytest test/demo/test_something.py` —
-the run reports "N deselected" and 0 passed, which looks like a collection error
-but is not.
-
-**To run or confirm tests under `test/demo/`, always pass `-m ""`:**
+`test/demo/conftest.py` marks **every** test there `integration`, and `addopts`
+is `-m 'not integration'` — so a bare run of one demo file silently deselects it
+("N deselected", 0 passed), which reads like a collection error. Always `-m ""`:
 
 ```bash
 uv run pytest test/demo/test_something.py -m ""
@@ -97,15 +93,13 @@ Each actor MUST use a **distinct `DataLayer` instance**; mark tests
 [`vultron/adapters/driven/AGENTS.md`](../vultron/adapters/driven/AGENTS.md)
 § "Co-located actor isolation" and § "Reentrancy Guard".
 
-An `actor_id` *is* a store name, and a BT's store follows its executing actor —
-both hazards, and the `@pytest.mark.executes_as` declaration that resolves the
-second, are in
-[`notes/datalayer-design.md`](../notes/datalayer-design.md) § "One Actor Id Is One
-Database".
+An `actor_id` *is* a store name and a BT's store follows its executing actor —
+both hazards, plus the `@pytest.mark.executes_as` fix for the second:
+[`notes/datalayer-design.md`](../notes/datalayer-design.md) § "One Actor Id Is
+One Database".
 
-CI failures: see
-[`notes/demo-ci-diagnostics.md`](../notes/demo-ci-diagnostics.md). The invariant
-harness runs as a separate job from the demo run and must be read separately:
+CI failures: [`notes/demo-ci-diagnostics.md`](../notes/demo-ci-diagnostics.md).
+The invariant harness is a separate job from the demo run, read separately:
 [`notes/demo-ci-invariants.md`](../notes/demo-ci-invariants.md).
 
 ---
@@ -128,13 +122,12 @@ Use neutral names: `MockEnum`, `ExampleState`, `FixtureEnum`. Enforced by
 
 (SR-05-004, ISSUE-2117)
 
-Protocol-kind requirements are conformance-critical. Without a marker the CI
-uncovered-count ratchet (SR-05-005,
-`test/architecture/test_spec_coverage_ratchet.py`) cannot enforce coverage and
-the requirement becomes unverifiable. Add `@pytest.mark.spec("<ID>")` to every
-test that exercises a `kind: protocol` spec entry, and run `spec-coverage` to
-find protocol IDs with no markers yet. The strict-`xfail` pattern for a spec
-whose implementation does not exist yet is in
+Without a marker the CI uncovered-count ratchet (SR-05-005,
+`test/architecture/test_spec_coverage_ratchet.py`) cannot enforce coverage, so
+the conformance-critical requirement becomes unverifiable. Add
+`@pytest.mark.spec("<ID>")` to every test exercising a `kind: protocol` entry;
+`spec-coverage` lists protocol IDs still unmarked. The strict-`xfail` pattern for
+a spec whose implementation does not exist yet:
 [`notes/spec-authoring-rules.md`](../notes/spec-authoring-rules.md).
 
 ### Renaming a Mark Touches Three Files
@@ -162,6 +155,10 @@ autouse leak guard and its function-scope-only limitation:
 
 Full write-ups in [`notes/testing-pitfalls.md`](../notes/testing-pitfalls.md):
 
+- **A `filterwarnings` exemption listed *before* `"error"` is a no-op** (SR-05-007)
+  — later entries win, so the warning becomes a session-aborting exception. Verify
+  behaviourally in a `pytester` sub-session; `pytest.warns`/`catch_warnings`
+  replace the ini filters and cannot see the escalation.
 - **Vacuous assertions** — broadcast guards need a third participant; hash-chain
   comparisons need presence checks before equality (`"" == ""` passes);
   `MagicMock` needs `spec=` wherever code uses `isinstance()`; the genesis-hash
@@ -188,6 +185,14 @@ Full write-ups in [`notes/testing-pitfalls.md`](../notes/testing-pitfalls.md):
 - **Coverage shape** — one test per distinct lookup path when consolidating
   helpers; trigger use cases need per-use-case tests
   ([`notes/triggers-test-coverage.md`](../notes/triggers-test-coverage.md)).
+- **The timeout *method* sets what a trip costs; the ceiling only sets how
+  often** — raising a ceiling never reduces the severity of `thread`'s
+  whole-session kill, which is why the real dial went untouched for six
+  re-diagnoses (#3603).
+- **A marker sweep that counts declarations misses a directory hook** — grepping
+  `pytestmark` calls `test/demo/` non-compliant when its hook marks it 100%; ask
+  what collected items carry via a `trylast` probe. A tier assertion over
+  `FakeItem`s or a synthetic `pytester` session misses the real collection (#3604).
 - **SYNC replication test setup** —
   [`notes/sync-ledger-replication.md`](../notes/sync-ledger-replication.md)
   § "SYNC Replication Test Patterns".

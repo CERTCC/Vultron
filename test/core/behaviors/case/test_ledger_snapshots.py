@@ -20,6 +20,8 @@ These builders were extracted from the deleted ``nodes/prologue.py`` when
 uses them to commit the same entries natively (CM-22-003).
 """
 
+from datetime import timedelta
+
 import pytest
 
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
@@ -35,6 +37,7 @@ from vultron.core.behaviors.sync.nodes.canonical_entry import (
     _CASE_AUTHORED_SIGNATURES,
     _validate_canonical_entry,
 )
+from vultron.core.models._helpers import parse_published
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.case_status import CaseStatus
@@ -152,19 +155,11 @@ class TestSnapshotBuilders:
 
 
 class TestSnapshotsPassCanonicalGuard:
-    """CLP-07 / CLP-12: every native-init snapshot must survive validation.
-
-    Each case is exercised with ``case_actor_id`` equal to the snapshot actor,
-    which is the only configuration that triggers the CLP-07-003 provenance
-    check — i.e. the single-actor deployment where the vendor IS the CaseActor.
-    """
+    """CLP-07 / CLP-12: every native-init snapshot must survive validation."""
 
     def test_create_case(self, case, port):
         _validate_canonical_entry(
             case_id=CASE_ID,
-            actor_id=CASE_ACTOR_ID,
-            case_actor_id=CASE_ACTOR_ID,
-            disposition="recorded",
             payload_snapshot=build_create_case_snapshot(
                 case, CASE_ACTOR_ID, CASE_ID, port
             ),
@@ -174,9 +169,6 @@ class TestSnapshotsPassCanonicalGuard:
     def test_add_report_to_case(self, report, case, port):
         _validate_canonical_entry(
             case_id=CASE_ID,
-            actor_id=CASE_ACTOR_ID,
-            case_actor_id=CASE_ACTOR_ID,
-            disposition="recorded",
             payload_snapshot=build_add_report_to_case_snapshot(
                 report, case, CASE_ACTOR_ID, CASE_ID, port
             ),
@@ -186,9 +178,6 @@ class TestSnapshotsPassCanonicalGuard:
     def test_add_participant_status(self, participant, port):
         _validate_canonical_entry(
             case_id=CASE_ID,
-            actor_id=CASE_ACTOR_ID,
-            case_actor_id=CASE_ACTOR_ID,
-            disposition="recorded",
             payload_snapshot=build_add_participant_status_snapshot(
                 participant.participant_statuses[0],
                 participant,
@@ -212,9 +201,6 @@ class TestSnapshotsPassCanonicalGuard:
         assert isinstance(raw_status, CaseStatus)
         _validate_canonical_entry(
             case_id=CASE_ID,
-            actor_id=CASE_ACTOR_ID,
-            case_actor_id=CASE_ACTOR_ID,
-            disposition="recorded",
             payload_snapshot=build_add_case_status_snapshot(
                 raw_status, case, actor, CASE_ID, port
             ),
@@ -271,20 +257,17 @@ class TestSnapshotObjectWireReconstitutable:
         wire_cls.model_validate(obj)
 
 
-# Allow-listed camelCase dict-literal keys in vultron/core/ that are
-# documented as intentional (not snapshot construction):
-#   _SNAKE_TWINS in lifecycle.py — wire→snake reverse-lookup table
-#   case_states/patterns/ — state pattern strings, not wire keys
+# Allow-listed camelCase-looking dict-literal keys in vultron/core/.  The seven
+# wire aliases this list used to carry belonged to ``_SNAKE_TWINS`` in
+# lifecycle.py and are gone: the patch keys are now derived from the fields' own
+# aliases (#3485, ADR-0099 detail 2).  What remains is the case-state pattern
+# strings, which contain capitals but are not wire keys.
+#
+# The general form of this narrow scan now lives in
+# ``test/architecture/test_core_no_as2_spellings.py``, which covers every string
+# literal rather than only dict keys, and tells an alias declaration from a use.
 _AC8_ALLOW_LISTED: frozenset[str] = frozenset(
     {
-        "rmState",
-        "vfState",
-        "dState",
-        "vfdState",
-        "emState",
-        "pxaState",
-        "emConsentState",
-        "caseStatus",
         # case_states pattern strings (contain uppercase but are not wire keys)
         "v..P..",
         "v..pX.",
@@ -337,6 +320,86 @@ class TestSnapshotsNoCoreCamelCaseKeys:
             "Unexpected camelCase dict-literal keys in vultron/core/ "
             f"(add to _AC8_ALLOW_LISTED if intentional): {violations}"
         )
+
+
+class TestSnapshotsCarryPublished:
+    """CLP-07-011: a snapshot without ``published`` is not the verbatim activity.
+
+    The commit boundary rejects one that omits it
+    (``_validate_entry_timestamps``), so every builder in
+    ``ledger_snapshots.py`` has to set it.  These assertions live here rather
+    than in the guard's own tests because this file is the ``verification``
+    CLP-07-011 names, and because the builders are where the field is *produced*
+    — a future edit that drops it should fail next to the cause, not at some
+    commit call site three layers away (#2824).
+    """
+
+    @pytest.fixture
+    def built(self, case, report, participant, port):
+        """Every builder's output, keyed by builder name."""
+        return {
+            "build_create_case_snapshot": build_create_case_snapshot(
+                case, CASE_ACTOR_ID, CASE_ID, port
+            ),
+            "build_add_report_to_case_snapshot": (
+                build_add_report_to_case_snapshot(
+                    report, case, CASE_ACTOR_ID, CASE_ID, port
+                )
+            ),
+            "build_add_participant_status_snapshot": (
+                build_add_participant_status_snapshot(
+                    participant.participant_statuses[0],
+                    participant,
+                    CASE_ACTOR_ID,
+                    CASE_ID,
+                    port,
+                )
+            ),
+            "build_add_case_status_snapshot": build_add_case_status_snapshot(
+                case.case_statuses[0], case, CASE_ACTOR_ID, CASE_ID, port
+            ),
+        }
+
+    def test_builder_coverage_is_exhaustive(self, built):
+        """The fixture above covers every public builder the module exports.
+
+        Without this, a newly added builder would silently escape the
+        ``published`` assertion below — the fixture would just not mention it.
+        """
+        from vultron.core.behaviors.case import ledger_snapshots
+
+        exported = {
+            name
+            for name in dir(ledger_snapshots)
+            if name.startswith("build_") and name.endswith("_snapshot")
+        }
+        assert exported == set(built), (
+            "ledger_snapshots.py builders not covered by this test: "
+            f"{sorted(exported - set(built))}"
+        )
+
+    def test_every_builder_sets_a_parseable_published(self, built):
+        missing = sorted(
+            name for name, s in built.items() if not s.get("published")
+        )
+        assert not missing, f"builders that omit `published`: {missing}"
+
+        unparseable = sorted(
+            name
+            for name, s in built.items()
+            if parse_published(s["published"]) is None
+        )
+        assert (
+            not unparseable
+        ), f"builders whose `published` does not parse: {unparseable}"
+
+    def test_published_is_timezone_aware_utc(self, built):
+        """A naive stamp would compare against an aware one and raise."""
+        for name, snap in built.items():
+            parsed = parse_published(snap["published"])
+            assert parsed is not None, name
+            assert parsed.tzinfo is not None, name
+            assert parsed.utcoffset() == timedelta(0), name
 
 
 def test_native_init_signatures_are_canonical_and_case_authored():

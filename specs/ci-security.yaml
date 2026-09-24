@@ -75,7 +75,8 @@ groups:
       Every workflow triggered by push to `main` or by a `schedule` event MUST
       include a step conditioned on failure that files or updates a GitHub Issue.
       The step MUST use the shared `.github/actions/notify-failure` composite
-      action.
+      action. The step MUST fire only on a genuine job `failure` and MUST NOT
+      fire when the run was cancelled (see CISEC-05-006).
     rationale: >-
       Without structured failure notification, a broken `main` or a failed
       scheduled job goes undetected until a developer manually audits the Actions
@@ -119,3 +120,34 @@ groups:
       new one. If a human or external actor applies the label manually, the signal
       is corrupted — the action may comment on an unrelated issue or fail to file
       a new one. Bot-only enforcement keeps the alerting signal reliable.
+  - id: CISEC-05-006
+    priority: MUST
+    kind: process
+    statement: >-
+      The failure-conditioned notify step (CISEC-05-001) MUST NOT file a failure
+      issue when the run was cancelled. A step keyed on the GitHub Actions
+      `failure()` status function already satisfies this, because `failure()` is
+      false on cancellation. A step keyed on the `needs.*.result` aggregate MUST
+      pair the failure check with an explicit cancellation exclusion, i.e.
+      `contains(needs.*.result, 'failure') &&
+      !contains(needs.*.result, 'cancelled')`, and MUST NOT file on cancellation
+      directly (e.g. via `|| contains(needs.*.result, 'cancelled')`).
+    rationale: >-
+      A push-to-`main` run cancelled by the concurrency group (superseded by a
+      newer merge) is not an actual CI failure — a newer run is authoritative and
+      will file or close as appropriate. Two ways a cancelled run otherwise
+      registers as a failure: (1) a guard that files on cancellation directly
+      (e.g. `|| contains(needs.*.result, 'cancelled')`), and (2) a cancelled
+      upstream job that leaves a downstream job to hard-fail on a missing
+      artifact (#3249), laundering the cancellation into a `failure` result in
+      the `needs.*.result` aggregate. The `failure() ` status function is immune
+      to both; the `needs.*.result` aggregate is not, so it needs the explicit
+      `!contains(..., 'cancelled')` guard. This mirrors the close-step guard
+      (CISEC-05-002), which already excludes cancellation.
+    verification: >-
+      The test `test_notify_step_does_not_file_on_cancellation` in
+      `test/ci/test_workflow_failure_notification.py` asserts each qualifying
+      workflow's notify step never files on cancelled runs.
+    relationships:
+      - rel_type: refines
+        spec_id: CISEC-05-001

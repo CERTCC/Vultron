@@ -265,7 +265,7 @@ groups:
     kind: protocol
     statement: '`OFFER_ACTOR_TO_CASE` MUST be represented as `Offer(Actor)[target=VulnerabilityCase]`'
     rationale: 'This is the first hop of the two-offer actor-suggestion exchange: a participant suggests an Actor to the
-      CaseActor. Corrected from an earlier revision that named `SUGGEST_ACTOR_TO_CASE`, which is not and never was a
+      CASE_MANAGER. Corrected from an earlier revision that named `SUGGEST_ACTOR_TO_CASE`, which is not and never was a
       `MessageSemantics` member. Note the crossed spelling in the code — `SuggestActorToCasePattern` is the pattern bound
       to `OFFER_ACTOR_TO_CASE`, while `OfferActorToCasePattern` is bound to `OFFER_CASE_PARTICIPANT` (VAM-04-010).'
     verification: Inspection of `vultron/semantic_registry/actor.py` confirms that `MessageSemantics.OFFER_ACTOR_TO_CASE`
@@ -279,7 +279,7 @@ groups:
     kind: protocol
     statement: '`ACCEPT_OFFER_CASE_PARTICIPANT` MUST be represented as
       `Accept(Offer(CaseParticipant)[target=VulnerabilityCase])`'
-    rationale: 'The accept wraps the *second* offer of the exchange, not the first: the Case Owner accepts the CaseActor''s
+    rationale: 'The accept wraps the *second* offer of the exchange, not the first: the Case Owner accepts the CASE_MANAGER''s
       `Offer(CaseParticipant)` (VAM-04-010), not the original `Offer(Actor)`. Corrected from an earlier revision that named
       a nonexistent `ACCEPT_SUGGEST_ACTOR_TO_CASE` and wrapped `Offer(Actor)` — wrong in both the semantic name and the
       wire form. See CM-16-003, CM-16-004 and ADR-0026.'
@@ -294,7 +294,7 @@ groups:
     kind: protocol
     statement: '`REJECT_OFFER_CASE_PARTICIPANT` MUST be represented as
       `Reject(Offer(CaseParticipant)[target=VulnerabilityCase])`'
-    rationale: 'Symmetric with VAM-04-002: the rejection wraps the CaseActor''s `Offer(CaseParticipant)`, not the
+    rationale: 'Symmetric with VAM-04-002: the rejection wraps the CASE_MANAGER''s `Offer(CaseParticipant)`, not the
       originating `Offer(Actor)`. Corrected from an earlier revision that named a nonexistent
       `REJECT_SUGGEST_ACTOR_TO_CASE` and wrapped the wrong inner object.'
     verification: Inspection of `vultron/semantic_registry/actor.py` confirms that
@@ -367,7 +367,7 @@ groups:
     kind: protocol
     statement: '`OFFER_CASE_PARTICIPANT` MUST be represented as `Offer(CaseParticipant)[target=VulnerabilityCase]`'
     rationale: 'The second hop of the actor-suggestion exchange, and the one VAM previously omitted entirely: having
-      received `Offer(Actor)` (VAM-04-001), the CaseActor offers case participation to the Case Owner as a
+      received `Offer(Actor)` (VAM-04-001), the CASE_MANAGER offers case participation to the Case Owner as a
       `CaseParticipant` carrying the proposed roles. This hop is what VAM-04-002 and VAM-04-003 accept and reject, so
       leaving it unspecified made those two entries look like they wrapped `Offer(Actor)`. See CM-16-003, CM-16-004 and
       ADR-0026.'
@@ -383,10 +383,31 @@ groups:
   - id: VAM-05-001
     priority: MUST
     kind: protocol
-    statement: '`CREATE_EMBARGO_EVENT` MUST be represented as `Create(Event)[context=VulnerabilityCase]`'
+    statement: >-
+      `CREATE_EMBARGO_EVENT` MUST be represented as `Create(Event)[context=VulnerabilityCase]`
+      or `Create(Event)[context=VulnerabilityReport]`. The context identifies the subject the
+      embargo concerns, per EP-04-009.
+    note: >-
+      Widened by ADR-0096, so that a `Create(Event)` naming a report as its subject is a
+      recognised mapping rather than an accident of permissive matching. The report context
+      exists because EP-04-004's sender-side proposal precedes the case (EP-04-009).
+
+      Two things this widening does *not* do. It does not affect the proposal embedded on
+      `Offer(VulnerabilityReport)`: `ActivityPattern.match()` compares `activity_` before any
+      context check, so an `Offer` never matches a `TAtype.CREATE` pattern whatever its context —
+      extracting the embedded proposal is the `Offer` pattern's job, not this one. And it does not
+      change today's matching behaviour: `context_` is compared with `strict=False` hardcoded in
+      `ActivityPattern.match()`, so a bare URI string already matched. What changes is the
+      declared intent, which is what an implementer reads.
     verification: A unit test in `test/wire/as2/test_extractor.py` confirms that `Create(EmbargoEvent)` with a
-      `VulnerabilityCase` context maps to `CREATE_EMBARGO_EVENT`, and inspection of `_instances.py` confirms
-      `CreateEmbargoEventPattern` uses `TAtype.CREATE`, `AOtype.EVENT`, and `context_=VULNERABILITY_CASE`.
+      `VulnerabilityCase` context maps to `CREATE_EMBARGO_EVENT`, that the same activity with a
+      `VulnerabilityReport` context also maps to `CREATE_EMBARGO_EVENT`, and inspection of `_instances.py`
+      confirms `CreateEmbargoEventPattern` uses `TAtype.CREATE`, `AOtype.EVENT`, and admits both contexts.
+    relationships:
+    - rel_type: refines
+      spec_id: EP-04-009
+    adr:
+    - ADR-0096
     stories:
     - story_2022_014
     - story_2022_010

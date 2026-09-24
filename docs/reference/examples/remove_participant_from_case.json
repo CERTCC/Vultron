@@ -1,10 +1,43 @@
 {
-  "@context": "https://www.w3.org/ns/activitystreams",
-  "asType": "Remove",
-  "id": "https://for.example/6872b216-eaf2-48dc-bc83-b1af0a2a0e58",
-  "name": "https://vultron.example/organizations/vendor Remove https://vultron.example/cases/VDR-20991514/participants/coordinator from https://vultron.example/cases/VDR-20991514",
+  "id": "urn:uuid:43a01e59-132a-46a7-b600-481bc8b266d1",
+  "type": "Remove",
+  "name": "https://vultron.example/organizations/vendorco Remove Coordinator LLC to urn:uuid:a0a80546-90d9-482d-916a-72f47f8a64d6",
   "summary": "Vendor is removing the coordinator from the case.",
-  "actor": "https://vultron.example/organizations/vendor",
-  "origin": "https://vultron.example/cases/VDR-20991514",
-  "object": "https://vultron.example/cases/VDR-20991514/participants/coordinator"
+  "@context": "https://www.w3.org/ns/activitystreams",
+  "actor": "https://vultron.example/organizations/vendorco",
+  "target": "urn:uuid:a0a80546-90d9-482d-916a-72f47f8a64d6",
+  "object": {
+    "id": "urn:uuid:a0a80546-90d9-482d-916a-72f47f8a64d6/participants/coordinator",
+    "type": "CaseParticipant",
+    "name": "Coordinator LLC",
+    "context": "urn:uuid:a0a80546-90d9-482d-916a-72f47f8a64d6",
+    "published": "2026-09-23T16:41:57+00:00",
+    "updated": "2026-09-23T16:41:57+00:00",
+    "attributedTo": "https://vultron.example/organizations/coordinator",
+    "caseRoles": [
+      "coordinator"
+    ],
+    "participantStatuses": [
+      {
+        "id": "urn:uuid:e2162ac7-3716-45b9-84b6-5728dd55bfd8",
+        "type": "ParticipantStatus",
+        "name": "START",
+        "context": "urn:uuid:a0a80546-90d9-482d-916a-72f47f8a64d6",
+        "published": "2026-09-23T16:41:57+00:00",
+        "updated": "2026-09-23T16:41:57+00:00",
+        "attributedTo": "https://vultron.example/organizations/coordinator",
+        "rmState": "START",
+        "caseEngagement": true,
+        "emConsentState": "UNBOUND",
+        "cvdRole": [
+          "COORDINATOR"
+        ],
+        "embargoAdherence": false,
+        "@context": "https://certcc.github.io/Vultron/ns/context.jsonld"
+      }
+    ],
+    "acceptedEmbargoIds": [],
+    "embargoConsentState": "UNBOUND",
+    "@context": "https://certcc.github.io/Vultron/ns/context.jsonld"
+  }
 }

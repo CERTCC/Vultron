@@ -29,6 +29,7 @@ from unittest.mock import MagicMock, call, patch
 
 import httpx2 as httpx
 import pytest
+from vultron.demo.actor_session import ActorSession
 from _pytest.monkeypatch import MonkeyPatch
 from click.testing import CliRunner
 from fastapi.testclient import TestClient
@@ -911,12 +912,12 @@ class TestActorNotifiesFixReady:
         finder_client, vendor_client, finder, vendor, case = (
             _setup_case_with_3_participants(base)
         )
-        result = demo.actor_notifies_fix_ready(
-            client=vendor_client,
-            actor=vendor,
-            case_id=case.id_,
+        result = (
+            ActorSession(client=vendor_client, actor=vendor)
+            .with_case(case)
+            .notify_fix_ready()
         )
-        # trigger endpoint returns a dict (accepted/queued)
+        # trigger endpoint returns a typed result (accepted/queued)
         assert result is not None
 
     def test_raises_on_invalid_case(self, client: TestClient, base: str):
@@ -929,11 +930,10 @@ class TestActorNotifiesFixReady:
             _setup_case_with_3_participants(base)
         )
         # With the accumulator pattern, no exception propagates; failure is recorded.
-        demo.actor_notifies_fix_ready(
-            client=vendor_client,
-            actor=vendor,
-            case_id="https://example.org/does-not-exist",
-        )
+        with demo.demo_step("vendor notifies fix ready on a missing case"):
+            ActorSession(client=vendor_client, actor=vendor).with_case(
+                as_VulnerabilityCase(id_="https://example.org/does-not-exist")
+            ).notify_fix_ready()
         assert any(
             "does-not-exist" in f or "404" in f or "STEP FAILED" in f
             for f in demo_utils._demo_failures
@@ -956,11 +956,9 @@ class TestActorNotifiesFixDeployed:
         finder_client, vendor_client, finder, vendor, case = (
             _setup_case_with_3_participants(base)
         )
-        demo.actor_notifies_fix_ready(
-            client=vendor_client,
-            actor=vendor,
-            case_id=case.id_,
-        )
+        ActorSession(client=vendor_client, actor=vendor).with_case(
+            case
+        ).notify_fix_ready()
         # Call post_to_trigger directly so the 4xx propagates; demo_step would
         # swallow it. The double raises HTTPStatusError like the real client, so
         # the status code can be asserted structurally rather than by searching
@@ -991,10 +989,10 @@ class TestActorNotifiesPublished:
         finder_client, vendor_client, finder, vendor, case = (
             _setup_case_with_3_participants(base)
         )
-        result = demo.actor_notifies_published(
-            client=vendor_client,
-            actor=vendor,
-            case_id=case.id_,
+        result = (
+            ActorSession(client=vendor_client, actor=vendor)
+            .with_case(case)
+            .notify_published()
         )
         assert result is not None
 
@@ -1007,10 +1005,10 @@ class TestActorClosesCase:
         finder_client, vendor_client, finder, vendor, case = (
             _setup_case_with_3_participants(base)
         )
-        result = demo.actor_closes_case(
-            client=vendor_client,
-            actor=vendor,
-            case_id=case.id_,
+        result = (
+            ActorSession(client=vendor_client, actor=vendor)
+            .with_case(case)
+            .close_case()
         )
         assert result is not None
 
@@ -1087,12 +1085,20 @@ class TestWaitForAllParticipantsRmClosed:
         finder_client, vendor_client, finder, vendor, case = (
             _setup_case_with_3_participants(base)
         )
-        demo.actor_closes_case(
-            client=vendor_client, actor=vendor, case_id=case.id_
-        )
-        demo.actor_closes_case(
-            client=finder_client, actor=finder, case_id=case.id_
-        )
+        # CM-23-011: the Case Actor declines an owner close while an embargo is
+        # live. The setup leaves an active embargo (validate-report needs one),
+        # so the owner (vendor) reports publication first, which drives embargo
+        # teardown; otherwise the close is correctly refused and the vendor
+        # never reaches RM.CLOSED.
+        ActorSession(client=vendor_client, actor=vendor).with_case(
+            case
+        ).notify_published()
+        ActorSession(client=vendor_client, actor=vendor).with_case(
+            case
+        ).close_case()
+        ActorSession(client=finder_client, actor=finder).with_case(
+            case
+        ).close_case()
         case_data = vendor_client.get(vendor_client.dl_path(case.id_))
         refreshed_case = as_VulnerabilityCase.model_validate(case_data)
         result = demo._all_fetchable_participants_rm_closed(
@@ -1875,21 +1881,22 @@ def completed_workflow(
     )
 
     # Fix lifecycle: vendor-only actor stops at VFd (CSB-15-002).
-    demo.actor_notifies_fix_ready(
-        client=vendor_client, actor=vendor_in_vendor, case_id=case.id_
-    )
-    demo.actor_notifies_published(
-        client=vendor_client, actor=vendor_in_vendor, case_id=case.id_
-    )
+    vendor_session = ActorSession(
+        client=vendor_client, actor=vendor_in_vendor
+    ).with_case(case)
+    with demo.demo_step("vendor reports fix ready"):
+        vendor_session.notify_fix_ready()
+    with demo.demo_step("vendor reports publication"):
+        vendor_session.notify_published()
 
     # Case closure — both actors must close so RM=CLOSED for all.
     finder_in_finder = demo.get_actor_by_id(finder_client, finder.id_)
-    demo.actor_closes_case(
-        client=vendor_client, actor=vendor_in_vendor, case_id=case.id_
-    )
-    demo.actor_closes_case(
-        client=finder_client, actor=finder_in_finder, case_id=case.id_
-    )
+    with demo.demo_step("vendor closes case"):
+        vendor_session.close_case()
+    with demo.demo_step("finder closes case"):
+        ActorSession(client=finder_client, actor=finder_in_finder).with_case(
+            case
+        ).close_case()
 
     # Final refresh to pick up any post-closure case-actor state.
     case_data = vendor_client.get(vendor_client.dl_path(case.id_))
@@ -1954,10 +1961,6 @@ class TestCaseLedgerInvariants:
             f"event types: {sorted({_log_event_type(e) for e in entries})})"
         )
 
-    @pytest.mark.xfail(
-        strict=False,
-        reason="pre-existing bug #2505: FV demo CaseActor never reaches RM.CLOSED",
-    )
     def test_all_participants_rm_closed_at_scenario_end(
         self,
         completed_workflow: tuple[
@@ -1973,6 +1976,13 @@ class TestCaseLedgerInvariants:
         actor recorded in ``payloadSnapshot.actor`` (ADR-0050, CM-23-002/003).
         Corresponds to CI invariant 7 (terminal RM state check) from
         test/ci/test_case_ledger_invariants.py.
+
+        The CASE_MANAGER reaches ``RM.CLOSED`` here through its own
+        ``add_participant_status_to_participant`` entry, committed by
+        ``CommitCaseActorRMClosedEntryNode`` on the owner-Leave path (CM-23-005).
+        Before ISSUE-2505 that transition was applied only to the Case Actor's
+        own store and never recorded, so this assertion could not pass and the
+        test carried a blanket ``xfail``.
         Spec: CLP-07.
         """
         vendor_client, case = completed_workflow
@@ -2135,7 +2145,7 @@ class TestFvMilestoneAssertions:
 
         with (
             patch.object(demo, "wait_for_participant_rm_state"),
-            patch.object(demo, "actor_notifies_fix_ready"),
+            patch.object(ActorSession, "notify_fix_ready"),
             patch.object(demo, "wait_for_participant_vf_state"),
             patch.object(demo, "verify_fix_ready") as mock_m4,
             patch.object(
@@ -2174,7 +2184,7 @@ class TestFvMilestoneAssertions:
 
         with (
             patch.object(demo, "wait_for_participant_rm_state", mock_rm_wait),
-            patch.object(demo, "actor_notifies_fix_ready", mock_fix_ready),
+            patch.object(ActorSession, "notify_fix_ready", mock_fix_ready),
             patch.object(demo, "wait_for_participant_vf_state"),
             patch.object(demo, "verify_fix_ready"),
         ):
@@ -2213,7 +2223,7 @@ class TestFvMilestoneAssertions:
         case = self._case()
 
         with (
-            patch.object(demo, "actor_notifies_published"),
+            patch.object(ActorSession, "notify_published"),
             patch.object(demo, "wait_for_case_em_terminated"),
             patch.object(demo, "wait_for_participant_vf_state"),
             patch.object(demo, "verify_publicly_disclosed") as mock_m6,
@@ -2258,7 +2268,7 @@ class TestFvMilestoneAssertions:
         }
 
         with (
-            patch.object(demo, "actor_closes_case"),
+            patch.object(ActorSession, "close_case"),
             patch.object(demo, "wait_for_all_participants_rm_closed"),
             patch.object(demo, "verify_case_closed") as mock_m7,
             patch.object(demo, "wait_for_event_type_in_ledger"),
@@ -2465,7 +2475,7 @@ class TestFvCausalGates:
         coverage_wait_called = MagicMock()
 
         with (
-            patch.object(demo, "actor_closes_case"),
+            patch.object(ActorSession, "close_case"),
             patch.object(demo, "wait_for_all_participants_rm_closed"),
             patch.object(demo, "verify_case_closed"),
             patch.object(

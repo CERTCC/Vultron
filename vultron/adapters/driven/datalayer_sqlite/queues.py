@@ -263,6 +263,7 @@ def dead_letter_append(
     reason: str,
     total_attempts: int,
     failed_recipients: list[str],
+    ledger_entry_id: str | None = None,
 ) -> None:
     """Write an exhausted outbox activity to this actor's dead-letter store.
 
@@ -281,6 +282,8 @@ def dead_letter_append(
         reason: Short machine-readable reason code.
         total_attempts: Total cumulative attempt count at exhaustion.
         failed_recipients: Actor IDs that could not be reached.
+        ledger_entry_id: ID of the ``CaseLedgerEntry`` the activity was
+            replicating, or ``None`` for non-ledger activities (OX-14-001).
     """
     actor = dl.actor_id
     entry = OutboxDeadLetterEntry(
@@ -289,6 +292,7 @@ def dead_letter_append(
         reason=reason,
         total_attempts=total_attempts,
         failed_recipients=list(failed_recipients),
+        ledger_entry_id=ledger_entry_id,
         recorded_at=datetime.now(UTC),
     )
     dl.save(entry)

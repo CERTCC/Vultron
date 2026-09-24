@@ -14,6 +14,8 @@
 import random
 from uuid import uuid4
 
+from pydantic import BaseModel
+
 from vultron.wire.as2.vocab.base.base import as_Base
 from vultron.wire.as2.vocab.base.objects.actors import (
     as_Organization,
@@ -61,9 +63,7 @@ _REPORT = as_VulnerabilityReport(
     name="FDR-8675309",
     id_=_make_id("VulnerabilityReport"),
     content="I found a vulnerability!",
-    attributed_to=[
-        _FINDER.id_,
-    ],
+    attributed_to=_FINDER.id_,
 )
 _CASE = as_VulnerabilityCase(
     name=f"{_VENDOR.name} Case #{case_number}",
@@ -155,7 +155,7 @@ def gen_report() -> as_VulnerabilityReport:
     return _REPORT
 
 
-def _strip_published_udpated(obj: as_Base) -> as_Base:
+def _strip_published_udpated(obj: as_Base | BaseModel) -> as_Base | BaseModel:
     """Return a copy of *obj* with its ``published``/``updated`` timestamps cleared.
 
     Both timestamps default to build time, so leaving them in would make every
@@ -186,29 +186,36 @@ def _strip_published_udpated(obj: as_Base) -> as_Base:
     return obj.model_copy(update=updates)
 
 
-def json2md(obj: as_Base) -> str:
+def _to_json(obj: object, **kwargs: object) -> str:
+    """Serialize *obj* to a JSON string, excluding None values and using aliases."""
+    if hasattr(obj, "to_json"):
+        return obj.to_json(**kwargs)  # type: ignore[union-attr,no-any-return]
+    if isinstance(obj, BaseModel):
+        return obj.model_dump_json(
+            exclude_none=True, by_alias=True, **kwargs  # type: ignore[arg-type]
+        )
+    raise TypeError(f"obj must be serializable to JSON: {obj}")
+
+
+def json2md(obj: as_Base | BaseModel) -> str:
     """
-    Given an object with a to_json method, return a markdown-formatted string of the object's JSON.
+    Given a Pydantic model, return a markdown-formatted string of the object's JSON.
     Args:
-        obj: an object with a to_json method
+        obj: a Pydantic model (wire or core)
 
     Returns:
         a markdown-formatted string of the object's JSON
     """
     obj = _strip_published_udpated(obj)
-
-    if not hasattr(obj, "to_json"):
-        raise TypeError(f"obj must have a to_json method: {obj}")
-
-    s = f"```json\n{obj.to_json(indent=2)}\n```"
+    s = f"```json\n{_to_json(obj, indent=2)}\n```"
     return s
 
 
-def obj_to_file(obj: as_Base, filename: str) -> None:
+def obj_to_file(obj: as_Base | BaseModel, filename: str) -> None:
     """
-    Given an object with a to_json method, write it to a file.
+    Given a Pydantic model, write it to a file as JSON.
     Args:
-        obj: an object with a to_json method
+        obj: a Pydantic model (wire or core)
         filename: the file to write to
 
     Returns:
@@ -216,14 +223,11 @@ def obj_to_file(obj: as_Base, filename: str) -> None:
     """
     obj = _strip_published_udpated(obj)
 
-    if not hasattr(obj, "to_json"):
-        raise TypeError(f"obj must have a to_json method: {obj}")
-
     with open(filename, "w") as fp:
-        fp.write(obj.to_json(indent=2))
+        fp.write(_to_json(obj, indent=2))
 
 
-def print_obj(obj: as_Base) -> None:
+def print_obj(obj: as_Base | BaseModel) -> None:
     """
     Given an object with a to_json method, print it to stdout.
     Args:
@@ -232,7 +236,7 @@ def print_obj(obj: as_Base) -> None:
     Returns:
         None
     """
-    print(obj.to_json(indent=2))
+    print(_to_json(obj, indent=2))
 
 
 ACTOR_FUNCS = [finder, vendor, coordinator, case_actor]

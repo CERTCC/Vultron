@@ -23,6 +23,15 @@ groups:
       Integration tests in `test/demo/` confirm that the inbox handler rejects
       payloads missing required AS2 fields (e.g., `type`) with an HTTP 4xx response
       before dispatch.
+    note: >-
+      Two distinct type lookups act on an inbound activity, and this requirement
+      governs the first. Vocabulary-level type resolution (the AS2 `WIRE_TYPE_MAP` /
+      `VOCABULARY`, consulted by `parse_activity`) is refused at the parse
+      threshold: an activity whose `type` is absent from the AS2 vocabulary is
+      rejected with `VultronParseUnknownTypeError` → HTTP 422 and never reaches
+      dispatch. The separate "route to `UNKNOWN`" behaviour (MV-01-006) applies to
+      the later semantic pattern registry lookup, not to vocabulary resolution
+      (ISSUE-3217).
     stories:
     - story_2022_012
     - story_2022_038
@@ -30,24 +39,47 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      The activity-type dispatch implementation MUST handle missing or null fields
-      without raising unhandled exceptions.
+      The semantic-dispatch stage — the type lookup that runs after `parse_activity`
+      has already accepted the activity against the AS2 vocabulary — MUST handle
+      missing or null fields without raising unhandled exceptions.
     verification: >-
       A unit test confirms that passing activities with `None` or absent `type`,
       `actor`, and `object` fields to the dispatch router returns a dispatch result
       rather than raising an unhandled exception.
+    note: >-
+      "Dispatch" here is the semantic-pattern stage, not vocabulary resolution:
+      malformed inputs that fail AS2 vocabulary resolution are already rejected at
+      parse (MV-01-001), so this requirement and its refinements MV-01-006/007
+      govern only activities that have passed the parse threshold (ISSUE-3217).
     lint_suppress:
     - missing_story_reference
   - id: MV-01-006
     priority: MUST
     kind: protocol
-    statement: 'The activity-type dispatch implementation MUST treat unrecognized activity types as dispatching to `UNKNOWN`.'
+    statement: >-
+      The semantic-dispatch stage MUST treat an activity whose type matches no
+      entry in the semantic pattern registry (`SEMANTIC_REGISTRY`, consulted by
+      `find_matching_semantics`) as resolving to `MessageSemantics.UNKNOWN`. This
+      is distinct from vocabulary-level resolution: an activity whose `type` is
+      absent from the AS2 vocabulary is rejected at parse (MV-01-001) and never
+      reaches this stage.
     rationale: >-
-      Mapping unknown types to UNKNOWN rather than failing allows the system to log
-      and route unrecognised activities without crashing the dispatch pipeline.
+      Two registries look the activity up on the same value, so a bare
+      "unrecognized type" is ambiguous between them. Reject-at-parse and
+      route-to-`UNKNOWN` are both correct answers to differently-scoped questions;
+      naming the registry is what disambiguates. Routing an unmatched *semantic*
+      pattern to `UNKNOWN` lets the system log and continue rather than crashing the
+      dispatch pipeline (ISSUE-3217).
+    note: >-
+      A vocabulary-recognised type can still resolve to `UNKNOWN` semantics — e.g.
+      an `Accept` whose nested object was silently downgraded, so it matches no
+      pattern. That is this path, not the parse rejection, and the two look
+      identical in logs; naming the registry keeps an investigation pointed at the
+      right layer (ISSUE-3217).
     verification: >-
-      A unit test confirms that an activity whose `type` is not in the registered
-      dispatch map resolves to the `UNKNOWN` handler rather than raising an error.
+      A unit test confirms that an activity whose `type` is not in the
+      `SEMANTIC_REGISTRY` resolves to `MessageSemantics.UNKNOWN` rather than
+      raising an error.
     relationships:
     - rel_type: refines
       spec_id: MV-01-005
@@ -57,7 +89,7 @@ groups:
     priority: MUST_NOT
     kind: protocol
     statement: >-
-      The activity-type dispatch implementation MUST NOT propagate internal dispatch
+      The semantic-dispatch stage MUST NOT propagate internal dispatch
       errors to callers.
     rationale: >-
       Propagating internal errors exposes implementation details to senders and can
@@ -100,6 +132,38 @@ groups:
       valid AS2 payload.
     lint_suppress:
     - missing_story_reference
+  - id: MV-03-002
+    priority: MUST
+    kind: protocol
+    statement: >-
+      A receiver MUST treat a required field that is present but blank as absent,
+      and MUST report it with the same error as an omitted field. A blank value is
+      an empty string or one containing only whitespace. A value that is present
+      and non-blank but unparseable MUST be reported as a schema fault instead,
+      not as a missing field.
+    rationale: >-
+      These guards enforce requirements about values, not keys: CLP-15-006 refuses
+      an activity that "carries no `published`", and a field present but empty
+      carries none — CS-08-001's "if present, then non-empty". Testing the key let
+      `published: ""` reach schema validation, replacing that explanation with a
+      Pydantic dump, and `type: ""` reach the vocabulary lookup, so two spellings
+      of one omission drew two status codes. Unparseable values stay on the schema
+      path.
+    verification: >-
+      Unit tests in `test/wire/as2/test_parser.py` confirm that every blank
+      spelling of `type` and `published` — empty, spaces, tabs, newlines — raises
+      the same missing-field error as omitting the field, that
+      `test/adapters/driving/fastapi/routers/actors/test_inbox.py` maps a blank
+      `type` to HTTP 400 as an omitted `type` already was, and that non-blank
+      unparseable values such as `"not-a-date"`, `0` and `[]` still raise the
+      validation error.
+    relationships:
+    - rel_type: refines
+      spec_id: MV-03-001
+    adr:
+    - ADR-0090
+    lint_suppress:
+    - missing_story_reference
 - id: MV-04
   title: Object Type Validation
   specs:
@@ -119,6 +183,37 @@ groups:
       For Create-style activities that create sub-objects (e.g., `CreateParticipant`), the
       activity `name` field SHOULD be a descriptive human-readable string identifying the
       actor, created object ID, and context (case ID)
+  - id: MV-04-003
+    priority: MUST_NOT
+    kind: protocol
+    statement: >-
+      When an inline object's `type` resolves to a known wire vocabulary class, a
+      receiver MUST NOT substitute a less specific type for it if validation
+      against that class fails. The receiver MUST reject the enclosing activity as
+      malformed instead. Resolution of an inline object's type MUST consider only
+      wire-branch classes; an unresolved type leaves the object for its parent
+      field to validate.
+    rationale: >-
+      Substituting a weaker type is silent data loss: a nested object handed back
+      as a raw dict is accepted by its parent as a bare `as_Link`, so an
+      `Accept(Invite(...))` with one corrupt inner field parsed clean, extracted as
+      `UNKNOWN`, and drew a 202. Wire-only resolution makes refusal safe:
+      `find_in_vocabulary` falls back to `CORE_TYPE_MAP` (ARCH-12-003), where
+      `OrderedCollection` alone is registered, so an inline actor's `inbox` became
+      a core instance its wire parent rejects (ARCH-22-001).
+    verification: >-
+      Unit tests in `test/wire/as2/test_parser.py` confirm that an
+      `Accept(Invite(...))` whose inner object carries an unparseable timestamp is
+      rejected rather than parsed as an `as_Link`, and that an inline actor whose
+      `inbox` and `outbox` use the core-only `OrderedCollection` type keeps its
+      `as_VultronOrganization` subtype.
+    relationships:
+    - rel_type: refines
+      spec_id: MV-04-001
+    adr:
+    - ADR-0090
+    lint_suppress:
+    - missing_story_reference
 - id: MV-05
   title: URI Validation
   specs:
@@ -195,18 +290,44 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      Stub objects MUST carry at minimum an `id` field (full URI) and a `type` field; they
-      MAY carry a `summary` field for human-readable context
+      A stub object MUST carry at minimum an `id` field (full URI) and a `type` field; it
+      MAY carry a `summary` field for human-readable context. The stub form is permitted
+      ONLY for `VulnerabilityCase`. For every other object type, a sender that does not
+      inline the full object MUST reference it by URI (or by an ActivityStreams `Link`),
+      not by a partial inline object.
+    rationale: >-
+      The stub form is a narrow affordance, not a substitute for a full object. It serves
+      one need: an invitee must evaluate a case before accepting, and the case cannot be
+      shared until they accept (MV-10-005), so the stub is a transient placeholder that
+      rehydrates once they are admitted. No other type has that need or is implemented.
+    note: >-
+      Partial inline objects of other types were never designed — a parser fallback
+      swallowed their validation failures and handed the parent a raw dict, which
+      MV-04-003 now refuses. Reading MV-10-001 as a general licence for partial inline
+      objects would entrench a workaround for a capability Vultron lacks: dereferencing a
+      URI in another actor's message into the resolved object. Design discussion:
+      `notes/stub-objects.md`.
     verification: >-
-      A unit test confirms that the stub-object validator rejects objects missing either
-      `id` or `type`, and accepts objects containing only those two required fields plus
-      an optional `summary`.
+      A unit test confirms that a `VulnerabilityCase` inline object carrying only
+      `id`/`type`(+`summary`) resolves to `as_VulnerabilityCaseStub`, and that a partial
+      inline object of any other recognised wire type is refused under MV-04-003 rather
+      than degraded. Bare URI references and `Link` objects remain accepted in all four
+      positions named by MV-10-002.
+    relationships:
+    - rel_type: constrains
+      spec_id: MV-04-003
+    adr:
+    - ADR-0090
     stories:
     - story_2022_039
   - id: MV-10-002
     priority: MUST
     kind: protocol
-    statement: 'Stub objects are ONLY permitted in the following field positions of an ActivityStreams activity: `actor`, `object`, `target`, and `origin`.'
+    statement: 'A `VulnerabilityCase` stub object is ONLY permitted in the following field positions of an ActivityStreams activity: `actor`, `object`, `target`, and `origin`.'
+    rationale: >-
+      Scopes the position rule to the one permitted stub type (MV-10-001). A reference in
+      any of these positions may also be a bare URI or a `Link`; those forms are always
+      acceptable and are unaffected by MV-04-003's refusal of malformed inline objects.
     verification: >-
       Inspection of the inbound message validator confirms that stub detection runs only
       on `actor`, `object`, `target`, and `origin` fields; stubs in other field positions

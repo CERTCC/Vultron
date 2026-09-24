@@ -81,10 +81,10 @@ def _make_active_embargo_case(
     invitee_cp = WireCP(
         attributed_to=_INVITEE,
         context=case_id,
-        embargo_consent_state=invitee_pec.value,
+        embargo_consent_state=invitee_pec,
         case_roles=[CVDRole.VENDOR],
     )
-    invitee_cp_core = invitee_cp.to_core()
+    invitee_cp_core = invitee_cp
     if invitee_deadline is not None:
         invitee_cp_core.invite_rsvp_deadline = invitee_deadline
 
@@ -269,7 +269,7 @@ class TestInviteStoresDeadline:
             context=case_id,
             case_roles=[CVDRole.VENDOR],
         )
-        invitee_cp_core = invitee_cp.to_core()
+        invitee_cp_core = invitee_cp
 
         dl.create(case)
         dl.create(embargo)
@@ -316,13 +316,13 @@ class TestInviteeIsTheAddressee:
         dl,
         case_id: str,
         embargo_id: str,
-        invitee_pec: PEC = PEC.NO_EMBARGO,
+        invitee_pec: PEC = PEC.UNBOUND,
         extra_actors: tuple[str, ...] = (),
     ):
         """Case with the coordinator as CASE_MANAGER and a separate invitee.
 
         ``extra_actors`` seeds additional VENDOR participants at
-        ``PEC.NO_EMBARGO``; their participant IDs are returned in a dict keyed
+        ``PEC.UNBOUND``; their participant IDs are returned in a dict keyed
         by actor ID so multi-recipient tests can assert on them.
         """
         case = VulnerabilityCase(
@@ -335,13 +335,13 @@ class TestInviteeIsTheAddressee:
             attributed_to=_COORD,
             context=case_id,
             case_roles=[CVDRole.CASE_MANAGER],
-        ).to_core()
+        )
         invitee_cp = WireCP(
             attributed_to=_INVITEE,
             context=case_id,
-            embargo_consent_state=invitee_pec.value,
+            embargo_consent_state=invitee_pec,
             case_roles=[CVDRole.VENDOR],
-        ).to_core()
+        )
 
         dl.create(case)
         dl.create(embargo)
@@ -355,9 +355,9 @@ class TestInviteeIsTheAddressee:
             extra_cp = WireCP(
                 attributed_to=actor,
                 context=case_id,
-                embargo_consent_state=PEC.NO_EMBARGO.value,
+                embargo_consent_state=PEC.UNBOUND,
                 case_roles=[CVDRole.VENDOR],
-            ).to_core()
+            )
             dl.create(extra_cp)
             case.actor_participant_index[actor] = extra_cp.id_
             self.extra_participant_ids[actor] = extra_cp.id_
@@ -399,7 +399,7 @@ class TestInviteeIsTheAddressee:
         assert invitee.invite_rsvp_deadline == _FUTURE
 
         coord = self._read_participant(dl, coord_p_id)
-        assert coord.embargo_consent_state == PEC.NO_EMBARGO
+        assert coord.embargo_consent_state == PEC.UNBOUND
         assert coord.invite_rsvp_deadline is None
 
     def test_absent_receiving_actor_targets_the_addressee(self, make_payload):
@@ -428,7 +428,7 @@ class TestInviteeIsTheAddressee:
         assert invitee.invite_rsvp_deadline == _FUTURE
 
         coord = self._read_participant(dl, coord_p_id)
-        assert coord.embargo_consent_state == PEC.NO_EMBARGO
+        assert coord.embargo_consent_state == PEC.UNBOUND
         assert coord.invite_rsvp_deadline is None
 
     def test_missing_to_field_warns_and_uses_receiving_actor(
@@ -498,7 +498,7 @@ class TestInviteeIsTheAddressee:
         assert invitee.embargo_consent_state == PEC.DECLINED
 
         coord = self._read_participant(dl, coord_p_id)
-        assert coord.embargo_consent_state == PEC.NO_EMBARGO
+        assert coord.embargo_consent_state == PEC.UNBOUND
 
     def test_multi_recipient_invite_targets_this_replica(self, make_payload):
         """Each recipient of a multi-party EP is invited in its own replica.
@@ -537,11 +537,11 @@ class TestInviteeIsTheAddressee:
 
         # The other recipient is invited in *its own* replica, not this one.
         other = self._read_participant(dl, other_p_id)
-        assert other.embargo_consent_state == PEC.NO_EMBARGO
+        assert other.embargo_consent_state == PEC.UNBOUND
         assert other.invite_rsvp_deadline is None
 
         coord = self._read_participant(dl, coord_p_id)
-        assert coord.embargo_consent_state == PEC.NO_EMBARGO
+        assert coord.embargo_consent_state == PEC.UNBOUND
 
     def test_multi_recipient_not_addressed_to_this_store_warns(
         self, make_payload, caplog
@@ -574,9 +574,9 @@ class TestInviteeIsTheAddressee:
         # Degrades to the receiving actor rather than guessing to[0]; neither
         # named recipient is touched on the strength of a positional guess.
         invitee = self._read_participant(dl, invitee_p_id)
-        assert invitee.embargo_consent_state == PEC.NO_EMBARGO
+        assert invitee.embargo_consent_state == PEC.UNBOUND
         other = self._read_participant(dl, other_p_id)
-        assert other.embargo_consent_state == PEC.NO_EMBARGO
+        assert other.embargo_consent_state == PEC.UNBOUND
 
         coord = self._read_participant(dl, coord_p_id)
         assert coord.embargo_consent_state == PEC.INVITED
@@ -617,9 +617,9 @@ class TestInviteeIsTheAddressee:
         )
         # Nothing is written to either real participant.
         invitee = self._read_participant(dl, invitee_p_id)
-        assert invitee.embargo_consent_state == PEC.NO_EMBARGO
+        assert invitee.embargo_consent_state == PEC.UNBOUND
         coord = self._read_participant(dl, coord_p_id)
-        assert coord.embargo_consent_state == PEC.NO_EMBARGO
+        assert coord.embargo_consent_state == PEC.UNBOUND
 
     def test_reject_tree_threads_subject_to_participant_lookup(self):
         """``reject_invite_to_embargo_tree`` wires its subject to the node.
@@ -650,19 +650,13 @@ class TestInviteeIsTheAddressee:
         assert lookups, "no OptionalLookupParticipantNode in the reject tree"
         assert all(node.target_actor_id == _INVITEE for node in lookups)
 
-    def test_reject_from_signatory_is_refused_not_applied(self, make_payload):
-        """A SIGNATORY rejecting is refused by the PEC machine, and says so.
+    def test_reject_from_signatory_transitions_to_declined(self, make_payload):
+        """A SIGNATORY rejecting transitions to DECLINED (ADR-0093).
 
-        Documents current behavior rather than endorsing it.  ``DECLINE`` is
-        legal only from ``NO_EMBARGO | INVITED | LAPSED``, and the received
-        side runs no EM lifecycle node, so nothing moves a SIGNATORY to
-        ``LAPSED`` in this replica first.  The transition is refused, the tree
-        reports FAILURE, and ``BTBridge`` logs it at ERROR with a traceback —
-        the participant is left as it was rather than silently mutated.
-
-        The protocol question this raises — what a SIGNATORY rejecting a
-        *revision* should transition to — needs an EM lifecycle change on the
-        received path and is recorded as a learning, not decided here.
+        ``DECLINE`` is now valid from ``SIGNATORY`` — the received side applies
+        the ``DECLINE`` PEC trigger directly, and the participant moves to
+        ``DECLINED``.  The case-level EM state is not changed (VP-13-009);
+        only the invitee's own consent record is updated.
         """
         dl = _make_dl(actor_id=_COORD)
         case_id = "https://example.org/cases/addressee8"
@@ -686,11 +680,12 @@ class TestInviteeIsTheAddressee:
 
         RejectInviteToEmbargoOnCaseReceivedUseCase(dl, event).execute()
 
-        # Refused, not applied — and emphatically not applied to the CaseActor.
+        # Invitee's consent withdrawal is recorded as DECLINED.
         invitee = self._read_participant(dl, invitee_p_id)
-        assert invitee.embargo_consent_state == PEC.SIGNATORY
+        assert invitee.embargo_consent_state == PEC.DECLINED
+        # CASE_MANAGER's own PEC is unaffected.
         coord = self._read_participant(dl, coord_p_id)
-        assert coord.embargo_consent_state == PEC.NO_EMBARGO
+        assert coord.embargo_consent_state == PEC.UNBOUND
 
 
 class TestInviteeIdProperty:
@@ -874,11 +869,54 @@ class TestLateAcceptHandling:
         assert isinstance(fresh_case, CoreCase)
         assert _INVITEE in fresh_case.actor_participant_index
 
-        # PEC should be NO_EMBARGO (reset; no active embargo to consent to)
+        # PEC should be UNBOUND (reset; no active embargo to consent to)
         p_id = fresh_case.actor_participant_index[_INVITEE]
         participant = dl.read(p_id)
         assert isinstance(participant, CaseParticipant)
-        assert participant.embargo_consent_state == PEC.NO_EMBARGO
+        assert participant.embargo_consent_state == PEC.UNBOUND
+
+    def test_late_accept_honored_when_em_revise_with_matching_embargo(
+        self, make_payload
+    ):
+        """Late Accept with matching embargo in EM.REVISE → PEC SIGNATORY (EMB-17-001/issue #2875).
+
+        When the active embargo ID matches and EM is REVISE (renegotiation in
+        progress), the late Accept must be honored (consent recorded, actor
+        transitions to SIGNATORY) — not wrongly rerouted as a stale-embargo.
+        """
+        dl = _make_dl(actor_id=_COORD)
+        case_id = "https://example.org/cases/ea-revise"
+        embargo_id = "https://example.org/cases/ea-revise/embargos/e1"
+
+        case, embargo, _ = _make_active_embargo_case(
+            dl,
+            case_id,
+            embargo_id,
+            invitee_pec=PEC.INVITED,
+            invitee_deadline=_PAST,
+        )
+        # Transition EM to REVISE while keeping the same active embargo
+        case.append_case_status(em_state=EM.REVISE)
+        dl.save(case)
+
+        proposal = em_propose_embargo_activity(
+            embargo=embargo,
+            context=case.id_,
+            actor=_COORD,
+            to=[_INVITEE],
+            id_=f"{case_id}/proposals/p1",
+        )
+        dl.create(proposal)
+
+        event = _make_accept_event(proposal, case, _INVITEE, make_payload)
+        AcceptInviteToEmbargoOnCaseReceivedUseCase(dl, event).execute()
+
+        fresh_case = dl.read(case_id)
+        assert isinstance(fresh_case, CoreCase)
+        p_id = fresh_case.actor_participant_index[_INVITEE]
+        participant = dl.read(p_id)
+        assert isinstance(participant, CaseParticipant)
+        assert participant.embargo_consent_state == PEC.SIGNATORY
 
     def test_accept_within_deadline_uses_normal_path(self, make_payload):
         """Accept before deadline → normal BT path, PEC SIGNATORY without lapse."""
@@ -896,10 +934,10 @@ class TestLateAcceptHandling:
         invitee_cp = WireCP(
             attributed_to=_INVITEE,
             context=case_id,
-            embargo_consent_state=PEC.INVITED.value,
+            embargo_consent_state=PEC.INVITED,
             case_roles=[CVDRole.VENDOR],
         )
-        invitee_cp_core = invitee_cp.to_core()
+        invitee_cp_core = invitee_cp
         invitee_cp_core.invite_rsvp_deadline = _FUTURE
 
         dl.create(case)
@@ -941,10 +979,10 @@ class TestLateAcceptHandling:
         invitee_cp = WireCP(
             attributed_to=_INVITEE,
             context=case_id,
-            embargo_consent_state=PEC.INVITED.value,
+            embargo_consent_state=PEC.INVITED,
             case_roles=[CVDRole.VENDOR],
         )
-        invitee_cp_core = invitee_cp.to_core()
+        invitee_cp_core = invitee_cp
         # No deadline set — invite_rsvp_deadline stays None
 
         dl.create(case)
@@ -1020,3 +1058,113 @@ class TestLateAcceptHandling:
         assert lapse_entry.event_type != "reject_invite_to_embargo_on_case"
         # payloadSnapshot must be non-empty (CLP-07-001)
         assert lapse_entry.payload_snapshot
+
+    def test_late_accept_ac2_signatory_participant_no_crash(
+        self, make_payload
+    ):
+        """AC-2: late Accept for current embargo on a SIGNATORY participant must not crash.
+
+        If the participant is already SIGNATORY (reached that state without
+        passing through INVITED since the last invite), calling
+        record_participant_consent(PEC_Trigger.INVITE) on them would raise
+        VultronInvalidStateTransitionError (SIGNATORY → INVITED is illegal,
+        CM-18-004).  The use case must guard the INVITE call and stay
+        idempotent — participant remains SIGNATORY (issue #3358).
+        """
+        dl = _make_dl(actor_id=_COORD)
+        case_id = "https://example.org/cases/ea-sig-ac2"
+        embargo_id = "https://example.org/cases/ea-sig-ac2/embargos/e1"
+
+        # Seed case with SIGNATORY participant (already accepted the embargo).
+        case, embargo, _ = _make_active_embargo_case(
+            dl,
+            case_id,
+            embargo_id,
+            invitee_pec=PEC.SIGNATORY,
+            invitee_deadline=_PAST,
+        )
+
+        proposal = em_propose_embargo_activity(
+            embargo=embargo,
+            context=case.id_,
+            actor=_COORD,
+            to=[_INVITEE],
+            id_=f"{case_id}/proposals/p-sig-ac2",
+        )
+        dl.create(proposal)
+
+        event = _make_accept_event(proposal, case, _INVITEE, make_payload)
+        # Must not raise VultronInvalidStateTransitionError (bug #3358).
+        AcceptInviteToEmbargoOnCaseReceivedUseCase(dl, event).execute()
+
+        fresh_case = dl.read(case_id)
+        assert isinstance(fresh_case, CoreCase)
+        p_id = fresh_case.actor_participant_index[_INVITEE]
+        participant = dl.read(p_id)
+        assert isinstance(participant, CaseParticipant)
+        # Idempotent: still SIGNATORY (no state change for already-consenting actor).
+        assert participant.embargo_consent_state == PEC.SIGNATORY
+
+    def test_late_accept_ac3_signatory_participant_no_crash(
+        self, make_payload
+    ):
+        """AC-3: late Accept for stale embargo on a SIGNATORY participant must not crash.
+
+        When the participant is already SIGNATORY for the current active embargo
+        and sends an Accept for a stale (replaced) embargo, calling
+        record_participant_consent(PEC_Trigger.INVITE) on them would crash
+        (SIGNATORY → INVITED is illegal).  The use case must skip the re-invite
+        and leave the participant SIGNATORY (issue #3358).
+        """
+        from unittest.mock import MagicMock
+
+        dl = _make_dl(actor_id=_COORD)
+        case_id = "https://example.org/cases/ea-sig-ac3"
+        current_embargo_id = (
+            "https://example.org/cases/ea-sig-ac3/embargos/current"
+        )
+        stale_embargo_id = (
+            "https://example.org/cases/ea-sig-ac3/embargos/stale"
+        )
+
+        # Participant is SIGNATORY on the current embargo.
+        case, current_embargo, _ = _make_active_embargo_case(
+            dl,
+            case_id,
+            current_embargo_id,
+            invitee_pec=PEC.SIGNATORY,
+            invitee_deadline=_PAST,
+        )
+
+        stale_embargo = as_EmbargoEvent(id_=stale_embargo_id, context=case_id)
+        dl.create(stale_embargo)
+
+        stale_proposal = em_propose_embargo_activity(
+            embargo=stale_embargo,
+            context=case.id_,
+            actor=_COORD,
+            id_=f"{case_id}/proposals/stale-sig",
+        )
+        dl.create(stale_proposal)
+
+        trigger_mock = MagicMock()
+        trigger_mock.propose_embargo.return_value = (
+            f"{case_id}/proposals/reinvite-sig",
+            {},
+        )
+
+        event = _make_accept_event(
+            stale_proposal, case, _INVITEE, make_payload
+        )
+        # Must not raise VultronInvalidStateTransitionError (bug #3358).
+        AcceptInviteToEmbargoOnCaseReceivedUseCase(
+            dl, event, trigger_activity=trigger_mock
+        ).execute()
+
+        fresh_case = dl.read(case_id)
+        assert isinstance(fresh_case, CoreCase)
+        p_id = fresh_case.actor_participant_index[_INVITEE]
+        participant = dl.read(p_id)
+        assert isinstance(participant, CaseParticipant)
+        # Already SIGNATORY for current embargo — no re-invite needed.
+        assert participant.embargo_consent_state == PEC.SIGNATORY

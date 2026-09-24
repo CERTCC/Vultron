@@ -30,12 +30,17 @@ If this fails, stop and investigate before proceeding.
 
 ## Phase 1 — Identify and Claim
 
-1. If the user specified a GitHub issue number, skip to step 3.
+1. If the user specified a GitHub issue number, skip to step 3. **Several
+   numbers is a bundle**: fix all of them in one PR that closes every member.
+   Follow `.agents/skills/shared/bundling.md` § "Executing a bundle" — every
+   member must be a Bug (name the right skill for any that is not), each gets
+   its own failing test, and Phase 3 presents one briefing covering all members
+   plus the single design idea they share.
 2. Query open Bug-type issues and present via `ask_user`. Include a
    **"Create a new bug"** option at the end:
 
    ```bash
-   gh issue list --repo CERTCC/Vultron --limit 200 \
+   gh issue list --repo CERTCC/Vultron --limit 1000 \
      --json number,title,issueType \
      --jq '.[] | select(.issueType.name == "Bug") | "#\(.number): \(.title)"'
    ```
@@ -44,8 +49,9 @@ If this fails, stop and investigate before proceeding.
    synthesize a title, then **before creating** determine the required fields:
 
    0. **Invoke `orient-agent` first.** `calve-epics` Mode 1 matches the bug
-      against open Epics using domain terminology drawn from the spec corpus,
-      the glossary, and the schedule — all of which `orient-agent` loads.
+      against open Epics using domain terminology drawn from the spec map,
+      the glossary term index, and the schedule — all of which `orient-agent`
+      loads.
       Running the match before that context is loaded makes it unreliable.
       Step 3 below then becomes a no-op.
 
@@ -56,6 +62,10 @@ If this fails, stop and investigate before proceeding.
 
    2. **Milestone** — query open milestones and ask the user to confirm the
       best-fit one (see `shared/issue-creation-requirements.md` for defaults).
+
+   `BUG_BODY` includes a `Governing specs:` line naming the spec IDs the
+   correct behavior is defined by (or `none — <reason>`); see
+   `shared/issue-creation-requirements.md` § "Governing specs".
 
    Then create with all three required fields:
 
@@ -76,8 +86,7 @@ If this fails, stop and investigate before proceeding.
      described defect still exists on `origin/main` HEAD:
 
      Search for the specific symptom, anti-pattern, or code path described
-     in the issue body (grep, `git log -S "<key term>" -- <file>`, or
-     graphify query). If the defect cannot be reproduced on `origin/main`,
+     in the issue body (grep or `git log -S "<key term>" -- <file>`). If the defect cannot be reproduced on `origin/main`,
      it may have been fixed by a prior PR that lacked a `Closes #N` footer.
 
      If the defect is absent from `origin/main`:
@@ -105,7 +114,7 @@ If this fails, stop and investigate before proceeding.
 5. Claim the issue:
 
    ```bash
-   bash .agents/skills/shared/claim-issue.sh <N> bug <slug>
+   bash .agents/skills/shared/claim-issue.sh <N> bug <slug> [<OTHER_MEMBERS>...]
    ```
 
    Abort immediately if this exits non-zero.
@@ -164,24 +173,37 @@ Identify the specific failing test that will prove the bug exists. Name it:
 ### 2g — Deepen context
 
 Invoke `deepen-context` with focus hints derived from the investigation
-(e.g., `"BT node write boundary"`, `"EM state transition"`).
+(e.g., `"BT node write boundary"`, `"EM state transition"`), and pass as the
+**spec floor** the issue's `Governing specs:` line plus any spec IDs cited in
+the issue body, comments, or code you traced. Keep the **Spec manifest** it
+returns: it goes in the Phase 3 briefing and the PR body.
 
 ## Phase 3 — Present Findings (BLOCKING)
 
-Embed the complete briefing in the `question` field of the `ask_user` call —
-do **not** output it as free text before the tool call. Include every item
-from Phase 2 with concrete evidence directly in the question text:
+Present the briefing as a **plain-text message** and end your turn — do
+**not** use `ask_user` here. The user often redirects or adds context at this
+step, and a plain reply in the normal prompt wraps where the `ask_user` notes
+field does not. With no question box open, nothing hides the briefing.
 
-```text
-Reproduced at: <file:line>
-Root cause:    <specific hypothesis with evidence>
-Sibling hits:  <list of file:line instances, or "none found">
-Proposed fix:  <approach>
-Alternative:   <if any>
-Test strategy: <specific test name and location>
-```
+Write it per `.agents/skills/shared/asking-the-user.md`: plain language, no
+bare IDs, every option spelled out. Cover each item from Phase 2 with concrete
+evidence, in whatever order reads best:
 
-Ask: **"Proceed with this plan, redirect, or narrow scope?"**
+- **What's broken** — the symptom, and where you reproduced it (`file:line`
+  plus a few words on what that code does).
+- **Why it happens** — the root cause, with the evidence behind it.
+- **Other places with the same bug** — each one with its location and what it
+  is, or "none found."
+- **The fix** — what you will change, in plain terms. Name an alternative if
+  there is a real one, and say why you prefer your choice.
+- **How the test proves it** — the test name, location, and what it checks.
+- **Requirements that apply** — from the Spec manifest in 2g, each ID with a
+  short description of what it requires.
+
+End with one specific question, such as: **"Should I go ahead with this fix,
+including the other places listed?"** Tell the user they can also narrow the
+scope (fix only some places and file the rest as issues) or point you
+somewhere else.
 
 - **Confirms**: proceed to Phase 4.
 - **Redirects** to a different area: update understanding and return to
@@ -224,12 +246,43 @@ Once the plan is confirmed:
    - Defer a sibling hit only through Gate 1 (measured remainder + approval).
      See [REFERENCE.md](REFERENCE.md) § "Escalation".
 
-4. **Iterate**: run `format-code`, `run-linters`, `run-tests`; refine until
+4. **Spec backstop (blocking)**: resolve the Spec manifest from 2g against
+   the diff per `deepen-context` § "Backstop" until
+   `spec-backstop --manifest /tmp/spec-manifest-<issue>.txt` exits 0; the
+   resolved manifest goes into the PR body. A docs-only fix makes the tool
+   report that it derived nothing — expected, and it means your selection is
+   the only check.
+
+5. **Iterate**: run `format-code`, `run-linters`, `run-tests`; refine until
    all relevant tests pass. Apply branch-ownership and pre-existing-failure
    rules from `completeness-doctrine.md`.
 
-5. **Finalize**:
-   - Invoke `archive-history`:
+6. **Finalize** — in this order. `archive-history` comes *after* `create-pr`
+   because its entry body carries the PR URL, which does not exist until the PR
+   is open (see that skill's "Always invoke AFTER the PR is opened").
+   - Do **not** set a `size:` label: the `pr-size-label` workflow measures the
+     whole-PR diff and applies it (PAD-05-002), and the Issue keeps its estimate
+     (PAD-05-010). See `shared/sizing.md`.
+   - Invoke `create-pr`. One bundle is one PR: the body carries `- Closes #N`
+     once per member, in bundle order, and the Changes section names each
+     member's fix (`bundling.md` § "Executing a bundle"). The body includes
+     a `## Specs` section carrying the Spec manifest from 2g
+     (`pr-body-guide.md` § "Specs").
+
+     ```text
+     type:         implementation
+     title:        fix: <short title>
+     body:         <per pr-body-guide.md implementation template>
+     labels:       <topic labels only — never size:, see above>
+     issue_number: <N>        # the first bundle member
+     ```
+
+   - Invoke `check-docs-sync` while CI runs in the cloud to identify any
+     `docs/` updates required by the fix (PD-03-007). Apply small updates
+     inline and commit them; file a `type:Concern` issue for large updates.
+     Do not block the PR on large updates.
+   - Invoke `archive-history` — once per bundle member, each entry carrying the
+     same PR URL:
 
      ```text
      TYPE    = implementation
@@ -242,22 +295,6 @@ Once the plan is confirmed:
      `.agents/skills/shared/upward-reflection.md` and **route** each triggered
      item to the destination that file specifies (BW-07-004). Most route to a
      GitHub issue or an in-session fix, not to a learning file.
-   - Compute diff size: ≤50 → `size:S`; 51–300 → `size:M`; 301+ → `size:L`.
-     Update the `size:` label.
-   - Invoke `create-pr`:
-
-     ```text
-     type:         implementation
-     title:        fix: <short title>
-     body:         <per pr-body-guide.md implementation template>
-     labels:       size:<X>
-     issue_number: <N>
-     ```
-
-   - Invoke `check-docs-sync` while CI runs in the cloud to identify any
-     `docs/` updates required by the fix (PD-03-007). Apply small updates
-     inline and commit them; file a `type:Concern` issue for large updates.
-     Do not block the PR on large updates.
    - Invoke `commit` if any learning files were created in
      `plan/incoming/learnings/` outside the PR branch.
 
@@ -265,5 +302,7 @@ Once the plan is confirmed:
 
 - Implementation is blocked until the user confirms the Phase 3 plan.
 - Follow test-first discipline; never fix before the failing test exists.
+- Several issue numbers is a bundle, not a menu: fix every member in one PR
+  (`.agents/skills/shared/bundling.md`). Each member keeps its own failing test.
 - **If the session is interrupted**: invoke `bugfix-handoff` immediately.
   Do not attempt further resolution.

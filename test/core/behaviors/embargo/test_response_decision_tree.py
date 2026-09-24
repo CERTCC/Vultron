@@ -27,20 +27,22 @@ Covers:
   - BT-23-002: DETERMINISTIC bundle uses AlwaysSucceed/AlwaysFail
 """
 
+from test.core.behaviors.bt_harness import BTTestScenario
+
 import py_trees
 import pytest
 
-from test.core.behaviors.bt_harness import BTTestScenario
+from vultron.core.behaviors.call_out import unwrap_call_out
+from vultron.core.behaviors.call_out.bundles.embargo import (
+    EMBARGO_DETERMINISTIC,
+    EmbargoCallOutBundle,
+)
 from vultron.core.behaviors.call_out.nodes import AlwaysFail, AlwaysSucceed
 from vultron.core.behaviors.case.nodes.vfd_role_guards import (
     CheckIsCaseOwnerNode,
 )
 from vultron.core.behaviors.embargo.response_decision_tree import (
     create_embargo_response_decision_tree,
-)
-from vultron.core.behaviors.call_out.bundles.embargo import (
-    EMBARGO_DETERMINISTIC,
-    EmbargoCallOutBundle,
 )
 from vultron.core.models.vultron_types import VultronCase, VultronParticipant
 from vultron.demo.fuzzer.bundles.embargo import EMBARGO_STOCHASTIC
@@ -175,7 +177,7 @@ class TestAcceptArm:
         """EMB-15-001: EvaluateEmbargoProposal defaults to AlwaysSucceed."""
         tree = _make_tree()
         evaluate_node = tree.children[0].children[1]
-        assert isinstance(evaluate_node, AlwaysSucceed)
+        assert isinstance(unwrap_call_out(evaluate_node), AlwaysSucceed)
 
     def test_accept_arm_second_child_name(self):
         tree = _make_tree()
@@ -200,7 +202,7 @@ class TestAuthorizeSeam:
         tree = _make_tree()
         auth = tree.children[0].children[0]
         non_owner_node = auth.children[1]
-        assert isinstance(non_owner_node, AlwaysSucceed)
+        assert isinstance(unwrap_call_out(non_owner_node), AlwaysSucceed)
 
     @pytest.mark.spec("EMB-15-007")
     def test_non_owner_seam_name(self):
@@ -215,7 +217,9 @@ class TestAuthorizeSeam:
         tree = _make_tree(call_out=EMBARGO_STOCHASTIC)
         auth = tree.children[0].children[0]
         non_owner_node = auth.children[1]
-        assert isinstance(non_owner_node, CaseOwnerApprovesEmbargoResponse)
+        assert isinstance(
+            unwrap_call_out(non_owner_node), CaseOwnerApprovesEmbargoResponse
+        )
 
     def test_custom_case_owner_approves_factory_wired(self):
         """BT-18-004: custom factory is injected into the authorize seam."""
@@ -250,7 +254,9 @@ class TestEvaluateEmbargoProposalCallOut:
         """STOCHASTIC bundle: EvaluateEmbargoProposal → fuzzer class."""
         tree = _make_tree(call_out=EMBARGO_STOCHASTIC)
         evaluate_node = tree.children[0].children[1]
-        assert isinstance(evaluate_node, EvaluateEmbargoProposal)
+        assert isinstance(
+            unwrap_call_out(evaluate_node), EvaluateEmbargoProposal
+        )
 
     @pytest.mark.spec("EMB-15-005")
     def test_custom_evaluate_factory_wired(self):
@@ -311,7 +317,7 @@ class TestCounterArm:
         """EMB-15-003: WillingToCounterEmbargoProposal defaults to AlwaysFail."""
         tree = _make_tree(counter=True)
         willing = tree.children[1].children[0]
-        assert isinstance(willing, AlwaysFail)
+        assert isinstance(unwrap_call_out(willing), AlwaysFail)
 
     def test_counter_arm_first_child_name(self):
         tree = _make_tree(counter=True)
@@ -328,7 +334,9 @@ class TestCounterArm:
         """STOCHASTIC bundle: WillingToCounterEmbargoProposal → fuzzer class."""
         tree = _make_tree(counter=True, call_out=EMBARGO_STOCHASTIC)
         willing = tree.children[1].children[0]
-        assert isinstance(willing, WillingToCounterEmbargoProposal)
+        assert isinstance(
+            unwrap_call_out(willing), WillingToCounterEmbargoProposal
+        )
 
     def test_custom_willing_to_counter_factory_wired(self):
         """Custom willing_to_counter_factory is injected into the counter arm."""

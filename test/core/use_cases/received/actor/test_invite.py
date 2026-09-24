@@ -28,7 +28,7 @@ from vultron.wire.as2.factories import (
 from vultron.wire.as2.vocab.base.objects.actors import as_Actor
 from vultron.core.models.case import VulnerabilityCase
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
-    VulnerabilityCaseStub,
+    as_VulnerabilityCaseStub,
 )
 
 
@@ -55,22 +55,18 @@ def _seed_ledger_entry(
         log_index=tail_index + 1,
         object_id=object_id,
         event_type=event_type,
-        disposition="recorded",
         payload_snapshot=payload_snapshot or {},
         prev_log_hash=tail_hash,
     )
     entry = VultronCaseLedgerEntry(
         case_id=chain_entry.case_id,
         log_index=chain_entry.log_index,
-        disposition=chain_entry.disposition,
         term=chain_entry.term,
         log_object_id=chain_entry.object_id,
         event_type=chain_entry.event_type,
         payload_snapshot=dict(chain_entry.payload_snapshot),
         prev_log_hash=chain_entry.prev_log_hash,
         entry_hash=chain_entry.entry_hash,
-        reason_code=chain_entry.reason_code,
-        reason_detail=chain_entry.reason_detail,
     )
     dl.save(entry)
     return entry
@@ -174,6 +170,82 @@ class TestInviteActorUseCases:
         assert awaiting, "Expected the case-stub awaiting log entry"
         assert all(r.levelno == logging.DEBUG for r in awaiting)
 
+    def test_invite_invitee_path_stores_trust_anchor(self, make_payload):
+        """InviteActorToCaseReceivedUseCase invitee path stores a trust anchor.
+
+        PCR-03-004 AC-2: after processing an InviteActorToCase on the invitee
+        path, a VultronPendingCaseInbox record with case_actor_id set to the
+        invite sender must be present in the DataLayer.  The authority check in
+        AnnounceVulnerabilityCaseReceivedUseCase reads this anchor to admit a
+        subsequent Announce from the same actor.
+        """
+        from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+        from vultron.core.models.pending_case_inbox import (
+            VultronPendingCaseInbox,
+        )
+
+        case_id = "https://example.org/cases/case-trust-1"
+        invitee_id = "https://example.org/actors/invitee"
+        case_manager_id = "https://example.org/actors/case-actor"
+
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id=invitee_id,
+        )
+        invite = rm_invite_to_case_activity(
+            as_Actor(id_=invitee_id),
+            target=case_id,
+            actor=case_manager_id,
+            id_=f"{case_id}/invitations/trust-anchor-1",
+        )
+        event = make_payload(invite)
+        InviteActorToCaseReceivedUseCase(dl, event).execute()
+
+        pending_id = VultronPendingCaseInbox.build_id(case_id)
+        pending = dl.read(pending_id)
+        assert isinstance(
+            pending, VultronPendingCaseInbox
+        ), "VultronPendingCaseInbox trust anchor must be written on the invitee path"
+        assert (
+            pending.case_actor_id == case_manager_id
+        ), "Trust anchor case_actor_id must equal the invite sender (the CASE_MANAGER)"
+
+    def test_invite_trust_anchor_is_first_invite_wins(self, make_payload):
+        """A second invite from a different sender does not overwrite the anchor."""
+        from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+        from vultron.core.models.pending_case_inbox import (
+            VultronPendingCaseInbox,
+        )
+
+        case_id = "https://example.org/cases/case-trust-2"
+        invitee_id = "https://example.org/actors/invitee"
+        first_sender = "https://example.org/actors/case-actor-a"
+        second_sender = "https://example.org/actors/case-actor-b"
+
+        dl = SqliteDataLayer("sqlite:///:memory:", actor_id=invitee_id)
+
+        invite1 = rm_invite_to_case_activity(
+            as_Actor(id_=invitee_id),
+            target=case_id,
+            actor=first_sender,
+            id_=f"{case_id}/invitations/a",
+        )
+        invite2 = rm_invite_to_case_activity(
+            as_Actor(id_=invitee_id),
+            target=case_id,
+            actor=second_sender,
+            id_=f"{case_id}/invitations/b",
+        )
+
+        InviteActorToCaseReceivedUseCase(dl, make_payload(invite1)).execute()
+        InviteActorToCaseReceivedUseCase(dl, make_payload(invite2)).execute()
+
+        pending = dl.read(VultronPendingCaseInbox.build_id(case_id))
+        assert isinstance(pending, VultronPendingCaseInbox)
+        assert (
+            pending.case_actor_id == first_sender
+        ), "First-invite-wins: trust anchor MUST NOT be overwritten by a second invite"
+
     def test_invite_actor_to_case_idempotent(self, monkeypatch, make_payload):
         """InviteActorToCaseReceivedUseCase skips storing a duplicate Invite."""
         from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
@@ -246,7 +318,7 @@ class TestInviteActorUseCases:
         )
         invite = rm_invite_to_case_activity(
             as_Actor(id_=invitee_id),
-            target=VulnerabilityCaseStub(id_=case_id),
+            target=as_VulnerabilityCaseStub(id_=case_id),
             actor=case_actor_id,
             id_=f"{case_id}/invitations/1",
         )
@@ -307,7 +379,7 @@ class TestInviteActorUseCases:
         )
         invite = rm_invite_to_case_activity(
             invitee,
-            target=VulnerabilityCaseStub(id_=case.id_),
+            target=as_VulnerabilityCaseStub(id_=case.id_),
             actor="https://example.org/users/owner",
             id_="https://example.org/cases/caseIA1/invitations/1",
         )
@@ -363,7 +435,7 @@ class TestInviteActorUseCases:
         case.append_case_status(em_state=EM.ACTIVE)
         invite = rm_invite_to_case_activity(
             invitee,
-            target=VulnerabilityCaseStub(id_=case.id_),
+            target=as_VulnerabilityCaseStub(id_=case.id_),
             actor="https://example.org/users/owner",
             id_="https://example.org/cases/caseIA2/invitations/1",
         )
@@ -422,7 +494,7 @@ class TestInviteActorUseCases:
         )
         invite = rm_invite_to_case_activity(
             invitee,
-            target=VulnerabilityCaseStub(id_=case.id_),
+            target=as_VulnerabilityCaseStub(id_=case.id_),
             actor=owner_id,
             id_="https://example.org/cases/caseRM001/invitations/1",
         )
@@ -491,7 +563,7 @@ class TestInviteActorUseCases:
         )
         invite = rm_invite_to_case_activity(
             invitee,
-            target=VulnerabilityCaseStub(id_=case.id_),
+            target=as_VulnerabilityCaseStub(id_=case.id_),
             actor=owner_id,
             id_="https://example.org/cases/caseRM002/invitations/1",
         )
@@ -575,7 +647,7 @@ class TestInviteActorUseCases:
         )
         invite = rm_invite_to_case_activity(
             invitee,
-            target=VulnerabilityCaseStub(id_=case.id_),
+            target=as_VulnerabilityCaseStub(id_=case.id_),
             actor="https://example.org/users/owner",
             id_="https://example.org/cases/caseIA3/invitations/1",
         )
@@ -656,7 +728,7 @@ class TestInviteActorUseCases:
         object.__setattr__(case_actor, "context", case.id_)
         invite = rm_invite_to_case_activity(
             invitee,
-            target=VulnerabilityCaseStub(id_=case.id_),
+            target=as_VulnerabilityCaseStub(id_=case.id_),
             actor=case_actor_id,
             id_=f"{case.id_}/invitations/1",
         )
@@ -804,7 +876,7 @@ class TestInviteActorUseCases:
         object.__setattr__(case_actor, "context", case.id_)
         invite = rm_invite_to_case_activity(
             invitee,
-            target=VulnerabilityCaseStub(id_=case.id_),
+            target=as_VulnerabilityCaseStub(id_=case.id_),
             actor=case_actor_id,
             id_=f"{case.id_}/invitations/1",
         )
@@ -979,7 +1051,7 @@ class TestInviteActorUseCases:
         )
         invite = rm_invite_to_case_activity(
             invitee,
-            target=VulnerabilityCaseStub(id_=case.id_),
+            target=as_VulnerabilityCaseStub(id_=case.id_),
             actor=case_actor_id,
             id_=f"{case.id_}/invitations/1",
         )
@@ -1067,7 +1139,7 @@ class TestInviteActorUseCases:
         object.__setattr__(case_actor, "context", case.id_)
         invite = rm_invite_to_case_activity(
             invitee,
-            target=VulnerabilityCaseStub(id_=case.id_),
+            target=as_VulnerabilityCaseStub(id_=case.id_),
             actor=case_actor_id,
             id_=f"{case.id_}/invitations/1",
         )
@@ -1138,7 +1210,7 @@ class TestInviteActorUseCases:
 
 
 class TestAcceptInviteRolesAC4:
-    """AC-4: CreateInviteeParticipantAtReceivedNode reads roles from Invite."""
+    """AC-4: CreateInviteeParticipantNode reads roles from Invite."""
 
     def test_roles_from_invite_set_on_participant(self, make_payload):
         """AC-4: Accept(Invite) causes new participant to inherit roles from Invite."""
@@ -1159,7 +1231,7 @@ class TestAcceptInviteRolesAC4:
         )
         invite = rm_invite_to_case_activity(
             invitee,
-            target=VulnerabilityCaseStub(id_=case.id_),
+            target=as_VulnerabilityCaseStub(id_=case.id_),
             actor="https://example.org/users/owner",
             id_="https://example.org/cases/ac4-test/invitations/1",
             roles=["vendor"],
@@ -1203,7 +1275,7 @@ class TestAcceptInviteRolesAC4:
         )
         invite = rm_invite_to_case_activity(
             invitee,
-            target=VulnerabilityCaseStub(id_=case.id_),
+            target=as_VulnerabilityCaseStub(id_=case.id_),
             actor="https://example.org/users/owner",
             id_="https://example.org/cases/ac4-neg/invitations/1",
         )

@@ -13,11 +13,11 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-"""AC-7 architecture ratchet: audit VFD/RM/PXA dimension write sites.
+"""AC-7 architecture ratchet: audit VF/D/RM/PXA dimension write sites.
 
-AST-scans ``vultron/core/behaviors/`` for every ``VfdDimension``,
-``RmDimension``, and ``PxaDimension`` constructor call and asserts the result
-matches the audited set below.
+AST-scans ``vultron/core/behaviors/`` for every ``VfDimension``,
+``DDimension``, ``RmDimension``, and ``PxaDimension`` constructor call and
+asserts the result matches the audited set below.
 
 A new unclassified constructor call fails this test immediately, which forces
 an explicit audit decision:
@@ -78,30 +78,11 @@ AUDITED_SITES: list[tuple[str, str]] = sorted(
         ("case/nodes/participant/status.py", "RmDimension"),
         ("case/nodes/participant/status.py", "VfDimension"),
         ("case/nodes/participant/status.py", "DDimension"),
-        # BOOTSTRAP — case_proposal_received_tree: seeds RM.RECEIVED/VALID/ACCEPTED
-        ("case/case_proposal_received_tree.py", "RmDimension"),
-        ("case/case_proposal_received_tree.py", "RmDimension"),
-        ("case/case_proposal_received_tree.py", "RmDimension"),
-        # BOOTSTRAP — participant/common.py: initial accepted-status builder
-        # (two entries removed: _ensure_reporter_participant and
-        #  _upgrade_participant_to_accepted deleted in #2808)
-        ("case/nodes/participant/common.py", "RmDimension"),
-        ("case/nodes/participant/common.py", "RmDimension"),
-        ("case/nodes/participant/common.py", "VfDimension"),
-        ("case/nodes/participant/common.py", "DDimension"),
-        # BOOTSTRAP — owner.py: initial owner RM state seeding
-        ("case/nodes/participant/owner.py", "RmDimension"),
-        ("case/nodes/participant/owner.py", "RmDimension"),
         # PREDICATE — deploy_fix.py: DDimension.is_fix_deployed()
         ("report/nodes/deploy_fix.py", "DDimension"),
         ("report/nodes/deploy_fix.py", "DDimension"),
         # PREDICATE — develop_fix_conditions.py: VfDimension.is_fix_ready()
         ("report/nodes/develop_fix_conditions.py", "VfDimension"),
-        # RM-TRACKED — rm_transitions.py: the single report-phase RM write.
-        # Was three near-identical sites (RM.VALID / RM.INVALID / RM.CLOSED);
-        # collapsed to one `_ReportPhaseRMTransition._write_latch` in ISSUE-2548
-        # so the latch has exactly one construction site (ARCH-15-004).
-        ("report/nodes/rm_transitions.py", "RmDimension"),
         # FILTER — _adjudicate_dimensions carry-forward (extracted from dimension_filter.py)
         # One site per dimension: every refusal reason — role guard, omitted
         # assertion, non-monotone move, cross-machine entailment — carries the
@@ -149,7 +130,7 @@ def _collect_sites() -> list[tuple[str, str]]:
 
 
 def test_audited_write_sites_unchanged() -> None:
-    """All VfdDimension/RmDimension/PxaDimension sites match the audited set.
+    """All VfDimension/DDimension/RmDimension/PxaDimension sites match the audited set.
 
     A NEW site (file or extra call in an existing file) causes this test to
     fail with a clear diff so the reviewer can decide which classification

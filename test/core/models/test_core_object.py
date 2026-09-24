@@ -11,7 +11,7 @@ from vultron.core.models import (
     VultronObject,
     find_in_core_vocabulary,
 )
-from vultron.core.models.base import VultronBase
+from vultron.core.models.base import VULTRON_CONTEXT_URI, VultronBase
 from vultron.core.models.case import VultronCase
 from vultron.core.models.case_ledger_entry import (
     CaseLedgerEntry as CoreCaseLedgerEntry,
@@ -57,23 +57,44 @@ def test_core_object_default_instance():
     assert obj.updated is not None
 
 
-def test_core_object_context_alias_accepted_but_excluded_from_dump():
-    """@context is accepted on input but excluded from serialization.
+def test_core_object_context_is_emitted_on_the_as2_path_only():
+    """@context appears on the AS2 dump and not on the persistence dump.
 
-    ``context_`` is a wire-layer concern (JSON-LD ``@context``); it is
-    validated when present in incoming data but intentionally omitted from
-    ``model_dump()`` output so that core objects can be round-tripped
-    through the DataLayer without colliding with the wire base's required
-    ``context_: str`` field.
+    ADR-0099 detail 1 gives one class two serializations, chosen by destination:
+    ``by_alias=True`` is inter-actor delivery (camelCase plus ``@context``), a
+    plain dump is persistence (Python field names, no ``@context``).  ``context_``
+    stays ``exclude=True`` so a stored row never carries it, which is what lets
+    core objects round-trip through the DataLayer.
+
+    This previously asserted ``@context`` was absent from *both*.  That held only
+    while a paired ``as_*`` class supplied it; deleting those classes took the
+    Vultron context off every promoted type and left the AS2 namespace alone on
+    the wire, which VM-10-001 (MUST) says "is not sufficient".
     """
     obj = CoreObject.model_validate(
         {"@context": "https://www.w3.org/ns/activitystreams"}
     )
     assert obj.context_ == "https://www.w3.org/ns/activitystreams"
-    # excluded from serialization — neither alias nor field name appears
-    dumped = obj.model_dump(by_alias=True, exclude_none=True)
-    assert "@context" not in dumped
-    assert "context_" not in dumped
+
+    # Delivery form: the supplied context wins, so a document round-trips with
+    # the context it arrived carrying rather than being relabelled.
+    as2 = obj.model_dump(by_alias=True, exclude_none=True)
+    assert as2["@context"] == "https://www.w3.org/ns/activitystreams"
+
+    # Persistence form: neither the alias nor the field name is stored.
+    stored = obj.model_dump(exclude_none=True)
+    assert "@context" not in stored
+    assert "context_" not in stored
+
+
+def test_core_object_context_defaults_to_the_vultron_uri_on_the_wire():
+    """An object carrying no context still declares the Vultron one.
+
+    VM-10-001 requires it on Vultron-specific types; the ActivityStreams
+    namespace alone is not sufficient for types AS2 does not define.
+    """
+    as2 = CoreObject().model_dump(by_alias=True, exclude_none=True)
+    assert as2["@context"] == VULTRON_CONTEXT_URI
 
 
 def test_core_object_context_empty_string_rejected():
@@ -255,3 +276,95 @@ def test_vultron_case_alias_is_vulnerability_case():
     from vultron.core.models.case import VulnerabilityCase
 
     assert VultronCase is VulnerabilityCase
+
+
+# ---------------------------------------------------------------------------
+# #2940 cleanup #1 — strip computed-field inputs before re-validation
+# ---------------------------------------------------------------------------
+
+
+def test_core_object_strips_computed_field_input():
+    """Cleanup #1: a ``@computed_field`` value in the payload is dropped.
+
+    ``ParticipantStatus.embargo_adherence`` is computed (ADR-0056) and appears
+    in ``model_dump()`` output but is not settable.  Under ``extra="forbid"``
+    it would be rejected on re-validation unless stripped first; the value is
+    re-derived from ``consent``, never taken from the injected key.
+    """
+    from vultron.core.models.dimensions import PecDimension
+    from vultron.core.models.participant_status import ParticipantStatus
+    from vultron.core.states.participant_embargo_consent import PEC
+
+    # UNBOUND → not signatory → False, which is what the payload also says, so
+    # the redundant key is simply stripped.
+    status = ParticipantStatus.model_validate(
+        {
+            "context": "urn:uuid:case-computed-strip",
+            "consent": PecDimension(state=PEC.UNBOUND).model_dump(mode="json"),
+            "embargo_adherence": False,
+        }
+    )
+    assert status.embargo_adherence is False
+
+    # And a full dump round-trips (the computed key in the dump is stripped).
+    assert ParticipantStatus.model_validate(
+        status.model_dump(mode="json")
+    ) == (status)
+
+    # Including the camelCase spelling, which is the AS2 wire form every core
+    # class emits (ADR-0099 detail 2).  Compared by dump, not ``==``: the wire
+    # dump carries ``@context``, and a parsed document keeps it in ``context_``
+    # (detail 1), which the locally built ``status`` never set.
+    assert (
+        ParticipantStatus.model_validate(
+            status.model_dump(mode="json", by_alias=True)
+        ).model_dump()
+        == status.model_dump()
+    )
+
+
+# ---------------------------------------------------------------------------
+# #2940 cleanup #3 — drop an alias key's field-name twin
+# ---------------------------------------------------------------------------
+
+
+def test_core_object_drops_alias_shadowed_field_name_twin():
+    """Cleanup #3: an alias key beside its field-name twin does not trip forbid.
+
+    ``CaseLedgerEntry._set_id_from_case`` injects the ``id`` alias into a
+    payload that already carries the ``id_`` field-name key (from a dump).
+    Without the de-dup validator the leftover ``id_`` is an unknown key under
+    ``extra="forbid"``; the alias (carrying the derived value) must win.
+    """
+    entry = CoreCaseLedgerEntry(
+        case_id="urn:uuid:case-dedup",
+        log_object_id="urn:uuid:logobj-dedup",
+        event_type="RS",
+    )
+    dumped = entry.model_dump(mode="json")
+    assert "id_" in dumped  # the dump uses the Python field name
+    # Re-validating triggers _set_id_from_case (injects "id") beside "id_".
+    restored = CoreCaseLedgerEntry.model_validate(dumped)
+    assert restored == entry
+
+    # Direct both-keys payload: the field-name twin is dropped, alias wins.
+    both = dict(dumped)
+    both["id"] = dumped["id_"]
+    assert CoreCaseLedgerEntry.model_validate(both) == entry
+
+
+def test_case_ledger_entry_derives_id_from_wire_spelled_coordinates():
+    """An entry parsed off the wire carries ``caseId``/``logIndex``.
+
+    The derivation must read those too, or a wire-parsed entry keeps a random
+    id instead of its ``{case_id}/log/{log_index}`` coordinates.
+    """
+    entry = CoreCaseLedgerEntry.model_validate(
+        {
+            "caseId": "urn:uuid:case-wire",
+            "logIndex": 3,
+            "logObjectId": "urn:uuid:logobj-wire",
+            "eventType": "RS",
+        }
+    )
+    assert entry.id_ == "urn:uuid:case-wire/log/3"

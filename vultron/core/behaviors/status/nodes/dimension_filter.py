@@ -21,11 +21,9 @@ several *independent* state machines: ``rm`` (Report Management), ``vfd``
 (participant embargo consent).  Because they are independent, a value that is
 unacceptable in one dimension says nothing about the others.
 
-Before RSH-05, one refused dimension discarded the entire snapshot: the
-receiving Case Actor dropped the accepted dimensions along with the refused
-one and aborted the enclosing ``AddParticipantStatusBT`` Sequence, which also
-skipped the StatusAdoptionGate → EmbargoTeardownAuthorizationGate emit and therefore embargo teardown
-(ISSUE-2235, RSH-01-003, RSH-01-004).
+Before RSH-05, one refused dimension discarded the entire snapshot: the Case
+Actor dropped the accepted dimensions, aborted ``AddParticipantStatusBT``, and
+skipped the gate emit and embargo teardown (ISSUE-2235, RSH-01-003/004).
 
 :class:`FilterParticipantStatusDimensionsNode` adjudicates each dimension on
 its own and publishes a *filtered* status in which refused dimensions carry
@@ -42,6 +40,8 @@ from typing import TYPE_CHECKING, Any
 
 import py_trees
 from py_trees.common import Status
+from py_trees.ports import NoDataAvailable
+from pydantic import ValidationError
 
 if TYPE_CHECKING:
     from vultron.core.ports.wire_render import WireRenderPort
@@ -53,6 +53,7 @@ from vultron.core.behaviors.helpers import (
     DataLayerConditionWithPorts,
     PortInformation,
 )
+from vultron.core.behaviors.ledger_patch import PARTICIPANT_STATUS_PATCH_KEYS
 from vultron.core.models._helpers import _as_id
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.participant_status import ParticipantStatus
@@ -88,19 +89,17 @@ def _accepted_wire_patch(
     """Return the adjudicated dimension values keyed by their wire aliases.
 
     The canonical ledger's ``payload_snapshot['object']`` is the *sender's*
-    wire-shaped ``ParticipantStatus`` — flat ``rmState``/``vfState``/``dState``,
-    nested ``caseStatus``, plus ``@context``, ``emConsentState`` and ``cvdRole``.  The
-    override is therefore published as a **patch** rather than a replacement
-    object: patching leaves the snapshot's shape exactly as the non-override
-    path produces it and rewrites only what was adjudicated (RSH-05-004,
-    RSH-05-009).  Wire key names are obtained from the port rather than
-    hardcoded here (CLP-07-009, CLP-07-010, ADR-0063).
+    wire-shaped ``ParticipantStatus``.  The override is therefore published as a
+    **patch** rather than a replacement object, so the snapshot keeps exactly the
+    shape the non-override path produces and only what was adjudicated is
+    rewritten (RSH-05-004, RSH-05-009).  The *values* come from the port rather
+    than being re-serialized here (CLP-07-009, CLP-07-010, ADR-0063); the *keys*
+    come from the core fields' own aliases (ADR-0099 detail 2) — see
+    :mod:`vultron.core.behaviors.ledger_patch`.
     """
     rendered = port.render(filtered)
     return {
-        k: rendered[k]
-        for k in ("rmState", "vfState", "dState", "caseStatus")
-        if k in rendered
+        k: rendered[k] for k in PARTICIPANT_STATUS_PATCH_KEYS if k in rendered
     }
 
 
@@ -122,7 +121,7 @@ def _to_core_status(status_obj: Any) -> ParticipantStatus | None:
     try:
         result = to_core()
         return result if isinstance(result, ParticipantStatus) else None
-    except Exception as exc:  # pragma: no cover - defensive
+    except ValidationError as exc:
         logger.warning(
             "FilterParticipantStatusDimensionsNode: could not normalise"
             " status object '%s' to a core ParticipantStatus: %s",
@@ -215,26 +214,18 @@ class FilterParticipantStatusDimensionsNode(DataLayerConditionWithPorts):
         self.status_obj_fallback = status_obj_fallback
         self.wire_render_port: "WireRenderPort | None" = None
 
-    @classmethod
-    def input_ports(cls) -> dict[str, PortInformation]:
-        return {
-            **super().input_ports(),
-            "wire_render_port": PortInformation(
-                data_type=object, required=False
-            ),
-        }
+    INPUT_PORTS: dict[str, PortInformation] = {
+        **DataLayerConditionWithPorts.INPUT_PORTS,
+        "wire_render_port": PortInformation(data_type=object, required=False),
+    }
 
-    @classmethod
-    def output_ports(cls) -> dict[str, PortInformation]:
-        return {
-            BB_DIMENSION_FILTER: PortInformation(
-                data_type=object, required=False
-            ),
-            BB_LEDGER_PAYLOAD_OBJECT_OVERRIDE: PortInformation(
-                data_type=object, required=False
-            ),
-            BB_RM_ANOMALY: PortInformation(data_type=object, required=False),
-        }
+    OUTPUT_PORTS: dict[str, PortInformation] = {
+        BB_DIMENSION_FILTER: PortInformation(data_type=object, required=False),
+        BB_LEDGER_PAYLOAD_OBJECT_OVERRIDE: PortInformation(
+            data_type=object, required=False
+        ),
+        BB_RM_ANOMALY: PortInformation(data_type=object, required=False),
+    }
 
     @classmethod
     def _domain_port_remappings(cls) -> dict[str, str]:
@@ -249,7 +240,7 @@ class FilterParticipantStatusDimensionsNode(DataLayerConditionWithPorts):
         super().initialise()
         try:
             self.wire_render_port = self.get_input("wire_render_port")
-        except Exception:
+        except (NoDataAvailable, NotImplementedError):
             self.wire_render_port = None
 
     def _publish(

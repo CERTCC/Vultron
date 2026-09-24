@@ -46,6 +46,10 @@ from vultron.wire.as2.vocab.objects.case_participant import as_CaseParticipant
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCase,
 )
+from vultron.core.models.dimensions import (
+    RmDimension,
+    VfDimension,
+)
 
 
 def _make_actor(name: str) -> as_Service:
@@ -252,8 +256,8 @@ class TestVendorImpliesVInvariant:
         vendor_participant.participant_statuses.append(
             WireParticipantStatus(
                 context=self.case.id_,
-                rm_state=RM.ACCEPTED,
-                vf_state=CS_vf.Vf,
+                rm=RmDimension(state=RM.ACCEPTED),
+                vf=VfDimension(state=CS_vf.Vf),
             )
         )
         self.case.actor_participant_index[self.vendor_actor.id_] = (

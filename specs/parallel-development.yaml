@@ -3,9 +3,9 @@ title: Parallel Agentic Development
 description: >-
   Requirements for coordinating multiple parallel AI agents and human developers via
   GitHub Issues. Defines the issue hierarchy, label taxonomy, task claiming protocol,
-  size labeling, orphan recovery, and revised workflows for the build, ingest-idea,
-  review-priorities, and update-plan skills.
-version: 1.1.0
+  size labeling, orphan recovery, bundle selection and execution, and revised workflows
+  for the build, ingest-idea, review-priorities, and update-plan skills.
+version: 1.3.0
 scope:
   - prototype
   - production
@@ -195,24 +195,73 @@ groups:
         rationale: >-
           Provides an objective, count-based size estimate at the point the
           Issue is created, before any implementation diff is available.
+        verification: >-
+          `test/metadata/test_size_bands.py::TestCalibratedValues` pins the
+          AC ceiling itself, and
+          `::TestBandForAcs::test_each_ceiling_and_the_one_after_it_land_correctly`
+          pins that the ceiling is inclusive.
       - id: PAD-05-002
         priority: MUST
         kind: process
         statement: >-
-          At PR open time, the agent MUST measure the actual diff (total lines
-          added plus removed across all changed files) and update the size
-          label accordingly. Downgrading from the AC-count estimate is
-          permitted and expected when the work was smaller than predicted.
+          At PR open time, the actual diff (total lines added plus removed
+          across all changed files) MUST be measured and the corresponding
+          `size:` label applied to the **pull request**. This applies to PRs
+          whose head branch is in this repository; a PR from a fork is exempt,
+          because the workflow that applies the label holds a read-only token
+          there.
         rationale: >-
           Replaces the creation-time AC-count estimate with an objective
-          implementation measurement before the PR is reviewed.
+          implementation measurement before the PR is reviewed. The label goes
+          on the PR because that is what the measurement describes; a survey of
+          692 PRs merged 2026-07-22..2026-09-22 found 40% carrying no `size:`
+          label at all, because the step it replaced asked an agent to write the
+          measurement onto an Issue that was about to close.
+        verification: >-
+          `.github/workflows/pr-size-label.yml` applies it on every push to a
+          same-repo PR;
+          `test/metadata/test_size_bands.py::TestCalibratedValues` pins the
+          thresholds themselves and `::TestBandForDiff` pins their inclusivity.
       - id: PAD-05-003
         priority: MUST
         kind: process
         statement: >-
-          The size label at PR-open time (after the diff-based update per
-          PAD-05-002) is the authoritative size for the PR, not the
-          Issue-creation-time AC-count estimate.
+          The measured `size:` label on the pull request (PAD-05-002) is the
+          authoritative size of the delivered change; the AC-count label on the
+          Issue is an estimate only.
+        verification: >-
+          `.github/workflows/pr-size-label.yml` writes the measured label with
+          `gh pr edit` only and never touches the Issue, so the two coexist;
+          `.agents/skills/shared/sizing.md` records which of them is
+          authoritative for what.
+      - id: PAD-05-010
+        priority: MUST_NOT
+        kind: process
+        statement: >-
+          The PR-open measurement MUST NOT overwrite the AC-count estimate
+          label on the Issue.
+        rationale: >-
+          Keeping both makes estimate-versus-actual a queryable calibration
+          signal. Overwriting the estimate destroys the only record of what the
+          work was predicted to cost, and does so at the moment the Issue
+          closes, where no consumer reads the result.
+      - id: PAD-05-011
+        priority: MUST
+        kind: process
+        statement: >-
+          Every `size:` label — estimate or measurement — MUST be derived from
+          the shared band table in
+          `vultron/metadata/planning/size_bands.py`, via the `pr-size` console
+          script.
+        rationale: >-
+          The thresholds were previously restated in prose in eight places and
+          computed in none, and `size:S` was applied correctly 24% of the time
+          as a result. A threshold a reader can retype is a threshold that
+          drifts; one table with one applier cannot.
+        verification: >-
+          `test/metadata/test_size_bands.py::TestDerivation` asserts every
+          derived constant reads the table rather than restating it, and
+          `::TestCalibratedValues` pins the one table it all derives from.
       - id: PAD-05-004
         priority: MUST
         kind: process
@@ -222,6 +271,11 @@ groups:
         rationale: >-
           Provides an objective, count-based size estimate at the point the
           Issue is created, before any implementation diff is available.
+        verification: >-
+          `test/metadata/test_size_bands.py::TestCalibratedValues` pins the
+          AC ceiling itself, and
+          `::TestBandForAcs::test_each_ceiling_and_the_one_after_it_land_correctly`
+          pins that the ceiling is inclusive.
       - id: PAD-05-005
         priority: MUST
         kind: process
@@ -231,33 +285,92 @@ groups:
         rationale: >-
           Provides an objective, count-based size estimate at the point the
           Issue is created, before any implementation diff is available.
+        verification: >-
+          `test/metadata/test_size_bands.py::TestCalibratedValues` pins the
+          AC ceiling itself, and
+          `::TestBandForAcs::test_each_ceiling_and_the_one_after_it_land_correctly`
+          pins that the ceiling is inclusive.
       - id: PAD-05-006
         priority: MUST
         kind: process
         statement: >-
-          At PR open time, a diff of ≤50 lines MUST receive the `size:S`
+          At PR open time, a diff of ≤100 lines MUST receive the `size:S`
           label.
         rationale: >-
           Calibrates the size label to the actual implementation effort
-          measured at PR open time (see PAD-05-002).
+          measured at PR open time (see PAD-05-002). Across the 692 PRs merged
+          2026-07-22..2026-09-22, the ≤50 ceiling this replaces captured only
+          12% of them, and ~55% of the PRs labelled `size:S` under it were
+          larger than the band allowed.
+        verification: >-
+          `test/metadata/test_size_bands.py::TestCalibratedValues` pins the
+          threshold value itself, and
+          `::TestBandForDiff::test_each_ceiling_and_the_line_after_it_land_correctly`
+          pins that the ceiling is inclusive.
       - id: PAD-05-007
         priority: MUST
         kind: process
         statement: >-
-          At PR open time, a diff of 51–300 lines MUST receive the `size:M`
+          At PR open time, a diff of 101–400 lines MUST receive the `size:M`
           label.
         rationale: >-
           Calibrates the size label to the actual implementation effort
-          measured at PR open time (see PAD-05-002).
+          measured at PR open time (see PAD-05-002). Merged-PR diff size is
+          lognormal with a median of 258 lines and no natural clusters, so this
+          band covers the normal unit of work (38% of the surveyed window).
+        verification: >-
+          `test/metadata/test_size_bands.py::TestCalibratedValues` pins the
+          threshold value itself, and
+          `::TestBandForDiff::test_each_ceiling_and_the_line_after_it_land_correctly`
+          pins that the ceiling is inclusive.
       - id: PAD-05-008
         priority: MUST
         kind: process
         statement: >-
-          At PR open time, a diff of 301+ lines MUST receive the `size:L`
+          At PR open time, a diff of 401–1200 lines MUST receive the `size:L`
           label.
         rationale: >-
           Calibrates the size label to the actual implementation effort
-          measured at PR open time (see PAD-05-002).
+          measured at PR open time (see PAD-05-002). The previous `301+`
+          definition was unbounded above and covered 46% of the 692 PRs merged
+          2026-07-22..2026-09-22, across two orders of magnitude, so it could
+          not distinguish a large change from an unreviewable one.
+        verification: >-
+          `test/metadata/test_size_bands.py::TestCalibratedValues` pins the
+          threshold value itself, and
+          `::TestBandForDiff::test_each_ceiling_and_the_line_after_it_land_correctly`
+          pins that the ceiling is inclusive.
+      - id: PAD-05-009
+        priority: MUST
+        kind: process
+        statement: >-
+          At PR open time, a diff of 1201+ lines MUST receive the `size:XL`
+          label.
+        rationale: >-
+          `size:XL` marks a PR that review cannot cover, not merely a big one.
+          Across the surveyed window, review findings held steady at roughly
+          4.5 per 1000 diff lines from 200 lines through 1000, then fell to 3.5
+          (1000–1499), 2.7 (1500–2499) and 1.5 (2500+). True defect density
+          does not drop threefold in large PRs, so the falling detection rate
+          is review saturation.
+        verification: >-
+          `test/metadata/test_size_bands.py::TestCalibratedValues` pins the
+          threshold value itself, and
+          `::TestBandForDiff::test_each_ceiling_and_the_line_after_it_land_correctly`
+          pins that the ceiling is inclusive.
+      - id: PAD-05-012
+        priority: MUST_NOT
+        kind: process
+        statement: >-
+          An Issue MUST NOT receive the `size:XL` label from an AC-count
+          estimate; `size:XL` is reachable only by measuring a diff.
+        rationale: >-
+          An Issue predicted to need more work than `size:L` should be
+          decomposed, not labelled. XL is a retrospective finding — the PR grew
+          past the point where review stays effective — and "estimated L,
+          landed XL" is the signal worth keeping.
+        verification: >-
+          `test/metadata/test_size_bands.py::TestBandForAcs::test_no_ac_count_can_reach_a_measured_only_band`
 
   - id: PAD-07
     title: Pre-PR Code Review Protocol
@@ -488,3 +601,166 @@ groups:
           `workflow_dispatch`, scan for orphaned claims per PAD-10-001,
           apply `stale-claim` label and post comment per PAD-10-002.
 
+
+  - id: PAD-15
+    title: Bundle Selection and Execution
+    specs:
+      - id: PAD-15-001
+        priority: MUST
+        kind: process
+        statement: >-
+          A work bundle MUST be selected in two stages: eligibility (open,
+          unassigned, no `stale-claim`, all `blockedBy` CLOSED, leaf), then
+          fit. Clearing eligibility MUST NOT by itself make an Issue a bundle
+          member.
+        rationale: >-
+          Selection was eligibility-only and took the first five candidates in
+          sub-issue order, so an Idea, a `Someday` Concern and two `size:L`
+          Tasks were all proposed as equally valid members of one bundle
+          (ISSUE-3482).
+        verification: >-
+          `test/metadata/test_bundle_fit.py::TestEligibility` covers stage one
+          and every other class in that file covers a fit rule applied after it.
+      - id: PAD-15-002
+        priority: MUST
+        kind: process
+        statement: >-
+          A bundle MUST be homogeneous by executing skill, determined from each
+          candidate's `issueType`: Task and Feature are executed by `build`,
+          Bug by `bugfix`, and Idea, Concern and Epic by `plan-issue`.
+        rationale: >-
+          An Idea or Concern leaf clears every eligibility gate but cannot be
+          implemented; it needs planning first. Routing by type is the rule
+          `work-issue` already applies to a single issue.
+        verification: >-
+          `test/metadata/test_bundle_fit.py::TestWorkflowPartition` asserts an
+          Idea, a Concern and a Bug are each rejected from a `build` bundle with
+          the owning skill named in the reason.
+      - id: PAD-15-003
+        priority: MUST
+        kind: process
+        statement: >-
+          Bundle candidates MUST be ordered by their governing Project #24
+          `Schedule` tier per PAD-03-001, where a leaf with no tier of its own
+          inherits its parent Epic's tier and an explicit leaf tier always
+          wins. Sub-issue list order MUST be used only to break ties.
+        rationale: >-
+          Sub-issue list order is manual drag-order and carries no priority
+          meaning, so treating it as the priority signal silently overrode the
+          authoritative field.
+        verification: >-
+          `test/metadata/test_bundle_fit.py::TestScheduleTier` asserts tier
+          ordering (including that `Focus` outranks `Now`), that inheritance
+          reaches the sort inside `select_bundle` and not only
+          `effective_schedule`, that an explicit leaf tier beats the Epic's, and
+          that ties fall back to list order.
+          `test_every_board_tier_is_ranked_or_excluded` ratchets the tier list
+          against the Schedule options documented in
+          `.agents/skills/shared/board-id.sh`, because a tier in neither set
+          ranks last rather than failing.
+      - id: PAD-15-004
+        priority: MUST_NOT
+        kind: process
+        statement: >-
+          An Issue whose governing `Schedule` tier is `Someday` MUST NOT be
+          proposed as a bundle member.
+        rationale: >-
+          `Someday` is explicit human deprioritisation; bundling such an Issue
+          reverses a scheduling decision the board already recorded.
+        verification: >-
+          `test/metadata/test_bundle_fit.py::TestScheduleTier::test_someday_is_excluded_below_tier`
+      - id: PAD-15-005
+        priority: MUST
+        kind: process
+        statement: >-
+          A bundle MUST be bounded by a total size budget computed from the
+          PAD-05 `size:` label weights, weighting an unlabelled Issue as the
+          largest bundlable size. Member count MUST also remain bounded.
+        rationale: >-
+          A bundle is implemented as one PR, so the budget is a review budget.
+          An unlabelled Issue is unmeasured rather than small, so counting it as
+          the largest bundlable size fails safe. The weights themselves are not
+          restated here: they are derived from the band table (PAD-05-011), so
+          a recalibration cannot leave this requirement behind.
+        verification: >-
+          `test/metadata/test_bundle_fit.py::TestSizeBudget` asserts the weights
+          derive from the band table, the unsized-as-largest rule, that the
+          largest of several `size:` labels is both the weight and the label
+          reported, the budget and member ceilings, and that a refused oversized
+          candidate does not end the scan.
+      - id: PAD-15-011
+        priority: MUST_NOT
+        kind: process
+        statement: >-
+          An Issue labelled `size:XL` MUST NOT be proposed as a bundle member.
+        rationale: >-
+          `size:XL` means a change that already exhausts the review budget on
+          its own (PAD-05-009), so it is refused outright rather than given a
+          weight. A weight would say "fits alongside something smaller", which
+          is precisely what this band rules out, and a raised `--budget` could
+          then reopen it.
+        verification: >-
+          `test/metadata/test_bundle_fit.py::TestReviewCeiling` asserts the
+          refusal is categorical, survives a raised budget, does not end the
+          scan, and names the band rather than a weight.
+      - id: PAD-15-006
+        priority: MUST
+        kind: process
+        statement: >-
+          A bundle proposal MUST report every candidate it excluded with a
+          per-candidate reason, distinguishing exclusion at the eligibility
+          stage from exclusion at the fit stage.
+        rationale: >-
+          The excluded-candidate report listed only eligibility reasons, so a
+          candidate held back for size or tier was indistinguishable from one
+          that was blocked or already claimed.
+        verification: >-
+          `test/metadata/test_bundle_fit.py::TestRejectionStages` asserts the two
+          stages are distinguishable and that every non-member is accounted for.
+      - id: PAD-15-007
+        priority: MUST
+        kind: process
+        statement: >-
+          Thematic coherence of a bundle MUST be decided by stating the single
+          design idea its members share in one sentence. Mechanical overlap
+          signals MAY be surfaced as evidence but MUST NOT be treated as the
+          coherence verdict.
+        rationale: >-
+          Cutting by superficial theme rather than design grain produces
+          plausible-looking but wrong work units — the same failure `calve-epics`
+          guards against when shaping the Epic forest.
+        verification: >-
+          A bundle proposal states the shared design idea in one sentence;
+          `test/metadata/test_bundle_fit.py::TestCoherenceHints` asserts the tool
+          emits overlap evidence only, and never a member decision.
+      - id: PAD-15-008
+        priority: MUST
+        kind: process
+        statement: >-
+          A skill given several Issue numbers MUST implement every member and
+          open one Pull Request whose body carries one `Closes #N` line per
+          member. It MUST NOT silently work only the first member or silently
+          drop a member.
+        rationale: >-
+          Getting more than one Issue done in a single PR is the entire purpose
+          of bundling; executing one member and discarding the rest defeats it.
+          A member dropped for grain is reported, not silently omitted.
+        verification: >-
+          A bundle PR body lists one `Closes #N` per member in bundle order, and
+          any member dropped for grain is named with its reason.
+      - id: PAD-15-009
+        priority: MUST
+        kind: process
+        statement: >-
+          Every bundle member MUST be claimed onto the single branch named for
+          the first member, and each member MUST receive the tests and
+          acceptance-criteria coverage it would receive if worked alone.
+        rationale: >-
+          Branch creation is the distributed lock (PAD-04), so one bundle is one
+          lock. A bundle amortises context loading, never rigor.
+        verification: >-
+          `.agents/skills/shared/claim-issue.sh` assigns and comments on every
+          member of the bundle it is given while creating exactly one branch. It
+          validates every member number before mutating anything, rejects a
+          repeated member, and on a mid-bundle failure names the members already
+          claimed and deletes the branch so the claim can be retried.

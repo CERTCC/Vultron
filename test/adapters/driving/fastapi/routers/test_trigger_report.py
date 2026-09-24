@@ -26,9 +26,7 @@ import pytest
 from fastapi import FastAPI, status
 from fastapi.testclient import TestClient
 
-from vultron.core.models.participant_status import ParticipantStatus
-from vultron.core.models.dimensions import RmDimension
-from vultron.core.models._helpers import _report_phase_status_id
+from vultron.core.models.report_case_link import VultronReportCaseLink
 from vultron.adapters.driving.fastapi.deps import (
     get_canonical_actor_dl,
     get_trigger_dl,
@@ -44,12 +42,18 @@ from vultron.adapters.driven.trigger_activity_adapter import (
 from vultron.core.models.offer_record import VultronOfferRecord
 from vultron.wire.as2.vocab.base.objects.activities.transitive import as_Offer
 from vultron.wire.as2.vocab.base.objects.actors import as_Service
-from vultron.wire.as2.vocab.objects.case_participant import as_CaseParticipant
+from vultron.wire.as2.vocab.objects.case_participant import (
+    as_CaseParticipant,
+    as_ParticipantStatus,
+)
 from vultron.wire.as2.vocab.objects.vulnerability_report import (
     as_VulnerabilityReport,
 )
 from vultron.core.states.rm import RM
 from vultron.enums.roles import CVDRole
+from vultron.core.models.dimensions import (
+    RmDimension,
+)
 
 # ---------------------------------------------------------------------------
 # Module-level outbox suppression
@@ -169,25 +173,28 @@ def received_report(dl, actor, report):
         attributed_to=actor.id_,
         context=case_obj.id_,
         case_roles=[CVDRole.VENDOR],
+        participant_statuses=[
+            as_ParticipantStatus(
+                attributed_to=actor.id_,
+                context=case_obj.id_,
+                rm=RmDimension(state=RM.RECEIVED),
+            )
+        ],
     )
-    self_participant.append_rm_state(RM.RECEIVED, actor.id_, case_obj.id_)
     dl.create(self_participant)
     case_obj.actor_participant_index[actor.id_] = self_participant.id_
     case_obj.case_participants.append(self_participant.id_)
     dl.save(case_obj)
+    dl.create(
+        VultronReportCaseLink(report_id=report.id_, rm_state=RM.RECEIVED)
+    )
     return report
 
 
 @pytest.fixture
 def invalid_report(dl, report, actor):
     """Pre-seed RM.INVALID for reject triggers (INVALID→CLOSED is valid per BTND-10-001)."""
-    status = ParticipantStatus(
-        id_=_report_phase_status_id(actor.id_, report.id_, RM.INVALID.value),
-        context=report.id_,
-        attributed_to=actor.id_,
-        rm=RmDimension(state=RM.INVALID),
-    )
-    dl.create(status)
+    dl.create(VultronReportCaseLink(report_id=report.id_, rm_state=RM.INVALID))
     return report
 
 
@@ -219,13 +226,9 @@ def _seed_owner_case(dl, actor_id, report_id):
 def accepted_report(dl, report, actor):
     """Report ready for close: actor is CASE_OWNER and RM.ACCEPTED is seeded (BTND-10-001)."""
     _seed_owner_case(dl, actor.id_, report.id_)
-    status = ParticipantStatus(
-        id_=_report_phase_status_id(actor.id_, report.id_, RM.ACCEPTED.value),
-        context=report.id_,
-        attributed_to=actor.id_,
-        rm=RmDimension(state=RM.ACCEPTED),
+    dl.create(
+        VultronReportCaseLink(report_id=report.id_, rm_state=RM.ACCEPTED)
     )
-    dl.create(status)
     return report
 
 
@@ -233,13 +236,7 @@ def accepted_report(dl, report, actor):
 def closed_report(dl, report, actor):
     """Put the report into RM.CLOSED state (triggers 409 on close-report); actor is CASE_OWNER."""
     _seed_owner_case(dl, actor.id_, report.id_)
-    status = ParticipantStatus(
-        id_=_report_phase_status_id(actor.id_, report.id_, RM.CLOSED.value),
-        context=report.id_,
-        attributed_to=actor.id_,
-        rm=RmDimension(state=RM.CLOSED),
-    )
-    dl.create(status)
+    dl.create(VultronReportCaseLink(report_id=report.id_, rm_state=RM.CLOSED))
     return report
 
 
@@ -388,13 +385,11 @@ def test_trigger_validate_report_transitions_rm_to_valid(
     )
     assert resp.status_code == status.HTTP_202_ACCEPTED
 
-    valid_status_id = _report_phase_status_id(
-        actor.id_, offer.object_, RM.VALID.value
-    )
-    valid_record = dl.get("ParticipantStatus", valid_status_id)
+    link_id = VultronReportCaseLink.build_id(offer.object_)
+    link = dl.read(link_id)
     assert (
-        valid_record is not None
-    ), "Expected a RM.VALID ParticipantStatus after validate-report trigger"
+        isinstance(link, VultronReportCaseLink) and link.rm_state == RM.VALID
+    ), "Expected VultronReportCaseLink.rm_state == RM.VALID after validate-report trigger"
 
 
 def test_trigger_validate_report_non_report_offer_returns_404(
@@ -923,7 +918,7 @@ class TestTriggerReportOutboxScheduling:
         assert "emitter" not in mock_outbox.call_args.kwargs
 
     def test_invalidate_report_schedules_outbox_handler(
-        self, client_triggers, dl, actor, offer
+        self, client_triggers, dl, actor, offer, received_report
     ):
         """invalidate-report schedules outbox delivery after execution."""
         with self._make_patches() as mock_outbox:

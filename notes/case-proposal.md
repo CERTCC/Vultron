@@ -13,6 +13,8 @@ related_notes:
   - notes/activitystreams-semantics.md
   - notes/case-communication-model.md
   - notes/bt-integration.md
+  - notes/bt-pitfalls.md
+  - notes/call-out-configuration.md
   - notes/demo-scenario-authoring.md
 relevant_packages:
   - vultron/wire/as2/vocab/objects
@@ -27,7 +29,7 @@ relevant_packages:
 Normative requirements: `specs/case-proposal.yaml` (CP-01 through CP-09).
 ADR: `docs/adr/0023-case-proposal-protocol.md`.
 Refined by: `docs/adr/0041-caseactor-authoritative-case-initialization.md`
-(supersedes ADR-0015; CaseActor creates case natively on proposal accept).
+(supersedes ADR-0015; the CASE_MANAGER creates the case natively on proposal accept).
 
 ---
 
@@ -50,9 +52,9 @@ actual creation.
 
 ## Protocol Flow
 
-**Note**: The flow below reflects the corrected CaseActor-authoritative model
+**Note**: The flow below reflects the corrected CASE_MANAGER-authoritative model
 (ADR-0041). The vendor does NOT create a `VulnerabilityCase` locally before
-the CaseActor responds. The vendor stores the report, writes a pending
+the CASE_MANAGER responds. The vendor stores the report, writes a pending
 `VultronReportCaseLink`, and waits.
 
 ```text
@@ -126,12 +128,70 @@ When the case-actor service declines, it sends:
 inline (consistent with the Accept pattern; inline is preferred over URI-only
 for rejection so the vendor has the full proposal context without a round-trip).
 
+What *decides* the refusal is the `EvaluateCaseProposal` call-out point — see
+[Admission Decision](#admission-decision-cp-05-002).
+
+---
+
+## Admission Decision (CP-05-002)
+
+The service decides at one call-out point, `EvaluateCaseProposal` (Evaluator
+shape, `CaseProposalCallOutBundle`). It is the only place a deployment can
+express admission policy, and the DETERMINISTIC default admits — so an
+unconfigured deployment behaves exactly as it did before the seam existed
+(BT-23-001, BT-23-011). The adapter injects the bundle in
+`inbox_port_factories._case_proposal_port_factory`, the same way it injects
+`STATUS_AUTHORIZATION_PERMISSIVE`, so the seam is reachable in production rather
+than test-only.
+
+Three invariants make the refusal safe. Each was a real bug first; the general
+form of each lives in [bt-pitfalls](bt-pitfalls.md).
+
+**1. The decision is persisted before the side effect.**
+`RecordProposalDeclineNode` writes `CaseProposalDeclineRecord` *before*
+`EmitRejectCaseProposalNode` runs, and the accept arm is gated on that record's
+absence (`CheckNoDeclineRecordNode`). Without that ordering a decline whose
+`Reject` could not be built fell through the Selector into a **full accept**.
+Everything in the refusal arm ahead of the record therefore **raises** rather
+than returning `FAILURE`, because in a refusal arm `FAILURE` and `SUCCESS` can
+both hand control to the permissive branch.
+
+**2. Every guard is keyed on the proposal, never the report.** `report_id`
+arrives as `request.inner_object_id` — the id of the report the *sender*
+embedded — so it is sender-chosen, and two proposals may name one report. A
+report-keyed "already answered?" guard therefore skips the gate for a proposal
+that was never adjudicated, admitting it through the AC-1 duplicate-reuse path.
+`CaseProposalAdmissionRecord`, written as the accept flow's *first* step, is the
+proposal-keyed evidence that replaces it: it exists from before the case does,
+which is what lets the guard recognise a half-built case as this proposal's.
+
+**3. "Told them" comes from the record, not the outbox.** `outbox_pop` removes a
+`Reject` on delivery while its stored copy remains, so a delivered refusal is
+indistinguishable from one never queued. Reading the outbox therefore re-emits a
+*fresh* `Reject` on every later delivery, without bound.
+`CaseProposalDeclineRecord.reject_activity_id` records what was actually queued
+and survives delivery, giving `CheckRejectAlreadyAnsweredNode` a third state:
+declined-and-answered, versus declined-but-unanswered (which is recoverable and
+re-emits).
+
+**Known gap.** `CaseProposalDeclineRecord.reason` is read (into the `Reject`'s
+`summary`) but nothing writes it: a call-out point signals refusal by returning
+`FAILURE`, and BT-18-002 defines blackboard outputs only for the SUCCESS case, so
+a refusal has no sanctioned channel for a payload. The same missing channel means
+"backend unreachable" is indistinguishable from "policy declined", and the
+resulting decline record is permanent. Tracked in
+[#3446](https://github.com/CERTCC/Vultron/issues/3446).
+
+Node locations: guards in
+`vultron/core/behaviors/case/nodes/proposal_admission_conditions.py`, writes and
+the emit in `.../proposal_admission_actions.py` (BTND-07-003).
+
 ---
 
 ## Wire Vocabulary: `as_CaseProposal`
 
 `as_CaseProposal` is a new AS2 **Object** type (not an Activity) that extends
-`VultronAS2Object`. Required fields:
+`as_VultronObject`. Required fields:
 
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
@@ -164,7 +224,7 @@ more-general patterns that share the same outer Activity type (SE-03-002).
 
 ## CaseActor Native Initialization (ADR-0041)
 
-When the CaseActor accepts a proposal, `case_proposal_received_tree.py` MUST
+When the CASE_MANAGER accepts a proposal, `case_proposal_received_tree.py` MUST
 perform the following natively — no back-fill, no prologue:
 
 1. Create `VulnerabilityCase` with `attributed_to=CaseActor` (already implemented)
@@ -345,8 +405,8 @@ no corresponding case announcement.
 
 To recover from this, a `PendingCreateCaseActivity` marker is written to
 the DataLayer **after** `Accept` is sent and **before** `Create` is
-attempted (implemented in `vultron/core/behaviors/case/
-case_proposal_received_tree.py`). The marker captures the proposal ID,
+attempted (implemented in `WriteCreateCaseMarkerNode` in
+`vultron/core/behaviors/case/nodes/proposal_retry_marker.py`). The marker captures the proposal ID,
 case-actor ID, vendor URI, and the pre-constructed
 `Create(VulnerabilityCase)` payload. It is deleted on successful
 `Create` delivery, so only failed deliveries leave a marker.
@@ -387,15 +447,19 @@ would bypass the check and cause a duplicate delivery after crash/restart.
 ## Duplicate-Proposal Handling (CP-05-006)
 
 At-least-once delivery and network retries mean the same
-`Create(as_CaseProposal)` can arrive multiple times. The idempotency
-tree (`create_case_proposal_received_tree`) has two guards:
+`Create(as_CaseProposal)` can arrive multiple times. Since the admission gate
+landed, `create_case_proposal_received_tree` is a **four-arm Selector** — in
+order: the in-flight marker, the already-declined answer, the admission
+decision, and the accept flow. See
+[Admission Decision](#admission-decision-cp-05-002) below for the two refusal
+arms; the two guards that carry duplicate handling on the accept side are:
 
-**AC-3 guard** (`_CheckMarkerExistsNode`): if a
+**AC-3 guard** (`CheckMarkerExistsNode`): if a
 `PendingCreateCaseActivity` marker exists, `Accept` was already sent and
 `Create(VulnerabilityCase)` delivery is still pending. The retry runner
 owns recovery; the duplicate is silently dropped.
 
-**AC-1 / AC-2 flow** (`_LoadExistingCaseNode` → `_EmitAcceptCaseProposalNode`):
+**AC-1 / AC-2 flow** (`LoadExistingCaseNode` → `EmitAcceptCaseProposalNode`):
 if no in-flight marker exists but a `VulnerabilityCase` already exists for
 the same report, the tree reuses the existing case (AC-1). It then sends a
 new `Accept(as_CaseProposal)` (AC-2) with:
@@ -407,7 +471,7 @@ The `result` field is where the duplicate Accept carries the existing-case
 reference so the vendor can correlate it to the already-created case without
 waiting for a second `Create(VulnerabilityCase)`.
 
-For first-time proposals, `_EmitAcceptCaseProposalNode` also sets
+For first-time proposals, `EmitAcceptCaseProposalNode` also sets
 `result=case_id` (the newly-created case URI). This is consistent: the
 `result` of an Accept always names the `VulnerabilityCase` the proposal
 produced (or reused), regardless of whether the proposal is a first send or a
@@ -416,9 +480,9 @@ retry.
 ### Implementation: `VultronAccept.result`
 
 `vultron.core.models.activity.VultronAccept` carries a `result: str | None`
-field. `_EmitAcceptCaseProposalNode` reads `case_id` from the py\_trees
-blackboard (written earlier by `_LoadExistingCaseNode` or
-`_CreateCaseFromProposalNode`) and sets `result=case_id` on the activity
+field. `EmitAcceptCaseProposalNode` reads `case_id` from the py\_trees
+blackboard (written earlier by `LoadExistingCaseNode` or
+`CreateCaseFromProposalNode`) and sets `result=case_id` on the activity
 before persisting it to the DataLayer and outbox.
 
 ---

@@ -69,7 +69,14 @@ from vultron.core.models.case_ledger_entry import VultronCaseLedgerEntry
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.behaviors.sync.nodes.chain import _to_persistable_entry
 from vultron.core.models.events.sync import AnnounceLogEntryReceivedEvent
-from vultron.core.models.dimensions import DDimension
+from vultron.core.models.dimensions import (
+    DDimension,
+    EmDimension,
+    PecDimension,
+    PxaDimension,
+    RmDimension,
+    VfDimension,
+)
 from vultron.core.states.composite_state_invariants import (
     composite_state_violations,
 )
@@ -121,7 +128,7 @@ _ZERO_HASH = "0" * 64
 # the enum *member name* (``"VALID"``, ``"VFd"``, ``"Pxa"``) — which is also
 # what both serializations carry — so the assertions describe protocol state,
 # not serialization shape.  Comparing enum members directly would not work for
-# ``CS_vfd``/``CS_pxa``, whose ``.value`` is a ``NamedTuple`` rather than the
+# ``CS_pxa``, whose ``.value`` is a ``NamedTuple`` rather than the
 # string that appears on the wire.
 # ---------------------------------------------------------------------------
 
@@ -247,14 +254,14 @@ def _current_status(
     return as_ParticipantStatus(
         id_=CURRENT_STATUS_ID,
         context=CASE_ID,
-        rm_state=rm_state,
-        vf_state=vf_state,
-        em_consent_state=PEC.SIGNATORY,
+        rm=RmDimension(state=rm_state),
+        vf=(VfDimension(state=vf_state) if vf_state is not None else None),
+        consent=PecDimension(state=PEC.SIGNATORY),
         case_status=as_CaseStatus(
             id_=f"{CURRENT_STATUS_ID}/cs",
             context=CASE_ID,
-            em_state=EM.NONE,
-            pxa_state=pxa_state,
+            em=EmDimension(state=EM.NONE),
+            pxa=PxaDimension(state=pxa_state),
         ),
     )
 
@@ -277,16 +284,16 @@ def _asserted_status(
         else as_CaseStatus(
             id_=f"{status_id}/cs",
             context=CASE_ID,
-            em_state=EM.NONE,
-            pxa_state=pxa_state,
+            em=EmDimension(state=EM.NONE),
+            pxa=PxaDimension(state=pxa_state),
         )
     )
     return as_ParticipantStatus(
         id_=status_id,
         context=CASE_ID,
-        rm_state=rm_state,
-        vf_state=vf_state,
-        em_consent_state=PEC.SIGNATORY,
+        rm=RmDimension(state=rm_state),
+        vf=(VfDimension(state=vf_state) if vf_state is not None else None),
+        consent=PecDimension(state=PEC.SIGNATORY),
         case_status=case_status,
     )
 
@@ -329,13 +336,41 @@ def _seed_case(
         dl.create(asserted)
 
 
+class _CaptureOverride(py_trees.behaviour.Behaviour):
+    """Probe: snapshot BB_LEDGER_PAYLOAD_OBJECT_OVERRIDE mid-execution.
+
+    The override is an execution-scoped hand-off that ``execute_with_setup``
+    resets at teardown (#3101, ADR-0087), so it cannot be read after the run
+    returns. Appending this probe to an outer ``memory=False`` Sequence lets a
+    test observe the value the guarded-commit path saw, before teardown clears
+    it. Reads the process-global storage directly so an absent key yields
+    ``None`` rather than raising.
+    """
+
+    def __init__(self, sink: dict, name: str = "CaptureOverride"):
+        super().__init__(name=name)
+        self._sink = sink
+
+    def update(self) -> Status:
+        self._sink["override"] = py_trees.blackboard.Blackboard.storage.get(
+            f"/{BB_LEDGER_PAYLOAD_OBJECT_OVERRIDE}"
+        )
+        return Status.SUCCESS
+
+
 def _run_tree(
     dl: SqliteDataLayer,
     asserted: as_ParticipantStatus,
     executing_actor_id: str,
     make_payload: Any,
+    capture: dict | None = None,
 ) -> Any:
-    """Run the full ``add_participant_status_tree`` for *asserted*."""
+    """Run the full ``add_participant_status_tree`` for *asserted*.
+
+    When *capture* is provided, an ``_CaptureOverride`` probe is appended in an
+    outer ``memory=False`` Sequence so the caller can inspect the override the
+    guarded commit saw before ``execute_with_setup`` resets it (#3101).
+    """
     activity = add_status_to_participant_activity(
         status=asserted,
         target=as_CaseParticipant(
@@ -351,6 +386,12 @@ def _run_tree(
         wire_render_port=As2WireRenderAdapter(),
     )
     tree = add_participant_status_tree(request=event, case_id=CASE_ID)
+    if capture is not None:
+        tree = py_trees.composites.Sequence(
+            name="AddParticipantStatusTreeWithProbe",
+            memory=False,
+            children=[tree, _CaptureOverride(sink=capture)],
+        )
     # Production passes the parsed event as ``activity`` (see
     # SvcAddParticipantStatusToParticipantReceivedUseCase); the guarded commit
     # needs it on the blackboard to build a payload snapshot.
@@ -1221,16 +1262,13 @@ class TestOverrideIncludesProducerType:
         asserted = _asserted_status(RM.VALID, CS_vf.VF, CS_pxa.Pxa)
         _seed_case(dl, current, asserted)
 
-        reader = py_trees.blackboard.Client(name="override-shape-reader")
-        reader.register_key(
-            key=BB_LEDGER_PAYLOAD_OBJECT_OVERRIDE,
-            access=py_trees.common.Access.READ,
+        captured: dict = {}
+        result = _run_tree(
+            dl, asserted, ACTOR_ID, make_payload, capture=captured
         )
-
-        result = _run_tree(dl, asserted, ACTOR_ID, make_payload)
         assert result.status == Status.SUCCESS
 
-        override = reader.get(BB_LEDGER_PAYLOAD_OBJECT_OVERRIDE)
+        override = captured.get("override")
         assert isinstance(
             override, dict
         ), "override must be a dict after partial accept"
@@ -1256,9 +1294,7 @@ class TestAdjudicateDimensionsRoleGuards:
             _adjudicate_dimensions,
         )
 
-        return _adjudicate_dimensions(
-            current.to_core(), asserted.to_core(), roles=roles
-        )
+        return _adjudicate_dimensions(current, asserted, roles=roles)
 
     def test_vf_write_refused_without_vendor_role(self):
         """#2965: Peer without VENDOR role must not advance VF dimension.
@@ -1281,8 +1317,8 @@ class TestAdjudicateDimensionsRoleGuards:
 
         current_d = _current_status(RM.ACCEPTED, CS_vf.VF, CS_pxa.pxa)
         asserted_d = _asserted_status(RM.ACCEPTED, CS_vf.VF, CS_pxa.pxa)
-        current_core = current_d.to_core()
-        asserted_core = asserted_d.to_core()
+        current_core = current_d
+        asserted_core = asserted_d
 
         current_core = current_core.model_copy(
             update={"d": DDimension(state=CS_d.d)}
@@ -1321,12 +1357,8 @@ class TestAdjudicateDimensionsRoleGuards:
         The adjudication path must refuse D when vf is not VF.
         """
 
-        current_core = _current_status(
-            RM.ACCEPTED, CS_vf.Vf, CS_pxa.pxa
-        ).to_core()
-        asserted_core = _asserted_status(
-            RM.ACCEPTED, CS_vf.Vf, CS_pxa.pxa
-        ).to_core()
+        current_core = _current_status(RM.ACCEPTED, CS_vf.Vf, CS_pxa.pxa)
+        asserted_core = _asserted_status(RM.ACCEPTED, CS_vf.Vf, CS_pxa.pxa)
         current_core = current_core.model_copy(
             update={"d": DDimension(state=CS_d.d)}
         )
@@ -1366,10 +1398,8 @@ class TestAdjudicateDimensionsRoleGuards:
         )
 
         # current has no VF history; sender lacks VENDOR but has DEPLOYER
-        current_core = _current_status(RM.ACCEPTED, None, CS_pxa.pxa).to_core()
-        asserted_core = _asserted_status(
-            RM.ACCEPTED, CS_vf.vf, CS_pxa.pxa
-        ).to_core()
+        current_core = _current_status(RM.ACCEPTED, None, CS_pxa.pxa)
+        asserted_core = _asserted_status(RM.ACCEPTED, CS_vf.vf, CS_pxa.pxa)
         asserted_core = asserted_core.model_copy(
             update={"d": DDimension(state=CS_d.D)}
         )
@@ -1411,7 +1441,7 @@ class TestAdjudicateDimensionsCrossMachineEntailments:
     def _with_d(status: as_ParticipantStatus, d_state: "CS_d | None"):
         """Return *status* as a core model carrying *d_state*."""
 
-        core = status.to_core()
+        core = status
         return core.model_copy(
             update={
                 "d": None if d_state is None else DDimension(state=d_state)
@@ -1429,8 +1459,8 @@ class TestAdjudicateDimensionsCrossMachineEntailments:
         are legal on the received path (CSB-16-001) — but because a fix cannot
         be ready for a report the vendor has not accepted (CSB-18-001).
         """
-        current = _current_status(RM.VALID, None, CS_pxa.pxa).to_core()
-        asserted = _asserted_status(RM.VALID, CS_vf.VF, CS_pxa.pxa).to_core()
+        current = _current_status(RM.VALID, None, CS_pxa.pxa)
+        asserted = _asserted_status(RM.VALID, CS_vf.VF, CS_pxa.pxa)
 
         refused, update_fields = self._adjudicate(
             current, asserted, roles=[CVDRole.VENDOR]
@@ -1453,10 +1483,8 @@ class TestAdjudicateDimensionsCrossMachineEntailments:
         an absent baseline: a first observation is accepted when nothing
         contradicts it (liberal accept, RSH-05-001).
         """
-        current = _current_status(RM.ACCEPTED, None, CS_pxa.pxa).to_core()
-        asserted = _asserted_status(
-            RM.ACCEPTED, CS_vf.VF, CS_pxa.pxa
-        ).to_core()
+        current = _current_status(RM.ACCEPTED, None, CS_pxa.pxa)
+        asserted = _asserted_status(RM.ACCEPTED, CS_vf.VF, CS_pxa.pxa)
 
         refused, _ = self._adjudicate(
             current, asserted, roles=[CVDRole.VENDOR]
@@ -1485,10 +1513,8 @@ class TestAdjudicateDimensionsCrossMachineEntailments:
         of that scale.  See
         ``test_effective_rm_reading_can_only_loosen_never_tighten``.
         """
-        current = _current_status(RM.VALID, None, CS_pxa.pxa).to_core()
-        asserted = _asserted_status(
-            RM.RECEIVED, CS_vf.VF, CS_pxa.pxa
-        ).to_core()
+        current = _current_status(RM.VALID, None, CS_pxa.pxa)
+        asserted = _asserted_status(RM.RECEIVED, CS_vf.VF, CS_pxa.pxa)
 
         refused, _ = self._adjudicate(
             current, asserted, roles=[CVDRole.VENDOR]
@@ -1512,8 +1538,8 @@ class TestAdjudicateDimensionsCrossMachineEntailments:
         load-bearing reason for evaluating post-adjudication state is the
         ``vf``-licenses-``d`` chain (ISSUE-2893), not anything about ``rm``.
         """
-        current = _current_status(RM.CLOSED, CS_vf.VF, CS_pxa.pxa).to_core()
-        asserted = _asserted_status(RM.VALID, CS_vf.VF, CS_pxa.pxa).to_core()
+        current = _current_status(RM.CLOSED, CS_vf.VF, CS_pxa.pxa)
+        asserted = _asserted_status(RM.VALID, CS_vf.VF, CS_pxa.pxa)
 
         refused, _ = self._adjudicate(
             current, asserted, roles=[CVDRole.VENDOR]
@@ -1578,8 +1604,8 @@ class TestAdjudicateDimensionsCrossMachineEntailments:
         RSH-05-001: refusing ``vf`` says nothing about ``pxa``, which advances
         in the same snapshot and must still be accepted.
         """
-        current = _current_status(RM.VALID, None, CS_pxa.pxa).to_core()
-        asserted = _asserted_status(RM.VALID, CS_vf.VF, CS_pxa.Pxa).to_core()
+        current = _current_status(RM.VALID, None, CS_pxa.pxa)
+        asserted = _asserted_status(RM.VALID, CS_vf.VF, CS_pxa.Pxa)
 
         refused, update_fields = self._adjudicate(
             current, asserted, roles=[CVDRole.VENDOR]
@@ -1709,10 +1735,8 @@ class TestAdjudicateDimensionsCrossMachineEntailments:
         post-ACCEPTED reachable set, sound rather than complete. Narrowing it to
         ``{ACCEPTED}`` would refuse this update.
         """
-        current = _current_status(RM.VALID, CS_vf.Vf, CS_pxa.pxa).to_core()
-        asserted = _asserted_status(
-            RM.DEFERRED, CS_vf.VF, CS_pxa.pxa
-        ).to_core()
+        current = _current_status(RM.VALID, CS_vf.Vf, CS_pxa.pxa)
+        asserted = _asserted_status(RM.DEFERRED, CS_vf.VF, CS_pxa.pxa)
 
         refused, _ = self._adjudicate(
             current, asserted, roles=[CVDRole.VENDOR]

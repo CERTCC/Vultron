@@ -26,6 +26,7 @@ from vultron.adapters.driven.trigger_activity_adapter import (
 )
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.offer_record import VultronOfferRecord
+from vultron.core.models.report_case_link import VultronReportCaseLink
 from vultron.core.states.rm import RM
 from vultron.enums.roles import CVDRole
 from vultron.core.use_cases.triggers.case import (
@@ -52,6 +53,9 @@ from vultron.wire.as2.vocab.objects.vulnerability_case import (
 )
 from vultron.wire.as2.vocab.objects.vulnerability_report import (
     as_VulnerabilityReport,
+)
+from vultron.core.models.dimensions import (
+    RmDimension,
 )
 
 # ---------------------------------------------------------------------------
@@ -107,7 +111,9 @@ def _build_case(
         case_roles=[CVDRole.VENDOR],
     )
     vendor_p.participant_statuses.append(
-        WireParticipantStatus(context=case.id_, rm_state=RM.RECEIVED)
+        WireParticipantStatus(
+            context=case.id_, rm=RmDimension(state=RM.RECEIVED)
+        )
     )
 
     finder_p = FinderParticipant(
@@ -168,6 +174,9 @@ def chain_context():
     offer = _make_offer(dl, report, vendor.id_, actor_id=finder.id_)
 
     case = _build_case(dl, vendor.id_, finder.id_, case_actor.id_, report.id_)
+    dl.create(
+        VultronReportCaseLink(report_id=report.id_, rm_state=RM.RECEIVED)
+    )
 
     yield vendor, finder, case_actor, dl, report, offer, case
 

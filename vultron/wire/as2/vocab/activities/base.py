@@ -24,7 +24,7 @@ from vultron.wire.as2.vocab.base.objects.activities.transitive import (
 )
 
 
-class VultronAS2Activity(as_TransitiveActivity):
+class as_VultronActivity(as_TransitiveActivity):
     """Base class for Vultron ActivityStreams activity wire types.
 
     Provides a generic :meth:`from_core` classmethod that converts a
@@ -63,7 +63,7 @@ class VultronAS2Activity(as_TransitiveActivity):
     @classmethod
     def from_core(
         cls, domain_activity: VultronActivity
-    ) -> "VultronAS2Activity":
+    ) -> "as_VultronActivity":
         """Create a wire activity from a core domain activity.
 
         Performs a JSON round-trip: dumps the domain object with Python field

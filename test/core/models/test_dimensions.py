@@ -8,9 +8,8 @@ from vultron.core.models.dimensions import (
     PecDimension,
     PxaDimension,
     RmDimension,
-    VfdDimension,
 )
-from vultron.core.states.cs import CS_pxa, CS_vfd
+from vultron.core.states.cs import CS_pxa
 from vultron.core.states.em import EM, EM_Trigger
 from vultron.core.states.participant_embargo_consent import PEC, PEC_Trigger
 from vultron.core.states.rm import RM, RM_Trigger
@@ -20,7 +19,7 @@ from vultron.errors import VultronInvalidStateTransitionError
 class TestEmDimension:
     def test_default_state(self):
         d = EmDimension()
-        assert d.state == EM.NO_EMBARGO
+        assert d.state == EM.NONE
 
     def test_construct_from_enum(self):
         d = EmDimension(state=EM.ACTIVE)
@@ -30,19 +29,15 @@ class TestEmDimension:
         d = EmDimension.model_validate({"state": "ACTIVE"})
         assert d.state == EM.ACTIVE
 
-    def test_no_embargo_alias(self):
-        d = EmDimension.model_validate({"state": "NO_EMBARGO"})
-        assert d.state == EM.NO_EMBARGO
-
     def test_transition_returns_new_object(self):
-        d = EmDimension(state=EM.NO_EMBARGO)
+        d = EmDimension(state=EM.NONE)
         d2 = d.transition(EM_Trigger.PROPOSE)
         assert d2 is not d
-        assert d.state == EM.NO_EMBARGO  # original unchanged
+        assert d.state == EM.NONE  # original unchanged
         assert d2.state == EM.PROPOSED
 
     def test_transition_invalid_raises(self):
-        d = EmDimension(state=EM.NO_EMBARGO)
+        d = EmDimension(state=EM.NONE)
         with pytest.raises(VultronInvalidStateTransitionError):
             d.transition(EM_Trigger.TERMINATE)
 
@@ -53,7 +48,7 @@ class TestEmDimension:
         assert EmDimension(state=EM.REVISE).is_active()
 
     def test_is_active_false(self):
-        assert not EmDimension(state=EM.NO_EMBARGO).is_active()
+        assert not EmDimension(state=EM.NONE).is_active()
 
     def test_is_proposed(self):
         assert EmDimension(state=EM.PROPOSED).is_proposed()
@@ -64,7 +59,7 @@ class TestEmDimension:
         assert not EmDimension(state=EM.ACTIVE).is_exited()
 
     def test_is_none(self):
-        assert EmDimension(state=EM.NO_EMBARGO).is_none()
+        assert EmDimension(state=EM.NONE).is_none()
         assert not EmDimension(state=EM.ACTIVE).is_none()
 
     def test_serialization_roundtrip(self):
@@ -143,32 +138,10 @@ class TestRmDimension:
         assert d2.state == RM.ACCEPTED
 
 
-class TestVfdDimension:
-    def test_default_state(self):
-        d = VfdDimension()
-        assert d.state == CS_vfd.vfd
-
-    def test_construct_from_string(self):
-        d = VfdDimension.model_validate({"state": "Vfd"})
-        assert d.state == CS_vfd.Vfd
-
-    def test_is_vendor_aware(self):
-        assert VfdDimension(state=CS_vfd.Vfd).is_vendor_aware()
-        assert not VfdDimension(state=CS_vfd.vfd).is_vendor_aware()
-
-    def test_is_fix_ready(self):
-        assert VfdDimension(state=CS_vfd.VFd).is_fix_ready()
-        assert not VfdDimension(state=CS_vfd.vfd).is_fix_ready()
-
-    def test_is_fix_deployed(self):
-        assert VfdDimension(state=CS_vfd.VFD).is_fix_deployed()
-        assert not VfdDimension(state=CS_vfd.vfd).is_fix_deployed()
-
-
 class TestPecDimension:
     def test_default_state(self):
         d = PecDimension()
-        assert d.state == PEC.NO_EMBARGO
+        assert d.state == PEC.UNBOUND
 
     def test_construct_from_enum(self):
         d = PecDimension(state=PEC.SIGNATORY)
@@ -179,10 +152,10 @@ class TestPecDimension:
         assert d.state == PEC.INVITED
 
     def test_transition_returns_new_object(self):
-        d = PecDimension(state=PEC.NO_EMBARGO)
+        d = PecDimension(state=PEC.UNBOUND)
         d2 = d.transition(PEC_Trigger.INVITE)
         assert d2 is not d
-        assert d.state == PEC.NO_EMBARGO
+        assert d.state == PEC.UNBOUND
         assert d2.state == PEC.INVITED
 
     def test_transition_invalid_raises(self):
@@ -211,3 +184,8 @@ class TestPecDimension:
         d = PecDimension(state=PEC.SIGNATORY)
         d2 = PecDimension.model_validate_json(d.model_dump_json())
         assert d2.state == PEC.SIGNATORY
+
+    def test_no_embargo_legacy_string_coerces_to_unbound(self):
+        """ADR-0091 renamed NO_EMBARGO → UNBOUND; PecDimension must coerce stored legacy values (issue #3376)."""
+        d = PecDimension.model_validate({"state": "NO_EMBARGO"})
+        assert d.state == PEC.UNBOUND

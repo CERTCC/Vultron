@@ -34,6 +34,7 @@ from vultron.core.behaviors.case.nodes.participant.common import (
     resolve_transition_context_or_report,
     validate_participant_status_write,
 )
+from vultron.core.behaviors.case.nodes.case_lookup import CaseIdInputPortMixin
 from vultron.core.behaviors.helpers import DataLayerActionWithPorts
 from vultron.core.behaviors.narrative_log import (
     log_cs_transition,
@@ -63,6 +64,7 @@ from vultron.core.states.cs import (
 )
 from vultron.core.states.em import EM
 from vultron.core.states.rm import RM
+from vultron.errors import VultronAlreadyExistsError
 
 
 def _resolve_em_state(case: object) -> EM:
@@ -94,18 +96,19 @@ class _EffectiveStates(NamedTuple):
     pxa: CS_pxa
 
 
-class CreateParticipantStatusNode(DataLayerActionWithPorts):
+class CreateParticipantStatusNode(
+    CaseIdInputPortMixin, DataLayerActionWithPorts
+):
     """Create a ParticipantStatus snapshot and append it to the participant."""
 
     def __init__(
         self,
-        case_id: str,
         actor_id: str,
         rm_state: "RM | None",
         vf_state: "CS_vf | None",
         d_state: "CS_d | None",
         pxa_state: "CS_pxa | None",
-        result_out: dict,
+        result_out: "dict | None" = None,
         name: str | None = None,
         force_rm_state: bool = False,
     ) -> None:
@@ -118,7 +121,7 @@ class CreateParticipantStatusNode(DataLayerActionWithPorts):
                 call sites that advance a *single departing actor* to
                 ``RM.CLOSED`` regardless of the rung its RM machine is on:
                 ``sync/nodes/close_case_effect.py`` (the received close fan-out)
-                and ``case/nodes/leave.py`` (twice).  ``RM.CLOSED`` is reachable
+                and ``case/nodes/leave/advance.py`` (twice).  ``RM.CLOSED`` is reachable
                 by adjacency only from ``ACCEPTED``, ``INVALID`` or ``DEFERRED``,
                 so from any earlier rung this write is non-adjacent — which is
                 why the RM adjacency rule (BTND-10-001) is suppressed here.
@@ -147,8 +150,11 @@ class CreateParticipantStatusNode(DataLayerActionWithPorts):
                 pins the exempt call sites, so the list can only shrink.
         """
         super().__init__(name=name or self.__class__.__name__)
-        self._case_id = case_id
         self._actor_id = actor_id
+        # The value handed to the constructor is the execution-scoped baseline.
+        # ``stop()`` restores it after every tick so a pre-built node re-used
+        # for a second actor cannot inherit the first actor's latched id (#3268).
+        self._initial_actor_id = actor_id
         self._rm_state = rm_state
         self._vf_state = vf_state
         self._d_state = d_state
@@ -156,13 +162,35 @@ class CreateParticipantStatusNode(DataLayerActionWithPorts):
         self._result_out = result_out
         self._force_rm_state = force_rm_state
 
+    def initialise(self) -> None:
+        super().initialise()
+        if not self._actor_id:
+            self._actor_id = self.actor_id or ""
+
+    def stop(self, new_status: Status = Status.INVALID) -> None:
+        """Reset the execution-scoped actor id after each tick.
+
+        ``_actor_id`` is latched from the ``actor_id`` port on the first
+        ``initialise`` when the constructor left it empty — the pre-built
+        pattern of ``CreateOwnerInitialStatusNode`` and
+        ``AddCaseActorParticipantNode``, which build the node once in
+        ``__init__`` and run it through ``BTBridge.execute_with_setup``
+        (BTND-10-004, ADR-0089).  Without this reset the first execution's
+        actor would persist, so re-using a pre-built node for a second actor
+        would silently write to the first (issue #3268).  Restoring the
+        constructor value makes the actor id execution-scoped: the next
+        ``initialise`` re-reads it from the port.
+        """
+        self._actor_id = self._initial_actor_id
+        super().stop(new_status)
+
     def _persist_status(
         self, dl: object, participant_id: str, status: "ParticipantStatus"
     ) -> None:
         """Write the status to the DataLayer and link it to the participant."""
         try:
             dl.create(status)  # type: ignore[attr-defined]
-        except ValueError:
+        except VultronAlreadyExistsError:
             dl.save(status)  # type: ignore[attr-defined]
         participant_obj = dl.read(participant_id)  # type: ignore[attr-defined]
         wire_status = dl.read(status.id_)  # type: ignore[attr-defined]
@@ -233,30 +261,25 @@ class CreateParticipantStatusNode(DataLayerActionWithPorts):
         return _EffectiveStates(vf=eff_vf, d=eff_d, pxa=eff_pxa)
 
     def _resolve_target(
-        self, dl: object
+        self, case_id: str
     ) -> "tuple[VulnerabilityCase, str] | None":
         """Return (case, participant_id), or None after reporting a failure."""
-        case = dl.read_case(self._case_id)  # type: ignore[attr-defined]
-        if case is None:
-            self.logger.error(
-                "%s: Case '%s' not found in DataLayer",
-                self.name,
-                self._case_id,
-            )
-            self.feedback_message = f"Case '{self._case_id}' not found"
+        # Regime 1 (ADR-0087): a case must exist to attach a ParticipantStatus.
+        case, failure = self._require_case(case_id)
+        if failure is not None:
             return None
 
         participant_id = case.actor_participant_index.get(self._actor_id)
         if participant_id is None:
             self.logger.error(
-                "%s: actor '%s' not in case '%s'",
+                "%s: no participant record for actor '%s' in case '%s'",
                 self.name,
                 self._actor_id,
-                self._case_id,
+                case_id,
             )
             self.feedback_message = (
-                f"Actor '{self._actor_id}' not found in"
-                f" case '{self._case_id}'"
+                f"No participant record for actor '{self._actor_id}'"
+                f" in case '{case_id}'"
             )
             return None
         return case, participant_id
@@ -266,12 +289,13 @@ class CreateParticipantStatusNode(DataLayerActionWithPorts):
         case: VulnerabilityCase,
         context: ParticipantTransitionContext,
         effective: _EffectiveStates,
+        case_id: str,
     ) -> ParticipantStatus:
         """Return the ParticipantStatus snapshot for this write."""
         case_status: CaseStatus | None = None
         if self._pxa_state is not None:
             case_status = CaseStatus(
-                context=self._case_id,
+                context=case_id,
                 attributed_to=self._actor_id,
                 em=EmDimension(state=_resolve_em_state(case)),
                 pxa=PxaDimension(state=effective.pxa),
@@ -281,7 +305,7 @@ class CreateParticipantStatusNode(DataLayerActionWithPorts):
             context.participant
         )
         return ParticipantStatus(
-            context=self._case_id,
+            context=case_id,
             attributed_to=self._actor_id,
             rm=RmDimension(
                 state=(
@@ -303,6 +327,11 @@ class CreateParticipantStatusNode(DataLayerActionWithPorts):
             consent=consent_dim,
             cvd_role=status_roles,
             case_status=case_status,
+            previous_rm_state=(
+                context.current_rm
+                if self._rm_state is not None and not self._force_rm_state
+                else None
+            ),
         )
 
     def update(self) -> Status:
@@ -312,7 +341,11 @@ class CreateParticipantStatusNode(DataLayerActionWithPorts):
             self.feedback_message = "DataLayer not available"
             return Status.FAILURE
 
-        target = self._resolve_target(dl)
+        case_id = self._resolve_case_id()
+        if case_id is None:
+            return Status.FAILURE
+
+        target = self._resolve_target(case_id)
         if target is None:
             return Status.FAILURE
         case, participant_id = target
@@ -326,7 +359,7 @@ class CreateParticipantStatusNode(DataLayerActionWithPorts):
         failure = validate_participant_status_write(
             self,
             context,
-            case_id=self._case_id,
+            case_id=case_id,
             actor_id=self._actor_id,
             rm_state=self._rm_state,
             vf_state=self._vf_state,
@@ -339,33 +372,36 @@ class CreateParticipantStatusNode(DataLayerActionWithPorts):
             return failure
 
         effective = self._effective_states(context)
-        status = self._build_status(case, context, effective)
+
+        status = self._build_status(case, context, effective, case_id)
         self._persist_status(dl, participant_id, status)
 
-        self._result_out["status_id"] = status.id_
-        self._result_out["participant_id"] = participant_id
+        if self._result_out is not None:
+            self._result_out["status_id"] = status.id_
+            self._result_out["participant_id"] = participant_id
 
         self.logger.debug(
             "%s: Created ParticipantStatus '%s' for actor '%s' in case '%s'",
             self.name,
             status.id_,
             self._actor_id,
-            self._case_id,
+            case_id,
         )
-        self._log_transitions(context, effective)
+        self._log_transitions(context, effective, case_id)
         return Status.SUCCESS
 
     def _log_transitions(
         self,
         context: ParticipantTransitionContext,
         effective: _EffectiveStates,
+        case_id: str,
     ) -> None:
         """Emit narrative INFO lines for the dimensions this node advanced."""
         if self._rm_state is not None:
             log_rm_transition(
                 self.logger,
                 self._actor_id,
-                self._case_id,
+                case_id,
                 context.current_rm,
                 self._rm_state,
             )
@@ -374,7 +410,7 @@ class CreateParticipantStatusNode(DataLayerActionWithPorts):
             log_cs_transition(
                 self.logger,
                 self._actor_id,
-                self._case_id,
+                case_id,
                 (
                     context.current_vf
                     if context.current_vf is not None
@@ -386,7 +422,7 @@ class CreateParticipantStatusNode(DataLayerActionWithPorts):
             log_cs_transition(
                 self.logger,
                 self._actor_id,
-                self._case_id,
+                case_id,
                 (
                     context.current_d
                     if context.current_d is not None
@@ -399,7 +435,7 @@ class CreateParticipantStatusNode(DataLayerActionWithPorts):
             log_cs_transition(
                 self.logger,
                 self._actor_id,
-                self._case_id,
+                case_id,
                 context.current_pxa,
                 effective.pxa,
             )

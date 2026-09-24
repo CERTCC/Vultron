@@ -1,10 +1,15 @@
+---
+stakeholder_type: [platform-developer]
+level: 400
+---
+
 # Transition Functions
 
 {% include-markdown "../../includes/normative.md" %}
 
-In this section, we describe the transition functions for the RM, EM, and CVD Case processes, respectively.
+This section describes the transition functions for the RM, EM, and CVD Case processes, respectively.
 Note that while the RM process is largely independent of the other two process models, the EM and CVD process models
-have some noteworthy interactions, which we will cover in detail.
+have some noteworthy interactions, which are covered in detail below.
 
 Revisiting the formal protocol definition from the [introduction](index.md):
 
@@ -247,7 +252,7 @@ The next table lists the effects of receiving an EM message to the receiving Par
 
 !!! tip inline end "Participant-Specific State Messages Promote Shared Situation Awareness"
 
-    Effective coordination is usually improved with Participants' mutual awareness of each other's state, of course.
+    Effective coordination is usually improved with Participants' mutual awareness of each other's state.
 
 The Vendor-specific portions of the CS (*Vendor Awareness*, *Fix Ready*, and
 *Fix Deployed*) are per-Participant states.
@@ -334,13 +339,13 @@ CS message to the receiving Participant's state coupled with the expected respon
 
 ## General Transition Functions
 
-Finally, for the sake of completeness, we show that general inquiries, acknowledgments, and errors are otherwise independent
+Finally, for the sake of completeness, general inquiries, acknowledgments, and errors are otherwise independent
 of the rest of the processes.
 No state changes are expected to occur based on the receipt of a General message.
 
 !!! tip "General Messages are not a *No-Op*"
 
-    We do not mean to imply that the *content* of a general message is expected to have no effect on the progression 
+    This does not imply that the *content* of a general message has no effect on the progression 
     of a case, merely that the act of sending or receiving a general message itself does not imply any necessary protocol
     state change to either the sender or receiver Participants.
 

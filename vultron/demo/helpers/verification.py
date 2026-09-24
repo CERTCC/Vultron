@@ -388,21 +388,23 @@ def _all_fetchable_participants_rm_closed(
     client: DataLayerClient,
     case: as_VulnerabilityCase,
 ) -> bool:
-    """Return ``True`` when every fetchable, non-CASE_MANAGER participant is
-    ``RM.CLOSED``.
+    """Return ``True`` when every fetchable participant is ``RM.CLOSED``.
 
     Participants on remote containers (fetch returns ``None``) are skipped
     since their state is not locally observable.  Convergence logic is
     delegated to
-    :func:`~vultron.core.predicates.participants.all_participants_rm_closed`.
+    :func:`~vultron.core.predicates.participants.all_participants_rm_closed`,
+    which includes the CASE_MANAGER (ADR-0051, CM-23-005/CM-23-010) — this
+    helper used to describe it as exempt, which is what let ISSUE-2505 stay
+    invisible to every scenario's M7 check.
 
     Args:
         client: DataLayerClient for the container to query.
         case: The ``as_VulnerabilityCase`` whose participant index to walk.
 
     Returns:
-        ``True`` if all locally-fetchable non-CASE_MANAGER participants are
-        ``RM.CLOSED``; ``False`` otherwise.
+        ``True`` if all locally-fetchable participants are ``RM.CLOSED``;
+        ``False`` otherwise.
     """
     core_participants = []
     for p_id in case.actor_participant_index.values():
@@ -411,7 +413,10 @@ def _all_fetchable_participants_rm_closed(
             continue  # remote container — not fetchable here
         if not p_data:
             return False
-        core_participants.append(as_CaseParticipant(**p_data).to_core())
+        # No projection step: as_CaseParticipant *is* CaseParticipant
+        # (ADR-0099 detail 3), so validating the fetched payload already yields the
+        # core object ``all_participants_rm_closed`` expects.
+        core_participants.append(as_CaseParticipant(**p_data))
     if not core_participants:
         # No locally-fetchable participants — cannot confirm closure.
         return False

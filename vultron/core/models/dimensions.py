@@ -23,7 +23,14 @@ self.
 Design: ADR-0036, spec: specs/status-dimension-objects.yaml (SDO-01 to SDO-04).
 """
 
-from pydantic import BaseModel, field_serializer, field_validator
+from typing import Any
+
+from pydantic import (
+    BaseModel,
+    field_validator,
+    model_serializer,
+    model_validator,
+)
 
 from vultron.core.models.base import ValidatedAssignmentMixin
 
@@ -31,7 +38,6 @@ from vultron.core.states.cs import (
     CS_d,
     CS_pxa,
     CS_vf,
-    CS_vfd,
     D_FIX_DEPLOYED,
     D_Trigger,
     PXA_ATTACKS_OBSERVED,
@@ -41,16 +47,10 @@ from vultron.core.states.cs import (
     VF_FIX_READY,
     VF_Trigger,
     VF_VENDOR_AWARE,
-    VFD_FIX_DEPLOYED,
-    VFD_FIX_READY,
-    VFD_VENDOR_AWARE,
-    VfdState,
     PXA_Trigger,
-    VFD_Trigger,
     _d_transitions,
     _pxa_transitions,
     _vf_transitions,
-    _vfd_transitions,
 )
 from vultron.core.states.em import (
     EM,
@@ -83,7 +83,15 @@ def _coerce_rm(v: object) -> RM:
     if isinstance(v, RM):
         return v
     if isinstance(v, str):
-        return RM[v]
+        # ``RM[v]`` raises KeyError on an unknown name, and Pydantic only absorbs
+        # ValueError/AssertionError from a validator — so a bogus state escaped as
+        # a 500 instead of a clean 422 (#2964).  The deleted ``as_ParticipantStatus``
+        # carried its own coercion that converted this; ``_coerce_vf``/``_coerce_d``
+        # already did it here and these two did not.
+        try:
+            return RM[v]
+        except KeyError:
+            raise ValueError(f"Unknown RM value: {v!r}") from None
     raise ValueError(f"Cannot coerce {v!r} to RM")
 
 
@@ -91,7 +99,12 @@ def _coerce_pec(v: object) -> PEC:
     if isinstance(v, PEC):
         return v
     if isinstance(v, str):
-        return PEC[v]
+        if v == "NO_EMBARGO":
+            return PEC.UNBOUND
+        try:
+            return PEC[v]
+        except KeyError:
+            raise ValueError(f"Unknown PEC value: {v!r}") from None
     raise ValueError(f"Cannot coerce {v!r} to PEC")
 
 
@@ -99,23 +112,13 @@ def _coerce_pxa(v: object) -> CS_pxa:
     if isinstance(v, CS_pxa):
         return v
     if isinstance(v, str):
-        return CS_pxa[v]
+        try:
+            return CS_pxa[v]
+        except KeyError:
+            raise ValueError(f"Unknown CS_pxa value: {v!r}") from None
     if isinstance(v, (list, tuple)) and len(v) == 3:
         return CS_pxa(PxaState(*v))
     raise ValueError(f"Cannot coerce {v!r} to CS_pxa")
-
-
-def _coerce_vfd(v: object) -> CS_vfd:
-    if isinstance(v, CS_vfd):
-        return v
-    if isinstance(v, str):
-        try:
-            return CS_vfd[v]
-        except KeyError:
-            raise ValueError(f"Unknown CS_vfd value: {v!r}") from None
-    if isinstance(v, (list, tuple)) and len(v) == 3:
-        return CS_vfd(VfdState(*v))
-    raise ValueError(f"Cannot coerce {v!r} to CS_vfd")
 
 
 def _coerce_vf(v: object) -> CS_vf:
@@ -164,23 +167,83 @@ def _apply_transition(
     )
 
 
-class EmDimension(ValidatedAssignmentMixin, BaseModel):
+class _ScalarDimension(ValidatedAssignmentMixin, BaseModel):
+    """Common serialized form for the per-machine dimension objects.
+
+    A dimension object holds exactly one data field, ``state``; everything else
+    on it is behaviour (``transition()`` and the guard predicates), and behaviour
+    does not serialize. Its serialized form is therefore the bare state value,
+    not a one-key ``{"state": ...}`` wrapper — the wrapper would put a container
+    on the wire whose only content is the thing it contains, costing every reader
+    a level of nesting for no information.
+
+    So ``rm`` declared with ``serialization_alias="rmState"`` emits
+    ``{"rmState": "START"}``, which is the shape the wire has always carried.
+    This is what removes the need for the two inverse migration validators that
+    previously translated between the flat wire form and the nested core form.
+
+    Subclasses declare ``state`` with their own enum type and a
+    ``field_validator`` that coerces it, plus ``transition()`` and guards.
+
+    ADR-0099 detail 5; ADR-0036 governing principles 1 through 3 are unchanged.
+    """
+
+    @model_validator(mode="before")
+    @classmethod
+    def _accept_bare_state(cls, data: object) -> object:
+        """Accept the bare serialized form as well as the mapping form.
+
+        ``"START"``, ``RM.START`` and ``{"state": "START"}`` are all valid input.
+        The mapping form is retained because callers construct dimensions that
+        way, and because the enclosing models' own before-validators normalise
+        legacy flat fields into it.
+
+        An **explicit ``None`` raises** rather than falling back to the field
+        default.  That is a deliberate behaviour change: the ``_migrate_flat_fields``
+        validator this replaces guarded on ``raw is not None`` and silently
+        substituted the initial state, so ``{"rmState": None}`` produced
+        ``RM.START`` with no error.  A caller that names a dimension and supplies
+        no state is making a statement it cannot back, and detail 7's fail-loudly
+        rule says to refuse it.  Absence and explicit-null are different inputs
+        and only absence gets the default.
+        """
+        if isinstance(data, (dict, _ScalarDimension)):
+            return data
+        return {"state": data}
+
+    #: Declared here so the whole-model serializer below can read it directly.
+    #: Each subclass narrows it to its own enum with its own default; this
+    #: annotation exists to make ``state`` part of the base contract rather than
+    #: something ``_serialize_bare`` reaches for with ``getattr`` and hopes is
+    #: present.
+    state: Any
+
+    @model_serializer
+    def _serialize_bare(self) -> str:
+        """Serialize to the bare state name rather than a one-key mapping.
+
+        This is a **whole-model** serializer, so it wholly replaces the model's
+        normal dict output.  A per-field ``@field_serializer("state")`` on a
+        subclass is therefore unreachable and must not be added back — the six
+        that existed were dead code, because this method never consults the
+        field serializers.
+        """
+        return str(self.state.name)
+
+
+class EmDimension(_ScalarDimension):
     """Embargo Management state dimension object.
 
     Holds the case-level EM state and owns immutable transition validation.
     Replaces CaseStatus.em_state (SDO-01-001, SDO-03-001).
     """
 
-    state: EM = EM.NO_EMBARGO
+    state: EM = EM.NONE
 
     @field_validator("state", mode="before")
     @classmethod
     def validate_state(cls, v: object) -> EM:
         return _coerce_em(v)
-
-    @field_serializer("state")
-    def serialize_state(self, v: EM) -> str:
-        return v.name
 
     def transition(self, trigger: EM_Trigger) -> "EmDimension":
         """Return a new EmDimension with the state after applying *trigger*.
@@ -205,7 +268,7 @@ class EmDimension(ValidatedAssignmentMixin, BaseModel):
         return self.state == EM.NONE
 
 
-class PxaDimension(ValidatedAssignmentMixin, BaseModel):
+class PxaDimension(_ScalarDimension):
     """PXA (public/exploit/attacks) case state dimension object.
 
     Holds the participant-agnostic public state and owns immutable transition
@@ -218,10 +281,6 @@ class PxaDimension(ValidatedAssignmentMixin, BaseModel):
     @classmethod
     def validate_state(cls, v: object) -> CS_pxa:
         return _coerce_pxa(v)
-
-    @field_serializer("state")
-    def serialize_state(self, v: CS_pxa) -> str:
-        return v.name
 
     def transition(self, trigger: PXA_Trigger) -> "PxaDimension":
         """Return a new PxaDimension with the state after applying *trigger*.
@@ -247,7 +306,7 @@ class PxaDimension(ValidatedAssignmentMixin, BaseModel):
         return self.state == CS_pxa.pxa
 
 
-class RmDimension(ValidatedAssignmentMixin, BaseModel):
+class RmDimension(_ScalarDimension):
     """Report Management state dimension object.
 
     Holds the per-participant RM state and owns immutable transition validation.
@@ -260,10 +319,6 @@ class RmDimension(ValidatedAssignmentMixin, BaseModel):
     @classmethod
     def validate_state(cls, v: object) -> RM:
         return _coerce_rm(v)
-
-    @field_serializer("state")
-    def serialize_state(self, v: RM) -> str:
-        return v.name
 
     def transition(self, trigger: RM_Trigger) -> "RmDimension":
         """Return a new RmDimension with the state after applying *trigger*.
@@ -288,51 +343,11 @@ class RmDimension(ValidatedAssignmentMixin, BaseModel):
         return self.state == RM.CLOSED
 
 
-class VfdDimension(ValidatedAssignmentMixin, BaseModel):
-    """VFD (vendor/fix/deploy) vendor fix path dimension object.
-
-    Holds the per-participant vendor fix path state and owns immutable
-    transition validation.  Replaces ParticipantStatus.vfd_state
-    (SDO-01-001, SDO-03-002).
-    """
-
-    state: CS_vfd = CS_vfd.vfd
-
-    @field_validator("state", mode="before")
-    @classmethod
-    def validate_state(cls, v: object) -> CS_vfd:
-        return _coerce_vfd(v)
-
-    @field_serializer("state")
-    def serialize_state(self, v: CS_vfd) -> str:
-        return v.name
-
-    def transition(self, trigger: VFD_Trigger) -> "VfdDimension":
-        """Return a new VfdDimension with the state after applying *trigger*.
-
-        Raises VultronInvalidStateTransitionError on invalid trigger.
-        """
-        new_state = _apply_transition(
-            self.state, trigger, _vfd_transitions, "VfdDimension"
-        )
-        return self.model_copy(update={"state": CS_vfd(new_state)})
-
-    def is_vendor_aware(self) -> bool:
-        return self.state in VFD_VENDOR_AWARE
-
-    def is_fix_ready(self) -> bool:
-        return self.state in VFD_FIX_READY
-
-    def is_fix_deployed(self) -> bool:
-        return self.state in VFD_FIX_DEPLOYED
-
-
-class VfDimension(ValidatedAssignmentMixin, BaseModel):
+class VfDimension(_ScalarDimension):
     """Vendor-path (V+F) dimension object for per-participant ParticipantStatus.
 
     Holds vendor awareness + fix readiness in a 3-state monotone ladder
-    (vf → Vf → VF).  Replaces the V and F components of VfdDimension for
-    participants with VENDOR role (ADR-0075, SDO-01-003).
+    (vf → Vf → VF).  Introduced by ADR-0075 (SDO-01-003).
     """
 
     state: CS_vf = CS_vf.vf
@@ -341,10 +356,6 @@ class VfDimension(ValidatedAssignmentMixin, BaseModel):
     @classmethod
     def validate_state(cls, v: object) -> CS_vf:
         return _coerce_vf(v)
-
-    @field_serializer("state")
-    def serialize_state(self, v: CS_vf) -> str:
-        return v.name
 
     def transition(self, trigger: VF_Trigger) -> "VfDimension":
         """Return a new VfDimension with the state after applying *trigger*.
@@ -363,11 +374,11 @@ class VfDimension(ValidatedAssignmentMixin, BaseModel):
         return self.state in VF_FIX_READY
 
 
-class DDimension(ValidatedAssignmentMixin, BaseModel):
+class DDimension(_ScalarDimension):
     """Deployer-path (D) dimension object for per-participant ParticipantStatus.
 
     Holds fix deployment state in a 2-state monotone ladder (d → D).
-    Replaces the D component of VfdDimension for participants with DEPLOYER
+    Represents the D component for participants with DEPLOYER
     role (ADR-0075, SDO-01-003).
     """
 
@@ -377,10 +388,6 @@ class DDimension(ValidatedAssignmentMixin, BaseModel):
     @classmethod
     def validate_state(cls, v: object) -> CS_d:
         return _coerce_d(v)
-
-    @field_serializer("state")
-    def serialize_state(self, v: CS_d) -> str:
-        return v.name
 
     def transition(self, trigger: D_Trigger) -> "DDimension":
         """Return a new DDimension with the state after applying *trigger*.
@@ -396,7 +403,7 @@ class DDimension(ValidatedAssignmentMixin, BaseModel):
         return self.state in D_FIX_DEPLOYED
 
 
-class PecDimension(ValidatedAssignmentMixin, BaseModel):
+class PecDimension(_ScalarDimension):
     """Participant Embargo Consent dimension object.
 
     Holds a single participant's embargo consent state and owns immutable
@@ -404,22 +411,18 @@ class PecDimension(ValidatedAssignmentMixin, BaseModel):
     (SDO-01-001, SDO-03-002).
     """
 
-    state: PEC = PEC.NO_EMBARGO
+    state: PEC = PEC.UNBOUND
 
     @field_validator("state", mode="before")
     @classmethod
     def validate_state(cls, v: object) -> PEC:
         return _coerce_pec(v)
 
-    @field_serializer("state")
-    def serialize_state(self, v: PEC) -> str:
-        return v.name
-
     def transition(self, trigger: PEC_Trigger) -> "PecDimension":
         """Return a new PecDimension with the state after applying *trigger*.
 
         Raises VultronInvalidStateTransitionError on invalid trigger.
-        Supports the RESET wildcard ("*" → NO_EMBARGO from any state).
+        Supports the RESET wildcard ("*" → UNBOUND from any state).
         """
         new_state = _apply_transition(
             self.state, trigger, _pec_transitions, "PecDimension"

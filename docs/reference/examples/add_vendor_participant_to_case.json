@@ -1,36 +1,43 @@
 {
-  "@context": "https://www.w3.org/ns/activitystreams",
-  "asType": "Add",
-  "id": "https://for.example/22913447-854a-4d3e-959a-d3756fe3c7b2",
-  "name": "https://vultron.example/organizations/vendor Add VendorCo to https://vultron.example/cases/VDR-20991514",
+  "id": "urn:uuid:b8bfc105-1f12-436f-b94c-d5d5c9e63f89",
+  "type": "Add",
+  "name": "https://vultron.example/organizations/vendorco Add VendorCo to urn:uuid:a0a80546-90d9-482d-916a-72f47f8a64d6",
   "content": "We're adding ourselves as a participant to this case.",
-  "actor": "https://vultron.example/organizations/vendor",
-  "target": "https://vultron.example/cases/VDR-20991514",
+  "@context": "https://www.w3.org/ns/activitystreams",
+  "actor": "https://vultron.example/organizations/vendorco",
+  "target": "urn:uuid:a0a80546-90d9-482d-916a-72f47f8a64d6",
   "object": {
-    "@context": "https://www.w3.org/ns/activitystreams",
+    "id": "urn:uuid:a0a80546-90d9-482d-916a-72f47f8a64d6/participants/vendorco",
     "type": "CaseParticipant",
-    "id": "https://vultron.example/cases/VDR-20991514/participants/vendor",
     "name": "VendorCo",
-    "context": "https://vultron.example/cases/VDR-20991514",
-    "actor": "https://vultron.example/organizations/vendor",
+    "context": "urn:uuid:a0a80546-90d9-482d-916a-72f47f8a64d6",
+    "published": "2026-09-23T16:41:57+00:00",
+    "updated": "2026-09-23T16:41:57+00:00",
+    "attributedTo": "https://vultron.example/organizations/vendorco",
     "caseRoles": [
-      "VENDOR"
+      "vendor"
     ],
-    "participantStatus": [
+    "participantStatuses": [
       {
-        "@context": "https://www.w3.org/ns/activitystreams",
+        "id": "urn:uuid:c5e4675e-671f-4892-a709-21aa608f0ed8",
         "type": "ParticipantStatus",
-        "id": "https://for.example/4748b4ea-7423-4202-a575-ece8e69ab305",
-        "name": "REPORT_MANAGEMENT_RECEIVED Vfd",
-        "context": "https://vultron.example/cases/VDR-20991514",
-        "published": "2024-01-22T20:29:47+00:00",
-        "updated": "2024-01-22T20:29:47+00:00",
-        "actor": "https://vultron.example/organizations/vendor",
-        "rmState": "REPORT_MANAGEMENT_RECEIVED",
-        "vfdState": "Vfd",
+        "name": "RECEIVED Vf",
+        "context": "urn:uuid:a0a80546-90d9-482d-916a-72f47f8a64d6",
+        "published": "2026-09-23T16:41:57+00:00",
+        "updated": "2026-09-23T16:41:57+00:00",
+        "attributedTo": "https://vultron.example/organizations/vendorco",
+        "rmState": "RECEIVED",
+        "vfState": "Vf",
         "caseEngagement": true,
-        "embargoAdherence": true
+        "cvdRole": [
+          "OBSERVER"
+        ],
+        "embargoAdherence": false,
+        "@context": "https://certcc.github.io/Vultron/ns/context.jsonld"
       }
-    ]
+    ],
+    "acceptedEmbargoIds": [],
+    "embargoConsentState": "UNBOUND",
+    "@context": "https://certcc.github.io/Vultron/ns/context.jsonld"
   }
 }

@@ -19,6 +19,7 @@ sense the docs actually use.
 *[AKM]: Actor Knowledge Model
 *[AMA]: Ask Me Anything
 *[API]: Application Programming Interface
+*[AS]: ActivityStreams
 *[AS2]: ActivityStreams Vocabulary 2.0
 *[ASCII]: American Standard Code for Information Interchange
 *[ATM]: Automated Teller Machine
@@ -67,6 +68,7 @@ sense the docs actually use.
 *[DFAs]: Deterministic Finite Automata
 *[DFIR]: Digital Forensics and Incident Response
 *[DHS]: U.S. Department of Homeland Security
+*[DKIM]: DomainKeys Identified Mail
 *[DNS]: Domain Name System
 *[DoD]: U.S. Department of Defense
 *[DoJ]: U.S. Department of Justice
@@ -127,6 +129,7 @@ sense the docs actually use.
 
 *[JPCERT/CC]: Japan Computer Emergency Response Team Coordination Center
 *[JSON]: JavaScript Object Notation
+*[JSON-LD]: JavaScript Object Notation for Linked Data
 *[JTAG]: Joint Test Action Group
 *[JVN]: Japan Vulnerability Notes
 
@@ -138,6 +141,8 @@ sense the docs actually use.
 *[MON]: The Monitoring Process Area of the CERT Resilience Management Model
 *[MPCVD]: Multi-Party Coordinated Vulnerability Disclosure
 *[MPLS]: Multiprotocol Label Switching
+*[mTLS]: Mutual Transport Layer Security
+*[MX]: Mail Exchanger
 
 *[NCSC]: National Cyber Security Centre
 *[NDA]: Non-Disclosure Agreement
@@ -155,6 +160,7 @@ sense the docs actually use.
 *[OpSec]: Operational Security
 *[OS]: Operating System
 *[OUSPG]: Oulu University Secure Programming Group
+*[OWL]: Web Ontology Language
 
 *[PCI DSS]: Payment Card Industry Data Security Standard
 *[PEC]: Participant Embargo Consent
@@ -164,9 +170,9 @@ sense the docs actually use.
 *[PSIRTs]: Product Security Incident Response Teams
 *[PXA]: Public aware, eXploit public, Attacks observed — the public-path case state dimensions
 
-*[RA]: Report Accepted (RM message)
+*[RA]: Report/Case Accepted (RM message)
 *[RC]: Report Closed (RM message)
-*[RD]: Report Deferred (RM message)
+*[RD]: Report/Case Deferred (RM message)
 *[RE]: Report Error (RM message)
 *[REST]: Representational State Transfer
 *[RFC]: Request for Comments
@@ -217,6 +223,7 @@ sense the docs actually use.
 *[TVs]: Televisions
 
 *[UK]: United Kingdom
+*[UML]: Unified Modeling Language
 *[URI]: Uniform Resource Identifier
 *[URIs]: Uniform Resource Identifiers
 *[URL]: Uniform Resource Locator

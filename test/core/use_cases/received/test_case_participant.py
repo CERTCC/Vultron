@@ -60,7 +60,7 @@ class TestCaseParticipantUseCases:
         remove_activity = as_Remove(
             actor="https://example.org/users/owner",
             object_=participant,
-            target=case,
+            target=case.id_,
         )
 
         event = make_payload(remove_activity)
@@ -109,7 +109,7 @@ class TestCaseParticipantUseCases:
         remove_activity = as_Remove(
             actor="https://example.org/users/owner",
             object_=participant,
-            target=case,
+            target=case.id_,
         )
 
         event = make_payload(remove_activity)
@@ -154,7 +154,7 @@ class TestCaseParticipantUseCases:
         add_activity = as_Add(
             actor="https://example.org/users/owner",
             object_=participant,
-            target=case,
+            target=case.id_,
         )
 
         event = make_payload(add_activity)
@@ -205,7 +205,7 @@ class TestCaseParticipantUseCases:
         add_activity = as_Add(
             actor="https://example.org/users/owner",
             object_=participant,
-            target=case,
+            target=case.id_,
         )
         event = make_payload(add_activity)
 

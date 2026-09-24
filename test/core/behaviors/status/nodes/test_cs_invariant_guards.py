@@ -37,6 +37,9 @@ from vultron.core.behaviors.status.nodes.cs_invariant_guards import (
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.states.cs import CS_pxa
 from vultron.wire.as2.vocab.objects.case_status import as_CaseStatus
+from vultron.core.models.dimensions import (
+    PxaDimension,
+)
 
 ACTOR_ID = "https://example.org/actors/vendor"
 CASE_ID = "https://example.org/cases/inv-guards-01"
@@ -87,7 +90,7 @@ class TestCheckCsEphemeralStateNode:
         case = _make_case_with_pxa(CS_pxa.pXa)
         dl.create(case)
         asserted = as_CaseStatus(
-            id_=STATUS_ID, context=CASE_ID, pxa_state=CS_pxa.pXA
+            id_=STATUS_ID, context=CASE_ID, pxa=PxaDimension(state=CS_pxa.pXA)
         )
         dl.create(asserted)
 
@@ -100,7 +103,7 @@ class TestCheckCsEphemeralStateNode:
         case = _make_case_with_pxa(CS_pxa.pXa)
         dl.create(case)
         asserted = as_CaseStatus(
-            id_=STATUS_ID, context=CASE_ID, pxa_state=CS_pxa.PXa
+            id_=STATUS_ID, context=CASE_ID, pxa=PxaDimension(state=CS_pxa.PXa)
         )
         dl.create(asserted)
 
@@ -112,7 +115,7 @@ class TestCheckCsEphemeralStateNode:
         case = _make_case_with_pxa(CS_pxa.pXa)
         dl.create(case)
         asserted = as_CaseStatus(
-            id_=STATUS_ID, context=CASE_ID, pxa_state=CS_pxa.PXA
+            id_=STATUS_ID, context=CASE_ID, pxa=PxaDimension(state=CS_pxa.PXA)
         )
         dl.create(asserted)
 
@@ -124,7 +127,7 @@ class TestCheckCsEphemeralStateNode:
         case = _make_case_with_pxa(CS_pxa.Pxa)
         dl.create(case)
         asserted = as_CaseStatus(
-            id_=STATUS_ID, context=CASE_ID, pxa_state=CS_pxa.PXa
+            id_=STATUS_ID, context=CASE_ID, pxa=PxaDimension(state=CS_pxa.PXa)
         )
         dl.create(asserted)
 
@@ -142,20 +145,26 @@ class TestCheckCsEphemeralStateNode:
         bare_case = VulnerabilityCase(id_=CASE_ID, context=ACTOR_ID)
         dl.create(bare_case)
         asserted = as_CaseStatus(
-            id_=STATUS_ID, context=CASE_ID, pxa_state=CS_pxa.pXA
+            id_=STATUS_ID, context=CASE_ID, pxa=PxaDimension(state=CS_pxa.pXA)
         )
         dl.create(asserted)
 
         node = CheckCsEphemeralStateNode(case_id=CASE_ID, status_id=STATUS_ID)
         assert _run(bridge, node) == Status.SUCCESS
 
-    def test_case_not_found_succeeds(self, bridge):
-        """Case not in DataLayer → SUCCESS (cannot evaluate constraint)."""
+    def test_case_not_found_fails(self, bridge):
+        """Case referenced but not in DataLayer → FAILURE (Regime 1, ADR-0087).
+
+        A present-but-unresolvable case_id is an anomaly; each Regime-1 node
+        hard-fails via ``require_case`` rather than deferring to a downstream
+        gate. (Absent case_id remains a no-op SUCCESS — see the ARCH-15-001
+        tests below.)
+        """
         node = CheckCsEphemeralStateNode(
             case_id="https://example.org/cases/nonexistent",
             status_id=STATUS_ID,
         )
-        assert _run(bridge, node) == Status.SUCCESS
+        assert _run(bridge, node) == Status.FAILURE
 
     def test_unresolvable_asserted_defers(self, dl, bridge):
         """Status not in DL and no fallback → SUCCESS (deferred to FilterCsEm)."""
@@ -216,7 +225,7 @@ class TestCheckCsHistoryPrefixNode:
         case = _make_case_with_pxa(CS_pxa.pXa)
         dl.create(case)
         asserted = as_CaseStatus(
-            id_=STATUS_ID, context=CASE_ID, pxa_state=CS_pxa.pXA
+            id_=STATUS_ID, context=CASE_ID, pxa=PxaDimension(state=CS_pxa.pXA)
         )
         dl.create(asserted)
 
@@ -229,7 +238,7 @@ class TestCheckCsHistoryPrefixNode:
         case = _make_case_with_pxa(CS_pxa.pXa)
         dl.create(case)
         asserted = as_CaseStatus(
-            id_=STATUS_ID, context=CASE_ID, pxa_state=CS_pxa.PXa
+            id_=STATUS_ID, context=CASE_ID, pxa=PxaDimension(state=CS_pxa.PXa)
         )
         dl.create(asserted)
 
@@ -241,7 +250,7 @@ class TestCheckCsHistoryPrefixNode:
         case = _make_case_with_pxa(CS_pxa.pxa)
         dl.create(case)
         asserted = as_CaseStatus(
-            id_=STATUS_ID, context=CASE_ID, pxa_state=CS_pxa.pXa
+            id_=STATUS_ID, context=CASE_ID, pxa=PxaDimension(state=CS_pxa.pXa)
         )
         dl.create(asserted)
 
@@ -253,7 +262,7 @@ class TestCheckCsHistoryPrefixNode:
         case = _make_case_with_pxa(CS_pxa.pXa)
         dl.create(case)
         asserted = as_CaseStatus(
-            id_=STATUS_ID, context=CASE_ID, pxa_state=CS_pxa.pXa
+            id_=STATUS_ID, context=CASE_ID, pxa=PxaDimension(state=CS_pxa.pXa)
         )
         dl.create(asserted)
 
@@ -265,20 +274,20 @@ class TestCheckCsHistoryPrefixNode:
         case = _make_case_with_pxa(CS_pxa.pxa)
         dl.create(case)
         asserted = as_CaseStatus(
-            id_=STATUS_ID, context=CASE_ID, pxa_state=CS_pxa.PXA
+            id_=STATUS_ID, context=CASE_ID, pxa=PxaDimension(state=CS_pxa.PXA)
         )
         dl.create(asserted)
 
         node = CheckCsHistoryPrefixNode(case_id=CASE_ID, status_id=STATUS_ID)
         assert _run(bridge, node) == Status.SUCCESS
 
-    def test_case_not_found_succeeds(self, bridge):
-        """Case not in DataLayer → SUCCESS."""
+    def test_case_not_found_fails(self, bridge):
+        """Case referenced but not in DataLayer → FAILURE (Regime 1, ADR-0087)."""
         node = CheckCsHistoryPrefixNode(
             case_id="https://example.org/cases/nonexistent",
             status_id=STATUS_ID,
         )
-        assert _run(bridge, node) == Status.SUCCESS
+        assert _run(bridge, node) == Status.FAILURE
 
     def test_first_ever_status_succeeds(self, dl, bridge):
         """No current status (first ever) → SUCCESS.
@@ -291,7 +300,7 @@ class TestCheckCsHistoryPrefixNode:
         bare_case = VulnerabilityCase(id_=CASE_ID, context=ACTOR_ID)
         dl.create(bare_case)
         asserted = as_CaseStatus(
-            id_=STATUS_ID, context=CASE_ID, pxa_state=CS_pxa.pXA
+            id_=STATUS_ID, context=CASE_ID, pxa=PxaDimension(state=CS_pxa.pXA)
         )
         dl.create(asserted)
 
@@ -339,7 +348,7 @@ class TestCsGuardDryRefactorRegression:
         case = _make_case_with_pxa(CS_pxa.pXa)
         dl.create(case)
         asserted = as_CaseStatus(
-            id_=STATUS_ID, context=CASE_ID, pxa_state=CS_pxa.pXA
+            id_=STATUS_ID, context=CASE_ID, pxa=PxaDimension(state=CS_pxa.pXA)
         )
         dl.create(asserted)
 
@@ -351,7 +360,7 @@ class TestCsGuardDryRefactorRegression:
         case = _make_case_with_pxa(CS_pxa.pXa)
         dl.create(case)
         asserted = as_CaseStatus(
-            id_=STATUS_ID, context=CASE_ID, pxa_state=CS_pxa.pXA
+            id_=STATUS_ID, context=CASE_ID, pxa=PxaDimension(state=CS_pxa.pXA)
         )
         dl.create(asserted)
 

@@ -36,9 +36,9 @@ import pytest
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
 from vultron.core.behaviors.bridge import BTBridge
-from vultron.core.behaviors.case.case_proposal_received_tree import (
-    _ClearCreateCaseMarkerNode,
-    _WriteCreateCaseMarkerNode,
+from vultron.core.behaviors.case.nodes import (
+    ClearCreateCaseMarkerNode,
+    WriteCreateCaseMarkerNode,
 )
 from vultron.core.models.pending_create_case_activity import (
     PendingCreateCaseActivity,
@@ -137,7 +137,7 @@ _CASE_URI = "https://example.org/cases/c-001"
 
 @pytest.mark.spec("CP-05-005")
 class TestWriteCreateCaseMarkerNode:
-    """Unit tests for _WriteCreateCaseMarkerNode."""
+    """Unit tests for WriteCreateCaseMarkerNode."""
 
     def _seed_case(self, dl: SqliteDataLayer, case_id: str) -> None:
         """Seed a minimal VulnerabilityCase so _build_case_object succeeds."""
@@ -153,10 +153,10 @@ class TestWriteCreateCaseMarkerNode:
         accept_id: str,
         seed: bool = True,
     ) -> py_trees.common.Status:
-        """Execute _WriteCreateCaseMarkerNode via BTBridge."""
+        """Execute WriteCreateCaseMarkerNode via BTBridge."""
         if seed:
             self._seed_case(dl, case_id)
-        node = _WriteCreateCaseMarkerNode(
+        node = WriteCreateCaseMarkerNode(
             proposal_id=_PROPOSAL_URI, vendor_uri=_VENDOR_URI
         )
         # Wrap in a Sequence so BTBridge can set up the blackboard.
@@ -262,7 +262,7 @@ class TestWriteCreateCaseMarkerNode:
             "sqlite:///:memory:",
             actor_id=_CASE_ACTOR_URI,
         )
-        node = _WriteCreateCaseMarkerNode(
+        node = WriteCreateCaseMarkerNode(
             proposal_id=_PROPOSAL_URI, vendor_uri=_VENDOR_URI
         )
         tree = py_trees.composites.Sequence(
@@ -286,7 +286,7 @@ class TestWriteCreateCaseMarkerNode:
             "sqlite:///:memory:",
             actor_id=_CASE_ACTOR_URI,
         )
-        node = _WriteCreateCaseMarkerNode(
+        node = WriteCreateCaseMarkerNode(
             proposal_id=_PROPOSAL_URI, vendor_uri=_VENDOR_URI
         )
         tree = py_trees.composites.Sequence(
@@ -329,12 +329,12 @@ class TestWriteCreateCaseMarkerNode:
 
 @pytest.mark.spec("CP-05-005")
 class TestClearCreateCaseMarkerNode:
-    """Unit tests for _ClearCreateCaseMarkerNode."""
+    """Unit tests for ClearCreateCaseMarkerNode."""
 
     def _run_clear_node(
         self, dl: SqliteDataLayer, actor_id: str
     ) -> py_trees.common.Status:
-        node = _ClearCreateCaseMarkerNode(proposal_id=_PROPOSAL_URI)
+        node = ClearCreateCaseMarkerNode(proposal_id=_PROPOSAL_URI)
         tree = py_trees.composites.Sequence(
             name="TestSeq", memory=False, children=[node]
         )
@@ -344,7 +344,7 @@ class TestClearCreateCaseMarkerNode:
         return result.status
 
     def test_removes_existing_marker(self):
-        """Marker is absent after _ClearCreateCaseMarkerNode runs (AC-3)."""
+        """Marker is absent after ClearCreateCaseMarkerNode runs (AC-3)."""
         dl = SqliteDataLayer(
             "sqlite:///:memory:",
             actor_id=_CASE_ACTOR_URI,
@@ -375,7 +375,7 @@ class TestClearCreateCaseMarkerNode:
         assert status == py_trees.common.Status.SUCCESS
 
     def test_always_returns_success(self):
-        """_ClearCreateCaseMarkerNode always returns SUCCESS regardless of delete result."""
+        """ClearCreateCaseMarkerNode always returns SUCCESS regardless of delete result."""
         dl = SqliteDataLayer(
             "sqlite:///:memory:",
             actor_id=_CASE_ACTOR_URI,
@@ -427,8 +427,8 @@ class TestCreateCaseProposalReceivedBTMarkerWiring:
 
     def test_marker_present_when_create_fails(self, make_payload):
         """AC-2 / AC-4: Marker is written and persists when Create delivery fails."""
-        from vultron.core.behaviors.case.case_proposal_received_tree import (
-            _EmitCreateVulnerabilityCaseNode,
+        from vultron.core.behaviors.case.nodes import (
+            EmitCreateVulnerabilityCaseNode,
         )
         from vultron.core.use_cases.received.case_proposal import (
             CreateCaseProposalReceivedUseCase,
@@ -442,7 +442,7 @@ class TestCreateCaseProposalReceivedBTMarkerWiring:
 
         # Patch the Create-emit node so it fails after Accept and marker write.
         with patch.object(
-            _EmitCreateVulnerabilityCaseNode,
+            EmitCreateVulnerabilityCaseNode,
             "update",
             return_value=py_trees.common.Status.FAILURE,
         ):
@@ -461,8 +461,8 @@ class TestCreateCaseProposalReceivedBTMarkerWiring:
 
     def test_marker_payload_stored_on_partial_failure(self, make_payload):
         """AC-1 / AC-4: Marker payload is non-empty on partial failure."""
-        from vultron.core.behaviors.case.case_proposal_received_tree import (
-            _EmitCreateVulnerabilityCaseNode,
+        from vultron.core.behaviors.case.nodes import (
+            EmitCreateVulnerabilityCaseNode,
         )
         from vultron.core.use_cases.received.case_proposal import (
             CreateCaseProposalReceivedUseCase,
@@ -475,7 +475,7 @@ class TestCreateCaseProposalReceivedBTMarkerWiring:
         event = self._make_event(make_payload)
 
         with patch.object(
-            _EmitCreateVulnerabilityCaseNode,
+            EmitCreateVulnerabilityCaseNode,
             "update",
             return_value=py_trees.common.Status.FAILURE,
         ):
@@ -493,20 +493,20 @@ class TestCreateCaseProposalReceivedBTMarkerWiring:
     def test_emit_node_uses_marker_activity_id(self, make_payload):
         """AC-4: The activity id_ enqueued by node 4 matches the marker payload id_.
 
-        ``_WriteCreateCaseMarkerNode`` (node 3) and
-        ``_EmitCreateVulnerabilityCaseNode`` (node 4) must share the same
+        ``WriteCreateCaseMarkerNode`` (node 3) and
+        ``EmitCreateVulnerabilityCaseNode`` (node 4) must share the same
         activity ``id_``.  If they diverge, the retry runner checks the
         marker's ``id_`` against the outbox and — not finding it — enqueues
         a second ``Create(as_VulnerabilityCase)`` as a duplicate.
 
         This test asserts ID consistency by:
-        1. Running the full BT with ``_ClearCreateCaseMarkerNode`` no-oped so
+        1. Running the full BT with ``ClearCreateCaseMarkerNode`` no-oped so
            the marker is preserved after node 4 succeeds.
         2. Reconstructing the activity from the marker's stored payload.
         3. Verifying that ``id_`` is present in the case-actor's outbox.
         """
-        from vultron.core.behaviors.case.case_proposal_received_tree import (
-            _ClearCreateCaseMarkerNode,
+        from vultron.core.behaviors.case.nodes import (
+            ClearCreateCaseMarkerNode,
         )
         from vultron.core.models.activity import VultronCreateCaseActivity
         from vultron.core.use_cases.received.case_proposal import (
@@ -521,11 +521,11 @@ class TestCreateCaseProposalReceivedBTMarkerWiring:
 
         # Patch the clear node to skip deletion so the marker stays in the DL.
         def _skip_delete(
-            self_node: _ClearCreateCaseMarkerNode,
+            self_node: ClearCreateCaseMarkerNode,
         ) -> py_trees.common.Status:  # noqa: N803
             return py_trees.common.Status.SUCCESS
 
-        with patch.object(_ClearCreateCaseMarkerNode, "update", _skip_delete):
+        with patch.object(ClearCreateCaseMarkerNode, "update", _skip_delete):
             CreateCaseProposalReceivedUseCase(
                 dl, event, wire_render_port=As2WireRenderAdapter()
             ).execute()
@@ -971,9 +971,9 @@ class TestCM14005ReporterSignatory:
         )
 
     def test_no_active_embargo_reporter_remains_no_embargo(self):
-        """AC-3: _SeedReporterSignatoryNode no-ops gracefully when no active embargo."""
-        from vultron.core.behaviors.case.case_proposal_received_tree import (
-            _SeedReporterSignatoryNode,
+        """AC-3: SeedReporterSignatoryNode no-ops gracefully when no active embargo."""
+        from vultron.core.behaviors.case.nodes import (
+            SeedReporterSignatoryNode,
         )
         from vultron.core.models.case import VulnerabilityCase
         from vultron.core.models.case_participant import CaseParticipant
@@ -1000,7 +1000,7 @@ class TestCM14005ReporterSignatory:
         )
         dl.save(report)
 
-        node = _SeedReporterSignatoryNode(report_id=_REPORT_URI)
+        node = SeedReporterSignatoryNode(report_id=_REPORT_URI)
         tree = py_trees.composites.Sequence(
             name="TestSeq", memory=False, children=[node]
         )
@@ -1014,21 +1014,21 @@ class TestCM14005ReporterSignatory:
             tree=tree, actor_id=_CASE_ACTOR_URI
         )
         assert result.status == py_trees.common.Status.SUCCESS, (
-            "_SeedReporterSignatoryNode must return SUCCESS when no active"
+            "SeedReporterSignatoryNode must return SUCCESS when no active"
             " embargo (AC-3, best-effort)"
         )
         stored_participant = dl.read(reporter_participant.id_)
         assert isinstance(stored_participant, CaseParticipant)
-        assert stored_participant.embargo_consent_state == PEC.NO_EMBARGO, (
-            "Reporter must remain NO_EMBARGO when no active embargo exists"
+        assert stored_participant.embargo_consent_state == PEC.UNBOUND, (
+            "Reporter must remain UNBOUND when no active embargo exists"
             " (CM-14-005 AC-3)"
         )
 
     def test_reporter_signatory_ledger_snapshot_consistent(self, make_payload):
         """AC-4: ledger snapshot for reporter shows SIGNATORY consent.
 
-        The ``_CommitNativeLedgerEntriesNode`` runs *after*
-        ``_SeedReporterSignatoryNode``, so the participant status it snapshots
+        The ``CommitNativeLedgerEntriesNode`` runs *after*
+        ``SeedReporterSignatoryNode``, so the participant status it snapshots
         must already carry ``emConsentState=SIGNATORY`` and
         ``embargoAdherence=True`` — no contradictory pair.
         """
@@ -1338,8 +1338,8 @@ class TestADR0041InlineParticipantsPayload:
 
     def test_marker_payload_has_inline_participants(self, make_payload):
         """Create payload in marker must embed participants as objects, not IDs."""
-        from vultron.core.behaviors.case.case_proposal_received_tree import (
-            _ClearCreateCaseMarkerNode,
+        from vultron.core.behaviors.case.nodes import (
+            ClearCreateCaseMarkerNode,
         )
         from vultron.core.use_cases.received.case_proposal import (
             CreateCaseProposalReceivedUseCase,
@@ -1355,7 +1355,7 @@ class TestADR0041InlineParticipantsPayload:
         def _skip_delete(self_node):
             return py_trees.common.Status.SUCCESS
 
-        with patch.object(_ClearCreateCaseMarkerNode, "update", _skip_delete):
+        with patch.object(ClearCreateCaseMarkerNode, "update", _skip_delete):
             CreateCaseProposalReceivedUseCase(
                 dl, event, wire_render_port=As2WireRenderAdapter()
             ).execute()
@@ -1384,8 +1384,8 @@ class TestADR0041InlineParticipantsPayload:
 
     def test_vendor_participant_inline_in_payload(self, make_payload):
         """Vendor participant must appear as inline object in Create payload."""
-        from vultron.core.behaviors.case.case_proposal_received_tree import (
-            _ClearCreateCaseMarkerNode,
+        from vultron.core.behaviors.case.nodes import (
+            ClearCreateCaseMarkerNode,
         )
         from vultron.core.use_cases.received.case_proposal import (
             CreateCaseProposalReceivedUseCase,
@@ -1401,7 +1401,7 @@ class TestADR0041InlineParticipantsPayload:
         def _skip_delete(self_node):
             return py_trees.common.Status.SUCCESS
 
-        with patch.object(_ClearCreateCaseMarkerNode, "update", _skip_delete):
+        with patch.object(ClearCreateCaseMarkerNode, "update", _skip_delete):
             CreateCaseProposalReceivedUseCase(
                 dl, event, wire_render_port=As2WireRenderAdapter()
             ).execute()
@@ -1464,7 +1464,7 @@ class TestADR0041Idempotency:
         ]
 
         # Second delivery of the SAME proposal — marker was cleared, so the
-        # AC-3 guard falls through; _LoadExistingCaseNode must reuse the case.
+        # AC-3 guard falls through; LoadExistingCaseNode must reuse the case.
         _run_full_bt(make_payload, dl)
 
         cases_after = list(dl.list_objects("VulnerabilityCase"))
@@ -1510,12 +1510,12 @@ class TestADR0041Idempotency:
         """
         from datetime import datetime, timedelta, timezone
 
-        from vultron.wire.as2.vocab.base import dt_utils
+        from vultron.core.models import _helpers
 
         class _AdvancingClock:
             """A ``datetime`` stand-in whose ``now()`` steps forward a second.
 
-            Patched into ``dt_utils`` rather than onto the models: the
+            Patched into ``_helpers`` rather than onto the models: the
             ``published``/``updated`` defaults capture ``now_utc`` itself at
             class-definition time, so patching that name has no effect once the
             fields are built.  ``now_utc`` looks ``datetime`` up in its own
@@ -1530,7 +1530,7 @@ class TestADR0041Idempotency:
                 return self._t
 
         monkeypatch.setattr(
-            dt_utils,
+            _helpers,
             "datetime",
             _AdvancingClock(datetime.now(timezone.utc)),
         )
@@ -1577,11 +1577,11 @@ class TestADR0041GenesisCommitFailure:
         """
         from py_trees.common import Status
 
-        from vultron.core.behaviors.case.case_proposal_received_tree import (
-            _CommitNativeLedgerEntriesNode,
+        from vultron.core.behaviors.case.nodes import (
+            CommitNativeLedgerEntriesNode,
         )
 
-        node = _CommitNativeLedgerEntriesNode(
+        node = CommitNativeLedgerEntriesNode(
             vendor_uri=_VENDOR_URI, report_id=_REPORT_URI
         )
 
@@ -1606,7 +1606,7 @@ class TestADR0041GenesisCommitFailure:
         node.blackboard = _BB()  # type: ignore[assignment]
 
         with patch.object(
-            _CommitNativeLedgerEntriesNode,
+            CommitNativeLedgerEntriesNode,
             "_commit_one",
             return_value=False,
         ):
@@ -1621,11 +1621,11 @@ class TestADR0041GenesisCommitFailure:
         """case-not-found in the ledger node is best-effort SUCCESS."""
         from py_trees.common import Status
 
-        from vultron.core.behaviors.case.case_proposal_received_tree import (
-            _CommitNativeLedgerEntriesNode,
+        from vultron.core.behaviors.case.nodes import (
+            CommitNativeLedgerEntriesNode,
         )
 
-        node = _CommitNativeLedgerEntriesNode(
+        node = CommitNativeLedgerEntriesNode(
             vendor_uri=_VENDOR_URI, report_id=_REPORT_URI
         )
         dl = SqliteDataLayer(
@@ -1710,7 +1710,7 @@ class TestCaseActorRMLifecycleBootstrap:
 
         CM-23-007: CaseActor MUST emit CaseLedgerEntry records for each of its
         RM transitions (RM.RECEIVED, RM.VALID, RM.ACCEPTED) during
-        initialization.  _CommitNativeLedgerEntriesNode iterates all
+        initialization.  CommitNativeLedgerEntriesNode iterates all
         participant_statuses entries, including the CaseActor's three bootstrap
         records.
         """
@@ -1766,7 +1766,7 @@ class TestCaseActorRMLifecycleBootstrap:
     def test_bootstrap_statuses_idempotent_on_duplicate(self, make_payload):
         """Duplicate proposal does not add extra CaseActor statuses.
 
-        The idempotency guard in _AddCaseActorParticipantNode returns SUCCESS
+        The idempotency guard in AddCaseActorParticipantNode returns SUCCESS
         immediately when the CaseActor is already in actor_participant_index,
         so a second CreateCaseProposalReceivedUseCase run must not grow the
         participant's status list.
@@ -1838,7 +1838,7 @@ class TestAllParticipantsRMClosedIncludesCaseActor:
                 rm=RmDimension(state=rm_state),
                 attributed_to=actor_uri,
                 cvd_role=[CVDRole.CASE_OWNER],
-                consent=PecDimension(state=PEC.NO_EMBARGO),
+                consent=PecDimension(state=PEC.UNBOUND),
             )
             dl.save(ps)
             return ps
@@ -1930,7 +1930,7 @@ class TestAllParticipantsRMClosedIncludesCaseActor:
             rm=RmDimension(state=RM.CLOSED),
             attributed_to=_CASE_ACTOR_URI,
             cvd_role=[CVDRole.COORDINATOR, CVDRole.CASE_MANAGER],
-            consent=PecDimension(state=PEC.NO_EMBARGO),
+            consent=PecDimension(state=PEC.UNBOUND),
         )
         dl.save(closed_ps)
         participant.participant_statuses.append(closed_ps)
@@ -2133,21 +2133,21 @@ def test_store_proposal_report_keeps_the_reporter(caplog):
     ``extra="ignore"``, dropped the key silently and reported "has no
     attributed_to" from three nodes away.
     """
-    from vultron.core.behaviors.case.case_proposal_received_tree import (
-        _StoreProposalReportNode,
+    from vultron.core.behaviors.case.nodes import (
+        StoreProposalReportNode,
     )
     from vultron.core.models.report import VulnerabilityReport
 
     dl = SqliteDataLayer("sqlite:///:memory:", actor_id=_CASE_ACTOR_URI)
     proposal = _proposal_with_inline_report()
 
-    node = _StoreProposalReportNode(
+    node = StoreProposalReportNode(
         report_id=_REPORT_URI_2482,
         # by_alias=True is what the real use case passes.
         proposal_dict=proposal.model_dump(
             by_alias=True, serialize_as_any=True
         ),
-        inline_report=cast(Any, proposal.object_).to_core(),
+        inline_report=cast(Any, proposal.object_),
     )
     py_trees.blackboard.Blackboard.storage.clear()
     result = BTBridge(datalayer=dl).execute_with_setup(
@@ -2173,15 +2173,15 @@ def test_store_proposal_report_falls_back_to_the_wire_dict(caplog):
     have only the proposal dict. That fallback must keep working, so the
     reporter-preserving path is an addition rather than a replacement.
     """
-    from vultron.core.behaviors.case.case_proposal_received_tree import (
-        _StoreProposalReportNode,
+    from vultron.core.behaviors.case.nodes import (
+        StoreProposalReportNode,
     )
     from vultron.core.models.report import VulnerabilityReport
 
     dl = SqliteDataLayer("sqlite:///:memory:", actor_id=_CASE_ACTOR_URI)
     proposal = _proposal_with_inline_report()
 
-    node = _StoreProposalReportNode(
+    node = StoreProposalReportNode(
         report_id=_REPORT_URI_2482,
         # Core spelling, as a non-wire caller would already have.
         proposal_dict=proposal.model_dump(serialize_as_any=True),

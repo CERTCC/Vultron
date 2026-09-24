@@ -1,9 +1,43 @@
 {
-  "@context": "https://www.w3.org/ns/activitystreams",
-  "asType": "Ignore",
-  "id": "https://for.example/3069563e-2d2e-47b8-ad78-f4f295ece3b1",
-  "name": "https://vultron.example/organizations/vendor Ignore https://vultron.example/cases/VDR-20991514",
+  "id": "urn:uuid:f82fe139-bf18-4bbe-8e40-8b0da87fdbad",
+  "type": "Ignore",
+  "name": "https://vultron.example/organizations/vendorco Ignore VendorCo Case #61038668",
   "content": "We're deferring this case.",
-  "actor": "https://vultron.example/organizations/vendor",
-  "object": "https://vultron.example/cases/VDR-20991514"
+  "@context": "https://www.w3.org/ns/activitystreams",
+  "actor": "https://vultron.example/organizations/vendorco",
+  "object": {
+    "id": "urn:uuid:a0a80546-90d9-482d-916a-72f47f8a64d6",
+    "type": "VulnerabilityCase",
+    "name": "VendorCo Case #61038668",
+    "published": "2026-09-23T16:41:56+00:00",
+    "updated": "2026-09-23T16:41:56+00:00",
+    "attributedTo": "https://vultron.example/organizations/vendorco",
+    "caseParticipants": [],
+    "actorParticipantIndex": {},
+    "vulnerabilityReports": [],
+    "caseStatuses": [
+      {
+        "id": "urn:uuid:ad9a662e-e103-401e-998e-b3ae27edceeb",
+        "type": "CaseStatus",
+        "name": "NONE pxa",
+        "context": "urn:uuid:a0a80546-90d9-482d-916a-72f47f8a64d6",
+        "published": "2026-09-23T16:41:56+00:00",
+        "updated": "2026-09-23T16:41:56+00:00",
+        "attributedTo": "https://vultron.example/organizations/vendorco",
+        "emState": "NONE",
+        "pxaState": "pxa",
+        "@context": "https://certcc.github.io/Vultron/ns/context.jsonld"
+      }
+    ],
+    "notes": [],
+    "proposedEmbargoes": [],
+    "pendingEmbargoProposalIndex": {},
+    "recommendationRecommenderIndex": {},
+    "caseActivity": [],
+    "genesisHash": "84e1411f242ec6e1e1ee9cd6cb6cc3d05d4a85c44aa8030fbeb13edc81a031d9",
+    "parentCases": [],
+    "childCases": [],
+    "siblingCases": [],
+    "@context": "https://certcc.github.io/Vultron/ns/context.jsonld"
+  }
 }

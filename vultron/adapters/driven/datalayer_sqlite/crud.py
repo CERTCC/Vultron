@@ -22,12 +22,12 @@ from sqlmodel import Session, select
 
 from vultron.adapters.driven.db_record import (
     Record,
-    _NORMALIZE_WIRE_TO_CORE,
     object_to_record,
 )
 from vultron.adapters.utils import _URN_UUID_PREFIX, _UUID_RE
 from vultron.core.models.protocols import PersistableModel
 from vultron.core.ports.datalayer import StorableRecord
+from vultron.errors import VultronAlreadyExistsError
 
 from .schema import VultronObjectRecord, QueueEntry, participant_status_summary
 
@@ -35,32 +35,25 @@ logger = logging.getLogger(__name__)
 
 
 def _storable_to_record(record: StorableRecord) -> Record:
-    """Normalise a StorableRecord through the full wire→core path.
+    """Wrap a StorableRecord's fields as a :class:`Record`, verbatim.
 
-    Only types in :data:`_NORMALIZE_WIRE_TO_CORE` require a round-trip
-    (currently ``CaseParticipant`` and ``ParticipantStatus``).  For all other
-    types the ``data_`` is preserved verbatim — the vocabulary round-trip
-    would deserialise against the *base* wire class and silently lose
-    subtype-specific fields (e.g. ``embargo_policy`` on ``VultronPerson``).
+    Write-side wire→core normalisation was removed with ``extra="forbid"``
+    (ADR-0082, #2940): a core type now rejects a wire-shaped payload loudly
+    rather than silently mis-storing it, and any row that is nonetheless
+    persisted in a wire shape is projected to its core counterpart on read by
+    :func:`~vultron.adapters.driven.datalayer_sqlite.hydration.project_wire_row_to_core`.
+    So this preserves ``data_`` unchanged; the vocabulary round-trip it used
+    to run for the shadowing types is no longer needed and would have
+    deserialised against the *base* wire class, losing subtype-specific fields.
     """
-    tmp = Record(id_=record.id_, type_=record.type_, data_=record.data_)
-    if record.type_ not in _NORMALIZE_WIRE_TO_CORE:
-        return tmp
-    try:
-        return Record.from_obj(cast(PersistableModel, tmp.to_obj()))
-    except (ValueError, KeyError):
-        logger.warning(
-            "DataLayer _storable_to_record: normalisation failed for %s, persisting verbatim",
-            record.type_,
-        )
-        return tmp
+    return Record(id_=record.id_, type_=record.type_, data_=record.data_)
 
 
 def create(
     dl: "Any",  # SqliteDataLayer
     record: "StorableRecord | PersistableModel",
 ) -> None:
-    """Insert a new record; raises ``ValueError`` if it already exists.
+    """Insert a new record; raises ``VultronAlreadyExistsError`` if it exists.
 
     Args:
         dl: The SqliteDataLayer instance.
@@ -68,7 +61,13 @@ def create(
             with ``id_`` and ``type_`` attributes.
 
     Raises:
-        ValueError: If a record with the same ``id_`` already exists.
+        VultronAlreadyExistsError: If a record with the same ``id_`` already
+            exists.  This is the only cause a caller may swallow, and callers
+            that mean "already stored" MUST catch this class rather than
+            ``ValueError`` — ``object_to_record`` below also raises
+            ``VultronValidationError`` (unprojectable object) and ``ValueError``
+            (no ``type_``; ``as_``-prefixed ``type_``), which are real faults
+            that must not be mistaken for a duplicate.
     """
     if isinstance(record, StorableRecord):
         rec = _storable_to_record(record)
@@ -78,7 +77,7 @@ def create(
     with Session(dl._engine) as session:
         existing = session.get(VultronObjectRecord, rec.id_)
         if existing is not None:
-            raise ValueError(
+            raise VultronAlreadyExistsError(
                 f"record with id_={rec.id_!r} already exists "
                 f"in {rec.type_!r}"
             )

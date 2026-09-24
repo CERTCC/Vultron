@@ -52,13 +52,10 @@ class UpdateParticipantEmbargoPecNode(DataLayerActionWithPorts):
         super().__init__(name=name or self.__class__.__name__)
         self.pec_trigger = pec_trigger
 
-    @classmethod
-    def input_ports(cls) -> dict[str, PortInformation]:
-        ports = super().input_ports()
-        ports["participant"] = PortInformation(
-            data_type=object, required=False
-        )
-        return ports
+    INPUT_PORTS: dict[str, PortInformation] = {
+        **DataLayerActionWithPorts.INPUT_PORTS,
+        "participant": PortInformation(data_type=object, required=False),
+    }
 
     @classmethod
     def _domain_port_remappings(cls) -> dict[str, str]:
@@ -114,11 +111,10 @@ class CreateAndStoreInviteNode(DataLayerActionWithPorts):
     def __init__(self, name: str | None = None):
         super().__init__(name=name or self.__class__.__name__)
 
-    @classmethod
-    def input_ports(cls) -> dict[str, PortInformation]:
-        ports = super().input_ports()
-        ports["activity"] = PortInformation(data_type=object, required=False)
-        return ports
+    INPUT_PORTS: dict[str, PortInformation] = {
+        **DataLayerActionWithPorts.INPUT_PORTS,
+        "activity": PortInformation(data_type=object, required=False),
+    }
 
     @classmethod
     def _domain_port_remappings(cls) -> dict[str, str]:
@@ -262,13 +258,10 @@ class RemoveStaleAcceptanceNode(DataLayerActionWithPorts):
         super().__init__(name=name or self.__class__.__name__)
         self.embargo_id = embargo_id
 
-    @classmethod
-    def input_ports(cls) -> dict[str, PortInformation]:
-        ports = super().input_ports()
-        ports["participant"] = PortInformation(
-            data_type=object, required=False
-        )
-        return ports
+    INPUT_PORTS: dict[str, PortInformation] = {
+        **DataLayerActionWithPorts.INPUT_PORTS,
+        "participant": PortInformation(data_type=object, required=False),
+    }
 
     @classmethod
     def _domain_port_remappings(cls) -> dict[str, str]:

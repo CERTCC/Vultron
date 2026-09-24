@@ -1,3 +1,12 @@
+---
+description: >
+  Start the reference implementation, construct a
+  `Create(VulnerabilityReport)` message by hand, post it to an actor's inbox,
+  and confirm the actor received it.
+stakeholder_type: [platform-developer]
+level: 200
+---
+
 # Tutorial: Submit a report to a Vultron actor
 
 In this tutorial, we will submit a vulnerability report to a running Vultron
@@ -16,7 +25,7 @@ speak to a Vultron actor over the wire.
     [Inbox](../reference/glossary.md), and watch the report land in the
     receiving actor's store.
     We will not cover the full report-management lifecycle here; the
-    [Reporting a Vulnerability](../howto/activitypub/activities/report_vulnerability.md)
+    [How to Report a Vulnerability](../howto/activitypub/activities/report_vulnerability.md)
     how-to guide takes the story further.
 
     The commands and the message on this page are rendered from
@@ -225,7 +234,7 @@ We have:
 ## Next steps
 
 - **Go deeper on report submission** — read
-  [Reporting a Vulnerability](../howto/activitypub/activities/report_vulnerability.md)
+  [How to Report a Vulnerability](../howto/activitypub/activities/report_vulnerability.md)
   to see how a report is validated, accepted, and turned into a Case, and how
   the `Offer(Report)` activity fits alongside `Create(Report)`.
 - **See the full workflow run for you** — follow

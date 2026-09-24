@@ -1,3 +1,11 @@
+---
+description: >
+  A crosswalk of the Vultron Protocol against Stakeholder-Specific
+  Vulnerability Categorization (SSVC).
+stakeholder_type: [cvd-practitioner]
+level: 400
+---
+
 # Interactions Between the Vultron Protocol and SSVC
 
 {% include-markdown "../includes/not_normative.md" %}
@@ -232,7 +240,7 @@ This mapping is formalized below and in the figure that follows.
 ---
 title: "RM States and SSVC Supplier Engagement"
 ---
-graph LR
+flowchart LR
     subgraph ssvc_se[SSVC Supplier Engagement]
         Active
         Unresponsive
@@ -290,7 +298,7 @@ The Vendor RM states map onto these values as formalized below and shown in the 
 ---
 title: "RM States and SSVC Supplier Involvement"
 ---
-graph LR
+flowchart LR
     subgraph rm_states[RM States]
         S[Start]
         R[Received]

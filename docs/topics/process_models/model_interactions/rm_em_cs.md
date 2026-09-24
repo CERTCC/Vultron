@@ -1,3 +1,8 @@
+---
+stakeholder_type: [cvd-practitioner, platform-developer]
+level: 400
+---
+
 # CVD Case State Interactions with the RM and EM Process Models
 
 {% include-markdown "../../../includes/normative.md" %}
@@ -210,7 +215,7 @@ stateDiagram-v2
 
 For vulnerabilities in systems whose software delivery model dictates that Public Awareness must precede
 Deployment ($\mathbf{P} \prec \mathbf{D}$), the Vendor status at the time of deployment might be
-irrelevant&mdash;assuming, of course, that they at least passed through $q^{rm} = Accepted$ at some point as is required
+irrelevant&mdash;assuming they at least passed through $q^{rm} = Accepted$ at some point as is required
 for Fix Ready (**F**), which, in turn, is a prerequisite for deployment (**D**).
 
 ---

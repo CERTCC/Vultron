@@ -43,7 +43,10 @@ from vultron.core.behaviors.helpers import (
     read_rm_states,
 )
 from vultron.core.behaviors.sync.nodes.effects import _extract_id_from_field
-from vultron.core.models._helpers import _as_id
+from vultron.core.models._helpers import (
+    _as_id,
+    project_wire_snapshot_to_core,
+)
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.dimensions import RmDimension
 from vultron.core.models.fault_classes import (
@@ -127,11 +130,10 @@ class ApplyParticipantStatusFromLedgerNode(DataLayerActionWithPorts):
     specs/sync-ledger-replication.yaml SYNC-02-002.
     """
 
-    @classmethod
-    def input_ports(cls) -> dict[str, PortInformation]:
-        ports = super().input_ports()
-        ports["activity"] = PortInformation(data_type=object, required=True)
-        return ports
+    INPUT_PORTS: dict[str, PortInformation] = {
+        **DataLayerActionWithPorts.INPUT_PORTS,
+        "activity": PortInformation(data_type=object, required=True),
+    }
 
     @classmethod
     def _domain_port_remappings(cls) -> dict[str, str]:
@@ -238,7 +240,12 @@ class ApplyParticipantStatusFromLedgerNode(DataLayerActionWithPorts):
             return Status.SUCCESS
 
         try:
-            status_obj = ParticipantStatus.model_validate(status_data)
+            # Projected, not validated raw: the snapshot is AS2-shaped, and its
+            # absent timestamps are absences to carry rather than gaps for this
+            # replica's clock to fill (CLP-15-007).
+            status_obj = ParticipantStatus.model_validate(
+                project_wire_snapshot_to_core(ParticipantStatus, status_data)
+            )
         except Exception as exc:
             self.logger.warning(
                 "%s: failed to reconstruct ParticipantStatus from"
@@ -324,11 +331,10 @@ class EmitImpossibleStateFaultNode(DataLayerActionWithPorts):
     still fails correctly without raising.
     """
 
-    @classmethod
-    def input_ports(cls) -> dict[str, PortInformation]:
-        ports = super().input_ports()
-        ports["activity"] = PortInformation(data_type=object, required=True)
-        return ports
+    INPUT_PORTS: dict[str, PortInformation] = {
+        **DataLayerActionWithPorts.INPUT_PORTS,
+        "activity": PortInformation(data_type=object, required=True),
+    }
 
     @classmethod
     def _domain_port_remappings(cls) -> dict[str, str]:

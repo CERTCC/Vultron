@@ -1,9 +1,10 @@
 #!/usr/bin/env python
 """
-Provides an EmbargoPolicy object for the Vultron ActivityStreams Vocabulary.
-"""
+Wire-layer alias for EmbargoPolicy.
 
-# pyright: reportGeneralTypeIssues=false
+Per ADR-0099 detail 3: the core class is the canonical form.
+The as_-prefixed names are retained for backward compatibility.
+"""
 
 #  Copyright (c) 2026 Carnegie Mellon University and Contributors.
 #  - see Contributors.md for a full list of Contributors
@@ -18,123 +19,16 @@ Provides an EmbargoPolicy object for the Vultron ActivityStreams Vocabulary.
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-from datetime import timedelta
-from typing import Any, TypeAlias, cast
+from typing import TypeAlias
 
-import isodate  # type: ignore[import-untyped]
-from pydantic import Field, field_serializer, field_validator
-
-from vultron.core.models.base import NonEmptyString
-from vultron.core.models.embargo_policy import (
-    EmbargoPolicy as CoreEmbargoPolicy,
-    parse_duration,
-)
-from vultron.core.models.enums import VultronObjectType as VO_type
+from vultron.core.models.embargo_policy import EmbargoPolicy
 from vultron.wire.as2.vocab.base.links import ActivityStreamRef
-from vultron.wire.as2.vocab.objects.base import (
-    VultronAS2Object,
-    _strip_core_context,
-)
+from vultron.wire.as2.vocab.base.registry import WIRE_TYPE_MAP
 
+# Backward-compatibility alias (ADR-0099 detail 3)
+as_EmbargoPolicy = EmbargoPolicy
 
-class as_EmbargoPolicy(VultronAS2Object):
-    """Wire projection of the core EmbargoPolicy domain object.
+# Register core class in WIRE_TYPE_MAP so the parser admits it inline
+WIRE_TYPE_MAP["EmbargoPolicy"] = EmbargoPolicy
 
-    Represents an Actor's stated embargo preferences for AS2 wire exchange.
-    Domain logic lives in :class:`vultron.core.models.embargo_policy.EmbargoPolicy`.
-
-    Per specs/embargo-policy.yaml EP-01-001 through EP-01-004 and
-    specs/duration.yaml DUR-01-001, DUR-05-001, DUR-05-002.
-    """
-
-    type_: VO_type = Field(
-        default=VO_type.EMBARGO_POLICY,
-        validation_alias="type",
-        serialization_alias="type",
-    )
-
-    actor_id: NonEmptyString = Field(
-        ...,
-        description="Full URI of the Actor to which this policy applies",
-    )
-    inbox: NonEmptyString = Field(
-        ...,
-        description="URL of the Actor's ActivityPub inbox",
-    )
-    preferred_duration: timedelta = Field(
-        ...,
-        description="Preferred embargo duration as ISO 8601 duration string",
-    )
-    minimum_duration: timedelta | None = Field(
-        default=None,
-        description="Minimum acceptable embargo duration as ISO 8601 duration",
-    )
-    maximum_duration: timedelta | None = Field(
-        default=None,
-        description="Maximum acceptable embargo duration as ISO 8601 duration",
-    )
-    notes: NonEmptyString | None = Field(
-        default=None,
-        description="Free-text description of the Actor's embargo preferences",
-    )
-
-    @field_validator(
-        "preferred_duration",
-        "minimum_duration",
-        "maximum_duration",
-        mode="before",
-    )
-    @classmethod
-    def _parse_iso8601_duration(cls, value: Any) -> timedelta | None:
-        """Accept ISO 8601 duration strings or timedelta; reject calendar units.
-
-        Per specs/duration.yaml DUR-04-001, DUR-04-002, DUR-05-001.
-        """
-        return parse_duration(value)
-
-    @field_serializer(
-        "preferred_duration",
-        "minimum_duration",
-        "maximum_duration",
-        when_used="json",
-    )
-    def _serialize_duration(self, value: timedelta | None) -> str | None:
-        """Serialize timedelta to ISO 8601 duration string.
-
-        Per specs/duration.yaml DUR-05-002.
-        """
-        if value is None:
-            return None
-        return cast(str, isodate.duration_isoformat(value))
-
-    @classmethod
-    def from_core(cls, core_obj: CoreEmbargoPolicy) -> "as_EmbargoPolicy":
-        data = core_obj.model_dump(mode="json")
-        _strip_core_context(data)
-        return cast("as_EmbargoPolicy", cls.model_validate(data))
-
-    def to_core(self) -> CoreEmbargoPolicy:
-        data = self._to_core_data()
-        return CoreEmbargoPolicy.model_validate(data)
-
-
-as_EmbargoPolicyRef: TypeAlias = ActivityStreamRef[as_EmbargoPolicy]
-
-
-def main():
-    obj = as_EmbargoPolicy(
-        actor_id="https://example.org/actors/vendor",
-        inbox="https://example.org/actors/vendor/inbox",
-        preferred_duration=timedelta(days=90),
-        minimum_duration=timedelta(days=45),
-        maximum_duration=timedelta(days=180),
-        notes="Prefer 90 days but consider shorter for critical vulnerabilities.",
-    )
-    _json = obj.to_json(indent=2)
-    print(_json)
-    with open("../../../doc/examples/embargo_policy.json", "w") as fp:
-        fp.write(_json)
-
-
-if __name__ == "__main__":
-    main()
+as_EmbargoPolicyRef: TypeAlias = ActivityStreamRef[EmbargoPolicy]

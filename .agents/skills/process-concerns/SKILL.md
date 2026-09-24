@@ -64,7 +64,7 @@ table so the agent has full context before creating or updating anything:
 gh issue list \
   --repo CERTCC/Vultron \
   --state open \
-  --limit 200 \
+  --limit 1000 \
   --json number,title,issueType,labels \
   --jq '.[] | select(.issueType.name == "Concern") | "#\(.number): \(.title)"'
 ```
@@ -275,7 +275,8 @@ Map CONCERNS.md section names to Category checkboxes:
 - Do **not** assign a `size:` label.
 - Do **not** add a parent issue or link issues to each other.
 - Always check for existing open Concern issues before creating a new one.
-- Use `ask_user` for all user-facing questions; never ask in plain text.
+- Ask questions per `.agents/skills/shared/asking-the-user.md`: `ask_user` for
+  discrete choices, plain text for open-ended ones.
 
 ## Checklist
 

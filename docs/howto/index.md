@@ -1,11 +1,16 @@
+---
+stakeholder_type: [platform-developer]
+level: 200
+---
+
 # How-to Guides
 
 {% include-markdown "../includes/not_normative.md" %}
 
-Here we collect some guidance for potential implementations of Vultron.
+This section collects guidance for potential implementations of Vultron.
 
-While a complete protocol implementation specification remains a work in progress, we do have a few additional
-suggestions for potential implementers.
+A complete protocol implementation specification remains a work in progress; a few additional
+suggestions for potential implementers follow.
 
 <!-- hr to force spacing -->
 <br/>
@@ -18,26 +23,31 @@ suggestions for potential implementers.
     
     - an interest in implementing the Vultron Protocol
     - basic familiarity with the Vultron Protocol
-    - familiarity with the CVD process in general
+    - familiarity with the Coordinated Vulnerability Disclosure (CVD) process in general
 
-    If you are unfamiliar with the Vultron Protocol, we recommend that you start with [Explanation](../topics/index.md).
+    If you are unfamiliar with the Vultron Protocol, start with [Explanation](../topics/index.md).
     For technical reference, see [Reference](../reference/index.md).
-    If you're just trying to understand the CVD process, we recommend that you start with the [CERT Guide to Coordinated Vulnerability Disclosure](https://certcc.github.io/CERT-Guide-to-CVD){:target="_blank"}.
+    If you're just trying to understand the CVD process, start with the [CERT Guide to Coordinated Vulnerability Disclosure](https://certcc.github.io/CERT-Guide-to-CVD){:target="_blank"}.
 
 In this section, you will find:
 
 <div class="grid cards" markdown>
 
-- :material-database: an abstract [case object](case_object.md) for use in tracking MPCVD cases
-- :fontawesome-solid-gears: Notes on the [core Vultron Protocol subprocesses](process_implementation.md) (RM, EM, and CS), including how the CS model might integrate with
-other processes
-- :simple-activitypub: An in-depth exploration of applying the [ActivityPub](activitypub/index.md) protocol as an underlying foundation to
-  the Vultron Protocol.
-- :material-transit-connection: A guide to [wiring a capability](wire_capability.md) into the reference implementation — replacing a call-out stub with real backend logic.
+<!-- BEGIN GENERATED SECTION CONTENTS — do not edit; change the mkdocs.yml nav or a listed page's description: frontmatter, then run `uv run docs-site --write` -->
+
+<!-- markdownlint-disable MD007 -->
+- [Vultron ActivityPub](activitypub/index.md) — Represent Vultron Protocol message types as ActivityPub messages using the ActivityStreams vocabulary.
+- **Demo How-Tos**
+    - [FVV Demo](demos/fvv-demo.md) — Run the three-actor Finder, Vendor, Vendor (FVV) demo, in which two vendors each advance an independent fix path with no coordinator.
+- [Process Implementation](process_implementation.md) — Integrate the Report Management (RM), Embargo Management (EM), and Case State (CS) state machines into an existing workflow management system.
+- [Wiring a Capability](wire_capability.md) — Wire a capability into the reference implementation, replacing a call-out stub with real backend logic.
+<!-- markdownlint-enable MD007 -->
+
+<!-- END GENERATED SECTION CONTENTS -->
 
 </div>
 
-Over time, we plan to expand this section of the documentation to include:
+This section will expand over time to include:
 
 - Basic data model examples
 - Behavior logic implementation examples
@@ -49,5 +59,5 @@ Over time, we plan to expand this section of the documentation to include:
 
     The protocol and data structures outlined in this documentation are intended to facilitate interoperability among individual 
     organizations' workflow management systems.
-    As such, they are focused on the exchange of information and data necessary for the MPCVD process to function and will 
+    As such, they are focused on the exchange of information and data necessary for the Multi-Party CVD (MPCVD) process to function and will 
     not likely be sufficient to fully address any individual organization's vulnerability response process.

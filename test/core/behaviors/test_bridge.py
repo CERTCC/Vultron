@@ -15,17 +15,35 @@
 
 """Unit tests for BT bridge layer."""
 
-from typing import Any
+import logging
+from typing import Any, cast
 
 import pytest
 import py_trees
 from py_trees.common import Status
 
 from vultron.core.behaviors.bridge import BTBridge, BTExecutionResult
+from vultron.core.behaviors.helpers import DataLayerAction
 from vultron.core.behaviors.store_scope import same_authority
 from vultron.errors import VultronError
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.wire.as2.vocab.base.objects.object_types import as_Note
+
+
+@pytest.fixture(autouse=True)
+def clear_blackboard():
+    """Reset the process-global blackboard before every test.
+
+    setup_tree() writes /is_leader (and other keys) to Blackboard.storage.
+    Tests that call setup_tree() directly — without going through
+    execute_with_setup()'s managed_keys cleanup — would otherwise leave
+    /is_leader permanently on the blackboard, contaminating later tests.
+    """
+    py_trees.blackboard.Blackboard.enable_activity_stream()
+    py_trees.blackboard.Blackboard.storage.clear()
+    yield
+    py_trees.blackboard.Blackboard.storage.clear()
+
 
 # Test behavior nodes for verifying bridge functionality
 
@@ -125,6 +143,70 @@ class ExceptionNode(py_trees.behaviour.Behaviour):
         raise RuntimeError("Intentional test exception")
 
 
+class StageLedgerOverrideThenFail(py_trees.behaviour.Behaviour):
+    """Stage the ledger override on the blackboard, then FAILURE (#3101).
+
+    Reproduces the short-circuit shape from ``add_case_status_tree``: a node
+    writes ``ledger_payload_object_override`` to the process-global blackboard
+    and a later node in the same ``memory=False`` Sequence FAILUREs before
+    ``FinalizeCsFilterNode`` — the key's owner — can clear it.  Writes the
+    ``/``-prefixed alias the port machinery uses.
+    """
+
+    def __init__(self, name: str = "StageLedgerOverrideThenFail"):
+        super().__init__(name=name)
+
+    def update(self) -> Status:
+        py_trees.blackboard.Blackboard.storage[
+            "/ledger_payload_object_override"
+        ] = {"object_id": "stale-object-from-vanished-case"}
+        self.feedback_message = "staged override then aborting"
+        return Status.FAILURE
+
+
+class WriteLedgerOverride(py_trees.behaviour.Behaviour):
+    """Write ``ledger_payload_object_override`` and SUCCEED.
+
+    ``StageLedgerOverrideThenFail`` short-circuits its Sequence, which is the
+    right shape for the #3101 regression tests but stops any probe downstream of
+    it from ever ticking.  This variant exists so a probe can observe the key
+    *while* the tree is still running.
+    """
+
+    def __init__(self, name: str = "WriteLedgerOverride"):
+        super().__init__(name=name)
+
+    def update(self) -> Status:
+        py_trees.blackboard.Blackboard.storage[
+            "/ledger_payload_object_override"
+        ] = {"object_id": "written-during-execution"}
+        return Status.SUCCESS
+
+
+class RecordManagedKeyDuringTick(py_trees.behaviour.Behaviour):
+    """Record what ``/<key>`` holds while the tree is still ticking.
+
+    Module-level per CONCERN-2321 (`notes/testing-pitfalls.md`): py_trees keys
+    its class registry by class name, so the recording dict is injected rather
+    than closed over.
+
+    Reads ``Blackboard.storage`` directly rather than through a ``Client``
+    because the point is to observe whatever is under the raw key, including a
+    non-port sentinel that no port machinery would hand back.
+    """
+
+    def __init__(self, key: str, observed: dict[str, Any]):
+        super().__init__(name=f"RecordDuringTick-{key}")
+        self._key = key
+        self._observed = observed
+
+    def update(self) -> Status:
+        self._observed["during"] = py_trees.blackboard.Blackboard.storage.get(
+            f"/{self._key}"
+        )
+        return Status.SUCCESS
+
+
 # Fixtures
 
 
@@ -211,12 +293,13 @@ def test_setup_tree_keeps_the_injected_store_for_a_foreign_authority(
 ):
     """A store is never re-scoped to an actor this node does not host (#2484).
 
-    ``_find_case_actor_id`` resolves a case's CaseActor by *identity shape*
-    (``.../actors/case-actor``, ADR-0041), which answers for remote containers
-    just as readily as local ones — deliberately, since after a handoff the
-    CaseActor is on the container that first received the report (CP-08-003)
-    while the case owner is elsewhere.  ``setup_tree`` then runs with that
-    foreign actor as the executing actor.
+    ``_find_case_actor_id`` resolves a case's authority from the participant
+    roster — the ``CVDRole.CASE_MANAGER`` role (ADR-0088, ARCH-24-004) — which
+    names remote actors just as readily as local ones, since a roster records
+    who holds the role and not where they are hosted.  That matters after a
+    handoff, when the authority is on the container that first received the
+    report (CP-08-003) while the case owner is elsewhere.  ``setup_tree`` then
+    runs with that foreign actor as the executing actor.
 
     Re-scoping there would mint an empty local store under a foreign actor's
     name, and nothing would raise: the tree would simply run against nothing.
@@ -450,6 +533,71 @@ def test_execute_with_setup_restores_preexisting_context(
 
     assert result.status == Status.SUCCESS
     assert storage["/datalayer"] is sentinel_dl
+
+
+def test_execute_with_setup_clears_stale_ledger_override(
+    bridge, test_actor_id
+):
+    """A FAILURE short-circuit leaves no stale ledger override (#3101).
+
+    ``ledger_payload_object_override`` is a within-execution hand-off written by
+    ``FinalizeCsFilterNode`` and consumed by ``CommitCaseLedgerEntryNode``.  If
+    an earlier node in the ``memory=False`` Sequence FAILUREs first, Finalize
+    never ticks to clear it, so before #3101 the value stranded on the
+    process-global blackboard and the *next* execution misread it.  The bridge
+    now resets the key at the execution boundary regardless of outcome, so it
+    must be absent after a short-circuiting run and the following run must start
+    clean.
+    """
+    storage = py_trees.blackboard.Blackboard.storage
+
+    result = bridge.execute_with_setup(
+        tree=StageLedgerOverrideThenFail(), actor_id=test_actor_id
+    )
+
+    assert result.status == Status.FAILURE
+    assert "ledger_payload_object_override" not in storage
+    assert "/ledger_payload_object_override" not in storage
+
+    # A subsequent execution must not see the vanished-case override.
+    captured: dict[str, Any] = {}
+
+    class _CaptureOverride(py_trees.behaviour.Behaviour):
+        def update(self) -> Status:
+            captured["present"] = (
+                "/ledger_payload_object_override" in storage
+                or "ledger_payload_object_override" in storage
+            )
+            return Status.SUCCESS
+
+    second = bridge.execute_with_setup(
+        tree=_CaptureOverride(name="CaptureOverride"), actor_id=test_actor_id
+    )
+    assert second.status == Status.SUCCESS
+    assert captured["present"] is False
+
+
+def test_execute_with_setup_restores_preexisting_ledger_override(
+    bridge, test_actor_id
+):
+    """A caller-set ledger override is restored, not unconditionally deleted.
+
+    The bridge resets the key to its *pre-execution* state (ADR-0087), so a
+    value present before the run survives it — the cleanup targets only what the
+    execution itself left behind.
+    """
+    storage = py_trees.blackboard.Blackboard.storage
+    sentinel = {"object_id": "caller-provided"}
+    storage["/ledger_payload_object_override"] = sentinel
+
+    try:
+        result = bridge.execute_with_setup(
+            tree=StageLedgerOverrideThenFail(), actor_id=test_actor_id
+        )
+        assert result.status == Status.FAILURE
+        assert storage["/ledger_payload_object_override"] is sentinel
+    finally:
+        storage.pop("/ledger_payload_object_override", None)
 
 
 # Integration tests
@@ -1119,3 +1267,646 @@ class TestClassificationRobustness:
         assert result.status == Status.FAILURE
         assert result.internal_error is False
         assert "VultronError" in result.feedback_message
+
+
+# ---------------------------------------------------------------------------
+# Phase labelling: setup errors and execution errors are distinguishable
+# (#3085)
+# ---------------------------------------------------------------------------
+
+
+class TestPhaseLabelling:
+    """``execute_with_setup`` must name the phase that actually failed.
+
+    Both calls used to share one ``try``, so anything escaping ``execute_tree``
+    was reported as ``"BT setup failed"`` — sending a reader to the wiring when
+    the bug was in a node (#3085).  ``execute_tree``'s own catch-all means only
+    a patched ``execute_tree`` can reach the execution handlers, which is
+    exactly what the split exists to keep true if that catch-all is narrowed.
+    """
+
+    def test_a_setup_crash_is_labelled_setup(
+        self, bridge, test_actor_id
+    ) -> None:
+        def _explode(*args: Any, **kwargs: Any) -> Any:
+            raise TypeError("store wired wrong")
+
+        bridge.setup_tree = _explode  # type: ignore[method-assign]
+        result = bridge.execute_with_setup(
+            tree=AlwaysSucceed(), actor_id=test_actor_id
+        )
+
+        assert result.status == Status.FAILURE
+        assert result.internal_error is True
+        assert "BT setup failed" in result.feedback_message
+        assert "BT execution failed" not in result.feedback_message
+
+    def test_an_execution_crash_is_not_labelled_setup(
+        self, bridge, test_actor_id
+    ) -> None:
+        """The mislabelling #3085 names, reproduced at its own boundary."""
+
+        def _explode(*args: Any, **kwargs: Any) -> Any:
+            raise TypeError("tick machinery wired wrong")
+
+        bridge.execute_tree = _explode  # type: ignore[method-assign]
+        result = bridge.execute_with_setup(
+            tree=AlwaysSucceed(), actor_id=test_actor_id
+        )
+
+        assert result.status == Status.FAILURE
+        assert result.internal_error is True
+        assert "BT execution failed" in result.feedback_message
+        assert "BT setup failed" not in result.feedback_message
+        assert "tick machinery wired wrong" in result.feedback_message
+
+    def test_an_execution_domain_error_keeps_its_classification(
+        self, bridge, test_actor_id
+    ) -> None:
+        """A ``VultronError`` escaping the ticks is still a protocol outcome."""
+
+        def _reject(*args: Any, **kwargs: Any) -> Any:
+            raise VultronError("peer message rejected")
+
+        bridge.execute_tree = _reject  # type: ignore[method-assign]
+        result = bridge.execute_with_setup(
+            tree=AlwaysSucceed(), actor_id=test_actor_id
+        )
+
+        assert result.status == Status.FAILURE
+        assert result.internal_error is False
+        assert "BT execution failed: VultronError" in result.feedback_message
+
+    def test_the_teardown_still_runs_when_execution_raises(
+        self, bridge, test_actor_id
+    ) -> None:
+        """Splitting the ``try`` must not move either phase out of ``finally``."""
+        storage = py_trees.blackboard.Blackboard.storage
+        sentinel = object()
+        storage["/datalayer"] = sentinel
+
+        def _explode(*args: Any, **kwargs: Any) -> Any:
+            raise TypeError("tick machinery wired wrong")
+
+        bridge.execute_tree = _explode  # type: ignore[method-assign]
+        result = bridge.execute_with_setup(
+            tree=AlwaysSucceed(), actor_id=test_actor_id
+        )
+
+        assert result.status == Status.FAILURE
+        assert storage["/datalayer"] is sentinel
+
+
+class TestExceptionResultConsistency:
+    """One helper builds every classifying handler's result (#3084).
+
+    The handlers were near-identical copies, and a log-level divergence between
+    two of them was #3080.  ``_exception_result`` derives the message, the log
+    level, and the ``internal_error`` flag from one input, so they cannot drift
+    apart again (CS-22-001).
+    """
+
+    def test_a_protocol_outcome_logs_at_warning_without_a_traceback(
+        self, bridge, test_actor_id, caplog
+    ) -> None:
+        def _reject(*args: Any, **kwargs: Any) -> Any:
+            raise VultronError("actor store is not readable")
+
+        bridge.setup_tree = _reject  # type: ignore[method-assign]
+        with caplog.at_level(logging.DEBUG):
+            bridge.execute_with_setup(
+                tree=AlwaysSucceed(), actor_id=test_actor_id
+            )
+
+        records = [
+            r for r in caplog.records if "BT setup failed" in r.getMessage()
+        ]
+        assert [r.levelno for r in records] == [logging.WARNING]
+        assert records[0].exc_info is None
+
+    def test_an_internal_error_logs_at_error_with_a_traceback(
+        self, bridge, test_actor_id, caplog
+    ) -> None:
+        def _explode(*args: Any, **kwargs: Any) -> Any:
+            raise TypeError("store wired wrong")
+
+        bridge.setup_tree = _explode  # type: ignore[method-assign]
+        with caplog.at_level(logging.DEBUG):
+            bridge.execute_with_setup(
+                tree=AlwaysSucceed(), actor_id=test_actor_id
+            )
+
+        records = [
+            r for r in caplog.records if "BT setup failed" in r.getMessage()
+        ]
+        assert [r.levelno for r in records] == [logging.ERROR]
+        assert records[0].exc_info is not None
+
+    @pytest.mark.parametrize(
+        "patched,raised,expected_prefix,expected_flag",
+        [
+            ("setup_tree", VultronError("boom"), "BT setup failed", False),
+            ("setup_tree", TypeError("boom"), "BT setup failed", True),
+            (
+                "execute_tree",
+                VultronError("boom"),
+                "BT execution failed",
+                False,
+            ),
+            ("execute_tree", TypeError("boom"), "BT execution failed", True),
+        ],
+    )
+    def test_every_handler_reports_one_consistent_message(
+        self,
+        bridge,
+        test_actor_id,
+        patched: str,
+        raised: Exception,
+        expected_prefix: str,
+        expected_flag: bool,
+    ) -> None:
+        """All four boundaries agree across phase, flag, and both channels."""
+
+        def _raise(*args: Any, **kwargs: Any) -> Any:
+            raise raised
+
+        local_bridge = BTBridge(datalayer=bridge.datalayer)
+        setattr(local_bridge, patched, _raise)
+        result = local_bridge.execute_with_setup(
+            tree=AlwaysSucceed(), actor_id=test_actor_id
+        )
+
+        assert result.status == Status.FAILURE
+        assert result.internal_error is expected_flag
+        assert result.feedback_message.startswith(expected_prefix)
+        # feedback_message and the sole errors entry are the same string, and
+        # the exception type is named in it because str(e) is empty for several
+        # common cases (a bare AttributeError, for one).
+        assert result.errors == [result.feedback_message]
+        assert type(raised).__name__ in result.feedback_message
+        assert "boom" in result.feedback_message
+
+    @pytest.mark.parametrize(
+        "node,expected_flag",
+        [
+            (_DomainErrorNode(name="DomainErrorInTick"), False),
+            (_BrokenNode(name="BrokenInTick"), True),
+        ],
+    )
+    def test_the_tick_handlers_report_the_message_in_both_channels(
+        self, bridge, test_actor_id, node, expected_flag: bool
+    ) -> None:
+        """The two handlers a real node reaches, exercised through a real tick.
+
+        Patching ``setup_tree``/``execute_tree`` cannot reach ``execute_tree``'s
+        own pair — and those are the two where the substitution changed code:
+        ``errors.append(msg); errors=errors`` became the helper's
+        ``errors=[msg]``.  That is only equivalent because ``errors`` is empty
+        on both paths, which this asserts rather than assumes.
+        """
+        result = bridge.execute_with_setup(tree=node, actor_id=test_actor_id)
+
+        assert result.status == Status.FAILURE
+        assert result.internal_error is expected_flag
+        assert result.feedback_message.startswith("BT execution failed")
+        assert result.errors == [result.feedback_message]
+
+
+# ---------------------------------------------------------------------------
+# Nested executions: /activity and context_data keys are execution-scoped
+# (#3161)
+# ---------------------------------------------------------------------------
+
+
+class _NestedExecution(py_trees.behaviour.Behaviour):
+    """Run a second ``execute_with_setup`` from inside a tick.
+
+    Many production nodes do exactly this — ``case/nodes/lifecycle.py`` and
+    ``status/nodes/case_status.py`` among them.  The node records what the
+    process-global blackboard held immediately before and after the inner call,
+    which is the window the outer tree's remaining ticks read from.
+    """
+
+    def __init__(
+        self,
+        bridge: BTBridge,
+        actor_id: str,
+        inner_kwargs: dict[str, Any],
+        observed: dict[str, Any],
+        inner_tree: py_trees.behaviour.Behaviour | None = None,
+        name: str = "NestedExecution",
+    ):
+        super().__init__(name=name)
+        self._bridge = bridge
+        self._actor_id = actor_id
+        self._inner_kwargs = inner_kwargs
+        self._observed = observed
+        self._inner_tree = inner_tree or AlwaysSucceed(name="InnerTree")
+
+    def update(self) -> Status:
+        storage = py_trees.blackboard.Blackboard.storage
+        self._observed["before"] = dict(storage)
+        inner = self._bridge.execute_with_setup(
+            tree=self._inner_tree,
+            actor_id=self._actor_id,
+            **self._inner_kwargs,
+        )
+        self._observed["inner_status"] = inner.status
+        self._observed["after"] = dict(storage)
+        return Status.SUCCESS
+
+
+class _RecordResolvedActor(DataLayerAction):
+    """Record the actor id this node's own base class resolves for it.
+
+    Module-level per CONCERN-2321 (`notes/testing-pitfalls.md`): py_trees keys
+    its class registry by class name, so a BT subclass defined inside a test
+    function can be clobbered by a same-named local class in another test.  The
+    recording list is injected rather than closed over, which is what makes the
+    module-level definition possible.
+    """
+
+    def __init__(self, seen: list[str | None], name: str):
+        super().__init__(name=name)
+        self._seen = seen
+
+    def update(self) -> Status:
+        self._seen.append(self.actor_id)
+        return Status.SUCCESS
+
+
+class TestNestedExecutionKeyIsolation:
+    """An inner execution must hand the outer execution's keys back.
+
+    ``setup_tree`` writes ``/activity`` and one key per ``context_data`` entry.
+    Before #3510 those were outside ``managed_keys``, so a nested call
+    overwrote them and never restored them — the outer tree finished its ticks
+    reading the inner call's activity (#3161).
+    """
+
+    def test_an_inner_activity_does_not_clobber_the_outer_one(
+        self, bridge, test_actor_id
+    ) -> None:
+        observed: dict[str, Any] = {}
+        outer_activity = {"type": "Create", "id": "outer"}
+        inner_activity = {"type": "Accept", "id": "inner"}
+
+        result = bridge.execute_with_setup(
+            tree=_NestedExecution(
+                bridge,
+                test_actor_id,
+                {"activity": inner_activity},
+                observed,
+            ),
+            actor_id=test_actor_id,
+            activity=outer_activity,
+        )
+
+        assert result.status == Status.SUCCESS
+        assert observed["inner_status"] == Status.SUCCESS
+        # Prove the harness really seeded the outer key, so the assertion
+        # below is about the restore and not about an absent key.
+        assert observed["before"]["/activity"] is outer_activity
+        assert observed["after"]["/activity"] is outer_activity
+
+    def test_an_inner_context_key_does_not_clobber_the_outer_one(
+        self, bridge, test_actor_id
+    ) -> None:
+        observed: dict[str, Any] = {}
+
+        result = bridge.execute_with_setup(
+            tree=_NestedExecution(
+                bridge, test_actor_id, {"case_id": "inner-case"}, observed
+            ),
+            actor_id=test_actor_id,
+            case_id="outer-case",
+        )
+
+        assert result.status == Status.SUCCESS
+        assert observed["before"]["/case_id"] == "outer-case"
+        assert observed["after"]["/case_id"] == "outer-case"
+
+    def test_a_key_the_outer_execution_never_set_is_removed_again(
+        self, bridge, test_actor_id
+    ) -> None:
+        """Absence is a state to restore, not a reason to skip the restore."""
+        observed: dict[str, Any] = {}
+
+        result = bridge.execute_with_setup(
+            tree=_NestedExecution(
+                bridge,
+                test_actor_id,
+                {"activity": {"type": "Accept"}, "case_id": "inner-case"},
+                observed,
+            ),
+            actor_id=test_actor_id,
+        )
+
+        assert result.status == Status.SUCCESS
+        assert "/activity" not in observed["before"]
+        assert "/activity" not in observed["after"]
+        assert "/case_id" not in observed["after"]
+
+    @pytest.mark.parametrize(
+        "key",
+        [
+            "datalayer",
+            "trigger_activity_factory",
+            "sync_port",
+            "is_leader",
+            "wire_render_port",
+            "ledger_payload_object_override",
+            "actor_id",
+        ],
+    )
+    def test_every_fixed_managed_key_is_restored(
+        self, datalayer, test_actor_id, key: str
+    ) -> None:
+        """BT-17-007 says "every managed key", so cover the whole fixed list.
+
+        Each parametrization has to be *load-bearing*: unless the sentinel is
+        displaced while the tree ticks, the post-run assertion passes whether or
+        not the key is in ``managed_keys`` at all.  Under a bare
+        ``BTBridge(datalayer=...)`` running ``AlwaysSucceed``, five of these
+        seven are inert, each for its own reason:
+
+        - ``is_leader`` — ``setup_tree`` writes it only when the caller passed an
+          explicit guard (``_is_leader_explicit``), so a default bridge never
+          touches the key.
+        - the three ports — ``_ports_for_store`` falls back to
+          ``_inherited_port(...)``, which reads the sentinel straight back off
+          the process-global blackboard, and ``port_for_store`` returns an
+          object that does not opt in unchanged.  ``setup_tree`` then writes
+          *the sentinel itself* back, so pre-value == post-value.
+        - ``ledger_payload_object_override`` — no node in ``AlwaysSucceed``
+          writes it.
+
+        So this builds a bridge with distinct injected ports and an explicit
+        leadership guard, and asserts on the mid-tick value first.  That
+        ``during`` assertion is the guard against silent re-vacuuming: if a
+        future change makes a parametrization inert again, it fails here rather
+        than passing for the wrong reason.
+
+        The dynamic half (``activity`` and the ``context_data`` keys) is covered
+        by the nested-call tests above.
+        """
+        storage = py_trees.blackboard.Blackboard.storage
+        sentinel = object()
+        storage[f"/{key}"] = sentinel
+
+        # Distinct objects, so "setup_tree wrote its own value" stays
+        # distinguishable from "setup_tree wrote the sentinel back".  These
+        # stand in for ports only as blackboard payloads — nothing in the tree
+        # below calls them — so a bare object() is sufficient.
+        bridge = BTBridge(
+            datalayer=datalayer,
+            is_leader=lambda: True,
+            trigger_activity=cast(Any, object()),
+            sync_port=cast(Any, object()),
+            wire_render_port=cast(Any, object()),
+        )
+
+        observed: dict[str, Any] = {}
+        children: list[py_trees.behaviour.Behaviour] = []
+        if key == "ledger_payload_object_override":
+            # The only key here that no bridge-injected value covers: a node
+            # has to write it, the way add_case_status_tree does (#3101).
+            children.append(WriteLedgerOverride())
+        children.append(RecordManagedKeyDuringTick(key, observed))
+        tree = py_trees.composites.Sequence(
+            name="ObserveManagedKey", memory=False, children=children
+        )
+
+        result = bridge.execute_with_setup(tree=tree, actor_id=test_actor_id)
+
+        assert result.status == Status.SUCCESS
+        # Harness validity: the execution really did displace the sentinel, so
+        # the restore assertion below is about managed_keys rather than about a
+        # key nothing ever changed.
+        assert observed["during"] is not sentinel
+        assert storage[f"/{key}"] is sentinel
+
+    def test_the_outer_execution_leaves_no_context_key_behind(
+        self, bridge, test_actor_id
+    ) -> None:
+        """The same rule at the outermost boundary: nothing leaks to the next run."""
+        storage = py_trees.blackboard.Blackboard.storage
+
+        result = bridge.execute_with_setup(
+            tree=AlwaysSucceed(),
+            actor_id=test_actor_id,
+            activity={"type": "Create"},
+            case_id="outer-case",
+        )
+
+        assert result.status == Status.SUCCESS
+        assert "/activity" not in storage
+        assert "/case_id" not in storage
+
+    def test_an_inner_actor_id_does_not_clobber_the_outer_one(
+        self, bridge, test_actor_id
+    ) -> None:
+        """A nested execution's actor must not outlive it on the blackboard.
+
+        A nested call can legitimately run as a different actor — the case that
+        makes the two diverge is ``_store_for_actor``'s foreign-authority
+        fall-through, where the injected store is kept rather than re-scoped.
+        Without the restore that inner actor stays on the blackboard for the rest
+        of the outer tree's ticks.
+        """
+        observed: dict[str, Any] = {}
+        inner_seen: list[str | None] = []
+        inner_actor = "https://example.org/actors/case-actor"
+
+        result = bridge.execute_with_setup(
+            tree=_NestedExecution(
+                bridge,
+                inner_actor,
+                {},
+                observed,
+                inner_tree=_RecordResolvedActor(
+                    seen=inner_seen, name="RecordInnerActor"
+                ),
+            ),
+            actor_id=test_actor_id,
+        )
+
+        assert result.status == Status.SUCCESS
+        # Harness validity: the inner execution ran, and it ran as a *different*
+        # actor.  Without these two the assertion below passes trivially if the
+        # inner call is leadership-skipped or if setup_tree stops writing the
+        # key at all.
+        assert observed["inner_status"] == Status.SUCCESS
+        assert inner_seen == [inner_actor]
+
+        assert observed["before"]["/actor_id"] == test_actor_id
+        assert observed["after"]["/actor_id"] == test_actor_id
+
+    def test_a_later_sibling_reads_its_own_trees_actor(
+        self, bridge, test_actor_id
+    ) -> None:
+        """The reachable consequence, at the layer that actually suffered it.
+
+        Node bases re-read ``/actor_id`` in ``initialise()`` — not ``setup()`` —
+        and py_trees calls ``initialise()`` on every tick in which the node was
+        not RUNNING.  So asserting on the raw blackboard is not enough: this
+        asserts what a *sibling node* resolves, which is what
+        ``OwnerLeaveSeq``'s ledger-committing node does downstream of a nested
+        call (``case/receive_close_case_tree.py``).
+        """
+        inner_actor = "https://example.org/actors/case-actor"
+        outer_seen: list[str | None] = []
+        inner_seen: list[str | None] = []
+        observed: dict[str, Any] = {}
+
+        sequence = py_trees.composites.Sequence(
+            name="NestedThenSibling",
+            memory=False,
+            children=[
+                _NestedExecution(
+                    bridge,
+                    inner_actor,
+                    {},
+                    observed,
+                    inner_tree=_RecordResolvedActor(
+                        seen=inner_seen, name="RecordInnerActor"
+                    ),
+                ),
+                _RecordResolvedActor(seen=outer_seen, name="RecordOuterActor"),
+            ],
+        )
+
+        result = bridge.execute_with_setup(
+            tree=sequence, actor_id=test_actor_id
+        )
+
+        assert result.status == Status.SUCCESS
+        assert observed["inner_status"] == Status.SUCCESS
+        # Harness validity: the inner tree really did run as a *different*
+        # actor, so the assertion below is about the restore rather than about
+        # a key nothing ever changed.
+        assert inner_seen == [inner_actor]
+        assert outer_seen == [test_actor_id]
+
+    # BT-17-007 says the restore happens "on every outcome".  The tests above
+    # all run an inner tree that SUCCEEDs, which only exercises the ``finally``
+    # via the normal return.  The three below cover the other ways out: a
+    # FAILURE status, an exception escaping the ticks, and a setup-phase raise —
+    # the last being a code path this PR introduced, whose early ``return`` from
+    # the setup handler leaves the shared ``finally`` as the only thing that
+    # restores anything.
+
+    @pytest.mark.parametrize(
+        "inner_tree_factory, expected_inner_status",
+        [
+            (AlwaysFail, Status.FAILURE),
+            (ExceptionNode, Status.FAILURE),
+        ],
+        ids=["inner-returns-failure", "inner-raises"],
+    )
+    def test_the_dynamic_keys_are_restored_on_a_failing_inner_tree(
+        self,
+        bridge,
+        test_actor_id,
+        inner_tree_factory,
+        expected_inner_status,
+    ) -> None:
+        """A nested call that fails still hands the outer values back."""
+        observed: dict[str, Any] = {}
+        inner_actor = "https://example.org/actors/case-actor"
+
+        result = bridge.execute_with_setup(
+            tree=_NestedExecution(
+                bridge,
+                inner_actor,
+                {
+                    "activity": {"type": "Update", "id": "inner-activity"},
+                    "case_id": "inner-case",
+                },
+                observed,
+                inner_tree=inner_tree_factory(),
+            ),
+            actor_id=test_actor_id,
+            activity={"type": "Create", "id": "outer-activity"},
+            case_id="outer-case",
+        )
+
+        assert result.status == Status.SUCCESS
+        # Harness validity: the inner call really did take the failing path, so
+        # this is not silently re-testing the SUCCESS route.
+        assert observed["inner_status"] == expected_inner_status
+
+        after = observed["after"]
+        assert after["/activity"] == {"type": "Create", "id": "outer-activity"}
+        assert after["/case_id"] == "outer-case"
+        assert after["/actor_id"] == test_actor_id
+
+    def test_the_dynamic_keys_are_restored_when_setup_raises(
+        self, bridge, test_actor_id, monkeypatch
+    ) -> None:
+        """The setup-phase early return must still pass through the teardown.
+
+        ``execute_with_setup`` returns from inside its setup ``except`` blocks,
+        so nothing on that path restores a key except the shared ``finally``.
+        The inner call here is given keys the outer execution also holds, and
+        ``setup_tree`` is made to raise *after* it would have written them —
+        which is what makes this a restore test rather than a "setup never got
+        that far" test.
+        """
+        real_setup_tree = BTBridge.setup_tree
+        during: dict[str, Any] = {}
+
+        def _setup_then_explode(self, tree, actor_id, activity=None, **kw):
+            # Called for its blackboard writes; the tree it returns is
+            # deliberately discarded, since this setup never completes.
+            real_setup_tree(self, tree, actor_id, activity, **kw)
+            storage = py_trees.blackboard.Blackboard.storage
+            during["activity"] = storage.get("/activity")
+            during["case_id"] = storage.get("/case_id")
+            during["actor_id"] = storage.get("/actor_id")
+            raise RuntimeError("setup exploded after writing its keys")
+
+        observed: dict[str, Any] = {}
+        inner_actor = "https://example.org/actors/case-actor"
+
+        class _NestedWithBrokenSetup(_NestedExecution):
+            def update(self) -> Status:
+                monkeypatch.setattr(
+                    BTBridge, "setup_tree", _setup_then_explode
+                )
+                try:
+                    return super().update()
+                finally:
+                    monkeypatch.setattr(
+                        BTBridge, "setup_tree", real_setup_tree
+                    )
+
+        result = bridge.execute_with_setup(
+            tree=_NestedWithBrokenSetup(
+                bridge,
+                inner_actor,
+                {
+                    "activity": {"type": "Update", "id": "inner-activity"},
+                    "case_id": "inner-case",
+                },
+                observed,
+            ),
+            actor_id=test_actor_id,
+            activity={"type": "Create", "id": "outer-activity"},
+            case_id="outer-case",
+        )
+
+        assert result.status == Status.SUCCESS
+        # The inner setup failed, and was classified as a setup-phase internal
+        # error rather than an execution one.
+        assert observed["inner_status"] == Status.FAILURE
+        # Harness validity: setup really did overwrite the outer values before
+        # raising, so the restore below has something to undo.
+        assert during["activity"] == {"type": "Update", "id": "inner-activity"}
+        assert during["case_id"] == "inner-case"
+        assert during["actor_id"] == inner_actor
+
+        after = observed["after"]
+        assert after["/activity"] == {"type": "Create", "id": "outer-activity"}
+        assert after["/case_id"] == "outer-case"
+        assert after["/actor_id"] == test_actor_id

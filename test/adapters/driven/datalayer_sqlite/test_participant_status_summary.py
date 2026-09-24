@@ -23,6 +23,8 @@ line reported ``vfd=None,rm=None``: the diagnostic went blank at exactly the
 moment a shape migration made it most useful.
 """
 
+import pytest
+
 from vultron.adapters.driven.datalayer_sqlite.schema import (
     _dimension_state,
     participant_status_summary,
@@ -30,10 +32,25 @@ from vultron.adapters.driven.datalayer_sqlite.schema import (
 
 
 class TestDimensionState:
-    """``_dimension_state`` reads either persisted shape."""
+    """``_dimension_state`` reads all three persisted shapes."""
+
+    def test_reads_the_bare_state_value(self):
+        """Canonical shape since ADR-0099 detail 5 / SDO-01-004: ``{"rm": "..."}``.
+
+        A dimension serializes to its bare state value, so this is what a stored
+        core ``ParticipantStatus`` row now looks like. It used to be treated as a
+        malformed row that degraded to ``None`` — which silently reported
+        ``rm=None`` for every canonical row and re-broke the #2232 observability
+        this helper exists to provide.
+        """
+        assert _dimension_state({"rm": "RECEIVED"}, "rm") == "RECEIVED"
 
     def test_reads_the_canonical_nested_shape(self):
-        """Core shape (ADR-0036): ``{"rm": {"state": ...}}``."""
+        """Prior core shape (ADR-0036): ``{"rm": {"state": ...}}``.
+
+        Still accepted on input and still present in rows written before
+        SDO-01-004, so it stays readable.
+        """
         status = {"rm": {"state": "RECEIVED"}}
         assert _dimension_state(status, "rm") == "RECEIVED"
 
@@ -56,13 +73,28 @@ class TestDimensionState:
     def test_returns_none_when_the_dimension_is_absent(self):
         assert _dimension_state({}, "rm") is None
 
-    def test_non_dict_nested_value_does_not_raise(self):
+    @pytest.mark.parametrize(
+        "malformed", [["RECEIVED"], 3, {"state": None}, ("RECEIVED",), ""]
+    )
+    def test_genuinely_malformed_value_degrades_instead_of_raising(
+        self, malformed
+    ):
         """A malformed row must degrade to the flat lookup, not explode.
 
         This helper runs inside a logging call; raising here would turn a
-        diagnostic into an outage.
+        diagnostic into an outage. Note a bare *string* is no longer malformed —
+        it is the canonical shape (SDO-01-004) and is covered above. What remains
+        malformed is a value that is neither a mapping carrying ``state`` nor a
+        state name: a list, a number, an empty string.
         """
-        assert _dimension_state({"rm": "RECEIVED"}, "rm") is None
+        assert _dimension_state({"rm": malformed}, "rm") is None
+
+    def test_a_malformed_nested_value_still_falls_back_to_the_flat_spelling(
+        self,
+    ):
+        assert (
+            _dimension_state({"rm": [], "rm_state": "START"}, "rm") == "START"
+        )
 
 
 class TestParticipantStatusSummary:
@@ -123,3 +155,37 @@ class TestParticipantStatusSummary:
     def test_non_dict_status_entry_is_reported_by_type(self):
         summary = participant_status_summary({"participant_statuses": ["x"]})
         assert "[0]<str>" in summary
+
+    def test_a_really_stored_core_row_reports_real_states(self):
+        """End-to-end guard on the shape that actually reaches this helper.
+
+        The unit cases above assert the three shapes in the abstract. This one
+        builds a core ``ParticipantStatus``, pushes it through the same
+        normalisation the DataLayer uses, and asserts the summary still reports
+        states — so a future change to how a dimension serializes fails here
+        rather than silently blanking the diagnostic (issue #2232).
+        """
+        from vultron.adapters.driven.datalayer_sqlite.crud import (
+            _storable_to_record,
+        )
+        from vultron.adapters.driven.db_record import object_to_record
+        from vultron.core.models.case_participant import CaseParticipant
+        from vultron.core.models.participant_status import ParticipantStatus
+        from vultron.core.states.rm import RM
+
+        status = ParticipantStatus.model_validate(
+            {"context": "urn:uuid:case-1", "rmState": RM.ACCEPTED}
+        )
+        participant = CaseParticipant(
+            context="urn:uuid:case-1",
+            attributed_to="https://example.org/actors/vendor",
+            participant_statuses=[status],
+        )
+        stored = _storable_to_record(object_to_record(participant)).data_
+
+        summary = participant_status_summary(stored)
+        assert "n_statuses=1" in summary
+        assert (
+            "rm=None" not in summary
+        ), f"the diagnostic went blank for a genuinely stored core row: {summary}"
+        assert "ACCEPTED" in summary

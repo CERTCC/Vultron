@@ -57,6 +57,9 @@ from vultron.wire.as2.vocab.objects.vulnerability_case import (
 from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
 )
+from vultron.core.models.dimensions import (
+    RmDimension,
+)
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -112,10 +115,12 @@ def _make_case_with_case_manager(
     # Pre-advance actor to RM.VALID so engage/defer transitions will succeed
 
     actor_participant.participant_statuses.append(
-        WireParticipantStatus(context=case.id_, rm_state=RM.RECEIVED)
+        WireParticipantStatus(
+            context=case.id_, rm=RmDimension(state=RM.RECEIVED)
+        )
     )
     actor_participant.participant_statuses.append(
-        WireParticipantStatus(context=case.id_, rm_state=RM.VALID)
+        WireParticipantStatus(context=case.id_, rm=RmDimension(state=RM.VALID))
     )
 
     case.actor_participant_index[actor_id] = actor_participant.id_

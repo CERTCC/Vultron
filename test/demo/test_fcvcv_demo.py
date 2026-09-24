@@ -23,11 +23,13 @@ triggers RM triage.
 """
 
 import contextlib
+from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
 import pytest
 
 import vultron.demo.scenario.fcvcv_demo as demo
+from vultron.demo.actor_session import ActorSession
 
 
 class _Helpers:
@@ -103,12 +105,13 @@ class TestFinderCaseReplicaWaitBeforeV1Triage(_Helpers):
             patch.object(demo, "wait_for_case_participants"),
             patch.object(demo, "verify_case_active"),
             patch.object(
-                demo,
-                "post_to_trigger",
-                return_value={
-                    "activity": {"id": "urn:test:act", "type": "Offer"}
-                },
+                ActorSession,
+                "invite_actor_to_case",
+                return_value=SimpleNamespace(
+                    activity=MagicMock(id_="urn:test:invite")
+                ),
             ),
+            patch.object(ActorSession, "accept_case_invite"),
             patch.object(demo, "post_to_inbox_and_wait"),
             patch.object(demo, "verify_object_stored"),
             patch.object(
@@ -122,7 +125,6 @@ class TestFinderCaseReplicaWaitBeforeV1Triage(_Helpers):
                 "find_case_invite_for_actor",
                 return_value="urn:test:invite",
             ),
-            patch.object(demo, "as_TransitiveActivity") as mock_ta,
             patch.object(demo, "as_VulnerabilityCase") as mock_vc,
             patch.object(
                 demo,
@@ -146,9 +148,6 @@ class TestFinderCaseReplicaWaitBeforeV1Triage(_Helpers):
                 side_effect=lambda _: contextlib.nullcontext(),
             ),
         ):
-            mock_ta.model_validate.return_value = MagicMock(
-                id_="urn:test:invite"
-            )
             mock_vc.model_validate.return_value = case
             demo._phase_report_submission(
                 finder_client=finder_client,
@@ -231,9 +230,8 @@ class TestFinderCaseReplicaWaitBeforeV2Triage(_Helpers):
             patch.object(
                 demo, "run_invite_path_rm_triage", side_effect=_triage
             ),
-            patch.object(
-                demo,
-                "post_to_trigger",
+            patch(
+                "vultron.demo.actor_session.post_to_trigger",
                 return_value={
                     "activity": {"id": "urn:test:act", "type": "Offer"}
                 },
@@ -259,7 +257,6 @@ class TestFinderCaseReplicaWaitBeforeV2Triage(_Helpers):
                 "get_actor_by_id",
                 return_value=MagicMock(id_="urn:test:v2-in-v2"),
             ),
-            patch.object(demo, "as_TransitiveActivity") as mock_ta,
             patch.object(demo, "as_VulnerabilityCase") as mock_vc,
             patch.object(
                 demo,
@@ -276,9 +273,6 @@ class TestFinderCaseReplicaWaitBeforeV2Triage(_Helpers):
                 side_effect=lambda _: contextlib.nullcontext(),
             ),
         ):
-            mock_ta.model_validate.return_value = MagicMock(
-                id_="urn:test:invite"
-            )
             mock_vc.model_validate.return_value = case
             demo._phase_c2_suggests_v2(
                 finder_client=finder_client,
@@ -345,9 +339,9 @@ class TestFinderCaseReplicaGenesisWaitInReportSubmission(_Helpers):
             if client is finder_client:
                 call_order.append("finder_genesis_wait")
 
-        def _post_to_trigger(**_kwargs):
+        def _invite(self, *_args, **_kwargs):
             call_order.append("invite_trigger")
-            return {"activity": {"id": "urn:test:act", "type": "Offer"}}
+            return SimpleNamespace(activity=MagicMock(id_="urn:test:invite"))
 
         with (
             patch.object(demo, "reset_containers"),
@@ -371,8 +365,12 @@ class TestFinderCaseReplicaGenesisWaitInReportSubmission(_Helpers):
                 demo, "wait_for_case_on_container", side_effect=_wait_for_case
             ),
             patch.object(
-                demo, "post_to_trigger", side_effect=_post_to_trigger
+                ActorSession,
+                "invite_actor_to_case",
+                side_effect=_invite,
+                autospec=True,
             ),
+            patch.object(ActorSession, "accept_case_invite"),
             patch.object(demo, "post_to_inbox_and_wait"),
             patch.object(demo, "verify_object_stored"),
             patch.object(demo, "run_invite_path_rm_triage"),
@@ -381,7 +379,6 @@ class TestFinderCaseReplicaGenesisWaitInReportSubmission(_Helpers):
                 "find_case_invite_for_actor",
                 return_value="urn:test:invite",
             ),
-            patch.object(demo, "as_TransitiveActivity") as mock_ta,
             patch.object(demo, "as_VulnerabilityCase") as mock_vc,
             patch.object(
                 demo,
@@ -405,9 +402,6 @@ class TestFinderCaseReplicaGenesisWaitInReportSubmission(_Helpers):
                 side_effect=lambda _: contextlib.nullcontext(),
             ),
         ):
-            mock_ta.model_validate.return_value = MagicMock(
-                id_="urn:test:invite"
-            )
             mock_vc.model_validate.return_value = case
             demo._phase_report_submission(
                 finder_client=finder_client,
@@ -487,7 +481,7 @@ class TestFcvcvCausalGates(_Helpers):
                 "wait_for_contiguous_ledger_coverage",
                 side_effect=coverage_wait_called,
             ),
-            patch.object(demo, "wait_for_case_participants"),
+            patch.object(demo, "wait_for_participants_on_replicas"),
             patch.object(demo, "verify_replica_state"),
         ):
             demo._phase_sync_verification(
@@ -534,7 +528,10 @@ class TestFcvcvCausalGates(_Helpers):
                 "find_case_actor_participant_id",
                 return_value="urn:test:case-actor",
             ),
-            patch.object(demo, "post_to_trigger", mock_post_to_trigger),
+            patch(
+                "vultron.demo.actor_session.post_to_trigger",
+                mock_post_to_trigger,
+            ),
             patch.object(demo, "get_actor_by_id", return_value=MagicMock()),
             patch.object(
                 demo,
@@ -620,10 +617,11 @@ class TestFcvcvRmTriageTimeout(_Helpers):
             patch.object(demo, "wait_for_case_participants"),
             patch.object(demo, "verify_case_active"),
             patch.object(
-                demo,
-                "post_to_trigger",
-                return_value={"activity": {"id": invite.id_, "type": "Offer"}},
+                ActorSession,
+                "invite_actor_to_case",
+                return_value=SimpleNamespace(activity=invite),
             ),
+            patch.object(ActorSession, "accept_case_invite"),
             patch.object(demo, "post_to_inbox_and_wait"),
             patch.object(demo, "verify_object_stored"),
             patch.object(demo, "wait_for_case_on_container"),
@@ -633,7 +631,6 @@ class TestFcvcvRmTriageTimeout(_Helpers):
                 "find_case_invite_for_actor",
                 return_value="urn:test:invite",
             ),
-            patch.object(demo, "as_TransitiveActivity") as mock_ta,
             patch.object(demo, "as_VulnerabilityCase") as mock_vc,
             patch.object(
                 demo,
@@ -651,9 +648,6 @@ class TestFcvcvRmTriageTimeout(_Helpers):
                 side_effect=lambda _: contextlib.nullcontext(),
             ),
         ):
-            mock_ta.model_validate.return_value = MagicMock(
-                id_="urn:test:invite"
-            )
             mock_vc.model_validate.return_value = case
             demo._phase_report_submission(
                 finder_client=self._client(),

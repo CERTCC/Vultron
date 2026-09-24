@@ -5,10 +5,9 @@
 # concurrently on PRs.  See specs/demo-ci.yaml DEMOCI-02-001.
 #
 # Triggers:
-#   pull_request  — minimum PR validation set (4 scenarios, DEMOCI-06-002);
-#                   targets `main`
-#   push to main — full 9-scenario suite (DEMOCI-06-003, DEMOCI-05-001)
-#   workflow_dispatch — full 9-scenario suite; accepts optional `ref` input
+#   pull_request  — minimum PR validation set (DEMOCI-06-002); targets `main`
+#   push to main — the full scenario suite (DEMOCI-06-003, DEMOCI-05-001)
+#   workflow_dispatch — the full scenario suite; accepts optional `ref` input
 #                       so the suite can be run against any branch without
 #                       opening a PR to `main`
 #
@@ -29,19 +28,17 @@
 # This gives each scenario two independent pass/fail statuses on the PR so
 # invariant failures are visible even when the demo job itself fails.
 #
-# Minimum PR set (DEMOCI-06-002): fv, fvcv-handoff, fcvcv, fcv-reject
-#   - fv covers the 4 universal event types (2-actor baseline)
-#   - fvcv-handoff adds invite_actor_to_case + accept_invite_actor_to_case
-#     + ownership-transfer protocol path
-#   - fcvcv adds offer_case_participant and ≥3-actor invite/accept chains
-#   - fcv-reject adds reject_invite_actor_to_case (RM invitation rejection)
-# Full set adds: fvv, fvcv-extension, fccv-extension, fccv-handoff, fcv
-#
 # Scenario selection (DEMOCI-06-002, DEMOCI-06-003): the scenario list lives in
 # .github/demo-scenarios.json, one entry per scenario carrying a boolean
 # `full_suite_only` field. The `scenarios` job filters that list — dropping
 # full_suite_only entries on pull_request events — and both downstream jobs
 # expand `fromJSON()` of its output as their matrix.
+#
+# Neither set is enumerated here. The JSON is a generated projection of the
+# @scenario decorators (ADR-0098, DEMOCI-11-004), so a prose list above the code
+# that computes it would be one more copy to keep in step — and DEMOCI-11-008
+# forbids restating the count for the same reason. The membership rationale for
+# the PR set lives in DEMOCI-06-002 and notes/demo-ci-scenario-coverage.md.
 #
 # The filter MUST NOT be expressed as a job-level `if:` on the matrix field
 # (e.g. `matrix.full_suite_only != true`). Job `if:` is evaluated before matrix
@@ -118,9 +115,9 @@ permissions:
 
 jobs:
   # DEMOCI-06-002, DEMOCI-06-003: resolve the scenario matrix for this event.
-  # On pull_request, full_suite_only entries are dropped, leaving the
-  # 4-scenario minimum PR validation set. On push-to-main and
-  # workflow_dispatch, all 9 scenarios run.
+  # On pull_request, full_suite_only entries are dropped, leaving the minimum
+  # PR validation set. On push-to-main and workflow_dispatch, every scenario
+  # runs.
   #
   # DEMOCI-02-004: the Dependabot guard lives here, on a job with no matrix, so
   # a Dependabot PR resolves to an empty matrix and every downstream job is
@@ -256,10 +253,22 @@ jobs:
     # the `scenarios` job; `always()` must not resurrect this job when that job
     # was skipped or failed, so the condition tests the scenarios job directly
     # rather than using a bare always().
+    # DEMOCI-04-007, #3249: also skip when the demo job was *cancelled* (a newer
+    # push superseded this run via the concurrency group). A cancelled demo job
+    # uploads no case-log artifact, so the download-artifact step below would
+    # hard-fail — turning a cancellation into a spurious `failure` that the
+    # `notify` job files as a real CI failure. Skipping here leaves `notify` to
+    # correctly defer to the superseding run. On the pure-cancellation path
+    # `needs.demo.result` is `cancelled` and the harness is skipped; the
+    # success/failure paths are unaffected. In the rare mixed case (a leg
+    # genuinely fails, then a newer push cancels the remaining fail-fast:false
+    # legs) the aggregate may resolve to `failure`, in which case the harness
+    # runs and `notify` files — correctly, because a real failure occurred.
     needs: [scenarios, demo]
     if: >-
       always() &&
-      needs.scenarios.result == 'success'
+      needs.scenarios.result == 'success' &&
+      needs.demo.result != 'cancelled'
     strategy:
       fail-fast: false
       # Intentionally identical to the `demo` job matrix: both jobs must fan
@@ -281,8 +290,12 @@ jobs:
           path: devlogs/
 
       # AC-925-1: run canonical-log invariant harness against JSONL artifacts.
-      # All invariants are currently passing; no xfail markers are in use.
-      # See test/ci/README-case-log-ratchet.md for the invariant inventory.
+      # Some universal invariants carry a live xfail marker; the rest are
+      # active, so a failure here is a real regression.  Which are which, and
+      # who owns each xfail, lives in notes/demo-ci-diagnostics.md -
+      # "Per-Invariant Diagnostic Map", ratcheted against the harness by
+      # test/ci/invariants/test_diagnostic_map_sync.py.  Do not restate the
+      # tally here; that is the part that goes stale.
       - name: Set up Python and uv
         uses: ./.github/actions/setup-python-uv
 
@@ -302,8 +315,12 @@ jobs:
       issues: write
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+      # CISEC-05-006, #3249: file only on a genuine failure, never on a
+      # cancelled run. The invariant-harness skip above already keeps a
+      # superseded run free of a `failure` result; this guard is defense in
+      # depth against any future job that could hard-fail on a cancelled run.
       - name: Notify CI failure
-        if: contains(needs.*.result, 'failure')
+        if: contains(needs.*.result, 'failure') && !contains(needs.*.result, 'cancelled')
         uses: ./.github/actions/notify-failure
         with:
           mode: notify

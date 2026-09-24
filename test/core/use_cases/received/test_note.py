@@ -310,7 +310,7 @@ class TestNoteUseCases:
         activity = as_Remove(
             actor="https://example.org/users/finder",
             object_=note,
-            target=case,
+            target=case.id_,
         )
         event = make_payload(activity)
 
@@ -341,7 +341,7 @@ class TestNoteUseCases:
         activity = as_Remove(
             actor="https://example.org/users/finder",
             object_=note,
-            target=case,
+            target=case.id_,
         )
         event = make_payload(activity)
 

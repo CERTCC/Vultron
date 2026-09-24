@@ -85,7 +85,7 @@ def _case_with_case_actor_participant() -> tuple:
         context=_CASE_ID,
         name="CaseActor",
     )
-    case = as_VulnerabilityCase(
+    case = as_VulnerabilityCase.model_construct(
         id_=_CASE_ID,
         name="CBT test case",
         case_participants=[participant],

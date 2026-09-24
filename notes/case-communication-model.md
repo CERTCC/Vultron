@@ -3,10 +3,11 @@ title: Case Communication Model
 status: active
 description: >
   Canonical communication model for post-case-creation participant messaging:
-  all participant messages route through the Case Actor exclusively, and all
+  all participant messages route through the CASE_MANAGER exclusively, and all
   state updates propagate via CaseLedgerEntry broadcast. Captures the routing
   rule, its rationale, common antipatterns, and BT implementation guidance.
 related_specs:
+  - specs/architecture.yaml
   - specs/participant-case-replica.yaml
   - specs/sync-ledger-replication.yaml
   - specs/case-ledger-processing.yaml
@@ -32,26 +33,26 @@ relevant_packages:
 
 ## The Canonical Communication Flow
 
-Once a case is created and the Case Actor has been introduced to all
-participants, **all case-scoped participant messages MUST flow through
-the Case Actor exclusively**. The canonical flow is:
+Once a case is created and the actor enacting `CVDRole.CASE_MANAGER` has been
+introduced to all participants, **all case-scoped participant messages MUST flow
+through the CASE_MANAGER exclusively**. The canonical flow is:
 
 ```text
-Participant → Case Actor → CaseLedgerEntry → Announce(CaseLedgerEntry) → all Participants
+Participant → CASE_MANAGER → CaseLedgerEntry → Announce(CaseLedgerEntry) → all Participants
 ```
 
 No participant may send a case-scoped message directly to another
-participant. The Case Actor is the single intermediary and single writer
+participant. The CASE_MANAGER is the single intermediary and single writer
 of authoritative case history.
 
 ### Three-Phase Breakdown
 
-1. **Participant → Case Actor**: The originating participant sends
+1. **Participant → CASE_MANAGER**: The originating participant sends
    `Add(Note)`, `Add(ParticipantStatus)`, `Offer(Embargo)`, or any other
-   case-scoped activity addressed **only** to the Case Actor
+   case-scoped activity addressed **only** to the CASE_MANAGER
    (`to: [case_actor_id]`).
 
-2. **Case Actor processes + commits**: On receipt, the Case Actor validates
+2. **CASE_MANAGER processes + commits**: On receipt, the CASE_MANAGER validates
    the activity, updates local case state, and commits a `CaseLedgerEntry`
    recording the outcome (accepted or rejected).
 
@@ -65,16 +66,16 @@ of authoritative case history.
 
 | Phase | Rule |
 |---|---|
-| **Before case creation** | Finder sends `Offer(Report)` directly to Vendor — no Case Actor exists yet. This direct peer message is the **only** exception. |
-| **Case creation / bootstrap** | Vendor sends `Create(VulnerabilityCase)` to Finder to introduce the Case Actor. This is the trust-bootstrap handshake (one-time exception). |
-| **Inviting a new participant** | See [Invite/Accept Handshake Routing](#inviteaccept-handshake-routing) below. The Case Actor sends `Invite` on the owner's behalf and processes `Accept`. |
-| **After case is active** | ALL subsequent messages from any participant go to the Case Actor only. No direct peer messaging. |
+| **Before case creation** | Finder sends `Offer(Report)` directly to Vendor — no CASE_MANAGER exists yet. This direct peer message is the **only** exception. |
+| **Case creation / bootstrap** | Vendor sends `Create(VulnerabilityCase)` to Finder to introduce the CASE_MANAGER. This is the trust-bootstrap handshake (one-time exception). |
+| **Inviting a new participant** | See [Invite/Accept Handshake Routing](#inviteaccept-handshake-routing) below. The CASE_MANAGER sends `Invite` on the owner's behalf and processes `Accept`. |
+| **After case is active** | ALL subsequent messages from any participant go to the CASE_MANAGER only. No direct peer messaging. |
 
 ---
 
 ## Why This Model
 
-The Case Actor is the single writer of authoritative shared history
+The CASE_MANAGER is the single writer of authoritative shared history
 (see `notes/case-ledger-authority.md`). If participants send messages
 directly to each other:
 
@@ -82,7 +83,7 @@ directly to each other:
   be rebuilt deterministically from the log alone.
 - The hash chain is not authoritative because state-changing events
   are not all recorded in it.
-- The Case Actor cannot enforce validation, reject malformed assertions,
+- The CASE_MANAGER cannot enforce validation, reject malformed assertions,
   or maintain consistent ordering.
 - Demo and protocol analysis become unreliable because the actual
   message flow diverges from the specified model.
@@ -97,7 +98,7 @@ the case participant index except the caller. Using this as the sole
 after case creation:
 
 ```python
-# ❌ WRONG — sends to all participants directly, bypassing Case Actor
+# ❌ WRONG — sends to all participants directly, bypassing the CASE_MANAGER
 addressees = case_addressees(case, actor_id)   # [vendor, finder]  (excludes caller)
 activity = add_note_to_case_activity(
     note=note, target=case_id, actor=actor_id, to=addressees
@@ -105,54 +106,66 @@ activity = add_note_to_case_activity(
 ```
 
 ```python
-# ✅ CORRECT — send only to the Case Actor
+# ✅ CORRECT — send only to the CASE_MANAGER
 case_manager_id = _resolve_case_manager_id(case, dl)  # only the CASE_MANAGER actor
 activity = add_note_to_case_activity(
     note=note, target=case_id, actor=actor_id, to=[case_manager_id]
 )
 ```
 
-`case_addressees()` is still correct for the Case Actor's **outbound
-broadcast** (when the Case Actor fans out a `CaseLedgerEntry` to all
+`case_addressees()` is still correct for the CASE_MANAGER's **outbound
+broadcast** (when the CASE_MANAGER fans out a `CaseLedgerEntry` to all
 participants). It is wrong on the **participant sender** side.
 
 ---
 
-## Implementation: Resolving the Case Actor ID
+## Implementation: Resolving the CASE_MANAGER ID
 
-The Case Actor is the participant with `CVDRole.CASE_MANAGER`. To resolve
+The authority is the participant holding `CVDRole.CASE_MANAGER`. To resolve
 its actor ID from a known case:
 
 ```python
-from vultron.enums.roles import CVDRole
-
-def _resolve_case_manager_id(case, dl) -> str | None:
-    for p_id in case.actor_participant_index.values():
-        p = dl.read(p_id)
-        roles = getattr(p, "case_roles", [])
-        if CVDRole.CASE_MANAGER in roles:
-            manager_actor_id = getattr(p, "attributed_to", None)
-            return str(manager_actor_id) if manager_actor_id else None
-    return None
+from vultron.core.participants.authority import resolve_case_manager_id
 ```
 
-This pattern already exists in `SvcAddParticipantStatusUseCase` (which
-correctly routes to the Case Actor only) and should be extracted as a
-shared helper used by all sender-side trigger use cases.
+This extraction landed in PR #3219 under ADR-0088. `resolve_case_manager_id`
+is the canonical implementation used by all sender-side trigger use cases.
+
+**Which of the two resolvers to reach for.** They answer different questions,
+and picking the wrong one is how hosting signals crept back in before
+(ARCH-24-005; the full three-way split is in
+[case-ledger-authority](case-ledger-authority.md) § "Three Questions That Look
+Like One"):
+
+- **`resolve_case_manager_id(case, dl)`** — "am I / who is the authority?"
+  Needs a `VulnerabilityCase` in hand. Use it for every gate and every
+  authority decision. It lives in the neutral layer, so `behaviors/` may import
+  it directly (no `behaviors → use_cases` hop, BTND-04-003).
+- **`_find_case_actor_id(dl, case_id)`** — "what address do I route to?" Takes a
+  case *id* and adds one bootstrap path: the `trusted_case_actor_id` recorded on
+  a completed `ReportCaseLink`, which answers before the local replica has a
+  roster to read. Use it for addressing (`to:` / `cc:`) — PCR-08-007,
+  PCR-08-008.
+
+Neither consults a URL shape or a `Service` object's hosting location. ADR-0088
+removed both, along with the `is_case_actor_identity` predicate: an ordinary
+participant enacting `CASE_MANAGER` *is* the authority and *is* the address, and
+a `.../actors/case-actor` URL is a provisioning convenience with no protocol
+meaning (CM-02-013, ARCH-24-004).
 
 ---
 
 ## Automatic CaseLedgerEntry + Broadcast Cascade
 
-Every Case Actor received-side handler that accepts a participant message
+Every CASE_MANAGER received-side handler that accepts a participant message
 MUST trigger the cascade automatically — not via a manual demo endpoint.
 The expected flow:
 
-1. Case Actor inbox receives participant activity.
-2. Case Actor's received-side use case (or BT) processes the assertion.
+1. CASE_MANAGER inbox receives participant activity.
+2. CASE_MANAGER's received-side use case (or BT) processes the assertion.
 3. On acceptance: `commit_log_entry()` → `_fan_out_log_entry()` (queues
-   `Announce(CaseLedgerEntry)` to all participants via Case Actor outbox).
-4. `OutboxMonitor` drains the Case Actor outbox → delivers to each
+   `Announce(CaseLedgerEntry)` to all participants via the CASE_MANAGER outbox).
+4. `OutboxMonitor` drains the CASE_MANAGER outbox → delivers to each
    participant's inbox.
 5. Participant's `AnnounceLedgerEntryReceivedUseCase` (`received/sync.py`)
    processes the entry and updates the local replica.
@@ -180,7 +193,7 @@ TriggerUseCase.execute()
 
 SenderBT (Sequence)
   ├── ResolveCaseManagerNode      # looks up CASE_MANAGER actor ID
-  ├── ConstructActivityNode       # builds the AS2 activity addressed to Case Actor
+  ├── ConstructActivityNode       # builds the AS2 activity addressed to CASE_MANAGER
   └── QueueToOutboxNode           # adds to actor outbox
 ```
 
@@ -194,20 +207,20 @@ the recipient when building outbound participant activities.
 
 Adding a new participant to an active case uses `RmInviteToCaseActivity` /
 `RmAcceptInviteToCaseActivity`. Because the invitee is not yet a participant,
-the standard CaseActor → broadcast model cannot be used to deliver the invite.
-However, the Case Actor MUST still be the authoritative actor in the exchange.
+the standard CASE_MANAGER → broadcast model cannot be used to deliver the invite.
+However, the CASE_MANAGER MUST still be the authoritative actor in the exchange.
 
 ### Correct Flow
 
 ```text
 Case Owner triggers SvcInviteActorToCaseUseCase
-  → Case Actor sends Invite(actor=case_actor_id, attributedTo=case_owner_id)
+  → CASE_MANAGER sends Invite(actor=case_actor_id, attributedTo=case_owner_id)
     → Invitee's inbox
 
 Invitee sends Accept(Invite, actor=invitee_id, to=[case_actor_id])
-  → Case Actor's inbox (NOT the case owner's inbox)
+  → CASE_MANAGER's inbox (NOT the case owner's inbox)
 
-Case Actor's AcceptInviteActorToCaseReceivedUseCase:
+CASE_MANAGER's AcceptInviteActorToCaseReceivedUseCase:
   1. Creates VultronParticipant at RM.VALID
   2. Records RM VALID→ACCEPTED inline (Accept(Invite) IS the engage signal)
   3. Emits Announce(VulnerabilityCase) to invitee
@@ -216,24 +229,24 @@ Case Actor's AcceptInviteActorToCaseReceivedUseCase:
 
 ### Key Rules
 
-- `actor` on `RmInviteToCaseActivity` MUST be the **Case Actor's ID**.
+- `actor` on `RmInviteToCaseActivity` MUST be the **CASE_MANAGER's ID**.
   `attributedTo` MAY carry the case owner's ID (PCR-08-007).
-- The invitee's `Accept` MUST be addressed **to the Case Actor**,
+- The invitee's `Accept` MUST be addressed **to the CASE_MANAGER**,
   not to the case owner (PCR-08-008).
-- The Case Actor (not the case owner) MUST process the Accept and
+- The CASE_MANAGER (not the case owner) MUST process the Accept and
   record the invitee's RM transition (PCR-08-009).
 - No `RmEngageCaseActivity` is emitted on behalf of the invitee.
   `Accept(Invite)` is semantically equivalent to engaging, so the
   separate engage step is redundant.
 
-### Implementation Pattern: Role-Gated Emit, Case Actor Executes
+### Implementation Pattern: Role-Gated Emit, CASE_MANAGER Executes
 
 **Updated by ADR-0073 / CM-24-004.** The emit must sit inside a composite gated
 on the executing actor holding `CVDRole.CASE_MANAGER` for the case
 (`create_case_manager_gated_tree`). Code MUST NOT instead resolve a
 `case_actor_id` and compare it against `actor_id`: the authority is a *role* held
 in the case, its holder may be any Actor type, and ungated the same helper is
-identity spoofing — any actor reaching it could emit as the CaseActor.
+identity spoofing — any actor reaching it could emit as the CASE_MANAGER.
 
 Once the emit is role-gated the executing actor *is* the case manager, so
 `dl` already belongs to it and the activity and its outbox entry land in one store
@@ -265,21 +278,21 @@ not exist: the Activity is sent directly by the requesting participant, with
 ## Delegated-Message Pattern
 
 Some case-scoped Activities are logically initiated by a participant but MUST
-be sent under the CaseActor's identity — because the protocol requires the
-CaseActor to be the recognised sender.  This is the **delegated-message
+be sent under the CASE_MANAGER's identity — because the protocol requires the
+CASE_MANAGER to be the recognised sender.  This is the **delegated-message
 pattern** (CM-24-001 through CM-24-005):
 
 ```text
 Requesting actor calls trigger: <trigger-name>
   → Trigger use case _prepare():
-      self._actor_id     = case_actor_id      ← CaseActor sends (CM-24-001)
+      self._actor_id     = case_actor_id      ← CASE_MANAGER sends (CM-24-001)
       self._attributed_to = requesting_actor_id  ← attribution preserved (CM-24-002)
-      # When no CaseActor: self._actor_id = requesting_actor_id,
+      # When unresolvable: self._actor_id = requesting_actor_id,
       #                     self._attributed_to = None (CM-24-003)
-  → BT runs under CaseActor identity → activity queued in CaseActor outbox (CM-24-004)
+  → BT runs under the CASE_MANAGER's identity → activity queued in its outbox (CM-24-004)
 
 Recipient receives Activity:
-  actor        = case_actor_id       ← recognisable CaseActor sender
+  actor        = case_actor_id       ← the CASE_MANAGER as sender
   attributed_to = requesting_actor_id  ← who initiated the action
 ```
 
@@ -330,21 +343,30 @@ bridge.execute_with_setup(tree, actor_id=invitee_id)   # spoofed actor
 ```
 
 ```python
-# ✅ CORRECT — inline transition; no BT, no spoofed emit
-participant.append_rm_state(RM.ACCEPTED, actor=invitee_id, context=case_id)
-dl.save(participant)
+# ✅ CORRECT — the CASE_MANAGER advances the invitee's RM state through the sole
+# writer, in its own DataLayer, attributing the write to the invitee — no proxy
+# activity and no spoofed invitee BT (ADR-0089):
+BTBridge(datalayer=dl).execute_with_setup(
+    CreateParticipantStatusNode(
+        actor_id=invitee_id,        # subject of the write
+        rm_state=RM.ACCEPTED,
+        vf_state=None, d_state=None, pxa_state=None,
+    ),
+    actor_id=case_actor_id,         # the executing actor (owner of this store)
+    case_id=case_id,
+)
 ```
 
-The `Accept(Invite)` message is the invitee's engage decision. The Case Actor
+The `Accept(Invite)` message is the invitee's engage decision. The CASE_MANAGER
 records that decision as a direct RM state update, without emitting a proxy
 `RmEngageCaseActivity` (PCR-08-010).
 
 ---
 
-## Antipattern: Received-Side Guarded Commit with Foreign CaseActor ID
+## Antipattern: Received-Side Guarded Commit with Foreign CASE_MANAGER ID
 
 A subtler form of identity spoofing appears when a received-side use case
-resolves the CaseActor's ID from the DataLayer and then executes the
+resolves the CASE_MANAGER's ID from the DataLayer and then executes the
 guarded-commit BT under that foreign ID — even though the active DataLayer
 belongs to a different actor (e.g., the vendor actor). This was the pattern
 in `note.py` and `embargo.py` before ADR-0021 was established.
@@ -354,27 +376,27 @@ in `note.py` and `embargo.py` before ADR-0021 was established.
 case_actor_id = _find_case_actor_id(self._dl, case_id)   # foreign ID
 BTBridge(datalayer=self._dl).execute_with_setup(         # vendor's DL
     tree=create_guarded_commit_case_ledger_entry_tree(case_id),
-    actor_id=case_actor_id,   # ← spoofed: vendor's DL, CaseActor's identity
+    actor_id=case_actor_id,   # ← spoofed: vendor's DL, the CASE_MANAGER's identity
     ...
 )
 ```
 
 The problem: `self._dl` is the **vendor actor's** DataLayer (since the use case
 is running in the vendor's inbox), but `actor_id=case_actor_id` causes the BT
-to emit `Announce(CaseLedgerEntry)` as if authored by the CaseActor. The
-outbox entry is queued under the wrong actor, and the CaseActor's canonical
+to emit `Announce(CaseLedgerEntry)` as if authored by the CASE_MANAGER. The
+outbox entry is queued under the wrong actor, and the CASE_MANAGER's canonical
 ledger never receives it.
 
 The correct pattern (from `status.py`'s `_commit_log_cascade_bt`) is a strict
-pre-flight guard that only proceeds when the receiving actor IS the CaseActor:
+pre-flight guard that only proceeds when the receiving actor IS the CASE_MANAGER:
 
 ```python
-# ✅ CORRECT — pre-flight guard; only commits when receiving actor IS CaseActor
+# ✅ CORRECT — pre-flight guard; only commits when receiving actor holds CASE_MANAGER
 receiving_actor_id = request.receiving_actor_id
 case_actor_id = _find_case_actor_id(self._dl, case_id)
 
 if receiving_actor_id != case_actor_id:
-    return   # not the CaseActor — skip commit entirely
+    return   # not the CASE_MANAGER — skip commit entirely
 
 # Now safe: receiving_actor_id == case_actor_id, so DL matches identity
 BTBridge(datalayer=self._dl).execute_with_setup(
@@ -384,15 +406,15 @@ BTBridge(datalayer=self._dl).execute_with_setup(
 )
 ```
 
-The pre-flight guard is what makes the identity correct. When a non-CaseActor
+The pre-flight guard is what makes the identity correct. When a non-CASE_MANAGER
 receives the same activity (relay copy to finder, vendor's own inbox), the
-guard fires and the commit is skipped. The CaseActor's own inbox delivery —
+guard fires and the commit is skipped. The CASE_MANAGER's own inbox delivery —
 which arrives because the trigger tree emitted to `case_manager_id`
 (CLP-10-001) — is the only path to a canonical write.
 
 ### Why the `Announce(CaseLedgerEntry)` envelope is not a payload
 
-`Announce(CaseLedgerEntry)` is the replication wire envelope the CaseActor
+`Announce(CaseLedgerEntry)` is the replication wire envelope the CASE_MANAGER
 uses to broadcast canonical entries to participants (SYNC-02-002). It cannot
 appear as the `payloadSnapshot` of a canonical entry because the snapshot
 captures the protocol activity that *triggered* the entry, not the transport
@@ -407,11 +429,3 @@ This is why `announce_case_ledger_entry` MUST NOT appear in
 See ADR-0021 for the full decision record.
 
 ---
-
-## Known Implementation Gaps
-
-| Gap | Location | Status |
-|---|---|---|
-| Notes trigger sends to all participants | `triggers/note.py:102` | Open |
-| Embargo triggers send to all participants | `triggers/embargo.py` | Open |
-| Engage/defer-case triggers send to all participants | `triggers/case.py:84,132` | Open |

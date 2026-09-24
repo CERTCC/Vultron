@@ -1,30 +1,24 @@
 {
-  "@context": "https://www.w3.org/ns/activitystreams",
-  "type": "Organization",
   "id": "https://vultron.example/organizations/coordinator",
+  "type": "Organization",
   "name": "Coordinator LLC",
+  "@context": "https://www.w3.org/ns/activitystreams",
   "inbox": {
-    "@context": "https://www.w3.org/ns/activitystreams",
+    "id": "urn:uuid:490ba486-0899-4fcf-b132-b6403ed08b24",
     "type": "OrderedCollection",
-    "id": "https://for.example/ad25578a-f3b3-437f-820f-eb429c62956b",
-    "published": "2024-01-22T20:29:47+00:00",
-    "updated": "2024-01-22T20:29:47+00:00",
+    "published": "2026-09-23T16:41:56+00:00",
+    "updated": "2026-09-23T16:41:56+00:00",
+    "@context": "https://www.w3.org/ns/activitystreams",
     "items": [],
     "current": 0
   },
   "outbox": {
-    "@context": "https://www.w3.org/ns/activitystreams",
+    "id": "urn:uuid:25388126-8760-4d8e-80bb-59a1989fa4b3",
     "type": "OrderedCollection",
-    "id": "https://for.example/02ad578a-db54-4b3f-b9d8-0a086f177570",
-    "published": "2024-01-22T20:29:47+00:00",
-    "updated": "2024-01-22T20:29:47+00:00",
+    "published": "2026-09-23T16:41:56+00:00",
+    "updated": "2026-09-23T16:41:56+00:00",
+    "@context": "https://www.w3.org/ns/activitystreams",
     "items": [],
     "current": 0
-  },
-  "following": null,
-  "followers": null,
-  "liked": null,
-  "streams": null,
-  "preferredUsername": null,
-  "endpoints": null
+  }
 }

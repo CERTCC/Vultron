@@ -57,7 +57,7 @@ def _example_funcs() -> list:
     """Every zero-argument example function reachable from ``vocab_examples``.
 
     These are exactly the callables the ``markdown_exec`` blocks under
-    ``docs/howto/activitypub/`` invoke, so this list is what keeps the docs
+    ``docs/reference/`` invoke, so this list is what keeps the docs
     build from being the only place a broken example is detected.
     """
     return [
@@ -70,29 +70,27 @@ class Foo(as_Base):
 
 
 def _frozen_report() -> as_VulnerabilityReport:
-    """A wire report, which is frozen and carries both timestamps."""
+    """A report object carrying both timestamps."""
     return as_VulnerabilityReport(
         name="FDR-0000001",
         id_="https://vultron.example/reports/FDR-0000001",
         content="I found a vulnerability!",
-        attributed_to=["https://vultron.example/users/finndervul"],
+        attributed_to="https://vultron.example/users/finndervul",
     )
 
 
 class TestStripPublishedUpdated(unittest.TestCase):
     """Regression tests for issue #2904.
 
-    ``Foo`` above is not frozen and declares neither ``published`` nor
-    ``updated``, so ``TestVocabUtils`` never reaches the timestamp-stripping
-    branch. These tests use a real wire object, which is frozen by design
-    (ADR-0074) and does carry both timestamps.
+    ``Foo`` above declares neither ``published`` nor ``updated``,
+    so ``TestVocabUtils`` never reaches the timestamp-stripping
+    branch. These tests use a real domain object that carries both timestamps.
     """
 
     def test_frozen_wire_object_carries_both_timestamps(self):
         report = _frozen_report()
         self.assertIsNotNone(report.published)
         self.assertIsNotNone(report.updated)
-        self.assertTrue(type(report).model_config.get("frozen"))
 
     def test_json2md_strips_timestamps_from_frozen_model(self):
         report = _frozen_report()

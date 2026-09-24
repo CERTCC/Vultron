@@ -20,11 +20,10 @@ from typing import Any, ClassVar, TypeAlias, cast
 import isodate  # type: ignore[import-untyped]
 from pydantic import ConfigDict, field_serializer, field_validator, Field
 
+from vultron.core.models._helpers import as_utc, now_utc
 from vultron.core.models.base import CoreObject, VultronObject
 from vultron.wire.as2.vocab.base.base import as_Base
-from vultron.wire.as2.vocab.base.dt_utils import (
-    now_utc,
-)
+from vultron.wire.as2.vocab.base.utils import is_blank
 from vultron.wire.as2.vocab.base.links import (
     ActivityStreamRef,
     ActivityStreamRequiredRef,
@@ -120,12 +119,43 @@ class as_Object(as_Base, VultronObject):
     def validate_datetime(
         cls, value: datetime | str | None
     ) -> datetime | None:
+        """Coerce a wire timestamp, reading a blank string as absence.
+
+        One validator covers all four timestamp fields, so the "if present,
+        then non-empty" invariant (CS-08-001) is expressed here once rather
+        than as four per-field stubs (CS-08-002).  The blank test comes from
+        ``vocab.base.utils.is_blank``, the wire layer's single definition of
+        blank, shared with ``parser.parse_activity``'s required-field guards
+        (CS-22-001).
+
+        A blank string is *absence*, not a malformed value: it carries no time,
+        and the alternative — raising — is not available to a nested object.
+        ``parser._expand_inline_value`` refuses an inline object that fails its
+        own class's validation, so treating a cosmetic blank as a fault would
+        reject the whole message over a field the nested object is allowed to
+        omit outright.
+
+        Absence here means ``None``, **not** the field default.  ``published``
+        and ``updated`` carry ``default_factory=now_utc`` so that an object this
+        process *authors* is stamped with the local clock; on inbound data that
+        default would fabricate a time and present it as the sender's claim.
+        ``as_Base.carry_absent_times_on_inbound`` therefore reads an omitted
+        key as ``None`` under the inbound validation context, so omission,
+        ``null`` and blank all arrive as the same ``None`` (ISSUE-3257,
+        ADR-0103).
+
+        A non-blank string that is not a timestamp stays an error: blank means
+        "not provided", and reporting corrupt data as missing data would tell
+        the sender to supply a field they already sent (ISSUE-3217).
+        """
         if value is None:
             return value
         if isinstance(value, datetime):
-            return value
+            return as_utc(value)
         if isinstance(value, str):
-            return datetime.fromisoformat(value)
+            if is_blank(value):
+                return None
+            return as_utc(datetime.fromisoformat(value))
         raise TypeError(f"Unsupported datetime value: {value!r}")
 
 

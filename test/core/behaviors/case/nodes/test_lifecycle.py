@@ -86,10 +86,12 @@ class _FakeActivity:
         activity_id: str = ACTIVITY_ID,
         semantic_type: MessageSemantics = MessageSemantics.CREATE_CASE,
         activity: object | None = None,
+        actor_id: str | None = None,
     ):
         self.activity_id = activity_id
         self.semantic_type = semantic_type
         self.activity = activity
+        self.actor_id = actor_id
 
 
 class _FakeWireActivity:
@@ -424,7 +426,11 @@ class TestPayloadObjectOverrideContract:
     """AC-2, AC-3, AC-4: producer/consumer contract for ledger_payload_object_override."""
 
     def test_hard_fail_on_unrecognized_alias(self, bridge):
-        """AC-2/AC-4a: FAILURE when fields contains a key not in _SNAKE_TWINS (RSH-05-013)."""
+        """AC-2/AC-4a: FAILURE when fields names a key outside the patchable set.
+
+        The patchable set is
+        :data:`vultron.core.behaviors.ledger_patch.PATCH_KEY_TWINS` (RSH-05-013).
+        """
         status = _run_with_override(
             bridge,
             fields={"rmState": "VALID", "unknownAlias": "oops"},
@@ -457,3 +463,81 @@ class TestPayloadObjectOverrideContract:
             producer_type="FilterParticipantStatusDimensionsNode",
         )
         assert status == Status.SUCCESS
+
+
+# ---------------------------------------------------------------------------
+# CLP-07-003: actor-identity check in the receive pipeline
+# ---------------------------------------------------------------------------
+
+
+DIFFERENT_ACTOR = "https://example.org/actors/impostor"
+CASE_ID_CLP = "https://example.org/cases/case-007"
+
+
+@pytest.mark.spec("CLP-07-003")
+def test_actor_identity_mismatch_returns_failure(bridge):
+    """CLP-07-003: CommitCaseLedgerEntryNode raises VultronCanonicalEntryError
+    when payloadSnapshot.actor does not match activity.actor_id; the bridge
+    converts it to FAILURE and records the error in the feedback message."""
+    payload = {
+        "type": "Add",
+        "actor": DIFFERENT_ACTOR,
+        "object": {
+            "type": "Note",
+            "id": "https://example.org/notes/n1",
+            "context": CASE_ID_CLP,
+        },
+        "context": CASE_ID_CLP,
+        "published": "2026-01-01T12:00:00+00:00",
+    }
+    activity = _FakeActivity(
+        activity_id=ACTIVITY_ID,
+        semantic_type=MessageSemantics.ADD_NOTE_TO_CASE,
+        activity=_FakeWireActivityWithPayload(payload),
+        actor_id=ACTOR_ID,
+    )
+    node = CommitCaseLedgerEntryNode(case_id=CASE_ID_CLP)
+    with patch(_FACTORY_PATH) as mock_factory, patch(_INNER_BRIDGE_PATH):
+        result = bridge.execute_with_setup(
+            tree=node, actor_id=ACTOR_ID, activity=activity
+        )
+    assert result.status == Status.FAILURE
+    assert "CLP-07-003" in (result.feedback_message or "")
+    mock_factory.assert_not_called()
+
+
+@pytest.mark.spec("CLP-07-003")
+def test_case_manager_as_participant_commits_without_error(bridge):
+    """CLP-07-003: a CASE_MANAGER who is also a participant may assert
+    participant activities — snapshot.actor == activity.actor_id, so no error.
+    """
+    CASE_MANAGER_ID = "https://example.org/actors/case-manager"
+    payload = {
+        "type": "Add",
+        "actor": CASE_MANAGER_ID,
+        "object": {
+            "type": "Note",
+            "id": "https://example.org/notes/n2",
+            "context": CASE_ID_CLP,
+        },
+        "context": CASE_ID_CLP,
+        "published": "2026-01-01T12:00:00+00:00",
+    }
+    activity = _FakeActivity(
+        activity_id=ACTIVITY_ID,
+        semantic_type=MessageSemantics.ADD_NOTE_TO_CASE,
+        activity=_FakeWireActivityWithPayload(payload),
+        actor_id=CASE_MANAGER_ID,
+    )
+    node = CommitCaseLedgerEntryNode(case_id=CASE_ID_CLP)
+    with patch(_FACTORY_PATH) as mock_factory, patch(
+        _INNER_BRIDGE_PATH
+    ) as mock_bridge_cls:
+        mock_bridge_cls.return_value.execute_with_setup.return_value = (
+            BTExecutionResult(status=Status.SUCCESS)
+        )
+        result = bridge.execute_with_setup(
+            tree=node, actor_id=CASE_MANAGER_ID, activity=activity
+        )
+    assert result.status == Status.SUCCESS
+    mock_factory.assert_called_once()

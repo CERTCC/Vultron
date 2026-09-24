@@ -63,11 +63,10 @@ class RejectProposedEmbargoLifecycleNode(DataLayerActionWithPorts):
         self._case_id_value = case_id
         self._result_out = result_out
 
-    @classmethod
-    def input_ports(cls) -> dict[str, PortInformation]:
-        ports = super().input_ports()
-        ports["embargo_id"] = PortInformation(data_type=str, required=True)
-        return ports
+    INPUT_PORTS: dict[str, PortInformation] = {
+        **DataLayerActionWithPorts.INPUT_PORTS,
+        "embargo_id": PortInformation(data_type=str, required=True),
+    }
 
     @classmethod
     def _domain_port_remappings(cls) -> dict[str, str]:
@@ -134,9 +133,9 @@ class ReadProposedEmbargoIdNode(DataLayerActionWithPorts):
         super().__init__(name=name or self.__class__.__name__)
         self._case_id = case_id
 
-    @classmethod
-    def output_ports(cls) -> dict[str, PortInformation]:
-        return {"embargo_id": PortInformation(data_type=str, required=True)}
+    OUTPUT_PORTS: dict[str, PortInformation] = {
+        "embargo_id": PortInformation(data_type=str, required=True),
+    }
 
     @classmethod
     def _domain_port_remappings(cls) -> dict[str, str]:
@@ -147,10 +146,9 @@ class ReadProposedEmbargoIdNode(DataLayerActionWithPorts):
             return f
         assert self.datalayer is not None
 
-        case = self.datalayer.read_case(self._case_id)
-        if case is None:
-            self.feedback_message = f"Case '{self._case_id}' not found"
-            return Status.FAILURE
+        case, failure = self._require_case(self._case_id)
+        if failure is not None:
+            return failure  # Regime 1 (ADR-0087)
 
         proposed = case.proposed_embargoes
         if not proposed:
@@ -186,14 +184,11 @@ class SendRejectEmbargoActivityNode(_SendEmbargoActivityBase):
     def __init__(self, case_id: str, name: str | None = None) -> None:
         super().__init__(case_id=case_id, name=name)
 
-    @classmethod
-    def input_ports(cls) -> dict[str, PortInformation]:
-        ports = super().input_ports()
-        ports["embargo_id"] = PortInformation(data_type=str, required=True)
-        ports["case_manager_id"] = PortInformation(
-            data_type=str, required=True
-        )
-        return ports
+    INPUT_PORTS: dict[str, PortInformation] = {
+        **_SendEmbargoActivityBase.INPUT_PORTS,
+        "embargo_id": PortInformation(data_type=str, required=True),
+        "case_manager_id": PortInformation(data_type=str, required=True),
+    }
 
     @classmethod
     def _domain_port_remappings(cls) -> dict[str, str]:

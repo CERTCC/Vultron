@@ -44,11 +44,10 @@ dependencies = [
     "mkdocstrings-python>=2.0.5",
     "mkdocstrings>=1.0.6",
     "networkx>=3.5",
-    "owlready2>=0.51",
     "pandas>=3.0.5",
-    "pydantic==2.13.4",
-    "py-trees>=2.5.0",
-    "rdflib>=7.2.1",
+    "pathspec>=0.12.1",
+    "pydantic==2.13.5",
+    "py-trees>=2.6.0",
     "scipy>=1.18.0",
     "uvicorn>=0.52.3",
     "click>=8.4.2",
@@ -74,7 +73,17 @@ spec-dump="vultron.metadata.specs.render:main_llm_json"
 spec-dump-llm-json="vultron.metadata.specs.render:main_llm_json"
 spec-lint="vultron.metadata.specs.lint:main"
 spec-coverage="vultron.metadata.specs.coverage:main"
+spec-backstop="vultron.metadata.specs.backstop:main"
 adr-index="vultron.metadata.adr.index_gen:main"
+docs-frontmatter="vultron.metadata.docs.page_frontmatter:main"
+demo-scenarios="vultron.metadata.demo_scenarios.sync:main"
+docs-site="vultron.metadata.docs.site_sync:main"
+bundle-fit="vultron.metadata.planning.bundle_fit:main"
+wire-context="vultron.metadata.wire_context.sync:main"
+docs-withheld="vultron.metadata.docs.withheld:main"
+pr-size="vultron.metadata.planning.size_bands:main"
+glossary-index="vultron.metadata.docs.glossary_index:main"
+learnings-index="vultron.metadata.history.incoming:main"
 append-history="vultron.metadata.history.cli:main"
 show-history="vultron.metadata.history.show_history_cli:main"
 backfill-implementation-history="vultron.metadata.history.backfill_implementation:main"
@@ -150,8 +159,17 @@ testpaths = [
     "test",
 ]
 filterwarnings = [
-    "always::vultron.metadata.specs.UnknownSpecIdWarning",
     "error",
+    # Both spec-gate warnings MUST be listed *after* "error" above, not before.
+    # pytest applies these entries in list order through
+    # warnings.filterwarnings(), which inserts each at index 0 — so a LATER
+    # entry outranks an earlier one. An exemption placed before "error" is a
+    # no-op. Both warnings report that a *spec* is wrong, so escalating them
+    # would abort the very session that has to run to fix it. See
+    # test/conftest.py pytest_collection_modifyitems, SR-05-002, SR-05-006, and
+    # test_spec_marker_gate.py::TestWarningIsNotEscalated.
+    "always::vultron.metadata.specs.UnknownSpecIdWarning",
+    "always::vultron.metadata.specs.SpecRegistryUnavailableWarning",
     "ignore::DeprecationWarning:vultron.demo.scenario.three_actor_demo",
     "ignore:three_actor_demo.py is based on older code:DeprecationWarning",
     "ignore::DeprecationWarning:vultron.demo.scenario.multi_vendor_demo",

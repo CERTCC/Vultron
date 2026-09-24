@@ -50,6 +50,7 @@ from vultron.adapters.driving.fastapi.inbox_orchestration import (
 from vultron.adapters.driving.fastapi.outbox_handler import outbox_handler
 from vultron.adapters.driving.fastapi.responses import AS2JSONResponse
 from vultron.adapters.utils import strip_id_prefix
+from vultron.core.models.base import CoreObject
 from vultron.core.models.actor import (
     CoreActor,
     VultronOrganization,
@@ -492,13 +493,11 @@ def get_actor_inbox(
     actor_id: str, datalayer: DataLayer = Depends(get_actor_dl)
 ) -> AS2JSONResponse:
     """Returns the Actor's Inbox."""
-    from vultron.core.models.base import CoreObject as _CoreObject
-
     # 404 if this node does not host the addressed actor.  No clone is needed:
     # the injected DataLayer already *is* this actor's store (ADR-0073).
     _resolve_actor_or_404(actor_id, datalayer)
     items = cast(
-        list[as_Object | as_Link | str | _CoreObject | None],
+        list[as_Object | as_Link | str | CoreObject | None],
         list(cast(Any, datalayer).inbox_list()),
     )
     return AS2JSONResponse(as_OrderedCollection(items=items))

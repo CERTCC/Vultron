@@ -1,13 +1,13 @@
 id: CLP
 title: Case Ledger Processing
-description: Requirements for participant assertions, CaseActor canonicalization,
+description: Requirements for participant assertions, CASE_MANAGER canonicalization,
   local case audit ledgering, recorded-history projection, and replication-facing
   CaseLedgerEntry objects. Covers the commit authorization model, per-case genesis
   hash derivation, the canonical entry criteria that separate the case ledger from
-  the process log, the CaseActor inbox routing path that enables ledger entry authorship,
+  the process log, the CASE_MANAGER inbox routing path that enables ledger entry authorship,
   and the causal-ordering model that makes log_index order the authoritative causal
   sequence.
-version: 1.3.0
+version: 1.4.0
 scope:
 - prototype
 - production
@@ -21,12 +21,12 @@ groups:
   - id: CLP-01-001
     priority: MUST
     kind: protocol
-    statement: Non-CaseActor activities that participate in a report, proto-case,
-      or case workflow MUST be treated as participant assertions awaiting CaseActor
+    statement: Non-CASE_MANAGER activities that participate in a report, proto-case,
+      or case workflow MUST be treated as participant assertions awaiting CASE_MANAGER
       processing
     verification: Integration tests in `test/demo/` confirm that activities sent by
-      non-CaseActor participants are routed through assertion intake and buffered
-      as participant assertions before the CaseActor processes them into canonical
+      non-CASE_MANAGER participants are routed through assertion intake and buffered
+      as participant assertions before the CASE_MANAGER processes them into canonical
       ledger entries.
     stories:
     - story_2022_045
@@ -39,10 +39,10 @@ groups:
   - id: CLP-01-003
     priority: MUST
     kind: protocol
-    statement: The CaseActor MUST be the only actor that emits canonical case-history
+    statement: The CASE_MANAGER MUST be the only actor that emits canonical case-history
       entries used by replicas
     verification: 'Integration tests in `test/demo/` confirm that every `CaseLedgerEntry`
-      in the canonical ledger is authored by the CaseActor: the `actor` on the enclosing
+      in the canonical ledger is authored by the CASE_MANAGER: the `actor` on the enclosing
       `Announce(CaseLedgerEntry)` transport always matches `case_actor_id`.'
     stories:
     - story_2022_045
@@ -59,9 +59,9 @@ groups:
     priority: MUST
     kind: protocol
     statement: For each case-resolvable assertion processed at the case layer, the
-      CaseActor MUST append a canonical `CaseLedgerEntry`
+      CASE_MANAGER MUST append a canonical `CaseLedgerEntry`
     verification: Integration tests in `test/demo/` confirm that after each protocol-significant
-      activity is processed at the case layer, the CaseActor's ledger grows by exactly
+      activity is processed at the case layer, the CASE_MANAGER's ledger grows by exactly
       one new `CaseLedgerEntry` for that case.
     stories:
     - story_2022_045
@@ -91,18 +91,23 @@ groups:
   - id: CLP-02-004
     priority: MUST
     kind: protocol
-    statement: '`CaseLedgerEntry` MUST include a disposition field with at least `recorded`
-      and `rejected`'
+    statement: Every `CaseLedgerEntry` records a canonical accepted assertion; the
+      entry model MUST NOT include disposition, reason_code, or reason_detail fields
+      because the ledger contains only accepted entries (see CLP-04-007).
     verification: Inspection of `vultron/core/models/case_ledger_entry.py` confirms
-      that the `disposition` field is a typed literal or enum accepting at least `"recorded"`
-      and `"rejected"` as valid values.
+      that `CaseLedgerEntry` declares no `disposition`, `reason_code`, or
+      `reason_detail` field.
     stories:
     - story_2022_045
   - id: CLP-02-005
-    priority: SHOULD
+    priority: MUST
     kind: protocol
-    statement: Rejected `CaseLedgerEntry` objects SHOULD include a machine-readable
-      reason code and MAY include human-readable detail
+    statement: When the CASE_MANAGER rejects an incoming assertion, the rejection
+      outcome MUST be emitted as a `Reject` protocol activity directed at the
+      asserting participant; it MUST NOT be written to the canonical case ledger.
+    stories:
+    - story_2022_045
+    - story_2022_088
   - id: CLP-02-006
     priority: MUST
     kind: protocol
@@ -116,7 +121,7 @@ groups:
   - id: CLP-02-008
     priority: MUST
     kind: protocol
-    statement: The `log_index` field of a `CaseLedgerEntry` MUST be set by the CaseActor's
+    statement: The `log_index` field of a `CaseLedgerEntry` MUST be set by the CASE_MANAGER's
       single authoritative write path.
     rationale: Centralising log_index assignment in the single authoritative write
       path prevents gaps, duplicates, and out-of-order index values that would break
@@ -150,13 +155,13 @@ groups:
   - id: CLP-02-011
     priority: MUST
     kind: protocol
-    statement: In multi-node CaseActor cluster deployments, the `term` field of a
+    statement: In multi-node CASE_MANAGER cluster deployments, the `term` field of a
       `CaseLedgerEntry` MUST be populated with the current Raft term at time of append.
     rationale: The Raft term anchors each ledger entry to the leader epoch in which
       it was written, enabling followers to detect stale leader writes during leader-change
       scenarios.
     verification: Integration tests confirm that `CaseLedgerEntry` objects produced
-      in a multi-node CaseActor cluster deployment carry a non-null `term` field equal
+      in a multi-node CASE_MANAGER cluster deployment carry a non-null `term` field equal
       to the Raft term at the time of append.
     stories:
     - story_2022_045
@@ -202,28 +207,28 @@ groups:
     - story_2022_074
     - story_2022_088
 - id: CLP-04
-  title: Recorded Projection and Replication
+  title: Canonical Ledger and Replication
   specs:
   - id: CLP-04-001
     priority: MUST
     kind: protocol
-    statement: The authoritative recorded history of a case MUST be a filtered projection
-      of `CaseLedgerEntry` objects whose disposition is `recorded`
-    verification: '`test/demo/test_ledger_dump.py` confirms that the recorded history
-      projection contains only `CaseLedgerEntry` objects with `disposition="recorded"`
-      and that no `disposition="rejected"` entries appear in it.'
+    statement: The authoritative history of a case MUST be the append-only canonical
+      ledger; every entry in it records a protocol-significant accepted assertion.
+      The ledger contains no rejected or locally-scoped entries (see CLP-04-007).
+    verification: '`test/demo/test_ledger_dump.py` confirms that the case history
+      ledger contains only protocol-significant accepted entries and that no
+      rejection-tagged entries appear in it.'
     stories:
     - story_2022_045
     - story_2022_088
   - id: CLP-04-002
     priority: MUST
     kind: protocol
-    statement: Case-state reconstruction MUST use only the recorded projection and
-      MUST ignore rejected entries
-    verification: Integration tests in `test/demo/` confirm that case-state reconstruction
-      reads exclusively from the recorded projection; when a rejected entry is present
-      in the ledger, the reconstructed state matches the state derived from recorded-only
-      entries.
+    statement: Case-state reconstruction MUST use only the canonical case ledger;
+      rejected assertions are never committed to the ledger and therefore require
+      no filter during reconstruction.
+    verification: Integration tests in `test/demo/` confirm that case-state
+      reconstruction reads exclusively from the canonical case ledger.
     stories:
     - story_2022_045
     - story_2022_088
@@ -231,20 +236,21 @@ groups:
     priority: MUST
     kind: protocol
     statement: Replicated hash chains, Merkle proofs, and replay state MUST be computed
-      over recorded `CaseLedgerEntry` objects only
+      over the canonical case ledger; because the ledger contains only accepted
+      canonical entries, no disposition filtering is required during chain computation.
     verification: Integration tests in `test/demo/test_sync_ledger_replication.py`
-      confirm that hash chain verification (`verify_hash_chain`) is computed only
-      over recorded `CaseLedgerEntry` objects and passes for a correctly formed ledger.
+      confirm that hash chain verification (`verify_hash_chain`) passes for the
+      canonical case ledger.
     stories:
     - story_2022_045
     - story_2022_089
   - id: CLP-04-004
     priority: MUST
     kind: protocol
-    statement: CaseActor fan-out replication MUST deliver the canonical `CaseLedgerEntry`
+    statement: CASE_MANAGER fan-out replication MUST deliver the canonical `CaseLedgerEntry`
       content, wrapped in an ActivityStreams transport envelope such as `Announce`
     verification: Integration tests in `test/demo/` confirm that each canonical ledger
-      entry replicated from the CaseActor arrives at participants wrapped in an `Announce(CaseLedgerEntry)`
+      entry replicated from the CASE_MANAGER arrives at participants wrapped in an `Announce(CaseLedgerEntry)`
       ActivityStreams activity.
     stories:
     - story_2022_045
@@ -254,7 +260,7 @@ groups:
     kind: protocol
     statement: When a participant includes log-position context with an assertion,
       it SHOULD use the sender's last accepted canonical hash or position from the
-      recorded projection
+      canonical case ledger
   - id: CLP-04-006
     priority: MUST
     kind: protocol
@@ -267,25 +273,42 @@ groups:
       state.
     stories:
     - story_2022_088
+  - id: CLP-04-007
+    priority: MUST
+    kind: protocol
+    statement: The case ledger MUST contain only canonical accepted entries. Rejection
+      outcomes from any processing path MUST be surfaced through structured logging,
+      not written as ledger entries. Freshness-gate and tail-reconstruction helpers
+      operate on the ledger directly and therefore require no disposition filter.
+    verification: '`test/core/test_sync_helpers.py` confirms that `is_ledger_fresh_for_case`
+      and `_reconstruct_tail_hash` return correct results with a ledger containing
+      only canonical entries, and that no `disposition` field exists on
+      `HashChainLedgerRecord` or `CaseLedgerEntry`.'
+    stories:
+    - story_2022_045
+    - story_2022_088
 - id: CLP-05
   title: Rejection Handling
   specs:
   - id: CLP-05-001
     priority: SHOULD
     kind: protocol
-    statement: CaseActor rejection outcomes SHOULD be sent directly to the asserting
-      participant rather than broadcast to all participants
+    statement: When the CASE_MANAGER rejects an incoming assertion, it SHOULD send
+      a rejection notification directly to the asserting participant via a protocol
+      Reject activity rather than recording the rejection as a ledger entry.
   - id: CLP-05-002
     priority: MUST_NOT
     kind: protocol
-    statement: Normal case-update fan-out MUST NOT replicate rejected `CaseLedgerEntry`
-      objects to all case participants
+    statement: Rejection outcomes MUST NOT be recorded as entries in the canonical
+      case ledger; the canonical ledger contains only accepted protocol-significant
+      assertions (see CLP-04-007).
   - id: CLP-05-003
-    priority: SHOULD
+    priority: MUST_NOT
     kind: protocol
-    statement: The system SHOULD provide a convenient way to retrieve the recorded-only
-      history projection without requiring consumers to manually filter rejected entries
-      from the broader audit log
+    statement: Implementations MUST NOT write local-only tracking markers or
+      duplicate-detection markers as `CaseLedgerEntry` objects of any kind; such
+      markers belong in ephemeral per-actor stores (e.g., `PendingAssertionStore`),
+      not in the canonical ledger.
 - id: CLP-06
   title: Pending Assertion Suppression
   specs:
@@ -344,9 +367,9 @@ groups:
     priority: MUST
     kind: protocol
     statement: A `CaseLedgerEntry` committed to the canonical case ledger MUST correspond
-      to exactly one CaseActor-accepted protocol-significant assertion.
+      to exactly one CASE_MANAGER-accepted protocol-significant assertion.
     verification: Integration tests in `test/demo/` confirm that each protocol-significant
-      assertion accepted by the CaseActor produces exactly one new `CaseLedgerEntry`
+      assertion accepted by the CASE_MANAGER produces exactly one new `CaseLedgerEntry`
       in the canonical ledger, with no duplicate entries for the same protocol event.
     stories:
     - story_2022_045
@@ -376,11 +399,11 @@ groups:
     priority: MUST
     kind: protocol
     statement: Each logical state change MUST produce at most one canonical `CaseLedgerEntry`;
-      the CaseActor MUST NOT commit both an accepted-participant-assertion entry and
-      a separately-synthesized CaseActor entry for the same state change
+      the CASE_MANAGER MUST NOT commit both an accepted-participant-assertion entry and
+      a separately-synthesized CASE_MANAGER entry for the same state change
     verification: Integration tests in `test/demo/` confirm that each logical state
       change produces at most one `CaseLedgerEntry`; no test scenario produces both
-      an accepted-participant-assertion entry and a separately-synthesized CaseActor
+      an accepted-participant-assertion entry and a separately-synthesized CASE_MANAGER
       entry for the same state change.
     stories:
     - story_2022_045
@@ -388,13 +411,23 @@ groups:
     priority: MUST
     kind: protocol
     statement: The `payloadSnapshot.actor` field of a `CaseLedgerEntry(recorded)`
-      MUST preserve the original asserting actor's identity; the CaseActor's own identity
-      appears only on the `Announce(CaseLedgerEntry)` transport envelope and in CaseLedgerEntry
-      recording metadata, never as a substitute for the asserter
-    verification: Integration tests in `test/demo/` confirm that the `actor` field
-      of every recorded `CaseLedgerEntry.payloadSnapshot` identifies the original
-      asserting participant, not the CaseActor, even when the CaseActor is the one
-      appending the entry.
+      MUST preserve the original asserting actor's identity. `payloadSnapshot.actor`
+      MUST equal the inbound activity's `actor_id` as received; any mismatch indicates
+      identity substitution. The CASE_MANAGER's identity appears on the transport
+      envelope and in recording metadata; it MUST NOT be substituted for a participant-asserter's
+      identity. When the CASE_MANAGER also holds a participant role in the case, their
+      identity in `payloadSnapshot.actor` is the correct asserter identity and is not
+      a substitution.
+    rationale: ADR-0088 makes authority role-based rather than identity-based, so a
+      `CVDRole.CASE_MANAGER` holder may simultaneously hold a participant role and
+      legitimately assert any participant-role activity. Enforcing this at the receive-pipeline
+      layer — where the original sender's `actor_id` is still available for comparison —
+      avoids false positives that a commit-boundary identity comparison cannot distinguish.
+    verification: A unit test in `test/core/behaviors/case/nodes/` verifies that
+      `lifecycle.CommitCaseLedgerEntryNode` raises `VultronCanonicalEntryError` when
+      `payloadSnapshot.actor` does not match the inbound activity's `actor_id`. A
+      companion test confirms that a CASE_MANAGER who also participates in a case can
+      add entries (e.g. `Add(Note)`) without error.
     stories:
     - story_2022_045
     - story_2022_089
@@ -408,7 +441,7 @@ groups:
   - id: CLP-07-005
     priority: SHOULD
     kind: protocol
-    statement: The CaseActor commit boundary SHOULD enforce CLP-07-001 through CLP-07-004
+    statement: The CASE_MANAGER commit boundary SHOULD enforce CLP-07-001 through CLP-07-004
       with a runtime guard that rejects non-canonical entries before they enter the
       hash chain, failing fast rather than silently polluting replicated history
   - id: CLP-07-006
@@ -589,7 +622,7 @@ groups:
       path segments in the case URI when origin-binding integrity is required.
     rationale: Predictable or human-chosen path segments allow an attacker to pre-compute
       a valid genesis hash and construct a forged chain. See `notes/case-ledger-authority.md`
-      for future improvement paths (secret nonce, CaseActor keypairs).
+      for future improvement paths (secret nonce, CASE_MANAGER keypairs).
 - id: CLP-09
   title: Commit Authorization and Coverage
   specs:
@@ -599,7 +632,7 @@ groups:
     statement: Every call site that invokes the canonical commit operation MUST reach
       it only through a role-gated composition that verifies, at the time of invocation,
       that the active actor holds `CVDRole.CASE_MANAGER` for the case; this MUST be
-      a role-based check, not an identity comparison, even where the CaseActor and
+      a role-based check, not an identity comparison, even where the CASE_MANAGER and
       the role holder happen to coincide today
     rationale: 'An audit of `CommitCaseLedgerEntryNode` call sites (Epic #788, issue
       #1021) found that only one of roughly ten call sites guarded the commit, and
@@ -656,44 +689,44 @@ groups:
       at every new dual-invocation call site unless authorization is re-evaluated
       per invocation rather than per use-case class.'
     verification: Integration tests in `test/demo/test_acknowledge_demo.py` confirm
-      that when the same use-case class is invoked for both the CaseActor and a relay
-      target for the same activity, only the CaseActor invocation produces a canonical
+      that when the same use-case class is invoked for both the CASE_MANAGER and a relay
+      target for the same activity, only the CASE_MANAGER invocation produces a canonical
       ledger entry.
     stories:
     - story_2022_045
     - story_2022_046
 - id: CLP-10
-  title: CaseActor Inbox Routing for Canonical Ledger Entry Authorship
+  title: CASE_MANAGER Inbox Routing for Canonical Ledger Entry Authorship
   description: Requirements for the end-to-end routing path that delivers protocol-significant
-    activities to the CaseActor's inbox so the CaseActor can author canonical ledger
+    activities to the CASE_MANAGER's inbox so the CASE_MANAGER can author canonical ledger
     entries. Covers outbound addressing rules, HTTP loopback self-delivery (OX-12-004),
-    and the pre-flight guard that prevents non-CaseActor invocations from committing
+    and the pre-flight guard that prevents non-CASE_MANAGER invocations from committing
     ledger entries.
   specs:
   - id: CLP-10-001
     priority: MUST
     kind: protocol
     statement: Every protocol-significant trigger tree MUST emit at least one outbound
-      activity addressed to `case_manager_id` (the CaseActor's actor ID) so that the
-      CaseActor's inbox receives the activity and can author a canonical ledger entry.
-      This requirement applies to ALL participants — the CaseActor is a participant
-      with extra duties; it is not excluded from CLP-10-001. When the CaseActor itself
+      activity addressed to `case_manager_id` (the CASE_MANAGER's actor ID) so that the
+      CASE_MANAGER's inbox receives the activity and can author a canonical ledger entry.
+      This requirement applies to ALL participants — the CASE_MANAGER is a participant
+      with extra duties; it is not excluded from CLP-10-001. When the CASE_MANAGER itself
       originates an activity (e.g., `invite_actor_to_case`), it MUST include its own
       actor ID in the outbound activity's `cc:` field so that HTTP loopback self-delivery
-      (OX-12-004) triggers the CaseActor's received-side use case and the `GuardedCommitCaseLedgerEntryBT`
+      (OX-12-004) triggers the CASE_MANAGER's received-side use case and the `GuardedCommitCaseLedgerEntryBT`
       fires in the correct inbox context.
     rationale: 'Before ADR-0021, several trigger trees (e.g., `validate_report`, `ack_report`,
-      `close_case`) emitted no activity addressed to the CaseActor. The CaseActor
+      `close_case`) emitted no activity addressed to the CASE_MANAGER. The CASE_MANAGER
       therefore had no protocol event to commit, and the canonical ledger was missing
       those event types entirely. The HTTP loopback self-delivery mechanism (OX-12-004)
-      already handles routing when the target actor ID is the CaseActor''s own inbox;
+      already handles routing when the target actor ID is the CASE_MANAGER''s own inbox;
       the missing piece was the emit node itself. The self-routing requirement also
-      applies when the CaseActor is the originator: `invite_actor_to_case_trigger_bt`
-      emitted an `Invite` addressed only to the invitee — the CaseActor never received
+      applies when the CASE_MANAGER is the originator: `invite_actor_to_case_trigger_bt`
+      emitted an `Invite` addressed only to the invitee — the CASE_MANAGER never received
       its own activity and the canonical ledger had no `invite_actor_to_case` entry.
       Using `cc:` rather than `to:` for the self-copy preserves the semantics that
       the invitee is the primary recipient while still routing the activity through
-      the CaseActor''s inbox for archival. See OX-08-004 for the updated addressing
+      the CASE_MANAGER''s inbox for archival. See OX-08-004 for the updated addressing
       policy and ADR-0021 for the full end-to-end path.'
     note: The self-`cc:` clause binds only where the canonical entry depends on inbox
       loopback. A tree that emits under a `CVDRole.CASE_MANAGER` gate and wraps the
@@ -702,7 +735,7 @@ groups:
       record — see EMB-19-001 for the worked case, where addressing the manager also
       made the announce reach nobody.
     verification: For each entry in `EXPECTED_EVENT_TYPES`, a test verifies that the
-      CaseActor's canonical ledger contains at least one entry with that `eventType`
+      CASE_MANAGER's canonical ledger contains at least one entry with that `eventType`
       after a full FV demo run.
     adr:
     - ADR-0021
@@ -717,9 +750,9 @@ groups:
       commit operation; if `receiving_actor_id != case_actor_id`, the commit step
       MUST be skipped entirely
     rationale: The correct pattern (established in `status.py`'s `_commit_log_cascade_bt`)
-      is to commit only when the actor running the use case IS the CaseActor. When
-      a non-CaseActor inbox receives the same activity (e.g., a relay copy to a finder),
-      the use case runs but skips the commit. The CaseActor's own inbox delivery (via
+      is to commit only when the actor running the use case IS the CASE_MANAGER. When
+      a non-CASE_MANAGER inbox receives the same activity (e.g., a relay copy to a finder),
+      the use case runs but skips the commit. The CASE_MANAGER's own inbox delivery (via
       CLP-10-001) is responsible for the canonical write.
     verification: Unit tests for each received-side use case that participates in
       ledger authorship assert that `create_guarded_commit_case_ledger_entry_tree`
@@ -734,7 +767,7 @@ groups:
       from the wrong DataLayer context is an identity-spoofing violation and MUST
       NOT occur
     rationale: '`note.py` and `embargo.py` contained this exact violation before ADR-0021:
-      they resolved the CaseActor ID from the DataLayer and ran the guarded-commit
+      they resolved the CASE_MANAGER ID from the DataLayer and ran the guarded-commit
       BT with `actor_id=case_actor_id` even when the active DataLayer belonged to
       the vendor actor. This produced outbox entries attributed to the wrong actor
       and caused hash-chain divergence. See AGENTS.md § "Received-Side Use Cases MUST
@@ -754,7 +787,7 @@ groups:
       envelope that carries canonical entries to participants and cannot itself be
       a `payloadSnapshot` inside a canonical entry
     rationale: 'Including `announce_case_ledger_entry` in `EXPECTED_EVENT_TYPES` creates
-      a circular requirement: the CaseActor would need to commit a ledger entry whose
+      a circular requirement: the CASE_MANAGER would need to commit a ledger entry whose
       payload is the `Announce` activity used to broadcast ledger entries, which is
       self-referential and unachievable without corrupting the hash chain. The `Announce(CaseLedgerEntry)`
       wire envelope is a transport artifact, not a protocol-significant domain event;
@@ -867,7 +900,7 @@ groups:
       use of the ledger unreliable. Audit issue #1068 found this inverted ordering
       consistently across receive-side BTs in `vultron/core/behaviors/` and `vultron/core/use_cases/received/`.
       The ledger entry records that the activity was received and accepted by the
-      CaseActor — this is independent of whether subsequent effects succeed (a failed
+      CASE_MANAGER — this is independent of whether subsequent effects succeed (a failed
       effect is an operational concern, not a reason to omit the received-activity
       record).'
     verification: A structural test in `test/architecture/` inspects each receive-side
@@ -923,14 +956,14 @@ groups:
     rationale: 'A log index is a claim on a position in one hash chain, so two stores
       claiming the same position fork it irreparably. The delegated-emit path is how
       a second claimant arises: a trigger the case *owner* runs emits as the case''s
-      CaseActor (PCR-08-007, CM-24-001) and commits under that same actor id. When
+      CASE_MANAGER (PCR-08-007, CM-24-001) and commits under that same actor id. When
       the owner hosts the CaseActor this is the canonical commit. After an ownership
       handoff it is not — the CaseActor stays on the container that first received
       the report (CP-08-003) while the owner is elsewhere — and BT-05-005''s foreign-authority
       exception deliberately leaves the tree running in the *requester''s* store so
       the activity is created and outboxed where it can be delivered. Without this
       rule the commit rides along on that exception and mints index N in the owner''s
-      replica while the real CaseActor mints its own index N from the `cc:` copy.
+      replica while the real CASE_MANAGER mints its own index N from the `cc:` copy.
       The two disagree on bytes, not just timing: the owner''s snapshot carries local
       enrichment (`attributedTo`, `name`, the case''s `caseStatus`) that the wire
       copy does not (CM-17-002). Both then fan out, and the case partitions into the
@@ -1035,7 +1068,7 @@ groups:
   description: Requirements for querying whether a protocol-level request/reply pair
     (e.g., Offer(CaseParticipant) → Accept/Reject) is still open or has been closed.
     These rules establish the canonical pattern for duplicate-emission suppression
-    and CaseActor decision-gate checks.
+    and CASE_MANAGER decision-gate checks.
   specs:
   - id: CLP-11-001
     priority: MUST
@@ -1101,8 +1134,8 @@ groups:
       as the primary key, scoped to `case_id`. `in_reply_to` chain-following is an
       internal implementation detail and MUST NOT be exposed as a public port primitive.
 - id: CLP-12
-  title: CaseActor-Authored Signature Completeness
-  description: Requirements on the set of canonical-entry signatures the CaseActor
+  title: CASE_MANAGER-Authored Signature Completeness
+  description: Requirements on the set of canonical-entry signatures the CASE_MANAGER
     is authorized to author (`_CASE_AUTHORED_SIGNATURES` in `canonical_entry.py`),
     ensuring all case-initialization operations are expressible without falling back
     to vendor authorship or back-fill workarounds.
@@ -1110,11 +1143,11 @@ groups:
   - id: CLP-12-001
     priority: MUST
     kind: project
-    statement: '`Add(CaseStatus)` ledger entries authored by the CaseActor MUST be
+    statement: '`Add(CaseStatus)` ledger entries authored by the CASE_MANAGER MUST be
       accepted as canonical entries by the ledger validation step.'
     rationale: 'Issue #1767: `("Add", "CaseStatus")` appeared in `_CANONICAL_PAYLOAD_SIGNATURES`
       but was absent from `_CASE_AUTHORED_SIGNATURES`, causing the ledger validator
-      to reject CaseActor-authored `add_case_status_to_case` entries. Fix required
+      to reject CASE_MANAGER-authored `add_case_status_to_case` entries. Fix required
       by ADR-0041''s native-initialization model (CM-22-003).'
     relationships:
     - rel_type: implements
@@ -1125,14 +1158,14 @@ groups:
     priority: MUST
     kind: project
     statement: '`_CASE_AUTHORED_SIGNATURES` MUST be a complete superset of all `("verb",
-      "object-type")` pairs emitted by the CaseActor during native case initialization
+      "object-type")` pairs emitted by the CASE_MANAGER during native case initialization
       (create_case, add_report_to_case, add_participant_status_to_participant × N,
       add_case_status_to_case). Any pair present in `_CANONICAL_PAYLOAD_SIGNATURES`
-      that the CaseActor natively authors MUST also appear in `_CASE_AUTHORED_SIGNATURES`.'
-    rationale: A CaseActor that cannot author its own initialization entries must
+      that the CASE_MANAGER natively authors MUST also appear in `_CASE_AUTHORED_SIGNATURES`.'
+    rationale: A CASE_MANAGER that cannot author its own initialization entries must
       resort to vendor-side workarounds (the pattern that ADR-0015 introduced and
       ADR-0041 supersedes).  Maintaining completeness of the authorized signature
-      set is therefore a prerequisite for the corrected CaseActor-authoritative model.
+      set is therefore a prerequisite for the corrected CASE_MANAGER-authoritative model.
     relationships:
     - rel_type: refines
       spec_id: CLP-12-001
@@ -1192,20 +1225,20 @@ groups:
     - rel_type: implements
       spec_id: CLP-13-001
 - id: CLP-14
-  title: CaseLedger Causal Ordering — CaseActor Timestamp Invariants
+  title: CaseLedger Causal Ordering — CASE_MANAGER Timestamp Invariants
   description: Normative requirements establishing that log_index order is the canonical
-    causal order from the CaseActor's perspective, and the temporal invariants that
+    causal order from the CASE_MANAGER's perspective, and the temporal invariants that
     conformance tests can verify against any ledger. See ADR-0079 for the decision
     record and rationale.
   specs:
   - id: CLP-14-001
     priority: MUST
     kind: protocol
-    statement: 'The CaseLedger MUST record entries in causal order from the CaseActor''s
-      observation perspective: if the CaseActor observes event A before event B, then
+    statement: 'The CaseLedger MUST record entries in causal order from the CASE_MANAGER''s
+      observation perspective: if the CASE_MANAGER observes event A before event B, then
       log_index(A) MUST be less than log_index(B). The log_index sequence is the authoritative
       causal order; timestamp order is supporting evidence only.'
-    rationale: The CaseActor is the single authoritative writer (CLP-01-003, ADR-0041).
+    rationale: The CASE_MANAGER is the single authoritative writer (CLP-01-003, ADR-0041).
       A single-writer regime produces a total order by construction, so no distributed
       consensus mechanism is needed. ADR-0079 formalises this design intent as a normative
       requirement; DEMOMA-22-005 depends on it.
@@ -1221,10 +1254,15 @@ groups:
   - id: CLP-14-002
     priority: MUST
     kind: protocol
-    statement: The published timestamp on a CaseLedgerEntry MUST be non-null. The
-      CaseActor MUST stamp each entry with its own authoritative clock at commit time.
-    rationale: A null entry timestamp makes invariant checks on ordering impossible
-      and breaks any consumer that tries to order entries by time.
+    statement: The `published` timestamp on the `CaseLedgerEntry` envelope — the
+      CASE_MANAGER's commit stamp, as distinct from the claimed `payloadSnapshot.published`
+      — MUST be non-null. The CASE_MANAGER MUST stamp each entry with its own authoritative
+      clock at commit time.
+    rationale: 'A null entry timestamp makes invariant checks on ordering impossible
+      and breaks any consumer that tries to order entries by time. Naming the field
+      is load-bearing: an entry carries two timestamps, and applying an envelope
+      requirement to the claimed timestamp (or the reverse) yields a check that is
+      either vacuous or falsely rejecting (ISSUE-2824).'
     adr:
     - ADR-0079
     lint_suppress:
@@ -1232,13 +1270,23 @@ groups:
   - id: CLP-14-003
     priority: MUST
     kind: protocol
-    statement: The published timestamps on consecutive recorded entries MUST be monotonically
-      non-decreasing in log_index order. An entry with a higher log_index MUST NOT
-      carry a published timestamp earlier than the entry with the immediately preceding
-      log_index.
+    statement: The envelope `published` timestamps (the CASE_MANAGER's commit stamps) on
+      consecutive recorded entries MUST be monotonically non-decreasing in log_index
+      order. An entry with a higher log_index MUST NOT carry an envelope `published`
+      timestamp earlier than the entry with the immediately preceding log_index. This
+      requirement does NOT apply to the claimed `payloadSnapshot.published`, whose
+      cross-entry ordering is constrained only per participant by CLP-15-003.
     rationale: 'A timestamp inversion would contradict the causal-order claim: if
       entry N has a later log_index than entry N-1 but an earlier timestamp, observers
-      cannot use timestamps as corroborating evidence of the order the CaseActor recorded.'
+      cannot use timestamps as corroborating evidence of the order the CASE_MANAGER recorded.
+      Scoped to the envelope stamp because a single writer stamps every entry from one
+      clock, which makes the property hold by construction. Applied instead to the
+      claimed timestamps it would compare two participants'' unsynchronised clocks —
+      the wall-clock ordering ADR-0079 rejected as option C — and would refuse a
+      well-formed assertion whenever two clocks disagreed (ISSUE-2824).'
+    verification: '`check_clp14_timestamp_invariants` in `test/ci/invariants/common.py`,
+      run by every scenario through `universal_harness.py`, compares consecutive
+      recorded entries in log_index order.'
     adr:
     - ADR-0079
     relationships:
@@ -1276,12 +1324,25 @@ groups:
   - id: CLP-14-006
     priority: MUST
     kind: protocol
-    statement: Every CaseLedgerEntry's published timestamp MUST be on or after the
-      parent VulnerabilityCase's own published timestamp. A ledger entry MUST NOT
-      be stamped with a time that precedes the case's creation.
-    rationale: The CaseActor is the single writer and creates the case before committing
+    statement: Every CaseLedgerEntry's envelope `published` timestamp MUST be on or
+      after the parent VulnerabilityCase's own published timestamp. A ledger entry
+      MUST NOT be stamped with a time that precedes the case's creation. The CASE_MANAGER
+      MUST additionally reject a recorded assertion whose claimed
+      `payloadSnapshot.published` precedes the parent case's published timestamp by
+      more than the configured clock-skew tolerance (CLP-14-009).
+    rationale: 'The CASE_MANAGER is the single writer and creates the case before committing
       any entries. An entry predating the case indicates a clock error or commit-path
       bug; treating it as a protocol violation catches the defect at the boundary.
+      The envelope half holds by construction and is verified by the conformance
+      harness. The claimed half needs a tolerance because the participant''s clock is
+      not the CASE_MANAGER''s — a zero-tolerance comparison across two clocks would refuse
+      well-formed assertions from any participant whose clock lags, which is the
+      wall-clock coupling ADR-0079 rejected as option C.'
+    verification: Envelope half — `check_clp14_timestamp_invariants` in
+      `test/ci/invariants/common.py`. Claimed half — `_validate_entry_timestamps` in
+      `vultron/core/behaviors/sync/nodes/canonical_entry.py`, exercised through
+      `CreateLogEntryNode` in
+      `test/core/behaviors/sync/nodes/test_chain_timestamp_guard.py`.
     adr:
     - ADR-0079
     lint_suppress:
@@ -1289,11 +1350,11 @@ groups:
   - id: CLP-14-007
     priority: SHOULD
     kind: protocol
-    statement: The CaseActor SHOULD reject a payload assertion whose payloadSnapshot.published
-      timestamp is more than a configurable tolerance period ahead of the CaseActor's
+    statement: The CASE_MANAGER SHOULD reject a payload assertion whose payloadSnapshot.published
+      timestamp is more than a configurable tolerance period ahead of the CASE_MANAGER's
       clock at the time of receipt. The default tolerance SHOULD be no more than five
       minutes to match common clock-skew conventions.
-    rationale: A payload timestamped in the future relative to the CaseActor's clock
+    rationale: A payload timestamped in the future relative to the CASE_MANAGER's clock
       indicates a participant clock error or a malformed assertion. Accepting it silently
       would produce ledger entries where the payload claims to have been published
       after the ledger envelope was stamped — a contradiction of the observation model
@@ -1307,9 +1368,9 @@ groups:
   - id: CLP-14-008
     priority: SHOULD
     kind: protocol
-    statement: The CaseActor SHOULD reject a payload assertion whose payloadSnapshot.published
+    statement: The CASE_MANAGER SHOULD reject a payload assertion whose payloadSnapshot.published
       timestamp is more than a configurable staleness window in the past relative
-      to the CaseActor's clock. The default staleness window SHOULD be seven days.
+      to the CASE_MANAGER's clock. The default staleness window SHOULD be seven days.
     rationale: A payload with a timestamp far in the past suggests the participant
       is replaying old activities, potentially to reconstruct or manipulate ledger
       history. Rejecting stale payloads limits the window in which a replayed or delayed
@@ -1322,15 +1383,48 @@ groups:
   - id: CLP-14-009
     priority: MAY
     kind: protocol
-    statement: Implementations MAY expose the clock-skew tolerance (CLP-14-007) and
-      the staleness window (CLP-14-008) as configurable parameters so that deployments
-      with known clock conditions can tune the thresholds.
+    statement: Implementations MAY expose the future tolerance (CLP-14-007), the
+      staleness window (CLP-14-008) and the clock-skew tolerance applied to the
+      claimed-timestamp checks (CLP-14-006, CLP-15-003) as configurable parameters
+      so that deployments with known clock conditions can tune the thresholds.
+    rationale: Every threshold that compares a participant's clock against the
+      CASE_MANAGER's needs the same escape hatch, because how far apart those clocks run
+      is a deployment fact the protocol cannot know. Enumerating only two of the three
+      left the third — the CLP-14-006 skew tolerance — implemented with no normative
+      basis (ISSUE-2824).
+    verification: '`test/core/models/test_clp_14_15_invariants.py` pins the defaults;
+      `test/core/behaviors/sync/nodes/test_chain_timestamp_guard.py` asserts a
+      `VULTRON_LEDGER__*` override actually binds and changes the outcome.'
     adr:
     - ADR-0079
+  - id: CLP-14-010
+    priority: MUST
+    kind: protocol
+    statement: The log_index values of a case ledger MUST form a gapless sequence
+      starting at 0. The genesis entry MUST carry log_index 0, and every later entry
+      MUST carry the log_index of its immediate predecessor plus one. The CASE_MANAGER
+      MUST NOT skip an index when it assigns one.
+    rationale: Receivers detect a missing entry by index arithmetic. An entry whose
+      log_index is greater than tail_index + 1 is a forward gap (SYNC-14-001), and a
+      replica that lags is valid only while its local prefix has no gaps. Both tests
+      are meaningful only if the CASE_MANAGER never leaves a gap by design. CLP-14-001
+      requires only that indices increase, and CLP-14-005 requires only that they are
+      unique. Neither excludes a sparse ledger, and ADR-0079 once said that sparse
+      numbering was allowed (ISSUE-2752).
+    verification: '`check_clp14_timestamp_invariants` in `test/ci/invariants/common.py`
+      reports a CLP-14-010 violation for any index missing between 0 and the highest
+      recorded index. Every scenario runs this check through `universal_harness.py`.'
+    adr:
+    - ADR-0079
+    relationships:
+    - rel_type: refines
+      spec_id: SYNC-01-002
+    lint_suppress:
+    - missing_story_reference
 - id: CLP-15
   title: Participant Assertion Timestamp Obligations
   description: Normative requirements on what well-behaved participants MUST do when
-    emitting assertions to the CaseActor, so that the CaseActor's observation-order
+    emitting assertions to the CASE_MANAGER, so that the CASE_MANAGER's observation-order
     model (ADR-0079, CLP-14) yields a ledger that faithfully reflects real-world causal
     order within a single participant's event stream.
   specs:
@@ -1339,11 +1433,21 @@ groups:
     kind: protocol
     statement: A participant MUST emit protocol activities for a given case in causal
       order. If activity A causally precedes activity B in the participant's own event
-      stream, A MUST be emitted to the CaseActor before B.
-    rationale: The CaseActor uses arrival order as the authoritative sequence. If
-      a participant emits B before A despite A causing B, the CaseActor's ledger will
+      stream, A MUST be emitted to the CASE_MANAGER before B.
+    rationale: The CASE_MANAGER uses arrival order as the authoritative sequence. If
+      a participant emits B before A despite A causing B, the CASE_MANAGER's ledger will
       record the wrong causal order. The participant is responsible for correct ordering;
-      the CaseActor cannot reconstruct causality it did not observe.
+      the CASE_MANAGER cannot reconstruct causality it did not observe.
+    note: This binds the participant only. It is NOT per-assertion enforceable by the
+      CASE_MANAGER, and a CASE_MANAGER MUST NOT attempt to enforce it as one — CLP-15-005
+      forbids reconstructing participant-internal causal order, and a stateless
+      commit-boundary check cannot distinguish a causal violation from ordinary
+      transport reordering (ADR-0037). Four `xfail(strict=True)` stubs were written
+      against the enforcement reading and could never have passed (ISSUE-2824).
+    verification: '`check_causal_edges` (DEMOMA-22-005) compares declared causal edges
+      against observed ledger order across a whole scenario — the only vantage point
+      from which an emission-order obligation is observable. Covered by
+      `test/core/models/test_clp_14_15_invariants.py::test_clp_15_001_002_out_of_order_emission_detected_at_ledger_order`.'
     adr:
     - ADR-0079
     lint_suppress:
@@ -1352,12 +1456,15 @@ groups:
     priority: MUST_NOT
     kind: protocol
     statement: A participant MUST NOT batch causally ordered activities and submit
-      them to the CaseActor in arbitrary order. If events A, B, C are causally ordered
+      them to the CASE_MANAGER in arbitrary order. If events A, B, C are causally ordered
       (A → B → C), the participant MUST NOT submit them as C, A, B or any permutation
       that reverses causal dependencies.
     rationale: Batched out-of-order submission produces a malformed ledger from the
-      CaseActor's perspective. This is a protocol violation on the participant's part,
-      not a CaseActor failure.
+      CASE_MANAGER's perspective. This is a protocol violation on the participant's part,
+      not a CASE_MANAGER failure.
+    note: Binds the participant only; not per-assertion enforceable by the CASE_MANAGER.
+      See CLP-15-001 notes and CLP-15-005.
+    verification: '`check_causal_edges` (DEMOMA-22-005), as for CLP-15-001.'
     adr:
     - ADR-0079
     relationships:
@@ -1373,8 +1480,21 @@ groups:
       when A and B are causally ordered.
     rationale: A participant that assigns earlier timestamps to later events produces
       a payloadSnapshot whose timestamp order contradicts the submission order. Even
-      if the CaseActor's own entry timestamps are correct, the snapshot timestamps
+      if the CASE_MANAGER's own entry timestamps are correct, the snapshot timestamps
       become evidence against the order recorded in the ledger.
+    note: 'The obligation is the participant''s. A CASE_MANAGER MAY report an observed
+      regression in a participant''s claimed timestamps, and SHOULD do so at a severity
+      that distinguishes a regression within the configured clock-skew tolerance
+      (CLP-14-009) from one beyond it. It MUST NOT refuse the assertion on this signal
+      alone: the CASE_MANAGER observes arrival order, not causal order, so it cannot tell
+      a genuine CLP-15-003 violation from transport reordering (ADR-0037) of two
+      assertions that are not causally related. Refusing would also discard the
+      assertion entirely, because the guarded commit precedes the effect nodes
+      (CLP-10-006) — an outcome CLP-15-005 rules out.'
+    verification: '`_validate_entry_timestamps` in
+      `vultron/core/behaviors/sync/nodes/canonical_entry.py` reports the two bands;
+      `test/core/behaviors/sync/nodes/test_chain_timestamp_guard.py` asserts the entry
+      is still recorded and that the report level tracks the tolerance.'
     adr:
     - ADR-0079
     relationships:
@@ -1394,25 +1514,80 @@ groups:
       replays (CLP-14-008).
     adr:
     - ADR-0079
+  - id: CLP-15-006
+    priority: MUST
+    kind: protocol
+    statement: A participant MUST include a `published` timestamp on every protocol
+      activity it emits. A receiver MUST treat an inbound activity that carries no
+      `published` as malformed and reject it at message validation, and MUST NOT
+      substitute its own clock for the missing value.
+    rationale: 'ActivityStreams makes `published` optional, so a receiver that defaults
+      the field cannot afterwards distinguish a time the sender claimed from one the
+      receiver invented. Every downstream check that reads the claimed timestamp then
+      compares the receiver''s clock against itself and can never fire: this is exactly
+      how CLP-14-007 and CLP-14-008 were left vacuous (ISSUE-3149). Rejecting at the
+      threshold keeps the distinction, and keeps a fabricated value from entering a
+      participant''s claimed stream where CLP-15-003 would read it as a regression.
+      A receiver''s own outbound authoring is unaffected — stamping the local clock on
+      an activity you are creating is correct.'
+    verification: '`parse_activity` in `vultron/wire/as2/parser.py` raises
+      `VultronParseMissingPublishedError`, which the FastAPI inbox adapter maps to
+      HTTP 422. Covered by `test/wire/as2/test_parser.py`, including a non-vacuity
+      test that pins the sender''s value against the receiver''s clock.'
+    adr:
+    - ADR-0079
+    relationships:
+    - rel_type: refines
+      spec_id: CLP-15-004
+    lint_suppress:
+    - missing_story_reference
   - id: CLP-15-005
     priority: MUST
     kind: protocol
-    statement: The CaseActor's ledger is authoritative for what the CaseActor observed
+    statement: The CASE_MANAGER's ledger is authoritative for what the CASE_MANAGER observed
       from its own perspective. It is NOT a guarantee of real-world causal fidelity
-      when external participants self-report events. The CaseActor MUST record the
+      when external participants self-report events. The CASE_MANAGER MUST record the
       observation-order sequence it received; it MUST NOT attempt to reconstruct participant-internal
       causal order it cannot verify.
     rationale: Even a compliant participant's clock may drift, and a non-compliant
-      participant may submit events in arbitrary order. The CaseActor's role is to
+      participant may submit events in arbitrary order. The CASE_MANAGER's role is to
       record faithfully what arrived, in the order it arrived, while applying the
       timestamp sanity checks in CLP-14-007 and CLP-14-008. Attempting to reorder
       entries based on payload timestamps would require trusting externally-supplied
-      data to override the CaseActor's own observation — a violation of the single-writer
+      data to override the CASE_MANAGER's own observation — a violation of the single-writer
       authority model.
     adr:
     - ADR-0079
     relationships:
     - rel_type: refines
       spec_id: CLP-01-003
+    lint_suppress:
+    - missing_story_reference
+  - id: CLP-15-007
+    priority: MUST
+    kind: protocol
+    statement: A receiver MUST carry the `published` and `updated` timestamps of every
+      object nested in an inbound activity as received. A timestamp the sender omitted
+      MUST remain absent; the receiver MUST NOT substitute its own clock for it, whether
+      at parsing, extraction, storage or rendering. Where a decision requires a nested
+      timestamp that is absent, the receiver MUST reject the message at message validation.
+    rationale: 'AS2 makes object timestamps optional. A receiver-minted value is later
+      indistinguishable from the sender''s claim: it gave each receiver its own genesis
+      hash for one case and ordered received statuses by arrival (ISSUE-3257). Absence
+      harms only a decision that needs the time, so that decision refuses it early and
+      loudly; every other consumer tolerates it (ISSUE-2553).'
+    verification: '`as_Base.carry_absent_times_on_inbound` reads an omitted clock-defaulted
+      timestamp as `None` for any class validated under the inbound context `parse_activity`
+      passes, the extractor builders pass timestamps through unchanged, and
+      `project_wire_snapshot_to_core` does the same when a replica rebuilds a core object
+      from a stored snapshot. Covered by `test/wire/as2/test_nested_timestamps.py` and
+      `test/core/behaviors/sync/nodes/test_participant_status_effect.py`.'
+    adr:
+    - ADR-0103
+    - ADR-0079
+    - ADR-0032
+    relationships:
+    - rel_type: refines
+      spec_id: CLP-15-006
     lint_suppress:
     - missing_story_reference

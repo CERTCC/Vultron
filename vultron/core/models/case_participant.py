@@ -35,33 +35,24 @@ from __future__ import annotations
 
 import logging
 from datetime import datetime
-from typing import Any, Literal
+from typing import Any, ClassVar, Literal
 
 from pydantic import Field, field_serializer, field_validator, model_validator
 
 from vultron.core.models._helpers import _new_urn
-from vultron.core.models._wire_spelling import reject_wire_spelled_keys
 from vultron.core.models.base import CoreObject, NonEmptyString
 from vultron.errors import VultronValidationError
 from vultron.core.models.dimensions import (
-    DDimension,
     PecDimension,
     RmDimension,
-    VfDimension,
 )
 from vultron.core.models.participant_status import (
     ParticipantStatus,
     coerce_cvd_roles,
     coerce_em_consent_state,
-    participant_status_d_state,
-    participant_status_vf_state,
-)
-from vultron.core.predicates.roles import (
-    has_deployer_role,
-    has_vendor_role,
 )
 from vultron.core.states.participant_embargo_consent import PEC, PEC_Trigger
-from vultron.core.states.rm import RM, is_valid_rm_transition
+from vultron.core.states.rm import RM
 from vultron.enums.roles import CVDRole, serialize_roles, validate_roles
 
 logger = logging.getLogger(__name__)
@@ -83,6 +74,10 @@ class CaseParticipant(CoreObject):
     wire-level type discrimination.
     """
 
+    local_only_fields: ClassVar[frozenset[str]] = frozenset(
+        {"invite_rsvp_deadline"}
+    )
+
     type_: Literal["CaseParticipant"] = Field(
         default="CaseParticipant",
         validation_alias="type",
@@ -91,51 +86,13 @@ class CaseParticipant(CoreObject):
     case_roles: list[CVDRole] = Field(default_factory=list)
     participant_statuses: list[ParticipantStatus] = Field(default_factory=list)
     accepted_embargo_ids: list[NonEmptyString] = Field(default_factory=list)
-    embargo_consent_state: PEC = Field(default=PEC.NO_EMBARGO)
+    embargo_consent_state: PEC = Field(default=PEC.UNBOUND)
     participant_case_name: NonEmptyString | None = None
+    # Local bookkeeping, not an AS2 property: the deadline by which this actor's
+    # own implementation wants an RSVP.  Kept in the stored row and dropped from
+    # the delivery payload — see ``CoreObject.local_only_fields``, and note that
+    # plain ``exclude=True`` would have stopped it being persisted at all.
     invite_rsvp_deadline: datetime | None = None
-
-    @model_validator(mode="before")
-    @classmethod
-    def _reject_wire_spelled_keys(cls, data: Any) -> Any:
-        """Raise on camelCase keys that Pydantic would silently discard.
-
-        This class declares no ``alias_generator``, so a wire-spelled key such
-        as ``participantStatuses`` is an *unknown* key.  Pydantic v2 ignores
-        unknown keys by default, so it was silently dropped and
-        ``_init_participant_status_if_empty`` then re-seeded a single status at
-        ``RM.START``: a whole RM ladder vanished without a trace (issue #2232).
-        The same drop applied to every other snake-only field on this model
-        (``case_roles``, ``accepted_embargo_ids``, ``embargo_consent_state``,
-        ``participant_case_name``), so roles could be lost the same way.
-
-        Wire→core conversion belongs at the boundary
-        (``as_CaseParticipant.to_core()``, which emits snake_case), not here.
-        This validator makes the mismatch loud instead of lossy
-        (ARCH-15-001, ARCH-15-002).
-
-        Fields that declare an explicit camelCase ``validation_alias`` (e.g.
-        ``in_reply_to``/``inReplyTo``) are sanctioned spellings and are
-        accepted unchanged.
-
-        **This guard is one level deep, by design and not by accident.** The
-        nested :class:`ParticipantStatus` *does* set
-        ``alias_generator=to_camel`` and accepts flat wire spellings
-        (``rmState``) through its own migration shim, so
-        ``{"participant_statuses": [{"rmState": "CLOSED"}]}`` is accepted here
-        and yields ``rm.state == RM.CLOSED``.  That asymmetry is a known
-        deviation from ARCH-12-003 tracked in #1991 — the child's shim is what
-        makes this parent guard survivable in the first place — and it is not
-        a hole in the #2232 fix: an aliased child cannot *lose* the ladder, it
-        only spells it differently.  The remaining ARCH-12-003 deviation
-        (``alias_generator`` on ``ParticipantStatus``) is tracked in #1991.
-
-        Raises:
-            VultronValidationError: when a wire-spelled key is present.
-        """
-        return reject_wire_spelled_keys(
-            cls, data, "as_CaseParticipant.to_core()"
-        )
 
     @field_serializer("case_roles")
     def _serialize_case_roles(self, value: list[CVDRole]) -> list[str]:
@@ -165,14 +122,14 @@ class CaseParticipant(CoreObject):
         """Seed ``participant_statuses`` with a default entry when empty."""
         if not isinstance(data, dict):
             return data
-        if data.get("participant_statuses"):
+        if "participant_statuses" in data:
             return data
         data = dict(data)
         if not data.get("id") and not data.get("id_"):
             data["id"] = _new_urn()
         id_val = data.get("id") or data.get("id_")
         _consent_state = coerce_em_consent_state(
-            data.get("embargo_consent_state", PEC.NO_EMBARGO)
+            data.get("embargo_consent_state", PEC.UNBOUND)
         )
         data["participant_statuses"] = [
             ParticipantStatus(
@@ -214,7 +171,7 @@ class CaseParticipant(CoreObject):
         """
         current_pec = coerce_em_consent_state(self.embargo_consent_state)
         if current_pec is None:
-            current_pec = PEC.NO_EMBARGO
+            current_pec = PEC.UNBOUND
         new_dim = PecDimension(state=current_pec).transition(trigger)
         self.embargo_consent_state = new_dim.state
         self._sync_latest_status_metadata()
@@ -229,153 +186,6 @@ class CaseParticipant(CoreObject):
         if not self.participant_statuses:
             return None
         return self.participant_statuses[-1]
-
-    def append_rm_state(self, rm_state: RM, actor: str, context: str) -> bool:
-        """Append a new ParticipantStatus with the given RM state.
-
-        Validates the transition against the RM state machine.  Skips the
-        append (with a WARNING) when the transition is not valid.
-
-        Args:
-            rm_state: Target RM state.
-            actor: URI of the actor asserting the transition.
-            context: URI of the case context.
-
-        Returns:
-            ``True`` when the status was appended, ``False`` when blocked.
-
-        Raises:
-            VultronValidationError: when the latest status carries a ``vf`` or
-                ``d`` dimension that is present but malformed — the readers used
-                to carry those paths forward refuse to degrade a corrupt row into
-                an absence (ARCH-15-002).  A blocked transition is reported by the
-                ``False`` return; a corrupt row is not, so callers that branch only
-                on the boolean must still let this propagate.
-        """
-        latest = self.participant_status
-        current = latest.rm.state if latest is not None else RM.START
-        if not is_valid_rm_transition(current, rm_state):
-            logger.warning(
-                "Invalid RM transition %s → %s for participant %s; skipping",
-                current,
-                rm_state,
-                self.id_,
-            )
-            return False
-        _consent_state = coerce_em_consent_state(self.embargo_consent_state)
-        roles = coerce_cvd_roles(self.case_roles)
-        # Carry the vendor and deployer paths forward.  Omitting them does not
-        # leave them absent: `ParticipantStatus._enforce_role_dimension_invariant`
-        # re-seeds `vf` for a VENDOR and `d` for a DEPLOYER at their *initial*
-        # state, so an RM-only append silently reset a vendor that had already
-        # reached VF back to vendor-unaware (#2264's failure mode, #3134).
-        #
-        # Carry a path forward only while its role is still held.  `cvd_role` on
-        # the new snapshot is recomputed from the *current* roles, so carrying a
-        # dimension whose role has since been dropped would produce a snapshot
-        # asserting a path its role list denies — ADR-0075 says a non-VENDOR has
-        # no vendor path and a non-DEPLOYER has no deployer path.
-        current_vf = (
-            participant_status_vf_state(latest)
-            if latest is not None and has_vendor_role(roles)
-            else None
-        )
-        current_d = (
-            participant_status_d_state(latest)
-            if latest is not None and has_deployer_role(roles)
-            else None
-        )
-        self.participant_statuses.append(
-            ParticipantStatus(
-                rm=RmDimension(state=rm_state),
-                vf=(
-                    VfDimension(state=current_vf)
-                    if current_vf is not None
-                    else None
-                ),
-                d=(
-                    DDimension(state=current_d)
-                    if current_d is not None
-                    else None
-                ),
-                context=context,
-                attributed_to=actor,
-                consent=(
-                    PecDimension(state=_consent_state)
-                    if _consent_state is not None
-                    else None
-                ),
-                cvd_role=roles,
-            )
-        )
-        return True
-
-    @classmethod
-    def new_at_rm(
-        cls,
-        rm_state: RM,
-        case_id: str,
-        invitee_id: str,
-        roles: list[CVDRole] | None = None,
-    ) -> "CaseParticipant":
-        """Create a participant placed at *rm_state* in one step (CM-11-001).
-
-        Validates that *rm_state* is reachable from ``RM.START`` in a single
-        hop via :func:`~vultron.core.states.rm.is_valid_rm_transition`.  This
-        encodes the invariant structurally: callers cannot over-advance the RM
-        ladder by calling :meth:`append_rm_state` multiple times.
-
-        Args:
-            rm_state: Target RM state; must be adjacent to ``RM.START``.
-            case_id: URI of the case this participant belongs to.
-            invitee_id: URI of the actor being added as participant.
-            roles: CVD roles to assign; defaults to an empty list.
-
-        Returns:
-            A new :class:`CaseParticipant` whose latest
-            :class:`~vultron.core.models.participant_status.ParticipantStatus`
-            carries *rm_state*.
-
-        Raises:
-            VultronValidationError: when *rm_state* is not adjacent to
-                ``RM.START``.
-        """
-        if not is_valid_rm_transition(RM.START, rm_state):
-            raise VultronValidationError(
-                f"RM state {rm_state!r} is not reachable from RM.START"
-                " in one hop; use append_rm_state() for multi-hop advances"
-            )
-        participant = cls(
-            id_=f"{case_id}/participants/{invitee_id.split('/')[-1]}",
-            attributed_to=invitee_id,
-            context=case_id,
-            case_roles=roles or [],
-        )
-        participant.append_rm_state(
-            rm_state, actor=invitee_id, context=case_id
-        )
-        return participant
-
-    @classmethod
-    def new_at_received(
-        cls,
-        case_id: str,
-        invitee_id: str,
-        roles: list[CVDRole] | None = None,
-    ) -> "CaseParticipant":
-        """Create a participant at ``RM.RECEIVED`` (CM-11-001 convenience factory).
-
-        Equivalent to ``new_at_rm(RM.RECEIVED, case_id, invitee_id, roles)``.
-
-        Args:
-            case_id: URI of the case this participant belongs to.
-            invitee_id: URI of the actor being added as participant.
-            roles: CVD roles to assign; defaults to an empty list.
-
-        Returns:
-            A new :class:`CaseParticipant` at ``RM.RECEIVED``.
-        """
-        return cls.new_at_rm(RM.RECEIVED, case_id, invitee_id, roles)
 
     def add_participant_status(self, status: ParticipantStatus) -> None:
         """Append a ParticipantStatus to this participant's history.
@@ -480,6 +290,39 @@ class CaseParticipant(CoreObject):
 # ---------------------------------------------------------------------------
 
 
+def _seed_accepted_status(data: Any) -> Any:
+    """Seed ``participant_statuses`` with a single ``RM.ACCEPTED`` rung.
+
+    A reporter has, by definition, accepted the report, so its first ladder
+    rung is ``RM.ACCEPTED``.  Shared by :class:`ReporterParticipant` and
+    :class:`FinderReporterParticipant`, which previously carried byte-identical
+    copies (de-duplicated per ADR-0089 AC-5, ARCH-15-004, CS-22-001).
+    """
+    if not isinstance(data, dict):
+        return data
+    data = dict(data)
+    if not data.get("id") and not data.get("id_"):
+        data["id"] = _new_urn()
+    id_val = data.get("id") or data.get("id_")
+    _consent_state = coerce_em_consent_state(
+        data.get("embargo_consent_state", PEC.UNBOUND)
+    )
+    data["participant_statuses"] = [
+        ParticipantStatus(
+            context=data.get("context") or id_val,
+            attributed_to=data.get("attributed_to"),
+            rm=RmDimension(state=RM.ACCEPTED),
+            consent=(
+                PecDimension(state=_consent_state)
+                if _consent_state is not None
+                else None
+            ),
+            cvd_role=coerce_cvd_roles(data.get("case_roles") or []),
+        )
+    ]
+    return data
+
+
 class FinderParticipant(CaseParticipant):
     """A CaseParticipant that holds the FINDER role."""
 
@@ -524,29 +367,7 @@ class ReporterParticipant(CaseParticipant):
     @model_validator(mode="before")
     @classmethod
     def _set_accepted_status(cls, data: Any) -> Any:
-        if not isinstance(data, dict):
-            return data
-        data = dict(data)
-        if not data.get("id") and not data.get("id_"):
-            data["id"] = _new_urn()
-        id_val = data.get("id") or data.get("id_")
-        _consent_state = coerce_em_consent_state(
-            data.get("embargo_consent_state", PEC.NO_EMBARGO)
-        )
-        data["participant_statuses"] = [
-            ParticipantStatus(
-                context=data.get("context") or id_val,
-                attributed_to=data.get("attributed_to"),
-                rm=RmDimension(state=RM.ACCEPTED),
-                consent=(
-                    PecDimension(state=_consent_state)
-                    if _consent_state is not None
-                    else None
-                ),
-                cvd_role=coerce_cvd_roles(data.get("case_roles") or []),
-            )
-        ]
-        return data
+        return _seed_accepted_status(data)
 
 
 class FinderReporterParticipant(CaseParticipant):
@@ -573,29 +394,7 @@ class FinderReporterParticipant(CaseParticipant):
     @model_validator(mode="before")
     @classmethod
     def _set_accepted_status(cls, data: Any) -> Any:
-        if not isinstance(data, dict):
-            return data
-        data = dict(data)
-        if not data.get("id") and not data.get("id_"):
-            data["id"] = _new_urn()
-        id_val = data.get("id") or data.get("id_")
-        _consent_state = coerce_em_consent_state(
-            data.get("embargo_consent_state", PEC.NO_EMBARGO)
-        )
-        data["participant_statuses"] = [
-            ParticipantStatus(
-                context=data.get("context") or id_val,
-                attributed_to=data.get("attributed_to"),
-                rm=RmDimension(state=RM.ACCEPTED),
-                consent=(
-                    PecDimension(state=_consent_state)
-                    if _consent_state is not None
-                    else None
-                ),
-                cvd_role=coerce_cvd_roles(data.get("case_roles") or []),
-            )
-        ]
-        return data
+        return _seed_accepted_status(data)
 
 
 class VendorParticipant(CaseParticipant):

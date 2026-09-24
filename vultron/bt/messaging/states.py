@@ -27,8 +27,8 @@ class MessageTypes(StrEnum):
     RS = Report Submission
     RI = Report Invalid
     RV = Report Valid
-    RD = Report Deferred
-    RA = Report Accepted
+    RD = Report/Case Deferred
+    RA = Report/Case Accepted
     RC = Report Closed
     RK = Report Management acknowledgement (general)
     RE = Report Management error (general)

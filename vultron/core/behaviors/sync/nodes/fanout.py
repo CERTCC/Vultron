@@ -62,21 +62,16 @@ class CollectNonClosedLogEntryRecipientsNode(DataLayerActionWithPorts):
         super().__init__(name=name or self.__class__.__name__)
         self.case_id = case_id
 
-    @classmethod
-    def input_ports(cls) -> dict[str, PortInformation]:
-        ports = super().input_ports()
-        ports["log_entry"] = PortInformation(
+    INPUT_PORTS: dict[str, PortInformation] = {
+        **DataLayerActionWithPorts.INPUT_PORTS,
+        "log_entry": PortInformation(
             data_type=VultronCaseLedgerEntry, required=True
-        )
-        return ports
+        ),
+    }
 
-    @classmethod
-    def output_ports(cls) -> dict[str, PortInformation]:
-        return {
-            "fanout_recipients": PortInformation(
-                data_type=object, required=True
-            )
-        }
+    OUTPUT_PORTS: dict[str, PortInformation] = {
+        "fanout_recipients": PortInformation(data_type=object, required=True),
+    }
 
     @classmethod
     def _domain_port_remappings(cls) -> dict[str, str]:
@@ -114,17 +109,16 @@ class CollectNonClosedLogEntryRecipientsNode(DataLayerActionWithPorts):
         assert self.datalayer is not None
         assert self.actor_id is not None
 
-        entry = cast(VultronCaseLedgerEntry, self.log_entry)
-        case_obj = self.datalayer.read_case(self.case_id)
-        if case_obj is None:
-            self.logger.warning(
-                "%s: case '%s' not found; skipping fan-out for '%s'",
-                self.name,
-                self.case_id,
-                entry.id_,
-            )
-            self._set_output("fanout_recipients", [])
-            return Status.SUCCESS
+        # Regime 1 (ADR-0087, #3101): fan-out runs after the local commit
+        # persisted this entry to the case (DeclineForeignLedgerCommitNode
+        # already handled the not-my-case branch upstream), so a missing case
+        # is an anomaly. Previously this warned, emitted zero recipients, and
+        # returned SUCCESS — silently dropping replication of a committed entry
+        # even though the commit tree treats non-SUCCESS as a real failure
+        # (ADR-0073, BT-05-006).
+        case_obj, failure = self._require_case(self.case_id)
+        if failure is not None:
+            return failure
 
         recipients = [
             actor_id
@@ -145,17 +139,14 @@ class _SendLogEntryToEachNode(DataLayerActionWithPorts):
         super().__init__(name=name or self.__class__.__name__)
         self._sync_port: SyncActivityPort | None = None
 
-    @classmethod
-    def input_ports(cls) -> dict[str, PortInformation]:
-        ports = super().input_ports()
-        ports["log_entry"] = PortInformation(
+    INPUT_PORTS: dict[str, PortInformation] = {
+        **DataLayerActionWithPorts.INPUT_PORTS,
+        "log_entry": PortInformation(
             data_type=VultronCaseLedgerEntry, required=True
-        )
-        ports["fanout_recipients"] = PortInformation(
-            data_type=object, required=True
-        )
-        ports["sync_port"] = PortInformation(data_type=object, required=False)
-        return ports
+        ),
+        "fanout_recipients": PortInformation(data_type=object, required=True),
+        "sync_port": PortInformation(data_type=object, required=False),
+    }
 
     @classmethod
     def _domain_port_remappings(cls) -> dict[str, str]:
@@ -244,21 +235,16 @@ class CollectLogEntryRecipientsNode(DataLayerActionWithPorts):
         super().__init__(name=name or self.__class__.__name__)
         self.case_id = case_id
 
-    @classmethod
-    def input_ports(cls) -> dict[str, PortInformation]:
-        ports = super().input_ports()
-        ports["log_entry"] = PortInformation(
+    INPUT_PORTS: dict[str, PortInformation] = {
+        **DataLayerActionWithPorts.INPUT_PORTS,
+        "log_entry": PortInformation(
             data_type=VultronCaseLedgerEntry, required=True
-        )
-        return ports
+        ),
+    }
 
-    @classmethod
-    def output_ports(cls) -> dict[str, PortInformation]:
-        return {
-            "fanout_recipients": PortInformation(
-                data_type=object, required=True
-            )
-        }
+    OUTPUT_PORTS: dict[str, PortInformation] = {
+        "fanout_recipients": PortInformation(data_type=object, required=True),
+    }
 
     @classmethod
     def _domain_port_remappings(cls) -> dict[str, str]:
@@ -277,17 +263,12 @@ class CollectLogEntryRecipientsNode(DataLayerActionWithPorts):
         assert self.datalayer is not None
         assert self.actor_id is not None
 
-        entry = cast(VultronCaseLedgerEntry, self.log_entry)
-        case_obj = self.datalayer.read_case(self.case_id)
-        if case_obj is None:
-            self.logger.warning(
-                "%s: case '%s' not found; skipping fan-out for '%s'",
-                self.name,
-                self.case_id,
-                entry.id_,
-            )
-            self._set_output("fanout_recipients", [])
-            return Status.SUCCESS
+        # Regime 1 (ADR-0087, #3101): see CollectNonClosedLogEntryRecipientsNode
+        # — fan-out follows a local commit, so a missing case is an anomaly, not
+        # a silent zero-recipient SUCCESS.
+        case_obj, failure = self._require_case(self.case_id)
+        if failure is not None:
+            return failure
 
         recipients = case_addressees(
             case_obj, excluding_actor_id=self.actor_id
@@ -301,17 +282,14 @@ class SendLogEntryToEachNode(DataLayerActionWithPorts):
         super().__init__(name=name or self.__class__.__name__)
         self._sync_port: SyncActivityPort | None = None
 
-    @classmethod
-    def input_ports(cls) -> dict[str, PortInformation]:
-        ports = super().input_ports()
-        ports["log_entry"] = PortInformation(
+    INPUT_PORTS: dict[str, PortInformation] = {
+        **DataLayerActionWithPorts.INPUT_PORTS,
+        "log_entry": PortInformation(
             data_type=VultronCaseLedgerEntry, required=True
-        )
-        ports["fanout_recipients"] = PortInformation(
-            data_type=object, required=True
-        )
-        ports["sync_port"] = PortInformation(data_type=object, required=False)
-        return ports
+        ),
+        "fanout_recipients": PortInformation(data_type=object, required=True),
+        "sync_port": PortInformation(data_type=object, required=False),
+    }
 
     @classmethod
     def _domain_port_remappings(cls) -> dict[str, str]:

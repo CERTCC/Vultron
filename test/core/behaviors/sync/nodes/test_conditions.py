@@ -12,7 +12,6 @@ from test.core.behaviors.sync.nodes.conftest import (
 )
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.behaviors.sync.nodes import (
-    CheckIsOwnCaseActorNode,
     CheckLedgerFreshnessNode,
     IsAddNoteEventNode,
     IsInviteAcceptEventNode,
@@ -74,20 +73,6 @@ class TestPositiveLedgerEntryConditionNodes:
         )
 
         assert result.status == Status.FAILURE
-
-
-@pytest.mark.spec("CLP-01-003")
-def test_check_is_own_case_actor_succeeds_for_case_owner(bridge, case_actor):
-    entry = _make_entry(0)
-    event = _make_event(entry, actor_id=case_actor.id_)
-
-    result = bridge.execute_with_setup(
-        tree=CheckIsOwnCaseActorNode(name="CheckIsOwnCaseActor"),
-        actor_id=OWNER_ACTOR_ID,
-        activity=event,
-    )
-
-    assert result.status == Status.SUCCESS
 
 
 @pytest.fixture

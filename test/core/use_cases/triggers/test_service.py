@@ -41,16 +41,16 @@ except ImportError:
     from pydantic_core import ValidationError as PydanticValidationError
 from vultron.core.models.offer_record import VultronOfferRecord
 from vultron.core.models.report_case_link import VultronReportCaseLink
-from vultron.core.models.dimensions import RmDimension
-from vultron.core.models.participant_status import ParticipantStatus
-from vultron.core.models._helpers import _report_phase_status_id
 from vultron.core.states.em import EM
 from vultron.core.states.rm import RM
 from vultron.enums.roles import CVDRole
 from vultron.wire.as2.factories import em_propose_embargo_activity
 from vultron.wire.as2.vocab.base.objects.activities.transitive import as_Offer
 from vultron.wire.as2.vocab.base.objects.actors import as_Service
-from vultron.wire.as2.vocab.objects.case_participant import as_CaseParticipant
+from vultron.wire.as2.vocab.objects.case_participant import (
+    as_CaseParticipant,
+    as_ParticipantStatus,
+)
 from vultron.wire.as2.vocab.objects.embargo_event import as_EmbargoEvent
 from vultron.wire.as2.vocab.objects.vulnerability_case import (  # noqa: F401
     as_VulnerabilityCase,
@@ -60,6 +60,9 @@ from vultron.core.models.case_ledger import compute_genesis_hash
 from vultron.core.models.case_status import CaseStatus
 from vultron.wire.as2.vocab.objects.vulnerability_report import (
     as_VulnerabilityReport,
+)
+from vultron.core.models.dimensions import (
+    RmDimension,
 )
 
 FUTURE_DATETIME = datetime(2099, 12, 1, tzinfo=timezone.utc)
@@ -92,8 +95,14 @@ def _add_self_participant(case, dl, actor_id: str, rm: RM = RM.RECEIVED):
         attributed_to=actor_id,
         context=case.id_,
         case_roles=[CVDRole.VENDOR],
+        participant_statuses=[
+            as_ParticipantStatus(
+                attributed_to=actor_id,
+                context=case.id_,
+                rm=RmDimension(state=rm),
+            )
+        ],
     )
-    participant.append_rm_state(rm, actor_id, case.id_)
     dl.create(participant)
     case.actor_participant_index[actor_id] = participant.id_
     dl.save(case)
@@ -195,6 +204,9 @@ def received_report(dl, actor, report):
     dl.create(case_obj)
     _add_case_manager(case_obj, dl)
     _add_self_participant(case_obj, dl, actor.id_, RM.RECEIVED)
+    dl.create(
+        VultronReportCaseLink(report_id=report.id_, rm_state=RM.RECEIVED)
+    )
     return report
 
 
@@ -214,13 +226,9 @@ def accepted_report(dl, report, actor):
     dl.create(owner_p)
     _add_case_manager(case_obj, dl)
     # Pre-seed RM.ACCEPTED so ACCEPTED→CLOSED is a valid transition (BTND-10-001).
-    accepted_status = ParticipantStatus(
-        id_=_report_phase_status_id(actor.id_, report.id_, RM.ACCEPTED.value),
-        context=report.id_,
-        attributed_to=actor.id_,
-        rm=RmDimension(state=RM.ACCEPTED),
+    dl.create(
+        VultronReportCaseLink(report_id=report.id_, rm_state=RM.ACCEPTED)
     )
-    dl.create(accepted_status)
     return report
 
 
@@ -237,13 +245,7 @@ def rejected_report(dl, report, actor):
     )
     dl.create(case_obj)
     _add_case_manager(case_obj, dl)
-    invalid_status = ParticipantStatus(
-        id_=_report_phase_status_id(actor.id_, report.id_, RM.INVALID.value),
-        context=report.id_,
-        attributed_to=actor.id_,
-        rm=RmDimension(state=RM.INVALID),
-    )
-    dl.create(invalid_status)
+    dl.create(VultronReportCaseLink(report_id=report.id_, rm_state=RM.INVALID))
     return report
 
 
@@ -263,29 +265,24 @@ def closed_report(dl, report, actor):
     dl.create(owner_p)
     _add_case_manager(case_obj, dl)
 
-    status = ParticipantStatus(
-        id_=_report_phase_status_id(actor.id_, report.id_, RM.CLOSED.value),
-        context=report.id_,
-        attributed_to=actor.id_,
-        rm=RmDimension(state=RM.CLOSED),
-    )
-    dl.create(status)
+    dl.create(VultronReportCaseLink(report_id=report.id_, rm_state=RM.CLOSED))
     return report
 
 
 @pytest.fixture
 def case_with_participant(dl, actor):
     case_obj = VulnerabilityCase(name="TEST-CASE-001", attributed_to=actor.id_)
+    # Pre-seed RM lifecycle so engage/defer (VALID→ACCEPTED/DEFERRED) are valid
     participant = as_CaseParticipant(
         attributed_to=actor.id_,
         context=case_obj.id_,
-    )
-    # Pre-seed RM lifecycle so engage/defer (VALID→ACCEPTED/DEFERRED) are valid
-    participant.append_rm_state(
-        RM.RECEIVED, actor=actor.id_, context=case_obj.id_
-    )
-    participant.append_rm_state(
-        RM.VALID, actor=actor.id_, context=case_obj.id_
+        participant_statuses=[
+            as_ParticipantStatus(
+                attributed_to=actor.id_,
+                context=case_obj.id_,
+                rm=RmDimension(state=RM.VALID),
+            )
+        ],
     )
     case_obj.case_participants.append(participant.id_)
     case_obj.actor_participant_index[actor.id_] = participant.id_
@@ -407,13 +404,10 @@ def test_validate_report_trigger_transitions_rm_to_valid(
         dl, trigger_activity=TriggerActivityAdapter(dl)
     ).validate_report(actor.id_, offer.id_, None)
 
-    valid_status_id = _report_phase_status_id(
-        actor.id_, offer.object_, RM.VALID.value
-    )
-    valid_record = dl.get("ParticipantStatus", valid_status_id)
+    link = dl.read(VultronReportCaseLink.build_id(offer.object_))
     assert (
-        valid_record is not None
-    ), "Expected a RM.VALID ParticipantStatus after validate_report_trigger"
+        isinstance(link, VultronReportCaseLink) and link.rm_state == RM.VALID
+    ), "Expected RM.VALID on ReportCaseLink after validate_report_trigger"
 
 
 def test_validate_report_trigger_non_report_offer_raises_404(

@@ -151,15 +151,30 @@ class TestContiguousChain:
 
 class TestMissingGenesisEntry:
     def test_missing_genesis_is_stale(self, dl):
-        """SYNC-10-004: first entry must be at log_index=0."""
+        """SYNC-10-004: a real gap (hash mismatch) is stale.
+
+        Stores e0 and e2 where e2's prev_log_hash points to a missing entry
+        at index 1 rather than to e0.  The hash chain is broken.
+        """
         case = _make_case()
         dl.save(case)
         e0 = _store(dl, _entry(0, case.genesis_hash))
-        # Skip index 1; add entry at index 2 referencing e0's hash
-        _store(dl, _entry(2, e0.entry_hash))
+        # e2 points to a hash that isn't e0.entry_hash — real missing entry
+        missing_e1_hash = "f" * 64
+        e2 = VultronCaseLedgerEntry(
+            case_id=CASE_ID,
+            log_index=2,
+            log_object_id="https://example.org/activities/log-2",
+            event_type="test_event",
+            payload_snapshot={"log_index": 2},
+            prev_log_hash=missing_e1_hash,
+            entry_hash="a" * 64,
+        )
+        dl.save(e2)
         fresh, reason = is_ledger_fresh_for_case(CASE_ID, dl)
         assert fresh is False
-        assert "gap" in reason or "jump" in reason
+        assert "hash mismatch" in reason
+        assert e0  # used for setup — suppress unused warning
 
     def test_no_case_in_dl_with_entries_is_stale(self, dl):
         """Fail-closed: entries present but case not in DataLayer → stale.
@@ -233,25 +248,49 @@ class TestHashMismatch:
 
 class TestIndexGap:
     def test_gap_in_middle_is_stale(self, dl):
-        """Entries 0, 1, 3 (missing 2) is a gap → stale."""
+        """A genuine missing entry (broken hash chain) is stale.
+
+        Entries 0, 1, 3 where entry 3 points to a hash that doesn't match
+        entry 1 — simulating a genuinely missing recorded entry at index 2.
+        """
         case = _make_case()
         dl.save(case)
         e0 = _store(dl, _entry(0, case.genesis_hash))
         e1 = _store(dl, _entry(1, e0.entry_hash))
-        # Skip index 2; build entry at index 3 referencing e1's hash
+        # Entry 3 points to a missing entry at index 2, not to e1
+        missing_e2_hash = "c" * 64
         e3 = VultronCaseLedgerEntry(
             case_id=CASE_ID,
             log_index=3,
             log_object_id="https://example.org/activities/log-3",
             event_type="test_event",
             payload_snapshot={"log_index": 3},
-            prev_log_hash=e1.entry_hash,
+            prev_log_hash=missing_e2_hash,
             entry_hash="e" * 64,
         )
         dl.save(e3)
         fresh, reason = is_ledger_fresh_for_case(CASE_ID, dl)
         assert fresh is False
-        assert "gap" in reason or "jump" in reason
+        assert "hash mismatch" in reason
+        assert e1  # used for setup — suppress unused warning
+
+    def test_sequential_index_with_valid_chain_is_fresh(self, dl):
+        """Entries 0, 1, 3 where 3 chains correctly to 1 is fresh.
+
+        This is the AC-3 regression test for issue #3053: previously, the
+        log_index consecutive check (now removed) would have reported a
+        false 'gap' for this scenario.  With only hash-chain verification,
+        the ledger is correctly reported as fresh.
+        """
+        case = _make_case()
+        dl.save(case)
+        e0 = _store(dl, _entry(0, case.genesis_hash))
+        e1 = _store(dl, _entry(1, e0.entry_hash))
+        # Entry at index 3 chains correctly to e1 — no real gap
+        e3 = _store(dl, _entry(3, e1.entry_hash))
+        fresh, reason = is_ledger_fresh_for_case(CASE_ID, dl)
+        assert fresh is True, reason
+        assert e3  # used for setup — suppress unused warning
 
 
 class TestEquivalentRecordedEntry:
@@ -259,41 +298,49 @@ class TestEquivalentRecordedEntry:
 
     A miss appends a *new* ledger index for an assertion already recorded, which
     is exactly the ledger-index instability ADR-0041 forbids.  The snapshots a
-    retry rebuilds are not byte-identical to the originals: ``as_Base`` stamps
-    ``published`` and ``updated`` with ``now_utc`` at construction, so every
-    embedded object gets a fresh pair whenever the snapshot is rebuilt.  These
-    tests fix which differences count.
+    retry rebuilds are not byte-identical to the originals: the CaseActor stamps
+    the snapshot's own top-level ``published`` with ``now_utc`` every time it
+    builds one (CLP-14-002).  The objects embedded in it carry their own time,
+    which a rebuild does not change (ISSUE-2553).  These tests fix which
+    differences count.
     """
 
     _OBJECT_ID = "https://example.org/activities/log-0"
     _EVENT = "add_participant_status_to_participant"
+    _CARRIED = "2025-05-05T05:05:05+00:00"
 
-    def _snapshot(self, stamp: str, rm_state: str = "RECEIVED") -> dict:
+    def _snapshot(
+        self,
+        stamp: str,
+        rm_state: str = "RECEIVED",
+        carried: str = _CARRIED,
+    ) -> dict:
         """A snapshot in the shape ``build_add_participant_status_snapshot``
-        produces: a re-rendered object *and* a re-rendered target whose own
-        nested status list carries timestamps too."""
+        produces: the build stamp on top, over a re-rendered object *and* a
+        re-rendered target whose own nested status list carries time too."""
         return {
             "type": "Add",
             "actor": CASE_ACTOR_ID,
             "context": CASE_ID,
+            "published": stamp,
             "object": {
                 "id": "https://example.org/statuses/ps-0",
                 "type": "ParticipantStatus",
                 "rmState": rm_state,
-                "published": stamp,
-                "updated": stamp,
+                "published": carried,
+                "updated": carried,
             },
             "target": {
                 "id": "https://example.org/participants/p-0",
                 "type": "CaseParticipant",
-                "published": stamp,
-                "updated": stamp,
+                "published": carried,
+                "updated": carried,
                 "participantStatuses": [
                     {
                         "id": "https://example.org/statuses/ps-0",
                         "rmState": rm_state,
-                        "published": stamp,
-                        "updated": stamp,
+                        "published": carried,
+                        "updated": carried,
                     }
                 ],
             },
@@ -322,7 +369,7 @@ class TestEquivalentRecordedEntry:
         )
 
     def test_a_rebuilt_snapshot_still_matches(self, dl):
-        """The regression: only the restamped timestamps differ, at every depth.
+        """The regression: a retry re-stamps only the snapshot's build time.
 
         ``now_utc`` truncates to whole seconds, so byte equality made this a
         coin flip on whether the retry landed in the same second as the
@@ -333,10 +380,27 @@ class TestEquivalentRecordedEntry:
         found = self._find(dl, self._snapshot("2026-01-01T00:00:07+00:00"))
 
         assert found is not None, (
-            "a retry whose snapshot differs only in restamped published/updated"
-            " values is the same assertion, and must not append a new index"
+            "a retry whose snapshot differs only in its own build stamp is the"
+            " same assertion, and must not append a new index"
         )
         assert found.log_index == 0
+
+    def test_a_different_carried_time_is_a_new_assertion(self, dl):
+        """An embedded object's own time is part of what the entry asserts.
+
+        Core objects carry the time they were authored or received with, and
+        re-rendering does not change it (ISSUE-2553).  So a nested
+        ``published``/``updated`` that differs is a different object state, not
+        render noise, and must not be folded into the recorded entry.
+        """
+        stamp = "2026-01-01T00:00:00+00:00"
+        self._record(dl, self._snapshot(stamp))
+
+        found = self._find(
+            dl, self._snapshot(stamp, carried="2025-06-06T06:06:06+00:00")
+        )
+
+        assert found is None
 
     def test_a_real_difference_still_misses(self, dl):
         """The dedup must stay a dedup: a changed state is a new assertion.
@@ -352,15 +416,3 @@ class TestEquivalentRecordedEntry:
         )
 
         assert found is None
-
-    def test_a_rejected_entry_is_not_a_match(self, dl):
-        """Only ``recorded`` entries count; a rejection is not an assertion."""
-        snapshot = self._snapshot("2026-01-01T00:00:00+00:00")
-        entry = self._record(dl, snapshot)
-        entry.disposition = "rejected"
-        entry.reason_code = "invalid"
-        dl.save(entry)
-
-        assert (
-            self._find(dl, self._snapshot("2026-01-01T00:00:09+00:00")) is None
-        )

@@ -15,7 +15,7 @@ plus the maintainer-facing `docs/developer/` and `docs/agents/` trees.
 
 Rules live in [`../shared/docs-style-guide.md`](../shared/docs-style-guide.md)
 (`SG-nn` rule IDs). Normative anchors: `specs/diataxis-requirements.yaml`
-DF-01 through DF-09.
+DF-01 through DF-10.
 
 Out of scope: `docs/adr/` (use `create-architectural-decision-record`),
 generated trees (`docs/reference/code/`, `docs/reference/case_states/`),
@@ -44,7 +44,8 @@ Read, in order:
    Reference table unless the page is about a taxonomy concept.
 4. `docs/_acronyms/index.md` — which acronyms are already registered (SG-08).
 
-Load the DF requirements via `load-specs` if not already in context.
+Load the DF requirements if not already in context:
+`PYTHONPATH= uv run spec-dump --topic DF --text`.
 
 Do not read exemplar pages wholesale. The style guide's section 6 carries the
 register; read a specific page only when this page must align closely with it.
@@ -84,6 +85,41 @@ reference, the outline is wrong — reorder, or link out.
 
 ## Phase 4 — Draft
 
+### Moved or republished content (sweeps)
+
+If this page is being written as part of a sweep — a naming pass, a Diátaxis
+extraction, a page split, or any task that moves existing prose from one
+location to another — apply the following before writing any sentence drawn
+from the source:
+
+1. **Re-read each claim as an assertion**, not as furniture. A diagram or bullet
+   that was unremarkable in its source context may be a falsifiable statement in
+   the destination context.
+2. **Verify each first-order empirical claim** against its authority: source
+   code, a `specs/*.yaml` entry, or a `docs/reference/` page. Do not inherit
+   correctness from the source location (DF-10-001).
+3. **Prefer includes over copying.** When the same content belongs on two pages,
+   create an `{% include-markdown %}` fragment rather than copying prose. One
+   authoritative source, multiple render points — silent drift is structurally
+   impossible (DF-10-002). Three mechanics:
+   - **Placement** — a `_<slug>.md` file alongside the pages that include it.
+     `docs/includes/` is reserved for whole-tree banners (`normative.md`) and its
+     files carry no `_` prefix.
+   - **Path** — relative to the *including* file, never rooted at `docs/`. There
+     is no `base_path` configured, so `{% include-markdown "./_slug.md" %}` and
+     `{% include-markdown "../../includes/normative.md" %}` are the shapes that
+     resolve; a `docs/`-rooted argument fails the strict build.
+   - **Lint scope** — `lint-docs` drops `docs/includes/**` and `_*.md` until
+     #3318 lands, so lint the new fragment by hand. Page-scoped rules belong to
+     the assembled page, not the fragment (DF-09-007); quadrant comes from each
+     host page (DF-09-008).
+
+The move is not complete until every claim that is now a first-class assertion
+on this page has been confirmed. Flag any claim that cannot be verified as a
+finding rather than including it verbatim.
+
+### Drafting rules
+
 Write against the style guide. The rules that most often get missed:
 
 - Voice by agency for the quadrant (SG-17, SG-18, SG-19) — a reference page
@@ -119,10 +155,20 @@ Never coin a term without registering it.
 `--strict`, so a page absent from the nav fails the build. Every new page must
 be navved or explicitly listed under `not_in_nav`.
 
-Nav order carries reading order, so **propose the slot and confirm it**: name
-the section, the position within it, and the label, with one sentence of
-reasoning. Maintainer-facing pages (`docs/developer/`, `docs/agents/`) are
-covered by existing `not_in_nav` patterns and need no nav entry.
+Nav order carries **dependency and prominence**, not narrative flow, so
+**propose the slot and confirm it**: name the section, the position within it,
+and the label, with one sentence of reasoning. Maintainer-facing pages
+(`docs/developer/`, `docs/agents/`) are covered by existing `not_in_nav` patterns
+and need no nav entry.
+
+Propose the slot against `notes/site-information-architecture.md` (ADR-0102,
+DF-11) rather than against taste — it states the stakeholder types, the invisible
+100–500 prerequisite levels, and the rule that no page may depend on a page above
+its own level, which is what makes a wrong slot reviewable. Two traps it settles:
+a page's own level and stakeholder type are never rendered or navigated by
+(DF-11-004, DF-11-009), and repeated openings on adjacent pages are **required**
+for deep-link arrivals — never remove them to make neighbours read as a sequence
+(DF-11-007).
 
 ## Phase 7 — Validate
 

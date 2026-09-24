@@ -19,23 +19,62 @@ from __future__ import annotations
 
 import logging
 from datetime import datetime, timedelta, timezone
-from typing import Any, Literal
+from typing import Any, ClassVar, Literal
 
-from pydantic import Field, model_validator
+from pydantic import Field, ValidationInfo, model_validator
 
 from vultron.core.models._helpers import (
+    INBOUND_CONTEXT_KEY,
     _new_urn,
-    _now_utc,
-    status_recency_key,
+    most_recent_status,
+    now_utc,
 )
 from vultron.core.models.base import CoreObject
 from vultron.core.models.case_ledger import compute_genesis_hash
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.case_status import CaseStatus
 from vultron.core.models.embargo_event import EmbargoEvent
+from vultron.core.models.report import VulnerabilityReport
+from vultron.core.models.wire_keys import wire_key
 from vultron.errors import VultronValidationError
 
 logger = logging.getLogger(__name__)
+
+
+def _present_key(data: dict[str, Any], field_name: str) -> str:
+    """Return the spelling of *field_name* that *data* carries.
+
+    The AS2 spelling when present (an inbound case, ADR-0099 detail 2), else
+    the field name, so a validator writes back under the key it read.
+    """
+    as2 = wire_key(field_name)
+    return as2 if as2 in data else field_name
+
+
+def _genesis_published(data: dict[str, Any], inbound: bool) -> datetime | None:
+    """Return the ``published`` time a genesis hash is computed from.
+
+    Only an *omitted* ``published`` outside the inbound path is this process
+    authoring the case, so only then is one minted (and written into *data*).
+    An explicit ``None`` or blank, or any omission on inbound, is a received
+    case that claimed no time; minting one would give each receiver its own
+    genesis for the same case (ISSUE-3257, ADR-0103).
+    """
+    if "published" not in data and not inbound:
+        minted = now_utc()
+        data["published"] = minted
+        return minted
+    published_val = data.get("published")
+    if published_val is None or published_val == "":
+        return None
+    if isinstance(published_val, datetime):
+        return published_val
+    try:
+        parsed = datetime.fromisoformat(str(published_val))
+    except (ValueError, TypeError):
+        return None
+    data["published"] = parsed
+    return parsed
 
 
 class VulnerabilityCase(CoreObject):
@@ -67,19 +106,26 @@ class VulnerabilityCase(CoreObject):
         validation_alias="type",
         serialization_alias="type",
     )
+    # DL-08-002: active_embargo must be stored inline so recipients can read it
+    # back without a dereference mechanism (AKM-03-001).
+    inline_required_refs: ClassVar[frozenset[str]] = frozenset(
+        {"active_embargo"}
+    )
     case_participants: list[str | CaseParticipant] = Field(
         default_factory=list
     )
     actor_participant_index: dict[str, str] = Field(default_factory=dict)
-    vulnerability_reports: list[str] = Field(default_factory=list)
+    vulnerability_reports: list[str | VulnerabilityReport] = Field(
+        default_factory=list
+    )
     case_statuses: list[str | CaseStatus] = Field(default_factory=list)
     notes: list[str] = Field(default_factory=list)
     # Admits the object, not only a reference, for the same reason
     # `case_participants` does: a recipient cannot dereference a URI it does not
     # hold, and no dereferencing mechanism is specified (AKM-03-001). While this
-    # was `str | None` the object could not survive `_normalize_to_core`, so
-    # every store round-trip — including the one `outbox_delivery` performs when
-    # it re-serialises a queued activity — reduced a carried embargo back to a
+    # was `str | None` the object could not survive a store round-trip — so
+    # every round-trip, including the one `outbox_delivery` performs when
+    # it re-serialises a queued activity, reduced a carried embargo back to a
     # bare id and the recipient was handed a reference it could never resolve.
     # Readers wanting the id should use `_as_id`/`active_embargo_id`.
     active_embargo: str | EmbargoEvent | None = None
@@ -109,7 +155,9 @@ class VulnerabilityCase(CoreObject):
 
     @model_validator(mode="before")
     @classmethod
-    def _compute_genesis_hash_if_missing(cls, data: Any) -> Any:
+    def _compute_genesis_hash_if_missing(
+        cls, data: Any, info: ValidationInfo
+    ) -> Any:
         """Compute ``genesis_hash`` at case creation when not explicitly set.
 
         Uses ``id_``, ``published``, and ``attributed_to`` (the CaseActor URI)
@@ -122,34 +170,37 @@ class VulnerabilityCase(CoreObject):
         set or when ``attributed_to`` is absent (genesis hash requires a
         CaseActor URI as input).
 
+        Both spellings of each input are read: the class is its own wire class
+        (ADR-0099 detail 3), so an inbound case arrives as ``attributedTo`` and
+        ``genesisHash``.  On the inbound path (ADR-0103) an omitted or blank
+        ``published`` is the sender claiming no time, never a cue to mint one.
+
         Spec: CLP-08-002, CLP-08-003.
         """
         if not isinstance(data, dict):
             return data
-        attributed_to = data.get("attributed_to")
-        genesis_hash = data.get("genesis_hash", "")
+        inbound = (
+            isinstance(info.context, dict)
+            and INBOUND_CONTEXT_KEY in info.context
+        )
+        attributed_to = data.get("attributed_to") or data.get(
+            wire_key("attributed_to")
+        )
+        hash_key = _present_key(data, "genesis_hash")
+        genesis_hash = data.get(hash_key, "")
         if not genesis_hash and attributed_to:
             data = dict(data)
             if not data.get("id") and not data.get("id_"):
                 data["id"] = _new_urn()
             case_id = data.get("id") or data.get("id_")
-            published_val = data.get("published")
-            if published_val is None:
-                published_val = _now_utc()
-                data["published"] = published_val
-            elif not isinstance(published_val, datetime):
-                try:
-                    published_val = datetime.fromisoformat(str(published_val))
-                    data["published"] = published_val
-                except (ValueError, TypeError):
-                    published_val = None
+            published_val = _genesis_published(data, inbound)
             if published_val is not None:
-                data["genesis_hash"] = compute_genesis_hash(
+                data[hash_key] = compute_genesis_hash(
                     case_id=case_id,
                     created_at=published_val,
                     case_actor_id=attributed_to,
                 )
-        if attributed_to and not data.get("genesis_hash"):
+        if attributed_to and not data.get(hash_key):
             case_id = data.get("id") or data.get("id_") or "<unknown>"
             raise VultronValidationError(
                 f"VulnerabilityCase '{case_id}': genesis_hash could not "
@@ -161,21 +212,55 @@ class VulnerabilityCase(CoreObject):
     @model_validator(mode="before")
     @classmethod
     def _init_case_statuses(cls, data: Any) -> Any:
-        """Seed ``case_statuses`` with a default entry when empty."""
+        """Seed ``case_statuses`` with a default entry when empty.
+
+        Reads both spellings (ADR-0099 detail 2), and writes the seed under the
+        one already present so it is not shadowed by an empty camelCase list.
+        """
         if not isinstance(data, dict):
             return data
-        if not data.get("case_statuses") and data.get("attributed_to"):
+        statuses_key = _present_key(data, "case_statuses")
+        attributed_to = data.get("attributed_to") or data.get(
+            wire_key("attributed_to")
+        )
+        if not data.get(statuses_key) and attributed_to:
             data = dict(data)
             if not data.get("id") and not data.get("id_"):
                 data["id"] = _new_urn()
             case_id = data.get("id") or data.get("id_")
-            data["case_statuses"] = [
+            data[statuses_key] = [
                 CaseStatus(
                     context=case_id,
-                    attributed_to=data["attributed_to"],
+                    attributed_to=attributed_to,
                 )
             ]
         return data
+
+    @model_validator(mode="after")
+    def _set_cs_context(self) -> "VulnerabilityCase":
+        """Point every inline :class:`CaseStatus` at this case.
+
+        A case status belongs to the case that holds it, so a carried
+        ``context`` that names another case (or none) is rewritten to this
+        case's id.  This is the invariant the deleted
+        ``as_VulnerabilityCase.set_cs_context`` held on the wire class; it moved
+        here with the collapse (ADR-0099 detail 3).
+        """
+        if not any(
+            isinstance(cs, CaseStatus) and cs.context != self.id_
+            for cs in self.case_statuses
+        ):
+            return self
+        statuses: list[str | CaseStatus] = [
+            (
+                cs.model_copy(update={"context": self.id_})
+                if isinstance(cs, CaseStatus) and cs.context != self.id_
+                else cs
+            )
+            for cs in self.case_statuses
+        ]
+        object.__setattr__(self, "case_statuses", statuses)
+        return self
 
     # ------------------------------------------------------------------
     # Domain methods
@@ -364,10 +449,10 @@ class VulnerabilityCase(CoreObject):
         """Return the most recent materialized :class:`CaseStatus`.
 
         Recency is resolved by ``updated`` then ``published`` via
-        :func:`status_recency_key`. When both are absent the status sorts to
-        the bottom (``datetime.min``); ``id_`` MUST NOT be used as a tiebreaker
-        because its scheme is an implementation artefact, not a time proxy
-        (CM-29-001).
+        :func:`most_recent_status`. When both are absent the status sorts to
+        the bottom (``datetime.min``); among equals the last appended wins.
+        ``id_`` MUST NOT be used as a tiebreaker because its scheme is an
+        implementation artefact, not a time proxy (CM-29-001).
 
         Raises:
             ValueError: When no materialized :class:`CaseStatus` exists.
@@ -379,10 +464,7 @@ class VulnerabilityCase(CoreObject):
             raise ValueError(
                 "VulnerabilityCase has no materialized CaseStatus"
             )
-        return max(
-            materialized,
-            key=lambda cs: status_recency_key(cs.updated, cs.published),
-        )
+        return most_recent_status(materialized)
 
     @property
     def case_status(self) -> CaseStatus:

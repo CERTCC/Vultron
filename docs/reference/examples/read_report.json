@@ -1,9 +1,30 @@
 {
-  "@context": "https://www.w3.org/ns/activitystreams",
-  "asType": "Read",
-  "id": "https://for.example/21d4ea22-404a-4ff1-b0b9-cbba62ab5381",
-  "name": "https://vultron.example/organizations/vendor Read https://vultron.example/reports/FDR-8675309",
+  "id": "urn:uuid:1ee92f22-2537-48e1-81a3-d5ce3855e006",
+  "type": "Read",
+  "name": "https://vultron.example/organizations/vendorco Read https://vultron.example/users/finndervul Offer FDR-8675309",
   "content": "We've read the report. We'll get back to you soon.",
-  "actor": "https://vultron.example/organizations/vendor",
-  "object": "https://vultron.example/reports/FDR-8675309"
+  "@context": "https://www.w3.org/ns/activitystreams",
+  "actor": "https://vultron.example/organizations/vendorco",
+  "object": {
+    "id": "urn:uuid:3c095843-d3da-453e-a644-86f34302061f",
+    "type": "Offer",
+    "name": "https://vultron.example/users/finndervul Offer FDR-8675309",
+    "published": "2026-09-23T16:41:57+00:00",
+    "updated": "2026-09-23T16:41:57+00:00",
+    "to": [
+      "https://vultron.example/organizations/vendorco"
+    ],
+    "@context": "https://www.w3.org/ns/activitystreams",
+    "actor": "https://vultron.example/users/finndervul",
+    "object": {
+      "id": "https://demo.vultron.local/VulnerabilityReport/d3374731-d2d0-4530-89a7-00f118413aa3",
+      "type": "VulnerabilityReport",
+      "name": "FDR-8675309",
+      "published": "2026-09-23T16:41:56+00:00",
+      "updated": "2026-09-23T16:41:56+00:00",
+      "content": "I found a vulnerability!",
+      "attributedTo": "https://vultron.example/users/finndervul",
+      "@context": "https://certcc.github.io/Vultron/ns/context.jsonld"
+    }
+  }
 }

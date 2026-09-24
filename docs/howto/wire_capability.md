@@ -1,3 +1,11 @@
+---
+description: >
+  Wire a capability into the reference implementation, replacing a call-out
+  stub with real backend logic.
+stakeholder_type: [platform-developer, project-contributor]
+level: 400
+---
+
 # Wiring a Capability into the Reference Implementation
 
 {% include-markdown "../includes/not_normative.md" %}
@@ -198,10 +206,12 @@ no output keys. If you need to write output keys, use the full
 | Decision approved, fact retrieved, artifact created | `SUCCESS` | Write all declared output keys |
 | Decision denied, fact unavailable, error | `FAILURE` | None required |
 
-Avoid returning `RUNNING` from a call-out backend. Call-out points in the
-reference implementation are designed to be answered synchronously in the
-current tick; returning `RUNNING` will suspend the parent `Sequence`
-indefinitely with no visible error until you inspect the tree manually.
+A call-out backend MUST answer synchronously: return `SUCCESS` or `FAILURE`,
+never `RUNNING` (BT-18-011). The reference implementation has nowhere to suspend
+a tick (ADR-0080), so this is enforced, not advisory. The domain bundle wraps
+every backend it hands out in a `SynchronousCallOut` guard: a `RUNNING` return
+raises `CallOutContractError` immediately, naming the offending node, instead of
+silently stalling the tree.
 
 ---
 

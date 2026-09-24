@@ -11,6 +11,10 @@ on:
       - vultron/**
       - test/**
       - pyproject.toml
+      # A Dependabot bump inside the existing version range touches only the
+      # lockfile; demo-integration.yml skips Dependabot PRs on the premise that
+      # this workflow still tests them (DEMOCI-02-004, #3610).
+      - uv.lock
       - pyrightconfig.json
       - .github/workflows/python-app.yml
   pull_request:
@@ -19,6 +23,7 @@ on:
       - vultron/**
       - test/**
       - pyproject.toml
+      - uv.lock
       - pyrightconfig.json
       - .github/workflows/python-app.yml
   workflow_dispatch:
@@ -130,8 +135,10 @@ jobs:
       issues: write
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      # CISEC-05-006, #3249: file only on a genuine failure, never on a
+      # cancelled (concurrency-superseded) run — a newer run is authoritative.
       - name: Notify CI failure
-        if: contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled')
+        if: contains(needs.*.result, 'failure') && !contains(needs.*.result, 'cancelled')
         uses: ./.github/actions/notify-failure
         with:
           mode: notify

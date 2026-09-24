@@ -86,6 +86,14 @@ parent is wrong). Goal: land each on the epic that matches it.
    and, when the match is not obvious, its existing children — you are matching
    against what the epic *is about*, not its title alone.
 
+   **Sanity-check the count before trusting a no-match.** A truncated epic list
+   is indistinguishable from a genuine absence of candidates, and `gh` truncates
+   newest-first — so it hides the oldest epics, which are the long-lived ones you
+   are most likely to be looking for. Compare the epics returned against the
+   repository's open-issue total; if the listing limit is at or below that total,
+   the list is partial and step 3's "zero plausible epics" branch is unsafe.
+   At `--limit 200` on 305 open issues this returned 16 of 34 (#3319).
+
 2. **Match by grain, not by keyword.** Ask which epic's design idea this issue
    advances. A protocol-correctness bug belongs with protocol correctness even
    if its title mentions a demo scenario; a prod-only concern belongs with
@@ -212,40 +220,54 @@ query($owner:String!){
 # Open epics with their Schedule tier
 # Uses GraphQL to filter state=="OPEN" and issueType=="Epic" in one pass.
 # gh project item-list does not expose state; a GraphQL query is required.
+# Paginated: Project #24 has ~300 items; the API cap is 100 per page.
 PROJECT_ID=$(bash .agents/skills/shared/board-id.sh project)
-gh api graphql --jq '
-  .data.node.items.nodes[]
-  | select(
-      .content.state == "OPEN" and
-      .content.issueType.name == "Epic"
-    )
-  | [(.content.number|tostring),
-     ((.fieldValues.nodes[]
-       | select(.field.name == "Schedule")
-       | .name) // "-"),
-     .content.title]
-  | @tsv
-' -f query='{
-  node(id: "'"$PROJECT_ID"'") {
-    ... on ProjectV2 {
-      items(first: 100) {
-        nodes {
-          content {
-            ... on Issue {
-              number title state
-              issueType { name }
+CURSOR=""
+while true; do
+  if [ -n "$CURSOR" ]; then
+    AFTER=', after: "'"$CURSOR"'"'
+  else
+    AFTER=""
+  fi
+  PAGE=$(gh api graphql \
+    --jq '{items:.data.node.items.nodes,more:.data.node.items.pageInfo.hasNextPage,cursor:.data.node.items.pageInfo.endCursor}' \
+    -f query='{
+    node(id: "'"$PROJECT_ID"'") {
+      ... on ProjectV2 {
+        items(first: 100'"$AFTER"') {
+          pageInfo { hasNextPage endCursor }
+          nodes {
+            content {
+              ... on Issue {
+                number title state
+                issueType { name }
+              }
             }
+            fieldValues(first: 10) { nodes {
+              ... on ProjectV2ItemFieldSingleSelectValue {
+                name field { ... on ProjectV2SingleSelectField { name } }
+              }
+            }}
           }
-          fieldValues(first: 10) { nodes {
-            ... on ProjectV2ItemFieldSingleSelectValue {
-              name field { ... on ProjectV2SingleSelectField { name } }
-            }
-          }}
         }
       }
     }
-  }
-}'
+  }')
+  echo "$PAGE" | jq -r '
+    .items[]
+    | select(
+        .content.state == "OPEN" and
+        .content.issueType.name == "Epic"
+      )
+    | [(.content.number|tostring),
+       ((.fieldValues.nodes[]
+         | select(.field.name == "Schedule")
+         | .name) // "-"),
+       .content.title]
+    | @tsv'
+  [ "$(echo "$PAGE" | jq -r '.more')" = "true" ] || break
+  CURSOR=$(echo "$PAGE" | jq -r '.cursor')
+done
 ```
 
 To read an issue's current parent and an epic's open children, use the

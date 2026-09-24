@@ -41,6 +41,7 @@ from pydantic_settings import (
 )
 
 from vultron.config.actor import ActorConfig
+from vultron.config.ledger import LedgerConfig
 
 logger = logging.getLogger(__name__)
 
@@ -155,6 +156,8 @@ class AppConfig(BaseSettings):
         server: HTTP server settings.
         database: Database connection settings.
         actor: Actor policy settings (default CVD roles, case creation policy).
+        ledger: Case-ledger timestamp tolerances applied at the CaseActor
+            commit boundary (CLP-14-009).
         mode: Operational mode (``prototype`` or ``prod``).
         pre_bootstrap_queue_timeout_seconds: How long (in seconds) a
             pre-bootstrap inbox queue is held before it expires.  When the
@@ -168,6 +171,7 @@ class AppConfig(BaseSettings):
     server: ServerConfig = ServerConfig()
     database: DatabaseConfig = DatabaseConfig()
     actor: ActorConfig = ActorConfig()
+    ledger: LedgerConfig = LedgerConfig()
     mode: RunMode = RunMode.PROTOTYPE
     pre_bootstrap_queue_timeout_seconds: int = 300
 

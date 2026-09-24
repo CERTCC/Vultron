@@ -36,6 +36,7 @@ from vultron.core.behaviors.report.validate_tree import (
 )
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
+from vultron.core.models.report_case_link import VultronReportCaseLink
 from vultron.core.models.vultron_types import (
     VultronAccept,
     VultronCaseActor,
@@ -44,6 +45,7 @@ from vultron.core.models.vultron_types import (
 )
 from vultron.core.states.rm import RM
 from vultron.enums.roles import CVDRole
+from test.support.participant_status import advance_participant_rm
 
 logger = logging.getLogger(__name__)
 
@@ -176,10 +178,16 @@ def _seed_mock_case(storage: dict) -> VulnerabilityCase:
         context=case.id_,
         case_roles=[CVDRole.VENDOR],
     )
-    participant.append_rm_state(RM.RECEIVED, _PERF_ACTOR_ID, case.id_)
+    advance_participant_rm(participant, RM.RECEIVED, _PERF_ACTOR_ID, case.id_)
     case.add_participant(participant)
     storage[case.id_] = case
     storage[participant.id_] = participant
+    link = VultronReportCaseLink.model_construct(
+        id_=VultronReportCaseLink.build_id("test-report-123"),
+        report_id="test-report-123",
+        rm_state=RM.RECEIVED,
+    )
+    storage[link.id_] = link
     return case
 
 
@@ -236,6 +244,7 @@ def test_bt_execution_performance_single_run(mock_datalayer, sample_activity):
         report_id="test-report-123",
         offer_id="test-offer-456",
         call_out=_make_always_succeed_bundle(),
+        sender_actor_id="https://example.org/vendor",
     )
 
     start = time.perf_counter()
@@ -275,6 +284,7 @@ def test_bt_execution_performance_percentiles(mock_datalayer, sample_activity):
             report_id="test-report-123",
             offer_id="test-offer-456",
             call_out=_make_always_succeed_bundle(),
+            sender_actor_id="https://example.org/vendor",
         )
 
         start = time.perf_counter()

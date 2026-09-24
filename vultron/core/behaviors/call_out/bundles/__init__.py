@@ -38,6 +38,10 @@ from vultron.core.behaviors.call_out.bundles.assign_vul_id import (
     ASSIGN_VUL_ID_DETERMINISTIC,
     AssignVulIdCallOutBundle,
 )
+from vultron.core.behaviors.call_out.bundles.case_proposal import (
+    CASE_PROPOSAL_DETERMINISTIC,
+    CaseProposalCallOutBundle,
+)
 from vultron.core.behaviors.call_out.bundles.close_report import (
     CLOSE_REPORT_DETERMINISTIC,
     CloseReportCallOutBundle,
@@ -86,6 +90,7 @@ __all__ = [
     "AssignCveIdCallOutBundle",
     "DevelopFixCallOutBundle",
     "AssignVulIdCallOutBundle",
+    "CaseProposalCallOutBundle",
     "CloseReportCallOutBundle",
     "DeployFixCallOutBundle",
     "DeployMitigationCallOutBundle",
@@ -101,6 +106,7 @@ __all__ = [
     "ASSIGN_CVE_ID_DETERMINISTIC",
     "DEVELOP_FIX_DETERMINISTIC",
     "ASSIGN_VUL_ID_DETERMINISTIC",
+    "CASE_PROPOSAL_DETERMINISTIC",
     "CLOSE_REPORT_DETERMINISTIC",
     "DEPLOY_FIX_DETERMINISTIC",
     "DEPLOY_MITIGATION_DETERMINISTIC",

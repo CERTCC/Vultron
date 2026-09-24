@@ -7,6 +7,7 @@ import pytest
 
 from vultron.adapters.driving.fastapi import inbox_handler as ih
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+from vultron.errors import VultronProtocolViolationError
 from vultron.core.models.pending_case_inbox import VultronPendingCaseInbox
 from vultron.core.models.events import MessageSemantics, VultronEvent
 from vultron.wire.as2.vocab.base.objects.actors import as_Service
@@ -119,6 +120,66 @@ def test_inbox_handler_retries_and_aborts_after_too_many_errors(monkeypatch):
 
     # Item should have been re-appended after each error
     assert item_id in _queue
+
+
+def test_inbox_handler_rehydrate_protocol_violation_does_not_propagate(
+    monkeypatch,
+):
+    """AC-2 (#3044): VultronProtocolViolationError from rehydrate() inside
+    inbox_handler() must not propagate — permanent failure, item not re-queued.
+    """
+    item_id = "https://example.org/activities/perm-fail-001"
+    mock_dl = MagicMock()
+    mock_dl.read.return_value = None
+    _queue = [item_id]
+    mock_dl.inbox_list.side_effect = lambda: list(_queue)
+    mock_dl.inbox_pop.side_effect = lambda: _queue.pop(0) if _queue else None
+    mock_dl.inbox_append.side_effect = lambda x: _queue.append(x)
+    mock_dl.outbox_list.return_value = []
+
+    monkeypatch.setattr(
+        ih,
+        "rehydrate",
+        lambda x, dl=None: (_ for _ in ()).throw(
+            VultronProtocolViolationError("perm rehydrate failure")
+        ),
+    )
+
+    asyncio.run(ih.inbox_handler("actor-xyz", mock_dl))
+
+    assert item_id not in _queue, (
+        "VultronProtocolViolationError from rehydrate() is a permanent failure"
+        " — the item must NOT be re-queued (#3044)"
+    )
+
+
+def test_inbox_handler_rehydrate_transient_error_requeues_item(monkeypatch):
+    """AC-2 (#3044): A generic exception from rehydrate() inside inbox_handler()
+    must not propagate — transient failure, item must be re-queued for retry.
+    """
+    item_id = "https://example.org/activities/transient-fail-001"
+    mock_dl = MagicMock()
+    mock_dl.read.return_value = None
+    _queue = [item_id]
+    mock_dl.inbox_list.side_effect = lambda: list(_queue)
+    mock_dl.inbox_pop.side_effect = lambda: _queue.pop(0) if _queue else None
+    mock_dl.inbox_append.side_effect = lambda x: _queue.append(x)
+    mock_dl.outbox_list.return_value = []
+
+    monkeypatch.setattr(
+        ih,
+        "rehydrate",
+        lambda x, dl=None: (_ for _ in ()).throw(
+            RuntimeError("transient rehydrate failure")
+        ),
+    )
+
+    asyncio.run(ih.inbox_handler("actor-xyz", mock_dl))
+
+    assert item_id in _queue, (
+        "A transient rehydrate() failure must re-queue the item for retry"
+        " (#3044)"
+    )
 
 
 def test_dispatch_uses_explicit_dispatcher(monkeypatch):
@@ -674,16 +735,67 @@ def test_make_dispatcher_submit_report_uses_actor_config_factory(monkeypatch):
     assert kwargs["actor_config"].auto_create_case is False
 
 
+def test_make_dispatcher_close_case_gets_wire_render_port(monkeypatch):
+    """make_dispatcher() must wire CLOSE_CASE to a factory supplying all three ports.
+
+    CLOSE_CASE was moved out of ``_SYNC_AND_TRIGGER_PORT_SEMANTICS`` into
+    ``_CLOSE_CASE_SEMANTICS`` so it also receives a ``WireRenderPort``.  Without
+    that port, ``CommitCaseActorRMClosedEntryNode`` cannot render the
+    CASE_MANAGER's own ``RM.CLOSED`` snapshot and hard-fails, which would abort
+    the owner-Leave path before ``case_fully_closed`` is committed.  This guards
+    the wiring rather than the node, because a lost registration is silent at
+    the node (ISSUE-2505 stayed hidden for months behind exactly that shape of
+    absent port).
+    """
+    from vultron.adapters.driven.sync_activity_adapter import (
+        SyncActivityAdapter,
+    )
+    from vultron.adapters.driven.trigger_activity_adapter import (
+        TriggerActivityAdapter,
+    )
+    from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
+
+    captured: dict = {}
+
+    def fake_get_dispatcher(use_case_map, port_factories=None):
+        captured["port_factories"] = port_factories
+        return Mock()
+
+    monkeypatch.setattr(ih, "get_dispatcher", fake_get_dispatcher)
+    ih.make_dispatcher()
+
+    sem = MessageSemantics.CLOSE_CASE
+    assert sem in captured["port_factories"], "CLOSE_CASE must have a factory"
+
+    real_dl = SqliteDataLayer(
+        "sqlite:///:memory:",
+        actor_id="https://test.example/api/v2/actors/test-actor",
+    )
+    kwargs = captured["port_factories"][sem](real_dl)
+
+    assert isinstance(kwargs.get("sync_port"), SyncActivityAdapter)
+    assert isinstance(kwargs.get("trigger_activity"), TriggerActivityAdapter)
+    assert isinstance(kwargs.get("wire_render_port"), As2WireRenderAdapter)
+
+
 def test_case_proposal_port_factory_injects_actor_config(monkeypatch):
-    """_case_proposal_port_factory returns actor_config and wire_render_port.
+    """_case_proposal_port_factory returns actor_config and both ports.
 
     ``CreateCaseProposalReceivedUseCase`` needs ``default_case_roles`` so the
     CaseActor grants the proposing actor its real roles alongside CASE_OWNER
-    (CFG-07-002, CFG-07-004), and ``wire_render_port`` so ledger entries are
-    rendered via the wire adapter (issue #2287).
+    (CFG-07-002, CFG-07-004), ``wire_render_port`` so ledger entries are
+    rendered via the wire adapter (issue #2287), ``trigger_activity`` so the
+    admission decline path can emit Reject(as_CaseProposal) (CP-05-004), and
+    ``call_out`` as the admission-policy injection point (CP-05-002).
     """
+    from vultron.adapters.driven.trigger_activity_adapter import (
+        TriggerActivityAdapter,
+    )
     from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
     from vultron.config.actor import ActorConfig
+    from vultron.core.behaviors.call_out.bundles.case_proposal import (
+        CASE_PROPOSAL_DETERMINISTIC,
+    )
     from vultron.enums.roles import CVDRole
     import vultron.adapters.driving.fastapi.inbox_port_factories as pf
 
@@ -699,17 +811,32 @@ def test_case_proposal_port_factory_injects_actor_config(monkeypatch):
 
     assert kwargs["actor_config"] == fake
     assert isinstance(kwargs["wire_render_port"], As2WireRenderAdapter)
-    assert set(kwargs) == {"actor_config", "wire_render_port"}
+    assert isinstance(kwargs["trigger_activity"], TriggerActivityAdapter)
+    assert kwargs["call_out"] is CASE_PROPOSAL_DETERMINISTIC
+    assert set(kwargs) == {
+        "actor_config",
+        "wire_render_port",
+        "trigger_activity",
+        "call_out",
+    }
 
 
 def test_case_proposal_port_factory_omits_actor_config_when_unavailable(
     monkeypatch,
 ):
-    """The factory returns only wire_render_port when config load fails.
+    """The factory drops actor_config, keeping the ports, when config load fails.
 
     The owner gets CASE_OWNER only (no inherited role guess) but ledger
-    entries are still rendered via the wire adapter (issue #2287).
+    entries are still rendered via the wire adapter (issue #2287), and the
+    decline path can still emit Reject(as_CaseProposal) (CP-05-004) under the
+    default admission policy.
     """
+    from vultron.adapters.driven.trigger_activity_adapter import (
+        TriggerActivityAdapter,
+    )
+    from vultron.core.behaviors.call_out.bundles.case_proposal import (
+        CASE_PROPOSAL_DETERMINISTIC,
+    )
     from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
     import vultron.adapters.driving.fastapi.inbox_port_factories as pf
 
@@ -723,7 +850,13 @@ def test_case_proposal_port_factory_omits_actor_config_when_unavailable(
     )
 
     assert isinstance(kwargs["wire_render_port"], As2WireRenderAdapter)
-    assert set(kwargs) == {"wire_render_port"}
+    assert isinstance(kwargs["trigger_activity"], TriggerActivityAdapter)
+    assert kwargs["call_out"] is CASE_PROPOSAL_DETERMINISTIC
+    assert set(kwargs) == {
+        "wire_render_port",
+        "trigger_activity",
+        "call_out",
+    }
 
 
 def test_make_dispatcher_case_proposal_uses_actor_config_factory(monkeypatch):

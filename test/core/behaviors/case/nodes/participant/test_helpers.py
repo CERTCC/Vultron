@@ -182,13 +182,14 @@ class TestResolveParticipantStateShapeGuard:
         )
         from vultron.core.models.case_participant import CaseParticipant
         from vultron.core.states.rm import RM
+        from test.support.participant_status import advance_participant_rm
 
         actor = "https://example.org/actors/alice"
         participant = CaseParticipant(
             attributed_to=actor, context=self._CONTEXT
         )
-        participant.append_rm_state(
-            RM.RECEIVED, actor=actor, context=self._CONTEXT
+        advance_participant_rm(
+            participant, RM.RECEIVED, actor=actor, context=self._CONTEXT
         )
 
         rm_state, _, _ = resolve_participant_state_from_dl(
@@ -200,18 +201,20 @@ class TestResolveParticipantStateShapeGuard:
         from vultron.core.behaviors.case.nodes.participant.common import (
             resolve_participant_state_from_dl,
         )
-        from vultron.errors import VultronValidationError
         from vultron.wire.as2.vocab.objects.case_participant import (
             as_CaseParticipant,
         )
 
+        # ``as_CaseParticipant`` *is* ``CaseParticipant`` (ADR-0099 detail 3), so
+        # the DataLayer hands back exactly the shape this resolver wants and the
+        # state is readable.  There is no wire-shaped participant left to refuse.
         wire_participant = as_CaseParticipant(
             attributed_to="https://example.org/actors/vendor",
             context=self._CONTEXT,
         )
 
-        with pytest.raises(VultronValidationError):
-            resolve_participant_state_from_dl(
-                cast(Any, self._FakeDl(wire_participant)),
-                wire_participant.id_,
-            )
+        state = resolve_participant_state_from_dl(
+            cast(Any, self._FakeDl(wire_participant)),
+            wire_participant.id_,
+        )
+        assert state is not None

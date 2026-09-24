@@ -83,7 +83,9 @@ def sample_report() -> as_VulnerabilityReport:
 
 @pytest.fixture
 def sample_status() -> as_CaseStatus:
-    return as_CaseStatus()
+    # ``context`` is required on the core class (fail-fast, ARCH-10-001); the
+    # deleted wire class allowed it absent (ARCH-12-002 leniency).
+    return as_CaseStatus(context="https://example.org/cases/case-factories-01")
 
 
 @pytest.fixture

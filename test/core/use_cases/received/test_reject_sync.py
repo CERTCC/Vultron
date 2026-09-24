@@ -21,6 +21,7 @@ from unittest.mock import MagicMock
 
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
+from vultron.core.models._helpers import _as_id
 from vultron.core.models.case_ledger import HashChainLedgerRecord
 from vultron.core.models.case_ledger_entry import VultronCaseLedgerEntry
 from vultron.core.models.events import MessageSemantics
@@ -52,15 +53,12 @@ def _to_persistable_entry(
     return VultronCaseLedgerEntry(
         case_id=chain_entry.case_id,
         log_index=chain_entry.log_index,
-        disposition=chain_entry.disposition,
         term=chain_entry.term,
         log_object_id=chain_entry.object_id,
         event_type=chain_entry.event_type,
         payload_snapshot=dict(chain_entry.payload_snapshot),
         prev_log_hash=chain_entry.prev_log_hash,
         entry_hash=chain_entry.entry_hash,
-        reason_code=chain_entry.reason_code,
-        reason_detail=chain_entry.reason_detail,
     )
 
 
@@ -339,20 +337,40 @@ class TestRejectLedgerEntryReceivedUseCase:
         uc.execute()  # should not raise
 
     @pytest.mark.spec("SYNC-03-002")
-    def test_replay_triggered_when_case_actor_found(self, dl, entry0, entry1):
-        """When a as_CaseActor (Service) exists for the case, missing entries are replayed."""
-        from vultron.wire.as2.vocab.objects.case_actor import as_CaseActor
+    @pytest.mark.spec("CM-02-011")
+    def test_replay_triggered_when_the_case_manager_is_resolvable(
+        self, dl, entry0, entry1
+    ):
+        """Missing entries are replayed once the case's CASE_MANAGER resolves.
+
+        The sender address comes from the role (ADR-0088, ARCH-24-004). This
+        used to be satisfied by an ``as_CaseActor`` whose ``context`` was the
+        case id — a hosting signal that no longer answers.
+        """
+        from vultron.enums.roles import CVDRole
+        from vultron.wire.as2.vocab.objects.case_participant import (
+            as_CaseParticipant,
+        )
+        from vultron.wire.as2.vocab.objects.vulnerability_case import (
+            as_VulnerabilityCase,
+        )
 
         # Save both entries
         dl.save(entry0)
         dl.save(entry1)
 
-        # Register a as_CaseActor associated with the case
-        case_actor = as_CaseActor(
-            id_=CASE_ACTOR_URI,
+        # The case names CASE_ACTOR_URI as its CASE_MANAGER.
+        manager = as_CaseParticipant(
+            id_=f"{CASE_URI}/participants/case-manager",
             context=CASE_URI,
+            attributed_to=CASE_ACTOR_URI,
+            case_roles=[CVDRole.CASE_MANAGER],
         )
-        dl.save(case_actor)
+        dl.create(manager)
+        case = as_VulnerabilityCase(id_=CASE_URI, name="Reject Sync Case")
+        case.case_participants.append(manager.id_)
+        case.actor_participant_index[CASE_ACTOR_URI] = manager.id_
+        dl.create(case)
 
         # Participant says they only have up to entry0
         event = self._make_event(entry1, entry0.entry_hash)
@@ -365,3 +383,18 @@ class TestRejectLedgerEntryReceivedUseCase:
         # announce saved to DataLayer; outbox queue uses actor-scoped table.
         announces = dl.by_type("Announce")
         assert len(announces) == 1
+        # The count alone does not test the role resolution this test is named
+        # for — one Announce is queued whichever sender `FindCaseActorNode`
+        # publishes.  `CASE_ACTOR_URI` is deliberately distinct from both
+        # `CASE_URI` and the store's own actor, so asserting the sender is what
+        # pins the resolution: publishing the executing actor instead fails here.
+        queued = list(
+            announces.values() if isinstance(announces, dict) else announces
+        )
+        record = queued[0]
+        sender = (
+            record.get("actor")
+            if isinstance(record, dict)
+            else getattr(record, "actor", None)
+        )
+        assert _as_id(sender) == CASE_ACTOR_URI

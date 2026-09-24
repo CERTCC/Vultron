@@ -42,7 +42,8 @@ from vultron.core.behaviors.status.nodes.cs_dimension_filter import (
     _CsStatusGuardBase,
 )
 from vultron.core.states.cs import (
-    CS_vfd,
+    CS_d,
+    CS_vf,
     is_monotonic_pxa_forward,
     is_pxa_public_aware,
 )
@@ -66,13 +67,12 @@ class CheckCsEphemeralStateNode(_CsStatusGuardBase):
     aborting the Sequence before any ledger write (CLP-10-009).
 
     The VFD dimension is not present in :class:`~vultron.core.models.case_status.CaseStatus`.
-    A ``CS_vfd.VFD``-complete baseline is used when constructing the compound
-    state, which suppresses false vP positives (vendor-unaware + public-aware)
-    while preserving the pX check that depends only on PXA.
+    A VFD-complete baseline (``CS_vf.VF + CS_d.D``) is used when constructing
+    the compound state, which suppresses false vP positives (vendor-unaware +
+    public-aware) while preserving the pX check that depends only on PXA.
 
     Returns SUCCESS when:
 
-    - The case is not found in the DataLayer.
     - No materialized :class:`CaseStatus` exists yet (first-ever status).
     - The asserted status is unresolvable (deferred to
       :class:`FilterCsEmDimensionNode`, which will abort with FAILURE).
@@ -80,7 +80,8 @@ class CheckCsEphemeralStateNode(_CsStatusGuardBase):
     - The asserted state satisfies the required-next-event constraint.
 
     Returns FAILURE when the current state is pX and the asserted PXA does
-    not have P=True.
+    not have P=True, or when the referenced case cannot be resolved
+    (Regime 1, ADR-0087; ``case_id`` absent is still a no-op SUCCESS).
 
     Must run before :class:`FilterCsEmDimensionNode` in ``precondition_guards``.
     Per issue #2524 AC-1, CSB-17-012.
@@ -92,11 +93,9 @@ class CheckCsEphemeralStateNode(_CsStatusGuardBase):
         if (f := self._require_datalayer()) is not None:
             return f
 
-        case = (
-            self._resolve_case()
-        )  # uses read_case() via _CsStatusGuardBase (AC-3, #2701)
-        if case is None:
-            return Status.SUCCESS
+        case, failure = self._require_case(self.case_id)
+        if failure is not None:
+            return failure  # Regime 1: case must exist (ADR-0087, #2701)
 
         try:
             current = case.current_status
@@ -113,7 +112,7 @@ class CheckCsEphemeralStateNode(_CsStatusGuardBase):
         current_pxa = current.pxa.state
         # VFD-complete baseline avoids false vP positives; only pX is detectable
         # from PXA-only data (CSB-17-012).
-        current_cs = cs_from_dimensions(CS_vfd.VFD, current_pxa)
+        current_cs = cs_from_dimensions(CS_vf.VF, CS_d.D, current_pxa)
         required = required_next_cs_events(current_cs)
         if not required:
             return Status.SUCCESS  # not ephemeral
@@ -146,9 +145,9 @@ class CheckCsHistoryPrefixNode(_CsStatusGuardBase):
     (:class:`FilterCsPxaDimensionNode`) handles partial-accept for those
     (RSH-05, CSB-16-002).
 
-    The VFD dimension is not present in CaseStatus; a ``CS_vfd.VFD``-complete
-    baseline is used to avoid vP false positives (same rationale as
-    :class:`CheckCsEphemeralStateNode`).
+    The VFD dimension is not present in CaseStatus; a VFD-complete baseline
+    (``CS_vf.VF + CS_d.D``) is used to avoid vP false positives (same
+    rationale as :class:`CheckCsEphemeralStateNode`).
 
     Returns FAILURE when the single proposed event would produce an invalid CS
     history prefix (e.g. A from pXa violates CSB-17-012).
@@ -164,11 +163,9 @@ class CheckCsHistoryPrefixNode(_CsStatusGuardBase):
         if (f := self._require_datalayer()) is not None:
             return f
 
-        case = (
-            self._resolve_case()
-        )  # uses read_case() via _CsStatusGuardBase (AC-3, #2701)
-        if case is None:
-            return Status.SUCCESS
+        case, failure = self._require_case(self.case_id)
+        if failure is not None:
+            return failure  # Regime 1: case must exist (ADR-0087, #2701)
 
         try:
             current = case.current_status
@@ -188,8 +185,8 @@ class CheckCsHistoryPrefixNode(_CsStatusGuardBase):
             return Status.SUCCESS
 
         # VFD-complete baseline: only PXA bits can change between these two states.
-        current_cs = cs_from_dimensions(CS_vfd.VFD, current_pxa)
-        asserted_cs = cs_from_dimensions(CS_vfd.VFD, asserted_pxa)
+        current_cs = cs_from_dimensions(CS_vf.VF, CS_d.D, current_pxa)
+        asserted_cs = cs_from_dimensions(CS_vf.VF, CS_d.D, asserted_pxa)
 
         event = cs_transition_event(current_cs, asserted_cs)
         if event is None:

@@ -3,20 +3,25 @@ title: BT Cross-Cutting Mechanics
 status: active
 description: >
   Cross-cutting mechanics for py_trees BT integration: failure reason
-  propagation, blackboard key semantics, idempotency patterns,
+  propagation, blackboard key semantics, execution-scoped key lifetime and
+  the BTBridge exception-handler contract, idempotency patterns,
   memory=False partial-write behavior, key namespacing, and other
   mechanics that apply to any BT node or domain.
 related_specs:
   - specs/behavior-tree-integration.yaml
   - specs/behavior-tree-node-design.yaml
+  - specs/case-proposal.yaml
+  - specs/code-style.yaml
 related_notes:
   - notes/bt-integration.md
+  - notes/call-out-configuration.md
   - notes/bt-canonical-reference.md
   - notes/bt-design-patterns.md
   - notes/domain-validation.md
   - notes/embargo-lifecycle.md
   - notes/received-status-authorization.md
   - notes/testing-pitfalls.md
+  - notes/protocol-asks.md
 relevant_packages:
   - py_trees
   - vultron/core/behaviors
@@ -307,24 +312,45 @@ For the note-domain worked example, see
 BT-17-004)
 
 `py_trees.blackboard.Blackboard.storage` is process-global. `execute_with_setup`
-cleans only the `datalayer` and `trigger_activity_factory` keys on exit — it
-does NOT clean domain-specific output keys such as `broadcast_activity_id`.
+resets only the keys named in its `managed_keys` allowlist on exit. A
+domain-specific **output** key a node writes mid-tree is not on that list and is
+NOT cleaned — `create_case_addressees` (written by `CollectCaseAddresseesNode`,
+read by `CreateAndPersistCaseActivityNode`, both in
+`case/nodes/communication.py`) is the shape to have in mind. Listing such a key
+there is an explicit opt-in, described in the section below.
+
+Note the discriminator, because it is easy to get backwards: a key the *caller*
+passes as a `context_data` kwarg **is** managed and restored, even when a node
+also writes it. Flat `/suggested_roles` is that case — `SvcInviteActorToCaseUseCase`
+puts it in `_extra_execute_kwargs()`, so it arrives as `context_data` — and it is
+therefore not an example of this rule.
+
+The same noun covers both cases, so name the key form and not the noun: the
+*namespaced* `/suggested_roles_{id_segment}` written by `EvaluateDefaultRolesNode`
+on the received path is nobody's `context_data` kwarg, is not on `managed_keys`,
+and **is** an example of this rule. See "Namespaced Inter-Node Handoff Keys" below,
+where it is catalogued.
 
 **Rule**: When a BT node takes a no-op path (empty recipient list, guard
-condition not met, etc.), it MUST explicitly write `None` to any output
-blackboard key it would normally set. Leaving the key at its stale value from
-a prior execution contaminates the next execution.
+condition not met, etc.), it MUST explicitly clear any output blackboard key it
+would normally set — `None` for a scalar, the empty collection for a
+collection-typed port. Leaving the key at its stale value from a prior execution
+contaminates the next execution.
 
 ```python
 # ✅ Correct — clear the key on no-op path
 if not recipients:
-    self.blackboard.broadcast_activity_id = None
+    self._set_output("create_case_addressees", [])
     return Status.SUCCESS
 
 # ❌ Wrong — stale value visible to next execution
 if not recipients:
     return Status.SUCCESS
 ```
+
+A namespaced handoff key (`suggested_roles_{id_segment}` and friends, see
+"Namespaced Inter-Node Handoff Keys" below) is cleared the same way, through its
+port — never by assigning the flat name.
 
 **Consumer side**: Any node that reads an output key from a peer node MUST
 treat both `KeyError` (key never written) and `None` (key explicitly cleared
@@ -334,6 +360,128 @@ by no-op path) as equivalent no-op sentinels.
 calls back-to-back on the same blackboard instance without clearing between
 them. Assert the second run does not observe output values from the first when
 the producer node takes a no-op path.
+
+---
+
+## Execution-Scoped Hand-off Keys Are Reset by the Bridge, Not by a Node
+
+(#3101 / CONCERN-2711, 2026-09-03; see `docs/adr/0087-case-resolution-disposition-policy.md`)
+
+The "no-op path must clear its own key" rule above assumes a **single owning
+node** can clear the key on every path it takes. That assumption breaks for a
+key written mid-tree by one node and consumed by a *later* node in the same
+`execute_with_setup` run — e.g. `BB_LEDGER_PAYLOAD_OBJECT_OVERRIDE`, written by
+`FinalizeCsFilterNode` and consumed by the guarded-commit node. Because a
+`memory=False` Sequence short-circuits on the first FAILURE, the consumer may
+never run, so **no node can guarantee cleanup on every outcome** (#3101: a
+missing-case FAILURE left the override stale, and the next execution committed a
+ledger entry against it).
+
+**Rule**: A cross-execution hand-off key like this is *execution-scoped*, not
+node-owned. List it in `BTBridge.execute_with_setup`'s `managed_keys` so the
+bridge resets it to its pre-execution state in the `finally` block on **every**
+outcome. Whatever execution wrote the key has it reset at its own teardown, so
+no execution leaks it forward regardless of which node short-circuited. (This is
+the exception to "a domain-specific output key is not cleaned" above — listing a
+key in `managed_keys` is how a node-written key opts *in* to bridge teardown.)
+
+**Do NOT** instead zero the key from an unrelated node's `_clear()`: a node must
+not clear a blackboard key it does not own (CONCERN-2711), because a peer that
+legitimately owns the key would see it corrupted. Ownership stays with the
+producer; *lifetime* is enforced by the bridge.
+
+**`activity` and `context_data` keys are also managed** (#3161): `setup_tree`
+writes the `activity` key (when provided) and all `**context_data` keyword
+arguments to the blackboard. These keys are added to `managed_keys`
+dynamically at the start of `execute_with_setup`, before `previous_values` is
+snapshotted. A nested `execute_with_setup` call that passes the same key
+therefore restores the outer execution's value when it returns — no stale
+value leaks forward.
+
+The corollary is that **none of these keys can carry a result back out**: they
+are restored on every outcome, so a caller that reads one after
+`execute_with_setup` returns sees its pre-execution value, not whatever a node
+wrote. Pass a mutable `result_out` dict instead — it is shared by reference and
+unaffected by the restore.
+
+The snapshot/restore mechanism itself lives in
+`vultron/core/behaviors/blackboard_scope.py`, shared with the inbox pipeline,
+which needs the same guarantee for its own key set (#3534). Two details there are
+easy to re-implement wrongly and are the reason it is one function rather than
+two: a key **absent** before the call is *removed* afterwards rather than set to
+`None` (or a consumer relying on the BT-17-003 `KeyError`-vs-`None` distinction
+reads "explicitly cleared" where the truth is "never written"), and **both**
+spellings of every key are covered, since port access uses `/name` while direct
+`Blackboard.storage` access usually uses the bare name.
+
+### `/actor_id` Is Restored Too, Because Nodes Re-Read It Every Tick
+
+`actor_id` was excluded from `managed_keys` until #3516, on the reasoning that
+the outer execution holds its own actor id as a Python local. That is true of
+`execute_with_setup` and false of **every node**, so the exclusion leaked:
+
+> A node base does not capture `/actor_id` once. `DataLayerCondition`,
+> `DataLayerAction`, `DataLayerConditionWithPorts` and `DataLayerActionWithPorts`
+> all read it into `self.actor_id` in **`initialise()`**, not `setup()` — and
+> py_trees calls `initialise()` on every tick in which the node was not
+> `RUNNING`.
+
+So a nested `execute_with_setup` running as a different actor — the ordinary
+delegated-emit shape (CM-24-001) — left that actor on the blackboard, and every
+**later sibling** of the node that made the nested call resolved the inner actor
+instead of the one its own tree is executing as. In `OwnerLeaveSeq`
+(`case/receive_close_case_tree.py`) the siblings downstream of
+`AdvanceParticipantToRMClosedNode` include the node that commits a ledger entry,
+so the leak reached `payloadSnapshot.actor` — a CLP-07-003 identity fault. It
+required `self.datalayer.actor_id` to differ from the blackboard actor, which is
+exactly `_store_for_actor`'s documented foreign-authority fall-through (a case
+whose CASE_MANAGER sits on another container after a handoff, CP-08-003), so it
+was narrow rather than absent.
+
+Restoring is safe rather than merely safer, which is the part worth
+internalising: the restore runs in the **inner** call's own `finally`, after its
+tree has finished, and puts back exactly the value that same call snapshotted.
+It cannot overwrite a live execution. The guards are
+`test_an_inner_actor_id_does_not_clobber_the_outer_one` and
+`test_a_later_sibling_reads_its_own_trees_actor` in `test_bridge.py` — the second
+asserts what a sibling *node* resolves, because asserting on raw blackboard
+storage does not exercise the `initialise()` re-read that made this reachable.
+
+**Generalisation.** When reasoning about whether a blackboard key is safe to
+leave un-restored, the question is never "does the bridge read it late?" — it is
+"does any **node** re-read it, and when?" For every `helpers.py` base that is
+once per tick, not once per execution.
+
+### Every Classifying Exception Handler Is One Helper (#3084, #3085)
+
+`BTBridge` catches at three boundaries — the ticks inside `execute_tree`, and
+`setup_tree` and `execute_tree` as called from `execute_with_setup` — each split
+by whether the exception is a `VultronError`, so six handlers, and all six go
+through `BTBridge._exception_result(e, *, prefix, internal_error=False)`. (The
+`bt.shutdown()` guard in `execute_tree`'s `finally` is the one broad catch that
+does not: it builds no result, because its job is to preserve the one already
+returned.) The helper
+derives the message, the log level, and the `internal_error` flag from that one
+`internal_error` input, so the three cannot drift apart: `internal_error=False`
+is WARNING with no traceback and a bare `"<prefix>: <Type>: <msg>"` message,
+`True` is `logger.exception` (ERROR + traceback, which requires calling the
+helper from inside the `except` block) and a `"<prefix> with internal error: …"`
+message. A log-level divergence between two of these copies was #3080.
+
+The routing is ratcheted, not merely asserted in prose:
+`test/architecture/test_bridge_exception_handlers_use_helper.py` fails on any
+handler in `bridge.py` that returns a result it built itself. That matters
+because the older `test_no_broad_except_outside_bt_update.py` ratchet counts only
+`except Exception`/bare handlers, so it pins three of the six and is blind to the
+three `except VultronError` ones — the half where #3080 actually happened.
+
+`execute_with_setup` uses **two** try blocks rather than one, so the `prefix`
+always names the phase that actually failed — a combined block reported an
+error raised during the ticks as `"BT setup failed"`, sending a reader to the
+wiring when the bug was in a node (#3085). `execute_tree`'s own catch-all means
+nothing currently reaches the execution-phase handlers; they are the guarantee
+("a BT execution never escapes the bridge") rather than the mechanism, and stay
+correct if that catch-all is ever narrowed.
 
 ---
 
@@ -486,6 +634,51 @@ the Harness Can Produce Its Named Reason".
 
 ---
 
+## Inner BTBridge Inherits `is_leader` From the Outer Execution's Blackboard
+
+(CLP-08-005, ISSUE-2856, 2026-09-14)
+
+A `BTBridge` constructed without an explicit `is_leader` argument — the common
+pattern inside node `update()` methods — does **not** permanently default to
+`always-True`. It inherits the leadership guard from the outer execution's
+blackboard.
+
+**Mechanism:**
+
+- `BTBridge.__init__` records whether `is_leader` was explicitly provided:
+  `_is_leader_explicit = (is_leader is not _default_is_leader)`.
+- `setup_tree()` writes `is_leader` to the blackboard **only** when
+  `_is_leader_explicit` is `True`. Default bridges do not write the key, so an
+  outer explicit bridge's value remains visible to inner bridges.
+- `execute_with_setup()` reads `Blackboard.storage["/is_leader"]` when
+  `_is_leader_explicit` is `False`. If the value is callable, it becomes the
+  effective guard. If absent or non-callable, the bridge falls back to its own
+  `self.is_leader` (`_default_is_leader` in single-node deployments).
+- `is_leader` is in `execute_with_setup`'s `managed_keys`, so it is restored to
+  its pre-execution value in the `finally` block on every outcome.
+
+**Practical rules for new inner-bridge sites:**
+
+1. `BTBridge(datalayer=...)` — no explicit `is_leader` — **inherits** whatever
+   the enclosing `execute_with_setup` wrote to `/is_leader`. In a single-node
+   system (no outer bridge) it falls back to `_default_is_leader` (always True),
+   preserving existing behaviour.
+
+2. `BTBridge(datalayer=..., is_leader=fn)` — explicit guard — **overrides** the
+   blackboard. Use this when the inner bridge intentionally enforces a different
+   policy than the outer execution.
+
+3. Do not write `is_leader` directly to the blackboard from a node. The outer
+   `BTBridge.setup_tree()` owns that write when `_is_leader_explicit` is True.
+
+**Why this matters:** Before this change, inner bridges always used
+`_default_is_leader`, so a non-leader actor reaching `EmitCaseStatusUpdateNode`
+could still mint a `CaseLedgerEntry` because the inner `BTBridge` ignored the
+outer guard. The inheritance mechanism fixes this class of bug for all current
+and future nested-bridge sites. (CLP-08-005, SYNC-09-003)
+
+---
+
 ## Guard Name Must Match the State-Machine Transition Precondition
 
 (ISSUE-1825, 2026-07-30)
@@ -508,25 +701,6 @@ specifically), not the weaker absence predicate. Catching this requires reading
 `vultron/core/states/cs.py` `_vfd_transitions`, not just the AC text.
 
 <!-- Source: ISSUE-1825 -->
-
----
-
-## `_resolve_case_manager_id` Is Duplicated in `develop_fix.py` — Do Not Canonicalise Yet
-
-(ISSUE-1812, 2026-07-29; tracked for unification in #1428)
-
-`vultron/core/behaviors/report/nodes/develop_fix.py` contains a local copy of
-`_resolve_case_manager_id` that mirrors the canonical version in
-`vultron.core.use_cases._helpers`. This duplication was deliberate: BT nodes
-in `vultron/core/behaviors/` cannot import from `vultron/core/use_cases/`
-(BTND-04-003), and no shared `core.behaviors` helper location exists yet.
-
-**Do not unify or move these helpers until #1428 is addressed.** Adding a
-shared helper module under `vultron/core/behaviors/` is a design decision
-requiring an ADR or spec entry. Until then, keep the inlined copy — it is not
-tech debt to fix in the same PR.
-
-<!-- Source: ISSUE-1812 -->
 
 ---
 
@@ -797,6 +971,52 @@ validation there is.
 
 Sources: CONCERN-2412, ISSUE-3050 (ADR-0086)
 
+## Never Construct `CreateParticipantStatusNode` Inside Another Node's `update()`
+
+**Pitfall (BTND-10-004):** Instantiating `CreateParticipantStatusNode` (or any
+significant sub-node) directly inside an enclosing `Behaviour.update()` skips the
+normal tick lifecycle. `setup()` never runs, which means the DataLayer and
+blackboard context that `setup()` binds are absent — the node silently behaves as
+if initialised with empty wiring. Additionally, constructing a node inside `update()`
+while wrapping the call in `try/except` is the swallowing anti-pattern from
+§ "Always Check `BTBridge.execute_with_setup` Return Value" — the write either
+succeeds silently or is eaten.
+
+**The fix is always the same**: pre-build the sub-node in `__init__` and delegate
+to it via `BTBridge.execute_with_setup(self._status_node, **context)` in `update()`.
+The sub-node is then a real tree participant — `setup()` runs, the tick cycle
+applies, and return values are visible.
+
+The architecture ratchet `test/architecture/test_participant_status_validation.py`
+(AC-9) catches any `update()` method that re-introduces this construction.
+
+Sources: BTND-10-004, ADR-0089, ISSUE-3204
+
+## `CreateParticipantStatusNode` Accepts No `case_id` Constructor Argument
+
+**Pitfall (BTND-10-005):** Passing `case_id` to the constructor is a dead end for
+received trees: the case_id is resolved at tick time by dereferencing the incoming
+report, not at build time. Constructor injection forces build-time knowledge the
+caller may not have; it also couples the constructed node to a single case, making
+it unresachable via any path that supplies the id through the blackboard.
+
+The sole correct mechanism is the `CaseIdInputPortMixin` port. Trees that know the
+id at build time seed it via `BTBridge.execute_with_setup(node, case_id=case_id)`;
+received trees leave the port unsupplied and let the node read `/case_id` at tick
+time.
+
+Similarly, the *subject* actor — the participant whose status is being written —
+must be an **explicit constructor argument**, never a fallback to the blackboard
+`actor_id`. The blackboard actor is the *executing* actor, not the subject; the
+two differ in every received-message flow, and conflating them was the root cause
+of bug #2300.
+
+The architecture ratchet (AC-9) fails if `__init__` gains a `case_id` parameter,
+and fails if `_ReportPhaseRMTransition._acting_actor_id()` re-introduces the
+`or self.actor_id` fallback.
+
+Sources: BTND-10-005, ADR-0089, ISSUE-3204, BUG-2300
+
 ## BT Nodes Must Not Clear Blackboard Keys They Do Not Own
 
 A node's `_clear()` or tick-start zero-write MUST only target keys that node is
@@ -832,3 +1052,163 @@ comes from the **parent** doing the rendering:
 subtree**, never on the leaf nodes whose names you want changed.
 
 Source: ISSUE-2109
+
+## Call-Out Bundle Factories Hand Out Guard-Wrapped Nodes (BT-18-011)
+
+Every `<Domain>CallOutBundle` factory field now yields a node wrapped in
+`SynchronousCallOut` — the no-`RUNNING` guard applied once in
+`CallOutBundle.__post_init__` (`call_out/bundles/base.py`). So
+`bundle.some_factory("Name")` returns the *guard*, not the backend directly,
+for DETERMINISTIC, STOCHASTIC, and implementer-injected bundles alike. The
+wrapper is name- and status-transparent, so building and ticking a tree is
+unaffected — but a test that asserts on the concrete backend **type or a
+backend-specific attribute** must look through the guard:
+
+```python
+from vultron.core.behaviors.call_out import unwrap_call_out
+
+assert isinstance(unwrap_call_out(node), AlwaysFail)   # not isinstance(node, ...)
+assert unwrap_call_out(node).success_rate == 0.9       # attrs live on the child
+```
+
+`isinstance(node, py_trees.behaviour.Behaviour)` still holds (the guard *is* a
+Behaviour), so only concrete-subclass and attribute checks need unwrapping.
+
+A caller that ticks a factory product **procedurally** (outside a `BTBridge`
+tree) must use `tick_once()` / `setup_with_descendants()`, never a bare
+`update()` / `setup()`: the guard's `update()` reads its child's status, which
+is only set after the child has been ticked, and its `setup()` propagates to the
+child only via the descendant walk. See `_record_named_peer`
+(`use_cases/triggers/actor.py`) and `stochastic_demo.py` for the two procedural
+call sites. Design rationale: [protocol-asks.md](protocol-asks.md) § "The
+invariant is enforced, not just observed".
+
+Source: ISSUE-3194 (BT-18-011, ADR-0080)
+
+---
+
+## A Refusal Arm in a Selector Fails Toward "Admit"
+
+A Selector falls through to its next child on FAILURE. Put a *refusal* in one of
+its arms and you have built a gate whose failure direction is the thing it exists
+to prevent: any failure inside the arm hands control to the permissive branch.
+
+`_EmitSingleActivityBase.update()` makes this reachable rather than theoretical —
+it catches **every** exception and returns FAILURE. So a decline arm that emits
+through the shared seam turns a missing wire payload, an uninjected
+`TriggerActivityPort`, or a transient store error into "proceed with the accept
+flow". In the case-proposal admission gate (CP-05-002) that produced a *full
+accept* under a declining policy: case created, canonical ledger entries
+committed, `Accept` + `Create` queued, tree status SUCCESS. Strictly worse than
+having no gate, because the caller is told the refusal succeeded.
+
+Ordering the arms does not fix it. Putting the refusal *first* stops the reverse
+error (a mid-flow accept failure emitting a refusal after the effects,
+CLP-10-009) but not this one, and there is no Selector arrangement that closes
+both — a Selector cannot express "the guard passed, commit to this arm".
+
+**The fix is durable state, not structure.** Persist the decision *before* the
+side effect, and make its absence a precondition of the permissive arm:
+
+```text
+Selector
+  ├─ AlreadyDeclinedArm      # record exists → decision stands; ensure the Reject went out
+  ├─ DeclineProposalArm      # Inverter(evaluate) → RECORD → emit
+  └─ AcceptProposalArm
+       ├─ CheckNoDeclineRecordNode   # FAILURE when the record exists
+       └─ <accept flow>
+```
+
+Now a failed emit leaves the record, the accept arm refuses, and the tree fails
+loudly instead of admitting. Three further properties fall out of writing the
+record first, and each is worth having:
+
+- **Redelivery is idempotent** — the decision is not re-made, so a retrying peer
+  is not answered afresh each time, and a stateful or stochastic backend cannot
+  reverse itself.
+- **A lost side effect is recoverable** — "decided, nothing emitted" is a
+  distinguishable state, so the next delivery can complete the obligation. This
+  is the same ordering `PendingCreateCaseActivity` uses for the accept side
+  (CP-05-005).
+- **The reason survives** — a re-emitted refusal reads its explanation from the
+  record rather than from a constructor argument, so it matches the original
+  decision.
+
+### Moving the barrier one node up does not fix it
+
+The first attempt at this fix put the record write immediately before the emit,
+which closed the emit failure and nothing else. The arm had four children; the
+barrier now sat at child 3, so children 1–2 failing still admitted. An
+adversarial pass reproduced it: make the "was this already answered?" guard's
+store read raise, and a *declining* policy created the case and queued
+`Accept` + `Create` without the backend ever being consulted.
+
+**In a refusal arm, a guard has no safe status to return when it cannot answer.**
+FAILURE runs the permissive arm. SUCCESS skips the refusal arm and runs it too.
+Both directions of "I could not tell" mean admit. So:
+
+> Every node in a refusal arm ahead of the durable write MUST let its errors
+> propagate. `BTBridge` converts an escaped exception into whole-tree FAILURE,
+> which is the only outcome that neither admits nor silently refuses.
+
+This inverts the usual convention that `update()` is the sole `try/except`
+(BT-HELPER-01). That convention assumes FAILURE is a safe answer; in a refusal
+arm it is not. Catching an exception to "handle it gracefully" here is precisely
+how the permissive branch gets reached — the one node in this gate that tried
+hardest to be careful was the only unsafe one.
+
+### Two more traps in the same shape
+
+- **An "already answered" guard must cover every state the permissive path can
+  leave behind, not just its last step.** Keying on the stored `Accept` looked
+  proposal-precise, but the accept flow creates the case and commits its ledger
+  entries *before* emitting, so a delivery that failed in between left a case
+  with no `Accept`. A later refusal then rejected a half-built case *and*
+  recorded a decline that blocked the accept arm forever — the case could never
+  be completed. Treat "the permissive path has begun" as the question, and probe
+  the earliest durable evidence of it.
+- **"Persisted" is not "queued" — and "queued" is not "sent".** A resend guard
+  that checks the object store answers "already told them" for an activity that
+  was written and then failed to enqueue, so the refusal is lost and every later
+  delivery reports success with an empty outbox. Asking the *outbox* instead
+  fixes that and breaks the other end: `outbox_pop` removes the activity on
+  delivery while its stored copy remains, so a refusal that was successfully
+  **delivered** is indistinguishable from one never queued — and the guard then
+  mints a fresh one on every later delivery, unbounded, driven by whoever replays
+  the trigger. Neither store nor queue can answer this, because the question is
+  historical and both are current-state. **Record the id of what you sent on the
+  decision record.** Three states, not two: undecided, decided-but-unanswered
+  (recoverable, re-emit), decided-and-answered (terminal, emit nothing).
+
+### The guard's key must not be an input the sender controls
+
+Distinct from the status trap above, and it cost a second adversarial pass. A
+guard can be perfectly fail-closed and still be *bypassable* if it keys on the
+wrong thing — here, a guard returning **SUCCESS** short-circuited the whole
+refusal arm before the call-out point was ever ticked.
+
+The admission gate's "has this already been answered?" probe keyed partly on
+`report_id`, which arrives from the report the **sender** embedded in its own
+proposal. Two proposals may name one report, so a second actor naming a report
+the service already held a case for got SUCCESS from that probe, skipped the
+decline arm entirely, and was admitted through the duplicate-reuse path — with
+the deployment's policy never consulted and no decline record written.
+
+> A gate keyed on a value the requester chooses is a gate the requester can
+> arrange to skip. Key every guard on the identity of the **request** being
+> adjudicated, and write your own durable evidence for it rather than inferring
+> the answer from state that some other request could have created.
+
+Two corollaries worth keeping:
+
+- The evidence must be written **before** the first effect, or it cannot cover
+  the window the previous trap is about. Writing an "admitted" record as the
+  permissive arm's first step is what makes "the permissive path has begun"
+  answerable per-request.
+- It is also the cheap answer. The report-keyed probe was reached first because
+  it was an indexed read while the proposal-keyed one scanned a table; once the
+  per-request record exists, the indexed read *is* the correct probe, and the
+  scan degrades to a legacy fallback that a negative indexed prefilter can skip.
+
+*Source: ISSUE-3399, found by two pre-PR review passes on #1315 — the second
+pass broke the first pass's fix.*

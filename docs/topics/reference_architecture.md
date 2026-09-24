@@ -1,3 +1,8 @@
+---
+stakeholder_type: [platform-developer, project-contributor]
+level: 400
+---
+
 # Reference Implementation Architecture
 
 This page explains how the Vultron reference implementation is structured.
@@ -81,7 +86,7 @@ The semantic extractor is the single place where AS2 structure becomes domain in
 
 The core layer decides what to do.
 The behavior dispatcher (`vultron/core/dispatcher.py`) maps the extracted semantics to a use case through a table lookup, and the use case runs the appropriate behavior tree.
-Routing all inbound case activity through the [Case Actor](case_model.md#caseactor) is what lets a single behavior-tree execution produce a canonically ordered ledger entry ([ADR-0021](../adr/0021-caseactor-inbox-routing-canonical-ledger.md), [ADR-0022](../adr/0022-single-bt-execution-for-received-side-case-actor-routing.md)).
+Routing all inbound case activity through the [Case Actor](case_lifecycle/case_model.md#caseactor) is what lets a single behavior-tree execution produce a canonically ordered ledger entry ([ADR-0021](../adr/0021-caseactor-inbox-routing-canonical-ledger.md), [ADR-0022](../adr/0022-single-bt-execution-for-received-side-case-actor-routing.md)).
 The design that moves this orchestration into a core module behind a typed `process_payload` seam is recorded in [ADR-0020](../adr/0020-inbox-bt-orchestration.md).
 
 For the protocol-level view of what these messages mean to a participant, see [Protocol Event Flow](protocol_flow.md).
@@ -99,6 +104,7 @@ This keeps the transport uniform: the same JSON payload is deliverable whether t
 
 Delivery is treated as unreliable and bounded.
 The outbox retries with backoff, classifies `4xx` responses as terminal, and moves an activity to a dead-letter store once its per-activity attempt budget is exhausted rather than retrying forever ([ADR-0066](../adr/0066-outbox-terminal-state.md)).
+When the exhausted activity is an `Announce(CaseLedgerEntry)`, the dead-letter record also carries the URI of the canonical ledger entry being replicated, so replica divergence is observable without log access (OX-14-001, OX-14-003).
 An outbound activity always carries a non-empty `to:` field (OX-08-001) and full inline objects, because a recipient can only act on what it has received — it cannot read the sender's store (see the [Actor Knowledge Model](actor-knowledge-model.md)).
 
 ---
@@ -154,7 +160,7 @@ A different-language implementation reuses the concepts — the boundary, the pi
 
 ## Further reading
 
-- [The Case Model](case_model.md) — the domain objects the pipeline reads and writes
+- [The Case Model](case_lifecycle/case_model.md) — the domain objects the pipeline reads and writes
 - [Protocol Event Flow](protocol_flow.md) — what the messages mean to a participant
 - [Behavior Logic](behavior_logic/index.md) — the behavior trees in depth
 - [Capability Model](capability_model/index.md) — the call-out point taxonomy and how to build a capability

@@ -51,6 +51,9 @@ from vultron.wire.as2.vocab.objects.vulnerability_report import (
 
 
 def test_vulnerability_report_round_trips_between_core_and_wire():
+    """ADR-0099 detail 3: as_VulnerabilityReport is VulnerabilityReport (identity)."""
+    assert as_VulnerabilityReport is VultronReport
+
     core = VultronReport(
         id_="https://example.org/reports/1",
         attributed_to="https://example.org/actors/finder",
@@ -59,11 +62,13 @@ def test_vulnerability_report_round_trips_between_core_and_wire():
         content="report body",
     )
 
-    wire = as_VulnerabilityReport.from_core(core)
-
-    assert isinstance(wire, as_VulnerabilityReport)
-    assert wire.id_ == core.id_
-    assert wire.to_core() == core
+    assert isinstance(core, as_VulnerabilityReport)
+    data = core.model_dump(by_alias=True, exclude_none=True, mode="json")
+    # The wire shape uses the AS2 spellings, not the Python field names.
+    assert data["attributedTo"] == core.attributed_to
+    assert "attributed_to" not in data and "id_" not in data
+    restored = as_VulnerabilityReport.model_validate(data)
+    assert restored.id_ == core.id_
 
 
 def test_case_status_round_trips_between_core_and_wire():
@@ -74,11 +79,13 @@ def test_case_status_round_trips_between_core_and_wire():
         em=EmDimension(state=EM.PROPOSED),
     )
 
-    wire = as_CaseStatus.from_core(core)
+    wire = as_CaseStatus.model_validate(
+        core.model_dump(by_alias=True, mode="json")
+    )
 
     assert isinstance(wire, as_CaseStatus)
     assert wire.em_state == EM.PROPOSED
-    round_tripped = wire.to_core()
+    round_tripped = wire
     assert round_tripped.id_ == core.id_
     assert round_tripped.attributed_to == core.attributed_to
     assert round_tripped.context == core.context
@@ -91,7 +98,7 @@ def test_participant_status_from_core_materializes_case_status_reference():
         id_="https://example.org/cases/1/status/1",
         context="https://example.org/cases/1",
         attributed_to="https://example.org/actors/vendor",
-        em=EmDimension(state=EM.NO_EMBARGO),
+        em=EmDimension(state=EM.NONE),
     )
     core = CoreParticipantStatus(
         id_="https://example.org/cases/1/participants/1/status/1",
@@ -101,11 +108,13 @@ def test_participant_status_from_core_materializes_case_status_reference():
         case_status=core_case_status,
     )
 
-    wire = as_ParticipantStatus.from_core(core)
+    wire = as_ParticipantStatus.model_validate(
+        core.model_dump(by_alias=True, mode="json")
+    )
 
     assert isinstance(wire.case_status, as_CaseStatus)
     assert wire.case_status.id_ == "https://example.org/cases/1/status/1"
-    round_tripped = wire.to_core()
+    round_tripped = wire
     assert round_tripped.id_ == core.id_
     assert round_tripped.attributed_to == core.attributed_to
     assert round_tripped.context == core.context
@@ -124,10 +133,12 @@ def test_participant_status_embargo_adherence_survives_wire_round_trip():
         context="https://example.org/cases/1",
         consent=PecDimension(state=PEC.SIGNATORY),
     )
-    wire = as_ParticipantStatus.from_core(core_signatory)
+    wire = as_ParticipantStatus.model_validate(
+        core_signatory.model_dump(by_alias=True, mode="json")
+    )
     assert wire.embargo_adherence is True
 
-    round_tripped = wire.to_core()
+    round_tripped = wire
     assert round_tripped.embargo_adherence is True
 
     core_no_consent = CoreParticipantStatus(
@@ -136,9 +147,11 @@ def test_participant_status_embargo_adherence_survives_wire_round_trip():
         context="https://example.org/cases/1",
         consent=None,
     )
-    wire_no_consent = as_ParticipantStatus.from_core(core_no_consent)
+    wire_no_consent = as_ParticipantStatus.model_validate(
+        core_no_consent.model_dump(by_alias=True, mode="json")
+    )
     assert wire_no_consent.embargo_adherence is False
-    assert wire_no_consent.to_core().embargo_adherence is False
+    assert wire_no_consent.embargo_adherence is False
 
 
 def test_case_participant_round_trips_between_core_and_wire():
@@ -159,11 +172,13 @@ def test_case_participant_round_trips_between_core_and_wire():
         participant_case_name="Vendor Case Name",
     )
 
-    wire = as_CaseParticipant.from_core(core)
+    wire = as_CaseParticipant.model_validate(
+        core.model_dump(by_alias=True, mode="json")
+    )
 
     assert isinstance(wire, as_CaseParticipant)
     assert wire.id_ == core.id_
-    round_tripped = wire.to_core()
+    round_tripped = wire
     assert round_tripped.id_ == core.id_
     assert round_tripped.attributed_to == core.attributed_to
     assert round_tripped.context == core.context
@@ -172,6 +187,9 @@ def test_case_participant_round_trips_between_core_and_wire():
 
 
 def test_vulnerability_case_round_trips_between_core_and_wire():
+    """ADR-0099 detail 3: as_VulnerabilityCase is VulnerabilityCase (identity)."""
+    assert as_VulnerabilityCase is VultronCase
+
     case_status = CoreCaseStatus(
         id_="https://example.org/cases/1/status/1",
         attributed_to="https://example.org/actors/vendor",
@@ -201,26 +219,40 @@ def test_vulnerability_case_round_trips_between_core_and_wire():
         sibling_cases=["https://example.org/cases/sibling"],
     )
 
-    wire = as_VulnerabilityCase.from_core(core)
-
-    assert isinstance(wire, as_VulnerabilityCase)
-    assert wire.id_ == core.id_
-    round_tripped = wire.to_core()
-    assert round_tripped.id_ == core.id_
-    assert round_tripped.vulnerability_reports == core.vulnerability_reports
-    assert round_tripped.notes == core.notes
-    assert round_tripped.active_embargo == core.active_embargo
-    assert round_tripped.proposed_embargoes == core.proposed_embargoes
-    assert round_tripped.case_activity == core.case_activity
-    assert round_tripped.parent_cases == core.parent_cases
-    assert round_tripped.child_cases == core.child_cases
-    assert round_tripped.sibling_cases == core.sibling_cases
-    assert isinstance(round_tripped.case_statuses[0], CoreCaseStatus)
-    assert round_tripped.case_statuses[0].id_ == case_status.id_
+    assert isinstance(core, as_VulnerabilityCase)
+    data = core.model_dump(by_alias=True, exclude_none=True, mode="json")
+    for key in (
+        "caseParticipants",
+        "vulnerabilityReports",
+        "caseStatuses",
+        "activeEmbargo",
+        "proposedEmbargoes",
+        "caseActivity",
+        "parentCases",
+        "childCases",
+        "siblingCases",
+    ):
+        assert key in data, f"wire dump is missing AS2 key {key!r}"
+    assert "case_statuses" not in data and "active_embargo" not in data
+    restored = as_VulnerabilityCase.model_validate(data)
+    assert restored.id_ == core.id_
+    assert restored.vulnerability_reports == core.vulnerability_reports
+    assert restored.notes == core.notes
+    assert restored.active_embargo == core.active_embargo
+    assert restored.proposed_embargoes == core.proposed_embargoes
+    assert restored.case_activity == core.case_activity
+    assert restored.parent_cases == core.parent_cases
+    assert restored.child_cases == core.child_cases
+    assert restored.sibling_cases == core.sibling_cases
+    assert isinstance(restored.case_statuses[0], CoreCaseStatus)
+    assert restored.case_statuses[0].id_ == case_status.id_
 
 
 def test_case_ledger_entry_to_core_returns_domain_model():
-    wire = as_CaseLedgerEntry(
+    """ADR-0099 detail 3: as_CaseLedgerEntry is CaseLedgerEntry (identity)."""
+    assert as_CaseLedgerEntry is VultronCaseLedgerEntry
+
+    entry = as_CaseLedgerEntry(
         case_id="https://example.org/cases/1",
         log_index=1,
         log_object_id="https://example.org/activities/1",
@@ -228,14 +260,15 @@ def test_case_ledger_entry_to_core_returns_domain_model():
         payload_snapshot={"id": "https://example.org/activities/1"},
     )
 
-    core = wire.to_core()
-
-    assert isinstance(core, VultronCaseLedgerEntry)
-    assert core.case_id == wire.case_id
-    assert core.entry_hash == wire.entry_hash
+    assert isinstance(entry, VultronCaseLedgerEntry)
+    assert entry.case_id == "https://example.org/cases/1"
+    assert entry.entry_hash is not None
 
 
 def test_case_actor_round_trips_between_core_and_wire():
+    """ADR-0099 detail 3: as_CaseActor is CaseActor (identity)."""
+    assert as_CaseActor is VultronCaseActor
+
     core = VultronCaseActor(
         id_="https://example.org/actors/case-actor",
         name="Case Actor",
@@ -243,25 +276,23 @@ def test_case_actor_round_trips_between_core_and_wire():
         context="https://example.org/cases/1",
     )
 
-    wire = as_CaseActor.from_core(core)
-
-    assert isinstance(wire, as_CaseActor)
-    assert wire.id_ == core.id_
-    round_tripped = wire.to_core()
-    assert round_tripped.id_ == core.id_
-    assert round_tripped.attributed_to == core.attributed_to
-    assert round_tripped.context == core.context
+    assert isinstance(core, as_CaseActor)
+    data = core.model_dump(by_alias=True, exclude_none=True, mode="json")
+    restored = as_CaseActor.model_validate(data)
+    assert restored.id_ == core.id_
+    assert restored.attributed_to == core.attributed_to
+    assert restored.context == core.context
 
 
 # ============================================================================
-# WIRE-TRANS-04: VultronAS2Activity.from_core()
+# WIRE-TRANS-04: as_VultronActivity.from_core()
 # ============================================================================
 
 
 def test_vultron_as2_activity_from_core_with_string_fields():
-    """VultronAS2Activity.from_core() round-trips a simple activity."""
+    """as_VultronActivity.from_core() round-trips a simple activity."""
     from vultron.core.models.activity import VultronActivity
-    from vultron.wire.as2.vocab.activities.base import VultronAS2Activity
+    from vultron.wire.as2.vocab.activities.base import as_VultronActivity
 
     core = VultronActivity(
         id_="https://example.org/activities/1",
@@ -270,9 +301,11 @@ def test_vultron_as2_activity_from_core_with_string_fields():
         object_="https://example.org/reports/1",
     )
 
-    wire = VultronAS2Activity.from_core(core)
+    wire = as_VultronActivity.model_validate(
+        core.model_dump(by_alias=True, mode="json")
+    )
 
-    assert isinstance(wire, VultronAS2Activity)
+    assert isinstance(wire, as_VultronActivity)
     assert wire.id_ == core.id_
     assert wire.actor == core.actor
     assert wire.object_ == core.object_
@@ -281,7 +314,7 @@ def test_vultron_as2_activity_from_core_with_string_fields():
 def test_vultron_as2_activity_from_core_with_no_object():
     """from_core() rejects objectless transitive activities."""
     from vultron.core.models.activity import VultronActivity
-    from vultron.wire.as2.vocab.activities.base import VultronAS2Activity
+    from vultron.wire.as2.vocab.activities.base import as_VultronActivity
 
     core = VultronActivity(
         id_="https://example.org/activities/2",
@@ -290,7 +323,7 @@ def test_vultron_as2_activity_from_core_with_no_object():
     )
 
     with pytest.raises(ValidationError):
-        VultronAS2Activity.from_core(core)
+        as_VultronActivity.from_core(core)
 
 
 def test_vultron_as2_activity_subclass_field_map_renames():
@@ -298,9 +331,9 @@ def test_vultron_as2_activity_subclass_field_map_renames():
     from typing import ClassVar
 
     from vultron.core.models.activity import VultronActivity
-    from vultron.wire.as2.vocab.activities.base import VultronAS2Activity
+    from vultron.wire.as2.vocab.activities.base import as_VultronActivity
 
-    class _AliasMappedActivity(VultronAS2Activity):
+    class _AliasMappedActivity(as_VultronActivity):
         _field_map: ClassVar[dict[str, str]] = {"origin": "target"}
 
     core = VultronActivity(
@@ -320,7 +353,7 @@ def test_vultron_as2_activity_subclass_field_map_renames():
 def test_vultron_as2_activity_from_core_accept_subtype():
     """from_core() works for a VultronAccept domain sub-type."""
     from vultron.core.models.activity import VultronAccept
-    from vultron.wire.as2.vocab.activities.base import VultronAS2Activity
+    from vultron.wire.as2.vocab.activities.base import as_VultronActivity
 
     core = VultronAccept(
         id_="https://example.org/activities/4",
@@ -328,9 +361,11 @@ def test_vultron_as2_activity_from_core_accept_subtype():
         object_="https://example.org/activities/offer-1",
     )
 
-    wire = VultronAS2Activity.from_core(core)
+    wire = as_VultronActivity.model_validate(
+        core.model_dump(by_alias=True, mode="json")
+    )
 
-    assert isinstance(wire, VultronAS2Activity)
+    assert isinstance(wire, as_VultronActivity)
     assert wire.id_ == core.id_
     assert wire.actor == core.actor
     assert wire.object_ == core.object_

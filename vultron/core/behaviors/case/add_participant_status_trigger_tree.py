@@ -42,6 +42,7 @@ from vultron.core.behaviors.case.nodes.participant import (
 from vultron.core.behaviors.case.nodes.vfd_role_guards import (
     CheckDeployerRoleNode,
     CheckNotSoleObserverVfdNode,
+    CheckSomeVendorAtVFNode,
 )
 from vultron.core.behaviors.sender.send_tree import sender_side_bt
 from vultron.core.states.cs import CS_d, CS_pxa, CS_vf
@@ -64,7 +65,10 @@ def add_participant_status_trigger_bt(
     :class:`~vultron.core.behaviors.case.nodes.vfd_role_guards.CheckNotSoleObserverVfdNode`
     (CM-25-005).  When ``d_state`` is non-``None`` the tree is also preceded by
     :class:`~vultron.core.behaviors.case.nodes.vfd_role_guards.CheckDeployerRoleNode`
-    (CSB-15-002): vendor-only actors may not advance the d→D dimension.
+    (CSB-15-002) then
+    :class:`~vultron.core.behaviors.case.nodes.vfd_role_guards.CheckSomeVendorAtVFNode`
+    (CSB-15-004): the deployer must hold the DEPLOYER role and at least one
+    VENDOR participant must have vf.state=VF before d→D is permitted.
 
     Args:
         case_id: ID of the VulnerabilityCase.
@@ -94,6 +98,8 @@ def add_participant_status_trigger_bt(
         A ``py_trees.composites.Sequence`` that:
 
         - (optional) Role-guard node when ``vf_state`` is ``CS_vf.Vf``.
+        - (optional, when ``d_state`` is non-None) ``CheckDeployerRoleNode``
+          followed by ``CheckSomeVendorAtVFNode``.
         - Validates the trigger transitions.
         - Creates the ParticipantStatus snapshot (BT-15-001).
         - Resolves the Case Manager, builds the activity, and queues it.
@@ -109,6 +115,9 @@ def add_participant_status_trigger_bt(
         children.append(
             CheckDeployerRoleNode(case_id=case_id, actor_id=actor_id)
         )
+        children.append(
+            CheckSomeVendorAtVFNode(case_id=case_id, actor_id=actor_id)
+        )
 
     children.extend(
         [
@@ -122,7 +131,6 @@ def add_participant_status_trigger_bt(
                 result_out=result_out,
             ),
             CreateParticipantStatusNode(
-                case_id=case_id,
                 actor_id=actor_id,
                 rm_state=rm_state,
                 vf_state=vf_state,

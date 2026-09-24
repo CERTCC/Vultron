@@ -4,18 +4,22 @@ status: active
 description: >
   Design decisions for how running code selects backend factories for call-out
   point nodes in BT tree builders. Covers the three-mode model, domain bundle
-  dataclasses, pre-built singletons, and extension points. Derived from the
-  planning session for issue #1631.
+  dataclasses, pre-built singletons, extension points, the security-significant
+  gate audit, and why a data-producing capability's default must write its
+  declared outputs. Derived from the planning sessions for issues #1631 and #2835.
 related_specs:
   - specs/behavior-tree-integration.yaml
   - specs/received-status-handling.yaml
   - specs/em-behavior.yaml
+  - specs/case-proposal.yaml
 related_notes:
+  - notes/bt-pitfalls.md
   - notes/coordination-agents.md
   - notes/bt-fuzzer-nodes.md
   - notes/configuration.md
   - notes/received-status-authorization.md
   - notes/embargo-lifecycle.md
+  - notes/protocol-asks.md
 relevant_packages:
   - vultron/core/behaviors
   - vultron/demo/fuzzer
@@ -63,6 +67,12 @@ stochastic counterpart by the **ceiling/floor rule**:
 - If the fuzzer node's success probability `p > 0.5` → `AlwaysSucceed`
 - If `p < 0.5` → `AlwaysFail`
 - If `p == 0.5` → `AlwaysSucceed` (happy path; see below)
+
+> **The ceiling/floor rule fixes the status direction only.** For a capability
+> that declares output ports, the ceiling is a *contract-honouring* backend — one
+> that writes type-conformant values to every declared port — not a bare
+> `AlwaysSucceed` (BT-23-013). See
+> [A data-producing capability's default must write its outputs](#a-data-producing-capabilitys-default-must-write-its-outputs).
 
 The `p == 0.5` tie-breaking default is `AlwaysSucceed` because the intended
 use of the deterministic bundle is a **happy-path demonstration** in which the
@@ -163,6 +173,27 @@ criterion. They are called out here because a future reader auditing for
   legitimate voluntary-exit path. Not security-significant. (The received-side
   teardown path *is* covered — by `EmbargoTeardownAuthorizationGate`, above.)
 
+### Case-proposal admission — permissive, and not a BT-23-012 gate
+
+`CaseProposalCallOutBundle.evaluate_proposal_factory` (`EvaluateCaseProposal`,
+p=0.90 → `AlwaysSucceed`) is the case actor service's admission decision on an
+inbound `Create(as_CaseProposal)` (CP-05-002). It looks security-adjacent —
+declining it is the only way a service can refuse work — but it fails the
+BT-23-012 criterion, which asks whether a permissive backend lets a party *other
+than the Case Owner* force canonical case-state adoption or embargo teardown.
+Admitting a proposal creates a **new** case in which the proposing actor becomes
+the `CASE_OWNER`; no existing case's agreed state is touched and no other
+participant's embargo is affected. The ceiling/floor rule governs it.
+
+The permissive default is also load-bearing for compatibility: before this seam
+existed the service admitted unconditionally, so `AlwaysSucceed` is what keeps an
+unconfigured deployment behaving as it did (BT-23-001, BT-23-011).
+
+What the gate *is* for is admission policy — who may propose, how many open cases
+one actor may hold, whether the inline report is substantive. A deployment that
+wants any of that injects its own bundle. Without the seam that policy had
+nowhere to live, which is what #3399 recorded.
+
 ### Remaining gates
 
 Every other bundle field (report validation, prioritization, CVE/vulnerability
@@ -172,6 +203,11 @@ proposal/response evaluators) is a **local operational decision** — the actor'
 own triage, data retrieval, or content production — with no mechanism to impose
 canonical case state or an embargo consequence on another party. The
 ceiling/floor rule (BT-23-002/006/007) governs them.
+
+Note that `test_security_significant_defaults.py` discovers bundle singletons
+**reflectively** by walking the `bundles` package modules, so a newly added
+bundle is audited automatically. A new gate still owes this section a written
+verdict; the test only proves the verdict was applied, not that it was reasoned.
 
 ### Outcome
 
@@ -550,3 +586,55 @@ Source: CONCERN-2108
 
 Assign shape using the ADR-0024 seam-structure decision tree only — not by how
 automatable the step looks. See BT-18-005, BT-18-006.
+
+---
+
+## A Data-Producing Capability's Default Must Write Its Outputs
+
+Normative requirement: **BT-23-013**. Decision record: **ADR-0097** (planning
+group G07).
+
+A backend that returns `SUCCESS` while writing none of its declared output keys
+violates BT-18-002. For a *data-producing* capability — one whose declaration
+names one or more output ports — a bare `AlwaysSucceed` does exactly that, so it
+is not a legal DETERMINISTIC default no matter what the ceiling rule says about
+the status direction.
+
+### Why this is easy to get wrong
+
+The ceiling/floor rule reads as a complete specification of the default, because
+for a **boolean** call-out it is one: direction is the whole contract. Extending
+the same sentence to a capability that produces data silently drops half the
+contract. Nothing in `AlwaysSucceed` can compensate, because it is
+shape-blind — it is one class standing in for every capability, and it can only
+write outputs it can enumerate. That is why BT-18-012 puts the declaration in
+core: a default cannot honour a contract it cannot read.
+
+### Why the gap is invisible rather than loud
+
+A missing output does not raise. A downstream gate declares the key as
+`PortInformation(..., required=False)` and returns `FAILURE` when it is absent, so
+the arm becomes a graceful no-op. The tree goes green, the demo runs, and the
+protocol makes no progress through that arm — the precise opposite of the
+ceiling rule's purpose.
+
+**Diagnostic**: if a data-gated arm never fires in DETERMINISTIC mode, check
+whether the capability's default writes its declared ports before looking at the
+gate. And be suspicious of a test that writes a capability's output key by hand
+before ticking a **whole tree**: that is usually compensating for a non-conforming
+default, and once the default conforms the hand-write is what hides a regression.
+The legitimate use is narrower — a unit test that hand-writes the key to exercise a
+*gate* in isolation, independently of which backend produced the value. The
+distinction is what the test asserts: the tree making progress (suspicious) versus
+the gate reading correctly (fine). `test_publication_tree.py` shows both, and it is
+also the one capability with a real regression test on its default.
+
+### The same obligation binds the STOCHASTIC side
+
+BT-18-003 already requires a fuzzer backend to write type-conformant synthetic
+data. The shape base classes satisfy this for any capability that subclasses
+them, writing a zero-value instance per declared port. The exposure is the
+**production-only domains** described above: a domain with no named fuzzer node
+wires a generic `AlmostAlwaysSucceed`/`AlmostAlwaysFail`, which is as shape-blind
+as `AlwaysSucceed`. A generic probabilistic backend on a data-producing
+capability needs the same contract-honouring treatment as the deterministic one.

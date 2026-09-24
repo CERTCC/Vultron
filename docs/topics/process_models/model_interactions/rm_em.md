@@ -1,3 +1,8 @@
+---
+stakeholder_type: [cvd-practitioner, platform-developer]
+level: 400
+---
+
 # Interactions Between the RM and EM Models
 
 {% include-markdown "../../../includes/normative.md" %}
@@ -6,44 +11,55 @@ There are additional constraints on how the [RM](../rm/index.md) and [EM](../em/
 
 ## Start Embargo Negotiations As Early as Possible
 
-!!! note ""
+A Sender often wants to know the embargo terms *before* handing over a report.
+The protocol serves that need, but not by running the EM process ahead of the
+report. The EM process is *per case*, so before a case exists there is no EM
+state machine for a transition to occur in.
 
-    The [EM](../em/index.md) process MAY begin (i.e., the initial _propose_ transition $q^{em} \in N \xrightarrow{p} P$)
-    prior to the report being sent to a potential Participant ($q^{rm} \in S$)
+Two mechanisms give the Sender what they need instead:
 
-!!! question "Why Propose before Reporting?"
+1. **Read the Recipient's published default.** A Report Recipient's published
+   default embargo period is a
+   [standing proposal](../em/defaults.md#embargoes-are-active-at-case-creation).
+   A Sender can know the terms in advance by reading it, with no exchange at all.
+   Where the Recipient has published nothing, the short
+   [protocol default](../em/defaults.md#no-defaults-no-proposals-the-protocol-default)
+   applies, so the Sender still knows the floor.
 
-    Beginning an embargo negotiation before providing a report can be useful in cases where a Participant wishes to
-    ensure acceptable embargo terms prior to sharing a report with a potential recipient.
-
-```mermaid
-stateDiagram-v2
-    direction LR
-    state ParticipantSpecific {
-        state Sender {
-            state RM {
-                Accepted
-            }
-        }
-        state Recipient {
-            RM2: RM
-            state RM2 {
-                Start
-            }
-        }
-    }
-    state Global {
-        state EM {
-            None --> Proposed : propose
-        }
-    }
-    Sender --> EM : propose
-```
+2. **State terms with the report.** A Sender proposes its own terms by including
+   a proposed embargo with the report submission. Where the two differ, the
+   [shortest proposal wins](../em/defaults.md#rationale-for-accepting-the-shortest-proposed-embargo)
+   and the longer becomes a proposed revision — so agreement is reached at case
+   creation rather than negotiated beforehand.
 
 !!! note ""
 
-    If it has not already begun, the [EM](../em/index.md) process SHOULD begin when a recipient
-    is in RM _Received_ ($q^{rm} \in R$) whenever possible.
+    The [EM](../em/index.md) process SHALL NOT begin before a case exists. A
+    Sender that wishes to fix terms before sharing a report SHALL either rely on
+    the Recipient's published default embargo period or include a proposed
+    embargo with the report submission.
+
+!!! info "This Guidance Changed"
+
+    Earlier versions of this page stated that the EM process MAY begin — the
+    initial _propose_ transition $q^{em} \in N \xrightarrow{p} P$ — prior to the
+    report being sent to a potential Participant ($q^{rm} \in S$). ADR-0096
+    withdrew that.
+
+    The **motivation** was sound and is preserved above: a Participant may well
+    wish to ensure acceptable embargo terms before sharing a report with a
+    potential recipient. The **mechanism** was not. EM is a global per-case state
+    machine, so a $N \xrightarrow{p} P$ transition before any case exists names a
+    machine instance that cannot exist. The two mechanisms above deliver the same
+    assurance without a pre-case phase.
+
+!!! note ""
+
+    The [EM](../em/index.md) process SHALL begin when a recipient reaches RM _Received_
+    ($q^{rm} \in R$), because that is when the case exists. For an embargo-eligible case
+    this is not merely a SHOULD: an embargo is established at case creation, from the
+    Recipient's published default, the Sender's proposal, or the
+    [protocol default](../em/defaults.md#no-defaults-no-proposals-the-protocol-default).
 
 ```mermaid
 stateDiagram-v2
@@ -53,9 +69,14 @@ stateDiagram-v2
     }
     state EM {
         None --> Proposed : propose
+        Proposed --> Active : accept
     }
-    RM --> EM : begin if not<br/>already started
+    RM --> EM : begin at<br/>case creation
 ```
+
+The *propose* and *accept* transitions above are applied atomically at case creation
+and the intermediate *Proposed* state is never externally observable
+([EP-04-002](../em/defaults.md#why-active-and-not-proposed)).
 
 ## Negotiate Embargoes for Active Reports
 
@@ -309,13 +330,13 @@ However,
 
     Participants MAY choose to terminate their compliance with an embargo at any time.
 
-While this is usually an undesirable development, it is important that it be clearly communicated to other Participants
+While this is usually an undesirable development, it must be communicated to other Participants
 so that they can make informed decisions about the viability of the extant embargo.
 
 !!! note ""
 
     Any changes to a Participant's intention to adhere to an active
-    embargo SHOULD be communicated clearly in addition to any necessary
+    embargo SHOULD be communicated in addition to any necessary
     notifications regarding RM or EM state changes.
 
 !!! note ""

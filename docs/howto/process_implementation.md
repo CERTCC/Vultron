@@ -1,3 +1,11 @@
+---
+description: >
+  Integrate the Report Management (RM), Embargo Management (EM), and Case
+  State (CS) state machines into an existing workflow management system.
+stakeholder_type: [platform-developer]
+level: 400
+---
+
 # Process Implementation Notes
 
 {% include-markdown "../includes/not_normative.md" %}
@@ -14,10 +22,10 @@
     [Reference Implementation Architecture](../topics/reference_architecture.md)
     in the Explanation section.
 
-Integrating the Vultron Protocol into everyday MPCVD operations requires each Participant to consider how their business processes
-interact with the individual [RM](../topics/process_models/rm/index.md), [EM](../topics/process_models/em/index.md),
-and [CS](../topics/process_models/cs/index.md), process models, respectively.
-Here we offer some thoughts on where such integration might begin.
+To integrate the Vultron Protocol into everyday MPCVD operations, identify where each of your business processes
+intersects with the [RM](../topics/process_models/rm/index.md), [EM](../topics/process_models/em/index.md),
+and [CS](../topics/process_models/cs/index.md) process models, then instrument each intersection to emit the
+appropriate protocol message.
 
 ## RM Implementation Notes
 
@@ -41,10 +49,12 @@ The main modifications needed to adapt an existing workflow are to intercept the
     [ISO/IEC 29148:2018](https://www.iso.org/standard/72311.html){:target="_blank"} includes a pre-publication review step in its process.
 
 MPCVD case Participants often share pre-publication drafts of their advisories during the embargo period.
-Our protocol proposal is mute on this subject because it is not strictly necessary for the MPCVD process to complete successfully.
-However, as we observe in the [ISO Crosswalk](../reference/iso_crosswalks/index.md), the *GI* and *GK* message types appear to provide sufficient mechanics for this
-process to be fleshed out as necessary.
-This draft-sharing process could be built into the [*prepare publication*](../topics/behavior_logic/publication_bt.md#prepare-publication-behavior) process, where appropriate.
+The Vultron Protocol does not prescribe this process, as it is not strictly necessary for the MPCVD process
+to complete successfully.
+However, as described in the [ISO Crosswalk](../reference/iso_crosswalks/index.md), the *GI* and *GK* message types
+provide sufficient mechanics to support draft sharing.
+To support this workflow, build the draft-sharing process into the
+[*prepare publication*](../topics/behavior_logic/publication_bt.md#prepare-publication-behavior) step, where appropriate.
 
 ## EM Implementation Notes
 
@@ -56,12 +66,11 @@ scheduling a meeting in a calendaring system, and could be mapped onto
 
 ### Embargo Management Does Not Deliver Synchronized Publication
 
-In our protocol design, we were careful to focus the EM process on establishing when publication restrictions are
-lifted.
-That is not the same as actually scheduling publications following the embargo termination.
-Our experience at the CERT/CC shows that this distinction is rarely a significant problem since many case Participants
-simply publish at their own pace shortly after the embargo ends.
-However, at times, case Participants may find it necessary to coordinate even more closely on publication scheduling.
+The Vultron EM process establishes when publication restrictions are lifted.
+That is not the same as scheduling publications following the embargo termination.
+In practice, this distinction is rarely a significant problem since many case Participants
+publish at their own pace shortly after the embargo ends.
+However, at times, case Participants may find it necessary to coordinate more closely on publication scheduling.
 
 !!! example "TLP and Embargoes"
 
@@ -72,11 +81,11 @@ However, at times, case Participants may find it necessary to coordinate even mo
     to indicate that the information is sensitive and should be shared only with those who need to know.
     Thus, an embargo declaration might take the form of "This case is <span style="color:#FFC000;background-color:#000000">**TLP:AMBER**</span>
     until 2024-03-31 23:59:59 UTC, at which time it becomes <span style="color:#FFFFFF;background-color:#000000">**TLP:CLEAR**</span>." 
-    We have more to say about the use of TLP in CVD in the [CERT Guide to CVD](https://certcc.github.io/CERT-Guide-to-CVD/howto/operation/opsec/){:target="_blank"}.
+    The [CERT Guide to CVD](https://certcc.github.io/CERT-Guide-to-CVD/howto/operation/opsec/){:target="_blank"} covers TLP in CVD in more detail.
 
 ## CS Implementation Notes
 
-Because part of the CS model is Participant specific and the other is global to the case, we address each part below.
+Because part of the CS model is Participant-specific and the other is global to the case, the two parts are addressed separately below.
 
 ### The *vfd* Process
 

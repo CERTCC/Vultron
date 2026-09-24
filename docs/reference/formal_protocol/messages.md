@@ -1,8 +1,13 @@
+---
+stakeholder_type: [platform-developer]
+level: 400
+---
+
 # Message Types
 
 {% include-markdown "../../includes/normative.md" %}
 
-In [States](states.md), we identified four main roles in the
+The [States](states.md) page identified four main roles in the
 MPCVD process:
 
 - Finder/Reporter
@@ -10,7 +15,7 @@ MPCVD process:
 - Coordinator
 - Deployer
 
-Here we will examine the messages passed between them.
+This page examines the messages passed between them.
 Revisiting the definitions from the [Formal Protocol Introduction](index.md):
 
 !!! note "Formalism"
@@ -37,7 +42,7 @@ The message types in the Vultron Protocol arise primarily from the following pri
     cooperation and increases the likelihood that future vulnerabilities
     will also be addressed and remedied.
 
-Now we condense that principle into the following protocol
+That principle condenses into the following protocol
 recommendation:
 
 !!! note ""
@@ -56,17 +61,17 @@ If you are looking for a one-sentence summary of the entire Vultron Protocol, th
 
 As a reminder, those transitions are shown at right.
 
-We will address the specific circumstances when each message should be emitted in
-[Transitions](transitions.md), but first we need to
-introduce the message types this recommendation implies.
-We cover messages associated with each state model, in turn, below, concluding the section with a few message types not
+The specific circumstances when each message should be emitted are addressed in
+[Transitions](transitions.md); but first, the message types this recommendation implies
+are introduced here.
+The messages associated with each state model are covered in turn below, concluding with a few message types not
 directly connected to any particular state model.
 
 ## RM Message Types
 
 !!! tip inline end "Finders have hidden states"
 
-    As we discuss in [RM Interactions](../../topics/process_models/rm/rm_interactions.md#the-secret-lives-of-finders),
+    As discussed in [RM Interactions](../../topics/process_models/rm/rm_interactions.md#the-secret-lives-of-finders),
     the Finder's states $q^{rm} \in \{R,I,V\}$ are not observable to the CVD process because Finders start 
     coordination only when they have already reached $q^{rm} = A$.
 
@@ -83,8 +88,8 @@ Therefore, the RM message types are primarily used to inform other Participants 
 | $RS$         | Report Submission | A message from one Participant to a new Participant containing a vulnerability report. |
 | $RI$         | Report Invalid | A message indicating the Participant has designated the report as invalid.             |
 | $RV$         | Report Valid | A message indicating the Participant has designated the report as valid.               |
-| $RD$         | Report Deferred | A message indicating the Participant is deferring further action on a report.          |
-| $RA$         | Report Accepted | A message indicating the Participant has accepted the report for further action.       |
+| $RD$         | Report/Case Deferred | A message indicating the Participant is deferring further action; a case-participation decision (`Ignore(VulnerabilityCase)`). |
+| $RA$         | Report/Case Accepted | A message indicating the Participant has accepted the report for further action; a case-participation decision (`Join(VulnerabilityCase)`). |
 | $RC$         | Report Closed | A message indicating the Participant has closed the report.                            |
 | $RK$         | Report Acknowledgement | A message acknowledging the receipt of any RM message listed above.           |
 | $RE$         | Report Error | A message indicating a Participant received an unexpected RM message.                  |
@@ -96,7 +101,7 @@ A summary of the RM message types is shown below.
     $$M^{rm} = \{RS,RI,RV,RD,RA,RC,RK,RE\}$$
 
 All state changes are from the Participant's (sender's) perspective, not the recipient's perspective.
-We will see in [Transitions](transitions.md) that the receipt of a *Report Submission* is the
+As [Transitions](transitions.md) shows, the receipt of a *Report Submission* is the
 only message whose *receipt* directly triggers an RM state change in the receiver.
 All other RM messages are used to convey the sender's status.
 
@@ -118,14 +123,14 @@ All other RM messages are used to convey the sender's status.
 
     Participants SHOULD track the RM states of the other Participants in the case.
 
-An example object model for such tracking is described in [Case Object](../../howto/case_object.md).
+An example object model for such tracking is described in [The Case Model](../../topics/case_lifecycle/case_model.md).
 Furthermore, while these messages are expected to inform the receiving Participant's choices in their own RM process,
 this protocol intentionally does not specify any other recipient RM state changes upon receipt of an RM message.
 
 ## EM Message Types
 
 Whereas the RM process is unique to each Participant, the EM process is global to the case.
-Therefore, we begin with the list of message types a Participant SHOULD emit when their EM state changes.
+Therefore, the message types below are those a Participant SHOULD emit when their EM state changes.
 
 | Message Type | Name | Description                                                                                                                                                                             |
 |:------------:| --- |-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
@@ -207,15 +212,15 @@ A summary of the General message types is shown below.
 
 Thus, the complete set of possible messages between processes is
 $M_{i,j} = M^{rm} \cup M^{em} \cup M^{cs} \cup M^{*}$.
-For convenience, we collected these into the table below.
+For convenience, these are collected into the table below.
 
 | Process Model | $M_{i,j}$ | Message Type | Emit When |
 | :---: | :---: | --- |  |
 | RM | $RS$ | Report Submission | sender $\in A$ |
 | RM | $RI$ | Report Invalid | $R \xrightarrow{i} I$ |
 | RM | $RV$ | Report Valid | $\{R,I\} \xrightarrow{v} V$ |
-| RM | $RD$ | Report Deferred | $\{V,A\} \xrightarrow{d} D$ |
-| RM | $RA$ | Report Accepted | $\{V,D\} \xrightarrow{a} A$ |
+| RM | $RD$ | Report/Case Deferred | $\{V,A\} \xrightarrow{d} D$ |
+| RM | $RA$ | Report/Case Accepted | $\{V,D\} \xrightarrow{a} A$ |
 | RM | $RC$ | Report Closed | $\{I,D,A\} \xrightarrow{c} C$ |
 | RM | $RK$ | Report Acknowledgement | any valid RM message |
 | RM | $RE$ | Report Error | any unexpected RM message |
@@ -254,7 +259,7 @@ For convenience, we collected these into the table below.
 
 Message *formats* are implemented using the
 [ActivityStreams 2.0](https://www.w3.org/TR/activitystreams-core/){:target="_blank"} vocabulary.
-See [ActivityPub Activities](../../howto/activitypub/activities/index.md) for details on the wire format.
+See [Vultron AS Activity Guides](../../howto/activitypub/activities/index.md) for details on the wire format.
 
 !!! note "AS2 Implementation Note"
 
@@ -262,3 +267,27 @@ See [ActivityPub Activities](../../howto/activitypub/activities/index.md) for de
     $EV$ is sent as $EP$, $EC$ is sent as $EA$, and $EJ$ is sent as $ER$.
     The formal message type set above remains normative for protocol semantics;
     the AS2 mapping is an implementation detail of the current prototype.
+
+!!! note "Error shorthands have no direct wire counterpart"
+
+    $RE$, $EE$, $CE$, and $GE$ are not realised as distinct AS2 activity types.
+    Fault reporting is instead partitioned by **failure mode**: `Create(ProcessingFault)`
+    for a message that was not understood, `as:Reject` for one that was understood but
+    declined, and `Create(Note)` for a condition requiring narrative explanation.
+    See [How to Report a Protocol Fault](../../howto/activitypub/activities/error.md) and
+    `specs/message-semantics-mapping.yaml` MSM-05.
+
+!!! note "Acknowledgement shorthands have no direct wire counterpart"
+
+    $EK$, $CK$, and $GK$ have no per-message wire equivalents for ledger-replicated
+    state. Acknowledgement is instead **cumulative and implicit** via hash-chain
+    continuity: a receiver whose `prev_log_hash` matches its local ledger tail says
+    nothing — the match *is* the acknowledgement. On a mismatch the receiver emits
+    `Reject(CaseLedgerEntry)`, whereupon the CASE_MANAGER replays all entries after the
+    last accepted hash (negative acknowledgement with gap-fill replay).
+
+    $RK$ remains a real wire activity (`Read(Offer(VulnerabilityReport))`) because
+    report submission is not ledger-replicated.
+
+    See [Faults and Acknowledgements](../messages/faults_and_acknowledgements.md) and
+    `specs/message-semantics-mapping.yaml` MSM-05-002.

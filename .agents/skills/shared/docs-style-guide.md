@@ -58,10 +58,14 @@ is a defect, not a flourish.
 
 ## 2. Acronyms
 
-**SG-07 — Expand on first use, per page.** Write the expansion followed by the
-acronym in parentheses at first use on each page: "Coordinated Vulnerability
-Disclosure (CVD)". First use resets per page, because readers arrive from search
-and from deep links, not by reading in nav order. Implements DF-09-003.
+**SG-07 — Expand on first use, per rendered page.** Write the expansion followed
+by the acronym in parentheses at first use on each page: "Coordinated
+Vulnerability Disclosure (CVD)". First use resets per page, because readers
+arrive from search and from deep links, not by reading in nav order. "Page" means
+the page as published, not the source file it was authored in — a page assembled
+from `{% include-markdown %}` fragments has one first use, not one per fragment,
+so this rule is evaluated against the assembling page and never against a
+fragment on its own (DF-09-007, ADR-0092). Implements DF-09-003.
 
 **SG-08 — Register in the acronyms snippet.** Every acronym used in `docs/`
 must appear in `docs/_acronyms/index.md`, which `pymdownx.snippets` appends to
@@ -276,6 +280,14 @@ a `## Further reading` link list with em-dash annotations, or both.
 by length. A long reference page is correct; a three-paragraph explanation page
 is correct.
 
+**SG-43 — Shared content is included, not copied.** A paragraph, table, or
+diagram that belongs on more than one page becomes an `{% include-markdown %}`
+fragment — a `_<slug>.md` file beside its hosts, referenced by a path relative to
+each including file. Never copy the block. A copy passes lint on both pages
+because neither is wrong by itself, then drifts when one is updated. Reported,
+never auto-fixed: whether the duplication is intentional is the author's call.
+Normative anchors: DF-10-001, DF-10-002.
+
 ---
 
 ## 10. Rule index
@@ -304,6 +316,7 @@ a recommendation.
 | SG-36 | ASCII art grandfathered | |
 | SG-37 | American spelling | yes |
 | SG-38, SG-39, SG-40, SG-41, SG-42 | Line breaks, headings, furniture | |
+| SG-43 | Shared content included, not copied | |
 
 ---
 

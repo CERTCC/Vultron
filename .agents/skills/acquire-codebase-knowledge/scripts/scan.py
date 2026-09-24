@@ -36,6 +36,9 @@ EXCLUDE_DIRS = {
     "dist",
     "build",
     "out",
+    # mkdocs build output (gitignored); its search_index.json is a large
+    # stale mirror of the rendered docs that must not enter the scan (#3443).
+    "site",
     ".next",
     ".nuxt",
     "__pycache__",

@@ -40,9 +40,15 @@ from vultron.adapters.driven.trigger_activity_adapter import (
 from vultron.core.states.rm import RM
 from vultron.enums.roles import CVDRole
 from vultron.wire.as2.vocab.base.objects.actors import as_Service
-from vultron.wire.as2.vocab.objects.case_participant import as_CaseParticipant
+from vultron.wire.as2.vocab.objects.case_participant import (
+    as_CaseParticipant,
+    as_ParticipantStatus,
+)
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCase,
+)
+from vultron.core.models.dimensions import (
+    RmDimension,
 )
 
 # ---------------------------------------------------------------------------
@@ -121,12 +127,13 @@ def case_with_participant(dl, actor):
     participant = as_CaseParticipant(
         attributed_to=actor.id_,
         context=case_obj.id_,
-    )
-    participant.append_rm_state(
-        RM.RECEIVED, actor=actor.id_, context=case_obj.id_
-    )
-    participant.append_rm_state(
-        RM.VALID, actor=actor.id_, context=case_obj.id_
+        participant_statuses=[
+            as_ParticipantStatus(
+                attributed_to=actor.id_,
+                context=case_obj.id_,
+                rm=RmDimension(state=RM.VALID),
+            )
+        ],
     )
     case_obj.case_participants.append(participant.id_)
     case_obj.actor_participant_index[actor.id_] = participant.id_
@@ -628,12 +635,16 @@ def short_id_env(report):
 
     case_obj = as_VulnerabilityCase(name="TEST-CASE-SHORT-ID")
     participant = as_CaseParticipant(
-        attributed_to=actor_id, context=case_obj.id_
+        attributed_to=actor_id,
+        context=case_obj.id_,
+        participant_statuses=[
+            as_ParticipantStatus(
+                attributed_to=actor_id,
+                context=case_obj.id_,
+                rm=RmDimension(state=RM.VALID),
+            )
+        ],
     )
-    participant.append_rm_state(
-        RM.RECEIVED, actor=actor_id, context=case_obj.id_
-    )
-    participant.append_rm_state(RM.VALID, actor=actor_id, context=case_obj.id_)
     case_obj.case_participants.append(participant.id_)
     case_obj.actor_participant_index[actor_id] = participant.id_
     store.create(case_obj)

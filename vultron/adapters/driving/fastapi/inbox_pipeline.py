@@ -77,27 +77,29 @@ class InboxPipeline:
         Returns the dispatched ``VultronEvent`` or ``None`` when processing is
         deferred or an error prevents dispatch.
         """
-        obj = rehydrate(activity_id, dl=self._dl)
-        if not isinstance(obj, as_Activity):
-            logger.error(
-                "Rehydrated inbox item %s is not an Activity: %s",
-                activity_id,
-                type(obj).__name__,
-            )
-            return None
-
-        receiving_actor_id = _receiving_actor_id(obj)
-        if receiving_actor_id is None:
-            logger.error(
-                "InboxPipeline could not resolve receiving actor for '%s'",
-                activity_id,
-            )
-            return None
-
-        queue_dl = cast(
-            DataLayer, self._dl.clone_for_actor(receiving_actor_id)
-        )
+        queue_dl: DataLayer | None = None
         try:
+            obj = rehydrate(activity_id, dl=self._dl)
+            if not isinstance(obj, as_Activity):
+                logger.error(
+                    "Rehydrated inbox item %s is not an Activity: %s",
+                    activity_id,
+                    type(obj).__name__,
+                )
+                return None
+
+            receiving_actor_id = _receiving_actor_id(obj)
+            if receiving_actor_id is None:
+                logger.error(
+                    "InboxPipeline could not resolve receiving actor for '%s'",
+                    activity_id,
+                )
+                return None
+
+            queue_dl = cast(
+                DataLayer, self._dl.clone_for_actor(receiving_actor_id)
+            )
+
             event = prepare_for_dispatch(activity=obj)
             event = event.model_copy(
                 update={"receiving_actor_id": receiving_actor_id}
@@ -142,7 +144,8 @@ class InboxPipeline:
             )
             return None
         except VultronValidationError:
-            queue_dl.inbox_append(activity_id)
+            _requeue = queue_dl if queue_dl is not None else self._dl
+            _requeue.inbox_append(activity_id)
             logger.warning(
                 "Validation error processing inbox item '%s'"
                 " — re-queuing for retry",
@@ -151,7 +154,8 @@ class InboxPipeline:
             )
             return None
         except Exception:
-            queue_dl.inbox_append(activity_id)
+            _requeue = queue_dl if queue_dl is not None else self._dl
+            _requeue.inbox_append(activity_id)
             logger.error(
                 "Error processing inbox item '%s' in InboxPipeline"
                 " — re-queuing for retry",

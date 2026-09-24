@@ -37,6 +37,7 @@ from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
 )
+from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
 from vultron.core.models.activity import VultronActivity
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
@@ -58,6 +59,9 @@ from vultron.wire.as2.vocab.objects.case_status import (
 )
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCase,
+)
+from vultron.core.models.dimensions import (
+    RmDimension,
 )
 
 # ---------------------------------------------------------------------------
@@ -103,13 +107,17 @@ def _seed_case(
         case_roles=[role],
     )
     participant.participant_statuses.append(
-        WireParticipantStatus(context=case_id, rm_state=RM.RECEIVED)
+        WireParticipantStatus(
+            context=case_id, rm=RmDimension(state=RM.RECEIVED)
+        )
     )
     participant.participant_statuses.append(
-        WireParticipantStatus(context=case_id, rm_state=RM.VALID)
+        WireParticipantStatus(context=case_id, rm=RmDimension(state=RM.VALID))
     )
     participant.participant_statuses.append(
-        WireParticipantStatus(context=case_id, rm_state=RM.ACCEPTED)
+        WireParticipantStatus(
+            context=case_id, rm=RmDimension(state=RM.ACCEPTED)
+        )
     )
     dl.create(participant)
     case.actor_participant_index[actor_id] = participant.id_
@@ -125,7 +133,7 @@ def _seed_case(
     # add it during owner Leave; pre-seeding would make the assertion vacuous.
     for state in [RM.RECEIVED, RM.VALID, RM.ACCEPTED]:
         cm_participant.participant_statuses.append(
-            WireParticipantStatus(context=case_id, rm_state=state)
+            WireParticipantStatus(context=case_id, rm=RmDimension(state=state))
         )
     dl.create(cm_participant)
     case.actor_participant_index[case_actor_id] = cm_participant.id_
@@ -263,6 +271,7 @@ class TestLeaveCaseRoundTrip:
             dl=ca_dl,
             request=event,
             sync_port=SyncActivityAdapter(ca_dl),
+            wire_render_port=As2WireRenderAdapter(),
         ).execute()
 
         # Step 3: vendor is RM.CLOSED on Case Actor replica (CM-23-003)
@@ -396,6 +405,7 @@ class TestLeaveCaseRoundTrip:
             dl=ca_dl,
             request=event,
             sync_port=SyncActivityAdapter(ca_dl),
+            wire_render_port=As2WireRenderAdapter(),
         ).execute()
 
         # Step 4: owner and CaseActor are both RM.CLOSED on the CA replica

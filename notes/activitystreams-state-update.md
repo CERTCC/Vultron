@@ -2,7 +2,7 @@
 title: "ActivityStreams: Case State Update and Advanced Patterns"
 status: active
 description: >
-  Case state update path, CaseActor authoritativeness, DR-series named bugs,
+  Case state update path, CASE_MANAGER authoritativeness, DR-series named bugs,
   transitive activity patterns, base-typed serialization, invite response parsing,
   bootstrap embedded-object contract, semantic registry patterns,
   offer_case_participant_activity object-id semantics, and target-field
@@ -25,34 +25,34 @@ relevant_packages:
 
 > See also: [activitystreams-semantics.md](activitystreams-semantics.md) for the first half of these design notes.
 
-## Case State Update Path and CaseActor Authoritativeness
+## Case State Update Path and CASE_MANAGER Authoritativeness
 
 Each actor MAY maintain a local copy of a `VulnerabilityCase` object for
-performance or offline use. However, the **CaseActor is the authoritative
+performance or offline use. However, the **CASE_MANAGER is the authoritative
 source of truth** for all case state updates. Local copies MUST be treated
 as cached projections, not independent sources of truth.
 
 The canonical update path when an actor modifies case-related state is:
 
 ```text
-Actor → CaseActor inbox
-  → CaseActor updates canonical case state
-  → CaseActor broadcasts update to all CaseParticipants
+Actor → CASE_MANAGER inbox
+  → CASE_MANAGER updates canonical case state
+  → CASE_MANAGER broadcasts update to all CaseParticipants
   → Each participant updates its local copy
 ```
 
 **Consequence**: Actors MUST NOT directly accept case state updates from
 other regular actors. Updates received from any source other than the
-CaseActor MUST be ignored (or at minimum flagged for verification). This
-ensures the CaseActor remains the single coordination point and prevents
+CASE_MANAGER MUST be ignored (or at minimum flagged for verification). This
+ensures the CASE_MANAGER remains the single coordination point and prevents
 conflicting state divergence.
 
 **Authentication note** (`PROD_ONLY`): In production, participants MUST
-authenticate that a case update originated from the CaseActor before
+authenticate that a case update originated from the CASE_MANAGER before
 treating it as authoritative (see `specs/case-management.yaml` CM-06-002,
 CM-06-004).
 
-The CaseActor broadcast is implemented in
+The CASE_MANAGER broadcast is implemented in
 `vultron/core/use_cases/received/case.py` (`UpdateCaseReceivedUseCase`)
 via `_broadcast_case_update()`, which fans out updates to all case
 participants (see `specs/case-management.yaml` CM-06-001, CM-06-002).
@@ -170,40 +170,6 @@ This ensures that `Accept` activities satisfy the AS2 convention: the
 
 ---
 
-### Open Question: Actor Subtype-Aware Pattern Matching
-
-(DR-07 Update, 2026-04-20)
-
-`InviteActorToCasePattern` in `vultron/wire/as2/extractor.py` has no
-`object_` field, violating SE-03-003. The correct structure per AS2 is
-`Invite(object=Actor, target=Case)`.
-
-**Constraint discovered (2026-04-20)**: `AOtype.ACTOR = "Actor"` only matches
-the base `as_Actor` class (`type_="Actor"`). Real AS2 actor subtypes
-(`VultronPerson`, `VultronOrganization`, `CaseActor`) have `type_="Person"`,
-`type_="Organization"`, `type_="Service"` respectively. The pattern matcher
-uses exact string equality, so `object_=AOtype.ACTOR` would NOT match real
-invite objects containing actor subtypes. Adding it breaks existing tests and
-real invite flows.
-
-**Required fix before this can be implemented**: Add subtype-aware matching
-in `_match_field()` (e.g., check `isinstance(activity_field, as_Actor)`) or
-a custom actor-type predicate in `ActivityPattern`.
-
-**Open Question**: What is the right predicate API for ActivityPattern
-subtype matching? Options include:
-
-1. `object_type_predicate = lambda obj: isinstance(obj, as_Actor)` — flexible
-   but non-declarative
-2. A `subtype_of` field on `ActivityPattern` that maps to a class — consistent
-   with the existing `object_type` string field
-
-Until subtype-aware matching is implemented, `InviteActorToCasePattern`
-should remain without an `object_` constraint and this open question tracked
-in the pattern audit.
-
----
-
 ### Transitive Activity `object_` Field: Contract at the Base Type
 
 (BUG-26041802, 2026-04-22)
@@ -220,7 +186,7 @@ of sync with the stricter typed subclasses.
   includes `None`, so type-level and runtime contracts diverge unless required
   fields use the stricter alias.
 - Wire/domain translation tests must reflect the stricter contract too:
-  `VultronAS2Activity.from_core()` should reject objectless transitive domain
+  `as_VultronActivity.from_core()` should reject objectless transitive domain
   activities rather than silently materializing invalid wire objects.
 - A backlog bug may already be fixed; close it with concrete code-search and
   regression-test evidence (see also `.claude/skills/bugfix/SKILL.md` § Phase 2a prior-fix check).
@@ -258,11 +224,11 @@ into fields of the nested dict, the `Invite`'s own `actor` and `object_`
 (typically a case stub) are left as raw dicts, breaking `ActivityPattern`
 matching that relies on typed subtype information.
 
-**Lesson 2 — Minimal case dicts must expand to `VulnerabilityCaseStub`.**
+**Lesson 2 — Minimal case dicts must expand to `as_VulnerabilityCaseStub`.**
 
 Minimal `{"id": "...", "type": "VulnerabilityCase"}` dicts received in
 inbound activities (e.g., as the `object_` of an `Invite`) should be expanded
-as `VulnerabilityCaseStub`, not full `VulnerabilityCase`. This preserves
+as `as_VulnerabilityCaseStub`, not full `VulnerabilityCase`. This preserves
 selective-disclosure semantics: the invitee has not yet accepted the embargo,
 so they should only see the stub. Expanding to full `VulnerabilityCase` would
 incorrectly materialize fields the invitee has not yet earned access to.
@@ -326,9 +292,9 @@ A semantic registry pattern maps an incoming AS2 activity shape to a
 format that this actor emits.
 
 `OFFER_ACTOR_TO_CASE` was initially mapped to `OfferActorToCasePattern`
-(`Offer(CaseParticipant, Case)`) — the format that CaseActor sends to Case
+(`Offer(CaseParticipant, Case)`) — the format that CASE_MANAGER sends to Case
 Owner — instead of `SuggestActorToCasePattern` (`Offer(Actor, Case)`) — the
-format that Finder sends to CaseActor's inbox.
+format that Finder sends to CASE_MANAGER's inbox.
 
 `OfferActorToCasePattern` is still needed in `_instances.py` as a nested
 template for `AcceptActorRecommendationPattern` and
@@ -369,14 +335,14 @@ only be used as a last resort — log a warning if it is reached.
 
 When `CaseActor` processes an `Accept(Offer(CaseParticipant))` from the Case
 Owner, the roles for the invited actor MUST be read from the stored
-`Offer(CaseParticipant)` in the DataLayer — the Offer that CaseActor itself
+`Offer(CaseParticipant)` in the DataLayer — the Offer that CASE_MANAGER itself
 constructed and sent — NOT from the embedded `CaseParticipant` in the received
 `Accept`.
 
 **Why**: the accepting actor (Case Owner) may have modified or omitted roles in
 their response, or may have sent only a bare ID reference. Reading roles from
 the received `Accept` would allow a malicious or minimally-conformant acceptor
-to substitute different roles than those evaluated and forwarded by the CaseActor.
+to substitute different roles than those evaluated and forwarded by the CASE_MANAGER.
 
 **Implementation**: `AcceptOfferCaseParticipantReceivedUseCase` looks up the
 stored Offer by `request.object_id`, extracts `stored_participant.roles`, and

@@ -98,9 +98,13 @@ the implementation?"
 
 ### Phase 1 — Load Context
 
-1. Run `PYTHONPATH= uv run spec-dump` and capture the JSON output.
-   The output has three keys: `topics` (array), `requirements` (array),
-   `edges` (array).
+1. Write the full corpus to a file — this audit legitimately needs every
+   requirement, but the dump (~2.5 MB) is far too large to print:
+   `PYTHONPATH= uv run spec-dump > /tmp/specs.json` (the stderr size warning
+   is expected). The JSON has three keys: `topics` (array), `requirements`
+   (array), `edges` (array). Query it with `jq` or `python` (per topic, per
+   check) rather than reading it whole. With a filter argument, prefer a
+   targeted load (`--topic`, `--group`, `--ids`) instead.
 2. Read `docs/reference/glossary.md` to extract the defined term table.
 3. Read all files under `docs/_acronyms/` to collect defined acronyms.
 4. Build a **defined-terms set**: every term in the glossary + every acronym.
@@ -258,8 +262,9 @@ If there are any QUESTION findings, offer to work through them interactively:
 "There are N elicitation questions from the QUESTION findings. Want to work
 through them now? I'll ask them one at a time and record your answers."
 
-If the user agrees, use `ask_user` to ask each elicitation prompt, one at a
-time. After all answers are collected:
+If the user agrees, ask each elicitation prompt one at a time, per
+`.agents/skills/shared/asking-the-user.md` (`ask_user` for discrete choices,
+plain text for open-ended prompts). After all answers are collected:
 
 1. Propose YAML edits that incorporate the answers (same before/after format
    as Step B).

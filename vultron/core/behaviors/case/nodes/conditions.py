@@ -42,7 +42,7 @@ from vultron.core.behaviors.helpers import (
 )
 from vultron.config.actor import ActorConfig
 from vultron.core.models.report_case_link import VultronReportCaseLink
-from vultron.core.use_cases._helpers import _resolve_case_manager_id
+from vultron.core.participants.authority import resolve_case_manager_id
 
 
 class CheckAutoCaseCreationEnabledNode(py_trees.behaviour.Behaviour):
@@ -210,9 +210,18 @@ class CheckIsCaseManagerNode(DataLayerConditionWithPorts):
     """Check whether the executing actor is the case's CASE_MANAGER.
 
     Reads ``case_id`` and ``actor_id`` from the blackboard, resolves the
-    case's CASE_MANAGER participant via ``_resolve_case_manager_id``, and
+    case's CASE_MANAGER participant via ``resolve_case_manager_id``, and
     returns ``SUCCESS`` only when ``actor_id`` matches that participant's
     ``attributed_to`` actor ID.
+
+    On SUCCESS, writes the resolved manager ID to the ``case_actor_id``
+    output port so downstream nodes (e.g. ``VerifySenderIsOwnIdNode``) can
+    verify the sender without a separate Service lookup.
+
+    ``case_id`` resolution priority:
+    1. Constructor arg ``case_id``.
+    2. Blackboard key ``/case_id``.
+    3. ``activity.log_entry.case_id`` (or ``activity.object_.case_id``).
     """
 
     def __init__(
@@ -221,21 +230,34 @@ class CheckIsCaseManagerNode(DataLayerConditionWithPorts):
         super().__init__(name=name or self.__class__.__name__)
         self._case_id = case_id
 
-    @classmethod
-    def input_ports(cls) -> dict[str, PortInformation]:
-        ports = super().input_ports()
-        ports["case_id"] = PortInformation(data_type=str, required=False)
-        return ports
+    INPUT_PORTS: dict[str, PortInformation] = {
+        **DataLayerConditionWithPorts.INPUT_PORTS,
+        "case_id": PortInformation(data_type=str, required=False),
+        "activity": PortInformation(data_type=object, required=False),
+    }
+
+    OUTPUT_PORTS: dict[str, PortInformation] = {
+        "case_actor_id": PortInformation(data_type=str, required=True),
+    }
 
     @classmethod
     def _domain_port_remappings(cls) -> dict[str, str]:
-        return {"case_id": "/case_id"}
+        return {
+            "case_id": "/case_id",
+            "activity": "/activity",
+            "case_actor_id": "/case_actor_id",
+        }
 
     def initialise(self) -> None:
         super().initialise()
         self._case_id_bb = None
+        self._activity = None
         try:
             self._case_id_bb = self.get_input("case_id")
+        except (NoDataAvailable, NotImplementedError):
+            pass
+        try:
+            self._activity = self.get_input("activity")
         except (NoDataAvailable, NotImplementedError):
             pass
 
@@ -246,6 +268,12 @@ class CheckIsCaseManagerNode(DataLayerConditionWithPorts):
         assert self.actor_id is not None
 
         case_id = self._case_id or self._case_id_bb
+        if not case_id and self._activity is not None:
+            entry = getattr(self._activity, "log_entry", None)
+            if entry is None:
+                entry = getattr(self._activity, "object_", None)
+            raw = getattr(entry, "case_id", None)
+            case_id = raw if isinstance(raw, str) else None
 
         if not case_id:
             self.logger.debug(
@@ -254,14 +282,11 @@ class CheckIsCaseManagerNode(DataLayerConditionWithPorts):
             )
             return Status.FAILURE
 
-        case = self.datalayer.read_case(case_id)
-        if case is None:
-            self.logger.warning(
-                f"{self.name}: case '{case_id}' not found in DataLayer"
-            )
-            return Status.FAILURE
+        case, failure = self._require_case(case_id)
+        if failure is not None:
+            return failure  # Regime 1: case must exist (ADR-0087)
 
-        manager_id = _resolve_case_manager_id(case, self.datalayer)
+        manager_id = resolve_case_manager_id(case, self.datalayer)
         if manager_id is None:
             self.logger.debug(
                 f"{self.name}: no CASE_MANAGER found for case '{case_id}'"
@@ -269,6 +294,7 @@ class CheckIsCaseManagerNode(DataLayerConditionWithPorts):
             return Status.FAILURE
 
         if manager_id == self.actor_id:
+            self._set_output("case_actor_id", manager_id)
             self.logger.debug(
                 f"{self.name}: actor '{self.actor_id}' is CASE_MANAGER for"
                 f" case '{case_id}'"

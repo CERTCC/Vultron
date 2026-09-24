@@ -8,8 +8,8 @@ The behavioral requirements for this tree are specified in the
 - [RMB-01](../../reference/specs/protocol.md#rmb-01) — Receive RS (Report Submission)
 - [RMB-02](../../reference/specs/protocol.md#rmb-02) — Receive RI (Report Invalid)
 - [RMB-03](../../reference/specs/protocol.md#rmb-03) — Receive RV (Report Valid)
-- [RMB-04](../../reference/specs/protocol.md#rmb-04) — Receive RD (Report Deferred)
-- [RMB-05](../../reference/specs/protocol.md#rmb-05) — Receive RA (Report Accepted)
+- [RMB-04](../../reference/specs/protocol.md#rmb-04) — Receive RD (Report/Case Deferred)
+- [RMB-05](../../reference/specs/protocol.md#rmb-05) — Receive RA (Report/Case Accepted)
 - [RMB-06](../../reference/specs/protocol.md#rmb-06) — Receive RC (Report Closed)
 - [RMB-07](../../reference/specs/protocol.md#rmb-07) — Receive RE (Report Error)
 - [RMB-08](../../reference/specs/protocol.md#rmb-08) — Receive RK (Report Acknowledgment)
@@ -19,6 +19,13 @@ The behavioral requirements for this tree are specified in the
     The behavior tree diagram below illustrates one conformant implementation of these requirements.
     Implementations are not required to use behavior trees — any approach that satisfies the
     requirements above is conformant.
+
+!!! note "Legacy design diagram"
+
+    The diagram on this page reflects the simulator-era design from `vultron/bt/` and may not
+    match the current implementation in `vultron/core/behaviors/`.
+    See the [Behaviors Reference](../../reference/behaviors/index.md) for
+    auto-generated documentation from the current implementation.
 
 The Process RM Messages Behavior Tree is shown below.
 
@@ -97,7 +104,7 @@ A fallback node covers three major cases:
 
 - (C) Finally, recall that the RM process is unique to each
     CVD
-    Participant, so most of the remaining RM messages are simply informational
+    Participant, so most of the remaining RM messages are informational
     messages about other Participants' statuses that do not directly
     affect the receiver's status. Therefore, if there is already an
     associated case ($q^{rm} \not\in S$), the recipient might update

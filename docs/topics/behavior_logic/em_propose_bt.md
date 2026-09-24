@@ -14,6 +14,13 @@ The behavioral requirements for this tree are specified in the
     Implementations are not required to use behavior trees — any approach that satisfies the
     requirements above is conformant.
 
+!!! note "Legacy design diagram"
+
+    The diagram on this page reflects the simulator-era design from `vultron/bt/` and may not
+    match the current implementation in `vultron/core/behaviors/`.
+    See the [Behaviors Reference](../../reference/behaviors/index.md) for
+    auto-generated documentation from the current implementation.
+
 The Propose Embargo Behavior Tree is shown in the figure below.
 
 ```mermaid
@@ -63,7 +70,7 @@ It consists of a sequence that begins with (A,B) a check for embargo viability a
 [Negotiating Embargoes](../process_models/em/negotiating.md).
 
 Once the checks succeed, it proceeds to (C) selecting embargo terms to propose.
-Implementations of this task might simply draw from a default policy, as in
+Implementations of this task might draw from a default policy, as in
 [Default Embargoes](../process_models/em/defaults.md), or it might be a case-specific decision made by a Participant.
 
 (D) Embargo terms can be proposed from any of the non-*eXited* states ($q^{em} \in \{N,P,A,R\}$).

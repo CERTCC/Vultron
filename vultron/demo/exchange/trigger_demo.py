@@ -37,7 +37,6 @@ Each demo verifies that the resulting ActivityStreams activity is returned in
 the response body and that the vendor's outbox is updated accordingly.
 """
 
-import json
 import logging
 from typing import Callable, Optional, Sequence, Tuple
 
@@ -46,6 +45,7 @@ from vultron.wire.as2.vocab.base.objects.actors import as_Actor
 from vultron.wire.as2.vocab.objects.vulnerability_report import (
     as_VulnerabilityReport,
 )
+from vultron.demo.actor_session import ActorSession
 from vultron.demo.utils import (
     seed_case_actor_for_report,
     DataLayerClient,
@@ -53,7 +53,6 @@ from vultron.demo.utils import (
     demo_step,
     get_offer_from_datalayer,
     post_to_inbox_and_wait,
-    post_to_trigger,
     verify_object_stored,
     setup_demo_logging,
 )
@@ -135,21 +134,17 @@ def demo_validate_and_engage(
             ),
         )
 
+    vendor_session = ActorSession(client=client, actor=vendor).quiet()
     stored_offer = response = None
     with demo_step("Step 2: Vendor triggers validate-report"):
         stored_offer = get_offer_from_datalayer(client, vendor.id_, offer.id_)
-        response = post_to_trigger(
-            client=client,
-            actor_id=vendor.id_,
-            behavior="validate-report",
-            body={"offer_id": stored_offer.id_},
-        )
+        response = vendor_session.validate_report(offer_id=stored_offer.id_)
         logger.info(
             "validate-report response: %s",
-            json.dumps(response, indent=2),
+            response.model_dump_json(indent=2),
         )
         with demo_check("Response contains activity"):
-            activity = response.get("activity")
+            activity = response.activity
             assert (
                 activity is not None
             ), "Expected 'activity' key in trigger response"
@@ -161,18 +156,13 @@ def demo_validate_and_engage(
             assert case is not None, f"No case found for report {report.id_}"
             logger.info("Found case: %s", case.id_)
 
-        response = post_to_trigger(
-            client=client,
-            actor_id=vendor.id_,
-            behavior="engage-case",
-            body={"case_id": case.id_},
-        )
+        response = vendor_session.with_case(case).engage_case()
         logger.info(
             "engage-case response: %s",
-            json.dumps(response, indent=2),
+            response.model_dump_json(indent=2),
         )
         with demo_check("Response contains activity"):
-            activity = response.get("activity")
+            activity = response.activity
             assert (
                 activity is not None
             ), "Expected 'activity' key in engage-case trigger response"
@@ -219,45 +209,36 @@ def demo_invalidate_and_close(
             ),
         )
 
+    vendor_session = ActorSession(client=client, actor=vendor).quiet()
     stored_offer = response = None
     with demo_step("Step 2: Vendor triggers invalidate-report"):
         stored_offer = get_offer_from_datalayer(client, vendor.id_, offer.id_)
-        response = post_to_trigger(
-            client=client,
-            actor_id=vendor.id_,
-            behavior="invalidate-report",
-            body={
-                "offer_id": stored_offer.id_,
-                "note": "Report lacks reproduction steps; marked invalid.",
-            },
+        response = vendor_session.invalidate_report(
+            offer_id=stored_offer.id_,
+            note="Report lacks reproduction steps; marked invalid.",
         )
         logger.info(
             "invalidate-report response: %s",
-            json.dumps(response, indent=2),
+            response.model_dump_json(indent=2),
         )
         with demo_check("Response contains activity"):
-            activity = response.get("activity")
+            activity = response.activity
             assert (
                 activity is not None
             ), "Expected 'activity' key in invalidate-report response"
             logger.info("Resulting activity type: %s", activity.get("type"))
 
     with demo_step("Step 3: Vendor triggers close-report"):
-        response = post_to_trigger(
-            client=client,
-            actor_id=vendor.id_,
-            behavior="close-report",
-            body={
-                "offer_id": stored_offer.id_,
-                "note": "Closing report — no valid vulnerability confirmed.",
-            },
+        response = vendor_session.close_report(
+            offer_id=stored_offer.id_,
+            note="Closing report — no valid vulnerability confirmed.",
         )
         logger.info(
             "close-report response: %s",
-            json.dumps(response, indent=2),
+            response.model_dump_json(indent=2),
         )
         with demo_check("Response contains activity"):
-            activity = response.get("activity")
+            activity = response.activity
             assert (
                 activity is not None
             ), "Expected 'activity' key in close-report trigger response"

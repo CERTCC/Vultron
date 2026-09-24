@@ -102,11 +102,22 @@ Write the full report following the structure and tone guidelines in
 - **Footer line**: `*Report covers: <start> through <end> | Repository:
   [CERTCC/Vultron](https://github.com/CERTCC/Vultron)*`
 
-**Before holding the draft**, do a mandatory jargon scan: read every sentence
-and ask "would a work sponsor who has never read the source code understand
-this?" For each insider term found, either add a brief inline gloss the first
-time it appears, or rewrite the sentence in plain language. See
-[REFERENCE.md](REFERENCE.md) for the known-jargon list and rewrite examples.
+**Before holding the draft**, do two mandatory scans of every sentence:
+
+1. **Jargon scan** — ask "would a work sponsor who has never read the source
+   code understand this?" For each insider term found, either add a brief inline
+   gloss the first time it appears, or rewrite the sentence in plain language.
+2. **Claim-scoping scan** — for every sentence that asserts something is fixed,
+   working, or gone, ask "does the evidence support this exact claim, or only a
+   narrower one?" A specific bug fix does not license a class-wide claim (fixing
+   a bug that caused intermittent failures is not "eliminating intermittent
+   failures"). Flag every completeness word — *eliminated, resolved, all,
+   always, fully, now rejects/handles/runs* — and either cite the evidence that
+   the whole class was addressed (a CI gate, a full audit) or rewrite to the
+   action actually taken.
+
+See [REFERENCE.md](REFERENCE.md) for the known-jargon list, the claim-scoping
+test, and rewrite examples for both scans.
 
 Hold the draft in memory — do not write to the output path yet.
 
@@ -116,8 +127,9 @@ Use `ask_user` to present the draft. Frame the review question explicitly for
 a non-developer audience:
 
 > "Does this draft read clearly for a work sponsor who doesn't know the Vultron
-> codebase? Please flag any terms or passages that need plain-language rewrites,
-> or select 'Looks good' to write the file."
+> codebase, and does every claim match what the work actually established?
+> Please flag any terms that need plain-language rewrites or any passage that
+> overstates a result, or select 'Looks good' to write the file."
 
 Offer: `["Looks good — write it out", "I have feedback"]`
 

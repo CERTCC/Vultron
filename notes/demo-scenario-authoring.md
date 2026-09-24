@@ -9,6 +9,7 @@ description: >
   arguments, and treat docker service names as routing labels rather than actor
   identities.
 related_specs:
+  - specs/demo-ci.yaml
   - specs/multi-actor-demo.yaml
   - specs/event-driven-control-flow.yaml
   - specs/code-style.yaml
@@ -16,6 +17,7 @@ related_notes:
   - notes/event-driven-control-flow.md
   - notes/demo-ci-diagnostics.md
   - notes/demo-ci-invariants.md
+  - notes/demo-scenario-registry.md
   - notes/fv-demo.md
   - notes/case-proposal.md
   - notes/ownership-transfer.md
@@ -112,10 +114,10 @@ governs `vultron/demo/scenario/`, where actors live in separate containers and
 the delivery path is the thing under test.
 
 **No self-delivery exception.** An actor does not need to POST to its own inbox
-to update its own replica either — activities route through the CaseActor, which
+to update its own replica either — activities route through the CASE_MANAGER, which
 broadcasts the `Announce` that every replica consumes. See
 [notes/ownership-transfer.md](ownership-transfer.md) § "The Accepting Actor's
-Replica Updates via the CaseActor's Announce".
+Replica Updates via the CASE_MANAGER's Announce".
 
 Source: CONCERN-1635, amended by CONCERN-2181
 
@@ -236,3 +238,82 @@ now has to treat the return as possibly-absent.
   `in_reply_to` conditional on the prior result being present.
 
 Source: ISSUE-2390
+
+---
+
+## A Raising `wait_for_*` Must Never Run Bare in a Scenario
+
+Every `wait_for_*` (and equivalent verification) helper in `vultron/demo/`
+raises `AssertionError` on timeout — that is the primitive's contract, and it is
+correct for unit tests that assert the timeout. But inside a scenario a bare
+raising call **crashes the whole run at the first failure**, which contradicts
+the demo failure-accumulation model (DEMOCI-01-003 / DEMOCI-01-004,
+DEMOCI-01-011): failures are supposed to accumulate through
+`demo_step` / `demo_check` / `demo_gate` and surface together at the end via
+`assert_demo_success()`. A bare raise stops the run before later checks execute,
+burying any co-occurring failures behind a single misleading signal.
+
+**Why this keeps happening:** the raising primitive and the accumulating
+scenario are two different execution contexts, and it is easy to call the former
+directly from the latter. It has now bitten the project twice:
+
+- **Ledger coverage (#1772 / #1802):** bare `wait_for_contiguous_ledger_coverage`
+  calls crashed sync-verification; fixed by wrapping them at the call site in
+  `demo_gate` (see `test/demo/test_fvv_demo.py::TestCoverageWaitInsideDemoCheck`).
+- **Participant waits (#3384):** the `wait_for_participants_on_replicas` calls in
+  every replica-sync scenario's `_phase_sync_verification` were bare, so a
+  replica participant-index propagation timeout aborted the entire run.
+
+**How to apply:**
+
+1. A raising wait invoked directly from scenario code MUST sit inside a
+   `demo_step`, `demo_check`, or `demo_gate` — use `demo_gate` when dependent
+   steps follow inside the block, `demo_check` for an independent bounded check.
+2. **Prefer wrapping inside the shared helper** when one exists, so all callers
+   inherit the fix (DRY). `drain_phase1_ledger` in
+   `vultron/demo/helpers/polling.py` is the reference pattern: it wraps each
+   per-replica poll in a demo context internally (lazy-importing the context
+   manager from `vultron.demo.utils` to avoid a circular import). Note that when
+   the wrap lives in the helper and the dependent steps live in the scenario,
+   `demo_check` and `demo_gate` behave identically — the block contains only the
+   wait, so nothing is skipped either way; pick the label that reads true.
+3. Keep the raising primitive raising for its unit tests — add the accumulation
+   wrap in a scenario-facing helper, not in the low-level `_poll_until` /
+   `wait_for_case_participants` primitives that tests depend on.
+
+Normative: `specs/demo-ci.yaml` DEMOCI-01-011, refining DEMOCI-01-003. An
+architecture ratchet enforces that scenario `_phase_*` functions do not call a
+known raising wait outside a demo context.
+
+Source: CONCERN-3384 (generalising the #1772/#1802 fix)
+
+---
+
+## Use ActorSession Typed Methods, Not `post_to_trigger` Directly (DEMOMA-26)
+
+Once `ActorSession` is available (#3398), demo scripts under
+`vultron/demo/scenario/` and `vultron/demo/exchange/` MUST use its typed methods
+for all trigger endpoint calls. Calling `post_to_trigger` directly is prohibited
+at those call sites (DEMOMA-26-001).
+
+**Why:** `post_to_trigger` accepts a bare `str` behavior name and an untyped
+`dict` body. A misspelled behavior name is a 404 at runtime; a misspelled body
+key is silently dropped because trigger request models use `extra="ignore"`
+(TRIG-03-002), producing an undetectable no-op. `ActorSession` makes both
+mistakes unrepresentable at the call site.
+
+**What changes on migration:**
+
+- `vultron/demo/helpers/actions.py` is deleted; its wrappers become
+  `ActorSession` methods (DEMOMA-26-005).
+- The architecture ratchet test
+  `test/architecture/test_demo_trigger_client_matches_actor.py` is deleted only
+  after the last `post_to_trigger` call site is removed — it is the migration's
+  own safety net until then (DEMOMA-26-006).
+
+**Until `ActorSession` lands**, the existing `post_to_trigger`-based helpers in
+`vultron/demo/helpers/` remain correct. The `Optional[T]` return-type rule in the
+section above still applies to any helper that extracts a result from a
+`post_to_trigger` call wrapped in `demo_step`.
+
+Source: #3356, DEMOMA-26

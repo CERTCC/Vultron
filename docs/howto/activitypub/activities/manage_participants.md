@@ -1,116 +1,136 @@
-# Managing Case Participants
+---
+stakeholder_type: [platform-developer]
+level: 300
+---
 
-{% include-markdown "../../../includes/not_normative.md" %}
+# How to Manage a Case Roster
 
-Typically most cases involve multiple participants, having various roles
-within the case. While the most common activities are inviting and adding
-participants, we've also included activities for removing participants.
+Use this guide to run the full participant lifecycle on a case: invite an actor, seat it when it accepts, record its status, and remove it when its involvement ends.
+Every step routes through the CASE_MANAGER, which is the authoritative recipient of case-management handshake messages once a case exists.
+You finish with a roster that reflects who is actually working the case.
+
+---
+
+## Prerequisites
+
+{% include-markdown "./_demo_prerequisites.md" %}
+
+- An existing case.
+- The Case Owner role for invitations and removals.
+  Any participant can record its own status.
+- The CASE_MANAGER's actor Uniform Resource Identifier (URI), which is where handshake replies go.
+
+---
+
+## The lifecycle
+
+The flowchart below shows the roster path from invitation to removal.
+The two decision diamonds are the loop a long-running case sits in: status updates accumulate, and a participant leaves only when `Remove?` is answered yes.
 
 ```mermaid
+---
+title: Case Roster Over the Life of a Case
+---
 flowchart TB
-    subgraph as:Invite 
-        RmInviteToCase
+    subgraph as:Invite
+        RmInviteToCase["Invite Actor to Case<br/>Invite(Actor)"]
     end
     subgraph as:Accept
-        RmAcceptInviteToCase
+        RmAcceptInviteToCase["Accept Invite to Case<br/>Accept(Invite(Actor))"]
     end
     subgraph as:Reject
-        RmRejectInviteToCase
+        RmRejectInviteToCase["Reject Invite to Case<br/>Reject(Invite(Actor))"]
     end
     subgraph as:Create
-        RmCreateParticipant
-        RmCreateParticipantStatus
+        CreateParticipant["Create Case Participant<br/>Create(CaseParticipant)"]
+        CreateParticipantStatus["Create Participant Status<br/>Create(ParticipantStatus)"]
     end
     subgraph as:Add
-        AddParticipantToCase
-        AddStatusToParticipant
+        AddParticipantToCase["Add Case Participant to Case<br/>Add(CaseParticipant)"]
+        AddStatusToParticipant["Vendor Awareness (CV) / Fix Readiness (CF) / Fix Deployed (CD)<br/>Add(ParticipantStatus)"]
     end
     subgraph as:Remove
-        RemoveParticipantFromCase
+        RemoveParticipantFromCase["Remove Case Participant from Case<br/>Remove(CaseParticipant)"]
     end
     start([Start])
     start --> RmInviteToCase
     RmInviteToCase --> a{Accept?}
     a -->|y| RmAcceptInviteToCase
     a -->|n| RmRejectInviteToCase
-    RmAcceptInviteToCase --> RmCreateParticipant
-    
-    RmCreateParticipantStatus --> AddStatusToParticipant
-    RmCreateParticipant --> AddParticipantToCase
+    RmAcceptInviteToCase --> CreateParticipant
+
+    CreateParticipantStatus --> AddStatusToParticipant
+    CreateParticipant --> AddParticipantToCase
     AddParticipantToCase --> s{Status?}
-    s -->|y| RmCreateParticipantStatus
+    s -->|y| CreateParticipantStatus
     s -->|n| r{Remove?}
     AddStatusToParticipant --> r
     r -->|y| RemoveParticipantFromCase
     r -->|n| s
 ```
 
-!!! info "CaseActor routing (PCR-08-007, PCR-08-008)"
+---
 
-    The `Invite` in this flow is sent by the **Case Actor** (not the Case Owner
-    directly). The Case Owner triggers the invite action, but the Case Actor MUST
-    be the ActivityStreams `actor` on the outbound `Invite` activity. The invited
-    actor MUST send their `Accept` or `Reject` reply to the **Case Actor**, not
-    directly to the Case Owner. See [Inviting an Actor to a Case](invite_actor.md)
-    for the full sequence diagram.
+## Admit an actor
 
-!!! question "Create or Add?"
+1. Trigger the invitation.
+   The CASE_MANAGER sends `Invite(Actor)` with itself as the ActivityStreams `actor` and your Case Owner identity in `attributedTo` (PCR-08-007, PCR-08-008).
+2. Wait for the invitee's reply, addressed to the CASE_MANAGER.
+3. If the reply is `Accept(Invite(Actor))`, seat the actor — see [How to Seat a Participant on an Existing Case](initialize_participant.md).
+4. If the reply is `Reject(Invite(Actor))`, stop.
+   The actor is not on the case, and nothing further is owed.
 
-    There appears to be some logical interchangeability of `as:Create` 
-    with `as:Add` since both include a `target` property that can be used to
-    specify the object to which the new object is being added. We chose to 
-    represent them separately here to acknowledge the difference between
-    creating a new object and adding an existing object to another object, but
-    in an actual implementation it may be acceptable to use either activity for
-    both cases.
-    It seems likely that the general idea should be to use `as:Create` when creating a new object to 
-    add to another object (as the `target` of the activity), and `as:Add` when adding an existing object to another object. 
-    
-    That said, our intent is that Vultron be consistent with however ActivityPub does this.
-    If what we're describing here is inconsistent with ActivityPub, please let us know in the form of an issue or 
-    pull request.
+For the full invitation sequence, including the routing rule and its rationale, see [How to Invite an Actor to a Case](invite_actor.md).
 
-{% include-markdown "./_invite_to_case.md" heading-offset=1 %}
-{% include-markdown "./_accept_invite_to_case.md" heading-offset=1 %}
-{% include-markdown "./_reject_invite_to_case.md" heading-offset=1 %}
-{% include-markdown "./_create_participant.md" heading-offset=1 %}
-{% include-markdown "./_add_coordinator_participant_to_case.md" heading-offset=1 %}
+!!! warning "Do not address the handshake to the Case Owner"
 
-## Create Participant Status
+    An invitee that replies directly to the Case Owner bypasses the CASE_MANAGER, so the reply is never committed to the ledger and no replica learns of it.
+    Address `Accept(Invite(Actor))` and `Reject(Invite(Actor))` to the CASE_MANAGER.
 
-The vendor actor is creating a participant status representing the vendor's status in the context of a specific case.
+---
 
-```python exec="true" idprefix=""
-from vultron.wire.as2.vocab.examples.vocab_examples import create_participant_status, json2md
+## Record a participant's status
 
-print(json2md(create_participant_status()))
-```
+Vendor Awareness (CV), Fix Readiness (CF) and Fix Deployed (CD) are all implemented in ActivityStreams as `Add(ParticipantStatus)`.
+Which one you are sending is determined by the field you set, not by a different activity.
+See [How to Post a Status Update or a Case Note](status_updates.md) for the field that selects each.
 
-## Add Status to Participant
+1. Send `Create(ParticipantStatus)`, carrying the participant's `rm_state` and, for a Vendor or Deployer, its `vf_state` and `d_state`.
+2. Send `Add(ParticipantStatus)`, targeting the participant record.
 
-The vendor is adding a status to their participant object in the context of the specific case.
+If the status is known when you seat the participant, carry it inline on the `CaseParticipant` object instead of sending this pair.
+Status is self-declaratory: send your own, and expect each participant to send its own (ADR-0084).
 
-```python exec="true" idprefix=""
-from vultron.wire.as2.vocab.examples.vocab_examples import add_status_to_participant, json2md
+---
 
-print(json2md(add_status_to_participant()))
-```
+## Remove a participant
 
-## Remove Participant from Case
+Send `Remove(CaseParticipant)` with the participant as its `object` and the case as its `target`.
 
-A coordinator is removing a vendor from a case.
+!!! warning "Name the case in `target`, not `origin`"
 
-```python exec="true" idprefix=""
-from vultron.wire.as2.vocab.examples.vocab_examples import remove_participant_from_case, json2md
+    `origin` reads like the right field for a removal, and it is not one the receiver looks at: dispatch discriminates on `target`, so a `Remove` that names the case only in `origin` matches no pattern and the participant is never removed (#3438).
 
-print(json2md(remove_participant_from_case()))
-```
+Removal takes a participant off the roster.
+It is not a closure — a participant that has finished its own work closes with `Leave(VulnerabilityCase)` instead.
+See [How to Advance a Case Through Report Management](manage_case.md).
 
-## Demo
+---
+
+## Verify
+
+| What you sent | What to confirm |
+|---|---|
+| `Invite(Actor)` | The invitee holds an `Invite` whose `actor` is the CASE_MANAGER. |
+| `Add(CaseParticipant)` | The roster holds the participant with its roles. |
+| `Add(ParticipantStatus)` | The participant record carries the new status. |
+| `Remove(CaseParticipant)` | The roster no longer lists the participant. |
+
+---
+
+## See it end to end
 
 !!! example "Try it: `vultron-demo manage-participants`"
-
-    Run this workflow end-to-end with the unified demo CLI:
 
     ```bash
     vultron-demo manage-participants
@@ -121,3 +141,14 @@ print(json2md(remove_participant_from_case()))
     ```bash
     DEMO=manage-participants docker compose -f docker/docker-compose.yml run --rm demo
     ```
+
+    The scenario runs invite, accept, seat, status update, and removal, then the rejection path.
+
+---
+
+## Further reading
+
+- [Case Management Messages](../../../reference/messages/case_management.md) — the wire format and a rendered example for each activity above
+- [Case State (CS) Messages](../../../reference/messages/cs.md) — the status fields `Add(ParticipantStatus)` carries
+- [Activity Vocabulary Design](../../../topics/activity_vocabulary_design.md) — why `as:Invite` asks where `as:Add` asserts, and how many activities one participant addition needs
+- [Trigger API Reference](../../../reference/trigger-api.md#actor-participation) — request schema and endpoint details for `suggest-actor-to-case`, `invite-actor-to-case`, `accept-case-invite`, and `reject-case-invite`

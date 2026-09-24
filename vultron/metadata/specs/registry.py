@@ -10,6 +10,12 @@ from pathlib import Path
 import networkx as nx
 from pydantic import BaseModel, PrivateAttr
 
+from vultron.metadata.base import repo_root
+from vultron.metadata.file_loading import (
+    FailureCollector,
+    load_yaml,
+    validate,
+)
 from vultron.metadata.specs.schema import (
     BehavioralSpec,
     Scope,
@@ -199,17 +205,13 @@ class SpecRegistry(BaseModel):
         return dict(self._group_index)
 
 
-def find_repo_root(start: Path | None = None) -> Path:
-    """Return the repository root by searching upward for ``pyproject.toml``
-    (SR-03-007)."""
-    origin = start or Path.cwd()
-    for parent in [origin, *origin.parents]:
-        if (parent / "pyproject.toml").exists():
-            return parent
-    raise FileNotFoundError(
-        f"Could not locate repository root (pyproject.toml) "
-        f"starting from {origin}"
-    )
+#: Re-exported under this module's historical public name (SR-03-007). The
+#: implementation is the shared one in ``vultron.metadata.base``; this was the
+#: sixth copy, and the only public one, so the sweep that consolidated the five
+#: private ``_find_repo_root`` copies did not name it. Kept as an alias because
+#: ``specs/coverage.py`` and ``test/metadata/specs/test_coverage.py`` import it
+#: from here.
+find_repo_root = repo_root
 
 
 def load_registry(
@@ -226,16 +228,31 @@ def load_registry(
         A fully-indexed :class:`SpecRegistry`.
 
     Raises:
-        ValueError: If any spec file fails validation or contains duplicate IDs.
+        MetadataLoadErrors: If any spec file fails to parse or validate. Every
+            failing file is reported in the one error and kept on its
+            ``failures`` attribute (SR-03-008, SR-03-009). A ``ValueError``
+            subclass, so the documented contract holds.
+        ValueError: If the corpus contains duplicate IDs.
         FileNotFoundError: If the repository root cannot be resolved.
     """
     if spec_dir is None:
         root = find_repo_root()
         spec_dir = root / "specs"
 
+    # Paths display relative to the directory holding specs/, which is the
+    # repository root for the real corpus (MS-17-001).
     files = []
+    collector = FailureCollector()
     for yaml_path in sorted(spec_dir.glob("*.yaml")):
-        raw = yaml.load(yaml_path.read_text(), Loader=_SafeLoader)
-        files.append(SpecFile.model_validate(raw))
+        with collector.attempt():
+            raw = load_yaml(
+                yaml_path, root=spec_dir.parent, loader=_SafeLoader
+            )
+            files.append(
+                validate(SpecFile, raw, path=yaml_path, root=spec_dir.parent)
+            )
+    collector.raise_if_any(
+        summary=f"{len(collector.failures)} spec file(s) failed to load:"
+    )
 
     return SpecRegistry(files=files)

@@ -46,6 +46,9 @@ from vultron.core.models.case import VulnerabilityCase
 from vultron.wire.as2.vocab.objects.vulnerability_case import (  # noqa: F401
     as_VulnerabilityCase,
 )
+from vultron.core.models.dimensions import (
+    PxaDimension,
+)
 
 ACTOR_ID = "https://example.org/actors/vendor"
 CASE_MANAGER_ID = "https://example.org/actors/case-actor"
@@ -90,7 +93,9 @@ def public_aware_status():
     return as_ParticipantStatus(
         id_=STATUS_ID,
         context=CASE_ID,
-        case_status=as_CaseStatus(pxa_state=CS_pxa.Pxa),
+        case_status=as_CaseStatus(
+            context=CASE_ID, pxa=PxaDimension(state=CS_pxa.Pxa)
+        ),
     )
 
 
@@ -233,6 +238,31 @@ class TestPublicDisclosureSkipConditionNode:
         result = bridge.execute_with_setup(tree=node, actor_id=ACTOR_ID)
         assert result.status == Status.SUCCESS
 
+    def test_public_aware_returns_success_when_pxa_attr_is_none(
+        self, populated_bridge
+    ):
+        """_public_aware() returns False (SUCCESS) when case_status.pxa is None (issue #2877 sibling).
+
+        A status_obj whose case_status.pxa is None must not raise AttributeError.
+        The node must return SUCCESS (skip — no public awareness detected).
+        """
+
+        class _PxaNone:
+            pxa = None
+
+        status_obj_mock = MagicMock()
+        status_obj_mock.case_status = _PxaNone()
+
+        node = _PublicDisclosureSkipConditionNode(
+            status_obj=status_obj_mock,
+            sender_actor_id=ACTOR_ID,
+            case_id=CASE_ID,
+        )
+        result = populated_bridge.execute_with_setup(
+            tree=node, actor_id=ACTOR_ID
+        )
+        assert result.status == Status.SUCCESS
+
     # AC-4 case 4: non-public-aware status → SUCCESS (skip regardless of EM)
     def test_non_public_aware_status_always_returns_success(
         self, status_obj, populated_bridge
@@ -314,7 +344,7 @@ class TestPublicDisclosureBranchNodeProposedEmPath:
         """EM PROPOSED + CS.P → BranchNode succeeds; EM transitions to NONE.
 
         Per EMB-16-001: reject_proposed_embargo_bt arm must execute, driving
-        EM PROPOSED → NO_EMBARGO via reject_embargo_invite().
+        EM PROPOSED → NONE via reject_embargo_invite().
         """
         reject_id = "https://example.org/activities/reject-01"
         dl, bridge, node = self._setup(

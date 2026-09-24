@@ -120,7 +120,10 @@ class TestRmSubmitReportActivity:
 
 
 class TestRmReadReportActivity:
-    from vultron.wire.as2.vocab.activities.report import _RmReadReportActivity
+    from vultron.wire.as2.vocab.activities.report import (
+        _RmReadReportActivity,
+        _RmSubmitReportActivity,
+    )
 
     cls = _RmReadReportActivity
 
@@ -130,8 +133,15 @@ class TestRmReadReportActivity:
     def test_rejects_link(self):
         _assert_rejects_link(self.cls)
 
-    def test_accepts_inline_report(self):
-        _assert_accepts_inline(self.cls, as_VulnerabilityReport())
+    def test_accepts_inline_offer(self):
+        offer = self._RmSubmitReportActivity(
+            actor=ACTOR_ID, object_=as_VulnerabilityReport()
+        )
+        _assert_accepts_inline(self.cls, offer)
+
+    def test_rejects_inline_bare_report(self):
+        with pytest.raises(ValidationError):
+            _make_activity(self.cls, as_VulnerabilityReport())
 
 
 # ---------------------------------------------------------------------------
@@ -166,7 +176,7 @@ class TestAddStatusToCaseActivity:
         _assert_rejects_link(self.cls)
 
     def test_accepts_inline_case_status(self):
-        _assert_accepts_inline(self.cls, as_CaseStatus())
+        _assert_accepts_inline(self.cls, as_CaseStatus(context=_STR_URI))
 
 
 class TestCreateCaseActivity:
@@ -198,7 +208,7 @@ class TestCreateCaseStatusActivity:
         _assert_rejects_link(self.cls)
 
     def test_accepts_inline_case_status(self):
-        _assert_accepts_inline(self.cls, as_CaseStatus())
+        _assert_accepts_inline(self.cls, as_CaseStatus(context=_STR_URI))
 
 
 class TestAddNoteToCaseActivity:
@@ -310,7 +320,9 @@ class TestEmProposeEmbargoActivity:
         _assert_rejects_link(self.cls)
 
     def test_accepts_inline_embargo_event(self):
-        _assert_accepts_inline(self.cls, as_EmbargoEvent())
+        _assert_accepts_inline(
+            self.cls, as_EmbargoEvent(context="urn:uuid:case-123")
+        )
 
 
 class TestActivateEmbargoActivity:
@@ -327,7 +339,9 @@ class TestActivateEmbargoActivity:
         _assert_rejects_link(self.cls)
 
     def test_accepts_inline_embargo_event(self):
-        _assert_accepts_inline(self.cls, as_EmbargoEvent())
+        _assert_accepts_inline(
+            self.cls, as_EmbargoEvent(context="urn:uuid:case-123")
+        )
 
 
 class TestAddEmbargoToCaseActivity:
@@ -344,7 +358,9 @@ class TestAddEmbargoToCaseActivity:
         _assert_rejects_link(self.cls)
 
     def test_accepts_inline_embargo_event(self):
-        _assert_accepts_inline(self.cls, as_EmbargoEvent())
+        _assert_accepts_inline(
+            self.cls, as_EmbargoEvent(context="urn:uuid:case-123")
+        )
 
 
 class TestAnnounceEmbargoActivity:
@@ -361,7 +377,9 @@ class TestAnnounceEmbargoActivity:
         _assert_rejects_link(self.cls)
 
     def test_accepts_inline_embargo_event(self):
-        _assert_accepts_inline(self.cls, as_EmbargoEvent())
+        _assert_accepts_inline(
+            self.cls, as_EmbargoEvent(context="urn:uuid:case-123")
+        )
 
 
 class TestRemoveEmbargoFromCaseActivity:
@@ -378,7 +396,9 @@ class TestRemoveEmbargoFromCaseActivity:
         _assert_rejects_link(self.cls)
 
     def test_accepts_inline_embargo_event(self):
-        _assert_accepts_inline(self.cls, as_EmbargoEvent())
+        _assert_accepts_inline(
+            self.cls, as_EmbargoEvent(context="urn:uuid:case-123")
+        )
 
 
 # ---------------------------------------------------------------------------

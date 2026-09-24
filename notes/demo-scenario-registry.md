@@ -1,0 +1,436 @@
+---
+title: Demo Scenario Registry — Self-Registration, Derived Paths, and the Generate-vs-Check Split
+status: active
+description: >
+  Implementation guidance for the self-registering demo scenario registry
+  (ADR-0098): what the decorator carries and what is derived by convention, why
+  discovery must walk the package rather than import a list, why
+  `.github/demo-scenarios.json` stays committed, which consumers are generated
+  versus checked in place, and how the MS-13-003 marker selects the spec groups
+  that specify a scenario.
+related_specs:
+  - specs/demo-ci.yaml
+  - specs/multi-actor-demo.yaml
+  - specs/meta-specifications.yaml
+related_notes:
+  - notes/demo-ci-invariants.md
+  - notes/demo-ci-diagnostics.md
+  - notes/demo-ci-scenario-coverage.md
+  - notes/demo-future-ideas.md
+  - notes/demo-scenario-authoring.md
+  - notes/vocabulary-registry.md
+  - notes/documentation-strategy.md
+---
+
+# Demo Scenario Registry — Self-Registration, Derived Paths, and the Generate-vs-Check Split
+
+The set of demo scenarios was restated by hand in many places with nothing
+enforcing agreement. ADR-0098 decided to replace those copies with one
+self-registering source: each demo module declares itself, and every table and
+the CI matrix derive from it. This note records the parts a future implementer or
+reviewer will get wrong from the ADR alone.
+
+**Built by ISSUE-3450:** the registry
+(`vultron/demo/scenario/registry.py` — the `@scenario` decorator, `ScenarioSpec`
+and `pkgutil` discovery), the renderers and the `--check`/`--write` dumper
+(`vultron/metadata/demo_scenarios/`, console script `uv run demo-scenarios`),
+the `demo-scenarios-sync` pre-commit hook, and the three generated consumers.
+**Built by ISSUE-3451 and ISSUE-3480:** the checks over the remaining
+hand-written prose — DEMOCI-06-002/003, the per-scenario DEMOMA-16 requirements,
+the `mkdocs.yml` nav, the `notes/` tables, the no-restated-count and
+no-stray-include ratchets
+(`vultron/metadata/demo_scenarios/prose_checks.py`), and the planned-scenario
+register and its partition
+(`vultron/metadata/demo_scenarios/scenario_groups.py`, DEMOCI-11-010).
+Both halves are reported by `uv run demo-scenarios --check`, so the
+`demo-scenarios-sync` hook covers generated and checked consumers alike.
+
+Design rationale and the options rejected: `docs/adr/0098-demo-scenarios-self-register.md`.
+Normative requirements: `specs/demo-ci.yaml` DEMOCI-11.
+
+---
+
+## What the decorator carries, and what it must not
+
+The decorator carries only facts the demo module is the authority for:
+
+| Field | Why it cannot be derived |
+|---|---|
+| `name` | The sub-command spelling; everything else derives from it |
+| `label` | Display casing (`FVCV-handoff`, not `fvcv-handoff`) |
+| `participants` | Prose: "Finder + Vendor1 → Coordinator + Vendor2" |
+| `feature` | Prose: the one-line "notable protocol feature" |
+| `in_pr_set` | A coverage-economics judgement; rationale lives in DEMOCI-06-002 |
+
+**Do not add path fields.** All three paths derive from `name`:
+
+```text
+vultron/demo/scenario/<name_>_demo.py
+test/ci/invariants/test_<name_>_invariants.py
+docs/topics/scenarios/<name>.md
+```
+
+where `<name_>` is `name` with hyphens replaced by underscores. Every registered
+scenario satisfies all three conventions, verified at the time ADR-0098 was
+written, as do the paths the specs already mandate for scenarios not yet built
+(DEMOMA-20-001, DEMOMA-21-001), so there is no exception list and none should be
+introduced. A stored path is a path that can be wrong about itself; a derived path
+either resolves or fails a check. That distinction is why the `vc` row was
+possible — a hand-written table named a script that did not exist.
+
+If a future scenario genuinely cannot satisfy a convention, change the convention
+or rename the file. Adding an override field re-opens the drift channel for every
+scenario, not just that one.
+
+## Registration means built; planned scenarios live in the other register
+
+A scenario gets a spec group before anyone writes its demo — that is how its
+expected behaviour is agreed. Several scenarios are in that state at any time.
+
+**Do not register them.** A registered scenario is one whose module exists, and
+every derived-path check depends on that. A `status="planned"` field in the
+decorator would make the registry the place where both states live and would
+immediately need path checks exempted per entry — the override channel the whole
+design exists to avoid.
+
+Planned scenarios are declared by their spec group plus the **planned scenario
+register** in [demo-future-ideas.md](demo-future-ideas.md) § "Planned scenario
+register": one row per specified-but-unbuilt scenario, with the scenario name in
+its own column and spelled in the registry's name grammar, its tracking issue,
+and its spec IDs. DEMOCI-11-010 requires every spec'd scenario to sit in exactly
+one of the two registers, and the partition to be checked.
+
+That register carries the tracking issue and the spec IDs *because
+`partition_problems()` fails when a row omits either* — it is not a standing
+fact about the file. Before ISSUE-3480 this note asserted it was, and it was not
+true: planned scenarios were spread over three tables, their names lived in
+Status-column prose rather than a Scenario column, already-implemented scenarios
+sat under a "Planned scenarios" heading marked `**implemented**`, and a stale
+partial copy of the registry sat in the same file under "Implemented scenarios".
+The claim was load-bearing for DEMOCI-11-010 and nothing checked it.
+
+Write the check in both directions. The registry-to-prose direction alone reports
+agreement while ignoring DEMOMA-16-014 and DEMOMA-16-015, which describe scenarios
+that are *correctly* absent from the registry — the same blind spot that let a `vc`
+row sit in a table of available demos with a spec group, a tracking issue, and no
+implementation.
+
+## Which spec groups specify a scenario: the MS-13-003 marker
+
+The partition needs a mechanical answer to "which spec groups specify a demo
+scenario", and it already has one. **MS-13-003** requires a group whose items
+describe a demo scenario workflow to carry
+`trigger: {type: scenario_start, value: <name>}`, and **SR-02-018** fixes
+`value` as the scenario's name. That is the selector
+(`scenario_groups.scenario_spec_groups()`); the marker is a declaration by the
+group's author, not an inference from its wording.
+
+Nothing enforced MS-13-003, so half the scenario groups were missing the marker
+(DEMOMA-12, -19, -20, -21, -24, -25). Adding it obliges **MS-13-004** —
+a `scenario_start` group MUST hold at least one `BehavioralSpec` with non-empty
+`steps` — which is why ISSUE-3480 also added step blocks to DEMOMA-19, -20, -21
+and -24, and why ISSUE-3495's DEMOMA-27 (`fcv-reject`) carries one too. Each
+restates that group's already-normative phase list (DEMOMA-19-014, -20-007,
+-21-008) as ordered ECA steps; DEMOMA-24 had no phase list, so its block sits on
+**DEMOMA-24-004** — the ordered causal claim — rather than on -24-005, which is
+the final-state property.
+
+**A `steps` block may not smuggle in a new requirement.** Its `expected` and
+`postconditions` fields read like a convenient place to record what the scenario
+ends up doing, but a block is a *projection* of the group's normative statements:
+anything asserted there and nowhere else becomes a MUST that only the ECA block
+carries, which is the copy-with-no-authority MS-16-002 forbids. Where a block
+needs to name a state its own group does not state — every participant reaching
+RM.CLOSED, say — it cites the check that owns it (the universal Invariant 7)
+instead of restating it as a group requirement.
+
+**Two rules were tried and rejected.** Record them here so neither is
+re-proposed:
+
+| Rejected rule | Why it fails |
+|---|---|
+| A `"Scenario"` substring in the group title | Also selects `Scenario Coverage` (DEMOMA-04), `Shared Scenario Harness` (DEMOMA-23), `Causal Gating and Scenario Narratives` (DEMOMA-22) and `In-Process Fuzz Simulation Scenario` (DEMOMA-18), none of which specifies a demo scenario |
+| "A group some per-scenario DEMOMA-16 requirement refines" | Selects only DEMOMA-24 and DEMOMA-25. DEMOMA-20 and DEMOMA-21 have no DEMOMA-16 refiner, so it drops half the planned set and the partition check passes vacuously over it |
+
+**Both directions are now closed.** DEMOCI-11-010 constrains only scenarios that
+*have* a spec group, so on its own it cannot see a built scenario with no group at
+all — which `fcv-reject` was until ISSUE-3495 gave it DEMOMA-27. The
+registry-to-group direction is therefore a separate check,
+`test_every_registered_scenario_is_named_by_a_spec_group`, and it holds a
+documented exception set that is currently empty: a new exception has to be argued
+for in that constant's comment rather than added by loosening an assertion. The
+group-to-register direction is never allowed an exception — a planned-register row
+with no spec group is a row nothing specifies, and `partition_problems()` reports
+it.
+
+**How the per-scenario DEMOMA-16 requirements are selected.** Not by ID range —
+DEMOCI-11-007 warns against it and the corpus proves the warning: DEMOMA-16-008
+sits inside the apparent span and is the spec-to-test sync rule, while -014 and
+-015 sit outside it and are per-scenario. The rule is what the statement *says*:
+it mentions `expected-event-types list` **and** names exactly one scenario as
+"the `<name>` scenario". That pair separates the per-scenario
+requirements from DEMOMA-16-001 (universal types, names no scenario),
+DEMOMA-16-008 (names no scenario) and DEMOMA-16-012/-013 (name FCVCV but are
+about event *counts* in the case-actor log, not an expected-event-types list).
+
+## Discovery must walk the package, never an import list
+
+Import-time registration only sees modules that were imported. A hand-written
+import list in the dumper therefore recreates exactly the silent omission the
+registry exists to remove: a new demo is written, nobody adds it to the list, and
+every generated table is quietly complete-looking and wrong.
+
+Walk the package instead:
+
+```python
+for module_info in pkgutil.iter_modules(vultron.demo.scenario.__path__):
+    if module_info.name.endswith("_demo"):
+        importlib.import_module(f"vultron.demo.scenario.{module_info.name}")
+```
+
+Pair it with a test that asserts the registered set equals the `*_demo.py`
+modules on disk. Without that test, discovery breaking is indistinguishable from
+a scenario being removed — both just produce a shorter table. This is the same
+hazard recorded for the AS2 vocabulary registry; see
+[vocabulary-registry.md](vocabulary-registry.md).
+
+## Why `.github/demo-scenarios.json` stays committed
+
+It is tempting to delete the JSON and have CI compute the matrix. It cannot: the
+`scenarios` job in `.github/workflows/demo-integration.yml` resolves the matrix
+with `jq` immediately after `actions/checkout`, in a job with **no Python
+environment** — no `setup-python`, no `uv`. Adding one to build the matrix would
+put an interpreter setup in front of every demo run.
+
+So the JSON is a **generated, committed artifact**: never hand-edited, kept
+honest by `--check` in a pre-commit hook. This is the arrangement
+`docs/adr/index.md` already has with `adr-index-sync`.
+
+Two constraints on the generated JSON:
+
+- **Keep the projection narrow** — `demo`, `test_file`, `full_suite_only` only.
+  Entries are splatted into `matrix: include:`, so every key becomes a matrix
+  variable visible to every step of two jobs.
+- **Emit explicit booleans** for `full_suite_only`. The selection filter is
+  `select(.full_suite_only == false)`; an omitted field makes a PR-set scenario
+  vanish from the matrix rather than error.
+
+The workflow's `paths:` filter still lists the JSON and still fires correctly,
+because a registry change regenerates the JSON in the same commit.
+
+## The generate-vs-check split
+
+Not every consumer can hold a generated table, and forcing one to is worse than
+checking it. Route each consumer by what it is:
+
+| Consumer | Treatment | Why |
+|---|---|---|
+| `docs/topics/scenarios/index.md` | build-time render (DEMOCI-11-009) | Inside the mkdocs tree, so `markdown-exec` can call the renderer; no table is committed and drift is impossible. Mind the link form — see above |
+| `.github/demo-scenarios.json` | generate + `--check` | CI needs it before Python exists |
+| `test/ci/README-case-log-ratchet.md` | generate + `--check` | Outside the mkdocs tree — read raw on GitHub and by agents, so an include directive would render literally |
+| `vultron/demo/scenario/README.md` | generate + `--check` | Same |
+| `notes/` scenario tables | **check in place** | Their tables interleave hand-written columns (PR-set Rationale) that the registry does not and should not hold — see below for why checking beats generating here |
+| The coverage matrix's event-type ticks, and `Additional required` | check against the **harness constants** (ISSUE-3505) | Not registry-derived at all: the source is each scenario's `_XXX_EXPECTED_EVENT_TYPES`, which is what Invariant 5 asserts. Checked rather than generated for the same row-splicing reason as the columns beside them, and read by AST so the pre-commit hook never imports a test module |
+| The minimum set's `Covered by minimum set` membership mark | check against `in_pr_set` | Membership is derivable; *which* scenario covers a non-member is a coverage judgement and stays hand-written |
+| `notes/demo-future-ideas.md` planned register | check as the registry's complement | Hand-written; DEMOCI-11-010's second register |
+| `vultron/demo/cli.py` scenario sub-commands | build at import time (DEMOCI-11-011) | Not a table but an inventory all the same — it used to hold one `@main.command` block per scenario. The strongest treatment available outside the mkdocs tree: the commands are built from `discover_scenarios()` on import (**not** `registered_scenarios()`, which sees only the modules something else happened to import — DEMOCI-11-002), so there is no committed copy to check. See below for why the *options* could not move to the decorator |
+| `.github/workflows/demo-integration.yml` header comment | delete the prose enumeration | It restated both scenario sets in a comment above the code that computes them; nothing is lost by removing it, so there is no copy left to generate or check |
+| `specs/` DEMOCI-06-002/003 and the per-scenario DEMOMA-16 requirements | check only | Prose requirements; see below |
+| `mkdocs.yml` nav | check completeness | Hand-written short labels |
+| Any consumer's prose count | check absence (DEMOCI-11-008) | A count is another copy; the table is the count |
+
+**The `notes/` tables are checked in place, not column-generated.** ADR-0098's
+table says "generated columns where derivable", and for these two files that is
+not achievable as written: only the `Scenario` column is registry-derived, and a
+markdown column cannot be spliced independently of the row it heads. A generator
+would have to emit whole rows including the hand-written cells it cannot know, so
+adding a scenario would make it write a placeholder row and call the result
+"generated". DEMOCI-11-006 and DEMOCI-11-007 — the normative requirements — say
+*checked in place* for exactly this case. What the check costs is one edit by the
+author who knows the hand-written cells; what it buys is that the file never
+holds a cell nobody wrote.
+
+**"Derivable" does not mean "derivable from the registry."** Three different
+sources feed these tables, and conflating them is how a column ends up
+unratcheted because nobody could name its authority:
+
+| Column | Source |
+|---|---|
+| `Scenario` | the scenario registry (`ScenarioSpec.name` / `.label`) |
+| `Spec` | the **spec corpus** — each per-scenario DEMOMA-16 statement names its own scenario, and `ScenarioSpec` carries no spec IDs |
+| `Covered by minimum set` membership | `ScenarioSpec.in_pr_set` |
+| event-type ticks, `Additional required` | the **invariant harness constants** (`_XXX_EXPECTED_EVENT_TYPES`) |
+
+The event-type columns were the last unratcheted mirror in these files, left
+hand-written because #3451's AC-3 described them that way. MS-16-002 made that a
+violation, and ISSUE-3505 closed it — and the ratchet found real drift on its
+first run: the `FCCV-handoff` row omitted `accept_case_ownership_transfer`, which
+its own harness constant requires. Tracing that surfaced ISSUE-3514: the type was
+also missing from DEMOCI-06-002's coverage enumeration and from DEMOMA-16-005 and
+-006, so the minimum-PR-set coverage argument had been made against an undercount.
+**That is the whole case for ratcheting a column rather than trusting it**: the
+mirror had been wrong long enough that three requirements agreed with each other
+and none agreed with the code.
+
+**The mkdocs-tree boundary is the load-bearing distinction.** The
+`include-markdown` plugin is configured, but it expands only at mkdocs build
+time, and nothing in `mkdocs.yml` references `notes/` or `test/ci/`. An
+`{% include-markdown %}` directive in either would render as literal text to
+every reader. Only `docs/` pages can use the zero-drift treatment.
+
+**Specs keep their prose.** A requirement that defers its content to code is a
+weak requirement, and the per-scenario DEMOMA-16 requirements exist so each
+scenario has a citable spec ID. Check that the enumerations agree with the
+registry; do not rewrite them into pointers. The precedent is
+`vultron/metadata/adr/index_gen.py`, which generates `docs/adr/index.md` but only
+checks the mkdocs nav, because the nav's labels are hand-written prose.
+
+**Do not select the per-scenario DEMOMA-16 requirements by ID range.** "DEMOMA-16-002
+through DEMOMA-16-011" looks like the set and is not: DEMOMA-16-008 inside that
+span is the spec↔test sync rule, DEMOMA-16-012 and -013 are FCVCV event-count
+requirements, and DEMOMA-16-014 and -015 are per-scenario requirements sitting
+outside it. Select by what the requirement is — one scenario's expected
+event-type list — not by where its number falls.
+
+## The CLI is a registry consumer, and `ActorRole` is what lets it be one
+
+`vultron/demo/cli.py` was the last hand-maintained copy of the scenario
+inventory after ADR-0098: one ~80-line `@main.command` block per scenario, which
+was most of the file.
+A registered scenario could still have no sub-command — a scenario nobody can
+invoke — so DEMOCI-11-001's set-equality intent was only half true.
+ISSUE-3475 made the CLI generate one sub-command per registered scenario
+(DEMOCI-11-011), which brought the file back inside CS-18-001. No line count
+here: it would drift independently of the file and nothing could falsify it
+(MS-16-002) — `wc -l` is the live answer.
+
+The obstacle was never the command; it was the **options**.
+Each scenario takes one `--<role>-url` per actor and, for most actors, a
+`--<role>-id`, and none of that is derivable from the scenario name:
+
+- The URL options key to **physical container slots, not roles.** `fccv-handoff`'s
+  `--c1-url` reads `VULTRON_VENDOR_BASE_URL` while `fccv-extension`'s reads
+  `VULTRON_COORDINATOR_BASE_URL`, because compose service names are routing
+  labels (see [demo-scenario-authoring.md](demo-scenario-authoring.md)).
+  Each option's `--help` names its slot, so the help text is ad hoc too.
+- Which actors take an id is a per-scenario judgement: `--case-actor-id` exists
+  only on the ownership-handoff scenarios, which assert on the CaseActor's own
+  replica after the transfer.
+- Only `fcvcv` binds its `--*-id` options to env vars.
+- `fv` colocates the CaseActor on 7903; every other scenario with one uses 7905.
+
+**Do not move any of that onto the `@scenario` decorator.** DEMOCI-11-001 confines
+the decorator to facts every derived artifact can be built from, and per-scenario
+option metadata would re-open exactly the drift channel it closes — with the
+added cost that every table renderer would then carry option data it has no use
+for.
+
+The declaration goes on the scenario module instead, following the `ActorSession`
+consolidation model (DEMOMA-26) — a frozen value object pinned to its call site
+by a ratchet:
+
+| Declared on the module | Read by |
+|---|---|
+| `ROLES: list[ActorRole]`, in `main()` parameter order | the CLI factory, and the module's own `*_BASE_URL` constants |
+| `CLI_HELP: str` | the generated sub-command's `--help` body |
+
+`ActorRole` (`vultron/demo/helpers/actor_roles.py`) carries `name`, `url_env`,
+`default_url`, `url_help`, `has_id`, `id_help` and `id_env`; everything else —
+both flags, both `main()` parameter names, and the resolved `url` — derives from
+those.
+**The role declaration subsumes the module's `*_BASE_URL` constants**
+(`FINDER_BASE_URL = _ROLES["finder"].url`), so each env-var/default pair is
+written once rather than once for the constant and again in a click `default=`.
+
+Three things about this are load-bearing:
+
+- **Order is stated once, in `role_kwarg_names()`.** All URLs in role order, then
+  all ids in role order — the order every scenario `main()` already declared them
+  in. Both consumers *read* it rather than reproduce it: the factory builds a
+  `{param: click.option}` map and then applies it in `role_kwarg_names()` order,
+  and `test/architecture/test_scenario_roles_match_main_kwargs.py` asserts the
+  signature against the same call. Do not re-derive the order in either place —
+  the ratchet would then be checking a second copy of the rule for agreement with
+  a third, and all three could drift together.
+- **The ratchet has to check both directions.** A role whose `url_param` `main()`
+  does not accept raises `TypeError`, but only when that scenario runs in CI. A
+  `main()` keyword no role declares gets *no option at all*, so the parameter
+  keeps its `None` default and the scenario silently runs against its fallback
+  constant — a working-looking demo pointed at the wrong container. Only the
+  second one is quiet, and it is the likelier edit.
+- **Absence of hand-wiring is a source-level claim.** A factory-built command and
+  a hand-declared one are the same `click.Command` at runtime, and a stray
+  `@main.command(name="fv")` would simply shadow the generated one in
+  `main.commands` with every other check still green. `test_no_scenario_subcommand_is_hand_declared`
+  asserts it over the AST, and a sibling test asserts `cli.py` imports no
+  `*_demo` module by name — the DEMOCI-11-002 hazard one layer up.
+
+The self-consistency checks pass just as happily if a careless edit gives every
+scenario the same options, so each asymmetry listed above is **pinned by name** in
+`test/demo_unit/test_scenario_cli_factory.py` § `TestDeclaredDivergences` — the
+slot-not-role env bindings included, since regularising those is the tidy-up most
+likely to look like an improvement. That is a deliberate small copy; a literal
+table of every scenario's options would be a fresh hand-maintained inventory,
+which is what this consolidation deleted.
+
+## Name order is the canonical order, everywhere
+
+The registry is one sequence and the consumers previously had three different
+ones: the narrative index read pedagogically (FV, FVV, FCV, …), the harness table
+put the PR set first, and the sub-command table followed neither. Only one can
+survive generation, so `registered_scenarios()` sorts by `name` and every
+consumer takes that order. It is not a taste call — it is the one ordering rule no
+consumer has to agree to, and it happens to match `pkgutil` discovery order, so
+registration order and render order cannot diverge.
+
+PR-set membership therefore reads off the `In PR set` column rather than off
+position. Do not reintroduce a grouped order to make the PR set contiguous: the
+grouping would then be a second, unratcheted fact about the same rows.
+
+## A rendered link is not a MkDocs link
+
+`docs/topics/scenarios/index.md` renders its table from an exec block, and a
+`[FV](fv.md)` target printed from one **does not get rewritten**. MkDocs rewrites
+relative `.md` links with a treeprocessor registered on its own `Markdown`
+instance; `markdown-exec` converts the block's output on a *child* instance built
+from the parent's extensions, which does not include that treeprocessor. The
+`.md` href survives into the built HTML and 404s.
+
+`mkdocs build --strict` does not catch it, because it never saw the link as an
+internal one to validate — so the page builds green and every row is broken. The
+renderer emits built-site URLs (`fv/`) instead, which assumes
+`use_directory_urls`; that assumption is pinned by a test rather than a comment,
+because flipping the setting would break every link without failing the build.
+
+## Pitfalls
+
+- **A count restated in prose is another copy.** `test/ci/README-case-log-ratchet.md`
+  said "nine" three times in sentences around a nine-row table. Say "the
+  scenarios", and let the generated table be the count (MS-16-001).
+- **Do not widen the CI invariant command to the directory.** The `_AllSkipGuard`
+  in `test/ci/invariants/conftest.py` (DEMOCI-10-005) judges the whole pytest
+  session, so it only catches a vacuous green because CI invokes one harness file
+  at a time. Non-skipping structural tests in that directory are fine; collecting
+  them *together with* a harness defeats the guard.
+- **Import cost is paid per dumper invocation, not per scenario.** Importing one
+  demo module costs roughly two seconds, almost all of it the shared `vultron`
+  package import, so importing all of them in one process costs about the same.
+  Do not "optimise" this into lazy per-scenario imports and lose whole-package
+  discovery.
+- **Discovery fails closed, and that is the whole point.**
+  `discover_scenarios()` raises when a discovered `*_demo` module registered
+  nothing, rather than returning a short tuple. A generator that quietly omits a
+  scenario emits a table that looks complete — the exact defect class ADR-0098
+  exists to remove — so the failure has to happen at generation time, not only in
+  a test.
+- **A copy-pasted decorator is the one drift no path check sees.** Copy
+  `@scenario(name="fv", …)` into `fvv_demo.py` and all three derived paths still
+  resolve, because they point at the module it was copied *from*. The registry
+  therefore compares the declared `name` against the declaring module's
+  `__module__` and refuses a mismatch. That check is skipped when `__module__` is
+  not in the scenario package, so running a demo as a script (`__main__`) still
+  works.
+- **Splicing refuses a file with no markers.** Appending the table instead would
+  leave the stale copy above the new one — two tables on one subject, which is
+  what this mechanism exists to prevent. The markdown consumers are mostly
+  hand-written prose, so `--write` also refuses to create one from nothing.

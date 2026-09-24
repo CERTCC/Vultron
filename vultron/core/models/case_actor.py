@@ -15,9 +15,9 @@
 
 """Domain representations for CaseActor and its outbox."""
 
-from typing import Literal
+from typing import Any, ClassVar, Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 from vultron.core.models.base import CoreObject, ValidatedAssignmentMixin
 from vultron.core.models.enums import VultronActorType
@@ -43,7 +43,15 @@ class CaseActor(CoreObject):
     reconstitution still routes through the wire :data:`VOCABULARY` for
     ``"Service"`` objects; core ``CaseActor`` is used when constructing
     domain objects directly.  See ADR-0017 and issue #729.
+
+    On the AS2 path the internal ``outbox`` is replaced by the actor's
+    ``inbox``/``outbox`` collection URIs, derived from its id, which is what the
+    deleted ``as_CaseActor.from_core`` did: a recipient needs the inbox to
+    address the CaseActor, and AS2 defines ``outbox`` as a collection, not this
+    class's tracking list.
     """
+
+    local_only_fields: ClassVar[frozenset[str]] = frozenset({"outbox"})
 
     type_: Literal[VultronActorType.SERVICE] = Field(
         default=VultronActorType.SERVICE,
@@ -51,6 +59,31 @@ class CaseActor(CoreObject):
         serialization_alias="type",
     )
     outbox: VultronOutbox = Field(default_factory=VultronOutbox)
+
+    @model_validator(mode="before")
+    @classmethod
+    def _accept_as2_collections(cls, data: Any) -> Any:
+        """Read back the AS2 form :meth:`_as2_derived_fields` emits.
+
+        The collection URIs are derived, not stored, so ``inbox`` is dropped and
+        an ``outbox`` given as a URI or collection (rather than this class's
+        tracking list) reads as an empty one.
+        """
+        if not isinstance(data, dict):
+            return data
+        outbox = data.get("outbox")
+        if "inbox" not in data and not isinstance(outbox, str):
+            return data
+        data = dict(data)
+        data.pop("inbox", None)
+        if isinstance(outbox, str) or (
+            isinstance(outbox, dict) and "items" not in outbox
+        ):
+            data.pop("outbox")
+        return data
+
+    def _as2_derived_fields(self) -> dict[str, Any]:
+        return {"inbox": f"{self.id_}/inbox", "outbox": f"{self.id_}/outbox"}
 
 
 #: Backward-compatibility alias.  New code should import :class:`CaseActor`.

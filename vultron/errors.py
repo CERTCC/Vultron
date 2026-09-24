@@ -70,6 +70,30 @@ class VultronNotFoundError(VultronError):
         super().__init__(f"{resource_type} '{resource_id}' not found.")
 
 
+class VultronAlreadyExistsError(VultronError, ValueError):
+    """Raised when creating a record whose ``id_`` is already present.
+
+    The counterpart of :exc:`VultronNotFoundError`, and the *only* cause a
+    caller of ``DataLayer.create()`` may legitimately swallow: the record it
+    wanted stored is already stored.
+
+    This type exists so that "already there" stays separable from "could not be
+    projected".  ``crud.create`` previously raised a bare ``ValueError`` for the
+    duplicate, and every caller that swallows a duplicate catches it — so any
+    *other* ``ValueError`` escaping the same call was silently logged as a
+    benign duplicate and never stored.  That is not hypothetical: it is why
+    :exc:`VultronValidationError` was kept out of the ``ValueError`` hierarchy,
+    and it also swallowed ``Record.from_obj``'s two genuine faults (an object
+    with no ``type_``, and a ``type_`` still carrying the ``as_`` prefix).
+
+    ``ValueError`` remains in the base classes so that callers written against
+    the older contract keep working; callers that mean *only* "already exists"
+    MUST catch this class rather than ``ValueError``.  ARCH-23-006's note
+    records why :exc:`VultronValidationError` must be absorbable by Pydantic,
+    which is what made the shared base untenable.
+    """
+
+
 class VultronInvalidStateTransitionError(VultronError):
     """Raised when an operation requests an invalid state machine transition."""
 
@@ -82,7 +106,7 @@ class VultronInvalidStateTransitionError(VultronError):
 VultronConflictError = VultronInvalidStateTransitionError
 
 
-class VultronValidationError(VultronError):
+class VultronValidationError(VultronError, ValueError):
     """Raised when domain validation of a resource or request fails.
 
     When the boundary recognised more than one violation, pass them as
@@ -91,6 +115,24 @@ class VultronValidationError(VultronError):
     message to recover the individual rules (EH-07-003).  This follows
     :exc:`DemoFailureError`'s shape, the house pattern for
     accumulate-all-then-fail (DEMOCI-01-003).
+
+    ``ValueError`` is in the base classes for the same reason as
+    :exc:`VultronProtocolViolationError` and
+    :exc:`VultronReferenceResolutionError`: Pydantic absorbs a ``ValueError``
+    raised inside a validator and reports it as a failed branch, where any other
+    exception escapes the whole ``model_validate()`` call.  ARCH-23-006 requires
+    this: under ADR-0099 core classes sit *inside* wire unions, so a core-side
+    guard firing while Pydantic resolves a union must fail that branch rather
+    than abort the operation.  The rule's note names this as the defect to fix
+    before the rule is inverted, and inverting it is what ADR-0099 does.
+
+    This class deliberately did *not* inherit ``ValueError`` until
+    :exc:`VultronAlreadyExistsError` existed, because ``crud.create`` signalled
+    a duplicate row with a bare ``ValueError`` that callers swallow — so sharing
+    the base made a projection failure indistinguishable from "already stored".
+    Separability now comes from the two distinct types, not from this class
+    avoiding ``ValueError``; see
+    ``test_normalization_failure_is_distinguishable_from_duplicate_row``.
     """
 
     def __init__(
@@ -182,6 +224,27 @@ class VultronProtocolViolationError(VultronError, ValueError):
     """
 
 
+class VultronReferenceResolutionError(VultronError, ValueError):
+    """Raised when an IRI reference in an object-only slot cannot be materialised.
+
+    VM-06-007 makes ``rehydrate()`` the sole owner of ID-to-object
+    materialisation and requires it to *refuse* rather than fabricate a
+    placeholder.  This is that refusal.  It fires for two distinct causes, both
+    of which mean the slot cannot legally be filled:
+
+    * the reference resolved to nothing in the data layer, or
+    * it resolved to something that is not an AS2 object, so it cannot go into a
+      wire slot.
+
+    ``ValueError`` is included in the base classes for the same reason as
+    :exc:`VultronProtocolViolationError`: so Pydantic absorbs the error and
+    wraps it in a ``ValidationError`` if it is ever raised inside a validator,
+    rather than escaping the whole ``model_validate()`` call.  ARCH-23-006's
+    note records what goes wrong when a core-side guard is *not* absorbable that
+    way.
+    """
+
+
 class CvdStateModelError(VultronError):
     """Base class for errors in the CVD state model."""
 
@@ -260,6 +323,59 @@ class BtNodePreconditionError(VultronError):
     fails.  ``update()`` is the single ``try/except`` handler that converts
     the exception to ``Status.FAILURE`` and sets ``self.feedback_message``.
     See ADR-0032 and ``notes/bt-integration.md`` BT-HELPER-01.
+    """
+
+
+class VultronStatusAssertionRefusedError(VultronError):
+    """Raised when a receive-path BT wholly refuses a status assertion.
+
+    Raised by :class:`~vultron.core.use_cases.received.status\
+.AddParticipantStatusToParticipantReceivedUseCase` when
+    ``AddParticipantStatusBT`` returns ``FAILURE`` (i.e.
+    ``FilterParticipantStatusDimensionsNode`` refused every dimension and
+    produced a filtered status indistinguishable from the participant's current
+    state).  The inbox ``DispatchNode`` catches this exception and writes
+    ``"rejected"`` to ``KEY_OUTCOME_STATUS``, surfacing the total refusal as a
+    ``rejected`` ``InboxOutcome`` rather than the silent ``202 Accepted /
+    processed`` response that previously made total refusals invisible to
+    senders.  Extends ISSUE-2255 (sender-feedback diagnostics).
+
+    Callers that need to distinguish total-refusal from a partial-accept (where
+    the BT succeeds with some dimensions filtered) can inspect the
+    ``InboxOutcome.status`` field: ``"rejected"`` means wholly refused,
+    ``"processed"`` means at least one dimension was accepted.
+    """
+
+
+class DemoScenarioRegistryError(VultronError):
+    """Raised when a demo scenario's self-registration is invalid.
+
+    Raised at import time by the ``@scenario`` decorator in
+    ``vultron.demo.scenario.registry`` — a malformed spec, a name already
+    registered with a different spec, or a declared name that contradicts the
+    module it was declared in — and by ``discover_scenarios()`` when a
+    discovered ``*_demo`` module registered nothing at all.
+
+    Fails fast for the same reason :class:`RegistryOrderError` does: every
+    committed scenario artifact is generated from this registry, so a registry
+    that is quietly wrong yields tables and a CI matrix that look complete and
+    are not.  See ``specs/demo-ci.yaml`` DEMOCI-11 and ADR-0098.
+    """
+
+
+class DemoActorRoleError(VultronError):
+    """Raised when a scenario's ``ActorRole`` declaration is invalid.
+
+    Raised at import time by :class:`~vultron.demo.helpers.actor_roles.ActorRole`
+    and :func:`~vultron.demo.helpers.actor_roles.role_map` — a malformed role
+    name, a missing help string, id metadata on a role that declares no ``--*-id``
+    option, or two roles in one scenario sharing a name or a container env var.
+
+    Fails fast for the same reason :class:`DemoScenarioRegistryError` does: the
+    role list is what generates a scenario's CLI options *and* what its
+    ``main()`` signature is ratcheted against (DEMOCI-11-011), so a role list
+    that is quietly wrong yields a sub-command whose options look complete and
+    point at the wrong container.
     """
 
 

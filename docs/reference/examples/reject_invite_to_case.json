@@ -1,11 +1,48 @@
 {
+  "id": "urn:uuid:ad529a00-ee2f-4c46-95c8-0d5349de30d3",
+  "type": "Reject",
+  "name": "https://vultron.example/organizations/coordinator Reject https://vultron.example/organizations/vendorco Invite Coordinator LLC to urn:uuid:a0a80546-90d9-482d-916a-72f47f8a64d6",
+  "inReplyTo": "urn:uuid:a0a80546-90d9-482d-916a-72f47f8a64d6/invitation/1",
+  "content": "Thanks for the invitation, but we're declining to participate in VendorCo Case #61038668.",
+  "to": "https://vultron.example/organizations/vendorco",
   "@context": "https://www.w3.org/ns/activitystreams",
-  "asType": "Reject",
-  "id": "https://for.example/4aae1553-1c98-484c-8f19-3a78307c9655",
-  "name": "https://vultron.example/organizations/coordinator Reject https://vultron.example/cases/VDR-20991514",
-  "inReplyTo": "https://vultron.example/cases/VDR-20991514/invitation/1",
-  "content": "Thanks for the invitation, but we're declining to participate in VENDOR Case #20991514.",
-  "to": "https://vultron.example/organizations/vendor",
   "actor": "https://vultron.example/organizations/coordinator",
-  "object": "https://vultron.example/cases/VDR-20991514"
+  "object": {
+    "id": "urn:uuid:a0a80546-90d9-482d-916a-72f47f8a64d6/invitation/1",
+    "type": "Invite",
+    "name": "https://vultron.example/organizations/vendorco Invite Coordinator LLC to urn:uuid:a0a80546-90d9-482d-916a-72f47f8a64d6",
+    "published": "2026-09-23T16:41:57+00:00",
+    "updated": "2026-09-23T16:41:57+00:00",
+    "content": "We're inviting you to participate in VendorCo Case #61038668.",
+    "to": "https://vultron.example/organizations/coordinator",
+    "@context": "https://www.w3.org/ns/activitystreams",
+    "actor": "https://vultron.example/organizations/vendorco",
+    "target": "urn:uuid:a0a80546-90d9-482d-916a-72f47f8a64d6",
+    "object": {
+      "id": "https://vultron.example/organizations/coordinator",
+      "type": "Organization",
+      "name": "Coordinator LLC",
+      "published": "2026-09-23T16:41:56+00:00",
+      "updated": "2026-09-23T16:41:56+00:00",
+      "@context": "https://www.w3.org/ns/activitystreams",
+      "inbox": {
+        "id": "urn:uuid:490ba486-0899-4fcf-b132-b6403ed08b24",
+        "type": "OrderedCollection",
+        "published": "2026-09-23T16:41:56+00:00",
+        "updated": "2026-09-23T16:41:56+00:00",
+        "@context": "https://www.w3.org/ns/activitystreams",
+        "items": [],
+        "current": 0
+      },
+      "outbox": {
+        "id": "urn:uuid:25388126-8760-4d8e-80bb-59a1989fa4b3",
+        "type": "OrderedCollection",
+        "published": "2026-09-23T16:41:56+00:00",
+        "updated": "2026-09-23T16:41:56+00:00",
+        "@context": "https://www.w3.org/ns/activitystreams",
+        "items": [],
+        "current": 0
+      }
+    }
+  }
 }

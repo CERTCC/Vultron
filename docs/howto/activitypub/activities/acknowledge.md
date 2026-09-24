@@ -1,76 +1,60 @@
-# Acknowledging Other Messages
+---
+stakeholder_type: [platform-developer]
+level: 300
+---
 
-The ActivityStreams vocabulary includes several activities that can be used to
-indicate that a message or object has been read or acknowledged. These include:
+# How to Acknowledge a Report
 
-- `as:Read`
-- `as:View`
-- `as:Listen`
+Use this guide when you have received a report and want to tell the sender it arrived, without yet declaring it valid or invalid.
+Report Acknowledgement (RK) is implemented in ActivityStreams as `Read(Offer(VulnerabilityReport))` — an `as:Read` whose object is the report's original `Offer`.
+You finish with the sender informed and your own Report Management (RM) state unchanged at `RECEIVED`.
 
-Since most CVD cases are text-centric, we expect that the `as:Read` activity
-will be the most commonly used. However, we also expect that the `as:View` and
-`as:Listen` activities could be used in some cases, such as when a case
-participant views a video or listens to an audio recording.
+---
 
-We specifically defined `RmReadReport` as a subclass of `as:Read` to indicate
-that a report has been read. This allows the receiver of a report to
-acknowledge receipt without indicating anything more than that the report has
-been read. That leaves `RmValidateReport` and `RmInvalidateReport` to indicate
-a more specific action (accept, reject) on the part of the receiver.
+## Prerequisites
 
-```mermaid
-flowchart LR
-    subgraph RM:Received
-        a{Accept?}
-        subgraph as:Read
-            RmReadReport
-        end
-    end
-    subgraph RM:Start
-        subgraph as:Offer
-            RmSubmitReport
-        end
-    end
-    subgraph RM:Accepted
-        subgraph as:Accept
-            RmValidateReport
-        end
-    end
-    subgraph RM:Invalid
-        subgraph as:Reject
-            RmInvalidateReport
-        end
-    end
-    a -->|y| RmValidateReport
-    a -->|undecided| RmReadReport
-    a -->|n| RmInvalidateReport
-    RmSubmitReport --> a
-```
+{% include-markdown "./_demo_prerequisites.md" %}
 
-!!! info "More Acknowledgements in the Ontology"
+- A report you have received, at `RM.RECEIVED`.
+- The sender's actor Uniform Resource Identifier (URI).
 
-    The [Vultron AS ontology](../../../reference/ontology/vultron_as.md) defines a
-    number of ActivityStreams activities that can serve as the various acknowledgements that are used in the Vultron
-    protocol. These include messages that are specifically `as:inReplyTo` a
-    message defined as one of the core protocol message types.
+---
 
-    For example, it is not necessary to send a separate `RmReadReport` message
-    if the `RmValidateReport` message is sent as a reply to the `RmSubmitReport`
-    message. The `RmValidateReport` message logically indicates that the
-    report has been read in order to have been validated.
+## Decide whether to acknowledge at all
 
-!!! tip "Like, Dislike and Flag"
+An acknowledgment carries no verdict, so it is worth sending only while you have no verdict to send.
 
-    The ActivityStreams vocabulary also includes actions that indicate an opinion 
-    about a message or object, such as `as:Like`, `as:Dislike`, and `as:Flag`.
-    While these may be relevant to implementations of the Vultron protocol, we
-    do not have specific use cases for them at this time.
+- If you are still triaging, send the acknowledgment, `Read(Offer(VulnerabilityReport))`.
+- If you are ready to accept the report, send Report Valid (RV), `Accept(Offer(VulnerabilityReport))`, instead.
+  Declaring the report valid implies you read it.
+- If you are ready to reject it, send Report Invalid (RI), `TentativeReject(Offer(VulnerabilityReport))`, instead.
+  The same implication holds.
 
-## Demo
+Sending `Read(Offer(VulnerabilityReport))` immediately before a verdict adds a message without adding information.
+
+---
+
+## Send the acknowledgment
+
+1. Send `Read(Offer(VulnerabilityReport))` to the sender's inbox, with the original `Offer(VulnerabilityReport)` activity as its `object`.
+2. Leave your RM state at `RECEIVED`.
+   Acknowledgment is not a transition.
+
+The nested form is what a receiver dispatches on: `AckReportPattern` requires it, [Report Management (RM) Messages](../../../reference/messages/rm.md) documents it (MSM-01-008), and `rm_read_report_activity` builds it.
+A bare `Read(VulnerabilityReport)` carrying the report itself matches no pattern.
+
+---
+
+## Verify
+
+The sender holds a `Read(Offer(VulnerabilityReport))` from you, and your RM state is still `RECEIVED`.
+No `CaseLedgerEntry` is written, because report submission is not ledger-replicated.
+
+---
+
+## See it end to end
 
 !!! example "Try it: `vultron-demo acknowledge`"
-
-    Run this workflow end-to-end with the unified demo CLI:
 
     ```bash
     vultron-demo acknowledge
@@ -81,3 +65,13 @@ flowchart LR
     ```bash
     DEMO=acknowledge docker compose -f docker/docker-compose.yml run --rm demo
     ```
+
+    The scenario runs all three paths: acknowledge only, acknowledge then validate, and acknowledge then invalidate.
+
+---
+
+## Further reading
+
+- [Faults and Acknowledgements](../../../reference/messages/faults_and_acknowledgements.md) — the wire format, the mapping to the formal `RK` message, and the cumulative hash-chain acknowledgment that covers ledger-replicated state
+- [Activity Vocabulary Design](../../../topics/activity_vocabulary_design.md) — why Vultron uses `as:Read` rather than `as:View` or `as:Listen`, and why acknowledgment and validity are separate claims
+- [How to Report a Vulnerability](report_vulnerability.md) — the exchange this acknowledgment sits inside

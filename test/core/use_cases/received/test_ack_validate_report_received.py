@@ -35,7 +35,6 @@ from vultron.core.models.events.report import (
 )
 from vultron.core.models.report import VultronReport
 from vultron.core.models.report_case_link import VultronReportCaseLink
-from vultron.core.models._helpers import _report_phase_status_id
 from vultron.core.use_cases.received.report import (
     AckReportReceivedUseCase,
     SubmitReportReceivedUseCase,
@@ -43,6 +42,9 @@ from vultron.core.use_cases.received.report import (
 )
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCase,
+)
+from vultron.core.models.dimensions import (
+    RmDimension,
 )
 
 _CASE_ACTOR_SERVICE_URL = "http://case-actor:7999/api/v2"
@@ -166,6 +168,7 @@ class TestFullReportFlow:
         from vultron.wire.as2.factories import create_case_activity
         from vultron.wire.as2.vocab.objects.case_participant import (
             as_CaseParticipant,
+            as_ParticipantStatus,
         )
         from vultron.core.use_cases.received.case.create import (
             CreateCaseReceivedUseCase,
@@ -182,22 +185,28 @@ class TestFullReportFlow:
             attributed_to=self.VENDOR_ID,
             context=self.CASE_ID,
             case_roles=[CVDRole.VENDOR],
+            participant_statuses=[
+                as_ParticipantStatus(
+                    attributed_to=self.VENDOR_ID,
+                    context=self.CASE_ID,
+                    rm=RmDimension(state=RM.RECEIVED),
+                )
+            ],
         )
-        vendor_participant.append_rm_state(
-            RM.RECEIVED, self.VENDOR_ID, self.CASE_ID
-        )
-        case = as_VulnerabilityCase(
+        case = as_VulnerabilityCase.model_construct(
             id_=self.CASE_ID,
             name="Flow test case",
             vulnerability_reports=[self.REPORT_ID],
             case_participants=[case_manager, vendor_participant],
             active_embargo=f"{self.CASE_ID}/embargoes/flow-embargo",
+            # The index travels on the wire alongside the inline participants
+            # (CM-19-003): participants are resolved through it, never by
+            # scanning inline snapshots.
+            actor_participant_index={
+                self.CASE_ACTOR_ID: case_manager.id_,
+                self.VENDOR_ID: vendor_participant.id_,
+            },
         )
-        # The index travels on the wire alongside the inline participants
-        # (CM-19-003): participants are resolved through it, never by scanning
-        # inline snapshots.
-        case.actor_participant_index[self.CASE_ACTOR_ID] = case_manager.id_
-        case.actor_participant_index[self.VENDOR_ID] = vendor_participant.id_
         activity = create_case_activity(case, actor=self.CASE_ACTOR_ID)
         CreateCaseReceivedUseCase(dl, make_payload(activity)).execute()
 
@@ -299,12 +308,11 @@ class TestFullReportFlow:
             dl, self._make_validate_event()
         ).execute()
 
-        valid_id = _report_phase_status_id(
-            self.VENDOR_ID, self.REPORT_ID, RM.VALID.value
-        )
+        link = dl.read(VultronReportCaseLink.build_id(self.REPORT_ID))
         assert (
-            dl.get("ParticipantStatus", valid_id) is not None
-        ), f"Vendor {self.VENDOR_ID} must have RM.VALID in history after validate-report"
+            isinstance(link, VultronReportCaseLink)
+            and link.rm_state == RM.VALID
+        ), f"Vendor {self.VENDOR_ID} must have RM.VALID after validate-report"
 
         participant = cast(
             CaseParticipant, dl.read(f"{self.CASE_ID}/participants/vendor")
@@ -339,10 +347,11 @@ class TestFullReportFlow:
             dl, self._make_validate_event()
         ).execute()
 
-        valid_id = _report_phase_status_id(
-            self.VENDOR_ID, self.REPORT_ID, RM.VALID.value
-        )
-        assert dl.get("ParticipantStatus", valid_id) is None, (
+        link = dl.read(VultronReportCaseLink.build_id(self.REPORT_ID))
+        assert not (
+            isinstance(link, VultronReportCaseLink)
+            and link.rm_state == RM.VALID
+        ), (
             "No RM.VALID record may be written before the case replica exists"
             " in this actor's own store (ISSUE-2548, ID-04-005)"
         )
@@ -363,12 +372,13 @@ class TestFullReportFlow:
             trigger_activity=TriggerActivityAdapter(dl),
         ).execute()
 
-        accepted_id = _report_phase_status_id(
-            self.FINDER_ID, self.REPORT_ID, RM.ACCEPTED.value
-        )
-        assert dl.get("ParticipantStatus", accepted_id) is None, (
-            "ADR-0041: finder RM.ACCEPTED status must NOT be written by the"
-            " vendor receive-report tree (only by CreateCaseReceivedUseCase)"
+        link = dl.read(VultronReportCaseLink.build_id(self.REPORT_ID))
+        assert not (
+            isinstance(link, VultronReportCaseLink)
+            and link.rm_state == RM.ACCEPTED
+        ), (
+            "ADR-0041: RM state must NOT be ACCEPTED immediately after submit"
+            " (only RECEIVED is expected at this stage)"
         )
 
     def test_full_flow_produces_correct_final_state(self, make_payload):
@@ -398,12 +408,11 @@ class TestFullReportFlow:
             dl.read(link_id), VultronReportCaseLink
         ), "Pending VultronReportCaseLink must exist after submit (ADR-0041)"
 
-        valid_id = _report_phase_status_id(
-            self.VENDOR_ID, self.REPORT_ID, RM.VALID.value
-        )
+        link = dl.read(VultronReportCaseLink.build_id(self.REPORT_ID))
         assert (
-            dl.get("ParticipantStatus", valid_id) is not None
-        ), "Vendor must have RM.VALID in history after validate-report"
+            isinstance(link, VultronReportCaseLink)
+            and link.rm_state == RM.VALID
+        ), "Vendor must have RM.VALID after validate-report"
 
 
 class TestValidateReportReceivedGuardedCommit:
@@ -498,7 +507,7 @@ class TestValidateReportReceivedGuardedCommit:
         rather than via a Python pre-flight guard.  We verify at the data level
         that no CaseLedgerEntry is written.
         """
-        from vultron.wire.as2.vocab.objects.report_case_link import (
+        from vultron.core.models.report_case_link import (
             VultronReportCaseLink,
         )
 

@@ -81,20 +81,37 @@ class TestAllParticipantsRmClosed:
         ]
         assert all_participants_rm_closed(participants) is False
 
-    def test_case_manager_skipped(self):
-        """CASE_MANAGER participants are excluded from the convergence check."""
+    def test_open_case_manager_returns_false(self):
+        """A CASE_MANAGER still at RM.ACCEPTED blocks convergence.
+
+        The CASE_MANAGER used to be skipped here as "a coordinator". It has a
+        full RM lifecycle (ADR-0051, CM-23-005) and CM-23-010 defines
+        ``RM.CLOSED`` on its record as "the Case Owner has left and the case is
+        fully closed", so exempting it made this predicate report a closed case
+        whose own authority was still open — the mask over ISSUE-2505.
+        ``AllParticipantsRMClosedConditionNode`` dropped the same skip earlier;
+        this was the surviving copy.
+        """
         case_manager = _make_participant(
             RM.ACCEPTED, roles=[CVDRole.CASE_MANAGER]
         )
         regular = _make_participant(RM.CLOSED)
+        assert all_participants_rm_closed([case_manager, regular]) is False
+
+    def test_closed_case_manager_returns_true(self):
+        """A CASE_MANAGER at RM.CLOSED converges like any other participant."""
+        case_manager = _make_participant(
+            RM.CLOSED, roles=[CVDRole.CASE_MANAGER]
+        )
+        regular = _make_participant(RM.CLOSED)
         assert all_participants_rm_closed([case_manager, regular]) is True
 
-    def test_only_case_manager_returns_true(self):
-        """A list containing only CASE_MANAGER participants is vacuously True."""
+    def test_only_open_case_manager_returns_false(self):
+        """A list of only an open CASE_MANAGER is not vacuously converged."""
         case_manager = _make_participant(
             RM.ACCEPTED, roles=[CVDRole.CASE_MANAGER]
         )
-        assert all_participants_rm_closed([case_manager]) is True
+        assert all_participants_rm_closed([case_manager]) is False
 
     def test_participant_no_status_returns_false(self):
         """A participant with no status records is treated as not converged."""
@@ -125,22 +142,26 @@ class TestAllParticipantsRmClosed:
         p = _make_participant(RM.INVALID)
         assert all_participants_rm_closed([p]) is False
 
-    def test_case_actor_participant_skipped(self):
-        """CaseActorParticipant (COORDINATOR + CASE_MANAGER) is excluded."""
+    def test_case_actor_participant_is_checked(self):
+        """CaseActorParticipant (COORDINATOR + CASE_MANAGER) is checked, not excluded.
+
+        A freshly constructed one carries no ``RM.CLOSED`` status, so it fails
+        convergence on the same no-status/not-closed grounds as anyone else.
+        """
         ca = CaseActorParticipant(
             attributed_to="urn:uuid:case-actor",
             context=_CONTEXT,
         )
         regular = _make_participant(RM.CLOSED)
-        assert all_participants_rm_closed([ca, regular]) is True
+        assert all_participants_rm_closed([ca, regular]) is False
 
-    def test_mixed_roles_including_case_manager_skipped(self):
-        """Participant with CASE_MANAGER among multiple roles is still skipped."""
+    def test_mixed_roles_including_case_manager_is_checked(self):
+        """CASE_MANAGER among multiple roles earns no exemption either."""
         p = _make_participant(
             RM.ACCEPTED,
             roles=[CVDRole.COORDINATOR, CVDRole.CASE_MANAGER],
         )
-        assert all_participants_rm_closed([p]) is True
+        assert all_participants_rm_closed([p]) is False
 
 
 class TestVendorVfInvariantOk:

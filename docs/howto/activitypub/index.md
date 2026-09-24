@@ -1,12 +1,20 @@
+---
+description: >
+  Represent Vultron Protocol message types as ActivityPub messages using the
+  ActivityStreams vocabulary.
+stakeholder_type: [platform-developer]
+level: 300
+---
+
 # Vultron and ActivityPub
 
 {% include-markdown "../../includes/not_normative.md" %}
 
 The Vultron protocol can be mapped onto the [ActivityPub](https://www.w3.org/TR/activitypub/){:target="_blank"}
-protocol. This mapping is described in the
-[Vultron ActivityStreams Ontology](../../reference/ontology/vultron_as.md).
+protocol. This mapping is described in
+[Message Types](../../reference/messages/index.md).
 
-In this section, we'll provide some examples of how the Vultron protocol
+This section provides examples of how the Vultron protocol
 message types can be represented as ActivityPub messages using the
 [ActivityStreams vocabulary](https://www.w3.org/TR/activitystreams-vocabulary/){:target="_blank"}.
 
@@ -17,7 +25,7 @@ grammar for describing activities that are performed by actors. The generic stru
 described using the ActivityStreams vocabulary is:
 
 ```mermaid
-graph LR
+flowchart LR
     Actor -->|performs| Activity
     Activity -->|on| Object
     Activity -->|from| Origin
@@ -45,7 +53,7 @@ Vultron protocol. These are described in the following sections:
 
 <div class="grid cards" markdown>
 
-- :material-bolt: [**Objects**](objects.md) specific to the Vultron AS vocabulary
+- :material-bolt: [**Objects**](../../reference/activitypub/objects.md) specific to the Vultron AS vocabulary
 - :material-wrench: [**Activities**](activities/index.md) used in the Vultron AS vocabulary
 
 </div>

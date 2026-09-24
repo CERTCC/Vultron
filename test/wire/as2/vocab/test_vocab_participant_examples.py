@@ -26,7 +26,6 @@ from vultron.wire.as2.vocab.base.objects.activities.transitive import (
     as_Remove,
 )
 from vultron.wire.as2.vocab.base.objects.actors import as_Service
-from vultron.wire.as2.vocab.base.objects.base import as_Object
 from vultron.wire.as2.vocab.objects.case_participant import as_CaseParticipant
 from vultron.wire.as2.vocab.objects.case_status import (
     as_CaseStatus,
@@ -40,7 +39,6 @@ from vultron.core.states.rm import RM
 class TestVocabParticipantExamples(unittest.TestCase):
     def test_case_participant(self):
         obj = examples.case_participant()
-        self.assertIsInstance(obj, as_Object)
         self.assertIsInstance(obj, as_CaseParticipant)
 
         self.assertIsNotNone(obj.id_)
@@ -72,7 +70,6 @@ class TestVocabParticipantExamples(unittest.TestCase):
 
     def test_participant_status(self):
         obj = examples.participant_status()
-        self.assertIsInstance(obj, as_Object)
         self.assertIsInstance(obj, as_ParticipantStatus)
 
         self.assertIsNotNone(obj.attributed_to)
@@ -317,7 +314,12 @@ class TestVocabParticipantExamples(unittest.TestCase):
         self.assertEqual(participant.attributed_to, coord_p.attributed_to)
         self.assertEqual(participant.name, coord_p.name)
         self.assertEqual(participant.context, case.id_)
-        self.assertEqual(activity.origin, case.id_)
+        # `target`, not `origin`: RemoveCaseParticipantFromCasePattern
+        # discriminates on target_ and ActivityPattern has no origin_ field, so an
+        # origin-only Remove matches no pattern and never dispatches. This
+        # assertion previously required `origin` and so locked in the defect
+        # (#3438); test_vocab_examples_dispatchable.py is the ratchet now.
+        self.assertEqual(activity.target, case.id_)
 
 
 if __name__ == "__main__":

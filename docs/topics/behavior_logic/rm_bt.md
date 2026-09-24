@@ -11,12 +11,20 @@ The behavioral requirements for this tree are specified in the
 - [RMB-12](../../reference/specs/protocol.md#rmb-12) — Enter RM Deferred
 - [RMB-13](../../reference/specs/protocol.md#rmb-13) — Enter RM Accepted
 - [RMB-14](../../reference/specs/protocol.md#rmb-14) — Enter RM Closed
+- [RMB-15](../../reference/specs/protocol.md#rmb-15) — RM Write-Boundary Transition Validation
 
 !!! note "Implementation approach"
 
     The behavior tree diagram below illustrates one conformant implementation of these requirements.
     Implementations are not required to use behavior trees — any approach that satisfies the
     requirements above is conformant.
+
+!!! note "Legacy design diagram"
+
+    The diagram on this page reflects the simulator-era design from `vultron/bt/` and may not
+    match the current implementation in `vultron/core/behaviors/`.
+    See the [Behaviors Reference](../../reference/behaviors/index.md) for
+    auto-generated documentation from the current implementation.
 
 A Behavior Tree for the Report Management model is shown in the figure below.
 The Report Management process is represented by a Fallback node. Note

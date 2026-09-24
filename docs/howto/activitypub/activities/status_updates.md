@@ -1,124 +1,117 @@
-# Status Updates and Comments
+---
+stakeholder_type: [platform-developer]
+level: 300
+---
 
-{% include-markdown "../../../includes/not_normative.md" %}
+# How to Post a Status Update or a Case Note
 
-Here we have a number of activities that are used to update the status of a
-case, or to add a comment to a case.
+Use this guide to tell the other participants something: that your fix is ready, that the vulnerability is now public, or anything that needs narrative rather than a state change.
+Each of these follows the same two-step shape — `as:Create` mints the object and `as:Add` attaches it.
+You finish with the update committed to the case ledger and replicated to every participant.
 
-```mermaid
-flowchart TB
-    subgraph as:Add
-        AddNoteToCase
-        AddStatusToCase
-        AddStatusToParticipant
-    end
-    subgraph as:Create
-        CreateNote
-        CreateParticipantStatus
-        CreateStatus
-    end
-    start([Start])
-    start -.-> CreateStatus
-    start -.-> CreateParticipantStatus
-    start -.-> CreateNote
-    CreateNote --> AddNoteToCase
-    CreateStatus --> AddStatusToCase
-    CreateParticipantStatus --> AddStatusToParticipant
-    AddStatusToParticipant -.-> AddStatusToCase
-    AddNoteToCase -.-> AddStatusToParticipant
-    AddNoteToCase -.-> AddStatusToCase
-```
+---
 
-!!! tip inline end "See also"
+## Prerequisites
 
-    Descriptions of the [`CaseStatus`](../objects.md#casestatus) and
-    [`ParticipantStatus`](../objects.md#participantstatus), and [`CaseParticipant`](../objects.md#caseparticipant)
-    objects can be found in the [Objects](../objects.md) section.
+{% include-markdown "./_demo_prerequisites.md" %}
 
-In addition to the Create/Add process for
-each of these, there are sometimes additional activities that are triggered in
-response to a status update or a comment:
+- A case you are seated on, and your own `CaseParticipant` record.
+- For a participant status, the dimension you are reporting: `vf_state` and `d_state` apply only to a Vendor or a Deployer.
 
-- A status update to a participant can trigger a status update to the case.
-- A note might trigger a status update to a case or a participant.
+---
 
-!!! tip "A Note on `as:Notes`"
+## Report your own progress
 
-    The ActivityStreams vocabulary includes an [`as:Note`](../objects.md) object, which is
-    used to represent a comment or short post. We use this object to represent 
-    comments on a case.
+Use a participant status for anything that is true of you rather than of the case.
 
-!!! tip "Create *then* Add vs Create with a Target"
+Vendor Awareness (CV), Fix Readiness (CF) and Fix Deployed (CD) are all implemented in ActivityStreams as `Add(ParticipantStatus)`.
+Which one you are sending is determined by the field you set, not by a different activity.
 
-    In this documentation, we use the `as:Create` activity to represent the 
-    creation of a new object, such as a new note or a new status. We use the 
-    `as:Add` activity to represent the addition of an existing object to another 
-    object, such as adding a status to a case.
+In every case, first send `Create(ParticipantStatus)` carrying the new value, then send `Add(ParticipantStatus)` targeting your own participant record.
 
-    However, it is likely acceptable within an ActivityPub implementation to
-    use the `as:Create` activity for both cases, since the `as:Create` activity
-    includes a `target` property that can be used to specify the object to
-    which the new object is being added.
+### Report that a vendor now knows
 
-    Sinilarly, it may also be acceptable to use the `as:Add` activity to
-    represent the creation of a new object, since the `as:Add` activity
-    includes a `object` property that can be used to specify the object that
-    is being created along with the `target` property that can be used to
-    specify the object to which the new object is being added.
+Set `vf_state` from `vf` to `Vf`.
+That is Vendor Awareness (CV).
 
-## Create Status
+### Report that a fix is ready
 
-```python exec="true" idprefix=""
-from vultron.wire.as2.vocab.examples.vocab_examples import create_case_status, json2md
+Set `vf_state` from `Vf` to `VF`.
+That is Fix Readiness (CF).
 
-print(json2md(create_case_status()))
-```
+### Report that a fix is deployed
 
-## Add Status to Case
+Set `d_state` from `d` to `D`.
+That is Fix Deployed (CD).
 
-```python exec="true" idprefix=""
-from vultron.wire.as2.vocab.examples.vocab_examples import add_status_to_case, json2md
+Send only your own status.
+Participant status is self-declaratory, so a participant asserting another participant's state is a protocol violation outside the narrow externally-evidenced exceptions (ADR-0084).
 
-print(json2md(add_status_to_case()))
-```
+---
 
-## Create Participant Status
+## Report something true of the case
 
-```python exec="true" idprefix=""
-from vultron.wire.as2.vocab.examples.vocab_examples import create_participant_status, json2md
+Use a case status for public awareness, exploit publication, and observed attacks — the dimensions that are properties of the vulnerability rather than of any one participant.
 
-print(json2md(create_participant_status()))
-```
+Public Awareness (CP), Exploit Public (CX) and Attacks Observed (CA) are all implemented in ActivityStreams as `Add(CaseStatus)`.
+All three set `pxa_state`; which one you are sending is determined by which letter in it changes case.
 
-## Add Status to Participant
+In every case, first send `Create(CaseStatus)` carrying the new `pxa_state` and naming the case in `context`, then send `Add(CaseStatus)` naming the case in `target`.
 
-```python exec="true" idprefix=""
-from vultron.wire.as2.vocab.examples.vocab_examples import add_status_to_participant, json2md
+### Report that the vulnerability is public
 
-print(json2md(add_status_to_participant()))
-```
+Change `p` to `P` in `pxa_state`.
+That is Public Awareness (CP).
 
-## Create Note
+### Report that an exploit is public
 
-```python exec="true" idprefix=""
-from vultron.wire.as2.vocab.examples.vocab_examples import create_note, json2md
+Change `x` to `X`.
+That is Exploit Public (CX).
 
-print(json2md(create_note()))
-```
+### Report that attacks are happening
 
-## Add Note to Case
+Change `a` to `A`.
+That is Attacks Observed (CA).
 
-```python exec="true" idprefix=""
-from vultron.wire.as2.vocab.examples.vocab_examples import add_note_to_case, json2md
+The state change hangs off the `Add`, because that is the activity that asserts the attachment.
 
-print(json2md(add_note_to_case()))
-```
+!!! warning "The case goes in `context` on the `Create` and `target` on the `Add`"
 
-## Demo
+    That asymmetry is what the two patterns discriminate on: `Create(CaseStatus)` is recognized by its `context`, `Add(CaseStatus)` by its `target`.
+    A `Create(CaseStatus)` that names the case in `target` instead matches neither pattern — it dispatches as unrecognized and the state change never happens.
+    Send the `Add`, with the status inline if you prefer one activity to two.
+
+---
+
+## Post a note to the case
+
+Use a note when the case needs narrative that no status field carries — a question, an answer, or a condition that needs human attention.
+A note goes to the case participants, not to the public.
+
+1. Draft the note: send `Create(Note)` with the note body.
+2. Post it to the case: send `Add(Note)`, targeting the case.
+
+The formal message set does not name this activity: it falls under the General Inquiry (GI) umbrella, which is a placeholder rather than a description — see [Why `GI` expands](../../../topics/activity_vocabulary_design.md#why-gi-expands-and-why-the-expansion-has-no-end).
+
+If the note is a fault report rather than ordinary case discussion, see [How to Report a Protocol Fault](error.md).
+
+---
+
+## Verify
+
+| What you sent | What to confirm |
+|---|---|
+| `Add(ParticipantStatus)` | Your participant record carries the new status, on every replica. |
+| `Add(CaseStatus)` | The case status carries the new `pxa_state`, on every replica. |
+| `Add(Note)` | The note appears on the case. |
+
+Each of these is committed by the CASE_MANAGER and fanned out, so checking your own store alone does not confirm the update landed.
+
+---
+
+## See it end to end
 
 !!! example "Try it: `vultron-demo status-updates`"
-
-    Run this workflow end-to-end with the unified demo CLI:
 
     ```bash
     vultron-demo status-updates
@@ -129,3 +122,14 @@ print(json2md(add_note_to_case()))
     ```bash
     DEMO=status-updates docker compose -f docker/docker-compose.yml run --rm demo
     ```
+
+    The scenario adds a note, a case status, and a participant status.
+
+---
+
+## Further reading
+
+- [Case State (CS) Messages](../../../reference/messages/cs.md) — the wire format and a rendered example for each status activity, and which dimensions are participant-scoped
+- [General Inquiry (GI) Messages](../../../reference/messages/general.md) — the wire format for the note lifecycle
+- [Vultron AS Objects](../../../reference/activitypub/objects.md) — the ActivityStreams (AS) `CaseStatus`, `ParticipantStatus`, and `CaseParticipant` objects these activities carry
+- [Activity Vocabulary Design](../../../topics/activity_vocabulary_design.md) — why the `Create` and `Add` split exists, and when an implementation may send only the `Add`

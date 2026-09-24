@@ -1,9 +1,14 @@
+---
+stakeholder_type: [cvd-practitioner, platform-developer]
+level: 300
+---
+
 # Vultron Process Models
 
 !!! info inline end "Vultron Process Models"
 
     ```mermaid
-    graph TD
+    flowchart TD
         RM[[Report Management]]
         EM[[Embargo Management]]
         CS[[Case State]]
@@ -30,7 +35,7 @@ each running these processes in parallel and interacting with each other.
 ---
 title: Vultron Protocol Agents Interacting
 ---
-graph LR
+flowchart LR
     subgraph Agent2
         RM2[[Report Management]]
         EM2[[Embargo Management]]

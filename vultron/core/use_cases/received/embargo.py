@@ -17,7 +17,7 @@ from vultron.core.models.events.embargo import (
     RejectInviteToEmbargoOnCaseReceivedEvent,
     RemoveEmbargoEventFromCaseReceivedEvent,
 )
-from vultron.core.models._helpers import _as_id
+from vultron.core.models._helpers import _as_id, claimed_published_iso
 from vultron.core.ports.case_persistence import (
     CasePersistence,
     CaseOutboxPersistence,
@@ -483,6 +483,15 @@ class AcceptInviteToEmbargoOnCaseReceivedUseCase:
                 "type": "Lapse",
                 "actor": accepting_actor_id,
                 "context": case_id,
+                # The lapse is CaseActor-synthesised (CM-28-009) but the
+                # snapshot is attributed to the accepting participant, so its
+                # claimed time must come from that participant's own clock —
+                # the triggering Accept — not the CaseActor's.  Mixing the two
+                # inside one actor's claimed stream is what CLP-15-003 reads as
+                # a regression.  ``include_activity=True`` on the
+                # ACCEPT_INVITE_TO_EMBARGO_ON_CASE registry entry guarantees the
+                # activity is present; the fallback is defence in depth.
+                "published": claimed_published_iso(self._request.activity),
                 "object": {
                     "type": "Invite",
                     "id": invite_id or case_id,
@@ -518,7 +527,10 @@ class AcceptInviteToEmbargoOnCaseReceivedUseCase:
             else None
         )
 
-        if em_state == EM.ACTIVE and active_embargo_id == embargo_id:
+        if (
+            em_state in (EM.ACTIVE, EM.REVISE)
+            and active_embargo_id == embargo_id
+        ):
             # AC-2 of #2213: current embargo still matches — honor.
             service.record_participant_consent(
                 case_id=case_id,
@@ -578,12 +590,20 @@ class AcceptInviteToEmbargoOnCaseReceivedUseCase:
                     active_embargo_id,
                 )
             else:
-                logger.warning(
-                    "accept_invite_to_embargo_on_case: late Accept for"
-                    " stale embargo on case '%s' — trigger_activity"
-                    " unavailable, re-invite not emitted",
-                    case_id,
-                )
+                if not active_embargo_id:
+                    logger.warning(
+                        "accept_invite_to_embargo_on_case: late Accept for"
+                        " case '%s' in EM.%s — no active embargo to re-invite to",
+                        case_id,
+                        em_state.name,
+                    )
+                else:
+                    logger.warning(
+                        "accept_invite_to_embargo_on_case: late Accept for"
+                        " stale embargo on case '%s' — trigger_activity"
+                        " unavailable, re-invite not emitted",
+                        case_id,
+                    )
 
         else:
             # AC-4 of #2213: EM EXITED or NONE — ack no-op.

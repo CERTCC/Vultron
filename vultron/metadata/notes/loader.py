@@ -7,25 +7,16 @@ from __future__ import annotations
 
 from pathlib import Path
 
-import frontmatter
-
+from vultron.metadata.base import repo_root as _find_repo_root
+from vultron.metadata.file_loading import (
+    MetadataLoadError,
+    display_path,
+    load_frontmatter,
+    validate,
+)
 from vultron.metadata.notes.schema import NotesFrontmatter
 
 SKIP_FILES = {"README.md"}
-
-
-def _find_repo_root(start: Path | None = None) -> Path:
-    """Return the repository root by searching upward for ``pyproject.toml``.
-
-    Satisfies NF-03-005: works regardless of the caller's working directory.
-    """
-    origin = start or Path.cwd()
-    for parent in [origin, *origin.parents]:
-        if (parent / "pyproject.toml").exists():
-            return parent
-    raise FileNotFoundError(
-        f"Could not locate repository root (pyproject.toml) starting from {origin}"
-    )
 
 
 def load_notes_registry(
@@ -42,8 +33,9 @@ def load_notes_registry(
         to validated :class:`NotesFrontmatter` instance.
 
     Raises:
-        ValueError: If a notes file is missing frontmatter or its frontmatter
-            fails schema validation.
+        MetadataLoadError: If a notes file's frontmatter is missing, malformed,
+            or fails schema validation. Names the file (NF-03-006); a
+            ``ValueError`` subclass, so the NF-03-003 contract holds.
         FileNotFoundError: If the repository root cannot be resolved.
     """
     root = repo_root or _find_repo_root()
@@ -54,11 +46,15 @@ def load_notes_registry(
         if path.name in SKIP_FILES:
             continue
 
-        post = frontmatter.load(str(path))
+        post = load_frontmatter(path, root=root)
         if not post.metadata:
-            raise ValueError(f"{path}: missing YAML frontmatter")
+            raise MetadataLoadError(
+                "missing YAML frontmatter", path=display_path(path, root)
+            )
 
         key = str(path.relative_to(root))
-        registry[key] = NotesFrontmatter.model_validate(post.metadata)
+        registry[key] = validate(
+            NotesFrontmatter, post.metadata, path=path, root=root
+        )
 
     return registry

@@ -1,4 +1,37 @@
+---
+stakeholder_type: [platform-developer, project-contributor]
+level: 400
+---
+
 # Modeling an MPCVD AI Using Behavior Trees
+
+These pages document the original Vultron Protocol behavior tree design for Multi-Party Coordinated Vulnerability Disclosure (MPCVD).
+They are retained for two reasons.
+They are the formal behavioral specification of what a Participant does at each step, and they record the design reasoning the protocol rests on.
+They are not a walkthrough of the reference implementation, which realizes this design in `vultron/core/behaviors/`.
+
+## Three views of the same behavior
+
+We document behavior from three directions, and each direction answers a different question.
+
+| View | Question it answers | Where |
+|---|---|---|
+| Original design | What behavior does the protocol call for, and why is it shaped this way? | The behavior tree pages in this section |
+| Use-case behavior structure | For one coordination use case, what is decided mechanically, what is delegated outside the protocol, and what messages result? | [Use-Case Behavior](use-cases/index.md) |
+| Current implementation | What trees does the reference implementation build today? | [Behaviors Reference](../../reference/behaviors/index.md) |
+
+The design pages carry the intent.
+The use-case pages give the shape of a single coordination step.
+The reference pages give the tree the prototype actually runs.
+
+## Where judgment enters
+
+Some task nodes on these design pages stand for a decision the protocol cannot make by itself — whether a report is credible, whether embargo terms are acceptable, whether an advisory is ready to publish.
+Each of those is a **call-out point**: a location where an actor must obtain a judgment, a fact, or an artifact from outside the protocol ([ADR-0024](../../adr/0024-coordination-agent-taxonomy.md)).
+The [Use-Case Behavior](use-cases/index.md) pages name the call-out points for each use case and say what decision each one represents.
+The injection seam that lets a deployment answer a call-out point with a real service instead of a stub is recorded in [ADR-0025](../../adr/0025-call-out-point-abstraction-layer.md), and the service contracts are described in the [Capability Model](../capability_model/index.md).
+
+---
 
 !!! info "Normative requirements for the behaviors described here"
 

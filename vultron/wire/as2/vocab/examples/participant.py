@@ -40,6 +40,10 @@ from vultron.wire.as2.factories import (
     rm_invite_to_case_activity,
     rm_reject_invite_to_case_activity,
 )
+from vultron.core.models.dimensions import (
+    RmDimension,
+    VfDimension,
+)
 
 
 def _participant_for(
@@ -47,16 +51,37 @@ def _participant_for(
     case_roles: list[CVDRole],
     participant_statuses: list[as_ParticipantStatus] | None = None,
 ) -> as_CaseParticipant:
-    """Build the case-participant record wrapping *actor* in the example case."""
+    """Build the case-participant record wrapping *actor* in the example case.
+
+    ``participant_statuses`` is omitted rather than passed as ``[]`` when the
+    caller supplies none, so that ``_init_participant_status_if_empty`` seeds the
+    opening status.  A participant with an empty status list has no RM state at
+    all, which is not a participant any example should show.
+
+    The distinction only started to matter when ``as_CaseParticipant`` became the
+    core class: the wire class seeded in a ``mode="after"`` validator, which ran
+    regardless, while core seeds in ``mode="before"`` and — correctly — treats an
+    explicit ``[]`` as the caller's decision.  Passing the key unconditionally was
+    therefore silently suppressing the seed.
+    """
     _case = case()
     shortname = actor.id_.split("/")[-1]
+    participant_id = f"{_case.id_}/participants/{shortname}"
+    if participant_statuses:
+        return as_CaseParticipant(
+            id_=participant_id,
+            name=actor.name,
+            attributed_to=actor.id_,
+            context=_case.id_,
+            case_roles=case_roles,
+            participant_statuses=participant_statuses,
+        )
     return as_CaseParticipant(
-        id_=f"{_case.id_}/participants/{shortname}",
+        id_=participant_id,
         name=actor.name,
         attributed_to=actor.id_,
         context=_case.id_,
         case_roles=case_roles,
-        participant_statuses=participant_statuses or [],
     )
 
 
@@ -68,8 +93,8 @@ def vendor_participant() -> as_CaseParticipant:
     _pstatus = as_ParticipantStatus(
         context=_case.id_,
         attributed_to=_vendor.id_,
-        rm_state=RM.RECEIVED,
-        vf_state=CS_vf.Vf,
+        rm=RmDimension(state=RM.RECEIVED),
+        vf=VfDimension(state=CS_vf.Vf),
     )
     return _participant_for(_vendor, [CVDRole.VENDOR], [_pstatus])
 
@@ -221,7 +246,10 @@ def remove_participant_from_case():
     activity = remove_participant_from_case_activity(
         coord_p,
         actor=_vendor.id_,
-        origin=_case.id_,
+        # `target`, not `origin`: RemoveCaseParticipantFromCasePattern
+        # discriminates on target_, and ActivityPattern has no origin_ field, so
+        # an origin-only Remove matches no pattern and never dispatches (#3438).
+        target=_case.id_,
         summary="Vendor is removing the coordinator from the case.",
     )
     return activity

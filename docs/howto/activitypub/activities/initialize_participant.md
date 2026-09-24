@@ -1,45 +1,75 @@
-# Initializing a CaseParticipant
+---
+stakeholder_type: [platform-developer]
+level: 300
+---
 
-{% include-markdown "../../../includes/not_normative.md" %}
+# How to Seat a Participant on an Existing Case
 
-It may not always be necessary to generate a new `CreateParticipant` activity when creating a new `VulnerabilityCase`
-object. It is possible to create a new `VulnerabilityCase` object and add a new `CaseParticipant` object to it in a
-single `Create` activity.
+Use this guide when an actor has already agreed to join a case and you need to seat it.
+Seating is two activities: mint a `CaseParticipant` record, then attach it to the case.
+You finish with the actor on the case roster, holding the roles you assigned.
 
-However, there times when all the case participants are not known at the time the case is created. For example, a
-finder might report a vulnerability to a coordinator, who then creates a new case. The relevant vendors might not be
-known at the time the case is created, but they might be added later. In this scenario, the coordinator would create the
-case with just the coordinator and the finder/reporter to start, and then add the vendors as participants in separate
-steps as they are identified.
+---
 
-!!! question "What's the difference between a Case Participant and an Actor?"
+## Prerequisites
 
-    ActivityStreams actor objects are used to represent long-lived identities of people, organizations, groups, or 
-    software agents.
-    The `CaseParticipant` object is a wrapper around an `as:Actor` object that associates the actor with a specific
-    `VulnerabilityCase` object. 
-    This is done so that an actor can be associated with multiple cases, each with 
-    different roles and statuses contextual to the individual cases.
+{% include-markdown "./_demo_prerequisites.md" %}
+
+- An existing case, and the Case Owner role on it.
+- The actor's Uniform Resource Identifier (URI), and its agreement to join.
+  An actor that has not agreed is invited, not seated — see [How to Invite an Actor to a Case](invite_actor.md).
+- The set of roles the actor will hold on this case.
+
+---
+
+## The exchange
+
+The flowchart below shows the two activities in order.
+The `Create` mints the per-case binding; the `Add` attaches it to the case.
 
 ```mermaid
+---
+title: Seating a Participant on an Existing Case
+---
 flowchart LR
     subgraph as:Create
-        CreateParticipant
+        CreateParticipant["Create Case Participant<br/>Create(CaseParticipant)"]
     end
     subgraph as:Add
-        AddParticipantToCase
+        AddParticipantToCase["Add Case Participant to Case<br/>Add(CaseParticipant)"]
     end
     CreateParticipant --> AddParticipantToCase
 ```
 
-{% include-markdown "./_create_participant.md" heading-offset=1 %}
-{% include-markdown "./_add_participant_to_case.md" heading-offset=1 %}
+---
 
-## Demo
+## Seat the participant
+
+1. Send `Create(CaseParticipant)`, carrying a `CaseParticipant` that wraps the actor and names its roles on this case.
+   Name the case in `context` — dispatch discriminates on it, so a `Create` without it matches no pattern.
+2. Send `Add(CaseParticipant)`, naming the case in `target`.
+
+If the participant's opening status is already known, carry it inline on the `CaseParticipant` object rather than sending a separate status pair.
+A fully expanded seating is four activities; an inline one is a single `Add`, and both express the same outcome.
+
+If all participants are known when the case is created, seat them inline on the `Create(VulnerabilityCase)` activity instead — see [How to Initialize a Case](initialize_case.md).
+
+!!! note "The binding is per case"
+
+    A `CaseParticipant` binds one `as:Actor` to one `VulnerabilityCase`, so the same long-lived actor identity can hold different roles and statuses in each case it works.
+    Seat the actor again, with its own `CaseParticipant`, for each case.
+
+---
+
+## Verify
+
+The case roster holds the new `CaseParticipant` with the roles you assigned, and the seating appears as a ledger entry on every participant's replica.
+
+---
+
+## See it end to end
 
 !!! example "Try it: `vultron-demo initialize-participant`"
-
-    Run this workflow end-to-end with the unified demo CLI:
 
     ```bash
     vultron-demo initialize-participant
@@ -50,3 +80,11 @@ flowchart LR
     ```bash
     DEMO=initialize-participant docker compose -f docker/docker-compose.yml run --rm demo
     ```
+
+---
+
+## Further reading
+
+- [Case Management Messages](../../../reference/messages/case_management.md) — the wire format and a rendered example for both activities above
+- [Vultron AS Objects](../../../reference/activitypub/objects.md#caseparticipant) — the ActivityStreams (AS) `CaseParticipant` object these activities carry
+- [Activity Vocabulary Design](../../../topics/activity_vocabulary_design.md) — why the binding is per case, and when to collapse the two activities into one

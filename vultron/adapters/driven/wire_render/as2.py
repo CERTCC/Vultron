@@ -19,13 +19,13 @@
 Translates a core domain object to its wire-layer counterpart via:
 
 1. Vocabulary lookup — ``WIRE_TYPE_MAP.get(type(obj).__name__)``
-2. Wire-counterpart guard — ``issubclass(wire_cls, VultronAS2Object)``
+2. Wire-counterpart guard — ``issubclass(wire_cls, as_VultronObject)``
 3. ``wire_cls.from_core(obj)``
 4. ``model_dump(by_alias=True, exclude_none=True, mode="json")``
 
 Raises :exc:`~vultron.errors.VultronValidationError` when the core type
 has no wire counterpart or the counterpart does not extend
-:class:`~vultron.wire.as2.vocab.objects.base.VultronAS2Object`
+:class:`~vultron.wire.as2.vocab.objects.base.as_VultronObject`
 (ARCH-20-003).
 
 This module lives under ``vultron/adapters/`` so that ``vultron/core/``
@@ -41,9 +41,11 @@ Per ``specs/architecture.yaml`` ARCH-20-001 through ARCH-20-004.
 
 from typing import Any
 
+from vultron.core.models.base import CoreObject
+
 from vultron.errors import VultronValidationError
 from vultron.wire.as2.vocab.base.registry import WIRE_TYPE_MAP
-from vultron.wire.as2.vocab.objects.base import VultronAS2Object
+from vultron.wire.as2.vocab.objects.base import as_VultronObject
 
 
 class As2WireRenderAdapter:
@@ -60,7 +62,7 @@ class As2WireRenderAdapter:
 
         Looks up the wire counterpart in ``WIRE_TYPE_MAP`` by
         ``type(obj).__name__``, verifies it is a
-        :class:`~vultron.wire.as2.vocab.objects.base.VultronAS2Object`
+        :class:`~vultron.wire.as2.vocab.objects.base.as_VultronObject`
         (the only class with ``from_core()``), then returns the camelCase
         dict.
 
@@ -76,16 +78,40 @@ class As2WireRenderAdapter:
         Raises:
             :exc:`~vultron.errors.VultronValidationError`: When ``obj``'s
                 type is not in the wire vocabulary or the wire counterpart
-                does not extend ``VultronAS2Object`` (ARCH-20-003).
+                does not extend ``as_VultronObject`` (ARCH-20-003).
         """
         type_name = type(obj).__name__
         wire_cls = WIRE_TYPE_MAP.get(type_name)
 
-        if wire_cls is None or not issubclass(wire_cls, VultronAS2Object):
-            raise VultronValidationError(
-                f"No wire counterpart for core type {type_name!r}."
+        if wire_cls is not None and issubclass(wire_cls, as_VultronObject):
+            return wire_cls.from_core(obj).model_dump(
+                by_alias=True, exclude_none=True, mode="json"
             )
 
-        return wire_cls.from_core(obj).model_dump(
-            by_alias=True, exclude_none=True, mode="json"
-        )
+        # Core types that have no wire wrapper (ADR-0099 detail 3): render the
+        # domain object directly.
+        #
+        # Gated on ``CoreObject``, not ``BaseModel``. ``isinstance(obj, BaseModel)``
+        # asks "is this a Pydantic model", which is not the question — every core
+        # class passes it, including ones that serialize to something that is not
+        # valid AS2. ``VultronOfferRecord`` extends ``VultronObject`` directly, so it
+        # carries neither the inherited ``alias_generator`` nor ``@context``:
+        # rendering it emitted ``offer_id``/``offer_actor_id``/``report_id`` in
+        # snake_case with no context, where before ADR-0099 it raised. Worse, those
+        # keys are read back via ``wire_key`` as ``offerId``/``offerActorId``, so a
+        # record that leaked into a ledger snapshot produced keys no reader finds —
+        # the silent-drop failure ``wire_keys`` documents as "worse than failing".
+        #
+        # ``CoreObject`` is the type that guarantees AS2-representability, because
+        # the generator and the ``@context`` serializer both live on it, and
+        # ``test_promoted_core_classes_are_exactly_as2_representable`` holds every
+        # subclass to it. So it fails closed as ARCH-20-003 (MUST) requires, rather
+        # than on "did someone remember".
+        if not isinstance(obj, CoreObject):
+            raise VultronValidationError(
+                f"No wire counterpart for core type {type_name!r}, and it is not"
+                " a CoreObject, so it has no AS2 spelling for its fields."
+                " Rendering it would emit Python field names and omit @context"
+                " (ARCH-20-003, VM-10-001)."
+            )
+        return obj.model_dump(by_alias=True, exclude_none=True, mode="json")

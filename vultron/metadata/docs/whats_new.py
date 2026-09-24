@@ -34,10 +34,15 @@ Usage (in a markdown-exec Python block)::
 from __future__ import annotations
 
 import datetime
+import functools
 import posixpath
 import subprocess
 from collections.abc import Iterable
 from pathlib import Path
+
+import pathspec
+
+from vultron.metadata.base import mkdocs_config
 
 # The source path of the page that hosts the generated list. Used as the base
 # for computing relative URLs to each listed page.
@@ -48,31 +53,51 @@ WHATS_NEW_PAGE = "docs/about/whats_new.md"
 NO_PAGES_MESSAGE = "_No pages added in the last 90 days._"
 
 
-# Draft pages that MkDocs excludes from the production build (``draft_docs`` in
-# mkdocs.yml) have no built page, so linking to one 404s. Keep this in sync with
-# mkdocs.yml draft_docs, which lists ``draft-*.md`` (with a single un-drafted
-# exception) and the ``developer/`` tree (maintainer pages, DOCBW-03-004). Pages
-# in ``not_in_nav`` are still built and reachable by URL, so they are NOT excluded.
-_DRAFT_EXCEPTIONS = frozenset({"reference/draft-vultron-spec.md"})
-_DRAFT_DIRS = ("developer/",)
+@functools.lru_cache(maxsize=1)
+def _unpublished_spec() -> pathspec.gitignore.GitIgnoreSpec:
+    """Return a matcher for the `docs/`-relative paths MkDocs does not build.
+
+    Read from ``mkdocs.yml``'s ``draft_docs`` and ``exclude_docs`` rather than
+    mirrored here. This function used to be a hand-maintained tuple carrying
+    ``developer/`` and a "keep this in sync with mkdocs.yml draft_docs" comment,
+    and #3549 is what that invitation cost: adding ``ns/`` to ``draft_docs``
+    withheld the page from the build while this list kept advertising it, so the
+    rendered What's New entry linked to ``../../ns/`` and 404'd.
+
+    `mkdocs build --strict` cannot catch that. This page's list is emitted by a
+    ``markdown-exec`` block, whose links MkDocs never parses and therefore never
+    validates, so the only gate that sees them is `linkchecker` over the built
+    ``site/`` in CI. A declaration mirrored by hand and checkable only in CI is
+    the combination to avoid — hence deriving it.
+
+    Uses the same ``GitIgnoreSpec`` matcher MkDocs applies in
+    ``mkdocs.structure.files.set_exclusions``, so the semantics cannot drift from
+    the build's.
+
+    Pages in ``not_in_nav`` are deliberately **not** excluded: they are built and
+    reachable by URL, just absent from the nav.
+    """
+    config = mkdocs_config()
+    lines: list[str] = []
+    for key in ("draft_docs", "exclude_docs"):
+        value = config.get(key)
+        if isinstance(value, str):
+            lines.extend(value.splitlines())
+    return pathspec.gitignore.GitIgnoreSpec.from_lines(lines)
 
 
 def _is_published(path: str) -> bool:
     """Whether MkDocs builds a production page for this source path.
 
     Excludes underscore-prefixed segments and ``includes/`` (never standalone
-    pages), ``draft-*`` files, and the ``developer/`` tree — all dropped from the
-    production build by mkdocs.yml ``draft_docs``, so a link to any would 404.
+    pages), plus anything ``mkdocs.yml`` marks ``draft_docs`` or ``exclude_docs``
+    — a link to any of those 404s on the built site.
     """
     rel = path.removeprefix("docs/")
     parts = rel.split("/")
     if any(p.startswith("_") for p in parts) or "includes" in parts:
         return False
-    if rel in _DRAFT_EXCEPTIONS:
-        return True
-    if rel.startswith(_DRAFT_DIRS):
-        return False
-    return not posixpath.basename(rel).startswith("draft-")
+    return not _unpublished_spec().match_file(rel)
 
 
 def _title_for(path: str) -> str:

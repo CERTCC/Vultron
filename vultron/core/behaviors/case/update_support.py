@@ -28,6 +28,7 @@ from vultron.core.ports.case_persistence import (
     CasePersistence,
 )
 from vultron.core.models._helpers import _as_id
+from vultron.errors import VultronAlreadyExistsError
 
 logger = logging.getLogger(__name__)
 
@@ -131,7 +132,7 @@ def broadcast_case_update(
     )
     try:
         dl.create(broadcast)
-    except ValueError:
+    except VultronAlreadyExistsError:
         logger.debug(
             "update_case: broadcast activity %s already exists — skipping",
             broadcast.id_,

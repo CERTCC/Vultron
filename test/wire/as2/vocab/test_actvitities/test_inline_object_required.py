@@ -42,6 +42,7 @@ from vultron.wire.as2.vocab.activities.case import (
     _RmDeferCaseActivity,
     _RmEngageCaseActivity,
     _RmInviteToCaseActivity,
+    _RmRejectCloseCaseActivity,
     _RmRejectInviteToCaseActivity,
     _UpdateCaseActivity,
 )
@@ -112,7 +113,7 @@ from vultron.wire.as2.vocab.objects.case_status import (
 from vultron.wire.as2.vocab.objects.embargo_event import as_EmbargoEvent
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCase,
-    VulnerabilityCaseStub,
+    as_VulnerabilityCaseStub,
 )
 from vultron.wire.as2.vocab.objects.vulnerability_report import (
     as_VulnerabilityReport,
@@ -122,9 +123,14 @@ _ACTOR = as_Person(name="Alice")
 _CASE = as_VulnerabilityCase(name="Test Case")
 _REPORT = as_VulnerabilityReport(name="CVE-TEST-001")
 _NOTE = as_Note(name="Test Note")
-_STATUS = as_CaseStatus()
+# ``context`` is required: it names the case the status belongs to, and a status
+# with no case is not a thing the protocol can carry.  The deleted wire class
+# admitted it as absent, because the wire branch was deliberately lenient
+# (ARCH-12-002); the core class is fail-fast (ARCH-10-001) and is now the only
+# class.
+_STATUS = as_CaseStatus(context=_CASE.id_)
 _PARTICIPANT_STATUS = as_ParticipantStatus(context=_CASE.id_)
-_EMBARGO = as_EmbargoEvent(name="Embargo Event")
+_EMBARGO = as_EmbargoEvent(name="Embargo Event", context="urn:uuid:case-123")
 _PARTICIPANT = as_CaseParticipant(attributed_to=_ACTOR.id_)
 _LOG_ENTRY = as_CaseLedgerEntry(
     case_id=_CASE.id_,
@@ -133,11 +139,12 @@ _LOG_ENTRY = as_CaseLedgerEntry(
 )
 
 _SUBMIT = _RmSubmitReportActivity(actor=_ACTOR, object_=_REPORT)
-_STUB = VulnerabilityCaseStub(id_=_CASE.id_)
+_STUB = as_VulnerabilityCaseStub(id_=_CASE.id_)
 _INVITE = _RmInviteToCaseActivity(actor=_ACTOR, object_=_ACTOR, target=_STUB)
+_LEAVE = _RmCloseCaseActivity(actor=_ACTOR, object_=_CASE)
 _PROPOSE = _EmProposeEmbargoActivity(
     actor=_ACTOR,
-    object_=as_EmbargoEvent(name="Embargo Event"),
+    object_=as_EmbargoEvent(name="Embargo Event", context=_CASE.id_),
     context=_CASE.id_,
 )
 _RECOMMEND = _RecommendActorActivity(
@@ -202,6 +209,9 @@ class TestBareStringObjectRejected(unittest.TestCase):
     def test_rm_reject_invite_rejects_string(self):
         self._assert_string_rejected(_RmRejectInviteToCaseActivity)
 
+    def test_rm_reject_close_rejects_string(self):
+        self._assert_string_rejected(_RmRejectCloseCaseActivity)
+
     def test_em_accept_embargo_rejects_string(self):
         self._assert_string_rejected(_EmAcceptEmbargoActivity)
 
@@ -255,6 +265,10 @@ class TestInlineTypedObjectAccepted(unittest.TestCase):
     def test_rm_reject_invite_accepts_typed(self):
         obj = _RmRejectInviteToCaseActivity(actor=_ACTOR.id_, object_=_INVITE)
         assert isinstance(obj.object_, _RmInviteToCaseActivity)
+
+    def test_rm_reject_close_accepts_typed(self):
+        obj = _RmRejectCloseCaseActivity(actor=_ACTOR.id_, object_=_LEAVE)
+        assert isinstance(obj.object_, _RmCloseCaseActivity)
 
     def test_em_accept_embargo_accepts_typed(self):
         obj = _EmAcceptEmbargoActivity(actor=_ACTOR.id_, object_=_PROPOSE)

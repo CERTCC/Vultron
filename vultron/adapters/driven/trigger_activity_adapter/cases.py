@@ -16,9 +16,15 @@
 """Case-domain trigger activity construction for TriggerActivityAdapter."""
 
 import logging
-from typing import Any, cast
+from typing import Any
+
+from pydantic import ValidationError
 
 from vultron.core.ports.case_persistence import CaseOutboxPersistence
+from vultron.errors import (
+    VultronActivityConstructionError,
+    VultronAlreadyExistsError,
+)
 from vultron.wire.as2.factories import (
     create_case_activity,
     rm_defer_case_activity,
@@ -28,6 +34,7 @@ from vultron.wire.as2.factories.case import (
     add_status_to_case_activity,
     announce_vulnerability_case_activity,
     create_case_proposal_activity,
+    reject_case_proposal_activity,
 )
 from vultron.wire.as2.vocab.base.objects.activities.transitive import as_Add
 from vultron.wire.as2.vocab.objects.case_status import as_CaseStatus
@@ -35,7 +42,7 @@ from vultron.wire.as2.vocab.objects.vulnerability_report import (
     as_VulnerabilityReport,
 )
 
-from ._base import _DUMP_KWARGS, _case_for_wire, _to_wire
+from ._base import _DUMP_KWARGS, _case_for_wire, _to_wire, _to_wire_object
 
 logger = logging.getLogger(__name__)
 
@@ -56,7 +63,7 @@ class _CasesMixin:
         activity = create_case_activity(case=case, actor=actor, to=to)
         try:
             self._dl.create(activity)
-        except ValueError:
+        except VultronAlreadyExistsError:
             logger.warning(
                 "create_case: activity '%s' already exists — skipping",
                 activity.id_,
@@ -74,7 +81,7 @@ class _CasesMixin:
         activity = rm_engage_case_activity(case=case, actor=actor, to=to)
         try:
             self._dl.create(activity)
-        except ValueError:
+        except VultronAlreadyExistsError:
             logger.warning(
                 "engage_case: activity '%s' already exists — skipping",
                 activity.id_,
@@ -92,7 +99,7 @@ class _CasesMixin:
         activity = rm_defer_case_activity(case=case, actor=actor, to=to)
         try:
             self._dl.create(activity)
-        except ValueError:
+        except VultronAlreadyExistsError:
             logger.warning(
                 "defer_case: activity '%s' already exists — skipping",
                 activity.id_,
@@ -112,9 +119,46 @@ class _CasesMixin:
         activity = rm_close_case_activity(case=case, actor=actor, to=to)
         try:
             self._dl.create(activity)
-        except ValueError:
+        except VultronAlreadyExistsError:
             logger.warning(
                 "close_case: activity '%s' already exists — skipping",
+                activity.id_,
+            )
+        return activity.id_, activity.model_dump_json(**_DUMP_KWARGS)
+
+    def reject_close_case(
+        self,
+        case_id: str,
+        actor: str,
+        close_sender: str,
+        in_reply_to: str | None = None,
+    ) -> tuple[str, str]:
+        """Create and persist a ``Reject(Leave(VulnerabilityCase))`` activity.
+
+        Declines an owner's close while an embargo is active (CM-23-011).
+        The declined Leave is reconstructed from the case attributed to the
+        ``close_sender`` (the Case Owner), then wrapped in an ``as:Reject``
+        sent by ``actor`` (the Case Actor) back to the owner.  The inbound
+        Leave is not yet persisted when this runs (``StoreActivityNode`` runs
+        later in the tree), so the decline is threaded to it via
+        ``in_reply_to`` rather than read back from the DataLayer.
+        """
+        from vultron.wire.as2.factories import (
+            reject_close_case_activity,
+            rm_close_case_activity,
+        )
+
+        case = _case_for_wire(self._dl, case_id)
+        leave = rm_close_case_activity(case=case, actor=close_sender)
+        kwargs: dict[str, Any] = {"actor": actor, "to": [close_sender]}
+        if in_reply_to is not None:
+            kwargs["in_reply_to"] = in_reply_to
+        activity = reject_close_case_activity(leave=leave, **kwargs)
+        try:
+            self._dl.create(activity)
+        except VultronAlreadyExistsError:
+            logger.warning(
+                "reject_close_case: activity '%s' already exists — skipping",
                 activity.id_,
             )
         return activity.id_, activity.model_dump_json(**_DUMP_KWARGS)
@@ -125,13 +169,28 @@ class _CasesMixin:
         object_id: str,
         case_id: str,
     ) -> tuple[str, str]:
-        """Create and persist an ``Add(object, Case)`` activity."""
+        """Create and persist an ``Add(object, Case)`` activity.
+
+        The object may be of any stored type; :func:`_to_wire_object` resolves
+        it to the object the activity carries.
+
+        Raises:
+            VultronNotFoundError: when *object_id* is not in the DataLayer.
+            VultronActivityConstructionError: when the object has no wire
+                representation or the ``Add`` cannot be constructed with it.
+        """
         case = _case_for_wire(self._dl, case_id)
-        obj = cast(Any, self._dl.read(object_id))
-        activity = as_Add(actor=actor, object_=obj, target=case)
+        obj = _to_wire_object(self._dl.read(object_id), object_id)
+        try:
+            activity = as_Add(actor=actor, object_=obj, target=case)
+        except ValidationError as exc:
+            raise VultronActivityConstructionError(
+                f"add_object_to_case: object '{object_id}' of type"
+                f" {type(obj).__name__!r} cannot be carried in an Add activity"
+            ) from exc
         try:
             self._dl.create(activity)
-        except ValueError:
+        except VultronAlreadyExistsError:
             logger.warning(
                 "add_object_to_case: activity '%s' already exists — skipping",
                 activity.id_,
@@ -158,7 +217,7 @@ class _CasesMixin:
         )
         try:
             self._dl.create(activity)
-        except ValueError:
+        except VultronAlreadyExistsError:
             logger.warning(
                 "add_case_status_to_case: activity '%s' already exists"
                 " — skipping",
@@ -218,7 +277,7 @@ class _CasesMixin:
         )
         try:
             self._dl.create(activity)
-        except ValueError:
+        except VultronAlreadyExistsError:
             logger.warning(
                 "announce_vulnerability_case: activity '%s' already exists"
                 " — skipping",
@@ -270,7 +329,7 @@ class _CasesMixin:
         # when the as_Create activity is read back from the DataLayer.
         try:
             self._dl.create(proposal)
-        except ValueError:
+        except VultronAlreadyExistsError:
             logger.debug(
                 "create_case_proposal: proposal '%s' already exists"
                 " — skipping",
@@ -284,9 +343,83 @@ class _CasesMixin:
         )
         try:
             self._dl.create(activity)
-        except ValueError:
+        except VultronAlreadyExistsError:
             logger.warning(
                 "create_case_proposal: activity '%s' already exists — skipping",
+                activity.id_,
+            )
+        return activity.id_, activity.model_dump_json(**_DUMP_KWARGS)
+
+    def reject_case_proposal(
+        self,
+        actor: str,
+        proposal: dict,
+        to: list[str] | None = None,
+        summary: str | None = None,
+    ) -> tuple[str, str]:
+        """Create and persist a ``Reject(as_CaseProposal)`` activity.
+
+        Rebuilds the ``as_CaseProposal`` from the wire dict the inbound
+        ``Create`` carried, so the Reject embeds the proposal inline exactly as
+        the vendor sent it (CP-05-004, AKM-03-001).
+
+        The proposal is persisted alongside the activity for the same reason
+        ``create_case_proposal`` persists it: storage dehydrates an inline
+        Activity sub-field to its URI, so the outbox expansion path resolves the
+        proposal by reading it back. Without the stored object the vendor would
+        receive a Reject whose ``object_`` is a bare URI it cannot dereference —
+        the AKM-03-001 failure that #2482 found on the Create side.  Storing an
+        activity payload is not case state; declining still creates no case,
+        participant, or ledger entry.
+
+        Per CP-05-002, CP-05-004.
+        """
+        from vultron.wire.as2.vocab.objects.case_proposal import (
+            as_CaseProposal,
+        )
+
+        # `attributed_to` is a required `NonEmptyString` (CP-01-003), so a
+        # proposal with no proposer is refused here rather than needing a
+        # downstream guard for a case that cannot reach one.
+        #
+        # Wrapped as a VultronError, the way the sibling factory wraps its own
+        # construction failures: the proposal is peer-supplied, so a malformed
+        # one is a protocol outcome.  A bare ValidationError crosses the port
+        # boundary as a non-VultronError, which BTBridge classifies as
+        # internal_error=True — reporting someone else's bad message as a fault
+        # in this service.
+        try:
+            wire_proposal = as_CaseProposal.model_validate(proposal)
+        except ValidationError as exc:
+            raise VultronActivityConstructionError(
+                "reject_case_proposal: the proposal to embed is not a valid"
+                " as_CaseProposal"
+            ) from exc
+        try:
+            self._dl.create(wire_proposal)
+        except VultronAlreadyExistsError:
+            logger.debug(
+                "reject_case_proposal: proposal '%s' already exists — skipping",
+                wire_proposal.id_,
+            )
+        # The proposing vendor is the only party owed the refusal.
+        recipients = (
+            to if to is not None else [str(wire_proposal.attributed_to)]
+        )
+        extra: dict[str, Any] = {}
+        if summary is not None:
+            extra["summary"] = summary
+        activity = reject_case_proposal_activity(
+            actor_id=actor,
+            proposal=wire_proposal,
+            to=recipients,
+            **extra,
+        )
+        try:
+            self._dl.create(activity)
+        except VultronAlreadyExistsError:
+            logger.warning(
+                "reject_case_proposal: activity '%s' already exists — skipping",
                 activity.id_,
             )
         return activity.id_, activity.model_dump_json(**_DUMP_KWARGS)

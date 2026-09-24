@@ -69,7 +69,7 @@ def _participant_payload(rm_state: RM) -> dict:
     return {
         "id": _PEER_PARTICIPANT_ID,
         "type": "CaseParticipant",
-        "actor": _PEER_ID,
+        "attributedTo": _PEER_ID,
         "context": _CASE_ID,
         "participantStatuses": [
             {

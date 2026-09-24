@@ -35,6 +35,7 @@ from vultron.demo.helpers.polling import (
     wait_for_initialized_case,
     wait_for_participant_rm_state,
 )
+from vultron.demo.actor_session import ActorSession
 from vultron.demo.utils import (
     seed_case_actor_for_report,
     DataLayerClient,
@@ -44,7 +45,6 @@ from vultron.demo.utils import (
     get_offer_from_datalayer,
     log_case_state,
     post_to_inbox_and_wait,
-    post_to_trigger,
     ref_id,
     verify_object_stored,
 )
@@ -160,17 +160,14 @@ def reporter_submits_report(
         with demo_step(
             "Reporter submits vulnerability report to receiver's inbox"
         ):
-            result = post_to_trigger(
-                client=reporter_client,
-                actor_id=reporter.id_,
-                behavior="submit-report",
-                body={
-                    "report_name": report_name,
-                    "report_content": report_content,
-                    "recipient_id": receiver.id_,
-                },
+            result = ActorSession(
+                client=reporter_client, actor=reporter
+            ).submit_report(
+                report_name=report_name,
+                report_content=report_content,
+                recipient_id=receiver.id_,
             )
-        offer_dict = result.get("offer", {}) if result is not None else {}
+        offer_dict = (result.offer or {}) if result is not None else {}
         report, offer = parse_submit_report_offer(offer_dict)
         # Deliver the offer from the reporter to the receiver's inbox.
         # Per ADR-0012 (per-actor DataLayer isolation) the trigger stores the
@@ -237,11 +234,11 @@ def receiver_validates_report(
     receiver_obj_id = parse_id(receiver.id_)["object_id"]
     result: dict = {}
     with demo_step("Receiver validates the vulnerability report"):
-        result = post_to_trigger(
-            client=receiver_client,
-            actor_id=receiver.id_,
-            behavior="validate-report",
-            body={"offer_id": offer_id},
+        result = (
+            ActorSession(client=receiver_client, actor=receiver)
+            .quiet()
+            .validate_report(offer_id=offer_id)
+            .model_dump(exclude_none=True)
         )
     logger.info("Validate-report trigger result for actor %s", receiver_obj_id)
     return result
@@ -270,11 +267,12 @@ def receiver_engages_case(
     receiver_obj_id = parse_id(receiver.id_)["object_id"]
     result: dict = {}
     with demo_step("Receiver engages the vulnerability case"):
-        result = post_to_trigger(
-            client=receiver_client,
-            actor_id=receiver.id_,
-            behavior="engage-case",
-            body={"case_id": case_id},
+        result = (
+            ActorSession(client=receiver_client, actor=receiver)
+            .with_case(as_VulnerabilityCase(id_=case_id))
+            .quiet()
+            .engage_case()
+            .model_dump(exclude_none=True)
         )
     logger.info("Engage-case trigger result for actor %s", receiver_obj_id)
     return result
@@ -714,9 +712,11 @@ def setup_initialized_case(
 ) -> as_VulnerabilityCase:
     """Create a fully initialised case ready for invitation/suggestion workflows.
 
-    The vendor mints the case itself, so the result has **no** ``CASE_MANAGER``
-    participant.  Use :func:`setup_canonical_case` for any exchange that has to
-    route through the CaseActor — ownership transfer among them — or the routing
+    The vendor mints the case via the ``trigger/create-case`` endpoint, which
+    registers the vendor as a participant with
+    ``[CVDRole.CASE_OWNER, CVDRole.CASE_MANAGER]`` (CM-02-014, CM-02-015).
+    Use :func:`setup_canonical_case` for any exchange that requires a separate
+    CaseActor service identity — ownership transfer among them — or the routing
     silently degrades to the direct peer-to-peer path (CM-24-003).
 
     Performs the standard 7-step setup shared by ``invite_actor_demo``,
@@ -724,7 +724,7 @@ def setup_initialized_case(
 
     1. Finder submits report → vendor inbox
     2. Vendor validates the report
-    3. Vendor creates the case
+    3. Vendor creates the case (via trigger endpoint — registers CASE_OWNER+CASE_MANAGER)
     4. Vendor adds the report to the case
     5. Vendor creates the finder participant record
     6. Vendor adds the finder participant to the case
@@ -757,14 +757,22 @@ def setup_initialized_case(
     )
     post_to_inbox_and_wait(client, vendor.id_, validate_activity)
 
-    case = as_VulnerabilityCase(
-        attributed_to=vendor.id_,
+    trigger_result = ActorSession(client=client, actor=vendor).create_case(
         name="RCE Case — Web Framework",
         content="Tracking the RCE vulnerability in the web framework.",
     )
-    create_case_act = create_case_activity(case, actor=vendor.id_)
-    post_to_inbox_and_wait(client, vendor.id_, create_case_act)
-    verify_object_stored(client, case.id_)
+    case_id = trigger_result.case_id
+    if not case_id:
+        raise ValueError("create-case trigger did not return a case_id")
+    verify_object_stored(client, case_id)
+    case = as_VulnerabilityCase.model_validate(
+        {
+            "id": case_id,
+            "attributed_to": vendor.id_,
+            "name": "RCE Case — Web Framework",
+            "content": "Tracking the RCE vulnerability in the web framework.",
+        }
+    )
 
     add_report_activity = add_report_to_case_activity(
         report, actor=vendor.id_, target=case.id_

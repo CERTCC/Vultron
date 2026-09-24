@@ -15,6 +15,9 @@
 
 """Unit tests for ``CheckIsCaseManagerNode``."""
 
+from types import SimpleNamespace
+
+import py_trees
 import pytest
 from py_trees.common import Status
 
@@ -123,3 +126,30 @@ def test_returns_failure_when_case_has_no_case_manager(
         actor_id=MANAGER_ACTOR_ID,
     )
     assert result.status == Status.FAILURE
+
+
+@pytest.mark.executes_as(MANAGER_ACTOR_ID)
+def test_sets_case_actor_id_output_on_success(
+    bt_scenario: BTTestScenario, case_with_manager: VultronCase
+) -> None:
+    bt_scenario.run(
+        CheckIsCaseManagerNode(case_id=case_with_manager.id_),
+        actor_id=MANAGER_ACTOR_ID,
+    )
+    stored = py_trees.blackboard.Blackboard.storage.get("/case_actor_id")
+    assert stored == MANAGER_ACTOR_ID
+
+
+@pytest.mark.executes_as(MANAGER_ACTOR_ID)
+def test_resolves_case_id_from_activity_log_entry(
+    bt_scenario: BTTestScenario, case_with_manager: VultronCase
+) -> None:
+    activity = SimpleNamespace(
+        log_entry=SimpleNamespace(case_id=case_with_manager.id_)
+    )
+    result = bt_scenario.run(
+        CheckIsCaseManagerNode(),
+        actor_id=MANAGER_ACTOR_ID,
+        activity=activity,
+    )
+    assert result.status == Status.SUCCESS

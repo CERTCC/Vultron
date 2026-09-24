@@ -1,3 +1,8 @@
+---
+stakeholder_type: [cvd-practitioner, platform-developer]
+level: 300
+---
+
 # Model Interactions
 
 {% include-markdown "../../../includes/normative.md" %}
@@ -60,6 +65,20 @@ observed (*a,A*). This distinction in perspectives will become
 important in the [Formal Protocol](../../../reference/formal_protocol/index.md) definition.
 
 {% include-markdown "./_cs_global_local.md" %}
+
+### Closing a Case While an Embargo Is Active
+
+Because the [RM](../rm/index.md) process is Participant-specific but the
+[EM](../em/index.md) process is global to the case, closing a case interacts
+with any active embargo. When one Participant closes its own report, that does
+not by itself end the embargo for the others; the embargo remains in force
+until it is torn down through the EM process.
+
+The Case Owner's departure is different, because it ends the case for every
+Participant. For that reason, when the Case Owner tries to leave a case that
+still holds an active embargo, the CASE_MANAGER declines the request: the case
+stays open and the embargo stays in force. The Case Owner ends the embargo
+first (for example, once the vulnerability is public) and then leaves.
 
 ## Summary
 

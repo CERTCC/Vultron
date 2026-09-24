@@ -35,19 +35,15 @@ References
 """
 
 import logging
-from typing import TYPE_CHECKING, cast
-
-if TYPE_CHECKING:
-    from vultron.core.behaviors.case.nodes.participant.status import (
-        CreateParticipantStatusNode,
-    )
+from typing import cast
 
 from py_trees.common import Status
 
 from vultron.core.behaviors.helpers import DataLayerActionWithPorts
-from vultron.core.behaviors.case.nodes.participant.roles import (
-    resolve_case_manager_id,
+from vultron.core.behaviors.case.nodes.participant.status import (
+    CreateParticipantStatusNode,
 )
+from vultron.core.participants.authority import resolve_case_manager_id
 from vultron.core.behaviors.case.nodes.participant.common import (
     resolve_participant_state_from_dl,
 )
@@ -79,38 +75,42 @@ class TransitionCStoFixReady(DataLayerActionWithPorts):
         result_out: dict | None = None,
         name: str | None = None,
     ) -> None:
-        super().__init__(name=name or self.__class__.__name__)
+        _name = name or self.__class__.__name__
+        super().__init__(name=_name)
         self._case_id = case_id
         self._actor_id = actor_id
         self._result_out = result_out if result_out is not None else {}
-
-    def _make_status_node(
-        self, vf_state: CS_vf | None, label: str
-    ) -> "CreateParticipantStatusNode":
-        from vultron.core.behaviors.case.nodes.participant.status import (
-            CreateParticipantStatusNode,
-        )
-
-        assert self.datalayer is not None
-        node = CreateParticipantStatusNode(
-            case_id=self._case_id,
-            actor_id=self._actor_id,
+        # Pre-build status nodes (BTND-10-004: no construction in update()).
+        # BTBridge seeds case_id on the blackboard so CaseIdInputPortMixin reads it.
+        self._vendor_aware_node = CreateParticipantStatusNode(
+            actor_id=actor_id,
             rm_state=None,
-            vf_state=vf_state,
+            vf_state=CS_vf.Vf,
             d_state=None,
             pxa_state=None,
             result_out=self._result_out,
-            name=f"{self.name}.{label}",
+            name=f"{_name}._VendorAware",
         )
-        node.datalayer = self.datalayer
-        return node
+        self._fix_ready_node = CreateParticipantStatusNode(
+            actor_id=actor_id,
+            rm_state=None,
+            vf_state=CS_vf.VF,
+            d_state=None,
+            pxa_state=None,
+            result_out=self._result_out,
+            name=f"{_name}._Create",
+        )
 
     def _ensure_vendor_aware(self) -> Status:
         """Advance actor to VF=Vf if still at initial state (CSB-16-001 strict adjacency)."""
         assert self.datalayer is not None
-        case = self.datalayer.read_case(self._case_id)
-        if case is None:
-            return Status.SUCCESS
+        # Regime 1 (ADR-0087, #3101): fix development coordinates an *existing*
+        # case — there is no create path here — so a vanished case is an
+        # anomaly, not a routine skip. Previously this returned SUCCESS and let
+        # update() proceed into status creation against a missing case.
+        case, failure = self._require_case(self._case_id)
+        if failure is not None:
+            return failure
         participant_id = case.actor_participant_index.get(self._actor_id)
         if participant_id is None:
             return Status.SUCCESS
@@ -119,11 +119,18 @@ class TransitionCStoFixReady(DataLayerActionWithPorts):
         )
         if current_vf not in (None, CS_vf.vf):
             return Status.SUCCESS
-        try:
-            return self._make_status_node(CS_vf.Vf, "_VendorAware").update()
-        except Exception as e:
-            self.logger.error("%s: Error advancing to VF=Vf: %s", self.name, e)
-            return Status.FAILURE
+        # BTBridge.execute_with_setup classifies any node error into a FAILURE
+        # result (internal_error) rather than raising, so no broad catch is
+        # needed here — an escaping exception would be a bridge-contract
+        # violation that must surface loudly (CS-23-001).
+        from vultron.core.behaviors.bridge import BTBridge
+
+        result = BTBridge(datalayer=self.datalayer).execute_with_setup(
+            tree=self._vendor_aware_node,
+            actor_id=self._actor_id,
+            case_id=self._case_id,
+        )
+        return result.status
 
     def update(self) -> Status:
         if (f := self._require_datalayer()) is not None:
@@ -133,17 +140,22 @@ class TransitionCStoFixReady(DataLayerActionWithPorts):
         if self._ensure_vendor_aware() != Status.SUCCESS:
             return Status.FAILURE
 
-        node = self._make_status_node(CS_vf.VF, "_Create")
         try:
-            status = node.update()
-            if status == Status.SUCCESS:
+            from vultron.core.behaviors.bridge import BTBridge
+
+            result = BTBridge(datalayer=self.datalayer).execute_with_setup(
+                tree=self._fix_ready_node,
+                actor_id=self._actor_id,
+                case_id=self._case_id,
+            )
+            if result.status == Status.SUCCESS:
                 self.logger.debug(
                     "%s: VF → VF for actor '%s' in case '%s'",
                     self.name,
                     self._actor_id,
                     self._case_id,
                 )
-            return status
+            return result.status
         except Exception as e:
             self.logger.error(
                 "%s: Error transitioning to VF=VF: %s", self.name, e
@@ -206,12 +218,9 @@ class _EmitParticipantStatusActivityBase(DataLayerActionWithPorts):
             self.logger.error("%s: %s", self.name, self.feedback_message)
             return Status.FAILURE
 
-        case = self.datalayer.read_case(self._case_id)
-        if case is None:
-            self.logger.warning(
-                "%s: case '%s' not found", self.name, self._case_id
-            )
-            return Status.FAILURE
+        case, failure = self._require_case(self._case_id)
+        if failure is not None:
+            return failure  # Regime 1 (ADR-0087)
 
         case_manager_id = resolve_case_manager_id(case, self.datalayer)
         if not case_manager_id:

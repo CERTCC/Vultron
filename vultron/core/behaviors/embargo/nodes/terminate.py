@@ -36,14 +36,11 @@ class SendTerminateEmbargoActivityNode(_SendEmbargoActivityBase):
     def __init__(self, case_id: str, name: str | None = None) -> None:
         super().__init__(case_id=case_id, name=name)
 
-    @classmethod
-    def input_ports(cls) -> dict[str, PortInformation]:
-        ports = super().input_ports()
-        ports["embargo_id"] = PortInformation(data_type=str, required=True)
-        ports["case_manager_id"] = PortInformation(
-            data_type=str, required=True
-        )
-        return ports
+    INPUT_PORTS: dict[str, PortInformation] = {
+        **_SendEmbargoActivityBase.INPUT_PORTS,
+        "embargo_id": PortInformation(data_type=str, required=True),
+        "case_manager_id": PortInformation(data_type=str, required=True),
+    }
 
     @classmethod
     def _domain_port_remappings(cls) -> dict[str, str]:
@@ -110,10 +107,13 @@ class SendTerminateEmbargoActivityNode(_SendEmbargoActivityBase):
             return [case_manager_id]
 
         assert self.datalayer is not None
+        # Regime 3 / defer-to-upstream (ADR-0087): this is addressing
+        # enrichment, not coordination. A missing case is caught and failed by
+        # the nodes that precede this one in the sequence; here we simply fall
+        # back to the meaningful default recipient (the case manager) rather
+        # than a silent empty list. Deliberately unguarded (conformance allowlist).
         case = self.datalayer.read_case(self._case_id)
         if case is None:
-            # Nothing better to say than the old answer; a missing case is
-            # reported by the nodes that precede this one in the sequence.
             return [case_manager_id]
         return case_addressees(case, actor_id)
 

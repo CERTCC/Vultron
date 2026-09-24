@@ -200,7 +200,7 @@ class SqliteDataLayer:
     # ------------------------------------------------------------------
 
     def create(self, record: "StorableRecord | PersistableModel") -> None:
-        """Insert a new record; raises ``ValueError`` if it already exists."""
+        """Insert a new record; raises ``VultronAlreadyExistsError`` if it exists."""
         crud.create(self, record)
 
     def read(
@@ -376,10 +376,16 @@ class SqliteDataLayer:
         reason: str,
         total_attempts: int,
         failed_recipients: list[str],
+        ledger_entry_id: str | None = None,
     ) -> None:
         """Write an exhausted outbox activity to this actor's dead-letter store."""
         queues.dead_letter_append(
-            self, activity_id, reason, total_attempts, failed_recipients
+            self,
+            activity_id,
+            reason,
+            total_attempts,
+            failed_recipients,
+            ledger_entry_id,
         )
 
     def dead_letter_list(self) -> list[OutboxDeadLetterEntry]:

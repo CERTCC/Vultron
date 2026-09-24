@@ -79,17 +79,13 @@ class SkipIfIdempotentNode(BehaviourWithPorts):
         self.status_id = status_id
         self.participant_id = participant_id
 
-    @classmethod
-    def input_ports(cls) -> dict[str, PortInformation]:
-        return {
-            "append_status_participant": PortInformation(
-                data_type=object, required=False
-            ),
-        }
+    INPUT_PORTS: dict[str, PortInformation] = {
+        "append_status_participant": PortInformation(
+            data_type=object, required=False
+        ),
+    }
 
-    @classmethod
-    def output_ports(cls) -> dict[str, PortInformation]:
-        return {}
+    OUTPUT_PORTS: dict[str, PortInformation] = {}
 
     def setup(self, **kwargs: Any) -> None:
         self.setup_ports(
@@ -136,13 +132,12 @@ class CheckStatusNotAlreadyAppendedNode(DataLayerConditionWithPorts):
         self.status_id = status_id
         self.participant_id = participant_id
 
-    @classmethod
-    def input_ports(cls) -> dict[str, PortInformation]:
-        ports = super().input_ports()
-        ports["append_status_participant"] = PortInformation(
+    INPUT_PORTS: dict[str, PortInformation] = {
+        **DataLayerConditionWithPorts.INPUT_PORTS,
+        "append_status_participant": PortInformation(
             data_type=object, required=False
-        )
-        return ports
+        ),
+    }
 
     @classmethod
     def _domain_port_remappings(cls) -> dict[str, str]:

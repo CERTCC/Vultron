@@ -1,3 +1,8 @@
+---
+stakeholder_type: ALL
+level: 100
+---
+
 # What's New
 
 Pages added in the last 90 days:

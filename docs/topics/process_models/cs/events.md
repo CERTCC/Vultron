@@ -1,3 +1,8 @@
+---
+stakeholder_type: [process-researcher]
+level: 500
+---
+
 # Events in a Vulnerability Lifecycle
 
 {% include-markdown "../../../includes/not_normative.md" %}
@@ -90,7 +95,7 @@ in that
 their models address the *release* of the fix rather than its *readiness* for release.
 
 The reason for this distinction will be made clear, but first we must
-mention that *Fix Deployed* is simply that: the fix exists, and it has
+mention that *Fix Deployed* means exactly this: the fix exists, and it has
 been deployed.
 
 We chose to include the *Fix Ready*, *Fix Deployed*, and *Public
@@ -109,7 +114,7 @@ modes of modern software deployment:
     lead directly to fix deployed with no dependency on public
     awareness.
 
-We note that so-called *silent fixes* by vendors can sometimes result in
+So-called *silent fixes* by vendors can sometimes result in
 a fix being deployed without public awareness even if the vendor is not
 the deployer. Thus, it is possible (but unlikely) for *fix deployed* to
 occur before *public awareness* even in the *shrinkwrap* case above. It

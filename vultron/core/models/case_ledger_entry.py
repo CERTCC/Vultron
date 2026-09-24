@@ -42,8 +42,9 @@ from typing import Any, Literal, TypeAlias
 
 from pydantic import Field, model_validator
 
-from vultron.core.models._helpers import _now_utc
+from vultron.core.models._helpers import now_utc
 from vultron.core.models.base import CoreObject
+from vultron.core.models.wire_keys import wire_key
 
 
 class CaseLedgerEntry(CoreObject):
@@ -62,18 +63,16 @@ class CaseLedgerEntry(CoreObject):
     Fields:
         case_id: URI of the parent :class:`VulnerabilityCase`.
         log_index: Monotonically increasing index scoped to ``case_id``.
-        disposition: ``"recorded"`` or ``"rejected"``.
         term: Raft cluster term; ``None`` for single-node deployments.
         log_object_id: Full URI of the asserted activity or primary object.
         event_type: Short machine-readable event descriptor.
         payload_snapshot: Normalised activity payload snapshot.
-        prev_log_hash: SHA-256 hash of the previous recorded entry.
+        prev_log_hash: SHA-256 hash of the predecessor entry's content.
         entry_hash: SHA-256 hash of this entry's canonical content.
         received_at: Server-generated TZ-aware UTC receipt timestamp.
-        reason_code: Machine-readable rejection reason (rejected entries only).
-        reason_detail: Human-readable rejection reason detail.
 
-    Spec: SYNC-01-002, SYNC-02-003, SYNC-03-001 through SYNC-03-003.
+    Spec: SYNC-01-002, SYNC-02-003, SYNC-03-001 through SYNC-03-003;
+    CLP-04-007.
     """
 
     type_: Literal["CaseLedgerEntry"] = Field(  # type: ignore[assignment]
@@ -88,10 +87,6 @@ class CaseLedgerEntry(CoreObject):
         default=-1,
         description="Monotonically increasing index scoped to case_id",
         ge=-1,
-    )
-    disposition: str = Field(
-        default="recorded",
-        description="Outcome: 'recorded' or 'rejected'",
     )
     term: int | None = Field(
         default=None,
@@ -117,7 +112,7 @@ class CaseLedgerEntry(CoreObject):
     )
     prev_log_hash: str = Field(
         default="",
-        description="SHA-256 hex hash of the previous recorded entry; per-case genesis hash for the first entry",
+        description="SHA-256 hex hash of predecessor entry; per-case genesis hash for the first entry",
         validation_alias="prevLogHash",
         serialization_alias="prevLogHash",
     )
@@ -127,35 +122,35 @@ class CaseLedgerEntry(CoreObject):
         validation_alias="entryHash",
         serialization_alias="entryHash",
     )
+    # Re-narrowed from CoreObject's ``datetime | None``: the envelope's
+    # ``published`` is the CASE_MANAGER's commit stamp and MUST be non-null
+    # (CLP-14-002), unlike an ordinary object's time, which may be absent.
+    published: datetime = Field(default_factory=now_utc)
     received_at: datetime = Field(
-        default_factory=_now_utc,
+        default_factory=now_utc,
         description="Server-generated TZ-aware UTC receipt timestamp",
         validation_alias="receivedAt",
         serialization_alias="receivedAt",
-    )
-    reason_code: str | None = Field(
-        default=None,
-        description="Machine-readable rejection reason code",
-        validation_alias="reasonCode",
-        serialization_alias="reasonCode",
-    )
-    reason_detail: str | None = Field(
-        default=None,
-        description="Human-readable rejection reason detail",
-        validation_alias="reasonDetail",
-        serialization_alias="reasonDetail",
     )
 
     @model_validator(mode="before")
     @classmethod
     def _set_id_from_case(cls, data: Any) -> Any:
-        """Compute ``id_`` from ``case_id`` and ``log_index``."""
-        if isinstance(data, dict):
-            case_id = data.get("case_id")
-            if case_id is not None:
-                log_index = data.get("log_index", -1)
-                data = dict(data)
-                data["id"] = f"{case_id}/log/{log_index}"
+        """Compute ``id_`` from ``case_id`` and ``log_index``.
+
+        Both field names are read in either spelling, because an entry parsed
+        off the wire (ADR-0099 detail 3) carries the AS2 keys; reading only the
+        Python names left a wire-parsed entry with a random id instead of its
+        ledger coordinates.
+        """
+        if not isinstance(data, dict):
+            return data
+        case_id = data.get("case_id", data.get(wire_key("case_id")))
+        if case_id is None:
+            return data
+        log_index = data.get("log_index", data.get(wire_key("log_index"), -1))
+        data = dict(data)
+        data["id"] = f"{case_id}/log/{log_index}"
         return data
 
 

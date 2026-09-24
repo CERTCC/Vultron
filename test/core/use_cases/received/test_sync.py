@@ -53,15 +53,12 @@ def _to_persistable_entry(
     return VultronCaseLedgerEntry(
         case_id=chain_entry.case_id,
         log_index=chain_entry.log_index,
-        disposition=chain_entry.disposition,
         term=chain_entry.term,
         log_object_id=chain_entry.object_id,
         event_type=chain_entry.event_type,
         payload_snapshot=dict(chain_entry.payload_snapshot),
         prev_log_hash=chain_entry.prev_log_hash,
         entry_hash=chain_entry.entry_hash,
-        reason_code=chain_entry.reason_code,
-        reason_detail=chain_entry.reason_detail,
     )
 
 
@@ -195,6 +192,9 @@ class TestAnnounceLedgerEntryReceivedUseCase:
             "type": "Announce",
             "id": "urn:uuid:test-announce-rt",
             "actor": ACTOR_URI,
+            # Required on every inbound activity: the parser refuses one
+            # without a sender-supplied claimed time (ISSUE-3149).
+            "published": "2026-03-04T05:06:07+00:00",
             "object": first_entry.model_dump(mode="json", by_alias=True),
         }
         parsed = parse_activity(body)

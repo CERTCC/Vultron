@@ -1,3 +1,11 @@
+---
+description: >
+  Start the Vultron demo environment with Docker Compose and run three
+  vulnerability-report workflows end to end.
+stakeholder_type: [cvd-practitioner, platform-developer]
+level: 300
+---
+
 # Tutorial: Run the Receive-Report Demo
 
 In this tutorial, we will run the Vultron `receive-report` demo end-to-end
@@ -205,7 +213,7 @@ We have:
   [Tutorial: Running the Other Demos](other_demos.md) to explore case
   initialization, embargo management, actor invitation, and more.
 - **Understand the protocol** — read
-  [Reporting a Vulnerability](../howto/activitypub/activities/report_vulnerability.md)
+  [How to Report a Vulnerability](../howto/activitypub/activities/report_vulnerability.md)
   for a detailed walkthrough of the activities we just observed.
 - **Explore the demo scripts** — the source for this demo is in
   `vultron/demo/receive_report_demo.py`; the shared utilities are in

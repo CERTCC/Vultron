@@ -140,9 +140,7 @@ class TestVulnerabilityCaseCurrentStatus:
         Guards CM-29-001: the ``id_`` scheme must never arbitrate recency. A
         urn:uuid ID (``'u'``) sorts lexically above an https ID (``'h'``), so
         this catches any regression that reintroduced ``id_`` as a tiebreaker
-        overriding an authoritative timestamp. (In the core branch timestamps
-        are always populated, so the timestampless path is exercised on the
-        wire branch — see test/wire/as2/vocab/test_vulnerability_case.py.)
+        overriding an authoritative timestamp.
         """
         older = CaseStatus(
             id_="urn:uuid:00000000-0000-0000-0000-000000000001",
@@ -157,6 +155,37 @@ class TestVulnerabilityCaseCurrentStatus:
         c = VulnerabilityCase(id_=_CASE_ID)
         c.case_statuses = [older, newer]
         assert c.current_status is newer
+
+    @pytest.mark.parametrize(
+        "stamp",
+        [datetime(2026, 1, 1, tzinfo=timezone.utc), None],
+        ids=["equal", "absent"],
+    )
+    def test_current_status_tie_goes_to_the_last_appended(
+        self, stamp: datetime | None
+    ):
+        """Equal or absent timestamps resolve to the last-appended status.
+
+        Received statuses carry the sender's time or none at all
+        (ISSUE-3257), so ties are ordinary.  ``max`` kept the *first* maximal
+        element, so a new status sharing the previous one's time never
+        became current.
+        """
+        first = CaseStatus(
+            id_="urn:uuid:00000000-0000-0000-0000-000000000002",
+            context=_CASE_ID,
+            published=stamp,
+            updated=stamp,
+        )
+        second = CaseStatus(
+            id_="https://coord.example/status/1",
+            context=_CASE_ID,
+            published=stamp,
+            updated=stamp,
+        )
+        c = VulnerabilityCase(id_=_CASE_ID)
+        c.case_statuses = [first, second]
+        assert c.current_status is second
 
 
 class TestVulnerabilityCaseAddReport:
@@ -295,9 +324,13 @@ class TestVulnerabilityCaseAddCaseStatus:
             as_CaseStatus,
         )
 
+        # ``as_CaseStatus`` *is* ``CaseStatus`` (ADR-0099 detail 3), so there is no
+        # wire-shaped status left to reject — the object is exactly what the slot
+        # wants and is appended.  The guard against a genuinely wrong type is still
+        # covered by ``test_add_case_status_rejects_non_case_status`` below.
         wire_status = as_CaseStatus(context=_CASE_ID)
-        with pytest.raises(VultronValidationError, match="CaseStatus"):
-            case.add_case_status(wire_status)  # type: ignore[arg-type]
+        case.add_case_status(wire_status)
+        assert case.case_statuses[-1] is wire_status
 
     def test_add_case_status_rejects_non_case_status(
         self, case: VulnerabilityCase
@@ -330,43 +363,42 @@ class TestWireVulnerabilityCaseFieldParity:
 
 
 class TestVulnerabilityCaseWireRoundTrip:
-    """Wire VulnerabilityCase.to_core preserves domain data."""
+    """as_VulnerabilityCase IS VulnerabilityCase (ADR-0099 detail 3, issue #3487)."""
 
     def test_to_core_produces_vulnerability_case(self):
         from vultron.wire.as2.vocab.objects.vulnerability_case import (
             as_VulnerabilityCase as WireVC,
         )
 
+        assert WireVC is VulnerabilityCase
         wire_case = WireVC(
             id_="urn:uuid:vc-roundtrip",
             attributed_to="https://example.org/actor",
         )
-        core_case = wire_case.to_core()
-        assert isinstance(core_case, VulnerabilityCase)
-        assert core_case.id_ == "urn:uuid:vc-roundtrip"
+        assert isinstance(wire_case, VulnerabilityCase)
+        assert wire_case.id_ == "urn:uuid:vc-roundtrip"
 
     def test_from_core_preserves_id(self):
         from vultron.wire.as2.vocab.objects.vulnerability_case import (
             as_VulnerabilityCase as WireVC,
         )
 
+        assert WireVC is VulnerabilityCase
         core_case = VulnerabilityCase(
             id_="urn:uuid:vc-fromcore",
             attributed_to="https://example.org/actor",
         )
-        wire_case = WireVC.from_core(core_case)
-        assert wire_case.id_ == "urn:uuid:vc-fromcore"
+        assert core_case.id_ == "urn:uuid:vc-fromcore"
 
     def test_round_trip_preserves_active_embargo(self):
         from vultron.wire.as2.vocab.objects.vulnerability_case import (
             as_VulnerabilityCase as WireVC,
         )
 
+        assert WireVC is VulnerabilityCase
         core_case = VulnerabilityCase(
             id_="urn:uuid:vc-rt",
             attributed_to="https://example.org/actor",
         )
         core_case.set_embargo("urn:uuid:embargo-1")
-        wire_case = WireVC.from_core(core_case)
-        restored = wire_case.to_core()
-        assert restored.active_embargo == "urn:uuid:embargo-1"
+        assert core_case.active_embargo == "urn:uuid:embargo-1"

@@ -19,6 +19,7 @@ from vultron.core.models.events.actor import (
     InviteActorToCaseReceivedEvent,
     RejectInviteActorToCaseReceivedEvent,
 )
+from vultron.core.models.pending_case_inbox import VultronPendingCaseInbox
 from vultron.core.ports.case_persistence import (
     CaseOutboxPersistence,
     CasePersistence,
@@ -34,6 +35,42 @@ if TYPE_CHECKING:
     from vultron.core.ports.trigger_activity import TriggerActivityPort
 
 logger = logging.getLogger(__name__)
+
+
+def _record_invite_trust_anchor(
+    dl: "CaseOutboxPersistence", case_id: str, case_actor_id: str
+) -> None:
+    """Write a VultronPendingCaseInbox trust anchor for the inviting CASE_MANAGER.
+
+    Called by the invitee path of InviteActorToCaseReceivedUseCase so that
+    AnnounceVulnerabilityCaseReceivedUseCase can admit a subsequent Announce
+    from the same actor even before the local case replica exists
+    (PCR-03-004 path b, AC-2).
+
+    First-invite-wins: if a record already exists with a case_actor_id, it is
+    kept unchanged.  A record with case_actor_id=None (created by the pre-
+    bootstrap queue for an earlier ledger entry) is updated with the sender.
+    """
+    pending_id = VultronPendingCaseInbox.build_id(case_id)
+    existing = dl.read(pending_id)
+    if not isinstance(existing, VultronPendingCaseInbox):
+        dl.save(
+            VultronPendingCaseInbox(
+                case_id=case_id,
+                case_actor_id=case_actor_id,
+            )
+        )
+        logger.debug(
+            "InviteActorToCase: trust anchor recorded for case '%s'",
+            case_id,
+        )
+    elif existing.case_actor_id is None:
+        dl.save(existing.model_copy(update={"case_actor_id": case_actor_id}))
+        logger.debug(
+            "InviteActorToCase: trust anchor added to existing pending"
+            " record for case '%s'",
+            case_id,
+        )
 
 
 class InviteActorToCaseReceivedUseCase:
@@ -54,10 +91,15 @@ class InviteActorToCaseReceivedUseCase:
        ``CVDRole.CASE_MANAGER`` (CLP-10-006).  ``StoreActivityNode`` in the
        BT's effect nodes handles idempotent storage for this path.
 
-    Note: when the trigger had no CaseActor record (``_find_case_actor_id``
-    returned ``None``), the outbound Invite is sent without a ``cc:`` field and
-    no self-delivery occurs.  No ledger entry is committed in that case — this
-    is by design; without a CaseActor there is no canonical ledger (ADR-0021).
+    Note: when the trigger could not resolve the authority's address
+    (``_find_case_actor_id`` returned ``None``), the outbound Invite is sent
+    without a ``cc:`` field and no self-delivery occurs, so no ledger entry is
+    committed.  Under ADR-0088 that ``None`` means only "no resolvable address"
+    — a case with no CASE_MANAGER on its roster and no recorded
+    ``ReportCaseLink``.  It is *not* the older ADR-0021 reading, in which a
+    separate CaseActor entity could be absent while the role was held: there is
+    no such entity, and an ordinary participant enacting ``CVDRole.CASE_MANAGER``
+    is the authority and does resolve here (ARCH-24-004, CM-02-011).
 
     The ``sync_port`` kwarg is injected when ``INVITE_ACTOR_TO_CASE`` is in
     ``_SYNC_PORT_SEMANTICS`` so ``CommitCaseLedgerEntryNode`` can fan out
@@ -114,6 +156,14 @@ class InviteActorToCaseReceivedUseCase:
                     " Awaiting AnnounceVulnerabilityCase before creating case.",
                     case_stub_id,
                 )
+                # Record the invite sender as the expected CASE_MANAGER for
+                # this case so AnnounceVulnerabilityCaseReceivedUseCase can
+                # admit a subsequent Announce before the case replica exists
+                # (PCR-03-004 trust anchor, AC-2).
+                if request.actor_id:
+                    _record_invite_trust_anchor(
+                        self._dl, case_stub_id, request.actor_id
+                    )
             return
 
         # CaseActor self-delivery path (CLP-10-001): the BT handles idempotent

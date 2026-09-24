@@ -15,37 +15,29 @@ from pathlib import Path
 import frontmatter
 
 from vultron.metadata.adr.schema import AdrFrontmatter
+from vultron.metadata.base import repo_root as _find_repo_root
+from vultron.metadata.file_loading import (
+    MetadataLoadError,
+    display_path,
+    load_frontmatter,
+    validate,
+)
 
 # Files under docs/adr/ that are not decision records.
 SKIP_FILES = {"index.md", "README.md"}
 
 
-def _find_repo_root(start: Path | None = None) -> Path:
-    """Return the repository root by searching upward for ``pyproject.toml``."""
-    origin = start or Path.cwd()
-    for parent in [origin, *origin.parents]:
-        if (parent / "pyproject.toml").exists():
-            return parent
-    raise FileNotFoundError(
-        f"Could not locate repository root (pyproject.toml) from {origin}"
-    )
+def load_adr_post(path: Path, root: Path | None = None) -> frontmatter.Post:
+    """Parse an ADR markdown file, attributing malformed YAML to it.
 
+    A thin name over :func:`~vultron.metadata.file_loading.load_frontmatter`,
+    kept because the index generator imports it.
 
-def load_adr_post(path: Path) -> frontmatter.Post:
-    """Parse an ADR markdown file, raising ``ValueError`` on malformed YAML.
-
-    ``frontmatter.load`` raises ``yaml`` parser/scanner errors on a malformed
-    frontmatter block; those are neither ``ValueError`` nor
-    ``FileNotFoundError``, so without this wrapper they escape the documented
-    contract and crash ``spec-lint`` and the pre-commit hooks with a raw
-    traceback instead of a clean, file-attributed error.
+    Raises:
+        MetadataLoadError: On malformed YAML frontmatter (MS-17-001).
+        FileNotFoundError: If *path* does not exist.
     """
-    try:
-        return frontmatter.load(str(path))
-    except FileNotFoundError:
-        raise
-    except Exception as exc:  # noqa: BLE001 — re-raise with file context
-        raise ValueError(f"{path}: malformed YAML frontmatter: {exc}") from exc
+    return load_frontmatter(path, root=root)
 
 
 def _iter_adr_paths(adr_dir: Path) -> list[Path]:
@@ -86,15 +78,14 @@ def load_adr_registry(
     registry: dict[str, AdrFrontmatter] = {}
 
     for path in _iter_adr_paths(adr_dir):
-        post = load_adr_post(path)
+        post = load_adr_post(path, root)
         if not post.metadata:
-            raise ValueError(f"{path}: missing YAML frontmatter")
+            raise MetadataLoadError(
+                "missing YAML frontmatter", path=display_path(path, root)
+            )
 
         key = str(path.relative_to(root))
-        try:
-            fm = AdrFrontmatter.model_validate(post.metadata)
-        except Exception as exc:  # noqa: BLE001 — re-raise with file context
-            raise ValueError(f"{key}: {exc}") from exc
+        fm = validate(AdrFrontmatter, post.metadata, path=path, root=root)
 
         for field in ("superseded_by", "partially_superseded_by"):
             target = getattr(fm, field)

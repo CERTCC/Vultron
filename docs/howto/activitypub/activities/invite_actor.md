@@ -1,15 +1,31 @@
-# Inviting an Actor to a Case
+---
+stakeholder_type: [platform-developer]
+level: 300
+---
 
-{% include-markdown "../../../includes/not_normative.md" %}
+# How to Invite an Actor to a Case
 
-Inviting an actor to a case is a way to add them as a participant in the case.
-The invitation is sent to the actor as an `as:Invite` activity.
-Depending on the actor's response, they may become a participant in the case.
+Use this guide to bring an actor into a case it was not present for.
+An invitation asks rather than asserts, so the actor joins only if it accepts.
+You finish with the actor either seated as a participant or recorded as having declined.
 
-<!-- for vertical spacing -->
-<br/>
-<br/>
-<br/>
+---
+
+## Prerequisites
+
+{% include-markdown "./_demo_prerequisites.md" %}
+
+- An existing case, and the Case Owner role on it.
+- The actor's Uniform Resource Identifier (URI).
+- The CASE_MANAGER's actor URI.
+  It sends the invitation and receives the reply.
+
+---
+
+## The exchange
+
+The sequence diagram below shows both outcomes.
+The Case Owner triggers the invitation, but every message on the wire is between the CASE_MANAGER and the invited actor.
 
 ```mermaid
 ---
@@ -17,12 +33,12 @@ title: Invite Actor to Case
 ---
 sequenceDiagram
     actor O as Case Owner
-    participant CA as Case Actor
+    participant CA as CASE_MANAGER
     actor A as Actor
     activate O
     O ->> CA: [trigger invite]
     activate CA
-    CA ->>+ A: Invite(actor=CaseActor, object=Actor, target=Case, attributedTo=CaseOwner)
+    CA ->>+ A: Invite(actor=CASE_MANAGER, object=Actor, target=Case, attributedTo=CaseOwner)
     note over A: Consider invitation
     alt Accept Invitation
         A -->> CA: Accept(object=Invite)
@@ -37,61 +53,60 @@ sequenceDiagram
     deactivate O
 ```
 
-!!! info "CaseActor routing (PCR-08-007, PCR-08-008)"
+---
 
-    The `Invite` activity is sent by the **Case Actor**, not the Case Owner.
-    The Case Owner triggers the invite, but the Case Actor MUST be the
-    ActivityStreams `actor` on the outbound `Invite`. The `attributedTo` field
-    on the activity MAY carry the Case Owner's ID to record who initiated it.
+## Send the invitation
 
-    The invitee MUST address their `Accept` or `Reject` reply to the **Case Actor**,
-    not directly back to the Case Owner. The Case Actor is the authoritative
-    recipient of all case-management handshake messages after case creation.
+1. Trigger the invitation as Case Owner.
+2. The CASE_MANAGER sends `Invite(Actor)` to the actor's inbox, with itself as the ActivityStreams `actor` and your identity in `attributedTo` (PCR-08-007, PCR-08-008).
+3. Set the reply deadline on the activity's `end_time`.
+   When it is present that value settles precedence over the invitee's local policy window; when it is absent the policy window applies instead (CM-28-002, ADR-0065).
+   Either way the effective deadline is clamped down to the embargo's own `end_time`, so an `end_time` that outlives the embargo does not buy the invitee extra time (EP-07-006).
 
-!!! question "Invite vs Add?"
+!!! warning "The CASE_MANAGER is the sender, not the Case Owner"
 
-    When a case is first created, the Case Owner and any known participants (e.g., the Reporter)
-    should be automatically added to the case. It's not even necessary for these to be emitted as
-    separate `as:Add` activities. The `as:Create` activity for the case can include the Case Owner
-    and any known participants as `CaseParticipant` objects.
-    See [Initializing a Case](initialize_case.md) for more.
+    Putting the Case Owner in the `actor` field makes the invitation unrecognizable to a conformant peer, which expects case-management handshakes to come from the CASE_MANAGER.
+    Record who asked for the invitation in `attributedTo` instead.
 
-    However, over the lifespan of a case, there may be other actors that were
-    not already involved at the time the case was created, but who should be invited to participate
-    in the case. This is where the `as:Invite` activity comes in.
+---
 
-!!! tip "Avoid bogging down in details"
+## Answer an invitation
 
-    Adding a participant to a case involves creating the participant object and a participant status object.
-    As we discuss elsewhere, it's probably overkill to emit separate `as:Create` and `as:Add` events for each
-    of these events.
+Send your reply to the CASE_MANAGER, never to the Case Owner.
 
-    ```mermaid
-    flowchart LR
-    
-    a[create participant] --> b[create participant status]
-    b --> c[add participant status to participant]
-    c --> d[add participant to case]
-    ```
-   
-    Instead, we could emit a single `as:Create` event for the participant, already containing a status object, and
-    have the `target` of the `as:Create` event be the case object.
+- If you are joining the case, send `Accept(Invite(Actor))` with the `Invite` activity as its `object`.
+- If you are not joining, send `Reject(Invite(Actor))` with the `Invite` as its `object`.
 
-    ```mermaid
-    flowchart LR
-    a[create particpant with status] -->|target| b[case]
-    ```
+On acceptance, the CASE_MANAGER commits the reply to the ledger, seats you at Report Management (RM) state `RM.RECEIVED`, signs your embargo consent if an embargo is active, sends `Announce(VulnerabilityCase)` to seed your replica, and backfills the earlier ledger entries (CM-17-004).
 
-{% include-markdown "./_invite_to_case.md" heading-offset=1 %}
-{% include-markdown "./_accept_invite_to_case.md" heading-offset=1 %}
-{% include-markdown "./_reject_invite_to_case.md" heading-offset=1 %}
-{% include-markdown "./_add_coordinator_participant_to_case.md" heading-offset=1 %}
+Expect `RM.RECEIVED`, not `RM.ACCEPTED`.
+Accepting an invitation says you are willing to join the case; it does not say you have validated the report, which you have not yet seen in full (CM-11-001).
+Rule on the report afterwards — see [How to Advance a Case Through Report Management](manage_case.md).
 
-## Demo
+---
+
+## Choose invitation over seating
+
+Use `as:Invite` for an actor that was absent when the case was created.
+Seat the Case Owner and any already-known participants, such as the Reporter, inline on the `as:Create` for the case instead — see [How to Initialize a Case](initialize_case.md).
+
+If you are not the Case Owner but you know an actor belongs on the case, suggest it rather than inviting it: see [How to Suggest an Actor for a Case](suggest_actor.md).
+
+---
+
+## Verify
+
+| What you sent | What to confirm |
+|---|---|
+| `Invite(Actor)` | The invitee holds an `Invite` whose `actor` is the CASE_MANAGER. |
+| `Accept(Invite(Actor))` | The case roster holds you, and you have a local case replica. |
+| `Reject(Invite(Actor))` | The roster does not list you, and the refusal is on the ledger. |
+
+---
+
+## See it end to end
 
 !!! example "Try it: `vultron-demo invite-actor`"
-
-    Run this workflow end-to-end with the unified demo CLI:
 
     ```bash
     vultron-demo invite-actor
@@ -102,3 +117,13 @@ sequenceDiagram
     ```bash
     DEMO=invite-actor docker compose -f docker/docker-compose.yml run --rm demo
     ```
+
+    The scenario invites one coordinator that accepts and a second that rejects.
+
+---
+
+## Further reading
+
+- [Case Management Messages](../../../reference/messages/case_management.md) — the wire format and a rendered example for each activity above
+- [Activity Vocabulary Design](../../../topics/activity_vocabulary_design.md) — why late arrivals are invited rather than added
+- [Case Initialization](../../../topics/case_lifecycle/case_initialization.md) — the case lifecycle these invitations sit inside

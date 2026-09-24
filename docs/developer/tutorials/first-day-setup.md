@@ -37,7 +37,7 @@ Notice that `.venv/` is created and synced.
 Run:
 
 ```bash
-uv run pytest --tb=short 2>&1 | tail -5
+uv run pytest --tb=short > /tmp/last-test-run.log 2>&1; rc=$?; tail -5 /tmp/last-test-run.log; echo "exit: $rc"; (exit $rc)
 ```
 
 Notice that the final lines report the pytest summary.

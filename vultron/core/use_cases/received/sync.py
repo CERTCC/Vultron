@@ -126,24 +126,14 @@ def drain_gap_buffer(
             receiving_actor_id=receiving_actor_id,
             object_=successor,
         )
-        try:
-            result = _run_announce_bt(
-                dl, drain_event, receiving_actor_id, gap_buffer, sync_port
-            )
-        except Exception:
-            # The announce BT raised (e.g. a residual mismatch reaches
-            # SendRejectLogEntryNode with no sync_port).  The successor was
-            # already popped by take_next, so re-buffer it before aborting the
-            # cascade — otherwise the entry is silently lost — and let a future
-            # arrival or CaseActor replay retry it.
-            if dl.read(successor.id_) is None:
-                gap_buffer.buffer(successor)
-            logger.exception(
-                "sync: draining buffered entry '%s' raised — re-buffered "
-                "pending retry",
-                successor.id_,
-            )
-            return
+        # _run_announce_bt delegates to BTBridge.execute_with_setup, which
+        # classifies any node error into a FAILURE result rather than raising
+        # (CONCERN-3019), so the FAILURE branch below owns re-buffering.  A raise
+        # here would be an unclassified bridge-contract violation and must
+        # surface loudly rather than be absorbed (CS-23-001).
+        result = _run_announce_bt(
+            dl, drain_event, receiving_actor_id, gap_buffer, sync_port
+        )
         if result.status == Status.FAILURE and dl.read(successor.id_) is None:
             # Application failed and the entry was not persisted; hold it again
             # so a future arrival or CaseActor replay can retry.
@@ -178,9 +168,9 @@ def _update_replication_state(
     if existing is not None:
         existing_state = cast(VultronReplicationState, existing)
         existing_state.last_acknowledged_hash = last_acknowledged_hash
-        from vultron.core.models._helpers import _now_utc
+        from vultron.core.models._helpers import now_utc
 
-        existing_state.updated_at = _now_utc()
+        existing_state.updated_at = now_utc()
         dl.save(existing_state)
         logger.debug(
             "sync: updated ReplicationState for peer '%s' in case '%s' "
@@ -293,8 +283,8 @@ class AnnounceLedgerEntryReceivedUseCase:
             )
 
         # Clear pending assertion for this entry regardless of BT outcome
-        # (SYNC-11-003): both "recorded" and "rejected" dispositions confirm
-        # the assertion has been processed by the log authority.
+        # (SYNC-11-003): a canonical ledger entry confirms the assertion has
+        # been processed by the log authority.
         store = self._pending_assertions
         if store is None and request.receiving_actor_id:
             store = get_pending_assertion_store(request.receiving_actor_id)

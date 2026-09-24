@@ -92,11 +92,19 @@ For `implementation`:
 
 - **`path/to/file.py`**: <what changed and why>
 
+## Specs
+
+<Spec manifest from deepen-context, verbatim>
+
 ## Verification
 
 - All N unit tests pass (M new)
 - Black, flake8, mypy, pyright clean
 ```
+
+If the caller supplied no Spec manifest, write `Spec manifest: not provided —
+deepen-context was not run` under `## Specs` rather than omitting the section;
+reviewers flag a missing manifest.
 
 For `docs`:
 
@@ -164,8 +172,8 @@ before proceeding. Do not open a PR with lint failures.
 ```bash
 uv run black vultron/ test/
 uv run flake8 vultron/ test/ && uv run mypy && uv run pyright
-uv run pytest --tb=short 2>&1 | tee /tmp/pytest-unit.log | tail -5
-uv run pytest -m integration --tb=short 2>&1 | tee /tmp/pytest-integration.log | tail -5
+uv run pytest --tb=short > /tmp/pytest-unit.log 2>&1; rc=$?; tail -5 /tmp/pytest-unit.log; echo "exit: $rc"; (exit $rc)
+uv run pytest -m integration --tb=short > /tmp/pytest-integration.log 2>&1; rc=$?; tail -5 /tmp/pytest-integration.log; echo "exit: $rc"; (exit $rc)
 ```
 
 Both suites must pass. The first pytest command covers the unit suite

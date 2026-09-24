@@ -282,7 +282,7 @@ class TestMermaidPrefixMap(unittest.TestCase):
         output = root.to_mermaid()
 
         # Verify preamble and postamble
-        self.assertTrue(output.startswith("```mermaid\ngraph TD\n"))
+        self.assertTrue(output.startswith("```mermaid\nflowchart TD\n"))
         self.assertTrue(output.endswith("\n```"))
 
         # Verify prefix symbols are applied
@@ -349,7 +349,7 @@ class TestMermaidPrefixMap(unittest.TestCase):
         root = MySeq()
         expected = (
             "```mermaid\n"
-            "graph TD\n"
+            "flowchart TD\n"
             '  MySeq_1["&rarr; MySeq"]\n'
             '  MyCondition_2["#11052; MyCondition"]\n'
             "  MySeq_1 --> MyCondition_2\n"
@@ -369,8 +369,8 @@ class TestMermaidPrefixMap(unittest.TestCase):
 
         root = MySeq()
         output = root.to_mermaid(topdown=False)
-        self.assertIn("graph LR", output)
-        self.assertNotIn("graph TD", output)
+        self.assertIn("flowchart LR", output)
+        self.assertNotIn("flowchart TD", output)
 
     def test_subclass_can_override_prefix_map(self):
         # fixname() uses the *containing node's* _mermaid_prefix_map,

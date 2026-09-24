@@ -24,7 +24,8 @@ to keep open Issues aligned with the codebase.
 
 ## Quick Start
 
-1. Invoke `orient-agent` then `deepen-context` to load all specs and context.
+1. Invoke `orient-agent` (spec map) then `deepen-context` (governing specs
+   and context); walk the remaining topics with targeted `spec-dump` loads.
 2. Run a gap analysis: compare `specs/` + `notes/` against `vultron/` and
    `test/`.
 3. For each gap, create a GitHub Issue, then **route it onto the epic it
@@ -51,8 +52,14 @@ one rule: **route freely, calve only with a human.**
 
 ### Phase 1 — Load Context
 
-Invoke the `orient-agent` skill, then `deepen-context` to load all specs,
-relevant plan files, docs/adr/, notes/, AGENTS.md, and scan vultron/ and test/.
+Invoke the `orient-agent` skill, then `deepen-context` to load the governing
+specs, relevant plan files, docs/adr/, notes/, AGENTS.md, and scan vultron/ and
+test/.
+
+Gap analysis needs broader spec coverage than one task. Walk the spec map
+from `orient-agent` one topic at a time with
+`PYTHONPATH= uv run spec-dump --topic <T> --text` rather than printing the
+full dump, which is too large to read end to end.
 
 To understand what has recently been completed and avoid re-adding finished
 work, run `uv run show-history --month YYMM` (replacing `YYMM` with the
@@ -100,16 +107,20 @@ ISSUE_NUMBER=$(.agents/skills/manage-github-issue/manage_github_issue.sh \
 - [ ] AC-2: <testable criterion>
 ...
 
+Governing specs: <spec/group IDs the gap violates>
+
 ## Reference
 
-Spec: \`specs/<topic>.yaml\` <ID range>" \
+Spec: \`specs/<topic>.yaml\`" \
   --label "size:<S|M|L>")
   # Add --blocked-by N for known blockers
 echo "Created gap issue #${ISSUE_NUMBER}"
 ```
 
-Set the `size:` label from AC count: 1–2 → `size:S`; 3–6 → `size:M`;
-7+ → `size:L`.
+Set the `size:` label from the AC count with
+`PYTHONPATH= uv run pr-size --acs <N> --quiet`. Do not restate the bands — see
+`.agents/skills/shared/sizing.md`. This is an **estimate**; the measured size is
+applied to the PR by CI and never overwrites it (PAD-05-010).
 
 Do **not** add tasks to GitHub Issues outside the `manage-github-issue`
 workflow documented above.

@@ -32,10 +32,10 @@ from vultron.core.services.embargo_lifecycle import (
 )
 from vultron.core.states.em import EM
 from vultron.core.models.case import case_addressees
+from vultron.core.participants.authority import resolve_case_manager_id
 from vultron.core.use_cases._helpers import (
     _as_id,
     reset_case_participant_embargo_consent,
-    _resolve_case_manager_id,
 )
 from vultron.errors import VultronNotFoundError
 
@@ -161,7 +161,7 @@ class ClearActiveEmbargoNode(DataLayerActionWithPorts):
 
 
 class ResetParticipantConsentNode(DataLayerActionWithPorts):
-    """Reset all participant embargo consent states to NO_EMBARGO.
+    """Reset all participant embargo consent states to UNBOUND.
 
     Calls ``reset_case_participant_embargo_consent`` for the given case.
     Returns FAILURE when the case is not found.  Returns SUCCESS when
@@ -177,11 +177,9 @@ class ResetParticipantConsentNode(DataLayerActionWithPorts):
             return f
         assert self.datalayer is not None
 
-        case = self.datalayer.read_case(self.case_id)
-        if case is None:
-            self.feedback_message = f"Case '{self.case_id}' not found"
-            self.logger.warning("%s: %s", self.name, self.feedback_message)
-            return Status.FAILURE
+        case, failure = self._require_case(self.case_id)
+        if failure is not None:
+            return failure  # Regime 1 (ADR-0087)
 
         reset_case_participant_embargo_consent(self.datalayer, case)
         self.feedback_message = (
@@ -215,11 +213,10 @@ class ApplyEmbargoTeardownNode(DataLayerActionWithPorts):
         super().__init__(name=name or self.__class__.__name__)
         self.case_id = case_id
 
-    @classmethod
-    def input_ports(cls) -> dict[str, PortInformation]:
-        ports = super().input_ports()
-        ports["activity"] = PortInformation(data_type=object, required=False)
-        return ports
+    INPUT_PORTS: dict[str, PortInformation] = {
+        **DataLayerActionWithPorts.INPUT_PORTS,
+        "activity": PortInformation(data_type=object, required=False),
+    }
 
     @classmethod
     def _domain_port_remappings(cls) -> dict[str, str]:
@@ -307,21 +304,11 @@ class SendAnnounceEmbargoEventNode(_SendEmbargoActivityBase):
 
     def _resolve_embargo_and_manager(self) -> "tuple[str, str] | Status":
         assert self.datalayer is not None
-        try:
-            case = self.datalayer.read_case(self._case_id)
-        except Exception as exc:
-            self.feedback_message = (
-                f"Failed to read case '{self._case_id}': {exc}"
-            )
-            self.logger.warning("%s: %s", self.name, self.feedback_message)
-            return Status.FAILURE
+        case, failure = self._require_case(self._case_id)
+        if failure is not None:
+            return failure  # Regime 1 (ADR-0087)
 
-        if case is None:
-            self.feedback_message = f"Case '{self._case_id}' not found"
-            self.logger.warning("%s: %s", self.name, self.feedback_message)
-            return Status.FAILURE
-
-        case_manager_id = _resolve_case_manager_id(case, self.datalayer)
+        case_manager_id = resolve_case_manager_id(case, self.datalayer)
         if case_manager_id is None:
             self.feedback_message = (
                 f"No Case Manager found for case '{self._case_id}'"
@@ -391,10 +378,9 @@ class RemoveFromProposedEmbargoesNode(DataLayerActionWithPorts):
             return f
         assert self.datalayer is not None
 
-        case = self.datalayer.read_case(self.case_id)
-        if case is None:
-            self.feedback_message = f"Case '{self.case_id}' not found"
-            return Status.FAILURE
+        case, failure = self._require_case(self.case_id)
+        if failure is not None:
+            return failure  # Regime 1 (ADR-0087)
 
         proposed_ids = [_as_id(e) for e in case.proposed_embargoes]
         if self.embargo_id in proposed_ids:

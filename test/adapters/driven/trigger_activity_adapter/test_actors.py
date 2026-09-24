@@ -29,7 +29,7 @@ from vultron.wire.as2.vocab.base.objects.actors import as_Service
 from vultron.wire.as2.vocab.objects.case_participant import as_CaseParticipant
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCase,
-    VulnerabilityCaseStub,
+    as_VulnerabilityCaseStub,
 )
 
 _ACTOR = "https://example.org/actors/coordinator"
@@ -95,7 +95,7 @@ class TestAcceptCaseInvite:
         dl.create(invitee)
         invite = rm_invite_to_case_activity(
             invitee,
-            target=VulnerabilityCaseStub(id_=_CASE_ID),
+            target=as_VulnerabilityCaseStub(id_=_CASE_ID),
             actor=_ACTOR,
             to=[_INVITEE],
         )
@@ -336,7 +336,7 @@ class TestRejectCaseParticipantRole:
         _make_role_case(dl)
         from vultron.enums.roles import CVDRole
 
-        activity_id = adapter.reject_case_participant_role(
+        activity_id, activity_json = adapter.reject_case_participant_role(
             offer_id=_OFFER_ID,
             case_id=_CASE_ID,
             role=CVDRole.CASE_MANAGER,
@@ -347,12 +347,13 @@ class TestRejectCaseParticipantRole:
         )
 
         assert activity_id
+        assert activity_json
 
     def test_persists_reject_activity(self, adapter, dl):
         _make_role_case(dl)
         from vultron.enums.roles import CVDRole
 
-        activity_id = adapter.reject_case_participant_role(
+        activity_id, _ = adapter.reject_case_participant_role(
             offer_id=_OFFER_ID,
             case_id=_CASE_ID,
             role=CVDRole.CASE_MANAGER,

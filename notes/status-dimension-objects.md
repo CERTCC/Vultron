@@ -10,6 +10,7 @@ related_specs:
   - specs/architecture.yaml
 related_notes:
   - notes/wire-core-boundary.md
+  - notes/case-ledger-parsing.md
   - notes/lifecycle-staged-types.md
   - notes/case-state-model.md
   - notes/embargo-lifecycle.md
@@ -41,7 +42,7 @@ into flat enum fields:
 
 ```python
 # CaseStatus (before)
-em_state: EM = EM.NO_EMBARGO
+em_state: EM = EM.NONE
 pxa_state: CS_pxa = CS_pxa.pxa
 
 # ParticipantStatus (before)
@@ -158,44 +159,47 @@ never mutated; a new record is appended with the updated dimension values.
 
 ## Wire Projection
 
-`as_CaseStatus` and `as_ParticipantStatus` project dimension objects to the
-wire format. That projection must handle the nested dimension-object dict shape:
+> **Superseded by [ADR-0099](../docs/adr/0099-one-object-model-as2-is-a-serialization.md)
+> (detail 5, SDO-01-004).** This section previously recommended matching the wire
+> JSON shape to the nested dimension structure, and routing projection through the
+> ADR-0082 pairing registry and adapter-side translator. Both recommendations are
+> cancelled. The rest of this note — the naming table, the `BaseModel`-not-`CoreObject`
+> rationale, the immutable `transition()` pattern and the call-site migration
+> scope — still stands.
 
-```python
-# core dimension objects → wire flat fields (for backward wire compat)
-# OR — wire flat fields remain nested dicts (simpler, no backward wire compat needed
-#       since there are no extant records to preserve)
-```
+**A dimension object serializes to its bare state value, not to a one-key
+mapping.** `RmDimension(state=RM.START).model_dump(mode="json")` is `"START"`, and
+the enclosing model carries the wire spelling as a field alias — `rm` with
+`serialization_alias="rmState"` — so the serialized result is `{"rmState": "START"}`
+(SDO-01-004).
 
-Because there are no extant persisted records to preserve, the simplest
-approach is to match the wire JSON shape to the new nested structure.
+The reasoning: a dimension holds exactly one data field, `state`. Everything else
+on it is behaviour, and behaviour does not serialize, so the one-key wrapper was
+putting a container on the wire whose only content was the thing it contained.
 
-**Do not implement this as `from_core()` / `to_core()` methods on the wire
-classes.** ARCH-12-005 as amended by ADR-0082 forbids those methods; projection
-belongs to the generic bidirectional translator on the adapter side. Declare the
-core↔wire pairing and its field map to that translator (ARCH-23-001) and put the
-dimension-object shape handling there. See
+**Both input forms are accepted.** `RmDimension.model_validate("ACCEPTED")` and
+`RmDimension.model_validate({"state": "ACCEPTED"})` both succeed, so callers that
+construct the mapping form keep working and rows stored either way rehydrate
+(SDO-06-001).
+
+Two consequences worth carrying:
+
+- Because the core class now declares the AS2 aliases itself, core
+  `ParticipantStatus` emits the same AS2 payload as `as_ParticipantStatus` — which
+  is what lets the wire form stay unchanged while the paired class is deleted.
+- **Any consumer that reads a dimension out of a persisted row or a ledger
+  snapshot must accept all three shapes** — bare value, one-key mapping, and the
+  flat legacy `rmState` spelling. `notes/case-ledger-parsing.md` covers the
+  JSONL-consumer side; `_dimension_state` in
+  `vultron/adapters/driven/datalayer_sqlite/schema.py` is the persistence-summary
+  side. A reader that handles only the older two silently reports `None`, which is
+  the issue #2262 / #2232 failure shape.
+
+Projection still lives on the wire classes (`from_core` / `to_core`) for now.
+ADR-0099 supersedes ARCH-12-005's relocation of it: there is no pairing registry
+and no adapter-side translator to move it to, because the second hierarchy is being
+removed rather than reconciled. See
 [notes/wire-core-boundary.md](wire-core-boundary.md).
-
----
-
-## Call-Site Migration Scope
-
-There are approximately 308 call sites in `vultron/` and `test/` (excluding
-`vultron/bt/`) that access the old flat enum fields. The migration pattern
-is mechanical:
-
-| Old access pattern | New access pattern |
-|---|---|
-| `status.em_state` | `status.em.state` |
-| `status.pxa_state` | `status.pxa.state` |
-| `status.rm_state` | `status.rm.state` |
-| `status.vfd_state` | `status.vf.state` (VENDOR) or `status.d.state` (DEPLOYER) |
-| `status.em_consent_state` | `status.consent.state` (or `None` check) |
-| `CaseStatus(em_state=EM.ACTIVE, ...)` | `CaseStatus(em=EmDimension(state=EM.ACTIVE), ...)` |
-
-The `vultron/bt/` legacy simulator is **out of scope** — it uses the custom
-BT engine and accesses enums directly; migrating it is a separate effort.
 
 ---
 
@@ -261,36 +265,17 @@ enforces the same composed rule set:
   purpose: Postel's maxim, not an inconsistency (ADR-0061, ADR-0086). See
   [notes/domain-validation.md](domain-validation.md).
 
-Two `ParticipantStatus` writers still sit outside the composed evaluator
-(`CaseParticipant.append_rm_state()` and
-`_ReportPhaseRMTransition._guard_transition()`), each enforcing RM adjacency only;
-consolidating them is #3111.
+`CreateParticipantStatusNode` is now the sole `ParticipantStatus` writer
+(ADR-0089, closing #3111): the model-level `append_rm_state` mutators were
+removed and pre-case RM state moved onto `VultronReportCaseLink`
+(`_ReportPhaseRMTransition` writes the link's `rm_state`, not a
+`ParticipantStatus`). The only two `ParticipantStatus`-write exclusions that
+remain are the receive path and the replica-apply path, which adjudicate under a
+different disposition by design.
 
 `test/architecture/test_vfd_rm_pxa_write_sites.py` (the AC-7 ratchet) AST-scans
 `vultron/core/behaviors/` for every dimension constructor call and fails on any
 new unclassified site, making it hard to add an unguarded write path silently.
-
----
-
-## Relationship to EmbargoLifecycle
-
-`EmbargoLifecycle` currently mutates `em_state` and `em_consent_state` fields
-directly on `CaseStatus`/`ParticipantStatus`. After this migration, it MUST
-use the dimension-object transition pattern:
-
-```python
-# Before
-case_status.em_state = new_em_state
-
-# After
-updated_em = EmDimension(state=new_em_state)
-# ... or via transition():
-updated_em = case_status.em.transition(EM_Trigger.ACTIVATE)
-case_status = case_status.model_copy(update={"em": updated_em})
-```
-
-This is the single most complex migration site (`embargo_lifecycle.py` has
-~17 flat-field accesses). The impl agent should prioritize this file.
 
 ---
 

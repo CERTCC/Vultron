@@ -22,17 +22,14 @@ import pytest
 
 from vultron.core.behaviors.case.nodes import CreateCaseOwnerParticipant
 from vultron.core.behaviors.case.nodes.participant import (
-    AdvanceOwnerRmToAcceptedNode,
     AttachOwnerParticipantToCaseNode,
+    CreateOwnerInitialStatusNode,
     CreateOwnerParticipantNode,
     PersistOwnerCaseNode,
     RecordOwnerJoinedEventNode,
-    ResolveOwnerInitialStatusNode,
-    ShouldAdvanceOwnerToAcceptedNode,
 )
 from vultron.config.actor import ActorConfig
 from vultron.core.models.vultron_types import VultronCase, VultronCaseActor
-from vultron.core.states.rm import RM
 from vultron.enums.roles import CVDRole
 from test.core.behaviors.bt_harness import BTTestScenario
 
@@ -157,28 +154,13 @@ class TestCreateCaseOwnerParticipant:
     def test_is_composed_subtree_of_named_leaf_nodes(self) -> None:
         node = CreateCaseOwnerParticipant()
         assert isinstance(node, py_trees.composites.Sequence)
-        assert [type(child) for child in node.children[:5]] == [
-            ResolveOwnerInitialStatusNode,
+        assert [type(child) for child in node.children] == [
             CreateOwnerParticipantNode,
             AttachOwnerParticipantToCaseNode,
             PersistOwnerCaseNode,
+            CreateOwnerInitialStatusNode,
             RecordOwnerJoinedEventNode,
         ]
-        assert isinstance(node.children[5], py_trees.composites.Selector)
-
-        conditional_selector = node.children[5]
-        assert isinstance(
-            conditional_selector.children[0], py_trees.composites.Sequence
-        )
-        assert [
-            type(child) for child in conditional_selector.children[0].children
-        ] == [
-            ShouldAdvanceOwnerToAcceptedNode,
-            AdvanceOwnerRmToAcceptedNode,
-        ]
-        assert isinstance(
-            conditional_selector.children[1], py_trees.behaviours.Success
-        )
 
     def test_records_owner_joined_event(
         self,
@@ -202,25 +184,3 @@ class TestCreateCaseOwnerParticipant:
 
         stored_case = cast(Any, bt_scenario.dl.read(case_obj.id_))
         assert actor_id in stored_case.actor_participant_index
-
-    def test_advances_owner_rm_to_accepted_when_configured(
-        self,
-        bt_scenario: BTTestScenario,
-        actor: VultronCaseActor,
-        case_obj: VultronCase,
-        actor_id: str,
-    ) -> None:
-        result = bt_scenario.run(
-            CreateCaseOwnerParticipant(advance_to_accepted=True),
-            actor_id=actor_id,
-            case_id=case_obj.id_,
-        )
-        bt_scenario.assert_success(result)
-
-        stored_case = cast(Any, bt_scenario.dl.read(case_obj.id_))
-        participant_id = stored_case.actor_participant_index[actor_id]
-        participant = cast(Any, bt_scenario.dl.read(participant_id))
-        rm_states = [
-            status.rm.state for status in participant.participant_statuses
-        ]
-        assert RM.ACCEPTED in rm_states

@@ -28,7 +28,10 @@ from typing import cast
 from py_trees.common import Status
 
 from vultron.core.behaviors.bridge import BTBridge
-from vultron.core.behaviors.helpers import DataLayerAction
+from vultron.core.behaviors.helpers import (
+    DataLayerAction,
+    _EmitSingleActivityBase,
+)
 from vultron.core.behaviors.sync.commit_tree import (
     create_commit_log_entry_tree,
 )
@@ -125,7 +128,6 @@ class AutoAcceptCaseParticipantRoleNode(DataLayerAction):
             object_id=accept_id,
             event_type="accept_case_participant_role",
             payload_snapshot=snapshot_dict,
-            disposition="recorded",
         )
         result = BTBridge(
             datalayer=cast(CaseOutboxPersistence, self.datalayer)
@@ -170,7 +172,7 @@ class AutoAcceptCaseParticipantRoleNode(DataLayerAction):
         return Status.SUCCESS
 
 
-class EmitRejectCaseParticipantRoleNode(DataLayerAction):
+class EmitRejectCaseParticipantRoleNode(_EmitSingleActivityBase):
     """Emit a Reject(Offer(CaseParticipantRole)) to the offering Vendor (ADR-0039).
 
     Fallback branch of the ``AcceptOrReject`` Selector after
@@ -192,14 +194,19 @@ class EmitRejectCaseParticipantRoleNode(DataLayerAction):
         vendor_id: str,
         name: str | None = None,
     ) -> None:
-        super().__init__(name=name or self.__class__.__name__)
+        super().__init__(name=name)
         self.offer_id = offer_id
         self.case_id = case_id
         self.role = role
         self.target_actor_id = target_actor_id
         self.vendor_id = vendor_id
 
-    def _call_factory(self) -> str:
+    def _call_factory(self) -> tuple[str, str]:
+        if not self.case_id or not self.target_actor_id:
+            raise ValueError(
+                f"missing case_id or target_actor_id for offer '{self.offer_id}'"
+                " — cannot emit Reject"
+            )
         assert self.trigger_activity_factory is not None
         assert self.actor_id is not None
         return self.trigger_activity_factory.reject_case_participant_role(
@@ -212,53 +219,11 @@ class EmitRejectCaseParticipantRoleNode(DataLayerAction):
             to=[self.vendor_id],
         )
 
-    def _emit(self) -> None:
-        reject_id = self._call_factory()
-        cast(CaseOutboxPersistence, self.datalayer).outbox_append(  # type: ignore[union-attr]
-            reject_id
-        )
+    def _on_success(self, activity_id: str, activity_blob: str) -> None:
         self.logger.info(
             "%s: emitted Reject '%s' to vendor '%s' for offer '%s'",
             self.name,
-            reject_id,
+            activity_id,
             self.vendor_id,
             self.offer_id,
         )
-
-    def _validate_context(self) -> Status | None:
-        if (f := self._require_datalayer_and_actor()) is not None:
-            self.logger.error(
-                "%s: DataLayer or actor_id not available", self.name
-            )
-            return f
-        if (f := self._require_factory()) is not None:
-            self.logger.warning(
-                "%s: factory unavailable — cannot emit Reject for offer '%s'",
-                self.name,
-                self.offer_id,
-            )
-            return f
-        if not self.case_id or not self.target_actor_id:
-            self.logger.warning(
-                "%s: missing case_id or target_actor_id for offer '%s'"
-                " — cannot emit Reject",
-                self.name,
-                self.offer_id,
-            )
-            return Status.FAILURE
-        return None
-
-    def update(self) -> Status:
-        if (f := self._validate_context()) is not None:
-            return f
-        try:
-            self._emit()
-            return Status.SUCCESS
-        except Exception as exc:
-            self.logger.error(
-                "%s: error emitting Reject for offer '%s': %s",
-                self.name,
-                self.offer_id,
-                exc,
-            )
-            return Status.FAILURE

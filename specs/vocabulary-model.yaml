@@ -44,27 +44,22 @@ groups:
     priority: MUST
     kind: project
     statement: >-
-      The `VOCABULARY` registry MUST be keyed by a stable identifier derived from the wire
-      class name, and MUST map each such key to its corresponding vocabulary class.  The
-      registry key is an internal lookup concern and MUST NOT be assumed equal to the AS2
-      `type` field value emitted on the wire; deserialization MUST resolve an inbound
-      `"type": "..."` value through the declared key mapping rather than by treating the
-      value as the key directly.  Registry keys MUST be disjoint from core vocabulary keys
-      (ARCH-23-002).
+      The `VOCABULARY` registry MUST be keyed by the full wire class name (`as_VultronPerson`),
+      and MUST map each such key to that class.  A `VOCABULARY` key is a class-name lookup and
+      MUST NOT be read as an AS2 `type` value; resolving an inbound `"type": "..."` value is
+      `WIRE_TYPE_MAP`'s job (VM-01-008).  `VOCABULARY` keys MUST be disjoint from core
+      vocabulary keys (ARCH-23-002).
     rationale: >-
-      This requirement previously stated that the key *is* the AS2 `type` value.  That was
-      only accidentally true, and already false for the five actor types: `as_VultronPerson`
-      auto-registers under `VultronPerson` (derived from its class name via
-      `cls.__name__.removeprefix("as_")`) and is *also* explicitly assigned to the key
-      `Person`, which is the value that appears on the wire.  Stating that the key and the
-      wire value are the same string made the bare-name collision with `CORE_VOCABULARY`
-      look mandatory, when in fact nothing about the external protocol requires it — see
-      ARCH-23-003, which holds serialized output invariant under any key change.
+      The two registries answer different questions, so they carry different key forms:
+      `VOCABULARY` answers "which class is named this?", `WIRE_TYPE_MAP` answers "which class
+      does this wire `type` value deserialize to?" (VM-01-008).  The class-name form is what
+      keeps these keys disjoint from `CORE_VOCABULARY`, so no wire class shadows a core type.
+      The `as_` prefix is never part of an AS2 `type` value, so nothing external depends on
+      this key form (ARCH-23-003).
     verification: >-
-      A test asserts that every `VOCABULARY` key is the class-name-derived identifier for its
-      registered class; that resolving an inbound `"type"` value goes through the declared key
-      mapping rather than treating the value as the key, so `{"type": "Person"}` deserializes to
-      `as_VultronPerson` even though its derived key is `VultronPerson`; and that
+      `test/architecture/test_vocab_registry_keys.py` asserts every `VOCABULARY` key equals its
+      registered class's `__name__`, behind the same population guard the `WIRE_TYPE_MAP` ratchets
+      use.  A test in `test/wire/as2/vocab/base/test_registry.py` asserts
       `set(VOCABULARY) & set(CORE_VOCABULARY) == set()` once both registries are fully populated
       (ARCH-23-002).
     adr:
@@ -72,7 +67,7 @@ groups:
     relationships:
     - rel_type: depends_on
       spec_id: ARCH-23-002
-      note: Disjoint wire and core registry keys are what this requirement's key-independence permits.
+      note: Disjoint wire and core registry keys are what this requirement's key form delivers.
   - id: VM-01-005
     priority: MUST
     kind: project
@@ -86,6 +81,74 @@ groups:
     kind: project
     statement: 'A `VocabNamespace` enum (values: `AS`, `VULTRON`) MUST be defined in `vultron/wire/as2/vocab/base/enums.py`
       and used to annotate the provenance of each vocabulary class'
+  - id: VM-01-007
+    priority: MUST
+    kind: project
+    statement: >-
+      Registration completeness MUST be verified against the wire `type` a class actually
+      presents, not against the module it lives in.  A test MUST assert that every
+      `as_Base` subclass whose presented `type` equals its own class-name-derived value is
+      reachable in a wire registry under that value, and MUST hold the exceptions in a
+      declared exemption set that names, per member, the requirement or reason that
+      exempts it.  A class's presented `type` is its `type_` field default, or its class
+      name with any `as_` prefix removed when that default is `None`.
+    rationale: >-
+      The pre-#3242 check asked whether each vocabulary *module* contributed a registration,
+      and skipped any module with no own `type_` annotation as a "semantic alias or abstract
+      module".  `base/objects/collections.py` declares no annotation, so it was skipped — and
+      that skip is the defect being tested for.  A check whose skip predicate is the defect
+      cannot see the defect.  Phrasing the invariant on the presented `type` value closes
+      that; the exemption set follows ARCH-22-003 so it stays auditable rather than folklore.
+      The presented value is read from the field default rather than an instance because
+      classes with required fields cannot be built without arguments.  Abstract roots such
+      as `as_Object`, `as_VultronObject`, and `as_VultronActorMixin` present their own name
+      and are unregistered by design, so they are exemption-set members.
+    verification: >-
+      A test enumerates every `as_Base` subclass, computes the `type` each presents, and
+      asserts that a class presenting its own class-name-derived value resolves to itself
+      through the wire lookup or appears in the declared exemption set with a stated reason.
+    relationships:
+    - rel_type: verifies
+      spec_id: VM-01-001
+    - rel_type: depends_on
+      spec_id: VM-03-002
+      note: The `Literal` annotation is what makes "distinct wire type" declarable rather than inferred.
+  - id: VM-01-008
+    priority: MUST
+    kind: project
+    statement: >-
+      The `WIRE_TYPE_MAP` registry MUST be keyed by the wire `type` value the registered class
+      emits — its declared `type_` default, or, absent one, its class name with the `as_` prefix
+      removed, matching what VM-03-001 assigns at construction.  A class MUST NOT be registered
+      under its class name when that name is not the `type` value it emits.  Exactly one class
+      MUST own a given `type` value: a class that shares another's `type` value MUST declare
+      itself an alias (`_wire_type_alias = True`) and MUST NOT hold a `WIRE_TYPE_MAP` key, while
+      remaining reachable by class name through `VOCABULARY` (VM-01-004).  The sole exception
+      is a sanctioned shadow, enumerated in the verifying ratchet: the five `as_Vultron*` actor
+      subtypes deliberately replace their base AS2 actor classes as the owner of `Person`,
+      `Organization`, `Service`, `Application` and `Group`, so an inbound actor keeps its
+      Vultron extension fields.
+    rationale: >-
+      A key that is no object's `type` value is unreachable from the wire, and it lets a caller
+      holding a *class* name resolve a wire class by name coincidence, which ARCH-23-001 forbids
+      — `as_VultronPerson` formerly registered under `VultronPerson`, which is also a core type's
+      name.  Deriving the key from the emitted value removes both hazards and puts the registry
+      key and the generated JSON-LD term (VM-10-002) on one rule instead of two.
+    verification: >-
+      `test/architecture/test_vocab_registry_keys.py` forces full registration, then asserts every
+      `WIRE_TYPE_MAP` key equals `wire_type_value()` of its registered class, that every declared
+      wire `type` value resolves to some registered class, that no class declaring
+      `_wire_type_alias` holds a key, and that no two registrable classes share a `type` value
+      outside the enumerated sanctioned shadows.  A population guard precedes them, since
+      registration is an import side effect (VM-01-005) and the assertions would otherwise pass
+      vacuously.
+    relationships:
+    - rel_type: depends_on
+      spec_id: VM-03-001
+      note: The class-name fallback must match the value `set_type_from_class_name` assigns.
+    - rel_type: depends_on
+      spec_id: VM-01-005
+      note: Import-time registration is why the verification must force population first.
 - id: VM-02
   title: Base Model Configuration
   specs:
@@ -133,13 +196,38 @@ groups:
     lint_suppress:
     - missing_story_reference
   - id: VM-03-002
-    priority: SHOULD
+    priority: MUST
     kind: protocol
-    statement: Concrete subclasses SHOULD narrow the `as_type` field to a `Literal[...]` type matching the wire type name
-      they represent
+    statement: >-
+      A wire-layer class that presents its own class-name-derived AS2 `type` value MUST
+      narrow the `type_` field to a `Literal[...]` matching that value.  A semantic alias
+      that must not be reachable under its own class name — the `_XxxActivity` pattern,
+      which presents an ancestor's `type` — MUST NOT declare its own `type_` annotation,
+      because any such declaration registers the class under its class name.
+    rationale: >-
+      Auto-registration reads an own `type_` annotation as its test for "is this class
+      concrete" and keys the entry on the class name (VM-01-001), while VM-03-001 fills
+      `type_` from the class name whenever a class inherits no default — so a class with
+      neither an annotation nor an inherited default presents a distinct wire `type` and
+      registers nothing.  That is how the AS2 collection types went unregistered until
+      #3242: `OrderedCollection` was in neither wire registry, so the lookup fell through to
+      the core map and answered a wire caller with a core class.  As a MUST, the annotation
+      becomes the single declaration of "distinct wire type", which is what VM-01-007 can
+      then check.  The prohibition is scoped to unaddressable aliases: classes such as
+      `as_VultronPerson` present an ancestor's `type` but narrow `type_` on purpose, so that
+      they register under their own class name.
+    verification: >-
+      A test asserts that a wire class presenting its own class-name-derived `type` value
+      declares that value as a `Literal`, and that an `_XxxActivity` alias declares no own
+      `type_` annotation — the per-class form of the hierarchy-wide invariant VM-01-007
+      verifies.
     relationships:
     - rel_type: refines
       spec_id: VM-03-001
+    - rel_type: refines
+      spec_id: VM-01-001
+    lint_suppress:
+    - missing_story_reference
   - id: VM-03-003
     priority: MUST_NOT
     kind: protocol
@@ -260,6 +348,78 @@ groups:
       spec_id: VM-06-001
     lint_suppress:
     - missing_story_reference
+  - id: VM-06-007
+    priority: MUST
+    kind: protocol
+    statement: >-
+      `rehydrate()` in `vultron/wire/as2/rehydration.py` is the sole owner of ID-to-object
+      materialisation. When a slot's declared type admits a model but admits no `str` branch —
+      `as_CaseStatus`, `list[as_Activity]` — a bare IRI is not a value it can hold, so
+      `rehydrate()` MUST resolve that IRI through the supplied `DataLayer` and MUST refuse with
+      a `VultronReferenceResolutionError` (a `ValueError` subclass) naming the field and the IRI
+      when it cannot. Refusal covers both failure modes: the IRI resolving to nothing, and the
+      IRI resolving to an object that is not an AS2 object and therefore cannot occupy a wire
+      slot — which is the normal `dl.read()` result for a paired type while DL-05-004 returns
+      core objects. It MUST NOT fabricate a placeholder object, MUST NOT synthesize a value for
+      any field the placeholder would have required, and MUST NOT substitute a shape the slot
+      cannot hold. Only slots whose declared type is an `as_Object` subclass are in scope: a core
+      dimension field admits no `str` either but serializes to a bare state value (SDO-01-004),
+      not to a reference. Slots that do admit `str` (every `ActivityStreamRef[T]`) are out of
+      scope here and keep VM-06-004's defer behaviour.
+    rationale: >-
+      ADR-0099 detail 9 requires object slots to hold whole objects but named nothing to fill
+      them. Per-class `from_core` did it by fabricating a stub with an invented `actor` — the
+      case owner, or the case's own URI — which misattributes every activity the owner did not
+      perform. `rehydrate()` already holds the `DataLayer` (VM-06-002), so it can resolve the
+      real object and read the real actor off it. Naming it keeps the behaviour alive when the
+      projection methods are deleted.
+    verification: Unit tests in `test/wire/as2/test_rehydration_materialisation.py` confirm that a bare ID in an
+      object-only slot ends up holding the resolved object, that an unresolvable reference raises rather than leaving a
+      bare string or a stub, that a reference resolving to a non-AS2 object is refused rather than substituted, that a
+      slot supplied under its AS2 alias is materialised rather than skipped, that a URI-admitting slot and a core
+      dimension slot are both untouched, and that the materialised activity carries its own actor rather than a
+      synthesized one.
+    adr:
+    - ADR-0099
+    relationships:
+    - rel_type: refines
+      spec_id: VM-06-001
+    - rel_type: depends_on
+      spec_id: VM-06-002
+      note: Materialisation needs the `dl` parameter that requirement mandates.
+    lint_suppress:
+    - missing_story_reference
+  - id: VM-06-008
+    priority: MUST
+    kind: project
+    statement: >-
+      A wire-branch caller resolving an AS2 `type` value MUST use a lookup that returns
+      `as_Base` subclasses only.  The core-type-map fallback (ARCH-12-010) MUST be reachable
+      only from a caller that has asked for it explicitly; it MUST NOT be the default
+      answer a wire-branch caller receives.  A caller that may legitimately receive either
+      branch — the persistence read paths that reconstruct whatever was stored — MUST state
+      that in its call rather than inherit it from the function's default.
+    rationale: >-
+      The core map is keyed for core-layer callers, so a hit there from a wire-branch caller is
+      a coincidence of naming, not a wire counterpart (ARCH-23-002).  MV-04-003 already forbids
+      the substitution for inline objects, and #3232 implemented it as a local filter in one
+      caller.  A filter in one caller does not protect the others: the inbox re-parse path had
+      none, so an inbound `Add(object={"type": "OrderedCollection"})` was reconstructed as a
+      core class and persisted.  A permissive default hands the unsafe answer to every new
+      caller for free.
+    verification: >-
+      A test asserts that the wire-branch lookup raises for a name registered only in
+      `CORE_TYPE_MAP`, that the inbox re-parse path does not produce a core class for an
+      inbound `OrderedCollection` object, and that every remaining call site either uses the
+      wire-only lookup or names its need for the core fallback explicitly.
+    relationships:
+    - rel_type: refines
+      spec_id: MV-04-003
+    - rel_type: constrains
+      spec_id: ARCH-12-010
+      note: ARCH-12-010's registration duty stands; what changes is which callers reach the map it fills.
+    adr:
+    - ADR-0090
 - id: VM-07
   title: Serialization Rules
   specs:
@@ -293,7 +453,7 @@ groups:
       serialization boundary. Omitting `serialize_as_any=True` at either boundary causes the serializer to use the declared
       (base) type''s schema, silently dropping all subtype-specific fields.'
     rationale: Pydantic v2 uses the declared field type for serialization by default. A field typed as `VulnerabilityCase`
-      but holding a `VulnerabilityCaseStub` at runtime will serialize using `VulnerabilityCase`'s schema, dropping `stub_*`
+      but holding an `as_VulnerabilityCaseStub` at runtime will serialize using `VulnerabilityCase`'s schema, dropping `stub_*`
       fields entirely with no error. Root causes of BUG-26042201 and BUG-26051902. Both persistence and delivery boundaries
       are required because a correct write-path can still produce incorrect wire output if the delivery serializer also lacks
       this flag.
@@ -406,10 +566,10 @@ groups:
       `context_` to the Vultron context URI (`https://certcc.github.io/Vultron/ns/context.jsonld`)
       rather than the ActivityStreams namespace URI.
     rationale: >-
-      `VultronAS2Object` is the base class for all Vultron-specific wire types. Overriding
+      `as_VultronObject` is the base class for all Vultron-specific wire types. Overriding
       `context_` there ensures that every Vultron object serializes with the correct
       `@context` without requiring call-site changes.
-    verification: Inspection of `vultron/wire/as2/vocab/objects/base.py` confirms that `VultronAS2Object` (with
+    verification: Inspection of `vultron/wire/as2/vocab/objects/base.py` confirms that `as_VultronObject` (with
       `_vocab_ns = VocabNamespace.VULTRON`) overrides `context_` to
       `"https://certcc.github.io/Vultron/ns/context.jsonld"`, so every concrete Vultron wire type serializes with the
       correct `@context` without call-site changes.

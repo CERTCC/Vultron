@@ -23,9 +23,12 @@ The tree runs four steps in sequence:
    CASE_MANAGER or CASE_OWNER (ADR-0084, PRM-06-003/004).
 2. **EnsureOnBehalfParticipantExistsNode** — create a minimal
    ``CaseParticipant`` for the target if absent (ADR-0084).
-3. **CreateParticipantStatusNode** — write the ParticipantStatus snapshot
+3. (optional) **CheckSomeVendorAtVFNode** — when ``d_state`` is non-``None``,
+   gate d→D on the causal precondition that at least one VENDOR participant
+   has reached ``vf.state=VF`` (CSB-15-004).
+4. **CreateParticipantStatusNode** — write the ParticipantStatus snapshot
    for the target actor (BT-15-001: protocol-significant write inside BT).
-4. **sender_side_bt** — resolve the Case Manager, build the outbound
+5. **sender_side_bt** — resolve the Case Manager, build the outbound
    ``Add(ParticipantStatus)`` activity, and queue it.
 """
 
@@ -39,6 +42,9 @@ from vultron.core.behaviors.case.nodes.participant import (
 from vultron.core.behaviors.case.nodes.on_behalf_guards import (
     CheckOnBehalfAuthorizedNode,
     EnsureOnBehalfParticipantExistsNode,
+)
+from vultron.core.behaviors.case.nodes.vfd_role_guards import (
+    CheckSomeVendorAtVFNode,
 )
 from vultron.core.behaviors.sender.send_tree import sender_side_bt
 from vultron.core.states.cs import CS_d, CS_vf
@@ -75,21 +81,29 @@ def add_on_behalf_status_trigger_bt(
     Returns:
         A ``py_trees.composites.Sequence`` that gates, creates, and emits.
     """
-    return py_trees.composites.Sequence(
-        name="AddOnBehalfStatusTriggerBT",
-        memory=False,
-        children=[
-            CheckOnBehalfAuthorizedNode(
+    children: list[py_trees.behaviour.Behaviour] = [
+        CheckOnBehalfAuthorizedNode(
+            case_id=case_id,
+            asserting_actor_id=asserting_actor_id,
+        ),
+        EnsureOnBehalfParticipantExistsNode(
+            case_id=case_id,
+            target_actor_id=target_actor_id,
+            required_roles=required_roles,
+        ),
+    ]
+
+    if d_state is not None:
+        children.append(
+            CheckSomeVendorAtVFNode(
                 case_id=case_id,
-                asserting_actor_id=asserting_actor_id,
-            ),
-            EnsureOnBehalfParticipantExistsNode(
-                case_id=case_id,
-                target_actor_id=target_actor_id,
-                required_roles=required_roles,
-            ),
+                actor_id=asserting_actor_id,
+            )
+        )
+
+    children.extend(
+        [
             CreateParticipantStatusNode(
-                case_id=case_id,
                 actor_id=target_actor_id,
                 rm_state=None,
                 vf_state=vf_state,
@@ -98,5 +112,11 @@ def add_on_behalf_status_trigger_bt(
                 result_out=result_out,
             ),
             sender_side_bt(case_id=case_id, activity_builder=activity_builder),
-        ],
+        ]
+    )
+
+    return py_trees.composites.Sequence(
+        name="AddOnBehalfStatusTriggerBT",
+        memory=False,
+        children=children,
     )

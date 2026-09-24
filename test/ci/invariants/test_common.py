@@ -33,8 +33,12 @@ from test.ci.invariants.common import (
     check_non_empty_payload_snapshots,
     check_participant_status_schema_completeness,
     check_payload_context_uses_case_uri,
-    check_per_actor_replica_divergence,
+    check_per_actor_replica_cs_state_transitions_observed,
+    check_per_actor_replica_no_rm_state_oscillation,
+    check_per_actor_replica_participant_status_schema_completeness,
+    check_per_actor_replica_rm_closed_termination,
     check_rm_closed_termination,
+    for_each_replica,
 )
 from vultron.demo.helpers.ledger_dump import DUMP_MANIFEST_FILENAME
 
@@ -921,7 +925,7 @@ class TestAllSkipGuard:
 
 
 # ---------------------------------------------------------------------------
-# check_per_actor_replica_divergence (ISSUE-2411 Gap 1)
+# Replica-side per-actor checks (ISSUE-2411 Gap 1, split by ISSUE-3385)
 # ---------------------------------------------------------------------------
 
 _ACTOR_A_ID = "https://example.org/actors/actor-a"
@@ -962,12 +966,165 @@ def _vendor_entries_valid() -> list[dict]:
     ]
 
 
-class TestCheckPerActorReplicaDivergence:
-    """check_per_actor_replica_divergence detects per-replica state violations.
+class TestForEachReplica:
+    """``for_each_replica`` scopes a check to the non-``case-actor`` replicas.
 
-    Tests confirm: (a) case-actor replica is exempt; (b) actors without status
-    entries are exempt; (c) violations are found on invalid replicas; (d)
-    check_fix_ready is honoured per-actor (ISSUE-2411 Gap 1).
+    The two behaviours every ``per_actor_replica_*`` check inherits from this
+    driver: the ``case-actor`` replica is never its subject (invariants 6, 7, 9
+    and 15 already cover it via ``auth_entries``), and the
+    ``requires_status_entries`` gate excludes replicas that carry no
+    state-machine observations.
+    """
+
+    def test_case_actor_is_exempt(self):
+        """A defect present only in the case-actor replica yields nothing."""
+        bad_entry = _status_entry(0, "ACCEPTED", "VF", "Pxa")
+        bad_entry["payloadSnapshot"]["object"].pop("emConsentState")
+        replicas = {"case-actor": [bad_entry]}
+        assert (
+            for_each_replica(
+                replicas, check_participant_status_schema_completeness
+            )
+            == []
+        )
+
+    def test_violations_name_the_replica(self):
+        """Each violation is prefixed with the actor whose replica produced it."""
+        entries = [_status_entry(0, "ACCEPTED", "VF", "Pxa")]
+        replicas = {"case-actor": _vendor_entries_valid(), "vendor": entries}
+        violations = for_each_replica(replicas, check_rm_closed_termination)
+        assert violations
+        assert all(v.startswith("Actor 'vendor':") for v in violations)
+
+    def test_status_gate_skips_a_replica_with_no_status_entries(self):
+        """``requires_status_entries=True`` skips a log with no status entries."""
+        h0 = _SHA256("nonstatus:0")
+        nonstatus = [_entry(0, h0, GENESIS_HASH, event_type="create_case")]
+        replicas = {"case-actor": _vendor_entries_valid(), "vendor": nonstatus}
+        assert (
+            for_each_replica(
+                replicas,
+                check_rm_closed_termination,
+                requires_status_entries=True,
+            )
+            == []
+        )
+
+    def test_status_gate_off_checks_a_replica_with_no_status_entries(self):
+        """``requires_status_entries=False`` still checks such a log.
+
+        Proves the gate is the discriminator and not a no-op: the same replica
+        the test above skips does get checked here, and
+        ``check_rm_closed_termination`` reports the no-RM-carriers violation.
+        """
+        h0 = _SHA256("nonstatus:0")
+        nonstatus = [_entry(0, h0, GENESIS_HASH, event_type="create_case")]
+        replicas = {"case-actor": _vendor_entries_valid(), "vendor": nonstatus}
+        violations = for_each_replica(
+            replicas,
+            check_rm_closed_termination,
+            requires_status_entries=False,
+        )
+        assert violations
+        assert "vendor" in violations[0]
+
+
+class TestCheckPerActorReplicaNoRmStateOscillation:
+    """Replica-side counterpart of invariant 6."""
+
+    def test_passes_on_valid_multi_actor_replicas(self):
+        replicas = {
+            "case-actor": _vendor_entries_valid(),
+            "vendor": _vendor_entries_valid(),
+        }
+        assert check_per_actor_replica_no_rm_state_oscillation(replicas) == []
+
+    def test_detects_rm_oscillation_in_non_case_actor(self):
+        """RM state oscillation after CLOSED is detected in a non-case-actor."""
+        entries = [
+            _status_entry(0, "ACCEPTED", "VF", "Pxa"),
+            _status_entry(1, "CLOSED", "VF", "PXA"),
+            _status_entry(2, "ACCEPTED", "VF", "PXA"),  # oscillation
+        ]
+        replicas = {"case-actor": _vendor_entries_valid(), "vendor": entries}
+        violations = check_per_actor_replica_no_rm_state_oscillation(replicas)
+        assert violations
+        assert "vendor" in violations[0]
+
+    def test_runs_without_status_entries(self):
+        """This check is not gated on status entries, unlike the other three.
+
+        ``check_no_rm_state_oscillation`` reads ``close_case`` entries too, so a
+        replica with no ``add_participant_status_to_participant`` can still
+        oscillate — a ``close_case`` after a status already at CLOSED.
+        """
+        actor = _ACTOR_A_ID
+        entries = [
+            _status_entry(0, "CLOSED", "VF", "PXA", actor),
+            _entry(
+                1,
+                _SHA256("close:1"),
+                _SHA256("prev:1"),
+                event_type="close_case",
+                payload={"actor": actor},
+            ),
+            _status_entry(2, "ACCEPTED", "VF", "PXA", actor),
+        ]
+        replicas = {"case-actor": _vendor_entries_valid(), "vendor": entries}
+        violations = check_per_actor_replica_no_rm_state_oscillation(replicas)
+        assert violations
+        assert "vendor" in violations[0]
+
+
+class TestCheckPerActorReplicaRmClosedTermination:
+    """Replica-side counterpart of invariant 7 — the property ISSUE-2505 owned."""
+
+    def test_passes_on_valid_multi_actor_replicas(self):
+        replicas = {
+            "case-actor": _vendor_entries_valid(),
+            "vendor": _vendor_entries_valid(),
+        }
+        assert check_per_actor_replica_rm_closed_termination(replicas) == []
+
+    def test_detects_participant_never_reaching_closed(self):
+        """A replica whose participant never reaches CLOSED is flagged."""
+        entries = [_status_entry(0, "ACCEPTED", "VF", "Pxa")]
+        replicas = {"case-actor": _vendor_entries_valid(), "vendor": entries}
+        violations = check_per_actor_replica_rm_closed_termination(replicas)
+        assert violations
+        assert "vendor" in violations[0]
+
+    def test_detects_case_manager_stuck_at_accepted(self):
+        """A replica that never observed the CASE_MANAGER's closure is flagged.
+
+        This is the ISSUE-2505 shape specifically: the participant closes, but
+        the replica's view of the authority stays at ``RM.ACCEPTED`` because the
+        CASE_MANAGER's own ``RM.CLOSED`` transition was never committed as a
+        ledger entry (CM-23-005).
+        """
+        case_manager = "https://example.org/actors/case-actor"
+        entries = [
+            _status_entry(0, "ACCEPTED", "VF", "Pxa", case_manager),
+            _status_entry(1, "CLOSED", "VF", "PXA", _ACTOR_A_ID),
+        ]
+        replicas = {"case-actor": _vendor_entries_valid(), "vendor": entries}
+        violations = check_per_actor_replica_rm_closed_termination(replicas)
+        assert violations
+        assert case_manager in violations[0]
+
+    def test_actor_without_status_entries_is_exempt(self):
+        h0 = _SHA256("nonstatus:0")
+        nonstatus = [_entry(0, h0, GENESIS_HASH, event_type="create_case")]
+        replicas = {"case-actor": _vendor_entries_valid(), "vendor": nonstatus}
+        assert check_per_actor_replica_rm_closed_termination(replicas) == []
+
+
+class TestCheckPerActorReplicaParticipantStatusSchemaCompleteness:
+    """Replica-side counterpart of invariant 9.
+
+    This property is one of the three ISSUE-3385 reported as silenced: a
+    participant replica emitting snapshots without ``cvdRole`` is caught only
+    here, and the aggregate ``xfail`` meant nothing caught it at all.
     """
 
     def test_passes_on_valid_multi_actor_replicas(self):
@@ -975,78 +1132,110 @@ class TestCheckPerActorReplicaDivergence:
             "case-actor": _vendor_entries_valid(),
             "vendor": _vendor_entries_valid(),
         }
-        assert check_per_actor_replica_divergence(replicas) == []
+        assert (
+            check_per_actor_replica_participant_status_schema_completeness(
+                replicas
+            )
+            == []
+        )
 
-    def test_case_actor_is_exempt(self):
-        """case-actor replica is never checked by this function."""
-        # Inject a defect only in case-actor — should produce no violations.
-        bad_entry = _status_entry(0, "ACCEPTED", "VF", "Pxa")
-        bad_entry["payloadSnapshot"]["object"].pop("emConsentState")
-        replicas = {"case-actor": [bad_entry]}
-        assert check_per_actor_replica_divergence(replicas) == []
+    def test_detects_missing_cvd_role(self):
+        entries = _vendor_entries_valid()
+        entries[0]["payloadSnapshot"]["object"].pop("cvdRole")
+        replicas = {"case-actor": _vendor_entries_valid(), "vendor": entries}
+        violations = (
+            check_per_actor_replica_participant_status_schema_completeness(
+                replicas
+            )
+        )
+        assert violations
+        assert "vendor" in violations[0]
+
+    def test_detects_missing_em_consent_state(self):
+        entries = _vendor_entries_valid()
+        entries[0]["payloadSnapshot"]["object"].pop("emConsentState")
+        replicas = {"case-actor": _vendor_entries_valid(), "vendor": entries}
+        violations = (
+            check_per_actor_replica_participant_status_schema_completeness(
+                replicas
+            )
+        )
+        assert violations
+        assert "vendor" in violations[0]
 
     def test_actor_without_status_entries_is_exempt(self):
-        """An actor whose log has no status entries is not checked."""
         h0 = _SHA256("nonstatus:0")
         nonstatus = [_entry(0, h0, GENESIS_HASH, event_type="create_case")]
         replicas = {"case-actor": _vendor_entries_valid(), "vendor": nonstatus}
-        assert check_per_actor_replica_divergence(replicas) == []
+        assert (
+            check_per_actor_replica_participant_status_schema_completeness(
+                replicas
+            )
+            == []
+        )
 
-    def test_detects_rm_oscillation_in_non_case_actor(self):
-        """RM state oscillation after CLOSED is detected in non-case-actor."""
-        actor_id = _ACTOR_A_ID
-        entries = [
-            _status_entry(0, "ACCEPTED", "VF", "Pxa", actor_id),
-            _status_entry(1, "CLOSED", "VF", "PXA", actor_id),
-            _status_entry(2, "ACCEPTED", "VF", "PXA", actor_id),  # oscillation
-        ]
-        replicas = {"case-actor": _vendor_entries_valid(), "vendor": entries}
-        violations = check_per_actor_replica_divergence(replicas)
-        assert violations
-        assert "vendor" in violations[0]
 
-    def test_detects_rm_closed_termination_failure_in_non_case_actor(self):
-        """Actor that never reaches CLOSED is flagged."""
-        entries = [_status_entry(0, "ACCEPTED", "VF", "Pxa")]
-        replicas = {"case-actor": _vendor_entries_valid(), "vendor": entries}
-        violations = check_per_actor_replica_divergence(replicas)
-        assert violations
-        assert "vendor" in violations[0]
+class TestCheckPerActorReplicaCsStateTransitionsObserved:
+    """Replica-side counterpart of invariant 15, including ``check_fix_ready``."""
+
+    def test_passes_on_valid_multi_actor_replicas(self):
+        replicas = {
+            "case-actor": _vendor_entries_valid(),
+            "vendor": _vendor_entries_valid(),
+        }
+        assert (
+            check_per_actor_replica_cs_state_transitions_observed(replicas)
+            == []
+        )
 
     def test_detects_missing_cs_transition_in_non_case_actor(self):
-        """Actor whose replica never observes the P-transition is flagged."""
+        """A replica that never observes the P-transition is flagged."""
         entries = [
             _status_entry(0, "ACCEPTED", "VF", "pxa"),  # no P yet
             _status_entry(1, "CLOSED", "VF", "pxa"),  # still no P
         ]
         replicas = {"case-actor": _vendor_entries_valid(), "vendor": entries}
-        violations = check_per_actor_replica_divergence(replicas)
+        violations = check_per_actor_replica_cs_state_transitions_observed(
+            replicas
+        )
         assert violations
         assert "vendor" in violations[0]
 
     def test_check_fix_ready_false_skips_vf_check_per_actor(self):
-        """check_fix_ready=False exempts VF check for each non-case-actor replica."""
-        # vendor has P-transition but no VF — valid when check_fix_ready=False
+        """check_fix_ready=False exempts the VF check for each replica."""
         entries = [
             _status_entry(0, "ACCEPTED", "vf", "Pxa"),  # no VF
             _status_entry(1, "CLOSED", "vf", "PXA"),  # still no VF
         ]
         replicas = {"case-actor": _vendor_entries_valid(), "vendor": entries}
-        violations = check_per_actor_replica_divergence(
-            replicas, check_fix_ready=False
+        assert (
+            check_per_actor_replica_cs_state_transitions_observed(
+                replicas, check_fix_ready=False
+            )
+            == []
         )
-        assert not violations
 
     def test_check_fix_ready_true_enforces_vf_check_per_actor(self):
-        """check_fix_ready=True (default) flags missing VF in non-case-actor."""
+        """check_fix_ready=True (default) flags a missing VF in a replica."""
         entries = [
             _status_entry(0, "ACCEPTED", "vf", "Pxa"),  # no VF
             _status_entry(1, "CLOSED", "vf", "PXA"),  # still no VF
         ]
         replicas = {"case-actor": _vendor_entries_valid(), "vendor": entries}
-        violations = check_per_actor_replica_divergence(replicas)
+        violations = check_per_actor_replica_cs_state_transitions_observed(
+            replicas
+        )
         assert violations
         assert "vendor" in violations[0]
+
+    def test_actor_without_status_entries_is_exempt(self):
+        h0 = _SHA256("nonstatus:0")
+        nonstatus = [_entry(0, h0, GENESIS_HASH, event_type="create_case")]
+        replicas = {"case-actor": _vendor_entries_valid(), "vendor": nonstatus}
+        assert (
+            check_per_actor_replica_cs_state_transitions_observed(replicas)
+            == []
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -1141,6 +1330,33 @@ class TestCheckClp14TimestampInvariants:
             self._replicas(entries)
         )
         assert any("CLP-14-006" in v for v in violations)
+
+    @pytest.mark.spec("CLP-14-010")
+    def test_clp14_010_detects_log_index_gap(self):
+        entries = [
+            _ts_chain_entry(
+                0, published=_T0.isoformat(), event_type="create_case"
+            ),
+            _ts_chain_entry(1, published=_T1.isoformat()),
+            _ts_chain_entry(3, published=_T2.isoformat()),  # 2 is missing
+        ]
+        violations = common.check_clp14_timestamp_invariants(
+            self._replicas(entries)
+        )
+        assert any("CLP-14-010" in v and "[2]" in v for v in violations)
+
+    @pytest.mark.spec("CLP-14-010")
+    def test_clp14_010_detects_ledger_not_starting_at_genesis(self):
+        entries = [
+            _ts_chain_entry(
+                1, published=_T0.isoformat(), event_type="create_case"
+            ),
+            _ts_chain_entry(2, published=_T1.isoformat()),
+        ]
+        violations = common.check_clp14_timestamp_invariants(
+            self._replicas(entries)
+        )
+        assert any("CLP-14-010" in v and "[0]" in v for v in violations)
 
     def test_valid_entries_produce_no_violations(self):
         violations = common.check_clp14_timestamp_invariants(

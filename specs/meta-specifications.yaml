@@ -2,7 +2,7 @@ id: MS
 title: Meta-Specification Style Guide
 description: Normative rules for authoring specification files in this project. Covers file structure, requirement format,
   IDs, writing rules, cross-references, lifecycle, quality criteria, and the delineation between spec files and ADRs.
-version: 1.2.0
+version: 1.5.0
 scope:
 - prototype
 - production
@@ -49,6 +49,58 @@ groups:
       implementation of this normative requirement, not its source.
     tags:
     - documentation
+  - id: MS-02-003
+    priority: MUST
+    kind: process
+    statement: >-
+      Any spec requirement, lint check, ratchet, or tool that selects requirements by
+      priority MUST treat a negative keyword as the same tier as its positive: `MUST_NOT`
+      with `MUST`, and `SHOULD_NOT` with `SHOULD`.
+    rationale: >-
+      RFC 2119 makes MUST NOT the same absolute strength as MUST, and SHOULD NOT the same
+      strength as SHOULD; a prohibition is no less binding than an obligation. A gate that
+      names only the positive keyword silently drops every prohibition. See
+      `notes/spec-authoring-rules.md` for the gaps this left in the corpus.
+    verification: >-
+      Review: a spec requirement that selects by priority names the tier, or explicitly
+      excludes the negative form and says why. Code gates are checked mechanically under
+      MS-02-004.
+    exceptions:
+    - SR-11-003 stays MUST-only until every protocol MUST_NOT it would newly flag has
+      been adjudicated (#3601) and given a user story (#2717); flipping it earlier needs
+      new suppressions, which MS-12-007 forbids.
+    relationships:
+    - rel_type: refines
+      spec_id: MS-02-002
+    tags:
+    - documentation
+    - tooling
+  - id: MS-02-004
+    priority: MUST
+    kind: process
+    statement: >-
+      Code that selects spec requirements by priority MUST obtain the MS-02-003 tiering
+      from a single shared definition on `RFC2119Priority`, not by comparing against
+      individual enum members.
+    rationale: >-
+      Selecting with `== RFC2119Priority.MUST` is easy to write and fails silently, and
+      each hand-written member list (`backstop/_model.py` has one) re-decides which
+      members count. One shared definition means the tiering is decided once. Display
+      code that maps each member to a label is not a selection and is out of scope.
+    verification: >-
+      A unit test in `test/metadata/specs/` asserts the shared tier definition maps each
+      of the five priorities to its tier. A static check fails if a priority-selecting
+      comparison in `vultron/metadata/specs/` or `scripts/` tests equality or membership
+      against individual `RFC2119Priority` members or priority strings instead of the
+      shared definition. The SR-11-003 selector is allowlisted while the MS-02-003
+      exception stands.
+    tracking_issue: '#3522'
+    relationships:
+    - rel_type: refines
+      spec_id: MS-02-003
+    tags:
+    - documentation
+    - tooling
 - id: MS-03
   title: Requirement Format
   specs:
@@ -236,14 +288,15 @@ groups:
     kind: process
     statement: >-
       Spec files MUST be testable with verifiable acceptance criteria per
-      requirement; every `priority: MUST` requirement MUST include a
-      `verification:` field.
+      requirement; every `priority: MUST` or `priority: MUST_NOT` requirement MUST
+      include a `verification:` field.
     rationale: >-
       Untestable specs cannot be reliably implemented; a MUST requirement with no
       verification field provides no contract for reviewers or agents. Upgraded
       from SHOULD to MUST (CONCERN-2382) to align with MS-05-003 and enable
-      progressive linter enforcement. See MS-10-005 for the current enforcement
-      mechanism.
+      progressive linter enforcement. MUST_NOT is in scope per MS-02-003: a
+      prohibition with nothing checking it is the same gap. See MS-10-005 through
+      MS-10-007 for enforcement.
     relationships:
     - rel_type: refines
       spec_id: MS-05-003
@@ -254,21 +307,111 @@ groups:
     priority: MUST
     kind: process
     statement: >-
-      spec-lint MUST emit an advisory warning ([WARN]) for any `priority: MUST`
-      requirement whose `verification:` field is null or absent, until that
-      requirement has been backfilled.
+      For each kind that still has a ceiling under MS-10-006, spec-lint MUST report in its
+      default output one summary line giving the number of `priority: MUST` or
+      `priority: MUST_NOT` requirements of that kind whose `verification:` field is null or
+      absent, alongside that kind's ceiling. It MUST list the offending IDs only when
+      asked through an opt-in flag, and MUST NOT print one line per offending requirement
+      by default.
     rationale: >-
-      MS-05-003 and MS-10-003 require MUST requirements to carry measurable
-      acceptance criteria. The linter cannot impose a hard error on the existing
-      backlog immediately, but a visible advisory signal (a) prevents the
-      backlog from growing, (b) makes the gap visible in CI output without
-      blocking merges, and (c) provides the foundation for a future hard-error
-      upgrade once the backlog is addressed. Tracked by CONCERN-2382.
+      MS-05-003 and MS-10-003 require MUST and MUST_NOT requirements to carry measurable
+      acceptance criteria. The original per-item [WARN] (CONCERN-2382) grew to more than a
+      thousand lines, which made a newly introduced instance invisible. A per-kind count
+      against a ceiling keeps the backlog legible and makes each backfill's progress
+      visible. Once a kind reaches zero, MS-10-007 replaces its count with a hard error.
+    verification: Unit tests in `test/metadata/specs/test_lint.py` assert that a fixture
+      corpus with unverified MUST and MUST_NOT items produces exactly one summary line per
+      kind with the correct count and ceiling, no per-item lines by default, and the IDs
+      when the opt-in flag is passed.
+    tracking_issue: '#3522'
     relationships:
     - rel_type: implements
       spec_id: MS-05-003
     - rel_type: implements
       spec_id: MS-10-003
+    - rel_type: depends_on
+      spec_id: MS-10-006
+    tags:
+    - documentation
+    - tooling
+  - id: MS-10-006
+    priority: MUST
+    kind: process
+    statement: >-
+      A ratchet test MUST pin, per kind, the number of `priority: MUST` or
+      `priority: MUST_NOT` requirements with no `verification:` field, counting those that
+      carry `lint_suppress: [must_without_verification]`, to a ceiling equal to the live
+      count. The ceilings live in one table under `vultron/metadata/specs/` that spec-lint
+      (MS-10-005) also reads. Each non-zero ceiling MUST name the issue that owns driving it
+      to zero, and the test MUST fail if any non-zero ceiling names no owner.
+    rationale: >-
+      A ceiling that is merely not raised can stay at its seed value indefinitely. Pinning
+      it to the live count forces every backfill to lower it, and a new unverified MUST
+      fails at once. Counting suppressed items means a kind cannot reach zero by
+      suppression. A named owner gives every backlog a tracked path to zero; a closed
+      owner on a live ceiling is a defect for review. One shared table keeps lint's
+      printed number and the test's pinned number in step.
+    verification: '`test/metadata/specs/test_must_verification_ratchet.py` fails when a
+      kind''s live count, suppressed items included, differs from its ceiling in either
+      direction, and when a non-zero ceiling entry carries no owning issue reference; a
+      fixture-based test proves both failure modes fire.'
+    tracking_issue: '#3522'
+    lint_suppress:
+    - phantom_path_ref
+    relationships:
+    - rel_type: implements
+      spec_id: MS-10-003
+    - rel_type: refines
+      spec_id: MS-02-003
+    tags:
+    - documentation
+    - tooling
+  - id: MS-10-007
+    priority: MUST
+    kind: process
+    statement: >-
+      When a kind's MS-10-006 ceiling reaches zero, spec-lint MUST treat any
+      `priority: MUST` or `priority: MUST_NOT` requirement of that kind with no
+      `verification:` field as a hard error that `lint_suppress` cannot silence, and that
+      kind's ceiling entry MUST be removed in the same change.
+    rationale: >-
+      Zero is the only state a ratchet cannot drift from, and only if nothing can raise it
+      back. Because MS-10-006 counts suppressed items, a kind at zero has no suppressions
+      left to honour, and a suppression added afterwards would be an unratcheted way back
+      up. A hard error makes the end state permanent and retires the ceiling, so the
+      ceiling table shrinks to empty as each tier is finished. The `protocol` tier flips
+      first (#3612); the other kinds flip when their backfill Tasks finish.
+    verification: >-
+      Unit tests in `test/metadata/specs/test_lint.py` assert that, for a kind
+      with no ceiling entry, an unverified MUST and an unverified MUST_NOT each make lint
+      exit 1, including when the spec carries `lint_suppress: [must_without_verification]`.
+    tracking_issue: '#3612'
+    relationships:
+    - rel_type: depends_on
+      spec_id: MS-10-006
+    - rel_type: implements
+      spec_id: MS-10-003
+    tags:
+    - documentation
+    - tooling
+  - id: MS-10-008
+    priority: MUST
+    kind: process
+    statement: >-
+      A change that moves a `priority: MUST` or `priority: MUST_NOT` requirement with no
+      `verification:` field from one kind to another MUST add its `verification:` field in
+      the same change.
+    rationale: >-
+      Without this rule, a kind reclassification (MS-12) would force an upward edit to the
+      destination kind's MS-10-006 ceiling, which is exactly the edit the ratchet exists to
+      forbid.
+    verification: >-
+      The MS-10-006 ratchet test fails on the destination kind when a relabel moves an
+      unverified requirement without backfilling it, because that kind's live count
+      rises above its ceiling.
+    relationships:
+    - rel_type: refines
+      spec_id: MS-10-006
     tags:
     - documentation
     - tooling
@@ -359,6 +502,15 @@ groups:
     statement: When a spec references a language construct, library, file path, class, function, module, or codebase-specific
       mechanism (py_trees, pydantic, `vultron/`, `.py`, pytest, Behavior Tree nodes, etc.), the spec MUST be classified
       as `project`.
+    verification: >-
+      MS-12-006's spec-lint check enforces the unambiguous half of this rule — a spec of kind protocol
+      carrying no story back-reference, whose text names a `.py` suffix, a `vultron/`, `test/`, or
+      `scripts/` path, or `pytest`, `pydantic`, or `py_trees`, is a hard error. Covered by
+      `test/metadata/specs/test_lint.py`.
+    relationships:
+    - rel_type: depends_on
+      spec_id: MS-12-005
+      note: applies only when MS-12-001 did not already match
     tags:
     - documentation
   - id: MS-12-003
@@ -383,8 +535,76 @@ groups:
       be assigned the kind corresponding to the first matching question.
     rationale: The ordering ensures that process and project concerns (which immediately disqualify protocol or architecture)
       are checked before the compliance test, preventing misclassification.
+    verification: MS-12-006's check defers to this ordering rather than naming a replacement kind, so its
+      error message cannot prescribe `project` for a spec MS-12-001 claims for `process`. Covered by
+      `test/metadata/specs/test_lint.py`.
     tags:
     - documentation
+  - id: MS-12-006
+    priority: MUST
+    kind: process
+    statement: >-
+      spec-lint MUST emit a hard error for any spec with kind protocol that carries no
+      `stories:` back-reference and whose `statement` or `verification` text references
+      an unambiguous codebase construct — a `.py` suffix, a `vultron/`, `test/`, or
+      `scripts/` path, or the tokens `pytest`, `pydantic`, or `py_trees`. The check MUST
+      be suppressible per-spec via the `protocol_kind_with_code_reference` lint_suppress
+      code, and its message MUST direct the author to the MS-12-001 → MS-12-005 tree
+      rather than naming a single replacement kind.
+    rationale: >-
+      MS-12-001 through MS-12-005 went unenforced until issue #2601, and the corpus accreted
+      protocol-kind specs suppressing the missing-story-reference check instead of carrying a
+      corrected kind. An unenforced MUST anti-advertises: partial adoption reads as "no rule
+      here". Three choices keep it off already-compliant specs: story-less specs only, a token
+      list narrow enough to exclude domain English, and the whole tree — not one branch — as
+      the remedy. Derived in `notes/spec-authoring-rules.md`.
+    verification: Unit tests in `test/metadata/specs/test_lint.py` cover the hard error, the
+      story-bearing exemption, and the suppression path, and `test/architecture/` holds a ratchet
+      asserting the live corpus has no unsuppressed violation.
+    relationships:
+    - rel_type: verifies
+      spec_id: MS-12-002
+    - rel_type: verifies
+      spec_id: MS-12-005
+      note: the error message defers to the ordering rule rather than to a single branch
+    - rel_type: depends_on
+      spec_id: SR-11-003
+      note: shares the story-traceability population; the absence of stories gates both
+    adr:
+    - ADR-0038
+    tags:
+    - documentation
+    - tooling
+  - id: MS-12-007
+    priority: MUST
+    kind: process
+    statement: >-
+      A ratchet test MUST assert that the number of specs carrying
+      `lint_suppress: [missing_story_reference]` — whether or not SR-11-003 would fire on
+      them — stays at or below a pinned ceiling, and that the ceiling is no higher than
+      the live count, so that raising it to accommodate new suppressions fails the test.
+    rationale: >-
+      Suppression is the escape hatch SR-11-003 deliberately provides, so it cannot be
+      forbidden outright — but an un-ratcheted escape hatch is how the corpus accumulated its
+      backlog. A decreasing ceiling keeps the remaining suppressions visible as debt. It is
+      asserted tight rather than merely sufficient because a test cannot otherwise notice its
+      own constant being edited upward; slack is headroom the corpus regrows into. Counting
+      every spec carrying the code surfaces dead suppressions too.
+    verification: A ratchet test under `test/architecture/` fails both when the suppression count
+      exceeds its pinned constant and when the constant exceeds the live count, mirroring
+      `test/metadata/test_agents_md_size_ratchet.py::test_known_overage_ceilings_are_tight`.
+    relationships:
+    - rel_type: constrains
+      spec_id: SR-11-003
+      note: ratchets the suppression escape hatch SR-11-003 provides
+    - rel_type: depends_on
+      spec_id: SR-11-004
+      note: the same suppression code silences this advisory, so dead suppressions are in scope
+    adr:
+    - ADR-0038
+    tags:
+    - documentation
+    - tooling
 - id: MS-13
   title: Spec Item Format Selection (StatementSpec vs BehavioralSpec)
   specs:
@@ -691,7 +911,7 @@ groups:
     - tooling
 
 - id: MS-16
-  title: Long-Lived Docs Must Not State Ephemeral Counts
+  title: Long-Lived Docs Must Not State Unverifiable, Drift-Prone Facts
   specs:
   - id: MS-16-001
     priority: MUST
@@ -725,3 +945,136 @@ groups:
       note: extends spec-authoring rules with a count-drift prohibition
     tags:
     - documentation
+  - id: MS-16-002
+    priority: MUST
+    kind: process
+    statement: >-
+      A long-lived document — a spec, a notes file, AGENTS.md, or a `docs/`
+      table that mirrors a code, spec, or config inventory — MUST NOT state a
+      fact that no automated check could falsify and that drifts independently
+      of its source. The governing test is "could a test fail on this
+      sentence?": a restated count (MS-16-001) is one instance; a per-item
+      runtime outcome ("✅ passes"), a forecast ("resolved by #789"), or a
+      free-prose claim copied from source are others. Each such fact MUST
+      either be made verifiable — derived from, or ratcheted against, its
+      source — or removed in favour of a pointer to where the live answer
+      lives.
+    rationale: >-
+      A fact nothing can check is a fact nobody does check, so it rots first,
+      and it rots into a confident wrong answer rather than into silence —
+      which costs more than no doc at all. MS-16-001 caught the most common
+      instance (counts); this entry generalises it from "is this a number?"
+      to "could a test fail on this sentence?". Witnessed twice: the
+      case-ledger invariant tables (ISSUE-3337), where the two columns no
+      test could hold were 100% wrong while every source-derivable column
+      stayed right; and the scenario table (the `fcvcv` and `vc` rows of
+      `vultron/demo/scenario/README.md`, ISSUE-3450 / CONCERN-3466), where a
+      free-prose column named four actors for a five-actor scenario. Before
+      concluding a column is unverifiable, check whether it conflates more
+      than one fact — a column answering two questions at once is unverifiable
+      as a unit while each part may be individually derivable; the procedure
+      for that triage lives in `notes/documentation-sweeps.md`.
+    relationships:
+    - rel_type: derives_from
+      spec_id: MS-16-001
+      note: generalises the count-drift prohibition to any unverifiable, drift-prone fact
+    tags:
+    - documentation
+- id: MS-17
+  title: Metadata Loader Failure Attribution
+  description: >-
+    Rules for how the file-walking loaders under `vultron/metadata/` report a file they
+    cannot read. These loaders back the pre-commit hooks and the `spec-dump` / `spec-lint` /
+    `append-history` / `adr-index` entry points, so their error output is the first thing an
+    author sees after a bad edit.
+  specs:
+  - id: MS-17-001
+    priority: MUST
+    kind: project
+    statement: >-
+      A loader under `vultron/metadata/` that walks a set of files and validates each one MUST
+      attribute every failure to the file that caused it, naming the repository-relative path
+      and — when the underlying parser supplies a position — the line and column, in the form
+      `path:line:col`. A message that reports only a position, or only a positional index into
+      the parsed structure, does not satisfy this requirement.
+    rationale: >-
+      Each of these loaders reads a whole directory, so a position without a filename
+      identifies nothing: the corpus under `specs/` alone spans dozens of files in which
+      "line 404" is ambiguous. PyYAML compounds this, because a loader that hands it text
+      rather than a named stream gets a mark reading `<unicode string>` — a position
+      attributed to a source that does not exist on disk. The file name is knowledge only the
+      loader holds, so only the loader can supply it.
+    verification: >-
+      A unit test corrupts one file in a temporary directory for each loader and asserts the
+      raised error names that file, and that no `<unicode string>` marker survives in the
+      message.
+    tags:
+    - tooling
+  - id: MS-17-002
+    priority: MUST_NOT
+    kind: project
+    statement: >-
+      A YAML parse error or a schema-validation error MUST NOT escape such a loader as an
+      unhandled traceback. Both the parse and the model validation of each file MUST be
+      reported as a `ValueError`, the type these loaders already document raising.
+    rationale: >-
+      A YAML scanner error is not a `ValueError`, so a caller guarding
+      `except (ValidationError, ValueError)` never sees it and the tool exits through a
+      traceback instead of its own error format, in which no frame names the offending file.
+      Which step raised also decides the output's shape: a parse fault escapes as a traceback and
+      suppresses the loader's own reporting, while a validation fault is caught and rendered as
+      the tool's error line.
+    verification: >-
+      A unit test asserts that a malformed file raises `ValueError` from each loader rather
+      than a bare parser exception, and that the linter's exit path prints its own error
+      prefix rather than a traceback.
+    tags:
+    - tooling
+  - id: MS-17-003
+    priority: MUST
+    kind: project
+    statement: >-
+      The attribution required by MS-17-001 and MS-17-002 MUST be obtained from a single
+      shared helper in `vultron/metadata/file_loading.py`, not reimplemented per loader.
+      A loader that walks files MUST route both its parse step and its validation step
+      through that helper.
+    rationale: >-
+      The same wrapper was written independently in the ADR loader and in the history entry
+      loaders, in as many message shapes as there were copies, while the notes and spec
+      loaders were left without one — so what an author sees depends on which directory they
+      edited rather than on what they got wrong. A shared helper is also the only way an
+      improvement reaches all of them: no hand-written copy read the parser's position mark, and
+      the history CLI's copy reported no path at all.
+    verification: >-
+      A ratchet test asserts that no module under `vultron/metadata/` other than
+      `file_loading.py` re-raises a caught exception as a path-prefixed `ValueError` — the
+      shape every hand-written copy takes. Asserting instead that no module catches a
+      YAML-specific exception would be vacuous: every copy catches bare `Exception`, so such a
+      test passes with all of the duplication still in place.
+    tags:
+    - tooling
+  - id: MS-17-004
+    priority: MUST
+    kind: project
+    statement: >-
+      An exception class raised by the shared helper to report loader failures MUST be a
+      `ValueError` subclass defined within the tooling layer. The `VultronError` hierarchy
+      required by EH-01-002 governs protocol code and MUST NOT be extended into
+      `vultron/metadata/`.
+    rationale: >-
+      SR-03-009 makes this the tooling layer's first custom exception class, which is what brings
+      EH-01-002 into contact with it — today's loaders raise the built-in `ValueError`, so that
+      rule has never applied here. Obeying it now would invert the contract: `VultronError`
+      derives from `Exception`, not `ValueError`, so a caller guarding
+      `except (ValidationError, ValueError)` would miss the new error as it misses today's
+      scanner error. `vultron/errors.py` is the protocol domain's; this is tooling.
+    verification: >-
+      A unit test asserts the helper's exception type is a `ValueError` subclass and that a
+      caller guarding only `except (ValidationError, ValueError)` catches it. A ratchet test
+      asserts that no module under `vultron/metadata/` imports from `vultron/errors.py`.
+    relationships:
+    - rel_type: refines
+      spec_id: MS-17-002
+      note: fixes the concrete exception type that satisfies the ValueError requirement
+    tags:
+    - tooling

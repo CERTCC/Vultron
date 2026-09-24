@@ -85,22 +85,20 @@ The pilot validates the migration recipe before the full sweep (Issue #1809).
   has no mechanism for passing constructor arguments (factories, case IDs).
   Vultron nodes are **heavily constructor-parameterized** (BTND-01-001), so
   XML-based tree authoring is not yet feasible. This tension is documented
-  in `notes/py-trees-ports-adoption.md` and is the subject of the XML
-  feasibility spike (Issue #1810).
+  in `plan/history/2609/note/NOTES-py-trees-ports-adoption.md` (archived — the
+  migration is complete) and is the subject of the XML feasibility spike
+  (Issue #1810).
 
 ### Implementation pattern
 
 ```python
 class CheckRMStateValid(DataLayerConditionWithPorts):
-    @classmethod
-    def input_ports(cls) -> dict[str, PortInformation]:
-        # Inherit datalayer + actor_id from base class defaults.
-        # Override only to add domain-specific ports.
-        return super().input_ports()
-
-    @classmethod
-    def output_ports(cls) -> dict[str, PortInformation]:
-        return {}
+    # Inherit datalayer + actor_id from the base class declaration.
+    # Spread and extend only to add domain-specific ports.
+    INPUT_PORTS: dict[str, PortInformation] = {
+        **DataLayerConditionWithPorts.INPUT_PORTS,
+    }
+    OUTPUT_PORTS: dict[str, PortInformation] = {}
 
     def update(self) -> Status:
         if (f := self._require_datalayer()) is not None:
@@ -112,10 +110,22 @@ class CheckRMStateValid(DataLayerConditionWithPorts):
 standard BTBridge remappings; `initialise()` calls `get_input()` to
 populate `self.datalayer` and `self.actor_id`.
 
+## Amendment — 2026-09-24
+
+py_trees 2.6.0 changed how a ports class declares its ports.
+The overridable `input_ports()` / `output_ports()` classmethods this ADR originally named became read-only accessors over new `INPUT_PORTS` / `OUTPUT_PORTS` class attributes, and a `PortsMixin` subclass lacking either attribute is now abstract: instantiating it raises `TypeError`.
+A Dependabot bump to 2.6.0 therefore left no behavior tree constructible on `main` (#3610, #3613).
+
+Every node now declares `INPUT_PORTS` / `OUTPUT_PORTS` as class attributes, extending its parent's by spreading the parent attribute (`{**DataLayerActionWithPorts.INPUT_PORTS, ...}`), and the dependency floor is `py_trees >= 2.6.0`.
+Where this ADR says `input_ports()` / `output_ports()`, read the class attributes; the decision itself is unchanged.
+The implementation pattern above shows the current form, and `test/architecture/test_bt_ports_declarations.py` fails if any node falls back to overriding the accessors.
+
+A mixin cannot extend a class attribute through `super()`, so `CaseIdInputPortMixin` adds its port from `__init_subclass__` instead.
+
 ## More Information
 
-- `notes/py-trees-ports-adoption.md` — full migration recipe and issue
-  sequence.
+- `plan/history/2609/note/NOTES-py-trees-ports-adoption.md` — full migration
+  recipe and issue sequence (archived; migration complete).
 - `specs/behavior-tree-node-design.yaml` BTND-03-009 through BTND-03-011 —
   normative requirements for typed port declarations.
 - `vultron/core/behaviors/helpers.py` — `DataLayerConditionWithPorts` and

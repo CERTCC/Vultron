@@ -42,6 +42,7 @@ from vultron.adapters.driven.datalayer_sqlite import (  # noqa: E402
 )
 from vultron.metadata.specs import (  # noqa: E402
     load_registry,
+    warn_spec_registry_unavailable,
     warn_unknown_spec_id,
 )
 
@@ -104,13 +105,43 @@ def apply_integration_timeout(items):
     return modified
 
 
+#: Failure modes ``load_registry`` can raise for a corpus that exists but does
+#: not load.  ``pydantic.ValidationError`` is a ``ValueError`` subclass, and a
+#: duplicate spec ID raises ``ValueError`` directly; ``OSError`` covers an
+#: unreadable file.  A YAML syntax error arrives as a ``ValueError`` too: the
+#: loader routes its parse through ``vultron.metadata.file_loading``, which
+#: re-raises it attributed to its file (MS-17-002).
+#:
+#: Deliberately not ``Exception``: an unexpected type means a bug in the loader
+#: rather than a bad spec file, and that must surface rather than degrade to a
+#: warning (#3331).
+_REGISTRY_LOAD_ERRORS = (ValueError, OSError)
+
+
 def pytest_collection_modifyitems(session, config, items):
     """Apply the integration timeout, then warn for unknown spec IDs.
 
     Spec-ID warnings (SR-05-002) emit
     :class:`~vultron.metadata.specs.UnknownSpecIdWarning` (non-blocking) for
     any ``@pytest.mark.spec`` marker referencing an ID not found in the
-    registry. Skips silently when no YAML files exist in ``specs/``.
+    registry.
+
+    Both warnings are non-blocking, which depends on their ``always::`` entries
+    being listed *after* ``"error"`` in ``pyproject.toml`` (SR-05-007).
+
+    Returns early without validating markers in three cases, which are not
+    interchangeable (SR-05-006):
+
+    - **No corpus** (``specs/`` absent, or present with no spec files) — there
+      is nothing to validate against and nothing is wrong. Silent.
+    - **Unloadable corpus** — the gate cannot run, so it says so via
+      :class:`~vultron.metadata.specs.SpecRegistryUnavailableWarning`. Returning
+      silently here reported the same clean pass as a corpus with no unknown IDs
+      in it, which disabled SR-05-002 for a whole session without a trace
+      (#3331). The session is allowed to continue on purpose: aborting it would
+      mean a malformed spec file blocks the very tests that diagnose it.
+    - **Unexpected load failure** — not caught at all; see
+      :data:`_REGISTRY_LOAD_ERRORS`.
     """
     apply_integration_timeout(items)
 
@@ -119,7 +150,8 @@ def pytest_collection_modifyitems(session, config, items):
         return
     try:
         registry = load_registry(spec_dir)
-    except Exception:
+    except _REGISTRY_LOAD_ERRORS as exc:
+        warn_spec_registry_unavailable(spec_dir, exc)
         return
     if not registry.files:
         return
@@ -160,11 +192,24 @@ def _dispose_actor_stores_between_tests():
     Autouse and session-wide: individual tests should not have to remember, and
     forgetting produces cross-test contamination that presents as a confusing
     duplicate-id error far from its cause.
+
+    The claimant record is reset alongside the stores, for the same
+    "contamination far from its cause" reason but a different mechanism. It is
+    deliberately *not* cleared by engine disposal (see
+    ``reset_store_claimants``), so it would otherwise live for the whole pytest
+    process: one test using ``https://example.org/actors/test-actor`` left the
+    slug ``test-actor`` claimed, and a later test using
+    ``https://test.example/api/v2/actors/test-actor`` got a cross-authority
+    warning it then failed on (#3545).
     """
     yield
-    from vultron.adapters.driven.datalayer_sqlite import reset_datalayer
+    from vultron.adapters.driven.datalayer_sqlite import (
+        reset_datalayer,
+        reset_store_claimants,
+    )
 
     reset_datalayer()
+    reset_store_claimants()
 
 
 def seed_case_actor_replica(dl, case_actor_id, case, *extra):

@@ -71,18 +71,44 @@ from vultron.wire.as2.factories import (
 logger = logging.getLogger(__name__)
 
 
-def _get_case_actor_id(client: DataLayerClient, case_id: str) -> str | None:
-    """Return the Case Actor Service ID for *case_id* by querying the actor list.
+def _find_case_manager_actor(
+    client: DataLayerClient, vendor_id: str, case_id: str
+) -> str | None:
+    """Return the CASE_MANAGER actor ID by reading the case participant roster (ADR-0088).
 
-    The Case Actor Service is stored in the DataLayer with ``context`` equal to
-    the case ID.  Returns ``None`` when no matching Service is found.
+    Authority is the ``CVDRole.CASE_MANAGER`` role — hosting location is not
+    consulted (ARCH-24-004, CM-02-013).
     """
-    actors = client.get("/actors/")
-    if not isinstance(actors, list):
+    from vultron.enums.roles import CVDRole
+    from vultron.wire.as2.vocab.objects.case_participant import (
+        as_CaseParticipant,
+    )
+    from vultron.wire.as2.vocab.objects.vulnerability_case import (
+        as_VulnerabilityCase,
+    )
+
+    try:
+        case_data = client.get(client.dl_path(case_id, actor_id=vendor_id))
+        case_obj = as_VulnerabilityCase(**case_data)
+    except Exception:
         return None
-    for actor in actors:
-        if actor.get("type") == "Service" and actor.get("context") == case_id:
-            return actor.get("id")
+
+    for p_ref in case_obj.case_participants:
+        pid = ref_id(p_ref) or str(p_ref)
+        if not pid:
+            continue
+        try:
+            p_data = client.get(client.dl_path(pid, actor_id=vendor_id))
+            p = as_CaseParticipant(**p_data)
+            if CVDRole.CASE_MANAGER in p.case_roles:
+                attr = p.attributed_to
+                return (
+                    attr
+                    if isinstance(attr, str)
+                    else getattr(attr, "id_", None)
+                )
+        except Exception:
+            continue
     return None
 
 
@@ -111,10 +137,12 @@ def demo_invite_actor_accept(
 
     case = setup_initialized_case(client, finder, vendor)
 
-    # PCR-08-007: the invite MUST be sent from the Case Actor's identity.
-    # The Case Actor is registered as a Service in the DataLayer after case creation.
-    case_actor_id = _get_case_actor_id(client, case.id_)
-    invite_actor_id = case_actor_id if case_actor_id else vendor.id_
+    # PCR-08-007: the invite MUST be sent from the CASE_MANAGER's identity (ADR-0088).
+    invite_actor_id = _find_case_manager_actor(client, vendor.id_, case.id_)
+    if invite_actor_id is None:
+        raise ValueError(
+            f"No CASE_MANAGER participant found for case '{case.id_}' (CM-02-014, CM-02-015)"
+        )
 
     invite = None
     with demo_step("Step 2: Vendor invites coordinator to case"):
@@ -123,7 +151,7 @@ def demo_invite_actor_accept(
             actor=invite_actor_id,
             target=case.id_,
             to=[coordinator.id_],
-            attributed_to=vendor.id_ if case_actor_id else None,
+            attributed_to=vendor.id_,
             content=f"We're inviting you to participate in {case.name}.",
         )
         logger.info(f"Sending invite: {logfmt(invite)}")
@@ -195,9 +223,12 @@ def demo_invite_actor_reject(
     initial_case = log_case_state(client, case.id_, "initial")
     initial_count = len(initial_case.case_participants) if initial_case else 0
 
-    # PCR-08-007: the invite MUST be sent from the Case Actor's identity.
-    case_actor_id = _get_case_actor_id(client, case.id_)
-    invite_actor_id = case_actor_id if case_actor_id else vendor.id_
+    # PCR-08-007: the invite MUST be sent from the CASE_MANAGER's identity (ADR-0088).
+    invite_actor_id = _find_case_manager_actor(client, vendor.id_, case.id_)
+    if invite_actor_id is None:
+        raise ValueError(
+            f"No CASE_MANAGER participant found for case '{case.id_}' (CM-02-014, CM-02-015)"
+        )
 
     invite = None
     with demo_step("Step 2: Vendor invites coordinator to case"):
@@ -206,7 +237,7 @@ def demo_invite_actor_reject(
             actor=invite_actor_id,
             target=case.id_,
             to=[coordinator.id_],
-            attributed_to=vendor.id_ if case_actor_id else None,
+            attributed_to=vendor.id_,
             content=f"We're inviting you to participate in {case.name}.",
         )
         logger.info(f"Sending invite: {logfmt(invite)}")

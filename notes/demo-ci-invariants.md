@@ -8,6 +8,7 @@ related_specs:
 related_notes:
   - notes/ci-workflow-authoring.md
   - notes/demo-scenario-authoring.md
+  - notes/demo-scenario-registry.md
 ---
 
 # Demo CI Invariant Harness Design
@@ -147,11 +148,14 @@ reporting a protocol result.
 
 ### Regression coverage
 
-- `test/demo/test_issue_2239_ledger_dump_in_finally.py` (all nine scenarios)
+- `test/demo/test_issue_2239_ledger_dump_in_finally.py` (every scenario)
 - `test/demo/test_scenario_harness.py`
 - `test/ci/invariants/test_common.py::TestLoadDevlogsManifestHandling`
 - `test/ci/invariants/test_common.py::TestAllSkipGuard`
-- `test/ci/invariants/test_common.py::TestCheckPerActorReplicaDivergence` (ISSUE-2411 Gap 1)
+- `test/ci/invariants/test_common.py::TestForEachReplica` and the four
+  `TestCheckPerActorReplica*` classes — `NoRmStateOscillation`,
+  `RmClosedTermination`, `ParticipantStatusSchemaCompleteness`,
+  `CsStateTransitionsObserved` (ISSUE-2411 Gap 1, split per ISSUE-3385)
 - `test/demo/test_ledger_dump.py::TestWritePrerunSentinel` (AC4 for #2281)
 
 ---
@@ -172,7 +176,7 @@ existing nine:
    `_<SCENARIO>_EXPECTED_EVENT_TYPES`.
 4. Define the module-scoped fixture (e.g. `fv_replicas`) that calls
    `load_devlogs(demo_name=_DEMO_NAME)`.
-5. Inject the 16 universal invariant tests by calling:
+5. Inject the universal invariant tests by calling:
 
    ```python
    from test.ci.invariants.universal_harness import make_universal_invariant_tests
@@ -182,6 +186,7 @@ existing nine:
            replicas_fixture="<scenario>_replicas",
            chain_actors=_CHAIN_ACTORS,
            expected_event_types=_<SCENARIO>_EXPECTED_EVENT_TYPES,
+           narrative_path="docs/topics/scenarios/<scenario>.md",
        )
    )
    ```
@@ -190,22 +195,39 @@ existing nine:
    case participant (currently only `fcv-reject`), mirroring the canonical
    `test_invariant_15_cs_state_transitions_observed` rule (ISSUE-2411 Gap 1).
 
+   `narrative_path` is not optional in practice. Omitting it silently drops
+   invariant 16 (the causal-edge ordering check, DEMOMA-22-005) from that
+   scenario — the harness still collects and passes, so the gap would otherwise
+   be invisible. `test_diagnostic_map_sync.py::test_every_harness_passes_a_narrative_path`
+   parses every harness named in `.github/demo-scenarios.json` and fails if the
+   argument is missing.
+
 6. Add only the **scenario-specific** assertions below the injection call —
    count checks, late-joiner checks, and any protocol-path constraints unique
    to this scenario.
 
 `test/ci/invariants/universal_harness.py` defines `make_universal_invariant_tests()`.
-It generates the 16 standard test functions (Invariants 1–15, clp13, per_actor)
-as closures that retrieve the scenario's replicas fixture at runtime via
+It generates the standard test functions as closures that retrieve the
+scenario's replicas fixture at runtime via
 `request.getfixturevalue(replicas_fixture)`. Each function has its `__module__`
 set to the calling harness so pytest's fixture lookup resolves to the harness
 module's own fixtures (ISSUE-2007, AC-1).
 
-**The scenario→harness registry is the CI matrix**, not a Python module. The
-`demo:` / `test_file:` pairs in `.github/demo-scenarios.json` (read by the
-workflow via `fromJson`) are the sole mapping from a scenario name to its
-harness file; the pairs appear in both the `demo` and `invariant-harness` jobs
-and must be kept in step.
+For the current inventory — which invariants exist, which carry an `xfail` and
+who owns it — read `notes/demo-ci-diagnostics.md` § "Per-Invariant Diagnostic
+Map" rather than a count restated here. That table is ratcheted against the
+factory by `test/ci/invariants/test_diagnostic_map_sync.py`; a count in prose
+is not (ISSUE-3337).
+
+**The scenario→harness mapping is derived, not written.** Each scenario declares
+itself with `@scenario(...)` on its `main()`
+([demo-scenario-registry](demo-scenario-registry.md), ADR-0098), and its harness
+path is derived from the scenario name by convention rather than stored. The
+`demo:` / `test_file:` pairs in `.github/demo-scenarios.json` — read by the
+workflow via `fromJson` in both the `demo` and `invariant-harness` jobs — are a
+**generated projection** of that registry (DEMOCI-11-004). Do not hand-edit the
+JSON: change the decorator and run `uv run demo-scenarios --write`. The
+`demo-scenarios-sync` pre-commit hook fails on a stale or hand-edited copy.
 
 > **Do not add a `conftest.py` scenario registry.** DEMOMA-19-008 originally
 > required registering the FCVCV harness in `test/ci/invariants/conftest.py`
@@ -243,17 +265,27 @@ CONCERN-2243 (three rows understated their required types; the FCCV-extension
 and FCV-reject rows were absent entirely), which is exactly the drift
 DEMOMA-16-008 exists to prevent.
 
+Every derived column is checked (DEMOCI-11-007): `Scenario` is the registry's
+`label`, in the registry's name order; `Spec` is resolved from the **spec
+corpus** — each per-scenario DEMOMA-16 statement names its own scenario, and
+`ScenarioSpec` carries no spec IDs; and `Additional required` is resolved from
+each scenario's `_XXX_EXPECTED_EVENT_TYPES` harness constant, minus the universal
+block (MS-16-002, ISSUE-3505). Multiplicity annotations such as `(≥3)` are prose
+about *how many times*, owned by the scenario-specific count tests below, and are
+not checked here. `Universal 5` stays hand-written — it says "same" rather than
+restating the block.
+
 | Scenario | Spec | Universal 5 | Additional required |
 |---|---|---|---|
-| FV | DEMOMA-16-002 | validate_report, add_participant_status_to_participant, close_case, add_note_to_case, engage_case | (none) |
-| FVV | DEMOMA-16-003 | same | invite_actor_to_case, accept_invite_actor_to_case |
-| FVCV-extension | DEMOMA-16-004 | same | invite_actor_to_case, offer_case_participant, accept_invite_actor_to_case, accept_actor_recommendation |
-| FVCV-handoff | DEMOMA-16-005 | same | invite_actor_to_case, accept_invite_actor_to_case |
-| FCCV-handoff | DEMOMA-16-006 | same | invite_actor_to_case, accept_invite_actor_to_case |
-| FCV | DEMOMA-16-007 | same | invite_actor_to_case, accept_invite_actor_to_case |
-| FCVCV | DEMOMA-16-009 | same | invite_actor_to_case (≥3), offer_case_participant (≥1), accept_invite_actor_to_case (≥3), accept_actor_recommendation (≥1) |
 | FCCV-extension | DEMOMA-16-010 | same | invite_actor_to_case, offer_case_participant, accept_invite_actor_to_case, accept_actor_recommendation |
+| FCCV-handoff | DEMOMA-16-006 | same | invite_actor_to_case, accept_invite_actor_to_case, accept_case_ownership_transfer |
+| FCV | DEMOMA-16-007 | same | invite_actor_to_case, accept_invite_actor_to_case |
 | FCV-reject | DEMOMA-16-011 | same | invite_actor_to_case, reject_invite_actor_to_case |
+| FCVCV | DEMOMA-16-009 | same | invite_actor_to_case (≥3), offer_case_participant (≥1), accept_invite_actor_to_case (≥3), accept_actor_recommendation (≥1) |
+| FV | DEMOMA-16-002 | validate_report, add_participant_status_to_participant, close_case, add_note_to_case, engage_case | (none) |
+| FVCV-extension | DEMOMA-16-004 | same | invite_actor_to_case, offer_case_participant, accept_invite_actor_to_case, accept_actor_recommendation |
+| FVCV-handoff | DEMOMA-16-005 | same | invite_actor_to_case, accept_invite_actor_to_case, accept_case_ownership_transfer |
+| FVV | DEMOMA-16-003 | same | invite_actor_to_case, accept_invite_actor_to_case |
 
 ### Relationship to scenario-specific test functions
 
@@ -300,7 +332,7 @@ CONCERN-2243 was filed because a permanently-red `fvcv-handoff Invariant
 Harness` was read as proof that its `engage_case` assertion could never pass.
 The job was in fact dying in the first mode: it failed at artifact download on
 every run, so the assertion had never once executed. The assertion itself is
-correct — `engage_case` is emitted by all nine scenarios (see below) — and the
+correct — `engage_case` is emitted by every scenario (see below) — and the
 absence of the entries it looks for was a real protocol defect elsewhere.
 
 Before drawing any conclusion from this job, open the log and confirm which
@@ -310,14 +342,16 @@ step failed.
 
 Every scenario drives an engage-case trigger, so `engage_case` is a universal
 required event type on the same footing as `validate_report` — it is the fifth
-type in DEMOMA-16-001 and appears in all nine `_XXX_EXPECTED_EVENT_TYPES`
-lists (ISSUE-2266). The three emission paths are:
+type in DEMOMA-16-001 and appears in every `_XXX_EXPECTED_EVENT_TYPES`
+list (ISSUE-2266). The three emission paths are:
 
 - `run_direct_path_rm_triage()` (`vultron/demo/helpers/workflow.py`) calls
-  `receiver_engages_case()` for the report's direct receiver — used by all
-  eight multi-actor scenarios.
+  `receiver_engages_case()` for the report's direct receiver — used by every
+  multi-actor scenario.
 - `run_invite_path_rm_triage()` calls it again for the invited participant —
-  used by seven of them (CM-11-002).
+  used by every scenario whose invite is *accepted* (CM-11-002). `fcv-reject`
+  has an invite path and does **not** call it: its Vendor rejects, so no
+  participant is added and there is nobody to engage.
 - `fv_demo.py` calls `receiver_engages_case()` directly via
   `vendor_engages_case()`.
 
@@ -328,7 +362,7 @@ invites the false conclusion that no code emits it.
 Before ISSUE-2266, only `test_fvcv_handoff_invariants.py` listed
 `engage_case` — added by PR #2018 as a scenario-specific type without amending
 the spec (a DEMOMA-16-008 violation), which left an engage-case regression
-silent in the other eight scenarios. The `fvcv-handoff`
+silent in every other scenario. The `fvcv-handoff`
 `check_event_type_count(..., "engage_case", min_count=2)` assertion remains
 scenario-specific: it asserts the *count* Vendor2's post-join triage cycle
 implies (CM-11-002), which is a stronger claim than the universal presence
@@ -453,6 +487,29 @@ workflow-status-detection logic lives inside the action:
 Every qualifying workflow MUST declare `issues: write` permission (CISEC-02-002,
 CISEC-05-001, CISEC-05-002). Workflows with a root-level `permissions: contents: read` block MUST
 expand it to a map that explicitly includes `issues: write`.
+
+### Cancellation Safety (CISEC-05-006)
+
+A push-to-`main` run cancelled by the concurrency group (superseded by a newer
+merge) is **not** a CI failure — a newer run is authoritative — so the `notify`
+step MUST NOT file a `ci:main-failure` issue on cancellation.
+
+- A step keyed on the GitHub Actions **`failure()` status function** is already
+  safe: `failure()` is false on cancellation. The idealized two-step interface
+  above uses this and needs no extra guard.
+- A step keyed on the **`needs.*.result` aggregate** is not safe on its own. It
+  MUST pair the failure check with an explicit cancellation exclusion:
+  `contains(needs.*.result, 'failure') && !contains(needs.*.result, 'cancelled')`.
+  Never file on cancellation directly (`|| contains(needs.*.result, 'cancelled')`).
+
+The aggregate needs the guard because a *cancelled upstream job* can launder a
+cancellation into a `failure` result downstream: when the `demo` job is cancelled
+mid-run it uploads no case-log artifact, so the `invariant-harness` job (which
+runs under `if: always()`) hard-fails at `download-artifact`, and that `failure`
+lands in `needs.*.result`. The fix is two layers: skip the harness on a cancelled
+demo job (`needs.demo.result != 'cancelled'`, DEMOCI-04-007) to remove the
+laundered failure at its source, plus the `!contains(..., 'cancelled')` guard on
+`notify` as defense-in-depth. See #3249 and CISEC-05-006.
 
 ### Qualifying Workflows and Their Labels
 

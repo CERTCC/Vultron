@@ -14,6 +14,9 @@ from vultron.semantic_registry import (
     extract_event,
     find_matching_semantics,
 )
+from vultron.core.models.dimensions import (
+    VfDimension,
+)
 
 
 @pytest.mark.spec("SE-02-003")
@@ -226,6 +229,37 @@ def test_extract_intent_activity_origin_field():
     assert event.activity.origin == "https://example.org/cases/original"
 
 
+@pytest.mark.spec("CLP-15-004")
+def test_extract_intent_preserves_sender_published_timestamp():
+    """The sender's claimed ``published`` survives the wire→core boundary.
+
+    ``_build_activity_snapshot`` used to omit ``published``, so
+    ``VultronActivity.published`` fell back to ``default_factory=now_utc`` — the
+    *receiver's* clock.  That silently destroyed the only evidence of when the
+    sender says the event happened, and left the CLP-14-007/008
+    commit-boundary guards comparing the receiver's clock against itself, so
+    neither could ever fire (ISSUE-3149).
+    """
+    from vultron.wire.as2.vocab.base.objects.activities.transitive import (
+        as_Create,
+    )
+    from vultron.wire.as2.vocab.objects.vulnerability_report import (
+        as_VulnerabilityReport,
+    )
+
+    claimed = datetime(2026, 3, 4, 5, 6, 7, tzinfo=timezone.utc)
+    report = as_VulnerabilityReport(name="VR-001", content="test")
+    activity = as_Create(
+        actor="https://example.org/alice",
+        object_=report,
+        published=claimed,
+    )
+    event = extract_event(activity)
+
+    assert event.activity is not None
+    assert event.activity.published == claimed
+
+
 @pytest.mark.spec("VAM-06-001")
 def test_extract_intent_participant_case_roles():
     """VultronParticipant.case_roles is populated from the wire as_CaseParticipant."""
@@ -288,7 +322,7 @@ def test_extract_intent_participant_status_vf_state():
 
     ps = as_ParticipantStatus(
         context="https://example.org/cases/1",
-        vf_state=CS_vf.Vf,
+        vf=VfDimension(state=CS_vf.Vf),
     )
     activity = as_Create(
         actor="https://example.org/alice",
@@ -387,39 +421,29 @@ def test_invite_rsvp_deadline_clamped_when_below_floor():
     assert ev.rsvp_deadline > datetime.now(tz=timezone.utc)
 
 
-@pytest.mark.spec("EP-07-002")
-def test_invite_rsvp_deadline_none_when_naive_end_time():
-    """AC-7 (inbound naive): naive end_time on invite is ignored → rsvp_deadline is None."""
+@pytest.mark.spec("CM-28-006")
+def test_invite_rsvp_deadline_normalized_when_naive_end_time():
+    """CM-28-006: naive end_time is normalised to UTC at the wire edge (ADR-0032).
+
+    Previously the extractor rejected naive end_time as malformed (→ rsvp_deadline=None).
+    ADR-0032's validate_datetime now normalises naive datetimes to UTC before
+    they reach the extractor, so a naive input produces a valid UTC rsvp_deadline.
+    """
+    from datetime import timezone
+
     naive_deadline = datetime.now() + timedelta(days=5)  # no tzinfo
+    assert naive_deadline.tzinfo is None
     invite = _make_embargo_invite(end_time=naive_deadline)
+    # validate_datetime normalises naive → UTC; invite.end_time is now UTC-aware
+    assert invite.end_time is not None
+    assert invite.end_time.tzinfo is not None
+
     event = extract_event(invite)
 
     assert hasattr(event, "rsvp_deadline")
-    assert cast(Any, event).rsvp_deadline is None
-
-
-@pytest.mark.spec("CM-28-006")
-def test_invite_rsvp_deadline_warns_when_naive_end_time(caplog):
-    """CM-28-006: naive end_time MUST be logged as malformed, not silently dropped."""
-    import logging
-
-    naive_deadline = datetime.now() + timedelta(days=5)  # no tzinfo
-    invite = _make_embargo_invite(end_time=naive_deadline)
-
-    with caplog.at_level(
-        logging.WARNING, logger="vultron.wire.as2.extractor._extract"
-    ):
-        caplog.clear()
-        event = extract_event(invite)
-
-    assert cast(Any, event).rsvp_deadline is None
-    warning_msgs = [
-        r.message for r in caplog.records if r.levelno >= logging.WARNING
-    ]
-    assert any(
-        "naive" in msg.lower() or "malformed" in msg.lower()
-        for msg in warning_msgs
-    ), f"Expected a warning about naive/malformed end_time; got: {warning_msgs}"
+    rsvp = cast(Any, event).rsvp_deadline
+    assert rsvp is not None
+    assert rsvp.tzinfo == timezone.utc
 
 
 @pytest.mark.spec("EP-07-003")
@@ -446,6 +470,28 @@ def test_invite_rsvp_deadline_clamped_uses_custom_min_rsvp_window():
     assert ev.rsvp_deadline is not None
     # Clamped to 10-day floor — must be strictly greater than 5-day deadline
     assert ev.rsvp_deadline > deadline.astimezone(timezone.utc)
+
+
+@pytest.mark.spec("EP-07-003")
+def test_extract_event_honours_custom_min_rsvp_window():
+    """AC-2 (#3045): extract_event() forwards min_rsvp_window to extract_intent.
+
+    Before the fix extract_event() had no min_rsvp_window parameter and always
+    applied the 72 h default floor, regardless of actor configuration.
+    """
+    # deadline 5 days out: above 72 h default, but below the 10-day custom floor
+    deadline = datetime.now(tz=timezone.utc) + timedelta(days=5)
+    invite = _make_embargo_invite(end_time=deadline)
+
+    event = extract_event(invite, min_rsvp_window=timedelta(days=10))
+
+    ev = cast(Any, event)
+    assert ev.rsvp_deadline is not None
+    # Clamped to 10-day floor — must be strictly greater than 5-day deadline
+    assert ev.rsvp_deadline > deadline.astimezone(timezone.utc), (
+        "extract_event() must apply the caller-supplied min_rsvp_window,"
+        " not always use the 72 h default (#3045)"
+    )
 
 
 # --- discriminated-union return-type narrowing tests (issue #2491) ---
@@ -618,3 +664,55 @@ def test_activity_snapshot_never_reprs_a_non_uri_attributed_to(raw, expected):
     assert event.activity.attributed_to == expected
     if event.activity.attributed_to is not None:
         assert not event.activity.attributed_to.startswith(("{", "["))
+
+
+def test_coerce_pec_or_none_maps_no_embargo_to_unbound():
+    """ADR-0091 renamed NO_EMBARGO → UNBOUND; _coerce_pec_or_none must migrate legacy wire values (issue #3376)."""
+    from vultron.core.states.participant_embargo_consent import PEC
+    from vultron.wire.as2.extractor._builders import _coerce_pec_or_none
+
+    assert _coerce_pec_or_none("NO_EMBARGO") == PEC.UNBOUND
+
+
+def test_coerce_pec_or_none_is_single_shared_helper():
+    """The extractor and wire vocab must reference one shared _coerce_pec_or_none (issue #3346).
+
+    Two private copies with different lookup strategies (name-lookup PEC[v] vs
+    value-lookup PEC(v)) previously coexisted; they could silently diverge once
+    any PEC member's wire value differed from its name. Consolidation is only
+    real if both import sites resolve to the same function object — this test is
+    the ratchet against re-divergence.
+    """
+    from vultron.wire.as2.extractor import _builders
+    from vultron.wire.as2.vocab.objects import base
+
+    assert _builders._coerce_pec_or_none is base._coerce_pec_or_none
+
+    # ``case_status`` no longer re-imports the helper: ADR-0099 detail 3 collapsed
+    # as_CaseStatus/as_ParticipantStatus into their core classes, so that module is
+    # aliases only and does no coercion. The divergence this ratchet guards is
+    # therefore narrower, not gone — the remaining import site still has to resolve
+    # to the one function.
+
+
+def test_coerce_pec_or_none_unknown_string_raises_value_error():
+    """Unknown PEC strings raise ValueError, never KeyError (#2964, #3346).
+
+    The consolidated helper uses value-lookup PEC(v), so pydantic field
+    validators surface a clean ValidationError instead of an uncaught,
+    500-class KeyError from name-lookup PEC[v].
+    """
+    from vultron.wire.as2.vocab.objects.base import _coerce_pec_or_none
+
+    with pytest.raises(ValueError):
+        _coerce_pec_or_none("BOGUS_PEC")
+
+
+def test_coerce_pec_or_none_passthrough_and_none():
+    """PEC members pass through unchanged and None maps to None (issue #3346)."""
+    from vultron.core.states.participant_embargo_consent import PEC
+    from vultron.wire.as2.vocab.objects.base import _coerce_pec_or_none
+
+    assert _coerce_pec_or_none(None) is None
+    assert _coerce_pec_or_none(PEC.SIGNATORY) is PEC.SIGNATORY
+    assert _coerce_pec_or_none("INVITED") == PEC.INVITED

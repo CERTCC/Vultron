@@ -1,3 +1,8 @@
+---
+stakeholder_type: [process-researcher]
+level: 400
+---
+
 # Vulnerability Equities Process
 
 {% include-markdown "../../includes/not_normative.md" %}
@@ -19,6 +24,8 @@ describes the process.
     enforcement purposes, such as intelligence collection, military
     operations, and/or counterintelligence.
 
+The charter's "vendor/supplier" role maps to the Vultron [Vendor](../../reference/glossary.md) role.
+
 For each vulnerability that enters the process, the VEP results in a
 decision to *disseminate* or *restrict* the information.
 
@@ -33,7 +40,7 @@ VEP policy does not explicitly touch on any other aspect of the CVD process. By 
 **V**, VEP
 is mute regarding intentionally triggering the **P** or
 **X** transitions. It also makes no commitments about
-**F** or **D**, although obviously these are entirely
+**F** or **D**, although these are entirely
 dependent on **V** having occurred. However, preserving the
 opportunity to exploit the vulnerability implies a chance that such use
 would be observed by others, thereby resulting in the **A**
@@ -64,8 +71,7 @@ what distinction is intended by the use of the term *exploitable* in the
 imply that a non-exploitable vulnerability might fail to qualify as a
 *vulnerability* altogether.
 
-Regardless, "unknown to the vendor" clearly
-matches with $v \cdot \cdot \cdot \cdot \cdot$, and "not publicly known"
+Regardless, "unknown to the vendor" maps to $v \cdot \cdot \cdot \cdot \cdot$, and "not publicly known"
 likewise
 matches with $\cdot \cdot \cdot p \cdot \cdot$. Thus we interpret their
 definition of
@@ -81,14 +87,13 @@ criteria puts us back in $q \in {v \cdot \cdot p \cdot \cdot}$ since
 $${v \cdot \cdot p \cdot \cdot} = \lnot {V \cdot \cdot \cdot \cdot \cdot} \cap
 \lnot {\cdot \cdot \cdot P \cdot \cdot}$$
 
-We further
-note that because a public exploit ($\cdot \cdot \cdot \cdot X \cdot$) would
+A public exploit ($\cdot \cdot \cdot \cdot X \cdot$) would
 also meet the
 definition of "vulnerability information in the public domain," we can
 narrow the scope from ${v \cdot \cdot p \cdot \cdot}$ to ${v \cdot \cdot px
 \cdot}$.
 
-Lastly, we note that due to the
+Lastly, due to the
 [vendor fix path causality rule](../process_models/cs/cs_model.md),
 ${v \cdot \cdot px \cdot}$ is equivalent to ${vfdpx \cdot}$, and therefore
 we can formally specify that VEP is only applicable to vulnerabilities in

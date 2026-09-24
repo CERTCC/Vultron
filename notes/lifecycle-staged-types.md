@@ -74,11 +74,11 @@ sides are present at that moment).
 The embargo milestone is monotonic: the EM machine
 (`vultron/core/states/em.py`) never returns to `NONE`/`PROPOSED` once `ACTIVE`.
 
-### ParticipantStatus — per-participant RM/vfd (no types)
+### ParticipantStatus — per-participant RM/vf/d (no types)
 
-`rm_state` and `vfd_state` are always-present enum fields. The RM.VALID ratchet
+`rm_state` is always-present. `vf_state`/`d_state` (split per ADR-0075) are nullable: auto-seeded for VENDOR/DEPLOYER participants respectively, `None` for participants that hold neither role. The RM.VALID ratchet
 is real (once VALID you cannot return to RECEIVED/INVALID; CLOSED only via
-ACCEPTED/DEFERRED) and the vfd path is monotonic (`v→V→F→D`), but neither adds a
+ACCEPTED/DEFERRED) and the vfd path is monotonic (`v→V→F` on VF, `d→D` on D), but neither adds a
 field. Per LST-01-001 they earn **no subtype**. They become state-group tuples
 and predicates — e.g. `RM_VALIDATED`, `is_rm_validated()` — alongside the
 existing `RM_ACTIVE`, `RM_CLOSABLE`, `EM_NEGOTIATING`, and `is_rm_at_least()`
@@ -154,29 +154,6 @@ Round-trip compatibility is a binding design constraint (LST-05-003): a persiste
 staged object must rehydrate to the base type and re-validate to its staged type
 without loss. Register the base type in `CORE_VOCABULARY` as today; do not add a
 persisted stage discriminator.
-
-## Future Direction: Per-Dimension Status Decomposition
-
-A natural next layer — **not** part of ADR-0033 — is decomposing
-`CaseStatus`/`ParticipantStatus` into per-machine dimension objects (each state
-machine its own small object with its own `transition()`/guard method), e.g.
-`ParticipantStatus` → `{report: RmState, fix: VfdState, consent: PecState}`.
-
-Where it helps: it gives the scattered EM/RM transition logic (see
-`notes/embargo-lifecycle.md`, #538) one home, models the genuinely independent
-dimensions faithfully, and composes with staged types (the `is_rm_validated()`
-predicates become methods on the RM dimension). Staged types make illegal
-*shapes* unrepresentable; dimension objects make illegal *transitions*
-unrepresentable.
-
-Where it gets messier: it is a wire- and persistence-visible schema change
-(rehydration, `CORE_VOCABULARY`, AS2 projection, and the append-only
-history model all interact), so it deserves its **own ADR** and must not be
-folded into the staged-types work. Tracked as a separate Idea issue.
-
-**Resolved**: ADR-0036 and `specs/status-dimension-objects.yaml` capture the
-design and normative requirements. See `notes/status-dimension-objects.md`
-for implementation guidance.
 
 ## Transition Constructors: Not Adopted (field-mutation retained)
 

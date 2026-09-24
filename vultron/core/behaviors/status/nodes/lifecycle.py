@@ -52,6 +52,7 @@ from vultron.core.behaviors.status.nodes.threat_termination import (  # noqa: F4
     ThreatTerminationBranchNode,
     _ThreatTerminationSkipConditionNode,
 )
+from vultron.errors import VultronAlreadyExistsError
 
 logger = logging.getLogger(__name__)
 
@@ -91,22 +92,22 @@ class _PublicDisclosureSkipConditionNode(DataLayerConditionWithPorts):
         if case_status is None:
             pxa_state = None
         elif hasattr(case_status, "pxa"):
-            pxa_state = getattr(case_status, "pxa").state
+            _pxa = getattr(case_status, "pxa")
+            if _pxa is None:
+                return False
+            pxa_state = _pxa.state
         elif hasattr(case_status, "pxa_state"):
             pxa_state = getattr(case_status, "pxa_state")
         else:
             pxa_state = None
         if pxa_state is None:
             return False
-        try:
-            return pxa_state in (
-                CS_pxa.Pxa,
-                CS_pxa.PxA,
-                CS_pxa.PXa,
-                CS_pxa.PXA,
-            )
-        except Exception:
-            return False
+        return pxa_state in (
+            CS_pxa.Pxa,
+            CS_pxa.PxA,
+            CS_pxa.PXa,
+            CS_pxa.PXA,
+        )
 
     def _sender_is_case_owner(self, case: VulnerabilityCase) -> bool:
         """Return True iff sender is a known CASE_OWNER participant."""
@@ -138,6 +139,10 @@ class _PublicDisclosureSkipConditionNode(DataLayerConditionWithPorts):
         if self.datalayer is None or not self.case_id:
             return Status.SUCCESS
 
+        # Lenient guard (ADR-0087): this node returns FAILURE only to *signal*
+        # that a teardown is required; every other path is SUCCESS ("nothing to
+        # tear down"). An unresolvable case cannot require a teardown, so
+        # SUCCESS is the correct nothing-to-do answer (conformance allowlist).
         case = self.datalayer.read_case(self.case_id)
         if case is None:
             return Status.SUCCESS
@@ -147,7 +152,7 @@ class _PublicDisclosureSkipConditionNode(DataLayerConditionWithPorts):
 
         # Check EM state directly (EMB-16-001): teardown is required for
         # ACTIVE, REVISE (terminate path) and PROPOSED (reject path).
-        # NO_EMBARGO and EXITED have nothing to tear down.
+        # NONE and EXITED have nothing to tear down.
         em_state = self._em_state(case)
         if em_state not in (EM.ACTIVE, EM.REVISE, EM.PROPOSED):
             return Status.SUCCESS
@@ -301,7 +306,7 @@ class EmitAddCaseStatusToSelfNode(DataLayerActionWithPorts):
         # Persist the case status so the factory can read it back.
         try:
             self.datalayer.create(case_status)
-        except ValueError:
+        except VultronAlreadyExistsError:
             pass  # already exists — idempotent
 
         return str(case_status_id)
@@ -390,13 +395,10 @@ class EmitCloseCaseNode(DataLayerActionWithPorts):
         super().__init__(name=name or self.__class__.__name__)
         self.case_id = case_id
 
-    @classmethod
-    def input_ports(cls) -> dict[str, PortInformation]:
-        ports = super().input_ports()
-        ports["case_manager_id"] = PortInformation(
-            data_type=str, required=False
-        )
-        return ports
+    INPUT_PORTS: dict[str, PortInformation] = {
+        **DataLayerActionWithPorts.INPUT_PORTS,
+        "case_manager_id": PortInformation(data_type=str, required=False),
+    }
 
     @classmethod
     def _domain_port_remappings(cls) -> dict[str, str]:

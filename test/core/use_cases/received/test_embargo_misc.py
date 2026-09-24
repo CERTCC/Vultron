@@ -214,7 +214,7 @@ class TestResetEmbargoConsentWithInlineParticipants:
             id_=case_id,
             name="Reset Consent Inline",
         )
-        wire_case.case_participants.append(participant)
+        wire_case.case_participants.append(participant)  # type: ignore[arg-type]
         dl.create(wire_case)
 
         from vultron.core.models.case import VulnerabilityCase
@@ -229,7 +229,7 @@ class TestResetEmbargoConsentWithInlineParticipants:
         assert updated_participant is not None
         assert (
             getattr(updated_participant, "embargo_consent_state", None)
-            == PEC.NO_EMBARGO.value
+            == PEC.UNBOUND.value
         )
 
 

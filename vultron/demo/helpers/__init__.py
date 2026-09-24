@@ -18,13 +18,14 @@ import from ``vultron.demo.helpers`` directly.
 
 Sub-modules
 -----------
+- :mod:`~vultron.demo.helpers.actor_roles` — ``ActorRole``, ``role_map``, and
+  ``role_kwarg_names``: the per-scenario actor role declarations the demo CLI
+  turns into sub-command options (DEMOCI-11-011).
 - :mod:`~vultron.demo.helpers.polling` — ``_poll_until``,
   ``find_case_invite_for_actor``, ``find_cp_offer_for_case``,
   ``find_case_actor_participant_id``, ``find_ownership_transfer_offer_for_actor``,
   ``resolve_case_actor_store_id``, ``wait_for_object_stored``, and all
   ``wait_for_*`` helpers.
-- :mod:`~vultron.demo.helpers.actions` — ``actor_notifies_state_change``
-  and named CVD lifecycle action wrappers.
 - :mod:`~vultron.demo.helpers.embargo` — ``make_embargo_event`` factory.
 - :mod:`~vultron.demo.helpers.runner` — ``run_exchange_demos`` and
   ``check_all_containers``.
@@ -48,12 +49,10 @@ Sub-modules
   ``verify_publicly_disclosed``, ``verify_case_closed``).
 """
 
-from vultron.demo.helpers.actions import (  # noqa: F401
-    actor_closes_case,
-    actor_notifies_fix_deployed,
-    actor_notifies_fix_ready,
-    actor_notifies_published,
-    actor_notifies_state_change,
+from vultron.demo.helpers.actor_roles import (  # noqa: F401
+    ActorRole,
+    role_kwarg_names,
+    role_map,
 )
 from vultron.demo.helpers.embargo import (  # noqa: F401
     make_embargo_event,
@@ -77,6 +76,7 @@ from vultron.demo.helpers.polling import (  # noqa: F401
     LATE_JOINER_REPLICA_TIMEOUT,
     LATE_JOINER_TIMEOUT,
     PARTICIPANT_JOIN_TIMEOUT,
+    REPLICA_PARTICIPANT_TIMEOUT,
     _poll_until,
     find_case_actor_participant_id,
     find_case_invite_for_actor,
@@ -97,6 +97,7 @@ from vultron.demo.helpers.polling import (  # noqa: F401
     wait_for_object_stored,
     wait_for_participant_d_state,
     wait_for_participant_vf_state,
+    wait_for_participants_on_replicas,
     wait_for_pending_inbox_quiescent,
 )
 from vultron.demo.helpers.seeding import (  # noqa: F401

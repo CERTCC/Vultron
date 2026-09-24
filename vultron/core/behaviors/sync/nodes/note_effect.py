@@ -23,13 +23,17 @@ from __future__ import annotations
 import logging
 
 from py_trees.common import Status
+from pydantic import ValidationError
 
 from vultron.core.behaviors.sync.nodes._helpers import (
     _LedgerEffectNode,
     _extract_id_from_field,
 )
 from vultron.core.models.note import VultronNote
-from vultron.core.models._helpers import _as_id
+from vultron.core.models._helpers import (
+    _as_id,
+    project_wire_snapshot_to_core,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -82,15 +86,9 @@ class ApplyNoteFromLedgerNode(_LedgerEffectNode):
             )
             return Status.SUCCESS
 
-        case = self.datalayer.read_case(case_id)
+        case = self._resolve_case_replica(case_id)
         if case is None:
-            self.logger.debug(
-                "%s: case '%s' not found in local DataLayer"
-                " — skipping (non-fatal, partial case view)",
-                self.name,
-                case_id,
-            )
-            return Status.SUCCESS
+            return Status.SUCCESS  # Regime 2 (ADR-0087): partial replica, skip
 
         existing_ids = [_as_id(n) for n in case.notes]
         if note_id in existing_ids:
@@ -138,8 +136,13 @@ class ApplyNoteFromLedgerNode(_LedgerEffectNode):
             return
 
         try:
-            note = VultronNote.model_validate(note_data)
-        except Exception as exc:
+            note = VultronNote.model_validate(
+                project_wire_snapshot_to_core(VultronNote, note_data)
+            )
+        except ValidationError as exc:
+            # A malformed note snapshot cannot be reconstructed; stay lenient
+            # and record the reference only.  A non-validation error would be a
+            # real fault and must surface (CS-23-001).
             self.logger.warning(
                 "%s: failed to reconstruct note '%s' from payload_snapshot:"
                 " %s — recording the reference only",

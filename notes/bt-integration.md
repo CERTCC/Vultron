@@ -13,6 +13,7 @@ related_notes:
   - notes/bt-fuzzer-nodes.md
   - notes/protocol-event-cascades.md
   - notes/use-case-behavior-trees.md
+  - notes/testing-pitfalls.md
 relevant_packages:
   - py_trees
   - vultron/bt
@@ -101,15 +102,16 @@ clear transaction boundaries (one execution = one commit).
 **Rejected alternative**: Async tick-based execution with pause/resume —
 requires BT state persistence between ticks, complex failure recovery.
 
-### 6. Case Creation Does *Not* Generate a CaseActor
+### 6. Case Creation Does *Not* Generate a Per-Case CaseActor Object
 
 **Corrected in #1872.** This note previously said case creation creates a
-CaseActor, one per `VulnerabilityCase` (1:1). It does not, and that model was the
-bug.
+CaseActor object, one per `VulnerabilityCase` (1:1). It does not, and that model
+was the bug.
 
-A CaseActor is a **role** — a participant holding `CVDRole.CASE_MANAGER` for the
-case — worn by a container, one per container, not a per-case object
-(CP-08-002/003). Its identity is the stable
+Authority over a case is a **role** — `CVDRole.CASE_MANAGER`, held by whichever
+participant is the case's authority — worn by a container, one per container, not
+a per-case object (CP-08-002/003). The concrete actor that enacts it (the
+prototype's "CaseActor") has the stable identity
 `{case_actor_service_url}/actors/case-actor`. A per-case identity such as
 `.../actors/case-actor-{slug}` was a phantom: computed by the sender, hosted by
 nobody, so delivery to it 404'd permanently and the proposal round-trip never
@@ -117,8 +119,8 @@ began.
 
 What actually happens: `PublishCaseActorIdentityNode` *publishes* the configured
 identity to the blackboard and creates nothing;
-`EnsureCaseActorHostedNode` provisions the record in the CaseActor's own store so
-its inbox answers, and returns `SUCCESS` when the CaseActor is hosted elsewhere,
+`EnsureCaseActorHostedNode` provisions the record in the enacting actor's own store so
+its inbox answers, and returns `SUCCESS` when that actor is hosted elsewhere,
 because that is a normal topology. `ResolveCaseActorUrlsNode` — which derived the
 per-case identity *and* created a per-case `Service` object to match — is gone.
 
@@ -131,8 +133,9 @@ own seed config.
 
 - **Case Owner**: Organizational Actor (vendor/coordinator) responsible for
   decisions.
-- **CaseActor**: ActivityStreams Service managing case state (NOT the case
-  owner).
+- **CASE_MANAGER**: the case-management authority role; the actor enacting it
+  (the prototype's "CaseActor", an ActivityStreams Service) manages case state,
+  distinct from the case owner.
 - **Initial Owner**: Typically the recipient of the VulnerabilityReport Offer.
 
 ### 7. CLI Invocation Support (MAY)
@@ -165,9 +168,9 @@ see `_store_for_actor`, which delegates to
 `vultron/core/behaviors/store_scope.py::store_for_actor`.
 
 The delegated-emit pattern is where divergence bites. A trigger emitting on the
-CaseActor's behalf runs with `actor_id` set to the CaseActor while the injected
+CASE_MANAGER's behalf runs with `actor_id` set to the CASE_MANAGER while the injected
 DataLayer belongs to the *requesting* actor: the activity is created in one store
-and queued in the other's outbox, so the CaseActor never delivers it and its
+and queued in the other's outbox, so the CASE_MANAGER never delivers it and its
 outbox names an activity its own store does not hold.
 
 Exception: a store that reports no `actor_id` at all — a test double, or any
@@ -202,7 +205,7 @@ which names `invitee_id` and `accepting_actor_id` as legitimate leaf-node
 inputs that are never legitimate `actor_id` values). They coincide with the
 receiving actor on the direct-delivery path, which is exactly what makes the
 conflation survive testing: it breaks only under CLI dispatch, log replay, a
-CaseActor relaying on a participant's behalf, or a multi-recipient activity.
+CASE_MANAGER relaying on a participant's behalf, or a multi-recipient activity.
 
 Two failure shapes to watch for, both of which returned SUCCESS while writing
 to the wrong record (ISSUE-2762):
@@ -468,7 +471,7 @@ using `conditions.py` and `transitions.py` as state machine logic reference.
 
 **Embargo management** (`vultron/bt/embargo_management/`): Contains
 `behaviors.py`, `conditions.py`, `states.py`, `transitions.py`. The embargo
-state machine (EM: NO_EMBARGO → PROPOSED → ACTIVE → REVISE → EXITED) maps
+state machine (EM: NONE → PROPOSED → ACTIVE → REVISE → EXITED) maps
 directly to the handler sequence for the establish_embargo workflow. Note:
 `Accept` is an **activity type** that triggers `PROPOSED → ACTIVE` (or
 `REVISE → ACTIVE`) — it is not a state. See
@@ -524,10 +527,10 @@ reporter at RM.ACCEPTED, receiver at RM.RECEIVED. RM state is tracked
 in `VultronParticipant.participant_status[].rm_state` from the moment
 of case creation.
 
-> **ADR-0015 is superseded by ADR-0041.** In the CaseActor-authoritative model
+> **ADR-0015 is superseded by ADR-0041.** In the CASE_MANAGER-authoritative model
 > the vendor tree no longer creates the `VulnerabilityCase` directly.  The vendor
 > stores the report, writes a pending `VultronReportCaseLink`, and sends
-> `Create(as_CaseProposal)` to the CaseActor; the CaseActor creates the case,
+> `Create(as_CaseProposal)` to the CASE_MANAGER; the CASE_MANAGER creates the case,
 > adds participants, and initializes embargo before emitting
 > `Create(VulnerabilityCase)` back to the vendor.  See `notes/case-proposal.md`
 > for the corrected flow (CM-22, CP-09).

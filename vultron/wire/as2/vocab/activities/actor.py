@@ -19,7 +19,6 @@ from typing import ClassVar
 
 from pydantic import Field
 
-from vultron.core.models.actor import CoreActor
 from vultron.wire.as2.vocab.base.objects.activities.transitive import (
     as_Accept,
     as_Offer,
@@ -42,7 +41,7 @@ class _RecommendActorActivity(as_Offer):
     recommendation for carrying a bare string (AKM-03-001).
     """
 
-    object_: CoreActor | as_Actor = Field(
+    object_: as_Actor = Field(
         ..., validation_alias="object", serialization_alias="object"
     )
     target: as_VulnerabilityCaseRef = None

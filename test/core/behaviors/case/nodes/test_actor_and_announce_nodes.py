@@ -20,6 +20,8 @@ from typing import Any, cast
 
 import py_trees
 import pytest
+
+from vultron.core.models._helpers import now_utc
 from py_trees.common import Status
 
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
@@ -410,7 +412,7 @@ class TestSeedAnnouncedCaseNode:
             id_=CASE_ID2, name="Inline Participant Write-Path Test"
         )
         case_with_inline.actor_participant_index[actor_id] = participant_id
-        case_with_inline.case_participants.append(inline_participant)
+        case_with_inline.case_participants.append(inline_participant)  # type: ignore[arg-type]
 
         tree = SeedAnnouncedCaseNode(
             case_id=CASE_ID2,
@@ -516,6 +518,9 @@ class TestEmitInviteActorToCaseNodePassesRolesNoneToFactory:
                     "id_": "urn:uuid:ac2-invite-001",
                     "type": "Invite",
                     "actor": ACTOR_ID,
+                    # The real factory always emits ``published``; the commit
+                    # boundary requires it (CLP-07-011).
+                    "published": now_utc().isoformat(),
                     "object_": {"type": "CoreActor", "id_": INVITEE_ID},
                     "target": {
                         "type": "VulnerabilityCase",
@@ -911,7 +916,7 @@ _OT_CASE_ID = "https://example.org/cases/ot-emit-test-01"
 
 
 def _make_ot_case(dl: SqliteDataLayer) -> None:
-    """Seed a case with a CASE_MANAGER participant so _resolve_case_manager_id
+    """Seed a case with a CASE_MANAGER participant so resolve_case_manager_id
     returns _OT_CASE_ACTOR_ID from _OT_CASE_ID."""
     from vultron.core.models.case_participant import CaseParticipant
     from vultron.enums.roles import CVDRole as _CVDRole
@@ -1000,7 +1005,7 @@ class TestEmitOwnershipTransferNodes:
 
         Uses a mock TriggerActivityAdapter to capture the ``to`` kwarg that
         the node passes to ``accept_case_ownership_transfer()``.  The node
-        resolves the CaseActor via ``_resolve_case_manager_id`` *before*
+        resolves the CaseActor via ``resolve_case_manager_id`` *before*
         calling the factory, so the mock's call_args faithfully records the
         routing decision (ADR-0053 / CM-21-006).
         """

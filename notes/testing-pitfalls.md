@@ -3,17 +3,21 @@ title: Testing Pitfalls and Patterns
 status: active
 description: >
   Full write-ups for pytest pitfalls in this repo: reading a killed run, the
-  two-tier timeout guardrail, fixture and blackboard isolation, py_trees test
+  two-tier timeout guardrail and why the timeout *method* matters more than the
+  ceiling, measuring effective markers rather than declarations,
+  `filterwarnings` precedence, fixture and blackboard isolation, py_trees test
   patterns, assertion-quality traps (vacuous asserts, "falls back to" tests,
   bare MagicMock), and test layout rules for module splits. `test/AGENTS.md`
   keeps the short index and the rules you need on every run.
 related_specs:
   - specs/testability.yaml
   - specs/behavior-tree-integration.yaml
+  - specs/spec-registry.yaml
 related_notes:
   - notes/flaky-tests.md
   - notes/configuration.md
   - notes/bt-pitfalls.md
+  - notes/bt-integration.md
   - notes/datalayer-design.md
   - notes/triggers-test-coverage.md
   - notes/demo-ci-invariants.md
@@ -39,16 +43,38 @@ When `pytest-timeout` kills a test that exceeds the budget, it dumps a stack
 trace and exits non-zero, but the `uv run pytest ... 2>&1 | tail -5` pipeline
 returns `tail`'s exit code (0) and shows dump frames where the `N passed`
 summary line would be. **Absence of a summary line from `tail -5` is the
-signal.** Redirect to a file and check pytest's own exit code:
+signal.** Any pipeline does this — a pipeline's status is its *last* stage's, so
+`| tail`, `| tee … | tail`, `| head`, and `| wc` all mask it equally. Never end a
+gate command with a pipe. Redirect, capture `$?` immediately, then re-raise it:
 
 ```bash
-uv run pytest --tb=short > /tmp/unit.log 2>&1; echo $?
+uv run pytest --tb=short > /tmp/unit.log 2>&1; rc=$?; tail -5 /tmp/unit.log; echo "exit: $rc"; (exit $rc)
 ```
+
+Three details carry the weight, and dropping any one of them re-opens the hole:
+
+- **`rc=$?` directly after the redirected command.** Any command in between —
+  including the `tail` — overwrites `$?`.
+- **`echo` last, after the `tail`.** Otherwise the exit code scrolls above the
+  five tail lines, which is exactly where nobody looks.
+- **`(exit $rc)` at the end.** Without it the *statement* still exits 0, because
+  its status is that of the last command. `echo "exit: $?"` alone makes the code
+  visible to a reader but leaves it invisible to `&&`, to `set -e`, to a CI
+  `run:` step, and to anything consuming a skill's `commands:` frontmatter.
+
+Read the `exit:` line before the tail: it is authoritative. If the redirect
+cannot be opened (read-only `/tmp`, exhausted disk, `noclobber`), the command
+never runs and `tail` prints the *previous* run's passing summary.
 
 The spec-lint test (`test_real_specs_lint_no_hard_errors`) is particularly
 load-sensitive at ~3s against the 5s budget.
 
-Source: ISSUE-2232
+The canonical command lives in
+[`.agents/skills/run-tests/SKILL.md`](../.agents/skills/run-tests/SKILL.md) §
+Constraints, and `test/metadata/test_instruction_command_hygiene.py` fails the
+suite if a masking form reappears in an instruction file.
+
+Source: ISSUE-2232, #3518
 
 ### Per-Test Timeout Guardrail
 
@@ -72,11 +98,11 @@ that honest work tripped it under load:
 - integration tests doing 3.5-4.3s of real HTTP work, and
 - AST-walking architecture ratchets at ~3.4s in isolation.
 
-Four separate sessions re-diagnosed the result as flakiness (ISSUE-1925,
-ISSUE-1988, ISSUE-2086, ISSUE-2237) before the ceiling itself was fixed. Raising
-it costs nothing on a genuine hang — that test was never going to finish — and
-the suite stays fast because total runtime is bounded by the tests, not by this
-ceiling.
+Session after session re-diagnosed the result as flakiness before the ceiling
+itself was fixed; the write-ups are under `plan/history/*/learning/` (grep
+`timeout_method`). Raising it costs nothing on a genuine hang — that test was
+never going to finish — and the suite stays fast because total runtime is
+bounded by the tests, not by this ceiling.
 
 Both tiers are sized from measurement: the slowest unit test is ~3.1s idle and
 the slowest integration test ~4.3s. The headroom is deliberately large because
@@ -94,6 +120,141 @@ is firing on honest work rather than catching hangs, change the tier rather
 than contorting the tests around it. Do not add a row to
 [notes/flaky-tests.md](flaky-tests.md) for a test that is merely near its
 ceiling.
+
+#### Raising the Ceiling Lowers the Frequency of Signal Loss, Never the Severity
+
+`timeout_method = "thread"` arrived in #528 alongside the ceiling itself, with
+no stated reason for the method — and the tier table above, like most write-ups
+since, tunes *ceilings* around it. That is the wrong dial. A ceiling governs how
+often a trip happens; the method governs what a trip costs, and under `"thread"`
+a trip costs the whole session: the process dies where it stands, so the tests
+after the hang never run and the failures already recorded are never named.
+
+The cost is not theoretical — #3576 lost the names of four unrelated failures
+that way. **And the method has been named before without being acted on, which
+is the sharper lesson.** `plan/history/2608/learning/ISSUE-2086-thread-timeout.md`
+and `ISSUE-2235-pytest-5s.md` both proposed `timeout_method = "signal"` so a slow
+test "fails alone instead of voiding the suite", and `ISSUE-2270.md` already
+recorded the GIL limitation noted below. Every time, the ceiling moved instead.
+So the trap is not that nobody spotted the dial; it is that a ceiling change is
+always the smaller diff, and the diagnosis got re-filed as flakiness (ISSUE-1925,
+ISSUE-1988, ISSUE-2237, and the timeout observed during ISSUE-2762 that put #3041
+on this trail). A two-line probe settles which dial matters, because the
+difference is visible in the summary rather than in argument:
+
+| `--timeout-method` | Hanging test | Rest of session | Summary line |
+|---|---|---|---|
+| `thread` | kills the process | never runs | none |
+| `signal` | fails, named, alone | runs to completion | names every failure |
+
+`signal` (POSIX-only, `SIGALRM` in the main thread) is what restores the
+signal. It is not free: the alarm raises at an arbitrary point, so an interrupt
+landing while a test holds the module-level blackboard `RLock` is a deadlock
+mode `"thread"` does not have, and a hang inside a C call that never releases
+the GIL is unreachable by a signal. Both are bounded by a job-level
+`timeout-minutes` on the pytest job, which the `thread` method's self-kill has
+been quietly standing in for. Tracked in #3603.
+
+Source: #528, #2270, #3041, #3576
+
+#### A Marker Sweep That Counts Declarations Misses a Directory Hook
+
+Tests under `test/demo/` are marked `integration` by a path-based
+`pytest_collection_modifyitems` hook in `test/demo/conftest.py`, not by a
+`pytestmark` line in each module. A sweep that greps for the declaration
+therefore reports near-total non-compliance for a directory that is in fact
+100% compliant — which is how #3041 came to assert that 59 of 63 demo modules
+inherit the unit tier, three weeks after both the hook and the 60s tier had
+landed. It also proposed adding the marker to all 59, which would have been a
+no-op duplicating the hook's job per module.
+
+The mechanism itself is documented in
+[`test/AGENTS.md`](../test/AGENTS.md) § "`test/demo/` Tests Are Auto-Marked
+`integration` by a Directory Hook" — it was already written down when #3041
+asserted the opposite, so the miss was in the measurement, not the docs.
+
+**Ask what the collected items actually carry, not what the files declare.** A
+`trylast` plugin reading `item.get_closest_marker(...)` answers it in one run
+and leaves no repo change behind:
+
+```bash
+cat > probe_plugin.py <<'PY'
+import pytest
+
+
+@pytest.hookimpl(trylast=True)
+def pytest_collection_modifyitems(items):
+    for item in items:
+        integration = item.get_closest_marker("integration") is not None
+        timeout = item.get_closest_marker("timeout")
+        print(
+            f"{item.nodeid}\tintegration={integration}\t"
+            f"timeout={timeout.args[0] if timeout else None}"
+        )
+PY
+uv run pytest test/demo -m "" --collect-only -q -s -p probe_plugin
+rm probe_plugin.py
+```
+
+`trylast` is the load-bearing part: it puts the probe after both the root and
+the directory hook, so it reports the resolved marker rather than an intermediate
+state. On 2026-09-24 it reported 1276 collected items, every one
+`integration=True` — 1274 at the 60s tier plus two deliberate per-test overrides
+(180s, 10s) — and none at the 30s unit ceiling.
+
+The same distinction applies to the assertion that guards the tier, though less
+starkly than it first appears. `test/test_integration_timeout_tier.py` does
+reach past stubs: `TestResolvedTimeoutsUnderRealPytest` runs a `pytester`
+sub-session and asks `pytest-timeout` what it actually resolved per item, which
+is what catches a root-hook-vs-`pytest-timeout` ordering regression. But that
+sub-session builds its own conftest and three synthetic tests, and the rest of
+the file asserts against hand-built `FakeItem`s — so nothing in it exercises the
+`test/demo/` directory hook. If the root and demo
+`pytest_collection_modifyitems` hooks ever reorder relative to each other, demo
+tests can drop to the unit tier with no test failing. Tracked in #3604.
+
+Source: #3041, #3576
+
+### A `filterwarnings` Exemption Placed Before `"error"` Is a No-Op
+
+pytest applies ini `filterwarnings` entries in list order through
+`warnings.filterwarnings()`, and that function **inserts at index 0**. So the
+list reads in *increasing* order of precedence: the **last** entry wins. An
+`always::`/`ignore::` exemption listed *before* `"error"` never applies, and the
+warning it was meant to surface non-blockingly raises instead.
+
+```toml
+filterwarnings = [
+    "error",                       # must come FIRST
+    "always::pkg.AdvisoryWarning", # exemptions AFTER it
+]
+```
+
+Verify with `warnings.filters` — index 0 is highest precedence:
+
+```bash
+uv run python -c "import warnings; print(warnings.filters[:6])"  # inside a session
+```
+
+**Why this keeps recurring.** The rule is the opposite of how the list reads, and
+the original write-up recorded it backwards ("placed BEFORE `error` so the
+specific rule takes precedence (Python prepend semantics)"). Consequences:
+
+- `always::UnknownSpecIdWarning` sat before `"error"` from the spec-marker gate's
+  introduction, so SR-05-002's normative "non-blocking" guarantee **never held** —
+  an unknown spec ID aborted collection rather than warning.
+- #2329 measured the correct rule and named the latent bug, but the finding sat in
+  an issue body rather than here, so #3331 and PR #3336 both reproduced it for a
+  second warning class before it was caught in review.
+
+**A position assertion cannot catch this.** `pytest.warns` and
+`warnings.catch_warnings` both replace the ini filters, so no in-session test can
+observe the escalation — which is why a test asserting the *index* passed while
+the behaviour was broken. Assert the behaviour in a `pytester` sub-session fed the
+project's real filter list
+(`test/metadata/specs/test_spec_marker_gate.py::TestWarningIsNotEscalated`).
+
+Normative: SR-05-007. Sources: #2329, #3336.
 
 ### `caplog` Captures Fixture-Setup-Phase Records
 
@@ -276,6 +437,14 @@ against the fix. When writing a test for a defensive fallback, distinguish "not
 present" from "present but invalid" and assert a raise/`FAILURE` for the latter.
 
 Sources: ISSUE-2232, ISSUE-2264
+
+### Deciding whether a permissive fallback is load-bearing
+
+Moved to [notes/domain-validation.md](domain-validation.md) § "Broad `except
+Exception` Is a Masking Smell" (subsection "When you cannot tell whether a
+fallback is load-bearing") — the defensive/validation-boundary home for the
+normative rule (CS-23-001). Use the instrument-and-count method there before
+removing or trusting a bare `except`, `or <default>`, or failed-lookup fallback.
 
 ### A FAILURE Test Must Prove the Harness Can Produce Its Named Reason
 
@@ -490,7 +659,7 @@ A mismatch → pytest collects 0 tests (exit code 5). Verify:
 ```bash
 grep -r "old_mark_name" .github/workflows/  # no output
 grep "new_mark_name" pyproject.toml
-uv run pytest -m "new_mark_name" --collect-only 2>&1 | tail -5
+uv run pytest -m "new_mark_name" --collect-only > /tmp/collect.log 2>&1; rc=$?; tail -5 /tmp/collect.log; echo "exit: $rc"; (exit $rc)
 ```
 
 ### Trigger Use Cases Need Per-Use-Case Tests

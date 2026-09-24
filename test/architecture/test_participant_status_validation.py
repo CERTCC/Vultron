@@ -47,23 +47,34 @@ _VALIDATING_NODE_MODULES: tuple[str, ...] = (
     "vultron/core/behaviors/case/nodes/participant/status.py",
 )
 
-# Modules that validate a transition and write a ParticipantStatus but are
-# deliberately outside the shared evaluator's domain.  Each needs a reason, and
-# `test_no_undeclared_participant_status_validator` fails when a module joins
-# the population without appearing here or in _VALIDATING_NODE_MODULES.
+# Modules in vultron/core/behaviors/ that construct a participant dimension but
+# are deliberately outside the shared evaluator's domain.  Each needs a reason,
+# and `test_no_undeclared_participant_status_validator` fails when a module
+# joins the population without appearing here or in _VALIDATING_NODE_MODULES.
 #
-# The divergence these exclusions record is tracked as type:Concern #3111.
+# There are two kinds of entry here, and only the first kind is a *writer*:
+#
+#   1. WRITER exclusions (exactly two, ADR-0089 AC-7): `_adjudication.py` (the
+#      receive path) and `participant_status_effect.py` (the replica-apply
+#      path).  Both genuinely write a ParticipantStatus but under a different
+#      disposition than the emit evaluator, so they legitimately do not route
+#      through it.  These are the "exactly two" the ADR-0089 end state names.
+#      The former `models/case_participant.py` writer entry is gone: ADR-0089
+#      deleted `CaseParticipant.append_rm_state`, so the model no longer writes
+#      a ParticipantStatus at all (and models/ is outside this scan regardless).
+#
+#   2. NON-WRITER over-catch (permanent, ADR-0089).  The gate fires on *any*
+#      participant-dimension construction so a writer cannot escape it by
+#      validating less; the price is that it also catches read-side, guard-side
+#      and CaseStatus-writing modules that never write a ParticipantStatus
+#      (`common.py`, `deploy_fix.py`, `develop_fix_conditions.py`,
+#      `case_status.py`, `cs_dimension_filter.py`).  These are declared
+#      permanently rather than narrowing the gate — a narrower gate keyed on the
+#      store site is exactly what a real writer could dodge, which is the
+#      failure mode this ratchet exists to remove.
+#
+# The divergence the WRITER exclusions record is tracked as type:Concern #3111.
 _DECLARED_EXCLUSIONS: dict[str, str] = {
-    # Report-phase RM latch: operates on a *report*, before a case exists, so
-    # there is no case participant, no VF/D/PXA dimension and no role gate for
-    # the shared evaluator to apply.  Its current state comes from
-    # `_current_report_phase_rm_state` (report-scoped), not from
-    # `resolve_participant_state_from_dl` (case-scoped).  Folding the two
-    # lifecycles into one evaluator is a separate design question.
-    "vultron/core/behaviors/report/nodes/rm_transitions.py": (
-        "report-phase RM latch — pre-case lifecycle, RM only, report-scoped"
-        " current state"
-    ),
     # Receive path, not emit path.  It MUST NOT use the emit evaluator: it
     # adjudicates each dimension independently and carries the participant's
     # current value forward for refused ones (ADR-0061, RSH-05-001), which is
@@ -73,13 +84,6 @@ _DECLARED_EXCLUSIONS: dict[str, str] = {
     "vultron/core/behaviors/status/nodes/_adjudication.py": (
         "receive path — per-dimension partial accept, deliberately the"
         " opposite disposition (ADR-0061, RSH-05-001)"
-    ),
-    # Model-level mutator, not a BT node, so outside BTND-10-002's subject.
-    # It validates RM only, and has neither the case context nor the actor
-    # roles the composed evaluator needs.
-    "vultron/core/models/case_participant.py": (
-        "model mutator — not a BT node; no case context or role information"
-        " available to feed the composed evaluator"
     ),
     # Replica-apply path (RSH-05-021), a third disposition distinct from both
     # emit and receive: the assertion was already made and validated by the
@@ -95,6 +99,43 @@ _DECLARED_EXCLUSIONS: dict[str, str] = {
         "replica-apply path — applies a peer-validated ledger entry; no"
         " asserting-actor roles in hand, and refuses via ProcessingFault"
         " rather than by rejecting a local write (RSH-05-021)"
+    ),
+    # Shared evaluator infrastructure — constructs dimension objects to read
+    # the participant's *current* state from a stored ParticipantStatus (the
+    # carry-forward step in resolve_transition_context_or_report).  Not a
+    # write site; it feeds *into* CreateParticipantStatusNode, which owns
+    # the write.
+    "vultron/core/behaviors/case/nodes/participant/common.py": (
+        "evaluator infrastructure — reads current state into dimension objects"
+        " for carry-forward; not a write site (ADR-0086)"
+    ),
+    # PREDICATE use only: constructs DDimension(state).is_fix_deployed() for
+    # a guard condition.  The dimension object is never stored; this is not a
+    # write site.
+    "vultron/core/behaviors/report/nodes/deploy_fix.py": (
+        "predicate use — DDimension(state).is_fix_deployed() for guards;"
+        " not a ParticipantStatus write site"
+    ),
+    # PREDICATE use only: constructs VfDimension(state).is_fix_ready() for
+    # a guard condition.  The dimension object is never stored.
+    "vultron/core/behaviors/report/nodes/develop_fix_conditions.py": (
+        "predicate use — VfDimension(state).is_fix_ready() for guards;"
+        " not a ParticipantStatus write site"
+    ),
+    # Writes CaseStatus.pxa (the case-level PXA state), NOT ParticipantStatus.
+    # This is a separate model type with its own lifecycle (ADR-0080); the
+    # composed participant-status evaluator is scoped to ParticipantStatus
+    # writes and does not apply here.
+    "vultron/core/behaviors/status/nodes/case_status.py": (
+        "writes CaseStatus.pxa, not ParticipantStatus — separate model type"
+        " (ADR-0080); out of scope for the participant-status evaluator"
+    ),
+    # Receive-path PXA adjudication for CaseStatus (not ParticipantStatus).
+    # Also receive-path in the same sense as _adjudication.py, but operates
+    # on the case-level PXA dimension, not the participant dimensions.
+    "vultron/core/behaviors/status/nodes/cs_dimension_filter.py": (
+        "receive-path CaseStatus adjudication — PxaDimension for case-level"
+        " PXA, not participant-level; different lifecycle (ADR-0080)"
     ),
 }
 
@@ -140,7 +181,18 @@ _SHARED_EVALUATOR = "participant_transition_violations"
 # ---------------------------------------------------------------------------
 _RM_FORCE_QUARANTINE: dict[str, int] = {
     "vultron/core/behaviors/sync/nodes/close_case_effect.py": 1,
-    "vultron/core/behaviors/case/nodes/leave.py": 2,
+    # Relocated, not added: these are the same two sites, moved when leave.py
+    # was split into the leave/ package (ISSUE-2505 pushed it past the
+    # 500-line BTND-07-004 cap). The count is unchanged.
+    "vultron/core/behaviors/case/nodes/leave/advance.py": 2,
+    # Bootstrap writes: initial participant status at non-adjacent states
+    # (issue #3206 — routed through CreateParticipantStatusNode, bypassing
+    # the adjacency rule for the first write as allowed by BTND-10-001).
+    # Relocated (not added) from case_proposal_received_tree.py by #3457, which
+    # moved AddReporterParticipantNode into the nodes/ subpackage (BTND-07-003).
+    "vultron/core/behaviors/case/nodes/proposal_reporter.py": 1,
+    "vultron/core/behaviors/case/nodes/participant/owner.py": 1,
+    "vultron/core/behaviors/case/nodes/participant/participant_add.py": 1,
 }
 
 
@@ -265,26 +317,28 @@ def _force_rm_state_sites() -> dict[str, int]:
 
 
 def test_no_undeclared_participant_status_validator() -> None:
-    """Every module that validates *and* writes participant state is declared.
+    """Every module in vultron/core/behaviors/ that builds a participant dimension is declared.
 
-    Discovers the population structurally — a module that both names a
-    transition predicate and constructs a dimension object is validating a
-    participant-state write — rather than trusting a hand-maintained list.  That
-    is what lets this file claim divergence is impossible rather than merely
-    fixed: a new validator has to be classified before it can pass CI.
+    AC-8 (issue #3204): changed from "names a member predicate AND builds a
+    dimension" to "**builds a participant dimension**" so the gate catches all
+    dimension-constructing sites — including the three that were previously
+    invisible because they never named a composed predicate.
+
+    Discovers the population structurally from ``vultron/core/behaviors/``
+    rather than trusting a hand-maintained list.  A new write site has to be
+    classified before CI passes — either routed through the composed evaluator
+    (in which case it joins ``_VALIDATING_NODE_MODULES``) or given a reason why
+    the evaluator does not apply (in which case it joins
+    ``_DECLARED_EXCLUSIONS``).
     """
     declared = set(_VALIDATING_NODE_MODULES) | set(_DECLARED_EXCLUSIONS)
     undeclared: list[str] = []
+    behaviors_root = _corpus.REPO_ROOT / "vultron" / "core" / "behaviors"
 
     for path, tree in _corpus.files_mentioning(
-        *_COMPOSED_PREDICATES, under=_corpus.REPO_ROOT / "vultron"
+        *_DIMENSION_CONSTRUCTORS, under=behaviors_root
     ):
         rel = str(path.relative_to(_corpus.REPO_ROOT)).replace("\\", "/")
-        names = {
-            node.id for node in ast.walk(tree) if isinstance(node, ast.Name)
-        }
-        if not names & set(_COMPOSED_PREDICATES):
-            continue
         constructs_dimension = any(
             isinstance(node, ast.Call)
             and isinstance(node.func, ast.Name)
@@ -295,12 +349,11 @@ def test_no_undeclared_participant_status_validator() -> None:
             undeclared.append(rel)
 
     assert not undeclared, (
-        "These modules validate a transition with an individual predicate and"
-        " construct a participant dimension object, so they are"
-        " ParticipantStatus-write validators outside the composed rule set"
-        " (BTND-10-002).  Either route them through"
-        f" {_SHARED_EVALUATOR}(), or add them to _DECLARED_EXCLUSIONS with a"
-        " reason:\n" + "\n".join(f"  {m}" for m in sorted(undeclared))
+        "These modules in vultron/core/behaviors/ construct a participant"
+        " dimension object (RmDimension, VfDimension, DDimension, PxaDimension)"
+        " and are neither in _VALIDATING_NODE_MODULES nor _DECLARED_EXCLUSIONS."
+        " Add them with a reason (AC-8 / BTND-10-002):\n"
+        + "\n".join(f"  {m}" for m in sorted(undeclared))
     )
 
 
@@ -347,3 +400,104 @@ def test_rm_force_quarantine_only_shrinks() -> None:
             )
         )
     assert not messages, "\n\n".join(messages)
+
+
+def test_create_participant_status_node_never_constructed_in_update() -> None:
+    """CreateParticipantStatusNode is never instantiated inside a Behaviour's update().
+
+    AC-9 (issue #3204) / BTND-10-004.  The five sites that previously did this
+    now pre-build the node in ``__init__`` and delegate via
+    ``BTBridge.execute_with_setup``; nothing should reintroduce the pattern.
+    """
+    behaviors_root = _corpus.REPO_ROOT / "vultron" / "core" / "behaviors"
+    violations: list[str] = []
+    for path, tree in _corpus.all_trees(behaviors_root):
+        for cls_node in ast.walk(tree):
+            if not isinstance(cls_node, ast.ClassDef):
+                continue
+            for method in ast.walk(cls_node):
+                if not isinstance(
+                    method, (ast.FunctionDef, ast.AsyncFunctionDef)
+                ):
+                    continue
+                if method.name != "update":
+                    continue
+                for node in ast.walk(method):
+                    if not isinstance(node, ast.Call):
+                        continue
+                    func = node.func
+                    name = (
+                        func.id
+                        if isinstance(func, ast.Name)
+                        else (
+                            func.attr
+                            if isinstance(func, ast.Attribute)
+                            else None
+                        )
+                    )
+                    if name == "CreateParticipantStatusNode":
+                        rel = str(path.relative_to(_corpus.REPO_ROOT)).replace(
+                            "\\", "/"
+                        )
+                        violations.append(
+                            f"{rel}:{node.lineno}"
+                            f" in {cls_node.name}.update()"
+                        )
+
+    assert not violations, (
+        "CreateParticipantStatusNode MUST NOT be constructed inside an"
+        " update() method — pre-build in __init__ and delegate via"
+        " BTBridge.execute_with_setup() (BTND-10-004, ADR-0089):\n"
+        + "\n".join(f"  {v}" for v in violations)
+    )
+
+
+def test_create_participant_status_node_has_no_case_id_constructor() -> None:
+    """CreateParticipantStatusNode.__init__ exposes no case_id parameter.
+
+    AC-9 (issue #3204) / BTND-10-005.  ``case_id`` must come from the
+    declared ``CaseIdInputPortMixin`` port, not the constructor — a port
+    works for both build-time-known and tick-time-discovered cases; a
+    constructor argument does not.
+    """
+    _, tree = _module(
+        "vultron/core/behaviors/case/nodes/participant/status.py"
+    )
+    for cls_node in ast.walk(tree):
+        if not isinstance(cls_node, ast.ClassDef):
+            continue
+        if cls_node.name != "CreateParticipantStatusNode":
+            continue
+        for method in ast.walk(cls_node):
+            if not isinstance(method, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                continue
+            if method.name != "__init__":
+                continue
+            arg_names = [arg.arg for arg in method.args.args]
+            assert "case_id" not in arg_names, (
+                "CreateParticipantStatusNode.__init__ must not accept"
+                " case_id as a constructor argument — use the"
+                " CaseIdInputPortMixin port instead (BTND-10-005, ADR-0089)"
+            )
+            return
+    assert (
+        False
+    ), "CreateParticipantStatusNode class or __init__ not found in status.py"
+
+
+def test_report_phase_rm_transition_has_no_blackboard_actor_fallback() -> None:
+    """_ReportPhaseRMTransition._acting_actor_id() must not fall back to blackboard actor_id.
+
+    AC-9 (issue #3204) / BTND-10-005.  The pre-ADR-0089 shape was
+    ``return self.sender_actor_id or self.actor_id`` which silently used the
+    executing actor when no sender was supplied.  That was bug #2300; the
+    post-ADR-0089 shape is a plain ``return self.sender_actor_id``.
+    """
+    source = _module_source(
+        "vultron/core/behaviors/report/nodes/rm_transitions.py"
+    )
+    assert "sender_actor_id or self.actor_id" not in source, (
+        "_acting_actor_id() must not fall back to self.actor_id when"
+        " sender_actor_id is absent — exactly one actor path to trace"
+        " (BTND-10-005, ADR-0089)"
+    )

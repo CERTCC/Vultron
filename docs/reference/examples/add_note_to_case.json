@@ -1,18 +1,18 @@
 {
+  "id": "urn:uuid:2198ddfb-99f9-49c9-ad46-b8fcc9e8f507",
+  "type": "Add",
+  "name": "https://vultron.example/users/finndervul Add Note to urn:uuid:a0a80546-90d9-482d-916a-72f47f8a64d6",
   "@context": "https://www.w3.org/ns/activitystreams",
-  "asType": "Add",
-  "id": "https://for.example/38312da5-f0dd-4a1a-8033-112d5f8aabe9",
-  "name": "https://vultron.example/users/finn Add Note to https://vultron.example/cases/VDR-20991514",
-  "actor": "https://vultron.example/users/finn",
-  "target": "https://vultron.example/cases/VDR-20991514",
+  "actor": "https://vultron.example/users/finndervul",
+  "target": "urn:uuid:a0a80546-90d9-482d-916a-72f47f8a64d6",
   "object": {
-    "@context": "https://www.w3.org/ns/activitystreams",
+    "id": "https://vultron.example/notes/1",
     "type": "Note",
-    "id": "https://vultron.example/cases/notes/1",
     "name": "Note",
-    "context": "https://vultron.example/cases/VDR-20991514",
-    "published": "2024-01-22T20:29:47+00:00",
-    "updated": "2024-01-22T20:29:47+00:00",
-    "content": "This is a note."
+    "context": "urn:uuid:a0a80546-90d9-482d-916a-72f47f8a64d6",
+    "published": "2026-09-23T16:41:57+00:00",
+    "updated": "2026-09-23T16:41:57+00:00",
+    "content": "This is a note.",
+    "@context": "https://www.w3.org/ns/activitystreams"
   }
 }

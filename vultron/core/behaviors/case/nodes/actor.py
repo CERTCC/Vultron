@@ -42,9 +42,13 @@ from typing import Any, cast
 
 from py_trees.common import Status
 from py_trees.ports import BehaviourWithPorts, NoDataAvailable, PortInformation
+from pydantic import ValidationError
 
 from vultron.core.behaviors.bridge import BTBridge
-from vultron.core.behaviors.helpers import DataLayerActionWithPorts
+from vultron.core.behaviors.helpers import (
+    DataLayerActionWithPorts,
+    _EmitSingleActivityBase,
+)
 from vultron.core.behaviors.case.nodes.invite_response import (  # noqa: F401
     EmitAcceptCaseInviteNode,
     EmitRejectCaseInviteNode,
@@ -60,7 +64,7 @@ from vultron.core.ports.case_persistence import CaseOutboxPersistence
 from vultron.enums.roles import CVDRole, serialize_roles
 
 
-class EmitInviteActorToCaseNode(DataLayerActionWithPorts):
+class EmitInviteActorToCaseNode(_EmitSingleActivityBase):
     """Create Invite(Actor, Case) and queue in the Case Actor's outbox.
 
     Uses ``trigger_activity_factory.invite_actor_to_case()`` with
@@ -85,7 +89,7 @@ class EmitInviteActorToCaseNode(DataLayerActionWithPorts):
 
     Reads the ``VulnerabilityCase`` from the DataLayer and passes it as
     ``target`` to ``TriggerActivityPort.invite_actor_to_case()``.  The adapter
-    and factory project it to an enriched ``VulnerabilityCaseStub`` — including
+    and factory project it to an enriched ``as_VulnerabilityCaseStub`` — including
     ``end_time`` when ``em_state == EM.ACTIVE`` — without violating the
     core→wire import boundary (ARCH-01-001, CM-17-002).
     """
@@ -100,22 +104,18 @@ class EmitInviteActorToCaseNode(DataLayerActionWithPorts):
         roles: list[str] | None = None,
         name: str | None = None,
     ) -> None:
-        super().__init__(name=name or self.__class__.__name__)
+        super().__init__(captured=captured, name=name)
         self.invitee_id = invitee_id
         self.case_id = case_id
         self.case_actor_id = case_actor_id
         self.attributed_to = attributed_to
-        self._captured = captured
         self._injected_roles = roles
         self._suggested_roles_bb = None
 
-    @classmethod
-    def input_ports(cls) -> dict[str, PortInformation]:
-        ports = super().input_ports()
-        ports["suggested_roles"] = PortInformation(
-            data_type=list, required=False
-        )
-        return ports
+    INPUT_PORTS: dict[str, PortInformation] = {
+        **_EmitSingleActivityBase.INPUT_PORTS,
+        "suggested_roles": PortInformation(data_type=list, required=False),
+    }
 
     @classmethod
     def _domain_port_remappings(cls) -> dict[str, str]:
@@ -139,8 +139,8 @@ class EmitInviteActorToCaseNode(DataLayerActionWithPorts):
             return serialize_roles(roles)
         return None
 
-    def _emit(self, factory: Any) -> tuple[str, dict[str, Any]]:
-        """Build the Invite activity and commit the ledger correlation marker."""
+    def _call_factory(self) -> tuple[str, str]:
+        """Build Invite(Actor, Case) activity and commit the ledger correlation marker."""
         cc = [self.case_actor_id] if self.case_actor_id else None
         roles = self._read_suggested_roles()
         if roles is not None and not roles:
@@ -151,16 +151,25 @@ class EmitInviteActorToCaseNode(DataLayerActionWithPorts):
         # CM-17-002: pass the full case object so the adapter+factory can
         # project it to an enriched stub (with end_time) when em_state==ACTIVE.
         assert self.datalayer is not None and self.actor_id is not None
+        assert self.trigger_activity_factory is not None
+        # Regime 3 (ADR-0087): the case is *optional enrichment* here, not
+        # coordination state — the Invite is fully specified by invitee/case_id/
+        # actor/roles, and the factory tolerates target=None (CM-17-002 only
+        # enriches the stub when the case is present and em_state==ACTIVE). A
+        # missing local case therefore emits a bare stub rather than failing;
+        # this read is deliberately unguarded (conformance allowlist).
         case = self.datalayer.read_case(self.case_id)
-        activity_id, activity_blob = factory.invite_actor_to_case(
-            invitee_id=self.invitee_id,
-            case_id=self.case_id,
-            actor=self.actor_id,
-            to=[self.invitee_id],
-            cc=cc,
-            attributed_to=self.attributed_to,
-            roles=roles,
-            target=case,
+        activity_id, activity_blob = (
+            self.trigger_activity_factory.invite_actor_to_case(
+                invitee_id=self.invitee_id,
+                case_id=self.case_id,
+                actor=self.actor_id,
+                to=[self.invitee_id],
+                cc=cc,
+                attributed_to=self.attributed_to,
+                roles=roles,
+                target=case,
+            )
         )
         activity_dict: dict = (
             json.loads(activity_blob) if activity_blob else {}
@@ -175,7 +184,6 @@ class EmitInviteActorToCaseNode(DataLayerActionWithPorts):
             object_id=activity_id,
             event_type="invite_actor_to_case",
             payload_snapshot=snapshot,
-            disposition="recorded",
         )
         result = BTBridge(
             datalayer=cast(CaseOutboxPersistence, self.datalayer)
@@ -185,35 +193,15 @@ class EmitInviteActorToCaseNode(DataLayerActionWithPorts):
                 f"ledger commit failed for"
                 f" invite_actor_to_case/{self.invitee_id}"
             )
-        return activity_id, activity_dict
+        return activity_id, activity_blob
 
-    def update(self) -> Status:
-        if (f := self._require_datalayer_and_actor()) is not None:
-            return f
-        if (f := self._require_factory()) is not None:
-            self.logger.error(self.feedback_message)
-            return f
-
-        try:
-            activity_id, activity_dict = self._emit(
-                self.trigger_activity_factory
-            )
-            cast(CaseOutboxPersistence, self.datalayer).outbox_append(
-                activity_id
-            )
-            if self._captured is not None:
-                self._captured["activity"] = activity_dict
-            self.logger.info(
-                "Actor '%s' emitted Invite(Actor, Case) to '%s' for case '%s'",
-                self.actor_id,
-                self.invitee_id,
-                self.case_id,
-            )
-            return Status.SUCCESS
-        except Exception as e:
-            self.feedback_message = f"EmitInviteActorToCase failed: {e}"
-            self.logger.error(self.feedback_message)
-            return Status.FAILURE
+    def _on_success(self, activity_id: str, activity_blob: str) -> None:
+        self.logger.info(
+            "Actor '%s' emitted Invite(Actor, Case) to '%s' for case '%s'",
+            self.actor_id,
+            self.invitee_id,
+            self.case_id,
+        )
 
 
 class ProposeCaseToActorNode(DataLayerActionWithPorts):
@@ -245,12 +233,11 @@ class ProposeCaseToActorNode(DataLayerActionWithPorts):
     def __init__(self, name: str | None = None) -> None:
         super().__init__(name=name or self.__class__.__name__)
 
-    @classmethod
-    def input_ports(cls) -> dict[str, PortInformation]:
-        ports = super().input_ports()
-        ports["case_id"] = PortInformation(data_type=str, required=False)
-        ports["case_actor_id"] = PortInformation(data_type=str, required=False)
-        return ports
+    INPUT_PORTS: dict[str, PortInformation] = {
+        **DataLayerActionWithPorts.INPUT_PORTS,
+        "case_id": PortInformation(data_type=str, required=False),
+        "case_actor_id": PortInformation(data_type=str, required=False),
+    }
 
     @classmethod
     def _domain_port_remappings(cls) -> dict[str, str]:
@@ -293,14 +280,12 @@ class ProposeCaseToActorNode(DataLayerActionWithPorts):
         Returns the report ID string on success, or ``None`` after setting
         ``feedback_message`` on any error.
         """
-        if self.datalayer is None:
-            self.feedback_message = "DataLayer not available"
-            return None
-
-        case = self.datalayer.read_case(case_id)
-        if case is None:
-            self.feedback_message = f"Case '{case_id}' not found"
-            self.logger.error("%s: %s", self.name, self.feedback_message)
+        # Regime 1 (ADR-0087): building a CaseProposal requires the case; a
+        # missing DataLayer / case yields the canonical FAILURE feedback+log via
+        # the helper, and this method maps that to its None → caller-FAILURE
+        # contract.
+        case, failure = self._require_case(case_id)
+        if failure is not None:
             return None
 
         if not case.vulnerability_reports:
@@ -340,7 +325,12 @@ class ProposeCaseToActorNode(DataLayerActionWithPorts):
                     offer_actor_id=offer_actor_id,
                 )
             )
-        except Exception as exc:
+        except (ValidationError, ValueError) as exc:
+            # The proposal could not be built from the report — a malformed
+            # report (ValidationError) or a missing/invalid one (ValueError,
+            # e.g. report not found).  Fail the node with a message; a
+            # programming error (TypeError, AttributeError) must surface loudly
+            # instead (CS-23-001).
             self.feedback_message = f"create_case_proposal failed: {exc}"
             self.logger.warning("%s: %s", self.name, self.feedback_message)
             return None
@@ -385,7 +375,7 @@ class EvaluateDefaultRolesNode(BehaviourWithPorts):
     ``FAILURE`` (AC-1).
 
     The physical blackboard key is execution-scoped (BTND-03-013): the stable
-    logical port name ``suggested_roles`` is declared in ``output_ports()`` and
+    logical port name ``suggested_roles`` is declared in ``OUTPUT_PORTS`` and
     wired to the physical key ``suggested_roles_{id_segment}`` in ``setup()``
     using an instance-computed remapping.
     """
@@ -448,15 +438,11 @@ class EvaluateDefaultRolesNode(BehaviourWithPorts):
             return None
         return coerced
 
-    @classmethod
-    def input_ports(cls) -> dict[str, PortInformation]:
-        return {}
+    INPUT_PORTS: dict[str, PortInformation] = {}
 
-    @classmethod
-    def output_ports(cls) -> dict[str, PortInformation]:
-        return {
-            "suggested_roles": PortInformation(data_type=list, required=True),
-        }
+    OUTPUT_PORTS: dict[str, PortInformation] = {
+        "suggested_roles": PortInformation(data_type=list, required=True),
+    }
 
     def setup(self, **kwargs: Any) -> None:
         self.setup_ports(

@@ -23,6 +23,7 @@ from vultron.core.ports.case_persistence import (
 )
 from vultron.core.ports.sync_activity import SyncActivityPort
 from vultron.core.models._helpers import _as_id
+from vultron.core.models.pending_case_inbox import VultronPendingCaseInbox
 from vultron.core.use_cases._helpers import (
     _find_case_actor_id,
     resolve_receiving_actor_id,
@@ -30,6 +31,37 @@ from vultron.core.use_cases._helpers import (
 from vultron.core.use_cases.received.sync import drain_gap_buffer
 
 logger = logging.getLogger(__name__)
+
+
+def _sender_is_trusted(
+    dl: CasePersistence, case_id: str, sender_id: str | None
+) -> bool:
+    """Return True if *sender_id* is trusted to seed or update *case_id*.
+
+    Resolution order (PCR-03-001, PCR-03-004):
+
+    1. An established ``_find_case_actor_id`` anchor — the address recorded on a
+       completed ``ReportCaseLink``, or else the ``CVDRole.CASE_MANAGER``
+       role-holder on the local replica: trust iff the sender matches.  Both are
+       locally derived, which is the property this guard depends on.  ADR-0088
+       removed the two other paths that resolver once had (a ``case-actor``
+       URL-shape gate and a ``Service``-hosting scan), because neither is
+       evidence of authority (ARCH-24-004) and the hosting scan answered ``None``
+       during the bootstrap window (CM-02-012).
+    2. An invite trust anchor from ``InviteActorToCaseReceivedUseCase`` (a
+       ``VultronPendingCaseInbox`` whose ``case_actor_id`` names the expected
+       CASE_MANAGER): trust iff the sender matches.
+    3. No anchor of either kind: reject (fail closed, PCR-03-004).
+    """
+    case_actor_id = _find_case_actor_id(dl, case_id)
+    if case_actor_id is not None:
+        return case_actor_id == sender_id
+    pending = dl.read(VultronPendingCaseInbox.build_id(case_id))
+    return (
+        isinstance(pending, VultronPendingCaseInbox)
+        and pending.case_actor_id is not None
+        and pending.case_actor_id == sender_id
+    )
 
 
 def _link_report_case_links(dl: CasePersistence, case) -> None:
@@ -111,11 +143,11 @@ class AnnounceVulnerabilityCaseReceivedUseCase:
             )
             return
 
-        case_actor_id = _find_case_actor_id(self._dl, case_id)
-        if case_actor_id is not None and case_actor_id != request.actor_id:
+        if not _sender_is_trusted(self._dl, case_id, request.actor_id):
             logger.warning(
-                "AnnounceVulnerabilityCase: actor '%s' is not the CaseActor"
-                " for case '%s' — update rejected (PCR-03-001)",
+                "AnnounceVulnerabilityCase: untrusted sender '%s' for case"
+                " '%s' — Announce rejected (PCR-03-001, PCR-03-004,"
+                " PCR-07-010)",
                 request.actor_id,
                 case_id,
             )

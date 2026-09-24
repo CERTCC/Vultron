@@ -11,7 +11,6 @@ import logging
 from datetime import datetime
 from typing import Any, Callable
 
-from vultron.core.models._helpers import _now_utc as _core_now_utc
 from vultron.core.models.base import VultronObject
 from vultron.core.models.case_ledger_entry import VultronCaseLedgerEntry
 from vultron.core.models.dimensions import (
@@ -26,7 +25,6 @@ from vultron.core.models.enums import VultronObjectType as VOtype
 from vultron.core.models.participant_status import coerce_cvd_roles
 from vultron.core.states.cs import CS_d, CS_pxa, CS_vf
 from vultron.core.states.em import EM
-from vultron.core.states.participant_embargo_consent import PEC
 from vultron.core.states.rm import RM
 from vultron.core.models.vultron_types import (
     CaseStatus,
@@ -41,6 +39,7 @@ from vultron.core.models.vultron_types import (
 from vultron.wire.as2.enums import as_ObjectType as AOtype
 from vultron.wire.as2.vocab.base.objects.activities.base import as_Activity
 from vultron.wire.as2.vocab.base.objects.object_types import as_Event
+from vultron.wire.as2.vocab.objects.base import _coerce_pec_or_none
 
 logger = logging.getLogger(__name__)
 
@@ -104,7 +103,12 @@ def _to_domain_obj(as_obj: object) -> VultronObject | None:
     if not obj_id:
         return None
     obj_type = _get_type(as_obj)
-    return VultronObject(id_=obj_id, type_=obj_type)
+    return VultronObject(
+        id_=obj_id,
+        type_=obj_type,
+        published=_get_timestamp(as_obj, "published"),
+        updated=_get_timestamp(as_obj, "updated"),
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -130,6 +134,14 @@ def _build_activity_snapshot(
     a received-side use case saw only ``actor_id`` (the CaseActor), so the Offer
     the CaseActor forwarded to a transferee attributed the vendor's intent to the
     CaseActor itself.  See CM-24-002 and notes/ownership-transfer.md.
+
+    ``published`` is carried for the same class of reason (ISSUE-3149).  It is
+    the sender's *claimed* event time, and it is the only field the CLP-14-007
+    and CLP-14-008 commit-boundary guards have to work with.  Omitting it let
+    ``VultronActivity.published`` fall back to ``default_factory=now_utc`` —
+    the receiver's own clock — so both guards compared the receiver's clock
+    against itself and could never fire.  See CLP-15-004 and ADR-0079
+    § "Residual Uncertainty".
     """
     activity_type = str(activity.type_) if activity.type_ else "Activity"
     return VultronActivity(
@@ -137,6 +149,8 @@ def _build_activity_snapshot(
         type_=activity_type,
         actor=actor_id,
         attributed_to=_get_id(getattr(activity, "attributed_to", None)),
+        published=_get_timestamp(activity, "published"),
+        updated=_get_timestamp(activity, "updated"),
         object_=obj,
         target=target,
         origin=_get_id(origin),
@@ -156,14 +170,17 @@ def _build_activity_snapshot(
 # ---------------------------------------------------------------------------
 
 
-def _get_timestamp(obj: object, field: str) -> datetime:
-    """Return a wire object's ``published`` or ``updated`` datetime.
+def _get_timestamp(obj: object, field: str) -> datetime | None:
+    """Return a wire object's timestamp as received, or ``None``.
 
-    Falls back to ``_core_now_utc()`` if the attribute is absent or not a
-    ``datetime``, so callers always receive a typed, non-optional value.
+    An object's time is carried, never minted: when the sender supplied none,
+    core records none.  Substituting the receiver's clock made every omission
+    read downstream as the sender's claim (ISSUE-3257).  Callers pass the
+    result explicitly, even as ``None``: omitting the keyword would let the
+    core ``default_factory`` stamp the receiver's clock in its place.
     """
     val = getattr(obj, field, None)
-    return val if isinstance(val, datetime) else _core_now_utc()
+    return val if isinstance(val, datetime) else None
 
 
 def _build_report_object(obj: object) -> dict[str, Any]:
@@ -210,6 +227,11 @@ def _participant_ref_to_domain(ref: object) -> str | VultronParticipant | None:
     if not participant_id:
         return None
 
+    # Core VultronParticipant objects are already in the canonical shape —
+    # return them directly to preserve participant_statuses (including RM state).
+    if isinstance(ref, VultronParticipant):
+        return ref
+
     to_core = getattr(ref, "to_core", None)
     if callable(to_core):
         try:
@@ -235,6 +257,8 @@ def _participant_ref_to_domain(ref: object) -> str | VultronParticipant | None:
             context=context_id,
             name=getattr(ref, "name", None),
             case_roles=list(roles),
+            published=_get_timestamp(ref, "published"),
+            updated=_get_timestamp(ref, "updated"),
         )
 
     # Fallback: return as ID string only
@@ -260,7 +284,11 @@ def _build_case_object(obj: object) -> dict[str, Any]:
         raw_statuses = getattr(obj, "case_statuses", []) or []
         case_statuses: list[str | CaseStatus] = []
         for cs in raw_statuses:
-            if hasattr(cs, "to_core"):
+            # Under ADR-0099 detail 3 the parsed status already *is* the core
+            # class; reducing it to its id would drop the status it carries.
+            if isinstance(cs, CaseStatus):
+                case_statuses.append(cs)
+            elif hasattr(cs, "to_core"):
                 case_statuses.append(cs.to_core())
             else:
                 cs_id = _get_id(cs)
@@ -280,13 +308,17 @@ def _build_case_object(obj: object) -> dict[str, Any]:
                 actor_participant_index=actor_participant_index,
                 active_embargo=active_embargo,
                 case_statuses=case_statuses if case_statuses else [],
+                # Carried, not recomputed: core would otherwise rederive it
+                # from ``published`` (CLP-08-002), which a received case
+                # need not carry.
+                genesis_hash=getattr(obj, "genesis_hash", "") or "",
             )
         }
     return {}
 
 
 def _build_embargo_event_object(
-    obj: as_Event, context: object, target: object
+    obj: "as_Event | EmbargoEvent", context: object, target: object
 ) -> dict[str, Any]:
     end_time = getattr(obj, "end_time", None)
     object_id = _get_id(obj)
@@ -296,18 +328,17 @@ def _build_embargo_event_object(
         or _get_id(target)
     )
     if isinstance(end_time, datetime) and embargo_context and object_id:
-        raw_start = getattr(obj, "start_time", None)
-        kwargs: dict[str, Any] = {
-            "id_": object_id,
-            "name": getattr(obj, "name", None),
-            "end_time": end_time,
-            "published": getattr(obj, "published", None),
-            "updated": getattr(obj, "updated", None),
-            "context": embargo_context,
+        return {
+            "object_": EmbargoEvent(
+                id_=object_id,
+                name=getattr(obj, "name", None),
+                start_time=_get_timestamp(obj, "start_time"),
+                end_time=end_time,
+                published=_get_timestamp(obj, "published"),
+                updated=_get_timestamp(obj, "updated"),
+                context=embargo_context,
+            )
         }
-        if isinstance(raw_start, datetime):
-            kwargs["start_time"] = raw_start
-        return {"object_": EmbargoEvent(**kwargs)}
     return {}
 
 
@@ -326,6 +357,8 @@ def _build_participant_object(obj: object) -> dict[str, Any]:
                 participant_case_name=getattr(
                     obj, "participant_case_name", None
                 ),
+                published=_get_timestamp(obj, "published"),
+                updated=_get_timestamp(obj, "updated"),
             )
         }
     return {}
@@ -344,6 +377,8 @@ def _build_note_object(obj: object) -> dict[str, Any]:
                 url=_get_id(getattr(obj, "url", None)),
                 attributed_to=_get_id(getattr(obj, "attributed_to", None)),
                 context=_get_id(getattr(obj, "context", None)),
+                published=_get_timestamp(obj, "published"),
+                updated=_get_timestamp(obj, "updated"),
             )
         }
     return {}
@@ -359,13 +394,24 @@ def _build_case_ledger_entry_object(obj: object) -> dict[str, Any]:
     event_type = getattr(obj, "event_type", None) or getattr(
         obj, "eventType", None
     )
-    if object_id and case_id and log_object_id and event_type:
+    # Both stamps are the CaseActor's and are required on the wire
+    # (CLP-14-002, CLP-02-008), so a parsed entry always has them; a replica
+    # keeps them rather than stamping its own — ``received_at`` is hashed.
+    received_at = _get_timestamp(obj, "received_at")
+    published = _get_timestamp(obj, "published")
+    if (
+        object_id
+        and case_id
+        and log_object_id
+        and event_type
+        and received_at is not None
+        and published is not None
+    ):
         return {
             "object_": VultronCaseLedgerEntry(
                 id_=object_id,
                 case_id=case_id,
                 log_index=log_index,
-                disposition=getattr(obj, "disposition", "recorded"),
                 term=getattr(obj, "term", None),
                 log_object_id=log_object_id,
                 event_type=event_type,
@@ -377,10 +423,9 @@ def _build_case_ledger_entry_object(obj: object) -> dict[str, Any]:
                 entry_hash=getattr(obj, "entry_hash", None)
                 or getattr(obj, "entryHash", None)
                 or "",
-                reason_code=getattr(obj, "reason_code", None)
-                or getattr(obj, "reasonCode", None),
-                reason_detail=getattr(obj, "reason_detail", None)
-                or getattr(obj, "reasonDetail", None),
+                received_at=received_at,
+                published=published,
+                updated=_get_timestamp(obj, "updated"),
             )
         }
     return {}
@@ -391,7 +436,7 @@ def _coerce_em(raw: object) -> EM:
         return raw
     if isinstance(raw, str):
         return EM[raw] if raw in EM.__members__ else EM(raw)
-    return EM.NO_EMBARGO
+    return EM.NONE
 
 
 def _coerce_pxa(raw: object) -> CS_pxa:
@@ -436,16 +481,6 @@ def _coerce_d(raw: object) -> CS_d | None:
     return None
 
 
-def _coerce_pec_or_none(raw: object) -> PEC | None:
-    if raw is None:
-        return None
-    if isinstance(raw, PEC):
-        return raw
-    if isinstance(raw, str):
-        return PEC[raw]
-    return None
-
-
 def _build_case_status_object(obj: object) -> dict[str, Any]:
     object_id = _get_id(obj)
     case_context = _get_id(getattr(obj, "context", None))
@@ -463,6 +498,8 @@ def _build_case_status_object(obj: object) -> dict[str, Any]:
                 pxa=PxaDimension(
                     state=_coerce_pxa(getattr(obj, "pxa_state", None))
                 ),
+                published=_get_timestamp(obj, "published"),
+                updated=_get_timestamp(obj, "updated"),
             )
         }
     return {}
@@ -499,11 +536,11 @@ def _build_participant_status_object(obj: object) -> dict[str, Any]:
                             getattr(wire_case_status, "pxa_state", None)
                         )
                     ),
+                    published=_get_timestamp(wire_case_status, "published"),
+                    updated=_get_timestamp(wire_case_status, "updated"),
                 )
         raw_pec = getattr(obj, "em_consent_state", None)
-        pec_val = _coerce_pec_or_none(
-            PEC[raw_pec] if isinstance(raw_pec, str) else raw_pec
-        )
+        pec_val = _coerce_pec_or_none(raw_pec)
         return {
             "object_": ParticipantStatus(
                 id_=object_id,
@@ -534,6 +571,8 @@ def _build_participant_status_object(obj: object) -> dict[str, Any]:
                     getattr(obj, "cvd_role", getattr(obj, "cvd_roles", None))
                 ),
                 case_status=core_case_status,
+                published=_get_timestamp(obj, "published"),
+                updated=_get_timestamp(obj, "updated"),
             )
         }
     return {}
@@ -582,12 +621,17 @@ def _build_object_kwargs(
         kw.update(_build_report_object(obj))
     elif _obj_type == str(VOtype.VULNERABILITY_CASE):
         kw.update(_build_case_object(obj))
-    elif isinstance(obj, as_Event):
+    elif isinstance(obj, (as_Event, EmbargoEvent)):
         kw.update(_build_embargo_event_object(obj, context, target))
     elif builder := _OBJ_BUILDERS.get(_obj_type):
         kw.update(builder(obj))
     else:
         obj_id = _get_id(obj)
         if obj_id:
-            kw["object_"] = VultronObject(id_=obj_id, type_=_get_type(obj))
+            kw["object_"] = VultronObject(
+                id_=obj_id,
+                type_=_get_type(obj),
+                published=_get_timestamp(obj, "published"),
+                updated=_get_timestamp(obj, "updated"),
+            )
     return kw

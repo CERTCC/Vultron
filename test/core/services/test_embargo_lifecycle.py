@@ -85,7 +85,7 @@ def _make_case(
     owner_participant = VendorParticipant(
         attributed_to=owner_id,
         context=case.id_,
-        embargo_consent_state=PEC.NO_EMBARGO,
+        embargo_consent_state=PEC.UNBOUND,
     )
     owner_participant.add_role(CVDRole.CASE_MANAGER)
 
@@ -97,7 +97,7 @@ def _make_case(
         p = FinderParticipant(
             attributed_to=pid,
             context=case.id_,
-            embargo_consent_state=PEC.NO_EMBARGO,
+            embargo_consent_state=PEC.UNBOUND,
         )
         case.case_participants.append(p.id_)
         case.actor_participant_index[pid] = p.id_
@@ -145,7 +145,7 @@ def owner_and_dl() -> (
 def test_propose_embargo_none_to_proposed(
     owner_and_dl: tuple[as_Service, SqliteDataLayer],
 ) -> None:
-    """propose_embargo from NO_EMBARGO transitions case to PROPOSED."""
+    """propose_embargo from NONE transitions case to PROPOSED."""
     owner, dl = owner_and_dl
     case, _ = _make_case(dl, owner.id_, em_state=EM.NONE)
     embargo = _make_embargo(dl, case.id_)
@@ -533,7 +533,7 @@ def test_accept_embargo_invite_idempotent(
 def test_reject_embargo_invite_owner_proposed_to_none(
     owner_and_dl: tuple[as_Service, SqliteDataLayer],
 ) -> None:
-    """Owner rejects from PROPOSED: EM → NO_EMBARGO, PEC updated."""
+    """Owner rejects from PROPOSED: EM → NONE, PEC updated."""
     owner, dl = owner_and_dl
     case, participants = _make_case(dl, owner.id_, em_state=EM.PROPOSED)
     owner_participant_id = participants[0].id_
@@ -554,6 +554,39 @@ def test_reject_embargo_invite_owner_proposed_to_none(
     assert result.em_before == EM.PROPOSED
     assert result.em_after == EM.NONE
     assert result.case_changed is True
+
+    owner_participant = cast(CaseParticipant, dl.read(owner_participant_id))
+    assert owner_participant.embargo_consent_state == PEC.DECLINED.value
+
+
+def test_reject_embargo_invite_signatory_from_proposed(
+    owner_and_dl: tuple[as_Service, SqliteDataLayer],
+) -> None:
+    """SIGNATORY actor rejecting a PROPOSED embargo succeeds and moves to DECLINED.
+
+    ADR-0093: SIGNATORY → DECLINED is a first-class PEC transition.  Before
+    this ADR, the node raised VultronInvalidStateTransitionError (returned
+    FAILURE); after, it returns SUCCESS and the PEC state is DECLINED.
+    """
+    owner, dl = owner_and_dl
+    case, participants = _make_case(dl, owner.id_, em_state=EM.PROPOSED)
+    owner_participant_id = participants[0].id_
+    embargo = _make_embargo(dl, case.id_)
+
+    # Seed owner to SIGNATORY (active consent on a prior version)
+    owner_p = cast(CaseParticipant, dl.read(owner_participant_id))
+    owner_p.apply_pec_transition(PEC_Trigger.ACCEPT)
+    dl.save(owner_p)
+
+    lifecycle = EmbargoLifecycle(persistence=dl)
+    result = lifecycle.reject_embargo_invite(
+        case_id=case.id_,
+        embargo_id=embargo.id_,
+        actor_id=owner.id_,
+    )
+
+    assert result.em_before == EM.PROPOSED
+    assert result.em_after == EM.NONE
 
     owner_participant = cast(CaseParticipant, dl.read(owner_participant_id))
     assert owner_participant.embargo_consent_state == PEC.DECLINED.value
@@ -612,10 +645,48 @@ def test_reject_embargo_invite_non_owner_strict(
     assert finder_participant.embargo_consent_state == PEC.DECLINED.value
 
 
+def test_reject_embargo_invite_signatory_non_owner_transitions_to_declined(
+    owner_and_dl: tuple[as_Service, SqliteDataLayer],
+) -> None:
+    """SIGNATORY non-owner explicitly withdrawing consent → DECLINED (ADR-0093)."""
+    owner, dl = owner_and_dl
+    finder = _make_actor(dl, "Finder Org")
+    case, _ = _make_case(
+        dl,
+        owner.id_,
+        extra_participant_ids=[finder.id_],
+        em_state=EM.ACTIVE,
+    )
+    embargo = _make_embargo(dl, case.id_)
+
+    # Seed finder to SIGNATORY via proper FSM path (UNBOUND → SIGNATORY).
+    finder_participant_id = case.actor_participant_index.get(finder.id_)
+    assert finder_participant_id is not None
+    finder_p = cast(CaseParticipant, dl.read(finder_participant_id))
+    finder_p.apply_pec_transition(PEC_Trigger.ACCEPT)
+    dl.save(finder_p)
+
+    lifecycle = EmbargoLifecycle(persistence=dl)
+    result = lifecycle.reject_embargo_invite(
+        case_id=case.id_,
+        embargo_id=embargo.id_,
+        actor_id=finder.id_,
+    )
+
+    assert result.em_after == EM.ACTIVE  # case-level EM unchanged (VP-13-009)
+
+    finder_participant = cast(CaseParticipant, dl.read(finder_participant_id))
+    assert finder_participant.embargo_consent_state == PEC.DECLINED.value
+    # embargo_adherence derives from consent state: False when not SIGNATORY
+    ps = finder_participant.participant_status
+    assert ps is not None
+    assert ps.embargo_adherence is False
+
+
 def test_reject_embargo_invite_strict_invalid_state_raises(
     owner_and_dl: tuple[as_Service, SqliteDataLayer],
 ) -> None:
-    """Reject from invalid EM state (NO_EMBARGO) raises in STRICT mode."""
+    """Reject from invalid EM state (NONE) raises in STRICT mode."""
     owner, dl = owner_and_dl
     case, _ = _make_case(dl, owner.id_, em_state=EM.NONE)
     embargo = _make_embargo(dl, case.id_)
@@ -691,8 +762,7 @@ def test_terminate_active_embargo_strict_active_to_exited(
         CaseParticipant, dl.read(owner_participant_id)
     )
     assert (
-        refreshed_owner_participant.embargo_consent_state
-        == PEC.NO_EMBARGO.value
+        refreshed_owner_participant.embargo_consent_state == PEC.UNBOUND.value
     )
 
 
@@ -1094,7 +1164,7 @@ def test_reject_embargo_invite_strict_revise_pxa_raises(
 def test_reject_embargo_invite_strict_proposed_pxa_allowed(
     owner_and_dl: tuple[as_Service, SqliteDataLayer],
 ) -> None:
-    """STRICT reject from PROPOSED+PXA is allowed (PROPOSED→NO_EMBARGO, no active embargo)."""
+    """STRICT reject from PROPOSED+PXA is allowed (PROPOSED→NONE, no active embargo)."""
     owner, dl = owner_and_dl
     case, _ = _make_case(dl, owner.id_, em_state=EM.PROPOSED)
     case.append_case_status(pxa_state=CS_pxa.Pxa)  # public aware

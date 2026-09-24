@@ -9,6 +9,9 @@ Shared scripts and reference documents referenced by multiple skills.
 | `completeness-doctrine.md` | Project quality standard: what "done" means, finding severity taxonomy (FAIL/IMPROVE/DEFER), scope expansion rules | `orient-agent` Step 3 — in context for every workflow |
 | `issue-creation-requirements.md` | Three required fields (type, parent epic, milestone) for every new issue; lookup commands and defaults | `manage-github-issue`, `new-item`, `plan-issue`, `bugfix`, `build` |
 | `pr-body-guide.md` | PR body templates and formatting rules | `build`, `bugfix`, `plan-issue` |
+| `bundling.md` | Normative definition of a bundle: the two selection stages, the three fit signals and their authorities, and how one bundle becomes one PR (PAD-15) | `propose-bundle`, `build`, `bugfix`, `plan-issue` |
+| `asking-the-user.md` | How to present a question or decision to the user: one at a time, problem before decision, plain language, no bare IDs, restate rather than point by number, which tool to use | `AGENTS.md` (every session), `grill-me`, `plan-issue`, `learn`, `decision-audit`, `spec-audit`, `bugfix`, `process-concerns`, `review-priorities` |
+| `sizing.md` | What the `size:` labels mean, estimate vs. measurement, who applies each, and why `size:XL` is a review-coverage warning (PAD-05). Band values come from `pr-size`, never prose | `plan-issue`, `update-plan`, `build`, `bugfix` |
 | `upward-reflection.md` | Mandatory end-of-session checklist and the routing table that sends each finding to a GitHub issue, an in-session fix, an assertion at the site, or a learning file | `build` Phase 8, `bugfix` Phase 3, `pr-execute` Phase 3 |
 
 ## Scripts
@@ -16,13 +19,15 @@ Shared scripts and reference documents referenced by multiple skills.
 | Script | Purpose | Usage |
 |---|---|---|
 | `sync-check.sh` | Verify worktree is synced to `origin/main` | `bash .agents/skills/shared/sync-check.sh` |
-| `claim-issue.sh` | Sync + create branch + assign + post claim comment | `bash .agents/skills/shared/claim-issue.sh <N> <prefix> <slug>` |
+| `claim-issue.sh` | Sync + create branch + assign + post claim comment. Extra members are claimed onto the one branch named for `<N>`; all numbers are validated before anything is mutated | `bash .agents/skills/shared/claim-issue.sh <N> <prefix> <slug> [<OTHERS>...]` |
+| `query-epic-subissues.sh` | Emit an Epic's leaf sub-issues with the eligibility fields plus `issueType` and the Project #24 `Schedule` tier. Pipe into the `bundle-fit` console script, which applies fit and owns the rules | `bash .agents/skills/shared/query-epic-subissues.sh <EPIC> \| PYTHONPATH= uv run bundle-fit` |
 | `add-to-project.sh` | Add issue to Project #24 with Schedule | `bash .agents/skills/shared/add-to-project.sh <N> [Focus\|Now\|Next\|Later\|Someday]` |
 | `query-now-epics.sh` | List open Epics with Schedule=Now | `bash .agents/skills/shared/query-now-epics.sh` |
 | `board-id.sh` | Resolve any board node/field/option/issue-type ID **by name** (TTL-cached) | `bash .agents/skills/shared/board-id.sh <category> [<Name>]` |
 | `freshen-branch.sh` | Rebase-free freshening onto `origin/main` **before the first push** | `bash .agents/skills/shared/freshen-branch.sh` |
 | `sync-with-main.sh` | Merge the base branch into an **already-pushed** PR branch; leaves conflicts for the caller | `bash .agents/skills/shared/sync-with-main.sh [<base-branch>]` |
 | `merge-state.sh` | Report a PR's mergeability, polling past GitHub's transient `UNKNOWN` | `bash .agents/skills/shared/merge-state.sh [<pr-number>]` |
+| `graph-freshness.sh` | Check this worktree's graphify graph is present and fresh before relying on it; exit 1 means use grep/code search | `bash .agents/skills/shared/graph-freshness.sh [max-commits-behind]` |
 
 ## freshen vs sync — pick by whether the branch is pushed
 

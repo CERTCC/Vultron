@@ -1,3 +1,8 @@
+---
+stakeholder_type: [cvd-practitioner, process-researcher]
+level: 300
+---
+
 # Report Management Interactions Between CVD Participants
 
 Each Participant in a case has their own instance of the RM state model.
@@ -323,7 +328,7 @@ stateDiagram-v2
 
 ## A Menagerie of MPCVD Scenarios
 
-Other MPCVD RM interaction configurations are possible, of course. We demonstrate a few such
+Other MPCVD RM interaction configurations are possible. We demonstrate a few such
 scenarios in the following figures.
 This time each node represents a Participant's entire RM model. We have observed all of the
 following interactions at the CERT/CC.

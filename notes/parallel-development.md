@@ -40,9 +40,16 @@ building Vultron.
 | How are tasks claimed? | Branch creation (`task/<N>-slug`) | Git branch creation is atomic — ideal distributed lock |
 | Should there be a `claimed` label? | No | Adds a second source of truth that can drift from branch state |
 | Stale-claim threshold | 3 days since last branch commit | Short enough to keep the queue clean; tune if agent sessions are longer |
-| Diff-size thresholds | ≤50 lines = S, 51–300 = M, 301+ = L | Common open-source convention; aligns with maintainability expectations |
+| Diff-size thresholds | Calibrated to this repo's own merged-PR distribution, not convention — see `pr-size --table` | Measured over the 692 PRs merged 2026-07-22..2026-09-22 (the window every figure on this page refers to): the borrowed ≤50/51–300/301+ convention put 46% of them in `size:L` across two orders of magnitude, and `size:S` was correct 24% of the time. Merged diff size here is lognormal, median 258 lines, **no natural clusters** — so the cuts are a review-budget policy, not a discovered boundary |
+| Why a fourth band? | `size:XL` above 1200 lines | Review findings hold at ~4.5 per 1000 diff lines from 200 through 1000, then fall to 3.5 / 2.7 / 1.5. Defect density does not drop threefold in big PRs, so the falling detection rate is **review saturation** — XL means "review probably did not cover this" |
+| Does `size:XL` exist as an AC estimate? | No — measurement only | An issue predicted bigger than L is a decomposition signal. XL is a retrospective finding, and "estimated L, landed XL" is the signal worth keeping |
+| Who applies the measured label? | The `pr-size-label` workflow, not an agent | The rule lived in skill prose alone and 40% of merged PRs carried no `size:` label. A prose-only rule degrades at that rate |
+| Where do the band values live? | One table in `vultron/metadata/planning/size_bands.py` | They were restated in prose in eight places and computed in none. A threshold a reader can retype is a threshold that drifts |
 | Two-pass code review? | Single-pass with [BLOCKING]/[ADVISORY] tags | Same signal, less process theater; build agent acts on tags |
 | Where do `update-plan` gap findings go? | GitHub Issues (added to Project #24) | Consistent with the GitHub Issues model |
+| Is a bundle one PR or several? | One PR closing every member | Getting more than one issue done per PR *is* the point of bundling; amortizes one context load, one branch, one review |
+| How are bundle members chosen? | Eligibility, then fit: `issueType`, `Schedule` tier, `size:` budget | Eligibility answers "can this be worked at all", not "does it belong with these" (PAD-15) |
+| Is thematic coherence scored? | No — stated as one sentence by the agent; the tool emits hints only | Cutting by superficial theme rather than design grain produces plausible-but-wrong work units (`calve-epics`) |
 
 ---
 
@@ -62,9 +69,9 @@ Use minimum depth. Many Epics will have leaf Tasks with no Subtasks.
 
 | Label | Applied by | Meaning |
 |---|---|---|
-| `size:S` | Agent at issue creation + PR open | ≤2 ACs or ≤50 diff lines |
-| `size:M` | Agent at issue creation + PR open | 3–6 ACs or 51–300 diff lines |
-| `size:L` | Agent at issue creation + PR open | 7+ ACs or 301+ diff lines |
+| `size:S` / `size:M` / `size:L` | Agent at issue creation (AC estimate); `pr-size-label` CI at PR open (measured diff) | Bands live in one table — `pr-size --table`; semantics in `.agents/skills/shared/sizing.md` |
+| `size:XL` | `pr-size-label` CI only | **Measurement-only.** Review findings per 1000 diff lines halve above this floor, so it marks a PR review could not cover, not merely a big one. No AC count reaches it — an issue that large is decomposed (PAD-05-012) |
+| *(no `size:` label)* | — | **Unmeasured, not small.** Bundle selection weights it as the largest *bundlable* size, so guessing small cannot fail open (PAD-15-005). `size:XL` is refused outright instead of weighted (PAD-15-011) |
 | `stale-claim` | Stale-claim sweeper (GH Actions) | Orphaned claim; skip until human clears |
 | `needs-rebase` | Build agent | PR or task branch has merge conflicts that must be rebased |
 | `specs-notes` | ingest-idea, learn | Docs-only PR containing only specs/ and notes/ changes |
@@ -76,22 +83,44 @@ and Epic sub-issue relationships instead of labels.
 
 ---
 
+## Bundle Selection and Execution
+
+A **bundle** is 1–5 issues worked in one PR that closes every member. The
+normative contract — the two selection stages, the three fit signals and their
+authorities, and the execution rules — lives in
+[`.agents/skills/shared/bundling.md`](../.agents/skills/shared/bundling.md), and
+the requirements are PAD-15. Mechanics are in `vultron/metadata/planning/`
+(`uv run bundle-fit`), so no skill re-derives the rules in prose.
+
+The trap this replaced (ISSUE-3482): eligibility filters answer *can this issue
+be worked at all*, which is a different question from *does it belong with these
+four*. Selecting on eligibility alone proposed an `Idea`, a `Someday` `Concern`
+and two `size:L` Tasks as one bundle, because all four were open, unassigned,
+unblocked leaves. Two of the three missing signals were already spec-mandated
+authorities — `issueType` and the Project #24 `Schedule` field — and the third
+(`size:`) was on 91% of open Tasks. **A selector that reads only its filter
+predicates ignores the authorities its own project already established.**
+
+Sub-issue list order is manual drag-order. It is a tie-breaker, never a
+priority signal — PAD-03-001 puts priority on the `Schedule` field, on the Epic
+**or** the leaf, so a leaf without a tier inherits its Epic's.
+
 ## Task Claiming Protocol
 
 ```text
 1. Query Project #24 → identify first Epic in Now tier
 2. Query GitHub: open leaf Issues that are sub-issues of that Epic,
    no stale-claim, unassigned
-3. Pick the highest-priority unblocked leaf Issue
+3. Apply fit (type / Schedule tier / size budget) → pick the member or bundle
 4. git switch -c task/<issue-number>-<slug>
    → if branch already exists: abort (task is taken)
 5. gh issue edit <N> --add-assignee @me
 6. gh issue comment <N> --body "Claimed by <agent-session> on branch task/<N>-<slug>"
 7. Implement, validate, code-review (address [BLOCKING] findings)
-8. Compute diff size → update size label on Issue and future PR
-9. git fetch origin main && git rebase origin/main
-10. git push -u origin task/<N>-<slug>
-11. gh pr create --title "..." --body "Closes #<N>\n\n..." --label size:X
+8. git fetch origin main && git rebase origin/main
+9. git push -u origin task/<N>-<slug>
+10. gh pr create --title "..." --body "Closes #<N>\n\n..."
+    → the pr-size-label workflow measures the diff and labels the PR
 ```
 
 ---
@@ -194,18 +223,6 @@ to confirm. Recover the branch mapping from `git worktree list` output captured
 
 ---
 
-## Skill Updates Summary
-
-| Skill | Change |
-|---|---|
-| `build` | Phase 2: select from GitHub Issues; add claiming, pre-PR code review ([BLOCKING]/[ADVISORY]), size labeling, PR creation, auto-rebase |
-| `ingest-idea` | Add: open docs-only PR with `specs-notes` label; create GitHub Issue; add to Project #24 |
-| `review-priorities` | Rewritten: audit Project #24 board tiers; move items via API instead of editing PRIORITIES.md |
-| `study-project-docs` | Task source is GitHub Issues (query Project #24 Now tier) |
-| `update-plan` | Rewrite: create GitHub Issues for gaps; add to Project #24 |
-
----
-
 ## Project Board Conventions (updated June 2026)
 
 `group:<name>` labels and `plan/PRIORITIES.md` were retired in June 2026.
@@ -252,6 +269,11 @@ Load this file when:
 
 - Adding or modifying skill SKILL.md files (`build`, `ingest-idea`,
   `review-priorities`, `update-plan`, `study-project-docs`)
+- Changing how work is selected or bundled (`propose-bundle`, `bundle-fit`,
+  `.agents/skills/shared/bundling.md`)
 - Creating GitHub Issues for new work items
+- Recalibrating the `size:` bands, or touching anything that reads them
+  (`vultron/metadata/planning/size_bands.py`,
+  `.agents/skills/shared/sizing.md`, `.github/workflows/pr-size-label.yml`)
 - Implementing or modifying the stale-claim sweeper GitHub Actions workflow
 - Debugging task-selection or claiming behavior in the `build` skill

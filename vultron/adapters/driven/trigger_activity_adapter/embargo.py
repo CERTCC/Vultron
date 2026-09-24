@@ -29,6 +29,7 @@ from vultron.wire.as2.factories import (
 from vultron.wire.as2.vocab.objects.embargo_event import as_EmbargoEvent
 
 from ._base import _DUMP_KWARGS, _to_wire
+from vultron.errors import VultronAlreadyExistsError
 
 logger = logging.getLogger(__name__)
 
@@ -52,7 +53,7 @@ class _EmbargoMixin:
         )
         try:
             self._dl.create(activity)
-        except ValueError:
+        except VultronAlreadyExistsError:
             logger.warning(
                 "propose_embargo: activity '%s' already exists — skipping",
                 activity.id_,
@@ -73,7 +74,7 @@ class _EmbargoMixin:
         )
         try:
             self._dl.create(activity)
-        except ValueError:
+        except VultronAlreadyExistsError:
             logger.warning(
                 "accept_embargo: activity '%s' already exists — skipping",
                 activity.id_,
@@ -94,7 +95,7 @@ class _EmbargoMixin:
         )
         try:
             self._dl.create(activity)
-        except ValueError:
+        except VultronAlreadyExistsError:
             logger.warning(
                 "reject_embargo: activity '%s' already exists — skipping",
                 activity.id_,
@@ -115,7 +116,7 @@ class _EmbargoMixin:
         )
         try:
             self._dl.create(activity)
-        except ValueError:
+        except VultronAlreadyExistsError:
             logger.warning(
                 "announce_embargo: activity '%s' already exists — skipping",
                 activity.id_,
@@ -136,7 +137,7 @@ class _EmbargoMixin:
         )
         try:
             self._dl.create(activity)
-        except ValueError:
+        except VultronAlreadyExistsError:
             logger.warning(
                 "terminate_embargo: activity '%s' already exists — skipping",
                 activity.id_,

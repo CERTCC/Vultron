@@ -114,17 +114,6 @@ storage. Check that all expected fields appear in JSON responses.
 See `specs/http-protocol.yaml` HTTP-08-001 (root cause) and HTTP-09-002,
 HTTP-09-003 (AS2 endpoint fix).
 
-### Health Check Readiness Gap
-
-**Known gap**: The `/health/ready` endpoint in
-`vultron/adapters/driving/fastapi/routers/health.py` currently returns
-`{"status": "ok"}` unconditionally. It does **not** check DataLayer
-connectivity as required by
-`specs/observability.yaml` OB-05-002.
-
-**When implementing readiness**: Add a DataLayer read probe (e.g., attempt a
-simple `dl.list()` call) and return HTTP 503 if it fails.
-
 ### Docker Health Check Coordination
 
 **Symptom**: Demo container fails to connect to API server with "Connection

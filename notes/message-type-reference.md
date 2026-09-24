@@ -9,6 +9,7 @@ description: >-
 related_specs:
   - specs/message-semantics-mapping.yaml
   - specs/vultron-as2-mapping.yaml
+  - specs/semantic-extraction.yaml
   - specs/diataxis-requirements.yaml
   - specs/project-documentation.yaml
 related_notes:
@@ -76,11 +77,32 @@ Participant to be added to a case", so actor suggestion is a `GI` expansion —
 **not** case management. Filing it under case management is a recurring
 mis-classification.
 
+**Why `GI` expands at all, which nothing recorded before #3456.** `GI` was a
+*placeholder*, and it is defined negatively: messages that no formal state machine
+tracks but that participants need in order to coordinate. The formal protocol
+deliberately did not attempt to enumerate them, so it lumped them together under one
+shorthand. Building this prototype surfaced specific needs inside that category, and
+where a need turned out to be a recognizable communication pattern that existing AS2
+vocabulary could already express, it was split off and given its own activity. The set
+split off so far is enumerated in MSM-04-001 and MSM-04-002 — read it there rather than
+restating a count here, which would drift the moment another is split off (MS-16-002).
+
+Two consequences follow, and both matter when writing about these activities:
+
+- **The list is open, not a finished decomposition.** A further coordination need that
+  matches available AS2 vocabulary can be split off the same way. Do not write as though
+  the current set is complete.
+- **Citing `(GI)` does not identify an activity.** It says only "this is one of the
+  non-state-change messages", which is equally true of six others. Name the act in plain
+  language and cite `GI` once per page as the umbrella, rather than after each activity.
+
 **The `Create(X)` + `Add(X → Y)` split is itself an expansion with no formal
 counterpart.** Every object gains two activities: one to mint it, one to attach
-it. The formal protocol models neither. `docs/howto/activitypub/activities/status_updates.md`
-already worries about this in prose ("Create *then* Add vs Create with a
-Target"); that discussion is Explanation and belongs in `docs/topics/`.
+it. The formal protocol models neither, so an implementation that collapses the
+pair loses no protocol-level information. That reconciliation now lives in
+`docs/topics/activity_vocabulary_design.md`, extracted from the prose that used
+to worry about it in `status_updates.md`, `manage_participants.md`,
+`invite_actor.md`, and `initialize_case.md` (#3002).
 
 ### No formal counterpart at all
 
@@ -96,6 +118,63 @@ should not be documented as such:
 
 `unknown` and `unknown_unresolvable_object` are dispatcher fallbacks, not
 message types. Exclude them from message-type reference material.
+
+### Three names, and which one the reader gets
+
+Any given activity can be named three ways, and they are not interchangeable:
+
+| Layer | Example | Answers |
+|---|---|---|
+| Formal protocol message | `RV` — "Report Valid" | *What protocol act is this?* |
+| Prototype class or pattern | `RmValidateReport` | implementation-level restatement of the same act |
+| AS2 wire form | `Accept(Offer(VulnerabilityReport))` | *What JSON goes on the wire?* |
+
+**The semantics are not recoverable from the wire form.**
+`Accept(Offer(VulnerabilityReport))`, `TentativeReject(Offer(VulnerabilityReport))` and
+`Reject(Offer(VulnerabilityReport))` are *valid*, *invalid* and *closed*, and nothing in
+the wire form says which. Replacing a protocol name with its wire form therefore deletes
+a layer rather than translating one — the mistake #3456 was originally filed to make.
+
+Reader-facing docs pair the protocol layer with the wire layer and omit the prototype
+layer entirely: **`<semantic name>` is implemented in ActivityStreams as `<wire form>`**,
+then the steps, then the JSON. This is specified as DF-09-010, and recorded as a
+corollary of ADR-0083 under "Which name the reader gets" — the two vocabularies being
+different shapes is exactly why the reader needs both names. Which semantic name to use
+depends on how the shorthand relates to the wire form, which `MappingStatus` already
+records:
+
+| `MappingStatus` | Semantic name to use |
+|---|---|
+| `direct` | The formal message name and its code — "Report Valid (RV)" |
+| `collapse` | All the formal names the wire form carries, stated together once, plus the field that selects between them |
+| `expansion` | Plain language per act; cite the umbrella code once per page, never per activity |
+| `none` | Plain language, taken from the heading `docs/reference/messages/` already gives it |
+
+Two shapes need care beyond the table. `RA`/`RD` name the *report* while their wire verbs
+(`Join`/`Ignore(VulnerabilityCase)`) name the *case*: state the act and its consequence
+separately, because joining the case is what you do and the RM transition is what follows
+(MSM-01-004, MSM-01-005). And `Leave(VulnerabilityCase)` is the canonical RM closure per
+ADR-0050 yet has no formal name at all, while `RC` is bound to
+`Reject(Offer(VulnerabilityReport))` — say so rather than presenting the pair as tidy.
+
+### The prototype name survives as an identifier, not as prose
+
+An activity is declared twice — as a class in `vultron/wire/as2/vocab/activities/`
+and as an `ActivityPattern` in `vultron/wire/as2/extractor/_instances.py` — and
+the two names often differ. `_CreateStatusForParticipantActivity` is
+`CreateParticipantStatusPattern`. Some activities have only one of the two:
+`CreateNote` is a pattern with no class, because a note is minted with a bare
+`as:Create` rather than a Vultron subclass. Neither list is a superset.
+
+Those names are still what identifies an activity to the tooling, so they remain the
+mermaid **node id** — an edge handle that is never rendered — while the node *label*
+carries the reader-facing pair. The pairing ratchet
+(`test/architecture/test_docs_activity_verbs.py`) reads the id and rejects a name in
+neither list, which is how `CreateStatus` — a plausible-looking name belonging to no
+system — was caught. It also checks that the label's wire-form line is the form the
+registered pattern actually produces. Prose that merely mentions a name is left alone;
+only a `subgraph as:Verb` membership claim is checked, because declaring a name there
+asserts the activity exists.
 
 ## The mechanisms that evolved rather than went missing
 
@@ -128,15 +207,15 @@ Two consequences for implementers:
   factory helpers (`reject_embargo_trigger_bt`, `em_reject_embargo_activity`).
   `reject_case_ledger_entry` is deliberately excluded from this list: it is the
   ledger NAK of MSM-05-002, not an ordinary refusal.
-- `docs/howto/activitypub/activities/error.md` depicts a four-way wire taxonomy
-  (`RmError`/`EmError`/`CsError`/`GmError` as `as:Reject` discriminated by
-  `as:inReplyTo`). **None of those types exist** — not in the ontology, not in
-  code. And `ActivityPattern.in_reply_to_`, the discriminator that design needs,
-  is declared on the model (`ActivityPattern` is a Pydantic `BaseModel` in
-  `vultron/wire/as2/extractor/_pattern.py`) but is set by **zero** registered
-  patterns. Do not cite that diagram as describing the wire format. MSM-05-004
-  makes this a `MUST NOT` for documentation — note that `error.md` itself has not
-  been corrected yet, so the corpus currently violates it.
+- `docs/howto/activitypub/activities/error.md` previously depicted a phantom
+  four-way wire taxonomy (`RmError`/`EmError`/`CsError`/`GmError` as `as:Reject`
+  discriminated by `as:inReplyTo`). **None of those types ever existed** — not in
+  the ontology, not in code. That diagram has been removed and `error.md` now
+  describes the correct fault trichotomy (PR #3215, issue #3005). The
+  discriminator field `ActivityPattern.in_reply_to_` has also been removed from
+  the model — it was declared but used by zero registered patterns. MSM-05-004
+  remains a `MUST NOT` against citing the phantom taxonomy. Do not cite the old
+  diagram as describing the wire format.
 
 Beware a name collision: `VultronError` in `vultron/errors.py` is a **Python
 exception base class**, unrelated to the wire type of the same name in that
@@ -152,96 +231,66 @@ implicitly** via hash-chain continuity.
 A participant that receives `Announce(CaseLedgerEntry)` whose `prev_log_hash`
 matches its local tail says nothing — the match *is* the acknowledgement. It
 speaks up only on a mismatch, sending `Reject(CaseLedgerEntry)`, whereupon the
-CaseActor replays all entries after the last accepted hash
+CASE_MANAGER replays all entries after the last accepted hash
 (`RejectLedgerEntryReceivedUseCase`, `vultron/core/use_cases/received/sync.py`).
 
 This is negative acknowledgement with gap-fill replay — structurally closer to
 TCP's cumulative ACK/SACK than to a per-message positive ack. Adding per-message
 `EK`/`CK` on top would be redundant for ledger-carried state.
 
-## Page architecture
-
-Reference pages live in `docs/reference/messages/`. Formal-model pages are keyed
-on the **shorthand**; the remainder are keyed on the **wire activity**, because
-no shorthand exists to key them on.
-
-| Page | Keyed on | Covers |
-|---|---|---|
-| `index.md` | — | Bidirectional mapping overview; how to read collapse/expansion |
-| `rm.md` | Shorthand | `RS RI RV RD RA RC RK RE` |
-| `em.md` | Shorthand | `EP ER EA EV EJ EC ET EK EE` |
-| `cs.md` | Shorthand | `CV CF CD CP CX CA CK CE` |
-| `general.md` | Shorthand | `GI GK GE` |
-| `faults_and_acknowledgements.md` | Mechanism family | The fault trichotomy; the acknowledgement evolution |
-| `case_management.md` | Wire activity | Lifecycle, roster, invitations, role delegation, ownership transfer |
-| `case_proposal.md` | Wire activity | Pre-case bootstrap (ADR-0023) |
-| `ledger_replication.md` | Wire activity | SYNC substrate |
-
-Each page carries, per message type: protocol role and triggering transition,
-the wire activity that conveys it, the discriminating payload field where the
-mapping is a collapse, a rendered example, and links to the how-to guide and the
-formal transition table.
-
-Every mapping row carries a **status**: `implemented`, `collapsed-into-X`,
-`expanded-into-X`, or `evolved-to-X` (for the fault and acknowledgement cases
-above). Reference material states what is true, including divergence from the
-normative set — see DF-05-003 and DF-05-004.
-
-### One primary page per entry, not one page per entry
-
-MSM-06-002 designates a **primary** page per `SEMANTIC_REGISTRY` entry rather
-than requiring each entry to appear on exactly one page, because the collapse
-inventory above makes the stricter rule unsatisfiable. The entries that
-legitimately need a second home:
-
-| Entry | Primary page | Also appears on | Why |
-|---|---|---|---|
-| `add_participant_status_to_participant` | `cs.md` | `rm.md` | `vf_state`/`d_state` carry CV/CF/CD; `rm_state` carries the RM ladder |
-| `close_report` | `rm.md` | `faults_and_acknowledgements.md` | `RC` on the RM page; an ordinary `as:Reject` on the faults page (MSM-05-003) |
-| `reject_case_ledger_entry` | `ledger_replication.md` | `faults_and_acknowledgements.md` | The ledger NAK is both the SYNC mechanism and the acknowledgement story (MSM-05-002) |
-
-Build the #2998 ratchet against the primary designation. Reading MSM-06-002 as
-"one page, full stop" will make it look unimplementable.
-
-### Mapping tables are rendered, never hand-written
-
-Render the tables at build time from the MSM spec registry joined against
-`SEMANTIC_REGISTRY`, following the `docs/reference/specs/*.md` →
-`vultron/metadata/specs/docs_render.py` pattern. Hand-written tables rot: the
-orphaned JSONs under `docs/reference/examples/` and the failing `markdown_exec`
-example blocks tracked by #2904 are what that rot looks like after a couple of
-years.
-
-MSM-06-002 requires a ratchet test asserting every `SEMANTIC_REGISTRY` entry
-reaches its designated primary reference page, so a new registry entry cannot be
-added without being documented or explicitly exempted. **That ratchet is
-implemented in `test/architecture/test_msm_coverage_ratchet.py`**, landed in
-PR 2998.
-
 ## Diátaxis: these pages are an extraction, not a new surface
 
-`docs/howto/activitypub/activities/` is a **partial collapse** — it runs against
+`docs/howto/activitypub/activities/` was a **partial collapse** — it ran against
 DF-01-003 (pages SHOULD NOT combine multiple Diátaxis content types; where a
 combined view is unavoidable, the parts MUST be separated and each MUST link to
-the canonical page of its own type). These pages neither separate nor link, so
-they do not qualify for the escape clause. Each page mixes three quadrants:
+the canonical page of its own type). Those pages neither separated nor linked, so
+they did not qualify for the escape clause. Each page mixed three quadrants, and
+each quadrant went to its own tree:
 
-| Content | Actual quadrant | Destination |
-|---|---|---|
-| Design rationale, why-this-verb, alternatives weighed, activity-graph diagrams | Explanation | `docs/topics/` |
-| AS2 encoding facts, rendered JSON examples | Reference | `docs/reference/messages/` |
-| `!!! example "Try it: vultron-demo <scenario>"` blocks | How-to | stays, retitled "How to …" |
+| Content | Actual quadrant | Destination | Status |
+|---|---|---|---|
+| Design rationale, why-this-verb, alternatives weighed, activity-graph diagrams | Explanation | `docs/topics/activity_vocabulary_design.md` | done (#3002) |
+| AS2 encoding facts, rendered JSON examples | Reference | `docs/reference/messages/` | done (#2999, #3001, #3003) |
+| Task sequences and the `vultron-demo <scenario>` runs | How-to | stays, retitled "How to …" | done (#3003) |
 
-Diagnostic evidence: the titles are noun phrases ("Status Updates and Comments",
-"Acknowledging Other Messages") where DF-04-003 and the framework require
-"How to [Action]"; the pages contain no imperatives or steps; `acknowledge.md` is
-almost entirely design rationale and passes the bath test; and nearly every page
-carries `{% include-markdown "not_normative.md" %}`, which is itself a signal the
-author knew the content was discursive. The two pages without that banner are
-`error.md` and `acknowledge.md` — which is not counter-evidence, since those are
-the two whose content is *least* task-shaped. `error.md` additionally documents a
-wire format that was never built (see above), and `acknowledge.md` is the
-bath-test example.
+The How-to half is not just the retitled remainder. Each guide now carries
+prerequisites, an ordered activity sequence with conditional branches, a table of
+what to verify, and links out to its Reference and Explanation counterparts — and
+nothing else. The wire examples left with the `_*.md` partials that rendered them.
+
+`ledger_replication.md` was retired rather than reshaped, because every sentence
+on it described a pattern or a factory and none of it named an action a reader
+takes — ledger fan-out is automatic. Apply that test rather than the page's
+directory when deciding whether a how-to page has a task in it.
+
+The Explanation half landed as a single page rather than several, because the
+rationale is one argument: ActivityStreams supplies the verbs, so every Vultron
+choice is either a verb selection, a decision not to mint a type, or a decision
+that a distinction the wire draws has no protocol counterpart. Splitting it per
+source page would have separated claims that only make sense together. Domain
+rationale that already had a home was cross-linked rather than duplicated —
+default-embargo reasoning to `topics/process_models/em/defaults.md`,
+ledger-buffering reasoning to `topics/case_lifecycle/case_ledger_sync.md`, and
+the Actor/`CaseParticipant` distinction to `reference/activitypub/objects.md`.
+
+Four signals identified the collapse, and they generalize to any tree suspected of
+one:
+
+- **Noun-phrase titles in the how-to tree.** "Status Updates and Comments" and
+  "Acknowledging Other Messages" name a subject, not a task, where DF-04-003
+  requires "How to [Action]".
+- **No imperatives and no steps.** A page with nothing for the reader to do is not
+  in the Action half of the compass whatever directory it sits in.
+- **A page that passes the bath test.** `acknowledge.md` was almost entirely
+  design rationale, which is Explanation by definition.
+- **A normativity disclaimer.** Nearly every page carried
+  `{% include-markdown "not_normative.md" %}`, which is an author saying the
+  content is discursive. The banners came off in #3003 for exactly that reason:
+  a task guide has nothing to disclaim.
+
+The banner signal inverts where you would expect it to. The two pages *without*
+it, `error.md` and `acknowledge.md`, had the least task-shaped content of any —
+so read its absence as no evidence either way, not as evidence of task shape.
 
 So the reference pages are the Reference half of un-blurring an existing
 collapse. Treating them as a fourth parallel surface would deepen the collapse
@@ -255,64 +304,62 @@ Build-time rendering cannot go stale.
 Two patterns are easy to confuse. `docs/reference/specs/protocol.md` is the
 exemplar for the **mapping tables** — a thin `markdown_exec` shell over
 `vultron.metadata.specs.docs_render.render_for_kind`. It does *not* render wire
-examples. For the **examples** themselves, follow the `_*.md` partials under
-`docs/howto/activitypub/activities/` and `docs/howto/activitypub/objects.md`,
-which are the pages that actually call `vocab_examples`.
+examples. For the **examples** themselves, follow `docs/reference/messages/*.md`
+and `docs/reference/activitypub/objects.md`, which are the pages that call
+`vocab_examples`. Since #3003 they are the only ones that do — a rendered wire
+example in the how-to tree is a collapse re-forming.
 
-Two prerequisites:
+A new example function needs a matching `obj_to_file` call in
+`vocab_examples.main()` or `test_vocab_examples_current.py` fails on the file-list
+mismatch. Note that the generator randomizes IDs and timestamps on every run, so
+running it in place rewrites every committed artifact: generate into a temp
+directory and copy across only the files you added.
 
-- **#2904 blocks this.** Every `markdown_exec` example block currently fails from
-  a single root cause (frozen-model assignment in `_strip_published_udpated`). Any
-  page rendering examples this way inherits the failure until that lands.
-- `docs/reference/examples/*.json` are retained as downloadable artifacts, but
-  the generator's hardcoded relative output path
-  (`../../docs/reference/examples` in `vocab_examples.main()`) must be fixed and
-  a regeneration check added, or they will silently diverge from the rendered
-  examples again.
+**An example must be dispatchable, and "well-formed" does not imply it.** Set the
+discriminator fields the activity's `ActivityPattern` requires — `object_`,
+`target_`, `context_` — and note that `ActivityPattern` has **no `origin_`
+field**, so `origin` is never consulted for dispatch no matter how well it reads.
+`test/architecture/test_vocab_examples_dispatchable.py` is the ratchet: every
+example activity must match exactly one registered pattern. It found three examples
+that matched none (#3438, #3439, #3433), each rendered on a reference page and each
+committed as a JSON artifact, because the two pre-existing gates ask only whether
+an example *executes* and whether its *filename* is committed — never whether a
+receiver could route it.
 
-## MSM-03 defect: `CV`/`CF`/`CD` were mapped to the wrong object
+Its collector is deliberately permissive about shape, because both narrower rules
+had already hidden a target: requiring zero *parameters* rather than zero
+*required* parameters skipped the four `report.py` examples that take a defaulted
+`verbose` (`submit_report` among them), and requiring `as_TransitiveActivity`
+rather than `as_Activity` skipped `choose_preferred_embargo`, an `as_Question`. A
+gate that silently resolves fewer targets than it claims is the false-clean signal
+DF-09-009 exists to forbid, so the collected count is itself asserted.
 
-MSM-03-001, MSM-03-002, and MSM-03-003 asserted — at `MUST` / `kind: protocol` —
-that `CV`, `CF`, and `CD` dispatch as `ADD_CASE_STATUS_TO_CASE` with wire form
-`Add(CaseStatus)[target=VulnerabilityCase]`, and that the `CaseStatus` payload
-"encodes the `vendor_aware` / `fix_ready` / `fix_deployed` state flag."
+**Its reach stops at the example corpus, and that hid a live defect.** The
+collector scans the `vocab_examples` module plus `submit_report_tutorial` — so a
+factory that is never exported as an example is invisible to it, no matter what
+its signature looks like. That is how `bootstrap_replay_question_activity` stayed
+undispatchable without the gate noticing, while the poll beside it was caught: the
+poll had an example, and unlike the poll the replay request is actually emitted
+(#3471). The near-miss diagnosis to avoid: the collector also skips anything with
+*required* arguments, and this factory takes three, so "widen the gate past
+zero-required-argument examples" looks like the fix. It is not — that factory
+lives in `vultron/wire/as2/factories/case.py` and the collector never walks it, so
+relaxing the argument rule would not reach it. Adding an example would. The
+standing cost is that "every example is dispatchable" is not "every activity we
+emit is dispatchable"; do not read a green run as the latter.
 
-All three claims were wrong:
+Of the three defects this gate first found, two are now closed by repair
+(#3438, #3439) and the third is closed by **retirement**: ADR-0100 removes the
+multi-candidate embargo poll (#3469), so its entry goes away with the example
+itself rather than being fixed into a passing case. That leaves
+`_KNOWN_UNDISPATCHABLE` **empty** once #3469 lands — the first time this gate has
+had no exemptions. An empty exemption map is the goal state, not a signal the map
+is unused: keep it and its two guard tests, because the next undispatchable
+example is what they exist to catch.
 
-- `as_CaseStatus` carries only `em_state` and `pxa_state`. There are no
-  `vendor_aware`, `fix_ready`, or `fix_deployed` fields on it, in any spelling.
-- The VF and D dimensions live on `as_ParticipantStatus` as `vf_state: CS_vf`
-  and `d_state: CS_d`, so the correct semantic is
-  `ADD_PARTICIPANT_STATUS_TO_PARTICIPANT` and the correct wire form is
-  `Add(ParticipantStatus)[target=CaseParticipant]`.
-- Per ADR-0075, this is necessary, not incidental: VF is **vendor-scoped** and D
-  is **deployer-scoped**. **There are no case-level VF/D states at all** — those
-  dimensions are always participant-specific. A case-level status cannot express
-  *which* vendor is aware, which is the entire purpose of the VF dimension in
-  MPCVD.
-
-The last point is worth stating as a standing rule, because the CS model's own
-name invites the error. The CS "case state" hypercube mixes two scopes:
-
-| Dimensions | Scope | Wire home |
-|---|---|---|
-| `V` `F` `D` | **Participant** — one per (actor × case) | `as_ParticipantStatus.vf_state` / `.d_state` |
-| `P` `X` `A` | **Case** — one per case | `as_CaseStatus.pxa_state` |
-
-`notes/case-state-model.md` § `CaseStatus` / `ParticipantStatus` already records
-this, including that `vf` and `d` are `None` for non-VENDOR and non-DEPLOYER
-participants and that this is *structurally enforced*. So MSM-03 did not merely
-lack an update — it asserted, normatively, the opposite of an invariant the
-domain model enforces.
-
-Cause: MSM-03 predates the VF/D split (ADR-0075) and the dimension-object
-decomposition (ADR-0036), and its group description generalized "All CS
-shorthands (CV through CA) share the `ADD_CASE_STATUS_TO_CASE` semantic" onto
-entries that should have diverged. An implementer following it faithfully would
-have dropped the vendor identity — see AGENTS.md § "'CaseActor MUST …' Is Often a
-Specification Error" for the same failure mode.
-
-**Guidance:** when a spec group description asserts a property of "all" its
-members, check each member against the code before relying on the
-generalization. Group descriptions are written once and rarely revisited when one
-member's behaviour changes.
+The generator's output path is now resolved from the file's own location
+(`Path(__file__).parents[5]`), so it works regardless of the caller's working
+directory. A drift check in `test/architecture/test_vocab_examples_current.py`
+fails when the committed JSON file list diverges from what the generator produces
+(#3004). The `markdown_exec` frozen-model bug that blocked all example blocks was
+fixed in #2904.

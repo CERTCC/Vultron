@@ -36,6 +36,14 @@ config:
   # Disabled because conversion from TeX to markdown produces invalid links
   # We might eventually be able to re-enable this one.
   "MD051": false
+  # 055 Table pipe style
+  # Force leading and trailing pipes. vultron/metadata/markdown_tables.py — the
+  # reader behind the notes/ scenario-table ratchets — requires both outer pipes
+  # to tell a table row from a prose line that happens to contain a pipe. Pinning
+  # the style here makes that narrowing enforced rather than assumed: a table
+  # written without outer pipes fails lint instead of parsing wrong.
+  "MD055":
+    style: "leading_and_trailing"
   # 060 - Table column style
   "MD060": false
 ignores:

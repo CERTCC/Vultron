@@ -6,6 +6,7 @@ related_specs:
   - specs/multi-actor-demo.yaml
 related_notes:
   - notes/ci-workflow-authoring.md
+  - notes/demo-scenario-registry.md
 ---
 
 # Demo CI: Scenario Coverage Matrix and Minimum PR Validation Set
@@ -15,32 +16,42 @@ Spec: DEMOCI-06. Analysis performed as part of ISSUE-1996; updated for
 
 ## Coverage Matrix
 
-The table below maps each of the 9 demo scenarios to the distinct protocol
-event types it exercises. Event types are those recorded as `event_type` in
-`CaseLedgerEntry` and validated by Invariant 5
+The table below maps every demo scenario to the distinct protocol event types it
+exercises. Event types are those recorded as `event_type` in `CaseLedgerEntry`
+and validated by Invariant 5
 (`test_invariant_5_expected_event_types_present`) in each scenario's
 `test/ci/invariants/test_XXX_invariants.py` file.
 
-| Scenario | validate_report | add_participant_status_to_participant | close_case | add_note_to_case | engage_case | invite_actor_to_case | offer_case_participant | accept_invite_actor_to_case | accept_actor_recommendation | reject_invite_actor_to_case |
-|---|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|
-| fv                | ✓ | ✓ | ✓ | ✓ | ✓ |   |   |   |   |   |
-| fvv               | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |   | ✓ |   |   |
-| fvcv-extension    | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |   |
-| fvcv-handoff      | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |   | ✓ |   |   |
-| fccv-extension    | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |   |
-| fccv-handoff      | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |   | ✓ |   |   |
-| fcvcv             | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |   |
-| fcv               | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |   | ✓ |   |   |
-| fcv-reject        | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |   |   |   | ✓ |
+The `Scenario` column is the scenario registry's, in the registry's name order,
+and is checked against it (DEMOCI-11-007). The event-type ticks are checked too,
+against each scenario's `_XXX_EXPECTED_EVENT_TYPES` harness constant — the same
+constant Invariant 5 asserts against, so a tick that disagrees describes a
+scenario CI does not run (MS-16-002, ISSUE-3505). Adding a scenario, or adding an
+event type to a harness constant, therefore fails this check until the table
+follows — see [demo-scenario-registry.md](demo-scenario-registry.md) § "The
+generate-vs-check split".
+
+| Scenario | validate_report | add_participant_status_to_participant | close_case | add_note_to_case | engage_case | invite_actor_to_case | offer_case_participant | accept_invite_actor_to_case | accept_actor_recommendation | accept_case_ownership_transfer | reject_invite_actor_to_case |
+|---|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|
+| fccv-extension    | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |   |   |
+| fccv-handoff      | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |   | ✓ |   | ✓ |   |
+| fcv               | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |   | ✓ |   |   |   |
+| fcv-reject        | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |   |   |   |   | ✓ |
+| fcvcv             | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |   |   |
+| fv                | ✓ | ✓ | ✓ | ✓ | ✓ |   |   |   |   |   |   |
+| fvcv-extension    | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |   |   |
+| fvcv-handoff      | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |   | ✓ |   | ✓ |   |
+| fvv               | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |   | ✓ |   |   |   |
 
 **Notes:**
 
 - The universal types (DEMOMA-16-001) appear in every scenario.
 - `engage_case` is universal because emission lives in the shared demo helper
   layer, not at scenario call sites: `run_direct_path_rm_triage()` calls
-  `receiver_engages_case()` for the direct receiver (all eight multi-actor
-  scenarios), `run_invite_path_rm_triage()` calls it again for the invited
-  participant (seven of them, CM-11-002), and `fv_demo.py` calls it via
+  `receiver_engages_case()` for the direct receiver (every multi-actor
+  scenario), `run_invite_path_rm_triage()` calls it again for the invited
+  participant (every scenario with an invite path, CM-11-002), and
+  `fv_demo.py` calls it via
   `vendor_engages_case()`. It was promoted from a `fvcv-handoff`-only entry to
   the fifth universal type in ISSUE-2266; see
   `notes/demo-ci-invariants.md` § "`engage_case` is universal, not
@@ -64,7 +75,7 @@ event types it exercises. Event types are those recorded as `event_type` in
   rejects rather than accepts, `accept_invite_actor_to_case` does NOT appear in
   this scenario. No other current scenario exercises this ledger entry.
   **Invariant 15 note**: because the Vendor never participates, no actor advances
-  the VFD state machine and `vfd_state == 'VFd'` is structurally unreachable.
+  the VFD state machine and the `VFd` CS state (vf_state=VF, d_state=d) is structurally unreachable.
   However, `check_cs_state_transitions_observed()` in
   `test/ci/invariants/common.py` no longer accepts a `check_fix_ready` parameter
   — the VFd assertion is unconditional as of PR #2152. `test_invariant_15` in
@@ -86,20 +97,6 @@ event types it exercises. Event types are those recorded as `event_type` in
 - `fcvcv`, `fvcv-extension`, and `fccv-extension` were missing
   `accept_actor_recommendation`; corrected as part of ISSUE-1996 (AC-2 follow-up).
 - `fcv-reject` (DEMOMA-16-011) was added as part of IDEA-1218 planning.
-
-## AC-2 Corrections Applied
-
-| File | Added event type |
-|---|---|
-| `test/ci/invariants/test_fvv_invariants.py` | `accept_invite_actor_to_case` |
-| `test/ci/invariants/test_fcv_invariants.py` | `accept_invite_actor_to_case` |
-| `test/ci/invariants/test_fvcv_extension_invariants.py` | `accept_invite_actor_to_case` |
-| `test/ci/invariants/test_fcvcv_invariants.py` | `accept_actor_recommendation` |
-| `test/ci/invariants/test_fvcv_extension_invariants.py` | `accept_actor_recommendation` |
-| `test/ci/invariants/test_fccv_extension_invariants.py` | `accept_actor_recommendation` |
-
-Corresponding DEMOMA-16 spec entries updated: 16-003, 16-004, 16-007.
-New spec entry DEMOMA-16-010 added for `fccv-extension`.
 
 ## Coverage Scope: What the Matrix Covers and Why
 
@@ -127,15 +124,15 @@ advance the CVD protocol state and are recorded in the replicated case ledger.
 | Dimension | Covered by | How verified |
 |---|---|---|
 | Ownership transfer | `fvcv-handoff`, `fccv-handoff` | `demo_check` assertions in scenario script (not a ledger event_type) |
-| CVD role variation | All 9 scenarios | Scenario scripts define actor roles (deployer/vendor-only/coordinator) |
+| CVD role variation | Every scenario | Scenario scripts define actor roles (deployer/vendor-only/coordinator) |
 | Fix-ready / fix-deployed lifecycle (VFd vs VFD) | All scenarios run to RM closed | Invariant 7 (`test_invariant_7_log_terminates_all_rm_closed`) |
 | Multi-vendor vs single-vendor fix paths | `fvv`, `fcvcv`, `fvcv-extension` (multiple vendors) vs `fv`, `fcv` (single) | Scenario composition; covered by minimum set via `fcvcv` |
 | Embargo lifecycle phases | Scenarios with Coordinator actors | `demo_check` + EM state assertions in scenario scripts |
 
 ### Why the minimum set is sufficient
 
-The 4-scenario minimum set (`fv`, `fvcv-handoff`, `fcvcv`, `fcv-reject`) covers
-all 10 `event_type` columns and the ownership-transfer path. The additional
+The minimum set (`fv`, `fvcv-handoff`, `fcvcv`, `fcv-reject`) covers every
+`event_type` column and the ownership-transfer path. The additional
 dimensions (CVD role variation, multi-vendor fix paths, embargo phases) are
 either:
 
@@ -145,30 +142,38 @@ either:
 - scenario-script `demo_check` assertions that run with the scenario regardless
   of which CI tier it lands in.
 
-The 5 full-suite-only scenarios add regression depth but not breadth relative to
-the minimum set's event-type and protocol-path coverage. (`fcv-reject` is the
-4th minimum-set member; it cannot be covered by any existing scenario since
+The full-suite-only scenarios add regression depth but not breadth relative to
+the minimum set's event-type and protocol-path coverage. (`fcv-reject` is a
+minimum-set member because it cannot be covered by any other scenario:
 `reject_invite_actor_to_case` is unique to the invitation-rejection path.)
 
 ## Minimum PR Validation Set (DEMOCI-06-002)
 
-**Set: `fv`, `fvcv-handoff`, `fcvcv`, `fcv-reject`**
+**The set is the rows marked `✓ (member)` below**, and that column is checked
+against each scenario's `in_pr_set` decorator field. The membership is
+deliberately *not* also restated here in prose: a second copy would drift from
+the column beside it and no test could falsify the sentence (MS-16-002).
+
+Rows are in the registry's name order, checked against it, and PR-set membership
+reads off the `Covered by minimum set` column rather than off position — see
+[demo-scenario-registry.md](demo-scenario-registry.md) § "Name order is the
+canonical order, everywhere".
 
 | Scenario | Covered by minimum set | Rationale |
 |---|:---:|---|
-| fv | ✓ (member) | 2-actor baseline; covers all universal event types (DEMOMA-16-001) with no invitation phases |
-| fvcv-handoff | ✓ (member) | Adds `invite_actor_to_case` + `accept_invite_actor_to_case` + ownership-transfer protocol path |
-| fcvcv | ✓ (member) | Adds `offer_case_participant` + `accept_actor_recommendation` + ≥3-actor invite/accept chains |
-| fcv-reject | ✓ (member) | Adds `reject_invite_actor_to_case` — the only scenario where the Vendor sends `Reject(Invite(actor, case))` (invitation-layer rejection) |
-| fvv | covered by fvcv-handoff | Same invite+accept coverage; no additional phases |
-| fvcv-extension | covered by fcvcv | Same offer+invite+accept coverage; no additional phases |
 | fccv-extension | covered by fcvcv | Same offer+invite+accept coverage; no additional phases |
 | fccv-handoff | covered by fvcv-handoff | Same invite+accept+ownership-transfer; no additional phases |
 | fcv | covered by fvcv-handoff | Same invite+accept coverage; no additional phases |
+| fcv-reject | ✓ (member) | Adds `reject_invite_actor_to_case` — the only scenario where the Vendor sends `Reject(Invite(actor, case))` (invitation-layer rejection) |
+| fcvcv | ✓ (member) | Adds `offer_case_participant` + `accept_actor_recommendation` + ≥3-actor invite/accept chains |
+| fv | ✓ (member) | 2-actor baseline; covers all universal event types (DEMOMA-16-001) with no invitation phases |
+| fvcv-extension | covered by fcvcv | Same offer+invite+accept coverage; no additional phases |
+| fvcv-handoff | ✓ (member) | Adds `invite_actor_to_case` + `accept_invite_actor_to_case` + ownership-transfer protocol path |
+| fvv | covered by fvcv-handoff | Same invite+accept coverage; no additional phases |
 
 ### Coverage proof
 
-The minimum set of 4 scenarios covers all 10 distinct event types:
+The minimum set covers every distinct event type:
 
 | Event type | Covered by |
 |---|---|
@@ -181,36 +186,49 @@ The minimum set of 4 scenarios covers all 10 distinct event types:
 | accept_invite_actor_to_case | fvcv-handoff |
 | offer_case_participant | fcvcv |
 | accept_actor_recommendation | fcvcv |
+| accept_case_ownership_transfer | fvcv-handoff |
 | reject_invite_actor_to_case | fcv-reject |
 
-The 5 remaining scenarios (`fvv`, `fvcv-extension`, `fccv-extension`,
-`fccv-handoff`, `fcv`) produce no event type not already covered by the
-minimum set. They run only on push to `main` (DEMOCI-06-003) to provide
-regression coverage without increasing PR wall-clock cost.
+Every non-member row above — the scenarios whose `Covered by minimum set` cell
+names a covering member rather than `✓ (member)` — produces no event type the
+minimum set does not already cover. They run only on push to `main`
+(DEMOCI-06-003) to provide regression coverage without increasing PR wall-clock
+cost. The membership is not re-listed here for the same reason it is not restated
+above the table: the column is the answer, and it is the copy a test can falsify
+(MS-16-002).
 
 ## Workflow Implementation (DEMOCI-06-003)
 
-`.github/workflows/demo-integration.yml` was updated to:
+`.github/workflows/demo-integration.yml` selects the matrix for the current
+event:
 
-1. Add a `push: branches: ["main"]` trigger (implements DEMOCI-05-001 and
-   DEMOCI-06-003, which were previously unimplemented — landed in PR #2030).
-2. Mark `fv`, `fvcv-handoff`, and `fcvcv` as `full_suite_only: false` — they
-   run on every `pull_request` event (PR #2030).
-3. Mark the remaining 5 scenarios as `full_suite_only: true` — they run only
-   on `push` to main and `workflow_dispatch` (PR #2030).
-4. Add a job-level `if:` condition that skips `full_suite_only: true` entries
-   on `pull_request` events. Both `demo` and `invariant-harness` jobs carry the
-   same gate condition so the artifact/download pairing stays consistent.
-
-`fcv-reject` was implemented in PR #2084 (IDEA-1218). The workflow was updated
-in that same PR (DEMOCI-03-002):
-
-- `fcv-reject` added as a matrix entry with `full_suite_only: false` (PR minimum
-  set member per DEMOCI-06-002).
-- Full-suite scenario list updated from 8 to 9 scenarios.
+- A `push: branches: ["main"]` trigger runs the whole suite (DEMOCI-05-001,
+  DEMOCI-06-003); `workflow_dispatch` does the same for any ref.
+- On `pull_request`, the `scenarios` job drops every `full_suite_only` entry,
+  leaving the minimum PR validation set (DEMOCI-06-002). `full_suite_only` is
+  the inverse of each scenario's `in_pr_set` decorator field and reaches the
+  workflow through the generated `.github/demo-scenarios.json` (DEMOCI-11-004).
+- The filter lives in the `scenarios` job rather than in a job-level `if:` on a
+  matrix field, because job `if:` is evaluated before matrix expansion — see
+  DEMOCI-06-004 and `notes/ci-workflow-authoring.md`.
 
 See ADR-0052 for the accepted barrier + concurrency group design that DEMOCI-06
 finalises.
+
+### Change history
+
+Statements here record past states and are exempt from the no-restated-count
+rule (DEMOCI-11-008), which is why the exemption is keyed on this heading.
+
+- PR #2030 added the `push: branches: ["main"]` trigger and marked `fv`,
+  `fvcv-handoff` and `fcvcv` as `full_suite_only: false`, leaving the rest
+  full-suite-only.
+- PR #2084 (IDEA-1218) implemented `fcv-reject` and added it as a matrix entry
+  with `full_suite_only: false` (DEMOCI-03-002). Full-suite scenario list
+  updated from 8 to 9 scenarios.
+- PR #3464 (ISSUE-3450) made the matrix a generated projection of the scenario
+  registry, so the entries are no longer hand-maintained here or in the
+  workflow (ADR-0098).
 
 ## RM State-Transition Path Coverage
 

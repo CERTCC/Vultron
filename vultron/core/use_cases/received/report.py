@@ -16,7 +16,10 @@ from vultron.core.models.events.report import (
 )
 from vultron.core.models.offer_record import VultronOfferRecord
 from vultron.core.ports.case_persistence import CasePersistence
-from vultron.errors import VultronValidationError
+from vultron.errors import (
+    VultronAlreadyExistsError,
+    VultronValidationError,
+)
 from vultron.core.use_cases._helpers import (
     resolve_receiving_actor_id,
 )
@@ -94,7 +97,7 @@ def _store_submit_report_dependencies(
         logger.info(
             "Stored VultronOfferRecord for offer '%s'", request.activity_id
         )
-    except ValueError as e:
+    except VultronAlreadyExistsError as e:
         logger.debug(
             "VultronOfferRecord for offer '%s' already exists: %s",
             request.activity_id,
@@ -382,16 +385,21 @@ class InvalidateReportReceivedUseCase:
         )
 
         request = self._request
-        tree = create_invalidate_report_received_tree(request)
+        # The *receiving* actor, not the sender (BT-17-005): an inbound
+        # activity is applied to the receiver's own replica, so the tree must
+        # execute in the receiver's store.  The actor_id is also passed to the
+        # tree factory so the subject of the RM write is explicit (BTND-10-005,
+        # ADR-0089).
+        receiving_actor_id = resolve_receiving_actor_id(
+            self._dl, request.receiving_actor_id
+        )
+        tree = create_invalidate_report_received_tree(
+            request, actor_id=receiving_actor_id
+        )
         bridge = BTBridge(datalayer=self._dl)
         result = bridge.execute_with_setup(
             tree=tree,
-            # The *receiving* actor, not the sender (BT-17-005): an
-            # inbound activity is applied to the receiver's own replica,
-            # so the tree must execute in the receiver's store.
-            actor_id=resolve_receiving_actor_id(
-                self._dl, request.receiving_actor_id
-            ),
+            actor_id=receiving_actor_id,
             activity=request,
         )
         if result.status != Status.SUCCESS:
@@ -471,16 +479,21 @@ class CloseReportReceivedUseCase:
         )
 
         request = self._request
-        tree = create_close_report_received_tree(request)
+        # The *receiving* actor, not the sender (BT-17-005): an inbound
+        # activity is applied to the receiver's own replica, so the tree must
+        # execute in the receiver's store.  The actor_id is also passed to the
+        # tree factory so the subject of the RM write is explicit (BTND-10-005,
+        # ADR-0089).
+        receiving_actor_id = resolve_receiving_actor_id(
+            self._dl, request.receiving_actor_id
+        )
+        tree = create_close_report_received_tree(
+            request, actor_id=receiving_actor_id
+        )
         bridge = BTBridge(datalayer=self._dl)
         result = bridge.execute_with_setup(
             tree=tree,
-            # The *receiving* actor, not the sender (BT-17-005): an
-            # inbound activity is applied to the receiver's own replica,
-            # so the tree must execute in the receiver's store.
-            actor_id=resolve_receiving_actor_id(
-                self._dl, request.receiving_actor_id
-            ),
+            actor_id=receiving_actor_id,
             activity=request,
         )
         if result.status != Status.SUCCESS:

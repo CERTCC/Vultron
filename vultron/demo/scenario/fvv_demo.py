@@ -25,14 +25,12 @@ Spec: D5-5 (GitHub issue #1265).
 """
 
 import logging
-import os
 import sys
 
 from vultron.core.states.cs import CS_vf
 from vultron.core.states.rm import RM
 from vultron.wire.as2.vocab.base.objects.activities.transitive import (
     as_Offer,
-    as_TransitiveActivity,
 )
 from vultron.wire.as2.vocab.base.objects.actors import as_Actor
 from vultron.wire.as2.vocab.base.objects.object_types import as_Note
@@ -43,6 +41,9 @@ from vultron.wire.as2.vocab.objects.vulnerability_report import (
     as_VulnerabilityReport,
 )
 
+from vultron.demo.actor_session import ActorSession
+from vultron.demo.helpers.actor_roles import ActorRole, role_map
+from vultron.enums.roles import CVDRole
 from vultron.demo.utils import (  # noqa: F401 — re-exported for test monkeypatching
     BASE_URL,
     DataLayerClient,
@@ -51,16 +52,11 @@ from vultron.demo.utils import (  # noqa: F401 — re-exported for test monkeypa
     demo_check,
     demo_gate,
     demo_step,
-    post_to_trigger,
+    ref_id,
     reset_datalayer,
     reset_demo_failures,
     setup_demo_logging,
     verify_object_stored,
-)
-from vultron.demo.helpers.actions import (
-    actor_closes_case,
-    actor_notifies_fix_ready,
-    actor_notifies_published,
 )
 from vultron.demo.helpers.harness import scenario_harness
 from vultron.demo.helpers.ledger_dump import (
@@ -82,6 +78,7 @@ from vultron.demo.helpers.polling import (
     wait_for_case_on_container,
     wait_for_case_participants,
     wait_for_contiguous_ledger_coverage,
+    wait_for_participants_on_replicas,
     wait_for_event_type_in_ledger,
     wait_for_finder_case,
     wait_for_participant_rm_state,
@@ -102,19 +99,70 @@ from vultron.demo.helpers.workflow import (
     run_direct_path_rm_triage,
     run_invite_path_rm_triage,
 )
+from vultron.demo.scenario.registry import scenario
 
 logger = logging.getLogger(__name__)
 
+# The scenario's actor slots, in main() parameter order. The demo CLI derives
+# this scenario's sub-command options from this list (DEMOCI-11-011); the base
+# URL constants below are its resolved values, so each env-var/default pair is
+# declared once.
+ROLES: list[ActorRole] = [
+    ActorRole(
+        name="finder",
+        url_env="VULTRON_FINDER_BASE_URL",
+        default_url="http://localhost:7901/api/v2",
+        url_help="Base URL of the Finder container API "
+        "(env: VULTRON_FINDER_BASE_URL).",
+        has_id=True,
+        id_help="Deterministic full URI for the Finder actor (optional).",
+    ),
+    ActorRole(
+        name="vendor",
+        url_env="VULTRON_VENDOR_BASE_URL",
+        default_url="http://localhost:7902/api/v2",
+        url_help="Base URL of the Vendor1 container API "
+        "(env: VULTRON_VENDOR_BASE_URL).",
+        has_id=True,
+        id_help="Deterministic full URI for the Vendor1 actor (optional).",
+    ),
+    ActorRole(
+        name="vendor2",
+        url_env="VULTRON_VENDOR2_BASE_URL",
+        default_url="http://localhost:7904/api/v2",
+        url_help="Base URL of the Vendor2 container API "
+        "(env: VULTRON_VENDOR2_BASE_URL).",
+        has_id=True,
+        id_help="Deterministic full URI for the Vendor2 actor (optional).",
+    ),
+]
+_ROLES = role_map(ROLES)
+
 # Default container base URLs — override via environment variables.
-FINDER_BASE_URL = os.environ.get(
-    "VULTRON_FINDER_BASE_URL", "http://localhost:7901/api/v2"
-)
-VENDOR_BASE_URL = os.environ.get(
-    "VULTRON_VENDOR_BASE_URL", "http://localhost:7902/api/v2"
-)
-VENDOR2_BASE_URL = os.environ.get(
-    "VULTRON_VENDOR2_BASE_URL", "http://localhost:7904/api/v2"
-)
+FINDER_BASE_URL = _ROLES["finder"].url
+VENDOR_BASE_URL = _ROLES["vendor"].url
+VENDOR2_BASE_URL = _ROLES["vendor2"].url
+
+#: ``vultron-demo fvv --help`` text. Lives here rather than in ``cli.py``
+#: because the sub-command is generated from the registry and the scenario
+#: module is the only place that knows what its own workflow does.
+CLI_HELP = """Run the FVV (Finder + Vendor1 + Vendor2) multi-container CVD demo (D5-5).
+
+Orchestrates a complete CVD workflow across three separate API server
+containers with no coordinator.  Vendor1 creates the case and invites both
+Finder and Vendor2; each vendor maintains an independent fix path.
+
+\b
+Workflow:
+  1. Seed all three containers (actor records + peer registration).
+  2. Finder submits a vulnerability report to Vendor1's inbox.
+  3. Vendor1 validates the report and engages the case.
+  4. Vendor1 invites Vendor2; Vendor2 accepts.
+  5. Verify LedgerFanout replication on Finder and Vendor2.
+  6. Both vendors independently advance through fix-ready → fix-deployed.
+  7. All participants report publication; embargo terminates.
+  8. All participants close the case.
+"""
 
 # Deterministic actor IDs from docker-compose-multi-actor.yml (D5-1-G3).
 FINDER_ACTOR_ID = "http://finder:7999/api/v2/actors/finder"
@@ -194,94 +242,101 @@ def _phase_report_submission(
         offer=offer,
     )
 
-    # Wait for the initial participants (Finder + Vendor1 + CaseActor) before
-    # inviting Vendor2.
-    wait_for_case_participants(
-        vendor_client=vendor_client,
-        case_id=case.id_,
-        expected_actor_ids={finder.id_, vendor.id_},
-    )
-
-    with demo_check(
-        "Finder's DataLayer received case via Vendor1 outbox delivery"
+    # Causal precondition: the initial case (Finder + Vendor1 present on
+    # Vendor1's replica) must exist before Vendor2 is invited.  A demo_gate — not
+    # demo_check — because inviting/admitting Vendor2 operates on unestablished
+    # state if this times out; the gate skips the doomed dependent steps rather
+    # than cascading (DEMOCI-01-011, vultron/demo/AGENTS.md § "Never Wrap a
+    # Causal Wait in demo_check").
+    with demo_gate(
+        "Vendor1 case has Finder + Vendor1 before inviting Vendor2"
     ):
-        wait_for_finder_case(
-            finder_client=finder_client,
+        wait_for_case_participants(
+            vendor_client=vendor_client,
             case_id=case.id_,
+            expected_actor_ids={finder.id_, vendor.id_},
         )
 
-    # Vendor1 invites Vendor2 to the case.
-    invite_result = None
-    with demo_step("Vendor1 invites Vendor2 to the case"):
-        invite_result = post_to_trigger(
-            client=vendor_client,
-            actor_id=vendor_in_vendor.id_,
-            behavior="invite-actor-to-case",
-            body={
-                "case_id": case.id_,
-                "invitee_id": vendor2.id_,
-                "roles": ["vendor"],
-            },
-        )
-    invite = as_TransitiveActivity.model_validate(invite_result["activity"])
-    logger.info("Invite created: %s", invite.id_)
+        with demo_check(
+            "Finder's DataLayer received case via Vendor1 outbox delivery"
+        ):
+            wait_for_finder_case(
+                finder_client=finder_client,
+                case_id=case.id_,
+            )
 
-    with demo_check("Vendor2 invite delivered to Vendor2's DataLayer"):
-        find_case_invite_for_actor(
-            client=vendor2_client,
-            case_id=case.id_,
-            invitee_id=vendor2.id_,
-            timeout_seconds=20.0,
-        )
+        # Vendor1 invites Vendor2 to the case.
+        invite_result = None
+        with demo_step("Vendor1 invites Vendor2 to the case"):
+            invite_result = (
+                ActorSession(client=vendor_client, actor=vendor_in_vendor)
+                .with_case(case)
+                .quiet()
+                .invite_actor_to_case(
+                    invitee_id=vendor2.id_, roles=[CVDRole.VENDOR]
+                )
+            )
+        invite = invite_result.activity
+        logger.info("Invite created: %s", invite.id_)
 
-    # Vendor2 accepts the invite.
-    with demo_step("Vendor2 accepts the case invitation"):
-        post_to_trigger(
-            client=vendor2_client,
-            actor_id=vendor2_in_vendor2.id_,
-            behavior="accept-case-invite",
-            body={"invite_id": invite.id_},
-        )
+        with demo_check("Vendor2 invite delivered to Vendor2's DataLayer"):
+            find_case_invite_for_actor(
+                client=vendor2_client,
+                case_id=case.id_,
+                invitee_id=vendor2.id_,
+                timeout_seconds=20.0,
+            )
 
-    # Wait for Vendor2's container to replicate the case.
-    with demo_check("Vendor2's DataLayer received case replica"):
-        wait_for_case_on_container(
-            client=vendor2_client,
-            case_id=case.id_,
-        )
+        # Vendor2 accepts the invite.
+        with demo_step("Vendor2 accepts the case invitation"):
+            ActorSession(
+                client=vendor2_client, actor=vendor2_in_vendor2
+            ).quiet().accept_case_invite(invite_id=invite.id_)
 
-    # 4 participants: Finder + Vendor1 + Vendor2 + CaseActor
-    wait_for_case_participants(
-        vendor_client=vendor_client,
-        case_id=case.id_,
-        expected_actor_ids={
-            finder.id_,
-            vendor.id_,
-            vendor2.id_,
-        },
-    )
+        # Wait for Vendor2's container to replicate the case.
+        with demo_check("Vendor2's DataLayer received case replica"):
+            wait_for_case_on_container(
+                client=vendor2_client,
+                case_id=case.id_,
+            )
 
-    # CLP-08-005: ensure Finder's genesis hash is seeded before Announce(CaseLedgerEntry)
-    # is broadcast by the triage cycle below.
-    with demo_check(
-        "Finder's DataLayer received case replica before Vendor2 RM triage"
-    ):
-        wait_for_case_on_container(
-            client=finder_client,
-            case_id=case.id_,
-        )
+        # All 4 participants (Finder + Vendor1 + Vendor2 + CaseActor) present is
+        # the precondition for Vendor2's RM triage below.
+        with demo_gate(
+            "Vendor1 case has all 4 participants before Vendor2 RM triage"
+        ):
+            wait_for_case_participants(
+                vendor_client=vendor_client,
+                case_id=case.id_,
+                expected_actor_ids={
+                    finder.id_,
+                    vendor.id_,
+                    vendor2.id_,
+                },
+            )
 
-    # CM-11-002: Vendor2 joined via invite-accept — run standard RM triage cycle.
-    run_invite_path_rm_triage(
-        invited_client=vendor2_client,
-        invited_actor=vendor2_in_vendor2,
-        offer=offer,
-        report=report,
-        finder=finder,
-        auth_client=vendor_client,
-        case=case,
-        invited_obj=vendor2,
-    )
+            # CLP-08-005: ensure Finder's genesis hash is seeded before
+            # Announce(CaseLedgerEntry) is broadcast by the triage cycle below.
+            with demo_check(
+                "Finder's DataLayer received case replica before Vendor2 RM"
+                " triage"
+            ):
+                wait_for_case_on_container(
+                    client=finder_client,
+                    case_id=case.id_,
+                )
+
+            # CM-11-002: Vendor2 joined via invite-accept — run RM triage cycle.
+            run_invite_path_rm_triage(
+                invited_client=vendor2_client,
+                invited_actor=vendor2_in_vendor2,
+                offer=offer,
+                report=report,
+                finder=finder,
+                auth_client=vendor_client,
+                case=case,
+                invited_obj=vendor2,
+            )
 
     with demo_check(
         "M1: required participants (≥4), EM.ACTIVE, finder + vendor2 have replicas"
@@ -346,23 +401,20 @@ def _phase_sync_verification(
                     expected_tail_index=vendor_tail_index,
                 )
 
-    wait_for_case_participants(
-        vendor_client=finder_client,
+    # Temporal (EDF-06-006): Vendor2 is a late joiner — allow extra time for
+    # participant-index propagation; see wait_for_participants_on_replicas.
+    # The finder + vendor2 replicas were previously polled with two bare
+    # wait_for_case_participants calls that used the 15 s default, so Vendor2
+    # never got the extended budget and could time out spuriously (#2852).
+    wait_for_participants_on_replicas(
+        replica_clients=(finder_client, vendor2_client),
         case_id=case.id_,
         expected_actor_ids={
             finder.id_,
             vendor.id_,
             vendor2.id_,
         },
-    )
-    wait_for_case_participants(
-        vendor_client=vendor2_client,
-        case_id=case.id_,
-        expected_actor_ids={
-            finder.id_,
-            vendor.id_,
-            vendor2.id_,
-        },
+        late_joiners=(vendor2_client,),
     )
 
     with demo_check(
@@ -476,11 +528,10 @@ def _phase_fix_lifecycle(
             actor_id=vendor.id_,
             expected_states={RM.ACCEPTED, RM.DEFERRED, RM.CLOSED},
         )
-        actor_notifies_fix_ready(
-            client=vendor_client,
-            actor=vendor_in_vendor,
-            case_id=case.id_,
-        )
+        with demo_step(f"Actor {ref_id(vendor_in_vendor)} reports fix ready"):
+            ActorSession(
+                client=vendor_client, actor=vendor_in_vendor
+            ).with_case(case).quiet().notify_fix_ready()
         with demo_check("Vendor1 participant vf_state transitions to VF"):
             wait_for_participant_vf_state(
                 client=vendor_client,
@@ -498,11 +549,12 @@ def _phase_fix_lifecycle(
             actor_id=vendor2.id_,
             expected_states={RM.ACCEPTED, RM.DEFERRED, RM.CLOSED},
         )
-        actor_notifies_fix_ready(
-            client=vendor2_client,
-            actor=vendor2_in_vendor2,
-            case_id=case.id_,
-        )
+        with demo_step(
+            f"Actor {ref_id(vendor2_in_vendor2)} reports fix ready"
+        ):
+            ActorSession(
+                client=vendor2_client, actor=vendor2_in_vendor2
+            ).with_case(case).quiet().notify_fix_ready()
         with demo_check("Vendor2 participant vf_state transitions to VF"):
             wait_for_participant_vf_state(
                 client=vendor2_client,
@@ -575,11 +627,13 @@ def _phase_publication(
     )
     logger.info("─" * 80)
 
-    actor_notifies_published(
-        client=vendor_client,
-        actor=vendor_in_vendor,
-        case_id=case.id_,
-    )
+    with demo_step(
+        f"Actor {ref_id(vendor_in_vendor)} reports vulnerability publicly"
+        " disclosed"
+    ):
+        ActorSession(client=vendor_client, actor=vendor_in_vendor).with_case(
+            case
+        ).quiet().notify_published()
 
     with demo_check(
         "Embargo terminated (EM.EXITED) after Vendor1 reports published"
@@ -589,17 +643,21 @@ def _phase_publication(
             case_id=case.id_,
         )
 
-    actor_notifies_published(
-        client=vendor2_client,
-        actor=vendor2_in_vendor2,
-        case_id=case.id_,
-    )
+    with demo_step(
+        f"Actor {ref_id(vendor2_in_vendor2)} reports vulnerability publicly"
+        " disclosed"
+    ):
+        ActorSession(
+            client=vendor2_client, actor=vendor2_in_vendor2
+        ).with_case(case).quiet().notify_published()
 
-    actor_notifies_published(
-        client=finder_client,
-        actor=finder_in_finder,
-        case_id=case.id_,
-    )
+    with demo_step(
+        f"Actor {ref_id(finder_in_finder)} reports vulnerability publicly"
+        " disclosed"
+    ):
+        ActorSession(client=finder_client, actor=finder_in_finder).with_case(
+            case
+        ).quiet().notify_published()
 
     with demo_check(
         "M6: all replicas CS.VFdPxa, EM.EXITED, all participants public-aware"
@@ -645,21 +703,18 @@ def _phase_case_closure(
     logger.info("Phase 6: Case closure — all participants RM.CLOSED")
     logger.info("─" * 80)
 
-    actor_closes_case(
-        client=vendor_client,
-        actor=vendor_in_vendor,
-        case_id=case.id_,
-    )
-    actor_closes_case(
-        client=vendor2_client,
-        actor=vendor2_in_vendor2,
-        case_id=case.id_,
-    )
-    actor_closes_case(
-        client=finder_client,
-        actor=finder_in_finder,
-        case_id=case.id_,
-    )
+    with demo_step(f"Actor {ref_id(vendor_in_vendor)} closes case"):
+        ActorSession(client=vendor_client, actor=vendor_in_vendor).with_case(
+            case
+        ).quiet().close_case()
+    with demo_step(f"Actor {ref_id(vendor2_in_vendor2)} closes case"):
+        ActorSession(
+            client=vendor2_client, actor=vendor2_in_vendor2
+        ).with_case(case).quiet().close_case()
+    with demo_step(f"Actor {ref_id(finder_in_finder)} closes case"):
+        ActorSession(client=finder_client, actor=finder_in_finder).with_case(
+            case
+        ).quiet().close_case()
 
     with demo_check("M7: all participants RM.CLOSED on all replicas"):
         wait_for_all_participants_rm_closed(
@@ -870,6 +925,13 @@ def run_fvv_demo(
 # ---------------------------------------------------------------------------
 
 
+@scenario(
+    name="fvv",
+    label="FVV",
+    participants="Finder + Vendor1 + Vendor2",
+    feature="Direct invitation of a second vendor",
+    in_pr_set=False,
+)
 def main(
     skip_health_check: bool = False,
     finder_url: str | None = None,

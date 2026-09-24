@@ -48,7 +48,7 @@ model autonomous peers and inter-actor delivery bugs surface in-process
 instead of being masked (concern #1723, ADR-0042, `outbox.yaml` OX-12).
 
 - The production default `ActivityEmitter` is the HTTP delivery adapter.
-- CaseActor canonical-ledger self-delivery (the `cc:`-to-self copy that loops
+- CASE_MANAGER canonical-ledger self-delivery (the `cc:`-to-self copy that loops
   a ledger-authoring entry back to its own inbox, CLP-10-001) is delivered
   over **HTTP loopback**, using the same path as any other recipient.
 - **Application code MUST NOT construct `httpx.ASGITransport` directly**
@@ -85,11 +85,6 @@ Expected end-state:
 1. Received use cases hand events to behavior trees.
 2. BT nodes make branching decisions.
 3. BT leaves call driven ports for outbound actions.
-
-### Remaining ARCH-01-001 violations
-
-Some core->wire imports remain and require additional driven-port extraction.
-Track ongoing violations in the associated ARCH-01-001 issue and spec links.
 
 ### Future delivery stubs
 

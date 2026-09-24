@@ -12,6 +12,7 @@ related_notes:
   - notes/docker-build.md
   - notes/git-workflow-pitfalls.md
   - notes/parallel-development.md
+  - notes/lint-tooling.md
 ---
 
 # Devcontainer and Toolchain Pitfalls
@@ -61,6 +62,11 @@ source file makes the hook pay the full ~35s whole-tree cost. A fast manual
 `uv run flake8` is not evidence the hook will be fast — the cost is the
 whole-tree invocation, not flake8 startup.
 
+ADR-0094 retires this hook in favour of ruff, which removes this timeout's cause
+entirely; the replacement policy is [notes/lint-tooling.md](lint-tooling.md). That
+change has **not** landed — it is tracked as #3352 — so the timeout above is still
+required. Revisit this section when #3352 merges.
+
 Sources: ISSUE-2479
 
 ## The `actionlint` Hook Hangs in the Devcontainer — `SKIP=actionlint`
@@ -96,11 +102,32 @@ git -c credential.https://github.com.helper='!/usr/bin/gh auth git-credential' \
 
 Source: ISSUE-2186
 
-## `.agents/skills/` and `.claude/skills/` Are Hard Links — Edit Only `.agents/`
+## `.claude/skills` Is a Symlink to `.agents/skills` — Edit Only `.agents/`
 
-`.agents/skills/<name>/SKILL.md` and `.claude/skills/<name>/SKILL.md` share the
-same inode. Editing one modifies both on disk. Always edit only the
-`.agents/skills/<name>/SKILL.md` copy — the `.claude/skills/` copy updates
-automatically. Editing both in sequence duplicates the content.
+`.claude/skills` is a **symlink** to `../.agents/skills`, so there is only ever
+one copy of a skill on disk:
 
-Source: ISSUE-1467
+```console
+$ ls -ld .claude/skills
+lrwxrwxrwx ... .claude/skills -> ../.agents/skills
+```
+
+Always edit the `.agents/skills/...` path. Two consequences follow from it being
+a symlink rather than a pair of hard links, and the second is the one that
+wastes time:
+
+- **Editing "both copies" edits the same file twice.** A second edit applied to
+  the `.claude/` path re-applies to the file you already changed — which
+  duplicates content if the edit was an insertion.
+- **A new file needs no second link.** Adding
+  `.agents/skills/shared/<new>.md` makes it visible at
+  `.claude/skills/shared/<new>.md` immediately. Under a hard-link scheme it
+  would not, so do not go looking for a linking step that does not exist.
+
+`git` will not follow the symlink: `git ls-files .claude/skills/...` fails with
+"beyond a symbolic link", and only the `.agents/` path is tracked. A skill's
+own `SKILL.md` may cite either path in prose (both resolve for a reader), but
+**repo-relative paths written for tooling should use `.agents/`**, which is the
+tracked one.
+
+Source: ISSUE-1467; mechanism corrected while working ISSUE-3482.

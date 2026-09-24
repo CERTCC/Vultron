@@ -4,8 +4,17 @@ Provides tools for generating examples of Vultron ActivityStreams objects.
 
 Used within the Vultron documentation to provide examples of Vultron ActivityStreams objects.
 
-When run as a script, this module will generate a set of example objects and write them to the docs/reference/examples
-directory.
+When run as a script, this module generates a set of example objects and writes them to
+``docs/reference/examples/``.  Re-run this generator whenever a new example function is
+added or an existing wire object changes shape so that the committed JSON files stay
+in sync with the current vocabulary.
+
+To regenerate from the repo root::
+
+    uv run python vultron/wire/as2/vocab/examples/vocab_examples.py
+
+The test ``test/architecture/test_vocab_examples_current.py`` fails when the committed
+JSON file list drifts from what this generator produces.
 """
 
 #  Copyright (c) 2025-2026 Carnegie Mellon University and Contributors.
@@ -23,15 +32,17 @@ directory.
 
 from typing import cast
 
-from vultron.wire.as2.vocab.base.base import as_Base
+from pydantic import BaseModel
 from vultron.wire.as2.vocab.examples._base import *  # noqa: F401, F403
 from vultron.wire.as2.vocab.examples.actor import *  # noqa: F401, F403
 from vultron.wire.as2.vocab.examples.case import *  # noqa: F401, F403
+from vultron.wire.as2.vocab.examples.case_proposal import *  # noqa: F401, F403
 from vultron.wire.as2.vocab.examples.embargo import *  # noqa: F401, F403
 from vultron.wire.as2.vocab.examples.note import *  # noqa: F401, F403
 from vultron.wire.as2.vocab.examples.participant import *  # noqa: F401, F403
 from vultron.wire.as2.vocab.examples.report import *  # noqa: F401, F403
 from vultron.wire.as2.vocab.examples.status import *  # noqa: F401, F403
+from vultron.wire.as2.vocab.examples.sync import *  # noqa: F401, F403
 
 from vultron.wire.as2.vocab.examples._base import (  # noqa: F401
     ACTOR_FUNCS,
@@ -55,16 +66,29 @@ from vultron.wire.as2.vocab.examples.actor import (  # noqa: F401
 )
 from vultron.wire.as2.vocab.examples.case import (  # noqa: F401
     accept_case_ownership_transfer,
+    accept_case_participant_role,
     add_report_to_case,
+    announce_case,
     close_case,
     create_case,
     defer_case,
     engage_case,
     offer_case_ownership_transfer,
+    offer_case_participant_role,
     populated_case,
     reengage_case,
     reject_case_ownership_transfer,
+    reject_case_participant_role,
     update_case,
+)
+from vultron.wire.as2.vocab.examples.case_proposal import (  # noqa: F401
+    accept_case_proposal,
+    create_case_proposal,
+    reject_case_proposal,
+)
+from vultron.wire.as2.vocab.examples.sync import (  # noqa: F401
+    announce_case_ledger_entry,
+    reject_case_ledger_entry,
 )
 from vultron.wire.as2.vocab.examples.embargo import (  # noqa: F401
     accept_embargo,
@@ -115,14 +139,17 @@ from vultron.wire.as2.vocab.examples.status import (  # noqa: F401
 )
 
 
-def main():
-    outdir = "../../docs/reference/examples"
+def main(outdir=None):
+    from pathlib import Path
+
+    if outdir is None:
+        outdir = Path(__file__).parents[5] / "docs" / "reference" / "examples"
+    else:
+        outdir = Path(outdir)
     print(f"Generating examples to: {outdir}")
 
     # ensure the output directory exists
-    from pathlib import Path
-
-    Path(outdir).mkdir(parents=True, exist_ok=True)
+    outdir.mkdir(parents=True, exist_ok=True)
 
     # create a finder (Person) object
     _finder = finder()
@@ -165,7 +192,7 @@ def main():
     obj_to_file(activity, f"{outdir}/create_case.json")
 
     # case object — extracted from create_case activity for coherence
-    _case = cast(as_Base, activity.object_)
+    _case = cast(BaseModel, activity.object_)
     obj_to_file(_case, f"{outdir}/vulnerability_case.json")
 
     # activity: vendor adds _report to case
@@ -176,14 +203,14 @@ def main():
     activity = add_vendor_participant_to_case()
 
     participant = activity.object_
-    if isinstance(participant, as_Base):
+    if isinstance(participant, BaseModel):
         obj_to_file(participant, f"{outdir}/vendor_participant.json")
     obj_to_file(activity, f"{outdir}/add_vendor_participant_to_case.json")
 
     # activity: vendor adds finder as participant to case
     activity = add_finder_participant_to_case()
     participant = activity.object_
-    if isinstance(participant, as_Base):
+    if isinstance(participant, BaseModel):
         obj_to_file(participant, f"{outdir}/finder_participant.json")
     obj_to_file(activity, f"{outdir}/add_finder_participant_to_case.json")
 
@@ -319,6 +346,42 @@ def main():
 
     _create_note = create_note()
     obj_to_file(_create_note, f"{outdir}/create_note.json")
+
+    # announce case (ANNOUNCE_VULNERABILITY_CASE — sent after Accept(Invite))
+    _announce_case = announce_case()
+    obj_to_file(_announce_case, f"{outdir}/announce_case.json")
+
+    # role delegation flow (ADR-0039) — distinct from the GI actor-suggestion
+    # handshake that offer_case_participant covers
+    _offer_role = offer_case_participant_role()
+    obj_to_file(_offer_role, f"{outdir}/offer_case_participant_role.json")
+    _accept_role = accept_case_participant_role()
+    obj_to_file(_accept_role, f"{outdir}/accept_case_participant_role.json")
+    _reject_role = reject_case_participant_role()
+    obj_to_file(_reject_role, f"{outdir}/reject_case_participant_role.json")
+
+    # case proposal flow (pre-case bootstrap, ADR-0023)
+    _create_case_proposal = create_case_proposal()
+    obj_to_file(_create_case_proposal, f"{outdir}/create_case_proposal.json")
+
+    _accept_case_proposal = accept_case_proposal()
+    obj_to_file(_accept_case_proposal, f"{outdir}/accept_case_proposal.json")
+
+    _reject_case_proposal = reject_case_proposal()
+    obj_to_file(_reject_case_proposal, f"{outdir}/reject_case_proposal.json")
+
+    # ledger replication flow (SYNC substrate, ADR-0077)
+    _announce_case_ledger_entry = announce_case_ledger_entry()
+    obj_to_file(
+        _announce_case_ledger_entry,
+        f"{outdir}/announce_case_ledger_entry.json",
+    )
+
+    _reject_case_ledger_entry = reject_case_ledger_entry()
+    obj_to_file(
+        _reject_case_ledger_entry,
+        f"{outdir}/reject_case_ledger_entry.json",
+    )
 
 
 if __name__ == "__main__":

@@ -1,7 +1,8 @@
 # Issue Creation Requirements
 
 Every new issue created via `manage_github_issue.sh` **must** supply three fields.
-Missing any one causes the script to exit non-zero.
+Missing any one causes the script to exit non-zero. Task and Bug bodies also
+need a `Governing specs:` line (see below).
 
 ## Required fields
 
@@ -11,6 +12,26 @@ Missing any one causes the script to exit non-zero.
 | **Parent epic** | `--parent N` | Routes the issue into the epic forest so it appears in sprint planning and prioritisation. An orphaned issue is invisible to capacity planning. |
 | **Milestone** | `--milestone N` | Anchors the issue to a delivery target. Without it the issue floats outside every milestone filter. |
 
+## Governing specs (Task and Bug bodies)
+
+Every **Task** or **Bug** body must also carry a `Governing specs:` line
+listing the spec IDs (e.g. `CS-02-003`) or group IDs (e.g. `EM-04`) the work
+must satisfy — for a Bug, the requirements that define the correct behavior:
+
+```text
+Governing specs: CS-02-003, EM-04, ARCH-01-002
+```
+
+Leave it empty only as an explicit `Governing specs: none — <reason>`.
+`build` and `bugfix` pass this line to `deepen-context` as the spec floor —
+the requirements loaded unconditionally, before any judgment-based selection. Draw the
+IDs from a `deepen-context` Spec manifest, or from
+`PYTHONPATH= uv run spec-dump --index` plus targeted `--topic`/`--group`
+loads. The script does not enforce this line; the authoring skill must.
+
+Idea, Concern, and Epic bodies are exempt (Epics may carry a topic-level
+line; their Tasks narrow it).
+
 ## Lookup commands
 
 ```bash
@@ -18,7 +39,14 @@ Missing any one causes the script to exit non-zero.
 bash .agents/skills/shared/board-id.sh issue-type Task
 
 # Open epics (pick the best-fit parent)
-gh issue list --repo CERTCC/Vultron --state open --limit 200 \
+# The limit MUST exceed the open-issue count — do not lower it. `gh` returns
+# newest-first, so a limit below the open-issue total silently truncates the
+# OLDEST issues, which is where long-lived epics live. At --limit 200 on a
+# 305-open-issue repo this returned 16 of 34 open epics and hid #1190
+# entirely. A truncated list is indistinguishable from a genuine no-match, and
+# `calve-epics` reads no-match as a signal to create a new epic (#3319).
+# Increase if the repo grows past 1000 open issues.
+gh issue list --repo CERTCC/Vultron --state open --limit 1000 \
   --json number,title,issueType \
   --jq '.[] | select(.issueType.name == "Epic") | "#\(.number): \(.title)"'
 

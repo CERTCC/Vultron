@@ -3,10 +3,11 @@ title: "Wire/Core Boundary — Pairing Registry, Translator, and Unknown-Key Rej
 status: active
 tags: [wire, core, boundary, vocabulary, pairing, translation, pydantic]
 description: >
-  Design rationale for the wire/core boundary contract: one declarative pairing
-  registry, one generic bidirectional translator on the adapter side, and
-  extra="forbid" on the core branch as the structural guarantee. Records the
-  four duplications this replaces and the measured evidence behind the choice.
+  Diagnosis of the wire/core boundary problem: the four duplications, the measured
+  evidence, and why "zero wire->core imports" was unreachable. The remedy it
+  proposed (one declarative pairing registry, one adapter-side translator,
+  extra="forbid" on the core branch) is superseded by ADR-0099, which removes the
+  second hierarchy instead. Read it for the problem, not the mechanism.
 related_specs:
   - specs/architecture.yaml
   - specs/vocabulary-model.yaml
@@ -26,6 +27,27 @@ relevant_packages:
 
 # Wire/Core Boundary — Pairing Registry, Translator, and Unknown-Key Rejection
 
+> **Status: the diagnosis here stands; the remedy is superseded by
+> [ADR-0099](../docs/adr/0099-one-object-model-as2-is-a-serialization.md).**
+>
+> Everything this note establishes about the *problem* is still accurate and
+> still worth reading: the four duplications, the measured evidence, and the
+> finding that "zero wire→core imports" was unreachable. Two things have since
+> changed underneath it.
+>
+> The unreachability finding was correct but drew the wrong conclusion. Three
+> MUSTs made zero impossible — so the rule was wrong, not the target. ARCH-22-001
+> is repealed: it is not among ADR-0009's six Key Rules, it inverts the inward
+> dependency direction hexagonal architecture prescribes, and it was itself the
+> cause of the duplicate `as_*` classes it appeared to guard against.
+>
+> And the remedy — reconciling two hierarchies with a pairing registry and a
+> generic translator — is replaced by removing the second hierarchy. Measured
+> across the 27 paired classes, none of the 346 differing fields is a semantic
+> disagreement. So the sections below that describe the ratchet, its
+> `KNOWN_VIOLATIONS` inventory, the exemption set, and the pairing registry
+> describe a plan that was cancelled. The migration is epic #2670.
+
 ADR: `docs/adr/0082-wire-core-boundary-pairing-registry.md`.
 Specs: ARCH-12-001 through ARCH-12-005, ARCH-22, ARCH-23, VM-01-004.
 Source: planning group G02 (#2830).
@@ -37,7 +59,7 @@ It is easy to conflate these, and doing so wastes a lot of time:
 | Rule | Direction | Remedy |
 |---|---|---|
 | ARCH-01-001 | core MUST NOT import wire | `WireRenderPort` (ADR-0063) for rendering; `WireParsePort` (ADR-0082) for parsing |
-| ARCH-22-001 | wire MUST NOT import core | move projection to the adapter side (ADR-0082) |
+| ARCH-22-001 | ~~wire MUST NOT import core~~ — **repealed** (ADR-0099) | replaced by an allow-list: wire MAY import `core/models/` and `core/states/` only (#3483) |
 
 ADR-0063 solved the *rendering* half of the first rule. It did **not** touch the
 second: its adapter is a thin dispatcher that still calls
@@ -77,6 +99,40 @@ Three MUST-level requirements made zero impossible:
   method load-bearing, and therefore the import permanent.
 - **ARCH-12-010** — `find_in_vocabulary()` MUST consult the core
   `CORE_TYPE_MAP`.
+
+### ARCH-12-010 is a trap for wire-side callers
+
+`find_in_vocabulary()` must consult `CORE_TYPE_MAP`, but a **wire** caller that
+resolves an inline `type` string through it gets a core class placed inside a wire
+tree, which the wire parent's field type then rejects. The measured case: an
+inbound activity with an inline actor, whose `inbox` is typed `OrderedCollection`
+— registered *only* in the core map — expanded to a core `CoreActorCollection`
+that `as_VultronOrganization.inbox` refused, degrading **every inline actor** on
+the inbound path to a bare `as_Link`. One instrumented suite run showed 52 hits,
+all from this single cause, with no malformed input involved (ISSUE-3217).
+
+The rule, now normative as **MV-04-003**: resolving an inline object's type
+inside a wire tree MUST consider wire-branch classes only
+(`issubclass(cls, as_Base)`); an unresolved type is left for the parent field to
+validate. A hit in the core map is a **coincidence of naming**, not a wire
+counterpart — the same disjointness ARCH-23-002 records for `VOCABULARY` and
+`WIRE_TYPE_MAP`. Wire-branch field annotations MUST NOT name `CoreObject`
+subclasses (ARCH-23-006; see § "`as_ObjectRef`: The Former Kludge" below for
+the history). The *name lookup* path is the wrong way to place a core object
+in a wire tree; the parent field annotation is the declared authority.
+
+Implementation: `vultron/wire/as2/parser.py::_inline_vocab_class`. ADR-0090.
+
+A filter inside one caller protects only that caller. The inbox adapter's
+`_reparse_as_specific_type` has no such filter and still produces a core class
+for an inbound `{"type": "OrderedCollection"}` (#3565). The general rule is
+**VM-06-008**: wire-branch resolution goes through a lookup that returns
+`as_Base` subclasses only, and the core fallback is opt-in. The core class behind
+that name, `CoreActorCollection`, is vestigial (#3563), and the wire collection
+classes are unregistered because they declare no `type_` annotation for
+`__init_subclass__` to see (#3564). Details are in
+[vocabulary-registry](vocabulary-registry.md) § "Why `OrderedCollection` Collided
+At All".
 
 An implementer working the easy files would reach the base classes and have to
 choose which MUST to break. ADR-0082 removes the first two structural causes —
@@ -227,11 +283,37 @@ The round-trip cleanups (ARCH-23-005) are still prerequisites rather than
 follow-ups, because the `@computed_field` half of the problem
 (`embargo_adherence`, 1096 failures) is real and independent.
 
-## `as_ObjectRef`: Which Part Is a Kludge
+## `as_ObjectRef`: The Former Kludge, Re-Added On Purpose
+
+**Removed in PR #3440** (ARCH-23-006), then **re-added deliberately in #3487**
+once ADR-0099 made a core type in a wire slot the intended shape rather than a
+migration convenience. Read this section for why it was a kludge the first time —
+the reasoning is sound and the distinction between the two cases is the point.
+
+The difference is the defect, not the union. `| CoreObject` was unsafe in PR #730
+because a core-side guard firing inside that union escaped the whole operation:
+`VultronValidationError` was not a `ValueError`, so Pydantic could not absorb it
+as a failed branch. That is now fixed — the class inherits `ValueError`, and
+`test_core_guard_inside_wire_union_fails_the_branch` holds the property — which is
+exactly the precondition ARCH-23-006's note set before the rule could be inverted.
+The fix was itself blocked until `VultronAlreadyExistsError` existed, because
+`crud.create` signalled a duplicate row with a bare `ValueError` that ~60 call
+sites swallow, so sharing the base made a projection failure indistinguishable
+from "already stored".
+
+For context on the original removal:
 
 ```python
+# FORMER definition (PR #730 through PR #3440):
 as_ObjectRef = ActivityStreamRef[as_Object] | CoreObject | None
-#   expands to:  as_Object | as_Link | str | None | CoreObject
+#   expanded to:  as_Object | as_Link | str | None | CoreObject
+
+# PR #3440 until #3487:
+as_ObjectRef = ActivityStreamRef[as_Object] | None
+#   expands to:  as_Object | as_Link | str | None
+
+# CURRENT definition (#3487, ADR-0099):
+as_ObjectRef = ActivityStreamRef[as_Object] | CoreObject | None
 ```
 
 **`as_Object | as_Link | str` is not a kludge.** AS2 explicitly permits a
@@ -239,39 +321,102 @@ property to hold either an embedded object or an IRI reference — that is how y
 avoid shipping a whole case inside every message. `rehydrate()` (VM-06-001)
 resolves it at a defined point.
 
-**`| CoreObject` is the kludge.** Added in PR #730 as a migration convenience, it
-places a core type inside a wire annotation — and therefore inside the `object_`
+**`| CoreObject` was the kludge.** Added in PR #730 as a migration convenience, it
+placed a core type inside a wire annotation — and therefore inside the `object_`
 field of every transitive activity, `as_Collection.items`,
 `as_Relationship.subject`/`.object`, and `as_Profile.describes`.
 
-Beyond violating ARCH-22-001, it makes a core-side guard unsafe to enforce
-loudly: **`VultronValidationError` is not a `ValueError` subclass**, so a guard
-firing while Pydantic resolves that union escapes the entire operation rather
+Beyond violating ARCH-22-001, it made a core-side guard unsafe to enforce
+loudly: **`VultronValidationError` was not a `ValueError` subclass (until #3487)**, so a guard
+firing while Pydantic resolved that union escaped the entire operation rather
 than being absorbed as a failed union branch. Any core-branch validator that
 raises must either be removed from union exposure (the chosen path, ARCH-23-006)
 or raise something Pydantic recognises as a validation failure.
 
+PR #3440 removed `| CoreObject` from both `as_ObjectRef` and
+`as_ObjectRequiredRef`, and added the ARCH-23-006 architecture ratchet
+(`test/architecture/test_wire_no_core_object_annotations.py`) to prevent
+re-introduction. Factory functions that previously accepted `CoreActor` now
+accept `as_Actor | str`; the adapter layer converts core objects to their wire
+counterparts before passing them.
+
+**Both halves of that were undone in #3487, and the ratchet was replaced rather
+than widened.** The union is back on purpose; the adapter-side conversion has
+nothing left to convert. The ratchet's replacement asserts the invariant detail 3
+states — every promoted class is exactly AS2-representable — because the
+alternative on offer was a 59-entry allowlist, which records violations without
+checking anything.
+
+One lesson worth keeping from the re-introduction: widening *some* of the slots is
+worse than widening none. `as_Activity.actor` and `as_ObjectRef` were widened while
+`target`/`origin`/`instrument` were not, so a promoted class in those three slots
+escaped its declared union — malformed payloads outbound, refusals inbound, and
+HTTP 422 on every `Create(VulnerabilityCase)`. The type errors that flagged it were
+suppressed with `# type: ignore[assignment]`, so mypy and pyright stayed green
+while the protocol did not work.
+
 ## Related Files
 
 - `docs/adr/0082-wire-core-boundary-pairing-registry.md` — the decision
-- `docs/adr/0062-…` — superseded by 0081; still describes current code
-- `docs/adr/0063-…` — decision stands, mechanism revised by 0081
+- `docs/adr/0062-…` — superseded by 0082; still describes current code
+- `docs/adr/0063-…` — decision stands, mechanism revised by 0082
 - `vultron/core/models/_wire_spelling.py` — the camelCase guard, retired by
   ARCH-12-003's `extra="forbid"` clause
 - `vultron/adapters/driven/wire_render/as2.py` — the render adapter whose
   name-collision lookup ARCH-23-001 replaces
-- `test/architecture/test_wire_no_core_model_imports.py` — the ARCH-22 ratchet
+- `test/architecture/test_wire_core_import_allowlist.py` — the ARCH-22 allow-list, which replaced the ratchet (#3483). The ratchet file is deleted
 
-## Deleting a Wire-Spelling Shim Without a Reject-Guard Is Silent Data Loss
+## `extra="forbid"` Is the Boundary Contract (landed, #2940)
 
-Pydantic v2 defaults to `extra="ignore"`, so removing a validator that accepted a
-legacy camelCase key makes that key *silently dropped* and the field default to
-its start value — a lost RM ladder, not an error. Until `extra="forbid"` lands
-everywhere, always pair the deletion with a `model_validator(mode="before")`
-built on `reject_wire_spelled_keys` (`vultron/core/models/_wire_spelling.py`).
-See SDO-03-005, ARCH-15-002.
+Pydantic v2 defaults to `extra="ignore"`, so historically removing a validator
+that accepted a legacy camelCase key silently dropped that key and reset the
+field to its start value — a lost RM ladder, not an error (the #2232 defect).
 
-**Superseded direction (ADR-0082)**: ARCH-12-003 now requires `extra="forbid"` on
-all core-branch types, which subsumes this guard — it rejects any unknown key, not
-only camelCase ones. Once that lands, `_wire_spelling.py` and the per-class guards
-are deleted. Until then this pitfall still applies.
+> **Under ADR-0099 the camelCase key is read, not refused.** #3487 put
+> `alias_generator=to_camel` on `CoreObject` (detail 2), so `participantStatuses`
+> is a declared alias of `participant_statuses` and lands in the right field. With
+> `extra="forbid"` beside it, the only key still refused is one matching *no*
+> field — a retired name or a typo — which is exactly the case that used to vanish.
+
+`CoreObject` now sets `extra="forbid"` (ARCH-12-003): any **unknown** key on a
+core type raises rather than being dropped. This **subsumed and retired** the
+per-class camelCase reject-guards and `vultron/core/models/_wire_spelling.py`,
+and the persistence-boundary normalisation gate (`_normalize_to_core`,
+`_NORMALIZE_WIRE_TO_CORE`, `_project_shadowing_wire_obj`) — all deleted in #2940.
+A wire-shaped row that is nonetheless persisted is projected to its core
+counterpart on **read** (`hydration.project_wire_row_to_core`).
+
+**Be precise about how much this rejects, because it is less than "a
+wire-shaped payload fails loudly".** `forbid` rejects keys the model does not
+know. Keys the model *does* know under a wire spelling are still accepted:
+
+- `participantStatuses`, `caseRoles` and other camelCase spellings are
+  **accepted** once #3487 lands: `CoreObject` derives them as aliases (ADR-0099
+  detail 2), so they are read into their fields. Only a key matching no field
+  raises.
+- A flat `rm_state`/`rmState` on `ParticipantStatus`, or `em_state` on
+  `CaseStatus`, is **accepted** — those spellings are declared `AliasChoices` on
+  the dimension fields, so the value is *interpreted*, not dropped. That is not
+  the #2232 defect (nothing is lost), but it does mean
+  `CaseStatus.model_validate(as_CaseStatus(...).model_dump())` succeeds rather
+  than failing, and so does the `CaseParticipant` equivalent. #2288/#2289, which
+  would have made those spellings raise by removing the `alias_generator`, are
+  closed as superseded by ADR-0099; #3578 owns reconciling ARCH-12-003.
+
+Two invariants keep `extra="forbid"` self-consistent, both enforced on
+`CoreObject` as `mode="before"` validators (see `_drop_computed_field_inputs`
+and `_drop_alias_shadowed_field_names`):
+
+- **Strip computed fields before re-validation.** A `@computed_field`
+  (`embargo_adherence`, ADR-0056) appears in `model_dump()` output but is not
+  settable, so a round-trip must drop it first.
+- **Never leave an alias key beside its field-name twin.** A `mode="before"`
+  validator that derives a field and writes it under the alias (`id`) beside a
+  dumped field-name key (`id_`) leaves an unconsumed twin that `extra="forbid"`
+  rejects; the base de-dup validator drops the field-name twin (alias wins).
+
+Ratchet: `test/architecture/test_core_extra_forbid.py` (every `CoreObject`
+forbids extras with no exemption list; a dump round-trips exactly; the retired
+mechanisms cannot be reintroduced). Deliberate wire→core snapshot
+reconstruction in core nodes projects camelCase spellings via
+`project_wire_snapshot_to_core` until the `WireParsePort` (#2938) owns it.

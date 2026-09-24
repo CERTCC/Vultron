@@ -1,46 +1,33 @@
-# Suggesting an Actor for a Case
+---
+stakeholder_type: [platform-developer]
+level: 300
+---
 
-{% include-markdown "../../../includes/not_normative.md" %}
+# How to Suggest an Actor for a Case
 
-During the course of coordinating a case, an existing case participant might recognize that another actor
-should be invited to participate in the case. The following mechanisms provide a way for a case participant
-to suggest that another actor be invited to participate in the case.
+Use this guide when you believe an actor belongs on a case and you are not the one who decides.
+A suggestion goes to the CASE_MANAGER, which presents it to the Case Owner for a decision (ADR-0026, ADR-0029).
+You finish with the suggested actor either invited or the recommendation declined, and with the outcome reported back to you.
 
-<!-- for vertical spacing -->
-<br/>
-<br/>
-<br/>
+---
 
-!!! question "Why Suggest instead of just Invite?"
+## Prerequisites
 
-    The process described here makes an assumption that there is a case owner who is responsible for coordinating the 
-    case. Participants having the case owner role can in principle just directly invite other actors to participate in 
-    the case, and they might not need the suggestion mechanism described here. However, we include this mechanism
-    to account for the possibilities that:
-    
-    - there could be multiple case owners, and they might not all agree on who should be invited to participate in the 
-      case.
-    - a non-case-owner participant might want to suggest that another actor be invited to participate in the case
+{% include-markdown "./_demo_prerequisites.md" %}
 
-    Of these, the latter is the more likely scenario, but the mechanism described here can be used in either case.    
+- A case you participate in.
+  Any participant can suggest an actor.
+- The suggested actor's Uniform Resource Identifier (URI).
+- The CASE_MANAGER's actor URI.
 
-!!! example "Reasons to Invite other Actors"
+If you hold the Case Owner role and the decision is yours alone, invite the actor directly instead — see [How to Invite an Actor to a Case](invite_actor.md).
 
-    There are many reasons why a case participant might want to suggest another actor to participate in a case.
-    The following are some examples:
+---
 
-    - A finder, having reported to one vendor, might further discover that the vulnerability is actually in a 
-      third-party library, and suggest inviting the library vendor to participate in the case.
-    - A vendor might be a participant in (but not the owner of) a case, and wants to suggest that the case owner
-      invite a sector-specific coordinator to participate in the case to address critical infrastructure concerns.
-    - A reporter participant might suggest a technical expert (for example, a member of a protocol working group) to 
-      include in the case.
-    - A coordinator might suggest to the case owner that a large deployer be invited to participat in a case to 
-      address concerns about the impact of deploying a fix for a vulnerability on infrastructure and operations.
+## The exchange
 
-Below is a sequence diagram showing the process of suggesting an actor for a case.
-We used a sequence diagram instead of a flow chart since the process is relatively simple and the sequence diagram
-is easier to read.
+The sequence diagram below shows the full round trip, from recommendation to invitation or refusal.
+The recommender never contacts the Case Owner or the invitee directly.
 
 ```mermaid
 ---
@@ -48,7 +35,7 @@ title: Suggesting an Actor for a Case (ADR-0026 CaseActor-routed)
 ---
 sequenceDiagram
     actor A as Recommender
-    participant CA as CaseActor
+    participant CA as CASE_MANAGER
     actor B as Case Owner
     actor D as Invitee
     Note over A: Recognize that Actor should be invited
@@ -71,61 +58,50 @@ sequenceDiagram
     deactivate CA
 ```
 
-## Recommend Actor
+---
 
-A participant recommends another actor to the **CaseActor** by sending an `Offer` activity with the
-`object` property set to the actor being recommended and the `target` set to the case.
-The CaseActor records the recommendation in the canonical ledger, assigns default roles, and
-forwards a transformed offer to the Case Owner.
+## Recommend the actor
 
-```python exec="true" idprefix=""
-from vultron.wire.as2.vocab.examples.vocab_examples import recommend_actor, json2md
+The formal message set does not name this exchange: all three activities fall under the General Inquiry (GI) umbrella, which is a placeholder rather than a description — see [Why `GI` expands](../../../topics/activity_vocabulary_design.md#why-gi-expands-and-why-the-expansion-has-no-end).
 
-print(json2md(recommend_actor()))
-```
+1. Send `Offer(Actor)` to the CASE_MANAGER with the recommended actor as its `object` and the case as its `target`.
+2. Wait.
+   The CASE_MANAGER records the recommendation on the ledger, assigns default roles, and forwards a transformed offer to the Case Owner.
+3. Read the outcome from the CASE_MANAGER's reply — `Accept(Offer(CaseParticipant))` or `Reject(Offer(CaseParticipant))`.
 
-## CaseActor Forwards Offer to Case Owner
+The forwarded offer carries the original recommendation's ID in its `origin` field, so the Case Owner can trace the request back to you.
 
-The CaseActor transforms the `Offer(Actor, Case)` into `Offer(CaseParticipant{actor, roles}, Case)`
-and sends it to the Case Owner's inbox. The `origin` field carries the ID of the original recommendation
-so the Case Owner can trace the causal chain.
+---
 
-```python exec="true" idprefix=""
-from vultron.wire.as2.vocab.examples.vocab_examples import offer_case_participant, json2md
+## Decide on a recommendation
 
-print(json2md(offer_case_participant()))
-```
+As Case Owner, answer the forwarded offer, addressing the reply to the CASE_MANAGER and not to the recommender.
 
-## Case Owner Accepts Recommendation
+- If the actor should join, send `Accept(Offer(CaseParticipant))`, with the forwarded `Offer(CaseParticipant)` as its `object`.
+  The CASE_MANAGER then invites the actor.
+- If it should not, send `Reject(Offer(CaseParticipant))` with the same `object`.
+  No invitation is sent.
 
-The Case Owner accepts the recommendation by sending `Accept(Offer(CaseParticipant))` to the
-**CaseActor** (not directly to the recommender). The CaseActor records the decision, notifies the
-original recommender, and sends an `Invite` to the proposed participant.
+!!! warning "Replying to the recommender skips the record"
 
-```python exec="true" idprefix=""
-from vultron.wire.as2.vocab.examples.vocab_examples import accept_case_participant_offer, json2md
+    The CASE_MANAGER is the single writer for the case ledger.
+    A decision sent straight back to the recommender is never committed, so no replica learns of it and no invitation follows.
 
-print(json2md(accept_case_participant_offer()))
-```
+---
 
-## Case Owner Rejects Recommendation
+## Verify
 
-The Case Owner rejects the recommendation by sending `Reject(Offer(CaseParticipant))` to the
-**CaseActor**. The CaseActor records the decision and notifies the original recommender.
+| What you sent | What to confirm |
+|---|---|
+| `Offer(Actor)` | The recommendation appears as a ledger entry. |
+| `Accept(Offer(CaseParticipant))` | The recommender holds an `Accept(Offer(CaseParticipant))`, and the suggested actor holds an `Invite`. |
+| `Reject(Offer(CaseParticipant))` | The recommender holds a `Reject(Offer(CaseParticipant))`, and no `Invite` was sent. |
 
-```python exec="true" idprefix=""
-from vultron.wire.as2.vocab.examples.vocab_examples import reject_case_participant_offer, json2md
+---
 
-print(json2md(reject_case_participant_offer()))
-```
-
-{% include-markdown "./_invite_to_case.md" heading-offset=1 %}
-
-## Demo
+## See it end to end
 
 !!! example "Try it: `vultron-demo suggest-actor`"
-
-    Run this workflow end-to-end with the unified demo CLI:
 
     ```bash
     vultron-demo suggest-actor
@@ -136,3 +112,13 @@ print(json2md(reject_case_participant_offer()))
     ```bash
     DEMO=suggest-actor docker compose -f docker/docker-compose.yml run --rm demo
     ```
+
+    The scenario runs both outcomes: the Case Owner accepts one suggestion and rejects another.
+
+---
+
+## Further reading
+
+- [General Inquiry (GI) Messages](../../../reference/messages/general.md) — the wire format and a rendered example for the recommendation activities
+- [Case Management Messages](../../../reference/messages/case_management.md) — the wire format for the forwarded offer and its accept and reject replies
+- [Activity Vocabulary Design](../../../topics/activity_vocabulary_design.md) — why the suggestion step exists alongside direct invitation, and the situations it covers

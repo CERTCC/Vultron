@@ -17,6 +17,7 @@ import pytest
 from pydantic import ValidationError
 
 import vultron.wire.as2.vocab.objects.case_reference as cr
+from vultron.core.models.case_reference import CASE_REFERENCE_TAG_VOCABULARY
 from vultron.core.models.enums import VultronObjectType as VO_type
 
 
@@ -29,7 +30,7 @@ class TestCaseReference(unittest.TestCase):
             url="https://example.org/advisory/",
             name="Example Security Advisory",
             tags=["vendor-advisory", "patch"],
-            attributed_to=["https://example.org/actor/alice"],
+            attributed_to="https://example.org/actor/alice",
         )
 
     def test_case_reference_creation_with_all_fields(self):
@@ -45,7 +46,7 @@ class TestCaseReference(unittest.TestCase):
     def test_case_reference_url_required(self):
         """Test that url field is required."""
         with pytest.raises(ValidationError):
-            cr.as_CaseReference()
+            cr.as_CaseReference()  # pyright: ignore[reportCallIssue]
 
     def test_case_reference_url_not_empty(self):
         """Test that url must be non-empty string."""
@@ -134,7 +135,7 @@ class TestCaseReference(unittest.TestCase):
 
     def test_case_reference_all_valid_cve_tags(self):
         """Test that all CVE schema tags are accepted."""
-        all_tags = list(cr.CASE_REFERENCE_TAG_VOCABULARY)
+        all_tags = list(CASE_REFERENCE_TAG_VOCABULARY)
         # Test each tag individually
         for tag in all_tags:
             ref = cr.as_CaseReference(url="https://example.org/", tags=[tag])
@@ -144,7 +145,7 @@ class TestCaseReference(unittest.TestCase):
     def test_case_reference_round_trip(self):
         """Test serialization and deserialization round-trip."""
         ref = self.reference
-        json_str = ref.to_json()
+        json_str = ref.model_dump_json(exclude_none=True, by_alias=True)
         deserialized = cr.as_CaseReference.model_validate_json(json_str)
 
         self.assertEqual(ref.url, deserialized.url)
@@ -154,7 +155,7 @@ class TestCaseReference(unittest.TestCase):
     def test_case_reference_round_trip_minimal(self):
         """Test round-trip with minimal fields."""
         ref = cr.as_CaseReference(url="https://example.org/")
-        json_str = ref.to_json()
+        json_str = ref.model_dump_json(exclude_none=True, by_alias=True)
         deserialized = cr.as_CaseReference.model_validate_json(json_str)
 
         self.assertEqual(ref.url, deserialized.url)

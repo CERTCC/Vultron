@@ -22,7 +22,7 @@ Two risks followed from the stored implementation:
    `embargo_adherence=True`.
 
 2. **Fail-open default.** The default `True` means a freshly constructed
-   `ParticipantStatus` — with `consent=None` or `consent.state=NO_EMBARGO` —
+   `ParticipantStatus` — with `consent=None` or `consent.state=UNBOUND` —
    reads as "is a signatory". The MV-10-005 full-case-delivery gate depends
    on this field; a wrong default bypasses the gate silently.
 

@@ -51,17 +51,17 @@ def resolve_pxa_threat_state(case_status: object) -> CS_pxa | None:
     if case_status is None:
         return None
     if hasattr(case_status, "pxa"):
-        pxa_state = getattr(case_status, "pxa").state
+        _pxa = getattr(case_status, "pxa")
+        if _pxa is None:
+            return None
+        pxa_state = _pxa.state
     elif hasattr(case_status, "pxa_state"):
         pxa_state = getattr(case_status, "pxa_state")
     else:
         return None
     if pxa_state is None:
         return None
-    try:
-        if pxa_state == CS_pxa.pxa:
-            return None
-    except Exception:
+    if pxa_state == CS_pxa.pxa:
         return None
     return cast(CS_pxa, pxa_state)
 
@@ -97,6 +97,9 @@ class _ThreatTerminationSkipConditionNode(DataLayerConditionWithPorts):
         """Read case.current_status from the DataLayer; returns None on any miss."""
         if self.datalayer is None or not self.case_id:
             return None
+        # Lenient best-effort read (ADR-0087): a post-mutation state fallback;
+        # an unresolvable case simply yields no status (None), which the caller
+        # treats as "no threat info" (conformance allowlist).
         case_obj = self.datalayer.read_case(self.case_id)
         if case_obj is None:
             return None
@@ -133,6 +136,10 @@ class _ThreatTerminationSkipConditionNode(DataLayerConditionWithPorts):
         if self.datalayer is None or not self.case_id:
             return Status.SUCCESS
 
+        # Lenient guard (ADR-0087): returns FAILURE only to *signal* that an
+        # active embargo must be terminated on threat; every other path is
+        # SUCCESS ("nothing to terminate"). An unresolvable case cannot have an
+        # active embargo to terminate, so SUCCESS is correct (allowlist).
         case = self.datalayer.read_case(self.case_id)
         if case is None:
             return Status.SUCCESS

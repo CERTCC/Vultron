@@ -27,7 +27,6 @@ from typing import Any, cast
 
 from pydantic import ValidationError
 
-from vultron.core.models.actor import CoreActor
 from vultron.core.models.case import VulnerabilityCase
 from vultron.enums.roles import CVDRole
 from vultron.core.states.em import EM
@@ -53,6 +52,7 @@ from vultron.wire.as2.vocab.activities.case import (
     _RmDeferCaseActivity,
     _RmEngageCaseActivity,
     _RmInviteToCaseActivity,
+    _RmRejectCloseCaseActivity,
     _RmRejectInviteToCaseActivity,
     _UpdateCaseActivity,
 )
@@ -81,11 +81,14 @@ from vultron.wire.as2.vocab.objects.embargo_event import (
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCase,
     as_VulnerabilityCaseRef,
-    VulnerabilityCaseStub,
+    as_VulnerabilityCaseStub,
 )
 from vultron.wire.as2.vocab.objects.case_proposal import as_CaseProposal
 from vultron.wire.as2.vocab.objects.vulnerability_report import (
     as_VulnerabilityReport,
+)
+from vultron.core.models.dimensions import (
+    EmDimension,
 )
 
 logger = logging.getLogger(__name__)
@@ -94,8 +97,8 @@ logger = logging.getLogger(__name__)
 def _project_case_to_stub(
     case: Any,
     embargo_obj: Any,
-) -> VulnerabilityCaseStub:
-    """Project a ``as_VulnerabilityCase`` (core or wire) to a ``VulnerabilityCaseStub``.
+) -> as_VulnerabilityCaseStub:
+    """Project a ``as_VulnerabilityCase`` (core or wire) to a ``as_VulnerabilityCaseStub``.
 
     When ``em_state == EM.ACTIVE`` and *embargo_obj* is provided, the stub
     carries ``active_embargo`` (ID + ``end_time``) and ``case_status``
@@ -110,7 +113,7 @@ def _project_case_to_stub(
     try:
         current_status = case.current_status
     except (ValueError, AttributeError):
-        return VulnerabilityCaseStub(id_=case_id)
+        return as_VulnerabilityCaseStub(id_=case_id)
     # Support both core CaseStatus (.em.state) and wire as_CaseStatus (.em_state)
     if hasattr(current_status, "em") and hasattr(current_status.em, "state"):
         em_state = current_status.em.state
@@ -118,15 +121,22 @@ def _project_case_to_stub(
         em_state = getattr(current_status, "em_state", None)
     active_embargo_uri = getattr(case, "active_embargo", None)
     if em_state != EM.ACTIVE or active_embargo_uri is None:
-        return VulnerabilityCaseStub(id_=case_id)
-    wire_status = as_CaseStatus(em_state=em_state)
+        return as_VulnerabilityCaseStub(id_=case_id)
+    # ``context`` names the case this status belongs to.  It is required on the
+    # core class (fail-fast, ARCH-10-001); the deleted wire class allowed it to be
+    # absent because the wire branch was deliberately lenient (ARCH-12-002).
+    wire_status = as_CaseStatus(
+        context=case_id, em=EmDimension(state=em_state)
+    )
     embargo_ref: WireEmbargoEvent | str = active_embargo_uri
     if embargo_obj is not None:
         end_time = getattr(embargo_obj, "end_time", None)
         if end_time is not None:
             try:
                 embargo_ref = WireEmbargoEvent(
-                    id_=active_embargo_uri, end_time=end_time
+                    id_=active_embargo_uri,
+                    end_time=end_time,
+                    context=case_id,
                 )
             except ValidationError as exc:
                 logger.warning(
@@ -135,7 +145,7 @@ def _project_case_to_stub(
                     active_embargo_uri,
                     exc,
                 )
-    return VulnerabilityCaseStub(
+    return as_VulnerabilityCaseStub(
         id_=case_id,
         active_embargo=embargo_ref,
         case_status=wire_status,
@@ -637,7 +647,7 @@ def reject_case_ownership_transfer_activity(
 
 
 def rm_invite_to_case_activity(
-    invitee: CoreActor | as_Actor,
+    invitee: as_Actor | str,
     target: Any = None,
     roles: list[str] | None = None,
     embargo_obj: Any = None,
@@ -652,12 +662,12 @@ def rm_invite_to_case_activity(
     Args:
         invitee: The ``as_Actor`` (or actor URI) being invited.
         target: The case to join — either a ``as_VulnerabilityCase`` (core or wire;
-            projected to an enriched ``VulnerabilityCaseStub`` via
-            :func:`_project_case_to_stub`), a pre-built ``VulnerabilityCaseStub``,
+            projected to an enriched ``as_VulnerabilityCaseStub`` via
+            :func:`_project_case_to_stub`), a pre-built ``as_VulnerabilityCaseStub``,
             or a bare URI string.
         roles: Optional list of intended CVD role strings for the invitee
             (CM-17-003).  When provided the Invite carries the intended
-            participant roles so ``CreateInviteeParticipantAtReceivedNode``
+            participant roles so ``CreateInviteeParticipantNode``
             can set them on the new ``VultronParticipant``.
         embargo_obj: The fetched ``EmbargoEvent`` for the case, used when
             *target* is a ``as_VulnerabilityCase`` and ``em_state == EM.ACTIVE``
@@ -673,6 +683,8 @@ def rm_invite_to_case_activity(
     """
     if isinstance(target, (VulnerabilityCase, as_VulnerabilityCase)):
         target = _project_case_to_stub(target, embargo_obj)
+    if isinstance(invitee, str):
+        invitee = as_Actor(id_=invitee)
     if roles is not None:
         kwargs["roles"] = roles
     try:
@@ -759,6 +771,42 @@ def rm_reject_invite_to_case_activity(
         )
         raise VultronActivityConstructionError(
             "rm_reject_invite_to_case_activity: invalid arguments"
+        ) from exc
+
+
+def reject_close_case_activity(
+    leave: as_Leave,
+    **kwargs,
+) -> as_Reject:
+    """Build a Reject(_RmCloseCaseActivity) — declines an owner close (CM-23-011).
+
+    Per ActivityStreams convention the Case Actor rejects the
+    ``Leave(VulnerabilityCase)`` activity itself.  The ``leave`` MUST be the
+    value returned by :func:`rm_close_case_activity`; a plain ``as_Leave``
+    will fail validation.
+
+    Args:
+        leave: The ``_RmCloseCaseActivity`` (the Leave) being declined.
+        **kwargs: Optional AS2 fields forwarded to the constructor
+            (e.g. ``actor``, ``to``, ``in_reply_to``).
+
+    Returns:
+        An ``as_Reject`` whose ``object_`` is the leave.
+
+    Raises:
+        VultronActivityConstructionError: If Pydantic validation fails.
+    """
+    try:
+        return _RmRejectCloseCaseActivity(
+            object_=cast(_RmCloseCaseActivity, leave),
+            **kwargs,
+        )
+    except ValidationError as exc:
+        logger.warning(
+            "reject_close_case_activity: invalid arguments: %s", exc
+        )
+        raise VultronActivityConstructionError(
+            "reject_close_case_activity: invalid arguments"
         ) from exc
 
 

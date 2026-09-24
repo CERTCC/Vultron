@@ -44,7 +44,6 @@ class ActivityPattern(BaseModel):
     object_: Optional[Union[AOtype, VOtype, "ActivityPattern"]] = None
     target_: Optional[Union[AOtype, VOtype, "ActivityPattern"]] = None
     context_: Optional[Union[AOtype, VOtype, "ActivityPattern"]] = None
-    in_reply_to_: Optional["ActivityPattern"] = None
 
     def match(self, activity: as_Activity) -> bool:
         """Return True if the given activity matches this pattern."""
@@ -61,11 +60,6 @@ class ActivityPattern(BaseModel):
             (self.target_, getattr(activity, "target", None), self.strict),
             (self.context_, getattr(activity, "context", None), False),
             (self.to_, getattr(activity, "to", None), False),
-            (
-                self.in_reply_to_,
-                getattr(activity, "in_reply_to", None),
-                self.strict,
-            ),
         )
         return all(
             _match_activity_field(pattern_field, activity_field, strict)

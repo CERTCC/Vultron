@@ -79,85 +79,6 @@ sometimes legitimate, but it should not become invisible. When a
 architectural smell: the handler is mixing inbound processing with
 outbound broadcast and should be reviewed for a cleaner split later.
 
-## Auto-Rehydration: `dl.read()` MUST Return Fully Typed Objects
-
-The DataLayer port MUST guarantee that `dl.read(id)` and
-`dl.list_objects(type_key)` always return fully rehydrated, typed domain
-objects — never raw storage records, untyped dicts, or objects with
-dehydrated string references in nested fields.
-
-**Rationale**: the SQLite DataLayer adapter currently dehydrates nested
-object references to ID strings on write. Without auto-rehydration on
-read, every use case that retrieves an activity with a nested object must
-manually coerce the dehydrated string back to a typed object via
-`model_validate`. That duplication:
-
-- directly caused the INLINE-OBJ-B bugs (bare string `object_` values
-  passing through to Accept/Reject constructors)
-- repeats the same strip-and-validate boilerplate across multiple use
-  cases
-- violates the hexagonal principle that core should not know about
-  storage internals
-
-Auto-rehydration applies to **all fields that the adapter dehydrates**:
-
-- `object_` — the primary offender (transitive activity nested object)
-- `target` — target object reference
-- `origin` — origin object reference
-- any other field that `_dehydrate_data` currently collapses to an ID
-  string
-
-Once the DataLayer adapter implements auto-rehydration on read, all
-manual coercion code in use cases MUST be removed. Search targets
-include:
-
-- `vultron/core/use_cases/triggers/embargo.py`
-- `vultron/core/use_cases/triggers/report.py`
-- `vultron/core/use_cases/received/sync.py`
-- any other site calling `model_validate` after `dl.read()` to recover
-  nested object type information
-
-Specs: `specs/datalayer.yaml` DL-01-001 through DL-01-004.
-
-## Core Should Reliably Get Domain Objects from DataLayer
-
-Core should be able to call `dl.read(id)` or `dl.list(type_key)` and
-receive properly typed domain objects rather than raw SQLite records,
-untyped dicts, or ambiguous `StorableRecord` types.
-
-Conversely, when persisting objects, core should be able to call
-`dl.save(domain_obj)` and trust that the adapter handles the translation
-to whatever storage format is needed. Core should not need to call
-`object_to_record()` or know anything about storage internals.
-
-Symptoms of an unhealthy boundary include:
-
-- `record_to_object()` being called in core use cases to convert
-  DataLayer results back into domain objects
-- `object_to_record()` being called in core use cases before
-  `dl.update()`
-- type checks like `if isinstance(result, Document): ...` appearing in
-  core, revealing DataLayer implementation details in business logic
-
-Recommended direction:
-
-1. `dl.read(id)` returns a typed, fully rehydrated domain object (or
-   raises `VultronNotFoundError`).
-2. `dl.save(obj)` accepts domain objects directly and handles all
-   serialization internally.
-3. `dl.list(type_key)` returns an iterable of typed, fully rehydrated
-   domain objects.
-4. All `object_to_record()` / `record_to_object()` calls move into the
-   adapter.
-
-A mapping layer between core objects and DataLayer records belongs in the
-adapter, not in core. This improves separation of concerns and makes core
-logic easier to test without mocking storage internals.
-
-This is also why `get()` and `by_type()` are a poor long-term fit for
-`CasePersistence`: they keep raw-record style access available to core
-when the target direction is fully typed domain-object access.
-
 ## DataLayer Storage Records Need Re-Evaluation
 
 `Record` and `StorableRecord` in
@@ -184,98 +105,49 @@ Research needed: audit all current callers of `object_to_record()`,
 `record_to_object()`, and `find_in_vocabulary()` to understand the scope
 of the coupling before designing the refactor.
 
-## Read Path MUST Return Core Objects (ADR-0034, DL-05)
+## Write Path Stores Verbatim; the Boundary Is `extra="forbid"` (#2232, #2940)
 
-**Decided (ADR-0034):** `dl.read()` and `dl.list_objects()` MUST return
-**core** domain objects (`vultron/core/models/`), never **wire** vocabulary
-types (`vultron/wire/as2/vocab/objects/`, `as_`-prefixed), for any persisted
-`type_` that has a registered core counterpart in `CORE_VOCABULARY`.
+**Superseded (#2940).** The write-side normalisation gate this section used to
+describe — `Record.from_obj()` projecting through `_normalize_to_core()`, the
+`_NORMALIZE_WIRE_TO_CORE` frozenset, its grow-only ratchet, and
+`_project_shadowing_wire_obj` — **is deleted**. ADR-0062 is archived; the
+contract is now ADR-0082 / ARCH-12-003.
 
-**Implemented (PR #1529):** The read path now reconstructs domain entities via
-`CORE_VOCABULARY`, so `dl.read()` returns core objects. The duck-typing
-Protocols and `TypeGuard` helpers (`CaseModel`, `is_case_model()`, etc.) in
-`vultron/core/models/protocols.py` were removed; core uses direct
-`isinstance()` checks against concrete core classes (DL-05-003).
+The problem it solved was real and is worth keeping in view: `Record.from_obj()`
+rejected objects whose `type_` starts with `as_`, but wire vocabulary `type_`
+values are **bare** (`"CaseParticipant"`, not `"as_CaseParticipant"`), so the
+guard never fired for the 15 wire classes that shadow a `CORE_VOCABULARY` entry.
+A wire-shaped object was written into a core-typed row, and whichever class read
+the row back decided what the data meant. For `ParticipantStatus` and
+`CaseParticipant` the two shapes are *structurally* incompatible — core nests
+`rm: RmDimension` where wire carries a flat `rm_state` — so a wire-shaped row
+makes `status.rm.state` yield `None` rather than merely misspell a key.
 
-DL-05 end-state achieved (all four requirements met):
+**Rule (current):** the guard moved from the write path to the *type*.
+`CoreObject` sets `extra="forbid"` (ARCH-12-003), so handing a wire-shaped
+payload to a core type raises a pydantic `ValidationError` instead of silently
+discarding every snake_case-only key. Two consequences for this adapter:
 
-1. The adapter reconstructs registered domain entities via
-   `find_in_core_vocabulary()` / `CORE_VOCABULARY`, so reads/writes of domain
-   entities are core → core.
-2. The adapter owns wire↔core translation and keeps its own
-   `type_`→core-class mapping, independent of the wire `VOCABULARY`.
-3. The duck-typing Protocols in `protocols.py` are removed; core depends on
-   concrete core classes (real `isinstance` narrowing).
-4. A ratchet test asserts no `vultron.wire.as2` vocabulary type escapes
-   `dl.read()` / `dl.list_objects()` into `vultron/core/`.
+- **Writes store verbatim.** `Record.from_obj()` and `_storable_to_record()` no
+  longer project anything; a row is persisted in whatever shape it arrived.
+- **Reads project.** `ValidationError` is the shape-mismatch signal that drives
+  the read-side fallback (`_from_row` → `_wire_object_from_row` →
+  `_project_wire_row_to_core`), so a wire-shaped row still reads back as core.
+  When even that projection fails, `dl.read()` logs a WARNING and returns the
+  **wire** object (see "A DataLayer Fallback Is a Smell for a Masked Protocol
+  Bug" below).
 
-**Recognised exception — AS2 Activities.** The 29 protocol message types
-(`vultron/wire/as2/vocab/activities/`) have no core counterpart, so they
-cannot be returned as core objects. Core code that reads a stored wire
-Activity back from the DataLayer (e.g. `dl.read(offer_id)` returning an
-`as_Offer`) is itself a boundary violation (ARCH-01-002, ARCH-03-001), but
-migrating it out of core is tracked as a **separate concern** (#1506, decided
-in ADR-0035), not part of the DL-05 entity work. Until then, the ratchet
-exemption set enumerates these Activity types explicitly so it can only shrink.
+Two caveats worth knowing before touching this path:
 
-## Write Path Normalises Wire → Core (#2232, ADR-0062)
-
-The read-path rule above says nothing about what gets *written*, and that gap
-was load-bearing. `Record.from_obj()` rejected objects whose `type_` starts with
-`as_` — but wire vocabulary `type_` values are **bare** (`"CaseParticipant"`, not
-`"as_CaseParticipant"`), so the guard never fired for the 15 wire classes that
-shadow a `CORE_VOCABULARY` entry. A wire-shaped object was written into a
-core-typed row, and whichever class read the row back decided what the data
-meant.
-
-For `ParticipantStatus` and `CaseParticipant` the two shapes are *structurally*
-incompatible — core nests `rm: RmDimension` where wire carries a flat `rm_state`
-— so a wire-shaped row makes `status.rm.state` yield `None` rather than merely
-misspell a key.
-
-**Rule:** `Record.from_obj()` normalises through `_normalize_to_core()`
-(`vultron/adapters/driven/db_record.py`) before serialising. The object **and its
-direct children** are projected via `to_core()`; one level of children is
-sufficient because `to_core()` recurses. Child projection is not optional
-polish: a `VulnerabilityCase` row stores its `case_participants` inline, so
-checking only the top level still persisted a flat `rm_state` inside a
-core-shaped case.
-
-`_NORMALIZE_WIRE_TO_CORE` enumerates the migrated types. It is the write-side
-analogue of `KNOWN_WIRE_ESCAPES` and ratchets the opposite way — it may only
-**grow** (`test/architecture/test_normalize_wire_to_core_ratchet.py`). **The set
-is now complete**: all fifteen shadowing types are normalised — the five actor
-types (`VultronApplication`, `VultronGroup`, `VultronOrganization`,
-`VultronPerson`, `VultronService`) via issue #2402, the remaining ten object
-types via issue #2268. Do not restate a "remaining" count here; the enumeration
-lives in the frozenset and its ratchet test. Under ADR-0082 this whole gate is
-deleted once `extra="forbid"` and the pairing registry land — see
-[notes/wire-core-boundary.md](wire-core-boundary.md).
-
-**`StorableRecord` inputs to `create()` and `update()` are also normalised.**
-`crud.create()` and `crud.update()` receive `StorableRecord` from core BT nodes
-(e.g. `CreateObject`, `UpdateObject` in `vultron/core/behaviors/helpers.py`).
-Before #2283 these bypassed the normalisation entirely. The fix routes them
-through `_storable_to_record()` (`vultron/adapters/driven/datalayer_sqlite/crud.py`),
-which gates the same `to_obj()` → `from_obj()` round-trip on `record.type_ in
-_NORMALIZE_WIRE_TO_CORE`, preserving other types verbatim to avoid data loss
-on polymorphic wire classes (e.g. `VultronPerson` stored under `type_="Actor"`
-would be silently truncated to the base class). If the round-trip fails for a
-type that is in `_NORMALIZE_WIRE_TO_CORE`, a `WARNING` is logged and the row is
-stored verbatim — a regressive fallback, but observable.
-
-**A projection failure raises `VultronValidationError`, not `ValueError`.**
-`crud.create()` raises `ValueError` for an already-existing row and callers
-legitimately swallow *that*; sharing the type meant an unprojectable object was
-silently never stored and never logged. The two causes must stay distinguishable
-— see `_pre_store_nested_object` in
-`vultron/adapters/driving/fastapi/routers/actors/_inbox.py` for the correct
-two-branch handler.
-
-**This is defense in depth, not the primary boundary.** Projection belongs at
-wire→core ingress; the persistence boundary is the backstop that guarantees no
-wire-shaped row exists regardless of which ingress path missed it. ADR-0062
-records why both are kept.
+- `extra="forbid"` rejects *unknown* keys. It does **not** reject a flat
+  `rm_state`/`rmState` on `ParticipantStatus` or `CaseStatus`, because those
+  spellings are declared `AliasChoices` on the field and are therefore
+  *interpreted*, not dropped. Removing those aliases is #2288/#2289.
+- Persisted rows are still keyed by Python field name (`id_`, `type_`), not the
+  wire-facing names ARCH-23-005 asks for. Re-keying was deliberately **not** done
+  in #2940 — it would mask the `CaseLedgerEntry` alias-injection bug — and is
+  sequenced behind the `WireParsePort` (#2938). See
+  [notes/wire-core-boundary.md](wire-core-boundary.md).
 
 ## Activity Read-Back: Semantic Content vs. Envelope Reconstitution (ADR-0035, DL-06)
 
@@ -400,7 +272,7 @@ delivery happened to store the value; that hidden dependency on delivery order
 is a latent race, not a safety net.
 
 `_read_invite_roles()` in
-`vultron/core/use_cases/received/accept_invite_tree.py` (ISSUE-2719) read invite
+`vultron/core/behaviors/case/nodes/invite_participant.py` (ISSUE-2719) read invite
 roles from the DataLayer rather than from the received activity. A protocol field
 that is *present in the message* must be read from the message; treating the
 DataLayer as a substitute source silently tolerates a message that never carried
@@ -508,7 +380,7 @@ without knowing anything about AS2 naming conventions.
 Files to investigate:
 
 - `vultron/adapters/driven/db_record.py`
-- `vultron/adapters/driven/datalayer_sqlite.py`
+- `vultron/adapters/driven/datalayer_sqlite/`
 - `vultron/wire/as2/rehydration.py`
 - `vultron/wire/as2/vocab/registry.py`
 

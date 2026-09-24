@@ -12,6 +12,7 @@ related_specs:
   - specs/message-semantics-mapping.yaml
 related_notes:
   - notes/specs-vs-adrs.md
+  - notes/spec-authoring-rules.md
   - notes/bt-integration.md
   - notes/protocol-event-cascades.md
   - notes/event-driven-control-flow.md
@@ -75,96 +76,6 @@ The relationship direction: RMB/EMB/CSB items carry
 `relationships: [{rel_type: satisfies, spec_id: VP-XX-XXX}]` pointing to the
 VP policy they implement. Reverse traversal is free via
 `SpecRegistry.graph` (networkx DiGraph, use `.predecessors(vp_id)`).
-
-## Schema Changes Required
-
-Four additions to `vultron/metadata/specs/schema.py`:
-
-### 1. New `RelationType` value
-
-```python
-SATISFIES = "satisfies"
-```
-
-### 2. New `TriggerType` enum
-
-```python
-class TriggerType(StrEnum):
-    MESSAGE_RECEIVED = "message_received"
-    STATE_ENTERED = "state_entered"
-```
-
-Enumerate known trigger kinds so a third kind (e.g., `timer_expired`,
-`external_event`) can be added explicitly rather than via free text.
-
-### 3. New `Trigger` model
-
-```python
-class Trigger(BaseModel):
-    type: TriggerType
-    value: str   # e.g. "EP" (message name) or "RM.VALID" (state)
-```
-
-### 4. Extend `Precondition` with typed state fields
-
-```python
-class Precondition(BaseModel):
-    rm_state: list[RMState] | None = None      # e.g. [RM.VALID, RM.ACCEPTED]
-    em_state: list[EMState] | None = None      # e.g. [EM.ACTIVE]
-    cs_pattern: str | None = None              # 6-char vfdpxa regex, e.g. "...pxa"
-    role: list[CVDRole] | None = None          # e.g. [CVDRole.VENDOR]
-    description: str                           # required: prose summary of all typed fields
-```
-
-`description` is **required** (not `Optional[str]`). It MUST be a non-empty
-prose summary of the complete precondition, derived from all typed fields
-present.  Use a consistent "mad lib" pattern synthesised from each typed
-field that is set:
-
-- `rm_state: [X]` → `"Participant is in RM X"`
-- `rm_state: [R,I,V,D,A]` → `"Participant is in an active RM state (Received/Invalid/Valid/Deferred/Accepted)"`
-- `em_state: [X]` → `"EM state is X"`
-- `em_state: [X, Y]` → `"EM state is X or Y"`
-- `role: [X]` → `"Participant holds the X role"`
-- `cs_pattern: "abc..."` → `"CS matches pattern abc..."`
-
-Combine multiple clauses with `"; "` separator, in field order:
-`rm_state` → `em_state` → `role` → `cs_pattern`.
-
-> **Field order in `Precondition`**: the class declares fields in the order
-> `rm_state`, `em_state`, `role`, `cs_pattern`, `description`. The prose
-> clauses MUST follow the same order so machine-generated and hand-authored
-> descriptions are consistent.
-
-The RM/EM/CS enums are stable (unchanged for several years); coupling
-`Precondition` to them is safe. `cs_pattern` uses the same 6-char regex
-convention as `potential_actions.py` — uppercase = event occurred, lowercase =
-not yet, `.` = don't-care.
-
-### 5. Add `trigger` to `SpecGroup`
-
-```python
-class SpecGroup(BaseModel):
-    # ... existing fields ...
-    trigger: Trigger | None = None
-```
-
-`BehavioralSpec` (with `preconditions`, `steps`, `postconditions`) already
-exists in the schema but is unused. These changes activate it for real use.
-
-## New Spec Files
-
-Three new files, each using `BehavioralSpec` items (not `StatementSpec`):
-
-| File | ID prefix | Trigger types | Groups |
-|---|---|---|---|
-| `specs/rm-behavior.yaml` | `RMB` | message_received (RS,RI,RV,RD,RA,RC,RE,RK), state_entered (RM.R/V/I/D/A/C) | 14 |
-| `specs/em-behavior.yaml` | `EMB` | message_received (EP,EA,EV,EJ,EC,ER,ET,EE,EK), state_entered (EM.P/A/R/X) | 13 |
-| `specs/cs-behavior.yaml` | `CSB` | message_received (CV,CF,CD,CP,CX,CA,CE,CK), state_entered (CS.V/F/D/P/X/A) | 14 |
-
-Each group carries a `trigger:` annotation at the group level.
-Items within a group carry `preconditions:` (structured, using the typed
-fields above) and `relationships:` pointing to VP items via `satisfies`.
 
 ## Key Ordering Constraints Captured
 
@@ -348,11 +259,25 @@ gate fails-safe without swallowing real failures.
 Use the MS-13 decision tree (from `specs/meta-specifications.yaml`) when choosing
 between `StatementSpec` and `BehavioralSpec` for a spec item:
 
-- **Use `BehavioralSpec`** when the item describes a **sequential, stateful process**
-  with a defined start state, ordered actions, and terminal conditions — e.g., a demo
-  scenario workflow, a received-message handler sequence, or a multi-step handshake.
-- **Use `StatementSpec`** when the item expresses a capability constraint, behavioral
-  property, or structural rule where step ordering is not part of the requirement.
+- **Use `BehavioralSpec`** when the item is an ECA rule — it carries a typed
+  condition (`preconditions`), an action sequence (`steps`), or a terminal
+  assertion (`postconditions`). A demo scenario workflow, a received-message
+  handler sequence, and a multi-step handshake all qualify, and so does a
+  single-action rule with a typed precondition.
+- **Use `StatementSpec`** when the item is a bare capability constraint,
+  behavioral property, or structural rule carrying none of those three fields.
+
+**The format is the fields, not a class you pick** (ADR-0101). `BehavioralSpec`
+requires at least one of `preconditions`, `steps`, or `postconditions`; an item
+supplying none of them *is* a `StatementSpec`, and no consumer can tell otherwise.
+Read the choice off the fields, and do not treat ordering as the discriminator:
+`steps` carries the *action* half of an ECA rule, so a single-step item such as
+`CSB-09-002` ("emit CV to announce the transition") is correct even though a
+one-element sequence asserts no order. Likewise a typed precondition with no
+`steps` — `RMB-13-001`'s "MUST be in RM Accepted before sending RS" — is the
+intended shape, not a format choice half-made. See
+[spec-authoring-rules](spec-authoring-rules.md) § "Spec Item Format Is Field
+Presence, Not a Class You Pick".
 
 A common anti-pattern: embedding numbered sub-steps inside a `StatementSpec` statement
 field (e.g., `M1 (…), M2 (…), M3 (…)` milestone lists, or `(1) do A; (2) do B` handler
@@ -360,14 +285,32 @@ sequences). This violates MS-05-001 (no inline prose explanations) and hides sta
 states, ordering, and terminal conditions from conformance tooling. Extract those steps
 into `BehavioralSpec.steps[]` instead.
 
+One caveat when clearing such a hit: an inline `(1) … (2) …` list is sometimes a
+genuine *set* rather than a sequence — the three separate top-level trees
+`SBT-01-002` requires, one per message-type use case; the assertions one test file
+must make — and moving it into `steps[]` would assert an order the requirement
+does not have. Reword or suppress those; only convert the ones that really are
+ordered.
+
 ### Demo scenario groups
 
-Demo scenario workflow groups (e.g., `DEMOMA-06`, `-09`, `-10`, `-11`) follow the
-`BehavioralSpec` pattern established in `DEMOMA-12`. The group carries
+Every demo scenario workflow group follows the `BehavioralSpec` pattern
+established in `DEMOMA-12`. The group carries
 `trigger: {type: scenario_start, value: <scenario-name>}` (per MS-13-003). Individual
 items describing ordered protocol exchanges use `BehavioralSpec`; items expressing
 terminal-state requirements or infrastructure constraints (`MUST reach final state X`,
 `MUST add a CI job`) remain `StatementSpec`.
+
+**The marker is not a formatting convention — it is the registry declaration.**
+Since ISSUE-3480, `trigger: {type: scenario_start, value: <name>}` is the *only*
+mechanical answer to "which spec groups specify a demo scenario"
+(`vultron/metadata/demo_scenarios/scenario_groups.py::scenario_spec_groups()`),
+and DEMOCI-11-010's two-register partition is computed from it. So omitting the
+marker no longer merely skips a lint rule: it removes the group from the
+partition, and the scenario it specifies silently belongs to neither the scenario
+registry nor the planned register. Two title-based selection rules were tried and
+rejected — see `notes/demo-scenario-registry.md` § "Which spec groups specify a
+scenario" so neither is re-proposed.
 
 Since MS-13-004 (CONCERN-1650), `spec-lint` hard-errors when a `scenario_start`
 group contains no `BehavioralSpec` item with non-empty `steps`. The
@@ -376,29 +319,27 @@ change. New scenario spec authors should ensure at least one `BehavioralSpec`
 item with a non-empty `steps` list is present, or the spec-lint CI check will
 fail.
 
+Keep a `steps` block a *projection* of the group's own statements. Its `expected`
+and `postconditions` fields are not a place to record a requirement that lives
+nowhere else: a state asserted only inside an ECA block is a MUST no other entry
+carries, which is the copy-without-an-authority MS-16-002 forbids. Where a block
+must name a state its group does not state, cite the check that owns it —
+DEMOMA-19-014's postcondition points at the universal Invariant 7 rather than
+restating RM closure.
+
 ### Protocol behavioral groups
 
-Protocol behavioral groups (RMB, EMB, CSB) always use `BehavioralSpec`. See the
-`cs-behavior.yaml` reference for the trigger-at-group / ECA-at-item pattern with
-typed `Precondition` fields (`rm_state`, `em_state`, `cs_pattern`, `role`).
+Protocol behavioral groups (RMB, EMB, CSB) are authored in the ECA idiom: the
+condition goes in typed `Precondition` fields, and `steps` is reserved for the
+cases where the action is itself normative — often a single step, which is the
+action and not an ordering claim. See the `cs-behavior.yaml` reference for the
+trigger-at-group / ECA-at-item pattern and its precondition types (`rm_state`,
+`em_state`, `cs_pattern`, `role`).
+
+Do not read "these groups are behavioral" as "every item in them is a
+`BehavioralSpec`". Under ADR-0101 the class follows the fields, and a substantial
+minority of CSB and EMB items — bare invariants with none of `preconditions`,
+`steps`, or `postconditions` — are `StatementSpec`s. An `isinstance` check over a
+CSB or EMB group will not match all of it.
 
 ---
-
-## PR Sequence
-
-**PR 1**: Schema changes (`schema.py`) + scaffolding (three empty spec files
-with correct headers, group structure, and `trigger:` annotations). Also
-includes this note. Tests updated for new schema fields.
-
-**PR 2**: RM behavioral spec content (`specs/rm-behavior.yaml` fully
-populated). Primary sources: transitions.md RM tables, rm_bt.md,
-msg_rm_bt.md.
-
-**PR 3**: EM + CS behavioral spec content together (EMB + CSB). EM and CS
-are tightly coupled — CS cascade chains (`enter-cs-p` → embargo teardown)
-directly reference EM behavior, so separating them creates dangling
-`satisfies` relationships.
-
-**PR 4**: Docs update. Behavior logic docs annotated with spec IDs,
-transitions.md cited, general_implementation.md conformance levels section.
-Comes last so doc cross-references point to stable IDs.

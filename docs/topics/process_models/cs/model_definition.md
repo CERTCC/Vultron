@@ -1,3 +1,8 @@
+---
+stakeholder_type: [platform-developer, process-researcher]
+level: 400
+---
+
 # Case State Model Definition
 
 {% include-markdown "../../../includes/normative.md" %}

@@ -27,6 +27,8 @@ from vultron.core.models.activity import VultronOffer
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_actor import VultronCaseActor
 from vultron.core.models.report import VultronReport
+from vultron.core.models.report_case_link import VultronReportCaseLink
+from vultron.core.states.rm import RM
 from test.core.behaviors.bt_harness import BTTestScenario
 
 # noqa: F401 — imported for vocabulary registration side-effect
@@ -53,6 +55,17 @@ def report(bt_scenario: BTTestScenario) -> VultronReport:
         name="TEST-001",
         content="Test vulnerability report",
     )
+    bt_scenario.dl.create(obj)
+    return obj
+
+
+@pytest.fixture
+def report_case_link(
+    bt_scenario: BTTestScenario,
+    report: VultronReport,
+) -> VultronReportCaseLink:
+    """Create a VultronReportCaseLink at RM.RECEIVED for the test report."""
+    obj = VultronReportCaseLink(report_id=report.id_, rm_state=RM.RECEIVED)
     bt_scenario.dl.create(obj)
     return obj
 

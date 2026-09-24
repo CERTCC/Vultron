@@ -75,6 +75,9 @@ def _resolve_owner_recipient(
     never the intent, and returning ``None`` lets the caller fail loudly
     instead of silently delivering to itself (ARCH-15-001).
     """
+    # Regime 1 (ADR-0087): module-level resolver (bare `dl`, not a node) —
+    # a missing case flows to the None return, letting the caller fail loudly
+    # (ARCH-15-001). Conformance allowlist: module-resolver category.
     case_obj = dl.read_case(case_id)
     if case_obj is not None:
         owner_id = resolve_case_owner_id(case_obj, dl)
@@ -114,6 +117,9 @@ class RecordRecommendationRecommenderNode(DataLayerActionWithPorts):
 
     def update(self) -> Status:
         assert self.datalayer is not None
+        # Lenient best-effort write (ADR-0087): this index write is an
+        # optimization; a missing case is left for the downstream routing
+        # nodes to fail on, so skip-as-SUCCESS here (conformance allowlist).
         case = self.datalayer.read_case(self.case_id)
         if case is None:
             return Status.SUCCESS
@@ -169,13 +175,10 @@ class EmitOfferCaseParticipantToOwnerNode(DataLayerActionWithPorts):
         self.recommended_id = recommended_id
         self.case_id = case_id
 
-    @classmethod
-    def input_ports(cls) -> dict[str, PortInformation]:
-        ports = super().input_ports()
-        ports["suggested_roles"] = PortInformation(
-            data_type=list, required=False
-        )
-        return ports
+    INPUT_PORTS: dict[str, PortInformation] = {
+        **DataLayerActionWithPorts.INPUT_PORTS,
+        "suggested_roles": PortInformation(data_type=list, required=False),
+    }
 
     def setup(self, **kwargs) -> None:
         id_segment = self.recommendation_id.split("/")[-1]
@@ -247,7 +250,6 @@ class EmitOfferCaseParticipantToOwnerNode(DataLayerActionWithPorts):
                 object_id=activity_id,
                 event_type="offer_case_participant",
                 payload_snapshot=snapshot,
-                disposition="recorded",
             )
             result = BTBridge(
                 datalayer=cast(CaseOutboxPersistence, self.datalayer)

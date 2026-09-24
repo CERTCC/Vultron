@@ -48,7 +48,10 @@ from vultron.core.services.embargo_lifecycle import (
 )
 from vultron.core.states.participant_embargo_consent import PEC, PEC_Trigger
 from vultron.core.models._helpers import _as_id
-from vultron.errors import VultronError
+from vultron.errors import (
+    VultronAlreadyExistsError,
+    VultronError,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -83,13 +86,11 @@ class ResolveEmbargoDurationNode(DataLayerActionWithPorts):
     def __init__(self, name: str | None = None) -> None:
         super().__init__(name=name or self.__class__.__name__)
 
-    @classmethod
-    def output_ports(cls) -> dict[str, PortInformation]:
-        return {
-            "default_embargo_duration": PortInformation(
-                data_type=object, required=True
-            )
-        }
+    OUTPUT_PORTS: dict[str, PortInformation] = {
+        "default_embargo_duration": PortInformation(
+            data_type=object, required=True
+        ),
+    }
 
     @classmethod
     def _domain_port_remappings(cls) -> dict[str, str]:
@@ -112,20 +113,17 @@ class CreateEmbargoEventNode(DataLayerActionWithPorts):
     def __init__(self, name: str | None = None) -> None:
         super().__init__(name=name or self.__class__.__name__)
 
-    @classmethod
-    def input_ports(cls) -> dict[str, PortInformation]:
-        ports = super().input_ports()
-        ports["case_id"] = PortInformation(data_type=str, required=True)
-        ports["default_embargo_duration"] = PortInformation(
+    INPUT_PORTS: dict[str, PortInformation] = {
+        **DataLayerActionWithPorts.INPUT_PORTS,
+        "case_id": PortInformation(data_type=str, required=True),
+        "default_embargo_duration": PortInformation(
             data_type=object, required=True
-        )
-        return ports
+        ),
+    }
 
-    @classmethod
-    def output_ports(cls) -> dict[str, PortInformation]:
-        return {
-            "default_embargo_id": PortInformation(data_type=str, required=True)
-        }
+    OUTPUT_PORTS: dict[str, PortInformation] = {
+        "default_embargo_id": PortInformation(data_type=str, required=True),
+    }
 
     @classmethod
     def _domain_port_remappings(cls) -> dict[str, str]:
@@ -162,7 +160,7 @@ class CreateEmbargoEventNode(DataLayerActionWithPorts):
         embargo = EmbargoEvent(end_time=end_time, context=case_id)
         try:
             self.datalayer.create(embargo)
-        except ValueError:
+        except VultronAlreadyExistsError:
             self.logger.debug(
                 "%s: Embargo %s already exists — skipping creation",
                 self.name,
@@ -187,22 +185,17 @@ class AdvanceEMStateToActiveNode(DataLayerActionWithPorts):
     def __init__(self, name: str | None = None) -> None:
         super().__init__(name=name or self.__class__.__name__)
 
-    @classmethod
-    def input_ports(cls) -> dict[str, PortInformation]:
-        ports = super().input_ports()
-        ports["case_id"] = PortInformation(data_type=str, required=True)
-        ports["default_embargo_id"] = PortInformation(
-            data_type=str, required=True
-        )
-        return ports
+    INPUT_PORTS: dict[str, PortInformation] = {
+        **DataLayerActionWithPorts.INPUT_PORTS,
+        "case_id": PortInformation(data_type=str, required=True),
+        "default_embargo_id": PortInformation(data_type=str, required=True),
+    }
 
-    @classmethod
-    def output_ports(cls) -> dict[str, PortInformation]:
-        return {
-            "default_embargo_initialized": PortInformation(
-                data_type=object, required=True
-            )
-        }
+    OUTPUT_PORTS: dict[str, PortInformation] = {
+        "default_embargo_initialized": PortInformation(
+            data_type=object, required=True
+        ),
+    }
 
     @classmethod
     def _domain_port_remappings(cls) -> dict[str, str]:
@@ -232,12 +225,9 @@ class AdvanceEMStateToActiveNode(DataLayerActionWithPorts):
             )
             return Status.FAILURE
 
-        stored_case = self.datalayer.read_case(case_id, raise_on_missing=False)
-        if stored_case is None:
-            self.logger.error(
-                "%s: Case %s not found in DataLayer", self.name, case_id
-            )
-            return Status.FAILURE
+        stored_case, failure = self._require_case(case_id)
+        if failure is not None:
+            return failure  # Regime 1 (ADR-0087)
 
         if _as_id(stored_case.active_embargo) is not None:
             self.logger.debug(
@@ -301,17 +291,14 @@ class AttachEmbargoToCaseNode(DataLayerActionWithPorts):
     def __init__(self, name: str | None = None) -> None:
         super().__init__(name=name or self.__class__.__name__)
 
-    @classmethod
-    def input_ports(cls) -> dict[str, PortInformation]:
-        ports = super().input_ports()
-        ports["case_id"] = PortInformation(data_type=str, required=True)
-        ports["default_embargo_initialized"] = PortInformation(
+    INPUT_PORTS: dict[str, PortInformation] = {
+        **DataLayerActionWithPorts.INPUT_PORTS,
+        "case_id": PortInformation(data_type=str, required=True),
+        "default_embargo_initialized": PortInformation(
             data_type=object, required=True
-        )
-        ports["default_embargo_id"] = PortInformation(
-            data_type=str, required=True
-        )
-        return ports
+        ),
+        "default_embargo_id": PortInformation(data_type=str, required=True),
+    }
 
     @classmethod
     def _domain_port_remappings(cls) -> dict[str, str]:
@@ -334,12 +321,9 @@ class AttachEmbargoToCaseNode(DataLayerActionWithPorts):
         case_id = self.bb_case_id
         embargo_id = self.bb_default_embargo_id
 
-        stored_case = self.datalayer.read_case(case_id, raise_on_missing=False)
-        if stored_case is None:
-            self.logger.error(
-                "%s: Case %s not found in DataLayer", self.name, case_id
-            )
-            return Status.FAILURE
+        stored_case, failure = self._require_case(case_id)
+        if failure is not None:
+            return failure  # Regime 1 (ADR-0087)
 
         active_embargo_id = _as_id(stored_case.active_embargo)
         if active_embargo_id is None:
@@ -385,14 +369,13 @@ class SeedOwnerAsSignatoryNode(DataLayerActionWithPorts):
     def __init__(self, name: str | None = None) -> None:
         super().__init__(name=name or self.__class__.__name__)
 
-    @classmethod
-    def input_ports(cls) -> dict[str, PortInformation]:
-        ports = super().input_ports()
-        ports["case_id"] = PortInformation(data_type=str, required=True)
-        ports["default_embargo_initialized"] = PortInformation(
+    INPUT_PORTS: dict[str, PortInformation] = {
+        **DataLayerActionWithPorts.INPUT_PORTS,
+        "case_id": PortInformation(data_type=str, required=True),
+        "default_embargo_initialized": PortInformation(
             data_type=object, required=True
-        )
-        return ports
+        ),
+    }
 
     @classmethod
     def _domain_port_remappings(cls) -> dict[str, str]:
@@ -419,12 +402,9 @@ class SeedOwnerAsSignatoryNode(DataLayerActionWithPorts):
         if embargo_initialized is False:
             return Status.SUCCESS
 
-        stored_case = self.datalayer.read_case(case_id, raise_on_missing=False)
-        if stored_case is None:
-            self.logger.error(
-                "%s: Case %s not found in DataLayer", self.name, case_id
-            )
-            return Status.FAILURE
+        stored_case, failure = self._require_case(case_id)
+        if failure is not None:
+            return failure  # Regime 1 (ADR-0087)
 
         participant_id = stored_case.actor_participant_index.get(self.actor_id)
         if not participant_id:
@@ -451,7 +431,10 @@ class SeedOwnerAsSignatoryNode(DataLayerActionWithPorts):
             return Status.SUCCESS
 
         embargo_id = _as_id(stored_case.active_embargo)
-        if participant.embargo_consent_state != PEC.SIGNATORY:
+        if participant.embargo_consent_state not in (
+            PEC.SIGNATORY,
+            PEC.DECLINED,
+        ):
             participant.apply_pec_transition(PEC_Trigger.ACCEPT)
         if embargo_id and embargo_id not in participant.accepted_embargo_ids:
             participant.accepted_embargo_ids.append(embargo_id)

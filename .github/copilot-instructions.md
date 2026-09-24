@@ -30,7 +30,7 @@ uv sync --dev
 uv run black vultron/ test/ && uv run flake8 vultron/ test/
 
 # Full test suite — run exactly once, read the last 5 lines
-uv run pytest --tb=short 2>&1 | tail -5
+uv run pytest --tb=short > /tmp/last-test-run.log 2>&1; rc=$?; tail -5 /tmp/last-test-run.log; echo "exit: $rc"; (exit $rc)
 
 # Single test file (faster feedback)
 uv run pytest test/test_semantic_activity_patterns.py -v
@@ -61,8 +61,11 @@ Both `mypy` and `pyright` must pass before committing.
 ### Spec File Format & References
 
 All Vultron specifications are **YAML files** (`.yaml`, not `.md`). When you
-need to reference a spec, use `uv run spec-dump` or invoke the `load-specs`
-skill to get the authoritative, inheritance-resolved JSON view. **Never
+need to reference a spec, start from the map (`PYTHONPATH= uv run spec-dump
+--index`), then load only what you need with `--topic`, `--group`, or `--ids`
+(add `--slim` for statements only), or invoke the `load-specs` skill, to get
+the authoritative, inheritance-resolved JSON view. Do not print the unfiltered
+dump; it is far too large to read. **Never
 construct spec file paths manually** — the load-specs output is the source of
 truth.
 
@@ -100,7 +103,7 @@ file under `vultron/demo/` or `test/demo/` was touched, you **must** run the
 full suite before committing:
 
 ```bash
-uv run pytest -m "" --tb=short 2>&1 | tail -5
+uv run pytest -m "" --tb=short > /tmp/last-test-run.log 2>&1; rc=$?; tail -5 /tmp/last-test-run.log; echo "exit: $rc"; (exit $rc)
 ```
 
 Skipping this is how PRs end up blocked by 17-minute CI runs.

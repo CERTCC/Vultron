@@ -203,7 +203,7 @@ class TestExtractCaseIdRaisesUnroutableActivityError:
         event = AddNoteToCaseReceivedEvent(
             activity_id=ACTIVITY_ID,
             actor_id=ACTOR_ID,
-            target=as_VulnerabilityCase(id_=""),
+            target=as_VulnerabilityCase.model_construct(id_=""),
         )
 
         # dispatch() must not raise — unroutable events are dropped at _handle
@@ -220,7 +220,7 @@ class TestExtractCaseIdRaisesUnroutableActivityError:
         event = AddNoteToCaseReceivedEvent(
             activity_id=ACTIVITY_ID,
             actor_id=ACTOR_ID,
-            target=as_VulnerabilityCase(id_=""),
+            target=as_VulnerabilityCase.model_construct(id_=""),
         )
 
         with pytest.raises(UnroutableActivityError) as exc_info:
@@ -250,12 +250,12 @@ class TestExtractCaseIdRaisesUnroutableActivityError:
 
 
 # ---------------------------------------------------------------------------
-# AC-1d: _resolve_case_manager_id callers return FAILURE when required
+# AC-1d: resolve_case_manager_id callers return FAILURE when required
 # ---------------------------------------------------------------------------
 
 
 class TestResolveCaseManagerIdCallers:
-    """ARCH-15-002: callers return FAILURE when _resolve_case_manager_id is None."""
+    """ARCH-15-002: callers return FAILURE when resolve_case_manager_id is None."""
 
     def test_sender_node_returns_failure_when_no_case_manager(self):
         """ResolveCaseManagerNode returns FAILURE when no CASE_MANAGER exists."""

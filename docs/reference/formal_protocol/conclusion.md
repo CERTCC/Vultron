@@ -1,15 +1,20 @@
+---
+stakeholder_type: [platform-developer, process-researcher]
+level: 400
+---
+
 # Formal Vultron Protocol Redux
 
 {% include-markdown "../../includes/normative.md" %}
 
-We have [formally defined](../../reference/formal_protocol/index.md) an [MPCVD protocol](../../index.md).
-Here we provide a summary of the result.
+The preceding sections [formally defined](../../reference/formal_protocol/index.md) an [MPCVD protocol](../../index.md).
+This page summarizes the result.
 See the linked sections for more details.
 
 <br/>
 <br/>
 
-Recapping the definitions given in the [introduction](index.md), we have:
+Recapping the definitions given in the [introduction](index.md):
 
 !!! note "Formal Protocol Definition"
 
@@ -91,7 +96,7 @@ stateDiagram-v2
 ### Case State
 
 The Case State (CS) model is shown below.
-We have divided the CS model into two diagrams: one that is specific to a given Participant, and one that is agnostic
+The CS model is divided into two diagrams: one specific to a given Participant, and one agnostic
 to the Participant, reflecting changes experienced by all Participants.
 The CS model is the most complex of the three, as it involves all Participants communicating with each other
 about both their own state changes in the fix development and deployment process, as well as the state changes
@@ -146,7 +151,7 @@ stateDiagram-v2
 
     The symbol $\prec$ is read as *precedes*.
 
-In [Defining CVD Success](../../topics/background/cvd_success.md), we defined a set of 12 ordering preferences over the
+[Defining CVD Success](../../topics/background/cvd_success.md) defined a set of 12 ordering preferences over the
 6 events in the Case State model. The symbols for these preferences refer to the transition events in the Case State
 diagrams above.
 
@@ -167,4 +172,4 @@ diagrams above.
 
 !!! tip "Worked Example"
 
-    A [worked example](../../howto/worked_example.md) of the protocol in action is available.
+    A [worked example](../../tutorials/worked_example.md) of the protocol in action is available.

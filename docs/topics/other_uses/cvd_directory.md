@@ -1,3 +1,8 @@
+---
+stakeholder_type: [platform-developer, process-researcher]
+level: 300
+---
+
 # CVD Directory
 
 {% include-markdown "../../includes/not_normative.md" %}
@@ -19,8 +24,8 @@ The idea of CVD embargoes implies a means of dividing the world into
 1. those who belong in the embargo
 2. those who do not
 
-Because *authentication* is not the same as *authorization*, we cannot simply rely on knowing who a Participant
-is; we also have to be able to identify *why* they are *relevant* to a particular case.
+Because *authentication* is not the same as *authorization*, knowing who a Participant
+is does not suffice; we also have to be able to identify *why* they are *relevant* to a particular case.
 
 Thus, we must ask:
 
@@ -36,7 +41,7 @@ Thus, we must ask:
 
 In small CVD cases, the answer might be straightforward: The affected product comes from a known Vendor,
 so the only question to answer is how best to contact them.
-As a first approximation, Internet search engines offer a de facto baseline CVD directory service simply because they
+As a first approximation, Internet search engines offer a de facto baseline CVD directory service because they
 allow any potential Reporter to search for `<vendor name> vulnerability report` or similar terms to find an
 individual Vendor contact.
 

@@ -18,20 +18,24 @@
 from typing import Any, Literal
 
 from pydantic import (
-    ConfigDict,
+    AliasChoices,
     Field,
     computed_field,
     field_serializer,
     field_validator,
     model_validator,
 )
+
 from pydantic.alias_generators import to_camel
 
 from vultron.core.states.cs import CS_d, CS_vf
 from vultron.core.states.participant_embargo_consent import PEC
-from vultron.core.states.rm import RM
+from vultron.core.states.rm import RM, is_valid_rm_transition
 from vultron.enums.roles import CVDRole
-from vultron.errors import VultronValidationError
+from vultron.errors import (
+    VultronProtocolViolationError,
+    VultronValidationError,
+)
 from vultron.core.models.base import CoreObject, NonEmptyString
 from vultron.core.models.case_status import CaseStatus
 from vultron.core.models.dimensions import (
@@ -40,6 +44,7 @@ from vultron.core.models.dimensions import (
     RmDimension,
     VfDimension,
 )
+from vultron.core.models.wire_keys import input_keys
 
 
 def coerce_em_consent_state(value: object) -> PEC | None:
@@ -48,7 +53,10 @@ def coerce_em_consent_state(value: object) -> PEC | None:
     if isinstance(value, PEC):
         return value
     if isinstance(value, str):
-        return PEC[value]
+        # ADR-0091 renamed NO_EMBARGO → UNBOUND; migrate stored legacy values.
+        if value == "NO_EMBARGO":
+            return PEC.UNBOUND
+        return PEC(value)
     raise TypeError(
         f"Unsupported em_consent_state type: {type(value).__name__}"
     )
@@ -99,19 +107,39 @@ class ParticipantStatus(CoreObject):
     both.
     """
 
-    model_config = ConfigDict(alias_generator=to_camel)
-
     type_: Literal["ParticipantStatus"] = Field(
         default="ParticipantStatus",
         validation_alias="type",
         serialization_alias="type",
     )
     context: NonEmptyString  # pyright: ignore[reportGeneralTypeIssues]
-    rm: RmDimension = Field(default_factory=RmDimension)
-    vf: VfDimension | None = None
-    d: DDimension | None = None
+    # Each dimension serializes to its bare state value (ADR-0099 detail 5), so
+    # the alias alone produces the flat wire shape the AS2 form has always used:
+    # ``rm`` -> ``{"rmState": "START"}``.  ``AliasChoices`` keeps the legacy flat
+    # spellings accepted on input so no caller has to change.
+    rm: RmDimension = Field(
+        default_factory=RmDimension,
+        validation_alias=AliasChoices("rmState", "rm_state", "rm"),
+        serialization_alias="rmState",
+    )
+    vf: VfDimension | None = Field(
+        default=None,
+        validation_alias=AliasChoices("vfState", "vf_state", "vf"),
+        serialization_alias="vfState",
+    )
+    d: DDimension | None = Field(
+        default=None,
+        validation_alias=AliasChoices("dState", "d_state", "d"),
+        serialization_alias="dState",
+    )
     case_engagement: bool = True
-    consent: PecDimension | None = None
+    consent: PecDimension | None = Field(
+        default=None,
+        validation_alias=AliasChoices(
+            "emConsentState", "em_consent_state", "consent"
+        ),
+        serialization_alias="emConsentState",
+    )
 
     @computed_field  # type: ignore[misc]
     @property
@@ -123,39 +151,67 @@ class ParticipantStatus(CoreObject):
     tracking_id: NonEmptyString | None = None
     case_status: CaseStatus | None = None
 
+    previous_rm_state: RM | None = Field(
+        default=None,
+        exclude=True,
+        description=(
+            "Caller-supplied previous RM state for construction-time backward-step"
+            " validation (AC-1, ISSUE-3199). When set, the model validator"
+            " _validate_rm_backward_step refuses a backward or invalid RM"
+            " transition unless force_rm_state=True. Not serialised."
+        ),
+    )
+    force_rm_state: bool = Field(
+        default=False,
+        exclude=True,
+        description=(
+            "Suppress the construction-time RM adjacency check. Set only by the"
+            " sanctioned closure call sites (same semantics as"
+            " CreateParticipantStatusNode.force_rm_state). Not serialised."
+        ),
+    )
+
+    # There is deliberately no ``_migrate_flat_fields`` before-validator any
+    # more.  It hand-translated the flat ``rm_state`` / ``rmState`` spellings
+    # into the nested ``{"state": ...}`` form, and was the only AS2 spelling in
+    # this module outside an alias.  Both mechanisms ADR-0099 detail 5 introduced
+    # now cover its whole job with nothing hand-written: the ``AliasChoices``
+    # above accept all three spellings, and ``_ScalarDimension``'s
+    # ``_accept_bare_state`` accepts the bare state value the flat form carries.
+
     @model_validator(mode="before")
     @classmethod
-    def _migrate_flat_fields(cls, data: Any) -> Any:
-        """Accept legacy flat ``rm_state``/``vf_state``/``d_state``/``em_consent_state`` inputs.
+    def _reject_retired_vfd_keys(cls, data: Any) -> Any:
+        """Refuse the retired ``vfd_state``/``vfdState`` key (SDO-03-005).
 
-        Handles both snake_case and camelCase alias keys since this runs before
-        alias normalization.
+        ADR-0075 split the combined VFD dimension into ``vf`` (vendor fix) and
+        ``d`` (deployer deployment).  ``vfd_state`` names neither, so it matches no
+        field and no alias — Pydantic's ``extra="ignore"`` default would discard it
+        and leave both dimensions at their initial states.  That is silent protocol
+        state loss, so it is refused instead.
+
+        Relocated here from ``as_ParticipantStatus`` when that class was collapsed
+        into this one (ADR-0099 detail 3, AC-4).  It is the one piece of the wire
+        class's behaviour with no core equivalent: the camelCase guards it sat
+        beside are obsolete now that core derives AS2 spellings, but a *retired*
+        name is not a spelling of anything, so this guard is still load-bearing.
+
+        Raises ``VultronProtocolViolationError``, which subclasses ``ValueError``
+        so Pydantic reports it as a validation failure rather than letting it
+        escape ``model_validate()``.
         """
-        if not isinstance(data, dict):
-            return data
-        data = dict(data)
-        _SENTINEL = object()
-        rm_raw = data.pop("rm_state", _SENTINEL)
-        if rm_raw is _SENTINEL:
-            rm_raw = data.pop("rmState", _SENTINEL)
-        if rm_raw is not _SENTINEL and rm_raw is not None and "rm" not in data:
-            data["rm"] = {"state": rm_raw}
-        vf_raw = data.pop("vf_state", _SENTINEL)
-        if vf_raw is _SENTINEL:
-            vf_raw = data.pop("vfState", _SENTINEL)
-        if vf_raw is not _SENTINEL and vf_raw is not None and "vf" not in data:
-            data["vf"] = {"state": vf_raw}
-        d_raw = data.pop("d_state", _SENTINEL)
-        if d_raw is _SENTINEL:
-            d_raw = data.pop("dState", _SENTINEL)
-        if d_raw is not _SENTINEL and d_raw is not None and "d" not in data:
-            data["d"] = {"state": d_raw}
-        pec_raw = data.pop("em_consent_state", _SENTINEL)
-        if pec_raw is _SENTINEL:
-            pec_raw = data.pop("emConsentState", _SENTINEL)
-        if pec_raw is not _SENTINEL and "consent" not in data:
-            data["consent"] = (
-                {"state": pec_raw} if pec_raw is not None else None
+        # The camelCase form is derived, not written out: ADR-0099 detail 2 keeps
+        # AS2 spellings out of core logic, and an architecture test enforces it
+        # (test_core_no_as2_spellings).  Deriving also guarantees the guard matches
+        # whatever the project's own generator would have produced.
+        retired = "vfd_state"
+        if isinstance(data, dict) and (
+            retired in data or to_camel(retired) in data
+        ):
+            raise VultronProtocolViolationError(
+                f"{retired}/{to_camel(retired)} is retired (ADR-0075). Use"
+                " vf_state for vendor participants and d_state for deployer"
+                " participants instead."
             )
         return data
 
@@ -164,38 +220,66 @@ class ParticipantStatus(CoreObject):
     def _enforce_role_dimension_invariant(cls, data: Any) -> Any:
         """Auto-initialise vf/d dimensions based on cvd_role (ADR-0075).
 
-        Pydantic v2 runs mode='before' validators in reverse definition order,
-        so this validator fires *before* _migrate_flat_fields.  Flat keys
-        (``vf_state``/``vfState``, ``d_state``/``dState``) are therefore
-        detected here and excluded from the empty-dict seed; _migrate_flat_fields
-        will hydrate them on its subsequent pass.  Uses ``mode="before"``
-        (ADR-0064) to avoid recursive validation under ``validate_assignment=True``.
+        Uses ``mode="before"`` (ADR-0064) to avoid recursive validation under
+        ``validate_assignment=True``.
 
         VENDOR role → vf must be non-None (auto-set to initial state when absent).
         DEPLOYER role → d must be non-None (auto-set to initial state when absent).
+
+        The raw input may spell a dimension any of the ways its
+        ``validation_alias`` accepts, so "is it absent?" asks the field for its
+        own input spellings via :func:`input_keys` rather than listing them here
+        — core code must not type an AS2 spelling (ADR-0099 detail 2).  The
+        empty-dict seed is only a *default*: it is written under the Python field
+        name, which is the last choice in each field's ``AliasChoices``, so a
+        spelling actually present in the input still wins.
         """
         if not isinstance(data, dict):
             return data
-        roles_raw = data.get("cvd_role") or data.get("cvdRole") or []
+        roles_raw: Any = next(
+            (
+                data[key]
+                for key in input_keys(cls, "cvd_role")
+                if data.get(key)
+            ),
+            [],
+        )
         roles = coerce_cvd_roles(roles_raw)
-        # Pydantic v2 runs mode='before' validators in reverse definition order,
-        # so this validator fires before _migrate_flat_fields. Skip seeding when
-        # a flat key is already present — _migrate_flat_fields will hydrate it.
-        vf_absent = (
-            data.get("vf") is None
-            and data.get("vf_state") is None
-            and data.get("vfState") is None
-        )
-        if CVDRole.VENDOR in roles and vf_absent:
-            data["vf"] = {}
-        d_absent = (
-            data.get("d") is None
-            and data.get("d_state") is None
-            and data.get("dState") is None
-        )
-        if CVDRole.DEPLOYER in roles and d_absent:
-            data["d"] = {}
+        for role, dimension in (
+            (CVDRole.VENDOR, "vf"),
+            (CVDRole.DEPLOYER, "d"),
+        ):
+            absent = all(
+                data.get(key) is None for key in input_keys(cls, dimension)
+            )
+            if role in roles and absent:
+                data[dimension] = {}
         return data
+
+    @model_validator(mode="after")
+    def _validate_rm_backward_step(self) -> "ParticipantStatus":
+        """Refuse invalid RM transitions at construction time (AC-1, ISSUE-3199).
+
+        Fires only when the caller supplies ``previous_rm_state``; the check is
+        a no-op when that field is ``None`` (most construction sites do not have
+        the previous state in scope).  Same-state re-assertions are allowed
+        (idempotent), consistent with how ``_rm_violations`` treats them.  Pass
+        ``force_rm_state=True`` to bypass — only the three sanctioned closure
+        call sites should ever do this.
+        """
+        prev = self.previous_rm_state
+        if prev is not None and not self.force_rm_state:
+            requested = self.rm.state
+            if requested != prev and not is_valid_rm_transition(
+                prev, requested
+            ):
+                raise VultronProtocolViolationError(
+                    f"Invalid RM transition at construction:"
+                    f" {prev!r} → {requested!r} (not adjacent)."
+                    " Pass force_rm_state=True to override"
+                    " (only sanctioned closure sites)."
+                )
+        return self
 
     @field_serializer("cvd_role")
     def _serialize_cvd_role(self, roles: list[CVDRole]) -> list[str]:
@@ -205,6 +289,68 @@ class ParticipantStatus(CoreObject):
     @classmethod
     def _validate_cvd_role(cls, v: object) -> list[CVDRole]:
         return coerce_cvd_roles(v)
+
+    # Flat views onto the dimensions, matching ``CaseStatus.em_state``/
+    # ``pxa_state``.  The deleted ``as_ParticipantStatus`` carried
+    # ``rm_state``/``vf_state``/``d_state`` as real fields, so callers read and
+    # assigned them; the dimension remains the owner of the state machine
+    # (ADR-0036) and the flat spelling is only how it serializes (ADR-0099
+    # detail 5).
+    #
+    # ``vf`` and ``d`` are legitimately absent for a participant whose role does
+    # not carry them (ADR-0075), so those two views are optional in both
+    # directions rather than fabricating an initial state on read.
+
+    @property
+    def rm_state(self) -> RM:
+        """The RM state value. A view onto ``rm.state``."""
+        return self.rm.state
+
+    @rm_state.setter
+    def rm_state(self, value: RM) -> None:
+        self.rm = RmDimension(state=value)
+
+    @property
+    def vf_state(self) -> CS_vf | None:
+        """The VF state value, or ``None`` when this participant has no VF."""
+        return self.vf.state if self.vf is not None else None
+
+    @vf_state.setter
+    def vf_state(self, value: CS_vf | None) -> None:
+        self.vf = VfDimension(state=value) if value is not None else None
+
+    @property
+    def d_state(self) -> CS_d | None:
+        """The D state value, or ``None`` when this participant has no D."""
+        return self.d.state if self.d is not None else None
+
+    @d_state.setter
+    def d_state(self, value: CS_d | None) -> None:
+        self.d = DDimension(state=value) if value is not None else None
+
+    @model_validator(mode="after")
+    def _set_name(self) -> "ParticipantStatus":
+        """Derive the human-readable ``name`` label from the dimension states.
+
+        ``name`` is an optional AS2 property carrying a display label, not
+        protocol data. The object derives its own label from its own state, for
+        the same reason a dimension serializes its own value (ADR-0099 detail
+        5): the fact belongs to the class that holds the state.
+
+        Only set when the caller supplied none, so an explicit ``name`` always
+        wins. ``object.__setattr__`` avoids re-entering validation, since
+        ``validate_assignment`` is in effect on the core branch (ARCH-21-001).
+        """
+        if self.name is None:
+            parts = [self.rm.state.name]
+            if self.vf is not None:
+                parts.append(self.vf.state.name)
+            if self.d is not None:
+                parts.append(self.d.state.name)
+            if self.case_status is not None and self.case_status.name:
+                parts.append(self.case_status.name)
+            object.__setattr__(self, "name", " ".join(parts))
+        return self
 
 
 def participant_status_rm_state(status: object) -> RM:

@@ -1,3 +1,12 @@
+---
+description: >
+  Run the Finder + Vendor (FV) scenario and the other multi-actor scenarios,
+  such as Finder + Coordinator + Vendor (FCV), to see the full Vultron Protocol
+  at work across isolated participant containers.
+stakeholder_type: [cvd-practitioner, platform-developer]
+level: 300
+---
+
 # Tutorial: Running the Multi-Actor Container Demos
 
 In this tutorial, we will run the multi-actor container demo scenarios
@@ -150,8 +159,8 @@ Available scenarios and their DEMO values are listed in the
 
 ## Step 4 — Read the output
 
-Each demo step is wrapped in a `demo_step` or `demo_check` context manager
-that prints structured lifecycle markers:
+Each demo step is wrapped in a `demo_step`, `demo_check`, or `demo_gate`
+context manager that prints structured lifecycle markers:
 
 | Symbol | Meaning                                  |
 |:-------|:-----------------------------------------|
@@ -161,6 +170,9 @@ that prints structured lifecycle markers:
 | 📋    | A verification check has started         |
 | ✅    | The verification check passed            |
 | ❌    | The verification check failed            |
+| 🚧    | A causal gate (precondition) has started |
+| 🔓    | The gate's precondition held             |
+| 🔒    | The gate failed; its dependent steps were skipped |
 
 Watch for `🔴` or `❌` markers to diagnose failures. The compose
 `--abort-on-container-exit` flag stops the entire stack when `demo-runner`
@@ -234,8 +246,8 @@ We have:
 - **Read the scenario source** — the scripts are in
   `vultron/demo/scenario/`; shared utilities are in `vultron/demo/utils.py`.
 - **Understand the protocol** — browse
-  [How-to: ActivityPub Activities](../howto/activitypub/activities/index.md)
-  for per-activity walkthroughs of the messages exchanged in these scenarios.
+  [Vultron AS Activity Guides](../howto/activitypub/activities/index.md)
+  for task guides covering the exchanges these scenarios run.
 - **Consult the Docker README** — `docker/README.md` documents port
   mappings, environment variable overrides, and manual seed commands for
   debugging individual containers.

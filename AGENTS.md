@@ -15,16 +15,18 @@ documentation structure guidance.
 
 ## Agent Quickstart
 
-- **Load specs first**: `PYTHONPATH= uv run spec-dump` — never read raw
-  `specs/*.yaml`. The `PYTHONPATH=` prefix is required; see pitfall below.
+- **Load specs first**: `PYTHONPATH= uv run spec-dump --index` (map), then
+  `--topic`/`--group`/`--ids`; never raw `specs/*.yaml`. `PYTHONPATH=` required.
 - Pipeline: FastAPI inbox → AS2 parser → semantic extraction
-  (`vultron/wire/as2/extractor.py`) → dispatcher → use-case callable
+  (`vultron/wire/as2/extractor/`) → dispatcher → use-case callable
   (`vultron/core/use_cases/`).
-- Use-Case Protocol: `__init__(dl, request)` + `execute() -> None`; routing via
-  `use_case_map()` key lookup.
+- Use-Case Protocol: `__init__(dl, request)` + `execute() -> None` (received) or
+  `-> dict` (trigger); routing via `use_case_map()` key lookup. Both are slated
+  to return `UseCaseResult` subtypes — designed in ADR-0040/ADR-0095, **not yet
+  built** (#1769, #3354). Do not assume the envelope exists.
 - ASGI entrypoint: `vultron.adapters.driving.fastapi.main:app`.
-- Tests: `uv run pytest --tb=short 2>&1 | tee /tmp/last-test-run.log | tail -5` — run once. See
-  `.agents/skills/run-tests/SKILL.md`.
+- Tests: `uv run pytest --tb=short > /tmp/last-test-run.log 2>&1; rc=$?; tail -5 /tmp/last-test-run.log; echo "exit: $rc"; (exit $rc)`
+  — run once; read `exit:` first. Never end a gate command with a pipe: a pipeline exits with its last stage's status, so a killed run reads as success. See `.agents/skills/run-tests/SKILL.md`.
 
 Quick gotchas: specific patterns before general; always `rehydrate()` before
 pattern matching; persist with `dl.save(obj)`; return 202 immediately
@@ -65,10 +67,10 @@ Do NOT introduce alternative frameworks or package managers without approval.
 - **Vulnerability**: Abbreviated as `vul` (not `vuln`)
 - Wire-layer naming (as\_ prefix, trailing underscore, pattern objects) →
   see [`vultron/wire/as2/AGENTS.md`](vultron/wire/as2/AGENTS.md).
-  **Critical**: ALL classes in `vultron/wire/as2/vocab/objects/` use the
-  `as_` prefix (`as_VulnerabilityCase`, `as_CaseParticipant`, etc.). The
-  bare name `VulnerabilityCase` (no prefix) always refers to the **core**
-  domain model. See ARCH-14-001.
+  **Critical**: for a *domain* type, `as_VulnerabilityCase` and
+  `VulnerabilityCase` are the same class — ADR-0099 detail 3 aliased all 27
+  paired names onto core. The prefix still marks a real wire class for
+  unpaired AS2 vocabulary (`as_Link`, …). See ARCH-14-001.
 - Use-case / handler naming (Received suffix, Svc prefix, \_trigger suffix)
   → see [`vultron/core/AGENTS.md`](vultron/core/AGENTS.md)
 
@@ -111,9 +113,15 @@ and dispatcher routing.
 
 ### Markdown Formatting
 
-- **Line length**: 88 chars max (exceptions: tables, code blocks, long URLs)
+- **Under `docs/`**: SG-38 governs — one sentence per line, **no mid-sentence hard
+  wrap**, and no line-length limit (`markdownlint` MD013 is disabled). Do **not**
+  reflow docs prose to a column width: it destroys the per-sentence diff SG-38
+  exists to give, which is how a doubled-list-marker defect reached green CI in
+  #3458. See `.claude/skills/shared/docs-style-guide.md`.
+- **Everywhere else** (`notes/`, `specs/`, `plan/`, READMEs): 88 chars max
+  (exceptions: tables, code blocks, long URLs); break long sentences at natural
+  points.
 - Use `markdownlint-cli2` for linting; see Miscellaneous tips for commands
-- Break long sentences at natural points
 
 ### Logging Requirements
 
@@ -162,7 +170,7 @@ See `notes/parallel-development.md`.
 
 ## Change Protocol
 
-For non-trivial changes: state assumptions → load specs (`PYTHONPATH= uv run spec-dump`) →
+For non-trivial changes: state assumptions → load governing specs (`deepen-context`) →
 review `notes/` → describe intent → apply minimal diff → update/add tests →
 call out risks.
 
@@ -176,8 +184,8 @@ entry vs. both.
 
 1. `run-linters` — all four linters (Black, flake8, mypy, pyright) must pass.
    Supersedes `format-code`, so run it alone — no separate `format-code` step.
-2. `run-tests` — unit suite once; read output. If `vultron/demo/` or `test/demo/`
-   touched, also run full suite: `uv run pytest -m "" --tb=short 2>&1 | tail -5`
+2. `run-tests` — unit suite once; read the `exit:` line. If `vultron/demo/` or
+   `test/demo/` touched, also run the full suite (`-m ""`, same redirect form).
 3. `build-docs` — only if `docs/` modified
 4. `commit` skill — include Co-authored-by trailer
 
@@ -249,96 +257,97 @@ Full doctrine: `.claude/skills/shared/completeness-doctrine.md` (loaded by
 This is an **index**, not the write-ups. Find your symptom area below, read the
 linked file before touching that area. New pitfalls MUST be routed per
 [notes/agents-md-structure.md](notes/agents-md-structure.md): write-up in the nearest `notes/` or per-directory
-`AGENTS.md`, then **extend a cell below — this file is at its 400-line budget, so trim as you add, never append**.
+`AGENTS.md`, then **extend a cell below — this file has a 400-line budget, so trim as you add, never append**.
 
 ### Where to look
 
 | Symptom area | Read | Pitfalls covered |
 |---|---|---|
-| Wire/core boundary | [wire-core-boundary](notes/wire-core-boundary.md) | no new `vultron.core.models` imports in `vultron/wire/` (ARCH-22-001/002); union-exposed validators must raise `ValueError` subclasses; `extra="forbid"` needs self-round-trip; deleting a wire-spelling shim without a reject-guard is silent data loss (SDO-03-005); ARCH-01-001 ≠ ARCH-22-001 |
-| Core needs camelCase | [core-wire-rendering-port](notes/core-wire-rendering-port.md) | never `alias_generator`/`by_alias=True` in core — go through `WireRenderPort` (ARCH-20-001, CLP-07-009/010) |
-| Wire vs. core class names | [vocabulary-registry](notes/vocabulary-registry.md) | `as_` prefix rule (ARCH-14-001); `VOCABULARY` and `WIRE_TYPE_MAP` keys are disjoint (ARCH-23-002) |
-| Domain object validation | [domain-validation](notes/domain-validation.md) | assignment and `append` bypass validation (CM-27-001, PRM-03-003); no `self` assignment in `mode="after"` validators (ARCH-21-004); silent `None` == fake `SUCCESS` (ARCH-15); `getattr` misses `ValueError`; `model_fields` is empty in `__init_subclass__`; rejecting atomically does **not** license reporting only the first violation (EH-07-001, ADR-0086); every `ParticipantStatus`-write validator calls `participant_transition_violations()`, never the individual `is_valid_*`/`violation_*` predicates (BTND-10-002), and `force_rm_state` is a pinned exemption — do not add users (#3106); trigger path fails closed while receive path partial-accepts — Postel's maxim, do not "reconcile" them |
-| Behavior tree nodes | [bt-pitfalls](notes/bt-pitfalls.md) | write nodes validate their own transitions (CSB-16, EMB-18-001); guarded commits run as CASE_MANAGER (BT-17-005/006); a BT's store follows its executing actor (BT-05-005/006); never clear a blackboard key you don't own; guard names name the transition, not the symptom |
+| Wire/core boundary | [wire-core-boundary](notes/wire-core-boundary.md) | no new `vultron.core.models` imports in `vultron/wire/` (ARCH-22-001/002); union-exposed validators must raise `ValueError` subclasses; core-branch types set `extra="forbid"` (ARCH-12-003, #2940) — a `mode="before"` validator MUST NOT inject an alias key beside its field-name twin, and a dump must self-round-trip; ARCH-01-001 ≠ ARCH-22-001 |
+| Core needs camelCase | [core-wire-rendering-port](notes/core-wire-rendering-port.md) | `alias_generator=to_camel` is inherited by every `CoreObject` (ADR-0099 detail 2); core logic still must not produce the wire shape itself — delivery goes through `WireRenderPort` (ARCH-20-001 as annotated, CLP-07-009/010) |
+| Wire vs. core class names | [vocabulary-registry](notes/vocabulary-registry.md) | `as_` prefix rule (ARCH-14-001); `VOCABULARY` and `WIRE_TYPE_MAP` keys are disjoint (ARCH-23-002) — `VOCABULARY` keys on the wire *class name*, `WIRE_TYPE_MAP` on the emitted `type` *value*, the latter derived by `wire_type_value()` and never hand-assigned (VM-01-004/008); a class sharing another's `type` value declares `_wire_type_alias` instead of letting import order pick the winner — the five `as_Vultron*` actor shadows are the only enumerated exception; **a wire-branch caller resolves a `type` through a wire-only lookup** — `find_in_vocabulary` falls back to `CORE_TYPE_MAP`, so a wire caller can be handed a core class the parent field then refuses (VM-06-008); registration keys on a `Literal` `type_` annotation while `set_type_from_class_name` derives one from the class name when none is inherited, so a class with neither presents a wire type and registers nothing (VM-03-002) |
+| Domain object validation | [domain-validation](notes/domain-validation.md) | assignment and `append` bypass validation (CM-27-001, PRM-03-003); no `self` assignment in `mode="after"` validators (ARCH-21-004); silent `None` == fake `SUCCESS` (ARCH-15); `getattr` misses `ValueError`; inside `__init_subclass__` `model_fields` reports the **parent's** fields (so a presence check succeeds with a wrong value — read `cls.__dict__`, which conversely is stripped of fields *after* construction); rejecting atomically does **not** license reporting only the first violation (EH-07-001, ADR-0086); every `ParticipantStatus`-write validator calls `participant_transition_violations()`, never the individual `is_valid_*`/`violation_*` predicates (BTND-10-002), and `force_rm_state` is a pinned exemption — do not add users (#3106); trigger path fails closed while receive path partial-accepts — Postel's maxim, do not "reconcile" them |
+| Behavior tree nodes | [bt-pitfalls](notes/bt-pitfalls.md) | write nodes validate their own transitions (CSB-16, EMB-18-001); guarded commits run as CASE_MANAGER (BT-17-005/006); a BT's store follows its executing actor (BT-05-005/006); never clear a blackboard key you don't own; guard names name the transition, not the symptom; **a refusal arm in a Selector fails toward "admit"** — persist the decision *before* the side effect, gate the permissive arm on its absence, and let every guard ahead of that write **raise** rather than return FAILURE (in a refusal arm both FAILURE and SUCCESS can mean admit, so BT-HELPER-01's catch-and-return convention is unsafe there); key those guards on the **request** being adjudicated, never on a value the sender supplies (a report id in the sender's own proposal let a second proposal skip the gate entirely); and "already answered" comes from the id you recorded on the decision, not from the store (missed a never-enqueued send) or the outbox (`outbox_pop` empties it on delivery, so the guard re-emits forever) |
 | BT integration / concurrency | [bt-integration](notes/bt-integration.md), [bt-pitfalls](notes/bt-pitfalls.md) | blackboard needs a module-level `RLock` under `BackgroundTasks`; trigger-side `execute()` delegates SM transitions (BT-15-001); `internal_error is False` means "nothing escaped the bridge", not "no bug" — a node's own `except Exception` and every nested-`BTBridge` hop defeat it |
-| Case ledger | [case-ledger-authority](notes/case-ledger-authority.md), [ownership-transfer](notes/ownership-transfer.md) | ledger is not a process log (CLP-07); commits are role-gated (CLP-09); `create_receive_activity_tree` already injects the guarded commit — a second one in `effect_nodes` forks the chain (CLP-09-001) |
-| Who sends what to whom | [case-communication-model](notes/case-communication-model.md) | `case_addressees()` is the wrong recipient (PCR-08-001/002); no identity spoofing or foreign CaseActor IDs on the received side; Invite/Accept routes through the Case Actor (PCR-08-007/008); delegated emit sets `actor=case_actor_id`, `attributed_to=requesting_actor_id` and gates on the **role** (CM-24) |
-| Pattern matching / semantics | [activitystreams-semantics](notes/activitystreams-semantics.md), [activitystreams-state-update](notes/activitystreams-state-update.md) | registry patterns must match the inbound wire format; `target_` is permissive unless `strict=True` (SE-08); `Reject(Invite(…))` carries the case in `inner_target` (CM-11-003); `SemanticEntry` phrases use only `{actor}`/`{object}`/`{target}` (SE-07-005) |
+| Case ledger | [case-ledger-authority](notes/case-ledger-authority.md), [ownership-transfer](notes/ownership-transfer.md) | ledger is not a process log (CLP-07); commits are role-gated (CLP-09); `create_receive_activity_tree` already injects the guarded commit — a second one in `effect_nodes` forks the chain (CLP-09-001); an entry has **two** timestamps and they belong to different layers — commit stamp to the CI harness, claimed `payloadSnapshot.published` to the commit boundary, monotonic **per snapshot actor** only; CLP-15-003 is *reported*, never refused (arrival order ≠ causal order, CLP-15-005); a snapshot built for a participant carries *that actor's* claimed time via `claimed_published_iso()`, never `now_utc()`; a missing inbound `published` is refused at `parse_activity` — and "missing" means the *value*, so blank/whitespace is refused too, while a non-blank unreadable value stays a schema fault (CLP-15-006, MV-03-002); a nested object's time is carried as received, absent stays `None`, and a snapshot rebuild goes through `project_wire_snapshot_to_core` or the replica stamps its own clock (#3257, ADR-0103); never gate a whole guard on one optional argument (#2824); **a state change written only to the writer's own store is invisible to every replica** — a spec clause like CM-23-005's "each transition MUST be recorded as a `CaseLedgerEntry`" *is* the visibility contract, and a replica effect node can only key off its entry's own `payloadSnapshot.actor`, so an actor's transition cannot be inferred from an entry attributed to someone else (#2505) |
+| Who sends what to whom | [case-communication-model](notes/case-communication-model.md) | `case_addressees()` is the wrong recipient (PCR-08-001/002); no identity spoofing or foreign CaseActor IDs on the received side; Invite/Accept routes through the CASE_MANAGER (PCR-08-007/008); delegated emit sets `actor=case_actor_id`, `attributed_to=requesting_actor_id` and gates on the **role** (CM-24) |
+| Pattern matching / semantics | [activitystreams-semantics](notes/activitystreams-semantics.md), [activitystreams-state-update](notes/activitystreams-state-update.md), [`vultron/wire/as2/AGENTS.md`](vultron/wire/as2/AGENTS.md) | registry patterns must match the inbound wire format; `target_` is permissive unless `strict=True` (SE-08); `Reject(Invite(…))` carries the case in `inner_target` (CM-11-003); `SemanticEntry` phrases use only `{actor}`/`{object}`/`{target}` (SE-07-005); **`ActivityPattern` has no `origin_` field**, so a committed example that names its case in `origin` matches nothing and a receiver drops it silently — ratchet: `test/architecture/test_vocab_examples_dispatchable.py` (every example activity matches exactly one pattern), and a well-formed example is not necessarily a dispatchable one (#3438) |
 | Persistence / stores | [datalayer-design](notes/datalayer-design.md) | `dl.read()` returns core objects (ADR-0034); core must not re-read wire activities for semantics (ADR-0035); an actor id **is** a store name (DL-07-004); `_dehydrate_data` deliberately keeps inline Activity sub-fields as snapshots |
 | Embargo / consent | [embargo-lifecycle](notes/embargo-lifecycle.md), [participant-embargo-consent](notes/participant-embargo-consent.md) | delegate to `EmbargoLifecycle`, never inline `EMAdapter`; consent only via `apply_pec_transition()` (CM-18-005/006); `embargo_adherence` is a `@computed_field` (ADR-0056); don't downgrade consent on retries; test `REVISE → REVISE` separately |
 | Participant records | [participant-role-management](notes/participant-role-management.md) | `actor_participant_index` is the fast path, and RM mutation MUST use it (CM-19-003); RM terminal guard runs before the same-state shortcut |
-| Devcontainer / tooling | [devcontainer-tooling](notes/devcontainer-tooling.md) | always `uv run`; clear `PYTHONPATH` first; `UV_NO_SYNC=1` on sync failures; give `git commit` a 10-min timeout (whole-tree flake8 hook — usually a fast no-op if `run-linters` just ran, but ~35s cold or after source edits); `SKIP=actionlint` when not touching workflows (hook hangs, no Go); wrong `gh` path in the credential helper; `.agents/` and `.claude/` skills are hard links — edit only `.agents/` |
-| git / branches / PRs | [git-workflow-pitfalls](notes/git-workflow-pitfalls.md) | rebase "local changes" can be a false positive; conflict-free ≠ working merge; related fix PRs need an integration branch (`create-pr` can't target one); `claim-issue.sh` needs a synced branch; re-check ADR numbers before merge; verify every AC against `origin/main` and always add `Closes #N`; scan peer files before closing |
+| Devcontainer / tooling | [devcontainer-tooling](notes/devcontainer-tooling.md) | always `uv run`; clear `PYTHONPATH` first; `UV_NO_SYNC=1` on sync failures; give `git commit` a 10-min timeout (whole-tree flake8 hook — usually a fast no-op if `run-linters` just ran, but ~35s cold or after source edits); `SKIP=actionlint` when not touching workflows (hook hangs, no Go); wrong `gh` path in the credential helper; `.claude/skills` is a **symlink** to `.agents/skills` — edit only `.agents/`, and a new file there needs no second link |
+| Spec/notes/ADR/history tooling | [`vultron/metadata/AGENTS.md`](vultron/metadata/AGENTS.md), [agentic-workflow](notes/agentic-workflow.md) | an incoming learning is `YYYYMMDD-<issue>-<phrase>.md` — the slug describes the observation and is never derived from `source`, which several files may share (BW-01-003, BW-02-002, #1857); a loader that walks files names every failing file as `path:line:col` via the shared `file_loading.py` helper (MS-17) — a YAML error is not a `ValueError` and escapes `except (ValidationError, ValueError)` as a traceback; `read_text()` costs you the filename (`<unicode string>`); a Pydantic error names the model, not the file; a spec written before its code needs `lint_suppress: [phantom_path_ref]` |
+| git / branches / PRs | [git-workflow-pitfalls](notes/git-workflow-pitfalls.md) | rebase "local changes" can be a false positive; conflict-free ≠ working merge; related fix PRs need an integration branch (`create-pr` can't target one); `claim-issue.sh` needs a synced branch; re-check ADR numbers before merge; verify every AC against `origin/main` and always add `Closes #N` — the `build` pre-claim gate reads only `- [ ] AC-N:` lines, so an issue with prose ACs skips it and must be checked by hand (#1907); scan peer files before closing |
 | GH Actions / CI YAML | [ci-workflow-authoring](notes/ci-workflow-authoring.md) | a red job may never have run its assertions (and an all-skipped run is green); `notify-failure` is mandatory on `main`/`schedule` (CISEC-05); PyYAML reads bare `on:` as `True`; matrix booleans differ job- vs. step-level; `python3 -c` blocks break `actionlint`; single-quoted YAML needs doubled apostrophes |
-| Spec authoring | [spec-authoring-rules](notes/spec-authoring-rules.md) | strict enums for `kind`/`priority`/`rel_type`; `references:` is dropped (use `adr:`); a new `kind: protocol` entry needs a marker test or strict `xfail`; grep bare filenames when retiring a name; "CaseActor MUST …" is usually a role/object category error |
-| Specs vs. ADRs, doc drift | [specs-vs-adrs](notes/specs-vs-adrs.md) | ADR "what is removed" lists are scoped to one use; never restate counts in long-lived docs (MS-16-001) |
-| Tests | [testing-pitfalls](notes/testing-pitfalls.md), [`test/AGENTS.md`](test/AGENTS.md) | a killed run reports exit 0 under `tail -5`; vacuous assertions (third participant, hash presence, `MagicMock(spec=)`); "falls back to" on malformed input asserts a bug; process-global `py_trees` blackboard and class registry; `caplog` catches fixture setup; two emitter resolution paths; delete `devlogs/` first |
-| Demo scenarios | [`vultron/demo/AGENTS.md`](vultron/demo/AGENTS.md), [demo-scenario-authoring](notes/demo-scenario-authoring.md) | puppeteer via triggers, never spoof via inbox injection; never carry one actor's mail to another's inbox; gate steps on their cause, not script position (EDF-06, ADR-0058); protocol activity is emitted from `helpers/workflow.py`, not the scenario files |
+| Spec authoring | [spec-authoring-rules](notes/spec-authoring-rules.md) | strict enums for `kind`/`priority`/`rel_type`; `references:` is dropped (use `adr:`); a new `kind: protocol` entry needs a marker test or strict `xfail`; grep bare filenames when retiring a name; name the authority CASE_MANAGER, not "CaseActor" (the prototype identity; ADR-0088); **item format is field presence, not a class you pick** — `BehavioralSpec` requires one of `preconditions`/`steps`/`postconditions`, a bare item is a `StatementSpec`, and `steps` carries an ECA *action* rather than an ordering claim, so read the fields and never the `isinstance` (ADR-0101); a per-item advisory that is routinely true is not enforcement — give it a never-raise ceiling and a count |
+| Specs vs. ADRs, doc drift | [specs-vs-adrs](notes/specs-vs-adrs.md), [documentation-sweeps](notes/documentation-sweeps.md) | ADR "what is removed" lists are scoped to one use; never restate counts in long-lived docs (MS-16-001); moving a claim is not verifying it — a sweep verifies every relocated claim against its authority and shares content by `{% include-markdown %}` fragment rather than copying (DF-10-001/002) |
+| Tests | [testing-pitfalls](notes/testing-pitfalls.md), [`test/AGENTS.md`](test/AGENTS.md) | a killed run reports exit 0 under `tail -5`; vacuous assertions (third participant, hash presence, `MagicMock(spec=)`); "falls back to" on malformed input asserts a bug; process-global `py_trees` blackboard and class registry; `caplog` catches fixture setup; two emitter resolution paths; delete `devlogs/` first; **the timeout *method* sets what a trip costs, the ceiling only how often** — `timeout_method = "thread"` kills the session so no summary names anything, and raising a ceiling never fixes that (#3603); **a marker sweep that greps declarations misses a directory hook** — `test/demo/` is marked by `conftest.py`, not `pytestmark`, so ask what collected items carry via a `trylast` probe, and a tier assertion built on `FakeItem`s or a synthetic `pytester` session does not cover the real collection (#3604) |
+| Demo scenarios | [`vultron/demo/AGENTS.md`](vultron/demo/AGENTS.md), [demo-scenario-authoring](notes/demo-scenario-authoring.md), [demo-scenario-registry](notes/demo-scenario-registry.md) | puppeteer via triggers, never spoof via inbox injection; never carry one actor's mail to another's inbox; gate steps on their cause, not script position (EDF-06, ADR-0058); protocol activity is emitted from `helpers/workflow.py`, not the scenario files; **a scenario is declared once**, by `@scenario(...)` on its `main()` — every scenario table and `.github/demo-scenarios.json` are generated (`uv run demo-scenarios --write`, gated by the `demo-scenarios-sync` hook) and the `vultron-demo` sub-command is built from the registry at import time, so it has no committed copy to write or check (never add a `@main.command` block to `cli.py`; declare module-level `ROLES`/`CLI_HELP` instead — DEMOCI-11-011), the three artifact paths are *derived from the name* so a rename fails rather than being described, and a scenario that is specified but unbuilt goes in the planned-scenario register in `notes/demo-future-ideas.md`, never the registry — a spec group declares which scenario it specifies with MS-13-003's `trigger: {type: scenario_start, value: <name>}` marker (which obliges MS-13-004's ECA `steps`), the two registers are checked as a partition, and no consumer may restate the scenario count in prose (ADR-0098, DEMOCI-11) |
 | Inbox / outbox | [inbox-orchestration](notes/inbox-orchestration.md), [inbox-pipeline](notes/inbox-pipeline.md), [outbox-delivery-reliability](notes/outbox-delivery-reliability.md) | inbox policy belongs in `vultron/core/behaviors/inbox/` (IO-02-003); catch `UnroutableActivityError` inside `_handle`; retry caps that compose to `4 × ∞` are a resource hazard (OX-13) |
 | Call-out points | [call-out-configuration](notes/call-out-configuration.md) | automation potential ≠ call-out shape (ADR-0024); an externally-versioned capability is **one** call-out unit (BTND-05-007) |
 
 ### Cross-cutting rules with no other home
 
-- **Splits must not produce new god modules** — submodules ≤500 lines, split
-  recursively when they re-accumulate (CS-18-001–004). A leaf within ~20 lines of
-  the cap must be split *before* you add docstrings (BTND-07-004/006). Flat
-  `nodes.py` in a BT area is non-compliant (BTND-07-001/003).
+- **Splits must not produce new god modules** — submodules ≤500 lines, split again
+  when they re-accumulate (CS-18-001–004); a leaf within ~20 lines of the cap splits
+  *before* docstrings (BTND-07-004/006); flat `nodes.py` in a BT area fails (BTND-07-001/003).
 - **Splits must re-export** — use-case subpackages re-export classes *and* request
-  models; module splits re-import moved names for `monkeypatch` (`# noqa: F401`,
-  #972); FastAPI router packages re-export `dependency_overrides` keys (#970).
-  Deleting a module instead needs importer proof: no live importers in `vultron/`
-  or `test/`.
+  models; module splits re-import moved names for `monkeypatch` (`# noqa: F401`, #972);
+  FastAPI router packages re-export `dependency_overrides` keys (#970). Deleting a
+  module instead needs importer proof: no live importers in `vultron/` or `test/`.
 - **`dl.save/create/update/delete()` in `execute()` bypasses the BT audit trail** —
   ratchet: `test/architecture/test_no_dl_mutations_in_execute.py` (#1071).
-- **Receive-side ordering is guards → commit → effects** (CLP-10-006), and
-  received-side `execute()` never calls `commit_log_entry_trigger()` directly
-  (BT-06-006, SYNC-02-002).
-- **Stub adapter files must raise `NotImplementedError`** — docstring-only stubs
-  hide integration gaps (OX-10-004, OX-11-004).
-- **Protocol-declared fields must stay in sync with concrete classes**, and
-  `TypeGuard` discriminators may `hasattr`-check only Protocol-declared attributes
-  (CS-20-001/002).
+- **Receive-side ordering is guards → commit → effects** (CLP-10-006); received
+  `execute()` never calls `commit_log_entry_trigger()` (BT-06-006, SYNC-02-002). **Stub
+  adapters raise `NotImplementedError`**, never docstring-only (OX-10-004, OX-11-004).
+- **Protocol-declared fields stay in sync with concrete classes**, and `TypeGuard`
+  discriminators may `hasattr`-check only Protocol-declared attributes (CS-20-001/002).
 - **Emit nodes in case-scoped trigger BTs fail fast on a missing CaseActor**
-  (PCR-08-011); **peer broadcast nodes must not mask delivery failure with
-  SUCCESS** (BT-14-001).
-- **Small habits**: mypy infers a type from the first branch assignment (use
-  distinct names per `except`/`if`-else branch); pre-build dedup sets before
-  fallback loops (`seen = set(d.values())`, O(n×m) → O(n+m)); walrus for
-  single-assignment guards (`if (f := self._require_factory()) is not None`).
-- **Bulk logging-level refactors need a consistency grep pass**, and designed
-  self-healing recovery paths log WARNING/INFO, never ERROR
+  (PCR-08-011); **peer broadcast nodes must not mask delivery failure** (BT-14-001).
+- **Small habits**: mypy infers a type from the first branch assignment (distinct names
+  per `except`/`if`-else branch); pre-build dedup sets before fallback loops
+  (`seen = set(d.values())`, O(n×m) → O(n+m)); walrus for single-assignment guards
+  (`if (f := self._require_factory()) is not None`).
+- **Bulk logging-level refactors need a consistency grep pass**; designed self-healing
+  recovery paths log WARNING/INFO, never ERROR
   ([notes/structured-logging.md](notes/structured-logging.md)).
 - **Superseded notes sections are archived via `append-history note`** (PD-03-002,
-  PD-03-004); **large migrations partition by node shape, then domain**
-  ([notes/agentic-workflow.md](notes/agentic-workflow.md)); **MkDocs `not_in_nav`
-  and `exclude_docs` are not the same**
+  PD-03-004); **large migrations partition by node shape then domain**, batched by
+  subsystem or scripted so a fork run does not exhaust its 200-turn cap
+  ([notes/agentic-workflow.md](notes/agentic-workflow.md)); **MkDocs `not_in_nav` ≠
+  `exclude_docs`, and neither is a lint-scope class** — nav exclusion says nothing
+  about whether a file is prose, so `_*.md` include fragments MUST be linted as source
+  while page-scoped rules go to the assembled page (DF-09-007, ADR-0092; `lint-docs`
+  does not do this yet — #3318); **withholding a page does not unlink it** —
+  `draft_docs` suppresses the build, not the generators that enumerate pages, and
+  `--strict` never sees an exec-block link, so the gate is *resolution* over every
+  built `site/` file (`docs-links`), not link form (`.md` suffix) and not a crawl from
+  `index.html` (DOCBW-03-007, #3574)
   ([notes/documentation-strategy.md](notes/documentation-strategy.md)).
 - **Transport-role naming must stay explicit** — core ports docs, adapter notes,
   ADR refs and codebase reference pages change together. Likewise
-  `HashChainLedgerRecord` (in-memory) vs. `CaseLedgerEntry` (wire-serializable):
-  distinct types, imported by full module path (ARCH-12-007).
+  `HashChainLedgerRecord` (in-memory) vs. `CaseLedgerEntry` (wire): distinct
+  types, imported by full module path (ARCH-12-007).
 - **Idempotency responsibility chain** —
   [`vultron/core/AGENTS.md`](vultron/core/AGENTS.md); **avoid `BaseModel` in
   ports** — [`vultron/core/ports/AGENTS.md`](vultron/core/ports/AGENTS.md);
-  **ledger commit precedes outbox write** and **local-only correlation markers use
-  `disposition="rejected"`** —
-  [`vultron/core/behaviors/case/AGENTS.md`](vultron/core/behaviors/case/AGENTS.md).
+  **ledger commit precedes outbox write**, **local-only correlation markers use
+  `disposition="rejected"`** — [`vultron/core/behaviors/case/AGENTS.md`](vultron/core/behaviors/case/AGENTS.md).
 
 ---
 
 ## Skill Interaction Rules
 
-- Always use the `ask_user` tool for user questions — never plain text.
-- Provide a recommended answer on every `ask_user` call.
-- Rule applies transitively when skills compose (`learn` → `grill-me`, etc.).
+Ask the user anything per [`.agents/skills/shared/asking-the-user.md`](.agents/skills/shared/asking-the-user.md), in every session and when skills compose (`learn` → `grill-me`):
+**one question at a time**; **problem before decision** (the problem, why it matters, each option spelled out, your recommendation and why); **plain language**, no metaphor jargon or coined terms;
+**no bare IDs** ("#3512 (the docs navigation reorganization)," not "#3512"); **restate, don't point** by number; **short**, no walls of text ending in "do you agree?" Use `ask_user` for short, discrete choices, with a recommended answer; use plain text when a longer reply is likely.
 
 ---
 
 ## Governance note for agents
 
-Agents MAY update `AGENTS.md` to correct/clarify rules, but substantive
-changes SHOULD be discussed via Issue or PR. Include rationale in the commit
-message.
+Agents MAY update `AGENTS.md` to correct/clarify rules, but substantive changes
+SHOULD be discussed via Issue or PR. Include rationale in the commit message.
 
 ---
 
@@ -351,15 +360,15 @@ message.
   note, update its `status`, `related_specs`, and `related_notes` in the same
   change; cross-links SHOULD be two-way. Full write-up + schema:
   [notes/notes-frontmatter.md](notes/notes-frontmatter.md).
-- **Docs links must be relative**: links in `docs/` MUST be relative and MUST NOT
-  go above `docs/`. Run `uv run mkdocs build --strict` before committing docs.
-  `docs/developer/` pages are draft docs — visible in `mkdocs serve` but excluded from production builds.
+- **Docs links must be relative** and MUST NOT go above `docs/`. Run
+  `uv run mkdocs build --strict` before committing docs. `docs/developer/` pages
+  are draft docs — visible in `mkdocs serve`, excluded from production builds.
 - **Demo script lifecycle logging**: see
   [`vultron/adapters/AGENTS.md`](vultron/adapters/AGENTS.md) for `demo_step` /
   `demo_check` pattern.
-- **Project history entries**: use `uv run append-history` — never write
-  directly to `plan/history/`. See HM-01–HM-05 and
-  `notes/history-management.md`. During `orient-agent`, read only `plan/*.md`.
+- **Project history entries**: use `uv run append-history` — never write directly
+  to `plan/history/`. See HM-01–HM-05 and `notes/history-management.md`.
+  `orient-agent` reads `plan/*.md` and `learnings-index`, never `plan/history/`.
 
 ---
 

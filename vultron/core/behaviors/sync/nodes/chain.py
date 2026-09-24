@@ -17,24 +17,29 @@
 from __future__ import annotations
 
 import logging
-from typing import Any, Literal, cast
+from datetime import datetime
+from typing import Any, cast
 
 from py_trees.common import Status
+from py_trees.ports import NoDataAvailable
 
 from vultron.core.behaviors.helpers import (
     DataLayerActionWithPorts,
     PortInformation,
 )
+from vultron.config.app import get_config
 from vultron.core.behaviors.sync.nodes.canonical_entry import (
     _validate_canonical_entry,
 )
-from vultron.core.models._helpers import _now_utc
+from vultron.core.models._helpers import now_utc
 from vultron.core.models.case_ledger import HashChainLedgerRecord
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.case_ledger_entry import VultronCaseLedgerEntry
 from vultron.core.models.replication_state import VultronReplicationState
 from vultron.core.sync_helpers import _find_equivalent_recorded_entry
+from vultron.core.sync_helpers import _find_prev_actor_published
 from vultron.core.sync_helpers import _reconstruct_tail_hash
+from vultron.core.sync_helpers import recorded_entries_for_case
 from vultron.errors import VultronError
 from vultron.errors import VultronValidationError
 
@@ -75,15 +80,12 @@ def _to_persistable_entry(
     return VultronCaseLedgerEntry(
         case_id=chain_entry.case_id,
         log_index=chain_entry.log_index,
-        disposition=chain_entry.disposition,
         term=chain_entry.term,
         log_object_id=chain_entry.object_id,
         event_type=chain_entry.event_type,
         payload_snapshot=dict(chain_entry.payload_snapshot),
         prev_log_hash=chain_entry.prev_log_hash,
         entry_hash=chain_entry.entry_hash,
-        reason_code=chain_entry.reason_code,
-        reason_detail=chain_entry.reason_detail,
     )
 
 
@@ -94,18 +96,15 @@ class ReconstructChainTailNode(DataLayerActionWithPorts):
         super().__init__(name=name or self.__class__.__name__)
         self._case_id = case_id
 
-    @classmethod
-    def input_ports(cls) -> dict[str, PortInformation]:
-        ports = super().input_ports()
-        ports["activity"] = PortInformation(data_type=object, required=False)
-        return ports
+    INPUT_PORTS: dict[str, PortInformation] = {
+        **DataLayerActionWithPorts.INPUT_PORTS,
+        "activity": PortInformation(data_type=object, required=False),
+    }
 
-    @classmethod
-    def output_ports(cls) -> dict[str, PortInformation]:
-        return {
-            "tail_hash": PortInformation(data_type=object, required=True),
-            "tail_index": PortInformation(data_type=object, required=True),
-        }
+    OUTPUT_PORTS: dict[str, PortInformation] = {
+        "tail_hash": PortInformation(data_type=object, required=True),
+        "tail_index": PortInformation(data_type=object, required=True),
+    }
 
     @classmethod
     def _domain_port_remappings(cls) -> dict[str, str]:
@@ -120,7 +119,10 @@ class ReconstructChainTailNode(DataLayerActionWithPorts):
         if self._case_id is None:
             try:
                 self.activity = self.get_input("activity")
-            except Exception:
+            except (NoDataAvailable, NotImplementedError):
+                # Optional port: absent (NoDataAvailable) or explicitly None
+                # (NotImplementedError).  Any other error is a real port-wiring
+                # fault and must surface (CS-23-001).
                 self.activity = None
         else:
             self.activity = None
@@ -179,11 +181,10 @@ class ReconstructChainTailNode(DataLayerActionWithPorts):
 
 
 class UpdateReplicationStateNode(DataLayerActionWithPorts):
-    @classmethod
-    def input_ports(cls) -> dict[str, PortInformation]:
-        ports = super().input_ports()
-        ports["activity"] = PortInformation(data_type=object, required=True)
-        return ports
+    INPUT_PORTS: dict[str, PortInformation] = {
+        **DataLayerActionWithPorts.INPUT_PORTS,
+        "activity": PortInformation(data_type=object, required=True),
+    }
 
     @classmethod
     def _domain_port_remappings(cls) -> dict[str, str]:
@@ -228,7 +229,7 @@ class UpdateReplicationStateNode(DataLayerActionWithPorts):
         if existing is not None:
             existing_state = cast(VultronReplicationState, existing)
             existing_state.last_acknowledged_hash = activity.last_accepted_hash
-            existing_state.updated_at = _now_utc()
+            existing_state.updated_at = now_utc()
             self.datalayer.save(existing_state)
         else:
             self.datalayer.save(state)
@@ -244,9 +245,6 @@ class CreateLogEntryNode(DataLayerActionWithPorts):
         *,
         payload_snapshot: dict[str, Any] | None = None,
         term: int | None = None,
-        reason_code: str | None = None,
-        reason_detail: str | None = None,
-        disposition: Literal["recorded", "rejected"] = "recorded",
         name: str | None = None,
     ) -> None:
         super().__init__(name=name or self.__class__.__name__)
@@ -255,27 +253,21 @@ class CreateLogEntryNode(DataLayerActionWithPorts):
         self.event_type = event_type
         self.payload_snapshot = dict(payload_snapshot or {})
         self.term = term
-        self.reason_code = reason_code
-        self.reason_detail = reason_detail
-        self.disposition: Literal["recorded", "rejected"] = disposition
 
-    @classmethod
-    def input_ports(cls) -> dict[str, PortInformation]:
-        ports = super().input_ports()
-        ports["tail_hash"] = PortInformation(data_type=object, required=True)
-        ports["tail_index"] = PortInformation(data_type=object, required=True)
-        return ports
+    INPUT_PORTS: dict[str, PortInformation] = {
+        **DataLayerActionWithPorts.INPUT_PORTS,
+        "tail_hash": PortInformation(data_type=object, required=True),
+        "tail_index": PortInformation(data_type=object, required=True),
+    }
 
-    @classmethod
-    def output_ports(cls) -> dict[str, PortInformation]:
-        return {
-            "log_entry": PortInformation(
-                data_type=VultronCaseLedgerEntry, required=True
-            ),
-            "log_entry_preexisting": PortInformation(
-                data_type=object, required=True
-            ),
-        }
+    OUTPUT_PORTS: dict[str, PortInformation] = {
+        "log_entry": PortInformation(
+            data_type=VultronCaseLedgerEntry, required=True
+        ),
+        "log_entry_preexisting": PortInformation(
+            data_type=object, required=True
+        ),
+    }
 
     @classmethod
     def _domain_port_remappings(cls) -> dict[str, str]:
@@ -296,16 +288,40 @@ class CreateLogEntryNode(DataLayerActionWithPorts):
             return f
         assert self.datalayer is not None
 
-        from vultron.core.use_cases._helpers import _find_case_actor_id
+        # One scan of this case's entries, shared by the
+        # claimed-timestamp guard's predecessor lookup and the idempotency
+        # check below.  ``list_objects`` takes no case filter, so each scan
+        # walks the whole store (CS-22-001).
+        recorded = recorded_entries_for_case(
+            case_id=self.case_id, dl=self.datalayer
+        )
 
-        case_actor_id = _find_case_actor_id(self.datalayer, self.case_id)
+        # Temporal context for the CLP-14/CLP-15 claimed-timestamp guard.
+        # ``read_case`` returning ``None`` is expected, not an error: the
+        # genesis ``create_case`` entry is committed alongside case creation,
+        # so the case may not be readable yet.  The guard skips CLP-14-006 in
+        # that case and still applies every other check.
+        case = self.datalayer.read_case(self.case_id)
+        case_published: datetime | None = (
+            case.published if case is not None else None
+        )
+        prev_actor_published = _find_prev_actor_published(
+            case_id=self.case_id,
+            payload_snapshot=self.payload_snapshot,
+            dl=self.datalayer,
+            entries=recorded,
+        )
+
+        ledger_cfg = get_config().ledger
         _validate_canonical_entry(
             case_id=self.case_id,
-            actor_id=self.actor_id,
-            case_actor_id=case_actor_id,
-            disposition=self.disposition,
             payload_snapshot=self.payload_snapshot,
             event_type=self.event_type,
+            case_published=case_published,
+            prev_actor_published=prev_actor_published,
+            future_tolerance=ledger_cfg.future_tolerance,
+            staleness_window=ledger_cfg.staleness_window,
+            skew_tolerance=ledger_cfg.clock_skew_tolerance,
         )
 
         existing = _find_equivalent_recorded_entry(
@@ -314,6 +330,7 @@ class CreateLogEntryNode(DataLayerActionWithPorts):
             event_type=self.event_type,
             payload_snapshot=self.payload_snapshot,
             dl=self.datalayer,
+            entries=recorded or None,
         )
         if existing is not None:
             if isinstance(existing, VultronCaseLedgerEntry):
@@ -341,12 +358,9 @@ class CreateLogEntryNode(DataLayerActionWithPorts):
             log_index=tail_index + 1,
             object_id=self.object_id,
             event_type=self.event_type,
-            disposition=self.disposition,
             payload_snapshot=self.payload_snapshot,
             prev_log_hash=tail_hash,
             term=self.term,
-            reason_code=self.reason_code,
-            reason_detail=self.reason_detail,
         )
         self._set_output("log_entry", _to_persistable_entry(chain_entry))
         self._set_output("log_entry_preexisting", False)
@@ -354,16 +368,15 @@ class CreateLogEntryNode(DataLayerActionWithPorts):
 
 
 class PersistLogEntryNode(DataLayerActionWithPorts):
-    @classmethod
-    def input_ports(cls) -> dict[str, PortInformation]:
-        ports = super().input_ports()
-        ports["log_entry"] = PortInformation(
+    INPUT_PORTS: dict[str, PortInformation] = {
+        **DataLayerActionWithPorts.INPUT_PORTS,
+        "log_entry": PortInformation(
             data_type=VultronCaseLedgerEntry, required=True
-        )
-        ports["log_entry_preexisting"] = PortInformation(
+        ),
+        "log_entry_preexisting": PortInformation(
             data_type=bool, required=False
-        )
-        return ports
+        ),
+    }
 
     @classmethod
     def _domain_port_remappings(cls) -> dict[str, str]:

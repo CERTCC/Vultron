@@ -15,7 +15,6 @@
 
 Tests cover:
   - WeightedBehavior: correct status distribution at known probabilities
-  - SuccessOrRunning: never returns FAILURE
   - AlwaysSucceed / AlwaysFail: deterministic outcomes
   - All probability subclasses: correct success_rate attribute
   - Aliases: LikelyFail, LikelySucceed, RarelySucceed, RandomSucceedFail,
@@ -27,6 +26,7 @@ import random
 from typing import Type
 
 import pytest
+from py_trees.common import Status
 
 from vultron.demo.fuzzer.base import (
     AlmostAlwaysFail,
@@ -48,13 +48,11 @@ from vultron.demo.fuzzer.base import (
     RandomConditionNode,
     RandomSucceedFail,
     RarelySucceed,
-    SuccessOrRunning,
     UniformSucceedFail,
     UsuallyFail,
     UsuallySucceed,
     WeightedBehavior,
 )
-from py_trees.common import Status
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -121,43 +119,6 @@ class TestWeightedBehavior:
         random.seed(42)
         seq_b = [node.update() for _ in range(20)]
         assert seq_a == seq_b
-
-
-# ---------------------------------------------------------------------------
-# SuccessOrRunning
-# ---------------------------------------------------------------------------
-
-
-class TestSuccessOrRunning:
-    def test_is_py_trees_behaviour(self) -> None:
-        import py_trees
-
-        assert isinstance(SuccessOrRunning(), py_trees.behaviour.Behaviour)
-
-    def test_never_fails(self) -> None:
-        node = SuccessOrRunning()
-        results = {node.update() for _ in range(500)}
-        assert Status.FAILURE not in results
-
-    def test_returns_success_and_running(self) -> None:
-        node = SuccessOrRunning()
-        results = {node.update() for _ in range(500)}
-        assert Status.SUCCESS in results
-        assert Status.RUNNING in results
-
-    def test_empirical_distribution(self) -> None:
-        """SUCCESS and RUNNING each occur ~50% of the time."""
-        node = SuccessOrRunning()
-        successes = sum(
-            1 for _ in range(_TRIALS) if node.update() == Status.SUCCESS
-        )
-        rate = successes / _TRIALS
-        assert (
-            abs(rate - 0.5) < _TOLERANCE
-        ), f"SuccessOrRunning: empirical SUCCESS rate={rate:.4f}, expected 0.50"
-
-    def test_default_name(self) -> None:
-        assert SuccessOrRunning().name == "SuccessOrRunning"
 
 
 # ---------------------------------------------------------------------------
@@ -290,7 +251,6 @@ class TestPackageExports:
 
         expected = [
             "WeightedBehavior",
-            "SuccessOrRunning",
             "AlwaysSucceed",
             "AlwaysFail",
             "AlmostCertainlySucceed",

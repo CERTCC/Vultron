@@ -1,24 +1,36 @@
-# Role Delegation
+---
+stakeholder_type: [platform-developer]
+level: 300
+---
 
-{% include-markdown "../../../includes/not_normative.md" %}
+# How to Delegate a Role to Another Participant
 
-Role delegation is the protocol flow by which the Case Owner (or another
-authorized participant) offers a specific `CVDRole` to another actor in the case.
-The recipient may accept or reject the offer.
+Use this guide to offer a `CVDRole` on a case to another actor.
+Delegation is an offer, so the recipient decides whether to take the role.
+You finish with the recipient holding the role, or with the roster unchanged.
 
-The canonical wire format uses a dedicated `as_CaseParticipantRole` object
-(introduced in ADR-0039) to unambiguously distinguish a role offer from a case
-ownership-transfer offer. Both previously serialized as `Offer(VulnerabilityCase)`,
-creating an ambiguity resolved only by registry ordering. The new format is
-self-describing: the object type alone identifies the activity as a role offer.
+---
 
-See also: [ADR-0039 — Resolve Wire Ambiguity Between OFFER\_CASE\_MANAGER\_ROLE
-and OFFER\_CASE\_OWNERSHIP\_TRANSFER via Dedicated Object
-Type](../../../adr/0039-offer-case-participant-role-wire-type.md)
+## Prerequisites
 
-## Protocol Flow
+{% include-markdown "./_demo_prerequisites.md" %}
+
+- An existing case, and the authority to delegate on it.
+  This is normally the Case Owner or the Case Manager.
+- The target actor's Uniform Resource Identifier (URI), and its seat on the case.
+- The specific `CVDRole` you intend to offer.
+
+---
+
+## The exchange
+
+The sequence diagram below shows both outcomes.
+The offer names the role; the reply decides whether the role moves.
 
 ```mermaid
+---
+title: Role Delegation: Offer, Accept, and Reject
+---
 sequenceDiagram
     actor O as Offering Actor
     actor T as Target Actor
@@ -34,83 +46,52 @@ sequenceDiagram
     deactivate T
 ```
 
-## Offer CaseParticipantRole
+---
 
-The offering actor (typically the Case Owner or Case Manager) sends an
-`Offer(as_CaseParticipantRole)` to the target actor's inbox. The
-`as_CaseParticipantRole` object carries the specific `CVDRole` being offered.
-The `target` field is the Actor receiving the role; the case is identified via
-the `context` field.
+## Offer the role
 
-**Pattern**: `OfferCaseParticipantRolePattern` in
-`vultron/wire/as2/extractor/_instances.py`
+1. Send `Offer(CaseParticipantRole)` to the target actor's inbox.
+2. Carry the role in an `as_CaseParticipantRole` object, name the target actor in `target`, and name the case in `context`.
+3. Wait for the reply.
+   Nothing changes until the target answers.
 
-**Factory**: `offer_case_participant_role_activity` in
-`vultron/wire/as2/factories/__init__.py` (re-exported from
-`vultron/wire/as2/factories/case.py`)
+In the reference implementation this is the `offer-case-participant-role` trigger behavior.
 
-```python
-from vultron.wire.as2.factories import offer_case_participant_role_activity
-from vultron.enums.roles import CVDRole
+!!! warning "Offer a role, not a case"
 
-activity = offer_case_participant_role_activity(
-    role=CVDRole.CASE_MANAGER,
-    target_actor=target_actor,  # as_Actor
-    case=vulnerability_case,    # as_VulnerabilityCase
-    actor=offering_actor_id,
-    to=[target_actor_id],
-)
-```
+    A role offer and a case ownership transfer are both offers, and they used to serialize identically.
+    Carrying an `as_CaseParticipantRole` object is what tells a peer which one you mean (ADR-0039), so do not offer the `VulnerabilityCase` when you mean to delegate a role.
+    For the transfer, see [Ownership Transfer](../../../topics/case_lifecycle/ownership_transfer.md).
 
-## Accept CaseParticipantRole
+---
 
-The target actor accepts the role offer by sending
-`Accept(Offer(CaseParticipantRole))` back to the offering actor.
+## Answer a role offer
 
-**Pattern**: `AcceptCaseParticipantRolePattern` in
-`vultron/wire/as2/extractor/_instances.py`
+Reply to the offering actor with the original `Offer` as your `object`.
 
-**Factory**: `accept_case_participant_role_activity` in
-`vultron/wire/as2/factories/__init__.py`
+- If you are taking the role, send `Accept(Offer(CaseParticipantRole))`.
+  You hold the role from that point.
+- If you are not, send `Reject(Offer(CaseParticipantRole))`.
+  The roster is unchanged.
 
-```python
-from vultron.wire.as2.factories import accept_case_participant_role_activity
+Consider what the role obliges you to do before accepting.
+`CVDRole.CASE_MANAGER` in particular makes you the single-writer authority for the case ledger, so accepting it moves real work onto your actor.
 
-activity = accept_case_participant_role_activity(
-    offer=original_offer,   # the Offer(CaseParticipantRole) activity
-    actor=target_actor_id,
-    to=[offering_actor_id],
-)
-```
+---
 
-## Reject CaseParticipantRole
+## Verify
 
-The target actor declines the role offer by sending
-`Reject(Offer(CaseParticipantRole))` back to the offering actor.
+| What you sent | What to confirm |
+|---|---|
+| `Offer(CaseParticipantRole)` | The target holds an `Offer` carrying an `as_CaseParticipantRole`. |
+| `Accept(Offer(CaseParticipantRole))` | Your `CaseParticipant` record lists the new role. |
+| `Reject(Offer(CaseParticipantRole))` | Your roles are unchanged and the refusal is recorded. |
 
-**Pattern**: `RejectCaseParticipantRolePattern` in
-`vultron/wire/as2/extractor/_instances.py`
+---
 
-**Factory**: `reject_case_participant_role_activity` in
-`vultron/wire/as2/factories/__init__.py`
+## Further reading
 
-```python
-from vultron.wire.as2.factories import reject_case_participant_role_activity
-
-activity = reject_case_participant_role_activity(
-    offer=original_offer,   # the Offer(CaseParticipantRole) activity
-    actor=target_actor_id,
-    to=[offering_actor_id],
-)
-```
-
-## Reference
-
-- Patterns: `vultron/wire/as2/extractor/_instances.py` —
-  `OfferCaseParticipantRolePattern`, `AcceptCaseParticipantRolePattern`,
-  `RejectCaseParticipantRolePattern`
-- Factories: `vultron/wire/as2/factories/case.py` —
-  `offer_case_participant_role_activity`, `accept_case_participant_role_activity`,
-  `reject_case_participant_role_activity`
-- ADR: [ADR-0039](../../../adr/0039-offer-case-participant-role-wire-type.md)
-- Spec: `specs/semantic-extraction.yaml` SE-08-001 through SE-08-005
+- [Case Management Messages](../../../reference/messages/case_management.md) — the wire format, pattern, and factory for each activity above
+- [Activity Vocabulary Design](../../../topics/activity_vocabulary_design.md) — why a new object type was minted here rather than a new verb
+- [ADR-0039 — Resolve Wire Ambiguity Between OFFER\_CASE\_MANAGER\_ROLE and OFFER\_CASE\_OWNERSHIP\_TRANSFER via Dedicated Object Type](../../../adr/0039-offer-case-participant-role-wire-type.md)
+- [Trigger API Reference](../../../reference/trigger-api.md#actor-participation) — request schema and endpoint details for `offer-case-participant-role`, `offer-case-ownership-transfer`, `accept-actor-recommendation`, and `accept-case-ownership-transfer`

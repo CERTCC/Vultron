@@ -172,7 +172,7 @@ class EmbargoLifecycle:
         """Propose or counter-propose an embargo on a case.
 
         Valid EM transitions (STRICT mode):
-            - ``NO_EMBARGO → PROPOSED``  (initial proposal)
+            - ``NONE → PROPOSED``  (initial proposal)
             - ``PROPOSED → PROPOSED``    (counter-proposal / idempotent)
             - ``ACTIVE → REVISE``        (revision proposal; cascades PEC)
             - ``REVISE → REVISE``        (counter-revision / idempotent)
@@ -411,7 +411,7 @@ class EmbargoLifecycle:
         """Reject an embargo proposal or revision on a case.
 
         If *actor_id* is the case owner, drives the EM state machine:
-            - ``PROPOSED → NO_EMBARGO``  (initial proposal rejected)
+            - ``PROPOSED → NONE``  (initial proposal rejected)
             - ``REVISE → ACTIVE``        (revision rejected; returns to active)
 
         Per EMB-04-002, a REVISE rejection that would return the case to ACTIVE
@@ -464,7 +464,7 @@ class EmbargoLifecycle:
                     case_id,
                     "reject embargo revision (use terminate_active_embargo when P/X/A is set)",
                 )
-            # OBSERVED fallback: REVISE reject → ACTIVE; otherwise → NO_EMBARGO
+            # OBSERVED fallback: REVISE reject → ACTIVE; otherwise → NONE
             fallback = EM.ACTIVE if em_before == EM.REVISE else EM.NONE
             em_after = self._drive_em_transition(
                 case_id=case_id,
@@ -515,7 +515,7 @@ class EmbargoLifecycle:
 
         Drives ``ACTIVE → EXITED`` (or ``REVISE → EXITED``), clears
         ``case.active_embargo``, and resets all participants' PEC state to
-        ``NO_EMBARGO`` via :meth:`_cascade_pec_reset`.
+        ``UNBOUND`` via :meth:`_cascade_pec_reset`.
 
         Args:
             case_id: ID of the ``VulnerabilityCase`` to update.
@@ -870,6 +870,11 @@ class EmbargoLifecycle:
                 deadline,
             )
 
+        # A SIGNATORY participant has already accepted; a stale deadline is not
+        # a real lapse.  Only DECLINED (just-lapsed or already-declined) triggers
+        # the EMB-17 late-Accept routing in the caller.
+        is_lapsed = participant.embargo_consent_state != PEC.SIGNATORY.value
+
         return EmbargoLifecycleResult(
             em_before=em_state,
             em_after=em_state,
@@ -877,7 +882,7 @@ class EmbargoLifecycle:
             case_embargo_changed=False,
             pec_reset=False,
             participant_changes=participant_changes,
-            is_lapsed=True,
+            is_lapsed=is_lapsed,
         )
 
     # ------------------------------------------------------------------
@@ -979,7 +984,10 @@ class EmbargoLifecycle:
         pec_before = participant.embargo_consent_state
         changed = False
 
-        if participant.embargo_consent_state != PEC.SIGNATORY.value:
+        if participant.embargo_consent_state not in (
+            PEC.SIGNATORY.value,
+            PEC.DECLINED.value,
+        ):
             participant.apply_pec_transition(PEC_Trigger.ACCEPT)
             changed = True
 
@@ -1053,7 +1061,7 @@ class EmbargoLifecycle:
         )
 
     def _cascade_pec_reset(self, case: Any) -> list[ParticipantPECChange]:
-        """Reset all participants' PEC state to NO_EMBARGO.
+        """Reset all participants' PEC state to UNBOUND.
 
         Called when an embargo is terminated.  Returns a list of
         :class:`ParticipantPECChange` for every participant that was updated.
@@ -1066,7 +1074,7 @@ class EmbargoLifecycle:
             participant = self._persistence.read(participant_id)
             if not isinstance(participant, CaseParticipant):
                 continue
-            if participant.embargo_consent_state == PEC.NO_EMBARGO.value:
+            if participant.embargo_consent_state == PEC.UNBOUND.value:
                 continue
             pec_before = participant.embargo_consent_state
             participant.apply_pec_transition(PEC_Trigger.RESET)

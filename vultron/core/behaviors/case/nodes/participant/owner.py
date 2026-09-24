@@ -15,11 +15,10 @@
 
 """Owner-participant creation leaf nodes (BTND-07-003)."""
 
-from typing import Any, cast
+from typing import cast
 
-import py_trees
 from py_trees.common import Status
-from py_trees.ports import PortInformation
+from py_trees.ports import NoDataAvailable, PortInformation
 
 from vultron.core.behaviors.case.nodes.participant.common import (
     _create_and_attach_participant,
@@ -28,129 +27,16 @@ from vultron.core.behaviors.helpers import (
     DataLayerActionWithPorts,
 )
 from vultron.config.actor import ActorConfig
-from vultron.core.models.dimensions import PecDimension, RmDimension
-from vultron.core.models.participant_status import ParticipantStatus
 from vultron.core.models.case import VulnerabilityCase
-from vultron.core.models.vultron_types import VultronCase, VultronParticipant
-from vultron.core.ports.case_persistence import CasePersistence
-from vultron.core.states.participant_embargo_consent import PEC
+from vultron.core.models.vultron_types import VultronParticipant
 from vultron.core.states.rm import RM
 from vultron.enums.roles import CVDRole
-from vultron.core.models._helpers import _as_id, _report_phase_status_id
-from vultron.core.use_cases._helpers import update_participant_rm_state
-
-
-def _resolve_case_id(
-    blackboard: Any, case_obj: VultronCase | None = None
-) -> str | None:
-    case_id = case_obj.id_ if case_obj is not None else None
-    return case_id or blackboard.get("case_id")
-
-
-def _build_owner_initial_status(
-    dl: CasePersistence,
-    actor_id: str,
-    case_id: str,
-    report_id: str | None,
-    initial_rm_state: RM,
-) -> ParticipantStatus:
-    if report_id is not None:
-        status_id = _report_phase_status_id(
-            actor_id,
-            report_id,
-            initial_rm_state.value,
-        )
-        if dl.read(status_id) is not None:
-            return ParticipantStatus(
-                id_=status_id,
-                context=case_id,
-                rm=RmDimension(state=initial_rm_state),
-                attributed_to=actor_id,
-                consent=PecDimension(state=PEC.NO_EMBARGO),
-                cvd_role=[CVDRole.CASE_OWNER],
-            )
-
-    return ParticipantStatus(
-        context=case_id,
-        rm=RmDimension(state=initial_rm_state),
-        attributed_to=actor_id,
-        consent=PecDimension(state=PEC.NO_EMBARGO),
-        cvd_role=[CVDRole.CASE_OWNER],
-    )
+from vultron.core.models._helpers import _as_id
 
 
 def _effective_case_roles(actor_config: ActorConfig | None) -> list[CVDRole]:
     base_roles = actor_config.default_case_roles if actor_config else []
     return list(dict.fromkeys(base_roles + [CVDRole.CASE_OWNER]))
-
-
-class ResolveOwnerInitialStatusNode(DataLayerActionWithPorts):
-    """Resolve/create the owner's initial ParticipantStatus."""
-
-    def __init__(
-        self,
-        report_id: str | None,
-        case_obj: VultronCase | None,
-        initial_rm_state: RM,
-        name: str | None = None,
-    ) -> None:
-        super().__init__(name=name or self.__class__.__name__)
-        self.report_id = report_id
-        self.case_obj = case_obj
-        self.initial_rm_state = initial_rm_state
-        _seg = report_id.split("/")[-1] if report_id else "default"
-        self._owner_initial_status_key = f"owner_initial_status_{_seg}"
-
-    @classmethod
-    def input_ports(cls) -> dict[str, PortInformation]:
-        ports = super().input_ports()
-        ports["case_id"] = PortInformation(data_type=str, required=False)
-        return ports
-
-    @classmethod
-    def output_ports(cls) -> dict[str, PortInformation]:
-        return {
-            "owner_initial_status": PortInformation(
-                data_type=object, required=True
-            )
-        }
-
-    def _instance_port_remappings(self) -> dict[str, str]:
-        return {
-            "case_id": "/case_id",
-            "owner_initial_status": f"/{self._owner_initial_status_key}",
-        }
-
-    def initialise(self) -> None:
-        super().initialise()
-        self.case_id = self._try_get_input("case_id")
-
-    def update(self) -> Status:
-        if (f := self._require_datalayer_and_actor()) is not None:
-            return f
-        assert self.datalayer is not None
-        assert self.actor_id is not None
-        case_id = (
-            self.case_obj.id_ if self.case_obj is not None else None
-        ) or self.case_id
-        if case_id is None:
-            self.logger.error("%s: case_id not available", self.name)
-            return Status.FAILURE
-        if not isinstance(case_id, str):
-            self.logger.error("%s: case_id is not a string", self.name)
-            return Status.FAILURE
-
-        self._set_output(
-            "owner_initial_status",
-            _build_owner_initial_status(
-                self.datalayer,
-                self.actor_id,
-                case_id,
-                self.report_id,
-                self.initial_rm_state,
-            ),
-        )
-        return Status.SUCCESS
 
 
 class CreateOwnerParticipantNode(DataLayerActionWithPorts):
@@ -165,56 +51,35 @@ class CreateOwnerParticipantNode(DataLayerActionWithPorts):
         super().__init__(name=name or self.__class__.__name__)
         self.actor_config = actor_config
         _seg = report_id.split("/")[-1] if report_id else "default"
-        self._owner_initial_status_key = f"owner_initial_status_{_seg}"
         self._new_case_participant_key = f"new_case_participant_{_seg}"
 
-    @classmethod
-    def input_ports(cls) -> dict[str, PortInformation]:
-        ports = super().input_ports()
-        ports["case_id"] = PortInformation(data_type=str, required=False)
-        ports["owner_initial_status"] = PortInformation(
-            data_type=object, required=True
-        )
-        return ports
+    INPUT_PORTS: dict[str, PortInformation] = {
+        **DataLayerActionWithPorts.INPUT_PORTS,
+        "case_id": PortInformation(data_type=str, required=False),
+    }
 
-    @classmethod
-    def output_ports(cls) -> dict[str, PortInformation]:
-        return {
-            "new_case_participant": PortInformation(
-                data_type=object, required=True
-            )
-        }
+    OUTPUT_PORTS: dict[str, PortInformation] = {
+        "new_case_participant": PortInformation(
+            data_type=object, required=True
+        ),
+    }
 
     def _instance_port_remappings(self) -> dict[str, str]:
         return {
             "case_id": "/case_id",
-            "owner_initial_status": f"/{self._owner_initial_status_key}",
             "new_case_participant": f"/{self._new_case_participant_key}",
         }
 
     def initialise(self) -> None:
         super().initialise()
         self.case_id = self._try_get_input("case_id")
-        self.owner_initial_status = self._try_get_input("owner_initial_status")
 
     def update(self) -> Status:
         if self.actor_id is None:
             self.logger.error("%s: actor_id not available", self.name)
             return Status.FAILURE
-        case_id_obj = self.case_id
-        initial_status = self.owner_initial_status
-        if not isinstance(initial_status, ParticipantStatus):
-            self.logger.error(
-                "%s: case_id/%s missing in blackboard",
-                self.name,
-                self._owner_initial_status_key,
-            )
-            return Status.FAILURE
-        case_id = case_id_obj
+        case_id = self.case_id
         if not isinstance(case_id, str):
-            status_context = _as_id(initial_status.context)
-            case_id = status_context if status_context is not None else None
-        if case_id is None:
             self.logger.error("%s: case_id not available", self.name)
             return Status.FAILURE
 
@@ -224,10 +89,76 @@ class CreateOwnerParticipantNode(DataLayerActionWithPorts):
                 attributed_to=self.actor_id,
                 context=case_id,
                 case_roles=_effective_case_roles(self.actor_config),
-                participant_statuses=[initial_status],
+                participant_statuses=[],
             ),
         )
         return Status.SUCCESS
+
+
+class CreateOwnerInitialStatusNode(DataLayerActionWithPorts):
+    """Apply the owner's initial ParticipantStatus via the writer node.
+
+    Pre-builds a :class:`CreateParticipantStatusNode` in ``__init__`` and
+    executes it via ``BTBridge.execute_with_setup`` so the write is routed
+    through the composed evaluator (BTND-10-004, ADR-0089).
+    """
+
+    def __init__(
+        self,
+        initial_rm_state: RM = RM.RECEIVED,
+        report_id: str | None = None,
+        name: str | None = None,
+    ) -> None:
+        super().__init__(name=name or self.__class__.__name__)
+        from vultron.core.behaviors.case.nodes.participant.status import (
+            CreateParticipantStatusNode,
+        )
+
+        self._status_node = CreateParticipantStatusNode(
+            actor_id="",
+            rm_state=initial_rm_state,
+            vf_state=None,
+            d_state=None,
+            pxa_state=None,
+            force_rm_state=(initial_rm_state != RM.RECEIVED),
+        )
+
+    INPUT_PORTS: dict[str, PortInformation] = {
+        **DataLayerActionWithPorts.INPUT_PORTS,
+        "case_id": PortInformation(data_type=str, required=False),
+    }
+
+    @classmethod
+    def _domain_port_remappings(cls) -> dict[str, str]:
+        return {"case_id": "/case_id"}
+
+    def initialise(self) -> None:
+        super().initialise()
+        self._case_id_bb = None
+        try:
+            self._case_id_bb = self.get_input("case_id")
+        except (NoDataAvailable, NotImplementedError):
+            pass
+
+    def update(self) -> Status:
+        if (f := self._require_datalayer_and_actor()) is not None:
+            return f
+        assert self.datalayer is not None
+        assert self.actor_id is not None
+
+        case_id = self._case_id_bb
+        if not isinstance(case_id, str):
+            self.feedback_message = "case_id not found in blackboard"
+            return Status.FAILURE
+
+        from vultron.core.behaviors.bridge import BTBridge
+
+        result = BTBridge(datalayer=self.datalayer).execute_with_setup(
+            self._status_node,
+            actor_id=self.actor_id,
+            case_id=case_id,
+        )
+        return result.status
 
 
 class AttachOwnerParticipantToCaseNode(DataLayerActionWithPorts):
@@ -241,22 +172,19 @@ class AttachOwnerParticipantToCaseNode(DataLayerActionWithPorts):
         self._new_case_participant_key = f"new_case_participant_{_seg}"
         self._participant_case_key = f"participant_case_{_seg}"
 
-    @classmethod
-    def input_ports(cls) -> dict[str, PortInformation]:
-        ports = super().input_ports()
-        ports["case_id"] = PortInformation(data_type=str, required=False)
-        ports["new_case_participant"] = PortInformation(
+    INPUT_PORTS: dict[str, PortInformation] = {
+        **DataLayerActionWithPorts.INPUT_PORTS,
+        "case_id": PortInformation(data_type=str, required=False),
+        "new_case_participant": PortInformation(
             data_type=object, required=True
-        )
-        return ports
+        ),
+    }
 
-    @classmethod
-    def output_ports(cls) -> dict[str, PortInformation]:
-        return {
-            "participant_case": PortInformation(
-                data_type=VulnerabilityCase, required=True
-            )
-        }
+    OUTPUT_PORTS: dict[str, PortInformation] = {
+        "participant_case": PortInformation(
+            data_type=VulnerabilityCase, required=True
+        ),
+    }
 
     def _instance_port_remappings(self) -> dict[str, str]:
         return {
@@ -320,13 +248,12 @@ class PersistOwnerCaseNode(DataLayerActionWithPorts):
         _seg = report_id.split("/")[-1] if report_id else "default"
         self._participant_case_key = f"participant_case_{_seg}"
 
-    @classmethod
-    def input_ports(cls) -> dict[str, PortInformation]:
-        ports = super().input_ports()
-        ports["participant_case"] = PortInformation(
+    INPUT_PORTS: dict[str, PortInformation] = {
+        **DataLayerActionWithPorts.INPUT_PORTS,
+        "participant_case": PortInformation(
             data_type=VulnerabilityCase, required=True
-        )
-        return ports
+        ),
+    }
 
     def _instance_port_remappings(self) -> dict[str, str]:
         return {"participant_case": f"/{self._participant_case_key}"}
@@ -351,90 +278,6 @@ class PersistOwnerCaseNode(DataLayerActionWithPorts):
         return Status.SUCCESS
 
 
-class ShouldAdvanceOwnerToAcceptedNode(py_trees.behaviour.Behaviour):
-    """Condition leaf for owner RM advancement branch selection."""
-
-    def __init__(
-        self, advance_to_accepted: bool, name: str | None = None
-    ) -> None:
-        super().__init__(name=name or self.__class__.__name__)
-        self._advance_to_accepted = advance_to_accepted
-
-    def update(self) -> Status:
-        return Status.SUCCESS if self._advance_to_accepted else Status.FAILURE
-
-
-class AdvanceOwnerRmToAcceptedNode(DataLayerActionWithPorts):
-    """Advance owner RM to ACCEPTED when case creation means engagement."""
-
-    def __init__(
-        self, report_id: str | None = None, name: str | None = None
-    ) -> None:
-        super().__init__(name=name or self.__class__.__name__)
-        _seg = report_id.split("/")[-1] if report_id else "default"
-        self._participant_case_key = f"participant_case_{_seg}"
-
-    @classmethod
-    def input_ports(cls) -> dict[str, PortInformation]:
-        ports = super().input_ports()
-        ports["case_id"] = PortInformation(data_type=str, required=False)
-        ports["participant_case"] = PortInformation(
-            data_type=VulnerabilityCase, required=True
-        )
-        return ports
-
-    def _instance_port_remappings(self) -> dict[str, str]:
-        return {
-            "case_id": "/case_id",
-            "participant_case": f"/{self._participant_case_key}",
-        }
-
-    def initialise(self) -> None:
-        super().initialise()
-        raw = self._try_get_input("case_id")
-        self._case_id: str | None = raw if isinstance(raw, str) else None
-        self._stored_case = self._try_get_input("participant_case")
-
-    def update(self) -> Status:
-        if (f := self._require_datalayer_and_actor()) is not None:
-            return f
-        assert self.datalayer is not None
-        assert self.actor_id is not None
-        case_id = self._case_id
-        if case_id is None:
-            case_id = (
-                cast(VulnerabilityCase, self._stored_case).id_
-                if self._stored_case is not None
-                else None
-            )
-        if case_id is None:
-            self.logger.error("%s: case_id not available", self.name)
-            return Status.FAILURE
-
-        advanced = update_participant_rm_state(
-            case_id,
-            self.actor_id,
-            RM.ACCEPTED,
-            self.datalayer,
-        )
-        if advanced:
-            self.logger.info(
-                "Owner RM: VALID → ACCEPTED for actor '%s' in case '%s' "
-                "(case creation = case engagement)",
-                self.actor_id,
-                case_id,
-            )
-        else:
-            self.logger.warning(
-                "%s: Could not advance owner RM to ACCEPTED for actor '%s'"
-                " in case '%s'",
-                self.name,
-                self.actor_id,
-                case_id,
-            )
-        return Status.SUCCESS
-
-
 class RecordOwnerJoinedEventNode(DataLayerActionWithPorts):
     """Record owner_joined event and persist the case update."""
 
@@ -446,16 +289,15 @@ class RecordOwnerJoinedEventNode(DataLayerActionWithPorts):
         self._participant_case_key = f"participant_case_{_seg}"
         self._new_case_participant_key = f"new_case_participant_{_seg}"
 
-    @classmethod
-    def input_ports(cls) -> dict[str, PortInformation]:
-        ports = super().input_ports()
-        ports["participant_case"] = PortInformation(
+    INPUT_PORTS: dict[str, PortInformation] = {
+        **DataLayerActionWithPorts.INPUT_PORTS,
+        "participant_case": PortInformation(
             data_type=VulnerabilityCase, required=True
-        )
-        ports["new_case_participant"] = PortInformation(
+        ),
+        "new_case_participant": PortInformation(
             data_type=object, required=True
-        )
-        return ports
+        ),
+    }
 
     def _instance_port_remappings(self) -> dict[str, str]:
         return {

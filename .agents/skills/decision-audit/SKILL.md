@@ -141,7 +141,8 @@ position.
 
 ### Phase 4 — Grill-Me Adjudication (human decides)
 
-Invoke `grill-me`. Ask one question at a time via `ask_user`, each with a
+Invoke `grill-me`, following `.agents/skills/shared/asking-the-user.md`. Ask
+one question at a time (`ask_user` for discrete choices), each with a
 recommended answer grounded in the Phase 3 evidence. Resolve, per candidate:
 
 1. **Verdict** — Is the decision:
@@ -218,8 +219,8 @@ BODY   = What the decision claimed, what current understanding shows,
 ### ADR archive convention
 
 Retired ADRs live in `docs/adr/archived/` so agents do not meet outdated
-decisions in the default `docs/adr/` sweep (`orient-agent` reads
-`docs/adr/index.md`; `deepen-context` reads the live `docs/adr/` set only).
+decisions in the default `docs/adr/` sweep (`deepen-context` reads
+`docs/adr/index.md` and the live `docs/adr/` set only).
 When archiving:
 
 - keep the original filename, move it under `docs/adr/archived/`;

@@ -22,14 +22,17 @@ Case Actor / CASE_MANAGER delegation activities.
 import logging
 from typing import Any, cast
 
-from vultron.core.models.actor import CoreActor
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.ownership_transfer_offer_record import (
     VultronOwnershipTransferOfferRecord,
 )
 from vultron.core.ports.case_persistence import CaseOutboxPersistence
 from vultron.core.models._helpers import _as_id
-from vultron.errors import VultronNotFoundError, VultronValidationError
+from vultron.errors import (
+    VultronAlreadyExistsError,
+    VultronNotFoundError,
+    VultronValidationError,
+)
 from vultron.wire.as2.factories import (
     accept_actor_recommendation_activity,
     accept_case_participant_offer_activity,
@@ -85,7 +88,7 @@ class _ActorsMixin:
 
         ``roles`` carries the intended CVD roles for the invitee (CM-17-003).
         ``target`` may be a core ``as_VulnerabilityCase`` (projected to an enriched
-        stub by the factory), a pre-built ``VulnerabilityCaseStub``, or a bare
+        stub by the factory), a pre-built ``as_VulnerabilityCaseStub``, or a bare
         URI string.  When ``None``, the case is read from the DataLayer by
         ``case_id`` and passed to the factory with any active embargo entity for
         CM-17-002 enrichment.
@@ -112,7 +115,7 @@ class _ActorsMixin:
                 embargo_obj = self._dl.read(active_embargo_uri)
 
         activity = rm_invite_to_case_activity(
-            invitee=CoreActor(id_=invitee_id),
+            invitee=invitee_id,
             target=resolved,
             roles=roles,
             embargo_obj=embargo_obj,
@@ -120,7 +123,7 @@ class _ActorsMixin:
         )
         try:
             self._dl.create(activity)
-        except ValueError:
+        except VultronAlreadyExistsError:
             logger.warning(
                 "invite_actor_to_case: activity '%s' already exists"
                 " — skipping",
@@ -154,7 +157,7 @@ class _ActorsMixin:
         )
         try:
             self._dl.create(activity)
-        except ValueError:
+        except VultronAlreadyExistsError:
             logger.warning(
                 "accept_case_invite: activity '%s' already exists — skipping",
                 activity.id_,
@@ -185,7 +188,7 @@ class _ActorsMixin:
         )
         try:
             self._dl.create(activity)
-        except ValueError:
+        except VultronAlreadyExistsError:
             logger.warning(
                 "reject_case_invite: activity '%s' already exists — skipping",
                 activity.id_,
@@ -219,7 +222,7 @@ class _ActorsMixin:
         )
         try:
             self._dl.create(activity)
-        except ValueError:
+        except VultronAlreadyExistsError:
             logger.warning(
                 "accept_case_participant_offer: activity '%s' already exists"
                 " — skipping",
@@ -242,14 +245,14 @@ class _ActorsMixin:
             extra["id_"] = id_
         # The factory accepts a string for target (case ID).
         activity = recommend_actor_activity(
-            recommended=CoreActor(id_=recommended_id),
+            recommended=recommended_id,
             target=case_id,
             suggested_roles=roles,
             **extra,
         )
         try:
             self._dl.create(activity)
-        except ValueError:
+        except VultronAlreadyExistsError:
             logger.warning(
                 "suggest_actor_to_case: activity '%s' already exists"
                 " — skipping",
@@ -282,7 +285,7 @@ class _ActorsMixin:
         if origin is not None:
             extra["origin"] = origin
         activity = offer_case_participant_activity(
-            recommended=CoreActor(id_=recommended_id),
+            recommended=recommended_id,
             target=case_id,
             roles=roles,
             **extra,
@@ -296,7 +299,7 @@ class _ActorsMixin:
                 pass
         try:
             self._dl.create(activity)
-        except ValueError:
+        except VultronAlreadyExistsError:
             logger.warning(
                 "offer_actor_to_case: activity '%s' already exists — skipping",
                 activity.id_,
@@ -319,7 +322,7 @@ class _ActorsMixin:
         the Offer(as_CaseParticipant) (CM-16-006 step 3).
         """
         recommendation = recommend_actor_activity(
-            recommended=CoreActor(id_=recommended_id),
+            recommended=recommended_id,
             target=case_id,
             id_=recommendation_id,
             actor=recommender_id,
@@ -332,7 +335,7 @@ class _ActorsMixin:
         )
         try:
             self._dl.create(activity)
-        except ValueError:
+        except VultronAlreadyExistsError:
             logger.warning(
                 "emit_accept_actor_recommendation: activity '%s' already"
                 " exists — skipping",
@@ -356,7 +359,7 @@ class _ActorsMixin:
         the Offer(as_CaseParticipant) (CM-16-007 step 3).
         """
         recommendation = recommend_actor_activity(
-            recommended=CoreActor(id_=recommended_id),
+            recommended=recommended_id,
             target=case_id,
             id_=recommendation_id,
             actor=recommender_id,
@@ -369,7 +372,7 @@ class _ActorsMixin:
         )
         try:
             self._dl.create(activity)
-        except ValueError:
+        except VultronAlreadyExistsError:
             logger.warning(
                 "emit_reject_actor_recommendation: activity '%s' already"
                 " exists — skipping",
@@ -394,7 +397,7 @@ class _ActorsMixin:
         accept it, provided they know its deterministic ID.
         """
         recommendation = recommend_actor_activity(
-            recommended=CoreActor(id_=recommended_id),
+            recommended=recommended_id,
             target=case_id,
             id_=recommendation_id,
             actor=recommender_id,
@@ -407,7 +410,7 @@ class _ActorsMixin:
         )
         try:
             self._dl.create(activity)
-        except ValueError:
+        except VultronAlreadyExistsError:
             logger.warning(
                 "accept_actor_recommendation: activity '%s' already exists"
                 " — skipping",
@@ -431,7 +434,7 @@ class _ActorsMixin:
         )
         try:
             self._dl.create(activity)
-        except ValueError:
+        except VultronAlreadyExistsError:
             logger.warning(
                 "add_participant_to_case: activity '%s' already exists"
                 " — skipping",
@@ -453,24 +456,22 @@ class _ActorsMixin:
                 "ParticipantStatus",
                 f"status '{status_id}' not found",
             )
-        # Convert from core as_ParticipantStatus to wire as_ParticipantStatus
-        # so that nested fields (case_status, pxa_state) survive the boundary.
-        from vultron.core.models.participant_status import (
-            ParticipantStatus as CorePS,
-        )
-
-        if isinstance(raw, CorePS):
-            wire_status: as_ParticipantStatus = as_ParticipantStatus.from_core(
-                raw
-            )
-        else:
-            wire_status = cast(as_ParticipantStatus, raw)
+        # No conversion step: ``as_ParticipantStatus`` *is* ``ParticipantStatus``
+        # (ADR-0099 detail 3), so the object read from the DataLayer is already the
+        # class the activity slot wants.  This previously called
+        # ``as_ParticipantStatus.from_core(raw)`` to make nested fields survive a
+        # boundary that no longer exists; once the pair collapsed, that call raised
+        # ``AttributeError: from_core`` and the use case reported "Activity
+        # construction failed".
         activity = add_status_to_participant_activity(
-            status=wire_status, target=participant_id, actor=actor, to=to
+            status=cast(as_ParticipantStatus, raw),
+            target=participant_id,
+            actor=actor,
+            to=to,
         )
         try:
             self._dl.create(activity)
-        except ValueError:
+        except VultronAlreadyExistsError:
             logger.warning(
                 "add_participant_status_to_participant: activity '%s' already"
                 " exists — skipping",
@@ -506,7 +507,7 @@ class _ActorsMixin:
         )
         try:
             self._dl.create(activity)
-        except ValueError:
+        except VultronAlreadyExistsError:
             logger.warning(
                 "offer_case_participant_role: activity '%s' already exists"
                 " — skipping",
@@ -544,7 +545,7 @@ class _ActorsMixin:
         activity_json = activity.model_dump_json(**_DUMP_KWARGS)
         try:
             self._dl.create(activity)
-        except ValueError:
+        except VultronAlreadyExistsError:
             logger.warning(
                 "accept_case_participant_role: activity '%s' already exists"
                 " — skipping",
@@ -561,7 +562,7 @@ class _ActorsMixin:
         vendor_id: str,
         actor: str,
         to: list[str] | None = None,
-    ) -> str:
+    ) -> tuple[str, str]:
         """Create and persist a ``Reject(_OfferCaseParticipantRoleActivity)`` (ADR-0039)."""
         from vultron.wire.as2.vocab.base.objects.actors import (
             as_Actor,
@@ -581,13 +582,13 @@ class _ActorsMixin:
         )
         try:
             self._dl.create(activity)
-        except ValueError:
+        except VultronAlreadyExistsError:
             logger.warning(
                 "reject_case_participant_role: activity '%s' already exists"
                 " — skipping",
                 activity.id_,
             )
-        return activity.id_
+        return activity.id_, activity.model_dump_json(**_DUMP_KWARGS)
 
     def offer_case_ownership_transfer(
         self,
@@ -620,7 +621,7 @@ class _ActorsMixin:
         )
         try:
             self._dl.create(activity)
-        except ValueError:
+        except VultronAlreadyExistsError:
             logger.warning(
                 "offer_case_ownership_transfer: activity '%s' already exists"
                 " — skipping",
@@ -667,7 +668,7 @@ class _ActorsMixin:
         )
         try:
             self._dl.create(activity)
-        except ValueError:
+        except VultronAlreadyExistsError:
             logger.warning(
                 "accept_case_ownership_transfer: activity '%s' already exists"
                 " — skipping",
@@ -694,11 +695,12 @@ class _ActorsMixin:
         case = self._dl.read(record.case_id)
         if case is None:
             raise VultronNotFoundError("VulnerabilityCase", record.case_id)
-        wire_case = (
-            case
-            if isinstance(case, as_VulnerabilityCase)
-            else as_VulnerabilityCase.from_core(cast(Any, case))
-        )
+        if not isinstance(case, as_VulnerabilityCase):
+            raise VultronValidationError(
+                f"Record '{record.case_id}' is a {type(case).__name__},"
+                " not a VulnerabilityCase"
+            )
+        wire_case = case
         # Reuse the same factory the offering side calls, so the rebuilt Offer
         # is constructed exactly the way the wire path would have built it
         # (test/architecture/test_activity_factory_imports.py forbids adapters

@@ -12,6 +12,7 @@ nav:
     - Running the Other Demos: 'tutorials/other_demos.md'
     - Running the Multi-Actor Container Demos: 'tutorials/container_demos.md'
     - Run the FV Demo: 'tutorials/fv-demo.md'
+    - Worked Example: 'tutorials/worked_example.md'
   - Explanation:
     - 'topics/index.md'
     - Background:
@@ -19,10 +20,15 @@ nav:
       - What Is Vultron?: 'topics/background/what-is-vultron.md'
       - Interoperability: 'topics/background/interoperability.md'
       - Defining CVD Success: 'topics/background/cvd_success.md'
-    - The Case Model: 'topics/case_model.md'
-    - Case Ledger Synchronization: 'topics/case_ledger_sync.md'
+    - Case Lifecycle:
+      - 'topics/case_lifecycle/index.md'
+      - The Case Model: 'topics/case_lifecycle/case_model.md'
+      - Case Initialization: 'topics/case_lifecycle/case_initialization.md'
+      - Case Ledger Synchronization: 'topics/case_lifecycle/case_ledger_sync.md'
+      - Ownership Transfer: 'topics/case_lifecycle/ownership_transfer.md'
     - Protocol Event Flow: 'topics/protocol_flow.md'
     - Message Semantics: 'topics/message_semantics.md'
+    - Activity Vocabulary Design: 'topics/activity_vocabulary_design.md'
     - Actor Knowledge Model: 'topics/actor-knowledge-model.md'
     - Reference Implementation Architecture: 'topics/reference_architecture.md'
     - Process Models:
@@ -52,33 +58,40 @@ nav:
         - RM, EM, CS Interactions: 'topics/process_models/model_interactions/rm_em_cs.md'
     - Behavior Logic:
       - 'topics/behavior_logic/index.md'
-      - CVD Behaviors: 'topics/behavior_logic/cvd_bt.md'
-      - Vulnerability Discovery Behavior: 'topics/behavior_logic/vuldisco_bt.md'
-      - RM Behaviors:
-        - 'topics/behavior_logic/rm_bt.md'
-        - Validation: 'topics/behavior_logic/rm_validation_bt.md'
-        - Prioritization: 'topics/behavior_logic/rm_prioritization_bt.md'
-        - Closure: 'topics/behavior_logic/rm_closure_bt.md'
-      - EM Behaviors:
-        - 'topics/behavior_logic/em_bt.md'
-        - Evaluate Proposed Embargo Behavior: 'topics/behavior_logic/em_eval_bt.md'
-        - Propose Embargo Behavior: 'topics/behavior_logic/em_propose_bt.md'
-        - Terminate Embargo Behavior: 'topics/behavior_logic/em_terminate_bt.md'
-      - Do Work Behaviors:
-        - 'topics/behavior_logic/do_work_bt.md'
-        - Deployment: 'topics/behavior_logic/deployment_bt.md'
-        - Fix Development: 'topics/behavior_logic/fix_dev_bt.md'
-        - Reporting: 'topics/behavior_logic/reporting_bt.md'
-        - Publication: 'topics/behavior_logic/publication_bt.md'
-        - Monitoring Threats: 'topics/behavior_logic/monitor_threats_bt.md'
-        - ID Assignment: 'topics/behavior_logic/id_assignment_bt.md'
-        - Exploit Acquisition: 'topics/behavior_logic/acquire_exploit_bt.md'
-      - Receive Messages Behaviors:
-        - 'topics/behavior_logic/msg_intro_bt.md'
-        - Receive RM Messages: 'topics/behavior_logic/msg_rm_bt.md'
-        - Receive EM Messages: 'topics/behavior_logic/msg_em_bt.md'
-        - Receive CS Messages: 'topics/behavior_logic/msg_cs_bt.md'
-        - Receive Other Messages: 'topics/behavior_logic/msg_other_bt.md'
+      - Use-Case Behavior:
+        - 'topics/behavior_logic/use-cases/index.md'
+        - Validate Report: 'topics/behavior_logic/use-cases/validate-report.md'
+        - Prioritize Report: 'topics/behavior_logic/use-cases/prioritize-report.md'
+        - Propose Case: 'topics/behavior_logic/use-cases/propose-case.md'
+        - Embargo Lifecycle: 'topics/behavior_logic/use-cases/embargo-lifecycle.md'
+      - Original Design:
+        - 'topics/behavior_logic/cvd_bt.md'
+        - Vulnerability Discovery Behavior: 'topics/behavior_logic/vuldisco_bt.md'
+        - RM Behaviors:
+          - 'topics/behavior_logic/rm_bt.md'
+          - Validation: 'topics/behavior_logic/rm_validation_bt.md'
+          - Prioritization: 'topics/behavior_logic/rm_prioritization_bt.md'
+          - Closure: 'topics/behavior_logic/rm_closure_bt.md'
+        - EM Behaviors:
+          - 'topics/behavior_logic/em_bt.md'
+          - Evaluate Proposed Embargo Behavior: 'topics/behavior_logic/em_eval_bt.md'
+          - Propose Embargo Behavior: 'topics/behavior_logic/em_propose_bt.md'
+          - Terminate Embargo Behavior: 'topics/behavior_logic/em_terminate_bt.md'
+        - Do Work Behaviors:
+          - 'topics/behavior_logic/do_work_bt.md'
+          - Deployment: 'topics/behavior_logic/deployment_bt.md'
+          - Fix Development: 'topics/behavior_logic/fix_dev_bt.md'
+          - Reporting: 'topics/behavior_logic/reporting_bt.md'
+          - Publication: 'topics/behavior_logic/publication_bt.md'
+          - Monitoring Threats: 'topics/behavior_logic/monitor_threats_bt.md'
+          - ID Assignment: 'topics/behavior_logic/id_assignment_bt.md'
+          - Exploit Acquisition: 'topics/behavior_logic/acquire_exploit_bt.md'
+        - Receive Messages Behaviors:
+          - 'topics/behavior_logic/msg_intro_bt.md'
+          - Receive RM Messages: 'topics/behavior_logic/msg_rm_bt.md'
+          - Receive EM Messages: 'topics/behavior_logic/msg_em_bt.md'
+          - Receive CS Messages: 'topics/behavior_logic/msg_cs_bt.md'
+          - Receive Other Messages: 'topics/behavior_logic/msg_other_bt.md'
     - Capability Model: 'topics/capability_model/index.md'
     - Other Uses of Vultron:
       - 'topics/other_uses/index.md'
@@ -100,42 +113,53 @@ nav:
       - FVCV-handoff: 'topics/scenarios/fvcv-handoff.md'
       - FCCV-extension: 'topics/scenarios/fccv-extension.md'
       - FCCV-handoff: 'topics/scenarios/fccv-handoff.md'
+    - Measuring CVD:
+      - 'topics/measuring_cvd/index.md'
+      - Possible Histories: 'topics/measuring_cvd/possible_histories.md'
+      - Desirable Histories: 'topics/measuring_cvd/desirable_histories.md'
+      - Random Walks: 'topics/measuring_cvd/random_walk.md'
+      - Reasoning Over Histories: 'topics/measuring_cvd/reasoning_over_histories.md'
+      - Discriminating Skill from Luck: 'topics/measuring_cvd/discriminating_skill_and_luck.md'
+      - Observing Skill: 'topics/measuring_cvd/observing_skill.md'
+      - Benchmarking CVD: 'topics/measuring_cvd/benchmarking.md'
+      - Benchmarking MPCVD: 'topics/measuring_cvd/benchmarking_mpcvd.md'
+      - Reward Functions: 'topics/measuring_cvd/reward_functions.md'
+      - Modeling and Simulation: 'topics/measuring_cvd/mod_sim.md'
+    - Future Work:
+      - 'topics/future_work/index.md'
+      - Federation: 'topics/future_work/federation.md'
+      - Open Questions: 'topics/future_work/open_questions.md'
   - How-to Guides:
       - 'howto/index.md'
-      - A Case Object: 'howto/case_object.md'
       - Process Implementation: 'howto/process_implementation.md'
       - Vultron ActivityPub:
           - 'howto/activitypub/index.md'
-          - Vultron AS Objects: 'howto/activitypub/objects.md'
-          - Vultron AS Activities:
+          - Vultron AS Activity Guides:
             - Intro: 'howto/activitypub/activities/index.md'
-            - Reporting a Vulnerability: 'howto/activitypub/activities/report_vulnerability.md'
-            - Initializing a Case: 'howto/activitypub/activities/initialize_case.md'
-            - Managing a Case: 'howto/activitypub/activities/manage_case.md'
-            - Transferring a Case: 'howto/activitypub/activities/transfer_ownership.md'
-            - CaseProposal Flow: 'howto/activitypub/activities/case_proposal.md'
-            - Ledger Replication: 'howto/activitypub/activities/ledger_replication.md'
-            - Role Delegation: 'howto/activitypub/activities/role_delegation.md'
-            - Suggest an Actor for a Case: 'howto/activitypub/activities/suggest_actor.md'
-            - Invite an Actor to a Case: 'howto/activitypub/activities/invite_actor.md'
-            - Initialize a Participant: 'howto/activitypub/activities/initialize_participant.md'
-            - Manage Case Participants: 'howto/activitypub/activities/manage_participants.md'
-            - Establish an Embargo: 'howto/activitypub/activities/establish_embargo.md'
-            - Manage an Embargo: 'howto/activitypub/activities/manage_embargo.md'
-            - Status Updates: 'howto/activitypub/activities/status_updates.md'
-            - Acknowledging a Report: 'howto/activitypub/activities/acknowledge.md'
-            - Error Handling: 'howto/activitypub/activities/error.md'
-      - Worked Example: 'howto/worked_example.md'
+            - How to Report a Vulnerability: 'howto/activitypub/activities/report_vulnerability.md'
+            - How to Acknowledge a Report: 'howto/activitypub/activities/acknowledge.md'
+            - How to Initialize a Case: 'howto/activitypub/activities/initialize_case.md'
+            - How to Advance a Case Through Report Management: 'howto/activitypub/activities/manage_case.md'
+            - How to Post a Status Update or a Case Note: 'howto/activitypub/activities/status_updates.md'
+            - How to Suggest an Actor for a Case: 'howto/activitypub/activities/suggest_actor.md'
+            - How to Invite an Actor to a Case: 'howto/activitypub/activities/invite_actor.md'
+            - How to Seat a Participant on an Existing Case: 'howto/activitypub/activities/initialize_participant.md'
+            - How to Manage a Case Roster: 'howto/activitypub/activities/manage_participants.md'
+            - How to Delegate a Role to Another Participant: 'howto/activitypub/activities/role_delegation.md'
+            - How to Establish an Embargo: 'howto/activitypub/activities/establish_embargo.md'
+            - How to Revise or Terminate an Embargo: 'howto/activitypub/activities/manage_embargo.md'
+            - How to Report a Protocol Fault: 'howto/activitypub/activities/error.md'
       - Wiring a Capability: 'howto/wire_capability.md'
       - Demo How-Tos:
           - FVV Demo: 'howto/demos/fvv-demo.md'
   - Reference:
     - 'reference/index.md'
+    - Trigger API: 'reference/trigger-api.md'
     - Protocol Quick Reference: 'reference/quick_reference.md'
     - Protocol Architecture:
       - Concept Taxonomy: 'reference/vultron-taxonomy.md'
       - Glossary: 'reference/glossary.md'
-      - Draft Protocol Specification: 'reference/draft-vultron-spec.md'
+      - Protocol Specification: 'reference/vultron-spec/index.md'
     - Terms and Definitions: 'reference/terms.md'
     - Notation: 'reference/notation.md'
     - Versioning: 'reference/versioning.md'
@@ -145,12 +169,30 @@ nav:
       - Messages: 'reference/formal_protocol/messages.md'
       - Transitions: 'reference/formal_protocol/transitions.md'
       - Protocol Summary: 'reference/formal_protocol/conclusion.md'
+    - ActivityPub:
+      - Vultron AS Objects: 'reference/activitypub/objects.md'
+    - Messages:
+      - 'reference/messages/index.md'
+      - Report Management (RM): 'reference/messages/rm.md'
+      - Embargo Management (EM): 'reference/messages/em.md'
+      - Case State (CS): 'reference/messages/cs.md'
+      - General (GI): 'reference/messages/general.md'
+      - Faults and Acknowledgements: 'reference/messages/faults_and_acknowledgements.md'
+      - Case Management: 'reference/messages/case_management.md'
+      - Case Proposal: 'reference/messages/case_proposal.md'
+      - Ledger Replication: 'reference/messages/ledger_replication.md'
     - Specifications:
       - 'reference/specs/index.md'
       - Protocol: 'reference/specs/protocol.md'
       - Architecture: 'reference/specs/architecture.md'
       - Project: 'reference/specs/project.md'
       - Process: 'reference/specs/process.md'
+    - Behaviors:
+      - 'reference/behaviors/index.md'
+      - Report Management: 'reference/behaviors/rm_handlers.md'
+      - Embargo Management: 'reference/behaviors/em_handlers.md'
+      - Case Handlers: 'reference/behaviors/case_handlers.md'
+      - Case State Handlers: 'reference/behaviors/cs_handlers.md'
     - Case States:
       - 'reference/case_states/index.md'
       - vfdpxa: 'reference/case_states/state_vfdpxa.md'
@@ -212,30 +254,11 @@ nav:
           - CLI: 'reference/code/demo/cli.md'
           - Utilities: 'reference/code/demo/utils.md'
           - Demo Scripts: 'reference/code/demo/demos.md'
-    - Ontology:
-      - 'reference/ontology/index.md'
-      - Vultron_AS: 'reference/ontology/vultron_as.md'
-      - Vultron_Protocol: 'reference/ontology/vultron_protocol.md'
-      - Vultron_Process: 'reference/ontology/vultron_process.md'
-      - DFA: 'reference/ontology/dfa.md'
-      - RFC 2119: 'reference/ontology/rfc2119.md'
     - ISO Crosswalk:
       - 'reference/iso_crosswalks/index.md'
       - ISO 30111: 'reference/iso_crosswalks/iso_30111_2019.md'
       - ISO 29147: 'reference/iso_crosswalks/iso_29147_2018.md'
       - ISO 5895: 'reference/iso_crosswalks/iso_5895_2022.md'
-    - Measuring CVD:
-      - 'reference/measuring_cvd/index.md'
-      - Possible Histories: 'reference/measuring_cvd/possible_histories.md'
-      - Desirable Histories: 'reference/measuring_cvd/desirable_histories.md'
-      - Random Walks: 'reference/measuring_cvd/random_walk.md'
-      - Reasoning Over Histories: 'reference/measuring_cvd/reasoning_over_histories.md'
-      - Discriminating Skill from Luck: 'reference/measuring_cvd/discriminating_skill_and_luck.md'
-      - Observing Skill: 'reference/measuring_cvd/observing_skill.md'
-      - Benchmarking CVD: 'reference/measuring_cvd/benchmarking.md'
-      - Benchmarking MPCVD: 'reference/measuring_cvd/benchmarking_mpcvd.md'
-      - Reward Functions: 'reference/measuring_cvd/reward_functions.md'
-      - Modeling and Simulation: 'reference/measuring_cvd/mod_sim.md'
     - User Stories:
       - 'reference/user_stories/index.md'
       - Traceability Matrix: 'reference/user_stories/traceability.md'
@@ -305,7 +328,7 @@ nav:
       - Buffer Pre-Genesis Announce(CaseLedgerEntry) and Drain on Case Seed: 'adr/0059-buffer-pre-genesis-ledger-entries.md'
       - Re-express the Legacy Case-State Invariants and Keep the Hypercube as Reference: 'adr/0060-re-express-legacy-cs-invariants.md'
       - Adjudicate Received ParticipantStatus Per Dimension, Not as a Unit: 'adr/0061-per-dimension-partial-accept.md'
-      - Normalise Wire to Core at Ingress, and Enforce It Again at the Persistence Boundary: 'adr/0062-normalise-wire-to-core-at-both-ingress-and-persistence.md'
+      - Normalise Wire to Core at Ingress, and Enforce It Again at the Persistence Boundary: 'adr/archived/0062-normalise-wire-to-core-at-both-ingress-and-persistence.md'
       - Render Core Objects to Wire JSON Through a Driven Port: 'adr/0063-wire-rendering-port-for-core-objects.md'
       - Enforce Post-Construction Type Safety on the Core Branch Only: 'adr/0064-core-branch-validate-assignment.md'
       - Embargo Invite RSVP Deadline on Invite.end_time: 'adr/0065-embargo-invite-rsvp-deadline.md'
@@ -330,6 +353,23 @@ nav:
       - 'Participant Status Is Self-Declaratory, With Narrow Externally-Evidenced On-Behalf Exceptions': 'adr/0084-participant-assertion-authority.md'
       - 'Owner-Close Is a Hard Write Boundary; RM.CLOSED Is Terminal and Rejoin Is Unsupported': 'adr/0085-case-lifecycle-boundaries.md'
       - 'Report Every Violation, Reject the Batch': 'adr/0086-report-every-violation-reject-the-batch.md'
+      - 'Case-Resolution Disposition for BT Nodes Is Chosen by Role, Not Re-Decided Per Call Site': 'adr/0087-case-resolution-disposition-policy.md'
+      - 'Authority Is the CASE_MANAGER Role; Case Actor Is Role-Enactment Shorthand': 'adr/0088-consolidate-case-authority-determination.md'
+      - 'One ParticipantStatus Writer, and Pre-Case RM State Belongs to ReportCaseLink': 'adr/0089-one-participant-status-writer.md'
+      - 'A Blank Required Field Is Absence, and a Recognised Inline Object That Fails Validation Is Refused': 'adr/0090-blank-is-absent-and-inline-faults-are-refused.md'
+      - "Rename PEC NO_EMBARGO to UNBOUND; Drop EM.NO_EMBARGO Alias": 'adr/0091-rename-pec-no-embargo-to-unbound.md'
+      - 'Lint Fragments as Source, and Evaluate Page-Scoped Style Rules on the Rendered Page': 'adr/0092-lint-fragments-as-source-page-rules-on-rendered-page.md'
+      - "DECLINE Is Legal from SIGNATORY — Consent Withdrawal Is a First-Class PEC Action": 'adr/0093-signatory-declined-pec-transition.md'
+      - 'Replace flake8, isort and black with ruff, and declare lint exclusions instead of discovering them': 'adr/0094-ruff-replaces-flake8-isort-black.md'
+      - "Received-Side HandlerResult Carries a Handler Disposition Across the Dispatcher Boundary": 'adr/0095-received-side-handler-result.md'
+      - 'A Protocol Default Embargo Replaces the Pre-Case Phase': 'adr/0096-protocol-default-embargo.md'
+      - 'The Capability Layer: Four Call-Out Shapes, Core-Declared Typed-Port Contracts, and Sentinel as a Call-In Pattern': 'adr/0097-capability-layer-four-shapes-and-core-declared-contracts.md'
+      - 'Demo Scenarios Self-Register; Scenario Tables Become Derived Artifacts': 'adr/0098-demo-scenarios-self-register.md'
+      - 'One Object Model: AS2 Is a Serialization of the Core Model, Not a Parallel Hierarchy': 'adr/0099-one-object-model-as2-is-a-serialization.md'
+      - 'No Multi-Candidate Embargo Poll; Open Proposals Resolve Earliest-Expiration First': 'adr/0100-no-multi-candidate-embargo-poll.md'
+      - 'Spec Item Format Is Field Presence, Not a Class Choice': 'adr/0101-spec-item-format-is-field-presence.md'
+      - 'Organize Reader-Facing Docs by Stakeholder Type and Invisible Prerequisite Level': 'adr/0102-docs-stakeholder-types-and-invisible-prerequisite-levels.md'
+      - "An Object's Time Is Carried, Never Minted by the Receiver": 'adr/0103-object-time-is-carried-never-minted.md'
   - About:
     - What's New: 'about/whats_new.md'
     - Contributing: 'about/contributing.md'
@@ -338,8 +378,15 @@ nav:
     - License: 'about/license.md'
 not_in_nav: |
   _*.md
-  # Published at the namespace URI and reached by that URI, not by browsing.
+  reference/vultron-spec/includes/*
+  # Withheld from the built site entirely; see draft_docs below. Listed here so
+  # `mkdocs serve`, which does render drafts, raises no omitted-file warning.
   ns/index.md
+  # Withdrawn from the site: a tombstone that answers a live URL. See #3551.
+  reference/ontology/index.md
+  # A redirect stub: the case object moved to topics/case_lifecycle/case_model.md,
+  # but older pages still link here.
+  howto/case_object.md
   adr/archived/*.md
   _*/**/*.md
   includes/*
@@ -371,12 +418,20 @@ validation:
     anchors: warn
 draft_docs: |
   draft-*.md
-  !reference/draft-vultron-spec.md
   # Patterns are relative to docs_dir; `docs/developer/` was mis-anchored
   # (matched a nonexistent docs/docs/developer/) so these maintainer pages were
   # silently published. Exclude them from production builds per DOCBW-03-004
   # while `mkdocs serve` still renders them for local review.
   developer/
+  # The Vultron vocabulary namespace is withheld: publishing the site would make
+  # `https://certcc.github.io/Vultron/ns/context.jsonld` resolve for the first
+  # time, and a namespace URI is a long-lived commitment. The gate on lifting
+  # this is the term set settling, not the drift check — #2943 landed that check
+  # (`wire-context --check`), but #3487 and #3488 still delete the `as_*` classes
+  # the declared terms name, under an ADR-0099 that is `accepted-provisional`.
+  # A draft pattern also withholds static files, so `context.jsonld` goes with
+  # the page.
+  ns/
 theme:
   logo: 'assets/Software_Engineering_Institute_Unitmark_White.svg'
   name: 'material'

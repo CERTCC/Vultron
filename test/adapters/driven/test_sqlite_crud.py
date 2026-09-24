@@ -25,6 +25,8 @@ import pytest
 from vultron.adapters.driven.db_record import Record
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.datalayer_sqlite.engine import actor_db_url
+from vultron.core.models.participant_status import ParticipantStatus
+from vultron.core.states.rm import RM
 
 # ---------------------------------------------------------------------------
 # Initialisation
@@ -144,13 +146,14 @@ def test_update_returns_false_for_non_existing_id(dl, record_factory):
 # ---------------------------------------------------------------------------
 
 
-def test_create_normalises_wire_shaped_storable_record(dl):
-    """create() must normalise flat rm_state → nested rm for ParticipantStatus.
+def test_create_wire_shaped_storable_record_reads_back_as_core(dl):
+    """A wire-shaped StorableRecord reads back as a core ParticipantStatus.
 
-    A StorableRecord with type_="ParticipantStatus" and a wire-spelled flat
-    rm_state key must be stored in the canonical core shape (nested rm
-    dimension object), not verbatim.  Before the fix the wire key survived;
-    after the fix only the core key is present.
+    Write-side normalisation was removed with extra="forbid" (#2940): the row
+    is stored verbatim (flat rm_state), and the wire→core projection now happens
+    on read.  dl.read() must therefore return a core ParticipantStatus whose
+    RM ladder position is preserved — a wire-shaped input must not corrupt what
+    a core reader sees.
     """
     from vultron.core.ports.datalayer import StorableRecord
 
@@ -169,22 +172,18 @@ def test_create_normalises_wire_shaped_storable_record(dl):
     )
 
     dl.create(storable)
-    stored = dl.get("ParticipantStatus", "urn:uuid:ps-wire-create-001")
+    stored = dl.read("urn:uuid:ps-wire-create-001")
 
-    assert stored is not None
-    assert (
-        "rm_state" not in stored["data_"]
-    ), "wire-spelled key must not survive create()"
-    assert (
-        "rm" in stored["data_"]
-    ), "core dimension key must be present after create()"
+    assert isinstance(stored, ParticipantStatus)
+    assert stored.rm is not None and stored.rm.state == RM.RECEIVED
 
 
-def test_update_normalises_wire_shaped_storable_record(dl):
-    """update() must normalise flat rm_state → nested rm for ParticipantStatus.
+def test_update_wire_shaped_storable_record_reads_back_as_core(dl):
+    """A wire-shaped update reads back as a core ParticipantStatus (#2940).
 
-    Same class of defect as create() — the update path must also route through
-    _normalize_to_core so wire-shaped payloads do not overwrite a row's shape.
+    Same class of concern as create() — the update path stores the record
+    verbatim and the wire→core projection happens on read, so a wire-shaped
+    payload must not corrupt the RM ladder a core reader sees.
     """
     from vultron.core.ports.datalayer import StorableRecord
 
@@ -215,14 +214,9 @@ def test_update_normalises_wire_shaped_storable_record(dl):
     updated = dl.update("urn:uuid:ps-wire-update-001", storable)
     assert updated
 
-    stored = dl.get("ParticipantStatus", "urn:uuid:ps-wire-update-001")
-    assert stored is not None
-    assert (
-        "rm_state" not in stored["data_"]
-    ), "wire-spelled key must not survive update()"
-    assert (
-        "rm" in stored["data_"]
-    ), "core dimension key must be present after update()"
+    stored = dl.read("urn:uuid:ps-wire-update-001")
+    assert isinstance(stored, ParticipantStatus)
+    assert stored.rm is not None and stored.rm.state == RM.RECEIVED
 
 
 def test_save_inserts_new_object(dl):

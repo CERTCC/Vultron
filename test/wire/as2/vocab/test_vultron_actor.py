@@ -13,7 +13,7 @@
 
 """
 Tests for as_VultronPerson, as_VultronOrganization, as_VultronService, and
-VultronActorMixin (EP-01-001).
+as_VultronActorMixin (EP-01-001).
 """
 
 import unittest
@@ -32,7 +32,6 @@ from vultron.wire.as2.vocab.base.objects.actors import as_Actor
 from vultron.wire.as2.vocab.base.registry import WIRE_TYPE_MAP
 from vultron.wire.as2.vocab.objects.embargo_policy import as_EmbargoPolicy
 from vultron.wire.as2.vocab.objects.vultron_actor import (
-    VultronActorMixin,
     as_VultronApplication,
     as_VultronGroup,
     as_VultronOrganization,
@@ -86,18 +85,17 @@ class TestVultronPersonBasics(unittest.TestCase):
         )
         self.assertEqual(policy_id, p.embargo_policy)
 
-    def test_is_instance_of_mixin(self):
+    def test_is_instance_of_core_actor(self):
         p = as_VultronPerson()
-        self.assertIsInstance(p, VultronActorMixin)
-        self.assertIsInstance(p, as_Actor)
+        self.assertIsInstance(p, CoreActor)
 
     def test_json_round_trip_no_policy(self):
         p = as_VultronPerson(
             name="Alice", id_="https://example.org/users/alice"
         )
-        j = p.to_json()
+        j = p.model_dump_json(by_alias=True, exclude_none=True)
         self.assertIn("Person", j)
-        self.assertNotIn("embargo_policy", j)
+        self.assertNotIn("embargoPolicy", j)
 
     def test_json_round_trip_with_inline_policy(self):
         policy = _make_policy()
@@ -106,7 +104,7 @@ class TestVultronPersonBasics(unittest.TestCase):
             id_="https://example.org/users/alice",
             embargo_policy=policy,
         )
-        j = p.to_json()
+        j = p.model_dump_json(by_alias=True, exclude_none=True)
         self.assertIn("Person", j)
         self.assertIn("embargoPolicy", j)
         self.assertIn("EmbargoPolicy", j)
@@ -135,9 +133,9 @@ class TestVultronOrganizationBasics(unittest.TestCase):
             timedelta(days=90), org.embargo_policy.preferred_duration
         )
 
-    def test_is_instance_of_mixin(self):
+    def test_is_instance_of_core_actor(self):
         org = as_VultronOrganization()
-        self.assertIsInstance(org, VultronActorMixin)
+        self.assertIsInstance(org, CoreActor)
 
 
 class TestVultronServiceBasics(unittest.TestCase):
@@ -151,9 +149,9 @@ class TestVultronServiceBasics(unittest.TestCase):
         svc = as_VultronService(id_="https://example.org/services/bot")
         self.assertIsNone(svc.embargo_policy)
 
-    def test_is_instance_of_mixin(self):
+    def test_is_instance_of_core_actor(self):
         svc = as_VultronService()
-        self.assertIsInstance(svc, VultronActorMixin)
+        self.assertIsInstance(svc, CoreActor)
 
 
 class TestVultronActorTypePreservation(unittest.TestCase):
@@ -182,6 +180,22 @@ class TestWireActorVocabularyAndRoundTrip(unittest.TestCase):
         self.assertIs(WIRE_TYPE_MAP["Application"], as_VultronApplication)
         self.assertIs(WIRE_TYPE_MAP["Group"], as_VultronGroup)
 
+    def test_actor_class_names_are_not_wire_type_map_keys(self):
+        """VM-01-008: the wire ``type`` value is the only key (issue #2982).
+
+        ``as_VultronPerson`` used to register under ``VultronPerson`` too — a
+        key no AS2 payload ever carries, which let a caller holding the *core*
+        class name resolve a wire class by name coincidence (ARCH-23-001).
+        """
+        for class_stem in (
+            "VultronPerson",
+            "VultronOrganization",
+            "VultronService",
+            "VultronApplication",
+            "VultronGroup",
+        ):
+            self.assertNotIn(class_stem, WIRE_TYPE_MAP)
+
     def test_core_person_to_wire_person_model_validate_round_trip(self):
         core_actor = CoreVultronPerson(
             id_="https://example.org/actors/alice",
@@ -200,8 +214,8 @@ class TestWireActorVocabularyAndRoundTrip(unittest.TestCase):
         self.assertEqual(core_actor.id_, wire_actor.id_)
         self.assertEqual(core_actor.name, wire_actor.name)
         self.assertEqual(core_actor.type_, wire_actor.type_)
-        self.assertEqual(core_actor.inbox, wire_actor.inbox.id_)
-        self.assertEqual(core_actor.outbox, wire_actor.outbox.id_)
+        self.assertEqual(core_actor.inbox, wire_actor.inbox)
+        self.assertEqual(core_actor.outbox, wire_actor.outbox)
         self.assertEqual(
             core_actor.preferred_username,
             wire_actor.preferred_username,
@@ -210,63 +224,25 @@ class TestWireActorVocabularyAndRoundTrip(unittest.TestCase):
         self.assertEqual(core_actor.embargo_policy, wire_actor.embargo_policy)
 
 
-class TestVultronActorToCore(unittest.TestCase):
-    """VultronActorMixin.to_core() projects to the correct core subtype."""
+class TestVultronActorAliasesAreCore(unittest.TestCase):
+    """After ADR-0099 detail 3, as_* names are direct aliases for core classes."""
 
-    def test_person_to_core_type(self):
-        wire = as_VultronPerson(
-            id_="https://example.org/actors/alice", name="Alice"
-        )
-        core = wire.to_core()
-        self.assertIsInstance(core, CoreVultronPerson)
-        self.assertEqual(wire.id_, core.id_)
-        self.assertEqual(wire.name, core.name)
-        self.assertEqual(str(wire.type_), str(core.type_))
+    def test_person_alias_is_core(self):
+        self.assertIs(as_VultronPerson, CoreVultronPerson)
 
-    def test_organization_to_core_type(self):
-        wire = as_VultronOrganization(id_="https://example.org/orgs/acme")
-        core = wire.to_core()
-        self.assertIsInstance(core, CoreVultronOrganization)
-        self.assertEqual(wire.id_, core.id_)
-        self.assertEqual(str(wire.type_), str(core.type_))
+    def test_organization_alias_is_core(self):
+        self.assertIs(as_VultronOrganization, CoreVultronOrganization)
 
-    def test_service_to_core_type(self):
-        wire = as_VultronService(id_="https://example.org/services/bot")
-        core = wire.to_core()
-        self.assertIsInstance(core, CoreVultronService)
-        self.assertEqual(wire.id_, core.id_)
+    def test_service_alias_is_core(self):
+        self.assertIs(as_VultronService, CoreVultronService)
 
-    def test_application_to_core_type(self):
-        wire = as_VultronApplication(id_="https://example.org/apps/scanner")
-        core = wire.to_core()
-        self.assertIsInstance(core, CoreVultronApplication)
-        self.assertEqual(wire.id_, core.id_)
+    def test_application_alias_is_core(self):
+        self.assertIs(as_VultronApplication, CoreVultronApplication)
 
-    def test_group_to_core_type(self):
-        wire = as_VultronGroup(id_="https://example.org/groups/cna")
-        core = wire.to_core()
-        self.assertIsInstance(core, CoreVultronGroup)
-        self.assertEqual(wire.id_, core.id_)
+    def test_group_alias_is_core(self):
+        self.assertIs(as_VultronGroup, CoreVultronGroup)
 
-    def test_inbox_outbox_coerced_to_uri(self):
-        wire = as_VultronPerson(id_="https://example.org/actors/alice")
-        core = wire.to_core()
-        self.assertIsInstance(core, CoreActor)
-        if core.inbox is not None:
-            self.assertIsInstance(core.inbox, str)
-        if core.outbox is not None:
-            self.assertIsInstance(core.outbox, str)
-
-    def test_embargo_policy_preserved(self):
-        policy = _make_policy()
-        wire = as_VultronPerson(
-            id_="https://example.org/actors/alice",
-            embargo_policy=policy,
-        )
-        core = wire.to_core()
-        self.assertIsNotNone(core.embargo_policy)
-
-    def test_to_core_is_instance_of_core_actor(self):
+    def test_instances_are_core_actors(self):
         for wire_cls in (
             as_VultronPerson,
             as_VultronOrganization,
@@ -275,8 +251,22 @@ class TestVultronActorToCore(unittest.TestCase):
             as_VultronGroup,
         ):
             with self.subTest(wire_cls=wire_cls.__name__):
-                wire = wire_cls()
-                self.assertIsInstance(wire.to_core(), CoreActor)
+                self.assertIsInstance(wire_cls(), CoreActor)
+
+    def test_inbox_is_string(self):
+        p = as_VultronPerson(
+            id_="https://example.org/actors/alice",
+            inbox="https://example.org/actors/alice/inbox",
+        )
+        self.assertIsInstance(p.inbox, str)
+
+    def test_embargo_policy_preserved(self):
+        policy = _make_policy()
+        p = as_VultronPerson(
+            id_="https://example.org/actors/alice",
+            embargo_policy=policy,
+        )
+        self.assertIsNotNone(p.embargo_policy)
 
 
 if __name__ == "__main__":

@@ -1,3 +1,8 @@
+---
+stakeholder_type: [cvd-practitioner, platform-developer, process-researcher]
+level: 400
+---
+
 # Report Management Process Model
 
 {% include-markdown "../../../includes/normative.md" %}
@@ -422,7 +427,7 @@ protocol. Every state transition implies a different message type.
 ##### Receive Report
 
 To begin, a Participant must receive a report. Recall that the *Start*
-state is a placeholder, so this action simply puts the receiving
+state is a placeholder, so this action puts the receiving
 Participant into the *Received* state at the beginning of their
 involvement in the case.
 
@@ -646,8 +651,8 @@ extensions.
 
 !!! tip "See also"
 
-    Further discussion of a [reward function](../../../reference/measuring_cvd/reward_functions.md) to evaluate RM DFA strings is discussed as future work in
-    [Reward Functions](../../../reference/measuring_cvd/reward_functions.md).
+    Further discussion of a [reward function](../../measuring_cvd/reward_functions.md) to evaluate RM DFA strings is discussed as future work in
+    [Reward Functions](../../measuring_cvd/reward_functions.md).
 
 ## RM DFA Fully Defined
 

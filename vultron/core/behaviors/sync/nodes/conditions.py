@@ -28,29 +28,11 @@ from vultron.core.behaviors.helpers import (
 )
 from vultron.core.models.case_ledger_entry import VultronCaseLedgerEntry
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
-from vultron.core.ports.case_persistence import CasePersistence
+from vultron.core.participants.authority import resolve_case_manager_id
 from vultron.core.sync_helpers import is_ledger_fresh_for_case
 from vultron.errors import VultronError
 
 logger = logging.getLogger(__name__)
-
-
-def _find_case_actor(
-    dl: CasePersistence, case_id: str, owner_actor_id: str | None = None
-) -> object | None:
-    fallback: object | None = None
-    for service in dl.list_objects("Service"):
-        if fallback is None:
-            fallback = service
-        if getattr(service, "context", None) != case_id:
-            continue
-        if owner_actor_id is None:
-            return service
-        if getattr(service, "attributed_to", None) == owner_actor_id:
-            return service
-    if owner_actor_id is None:
-        return fallback
-    return None
 
 
 def _require_log_entry(
@@ -70,96 +52,12 @@ def _require_log_entry(
     )
 
 
-def _require_case_actor_id(case_actor: object, node_name: str) -> str:
-    case_actor_id = getattr(case_actor, "id_", None)
-    if isinstance(case_actor_id, str):
-        return case_actor_id
-    raise VultronError(f"{node_name}: resolved CaseActor had no id_")
-
-
-class CheckIsOwnCaseActorNode(DataLayerConditionWithPorts):
-    @classmethod
-    def input_ports(cls) -> dict[str, PortInformation]:
-        ports = super().input_ports()
-        ports["activity"] = PortInformation(data_type=object, required=True)
-        return ports
-
-    @classmethod
-    def output_ports(cls) -> dict[str, PortInformation]:
-        return {"case_actor_id": PortInformation(data_type=str, required=True)}
-
-    @classmethod
-    def _domain_port_remappings(cls) -> dict[str, str]:
-        return {
-            "activity": "/activity",
-            "case_actor_id": "/case_actor_id",
-        }
-
-    def initialise(self) -> None:
-        super().initialise()
-        self.activity = self.get_input("activity")
-
-    def update(self) -> Status:
-        if (f := self._require_datalayer_and_actor()) is not None:
-            return f
-        assert self.datalayer is not None
-        assert self.actor_id is not None
-        entry = _require_log_entry(self.activity, self.name)
-        case_actor = _find_case_actor(
-            self.datalayer, entry.case_id, self.actor_id
-        )
-        if case_actor is None:
-            return Status.FAILURE
-
-        case_actor_id = _require_case_actor_id(case_actor, self.name)
-        self._set_output("case_actor_id", case_actor_id)
-        self.logger.debug(
-            "%s: actor '%s' owns CaseActor '%s' for case '%s'",
-            self.name,
-            self.actor_id,
-            case_actor_id,
-            entry.case_id,
-        )
-        return Status.SUCCESS
-
-
-class CheckIsNotOwnCaseActorNode(DataLayerConditionWithPorts):
-    @classmethod
-    def input_ports(cls) -> dict[str, PortInformation]:
-        ports = super().input_ports()
-        ports["activity"] = PortInformation(data_type=object, required=True)
-        return ports
-
-    @classmethod
-    def _domain_port_remappings(cls) -> dict[str, str]:
-        return {"activity": "/activity"}
-
-    def initialise(self) -> None:
-        super().initialise()
-        self.activity = self.get_input("activity")
-
-    def update(self) -> Status:
-        if (f := self._require_datalayer_and_actor()) is not None:
-            return f
-        assert self.datalayer is not None
-        assert self.actor_id is not None
-
-        entry = _require_log_entry(self.activity, self.name)
-        case_actor = _find_case_actor(
-            self.datalayer, entry.case_id, self.actor_id
-        )
-        if case_actor is None:
-            return Status.SUCCESS
-        return Status.FAILURE
-
-
 class VerifySenderIsOwnIdNode(DataLayerConditionWithPorts):
-    @classmethod
-    def input_ports(cls) -> dict[str, PortInformation]:
-        ports = super().input_ports()
-        ports["activity"] = PortInformation(data_type=object, required=True)
-        ports["case_actor_id"] = PortInformation(data_type=str, required=True)
-        return ports
+    INPUT_PORTS: dict[str, PortInformation] = {
+        **DataLayerConditionWithPorts.INPUT_PORTS,
+        "activity": PortInformation(data_type=object, required=True),
+        "case_actor_id": PortInformation(data_type=str, required=True),
+    }
 
     @classmethod
     def _domain_port_remappings(cls) -> dict[str, str]:
@@ -185,12 +83,100 @@ class VerifySenderIsOwnIdNode(DataLayerConditionWithPorts):
         return Status.FAILURE
 
 
-class CheckLedgerEntryAlreadyStoredNode(DataLayerConditionWithPorts):
+class VerifySenderIsCaseActorNode(DataLayerConditionWithPorts):
+    """Reject announces whose sender is not the case's CaseActor (CASE_MANAGER).
+
+    Resolves the case's authoritative CaseActor by the ``CVDRole.CASE_MANAGER``
+    role (ADR-0088, via :func:`resolve_case_manager_id`) — the same neutral
+    resolver the tree's routing node :class:`CheckIsCaseManagerNode` uses, never
+    a URL shape or a per-case ``Service`` object — and returns SUCCESS only when
+    the announce ``actor_id`` equals that resolved CaseActor id.
+
+    Passes through (SUCCESS) during the bootstrap window — the case replica is
+    not seeded yet, or no CASE_MANAGER is known for it yet — so downstream
+    reject-on-missing-case / pre-genesis buffering (SYNC-15-001, SYNC-15-004)
+    handles the entry rather than this gate dropping it before those paths run.
+    Once the replica embeds the CASE_MANAGER participant (CP-09-004) the sender
+    is enforced.
+
+    Per specs/case-ledger-processing.yaml CLP-01-003; SYNC-13-006.
+    """
+
+    INPUT_PORTS: dict[str, PortInformation] = {
+        **DataLayerConditionWithPorts.INPUT_PORTS,
+        "activity": PortInformation(data_type=object, required=True),
+    }
+
     @classmethod
-    def input_ports(cls) -> dict[str, PortInformation]:
-        ports = super().input_ports()
-        ports["activity"] = PortInformation(data_type=object, required=True)
-        return ports
+    def _domain_port_remappings(cls) -> dict[str, str]:
+        return {"activity": "/activity"}
+
+    def initialise(self) -> None:
+        super().initialise()
+        self.activity = self.get_input("activity")
+
+    def update(self) -> Status:
+        if (f := self._require_datalayer()) is not None:
+            return f
+        assert self.datalayer is not None
+
+        try:
+            entry = _require_log_entry(self.activity, self.name)
+        except VultronError as exc:
+            self.logger.error("%s: %s", self.name, exc)
+            return Status.FAILURE
+
+        case_id = entry.case_id
+        sender_id = getattr(self.activity, "actor_id", None)
+
+        if not sender_id:
+            self.logger.warning("%s: announce has no actor_id", self.name)
+            return Status.FAILURE
+
+        # Lenient read: an unseeded replica is the bootstrap window, not an
+        # error here (unlike the Regime 1 _require_case used by routing nodes),
+        # so a missing case must pass through rather than FAIL and starve the
+        # downstream buffer/reject paths.
+        case = self.datalayer.read_case(case_id)
+        case_actor_id = (
+            resolve_case_manager_id(case, self.datalayer)
+            if case is not None
+            else None
+        )
+
+        if case_actor_id is None:
+            self.logger.debug(
+                "%s: no CaseActor known for case '%s'"
+                " — passing through for bootstrap handling",
+                self.name,
+                case_id,
+            )
+            return Status.SUCCESS
+
+        if sender_id == case_actor_id:
+            self.logger.debug(
+                "%s: sender '%s' matches CaseActor for case '%s'",
+                self.name,
+                sender_id,
+                case_id,
+            )
+            return Status.SUCCESS
+
+        self.logger.warning(
+            "%s: rejected announce from '%s' for case '%s' (expected '%s')",
+            self.name,
+            sender_id,
+            case_id,
+            case_actor_id,
+        )
+        return Status.FAILURE
+
+
+class CheckLedgerEntryAlreadyStoredNode(DataLayerConditionWithPorts):
+    INPUT_PORTS: dict[str, PortInformation] = {
+        **DataLayerConditionWithPorts.INPUT_PORTS,
+        "activity": PortInformation(data_type=object, required=True),
+    }
 
     @classmethod
     def _domain_port_remappings(cls) -> dict[str, str]:
@@ -246,11 +232,10 @@ class CheckLedgerFreshnessNode(DataLayerConditionWithPorts):
         super().__init__(name=name or self.__class__.__name__)
         self._case_id = case_id
 
-    @classmethod
-    def input_ports(cls) -> dict[str, PortInformation]:
-        ports = super().input_ports()
-        ports["case_id"] = PortInformation(data_type=str, required=False)
-        return ports
+    INPUT_PORTS: dict[str, PortInformation] = {
+        **DataLayerConditionWithPorts.INPUT_PORTS,
+        "case_id": PortInformation(data_type=str, required=False),
+    }
 
     @classmethod
     def _domain_port_remappings(cls) -> dict[str, str]:

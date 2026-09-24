@@ -8,6 +8,8 @@ description: >
   recovery, ordering guarantees, and the single-hub / single-writer +
   fan-out model. Normative requirements are grounded in
   specs/sync-ledger-replication.yaml (SYNC-01 through SYNC-15).
+stakeholder_type: [platform-developer]
+level: 400
 ---
 
 # Draft: Vultron Ledger Replication Specification
@@ -23,15 +25,15 @@ description: >
 
 Vultron is a federated, log-centric protocol for coordinated vulnerability
 disclosure. Every shared case is backed by an append-only, hash-chained
-canonical ledger owned by one authoritative Case Actor. This document
+canonical ledger owned by one authoritative CASE_MANAGER. This document
 specifies the mechanics by which that ledger is maintained and replicated to
 all Participant Actors: the hash-chain construction, replication transport,
 conflict handling, gap detection and recovery, ordering guarantees, and the
 normative single-hub / single-writer + fan-out architecture.
 
-These mechanics are scoped to a companion document by design. The Vultron
-Protocol Specification (`docs/reference/draft-vultron-spec.md`) states the
-normative obligation — Hosting capability set implementations MUST replicate
+These mechanics are scoped to a companion document by design. The
+[Vultron Protocol Specification](vultron-spec/index.md) states the
+normative obligation — Case Hosting capability set implementations MUST replicate
 the canonical ledger via `Announce(CaseLedgerEntry)` — and delegates the
 mechanical specification to this document. See ADR-0077 for the rationale
 behind that boundary.
@@ -48,7 +50,7 @@ covers:
 - **Hash-chain construction** — the append-only, content-addressed structure
   that gives each log entry a unique, verifiable identity and links it to its
   predecessor.
-- **Replication transport** — how the Case Actor delivers entries to
+- **Replication transport** — how the CASE_MANAGER delivers entries to
   Participant Actors via `Announce(CaseLedgerEntry)` activities.
 - **Conflict handling and recovery** — the reject-and-replay protocol that
   re-synchronises a diverged replica.
@@ -66,7 +68,7 @@ is out of scope for this version of the document.
 
 | Document | Role |
 |---|---|
-| `docs/reference/draft-vultron-spec.md` | Parent RFC; states the normative obligation to replicate and delegates mechanics here |
+| [Vultron Protocol Specification](vultron-spec/index.md) | Parent specification; states the normative obligation to replicate and delegates mechanics here |
 | `specs/sync-ledger-replication.yaml` | Internal normative requirements source (SYNC-01 through SYNC-15); every requirement in this document is traceable to a SYNC spec ID |
 | `notes/sync-ledger-replication.md` | Design rationale, implementation notes, and the internal architecture reference |
 | `docs/adr/0077-ledger-replication-companion-spec.md` | Records the decision to scope mechanics to this companion document and the rationale for the normative replication model |
@@ -87,11 +89,11 @@ Normative requirements are indexed to their source SYNC spec IDs in
 
 ### 2.1 The Single-Writer Model
 
-**The normative replication model for Vultron is single-hub / single-writer + fan-out.** One Case Actor holds exclusive write authority over the canonical case ledger. It is the sole authorised source of `CaseLedgerEntry` records for its cases. All Participant Actors receive ledger entries from the Case Actor; they do not write to it. (SYNC-01-004, SYNC-13-005)
+**The normative replication model for Vultron is single-hub / single-writer + fan-out.** One CASE_MANAGER holds exclusive write authority over the canonical case ledger. It is the sole authorised source of `CaseLedgerEntry` records for its cases. All Participant Actors receive ledger entries from the CASE_MANAGER; they do not write to it. (SYNC-01-004, SYNC-13-005)
 
-This model is a degenerate single-node Raft cluster. The Case Actor is
+This model is a degenerate single-node Raft cluster. The CASE_MANAGER is
 permanently the leader; no leader election is required or performed in
-single-node deployments. In single-node deployments the Case Actor MUST be
+single-node deployments. In single-node deployments the CASE_MANAGER MUST be
 treated as the permanent replication leader with exclusive write authority.
 (SYNC-06-003)
 
@@ -180,7 +182,7 @@ The following invariants MUST hold under normal operation and partial failure:
 
 ### 4.1 Wire Envelope
 
-Log replication between the Case Actor and Participant Actors MUST use
+Log replication between the CASE_MANAGER and Participant Actors MUST use
 ActivityStreams `Announce` activities as the transport envelope.
 Specifically, each replicated entry is delivered as
 `Announce(CaseLedgerEntry)`. (SYNC-02-001)
@@ -241,12 +243,12 @@ participant that cannot anchor its hash chain Rejects every entry replayed to
 it, and each Reject triggers a full-suffix replay, creating a
 self-sustaining loop.
 
-The Case Actor MUST bound the rate at which it replays entries to a peer
+The CASE_MANAGER MUST bound the rate at which it replays entries to a peer
 whose acknowledged replication position has not advanced. (SYNC-15-003)
 
 Specifically:
 
-- The Case Actor MUST record, per peer, the position (`entry_hash` or `""`
+- The CASE_MANAGER MUST record, per peer, the position (`entry_hash` or `""`
   for genesis) and timestamp of the last replay in which at least one entry
   was actually sent. (SYNC-15-008)
 - A Reject reporting an unchanged replication position within the cooldown
@@ -284,7 +286,7 @@ predecessor. (SYNC-14-001)
 
 A forward-gap entry that is buffered MUST still trigger resynchronisation:
 the participant MUST send `Reject(CaseLedgerEntry)` carrying its last accepted
-hash, so the Case Actor can replay entries that are genuinely lost (not merely
+hash, so the CASE_MANAGER can replay entries that are genuinely lost (not merely
 reordered). (SYNC-14-002)
 
 ### 6.3 Drain on Predecessor Commit
@@ -322,7 +324,7 @@ Participants MUST NOT regress their acknowledged log position. (SYNC-08-004)
 ### 6.6 Catch-Up Freshness Gate
 
 After actor process restart or recovery, an actor with case state in scope
-MUST re-establish case-ledger freshness with the Case Actor before taking new
+MUST re-establish case-ledger freshness with the CASE_MANAGER before taking new
 protocol-significant case actions. (SYNC-10-001)
 
 While catch-up freshness is not established, the actor MUST block or defer
@@ -334,7 +336,7 @@ through the actor's currently acknowledged tip. Any gap in that prefix MUST
 block protocol-significant case actions. (SYNC-10-004)
 
 The catch-up gate MUST NOT require the actor's acknowledged tip to equal the
-Case Actor's current ledger tip. Lagging behind the leader tip is permitted if
+CASE_MANAGER's current ledger tip. Lagging behind the leader tip is permitted if
 the actor's own acknowledged prefix is contiguous from genesis. (SYNC-10-005)
 
 ---
@@ -372,7 +374,7 @@ imply that all domain effects for that entry were successfully applied.
 
 ### 7.4 Behavior-Tree Execution Gate
 
-The Case Actor's behavior tree execution MUST be gated on holding the
+The CASE_MANAGER's behavior tree execution MUST be gated on holding the
 replication leadership role. (SYNC-09-003) In single-node deployments this
 gate is trivially satisfied. In multi-node deployments it prevents a deposed
 leader from continuing to write to the ledger after a new leader is elected.
@@ -392,7 +394,7 @@ When a participant receives an `Announce(CaseLedgerEntry)` but cannot
 reconstruct the per-case genesis hash because the `VulnerabilityCase` is not
 yet present in its local store, the participant MUST NOT silently discard the
 entry. It MUST send a `Reject(CaseLedgerEntry)` with
-`last_accepted_hash = ""` to the Case Actor so that the Case Actor replays all
+`last_accepted_hash = ""` to the CASE_MANAGER so that the CASE_MANAGER replays all
 entries from the beginning once the case is delivered. (SYNC-15-001)
 
 A `CaseLedgerEntry` received when the per-case genesis hash is unavailable
@@ -424,9 +426,9 @@ last acknowledged log entry hash for each peer. (SYNC-04-001)
 Per-peer replication state MUST be persisted so that it survives a leader
 restart. (SYNC-04-002)
 
-When a Participant Actor sends any message to the Case Actor, it SHOULD
+When a Participant Actor sends any message to the CASE_MANAGER, it SHOULD
 include the hash of its last accepted canonical log entry as a parameter in
-the activity's `context` field. This allows the Case Actor to proactively
+the activity's `context` field. This allows the CASE_MANAGER to proactively
 detect that a participant is behind and immediately replay missing entries
 without waiting for an explicit sync request. (SYNC-03-004)
 
@@ -455,7 +457,7 @@ A value of 5 seconds or less is insufficient under multi-actor load. (SYNC-05-00
     re-emits of the same assertion while a round-trip is pending.
 
 A participant actor SHOULD maintain an actor-local, in-memory pending-assertion
-store that records outbound assertion activities emitted toward the Case Actor
+store that records outbound assertion activities emitted toward the CASE_MANAGER
 but not yet confirmed by a canonical `Announce(CaseLedgerEntry)` round-trip.
 The suppression window is configurable; zero disables suppression. (SYNC-11-001)
 
@@ -473,7 +475,7 @@ A pending assertion that exceeds its configured timeout window SHOULD be
 marked timed-out and SHOULD no longer suppress future re-emits, allowing
 operator retry or the catch-up gate to resubmit the assertion. (SYNC-11-005)
 
-The Case Actor MUST NOT use the pending-assertion store for its own ledger
+The CASE_MANAGER MUST NOT use the pending-assertion store for its own ledger
 commits; the Case Actor's DataLayer idempotency check already guards against
 duplicate commits by the single authoritative writer. (SYNC-11-004)
 
@@ -489,7 +491,7 @@ authoritative source identifiers in `specs/sync-ledger-replication.yaml`.
 | SYNC-00-005 | §3.2 | Each entry MUST be immutable once committed |
 | SYNC-00-006 | §3.1 | Each entry MUST be cryptographically linked to its predecessor |
 | SYNC-01-001 | §3.1, §3.2 | Canonical ledger MUST be append-only; entries MUST be immutable |
-| SYNC-01-002 | §3.1 | Each entry MUST carry a monotonically increasing index |
+| SYNC-01-002 | §3.1 | Each entry MUST carry a monotonically increasing, gapless index |
 | SYNC-01-003 | §3.1 | Each entry MUST include content hash and predecessor hash |
 | SYNC-01-004 | §2.1 | Entries MUST be written through the CASE_MANAGER's write path |
 | SYNC-01-005 | §3.3 | Hash-chain format MUST be forward-compatible with Merkle Tree |
@@ -533,7 +535,7 @@ authoritative source identifiers in `specs/sync-ledger-replication.yaml`.
 | SYNC-13-002 | §2.2 | Adapter/wire code MUST NOT write CaseLedgerEntry to DataLayer |
 | SYNC-13-003 | §4.3 | Ingress MUST NOT use ledger store as scratch for routing |
 | SYNC-13-004 | §4.3 | Routing MUST use typed inline object, not DataLayer round-trip |
-| SYNC-13-005 | §2.1 | Only the CaseActor MUST author CaseLedgerEntry records |
+| SYNC-13-005 | §2.1 | Only the CASE_MANAGER MUST author CaseLedgerEntry records |
 | SYNC-13-006 | §2.2 | Participants MUST obtain entries only via Announce receive behavior |
 | SYNC-14-001 | §6.2 | Forward-gap entry MUST be retained in non-ledger holding area |
 | SYNC-14-002 | §6.2 | Buffered forward-gap entry MUST still trigger Reject |
@@ -566,7 +568,7 @@ document rather than included inline in the parent RFC. The rationale is
 recorded in ADR-0077: the replication mechanics are technically precise and
 lengthy; including them inline would make the RFC too long and operationally
 focused for its intended audience of external protocol reviewers. The
-Hosting capability set's obligation to replicate (`Announce(CaseLedgerEntry)`)
+Case Hosting capability set's obligation to replicate (`Announce(CaseLedgerEntry)`)
 is stable and belongs in the RFC regardless of where the mechanics are
 specified; this document supplies the "how."
 

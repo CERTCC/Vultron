@@ -52,12 +52,16 @@ from vultron.wire.as2.factories import (
 from vultron.wire.as2.vocab.base.objects.object_types import as_Note
 from vultron.wire.as2.vocab.objects.case_participant import (
     as_CaseParticipant,
+    as_ParticipantStatus,
 )
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCase,
 )
 from vultron.wire.as2.vocab.objects.vulnerability_report import (
     as_VulnerabilityReport,
+)
+from vultron.core.models.dimensions import (
+    RmDimension,
 )
 
 # ---------------------------------------------------------------------------
@@ -358,8 +362,14 @@ def _bootstrap_case_for_participant(
         attributed_to=owner_actor_id,
         context=case_id,
         case_roles=[CVDRole.CASE_OWNER],
+        participant_statuses=[
+            as_ParticipantStatus(
+                attributed_to=owner_actor_id,
+                context=case_id,
+                rm=RmDimension(state=RM.RECEIVED),
+            )
+        ],
     )
-    owner_participant.append_rm_state(RM.RECEIVED, owner_actor_id, case_id)
     owner_dl.create(owner_participant)
     case_obj.actor_participant_index[owner_actor_id] = owner_participant.id_
     if owner_participant.id_ not in case_obj.case_participants:

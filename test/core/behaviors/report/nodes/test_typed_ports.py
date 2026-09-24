@@ -42,11 +42,9 @@ from vultron.core.behaviors.report.nodes.rm_transitions import (
 )
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_actor import VultronCaseActor
-from vultron.core.models.dimensions import RmDimension
-from vultron.core.models.participant_status import ParticipantStatus
 from vultron.core.models.report import VultronReport
+from vultron.core.models.report_case_link import VultronReportCaseLink
 from vultron.core.states.rm import RM
-from vultron.core.models._helpers import _report_phase_status_id
 from test.core.behaviors.bt_harness import BTTestScenario
 
 # ---------------------------------------------------------------------------
@@ -172,13 +170,8 @@ class TestCheckRMStateValidPorts:
     ) -> None:
         actor = VultronCaseActor(id_=ACTOR_ID, name="Vendor")
         report = VultronReport(id_=REPORT_ID, name="R1", content="c")
-        status = ParticipantStatus(
-            id_=_report_phase_status_id(ACTOR_ID, REPORT_ID, RM.VALID.value),
-            context=REPORT_ID,
-            attributed_to=ACTOR_ID,
-            rm=RmDimension(state=RM.VALID),
-        )
-        bt_scenario.seed(actor, report, status)
+        link = VultronReportCaseLink(report_id=REPORT_ID, rm_state=RM.VALID)
+        bt_scenario.seed(actor, report, link)
         result = bt_scenario.run(
             CheckRMStateValid(report_id=REPORT_ID), actor_id=ACTOR_ID
         )
@@ -203,14 +196,8 @@ class TestCheckRMStateValidPorts:
         actor = VultronCaseActor(id_=ACTOR_ID, name="Vendor")
         sender = VultronCaseActor(id_=SENDER_ID, name="Reporter")
         report = VultronReport(id_=REPORT_ID, name="R1", content="c")
-        # Only the sender has a VALID status record, not the blackboard actor.
-        status = ParticipantStatus(
-            id_=_report_phase_status_id(SENDER_ID, REPORT_ID, RM.VALID.value),
-            context=REPORT_ID,
-            attributed_to=SENDER_ID,
-            rm=RmDimension(state=RM.VALID),
-        )
-        bt_scenario.seed(actor, sender, report, status)
+        link = VultronReportCaseLink(report_id=REPORT_ID, rm_state=RM.VALID)
+        bt_scenario.seed(actor, sender, report, link)
         # Tree runs under ACTOR_ID (blackboard actor_id = ACTOR_ID);
         # node must check SENDER_ID's RM state and return SUCCESS.
         result = bt_scenario.run(
@@ -255,13 +242,8 @@ class TestCheckRMStateReceivedOrInvalidPorts:
     ) -> None:
         actor = VultronCaseActor(id_=ACTOR_ID, name="Vendor")
         report = VultronReport(id_=REPORT_ID, name="R1", content="c")
-        status = ParticipantStatus(
-            id_=_report_phase_status_id(ACTOR_ID, REPORT_ID, RM.VALID.value),
-            context=REPORT_ID,
-            attributed_to=ACTOR_ID,
-            rm=RmDimension(state=RM.VALID),
-        )
-        bt_scenario.seed(actor, report, status)
+        link = VultronReportCaseLink(report_id=REPORT_ID, rm_state=RM.VALID)
+        bt_scenario.seed(actor, report, link)
         result = bt_scenario.run(
             CheckRMStateReceivedOrInvalid(report_id=REPORT_ID),
             actor_id=ACTOR_ID,
@@ -348,22 +330,14 @@ class TestEnsureEmbargoExistsPorts:
 # ---------------------------------------------------------------------------
 
 
-class TestTransitionRMtoValidPorts:
-    def test_input_ports_declared(self) -> None:
-        ports = TransitionRMtoValid.input_ports()
-        assert "datalayer" in ports
-        assert "actor_id" in ports
-        assert "trigger_activity_factory" in ports
+class TestTransitionRMtoValid:
+    """TransitionRMtoValid is a single node (ADR-0089 AC-5; issue #3267).
 
-    def test_output_ports_empty(self) -> None:
-        assert TransitionRMtoValid.output_ports() == {}
-
-    def test_missing_datalayer_raises_no_data_available(self) -> None:
-        py_trees.blackboard.Blackboard.storage.clear()
-        node = TransitionRMtoValid(report_id=REPORT_ID, offer_id=OFFER_ID)
-        node.setup_ports()
-        with pytest.raises(NoDataAvailable):
-            node.get_input("datalayer")
+    It advances the case-scoped participant RM state through the canonical
+    writer (:class:`CreateParticipantStatusNode`) and then latches
+    ``ReportCaseLink.rm_state`` in one execution, so a partial failure cannot
+    leave the two records disagreeing.
+    """
 
     def test_creates_rm_valid_status_record(
         self, bt_scenario: BTTestScenario
@@ -371,6 +345,7 @@ class TestTransitionRMtoValidPorts:
         from vultron.core.models.activity import VultronOffer
         from vultron.core.models.case_participant import CaseParticipant
         from vultron.enums.roles import CVDRole
+        from test.support.participant_status import advance_participant_rm
 
         actor = VultronCaseActor(id_=ACTOR_ID, name="Vendor")
         report = VultronReport(id_=REPORT_ID, name="R1", content="c")
@@ -390,31 +365,21 @@ class TestTransitionRMtoValidPorts:
             context=case.id_,
             case_roles=[CVDRole.VENDOR],
         )
-        participant.append_rm_state(RM.RECEIVED, ACTOR_ID, case.id_)
+        advance_participant_rm(participant, RM.RECEIVED, ACTOR_ID, case.id_)
         case.add_participant(participant)
-        bt_scenario.seed(actor, report, offer, participant, case)
+        link = VultronReportCaseLink(report_id=REPORT_ID, rm_state=RM.RECEIVED)
+        bt_scenario.seed(actor, report, offer, participant, case, link)
         result = bt_scenario.run(
-            TransitionRMtoValid(report_id=REPORT_ID, offer_id=OFFER_ID),
+            TransitionRMtoValid(
+                report_id=REPORT_ID,
+                offer_id=OFFER_ID,
+                sender_actor_id=ACTOR_ID,
+            ),
             actor_id=ACTOR_ID,
             case_id=case.id_,
         )
         bt_scenario.assert_success(result)
         bt_scenario.assert_rm_state(REPORT_ID, RM.VALID, actor_id=ACTOR_ID)
-
-    def test_failure_when_datalayer_not_available(self) -> None:
-        """_require_datalayer() guard returns FAILURE when datalayer is None."""
-        py_trees.blackboard.Blackboard.storage.clear()
-        node = TransitionRMtoValid(report_id=REPORT_ID, offer_id=OFFER_ID)
-        # setup_ports() with no remappings → ports namespace keys; blackboard empty
-        node.setup_ports()
-        # initialise() would raise NoDataAvailable; set datalayer=None manually
-        # to test the _require_datalayer() guard path directly.
-        node.datalayer = None
-        node.actor_id = ACTOR_ID
-        from py_trees.common import Status
-
-        result = node.update()
-        assert result == Status.FAILURE
 
 
 # ---------------------------------------------------------------------------

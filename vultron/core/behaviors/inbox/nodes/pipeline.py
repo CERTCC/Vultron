@@ -85,7 +85,7 @@ class _InboxNodeWithPorts(BehaviourWithPorts):
     inbox_failure_reason) and wires them to the flat blackboard keys
     used by process_payload for cleanup.  Subclasses override
     _domain_port_remappings() to add their domain-specific port-to-key
-    mappings, and declare their own input_ports()/output_ports().
+    mappings, and declare their own INPUT_PORTS / OUTPUT_PORTS.
 
     Per specs/inbox-orchestration.yaml IO-02-002.
     Per specs/behavior-tree-node-design.yaml BTND-03-012.
@@ -104,16 +104,12 @@ class _InboxNodeWithPorts(BehaviourWithPorts):
         """Domain-specific port-to-absolute-key remappings for this subclass."""
         return {}
 
-    @classmethod
-    def input_ports(cls) -> dict[str, PortInformation]:
-        return {}
+    INPUT_PORTS: dict[str, PortInformation] = {}
 
-    @classmethod
-    def output_ports(cls) -> dict[str, PortInformation]:
-        return {
-            KEY_OUTCOME_STATUS: PortInformation(data_type=str, required=False),
-            KEY_FAILURE_REASON: PortInformation(data_type=str, required=False),
-        }
+    OUTPUT_PORTS: dict[str, PortInformation] = {
+        KEY_OUTCOME_STATUS: PortInformation(data_type=str, required=False),
+        KEY_FAILURE_REASON: PortInformation(data_type=str, required=False),
+    }
 
     def setup(self, **kwargs: Any) -> None:
         self.setup_ports(
@@ -127,11 +123,8 @@ class _InboxNodeWithPorts(BehaviourWithPorts):
     def _reject(self, reason: str) -> Status:
         """Write rejected outcome via typed output ports and return FAILURE."""
         self.feedback_message = reason
-        try:
-            self._set_output(KEY_OUTCOME_STATUS, "rejected")
-            self._set_output(KEY_FAILURE_REASON, reason)
-        except Exception:
-            pass
+        self._set_output(KEY_OUTCOME_STATUS, "rejected")
+        self._set_output(KEY_FAILURE_REASON, reason)
         self.logger.warning("%s: rejected — %s", self.name, reason)
         return Status.FAILURE
 
@@ -147,18 +140,15 @@ class ParsePayloadNode(_InboxNodeWithPorts):
     parsing fails.
     """
 
-    @classmethod
-    def input_ports(cls) -> dict[str, PortInformation]:
-        return {
-            KEY_PAYLOAD: PortInformation(data_type=object, required=True),
-            KEY_INGRESS: PortInformation(data_type=object, required=True),
-        }
+    INPUT_PORTS: dict[str, PortInformation] = {
+        KEY_PAYLOAD: PortInformation(data_type=object, required=True),
+        KEY_INGRESS: PortInformation(data_type=object, required=True),
+    }
 
-    @classmethod
-    def output_ports(cls) -> dict[str, PortInformation]:
-        ports = super().output_ports()
-        ports[KEY_ACTIVITY] = PortInformation(data_type=object, required=False)
-        return ports
+    OUTPUT_PORTS: dict[str, PortInformation] = {
+        **_InboxNodeWithPorts.OUTPUT_PORTS,
+        KEY_ACTIVITY: PortInformation(data_type=object, required=False),
+    }
 
     @classmethod
     def _domain_port_remappings(cls) -> dict[str, str]:
@@ -209,20 +199,15 @@ class RehydrateActivityNode(_InboxNodeWithPorts):
     # Port alias for reading the pre-rehydration activity value.
     _PORT_ACTIVITY_IN = "inbox_activity_in"
 
-    @classmethod
-    def input_ports(cls) -> dict[str, PortInformation]:
-        return {
-            cls._PORT_ACTIVITY_IN: PortInformation(
-                data_type=object, required=True
-            ),
-            KEY_INGRESS: PortInformation(data_type=object, required=True),
-        }
+    INPUT_PORTS: dict[str, PortInformation] = {
+        _PORT_ACTIVITY_IN: PortInformation(data_type=object, required=True),
+        KEY_INGRESS: PortInformation(data_type=object, required=True),
+    }
 
-    @classmethod
-    def output_ports(cls) -> dict[str, PortInformation]:
-        ports = super().output_ports()
-        ports[KEY_ACTIVITY] = PortInformation(data_type=object, required=False)
-        return ports
+    OUTPUT_PORTS: dict[str, PortInformation] = {
+        **_InboxNodeWithPorts.OUTPUT_PORTS,
+        KEY_ACTIVITY: PortInformation(data_type=object, required=False),
+    }
 
     @classmethod
     def _domain_port_remappings(cls) -> dict[str, str]:
@@ -261,20 +246,15 @@ class ExtractSemanticsNode(_InboxNodeWithPorts):
     ``inbox_context_id``.
     """
 
-    @classmethod
-    def input_ports(cls) -> dict[str, PortInformation]:
-        return {
-            KEY_ACTIVITY: PortInformation(data_type=object, required=True),
-        }
+    INPUT_PORTS: dict[str, PortInformation] = {
+        KEY_ACTIVITY: PortInformation(data_type=object, required=True),
+    }
 
-    @classmethod
-    def output_ports(cls) -> dict[str, PortInformation]:
-        ports = super().output_ports()
-        ports[KEY_EVENT] = PortInformation(data_type=object, required=False)
-        ports[KEY_CONTEXT_ID] = PortInformation(
-            data_type=object, required=False
-        )
-        return ports
+    OUTPUT_PORTS: dict[str, PortInformation] = {
+        **_InboxNodeWithPorts.OUTPUT_PORTS,
+        KEY_EVENT: PortInformation(data_type=object, required=False),
+        KEY_CONTEXT_ID: PortInformation(data_type=object, required=False),
+    }
 
     @classmethod
     def _domain_port_remappings(cls) -> dict[str, str]:
@@ -331,13 +311,11 @@ class DeferCheckNode(_InboxNodeWithPorts):
     Passes through to SUCCESS when no deferral is needed.
     """
 
-    @classmethod
-    def input_ports(cls) -> dict[str, PortInformation]:
-        return {
-            KEY_EVENT: PortInformation(data_type=object, required=True),
-            KEY_CONTEXT_ID: PortInformation(data_type=object, required=False),
-            KEY_QUEUE: PortInformation(data_type=object, required=False),
-        }
+    INPUT_PORTS: dict[str, PortInformation] = {
+        KEY_EVENT: PortInformation(data_type=object, required=True),
+        KEY_CONTEXT_ID: PortInformation(data_type=object, required=False),
+        KEY_QUEUE: PortInformation(data_type=object, required=False),
+    }
 
     @classmethod
     def _domain_port_remappings(cls) -> dict[str, str]:
@@ -412,14 +390,12 @@ class DispatchNode(_InboxNodeWithPorts):
     activities that were deferred pending this case's local replica.
     """
 
-    @classmethod
-    def input_ports(cls) -> dict[str, PortInformation]:
-        return {
-            KEY_EVENT: PortInformation(data_type=object, required=True),
-            KEY_DISPATCH: PortInformation(data_type=object, required=True),
-            KEY_CONTEXT_ID: PortInformation(data_type=object, required=False),
-            KEY_QUEUE: PortInformation(data_type=object, required=False),
-        }
+    INPUT_PORTS: dict[str, PortInformation] = {
+        KEY_EVENT: PortInformation(data_type=object, required=True),
+        KEY_DISPATCH: PortInformation(data_type=object, required=True),
+        KEY_CONTEXT_ID: PortInformation(data_type=object, required=False),
+        KEY_QUEUE: PortInformation(data_type=object, required=False),
+    }
 
     @classmethod
     def _domain_port_remappings(cls) -> dict[str, str]:

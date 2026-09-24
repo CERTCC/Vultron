@@ -36,6 +36,7 @@ from unittest.mock import MagicMock
 import vultron.demo.scenario.fcvcv_demo as fcvcv_demo_module
 import vultron.demo.scenario.fv_demo as fv_demo_module
 import vultron.demo.utils as demo_utils
+from vultron.demo.actor_session import ActorSession
 from vultron.demo.scenario.fcvcv_demo import _phase_sync_verification
 from vultron.demo.scenario.fv_demo import _phase_fix_lifecycle
 from vultron.demo.utils import reset_demo_failures
@@ -75,7 +76,7 @@ def test_fv_finder_timeout_records_single_gate_failure_not_two_check_failures(
     case.id_ = _CASE_ID
 
     monkeypatch.setattr(
-        fv_demo_module, "actor_notifies_fix_ready", lambda *a, **kw: None
+        ActorSession, "notify_fix_ready", lambda *a, **kw: None
     )
     monkeypatch.setattr(
         fv_demo_module, "verify_fix_ready", lambda *a, **kw: None
@@ -146,8 +147,8 @@ def test_fv_phase_fix_lifecycle_gates_on_rm_accepted(monkeypatch):
         fv_demo_module, "wait_for_participant_rm_state", _rm_wait
     )
     monkeypatch.setattr(
-        fv_demo_module,
-        "actor_notifies_fix_ready",
+        ActorSession,
+        "notify_fix_ready",
         lambda *a, **kw: call_order.append("fix_ready"),
     )
     monkeypatch.setattr(
@@ -238,7 +239,9 @@ def test_fcvcv_sync_verification_uses_gate_not_check_for_ledger_coverage(
         _ledger_coverage,
     )
     monkeypatch.setattr(
-        fcvcv_demo_module, "wait_for_case_participants", lambda *a, **kw: None
+        fcvcv_demo_module,
+        "wait_for_participants_on_replicas",
+        lambda *a, **kw: None,
     )
     monkeypatch.setattr(
         fcvcv_demo_module, "verify_replica_state", lambda *a, **kw: None
@@ -327,7 +330,9 @@ def test_fcvcv_sync_verification_non_v2_timeout_is_at_least_30s(monkeypatch):
         _ledger_coverage,
     )
     monkeypatch.setattr(
-        fcvcv_demo_module, "wait_for_case_participants", lambda *a, **kw: None
+        fcvcv_demo_module,
+        "wait_for_participants_on_replicas",
+        lambda *a, **kw: None,
     )
     monkeypatch.setattr(
         fcvcv_demo_module, "verify_replica_state", lambda *a, **kw: None

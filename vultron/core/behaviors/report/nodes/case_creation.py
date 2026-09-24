@@ -24,6 +24,7 @@ from vultron.core.behaviors.helpers import (
 from vultron.core.models.activity import VultronCreateCaseActivity
 from vultron.core.models.case import VultronCase
 from vultron.core.models.offer_record import VultronOfferRecord
+from vultron.errors import VultronAlreadyExistsError
 
 
 def _append_addressee_ids(addressees: list[str], value: object) -> None:
@@ -89,9 +90,9 @@ class CreateCaseNode(DataLayerActionWithPorts):
         super().__init__(name=name or self.__class__.__name__)
         self.report_id = report_id
 
-    @classmethod
-    def output_ports(cls) -> dict[str, PortInformation]:
-        return {"case_id": PortInformation(data_type=str, required=True)}
+    OUTPUT_PORTS: dict[str, PortInformation] = {
+        "case_id": PortInformation(data_type=str, required=True),
+    }
 
     @classmethod
     def _domain_port_remappings(cls) -> dict[str, str]:
@@ -130,7 +131,7 @@ class CreateCaseNode(DataLayerActionWithPorts):
                 self.logger.info(
                     f"{self.name}: Created VulnerabilityCase {case.id_}: {case.name}"
                 )
-            except ValueError as e:
+            except VultronAlreadyExistsError as e:
                 self.logger.warning(
                     f"{self.name}: VulnerabilityCase {case.id_} already exists: {e}"
                 )
@@ -166,15 +167,14 @@ class CreateCaseActivity(DataLayerActionWithPorts):
         self.report_id = report_id
         self.offer_id = offer_id
 
-    @classmethod
-    def input_ports(cls) -> dict[str, PortInformation]:
-        ports = super().input_ports()
-        ports["case_id"] = PortInformation(data_type=str, required=True)
-        return ports
+    INPUT_PORTS: dict[str, PortInformation] = {
+        **DataLayerActionWithPorts.INPUT_PORTS,
+        "case_id": PortInformation(data_type=str, required=True),
+    }
 
-    @classmethod
-    def output_ports(cls) -> dict[str, PortInformation]:
-        return {"activity_id": PortInformation(data_type=str, required=True)}
+    OUTPUT_PORTS: dict[str, PortInformation] = {
+        "activity_id": PortInformation(data_type=str, required=True),
+    }
 
     @classmethod
     def _domain_port_remappings(cls) -> dict[str, str]:
@@ -235,7 +235,7 @@ class CreateCaseActivity(DataLayerActionWithPorts):
                 self.logger.info(
                     f"{self.name}: Created CreateCaseActivity activity: {create_case_activity.id_}"
                 )
-            except ValueError as e:
+            except VultronAlreadyExistsError as e:
                 self.logger.warning(
                     f"{self.name}: CreateCaseActivity activity {create_case_activity.id_} already exists: {e}"
                 )

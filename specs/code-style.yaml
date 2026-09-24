@@ -1,7 +1,7 @@
 id: CS
 title: Code Style Specifications
 description: Defines code formatting, import organization, and coding style standards for Python code in the Vultron project.
-version: 1.1.0
+version: 1.2.0
 scope:
 - prototype
 - production
@@ -234,7 +234,7 @@ groups:
   - id: CS-13-002
     priority: MUST
     kind: project
-    statement: All datetime values MUST be created via the `now_utc()` helper in `vultron.wire.as2.vocab.base.dt_utils`
+    statement: All datetime values MUST be created via the `now_utc()` helper in `vultron.core.models._helpers`
   - id: CS-13-003
     priority: SHOULD
     kind: architecture
@@ -242,7 +242,7 @@ groups:
   - id: CS-13-004
     priority: MUST
     kind: project
-    statement: Embargo deadline datetimes MUST be computed using the `days_from_now_utc(n)` helper rather than inline arithmetic
+    statement: Embargo deadline datetimes MUST be computed using the `days_from_now_utc(n)` helper in `vultron.core.models._helpers` rather than inline arithmetic
   - id: CS-13-005
     priority: MUST
     kind: protocol
@@ -462,3 +462,52 @@ groups:
     - rel_type: constrains
       spec_id: DEMOMA-17-001
       note: DEMOMA-17-001 is the MUST-level specialisation of this rule for demo scenario files
+
+- id: CS-23
+  title: Exception Handler Breadth
+  specs:
+  - id: CS-23-001
+    priority: MUST_NOT
+    kind: project
+    statement: >-
+      A blanket `except Exception` (or a bare `except:`) MUST NOT be used to
+      wrap domain logic in `vultron/`. An exception handler MUST catch the
+      narrowest concrete exception type(s) it can meaningfully handle, so that
+      an unexpected error surfaces loudly instead of being silently absorbed.
+      The one sanctioned broad-catch boundary is a behavior-tree node's
+      `update()` method, where converting an unexpected error into
+      `Status.FAILURE` is the documented node contract (BT-HELPER-01). Any
+      other broad catch is permitted only at a genuine framework or execution
+      boundary (e.g., the `BTBridge` execution boundary, py_trees
+      `setup()`/`initialise()`); such a site MUST be narrowed to the narrowest
+      type that covers the boundary and MUST carry an inline comment stating
+      what it guards and why.
+    rationale: >-
+      In this codebase an undocumented broad catch is more likely to be masking
+      a defect than handling a real case; the absence of a rationale is itself
+      the signal. Two witnesses established the pattern — #3217 (a parser
+      `except Exception` that fired 52 times with one wire/core layering cause,
+      not the stubs it appeared to tolerate) and #3192 (a lookup returning an
+      arbitrary `Service`, reporting SUCCESS under a different identity). Both
+      were single bug-shaped causes. Source: CONCERN-3295.
+    verification: >-
+      Enforced for `vultron/core/behaviors/` by
+      `test/architecture/test_no_broad_except_outside_bt_update.py`: an AST scan
+      that fails on any `except Exception` outside a node's `update()` method.
+      Genuine framework boundaries are recorded in that test's
+      `_DECLARED_EXCLUSIONS` allow-list, one reason per entry, and the list can
+      only shrink. When it is genuinely unclear whether a broad catch is
+      load-bearing, apply the instrument-and-count method from #3217 (log the
+      class, keys, and error reaching the handler; run the full suite; group by
+      cause) before deciding to narrow, delete, or justify it.
+    relationships:
+    - rel_type: refines
+      spec_id: ARCH-15-002
+      note: ARCH-15 forbids silent-None fail-open; CS-23 forbids the broad-catch form of the same masking failure
+    exceptions:
+    - A behavior-tree node's `update()` method MAY use `except Exception` to
+      convert an unexpected error into `Status.FAILURE` (BT-HELPER-01).
+    - A genuine framework/execution boundary MAY catch broadly when narrowed to
+      the narrowest covering type and accompanied by an inline comment stating
+      what it guards and why; such sites are enumerated in the enforcing test's
+      `_DECLARED_EXCLUSIONS` allow-list.

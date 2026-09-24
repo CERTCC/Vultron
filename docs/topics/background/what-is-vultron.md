@@ -60,7 +60,7 @@ Behavior Trees in the [Behavior Logic](../behavior_logic/index.md) section.
     say *when* to send them.
 
 For example: a participant whose report transitions to *Accepted* should emit
-a Report Accepted notification. Most of this is automatable; the reference
+a Report/Case Accepted notification. Most of this is automatable; the reference
 implementation handles it. But some decisions cannot be automated — these are
 **call-out points**, explicit seams in the behavior trees where the protocol
 hands control back to a human, a policy engine, or an external service.

@@ -14,6 +14,13 @@ The behavioral requirements for this tree are specified in the
     Implementations are not required to use behavior trees — any approach that satisfies the
     requirements above is conformant.
 
+!!! note "Legacy design diagram"
+
+    The diagram on this page reflects the simulator-era design from `vultron/bt/` and may not
+    match the current implementation in `vultron/core/behaviors/`.
+    See the [Behaviors Reference](../../reference/behaviors/index.md) for
+    auto-generated documentation from the current implementation.
+
 A Report Validation Behavior Tree is shown in the next figure. To begin with (A), if the report is already
 *Valid*, no further action is needed from this behavior.
 

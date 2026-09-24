@@ -3,18 +3,28 @@
 ## Requirements
 
 The behavioral requirements for this tree are specified in the
-[Protocol Specifications](../../reference/specs/protocol.md):
+[Protocol Specifications](../../reference/specs/protocol.md) and
+[Architecture Specifications](../../reference/specs/architecture.md):
 
 - [EMB-10](../../reference/specs/protocol.md#emb-10) — Enter EM Proposed
 - [EMB-11](../../reference/specs/protocol.md#emb-11) — Enter EM Active
 - [EMB-12](../../reference/specs/protocol.md#emb-12) — Enter EM Revise
 - [EMB-13](../../reference/specs/protocol.md#emb-13) — Enter EM Exited
+- [EMB-16](../../reference/specs/protocol.md#emb-16) — CS Public/Exploit/Attacks Detected While EM Proposed
+- [EMB-18](../../reference/specs/architecture.md#emb-18) — EM Write-Boundary Consolidation
 
 !!! note "Implementation approach"
 
     The behavior tree diagram below illustrates one conformant implementation of these requirements.
     Implementations are not required to use behavior trees — any approach that satisfies the
     requirements above is conformant.
+
+!!! note "Legacy design diagram"
+
+    The diagram on this page reflects the simulator-era design from `vultron/bt/` and may not
+    match the current implementation in `vultron/core/behaviors/`.
+    See the [Behaviors Reference](../../reference/behaviors/index.md) for
+    auto-generated documentation from the current implementation.
 
 The Embargo Management Behavior Tree is shown in the figure below.
 It follows the state transition function in the

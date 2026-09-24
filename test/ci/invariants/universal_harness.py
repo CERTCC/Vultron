@@ -1,4 +1,4 @@
-"""Factory for the 16 universal case-ledger invariant test functions.
+"""Factory for the universal case-ledger invariant test functions.
 
 Each scenario harness calls::
 
@@ -10,12 +10,20 @@ Each scenario harness calls::
         )
     )
 
-to inject all 16 universal test functions without copying their
-implementations (ISSUE-2007, AC-1).
+to inject every universal test function without copying their
+implementations (ISSUE-2007, AC-1).  The returned ``result`` dict below is
+the definitive inventory — do not restate its size in prose, here or in
+docs, because that number is what goes stale (ISSUE-3337).
 
 The injected functions use ``request.getfixturevalue(replicas_fixture)``
 to retrieve the calling module's scenario-specific replicas fixture at
 pytest collection time.
+
+Diagnostic guidance per invariant (which layer to check first, which
+``xfail`` markers are live and who owns them) lives in
+``notes/demo-ci-diagnostics.md`` § "Per-Invariant Diagnostic Map", which
+``test/ci/invariants/test_diagnostic_map_sync.py`` ratchets against this
+factory.
 """
 
 from __future__ import annotations
@@ -27,6 +35,7 @@ import pytest
 
 from test.ci.invariants.common import (
     check_causal_edges,
+    check_clp14_timestamp_invariants,
     check_cross_actor_hash_agreement,
     check_cross_actor_payload_actor_agreement,
     check_cs_state_transitions_observed,
@@ -41,7 +50,10 @@ from test.ci.invariants.common import (
     check_non_empty_payload_snapshots,
     check_participant_status_schema_completeness,
     check_payload_context_uses_case_uri,
-    check_per_actor_replica_divergence,
+    check_per_actor_replica_cs_state_transitions_observed,
+    check_per_actor_replica_no_rm_state_oscillation,
+    check_per_actor_replica_participant_status_schema_completeness,
+    check_per_actor_replica_rm_closed_termination,
     check_rm_closed_termination,
     load_narrative_edges,
 )
@@ -52,6 +64,7 @@ def make_universal_invariant_tests(  # noqa: C901
     chain_actors: list,
     expected_event_types: list,
     check_fix_ready: bool = True,
+    *,
     narrative_path: str | None = None,
 ) -> dict[str, Any]:
     """Return the universal invariant test functions keyed by name.
@@ -68,10 +81,11 @@ def make_universal_invariant_tests(  # noqa: C901
         Per-scenario ``_XXX_EXPECTED_EVENT_TYPES`` list passed to
         ``@pytest.mark.parametrize``.
     check_fix_ready:
-        Forwarded to ``check_cs_state_transitions_observed`` and
-        ``check_per_actor_replica_divergence``; set to ``False`` for the
-        ``fcv-reject`` scenario where Vendor never advances the VFD state
-        machine.
+        Forwarded to ``check_cs_state_transitions_observed`` and its
+        replica-side counterpart
+        ``check_per_actor_replica_cs_state_transitions_observed``; set to
+        ``False`` for the ``fcv-reject`` scenario where Vendor never advances
+        the VFD state machine.
     narrative_path:
         Repo-relative path to the scenario narrative Markdown page that
         carries the machine-readable ``causal_edges:`` front-matter block.
@@ -154,10 +168,6 @@ def make_universal_invariant_tests(  # noqa: C901
         ), "RM state oscillation after CLOSED:\n" + "\n".join(violations)
 
     @pytest.mark.case_ledger_invariants
-    @pytest.mark.xfail(
-        strict=False,
-        reason="pre-existing bug #2505: FV demo CaseActor never reaches RM.CLOSED",
-    )
     def test_invariant_7_log_terminates_all_rm_closed(
         request: pytest.FixtureRequest,
     ) -> None:
@@ -263,29 +273,99 @@ def make_universal_invariant_tests(  # noqa: C901
     def test_invariant_clp13_no_rejected_invite_entries(
         request: pytest.FixtureRequest,
     ) -> None:
-        """No invite_actor_to_case entries with disposition=rejected exist (CLP-13-001)."""
+        """No invite_actor_to_case entries carry a stale disposition field (CLP-13-001, CLP-04-007)."""
         replicas = request.getfixturevalue(replicas_fixture)
         violations = check_no_rejected_invite_entries(replicas)
         assert not violations, (
-            f"Found {len(violations)} spurious rejected invite_actor_to_case"
-            f" entries (CLP-13-001 violation):\n" + "\n".join(violations)
+            f"Found {len(violations)} stale-disposition invite_actor_to_case"
+            f" entries (CLP-13-001/CLP-04-007 violation):\n"
+            + "\n".join(violations)
         )
 
     @pytest.mark.case_ledger_invariants
-    @pytest.mark.xfail(
-        strict=False,
-        reason="pre-existing bug #2505: FV demo CaseActor never reaches RM.CLOSED",
-    )
-    def test_invariant_per_actor_replica_divergence(
+    @pytest.mark.spec("CLP-14-002")
+    @pytest.mark.spec("CLP-14-003")
+    @pytest.mark.spec("CLP-14-005")
+    @pytest.mark.spec("CLP-14-006")
+    @pytest.mark.spec("CLP-14-010")
+    def test_invariant_clp14_timestamp_invariants(
         request: pytest.FixtureRequest,
     ) -> None:
-        """Each non-case-actor replica satisfies the same state invariants as the authoritative log."""
+        """Commit timestamps are non-null, unique-indexed, and non-decreasing.
+
+        The commit-timestamp half of ADR-0079 § "Validation".  These are the
+        invariants on ``CaseLedgerEntry.published`` — the CaseActor's own stamp
+        — as distinct from the claimed-timestamp checks the commit boundary
+        applies to ``payloadSnapshot.published``
+        (``_validate_entry_timestamps``).  ADR-0079 asserted these ran in
+        ``test/ci/invariants/common.py``; the check existed but no scenario ever
+        invoked it (ISSUE-2824).
+        """
         replicas = request.getfixturevalue(replicas_fixture)
-        violations = check_per_actor_replica_divergence(
+        violations = check_clp14_timestamp_invariants(replicas)
+        assert not violations, (
+            f"{len(violations)} CLP-14 timestamp invariant violation(s):\n"
+            + "\n".join(violations[:20])
+        )
+
+    # Replica-side counterparts of invariants 6, 7, 9 and 15.  These four were
+    # one aggregate test, ``test_invariant_per_actor_replica_divergence``, until
+    # ISSUE-3385: a single marker over four independent properties meant an
+    # xfail scoped to one of them silenced all four, and a failure reported one
+    # undifferentiated violation list.  Each now carries its own marker and its
+    # own row in the diagnostic map.
+
+    @pytest.mark.case_ledger_invariants
+    def test_invariant_per_actor_replica_no_rm_state_oscillation(
+        request: pytest.FixtureRequest,
+    ) -> None:
+        """No non-case-actor replica records an RM change after CLOSED."""
+        replicas = request.getfixturevalue(replicas_fixture)
+        violations = check_per_actor_replica_no_rm_state_oscillation(replicas)
+        assert not violations, (
+            f"{len(violations)} replica-side RM-oscillation violation(s):\n"
+            + "\n".join(violations)
+        )
+
+    @pytest.mark.case_ledger_invariants
+    def test_invariant_per_actor_replica_rm_closed_termination(
+        request: pytest.FixtureRequest,
+    ) -> None:
+        """Each non-case-actor replica's log ends with every participant CLOSED."""
+        replicas = request.getfixturevalue(replicas_fixture)
+        violations = check_per_actor_replica_rm_closed_termination(replicas)
+        assert not violations, (
+            f"{len(violations)} replica-side RM-termination violation(s):\n"
+            + "\n".join(violations)
+        )
+
+    @pytest.mark.case_ledger_invariants
+    def test_invariant_per_actor_replica_participant_status_schema_completeness(
+        request: pytest.FixtureRequest,
+    ) -> None:
+        """Every ParticipantStatus snapshot on every replica carries the required fields."""
+        replicas = request.getfixturevalue(replicas_fixture)
+        violations = (
+            check_per_actor_replica_participant_status_schema_completeness(
+                replicas
+            )
+        )
+        assert not violations, (
+            f"{len(violations)} replica-side ParticipantStatus schema"
+            " violation(s):\n" + "\n".join(violations)
+        )
+
+    @pytest.mark.case_ledger_invariants
+    def test_invariant_per_actor_replica_cs_state_transitions_observed(
+        request: pytest.FixtureRequest,
+    ) -> None:
+        """Each non-case-actor replica observed all key CS transitions."""
+        replicas = request.getfixturevalue(replicas_fixture)
+        violations = check_per_actor_replica_cs_state_transitions_observed(
             replicas, check_fix_ready=check_fix_ready
         )
         assert not violations, (
-            f"{len(violations)} per-actor invariant violation(s):\n"
+            f"{len(violations)} replica-side CS-transition violation(s):\n"
             + "\n".join(violations)
         )
 
@@ -305,7 +385,11 @@ def make_universal_invariant_tests(  # noqa: C901
         "test_invariant_14_no_gaps_in_log_indices": test_invariant_14_no_gaps_in_log_indices,
         "test_invariant_15_cs_state_transitions_observed": test_invariant_15_cs_state_transitions_observed,
         "test_invariant_clp13_no_rejected_invite_entries": test_invariant_clp13_no_rejected_invite_entries,
-        "test_invariant_per_actor_replica_divergence": test_invariant_per_actor_replica_divergence,
+        "test_invariant_clp14_timestamp_invariants": test_invariant_clp14_timestamp_invariants,
+        "test_invariant_per_actor_replica_no_rm_state_oscillation": test_invariant_per_actor_replica_no_rm_state_oscillation,
+        "test_invariant_per_actor_replica_rm_closed_termination": test_invariant_per_actor_replica_rm_closed_termination,
+        "test_invariant_per_actor_replica_participant_status_schema_completeness": test_invariant_per_actor_replica_participant_status_schema_completeness,
+        "test_invariant_per_actor_replica_cs_state_transitions_observed": test_invariant_per_actor_replica_cs_state_transitions_observed,
     }
 
     if narrative_path is not None:

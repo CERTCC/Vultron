@@ -102,8 +102,13 @@ about when events occurred at other actors.
 The CaseActor MUST ensure:
 
 - If event A causally precedes event B (from the CaseActor's perspective),
-  then `log_index(B) > log_index(A)`. Gaps in the `log_index` sequence are
-  permitted (entries may be sparse); reversal is not.
+  then `log_index(B) > log_index(A)`.
+- The `log_index` sequence is gapless. The genesis entry carries index 0 and
+  each later entry carries its predecessor's index plus one (CLP-14-010,
+  SYNC-01-002). A receiver that gets an entry that does not extend its chain
+  and has an index greater than `tail_index + 1` concludes an entry is missing
+  (SYNC-14-001). That conclusion holds only
+  because the CaseActor never skips an index.
 - The `published` timestamps on consecutive ledger entries MUST be
   monotonically non-decreasing in `log_index` order. An entry stamped later
   in the sequence MUST NOT carry an earlier timestamp than its predecessor.
@@ -111,8 +116,8 @@ The CaseActor MUST ensure:
   own `published` timestamp. A ledger entry cannot predate the case it
   belongs to.
 
-This is **not** a claim that B immediately follows A (gaps are permitted);
-only that B cannot appear before A.
+This is **not** a claim that B immediately follows A. Other entries may be
+recorded between them. The claim is only that B cannot appear before A.
 
 ### Participant Emission Obligation
 
@@ -152,17 +157,69 @@ from a malicious or malfunctioning participant.
 
 ## Validation
 
-Conformance tests in `test/ci/invariants/common.py` verify:
+Enforcement splits along the two timestamps an entry carries, and the split is
+load-bearing — conflating them produces either a vacuous check or a false
+rejection (Issue #2824).
 
+**Commit timestamp** (`CaseLedgerEntry.published`, stamped by the CaseActor).
+`check_clp14_timestamp_invariants` in `test/ci/invariants/common.py`, run by
+every scenario through `universal_harness.py`, verifies:
+
+- `entry.published` is non-null for all entries.
 - `entry[N].published >= entry[N-1].published` for all consecutive recorded
   entries within a case.
-- `entry.published` is non-null for all entries.
-- `log_index` values are unique within a case and form a gapless sequence.
+- `log_index` values are unique within a case (CLP-14-005) and form a
+  gapless sequence from 0 (CLP-14-010).
 - All entries in a case share the same `case_id`.
-- No entry's `published` precedes the case's own `published` timestamp.
+- No entry's `published` precedes the case-creation entry's timestamp.
 
-These are tracked as a separate implementation issue (runtime enforcement via
-extension of `_validate_canonical_entry` and conformance tests).
+A single writer stamping from one clock satisfies these by construction; the
+harness is what catches a replica that does not.
+
+**Claimed timestamp** (`payloadSnapshot.published`, chosen by the asserting
+actor). Its presence is guaranteed upstream: `parse_activity` refuses an inbound
+activity that carries no `published` (CLP-15-006), because ActivityStreams makes
+the field optional and the wire base class defaults it to `now_utc` — so a
+receiver that let it through could no longer tell a claimed time from its own
+clock, which is exactly how CLP-14-007 and CLP-14-008 were left vacuous
+(Issue #3149).
+
+`_validate_entry_timestamps`, reached from every commit through
+`CreateLogEntryNode`, then **refuses** an assertion that:
+
+- predates the case by more than the configured clock-skew tolerance
+  (CLP-14-006);
+- sits beyond the future tolerance or staleness window (CLP-14-007,
+  CLP-14-008).
+
+and **reports without refusing** an assertion whose claimed timestamp regresses
+behind that *same actor's* previous assertion (CLP-15-003) — at `INFO` within the
+clock-skew tolerance, at `WARNING` beyond it.
+
+That asymmetry is the load-bearing part. CLP-15-003 binds the *participant*, and
+the CaseActor observes arrival order, not causal order: the transport gives no
+ordering guarantee (ADR-0037), so two assertions from one actor can legitimately
+be committed in the reverse of the order they were emitted, and CLP-15-003
+constrains only assertions that are actually causally related. Refusing on that
+signal would be the reconstruction CLP-15-005 forbids — and it would discard the
+assertion outright, because the guarded commit precedes the effect nodes
+(CLP-10-006), leaving no ledger record and no retry. Recording it and reporting
+it keeps the signal without losing the assertion.
+
+Monotonicity of the claimed timestamp is scoped to one actor's stream. Applying
+it across actors would reintroduce option C: two participants' clocks are not
+comparable, so a later-committed assertion from one legitimately carries an
+earlier claimed time than an earlier-committed one from another. For the same
+reason a snapshot the CaseActor builds on a participant's behalf must carry that
+participant's claimed time, not the CaseActor's clock — mixing the two inside one
+actor's stream manufactures a regression. Thresholds are tunable via
+`AppConfig.ledger` (CLP-14-009).
+
+The participant emission obligations CLP-15-001 and CLP-15-002 are not
+enforceable per-assertion — that is the point of the residual uncertainty above,
+and CLP-15-005 forbids the attempt. They are validated at the conformance layer
+by `check_causal_edges`, which compares declared causal edges against observed
+ledger order across a whole scenario (DEMOMA-22-005).
 
 ## More Information
 
@@ -170,8 +227,11 @@ extension of `_validate_canonical_entry` and conformance tests).
 - `DEMOMA-22-005` now cites this ADR instead of ADR-0041.
 - `notes/case-ledger-authority.md` informally anticipated this decision;
   that note now cross-references this ADR.
+- Issue #2752 corrected the ordering model. It had said gaps in `log_index`
+  were permitted, which contradicted SYNC-01-002 and the Validation section.
+  CLP-14-010 now states the gapless rule.
 - Issue #2207 (ADR-0041 mis-citation) can be fixed once this ADR and the
   generated spec entries (CLP-14, CLP-15) are in place.
 
 Generated spec requirements: `specs/case-ledger-processing.yaml` CLP-14-001
-through CLP-14-009, CLP-15-001 through CLP-15-005.
+through CLP-14-010, CLP-15-001 through CLP-15-005.

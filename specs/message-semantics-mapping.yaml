@@ -569,7 +569,7 @@ groups:
     kind: protocol
     statement: 'Acknowledgement of replicated case-ledger state MUST be cumulative and implicit via hash-chain continuity. A
       receiver whose `prev_log_hash` matches its local tail MUST NOT emit an acknowledgement, and MUST emit
-      `Reject(CaseLedgerEntry)` on a mismatch, whereupon the CaseActor replays all entries after the last accepted hash.'
+      `Reject(CaseLedgerEntry)` on a mismatch, whereupon the CASE_MANAGER replays all entries after the last accepted hash.'
     rationale: A matching `prev_log_hash` already proves receipt of every prior entry, so per-message positive
       acknowledgement would be redundant. This is negative acknowledgement with gap-fill replay, structurally closer to a
       cumulative ACK or SACK scheme than to the formal per-message EK, CK and GK design. `RK` remains a real wire activity
@@ -578,6 +578,44 @@ groups:
       Inspection of `RejectLedgerEntryReceivedUseCase` in
       `vultron/core/use_cases/received/sync.py` confirms the mismatch-and-replay
       behaviour, and the registry contains no per-message `EK`, `CK`, or `GK` entry.
+    relationships:
+    - rel_type: refines
+      spec_id: SYNC-15-003
+    lint_suppress:
+    - missing_story_reference
+  - id: MSM-05-005
+    priority: MUST
+    kind: protocol
+    statement: All protocol-significant activities MUST be committed to the canonical case ledger by the CASE_MANAGER
+      before fan-out to participant actors. No protocol-significant activity bypasses the ledger replication path.
+    rationale: >-
+      The hash-chain acknowledgement model (MSM-05-002) is only complete if every activity a participant needs to
+      acknowledge reaches them via an Announce(CaseLedgerEntry). Activities that bypassed the ledger would have no
+      acknowledgement mechanism. Report submission (RS) is the only activity not carried by the ledger; it uses RK
+      (MSM-01-008) instead, which is the intended exception rather than a gap.
+    verification: >-
+      Inspection of the CASE_MANAGER receive paths confirms that every inbound protocol
+      activity results in at least one CaseLedgerEntry committed before Announce fan-out,
+      except for Offer(VulnerabilityReport) which uses the RK path.
+    lint_suppress:
+    - missing_story_reference
+  - id: MSM-05-006
+    priority: MAY
+    kind: protocol
+    statement: >-
+      A conformant implementation MAY rely solely on Announce(CaseLedgerEntry) deliveries for liveness inference,
+      without emitting a dedicated periodic heartbeat. Silence between Announce deliveries is therefore an
+      accepted protocol property: a participant that is online but has received all entries is indistinguishable
+      from one that is unreachable. This does not preclude a future revision adding a normative heartbeat requirement.
+    rationale: >-
+      The hash-chain NAK model (MSM-05-002) provides implicit acknowledgement only when new entries arrive.
+      Between deliveries, silence and unreachability are observationally equivalent. Documenting this as a
+      deliberate MAY-level property (rather than a defect) closes the liveness question raised by CONCERN-3006
+      without foreclosing a future heartbeat mechanism (CaseActorHeartbeat is already sketched in
+      notes/sync-ledger-replication.md for the multi-node CASE_MANAGER cluster design).
+    verification: >-
+      No normative heartbeat requirement exists in specs/sync-ledger-replication.yaml;
+      this entry records the absence as intentional.
     lint_suppress:
     - missing_story_reference
   - id: MSM-05-003
@@ -597,16 +635,15 @@ groups:
     priority: MUST_NOT
     kind: process
     statement: Documentation MUST NOT describe the wire fault taxonomy as `RmError`, `EmError`, `CsError`, or `GmError`
-      discriminated by `as:inReplyTo`; those types exist in no ontology file and no code, and `ActivityPattern.in_reply_to_`
-      is used by no registered pattern.
-    rationale: '`docs/howto/activitypub/activities/error.md` depicts this taxonomy, and it has never been built. Citing it
-      leads implementers to a wire format that does not exist. Note also the name collision: `VultronError` in
-      `vultron/errors.py` is a Python exception base class, unrelated to the wire type of the same name in that diagram.'
+      discriminated by `as:inReplyTo`; those types exist in no ontology file and no code.
+    rationale: '`docs/howto/activitypub/activities/error.md` previously depicted this taxonomy, and it was never built.
+      Citing it leads implementers to a wire format that does not exist. Note also the name note: `VultronError` in
+      `vultron/errors.py` is a Python exception base class, unrelated to protocol wire-level error messages.'
     verification: >-
       A grep for `RmError`, `EmError`, `CsError`, and `GmError` across `vultron/`
       and the whole of `docs/` returns no definitions and no documentation
-      references, and no registered `ActivityPattern` sets `in_reply_to_`. The grep
-      MUST cover `docs/howto/` — that is where the taxonomy is currently depicted.
+      references. `ActivityPattern.in_reply_to_` has been removed from the
+      codebase; the pattern matcher cannot match on a field that does not exist.
     lint_suppress:
     - missing_story_reference
 - id: MSM-06
@@ -673,13 +710,13 @@ groups:
     shorthands in the 28-shorthand set. PEC state answers the question: "has this
     participant explicitly accepted or rejected the *current* active embargo?" Unlike
     RM state (self-reported by the participant) and VF/D state (self-reported by
-    vendor/deployer), PEC state is set by the CaseActor (CM-28-003) based on observed
+    vendor/deployer), PEC state is set by the CASE_MANAGER (CM-28-003) based on observed
     participant behavior — incoming Accept/Reject wire activities, timer-enforced lapses,
-    and cascades from shared EM state changes. The five states are NO_EMBARGO (no embargo
-    in scope), INVITED (awaiting response), SIGNATORY (accepted current terms), LAPSED
-    (terms changed since last acceptance), and DECLINED (explicitly refused or timed out
-    without responding). Normative authority: specs/case-management.yaml CM-18.
-    Decision: ADR-0048.
+    and cascades from shared EM state changes. The five states are UNBOUND (participant
+    not bound by any embargo terms), INVITED (awaiting response), SIGNATORY (accepted
+    current terms), LAPSED (terms changed since last acceptance), and DECLINED
+    (explicitly refused or timed out without responding). Normative authority:
+    specs/case-management.yaml CM-18. Decisions: ADR-0048, ADR-0091.
   specs:
   - id: MSM-07-001
     priority: MUST
@@ -711,7 +748,7 @@ groups:
     statement: >-
       The wire activity INVITE_TO_EMBARGO_ON_CASE (EP wire form:
       Invite(Event)[context=VulnerabilityCase]) MUST apply the PEC INVITE trigger to
-      the invited participant, advancing their consent state from NO_EMBARGO, DECLINED,
+      the invited participant, advancing their consent state from UNBOUND, DECLINED,
       or LAPSED to INVITED.
     rationale: >-
       An embargo proposal is an invitation to consent; the EP wire activity conveys
@@ -740,14 +777,14 @@ groups:
       (1) when the sending actor is the case owner it MUST advance the shared EM
       state from PROPOSED to ACTIVE (or from REVISE to ACTIVE for EC); (2) for
       any accepting participant it MUST apply the PEC ACCEPT trigger, advancing
-      their consent state from INVITED, NO_EMBARGO, or LAPSED to SIGNATORY.
+      their consent state from INVITED, UNBOUND, or LAPSED to SIGNATORY.
     rationale: >-
       The same wire activity simultaneously drives the case-level EM machine
       (for the case owner) and the participant-level PEC machine (for the accepting
       actor). An implementer handling this activity MUST update both machines, not
-      just the EM state. The PEC ACCEPT trigger is valid directly from NO_EMBARGO
+      just the EM state. The PEC ACCEPT trigger is valid directly from UNBOUND
       because consent can be self-determined without an invitation (ADR-0048,
-      CM-18-003).
+      ADR-0091, CM-18-003).
     verification: >-
       Inspection of vultron/core/use_cases/received/embargo.py confirms
       AcceptInviteToEmbargoOnCaseReceivedUseCase applies EmbargoLifecycle
@@ -769,12 +806,12 @@ groups:
       (1) when the sending actor is the case owner it MUST advance the shared EM
       state from PROPOSED to NONE (for ER) or leave EM in ACTIVE (for EJ); (2)
       for any rejecting participant it MUST apply the PEC DECLINE trigger, advancing
-      their consent state from INVITED, NO_EMBARGO, or LAPSED to DECLINED.
+      their consent state from INVITED, UNBOUND, or LAPSED to DECLINED.
     rationale: >-
       Symmetric with MSM-07-003: the reject wire activity drives both the EM machine
       (case-owner path) and the PEC machine (rejecting participant path). The PEC
-      DECLINE trigger is valid directly from NO_EMBARGO for symmetric reasons to
-      ACCEPT (ADR-0048, CM-18-003).
+      DECLINE trigger is valid directly from UNBOUND for symmetric reasons to
+      ACCEPT (ADR-0048, ADR-0091, CM-18-003).
     verification: >-
       Inspection of vultron/core/use_cases/received/embargo.py confirms
       RejectInviteToEmbargoOnCaseReceivedUseCase applies EmbargoLifecycle
@@ -824,11 +861,11 @@ groups:
       When the shared EM state transitions to EXITED (driven by an ET /
       REMOVE_EMBARGO_EVENT_FROM_CASE wire activity), implementations MUST
       automatically apply the PEC RESET trigger to every participant, advancing
-      all consent states to NO_EMBARGO. No separate outbound wire activity is
+      all consent states to UNBOUND. No separate outbound wire activity is
       emitted for these per-participant PEC transitions; the cascade is an
       internal side-effect of the EM termination.
     rationale: >-
-      NO_EMBARGO is the correct state when no embargo is in scope (ADR-0048).
+      UNBOUND is the correct state when no embargo is in scope (ADR-0048, ADR-0091).
       Terminating the embargo removes it from scope for all participants, so
       their per-participant consent records must reflect that absence. The RESET
       cascade is performed by EmbargoLifecycle._cascade_pec_reset() inside
@@ -836,7 +873,7 @@ groups:
     verification: >-
       Inspection of vultron/core/services/embargo_lifecycle.py confirms that
       terminate_active_embargo() calls _cascade_pec_reset() and that all
-      participants reach NO_EMBARGO. Unit tests in
+      participants reach UNBOUND. Unit tests in
       test/core/services/test_embargo_lifecycle.py assert the cascade.
     relationships:
     - rel_type: derives_from
@@ -852,7 +889,7 @@ groups:
       The timer-based pocket-veto transitions — INVITED to DECLINED and LAPSED
       to DECLINED after the invitation deadline passes — MUST be enforced lazily
       with no outbound wire message emitted for the PEC state change itself.
-      The CaseActor MUST author a case-ledger entry recording the lapse (CM-28-005)
+      The CASE_MANAGER MUST author a case-ledger entry recording the lapse (CM-28-005)
       so the consent change is visible in the canonical ledger, but no additional
       protocol wire activity is required.
     rationale: >-
@@ -865,7 +902,7 @@ groups:
     verification: >-
       Inspection of vultron/core/services/embargo_lifecycle.py confirms
       detect_and_apply_lapse() applies PEC_Trigger.DECLINE without emitting
-      an outbound wire activity, and that a CaseActor-authored ledger entry
+      an outbound wire activity, and that a CASE_MANAGER-authored ledger entry
       is written per CM-28-005.
     relationships:
     - rel_type: derives_from

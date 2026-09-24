@@ -20,8 +20,26 @@ import re
 
 from vultron.core.case_states.hypercube import CVDmodel
 from vultron.core.case_states.patterns.explanations import explain
+from vultron.core.states.cs import CS_d, CS_vf
 
 _DISCLAIMER = "This file is auto-generated. Do not edit."
+
+# CS_vf/CS_d StrEnum names are terse protocol symbols, not prose. Map them to
+# the same human-readable labels the old VfdState namedtuple produced so that
+# regenerated docs stay consistent with the committed pages (ADR-0075).
+_CS_VF_LABELS: dict[CS_vf, tuple[str, ...]] = {
+    CS_vf.vf: ("Vendor Unaware", "Fix Not Ready"),
+    CS_vf.Vf: ("Vendor Aware", "Fix Not Ready"),
+    CS_vf.VF: ("Vendor Aware", "Fix Ready"),
+}
+_CS_D_LABELS: dict[CS_d, tuple[str, ...]] = {
+    CS_d.d: ("Fix Not Deployed",),
+    CS_d.D: ("Fix Deployed",),
+}
+
+
+def _vfd_labels(vf: CS_vf, d: CS_d) -> list[str]:
+    return list(_CS_VF_LABELS[vf]) + list(_CS_D_LABELS[d])
 
 
 def _bullet(s):
@@ -90,6 +108,13 @@ def print_readme(model_dir="../../docs/case_states"):
 
     fpath = os.path.join(model_dir, "index.md")
     with open(fpath, "w") as fp:
+        # The Reference landing page lists this page by its description:
+        # (DF-11-005), so regenerating must not drop it.
+        fp.write(
+            "---\ndescription: >\n"
+            "  An annotated listing of every state in the case state model.\n"
+            "---\n\n"
+        )
         fp.write(f"{_comment(_DISCLAIMER)}\n")
 
         fp.write("# Case States\n")
@@ -134,8 +159,8 @@ def print_model(model_dir="../../docs/reference/case_states"):
             fp.write(f"| Score | {info['score']:.2f} |\n")
 
             fp.write("| VFD |")
-            for item in info["vfd"]:
-                fp.write(_bullet(_enum2title(item)))
+            for label in _vfd_labels(*info["vfd"]):
+                fp.write(_bullet(label))
             fp.write("|\n")
 
             fp.write("| PXA |")

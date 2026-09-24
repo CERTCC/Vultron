@@ -197,11 +197,36 @@ class TestDynamicDiscovery:
         assert WIRE_TYPE_MAP["VulnerabilityReport"] is as_VulnerabilityReport
         assert WIRE_TYPE_MAP["VulnerabilityCase"] is as_VulnerabilityCase
 
-        # VOCABULARY is keyed by full wire class name
-        assert "as_VulnerabilityReport" in VOCABULARY
-        assert "as_VulnerabilityCase" in VOCABULARY
-        assert VOCABULARY["as_VulnerabilityReport"] is as_VulnerabilityReport
-        assert VOCABULARY["as_VulnerabilityCase"] is as_VulnerabilityCase
+        # After ADR-0099 detail 3 deletion (issue #3487), the core class IS the
+        # wire class — these are no longer registered under "as_*" in VOCABULARY
+        # but are accessible via WIRE_TYPE_MAP (checked above).
+        assert "as_VulnerabilityReport" not in VOCABULARY
+        assert "as_VulnerabilityCase" not in VOCABULARY
+
+    def test_case_stub_does_not_claim_the_case_wire_type_key(self):
+        """VM-01-008: an alias class holds no key of its own (issue #2982).
+
+        ``as_VulnerabilityCaseStub`` emits ``type: "VulnerabilityCase"``, so the
+        key belongs to ``as_VulnerabilityCase``. It used to also register under
+        ``VulnerabilityCaseStub`` — a key no payload carries, which is why
+        ``docs/ns/context.jsonld`` correctly grants the stub no term of its own.
+        """
+        import vultron.wire.as2.vocab  # noqa: F401 — dynamic discovery
+
+        from vultron.wire.as2.vocab.base.registry import wire_type_value
+        from vultron.wire.as2.vocab.objects.vulnerability_case import (
+            as_VulnerabilityCase,
+            as_VulnerabilityCaseStub,
+        )
+
+        assert wire_type_value(as_VulnerabilityCaseStub) == "VulnerabilityCase"
+        assert "VulnerabilityCaseStub" not in WIRE_TYPE_MAP
+        assert WIRE_TYPE_MAP["VulnerabilityCase"] is as_VulnerabilityCase
+
+        # The stub stays reachable by class name through VOCABULARY.
+        assert (
+            VOCABULARY["as_VulnerabilityCaseStub"] is as_VulnerabilityCaseStub
+        )
 
 
 class TestCoreTypeMapFallback:
@@ -276,6 +301,33 @@ class TestCoreTypeMapFallback:
         cls = find_in_vocabulary("ReplicationState")
         assert cls is VultronReplicationState
 
+    def test_pending_case_inbox_resolves_correctly(self):
+        """find_in_vocabulary('PendingCaseInbox') returns VultronPendingCaseInbox."""
+        from vultron.core.models.pending_case_inbox import (
+            VultronPendingCaseInbox,
+        )
+
+        cls = find_in_vocabulary("PendingCaseInbox")
+        assert cls is VultronPendingCaseInbox
+
+    def test_pending_create_case_activity_resolves_correctly(self):
+        """find_in_vocabulary('PendingCreateCaseActivity') returns PendingCreateCaseActivity."""
+        from vultron.core.models.pending_create_case_activity import (
+            PendingCreateCaseActivity,
+        )
+
+        cls = find_in_vocabulary("PendingCreateCaseActivity")
+        assert cls is PendingCreateCaseActivity
+
+    def test_report_case_link_resolves_correctly(self):
+        """find_in_vocabulary('ReportCaseLink') returns VultronReportCaseLink."""
+        from vultron.core.models.report_case_link import (
+            VultronReportCaseLink,
+        )
+
+        cls = find_in_vocabulary("ReportCaseLink")
+        assert cls is VultronReportCaseLink
+
 
 class TestDisjointKeys:
     """ARCH-23-002: set(VOCABULARY) & set(CORE_VOCABULARY) must be empty."""
@@ -349,16 +401,16 @@ class TestWireTypeValues:
     @pytest.mark.parametrize(
         "type_value,expected_class_name",
         [
-            ("VulnerabilityCase", "as_VulnerabilityCase"),
-            ("VulnerabilityReport", "as_VulnerabilityReport"),
+            ("VulnerabilityCase", "VulnerabilityCase"),
+            ("VulnerabilityReport", "VulnerabilityReport"),
             ("Accept", "as_Accept"),
             ("Create", "as_Create"),
             ("Announce", "as_Announce"),
-            ("Person", "as_VultronPerson"),
-            ("Service", "as_VultronService"),
+            ("Person", "VultronPerson"),
+            ("Service", "VultronService"),
             ("Actor", "as_Actor"),
             ("Add", "as_Add"),
-            ("EmbargoEvent", "as_EmbargoEvent"),
+            ("EmbargoEvent", "EmbargoEvent"),
         ],
     )
     def test_critical_type_values_resolve_to_expected_wire_class(

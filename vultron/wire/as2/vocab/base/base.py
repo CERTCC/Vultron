@@ -14,20 +14,42 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-import types as _types
-import typing as _typing
-from typing import ClassVar
+from typing import Any, ClassVar
 
-from pydantic import Field, model_validator, ConfigDict
+from pydantic import Field, model_validator, ConfigDict, ValidationInfo
 from pydantic.alias_generators import to_camel
 
-from vultron.core.models.base import VultronBase
+from vultron.core.models._helpers import (
+    INBOUND_CONTEXT_KEY,
+    absent_times_as_none,
+)
+from vultron.core.models.base import VULTRON_CONTEXT_URI, VultronBase
 from vultron.wire.as2.vocab.base.enums import VocabNamespace
-from vultron.wire.as2.vocab.base.registry import VOCABULARY, WIRE_TYPE_MAP
+from vultron.wire.as2.vocab.base.registry import (
+    VOCABULARY,
+    WIRE_TYPE_MAP,
+    declares_registrable_type,
+    is_wire_type_alias,
+    wire_type_value,
+)
 from vultron.wire.as2.vocab.base.utils import generate_new_id
 
 ACTIVITY_STREAMS_NS = "https://www.w3.org/ns/activitystreams"
-VULTRON_CONTEXT_URI = "https://certcc.github.io/Vultron/ns/context.jsonld"
+#: The Vultron vocabulary namespace IRI, bound to the ``vultron:`` prefix in the
+#: generated ``docs/ns/context.jsonld``. Distinct from ``VULTRON_CONTEXT_URI``,
+#: which is the URL of the context *document*; this is the term namespace it
+#: defines (VM-10-002). Single source of truth for the context generator.
+VULTRON_NS_URI = "https://certcc.github.io/Vultron/ns#"
+
+# Re-exported: this was the constant's original home, and wire-layer callers
+# import it from here.  It now lives in core, because core objects are what
+# carry it under ADR-0099 and core cannot import wire (ARCH-01-001).
+__all__ = [
+    "ACTIVITY_STREAMS_NS",
+    "VULTRON_CONTEXT_URI",
+    "VULTRON_NS_URI",
+    "as_Base",
+]
 
 
 class as_Base(VultronBase):
@@ -39,20 +61,25 @@ class as_Base(VultronBase):
 
     _vocab_ns: ClassVar[VocabNamespace] = VocabNamespace.AS
 
+    #: Set ``True`` on a class that shares another class's wire ``type`` value
+    #: and is therefore not what that value should deserialize to
+    #: (``as_VulnerabilityCaseStub`` emits ``type: "VulnerabilityCase"``). Such a
+    #: class stays reachable by class name through ``VOCABULARY`` but claims no
+    #: ``WIRE_TYPE_MAP`` key of its own (VM-01-008).
+    _wire_type_alias: ClassVar[bool] = False
+
     def __init_subclass__(cls, **kwargs: object) -> None:
         super().__init_subclass__(**kwargs)  # type: ignore[arg-type]
-        annotations = cls.__dict__.get("__annotations__", {})
-        if "type_" not in annotations:
-            return  # No type_ override → abstract base, skip
-        annotation = annotations["type_"]
-        # Skip if annotation is a union type (e.g., str | None = abstract base)
-        if isinstance(annotation, _types.UnionType):
-            return
-        if _typing.get_origin(annotation) is _typing.Union:
-            return
+        if not declares_registrable_type(cls):
+            return  # No concrete type_ of its own → abstract base, skip
         if cls.__name__.startswith("as_"):
             VOCABULARY[cls.__name__] = cls
-        WIRE_TYPE_MAP[cls.__name__.removeprefix("as_")] = cls
+        # WIRE_TYPE_MAP answers "which class does this inbound `type` value
+        # deserialize to?", so its key is the emitted `type` value — not the
+        # class name, which diverges for the Vultron actor subtypes and would
+        # register a key no payload ever carries (VM-01-008, issue #2982).
+        if not is_wire_type_alias(cls):
+            WIRE_TYPE_MAP[wire_type_value(cls)] = cls
 
     context_: str = Field(
         default=ACTIVITY_STREAMS_NS,
@@ -72,6 +99,43 @@ class as_Base(VultronBase):
     name: str | None = None
     preview: str | None = None
     media_type: str | None = None
+
+    #: Validation-context key that marks a ``model_validate`` call as reading
+    #: *inbound* data.  ``parse_activity`` sets it; nothing else should.
+    INBOUND_CONTEXT_KEY: ClassVar[str] = INBOUND_CONTEXT_KEY
+
+    @model_validator(mode="before")
+    @classmethod
+    def carry_absent_times_on_inbound(
+        cls, data: Any, info: ValidationInfo
+    ) -> Any:
+        """Read an absent clock-defaulted timestamp as ``None`` when inbound.
+
+        The same classes author outbound activities and validate inbound ones,
+        so the ``default_factory=now_utc`` that correctly stamps an object *this
+        process* creates would, on inbound data, fabricate a time the sender
+        never claimed and present it downstream as the sender's claim
+        (ISSUE-3257, CLP-15-007).  The two directions are told apart by
+        validation context rather than by a field default: ``parse_activity``
+        passes ``INBOUND_CONTEXT_KEY``, and Pydantic propagates the context
+        through every nested model in that call.
+
+        Doing this here rather than in the parser is what makes the rule hold at
+        *every* depth.  The parser can only pre-treat a dict whose ``type`` it
+        resolved; an inline object that omits ``type`` stays a raw dict for the
+        parent field to validate, and that validation lands here, on the class
+        the field actually chose.  Each class sees only its own
+        ``model_fields``, so a class without timestamps (``as_Link``) is
+        untouched rather than handed a key it would refuse.
+        """
+        if not isinstance(data, dict):
+            return data
+        context = info.context
+        if not isinstance(context, dict) or not context.get(
+            cls.INBOUND_CONTEXT_KEY
+        ):
+            return data
+        return absent_times_as_none(cls, dict(data))
 
     @model_validator(mode="after")
     def set_type_from_class_name(self):

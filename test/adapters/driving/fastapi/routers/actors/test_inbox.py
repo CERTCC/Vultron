@@ -72,6 +72,19 @@ def test_parse_activity_raises_400_when_type_missing():
     assert exc_info.value.status_code == 400
 
 
+@pytest.mark.parametrize("blank", ["", "   ", "\t"])
+def test_parse_activity_raises_400_when_type_blank(blank: str):
+    """A blank ``type`` is an omitted ``type``, so it gets the same 400.
+
+    Routing it through the vocabulary lookup answered ``UnknownTypeError`` and
+    so a 422, meaning two spellings of "I did not say what this is" drew two
+    different status codes (ISSUE-3217).
+    """
+    with pytest.raises(HTTPException) as exc_info:
+        parse_activity({"type": blank, "actor": _ACTOR_URI})
+    assert exc_info.value.status_code == 400
+
+
 def test_parse_activity_raises_422_for_unknown_type():
     with pytest.raises(HTTPException) as exc_info:
         parse_activity(
@@ -151,7 +164,7 @@ def test_reparse_as_specific_type_returns_same_object_when_already_specific_clas
         name="Already Specific",
     )
     raw_obj = case.model_dump(mode="json", by_alias=True, exclude_none=True)
-    result = _reparse_as_specific_type(case, raw_obj)
+    result = _reparse_as_specific_type(case, raw_obj)  # type: ignore[arg-type]
     assert result is case
 
 
@@ -221,37 +234,55 @@ def test_store_nested_inbox_object_skips_when_no_body(datalayer):
     _store_nested_inbox_object(datalayer, activity, None)
 
 
-def test_store_nested_inbox_object_logs_a_projection_failure(
+def test_store_nested_inbox_object_projection_failure_surfaces_on_read(
     datalayer, caplog
 ):
-    """An unpersistable inline object must be logged at ERROR (issue #2232).
+    """An unreadable inline object surfaces its failure on read (#2232, #2940).
 
-    A projection failure and an "already exists" collision both used to surface
-    as ``ValueError`` and were swallowed together at DEBUG, so the row was
-    silently absent and downstream BT nodes reported a misleading "participant
-    not found".  The distinct ``VultronValidationError`` is now logged loudly.
+    Since #2940 removed write-side wire→core normalisation (``extra="forbid"``
+    is the boundary contract now), ingress stores the inline object verbatim
+    rather than rejecting it at write.  The failure is not silently swallowed
+    on the way back out: reading the row logs a WARNING naming #2232 rather
+    than reporting a misleading "not found" with no trace.
     """
     import logging
 
-    from vultron.wire.as2.vocab.objects.case_participant import (
-        as_CaseParticipant,
+    from pydantic import BaseModel
+
+    # The fixture changed with ADR-0099 detail 3, and the reason is worth keeping.
+    # It used to build an ``as_CaseParticipant`` with ``accepted_embargo_ids=[""]``
+    # — legal on the lenient wire class, rejected by the core class's
+    # ``NonEmptyString``, so "constructible yet unprojectable". Collapsing the pair
+    # removes that state: one class means such an object fails *construction*
+    # instead of projection, and there is no wire object left to hand back on
+    # read. What still reaches the store is a shape the core class refuses — here
+    # a key no ``CaseParticipant`` field accepts, which ``extra="forbid"`` rejects.
+    #
+    # Deliberately a plain ``BaseModel`` and not a ``CoreObject`` subclass: the
+    # latter self-registers in ``CORE_TYPE_MAP`` via ``__init_subclass__``, and with
+    # ``type_ = "CaseParticipant"`` it would clobber the real entry for every test
+    # that ran afterwards. ``model_construct`` puts it in the slot without the
+    # union validation a non-core model would fail.
+    class _ShadowingParticipant(BaseModel):
+        id_: str = "urn:uuid:participant-2232-unprojectable"
+        type_: str = "CaseParticipant"
+        not_a_participant_field: str = "x"
+
+    _ShadowingParticipant.__module__ = "vultron.wire.as2.vocab.objects.fake"
+
+    unprojectable = _ShadowingParticipant()
+    activity = as_Announce.model_construct(
+        actor=_ACTOR_URI, object_=unprojectable
     )
 
-    # NonEmptyString rejects "" on the core class but not the wire class, so
-    # this participant is constructible yet cannot be projected to core.
-    unprojectable = as_CaseParticipant(
-        id_="urn:uuid:participant-2232-unprojectable",
-        attributed_to=_ACTOR_URI,
-        context="https://example.org/cases/case-2232",
-        accepted_embargo_ids=[""],
-    )
-    activity = as_Announce(actor=_ACTOR_URI, object_=unprojectable)
+    _store_nested_inbox_object(datalayer, activity, None)
 
-    with caplog.at_level(logging.ERROR):
-        _store_nested_inbox_object(datalayer, activity, None)
+    with caplog.at_level(logging.WARNING):
+        result = datalayer.read(unprojectable.id_)
 
-    assert datalayer.read(unprojectable.id_) is None
-    assert "cannot be projected" in caplog.text
+    # No class can read the row, so it reads as absent — but loudly.
+    assert result is None
+    assert "issue #2232" in caplog.text
 
 
 def test_store_nested_inbox_object_duplicate_stays_at_debug(datalayer, caplog):
@@ -620,3 +651,17 @@ class TestNamesAnIndividualActor:
         object.__setattr__(activity, "to", _OTHER_ACTOR_URI)
         object.__setattr__(activity, "cc", "https://example.org/actors/carol")
         assert _activity_addressed_to(activity, _ACTOR_URI) is False
+
+
+@pytest.mark.parametrize("bad_type", [0, 123, [], {}, ["Create"]])
+def test_parse_activity_raises_422_when_type_is_not_a_string(bad_type: object):
+    """A non-string ``type`` gets a 422, not an unhandled 500.
+
+    An unhashable ``type`` such as ``[]`` raised ``TypeError`` out of
+    ``find_in_vocabulary``'s dict lookup.  Neither the parser's ``except
+    KeyError`` nor this adapter maps that, so FastAPI answered 500 — the
+    unhandled-exception symptom ISSUE-3217 was filed about (ISSUE-3217).
+    """
+    with pytest.raises(HTTPException) as exc_info:
+        parse_activity({"type": bad_type, "actor": _ACTOR_URI})
+    assert exc_info.value.status_code == 422

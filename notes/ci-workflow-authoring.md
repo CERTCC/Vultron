@@ -11,6 +11,7 @@ related_notes:
   - notes/demo-ci-scenario-coverage.md
   - notes/demo-ci-diagnostics.md
   - notes/git-workflow-pitfalls.md
+  - notes/lint-tooling.md
 related_specs:
   - specs/ci-security.yaml
   - specs/demo-ci.yaml

@@ -1,3 +1,8 @@
+---
+stakeholder_type: [cvd-practitioner, platform-developer]
+level: 300
+---
+
 # CVD Case State Model Introduction
 
 {% include-markdown "../../../includes/normative.md" %}
@@ -76,7 +81,7 @@ stateDiagram-v2
       Deployer. In this distribution mode, *Fix Ready* can lead directly
       to *Fix Deployed* with no dependency on *Public Awareness*.
 
-    We note that so-called *silent fixes* by Vendors can sometimes result in
+    So-called *silent fixes* by Vendors can sometimes result in
     a fix being deployed without public awareness even if the Vendor is not
     the Deployer. Thus, it is possible (but unlikely) for *Fix Deployed* to
     occur before *Public Awareness* even in the shrinkwrap mode above. It is

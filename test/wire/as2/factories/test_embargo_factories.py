@@ -57,7 +57,7 @@ _CASE_URI = "https://example.org/cases/case-001"
 
 @pytest.fixture
 def sample_embargo() -> as_EmbargoEvent:
-    return as_EmbargoEvent()
+    return as_EmbargoEvent(context=_CASE_URI)
 
 
 @pytest.fixture
