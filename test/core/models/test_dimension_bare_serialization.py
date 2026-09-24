@@ -256,11 +256,11 @@ def test_core_participant_status_as2_output_matches_wire(
 class TestStatePersistsThroughTheNormalisationRoundTrip:
     """Regression for the silent state loss the spike uncovered.
 
-    ``_NORMALIZE_WIRE_TO_CORE`` contains ``VulnerabilityCase`` and
-    ``CaseStatus``, so a plain persistence write reconstitutes the object
-    through the wire vocabulary. When the wire class's before-validator
-    recognised only the mapping form of a dimension, the bare form left the key
-    unconsumed, the flat field was never set, and the state fell back to its
+    The since-deleted ``_NORMALIZE_WIRE_TO_CORE`` (#2940) contained
+    ``VulnerabilityCase`` and ``CaseStatus``, so a persistence write
+    reconstituted the object through the wire vocabulary. When the wire
+    class's before-validator recognised only the mapping form of a
+    dimension, the bare form left the key unconsumed, the flat field was never set, and the state fell back to its
     initial value with no error — the #2262 pattern.
     """
 

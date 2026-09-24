@@ -363,6 +363,22 @@ class DemoScenarioRegistryError(VultronError):
     """
 
 
+class DemoActorRoleError(VultronError):
+    """Raised when a scenario's ``ActorRole`` declaration is invalid.
+
+    Raised at import time by :class:`~vultron.demo.helpers.actor_roles.ActorRole`
+    and :func:`~vultron.demo.helpers.actor_roles.role_map` — a malformed role
+    name, a missing help string, id metadata on a role that declares no ``--*-id``
+    option, or two roles in one scenario sharing a name or a container env var.
+
+    Fails fast for the same reason :class:`DemoScenarioRegistryError` does: the
+    role list is what generates a scenario's CLI options *and* what its
+    ``main()`` signature is ratcheted against (DEMOCI-11-011), so a role list
+    that is quietly wrong yields a sub-command whose options look complete and
+    point at the wrong container.
+    """
+
+
 class DemoFailureError(VultronError):
     """Raised when a demo scenario completes with one or more step failures.
 

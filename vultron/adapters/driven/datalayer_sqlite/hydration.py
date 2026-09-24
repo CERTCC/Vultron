@@ -36,7 +36,7 @@ from pydantic import BaseModel, ValidationError
 from vultron.adapters.driven.db_record import (
     Record,
     _AS_LIST_REF_FIELDS,
-    _AS_OBJECT_REF_FIELDS,
+    object_ref_fields,
     record_to_object,
 )
 from vultron.core.models import find_in_core_vocabulary
@@ -62,7 +62,7 @@ logger = logging.getLogger(__name__)
 def field_admits_object(obj: Any, field_name: str) -> bool:
     """True when *field_name* on *obj* can legitimately hold a nested object.
 
-    ``_AS_OBJECT_REF_FIELDS`` names fields that are *usually* references, but the
+    :func:`object_ref_fields` names fields that are *usually* references, but the
     same name can be declared as a plain URI on a particular model (for instance
     ``as_CaseProposal.target``, required by CP-01-005 to be the case-actor's URI).
     Expanding such a field yields a model that violates its own annotation —
@@ -104,71 +104,6 @@ def to_row(obj: PersistableModel) -> VultronObjectRecord:
     )
 
 
-def _vultron_validation_cause(
-    exc: ValidationError,
-) -> VultronValidationError | None:
-    """Return the core guard's ``VultronValidationError`` inside *exc*, if any.
-
-    Pydantic absorbs a ``ValueError`` raised inside a validator and reports it as
-    a ``value_error`` entry that keeps the original exception at
-    ``ctx['error']``.  ARCH-23-006 requires ``VultronValidationError`` to be a
-    ``ValueError`` — so that a core guard firing inside a wire union fails that
-    branch instead of aborting the whole ``model_validate()`` — which means a
-    guard no longer arrives as itself.  Recovering it here is what keeps
-    "the row is wire-spelled, project it" distinguishable from "the row's schema
-    genuinely does not match, fall back un-projected".
-
-    Returns the first one found: a row is rejected by one guard in practice, and
-    the caller only needs to know which fault class it is looking at.
-    """
-    for err in exc.errors():
-        cause = (err.get("ctx") or {}).get("error")
-        if isinstance(cause, VultronValidationError):
-            return cause
-    return None
-
-
-def _recover_vve_row(
-    row: VultronObjectRecord,
-    core_cls: type[BaseModel],
-    exc: VultronValidationError,
-) -> PersistableModel | None:
-    """Recover a row that failed core validation with a VultronValidationError.
-
-    Tries two strategies in order:
-    1. Wire-vocabulary projection (``project_wire_row_to_core``).
-    2. Nested-object normalisation (camelCase → snake_case) and re-validate.
-
-    Returns the recovered object, or ``None`` if both strategies fail.
-    """
-    logger.debug(
-        "from_row: VultronValidationError for type %r (row %r):"
-        " %s; projecting wire row to core",
-        row.type_,
-        row.id_,
-        exc,
-    )
-    wire_obj = wire_object_from_row(row)
-    if wire_obj is not None:
-        return project_wire_row_to_core(row, wire_obj, exc)
-    # Wire fallback also failed (e.g. VulnerabilityCase with camelCase
-    # participant data). Try normalising nested wire fields and retrying
-    # core validation (ADR-0099 backward compat).
-    normalized = _normalize_wire_nested_objects(row.data)
-    if normalized is None:
-        return None
-    try:
-        obj = cast(PersistableModel, core_cls.model_validate(normalized))
-        logger.debug(
-            "from_row: recovered %r (row %r) via nested-object normalization",
-            row.type_,
-            row.id_,
-        )
-        return obj
-    except (ValidationError, VultronValidationError):
-        return None
-
-
 def from_row(
     dl: "SqliteDataLayer", row: VultronObjectRecord
 ) -> PersistableModel | None:
@@ -193,123 +128,51 @@ def from_row(
        ``as_Offer``), coerce via ``model_validate`` so that callers always
        receive the most precise type without manual coercion.
     """
+    wire_obj: PersistableModel | None
     try:
         core_cls = find_in_core_vocabulary(row.type_)
     except KeyError:
         # No core counterpart (AS2 Activity types) → wire vocabulary path.
-        obj = wire_object_from_row(row)
+        wire_obj = wire_object_from_row(row)
+        if wire_obj is None:
+            return None
+        obj = wire_obj
     else:
-        obj = _core_object_from_row(row, core_cls)
-    if obj is None:
-        return None
-    obj = rehydrate_fields(dl, obj)
-    return coerce_to_semantic_class(obj)
-
-
-def _core_object_from_row(
-    row: VultronObjectRecord, core_cls: type[BaseModel]
-) -> PersistableModel | None:
-    """Reconstruct *row* as ``core_cls``, or recover when it will not validate.
-
-    Split out of :func:`from_row` so the two recovery routes below stay legible
-    (and so ``from_row`` stays under the C901 gate).  The routes are opposites
-    and picking the wrong one is silent, so the distinction is the whole point of
-    this function.
-    """
-    try:
-        return cast(PersistableModel, core_cls.model_validate(row.data))
-    except ValidationError as exc:
-        guard_exc = _vultron_validation_cause(exc)
-        if guard_exc is None:
-            # Stored data came from a wire object whose schema differs from the
-            # core class (e.g. as_EmbargoEvent lacks context).  Return the wire
-            # object un-projected: that is the long-standing behaviour the
-            # KNOWN_WIRE_ESCAPES ratchet in
-            # test/architecture/test_dl_read_returns_core_objects.py measures,
-            # and projecting here would dehydrate inline nested objects that
-            # callers of these rows still expect inline.
+        try:
+            obj = cast(PersistableModel, core_cls.model_validate(row.data))
+        except (ValidationError, VultronValidationError) as exc:
+            # The row's stored shape does not validate against the core class.
+            # Under extra="forbid" (ARCH-12-003, #2940) this is the sole
+            # shape-mismatch signal, raised by Pydantic here rather than by the
+            # retired per-class shape guard, so it must attempt the wire→core
+            # projection: handing back a wire object makes every core-typed
+            # caller fail (``resolve_case`` raises "Expected VulnerabilityCase,
+            # got as_VulnerabilityCase").  ``project_wire_row_to_core`` falls
+            # back to the un-projected wire object when the type has no working
+            # ``to_core()`` — the residual KNOWN_WIRE_ESCAPES actor types
+            # (DL-05-002, DL-05-004).
+            #
+            # Be precise about what actually trips this branch: an *unknown* key,
+            # i.e. a camelCase-only name such as ``participantStatuses``.  A flat
+            # ``rm_state``/``rmState`` does **not** — it is an AliasChoice on the
+            # dimension field, so it is interpreted rather than dropped, and such
+            # a row validates straight through as core without ever reaching the
+            # projection (#2288/#2289 remove those aliases).
             logger.debug(
                 "from_row: core_cls.model_validate failed for type %r"
-                " (row %r): %s; using wire fallback",
+                " (row %r): %s; attempting wire→core projection",
                 row.type_,
                 row.id_,
                 exc,
             )
-            return wire_object_from_row(row)
-        # A core type's own shape guard rejected the row — e.g. CaseParticipant's
-        # wire-spelled-key guard (#2232).  The row *is* a wire-spelled copy of a
-        # core type, so project it: handing back a wire object makes every
-        # core-typed caller fail (resolve_case raises "Expected
-        # VulnerabilityCase, got as_VulnerabilityCase").
-        #
-        # The guard used to arrive as a bare VultronValidationError, because it
-        # was not a ValueError subclass.  ARCH-23-006 made it one so a core guard
-        # can fail a union branch instead of aborting the whole call, which means
-        # Pydantic now absorbs it and it reaches us wrapped — hence the unwrap
-        # rather than a separate except clause.  Losing this distinction would
-        # silently reroute every wire-spelled row to the un-projected fallback.
-        return _recover_vve_row(row, core_cls, guard_exc)
-    except VultronValidationError as exc:
-        # Retained for a guard that reaches us *unwrapped* — anything raising
-        # outside Pydantic's validator machinery, which does not absorb it.
-        return _recover_vve_row(row, core_cls, exc)
-
-
-def _normalize_wire_nested_objects(
-    data: dict[str, Any],
-) -> dict[str, Any] | None:
-    """Normalize wire-spelled (camelCase) nested dicts back to snake_case.
-
-    Called only when the wire-vocabulary fallback (``wire_object_from_row``)
-    also fails — i.e. the stored row contains nested objects whose keys use
-    camelCase wire spellings that neither the core nor the wire path can parse.
-    The canonical example is a ``VulnerabilityCase`` row whose
-    ``case_participants`` entries were serialised with ``by_alias=True`` before
-    ADR-0099 normalised all storage to snake_case.
-
-    Uses ``as_CaseParticipant.model_validate()`` (which accepts camelCase) +
-    ``to_core()`` (which emits snake_case) to normalize each participant dict.
-    Returns the patched data dict if any normalisation was applied, else None.
-    """
-    from vultron.wire.as2.vocab.objects.case_participant import (
-        as_CaseParticipant,
-    )
-
-    normalized = dict(data)
-    changed = False
-
-    participants = normalized.get("case_participants")
-    if isinstance(participants, list):
-        patched: list[Any] = []
-        for p in participants:
-            if isinstance(p, dict):
-                try:
-                    # as_CaseParticipant *is* CaseParticipant (ADR-0099 detail 3),
-                    # so validating yields the core object directly — there is no
-                    # projection left to apply.  Re-dumping still normalises the
-                    # keys, which is this function's whole job.
-                    core_p = as_CaseParticipant.model_validate(p)
-                    patched.append(core_p.model_dump(mode="json"))
-                    changed = True
-                    continue
-                except Exception:
-                    # Logged rather than swallowed: if *no* participant normalises
-                    # this function returns None, _recover_vve_row returns None, and
-                    # dl.read() reports the case as **absent** rather than
-                    # unreadable.  Every sibling recovery path in this module logs
-                    # for exactly that reason — a silent fallback here is what made
-                    # this class of shape bug so hard to trace.
-                    logger.warning(
-                        "_normalize_wire_nested_objects: could not normalise"
-                        " participant %r; leaving it unchanged",
-                        p.get("id") or p.get("id_"),
-                        exc_info=True,
-                    )
-            patched.append(p)
-        if changed:
-            normalized["case_participants"] = patched
-
-    return normalized if changed else None
+            wire_obj = wire_object_from_row(row)
+            if wire_obj is None:
+                return None
+            obj = project_wire_row_to_core(row, wire_obj, exc)
+    if obj is None:
+        return None
+    obj = rehydrate_fields(dl, obj)
+    return coerce_to_semantic_class(obj)
 
 
 def wire_object_from_row(
@@ -337,12 +200,13 @@ def project_wire_row_to_core(
     reaching ``resolve_case`` raises "Expected VulnerabilityCase, got
     as_VulnerabilityCase" rather than reading the case (issue #2232).
 
-    ``to_core()`` is the same projection the write path applies in
-    ``_normalize_to_core`` — the persistence-boundary half of ADR-0062,
-    applied on the way out as well as on the way in.  Wire types are looser
-    than core types, so a row that fails core validation directly can still
-    project cleanly: ``to_core()`` maps flat wire spellings onto the nested
-    core shape instead of dropping them.
+    ``to_core()`` is the read-side wire→core projection: since #2940 removed
+    the write-side normalisation gate (``extra="forbid"`` now rejects a
+    wire-shaped payload handed to a core type rather than silently storing it),
+    a row nonetheless persisted in a wire shape is projected here on the way
+    out.  Wire types are looser than core types, so a row that fails core
+    validation directly can still project cleanly: ``to_core()`` maps flat wire
+    spellings onto the nested core shape instead of dropping them.
 
     When the projection also fails, *wire_obj* is returned unchanged — that
     is the pre-#2232 behaviour for these rows, and degrading it to ``None``
@@ -398,7 +262,7 @@ def rehydrate_fields(
 ) -> PersistableModel:
     """Expand dehydrated object-reference fields back to typed objects.
 
-    Fields listed in ``_AS_OBJECT_REF_FIELDS`` (``object_``, ``target``,
+    The object's :func:`object_ref_fields` (``object_``, ``target``,
     ``origin``, ``result``, ``instrument``) are dehydrated to ID strings
     by the storage layer.  This function resolves each string ID via
     ``dl.read()`` and replaces it with the full domain object.  If a
@@ -413,8 +277,8 @@ def rehydrate_fields(
     that relies on the resolved type (e.g. Organisation ≠ CaseParticipant
     for ``OfferCaseManagerRolePattern`` vs ``OfferCaseOwnershipTransfer``).
 
-    Expansion respects the field's **declared type**.  ``_AS_OBJECT_REF_FIELDS``
-    is a flat list applied to every object, but some models declare one of
+    Expansion respects the field's **declared type**.  :func:`object_ref_fields`
+    keys on field *names*, but some models declare one of
     those names as a plain URI rather than a reference — ``as_CaseProposal
     .target`` is required by CP-01-005 to be the case-actor's URI, not an
     inline actor.  Expanding it produced a model whose ``target`` was a dict,
@@ -425,7 +289,7 @@ def rehydrate_fields(
     point of damage.
     """
     updates: dict[str, object] = {}
-    for field_name in _AS_OBJECT_REF_FIELDS:
+    for field_name in object_ref_fields(type(obj)):
         value = getattr(obj, field_name, None)
         if value is None:
             continue

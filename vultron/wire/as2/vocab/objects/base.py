@@ -191,13 +191,5 @@ class as_VultronObject(as_Object):
             "Override this method in the subclass."
         )
 
-    def _to_core_data(self) -> dict[str, Any]:
-        """Dump wire data and reverse any ``_field_map`` renames for core use."""
-        data = self.model_dump(mode="python", round_trip=True)
-        for domain_field, wire_field in self._field_map.items():
-            if wire_field in data:
-                data[domain_field] = data.pop(wire_field)
-        return data
-
 
 as_VultronObjectRef: TypeAlias = ActivityStreamRef[as_VultronObject]

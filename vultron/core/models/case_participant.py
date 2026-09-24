@@ -40,7 +40,6 @@ from typing import Any, ClassVar, Literal
 from pydantic import Field, field_serializer, field_validator, model_validator
 
 from vultron.core.models._helpers import _new_urn
-from vultron.core.models._wire_spelling import reject_wire_spelled_keys
 from vultron.core.models.base import CoreObject, NonEmptyString
 from vultron.errors import VultronValidationError
 from vultron.core.models.dimensions import (
@@ -94,39 +93,6 @@ class CaseParticipant(CoreObject):
     # the delivery payload — see ``CoreObject.local_only_fields``, and note that
     # plain ``exclude=True`` would have stopped it being persisted at all.
     invite_rsvp_deadline: datetime | None = None
-
-    @model_validator(mode="before")
-    @classmethod
-    def _reject_wire_spelled_keys(cls, data: Any) -> Any:
-        """Raise on camelCase keys that Pydantic would silently discard.
-
-        **This guard no longer fires for this class, by design.** It was added
-        because the class declared no ``alias_generator``, so a wire-spelled key
-        such as ``participantStatuses`` was an *unknown* key: Pydantic v2 ignores
-        unknown keys by default, so it was dropped and
-        ``_init_participant_status_if_empty`` then re-seeded a single status at
-        ``RM.START`` — a whole RM ladder vanished without a trace (issue #2232).
-        Raising was the loudest available substitute for reading the key.
-
-        ADR-0099 removes the need for the substitute: the core class now carries
-        the AS2 spelling (detail 2), so ``participantStatuses`` is read into
-        ``participant_statuses`` and the ladder survives.
-        ``wire_spelled_keys`` excludes any spelling the model's
-        ``alias_generator`` derives, so it returns an empty map here and this
-        validator passes the payload through.
-
-        It is kept rather than deleted because a camelCase key matching *no*
-        field — a retired name, or a typo — is still silently dropped, and this
-        is still where that would be caught for models that carry no generator.
-        Removing the module outright is #2940 AC-6.
-
-        Raises:
-            VultronValidationError: when a wire-spelled key is present that no
-                field or alias accounts for.
-        """
-        return reject_wire_spelled_keys(
-            cls, data, "as_CaseParticipant.to_core()"
-        )
 
     @field_serializer("case_roles")
     def _serialize_case_roles(self, value: list[CVDRole]) -> list[str]:

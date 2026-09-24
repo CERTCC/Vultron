@@ -124,27 +124,32 @@ canonical location instead.
 `behaviors/status/nodes/broadcast.py` was deleted in #1378 after its only
 content (`_find_case_manager_id`) was consolidated into `_resolve_case_manager_id`.
 
-### Exception: shape guards live in `models/_wire_spelling.py`
+### Exception: cross-cutting guards cannot live in `_helpers.py`
 
 `vultron/core/models/_helpers.py` cannot import from `vultron.core.states` —
-that is a circular import through `states/__init__.py`. Shape guards tend to
-grow state references (a guard that knows about `rm` eventually wants `RM`), so
-they live in `vultron/core/models/_wire_spelling.py` instead of being colocated
-with `_as_id()` and friends. This is a deliberate deviation from the rule above,
-not an oversight; it exists so the cycle cannot be reintroduced by the next
-guard that needs a state enum.
+that is a circular import through `states/__init__.py`. A guard that knows about
+`rm` eventually wants `RM`, so a cross-cutting shape guard could not be
+colocated with `_as_id()` and friends.
 
-**Scheduled removal**: ARCH-12-003 as amended by ADR-0082 puts `extra="forbid"`
-on all core-branch types, which subsumes these guards and deletes
-`_wire_spelling.py` — see [notes/wire-core-boundary.md](wire-core-boundary.md).
-Until that lands the guidance above is current; do not pre-emptively relocate.
+**Retired (#2940).** The guard this exception was written for —
+`reject_wire_spelled_keys` in `vultron/core/models/_wire_spelling.py`, used by
+`CaseParticipant._reject_wire_spelled_keys` — **is deleted**, and with it the
+module. `CoreObject` now sets `extra="forbid"` (ARCH-12-003), which subsumes it:
+an unknown key raises from Pydantic itself, needs no per-class registration, and
+covers every core type rather than the one that opted in. SDO-03-005 makes this
+binding — the guarantee MUST be `extra="forbid"`, and a per-class
+`model_validator(mode="before")` reject-guard for those keys "MUST NOT be added
+or retained for this purpose". Do not reintroduce one; a grep ratchet in
+`test/architecture/test_core_extra_forbid.py` enforces that.
 
-The trap: `states/rm.py`'s own imports look clean (logging, enum, transitions,
-`states.common`), so inspecting the target module tells you nothing. The cycle
-runs through the package `__init__.py` — `models/base.py` imports `_helpers`,
-which triggers `states/__init__.py`, which pulls `states/cs.py` → `states/common.py`
-→ back into `models/base.py` while it is still partially initialised. The error
-looks like a missing symbol in `models.base`, not a cycle.
+The circular-import trap the exception documented is still real and still bites,
+so keep it in mind for any *new* cross-cutting helper: `states/rm.py`'s own
+imports look clean (logging, enum, transitions, `states.common`), so inspecting
+the target module tells you nothing. The cycle runs through the package
+`__init__.py` — `models/base.py` imports `_helpers`, which triggers
+`states/__init__.py`, which pulls `states/cs.py` → `states/common.py` → back into
+`models/base.py` while it is still partially initialised. The error looks like a
+missing symbol in `models.base`, not a cycle.
 
 ### Type-specific canonical readers live with their type
 
@@ -156,9 +161,10 @@ not in `_helpers.py`. Two reasons:
 2. Colocating the canonical reader with the type keeps the authorship contract
    clear: the module that defines a type owns its read semantics.
 
-The distinction from shape guards in `_wire_spelling.py`: shape guards are
-cross-cutting (they need to know about the core/wire boundary across multiple
-types); canonical readers are type-specific. Cross-cutting → `_wire_spelling.py`;
+The distinction from a cross-cutting shape guard: a shape guard has to know about
+the core/wire boundary across multiple types, whereas a canonical reader is
+type-specific. Since #2940 the cross-cutting half is not a helper at all — it is
+`extra="forbid"` on `CoreObject` — so the only routing decision left is
 type-specific → the type's own module.
 
 BT-node-level wrappers that combine multiple readers (e.g. `read_rm_states()`)
@@ -209,13 +215,15 @@ raise. Making the reader strict without projecting at ingress first aborted the
 entire received-case behavior tree on every inbound `Announce`, which is how the
 first fix for #2232 regressed.
 
-The mirror-image guard is `reject_wire_spelled_keys()` in
-`vultron/core/models/_wire_spelling.py`: a core type validated against a
-wire-spelled (camelCase) payload drops every snake-only key in silence, because
-Pydantic v2 ignores unknown keys. It is computed per exact class, so a
-`CaseParticipant` role subclass that adds a field is covered without any
-registration step. (Superseded direction: ARCH-12-003's `extra="forbid"` clause
-replaces this guard — see [notes/wire-core-boundary.md](wire-core-boundary.md).)
+The mirror-image concern is a core type validated against a wire-spelled
+payload. Pydantic v2 ignores unknown keys by default, so every snake-only key
+was dropped in silence. Since #2940 that is handled by `extra="forbid"` on
+`CoreObject` (ARCH-12-003) rather than by the per-class
+`reject_wire_spelled_keys()` guard, which is deleted. Note the narrower scope of
+what `forbid` actually rejects: *unknown* keys. A flat `rm_state`/`rmState` on
+`ParticipantStatus` or `CaseStatus` is still accepted, because those spellings
+are declared `AliasChoices` and are interpreted rather than dropped — removing
+them is #2288/#2289. See [notes/wire-core-boundary.md](wire-core-boundary.md).
 
 ---
 
@@ -846,17 +854,38 @@ exception is the correct signal for catching that during development and testing
 
 Source: ISSUE-2668 — port contract clarified and regression test added.
 
-## Pitfall: Pydantic `model_fields` Is Not Available Inside `__init_subclass__`
+## Pitfall: Inside `__init_subclass__`, `model_fields` Reports the *Parent's* Fields
 
-`cls.model_fields` is populated by Pydantic's metaclass *after*
-`__init_subclass__` returns. Accessing it inside `__init_subclass__` returns an
-empty dict for the class being defined (though parent-class fields may be
-present). To inspect a class's own fields at subclass-registration time, read
-`cls.__annotations__` directly for declared annotations, or defer field
-inspection to a `model_post_init` or a class-level
+`cls.model_fields` is rebuilt by Pydantic's metaclass *after*
+`__init_subclass__` returns. Inside it, the dict holds whatever the **parent**
+class had — which is the dangerous part, and worse than the dict being empty:
+
+```python
+class _Child(_Parent):                       # _Parent: type_: str | None = None
+    type_: Literal["ChildProbe"] = Field(default="ChildProbe", ...)
+# inside __init_subclass__:  len(cls.model_fields) == 29
+#                            cls.model_fields["type_"].default is None   ← parent's
+```
+
+So a presence check (`if "type_" in cls.model_fields`) **succeeds** and hands
+back a value that is silently wrong, rather than raising the way an empty dict
+would. Measured on #2982, where `WIRE_TYPE_MAP` keys are derived from the
+declared `type_` default at registration time: reading `model_fields` there gives
+every class its parent's `None` and collapses the whole registry onto the
+class-name fallback.
+
+To inspect a class's **own** declarations at subclass-registration time, read the
+raw class namespace — `cls.__dict__["type_"]` for a declared default (a
+`FieldInfo` when assigned via `Field(...)`, the bare value otherwise) and
+`cls.__dict__["__annotations__"]` for annotations. Note the mirror-image trap:
+Pydantic *strips* field definitions out of `cls.__dict__` once the class is
+built, so after construction only `model_fields` has the answer. Code that must
+work in both contexts needs both paths — see
+`vultron/wire/as2/vocab/base/registry.py::declared_wire_type`. Otherwise defer
+inspection to `model_post_init` or a class-level
 `@model_validator(mode="before")`.
 
-Source: ISSUE-2294
+Source: ISSUE-2294, sharpened by ISSUE-2982
 
 ## Pitfall: `mode="before"` Validators Run in Reverse Definition Order
 

@@ -10,7 +10,6 @@ They assume you are implementing or operating a Vultron actor, not learning the 
 Two neighboring sections carry the material these guides deliberately leave out.
 The wire format of every activity — fields, discriminators, and a rendered example — is in [Message Types](../../../reference/messages/index.md).
 The reasoning behind the verb choices is in [Activity Vocabulary Design](../../../topics/activity_vocabulary_design.md).
-A full mapping of Vultron to ActivityStreams is in the [Vultron ActivityStreams Ontology](../../../reference/ontology/vultron_as.md).
 
 If you want a guided first pass rather than a task recipe, start with [Tutorials](../../../tutorials/index.md).
 

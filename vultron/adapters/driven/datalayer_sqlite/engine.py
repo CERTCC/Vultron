@@ -276,6 +276,31 @@ def dispose_actor_engines(
             engine.dispose()
 
 
+def reset_store_claimants() -> None:
+    """Forget which actor id first claimed each store URL.
+
+    Deliberately **not** folded into :func:`dispose_actor_engines`: the claimant
+    record is kept separate from ``_ENGINES`` precisely so that disposing an
+    engine — a legitimate reset — does not erase the evidence of a
+    cross-authority slug collision.  Collapsing the two would make the warning
+    un-triggerable for any store that had been disposed.
+
+    It does mean the record is process-lifetime by default, which is wrong for a
+    test process: one test merely *using* an actor id poisons the guard for every
+    later test that asserts the warning is absent.  Two ids that differ only
+    outside the final path segment — ``https://example.org/actors/test-actor``
+    and ``https://test.example/api/v2/actors/test-actor``, both slug
+    ``test-actor`` — are ordinary across a suite and collide here, so a later
+    ``assert caplog.records == []`` failed for a reason seeded by an earlier
+    module (#3545).
+
+    This is that missing seam.  It is a test-support entry point: production has
+    no reason to forget a claim, since the whole value of the record is that it
+    outlives the engine.
+    """
+    _STORE_CLAIMANTS.clear()
+
+
 def make_engine(db_url: str) -> Engine:
     """Create a SQLAlchemy engine for the given URL.
 

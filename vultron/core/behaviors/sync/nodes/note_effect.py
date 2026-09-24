@@ -30,7 +30,10 @@ from vultron.core.behaviors.sync.nodes._helpers import (
     _extract_id_from_field,
 )
 from vultron.core.models.note import VultronNote
-from vultron.core.models._helpers import _as_id
+from vultron.core.models._helpers import (
+    _as_id,
+    project_wire_snapshot_to_core,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -133,7 +136,9 @@ class ApplyNoteFromLedgerNode(_LedgerEffectNode):
             return
 
         try:
-            note = VultronNote.model_validate(note_data)
+            note = VultronNote.model_validate(
+                project_wire_snapshot_to_core(VultronNote, note_data)
+            )
         except ValidationError as exc:
             # A malformed note snapshot cannot be reconstructed; stay lenient
             # and record the reference only.  A non-validation error would be a

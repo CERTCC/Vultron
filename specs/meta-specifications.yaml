@@ -831,8 +831,6 @@ groups:
       shape every hand-written copy takes. Asserting instead that no module catches a
       YAML-specific exception would be vacuous: every copy catches bare `Exception`, so such a
       test passes with all of the duplication still in place.
-    lint_suppress:
-    - phantom_path_ref
     tags:
     - tooling
   - id: MS-17-004

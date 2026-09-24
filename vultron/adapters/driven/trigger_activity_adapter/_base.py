@@ -24,7 +24,13 @@ from vultron.core.ports.case_persistence import (
     CaseOutboxPersistence,
     CasePersistence,
 )
-from vultron.errors import VultronNotFoundError
+from vultron.errors import (
+    VultronActivityConstructionError,
+    VultronNotFoundError,
+)
+from vultron.wire.as2.vocab.base.objects.base import as_Object
+from vultron.wire.as2.vocab.base.registry import find_in_vocabulary
+from vultron.wire.as2.vocab.objects.base import as_VultronObject
 
 if TYPE_CHECKING:  # pragma: no cover - deferred to avoid a wire import cycle
     from vultron.wire.as2.vocab.objects.vulnerability_case import (
@@ -75,6 +81,63 @@ def _to_wire(core_obj: Any, wire_cls: type[_BM]) -> _BM:
     if isinstance(core_obj, wire_cls):
         return core_obj
     return wire_cls.from_core(core_obj)  # type: ignore[attr-defined,return-value,no-any-return]
+
+
+def _to_wire_object(core_obj: Any, object_id: str) -> Any:
+    """Convert a stored object of any type to the object an activity carries.
+
+    The generic counterpart of :func:`_to_wire`, for callers that do not know
+    the object's type in advance (``add_object_to_case`` accepts any stored
+    object). The wire class is looked up by the object's class name and the
+    conversion itself is delegated to :func:`_to_wire`, so a wire class's
+    custom ``from_core`` still applies.
+
+    An object that is already an ``as_Object``, or already an instance of the
+    class registered for its name, is returned unchanged. The second case is
+    what a core class looks like once it *is* its own wire class (ADR-0099
+    detail 3): there is nothing to convert.
+
+    Raises:
+        VultronNotFoundError: when *core_obj* is ``None`` (dl.read returned
+            no match for *object_id*) — not a vocabulary error about
+            ``'NoneType'``.
+        VultronActivityConstructionError: when no wire class is registered for
+            the object's type, the registered class has no ``from_core``
+            projection, or the projection fails with a ``ValueError``
+            (including ``ValidationError``) or ``TypeError``. The original
+            error, if any, is the ``__cause__``.
+    """
+    if core_obj is None:
+        raise VultronNotFoundError("AS2Object", object_id)
+    if isinstance(core_obj, as_Object):
+        return core_obj
+    type_name = type(core_obj).__name__
+    try:
+        wire_cls = find_in_vocabulary(type_name)
+    except KeyError as exc:
+        raise VultronActivityConstructionError(
+            f"object '{object_id}': no wire class registered for"
+            f" {type_name!r}"
+        ) from exc
+    # Checked here rather than left to _to_wire: a class that is its own wire
+    # class need not be an as_VultronObject, so the gate below would refuse it.
+    if isinstance(core_obj, wire_cls):
+        return core_obj
+    if not issubclass(wire_cls, as_VultronObject):
+        raise VultronActivityConstructionError(
+            f"object '{object_id}': {type_name!r} has no as_VultronObject"
+            " wire counterpart"
+        )
+    # Narrowed per CS-23-001: a from_core projection fails by raising
+    # ValidationError (a ValueError) or TypeError. Anything else — a
+    # VultronError, or a programming error such as AttributeError — surfaces
+    # as itself rather than being relabelled "from_core failed".
+    try:
+        return _to_wire(core_obj, wire_cls)
+    except (ValueError, TypeError) as exc:
+        raise VultronActivityConstructionError(
+            f"object '{object_id}': from_core failed for {type_name!r}: {exc}"
+        ) from exc
 
 
 def _case_for_wire(

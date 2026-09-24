@@ -236,8 +236,9 @@ Once the plan is confirmed:
 5. **Finalize** — in this order. `archive-history` comes *after* `create-pr`
    because its entry body carries the PR URL, which does not exist until the PR
    is open (see that skill's "Always invoke AFTER the PR is opened").
-   - Compute diff size over the whole PR: ≤50 → `size:S`; 51–300 → `size:M`;
-     301+ → `size:L`. Update the `size:` label on every member.
+   - Do **not** set a `size:` label: the `pr-size-label` workflow measures the
+     whole-PR diff and applies it (PAD-05-002), and the Issue keeps its estimate
+     (PAD-05-010). See `shared/sizing.md`.
    - Invoke `create-pr`. One bundle is one PR: the body carries `- Closes #N`
      once per member, in bundle order, and the Changes section names each
      member's fix (`bundling.md` § "Executing a bundle").
@@ -246,7 +247,7 @@ Once the plan is confirmed:
      type:         implementation
      title:        fix: <short title>
      body:         <per pr-body-guide.md implementation template>
-     labels:       size:<X>
+     labels:       <topic labels only — never size:, see above>
      issue_number: <N>        # the first bundle member
      ```
 

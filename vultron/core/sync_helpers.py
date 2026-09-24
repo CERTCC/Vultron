@@ -167,48 +167,42 @@ def _reconstruct_tail_hash(
     return last.entry_hash, last.log_index
 
 
-#: Wire fields that may be stamped when a snapshot is *built* rather than
-#: carried from the object it describes.  ``as_Base`` declares ``published`` and
-#: ``updated`` with ``default_factory=now_utc``, and core status objects hold no
-#: timestamp of their own to supply, so re-rendering one stored object twice
-#: yields two different values.  They are therefore not part of what an entry
-#: asserts, and treating them as such makes idempotency a race against the
-#: clock — ``now_utc`` truncates to whole seconds, so a retry that lands in the
-#: next second appends a duplicate while one in the same second does not.
+#: Top-level snapshot fields that may be stamped when a snapshot is *built*
+#: rather than carried from the assertion it records.  The CaseActor stamps its
+#: own snapshots' ``published`` with ``now_utc`` at build time (CLP-14-002,
+#: :mod:`~vultron.core.behaviors.case.ledger_snapshots`), so rebuilding one for
+#: a retry yields a new value.  Treating it as part of what an entry asserts
+#: makes idempotency a race against the clock — ``now_utc`` truncates to whole
+#: seconds, so a retry that lands in the next second appends a duplicate while
+#: one in the same second does not.
 #:
-#: This holds for every CaseActor-authored snapshot, which is what makes the
-#: exclusion necessary.  It is *not* true of the top-level ``published`` on a
-#: received activity: that is the sender's claimed event time, carried across
-#: the wire→core boundary (ISSUE-3149) and load-bearing for CLP-14-006/007/008
-#: and CLP-15-003.  Excluding it from the *equivalence* comparison is still
-#: correct — two deliveries of one assertion are the same assertion whatever
-#: their timestamps — but do not read this set as a claim that
+#: It is *not* true of the top-level ``published`` on a received activity: that
+#: is the sender's claimed event time, carried across the wire→core boundary
+#: (ISSUE-3149) and load-bearing for CLP-14-006/007/008 and CLP-15-003.
+#: Excluding it from the *equivalence* comparison is still correct — two
+#: deliveries of one assertion are the same assertion whatever their
+#: timestamps — but do not read this set as a claim that
 #: ``payloadSnapshot.published`` is meaningless.  See
 #: :func:`_find_prev_actor_published`, which depends on it being real.
 _VOLATILE_SNAPSHOT_KEYS = frozenset({"published", "updated"})
 
 
 def _semantic_payload(value: Any) -> Any:
-    """Return *value* with build-time timestamps dropped at every depth.
+    """Return *value* without its top-level build-time timestamps.
 
-    Recursive because the drift is nested as well as top-level: an
-    ``add_participant_status_to_participant`` snapshot embeds the whole
-    re-rendered participant as its ``target``, so every entry of that
-    participant's ``participantStatuses`` list carries its own freshly stamped
-    pair.
-
-    Only the two keys are dropped.  Where a timestamp *is* load-bearing it is
-    still compared through its consequences — a case's ``published`` feeds
-    ``genesis_hash`` (CLP-08-002), which stays in the comparison.
+    Top level only.  The objects a snapshot embeds carry their own time — the
+    time they were authored with, or the sender's as received — and rendering
+    them does not change it (ISSUE-2553, ISSUE-3257).  A nested ``published``
+    or ``updated`` that differs is therefore a different object state, and it
+    stays in the comparison: dropping it at every depth would fold a genuinely
+    new assertion into a recorded one.
     """
     if isinstance(value, dict):
         return {
-            key: _semantic_payload(item)
+            key: item
             for key, item in value.items()
             if key not in _VOLATILE_SNAPSHOT_KEYS
         }
-    if isinstance(value, (list, tuple)):
-        return [_semantic_payload(item) for item in value]
     return value
 
 
@@ -249,8 +243,8 @@ def _find_equivalent_recorded_entry(
     duplicate canonical entries for the same logical assertion.
 
     Snapshots are compared through :func:`_semantic_payload`, so a retry is
-    recognised as one even though rebuilding its snapshot restamps every
-    ``published``/``updated`` field it embeds.  Comparing those would make the
+    recognised as one even though rebuilding its snapshot restamps the
+    snapshot's own top-level ``published``.  Comparing that would make the
     dedup — and with it ADR-0041's ledger-index stability — depend on whether
     the two deliveries happened to land in the same clock second.
 

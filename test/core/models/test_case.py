@@ -140,9 +140,7 @@ class TestVulnerabilityCaseCurrentStatus:
         Guards CM-29-001: the ``id_`` scheme must never arbitrate recency. A
         urn:uuid ID (``'u'``) sorts lexically above an https ID (``'h'``), so
         this catches any regression that reintroduced ``id_`` as a tiebreaker
-        overriding an authoritative timestamp. (In the core branch timestamps
-        are always populated, so the timestampless path is exercised on the
-        wire branch — see test/wire/as2/vocab/test_vulnerability_case.py.)
+        overriding an authoritative timestamp.
         """
         older = CaseStatus(
             id_="urn:uuid:00000000-0000-0000-0000-000000000001",
@@ -157,6 +155,37 @@ class TestVulnerabilityCaseCurrentStatus:
         c = VulnerabilityCase(id_=_CASE_ID)
         c.case_statuses = [older, newer]
         assert c.current_status is newer
+
+    @pytest.mark.parametrize(
+        "stamp",
+        [datetime(2026, 1, 1, tzinfo=timezone.utc), None],
+        ids=["equal", "absent"],
+    )
+    def test_current_status_tie_goes_to_the_last_appended(
+        self, stamp: datetime | None
+    ):
+        """Equal or absent timestamps resolve to the last-appended status.
+
+        Received statuses carry the sender's time or none at all
+        (ISSUE-3257), so ties are ordinary.  ``max`` kept the *first* maximal
+        element, so a new status sharing the previous one's time never
+        became current.
+        """
+        first = CaseStatus(
+            id_="urn:uuid:00000000-0000-0000-0000-000000000002",
+            context=_CASE_ID,
+            published=stamp,
+            updated=stamp,
+        )
+        second = CaseStatus(
+            id_="https://coord.example/status/1",
+            context=_CASE_ID,
+            published=stamp,
+            updated=stamp,
+        )
+        c = VulnerabilityCase(id_=_CASE_ID)
+        c.case_statuses = [first, second]
+        assert c.current_status is second
 
 
 class TestVulnerabilityCaseAddReport:

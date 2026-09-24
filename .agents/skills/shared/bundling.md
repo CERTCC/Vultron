@@ -35,7 +35,7 @@ bash .agents/skills/shared/query-epic-subissues.sh <EPIC_NUMBER> \
 |---|---|---|
 | `issueType` | A bundle is homogeneous by executing skill: Task/Feature → `build`, Bug → `bugfix`, Idea/Concern/Epic → `plan-issue`. Absent `--workflow`, the highest-priority candidate picks it. | `work-issue` routing |
 | `Schedule` | Priority tier ordering (Now > Next > Later). A leaf with no tier inherits its Epic's; an explicit leaf tier always wins. `Someday` is never bundled. | PAD-03-001 |
-| `size:` labels | Weights `size:S`=1, `size:M`=2, `size:L`=3, unsized=3 (unmeasured, not small). The bundle's total weight is capped at 6. | PAD-05 |
+| `size:` labels | Weights come from the band table (`sizing.md`; `pr-size --table`), and an unsized Issue counts as the largest **bundlable** size — unmeasured, not small. The bundle's total weight is capped at 6. A `size:XL` Issue is refused outright rather than weighted: it exhausts the review budget alone. | PAD-05, PAD-15-011 |
 
 Sub-issue list order is manual drag-order, so it is a **tie-breaker only**,
 never the priority signal.

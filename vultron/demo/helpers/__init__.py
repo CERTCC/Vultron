@@ -18,6 +18,9 @@ import from ``vultron.demo.helpers`` directly.
 
 Sub-modules
 -----------
+- :mod:`~vultron.demo.helpers.actor_roles` — ``ActorRole``, ``role_map``, and
+  ``role_kwarg_names``: the per-scenario actor role declarations the demo CLI
+  turns into sub-command options (DEMOCI-11-011).
 - :mod:`~vultron.demo.helpers.polling` — ``_poll_until``,
   ``find_case_invite_for_actor``, ``find_cp_offer_for_case``,
   ``find_case_actor_participant_id``, ``find_ownership_transfer_offer_for_actor``,
@@ -46,6 +49,11 @@ Sub-modules
   ``verify_publicly_disclosed``, ``verify_case_closed``).
 """
 
+from vultron.demo.helpers.actor_roles import (  # noqa: F401
+    ActorRole,
+    role_kwarg_names,
+    role_map,
+)
 from vultron.demo.helpers.embargo import (  # noqa: F401
     make_embargo_event,
 )

@@ -25,7 +25,6 @@ Spec: D5-5 (GitHub issue #1265).
 """
 
 import logging
-import os
 import sys
 
 from vultron.core.states.cs import CS_vf
@@ -43,6 +42,7 @@ from vultron.wire.as2.vocab.objects.vulnerability_report import (
 )
 
 from vultron.demo.actor_session import ActorSession
+from vultron.demo.helpers.actor_roles import ActorRole, role_map
 from vultron.enums.roles import CVDRole
 from vultron.demo.utils import (  # noqa: F401 — re-exported for test monkeypatching
     BASE_URL,
@@ -103,16 +103,66 @@ from vultron.demo.scenario.registry import scenario
 
 logger = logging.getLogger(__name__)
 
+# The scenario's actor slots, in main() parameter order. The demo CLI derives
+# this scenario's sub-command options from this list (DEMOCI-11-011); the base
+# URL constants below are its resolved values, so each env-var/default pair is
+# declared once.
+ROLES: list[ActorRole] = [
+    ActorRole(
+        name="finder",
+        url_env="VULTRON_FINDER_BASE_URL",
+        default_url="http://localhost:7901/api/v2",
+        url_help="Base URL of the Finder container API "
+        "(env: VULTRON_FINDER_BASE_URL).",
+        has_id=True,
+        id_help="Deterministic full URI for the Finder actor (optional).",
+    ),
+    ActorRole(
+        name="vendor",
+        url_env="VULTRON_VENDOR_BASE_URL",
+        default_url="http://localhost:7902/api/v2",
+        url_help="Base URL of the Vendor1 container API "
+        "(env: VULTRON_VENDOR_BASE_URL).",
+        has_id=True,
+        id_help="Deterministic full URI for the Vendor1 actor (optional).",
+    ),
+    ActorRole(
+        name="vendor2",
+        url_env="VULTRON_VENDOR2_BASE_URL",
+        default_url="http://localhost:7904/api/v2",
+        url_help="Base URL of the Vendor2 container API "
+        "(env: VULTRON_VENDOR2_BASE_URL).",
+        has_id=True,
+        id_help="Deterministic full URI for the Vendor2 actor (optional).",
+    ),
+]
+_ROLES = role_map(ROLES)
+
 # Default container base URLs — override via environment variables.
-FINDER_BASE_URL = os.environ.get(
-    "VULTRON_FINDER_BASE_URL", "http://localhost:7901/api/v2"
-)
-VENDOR_BASE_URL = os.environ.get(
-    "VULTRON_VENDOR_BASE_URL", "http://localhost:7902/api/v2"
-)
-VENDOR2_BASE_URL = os.environ.get(
-    "VULTRON_VENDOR2_BASE_URL", "http://localhost:7904/api/v2"
-)
+FINDER_BASE_URL = _ROLES["finder"].url
+VENDOR_BASE_URL = _ROLES["vendor"].url
+VENDOR2_BASE_URL = _ROLES["vendor2"].url
+
+#: ``vultron-demo fvv --help`` text. Lives here rather than in ``cli.py``
+#: because the sub-command is generated from the registry and the scenario
+#: module is the only place that knows what its own workflow does.
+CLI_HELP = """Run the FVV (Finder + Vendor1 + Vendor2) multi-container CVD demo (D5-5).
+
+Orchestrates a complete CVD workflow across three separate API server
+containers with no coordinator.  Vendor1 creates the case and invites both
+Finder and Vendor2; each vendor maintains an independent fix path.
+
+\b
+Workflow:
+  1. Seed all three containers (actor records + peer registration).
+  2. Finder submits a vulnerability report to Vendor1's inbox.
+  3. Vendor1 validates the report and engages the case.
+  4. Vendor1 invites Vendor2; Vendor2 accepts.
+  5. Verify LedgerFanout replication on Finder and Vendor2.
+  6. Both vendors independently advance through fix-ready → fix-deployed.
+  7. All participants report publication; embargo terminates.
+  8. All participants close the case.
+"""
 
 # Deterministic actor IDs from docker-compose-multi-actor.yml (D5-1-G3).
 FINDER_ACTOR_ID = "http://finder:7999/api/v2/actors/finder"

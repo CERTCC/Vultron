@@ -180,6 +180,22 @@ class TestWireActorVocabularyAndRoundTrip(unittest.TestCase):
         self.assertIs(WIRE_TYPE_MAP["Application"], as_VultronApplication)
         self.assertIs(WIRE_TYPE_MAP["Group"], as_VultronGroup)
 
+    def test_actor_class_names_are_not_wire_type_map_keys(self):
+        """VM-01-008: the wire ``type`` value is the only key (issue #2982).
+
+        ``as_VultronPerson`` used to register under ``VultronPerson`` too — a
+        key no AS2 payload ever carries, which let a caller holding the *core*
+        class name resolve a wire class by name coincidence (ARCH-23-001).
+        """
+        for class_stem in (
+            "VultronPerson",
+            "VultronOrganization",
+            "VultronService",
+            "VultronApplication",
+            "VultronGroup",
+        ):
+            self.assertNotIn(class_stem, WIRE_TYPE_MAP)
+
     def test_core_person_to_wire_person_model_validate_round_trip(self):
         core_actor = CoreVultronPerson(
             id_="https://example.org/actors/alice",

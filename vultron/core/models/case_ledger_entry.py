@@ -121,6 +121,10 @@ class CaseLedgerEntry(CoreObject):
         validation_alias="entryHash",
         serialization_alias="entryHash",
     )
+    # Re-narrowed from CoreObject's ``datetime | None``: the envelope's
+    # ``published`` is the CASE_MANAGER's commit stamp and MUST be non-null
+    # (CLP-14-002), unlike an ordinary object's time, which may be absent.
+    published: datetime = Field(default_factory=now_utc)
     received_at: datetime = Field(
         default_factory=now_utc,
         description="Server-generated TZ-aware UTC receipt timestamp",

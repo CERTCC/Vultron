@@ -15,7 +15,6 @@ from datetime import UTC, datetime
 from typing import Any, cast
 
 import pytest
-from pydantic import BaseModel
 
 from vultron.adapters.driven.db_record import (
     Record,
@@ -33,9 +32,6 @@ from vultron.wire.as2.enums import (
     as_TransitiveActivityType,
 )
 from vultron.wire.as2.factories import rm_submit_report_activity
-from vultron.core.models.dimensions import (
-    RmDimension,
-)
 
 
 # Fixtures for reused test objects
@@ -156,7 +152,7 @@ def test_dehydrate_data_leaves_non_ref_field_dict_intact():
         "inbox": {"id_": inbox_id, "type_": "OrderedCollection"},
     }
     result = _dehydrate_data(data)
-    # ``inbox`` is not in _AS_OBJECT_REF_FIELDS; it must remain a dict.
+    # ``inbox`` is not a generic object-reference field; it must remain a dict.
     assert isinstance(result["inbox"], dict)
     assert result["inbox"]["id_"] == inbox_id
 
@@ -182,11 +178,13 @@ def test_dehydrate_data_ignores_empty_string_id():
 
 
 def test_dehydrate_data_dehydrates_all_object_ref_fields():
-    """All fields in _AS_OBJECT_REF_FIELDS are candidates for dehydration."""
-    from vultron.adapters.driven.db_record import _AS_OBJECT_REF_FIELDS
+    """Every generic Activity object-reference field is a dehydration candidate."""
+    from vultron.adapters.driven.db_record import (
+        _activity_object_ref_properties,
+    )
 
     obj_id = "urn:uuid:obj"
-    for field_name in _AS_OBJECT_REF_FIELDS:
+    for field_name in _activity_object_ref_properties():
         data = {
             "id_": "urn:uuid:parent",
             field_name: {"id_": obj_id, "type_": "Note"},
@@ -256,173 +254,6 @@ def test_object_to_record_nested_report_not_duplicated_in_offer_data():
 # ---------------------------------------------------------------------------
 # Wire/core shape guard on the write path (issue #2232)
 # ---------------------------------------------------------------------------
-
-
-def test_object_to_record_normalizes_wire_class_shadowing_a_core_type():
-    """A wire vocab class whose ``type_`` has a core counterpart is normalised.
-
-    Regression for #2232: the only shape guard was ``type_.startswith("as_")``,
-    but wire vocabulary ``type_`` values are bare ("CaseParticipant"), so a
-    wire-shaped object was happily written into a core-typed DataLayer row.
-    Core readers then saw a flat ``rm_state`` where they expected a nested
-    ``rm`` dimension.
-
-    The row must now carry the canonical core shape — nested
-    ``rm: {"state": ...}`` — so no wire-shaped ``CaseParticipant`` row exists to
-    be misread.
-    """
-    from vultron.core.models.registry import CORE_VOCABULARY
-    from vultron.wire.as2.vocab.objects.case_participant import (
-        as_CaseParticipant,
-    )
-
-    wire_participant = as_CaseParticipant(
-        attributed_to="https://example.org/actors/vendor",
-        context="https://example.org/cases/case-2232",
-    )
-    # The pre-existing guard cannot catch this: type_ is bare, not "as_"-prefixed.
-    assert not str(wire_participant.type_).startswith("as_")
-    assert str(wire_participant.type_) in CORE_VOCABULARY
-
-    record = object_to_record(cast(Any, wire_participant))
-
-    assert record.type_ == "CaseParticipant"
-    statuses = record.data_["participant_statuses"]
-    assert statuses, "normalised participant must retain its RM ladder"
-    for status in statuses:
-        # Canonical core shape: the ``rm`` dimension, no flat ``rm_state``.
-        # The dimension serialises to its bare state value (ADR-0099 detail 5),
-        # so the stored form is ``"rm": "START"`` rather than a one-key mapping.
-        assert "rm_state" not in status
-        assert status["rm"] == "START"
-
-
-def test_object_to_record_normalizes_wire_participant_status():
-    """A wire ``ParticipantStatus`` persists in the nested core ``rm`` shape."""
-    from vultron.core.states.rm import RM
-    from vultron.wire.as2.vocab.objects.case_status import (
-        as_ParticipantStatus,
-    )
-
-    wire_status = as_ParticipantStatus(
-        rm=RmDimension(state=RM.VALID),
-        context="https://example.org/cases/case-2232",
-        attributed_to="https://example.org/actors/vendor",
-    )
-
-    record = object_to_record(cast(Any, wire_status))
-
-    assert record.type_ == "ParticipantStatus"
-    assert "rm_state" not in record.data_
-    assert record.data_["rm"] == "VALID"
-
-
-def test_object_to_record_normalizes_wire_participant_nested_in_core_case():
-    """A wire participant nested inside a core case is normalised too.
-
-    Regression for the first fix of #2232, which inspected only the top-level
-    object.  A ``VulnerabilityCase`` row stores its ``case_participants``
-    inline, so a wire-shaped participant nested in a core-shaped case still
-    persisted a flat ``rm_state`` — the row shape the issue's "Done when"
-    forbids.
-    """
-    from vultron.core.models.case import VulnerabilityCase
-    from vultron.core.states.rm import RM
-    from vultron.wire.as2.vocab.objects.case_participant import (
-        as_CaseParticipant,
-    )
-    from vultron.wire.as2.vocab.objects.case_status import (
-        as_ParticipantStatus,
-    )
-
-    case_id = "urn:uuid:3f1b8d0e-1111-4111-8111-000000002232"
-    wire_participant = as_CaseParticipant(
-        attributed_to="https://example.org/actors/vendor",
-        context=case_id,
-        participant_statuses=[
-            as_ParticipantStatus(
-                context=case_id, rm=RmDimension(state=RM.RECEIVED)
-            )
-        ],
-    )
-    case = VulnerabilityCase(id_=case_id, name="case-2232").model_copy(
-        update={"case_participants": [wire_participant]}
-    )
-
-    record = object_to_record(cast(Any, case))
-
-    stored_status = record.data_["case_participants"][0][
-        "participant_statuses"
-    ][0]
-    assert "rm_state" not in stored_status
-    assert stored_status["rm"] == "RECEIVED"
-
-
-def test_object_to_record_raises_when_wire_class_has_no_to_core():
-    """A shadowing wire class without ``to_core()`` cannot be persisted.
-
-    Covers the ``to_core is None`` branch: the object shadows a core type, so
-    storing it as-is would produce a row nothing can read back reliably, and
-    there is no projection available to fix it.
-    """
-    from vultron.core.models.protocols import PersistableModel
-
-    class _ShadowingWireClass(BaseModel):
-        """Stands in for a wire class that never grew a ``to_core()``."""
-
-        id_: str = "urn:uuid:00000000-0000-4000-8000-000000002232"
-        type_: str = "ParticipantStatus"
-
-    # Impersonate the wire package so the module-prefix check matches.
-    _ShadowingWireClass.__module__ = "vultron.wire.as2.vocab.objects.fake"
-
-    with pytest.raises(VultronValidationError, match="no to_core"):
-        object_to_record(cast(PersistableModel, _ShadowingWireClass()))
-
-
-def test_normalization_failure_is_distinguishable_from_duplicate_row():
-    """A projection failure must not look like an "already exists" error.
-
-    ``crud.create`` signals a genuine duplicate and callers legitimately swallow
-    that.  When normalisation failure was indistinguishable from it, an
-    unprojectable object was silently never stored and never logged (the ingress
-    pre-store in ``routers/actors/_inbox.py`` did exactly this).
-
-    The discriminator used to be that ``VultronValidationError`` was *not* a
-    ``ValueError`` while the duplicate was.  That is no longer available:
-    ARCH-23-006 requires ``VultronValidationError`` to be a ``ValueError`` so
-    Pydantic absorbs it as a failed union branch instead of aborting the whole
-    ``model_validate()`` — see
-    ``test_core_guard_inside_wire_union_fails_the_branch``.  Separability now
-    rests on the two being **distinct types**, which is a stronger guarantee than
-    the old proxy: it survives both of them being ``ValueError`` subclasses, and
-    it is what the swallowing call sites now actually match on.
-
-    The fixture changed with ADR-0099 and the reason is worth recording. It used
-    to build an ``as_CaseParticipant`` with ``accepted_embargo_ids=[""]`` — legal
-    on the lenient wire class, rejected by the core class's ``NonEmptyString``,
-    and therefore "constructible yet unprojectable". Collapsing the pair removes
-    that state entirely: there is one class, so an object that would fail
-    projection now fails construction instead. That is the improvement, not a gap
-    — but it means this test has to reach the projection failure another way, so
-    it uses the same synthetic shadowing class as the test above.
-    """
-    from vultron.core.models.protocols import PersistableModel
-
-    class _ShadowingWireClass(BaseModel):
-        """Stands in for a wire class that never grew a ``to_core()``."""
-
-        id_: str = "urn:uuid:00000000-0000-4000-8000-000000002232"
-        type_: str = "ParticipantStatus"
-
-    _ShadowingWireClass.__module__ = "vultron.wire.as2.vocab.objects.fake"
-
-    with pytest.raises(VultronValidationError) as exc_info:
-        object_to_record(cast(PersistableModel, _ShadowingWireClass()))
-
-    # The load-bearing assertion: a projection failure is not an already-exists.
-    assert not isinstance(exc_info.value, VultronAlreadyExistsError)
-    assert "2232" in str(exc_info.value)
 
 
 def test_already_exists_and_validation_error_are_disjoint_types():
@@ -660,8 +491,8 @@ def _inline_proposal():
 def test_case_proposal_object_survives_storage_as_an_inline_report():
     """CP-01-004: storing a CaseProposal MUST NOT collapse its report to an id.
 
-    Regression for #2482.  ``object_`` is in ``_AS_OBJECT_REF_FIELDS``, so it was
-    dehydrated like any other reference — but CP-01-004 requires the report to be
+    Regression for #2482.  ``object_`` is a generic object-reference field, so it
+    was dehydrated like any other reference — but CP-01-004 requires the report to be
     carried inline, and ingress stores only the *first* level of nesting, so the
     report had no record of its own to rehydrate from.  The by-ID re-read at
     delivery therefore handed the receiver a bare URI, and every consequence of

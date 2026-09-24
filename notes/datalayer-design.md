@@ -105,64 +105,49 @@ Research needed: audit all current callers of `object_to_record()`,
 `record_to_object()`, and `find_in_vocabulary()` to understand the scope
 of the coupling before designing the refactor.
 
-## Write Path Normalises Wire → Core (#2232, ADR-0062)
+## Write Path Stores Verbatim; the Boundary Is `extra="forbid"` (#2232, #2940)
 
-The read-path rule above says nothing about what gets *written*, and that gap
-was load-bearing. `Record.from_obj()` rejected objects whose `type_` starts with
-`as_` — but wire vocabulary `type_` values are **bare** (`"CaseParticipant"`, not
-`"as_CaseParticipant"`), so the guard never fired for the 15 wire classes that
-shadow a `CORE_VOCABULARY` entry. A wire-shaped object was written into a
-core-typed row, and whichever class read the row back decided what the data
-meant.
+**Superseded (#2940).** The write-side normalisation gate this section used to
+describe — `Record.from_obj()` projecting through `_normalize_to_core()`, the
+`_NORMALIZE_WIRE_TO_CORE` frozenset, its grow-only ratchet, and
+`_project_shadowing_wire_obj` — **is deleted**. ADR-0062 is archived; the
+contract is now ADR-0082 / ARCH-12-003.
 
-For `ParticipantStatus` and `CaseParticipant` the two shapes are *structurally*
-incompatible — core nests `rm: RmDimension` where wire carries a flat `rm_state`
-— so a wire-shaped row makes `status.rm.state` yield `None` rather than merely
-misspell a key.
+The problem it solved was real and is worth keeping in view: `Record.from_obj()`
+rejected objects whose `type_` starts with `as_`, but wire vocabulary `type_`
+values are **bare** (`"CaseParticipant"`, not `"as_CaseParticipant"`), so the
+guard never fired for the 15 wire classes that shadow a `CORE_VOCABULARY` entry.
+A wire-shaped object was written into a core-typed row, and whichever class read
+the row back decided what the data meant. For `ParticipantStatus` and
+`CaseParticipant` the two shapes are *structurally* incompatible — core nests
+`rm: RmDimension` where wire carries a flat `rm_state` — so a wire-shaped row
+makes `status.rm.state` yield `None` rather than merely misspell a key.
 
-**Rule:** `Record.from_obj()` normalises through `_normalize_to_core()`
-(`vultron/adapters/driven/db_record.py`) before serialising. The object **and its
-direct children** are projected via `to_core()`; one level of children is
-sufficient because `to_core()` recurses. Child projection is not optional
-polish: a `VulnerabilityCase` row stores its `case_participants` inline, so
-checking only the top level still persisted a flat `rm_state` inside a
-core-shaped case.
+**Rule (current):** the guard moved from the write path to the *type*.
+`CoreObject` sets `extra="forbid"` (ARCH-12-003), so handing a wire-shaped
+payload to a core type raises a pydantic `ValidationError` instead of silently
+discarding every snake_case-only key. Two consequences for this adapter:
 
-`_NORMALIZE_WIRE_TO_CORE` enumerates the migrated types. It is the write-side
-analogue of `KNOWN_WIRE_ESCAPES` and ratchets the opposite way — it may only
-**grow** (`test/architecture/test_normalize_wire_to_core_ratchet.py`). **The set
-is now complete**: all fifteen shadowing types are normalised — the five actor
-types (`VultronApplication`, `VultronGroup`, `VultronOrganization`,
-`VultronPerson`, `VultronService`) via issue #2402, the remaining ten object
-types via issue #2268. Do not restate a "remaining" count here; the enumeration
-lives in the frozenset and its ratchet test. Under ADR-0082 this whole gate is
-deleted once `extra="forbid"` and the pairing registry land — see
-[notes/wire-core-boundary.md](wire-core-boundary.md).
+- **Writes store verbatim.** `Record.from_obj()` and `_storable_to_record()` no
+  longer project anything; a row is persisted in whatever shape it arrived.
+- **Reads project.** `ValidationError` is the shape-mismatch signal that drives
+  the read-side fallback (`_from_row` → `_wire_object_from_row` →
+  `_project_wire_row_to_core`), so a wire-shaped row still reads back as core.
+  When even that projection fails, `dl.read()` logs a WARNING and returns the
+  **wire** object (see "A DataLayer Fallback Is a Smell for a Masked Protocol
+  Bug" below).
 
-**`StorableRecord` inputs to `create()` and `update()` are also normalised.**
-`crud.create()` and `crud.update()` receive `StorableRecord` from core BT nodes
-(e.g. `CreateObject`, `UpdateObject` in `vultron/core/behaviors/helpers.py`).
-Before #2283 these bypassed the normalisation entirely. The fix routes them
-through `_storable_to_record()` (`vultron/adapters/driven/datalayer_sqlite/crud.py`),
-which gates the same `to_obj()` → `from_obj()` round-trip on `record.type_ in
-_NORMALIZE_WIRE_TO_CORE`, preserving other types verbatim to avoid data loss
-on polymorphic wire classes (e.g. `VultronPerson` stored under `type_="Actor"`
-would be silently truncated to the base class). If the round-trip fails for a
-type that is in `_NORMALIZE_WIRE_TO_CORE`, a `WARNING` is logged and the row is
-stored verbatim — a regressive fallback, but observable.
+Two caveats worth knowing before touching this path:
 
-**A projection failure raises `VultronValidationError`, not `ValueError`.**
-`crud.create()` raises `ValueError` for an already-existing row and callers
-legitimately swallow *that*; sharing the type meant an unprojectable object was
-silently never stored and never logged. The two causes must stay distinguishable
-— see `_pre_store_nested_object` in
-`vultron/adapters/driving/fastapi/routers/actors/_inbox.py` for the correct
-two-branch handler.
-
-**This is defense in depth, not the primary boundary.** Projection belongs at
-wire→core ingress; the persistence boundary is the backstop that guarantees no
-wire-shaped row exists regardless of which ingress path missed it. ADR-0062
-records why both are kept.
+- `extra="forbid"` rejects *unknown* keys. It does **not** reject a flat
+  `rm_state`/`rmState` on `ParticipantStatus` or `CaseStatus`, because those
+  spellings are declared `AliasChoices` on the field and are therefore
+  *interpreted*, not dropped. Removing those aliases is #2288/#2289.
+- Persisted rows are still keyed by Python field name (`id_`, `type_`), not the
+  wire-facing names ARCH-23-005 asks for. Re-keying was deliberately **not** done
+  in #2940 — it would mask the `CaseLedgerEntry` alias-injection bug — and is
+  sequenced behind the `WireParsePort` (#2938). See
+  [notes/wire-core-boundary.md](wire-core-boundary.md).
 
 ## Activity Read-Back: Semantic Content vs. Envelope Reconstitution (ADR-0035, DL-06)
 

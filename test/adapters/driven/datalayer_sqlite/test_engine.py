@@ -36,6 +36,7 @@ from vultron.adapters.driven.datalayer_sqlite.engine import (
     actor_slug,
     dispose_actor_engines,
     get_actor_engine,
+    reset_store_claimants,
 )
 
 
@@ -306,6 +307,36 @@ class TestGetActorEngineCollisionGuard:
             "shared by two distinct actor ids" in r.message
             for r in caplog.records
         )
+
+    def test_reset_store_claimants_re_arms_the_guard(self, caplog):
+        """The explicit seam a test process needs (#3545).
+
+        ``test_the_claim_survives_disposal`` above is the reason this has to be
+        its own function rather than part of disposal: the record deliberately
+        outlives an engine.  The consequence is that it outlives a *test* too,
+        so something has to clear it, and that something must be nameable.
+        """
+        import logging
+
+        get_actor_engine("sqlite:///:memory:", self._LOCAL)
+        reset_store_claimants()
+
+        # Re-armed: the next claim is a *first* claim, so no warning.
+        with caplog.at_level(logging.WARNING):
+            get_actor_engine("sqlite:///:memory:", self._FOREIGN)
+        assert not any(
+            "shared by two distinct actor ids" in r.message
+            for r in caplog.records
+        )
+
+    def test_reset_store_claimants_leaves_the_engine_cache_alone(self):
+        """Clearing the record must not double as a store reset."""
+        engine = get_actor_engine("sqlite:///:memory:", self._LOCAL)
+        key = actor_db_url("sqlite:///:memory:", self._LOCAL)
+
+        reset_store_claimants()
+
+        assert _ENGINES.get(key) is engine
 
 
 class TestDisposeActorEngines:

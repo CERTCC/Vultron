@@ -37,7 +37,6 @@ from pathlib import Path
 os.environ.setdefault("VULTRON_DATABASE__DB_URL", "sqlite:///:memory:")
 
 import pytest  # noqa: E402
-import yaml  # noqa: E402
 from vultron.adapters.driven.datalayer_sqlite import (  # noqa: E402
     reset_datalayer,
 )
@@ -109,14 +108,14 @@ def apply_integration_timeout(items):
 #: Failure modes ``load_registry`` can raise for a corpus that exists but does
 #: not load.  ``pydantic.ValidationError`` is a ``ValueError`` subclass, and a
 #: duplicate spec ID raises ``ValueError`` directly; ``OSError`` covers an
-#: unreadable file.  ``yaml.YAMLError`` is listed because a syntax error is
-#: *not* a ``ValueError`` and so escapes the loader's documented contract — it
-#: becomes redundant once #3324 routes the parse through the attributing helper.
+#: unreadable file.  A YAML syntax error arrives as a ``ValueError`` too: the
+#: loader routes its parse through ``vultron.metadata.file_loading``, which
+#: re-raises it attributed to its file (MS-17-002).
 #:
 #: Deliberately not ``Exception``: an unexpected type means a bug in the loader
 #: rather than a bad spec file, and that must surface rather than degrade to a
 #: warning (#3331).
-_REGISTRY_LOAD_ERRORS = (ValueError, OSError, yaml.YAMLError)
+_REGISTRY_LOAD_ERRORS = (ValueError, OSError)
 
 
 def pytest_collection_modifyitems(session, config, items):
@@ -193,11 +192,24 @@ def _dispose_actor_stores_between_tests():
     Autouse and session-wide: individual tests should not have to remember, and
     forgetting produces cross-test contamination that presents as a confusing
     duplicate-id error far from its cause.
+
+    The claimant record is reset alongside the stores, for the same
+    "contamination far from its cause" reason but a different mechanism. It is
+    deliberately *not* cleared by engine disposal (see
+    ``reset_store_claimants``), so it would otherwise live for the whole pytest
+    process: one test using ``https://example.org/actors/test-actor`` left the
+    slug ``test-actor`` claimed, and a later test using
+    ``https://test.example/api/v2/actors/test-actor`` got a cross-authority
+    warning it then failed on (#3545).
     """
     yield
-    from vultron.adapters.driven.datalayer_sqlite import reset_datalayer
+    from vultron.adapters.driven.datalayer_sqlite import (
+        reset_datalayer,
+        reset_store_claimants,
+    )
 
     reset_datalayer()
+    reset_store_claimants()
 
 
 def seed_case_actor_replica(dl, case_actor_id, case, *extra):

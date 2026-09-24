@@ -35,7 +35,6 @@ Spec: DEMOMA-13 (GitHub issue #1620).
 """
 
 import logging
-import os
 import sys
 
 from vultron.core.states.cs import CS_vf
@@ -53,6 +52,7 @@ from vultron.wire.as2.vocab.objects.vulnerability_case import (
 )
 
 from vultron.demo.actor_session import ActorSession
+from vultron.demo.helpers.actor_roles import ActorRole, role_map
 from vultron.enums.roles import CVDRole
 from vultron.demo.utils import (  # noqa: F401 — re-exported for test monkeypatching
     DataLayerClient,
@@ -125,18 +125,77 @@ logger = logging.getLogger(__name__)
 # C1 uses the docker-compose "coordinator" container; C2 uses "actor5"
 # (seeded as coordinator2 for this scenario).  Vendor uses "vendor".
 # Override via environment variables.
-FINDER_BASE_URL = os.environ.get(
-    "VULTRON_FINDER_BASE_URL", "http://localhost:7901/api/v2"
-)
-C1_BASE_URL = os.environ.get(
-    "VULTRON_COORDINATOR_BASE_URL", "http://localhost:7903/api/v2"
-)
-C2_BASE_URL = os.environ.get(
-    "VULTRON_VENDOR2_BASE_URL", "http://localhost:7904/api/v2"
-)
-VENDOR_BASE_URL = os.environ.get(
-    "VULTRON_VENDOR_BASE_URL", "http://localhost:7902/api/v2"
-)
+ROLES: list[ActorRole] = [
+    ActorRole(
+        name="finder",
+        url_env="VULTRON_FINDER_BASE_URL",
+        default_url="http://localhost:7901/api/v2",
+        url_help="Base URL of the Finder container API "
+        "(env: VULTRON_FINDER_BASE_URL).",
+        has_id=True,
+        id_help="Deterministic full URI for the Finder actor (optional).",
+    ),
+    ActorRole(
+        name="c1",
+        url_env="VULTRON_COORDINATOR_BASE_URL",
+        default_url="http://localhost:7903/api/v2",
+        url_help="Base URL of the C1 (Coordinator1) container API "
+        "(env: VULTRON_COORDINATOR_BASE_URL).",
+        has_id=True,
+        id_help="Deterministic full URI for the C1 (Coordinator1) actor "
+        "(optional).",
+    ),
+    ActorRole(
+        name="c2",
+        url_env="VULTRON_VENDOR2_BASE_URL",
+        default_url="http://localhost:7904/api/v2",
+        url_help="Base URL of the C2 (Coordinator2/actor5) container API "
+        "(env: VULTRON_VENDOR2_BASE_URL).",
+        has_id=True,
+        id_help="Deterministic full URI for the C2 (Coordinator2) actor "
+        "(optional).",
+    ),
+    ActorRole(
+        name="vendor",
+        url_env="VULTRON_VENDOR_BASE_URL",
+        default_url="http://localhost:7902/api/v2",
+        url_help="Base URL of the Vendor container API "
+        "(env: VULTRON_VENDOR_BASE_URL).",
+        has_id=True,
+        id_help="Deterministic full URI for the Vendor actor (optional).",
+    ),
+]
+_ROLES = role_map(ROLES)
+
+FINDER_BASE_URL = _ROLES["finder"].url
+C1_BASE_URL = _ROLES["c1"].url
+C2_BASE_URL = _ROLES["c2"].url
+VENDOR_BASE_URL = _ROLES["vendor"].url
+
+#: ``vultron-demo fccv-extension --help`` text. Lives here rather than in
+#: ``cli.py`` because the sub-command is generated from the registry and the
+#: scenario module is the only place that knows what its own workflow does.
+CLI_HELP = """Run the FCCV-extension (Finder + C1/CASE_OWNER + C2/Coordinator + Vendor) demo.
+
+C1 (Coordinator1) retains CASE_OWNER throughout.  C2 (Coordinator2) joins
+as a participant with CVDRole.COORDINATOR (not CASE_MANAGER), then suggests
+Vendor via the ADR-0026 CaseActor-routed suggest-actor flow.  C1 approves;
+CaseActor invites Vendor.  Only Vendor advances through the fix and
+publication lifecycle.
+
+\b
+Workflow:
+  1. Seed all four containers (actor records + peer registration).
+  2. Finder submits a vulnerability report to C1's inbox.
+  3. C1 validates and engages the case; invites C2 with CVDRole.COORDINATOR.
+  4. C2 accepts; C2 suggests Vendor (ADR-0026 suggest-actor flow).
+  5. C1 approves the actor recommendation.
+  6. CaseActor invites Vendor; Vendor accepts.
+  7. Verify LedgerFanout replication on all replicas.
+  8. Vendor advances through fix-ready → fix-deployed.
+  9. C1 (CASE_OWNER) triggers publication; embargo terminates.
+ 10. All participants report publication; all participants close the case.
+"""
 
 # Deterministic actor IDs — match docker-compose-multi-actor.yml service names
 # (D5-1-G3) with role remapping for FCCV-extension:

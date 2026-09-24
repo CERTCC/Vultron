@@ -45,6 +45,13 @@ _VULNERABILITY_CASE_STUB_KEYS = frozenset(
 # ``as_Object`` type and mis-route the entry (SYNC-13-004).
 _OPAQUE_PAYLOAD_KEYS = frozenset({"payloadSnapshot", "payload_snapshot"})
 
+#: Marks every ``model_validate`` call in this module as reading inbound data,
+#: which is what tells ``as_Base`` to read an absent clock-defaulted timestamp as
+#: ``None`` rather than stamping the receiver's clock (ISSUE-3257, CLP-15-007).
+#: Parsing is the only place this belongs: a caller *authoring* an object wants
+#: the default, and passing this context for one would silently drop its time.
+_INBOUND_CONTEXT = {as_Base.INBOUND_CONTEXT_KEY: True}
+
 
 def _inline_vocab_class(value: dict[str, Any]) -> type[BaseModel] | None:
     """Return the most specific *wire* vocabulary class for an inline dict.
@@ -137,7 +144,7 @@ def _expand_inline_value(value: object, path: str = "") -> object:
     # inner field lost its case id and drew a 202 for a message the receiver
     # never understood (ISSUE-3217).
     try:
-        return inline_cls.model_validate(expanded)
+        return inline_cls.model_validate(expanded, context=_INBOUND_CONTEXT)
     except Exception as exc:
         where = f" at {path!r}" if path else ""
         raise VultronParseValidationError(
@@ -226,7 +233,9 @@ def parse_activity(body: dict[str, Any]) -> as_Activity:
     # (ADR-0032: validate at the edge).
     #
     # Scoped to the top-level activity: nested objects legitimately omit
-    # ``published`` and may be bare ID strings.
+    # ``published`` and may be bare ID strings.  Their absence is kept as
+    # absence by ``as_Base.carry_absent_times_on_inbound`` instead, which the
+    # ``_INBOUND_CONTEXT`` below switches on (ISSUE-3257).
     #
     # A present-but-blank value carries no claimed time either, so it is refused
     # the same way.  Asking only whether the *key* was absent let ``""`` reach
@@ -249,7 +258,10 @@ def parse_activity(body: dict[str, Any]) -> as_Activity:
 
     try:
         return cast(
-            as_Activity, cls.model_validate(_expand_inline_object(body))
+            as_Activity,
+            cls.model_validate(
+                _expand_inline_object(body), context=_INBOUND_CONTEXT
+            ),
         )
     except VultronParseError:
         # A malformed inline object already carries its own diagnosis, naming

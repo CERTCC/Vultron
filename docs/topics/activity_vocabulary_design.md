@@ -82,7 +82,7 @@ The diagram shows the three ways a recipient can answer a submitted report.
 An acknowledgement is therefore optional whenever a verdict follows.
 An `Accept(Offer(VulnerabilityReport))` sent as a reply to `Offer(VulnerabilityReport)` already implies the report was read, because validating it required reading it.
 Sending a separate `Read(Offer(VulnerabilityReport))` in that case adds a message without adding information.
-The [Vultron AS ontology](../reference/ontology/vultron_as.md) defines the acknowledgement activities that can serve this role.
+[Faults and Acknowledgements](../reference/messages/faults_and_acknowledgements.md) gives the acknowledgement activities that can serve this role.
 
 ---
 

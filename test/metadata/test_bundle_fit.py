@@ -19,6 +19,10 @@ from vultron.metadata.planning.bundle_fit import (
     EXCLUDED_TIERS,
     KNOWN_TIERS,
     SCHEDULE_ORDER,
+    SIZE_WEIGHTS,
+    UNBUNDLABLE_LABELS,
+    UNSIZED_LABEL,
+    UNSIZED_WEIGHT,
     Candidate,
     _render,
     coherence_hints,
@@ -258,22 +262,40 @@ class TestScheduleTier:
 class TestSizeBudget:
     """The headline defect: five size:L issues bundled as readily as five S."""
 
-    def test_weights_are_s1_m2_l3(self):
-        assert task(1, size="size:S").weight == 1
-        assert task(1, size="size:M").weight == 2
-        assert task(1, size="size:L").weight == 3
+    def test_weights_derive_from_the_band_table(self):
+        """The values live in `size_bands`; restating them here would be the
+        ninth copy of a table that was already wrong in eight places."""
+        for label, weight in SIZE_WEIGHTS.items():
+            assert task(1, size=label).weight == weight
 
-    def test_unsized_candidate_is_weighted_as_largest(self):
+    def test_unsized_candidate_is_weighted_as_largest_bundlable(self):
         """#3340 carried no size: label and was bundled with no accounting."""
-        assert task(1, size=None).weight == 3
+        assert task(1, size=None).weight == UNSIZED_WEIGHT
+        assert UNSIZED_WEIGHT == max(SIZE_WEIGHTS.values())
 
     def test_the_largest_size_label_wins_and_is_the_one_reported(self):
         """Two size labels resolved by `max` for the weight but by list order
         for the report, so a row could read `size:S ... weight=3`."""
         c = Candidate(number=1, issue_type="Task", labels=["size:S", "size:L"])
-        assert c.weight == 3
+        assert c.weight == SIZE_WEIGHTS["size:L"]
         assert c.size_label == "size:L"
-        assert Candidate(number=2).size_label == "unsized"
+        assert Candidate(number=2).size_label == UNSIZED_LABEL
+
+    def test_a_weightless_band_is_still_a_measured_size(self):
+        """`sized` and `size_label` test against every band, not just the
+        weighted ones — a size:XL issue is measured, so reporting it as
+        `unsized` would be a second wrong answer on top of refusing it."""
+        xl = sorted(UNBUNDLABLE_LABELS)[0]
+        c = Candidate(number=1, issue_type="Task", labels=[xl])
+        assert c.sized is True
+        assert c.size_label == xl
+        assert c.unbundlable is True
+
+    def test_a_weightless_band_is_not_mistaken_for_a_topic_label(self):
+        """It is a size signal, so it is never coherence evidence."""
+        xl = sorted(UNBUNDLABLE_LABELS)[0]
+        c = Candidate(number=1, issue_type="Task", labels=[xl, "wire"])
+        assert c.topic_labels == ["wire"]
 
     def test_budget_stops_the_bundle(self):
         bundle = select_bundle(
@@ -314,6 +336,51 @@ class TestSizeBudget:
             budget=4,
         )
         assert [c.number for c in bundle.members] == [1, 3]
+
+
+class TestReviewCeiling:
+    """The top band is refused, not weighted.
+
+    A weight says "fits alongside something smaller". Review findings per 1000
+    diff lines fall by half above this band's floor, so a PR that big already
+    exhausts the review budget on its own and must never carry a passenger.
+    """
+
+    def test_an_unbundlable_candidate_is_refused_at_the_fit_stage(self):
+        xl = sorted(UNBUNDLABLE_LABELS)[0]
+        bundle = select_bundle([task(1, size=xl)], epic_schedule="Now")
+        assert bundle.members == []
+        rej = next(r for r in bundle.rejected if r.number == 1)
+        assert rej.stage == "fit"
+        assert "review ceiling" in rej.reason
+        assert xl in rej.reason
+
+    def test_it_is_refused_even_when_the_budget_could_absorb_it(self):
+        """Weighting it at 4 against a budget of 6 would let it bundle with an
+        M. The refusal is categorical, so a raised budget cannot reopen it."""
+        xl = sorted(UNBUNDLABLE_LABELS)[0]
+        bundle = select_bundle(
+            [task(1, size=xl), task(2, size="size:M")],
+            epic_schedule="Now",
+            budget=99,
+        )
+        assert [c.number for c in bundle.members] == [2]
+
+    def test_refusing_it_does_not_end_the_scan(self):
+        xl = sorted(UNBUNDLABLE_LABELS)[0]
+        bundle = select_bundle(
+            [task(1, size=xl), task(2, size="size:S")], epic_schedule="Now"
+        )
+        assert [c.number for c in bundle.members] == [2]
+
+    def test_an_unbundlable_candidate_never_reaches_the_weight_check(self):
+        """Its reason names the band, not a weight — `weight` is meaningless
+        for a band that has none, and no report may print one."""
+        xl = sorted(UNBUNDLABLE_LABELS)[0]
+        bundle = select_bundle([task(1, size=xl)], epic_schedule="Now")
+        reason = next(r for r in bundle.rejected if r.number == 1).reason
+        assert "weight" not in reason
+        assert "budget" not in reason
 
 
 class TestRejectionStages:

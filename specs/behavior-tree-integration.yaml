@@ -606,11 +606,10 @@ groups:
     statement: When a BT node takes a no-op path (e.g., an empty recipient list or a guard condition that is not met), it
       MUST explicitly write `None` to any output blackboard key it would normally set before returning FAILURE or SUCCESS.
       It MUST NOT leave a stale value from a previous execution in the blackboard.
-    rationale: '`py_trees.blackboard.Blackboard.storage` is process-global and is not cleared between `execute_with_setup`
-      calls for domain-specific keys. `execute_with_setup` only cleans the `datalayer` and `trigger_activity_factory` keys
-      on exit. A consumer node that reads an output key may receive the value from a prior execution if the producer node
-      short-circuits without writing `None`. This causes silent state contamination across otherwise independent BT executions
-      (issue #834).'
+    rationale: '`py_trees.blackboard.Blackboard.storage` is process-global. `execute_with_setup` resets only the keys on its
+      `managed_keys` allowlist on exit, so a node-written output key survives the execution unless it is explicitly listed
+      there. A consumer node that reads such a key may receive the value from a prior execution when the producer short-circuits
+      without writing `None` — silent state contamination across otherwise independent BT executions (issue #834).'
     verification: Add a regression test that runs two `execute_with_setup` calls back-to-back without clearing the blackboard
       between them; assert the second run does not observe output values from the first when the node takes a no-op path.
     relationships:
@@ -687,6 +686,40 @@ groups:
     - rel_type: refines
       spec_id: BT-17-005
       note: BT-17-005 covers tests; this entry covers production call sites
+  - id: BT-17-007
+    priority: MUST
+    kind: project
+    statement: >-
+      `BTBridge.execute_with_setup` MUST restore every blackboard key it or
+      `setup_tree` writes to that key's pre-execution state before returning, on
+      every outcome. That set MUST comprise the injected ports, `actor_id`,
+      `activity`, and each `**context_data` key. It MUST also be extensible to a
+      key written by a *node* mid-tree, where no single node can guarantee
+      clearing it on every outcome because a `memory=False` Sequence may
+      short-circuit before the owning node ticks. Because managed keys are
+      restored, a caller MUST NOT use any of them as an output channel; a node
+      returns a value to its caller through a mutable object the caller holds a
+      reference to (e.g. a `result_out` dict), not through a managed key.
+    rationale: >-
+      `Blackboard.storage` is process-global, so a nested `execute_with_setup`
+      that reuses a key overwrites the outer execution's value. `actor_id` was
+      excluded until #3516 on the reasoning that the bridge holds its actor id as
+      a local; that holds for the bridge and not for nodes, which re-read
+      `/actor_id` in `initialise()` — run on every tick in which the node was not
+      RUNNING. A nested call running as another actor leaked it to later
+      siblings, reaching `payloadSnapshot.actor` (CLP-07-003).
+    verification: >-
+      For each managed key, assert that a nested `execute_with_setup` passing
+      that key leaves the outer execution's value in place after it returns, and
+      that a key absent before the call is absent after it. For `actor_id`,
+      assert on the value a *later sibling node* resolves rather than on raw
+      blackboard storage, so the `initialise()` re-read is exercised, and assert
+      the inner execution did run as a different actor so the check cannot pass
+      vacuously.
+    relationships:
+    - rel_type: refines
+      spec_id: BT-17-003
+      note: BT-17-003 covers node-owned output keys; this entry covers bridge-managed execution-scoped keys
 - id: BT-16
   title: Simulation Fuzzer Node Layout
   specs:

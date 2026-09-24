@@ -20,10 +20,8 @@ The as_-prefixed name is retained for backward compatibility.
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
 from vultron.core.models.case_actor import CaseActor
-from vultron.wire.as2.vocab.base.registry import WIRE_TYPE_MAP
 
-# Backward-compatibility alias (ADR-0099 detail 3)
+# Backward-compatibility alias (ADR-0099 detail 3).  Not registered in
+# WIRE_TYPE_MAP: a CaseActor emits ``type: "Service"``, and that key belongs to
+# VultronService (VM-01-008, #2982).
 as_CaseActor = CaseActor
-
-# Register core class in WIRE_TYPE_MAP so the parser admits it inline
-WIRE_TYPE_MAP["CaseActor"] = CaseActor

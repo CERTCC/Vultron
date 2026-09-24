@@ -30,7 +30,6 @@ Spec: GitHub issue #2047 (fcv-reject demo scenario).
 """
 
 import logging
-import os
 import sys
 
 from vultron.wire.as2.vocab.base.objects.actors import as_Actor
@@ -43,6 +42,7 @@ from vultron.wire.as2.vocab.objects.vulnerability_report import (
 from vultron.wire.as2.vocab.base.objects.activities.transitive import as_Offer
 
 from vultron.demo.actor_session import ActorSession
+from vultron.demo.helpers.actor_roles import ActorRole, role_map
 from vultron.enums.roles import CVDRole
 from vultron.demo.utils import (  # noqa: F401 — re-exported for test monkeypatching
     DataLayerClient,
@@ -98,18 +98,72 @@ from vultron.demo.scenario.registry import scenario
 logger = logging.getLogger(__name__)
 
 # Default container base URLs — override via environment variables.
-FINDER_BASE_URL = os.environ.get(
-    "VULTRON_FINDER_BASE_URL", "http://localhost:7901/api/v2"
-)
-VENDOR_BASE_URL = os.environ.get(
-    "VULTRON_VENDOR_BASE_URL", "http://localhost:7902/api/v2"
-)
-COORDINATOR_BASE_URL = os.environ.get(
-    "VULTRON_COORDINATOR_BASE_URL", "http://localhost:7903/api/v2"
-)
-CASE_ACTOR_BASE_URL = os.environ.get(
-    "VULTRON_CASE_ACTOR_BASE_URL", "http://localhost:7905/api/v2"
-)
+ROLES: list[ActorRole] = [
+    ActorRole(
+        name="finder",
+        url_env="VULTRON_FINDER_BASE_URL",
+        default_url="http://localhost:7901/api/v2",
+        url_help="Base URL of the Finder container API "
+        "(env: VULTRON_FINDER_BASE_URL).",
+        has_id=True,
+        id_help="Deterministic full URI for the Finder actor (optional).",
+    ),
+    ActorRole(
+        name="coordinator",
+        url_env="VULTRON_COORDINATOR_BASE_URL",
+        default_url="http://localhost:7903/api/v2",
+        url_help="Base URL of the Coordinator container API "
+        "(env: VULTRON_COORDINATOR_BASE_URL).",
+        has_id=True,
+        id_help="Deterministic full URI for the Coordinator actor (optional).",
+    ),
+    ActorRole(
+        name="vendor",
+        url_env="VULTRON_VENDOR_BASE_URL",
+        default_url="http://localhost:7902/api/v2",
+        url_help="Base URL of the Vendor container API "
+        "(env: VULTRON_VENDOR_BASE_URL).",
+        has_id=True,
+        id_help="Deterministic full URI for the Vendor actor (optional).",
+    ),
+    ActorRole(
+        name="case-actor",
+        url_env="VULTRON_CASE_ACTOR_BASE_URL",
+        default_url="http://localhost:7905/api/v2",
+        url_help="Base URL of the CaseActor container API "
+        "(env: VULTRON_CASE_ACTOR_BASE_URL).",
+    ),
+]
+_ROLES = role_map(ROLES)
+
+FINDER_BASE_URL = _ROLES["finder"].url
+VENDOR_BASE_URL = _ROLES["vendor"].url
+COORDINATOR_BASE_URL = _ROLES["coordinator"].url
+CASE_ACTOR_BASE_URL = _ROLES["case-actor"].url
+
+#: ``vultron-demo fcv-reject --help`` text. Lives here rather than in ``cli.py``
+#: because the sub-command is generated from the registry and the scenario
+#: module is the only place that knows what its own workflow does.
+CLI_HELP = """Run the FCV-Reject (Finder + Coordinator + Vendor rejection) CVD demo (#2047).
+
+Coordinator receives the Finder's report, creates the authoritative case
+(CASE_OWNER), and the CaseActor service manages the case ledger.  Coordinator
+invites Vendor, but Vendor rejects the invitation via ``reject-case-invite``.
+Vendor is NOT added as a case participant.  Finder and Coordinator proceed to
+publication and closure.
+
+\b
+Workflow:
+  1. Seed Finder, Coordinator, and Vendor containers.
+  2. Finder submits a vulnerability report to Coordinator's inbox.
+  3. Coordinator validates the report and engages the case (CASE_OWNER).
+  4. Coordinator invites Vendor directly (invite-actor-to-case).
+  5. Vendor rejects the case invitation (reject-case-invite).
+  6. Verify participant count stable at 3 (Vendor not added).
+  7. Two-way notes exchange between Finder and Coordinator.
+  8. Coordinator and Finder publish; embargo terminates (EM.EXITED).
+  9. Coordinator and Finder close the case (RM.CLOSED on all replicas).
+"""
 
 # Deterministic actor IDs from docker-compose-multi-actor.yml (D5-1-G3).
 FINDER_ACTOR_ID = "http://finder:7999/api/v2/actors/finder"

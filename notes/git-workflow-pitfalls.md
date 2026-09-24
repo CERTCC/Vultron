@@ -13,6 +13,7 @@ related_notes:
   - notes/devcontainer-tooling.md
 related_specs:
   - specs/project-documentation.yaml
+  - specs/build-workflow.yaml
 ---
 
 # Git, Branch, and PR Workflow Pitfalls
@@ -148,11 +149,19 @@ Both halves of the rule:
   The pre-claim gates enforce this before branching: see
   `.agents/skills/build/SKILL.md` Phase 2 § "Pre-claim AC verification gate" and
   `.agents/skills/bugfix/SKILL.md` Phase 1 § "Pre-claim defect verification".
+- **The `build` gate only sees `- [ ] AC-N:` lines.** An issue whose criteria
+  are prose, or unnumbered checkboxes, skips the gate entirely — and those are
+  the issues where "read the issue, start coding" feels like one motion. Until
+  the gate derives a checklist from prose, check such issues by hand before
+  claiming (`build` Phase 2 says so). Five July 2026 sessions (ISSUE-1484,
+  ISSUE-1510, ISSUE-1612, ISSUE-1661, ISSUE-1665) each spent a build cycle on
+  work that was already wholly or partly delivered (#1907).
 - **When opening the PR**, include `- Closes #N` at the top of the body, one per
   line. This applies to docs and `learn` PRs too: when a docs PR fixes a bug as
   a side effect, the footer is still required.
 
-Sources: ISSUE-1467, ISSUE-1484, ISSUE-1510, ISSUE-1787, ISSUE-2290
+Sources: ISSUE-1467, ISSUE-1484, ISSUE-1510, ISSUE-1612, ISSUE-1661,
+ISSUE-1665, ISSUE-1787, ISSUE-1907, ISSUE-2290
 
 ## Fix One, Miss the Siblings: Scan Peer Files Before Closing a Bug
 

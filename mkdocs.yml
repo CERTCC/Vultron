@@ -255,13 +255,6 @@ nav:
           - CLI: 'reference/code/demo/cli.md'
           - Utilities: 'reference/code/demo/utils.md'
           - Demo Scripts: 'reference/code/demo/demos.md'
-    - Ontology:
-      - 'reference/ontology/index.md'
-      - Vultron_AS: 'reference/ontology/vultron_as.md'
-      - Vultron_Protocol: 'reference/ontology/vultron_protocol.md'
-      - Vultron_Process: 'reference/ontology/vultron_process.md'
-      - DFA: 'reference/ontology/dfa.md'
-      - RFC 2119: 'reference/ontology/rfc2119.md'
     - ISO Crosswalk:
       - 'reference/iso_crosswalks/index.md'
       - ISO 30111: 'reference/iso_crosswalks/iso_30111_2019.md'
@@ -336,7 +329,7 @@ nav:
       - Buffer Pre-Genesis Announce(CaseLedgerEntry) and Drain on Case Seed: 'adr/0059-buffer-pre-genesis-ledger-entries.md'
       - Re-express the Legacy Case-State Invariants and Keep the Hypercube as Reference: 'adr/0060-re-express-legacy-cs-invariants.md'
       - Adjudicate Received ParticipantStatus Per Dimension, Not as a Unit: 'adr/0061-per-dimension-partial-accept.md'
-      - Normalise Wire to Core at Ingress, and Enforce It Again at the Persistence Boundary: 'adr/0062-normalise-wire-to-core-at-both-ingress-and-persistence.md'
+      - Normalise Wire to Core at Ingress, and Enforce It Again at the Persistence Boundary: 'adr/archived/0062-normalise-wire-to-core-at-both-ingress-and-persistence.md'
       - Render Core Objects to Wire JSON Through a Driven Port: 'adr/0063-wire-rendering-port-for-core-objects.md'
       - Enforce Post-Construction Type Safety on the Core Branch Only: 'adr/0064-core-branch-validate-assignment.md'
       - Embargo Invite RSVP Deadline on Invite.end_time: 'adr/0065-embargo-invite-rsvp-deadline.md'
@@ -376,6 +369,8 @@ nav:
       - 'One Object Model: AS2 Is a Serialization of the Core Model, Not a Parallel Hierarchy': 'adr/0099-one-object-model-as2-is-a-serialization.md'
       - 'No Multi-Candidate Embargo Poll; Open Proposals Resolve Earliest-Expiration First': 'adr/0100-no-multi-candidate-embargo-poll.md'
       - 'Spec Item Format Is Field Presence, Not a Class Choice': 'adr/0101-spec-item-format-is-field-presence.md'
+      - 'Organize Reader-Facing Docs by Stakeholder Type and Invisible Prerequisite Level': 'adr/0102-docs-stakeholder-types-and-invisible-prerequisite-levels.md'
+      - "An Object's Time Is Carried, Never Minted by the Receiver": 'adr/0103-object-time-is-carried-never-minted.md'
   - About:
     - What's New: 'about/whats_new.md'
     - Contributing: 'about/contributing.md'
@@ -385,8 +380,11 @@ nav:
 not_in_nav: |
   _*.md
   reference/vultron-spec/includes/*
-  # Published at the namespace URI and reached by that URI, not by browsing.
+  # Withheld from the built site entirely; see draft_docs below. Listed here so
+  # `mkdocs serve`, which does render drafts, raises no omitted-file warning.
   ns/index.md
+  # Withdrawn from the site: a tombstone that answers a live URL. See #3551.
+  reference/ontology/index.md
   adr/archived/*.md
   _*/**/*.md
   includes/*
@@ -423,6 +421,15 @@ draft_docs: |
   # silently published. Exclude them from production builds per DOCBW-03-004
   # while `mkdocs serve` still renders them for local review.
   developer/
+  # The Vultron vocabulary namespace is withheld: publishing the site would make
+  # `https://certcc.github.io/Vultron/ns/context.jsonld` resolve for the first
+  # time, and a namespace URI is a long-lived commitment. The gate on lifting
+  # this is the term set settling, not the drift check — #2943 landed that check
+  # (`wire-context --check`), but #3487 and #3488 still delete the `as_*` classes
+  # the declared terms name, under an ADR-0099 that is `accepted-provisional`.
+  # A draft pattern also withholds static files, so `context.jsonld` goes with
+  # the page.
+  ns/
 theme:
   logo: 'assets/Software_Engineering_Institute_Unitmark_White.svg'
   name: 'material'

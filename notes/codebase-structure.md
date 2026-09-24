@@ -252,12 +252,16 @@ ADR-0058 for the causal-gate design rationale.
 ## Demo Scripts Live in `vultron/demo/`
 
 All demo scripts are located in `vultron/demo/` (migration from
-`vultron/scripts/` completed in Phase DEMO-4.3):
+`vultron/scripts/` completed in Phase DEMO-4.3). **`vultron/scripts/` no longer
+exists**: it was drained one module at a time — `vocab_examples.py`,
+`vultrabot.py`, the twelve `*_demo.py` scripts — and its last resident,
+`ontology2md.py`, went with the ontology pages it rendered (#3570). Standalone
+maintenance tooling now belongs in `vultron/metadata/`, which has a console
+entry point per tool.
 
-- **`vultron/scripts/`** — standalone utilities run directly (data migration,
-  maintenance, one-off tooling), including `vocab_examples.py`
 - **`vultron/demo/`** — end-to-end workflow demonstrations, CLI entry point,
-  shared utilities, and all 12 `*_demo.py` scripts
+  shared utilities, and the `*_demo.py` scripts under `scenario/` and `exchange/`
+  (no count: the directories are the count, MS-16-001)
 - **`vultron/demo/utils.py`** — shared demo utilities (`demo_step`,
   `demo_check`, `DataLayerClient`, HTTP helpers, `demo_environment` context
   manager)

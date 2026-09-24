@@ -122,8 +122,17 @@ the history). The *name lookup* path is the wrong way to place a core object
 in a wire tree; the parent field annotation is the declared authority.
 
 Implementation: `vultron/wire/as2/parser.py::_inline_vocab_class`. ADR-0090.
-The registry gap that makes the core map reachable at all — the AS2 collection
-types are registered in neither wire registry — is tracked by #3242.
+
+A filter inside one caller protects only that caller. The inbox adapter's
+`_reparse_as_specific_type` has no such filter and still produces a core class
+for an inbound `{"type": "OrderedCollection"}` (#3565). The general rule is
+**VM-06-008**: wire-branch resolution goes through a lookup that returns
+`as_Base` subclasses only, and the core fallback is opt-in. The core class behind
+that name, `CoreActorCollection`, is vestigial (#3563), and the wire collection
+classes are unregistered because they declare no `type_` annotation for
+`__init_subclass__` to see (#3564). Details are in
+[vocabulary-registry](vocabulary-registry.md) § "Why `OrderedCollection` Collided
+At All".
 
 An implementer working the easy files would reach the base classes and have to
 choose which MUST to break. ADR-0082 removes the first two structural causes —
@@ -354,26 +363,57 @@ while the protocol did not work.
   name-collision lookup ARCH-23-001 replaces
 - `test/architecture/test_wire_core_import_allowlist.py` — the ARCH-22 allow-list, which replaced the ratchet (#3483). The ratchet file is deleted
 
-## Deleting a Wire-Spelling Shim Without a Reject-Guard Is Silent Data Loss
+## `extra="forbid"` Is the Boundary Contract (landed, #2940)
 
-> **This prediction was borne out, and then the cause was removed.** #3487
-> collapsed the status classes and the guards below stopped firing — not because
-> anything was dropped, but because core now derives the camelCase aliases, so the
-> key is *read into the right field* instead of vanishing. The hazard is fixed at
-> its source rather than guarded against: `wire_spelled_keys()` returns an empty
-> map for any model carrying an `alias_generator`. What remains live is a camelCase
-> key matching *no* field — a retired name or a typo — which is still discarded
-> silently, and `extra="forbid"` (ARCH-12-003) is still not in place. #2940 AC-6
-> owns deleting the module.
+Pydantic v2 defaults to `extra="ignore"`, so historically removing a validator
+that accepted a legacy camelCase key silently dropped that key and reset the
+field to its start value — a lost RM ladder, not an error (the #2232 defect).
 
-Pydantic v2 defaults to `extra="ignore"`, so removing a validator that accepted a
-legacy camelCase key makes that key *silently dropped* and the field default to
-its start value — a lost RM ladder, not an error. Until `extra="forbid"` lands
-everywhere, always pair the deletion with a `model_validator(mode="before")`
-built on `reject_wire_spelled_keys` (`vultron/core/models/_wire_spelling.py`).
-See SDO-03-005, ARCH-15-002.
+> **Under ADR-0099 the camelCase key is read, not refused.** #3487 put
+> `alias_generator=to_camel` on `CoreObject` (detail 2), so `participantStatuses`
+> is a declared alias of `participant_statuses` and lands in the right field. With
+> `extra="forbid"` beside it, the only key still refused is one matching *no*
+> field — a retired name or a typo — which is exactly the case that used to vanish.
 
-**Superseded direction (ADR-0082)**: ARCH-12-003 now requires `extra="forbid"` on
-all core-branch types, which subsumes this guard — it rejects any unknown key, not
-only camelCase ones. Once that lands, `_wire_spelling.py` and the per-class guards
-are deleted. Until then this pitfall still applies.
+`CoreObject` now sets `extra="forbid"` (ARCH-12-003): any **unknown** key on a
+core type raises rather than being dropped. This **subsumed and retired** the
+per-class camelCase reject-guards and `vultron/core/models/_wire_spelling.py`,
+and the persistence-boundary normalisation gate (`_normalize_to_core`,
+`_NORMALIZE_WIRE_TO_CORE`, `_project_shadowing_wire_obj`) — all deleted in #2940.
+A wire-shaped row that is nonetheless persisted is projected to its core
+counterpart on **read** (`hydration.project_wire_row_to_core`).
+
+**Be precise about how much this rejects, because it is less than "a
+wire-shaped payload fails loudly".** `forbid` rejects keys the model does not
+know. Keys the model *does* know under a wire spelling are still accepted:
+
+- `participantStatuses`, `caseRoles` and other camelCase spellings are
+  **accepted** once #3487 lands: `CoreObject` derives them as aliases (ADR-0099
+  detail 2), so they are read into their fields. Only a key matching no field
+  raises.
+- A flat `rm_state`/`rmState` on `ParticipantStatus`, or `em_state` on
+  `CaseStatus`, is **accepted** — those spellings are declared `AliasChoices` on
+  the dimension fields, so the value is *interpreted*, not dropped. That is not
+  the #2232 defect (nothing is lost), but it does mean
+  `CaseStatus.model_validate(as_CaseStatus(...).model_dump())` succeeds rather
+  than failing, and so does the `CaseParticipant` equivalent. #2288/#2289, which
+  would have made those spellings raise by removing the `alias_generator`, are
+  closed as superseded by ADR-0099; #3578 owns reconciling ARCH-12-003.
+
+Two invariants keep `extra="forbid"` self-consistent, both enforced on
+`CoreObject` as `mode="before"` validators (see `_drop_computed_field_inputs`
+and `_drop_alias_shadowed_field_names`):
+
+- **Strip computed fields before re-validation.** A `@computed_field`
+  (`embargo_adherence`, ADR-0056) appears in `model_dump()` output but is not
+  settable, so a round-trip must drop it first.
+- **Never leave an alias key beside its field-name twin.** A `mode="before"`
+  validator that derives a field and writes it under the alias (`id`) beside a
+  dumped field-name key (`id_`) leaves an unconsumed twin that `extra="forbid"`
+  rejects; the base de-dup validator drops the field-name twin (alias wins).
+
+Ratchet: `test/architecture/test_core_extra_forbid.py` (every `CoreObject`
+forbids extras with no exemption list; a dump round-trips exactly; the retired
+mechanisms cannot be reintroduced). Deliberate wire→core snapshot
+reconstruction in core nodes projects camelCase spellings via
+`project_wire_snapshot_to_core` until the `WireParsePort` (#2938) owns it.

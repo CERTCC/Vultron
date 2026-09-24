@@ -371,11 +371,15 @@ groups:
     kind: project
     statement: >-
       `VultronObject`-direct subclasses that do not extend `CoreObject` MUST register in
-      `CORE_TYPE_MAP` as the wire-layer fallback path consulted by `find_in_vocabulary()`.
+      `CORE_TYPE_MAP` so that core types remain discoverable by type string.  Registration
+      in `CORE_TYPE_MAP` MUST NOT be relied on as the resolution path for a wire-branch
+      caller (VM-06-008).
     rationale: >-
-      `CORE_TYPE_MAP` is the fallback for `find_in_vocabulary()`, catching core types (e.g.
-      `VultronOfferRecord`, `VultronPendingCaseInbox`) that extend `VultronObject` directly and
-      carry domain state not representable via `CoreObject`.
+      `CORE_TYPE_MAP` catches core types (e.g. `VultronOfferRecord`,
+      `VultronPendingCaseInbox`) that extend `VultronObject` directly and carry domain state
+      not representable via `CoreObject`.  Those types need a name-keyed lookup for
+      core-layer and persistence callers.  They do not need to answer a wire-branch caller's
+      `type` lookup: a hit there is a coincidence of naming, not a wire counterpart.
     relationships:
     - rel_type: refines
       spec_id: ARCH-12-004
@@ -1319,6 +1323,21 @@ groups:
       key names (`id`, `type`, `@context`) rather than Python field names
       (`id_`, `type_`, `context_`).  This applies to the persistence record
       round trip as well as to translation.
+    note: >-
+      The *translation* half of this requirement is met (#2940): computed fields
+      are stripped, `_to_core_data()` emits wire-facing names, and a round-trip
+      test covers every `CORE_VOCABULARY` entry.  The *persistence* half is
+      knowingly not met and must not be read as satisfied: `Record.from_obj()`
+      still calls `model_dump(mode="json", serialize_as_any=True)` with no
+      `by_alias`, so rows remain keyed `id_`/`type_`, and no test asserts the
+      absence of trailing-underscore keys.  Re-keying was deliberately descoped
+      from #2940 rather than overlooked — `notes/wire-core-boundary.md` shows it
+      would *mask* the `CaseLedgerEntry` alias-injection bug that the validator
+      fix addresses instead — and it is sequenced behind the `WireParsePort`
+      (#2938), which owns wire<->core key translation centrally.  Do not add a
+      blanket `by_alias=True`: the wire class carries
+      `alias_generator=to_camel`, so it emits camelCase and makes things worse
+      (measured).  Tracked by #3546 (blocked by #2938).
     rationale: >-
       `extra="forbid"` (ARCH-12-003) is only viable if the project can
       round-trip its own output.  Measured on the unit suite, the two blockers

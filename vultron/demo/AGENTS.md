@@ -4,15 +4,13 @@
 > This file covers rules specific to demo scripts and multi-actor scenario code.
 
 Full write-ups live in
-[`notes/demo-scenario-authoring.md`](../../notes/demo-scenario-authoring.md);
-the causal-gating rules are in
-[`notes/event-driven-control-flow.md`](../../notes/event-driven-control-flow.md)
-and [`notes/demo-ci-diagnostics.md`](../../notes/demo-ci-diagnostics.md). The
-rules below are the enforceable form.
-
-A demo exists to prove the protocol works. Every shortcut that makes a scenario
-pass by doing the protocol's job *for* it turns the demo from evidence into
-decoration — that is the single idea behind most of these rules.
+[`notes/demo-scenario-authoring.md`](../../notes/demo-scenario-authoring.md); the
+causal-gating rules are in
+[`notes/event-driven-control-flow.md`](../../notes/event-driven-control-flow.md) and
+[`notes/demo-ci-diagnostics.md`](../../notes/demo-ci-diagnostics.md). The rules below
+are the enforceable form, and one idea is behind most of them: a demo exists to prove
+the protocol works, so every shortcut that makes a scenario pass by doing the protocol's
+job *for* it turns the demo from evidence into decoration.
 
 ---
 
@@ -20,13 +18,13 @@ decoration — that is the single idea behind most of these rules.
 
 ### Puppeteer Actors via Trigger Endpoints, Never Spoof via Inbox Injection
 
-Drive actor behavior through real HTTP trigger endpoints. **Puppeteering** =
-trigger the actor so it decides and acts (exercises the BT). **Spoofing** = forge
-the resulting activity as if it had already decided (skips the BT). If the trigger
+Drive actor behavior through real HTTP trigger endpoints. **Puppeteering** = trigger
+the actor so it decides and acts (exercises the BT). **Spoofing** = forge the
+resulting activity as if it had already decided (skips the BT). If the trigger
 endpoint you need does not exist, build the full stack (endpoint → service → BT)
 *first*. See
-[`notes/demo-scenario-authoring.md`](../../notes/demo-scenario-authoring.md)
-§ "Puppeteer Actors via Trigger Endpoints". (ISSUE-1535)
+[`notes/demo-scenario-authoring.md`](../../notes/demo-scenario-authoring.md) §
+"Puppeteer Actors via Trigger Endpoints". (ISSUE-1535)
 
 ### Never Carry One Actor's Mail to Another Actor's Inbox
 
@@ -36,44 +34,51 @@ the mail means the outbox→delivery→inbox path is never exercised and demo CI
 proves nothing end-to-end. Poll the effect instead
 (`wait_for_case_on_container`, `find_case_invite_for_actor`,
 `wait_for_object_stored`). A reliably-timing-out poll is a delivery bug to
-investigate, not a workaround to write.
+investigate, not a workaround to write. Scope: `vultron/demo/scenario/` — exchange
+demos under `vultron/demo/exchange/` drive one backend directly and use
+`post_to_inbox_and_wait` as their normal mechanism.
 
-Scope: `vultron/demo/scenario/`. Exchange demos under `vultron/demo/exchange/`
-drive one backend directly and use `post_to_inbox_and_wait` as their normal
-mechanism.
-
-There is **no self-delivery exception**: an actor does not POST to its own inbox
-to update its own replica either. Activities route through the CaseActor, whose
+There is **no self-delivery exception**: an actor does not POST to its own inbox to
+update its own replica either. Activities route through the CaseActor, whose
 `Announce` every replica consumes — a replica that is not updating means the
 routing is wrong. See
-[`notes/ownership-transfer.md`](../../notes/ownership-transfer.md) § "The
-Accepting Actor's Replica Updates via the CaseActor's Announce".
-(CONCERN-1635, ISSUE-2719)
+[`notes/ownership-transfer.md`](../../notes/ownership-transfer.md) § "The Accepting
+Actor's Replica Updates via the CaseActor's Announce". (CONCERN-1635, ISSUE-2719)
 
-### A Scenario Declares Itself Once; Every Table Is Generated
+### A Scenario Declares Itself Once; Every Consumer Is Generated
 
-Decorate the scenario's `main()` with `@scenario(name, label, participants,
-feature, in_pr_set)` from `scenario/registry.py` — the *only* declaration. Every
-scenario table and `.github/demo-scenarios.json` are generated (`uv run
-demo-scenarios --write`, gated by the `demo-scenarios-sync` hook): never
-hand-edit one, change the decorator. Script, harness and narrative paths are
-**derived** from `name` (`<name_>_demo.py`, `test_<name_>_invariants.py`,
-`<name>.md`; `<name_>` swaps hyphens for underscores) — rename the file to match,
-never add an override (DEMOCI-11-003). A scenario specified but not yet written
-goes in `notes/demo-future-ideas.md`, never the registry (DEMOCI-11-010). Full
-write-up: [demo-scenario-registry](../../notes/demo-scenario-registry.md).
-DEMOCI-11, ADR-0098. (ISSUE-3450)
+A scenario module declares itself, and nothing else anywhere does:
+
+- `@scenario(name, label, participants, feature, in_pr_set)` on its `main()`, from
+  `scenario/registry.py`. Every scenario table and `.github/demo-scenarios.json`
+  are generated from it (`uv run demo-scenarios --write`, gated by the
+  `demo-scenarios-sync` hook): never hand-edit one, change the decorator. Script,
+  harness and narrative paths are **derived** from `name` (`<name_>_demo.py`,
+  `test_<name_>_invariants.py`, `<name>.md`; `<name_>` swaps hyphens for
+  underscores) — rename the file to match, never add an override (DEMOCI-11-003).
+- `ROLES: list[ActorRole]` (`helpers/actor_roles.py`), one frozen role per actor
+  **in `main()` parameter order**, and `CLI_HELP: str`. These generate the
+  scenario's `--<role>-url` / `--<role>-id` options, its `--help`, and the module's
+  own `*_BASE_URL` constants (`FINDER_BASE_URL = _ROLES["finder"].url`). So **never
+  add a `@main.command` block to `cli.py`** (DEMOCI-11-011), and mind the quiet
+  drift direction the `main()`-signature ratchet catches: a keyword no role declares
+  gets no option, keeps its default, and runs the scenario against the wrong
+  container without failing.
+
+A scenario specified but not yet built goes in `notes/demo-future-ideas.md`, never the
+registry (DEMOCI-11-010). Full write-up, including why the role bindings cannot live on
+the decorator: [demo-scenario-registry](../../notes/demo-scenario-registry.md).
+DEMOCI-11, ADR-0098. (ISSUE-3450, ISSUE-3475)
 
 ### Extract Before Reuse: No Copy-Paste from Existing Scenario Files
 
 Before the **second** use of a pattern from an existing scenario file, extract it
-to `vultron/demo/helpers/` — do not copy a function body, polling loop, or
-verification block into a new scenario. Copy-paste propagates latent bugs
+to `vultron/demo/helpers/` — never copy a function body, polling loop, or
+verification block into a new scenario; copy-paste propagates latent bugs
 alongside valid patterns (#1632 after PR #1629). A once-only pattern may stay
-inline with a comment marking it for extraction.
-
-MUST-level per `specs/multi-actor-demo.yaml` DEMOMA-17-001 (specialising the
-project-wide SHOULD, CS-22-001). Rationale and the four-step application in
+inline with a comment marking it for extraction. MUST-level per
+`specs/multi-actor-demo.yaml` DEMOMA-17-001 (specialising the project-wide SHOULD,
+CS-22-001). Rationale and the four-step application in
 [`notes/demo-scenario-authoring.md`](../../notes/demo-scenario-authoring.md)
 § "Extract Before Reuse". (ISSUE-1652)
 
@@ -92,7 +97,7 @@ sub-issues were this one defect in different scenarios.
    forwarded activity has a new identity; use a discriminator scan such as
    `find_case_invite_for_actor` (EDF-06-004, bug #2178).
 4. **Use `demo_gate` for a precondition, `demo_check` for a verification**
-   (DEMOCI-01-007, EDF-06-005).
+   (DEMOCI-01-007, EDF-06-005) — see the next rule.
 5. **Put the gate in `vultron/demo/helpers/`** — scenario modules MUST NOT define
    their own polling loops. That is how the #2178 fix landed in
    `fvcv_handoff_demo.py` but not `fccv_handoff_demo.py` (DEMOMA-22-002,
@@ -102,31 +107,25 @@ sub-issues were this one defect in different scenarios.
 7. **Raising a timeout is not a fix.** Either the observable is wrong (1–3) or the
    effect can be *lost* rather than delayed, in which case the protocol must
    buffer it (ADR-0037, ADR-0059) and a demo guard papers over a production bug.
-
-**Testing gates:** exercise the real context manager. Patching
-`demo_check`/`demo_gate` out with `contextlib.nullcontext` makes the assertion
-propagate and the test pass while proving nothing — exactly how the missing gate
-before `engage-case` escaped notice.
+8. **Test gates against the real context manager.** Patching
+   `demo_check`/`demo_gate` out with `contextlib.nullcontext` makes the assertion
+   propagate and the test pass while proving nothing — exactly how the missing
+   gate before `engage-case` escaped notice.
 
 Full reasoning: EDF-06, DEMOMA-22, ADR-0058, and
-[`notes/event-driven-control-flow.md`](../../notes/event-driven-control-flow.md)
-§ "Temporal Sequence vs. Causal Sequence". (CONCERN-2181)
+[`event-driven-control-flow`](../../notes/event-driven-control-flow.md) § "Temporal
+Sequence vs. Causal Sequence". (CONCERN-2181)
 
 ### Never Wrap a Causal Wait in `demo_check` (and Never Leave One Bare)
 
 A `wait_for_*` call that is a precondition for the next step MUST be wrapped in
-`demo_gate` — not `demo_check`, and not left bare.
-
-- `demo_check` records the timeout and **continues**, so the next step runs on
-  state that was never established.
-- A **bare** call raises `AssertionError` directly, bypassing the harness's
-  failure accumulator: earlier `demo_check` failures are lost and downstream steps
-  get no structured skip. Bare calls look like gates but are not.
-
-**How to decide:** would the next step operate on wrong or incomplete state if
-this wait timed out? **Yes** → `demo_gate`. **No** → `demo_check`, labelled as
-temporal per EDF-06-006.
-
+`demo_gate` — not `demo_check`, and not left bare. `demo_check` records the timeout
+and **continues**, so the next step runs on state that was never established. A
+**bare** call raises `AssertionError` past the harness's failure accumulator:
+earlier `demo_check` failures are lost and downstream steps get no structured skip.
+Bare calls look like gates and are not. **How to decide:** would the next step
+operate on wrong or incomplete state if this wait timed out? **Yes** →
+`demo_gate`. **No** → `demo_check`, labelled as temporal per EDF-06-006.
 Anti-pattern examples and the full diagnostic workflow:
 [`notes/demo-ci-diagnostics.md`](../../notes/demo-ci-diagnostics.md) § "Async Race
 Window Patterns". Normative: EDF-06-005, EDF-06-006. (CONCERN-2325)
@@ -147,7 +146,8 @@ Service names in `docker/docker-compose-multi-actor.yml` are compose routing
 labels, not CVD roles — a service named `vendor` need not house a Vendor actor.
 Reuse the existing four services with role-alias `VULTRON_*_BASE_URL` bindings
 rather than adding services to get a new actor name; this keeps the CI startup
-count constant. See
+count constant, and is why an `ActorRole.url_env` cannot derive from its role name.
+See
 [`notes/demo-scenario-authoring.md`](../../notes/demo-scenario-authoring.md)
 § "Docker Compose Service Names Are Not Actor Names". (ISSUE-1216, ISSUE-1786)
 

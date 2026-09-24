@@ -30,8 +30,8 @@ alias_generator=to_camel", because AS2 spelling belonged to the wire layer
 (ARCH-12-003, ARCH-12-004) and a paired ``as_*`` class held it. ADR-0099 detail 2
 deletes those classes and puts the spelling on the core class, so there is no
 second class left to carry it. The #1991 backlog set that tracked the old
-direction is removed with it; #2288 and #2289 still describe the old goal and need
-reconciling.
+direction is removed with it. #2288 and #2289, which described the old goal, are
+closed as superseded; #3578 owns reconciling ARCH-12-003 against ADR-0099.
 
 Invariant 2 is not met yet. Its known violations are **enumerated** in the backlog
 set below and asserted with ``==``, so the set fails if a new violation appears
@@ -115,9 +115,9 @@ class TestCoreVocabularyHierarchy:
         read the payload. Inheriting from ``CoreObject`` makes "some classes" a
         state the code cannot be in.
 
-        #2288 and #2289 still track the removal and need reconciling against
-        ADR-0099; their premise — render AS2 from the ``as_*`` classes — no longer
-        holds, because those classes are gone.
+        #2288 and #2289 tracked the removal and are closed as superseded; their
+        premise — render AS2 from the ``as_*`` classes — no longer holds, because
+        those classes are gone. #3578 owns the ARCH-12-003 annotation.
         """
         missing = sorted(
             name

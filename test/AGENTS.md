@@ -12,17 +12,20 @@ need on *every* run; the longer pitfall write-ups live in
 ## ⚠️ Running the Test Suite — ONE RUN RULE (MUST)
 
 ```bash
-uv run pytest --tb=short 2>&1 | tail -5
+uv run pytest --tb=short > /tmp/last-test-run.log 2>&1; rc=$?; tail -5 /tmp/last-test-run.log; echo "exit: $rc"; (exit $rc)
 ```
 
 Run **exactly once**. Do NOT re-run to grep counts, change tail length, or add
-`-q` (suppresses summary line). One run, read the tail.
+`-q` (suppresses summary line). One run, read the `exit:` line, then the tail.
 
-**Absence of a summary line means the run was killed, not that it passed** — the
-pipeline returns `tail`'s exit code. See
+**Read `exit:` before the tail — it is the verdict; the tail is only detail.**
+Never pipe the run into `tail` (`… 2>&1 | tail -5`) or through `tee`: a pipeline
+exits with `tail`'s status, so a `pytest-timeout` kill reports 0 and shows dump
+frames where the summary line would be — indistinguishable from a pass if you
+only read the tail. The redirect form above is the default for every run, not a
+diagnostic fallback. See
 [`notes/testing-pitfalls.md`](../notes/testing-pitfalls.md) § "A Killed `pytest`
-Run Reports Exit 0 Under `tail -5`" for the file-redirect form to use when
-diagnosing.
+Run Reports Exit 0 Under `tail -5`".
 
 ## Running a Specific Test File
 
@@ -31,7 +34,7 @@ uv run pytest test/test_semantic_activity_patterns.py -v
 ```
 
 If `vultron/demo/` or `test/demo/` was touched, run the full suite:
-`uv run pytest -m "" --tb=short 2>&1 | tail -5`.
+`uv run pytest -m "" --tb=short > /tmp/last-test-run.log 2>&1; rc=$?; tail -5 /tmp/last-test-run.log; echo "exit: $rc"; (exit $rc)`.
 
 ---
 

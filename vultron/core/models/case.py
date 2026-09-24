@@ -25,8 +25,8 @@ from pydantic import Field, model_validator
 
 from vultron.core.models._helpers import (
     _new_urn,
+    most_recent_status,
     now_utc,
-    status_recency_key,
 )
 from vultron.core.models.base import CoreObject
 from vultron.core.models.case_ledger import compute_genesis_hash
@@ -85,9 +85,9 @@ class VulnerabilityCase(CoreObject):
     # Admits the object, not only a reference, for the same reason
     # `case_participants` does: a recipient cannot dereference a URI it does not
     # hold, and no dereferencing mechanism is specified (AKM-03-001). While this
-    # was `str | None` the object could not survive `_normalize_to_core`, so
-    # every store round-trip — including the one `outbox_delivery` performs when
-    # it re-serialises a queued activity — reduced a carried embargo back to a
+    # was `str | None` the object could not survive a store round-trip — so
+    # every round-trip, including the one `outbox_delivery` performs when
+    # it re-serialises a queued activity, reduced a carried embargo back to a
     # bare id and the recipient was handed a reference it could never resolve.
     # Readers wanting the id should use `_as_id`/`active_embargo_id`.
     active_embargo: str | EmbargoEvent | None = None
@@ -141,11 +141,17 @@ class VulnerabilityCase(CoreObject):
             if not data.get("id") and not data.get("id_"):
                 data["id"] = _new_urn()
             case_id = data.get("id") or data.get("id_")
+            # Only an *omitted* ``published`` is this process authoring the
+            # case; an explicit ``None`` is a received case that claimed no
+            # time, and minting one here would give each receiver its own
+            # genesis for the same case (ISSUE-3257).
             published_val = data.get("published")
-            if published_val is None:
+            if "published" not in data:
                 published_val = now_utc()
                 data["published"] = published_val
-            elif not isinstance(published_val, datetime):
+            elif published_val is not None and not isinstance(
+                published_val, datetime
+            ):
                 try:
                     published_val = datetime.fromisoformat(str(published_val))
                     data["published"] = published_val
@@ -372,10 +378,10 @@ class VulnerabilityCase(CoreObject):
         """Return the most recent materialized :class:`CaseStatus`.
 
         Recency is resolved by ``updated`` then ``published`` via
-        :func:`status_recency_key`. When both are absent the status sorts to
-        the bottom (``datetime.min``); ``id_`` MUST NOT be used as a tiebreaker
-        because its scheme is an implementation artefact, not a time proxy
-        (CM-29-001).
+        :func:`most_recent_status`. When both are absent the status sorts to
+        the bottom (``datetime.min``); among equals the last appended wins.
+        ``id_`` MUST NOT be used as a tiebreaker because its scheme is an
+        implementation artefact, not a time proxy (CM-29-001).
 
         Raises:
             ValueError: When no materialized :class:`CaseStatus` exists.
@@ -387,10 +393,7 @@ class VulnerabilityCase(CoreObject):
             raise ValueError(
                 "VulnerabilityCase has no materialized CaseStatus"
             )
-        return max(
-            materialized,
-            key=lambda cs: status_recency_key(cs.updated, cs.published),
-        )
+        return most_recent_status(materialized)
 
     @property
     def case_status(self) -> CaseStatus:

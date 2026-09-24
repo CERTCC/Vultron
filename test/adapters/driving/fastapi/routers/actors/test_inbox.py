@@ -234,15 +234,16 @@ def test_store_nested_inbox_object_skips_when_no_body(datalayer):
     _store_nested_inbox_object(datalayer, activity, None)
 
 
-def test_store_nested_inbox_object_logs_a_projection_failure(
+def test_store_nested_inbox_object_projection_failure_surfaces_on_read(
     datalayer, caplog
 ):
-    """An unpersistable inline object must be logged at ERROR (issue #2232).
+    """An unpersistable inline object surfaces its failure on read (#2232, #2940).
 
-    A projection failure and an "already exists" collision both used to surface
-    as ``ValueError`` and were swallowed together at DEBUG, so the row was
-    silently absent and downstream BT nodes reported a misleading "participant
-    not found".  The distinct ``VultronValidationError`` is now logged loudly.
+    Since #2940 removed write-side wire→core normalisation (``extra="forbid"``
+    is the boundary contract now), ingress stores the inline object verbatim
+    rather than rejecting it at write.  The projection failure is not silently
+    swallowed: reading the row back logs a WARNING and returns the un-projected
+    wire object rather than a misleading "not found" or a wrong core object.
     """
     import logging
 
@@ -274,11 +275,16 @@ def test_store_nested_inbox_object_logs_a_projection_failure(
         actor=_ACTOR_URI, object_=unprojectable
     )
 
-    with caplog.at_level(logging.ERROR):
-        _store_nested_inbox_object(datalayer, activity, None)
+    _store_nested_inbox_object(datalayer, activity, None)
 
-    assert datalayer.read(unprojectable.id_) is None
-    assert "cannot be projected" in caplog.text
+    with caplog.at_level(logging.WARNING):
+        result = datalayer.read(unprojectable.id_)
+
+    # Present (not silently absent) but surfaced as the un-projected wire
+    # fallback, with the failure logged loudly.
+    assert result is not None
+    assert type(result).__module__.startswith("vultron.wire.as2")
+    assert "issue #2232" in caplog.text
 
 
 def test_store_nested_inbox_object_duplicate_stays_at_debug(datalayer, caplog):

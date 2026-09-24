@@ -160,6 +160,7 @@ sense the docs actually use.
 *[OpSec]: Operational Security
 *[OS]: Operating System
 *[OUSPG]: Oulu University Secure Programming Group
+*[OWL]: Web Ontology Language
 
 *[PCI DSS]: Payment Card Industry Data Security Standard
 *[PEC]: Participant Embargo Consent

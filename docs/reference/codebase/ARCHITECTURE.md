@@ -56,7 +56,7 @@ HTTP POST /inbox  (wire: AS2 JSON)
 | Semantic pattern registry | `vultron/semantic_registry/` | Match incoming AS2 activities to `MessageSemantics` via ordered pattern list |
 | `pydantic-settings` layered config | `vultron/config/app.py` | Merge YAML file + env vars + defaults in a single `AppConfig` object |
 | Typed ports on BT DataLayer nodes | `vultron/core/behaviors/` (nodes using `WithPorts` variants) | Declare blackboard key dependencies as typed class attributes instead of calling `register_key()` at runtime; enforced by `test/architecture/test_no_bare_register_key_datalayer_nodes.py` (BTND-03-009) |
-| `WireRenderPort` driven port | `vultron/core/ports/wire_render.py` + `vultron/adapters/driven/wire_render/as2.py` | Allows core behaviors to obtain wire-shaped (AS2 camelCase) JSON from a domain object without importing from `vultron/wire/`; adapter translates via `VOCABULARY` registry |
+| `WireRenderPort` driven port | `vultron/core/ports/wire_render.py` + `vultron/adapters/driven/wire_render/as2.py` | Allows core behaviors to obtain wire-shaped (AS2 camelCase) JSON from a domain object without importing from `vultron/wire/`; adapter resolves the wire counterpart through the `WIRE_TYPE_MAP` registry |
 
 ### 5) Known Architectural Risks
 

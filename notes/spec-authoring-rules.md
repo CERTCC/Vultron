@@ -218,6 +218,31 @@ Source: ISSUE-2606
 
 ---
 
+## A Spec States Current Understanding, Not Its Own Edit History
+
+`rationale:` and `verification:` are as normative-adjacent as `statement:` —
+agents read all three to infer what the project believes. So when a requirement
+changes, rewrite its supporting prose to describe the world as it is now.
+**Specs do not maintain their history**; `git log`, ADRs and `plan/history/` do.
+
+The failure mode is specific. VM-01-004's rationale narrated its own amendment
+("This requirement previously stated that the key *is* the AS2 `type` value…")
+and, to make the point, cited the `as_VultronPerson` → `VultronPerson` dual key
+as an example of harmless divergence. The registry was later split in two, which
+made the type-value key form correct for one of them — but the rationale still
+read as a standing endorsement of the divergence, and its verification clause
+described a test asserting it. The bug in #2982 therefore looked like intended
+design to every agent who checked, for as long as the prose survived.
+
+**How to apply:** after changing a `statement:`, reread its `rationale:` and
+`verification:` and delete any clause that only makes sense against the
+superseded version — especially a concrete example chosen to illustrate the old
+framing. If the history matters, it belongs in the ADR the entry's `adr:` field
+points to. And do not describe a verification test that does not exist: write it,
+or describe the one that does.
+
+Source: ISSUE-2982
+
 ## Audit Passes
 
 ### Retiring a File or Label Requires Auditing All Specs for Bare-Filename References

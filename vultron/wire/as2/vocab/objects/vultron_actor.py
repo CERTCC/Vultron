@@ -42,21 +42,17 @@ as_VultronService = VultronService
 as_VultronApplication = VultronApplication
 as_VultronGroup = VultronGroup
 
-# Register core actor classes in WIRE_TYPE_MAP for wire type-string lookup
-# (e.g. incoming JSON with "type": "Person") and for render() class-name lookup.
+# Register core actor classes in WIRE_TYPE_MAP under their emitted ``type``
+# value, so an inbound ``{"type": "Person"}`` deserializes to ``VultronPerson``,
+# which carries ``embargo_policy`` — the base ``as_Person`` would drop it. These
+# deliberately shadow the ``actors.py`` registrations; this module imports
+# ``actors`` so it always registers second. No class-name key is registered:
+# ``VultronPerson`` is no payload's ``type`` value (VM-01-008, #2982).
 WIRE_TYPE_MAP["Person"] = VultronPerson
 WIRE_TYPE_MAP["Organization"] = VultronOrganization
 WIRE_TYPE_MAP["Service"] = VultronService
 WIRE_TYPE_MAP["Application"] = VultronApplication
 WIRE_TYPE_MAP["Group"] = VultronGroup
-
-# Class-name entries so As2WireRenderAdapter.render() can locate the type by
-# type(obj).__name__ (e.g. "VultronPerson").
-WIRE_TYPE_MAP["VultronPerson"] = VultronPerson
-WIRE_TYPE_MAP["VultronOrganization"] = VultronOrganization
-WIRE_TYPE_MAP["VultronService"] = VultronService
-WIRE_TYPE_MAP["VultronApplication"] = VultronApplication
-WIRE_TYPE_MAP["VultronGroup"] = VultronGroup
 
 as_VultronPersonRef: TypeAlias = ActivityStreamRef[VultronPerson]
 as_VultronOrganizationRef: TypeAlias = ActivityStreamRef[VultronOrganization]

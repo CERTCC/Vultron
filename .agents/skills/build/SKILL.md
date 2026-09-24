@@ -125,7 +125,10 @@ Invoke the `orient-agent` skill.
    or class is present, the referenced behavior is implemented).
 
    If **no** `- [ ] AC-N:` items are found in the issue body (prose-format
-   or free-form ACs), skip this gate and proceed directly to step 7.
+   or free-form ACs), the gate cannot run mechanically — and that is where
+   already-delivered work slips through. Read the prose, list its concrete
+   claims, and check each against `origin/main` by hand as above. Only then
+   proceed to step 7 (or close per the rules below) (#1907, #3036).
 
    If **all** ACs are confirmed satisfied on `origin/main`:
 
@@ -291,13 +294,16 @@ later) are separate decisions. Apply
    ```bash
    uv run black vultron/ test/
    uv run flake8 vultron/ test/ && uv run mypy && uv run pyright
-   uv run pytest --tb=short 2>&1 | tee /tmp/pytest-unit.log | tail -5
-   uv run pytest -m integration --tb=short 2>&1 | tee /tmp/pytest-integration.log | tail -5
+   uv run pytest --tb=short > /tmp/pytest-unit.log 2>&1; rc=$?; tail -5 /tmp/pytest-unit.log; echo "exit: $rc"; (exit $rc)
+   uv run pytest -m integration --tb=short > /tmp/pytest-integration.log 2>&1; rc=$?; tail -5 /tmp/pytest-integration.log; echo "exit: $rc"; (exit $rc)
    ```
 
    Both suites must pass. The first command covers the unit suite (integration
    tests excluded by `addopts`); the second explicitly runs the integration
    suite so demo-layer regressions are caught before the PR opens.
+   Do not run `mdlint.sh` or any other whole-tree tool concurrently with the
+   integration suite; resource contention can inflate per-test runtime past the
+   per-test timeout ceiling.
 
 2. Do not skip or delegate validation.
 3. Apply branch-ownership and pre-existing-failure rules from
@@ -335,9 +341,11 @@ draft commit and use `git diff main...HEAD` normally.
 
 ### Phase 8 — Open PR and Finalize
 
-1. Compute diff size over the whole PR: ≤50 lines → `size:S`; 51–300 →
-   `size:M`; 301+ → `size:L`. Update the `size:` label on the Issue — on every
-   member for a bundle, each carrying the whole-PR size (PAD-05-002).
+1. **Do not set a `size:` label.** The `pr-size-label` workflow measures the
+   whole-PR diff and applies it on every push (PAD-05-002), and the Issue keeps
+   its AC-count estimate untouched so estimate-versus-actual stays queryable
+   (PAD-05-010). See `shared/sizing.md`. To see the size before pushing:
+   `PYTHONPATH= uv run pr-size --base origin/main`.
 
 2. Invoke the `create-pr` skill to push and open the PR. One bundle is one PR:
    the body carries `- Closes #N` **once per member, in bundle order**, and the
@@ -348,7 +356,7 @@ draft commit and use `git diff main...HEAD` normally.
    type:         implementation
    title:        <short title>
    body:         <composed per pr-body-guide.md implementation template>
-   labels:       size:<X>
+   labels:       <topic labels only — never size:, see step 1>
    issue_number: <N>        # the first bundle member
    ```
 

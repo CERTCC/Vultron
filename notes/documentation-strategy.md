@@ -10,9 +10,12 @@ related_notes:
   - notes/documentation-sweeps.md
   - notes/message-type-reference.md
   - notes/rfc-spec-authoring.md
+  - notes/site-information-architecture.md
   - notes/spec-authoring-rules.md
+  - notes/vocabulary-registry.md
 related_specs:
   - specs/diataxis-requirements.yaml
+  - specs/docs-build-workflow.yaml
 relevant_packages:
   - vultron/bt
   - vultron/core
@@ -290,10 +293,53 @@ A reasonable convention: add a front-matter note to historical docs stating
 the document predates the ActivityStreams implementation and may not reflect
 current design. This preserves historical context without causing confusion.
 
-## MkDocs `not_in_nav` and `exclude_docs` Are Not the Same
+## Where a Page Belongs Is a Separate Question
+
+This file covers how to *interpret* and *trust* the documentation generations,
+and which of the three behavior views to edit. It does not decide where a page
+sits or what it may assume of its reader — that is
+[site-information-architecture.md](site-information-architecture.md) (ADR-0102,
+DF-11): stakeholder types, the invisible 100–500 prerequisite levels, the
+working-record exclusion, and the routing rule for landing pages and large leaf
+sets.
+
+## MkDocs `not_in_nav`, `exclude_docs` and `draft_docs` Are Not the Same
 
 Files excluded from nav MUST ALSO be listed in `not_in_nav`; the overlay list
 *replaces* the base list rather than extending it.
+
+There are three keys, and they answer different questions. `not_in_nav` means
+"no nav entry, and no omitted-file warning" — the file is still published.
+`exclude_docs` means "not processed at all", in `build` and `serve` alike.
+`draft_docs` means "published by `mkdocs serve`, absent from `mkdocs build`",
+which is what withholding an artifact from the site while keeping it reviewable
+locally requires. `docs/developer/` and `docs/ns/` both use it.
+
+Three mechanics bite here, and each one has cost something:
+
+- **A `draft_docs` pattern withholds static files too, not only pages.**
+  `set_exclusions` in `mkdocs/structure/files.py` assigns an inclusion level to
+  every file it walks, and `copy_static_files` filters on the same
+  `is_included()` predicate that `documentation_pages()` uses. So
+  `docs/ns/context.jsonld` goes with `docs/ns/index.md` under a single `ns/`
+  pattern. Do not reach for `exclude_docs` to catch the non-Markdown half.
+- **`draft: true` in page frontmatter does nothing.** `draft` is a key of the
+  Material *blog* plugin, not of MkDocs. `docs/ns/index.md` carried it and
+  published anyway. Whoever wrote it believed the page was suppressed, and
+  nothing contradicted them, because the page was only ever checked by reading
+  the frontmatter that claimed to suppress it. Withholding happens in
+  `mkdocs.yml` and nowhere else.
+- **Patterns are relative to `docs_dir` and fail silently when mis-anchored.**
+  `docs/developer/` matched a nonexistent `docs/docs/developer/` and those pages
+  shipped for as long as nobody looked (DOCBW-03-004).
+
+All three failures share one shape: the withholding claim and the build output
+were never compared. `uv run docs-withheld`
+(`vultron/metadata/docs/withheld.py`) is that comparison, and DOCBW-03-005 runs
+it in `docs-build-check.yml` after the build. It checks the *outcome* rather
+than the `mkdocs.yml` mechanism, so a mis-anchored pattern or a plugin-emitted
+file fails the gate instead of shipping. Its declaration of what is withheld is
+the interim home for the publication axis; #3555's maturity manifest replaces it.
 
 ## Nav Visibility Is Not a Content Class: Fragments vs. Assembly Units
 

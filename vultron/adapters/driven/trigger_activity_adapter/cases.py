@@ -16,9 +16,9 @@
 """Case-domain trigger activity construction for TriggerActivityAdapter."""
 
 import logging
-from typing import Any, cast
+from typing import Any
 
-from pydantic import BaseModel, ValidationError
+from pydantic import ValidationError
 
 from vultron.core.ports.case_persistence import CaseOutboxPersistence
 from vultron.errors import (
@@ -37,53 +37,14 @@ from vultron.wire.as2.factories.case import (
     reject_case_proposal_activity,
 )
 from vultron.wire.as2.vocab.base.objects.activities.transitive import as_Add
-from vultron.wire.as2.vocab.base.objects.base import as_Object
-from vultron.wire.as2.vocab.base.registry import find_in_vocabulary
-from vultron.wire.as2.vocab.objects.base import as_VultronObject
 from vultron.wire.as2.vocab.objects.case_status import as_CaseStatus
 from vultron.wire.as2.vocab.objects.vulnerability_report import (
     as_VulnerabilityReport,
 )
 
-from ._base import _DUMP_KWARGS, _case_for_wire, _to_wire
+from ._base import _DUMP_KWARGS, _case_for_wire, _to_wire, _to_wire_object
 
 logger = logging.getLogger(__name__)
-
-
-def _resolve_to_wire_object(obj: Any) -> Any:
-    """Coerce *obj* to its wire vocabulary counterpart when needed.
-
-    Returns *obj* unchanged if it is already an ``as_Object``.
-    Raises ``ValueError`` when no wire class is registered or conversion fails.
-    """
-    if isinstance(obj, as_Object):
-        return obj
-    try:
-        wire_cls = find_in_vocabulary(obj.__class__.__name__)
-    except KeyError:
-        raise ValueError(
-            f"add_object_to_case: no wire class registered for"
-            f" {obj.__class__.__name__!r}"
-        )
-    if issubclass(wire_cls, as_VultronObject):
-        if not isinstance(obj, BaseModel):
-            raise ValueError(
-                f"add_object_to_case: {obj.__class__.__name__!r} is not a"
-                " Pydantic model and cannot be used in an AS2 activity"
-            )
-        try:
-            return wire_cls.from_core(obj)
-        except Exception as exc:
-            raise ValueError(
-                f"add_object_to_case: from_core failed for"
-                f" {obj.__class__.__name__!r}: {exc}"
-            ) from exc
-    if wire_cls is obj.__class__:
-        return obj  # promoted core class IS the wire class (ADR-0099 detail 3)
-    raise ValueError(
-        f"add_object_to_case: {obj.__class__.__name__!r} has no"
-        f" as_VultronObject wire counterpart"
-    )
 
 
 class _CasesMixin:
@@ -208,10 +169,25 @@ class _CasesMixin:
         object_id: str,
         case_id: str,
     ) -> tuple[str, str]:
-        """Create and persist an ``Add(object, Case)`` activity."""
+        """Create and persist an ``Add(object, Case)`` activity.
+
+        The object may be of any stored type; :func:`_to_wire_object` resolves
+        it to the object the activity carries.
+
+        Raises:
+            VultronNotFoundError: when *object_id* is not in the DataLayer.
+            VultronActivityConstructionError: when the object has no wire
+                representation or the ``Add`` cannot be constructed with it.
+        """
         case = _case_for_wire(self._dl, case_id)
-        obj = _resolve_to_wire_object(cast(Any, self._dl.read(object_id)))
-        activity = as_Add(actor=actor, object_=obj, target=case.id_)
+        obj = _to_wire_object(self._dl.read(object_id), object_id)
+        try:
+            activity = as_Add(actor=actor, object_=obj, target=case)
+        except ValidationError as exc:
+            raise VultronActivityConstructionError(
+                f"add_object_to_case: object '{object_id}' of type"
+                f" {type(obj).__name__!r} cannot be carried in an Add activity"
+            ) from exc
         try:
             self._dl.create(activity)
         except VultronAlreadyExistsError:
