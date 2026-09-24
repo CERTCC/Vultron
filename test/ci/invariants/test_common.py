@@ -1331,6 +1331,33 @@ class TestCheckClp14TimestampInvariants:
         )
         assert any("CLP-14-006" in v for v in violations)
 
+    @pytest.mark.spec("CLP-14-010")
+    def test_clp14_010_detects_log_index_gap(self):
+        entries = [
+            _ts_chain_entry(
+                0, published=_T0.isoformat(), event_type="create_case"
+            ),
+            _ts_chain_entry(1, published=_T1.isoformat()),
+            _ts_chain_entry(3, published=_T2.isoformat()),  # 2 is missing
+        ]
+        violations = common.check_clp14_timestamp_invariants(
+            self._replicas(entries)
+        )
+        assert any("CLP-14-010" in v and "[2]" in v for v in violations)
+
+    @pytest.mark.spec("CLP-14-010")
+    def test_clp14_010_detects_ledger_not_starting_at_genesis(self):
+        entries = [
+            _ts_chain_entry(
+                1, published=_T0.isoformat(), event_type="create_case"
+            ),
+            _ts_chain_entry(2, published=_T1.isoformat()),
+        ]
+        violations = common.check_clp14_timestamp_invariants(
+            self._replicas(entries)
+        )
+        assert any("CLP-14-010" in v and "[0]" in v for v in violations)
+
     def test_valid_entries_produce_no_violations(self):
         violations = common.check_clp14_timestamp_invariants(
             self._replicas(self._valid_entries())

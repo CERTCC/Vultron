@@ -287,6 +287,7 @@ def make_universal_invariant_tests(  # noqa: C901
     @pytest.mark.spec("CLP-14-003")
     @pytest.mark.spec("CLP-14-005")
     @pytest.mark.spec("CLP-14-006")
+    @pytest.mark.spec("CLP-14-010")
     def test_invariant_clp14_timestamp_invariants(
         request: pytest.FixtureRequest,
     ) -> None:
