@@ -96,18 +96,15 @@ class ReconstructChainTailNode(DataLayerActionWithPorts):
         super().__init__(name=name or self.__class__.__name__)
         self._case_id = case_id
 
-    @classmethod
-    def input_ports(cls) -> dict[str, PortInformation]:
-        ports = super().input_ports()
-        ports["activity"] = PortInformation(data_type=object, required=False)
-        return ports
+    INPUT_PORTS: dict[str, PortInformation] = {
+        **DataLayerActionWithPorts.INPUT_PORTS,
+        "activity": PortInformation(data_type=object, required=False),
+    }
 
-    @classmethod
-    def output_ports(cls) -> dict[str, PortInformation]:
-        return {
-            "tail_hash": PortInformation(data_type=object, required=True),
-            "tail_index": PortInformation(data_type=object, required=True),
-        }
+    OUTPUT_PORTS: dict[str, PortInformation] = {
+        "tail_hash": PortInformation(data_type=object, required=True),
+        "tail_index": PortInformation(data_type=object, required=True),
+    }
 
     @classmethod
     def _domain_port_remappings(cls) -> dict[str, str]:
@@ -184,11 +181,10 @@ class ReconstructChainTailNode(DataLayerActionWithPorts):
 
 
 class UpdateReplicationStateNode(DataLayerActionWithPorts):
-    @classmethod
-    def input_ports(cls) -> dict[str, PortInformation]:
-        ports = super().input_ports()
-        ports["activity"] = PortInformation(data_type=object, required=True)
-        return ports
+    INPUT_PORTS: dict[str, PortInformation] = {
+        **DataLayerActionWithPorts.INPUT_PORTS,
+        "activity": PortInformation(data_type=object, required=True),
+    }
 
     @classmethod
     def _domain_port_remappings(cls) -> dict[str, str]:
@@ -258,23 +254,20 @@ class CreateLogEntryNode(DataLayerActionWithPorts):
         self.payload_snapshot = dict(payload_snapshot or {})
         self.term = term
 
-    @classmethod
-    def input_ports(cls) -> dict[str, PortInformation]:
-        ports = super().input_ports()
-        ports["tail_hash"] = PortInformation(data_type=object, required=True)
-        ports["tail_index"] = PortInformation(data_type=object, required=True)
-        return ports
+    INPUT_PORTS: dict[str, PortInformation] = {
+        **DataLayerActionWithPorts.INPUT_PORTS,
+        "tail_hash": PortInformation(data_type=object, required=True),
+        "tail_index": PortInformation(data_type=object, required=True),
+    }
 
-    @classmethod
-    def output_ports(cls) -> dict[str, PortInformation]:
-        return {
-            "log_entry": PortInformation(
-                data_type=VultronCaseLedgerEntry, required=True
-            ),
-            "log_entry_preexisting": PortInformation(
-                data_type=object, required=True
-            ),
-        }
+    OUTPUT_PORTS: dict[str, PortInformation] = {
+        "log_entry": PortInformation(
+            data_type=VultronCaseLedgerEntry, required=True
+        ),
+        "log_entry_preexisting": PortInformation(
+            data_type=object, required=True
+        ),
+    }
 
     @classmethod
     def _domain_port_remappings(cls) -> dict[str, str]:
@@ -375,16 +368,15 @@ class CreateLogEntryNode(DataLayerActionWithPorts):
 
 
 class PersistLogEntryNode(DataLayerActionWithPorts):
-    @classmethod
-    def input_ports(cls) -> dict[str, PortInformation]:
-        ports = super().input_ports()
-        ports["log_entry"] = PortInformation(
+    INPUT_PORTS: dict[str, PortInformation] = {
+        **DataLayerActionWithPorts.INPUT_PORTS,
+        "log_entry": PortInformation(
             data_type=VultronCaseLedgerEntry, required=True
-        )
-        ports["log_entry_preexisting"] = PortInformation(
+        ),
+        "log_entry_preexisting": PortInformation(
             data_type=bool, required=False
-        )
-        return ports
+        ),
+    }
 
     @classmethod
     def _domain_port_remappings(cls) -> dict[str, str]:

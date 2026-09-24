@@ -949,7 +949,7 @@ groups:
     kind: project
     statement: >
       A named capability MUST declare its blackboard contract as py_trees typed
-      ports (ADR-0044 input_ports() / output_ports()) on a declaration owned by
+      ports (ADR-0044 INPUT_PORTS / OUTPUT_PORTS) on a declaration owned by
       the core layer. The typed-port declaration is the authoritative contract;
       the class docstring required by BT-18-001 describes it but is not the
       authority. A capability declaration MUST NOT live in vultron/demo/.

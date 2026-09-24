@@ -48,22 +48,17 @@ class CollectCaseAddresseesNode(DataLayerActionWithPorts):
     def __init__(self, name: str | None = None):
         super().__init__(name=name or self.__class__.__name__)
 
-    @classmethod
-    def input_ports(cls) -> dict[str, PortInformation]:
-        ports = super().input_ports()
-        ports["case_id"] = PortInformation(data_type=str, required=True)
-        return ports
+    INPUT_PORTS: dict[str, PortInformation] = {
+        **DataLayerActionWithPorts.INPUT_PORTS,
+        "case_id": PortInformation(data_type=str, required=True),
+    }
 
-    @classmethod
-    def output_ports(cls) -> dict[str, PortInformation]:
-        return {
-            "create_case_obj": PortInformation(
-                data_type=object, required=True
-            ),
-            "create_case_addressees": PortInformation(
-                data_type=object, required=True
-            ),
-        }
+    OUTPUT_PORTS: dict[str, PortInformation] = {
+        "create_case_obj": PortInformation(data_type=object, required=True),
+        "create_case_addressees": PortInformation(
+            data_type=object, required=True
+        ),
+    }
 
     @classmethod
     def _domain_port_remappings(cls) -> dict[str, str]:
@@ -119,21 +114,18 @@ class CreateAndPersistCaseActivityNode(DataLayerActionWithPorts):
     def __init__(self, name: str | None = None):
         super().__init__(name=name or self.__class__.__name__)
 
-    @classmethod
-    def input_ports(cls) -> dict[str, PortInformation]:
-        ports = super().input_ports()
-        ports["case_id"] = PortInformation(data_type=str, required=True)
-        ports["create_case_obj"] = PortInformation(
+    INPUT_PORTS: dict[str, PortInformation] = {
+        **DataLayerActionWithPorts.INPUT_PORTS,
+        "case_id": PortInformation(data_type=str, required=True),
+        "create_case_obj": PortInformation(data_type=object, required=True),
+        "create_case_addressees": PortInformation(
             data_type=object, required=True
-        )
-        ports["create_case_addressees"] = PortInformation(
-            data_type=object, required=True
-        )
-        return ports
+        ),
+    }
 
-    @classmethod
-    def output_ports(cls) -> dict[str, PortInformation]:
-        return {"activity_id": PortInformation(data_type=str, required=True)}
+    OUTPUT_PORTS: dict[str, PortInformation] = {
+        "activity_id": PortInformation(data_type=str, required=True),
+    }
 
     @classmethod
     def _domain_port_remappings(cls) -> dict[str, str]:

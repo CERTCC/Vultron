@@ -260,7 +260,10 @@ groups:
           Dependabot PRs arrive in waves (e.g., weekly dependency bumps) and
           are unlikely to break the demo; running the full container stack on
           each one wastes CI resources. The python-app.yml test suite still
-          guards against broken dependencies on Dependabot PRs.
+          guards against broken dependencies on Dependabot PRs — which holds
+          only because its path filter includes `uv.lock`: a bump inside an
+          existing version range touches nothing else, and without it such a
+          bump merged with no test run at all (#3610).
 
       - id: DEMOCI-02-005
         priority: MUST

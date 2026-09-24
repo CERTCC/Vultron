@@ -34,13 +34,11 @@ class ResolveCaseManagerNode(DataLayerActionWithPorts):
         super().__init__(name=name or self.__class__.__name__)
         self.case_id = case_id
 
-    @classmethod
-    def output_ports(cls) -> dict[str, PortInformation]:
-        return {
-            "case_manager_id": PortInformation(
-                data_type=str | None, required=True
-            )
-        }
+    OUTPUT_PORTS: dict[str, PortInformation] = {
+        "case_manager_id": PortInformation(
+            data_type=str | None, required=True
+        ),
+    }
 
     @classmethod
     def _domain_port_remappings(cls) -> dict[str, str]:
@@ -87,19 +85,14 @@ class ConstructActivitiesNode(DataLayerActionWithPorts):
         super().__init__(name=name or self.__class__.__name__)
         self._activity_builder = activity_builder
 
-    @classmethod
-    def input_ports(cls) -> dict[str, PortInformation]:
-        ports = super().input_ports()
-        ports["case_manager_id"] = PortInformation(
-            data_type=str, required=True
-        )
-        return ports
+    INPUT_PORTS: dict[str, PortInformation] = {
+        **DataLayerActionWithPorts.INPUT_PORTS,
+        "case_manager_id": PortInformation(data_type=str, required=True),
+    }
 
-    @classmethod
-    def output_ports(cls) -> dict[str, PortInformation]:
-        return {
-            "activity_ids": PortInformation(data_type=object, required=True)
-        }
+    OUTPUT_PORTS: dict[str, PortInformation] = {
+        "activity_ids": PortInformation(data_type=object, required=True),
+    }
 
     @classmethod
     def _domain_port_remappings(cls) -> dict[str, str]:
@@ -140,13 +133,10 @@ class QueueToOutboxNode(DataLayerActionWithPorts):
     def __init__(self, name: str | None = None) -> None:
         super().__init__(name=name or self.__class__.__name__)
 
-    @classmethod
-    def input_ports(cls) -> dict[str, PortInformation]:
-        ports = super().input_ports()
-        ports["activity_ids"] = PortInformation(
-            data_type=object, required=True
-        )
-        return ports
+    INPUT_PORTS: dict[str, PortInformation] = {
+        **DataLayerActionWithPorts.INPUT_PORTS,
+        "activity_ids": PortInformation(data_type=object, required=True),
+    }
 
     @classmethod
     def _domain_port_remappings(cls) -> dict[str, str]:

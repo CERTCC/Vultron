@@ -161,11 +161,13 @@ groups:
     kind: project
     statement: New BT nodes in `vultron/core/behaviors/` MUST subclass `DataLayerConditionWithPorts` or
       `DataLayerActionWithPorts` (from `helpers.py`) rather than `DataLayerCondition` / `DataLayerAction`. The typed
-      `input_ports()` / `output_ports()` class methods constitute the node's formal blackboard contract and MUST declare
-      every port the node reads or writes.
+      `INPUT_PORTS` / `OUTPUT_PORTS` class attributes constitute the node's formal blackboard contract and MUST declare
+      every port the node reads or writes. A subclass extends its parent's ports by spreading the parent attribute
+      (`{**Parent.INPUT_PORTS, ...}`) and MUST NOT override the `input_ports()` / `output_ports()` accessors.
     rationale: Typed port declarations are machine-readable, appear at the class level, and are the single source of truth
       for a node's data-flow contract. The imperative `register_key()` approach scatters declarations across `setup()`,
-      `initialise()`, and `update()`. See ADR-0044.
+      `initialise()`, and `update()`. py_trees >= 2.6 treats a ports class lacking either attribute as abstract and
+      refuses to instantiate it, so an accessor override is not a valid declaration (#3610, #3613). See ADR-0044.
     relationships:
     - rel_type: extends
       spec_id: BTND-03-001
@@ -205,11 +207,11 @@ groups:
     kind: project
     statement: >
       A `DataLayerActionWithPorts` subclass that writes an inter-node handoff key MUST declare that key as an
-      output port in `output_ports()` and write values via `self._set_output(port_name, value)` rather than via
+      output port in `OUTPUT_PORTS` and write values via `self._set_output(port_name, value)` rather than via
       direct `self.blackboard.<key> = value` attribute assignment. Output port remappings MUST be included in the
       `port_remappings` dict passed to `setup_ports()` (typically via `_domain_port_remappings()`).
     rationale: >
-      Declaring output ports in `output_ports()` makes the node's write contract explicit and machine-readable,
+      Declaring output ports in `OUTPUT_PORTS` makes the node's write contract explicit and machine-readable,
       consistent with the input-port convention from BTND-03-009/BTND-03-011. Using `_set_output()` routes writes
       through the typed port layer so the framework enforces that only declared output keys are written.
     relationships:
@@ -221,13 +223,13 @@ groups:
     statement: >
       Where the physical blackboard key for an output port is execution-scoped (computed from constructor
       parameters per BTND-03-004, e.g. `suggested_roles_abc123`), the node MUST declare a stable logical port
-      name in `output_ports()` using only the `{noun}` part (no `_{id_segment}` suffix), and MUST bind the
+      name in `OUTPUT_PORTS` using only the `{noun}` part (no `_{id_segment}` suffix), and MUST bind the
       physical execution-scoped key by overriding `setup()` to pass `port_remappings={"logical_name": physical_key}`
       to `setup_ports()`. The logical name is the public contract; the physical key is the per-execution wire-up.
     rationale: >
-      `output_ports()` is a classmethod with no access to instance state, so execution-scoped physical keys
+      `OUTPUT_PORTS` is a class attribute with no access to instance state, so execution-scoped physical keys
       (computed in `__init__`) cannot be declared there directly. Declaring a stable logical name and binding the
-      physical key in `setup()` separates the interface (classmethod) from the execution-time binding (instance
+      physical key in `setup()` separates the interface (class attribute) from the execution-time binding (instance
       method), preserving BTND-03-004 concurrent-execution safety while enabling typed port declarations.
       Validated against `py_trees.ports.PortsMixin.setup_ports()` remapping semantics.
     relationships:

@@ -53,9 +53,9 @@ class PersistCase(DataLayerActionWithPorts):
         super().__init__(name=name or self.__class__.__name__)
         self.case_obj = case_obj
 
-    @classmethod
-    def output_ports(cls) -> dict[str, PortInformation]:
-        return {"case_id": PortInformation(data_type=str, required=True)}
+    OUTPUT_PORTS: dict[str, PortInformation] = {
+        "case_id": PortInformation(data_type=str, required=True),
+    }
 
     @classmethod
     def _domain_port_remappings(cls) -> dict[str, str]:
@@ -112,19 +112,16 @@ class RecordOfferReceivedEventNode(DataLayerActionWithPorts):
     def __init__(self, name: str | None = None):
         super().__init__(name=name or self.__class__.__name__)
 
-    @classmethod
-    def input_ports(cls) -> dict[str, PortInformation]:
-        ports = super().input_ports()
-        ports["case_id"] = PortInformation(data_type=str, required=True)
-        return ports
+    INPUT_PORTS: dict[str, PortInformation] = {
+        **DataLayerActionWithPorts.INPUT_PORTS,
+        "case_id": PortInformation(data_type=str, required=True),
+    }
 
-    @classmethod
-    def output_ports(cls) -> dict[str, PortInformation]:
-        return {
-            "case_for_creation_events": PortInformation(
-                data_type=object, required=True
-            )
-        }
+    OUTPUT_PORTS: dict[str, PortInformation] = {
+        "case_for_creation_events": PortInformation(
+            data_type=object, required=True
+        ),
+    }
 
     @classmethod
     def _domain_port_remappings(cls) -> dict[str, str]:
@@ -160,14 +157,13 @@ class RecordCaseCreatedEventNode(DataLayerActionWithPorts):
     def __init__(self, name: str | None = None):
         super().__init__(name=name or self.__class__.__name__)
 
-    @classmethod
-    def input_ports(cls) -> dict[str, PortInformation]:
-        ports = super().input_ports()
-        ports["case_id"] = PortInformation(data_type=str, required=True)
-        ports["case_for_creation_events"] = PortInformation(
+    INPUT_PORTS: dict[str, PortInformation] = {
+        **DataLayerActionWithPorts.INPUT_PORTS,
+        "case_id": PortInformation(data_type=str, required=True),
+        "case_for_creation_events": PortInformation(
             data_type=object, required=True
-        )
-        return ports
+        ),
+    }
 
     @classmethod
     def _domain_port_remappings(cls) -> dict[str, str]:
@@ -233,12 +229,10 @@ class PublishCaseActorIdentityNode(DataLayerActionWithPorts):
         super().__init__(name=name or self.__class__.__name__)
         self._case_id = case_id
 
-    @classmethod
-    def output_ports(cls) -> dict[str, PortInformation]:
-        return {
-            "case_id": PortInformation(data_type=str, required=True),
-            "case_actor_id": PortInformation(data_type=str, required=True),
-        }
+    OUTPUT_PORTS: dict[str, PortInformation] = {
+        "case_id": PortInformation(data_type=str, required=True),
+        "case_actor_id": PortInformation(data_type=str, required=True),
+    }
 
     @classmethod
     def _domain_port_remappings(cls) -> dict[str, str]:

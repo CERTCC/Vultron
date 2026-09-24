@@ -175,13 +175,10 @@ class EmitOfferCaseParticipantToOwnerNode(DataLayerActionWithPorts):
         self.recommended_id = recommended_id
         self.case_id = case_id
 
-    @classmethod
-    def input_ports(cls) -> dict[str, PortInformation]:
-        ports = super().input_ports()
-        ports["suggested_roles"] = PortInformation(
-            data_type=list, required=False
-        )
-        return ports
+    INPUT_PORTS: dict[str, PortInformation] = {
+        **DataLayerActionWithPorts.INPUT_PORTS,
+        "suggested_roles": PortInformation(data_type=list, required=False),
+    }
 
     def setup(self, **kwargs) -> None:
         id_segment = self.recommendation_id.split("/")[-1]

@@ -99,15 +99,11 @@ class _IsIDAssignmentAuthorityNode(BehaviourWithPorts):
             f"{self.__class__.__module__}.{self.__class__.__name__}"
         )
 
-    @classmethod
-    def input_ports(cls) -> dict[str, PortInformation]:
-        return {
-            _ACTOR_ROLES_KEY: PortInformation(data_type=list, required=False),
-        }
+    INPUT_PORTS: dict[str, PortInformation] = {
+        _ACTOR_ROLES_KEY: PortInformation(data_type=list, required=False),
+    }
 
-    @classmethod
-    def output_ports(cls) -> dict[str, PortInformation]:
-        return {}
+    OUTPUT_PORTS: dict[str, PortInformation] = {}
 
     def setup(self, **kwargs: Any) -> None:
         self.setup_ports(
@@ -165,17 +161,13 @@ class _IsOrWillBePubliclyDisclosedNode(BehaviourWithPorts):
             f"{self.__class__.__module__}.{self.__class__.__name__}"
         )
 
-    @classmethod
-    def input_ports(cls) -> dict[str, PortInformation]:
-        return {
-            _PUBLICATION_INTENT_SET_KEY: PortInformation(
-                data_type=object, required=False
-            ),
-        }
+    INPUT_PORTS: dict[str, PortInformation] = {
+        _PUBLICATION_INTENT_SET_KEY: PortInformation(
+            data_type=object, required=False
+        ),
+    }
 
-    @classmethod
-    def output_ports(cls) -> dict[str, PortInformation]:
-        return {}
+    OUTPUT_PORTS: dict[str, PortInformation] = {}
 
     def setup(self, **kwargs: Any) -> None:
         self.setup_ports(

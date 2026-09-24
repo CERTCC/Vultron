@@ -85,11 +85,10 @@ class AddReporterParticipantNode(DataLayerActionWithPorts):
             force_rm_state=True,
         )
 
-    @classmethod
-    def input_ports(cls) -> dict[str, PortInformation]:
-        ports = super().input_ports()
-        ports["case_id"] = PortInformation(data_type=str, required=False)
-        return ports
+    INPUT_PORTS: dict[str, PortInformation] = {
+        **DataLayerActionWithPorts.INPUT_PORTS,
+        "case_id": PortInformation(data_type=str, required=False),
+    }
 
     @classmethod
     def _domain_port_remappings(cls) -> dict[str, str]:

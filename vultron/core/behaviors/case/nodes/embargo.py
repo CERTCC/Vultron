@@ -86,13 +86,11 @@ class ResolveEmbargoDurationNode(DataLayerActionWithPorts):
     def __init__(self, name: str | None = None) -> None:
         super().__init__(name=name or self.__class__.__name__)
 
-    @classmethod
-    def output_ports(cls) -> dict[str, PortInformation]:
-        return {
-            "default_embargo_duration": PortInformation(
-                data_type=object, required=True
-            )
-        }
+    OUTPUT_PORTS: dict[str, PortInformation] = {
+        "default_embargo_duration": PortInformation(
+            data_type=object, required=True
+        ),
+    }
 
     @classmethod
     def _domain_port_remappings(cls) -> dict[str, str]:
@@ -115,20 +113,17 @@ class CreateEmbargoEventNode(DataLayerActionWithPorts):
     def __init__(self, name: str | None = None) -> None:
         super().__init__(name=name or self.__class__.__name__)
 
-    @classmethod
-    def input_ports(cls) -> dict[str, PortInformation]:
-        ports = super().input_ports()
-        ports["case_id"] = PortInformation(data_type=str, required=True)
-        ports["default_embargo_duration"] = PortInformation(
+    INPUT_PORTS: dict[str, PortInformation] = {
+        **DataLayerActionWithPorts.INPUT_PORTS,
+        "case_id": PortInformation(data_type=str, required=True),
+        "default_embargo_duration": PortInformation(
             data_type=object, required=True
-        )
-        return ports
+        ),
+    }
 
-    @classmethod
-    def output_ports(cls) -> dict[str, PortInformation]:
-        return {
-            "default_embargo_id": PortInformation(data_type=str, required=True)
-        }
+    OUTPUT_PORTS: dict[str, PortInformation] = {
+        "default_embargo_id": PortInformation(data_type=str, required=True),
+    }
 
     @classmethod
     def _domain_port_remappings(cls) -> dict[str, str]:
@@ -190,22 +185,17 @@ class AdvanceEMStateToActiveNode(DataLayerActionWithPorts):
     def __init__(self, name: str | None = None) -> None:
         super().__init__(name=name or self.__class__.__name__)
 
-    @classmethod
-    def input_ports(cls) -> dict[str, PortInformation]:
-        ports = super().input_ports()
-        ports["case_id"] = PortInformation(data_type=str, required=True)
-        ports["default_embargo_id"] = PortInformation(
-            data_type=str, required=True
-        )
-        return ports
+    INPUT_PORTS: dict[str, PortInformation] = {
+        **DataLayerActionWithPorts.INPUT_PORTS,
+        "case_id": PortInformation(data_type=str, required=True),
+        "default_embargo_id": PortInformation(data_type=str, required=True),
+    }
 
-    @classmethod
-    def output_ports(cls) -> dict[str, PortInformation]:
-        return {
-            "default_embargo_initialized": PortInformation(
-                data_type=object, required=True
-            )
-        }
+    OUTPUT_PORTS: dict[str, PortInformation] = {
+        "default_embargo_initialized": PortInformation(
+            data_type=object, required=True
+        ),
+    }
 
     @classmethod
     def _domain_port_remappings(cls) -> dict[str, str]:
@@ -301,17 +291,14 @@ class AttachEmbargoToCaseNode(DataLayerActionWithPorts):
     def __init__(self, name: str | None = None) -> None:
         super().__init__(name=name or self.__class__.__name__)
 
-    @classmethod
-    def input_ports(cls) -> dict[str, PortInformation]:
-        ports = super().input_ports()
-        ports["case_id"] = PortInformation(data_type=str, required=True)
-        ports["default_embargo_initialized"] = PortInformation(
+    INPUT_PORTS: dict[str, PortInformation] = {
+        **DataLayerActionWithPorts.INPUT_PORTS,
+        "case_id": PortInformation(data_type=str, required=True),
+        "default_embargo_initialized": PortInformation(
             data_type=object, required=True
-        )
-        ports["default_embargo_id"] = PortInformation(
-            data_type=str, required=True
-        )
-        return ports
+        ),
+        "default_embargo_id": PortInformation(data_type=str, required=True),
+    }
 
     @classmethod
     def _domain_port_remappings(cls) -> dict[str, str]:
@@ -382,14 +369,13 @@ class SeedOwnerAsSignatoryNode(DataLayerActionWithPorts):
     def __init__(self, name: str | None = None) -> None:
         super().__init__(name=name or self.__class__.__name__)
 
-    @classmethod
-    def input_ports(cls) -> dict[str, PortInformation]:
-        ports = super().input_ports()
-        ports["case_id"] = PortInformation(data_type=str, required=True)
-        ports["default_embargo_initialized"] = PortInformation(
+    INPUT_PORTS: dict[str, PortInformation] = {
+        **DataLayerActionWithPorts.INPUT_PORTS,
+        "case_id": PortInformation(data_type=str, required=True),
+        "default_embargo_initialized": PortInformation(
             data_type=object, required=True
-        )
-        return ports
+        ),
+    }
 
     @classmethod
     def _domain_port_remappings(cls) -> dict[str, str]:

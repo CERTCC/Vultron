@@ -25,6 +25,8 @@ than in each consumer's module so the producer/consumer contract for
 ``/case_id`` has exactly one definition.
 """
 
+from typing import Any
+
 from py_trees.common import Status
 from py_trees.ports import PortInformation
 
@@ -68,9 +70,9 @@ class RequireCaseForReport(DataLayerActionWithPorts):
         super().__init__(name=name or self.__class__.__name__)
         self._report_id = report_id
 
-    @classmethod
-    def output_ports(cls) -> dict[str, PortInformation]:
-        return {"case_id": PortInformation(data_type=str, required=True)}
+    OUTPUT_PORTS: dict[str, PortInformation] = {
+        "case_id": PortInformation(data_type=str, required=True),
+    }
 
     @classmethod
     def _domain_port_remappings(cls) -> dict[str, str]:
@@ -122,13 +124,20 @@ class CaseIdInputPortMixin:
     tick per tree (ARCH-15-004).
     """
 
-    @classmethod
-    def input_ports(cls) -> dict[str, PortInformation]:
-        ports: dict[str, PortInformation] = dict(
-            super().input_ports()  # type: ignore[misc]
-        )
-        ports["case_id"] = PortInformation(data_type=str, required=False)
-        return ports
+    # Annotation only: binding a value here would make every class that mixes
+    # this in look like it had declared its ports (py_trees' abstract check).
+    INPUT_PORTS: dict[str, PortInformation]
+
+    def __init_subclass__(cls, **kwargs: Any) -> None:
+        # A mixin cannot merge a class attribute through ``super()``, so add
+        # the port to whatever ``INPUT_PORTS`` the class ends up with. This
+        # runs before ``PortsMixin.__init_subclass__`` (the mixin precedes
+        # the ports base in the MRO), so the port is validated with the rest.
+        cls.INPUT_PORTS = {
+            **getattr(cls, "INPUT_PORTS", {}),
+            "case_id": PortInformation(data_type=str, required=False),
+        }
+        super().__init_subclass__(**kwargs)
 
     @classmethod
     def _domain_port_remappings(cls) -> dict[str, str]:

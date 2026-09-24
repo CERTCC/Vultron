@@ -297,9 +297,9 @@ class ReadEmbargoIdNode(DataLayerActionWithPorts):
         super().__init__(name=name or self.__class__.__name__)
         self._case_id = case_id
 
-    @classmethod
-    def output_ports(cls) -> dict[str, PortInformation]:
-        return {"embargo_id": PortInformation(data_type=str, required=True)}
+    OUTPUT_PORTS: dict[str, PortInformation] = {
+        "embargo_id": PortInformation(data_type=str, required=True),
+    }
 
     @classmethod
     def _domain_port_remappings(cls) -> dict[str, str]:
