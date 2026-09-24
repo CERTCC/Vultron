@@ -76,16 +76,9 @@ Guardrail".
 
 ## `test/demo/` Tests Are Auto-Marked `integration` by a Directory Hook
 
-`test/demo/conftest.py` has a `pytest_collection_modifyitems` hook that
-unconditionally adds `pytest.mark.integration` to **every** test collected from
-`test/demo/`, regardless of whether the test actually starts a FastAPI
-`TestClient`. Because the default `pyproject.toml` `addopts` is
-`-m 'not integration'`, a pure-unit test placed in `test/demo/` will be
-**silently deselected** by a bare `uv run pytest test/demo/test_something.py` —
-the run reports "N deselected" and 0 passed, which looks like a collection error
-but is not.
-
-**To run or confirm tests under `test/demo/`, always pass `-m ""`:**
+`test/demo/conftest.py` marks **every** test there `integration`, and `addopts`
+is `-m 'not integration'` — so a bare run of one demo file silently deselects it
+("N deselected", 0 passed), which reads like a collection error. Always `-m ""`:
 
 ```bash
 uv run pytest test/demo/test_something.py -m ""
@@ -100,15 +93,13 @@ Each actor MUST use a **distinct `DataLayer` instance**; mark tests
 [`vultron/adapters/driven/AGENTS.md`](../vultron/adapters/driven/AGENTS.md)
 § "Co-located actor isolation" and § "Reentrancy Guard".
 
-An `actor_id` *is* a store name, and a BT's store follows its executing actor —
-both hazards, and the `@pytest.mark.executes_as` declaration that resolves the
-second, are in
-[`notes/datalayer-design.md`](../notes/datalayer-design.md) § "One Actor Id Is One
-Database".
+An `actor_id` *is* a store name and a BT's store follows its executing actor —
+both hazards, plus the `@pytest.mark.executes_as` fix for the second:
+[`notes/datalayer-design.md`](../notes/datalayer-design.md) § "One Actor Id Is
+One Database".
 
-CI failures: see
-[`notes/demo-ci-diagnostics.md`](../notes/demo-ci-diagnostics.md). The invariant
-harness runs as a separate job from the demo run and must be read separately:
+CI failures: [`notes/demo-ci-diagnostics.md`](../notes/demo-ci-diagnostics.md).
+The invariant harness is a separate job from the demo run, read separately:
 [`notes/demo-ci-invariants.md`](../notes/demo-ci-invariants.md).
 
 ---
@@ -131,13 +122,12 @@ Use neutral names: `MockEnum`, `ExampleState`, `FixtureEnum`. Enforced by
 
 (SR-05-004, ISSUE-2117)
 
-Protocol-kind requirements are conformance-critical. Without a marker the CI
-uncovered-count ratchet (SR-05-005,
-`test/architecture/test_spec_coverage_ratchet.py`) cannot enforce coverage and
-the requirement becomes unverifiable. Add `@pytest.mark.spec("<ID>")` to every
-test that exercises a `kind: protocol` spec entry, and run `spec-coverage` to
-find protocol IDs with no markers yet. The strict-`xfail` pattern for a spec
-whose implementation does not exist yet is in
+Without a marker the CI uncovered-count ratchet (SR-05-005,
+`test/architecture/test_spec_coverage_ratchet.py`) cannot enforce coverage, so
+the conformance-critical requirement becomes unverifiable. Add
+`@pytest.mark.spec("<ID>")` to every test exercising a `kind: protocol` entry;
+`spec-coverage` lists protocol IDs still unmarked. The strict-`xfail` pattern for
+a spec whose implementation does not exist yet:
 [`notes/spec-authoring-rules.md`](../notes/spec-authoring-rules.md).
 
 ### Renaming a Mark Touches Three Files
@@ -196,15 +186,13 @@ Full write-ups in [`notes/testing-pitfalls.md`](../notes/testing-pitfalls.md):
   helpers; trigger use cases need per-use-case tests
   ([`notes/triggers-test-coverage.md`](../notes/triggers-test-coverage.md)).
 - **The timeout *method* sets what a trip costs; the ceiling only sets how
-  often** — `timeout_method = "thread"` kills the whole session, so raising a
-  ceiling lowers the frequency of signal loss and never its severity. The method
-  has been named as the culprit repeatedly and never changed, because a ceiling
-  bump is always the smaller diff (#3603).
+  often** — raising a ceiling never reduces the severity of `thread`'s
+  whole-session kill, which is why the real dial went untouched for six
+  re-diagnoses (#3603).
 - **A marker sweep that counts declarations misses a directory hook** — grepping
-  `pytestmark` reports `test/demo/` as non-compliant when the directory hook
-  marks it 100%; measure what collected items carry with a `trylast` probe
-  plugin. Likewise a tier assertion built on `FakeItem`s or a synthetic
-  `pytester` session does not cover the real collection (#3604).
+  `pytestmark` calls `test/demo/` non-compliant when its hook marks it 100%; ask
+  what collected items carry via a `trylast` probe. A tier assertion over
+  `FakeItem`s or a synthetic `pytester` session misses the real collection (#3604).
 - **SYNC replication test setup** —
   [`notes/sync-ledger-replication.md`](../notes/sync-ledger-replication.md)
   § "SYNC Replication Test Patterns".
