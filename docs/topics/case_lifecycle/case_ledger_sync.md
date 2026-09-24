@@ -143,17 +143,16 @@ knows first-hand.
 | Every entry in a ledger belongs to the same case | [CLP-14-004](../../reference/specs/protocol.md#clp-14) |
 | No two entries in a case share a `log_index` | [CLP-14-005](../../reference/specs/protocol.md#clp-14) |
 | No entry predates the case it belongs to | [CLP-14-006](../../reference/specs/protocol.md#clp-14) |
+| Index numbers have no holes: the genesis entry is 0 and each later entry is one more than the entry before it | [CLP-14-010](../../reference/specs/protocol.md#clp-14) |
 
-Whether the index run may contain holes is not settled. A replica must hold a
-contiguous run from the genesis entry through the position it has acknowledged
-before it may take new protocol-significant actions on the case
-([SYNC-10-004](../../reference/specs/protocol.md#sync-10)), and in practice a
-receiver treats a hole as a missing entry. But `log_index` is consumed by every
-appended entry, rejections included, and rejections are not part of the recorded
-projection — so a hole in that projection is not by itself proof of loss.
-ADR-0079 states the rule both ways in different sections; the contradiction is
-tracked in [#2752](https://github.com/CERTCC/Vultron/issues/2752) and is not
-resolved here.
+Because the index run has no holes, a hole means an entry is missing. A
+receiver that sees an entry whose `log_index` is greater than its tail index
+plus one keeps that entry aside and asks the CASE_MANAGER to replay what it
+missed ([SYNC-14-001, SYNC-14-002](../../reference/specs/protocol.md#sync-14)). A replica
+must hold every entry from genesis through the position it has acknowledged
+before it takes new protocol-significant actions on the case
+([SYNC-10-004](../../reference/specs/protocol.md#sync-10)). Rejected assertions
+do not use up an index, because the ledger records only accepted entries.
 
 The CASE_MANAGER should also refuse an assertion whose own timestamp is far in
 the future or far in the past compared to its clock — by default, more than
