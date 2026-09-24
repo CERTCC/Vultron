@@ -1,6 +1,7 @@
 ---
 stakeholder_type: [platform-developer, project-contributor]
 level: 400
+introduces: [VulnerabilityCase, CaseParticipant, Dimension Object, CVDRole]
 ---
 
 # The Case Model

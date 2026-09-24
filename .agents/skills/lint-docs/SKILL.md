@@ -78,6 +78,14 @@ sections. Pervasive drift is Phase 4, not Phase 3 — see SG-20.
 Report these with the file, the line, the rule ID, and a recommended fix. Do
 not apply them.
 
+Start with `uv run docs-level-order` and `uv run docs-frontmatter`. Both are
+site-wide, so report only the findings on target pages. Each `docs-level-order`
+finding is a mechanical instance of SG-10 and SG-11: a concept used at
+`path:line:col` that a higher-level page introduces, with no link. Report it
+with both fixes: link the use to the named page, or re-level the page. The tool
+sees only terms some page declares under `introduces:`, so the concept-order
+and first-use checks below still need judgment for every other term.
+
 - **Concept order** (SG-10) — a section using a concept the page has not
   introduced. Name the forward reference and the section order that fixes it.
 - **Unlinked first use** (SG-11) — a glossary or taxonomy term used without a

@@ -1,6 +1,7 @@
 ---
 stakeholder_type: [platform-developer]
 level: 400
+introduces: [CASE_MANAGER, Case Ledger Entry, Participant Case Replica, Canonical Recorded Log, Single-Writer Regime, Ledger Fanout, LedgerGapBuffer]
 ---
 
 # Case Ledger Synchronization
