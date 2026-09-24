@@ -1,3 +1,9 @@
+---
+description: >
+  A single-page summary of the protocol's state machines, message types, and
+  how they interact.
+---
+
 # Protocol Quick Reference
 
 {% include-markdown "../includes/not_normative.md" %}

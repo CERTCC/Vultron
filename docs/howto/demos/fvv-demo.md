@@ -1,3 +1,9 @@
+---
+description: >
+  Run the three-actor Finder, Vendor, Vendor (FVV) demo, in which two vendors
+  each advance an independent fix path with no coordinator.
+---
+
 # How to Run the FVV Demo
 
 The **FVV demo** exercises the three-actor CVD workflow:

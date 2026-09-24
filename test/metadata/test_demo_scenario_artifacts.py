@@ -515,7 +515,7 @@ def test_splice_rejects_a_file_without_markers() -> None:
     Appending would leave the stale copy in place above the new one — two
     tables on one subject, which is the drift this whole mechanism removes.
     """
-    with pytest.raises(ValueError, match="found 0 generated-table begin"):
+    with pytest.raises(ValueError, match="found 0 generated-block begin"):
         splice("# A doc with no markers\n", "| a |\n", "some/doc.md")
 
 
@@ -539,7 +539,7 @@ def test_splice_rejects_duplicated_markers(label: str) -> None:
         f"prose\n\n{doubled}\n"
     )
     with pytest.raises(
-        ValueError, match=f"found 2 generated-table {label} markers"
+        ValueError, match=f"found 2 generated-block {label} markers"
     ):
         splice(current, "| a |", "some/doc.md")
 

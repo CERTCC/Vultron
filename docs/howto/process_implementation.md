@@ -1,3 +1,9 @@
+---
+description: >
+  Integrate the Report Management (RM), Embargo Management (EM), and Case
+  State (CS) state machines into an existing workflow management system.
+---
+
 # Process Implementation Notes
 
 {% include-markdown "../includes/not_normative.md" %}

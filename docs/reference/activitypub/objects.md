@@ -1,3 +1,9 @@
+---
+description: >
+  The Vultron ActivityStreams objects that extend the ActivityStreams
+  vocabulary.
+---
+
 # Vultron ActivityStreams Objects
 
 {% include-markdown "../../includes/not_normative.md" %}
@@ -62,7 +68,7 @@ no special semantics are defined for those objects in the context of the Vultron
 
 !!! tip inline end "See also"
 
-    These objects are also described in the [Case Object](../../howto/case_object.md) section.
+    These objects are also described in the [Case Model](../../topics/case_lifecycle/case_model.md) section.
     This section describes how these objects are represented as ActivityStreams objects.
 
 The following objects are defined for use in the Vultron AS vocabulary:
@@ -120,7 +126,7 @@ print(json2md(gen_report()))
 A `VulnerabilityCase` object is used to represent a vulnerability case as an ActivityStreams object.
 As with `VulnerabilityReport`, this protocol does not define a full vulnerability case data object.
 Instead, it defines a minimal set of properties necessary to support the protocol.
-The `VulnerabilityCase` object is consistent with the [Case Object](../../howto/case_object.md) defined elsewhere.
+The `VulnerabilityCase` object is consistent with the [Case Model](../../topics/case_lifecycle/case_model.md) defined elsewhere.
 
 !!! tip "ActivityStreams Objects are for Interoperability"
 
@@ -139,7 +145,7 @@ print(json2md(populated_case()))
 ### CaseStatus
 
 A `CaseStatus` object is used to represent the participant-agnostic status of a `VulnerabilityCase` object.
-The semantics of the `CaseStatus` object are described in the [Case Object](../../howto/case_object.md) section.
+The semantics of the `CaseStatus` object are described in the [Case Model](../../topics/case_lifecycle/case_model.md) section.
 The distinction between *participant-agnostic* and *participant-specific* status is described in the
 [Global vs Local](../../topics/process_models/model_interactions/index.md) section.
 

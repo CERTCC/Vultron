@@ -1,3 +1,8 @@
+---
+description: >
+  An annotated listing of every state in the case state model.
+---
+
 <!-- This file is auto-generated. Do not edit. -->
 
 # Case States

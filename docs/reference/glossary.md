@@ -1,3 +1,9 @@
+---
+description: >
+  Domain terminology for the Vultron Coordinated Vulnerability Disclosure
+  (CVD) protocol and its reference implementation, with the aliases to avoid.
+---
+
 # Glossary — Vultron
 
 Domain terminology for Vultron's Coordinated Vulnerability Disclosure (CVD)

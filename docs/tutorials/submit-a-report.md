@@ -1,3 +1,10 @@
+---
+description: >
+  Start the reference implementation, construct a
+  `Create(VulnerabilityReport)` message by hand, post it to an actor's inbox,
+  and confirm the actor received it.
+---
+
 # Tutorial: Submit a report to a Vultron actor
 
 In this tutorial, we will submit a vulnerability report to a running Vultron

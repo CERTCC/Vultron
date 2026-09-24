@@ -1,3 +1,9 @@
+---
+description: >
+  Structured requirements organized by portability tier: Protocol,
+  Architecture, Project, and Process.
+---
+
 # Specifications
 
 Structured requirements for the Vultron protocol and its implementation,

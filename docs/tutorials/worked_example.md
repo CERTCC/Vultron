@@ -1,3 +1,10 @@
+---
+description: >
+  Sequence diagrams of a few usage scenarios, from a finder becoming a
+  reporter through embargo negotiation, coordination, publication, and case
+  closure.
+---
+
 # Worked Example
 
 {% include-markdown "../includes/not_normative.md" %}
