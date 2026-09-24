@@ -176,7 +176,7 @@ independence (or overlap), and may accelerate the embargo timeline.
 **Prerequisite (found in #2844)**: a report added to an existing case is
 stored only on the receiving replica and never written to the canonical case
 ledger, so later joiners and ledger resyncs do not see it. The Task is blocked
-by the core fix. The same fix blocks the two-reporter consolidation scenario
+by the core fix (#3665). The same fix blocks the two-reporter consolidation scenario
 (#1231).
 
 ---
@@ -216,10 +216,10 @@ code and specs of the day and reached a different verdict for three of the six.
 |---|---|---|
 | x03 | Blocked — party discovery | Unchanged. Ejected from G08 (#2836) to G13 (#2841), which is deferred. |
 | x05 | Blocked — pseudonymity | No pseudonym or redacted-view mechanism exists (#2562, G13, deferred). |
-| x12 | Authorable, sequenced | Needs a case created already public, which EP-04-008 specifies but is not built. |
-| x16 | Authorable now | The multi-vendor invite and suggest flows already exist. The gap statement was stale. |
-| x17 | Blocked — admission | An outsider has no protocol act for asking to join a case. |
-| x21 | Authorable now | A mid-case coordinator invite plus ownership transfer is exactly `fvcv-handoff`. The gap statement was stale. |
+| x12 | Authorable, sequenced | Needs a case created already public, which EP-04-008 specifies but is not built. Task #3673. |
+| x16 | Authorable now | The multi-vendor invite and suggest flows already exist. The gap statement was stale. Task #3674. |
+| x17 | Blocked — admission | An outsider has no protocol act for asking to join a case (#3670). |
+| x21 | Authorable now | A mid-case coordinator invite plus ownership transfer is exactly `fvcv-handoff`. The gap statement was stale. Task #3675. |
 
 **Do not re-derive these gaps from the entries below.** The *Gap* lines record
 what the re-triage found, not what the original filing said.
@@ -278,6 +278,9 @@ tear it down, which inverts the point of the recipe. The scenario waits for
 case creation to honour P at creation (#3392) and for the vendor-only scenario
 it builds on.
 
+**Vultron issue**: Task #3673 under epic #1160, blocked by the vendor-only
+scenario (#3667) and #3392.
+
 ---
 
 ### x16 — Known downstream vendors in supply chain
@@ -299,6 +302,8 @@ exist:
 Owner) suggesting the downstream vendors. CM-16-001 permits any participant to
 suggest.
 
+**Vultron issue**: Task #3674 under epic #1160.
+
 ---
 
 ### x17 — Unknown downstream vendors
@@ -318,7 +323,7 @@ which downstream vendors identify themselves.
 participant off-protocol and is invited after publication. That demonstrates
 a late invite, which other scenarios already cover, not self-identification.
 
-**Idea issue**: #2064 — open, blocked by the admission Concern.
+**Idea issue**: #2064 — open, blocked by the admission Concern #3670.
 
 ---
 
@@ -335,10 +340,13 @@ or an x08/x19 extension deadlock.
 **Blocked variant**: when the Case Owner *is* the failing party, a Reporter
 can only suggest a Coordinator (CM-16), and the suggestion waits on the
 owner's acceptance with no deadline and no consequence when it goes
-unanswered. That is a protocol-asks question, not a scenario.
+unanswered. That is a protocol-asks question, not a scenario (Concern #3669
+under epic #3188).
 
 **Not modelled**: how a mediator behaves. `CVDRole.COORDINATOR` exists, and
 differentiated actor behaviour belongs to #1646 (deferred).
+
+**Vultron issue**: Task #3675 under epic #1160.
 
 ## Tier C — Out of Scope
 
