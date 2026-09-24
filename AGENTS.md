@@ -288,41 +288,41 @@ linked file before touching that area. New pitfalls MUST be routed per
 
 ### Cross-cutting rules with no other home
 
-- **Splits must not produce new god modules** — submodules ≤500 lines, split
-  recursively when they re-accumulate (CS-18-001–004). A leaf within ~20 lines of
-  the cap must be split *before* you add docstrings (BTND-07-004/006). Flat
-  `nodes.py` in a BT area is non-compliant (BTND-07-001/003).
+- **Splits must not produce new god modules** — submodules ≤500 lines, split again
+  when they re-accumulate (CS-18-001–004); a leaf within ~20 lines of the cap splits
+  *before* docstrings (BTND-07-004/006); flat `nodes.py` in a BT area fails (BTND-07-001/003).
 - **Splits must re-export** — use-case subpackages re-export classes *and* request
-  models; module splits re-import moved names for `monkeypatch` (`# noqa: F401`,
-  #972); FastAPI router packages re-export `dependency_overrides` keys (#970).
-  Deleting a module instead needs importer proof: no live importers in `vultron/`
-  or `test/`.
+  models; module splits re-import moved names for `monkeypatch` (`# noqa: F401`, #972);
+  FastAPI router packages re-export `dependency_overrides` keys (#970). Deleting a
+  module instead needs importer proof: no live importers in `vultron/` or `test/`.
 - **`dl.save/create/update/delete()` in `execute()` bypasses the BT audit trail** —
   ratchet: `test/architecture/test_no_dl_mutations_in_execute.py` (#1071).
 - **Receive-side ordering is guards → commit → effects** (CLP-10-006); received
-  `execute()` never calls `commit_log_entry_trigger()` (BT-06-006, SYNC-02-002).
-  **Stub adapters raise `NotImplementedError`** — docstring-only stubs hide
-  integration gaps (OX-10-004, OX-11-004).
-- **Protocol-declared fields must stay in sync with concrete classes**, and
-  `TypeGuard` discriminators may `hasattr`-check only Protocol-declared attributes
-  (CS-20-001/002).
+  `execute()` never calls `commit_log_entry_trigger()` (BT-06-006, SYNC-02-002). **Stub
+  adapters raise `NotImplementedError`**, never docstring-only (OX-10-004, OX-11-004).
+- **Protocol-declared fields stay in sync with concrete classes**, and `TypeGuard`
+  discriminators may `hasattr`-check only Protocol-declared attributes (CS-20-001/002).
 - **Emit nodes in case-scoped trigger BTs fail fast on a missing CaseActor**
   (PCR-08-011); **peer broadcast nodes must not mask delivery failure** (BT-14-001).
-- **Small habits**: mypy infers a type from the first branch assignment (use
-  distinct names per `except`/`if`-else branch); pre-build dedup sets before
-  fallback loops (`seen = set(d.values())`, O(n×m) → O(n+m)); walrus for
-  single-assignment guards (`if (f := self._require_factory()) is not None`).
-- **Bulk logging-level refactors need a consistency grep pass**, and designed
-  self-healing recovery paths log WARNING/INFO, never ERROR
+- **Small habits**: mypy infers a type from the first branch assignment (distinct names
+  per `except`/`if`-else branch); pre-build dedup sets before fallback loops
+  (`seen = set(d.values())`, O(n×m) → O(n+m)); walrus for single-assignment guards
+  (`if (f := self._require_factory()) is not None`).
+- **Bulk logging-level refactors need a consistency grep pass**; designed self-healing
+  recovery paths log WARNING/INFO, never ERROR
   ([notes/structured-logging.md](notes/structured-logging.md)).
 - **Superseded notes sections are archived via `append-history note`** (PD-03-002,
-  PD-03-004); **large migrations partition by node shape, then domain — and batch
-  by subsystem or script the mechanical pass so a fork run does not exhaust its
-  200-turn cap** ([notes/agentic-workflow.md](notes/agentic-workflow.md)); **MkDocs
-  `not_in_nav` ≠ `exclude_docs`, and neither is a lint-scope class** — nav exclusion says nothing
-  about whether a file is prose, so `_*.md` include fragments MUST be linted as
-  source while page-scoped rules go to the assembled page (DF-09-007, ADR-0092;
-  `lint-docs` does not do this yet — #3318)
+  PD-03-004); **large migrations partition by node shape then domain**, batched by
+  subsystem or scripted so a fork run does not exhaust its 200-turn cap
+  ([notes/agentic-workflow.md](notes/agentic-workflow.md)); **MkDocs `not_in_nav` ≠
+  `exclude_docs`, and neither is a lint-scope class** — nav exclusion says nothing
+  about whether a file is prose, so `_*.md` include fragments MUST be linted as source
+  while page-scoped rules go to the assembled page (DF-09-007, ADR-0092; `lint-docs`
+  does not do this yet — #3318); **withholding a page does not unlink it** —
+  `draft_docs` suppresses the build, not the generators that enumerate pages, and
+  `--strict` never sees an exec-block link, so the gate is *resolution* over every
+  built `site/` file (`docs-links`), not link form (`.md` suffix) and not a crawl from
+  `index.html` (DOCBW-03-007, #3574)
   ([notes/documentation-strategy.md](notes/documentation-strategy.md)).
 - **Transport-role naming must stay explicit** — core ports docs, adapter notes,
   ADR refs and codebase reference pages change together. Likewise

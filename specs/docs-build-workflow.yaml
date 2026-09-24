@@ -7,7 +7,7 @@ description: >-
   It is distinct from `python-app.yml` (Python unit tests and linting) and
   `.github/workflows/demo-integration.yml` (demo container integration tests,
   specified in `specs/demo-ci.yaml`).
-version: 1.1.0
+version: 1.2.0
 scope:
   - prototype
   - production
@@ -83,13 +83,18 @@ groups:
         priority: MUST
         kind: project
         statement: >-
-          The Check Links step MUST carry a step-level `if:` condition that
-          skips it unless the `docs_changed` filter output is `'true'`.
+          The Check Links step that resolves **external** URLs MUST carry a
+          step-level `if:` condition that skips it unless the `docs_changed`
+          filter output is `'true'`. This requirement governs that step only;
+          the internal-reference check is unconditional (DOCBW-03-007).
         rationale: >-
-          Link-checking requires crawling the entire built site and is
-          significantly slower than the build step alone. Running it on
-          every trigger (e.g., `pyproject.toml` bumps) wastes CI time
-          without providing additional safety.
+          Resolving external URLs requires network requests for every outbound
+          link and is significantly slower than the build step alone. Running it
+          on every trigger (e.g., `pyproject.toml` bumps) wastes CI time without
+          providing additional safety. The scope limit matters because this
+          clause reads as the project's whole position on link checking and is
+          not: internal references are checked offline against the built tree on
+          every trigger, and the two axes have opposite cost profiles.
       - id: DOCBW-03-004
         priority: SHOULD
         kind: project
@@ -145,6 +150,37 @@ groups:
           `test/ci/test_withheld_gate_in_workflows.py` asserts every workflow
           running `mkdocs build` also runs `docs-withheld` after it, and that in
           `deploy_site.yml` the step precedes `actions/upload-pages-artifact`.
+      - id: DOCBW-03-007
+        priority: MUST
+        kind: project
+        lint_suppress: [phantom_path_ref]
+        statement: >-
+          A reference-axis step MUST run after the Build Site step on every
+          trigger, with no `docs_changed` condition, and MUST fail the workflow
+          when any internal reference in the built `site/` tree resolves to a
+          path the build did not produce. It MUST evaluate every built HTML file
+          rather than only those reachable from an entry page, MUST fail when
+          `site/` is absent or empty, and MUST run in every workflow that builds
+          the site, on the same terms as DOCBW-03-006.
+        rationale: >-
+          DOCBW-03-005 checks the publication axis — a withheld artifact
+          produced no files. The reference axis went unchecked: `docs/ns/` moving
+          to `draft_docs` (#3549) left the What's New list advertising
+          `../../ns/`, a well-formed path with no target (#3574). `--strict` is
+          blind to it: markdown-exec renders on a child `Markdown` instance with
+          no relative-link treeprocessor. Checking *resolution* subsumes form
+          signatures like a `.md` suffix. Other clauses:
+          `notes/documentation-strategy.md`.
+        verification: >-
+          `uv run docs-links` (`vultron/metadata/docs/links.py`) exits non-zero,
+          invoked unconditionally after the build in
+          `.github/workflows/docs-build-check.yml` and in
+          `.github/workflows/deploy_site.yml` before the Pages upload. Its logic
+          is covered by `test/metadata/docs/test_links.py` over synthetic built
+          trees, including the absent-`site/` failure, a reference to a withheld
+          page, a reference ending in `.md`, and a reference on a page no entry
+          point links to. `test/ci/test_withheld_gate_in_workflows.py` extends to
+          assert the step's presence and placement.
 
   - id: DOCBW-04
     title: Docs-Changed Filter Step
