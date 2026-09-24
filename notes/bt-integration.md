@@ -13,6 +13,7 @@ related_notes:
   - notes/bt-fuzzer-nodes.md
   - notes/protocol-event-cascades.md
   - notes/use-case-behavior-trees.md
+  - notes/testing-pitfalls.md
 relevant_packages:
   - py_trees
   - vultron/bt

@@ -195,6 +195,16 @@ Full write-ups in [`notes/testing-pitfalls.md`](../notes/testing-pitfalls.md):
 - **Coverage shape** — one test per distinct lookup path when consolidating
   helpers; trigger use cases need per-use-case tests
   ([`notes/triggers-test-coverage.md`](../notes/triggers-test-coverage.md)).
+- **The timeout *method* sets what a trip costs; the ceiling only sets how
+  often** — `timeout_method = "thread"` kills the whole session, so raising a
+  ceiling lowers the frequency of signal loss and never its severity. The method
+  has been named as the culprit repeatedly and never changed, because a ceiling
+  bump is always the smaller diff (#3603).
+- **A marker sweep that counts declarations misses a directory hook** — grepping
+  `pytestmark` reports `test/demo/` as non-compliant when the directory hook
+  marks it 100%; measure what collected items carry with a `trylast` probe
+  plugin. Likewise a tier assertion built on `FakeItem`s or a synthetic
+  `pytester` session does not cover the real collection (#3604).
 - **SYNC replication test setup** —
   [`notes/sync-ledger-replication.md`](../notes/sync-ledger-replication.md)
   § "SYNC Replication Test Patterns".

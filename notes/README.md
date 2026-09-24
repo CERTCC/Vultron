@@ -724,11 +724,14 @@ xdist compatibility.
 **`testing-pitfalls.md`**
 Full write-ups for the pytest pitfalls that `test/AGENTS.md` only indexes:
 reading a killed run, the two-tier timeout guardrail and why a tight ceiling
-reads as flakiness, fixture/blackboard isolation, py_trees test patterns,
-assertion-quality traps (vacuous asserts, "falls back to" tests, bare
+reads as flakiness, why the timeout *method* sets what a trip costs while the
+ceiling only sets how often, measuring the markers collected items really carry
+instead of grepping declarations, fixture/blackboard isolation, py_trees test
+patterns, assertion-quality traps (vacuous asserts, "falls back to" tests, bare
 `MagicMock`), and test layout rules for module splits.
 **Load when**: writing or debugging tests, diagnosing an order-dependent or
-apparently-flaky failure, or reviewing a test for vacuous assertions.
+apparently-flaky failure, auditing marker or timeout-tier coverage, or reviewing
+a test for vacuous assertions.
 
 **`flaky-tests.md`**
 Fast-lookup catalog of known flaky tests and CI jobs → tracking issue numbers.

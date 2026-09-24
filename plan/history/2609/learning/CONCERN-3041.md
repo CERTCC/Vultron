@@ -50,11 +50,11 @@ green happy-path run does not exercise it. That evaluation is #3603.
 
 ## Decision recorded
 
-Spec amendment plus notes, no ADR (user decision). Stale timeout MUSTs found in
-the test-behavior spec — TB-12-006 (`timeout = 5`), TB-12-005 (MUST redesign
-"rather than raising the timeout", which forbids what #2270 did), TB-12-003 (BT
-tests < 5 s), TB-13-004 (full suite < 90 s; actual ~9 min) — are retired
-under #3605.
+Spec amendment plus notes, no ADR (user decision). Stale timeout clauses found
+in `specs/testability.yaml` — three MUSTs, TB-12-006 (`timeout = 5`), TB-12-005
+(MUST redesign "rather than raising the timeout", which forbids what #2270 did)
+and TB-12-003 (BT tests < 5 s), plus one SHOULD, TB-13-004 (full suite < 90 s;
+actual ~9 min) — are retired under #3605.
 
 ---
 
